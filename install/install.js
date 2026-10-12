@@ -6439,8 +6439,11 @@ if (VERIFY_FINDINGS > 0) {
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
     console.log("  Each `verify` line above names what was NOT installed and the remedy for it.");
     // THE SAME-RUN COMMAND (D-26, brief MSG-1): every counted verify of the install mode is finished by running install
-    // again for the agents this run chose, built by agentCommand. Printed under DRY_RUN too.
-    console.log(`  Once each is fixed, \`${agentCommand("install.js", TARGET, SELECTION)}\` installs for the same agents again ` +
+    // again for the agents this run chose, built by agentCommand with this run's context (D-33): the absolute script
+    // path, GRUGOPS_HOME when this run used another kit home, and `--symlink` when this run was a symlink install, so
+    // the command run as printed, from any directory, finishes this install and not a copy install or a second kit.
+    // Printed under DRY_RUN too.
+    console.log(`  Once each is fixed, \`${agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT)}\` installs for the same agents again ` +
         `(add any other option this run was given).`);
     // THE MACHINE-READABLE HALF OF THE CONDITIONAL CLAIM (27-21, WR-01). Exit codes: 0 complete,
     // 1 refused or aborted, 2 bad usage, 3 incomplete. Set on the SAME branch that prints the banner

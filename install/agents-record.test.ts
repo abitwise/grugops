@@ -14,7 +14,8 @@
 //   - the unit tables of agentsToRecord, entryHolds and agentCommand (pure; ids taken from HOST_TOOLS, never typed);
 //   - the arm table, one scratch install and uninstall per row, each asserting the expected `agents` and the invariant
 //     (rows R1-R17; R12-R15 are the MSG-1 remedy rows: each runs the command a line printed; R18, plan 34.1-15, is
-//     D-04's retry of a refused agent, the converse the chosen meaning deliberately does not hold);
+//     D-04's retry of a refused agent, the converse the chosen meaning deliberately does not hold; R33, plan 34.1-23,
+//     runs the install INCOMPLETE banner's command of a `--symlink` run as printed, D-33);
 //   - the marker-writer census, by the TypeScript parser: every call of the target write chokepoints (install.ts
 //     writeTargetFile, uninstall.ts rewritePath and unlinkPath; installer-fs-census.test.ts rows
 //     `install.ts:writeTargetFile:writeFileSync`, `uninstall.ts:rewritePath:writeFileSync` and
@@ -38,11 +39,11 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
-import { AGENT_SKILL_REL, HOST_TOOLS, agentCommand, agentFlag, commandContext, entryOwners, scriptCommand, type HostTool } from "./host-tools.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag, commandContext, entryOwners, scriptCommand, type HostTool } from "./host-tools.js";
 import { ASK_RULES_REL, agentsToRecord, entryHolds, readLedger, type LedgerEntry } from "./install-marker.js";
 import {
   INSTALL_JS,
@@ -121,6 +122,21 @@ function ledgerEntries(w: World): readonly LedgerEntry[] {
   const read = readLedger(readMarkerObject(w.target));
   expect(read.state, `the marker's ledger is not well formed (${read.why})`).toBe("ok");
   return read.entries;
+}
+/**
+ * Every path under `roots` that is a symbolic link (lstat), found by a walk that never follows a link, sorted. A root
+ * that does not exist gives nothing.
+ */
+function linksUnder(roots: readonly string[]): string[] {
+  const out: string[] = [];
+  const walk = (p: string): void => {
+    const st = lstatSync(p, { throwIfNoEntry: false });
+    if (st === undefined) return;
+    if (st.isSymbolicLink()) out.push(p);
+    else if (st.isDirectory()) for (const name of readdirSync(p)) walk(join(p, name));
+  };
+  for (const r of roots) walk(r);
+  return out.sort();
 }
 /** Append a line to an installed file and return its bytes as install wrote them. */
 function edit(w: World, rel: string): Buffer {
@@ -609,6 +625,37 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     expect(ledgerEntries(w).some((e) => e.path === AGENT_SKILL_REL), "the Codex CLI entry is still recorded").toBe(false);
     expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
   });
+
+  // R33 (phase 34.1 gap round 2, D-33, plan 34.1-23): the install mode is carried like the kit home. A printed install
+  // command of a `--symlink` run that dropped `--symlink` would run a copy install over the symlink install.
+  it("R33 (D-33): a --symlink run with the Pi write refused prints a banner command that carries --symlink; run as printed from a scratch directory it finishes the install and keeps it a symlink install", () => {
+    const w = world("r33");
+    mkdirSync(at(w.target, ".pi"), { recursive: true });
+    writeFileSync(at(w.target, ".pi/prompts"), "not a directory\n");
+    const chosen = HOST_TOOLS.filter((h) => h.id === "claude" || h.id === "pi");
+    expect(chosen.map((h) => h.id), "premise: the registry has both rows").toEqual(ids("claude", "pi"));
+    const r = runInstall(w.target, w.grugopsHome, ["--symlink", ...chosen.map(agentFlag)], { home: w.home, timeoutMs: 180_000 });
+    finished(r, "install --symlink --claude --pi");
+    expect(r.status, `the Pi write is refused, so the run is incomplete\n${r.stdout}`).toBe(3);
+    expect(readMarkerObject(w.target).installMode, r.stdout).toBe("symlink");
+    const links = linksUnder([w.target, w.grugopsHome]);
+    expect(links.length, "premise: a symlink install made some link (a Claude Code skill), so the check below is not vacuous").toBeGreaterThan(0);
+    const banner = r.stdout.split("\n").filter((l) => l.startsWith("  Once each is fixed, `"));
+    expect(banner, r.stdout).toHaveLength(1);
+    const printed = printedCommand(banner[0]);
+    expect(shellWords(printed), `the printed command of a --symlink run does not carry --symlink: ${printed}`).toContain("--symlink");
+    expect(printed).toBe(agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.grugopsHome, home: w.home, symlink: true })));
+    rmSync(at(w.target, ".pi/prompts"));
+    const fin = runPrintedCommand(banner[0], { home: w.home, timeoutMs: 180_000 });
+    finished(fin, `the printed command ${printed}`);
+    expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
+    expect(fin.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+    expect(fin.status, fin.stdout + fin.stderr).toBe(0);
+    expect(existsSync(at(w.target, PI_PROMPT_REL)), `the Pi template was not written\n${fin.stdout}`).toBe(true);
+    expect(readMarkerObject(w.target).installMode, fin.stdout).toBe("symlink");
+    const notLinks = links.filter((p) => !lstatSync(p).isSymbolicLink());
+    expect(notLinks, `a link the first run made is no longer a link\n${fin.stdout}`).toEqual([]);
+  }, 300_000);
 });
 
 // ── D-32: printed alternatives that touch the marker or its ledger (CR-03) ───────────────────────────────────────────

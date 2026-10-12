@@ -22,8 +22,9 @@
 //   (f) the install-side re-run remedies (every product module except uninstall.ts, whose re-run remedies
 //       install/agents-record.test.ts's uninstall re-run census owns) equal, both ways, RERUN_TABLE, each classed
 //       "same-run command" (a counted verify of the install mode, finished by the command the install INCOMPLETE
-//       banner prints, agentCommand("install.js", TARGET, SELECTION)), "agentCommand", or agent-independent with the
-//       reason; per-class counts are pinned, and each same-run row's path to a counted verify is asserted by the parser.
+//       banner prints, agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT)), "agentCommand", or
+//       agent-independent with the reason; per-class counts are pinned, and each same-run row's path to a counted
+//       verify is asserted by the parser.
 //
 // The tables were derived at execution of plan 34.1-15 (after plan 34.1-14 and this plan's Task 3 landed), not copied
 // from the plan's sibling tables. A new fragment fails here as unclassified; classify it only once the message does
@@ -41,7 +42,18 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag } from "./host-tools.js";
-import { INSTALL_JS, MARKER_REL, printedCommand, runInstall, runPrintedCommandInCheckout, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
+import {
+  INSTALL_JS,
+  MARKER_REL,
+  commandContextFor,
+  printedCommand,
+  runInstall,
+  runPrintedCommand,
+  runPrintedCommandInCheckout,
+  runUninstall,
+  spawnBin,
+  type Run,
+} from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -246,9 +258,9 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "# 1. (installed) the absolute kit path the installer wrote above this line.", "file text", "written into an adapter, not printed", null],
   ["install.ts", "it, re-run `node install/install.js --target <this repository>` from the grugops checkout. The", "file text", "written into a target file, not printed", null],
   ["install.ts", "// owns that grammar: the reader stays where it is declared, and the installer holds no copy of", "file text", "written into a temp mirror, not printed", null],
-  ["install.ts", "Replace the link with a regular file (or remove it) and re-run; the installer never writes", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "adapterDestHazard"],
-  ["install.ts", "Check that the target directory exists and is readable, then re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "adapterDestHazard"],
-  ["install.ts", "a real one, or install into the directory the link points at, and re-run; the installer only", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "adapterDestHazard"],
+  ["install.ts", "Replace the link with a regular file (or remove it) and re-run; the installer never writes", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
+  ["install.ts", "Check that the target directory exists and is readable, then re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
+  ["install.ts", "a real one, or install into the directory the link points at, and re-run; the installer only", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
   ["install.ts", "— run install.js (then install.js --check)", "agent-independent: doctor, recorded agents", "no install is recorded: install with no agent flag detects the agents or refuses naming every flag (D-03)", null],
   ["install.ts", "re-run install.js (then install.js --check)", "agent-independent: doctor, recorded agents", "no usable marker: install with no agent flag detects the agents or refuses naming every flag (D-03)", null],
   ["install.ts", "and re-run install.js, which links or copies the current kit", "agent-independent: doctor, recorded agents", "install's own link for an agent recorded here: install with no agent flag chooses the recorded agents (D-03)", null],
@@ -279,29 +291,29 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "file, or remove it, and re-run.", "agent-independent: shared footprint", "the temporary directory the render runs in, which no agent flag changes", null],
   ["install.ts", "was installed. Check that the system temporary directory is writable and re-run.", "agent-independent: shared footprint", "the temporary directory the render runs in, which no agent flag changes", null],
   ["install.ts", "installed. Re-run the installer from a complete kit checkout.", "agent-independent: shared footprint", "the kit checkout the render runs from, which no agent flag changes", null],
-  ["install.ts", "and not unlinked, and nothing was written. Replace it with a regular file (or remove it) and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "kitDestDecision"],
-  ["install.ts", "re-run with --backup-edited-kit to back them up and refresh the whole kit, or restore them first", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION); the verify names --backup-edited-kit itself", "kitWriteDecision"],
-  ["install.ts", "(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION); the verify names --backup-edited-kit itself", "verify"],
+  ["install.ts", "and not unlinked, and nothing was written. Replace it with a regular file (or remove it) and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "kitDestDecision"],
+  ["install.ts", "re-run with --backup-edited-kit to back them up and refresh the whole kit, or restore them first", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT); the verify names --backup-edited-kit itself", "kitWriteDecision"],
+  ["install.ts", "(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT); the verify names --backup-edited-kit itself", "verify"],
   ["install.ts", "is still the old layout. Resolve each verify above and re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's pre-check: the migrate INCOMPLETE banner, the shared layout", null],
-  ["install.ts", "unknown. No skill was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "unknown. No adapter was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "as it was. Re-run the installer from a complete kit checkout whose adapter directory", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
+  ["install.ts", "unknown. No skill was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "unknown. No adapter was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "as it was. Re-run the installer from a complete kit checkout whose adapter directory", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
   ["install.ts", "was rendered without the installer's kit slot line, so it", "not a remedy", "names the installer's kit slot line; asks for nothing", null],
-  ["install.ts", "left as it was. Re-run the installer from a kit checkout whose generator and installer", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "left as it was. Re-run the installer from a kit checkout whose generator and installer", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "directory and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "installed. Fix the permissions on it or restore the checkout, then re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "Remove the cross-linked symlinks under the adapter directory and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "path. Re-run the installer from a kit checkout whose skill and adapter names are distinct.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "they are ONE path, and the second write would overwrite the first. Re-run the installer from", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "refusals.push"],
-  ["install.ts", "was left exactly as it was. Resolve each verify above and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "report"],
-  ["install.ts", "verify above and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "report"],
+  ["install.ts", "left as it was. Re-run the installer from a kit checkout whose generator and installer", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "left as it was. Re-run the installer from a kit checkout whose generator and installer", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "directory and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "installed. Fix the permissions on it or restore the checkout, then re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "Remove the cross-linked symlinks under the adapter directory and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "path. Re-run the installer from a kit checkout whose skill and adapter names are distinct.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "they are ONE path, and the second write would overwrite the first. Re-run the installer from", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
+  ["install.ts", "was left exactly as it was. Resolve each verify above and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "report"],
+  ["install.ts", "verify above and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "report"],
   ["install.ts", "and the marker was left as it was. Fix or remove the marker, then re-run the installer.", "agent-independent: shared footprint", "the marker, which every install writes (D-06)", null],
   ["install.ts", "added and the ledger is written back unchanged. Fix the ledger field, then re-run the installer.", "agent-independent: shared footprint", "the marker's ledger, which every install writes (D-06)", null],
-  ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "verify"],
-  ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "verify"],
-  ["install.ts", "known — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "verify"],
-  ["install.ts", "is not a JSON object — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", "verify"],
+  ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
+  ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
+  ["install.ts", "known — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
+  ["install.ts", "is not a JSON object — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
   ["install.ts", "; the installer never", "agentCommand", "the head of the ask-rules left line, whose remedy is agentCommand", null],
   ["install.ts", "left as it was. Fix or remove the marker, then re-run the installer.", "agent-independent: shared footprint", "the marker, which every install writes (D-06)", null],
   ["user-file.ts", "is a symbolic link, and the installer never writes through a link it did not create", "not a remedy", "says what the installer never does", null],
@@ -448,7 +460,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     }
   });
 
-  it("(f) the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION)", () => {
+  it("(f) the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", () => {
     const src = sourceOf("install.ts");
     const hits: string[] = [];
     const visit = (n: ts.Node): void => {
@@ -461,7 +473,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
       ts.forEachChild(n, visit);
     };
     visit(src);
-    expect(hits).toEqual(['"install.js", TARGET, SELECTION']);
+    expect(hits).toEqual(['"install.js", TARGET, SELECTION, COMMAND_CONTEXT']);
   });
 });
 
@@ -617,10 +629,13 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
       const at0 = lines.findIndex((l) => l.startsWith("  Each `verify` line above names"));
       expect(at0, r.stdout).toBeGreaterThan(-1);
       const banner = lines[at0 + 1] ?? "";
-      expect(banner).toContain(`\`${agentCommand("install.js", w.target, [claude])}\``);
+      expect(banner).toContain(`\`${agentCommand("install.js", w.target, [claude], commandContextFor({ grugopsHome: w.kitHome, home: w.home }))}\``);
       expectReferences([["install --claude", r]]);
       writeFileSync(at(w, ".claude/settings.json"), "{}\n");
-      const ran = runPrintedCommandInCheckout(banner, { grugopsHome: w.kitHome, home: w.home, timeoutMs: 180_000 });
+      // Run as printed in the user's environment (D-33, WR-19): a scratch directory outside the checkout, with no
+      // GRUGOPS_HOME the printed text does not set (the world's kit home is the default under its HOME).
+      const ran = runPrintedCommand(banner, { home: w.home, timeoutMs: 180_000 });
+      expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
       expect(ran.status, ran.stdout + ran.stderr).toBe(0);
       const ask = (JSON.parse(readFileSync(at(w, ".claude/settings.json"), "utf8")) as { permissions?: { ask?: unknown } }).permissions?.ask;
       expect(Array.isArray(ask) && ask.length > 0, `no ask rule was written: ${JSON.stringify(ask)}`).toBe(true);

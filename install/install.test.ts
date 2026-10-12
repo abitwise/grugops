@@ -138,7 +138,7 @@ import { realTargetPath } from "./user-file.js";
 // Plan 34.1-06 (D-23): the adapter kinds every install before this phase wrote, the one statement of the legacy rule.
 import { LEGACY_ADAPTER_KINDS } from "./install-marker.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
-import { ALL_AGENT_FLAGS, MARKER_REL, lineNamesPath, pathText, spawnBin, withAgentFlags } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, pathText, spawnBin, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
 const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
@@ -11136,7 +11136,7 @@ describe("MSG-1: install-side messages name a command or a README section (D-26)
       expect(r.status, r.stdout + r.stderr).toBe(3);
       expect(r.stdout).toContain("install INCOMPLETE");
       expect(bannerCommandLine(r.stdout)).toBe(
-        `  Once each is fixed, \`${agentCommand("install.js", target, [hostOf("claude")])}\` installs for the same agents again (add any other option this run was given).`,
+        `  Once each is fixed, \`${agentCommand("install.js", target, [hostOf("claude")], commandContextFor({ grugopsHome: home }))}\` installs for the same agents again (add any other option this run was given).`,
       );
       expect(decisionIdLines(r.stdout + r.stderr, target, home), "T6: a decision ID in the run").toEqual([]);
     }, 240_000);
