@@ -226,6 +226,15 @@ if (USAGE_ERROR !== null) {
   process.stderr.write(`uninstall.js: ${USAGE_ERROR}\n`);
   process.exit(2);
 }
+/**
+ * rerunCommand (plan 34.1-14, D-26; brief MSG-1): this run's own command, built by host-tools.ts agentCommand from the
+ * parsed flags (the HOST_TOOLS rows whose id is in REMOVE, in registry order), for a verify whose remedy is "fix the
+ * cause, then run this again". It is built from the arguments, so it is right before any marker read, and it never
+ * widens a per-agent run into a flag-less one (a flag-less uninstall removes every agent, D-05).
+ */
+function rerunCommand(): string {
+  return agentCommand("uninstall.js", TARGET, HOST_TOOLS.filter((h) => REMOVE.has(h.id)));
+}
 
 const SCRIPT_DIR = import.meta.dirname;
 const GRUGOPS_SRC = process.env.GRUGOPS_SRC ? resolve(process.env.GRUGOPS_SRC) : resolve(SCRIPT_DIR, "..");
@@ -1328,7 +1337,7 @@ function removeAskRules(): Outcome {
   if (!doc.ok || doc.root.kind !== "object") {
     verify(
       `${rel} ${doc.ok ? "is not a JSON object" : doc.why} — left untouched; the ${ledger.size} ask rule(s) grugops ` +
-        `added were NOT removed. Fix the file, then re-run the uninstaller or remove them by hand.`,
+        `added were NOT removed. Fix the file, then run \`${rerunCommand()}\` again, or remove them by hand.`,
     );
     return "verify";
   }
@@ -1586,11 +1595,12 @@ function removeMarker(): MarkerOutcome {
         ? `${nameList(UNFINISHED)} ${UNFINISHED.length === 1 ? "stays" : "stay"} recorded in its \`agents\` list until ` +
           `the reversal is finished; `
         : "";
+    // With nothing held, the marker was kept for a recorded verify: the remedy is the cause the verify line names.
+    const once = held.length > 0 ? "once each named item is removed or restored" : "once the cause in each verify line above is fixed";
     report(
       "left",
-      `${MARKER_REL} (kept: ${why}, so the record a later run needs to finish the reversal is kept; ${recorded}once ` +
-        `each named item is removed or restored, \`${finishCommand()}\` finishes the reversal; or delete the marker ` +
-        `by hand to keep them without a record)`,
+      `${MARKER_REL} (kept: ${why}, so the record a later run needs to finish the reversal is kept; ${recorded}${once}, ` +
+        `\`${finishCommand()}\` finishes the reversal; or delete the marker by hand to keep them without a record)`,
     );
     if (RECORDED_VERIFIES === 0) KEPT_FOR = held.length;
     return { kind: "kept", rewrite: updateKeptMarker(m, MARKER.marker, MARKER.bytes) };
@@ -2336,17 +2346,18 @@ if (MARKER_READ.state === "unbound") {
       `.grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its ` +
         `records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same ` +
         `repository moved or renamed${MARKER_READ.boundTo !== null ? ` from ${MARKER_READ.boundTo}` : ""}, set "target" in the marker to ` +
-        `${JSON.stringify(here)} and re-run uninstall. Otherwise re-run install.js here: it writes a marker for this ` +
-        `directory and carries none of these records, so what an earlier install made here is then left and reported, ` +
-        `for you to remove by hand.`,
+        `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise re-run install.js here, with any agent ` +
+        `flag (every install writes a marker for this directory, whatever agents it names): it carries none of these ` +
+        `records, so what an earlier install made here is then left and reported, for you to remove by hand.`,
     );
   } else {
     // D-31 item 5's remedy, for a marker written before markers were bound (no-target) or before the
     // one ledger (no-ledger): neither carries a record this build reads.
     verify(
       `.grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of ` +
-        `its records is used here, and this run removes and edits nothing. Re-run install.js here, then uninstall: ` +
-        `install writes a marker for this directory with the install ledger and carries none of these records, so ` +
+        `its records is used here, and this run removes and edits nothing. Re-run install.js here, then uninstall ` +
+        `with \`${rerunCommand()}\`: install, with any agent flag (every install writes the marker, whatever agents ` +
+        `it names), writes a marker for this directory with the install ledger and carries none of these records, so ` +
         `what an earlier install made here is then left and reported, for you to remove by hand.`,
     );
   }
@@ -2361,7 +2372,8 @@ if (MARKER_READ.state === "unbound") {
     `.grugops/install.json holds a malformed install ledger (${LEDGER.why}), so what install created, wrote and ` +
       `changed here is unknown. No empty directory, no file install may have created, no grugops skill or adapter ` +
       `file and no pointer block is removed, .gemini/settings.json is not edited and no ask rule is removed — fix ` +
-      `the ledger field and re-run uninstall, or remove them by hand once you have confirmed they are yours to remove.`,
+      `the ledger field and run \`${rerunCommand()}\` again, or remove them by hand once you have confirmed they are ` +
+      `yours to remove.`,
   );
 }
 
@@ -2543,6 +2555,12 @@ if (VERIFY_FINDINGS > 0) {
       `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
   );
   console.log("  Each `verify` line above names what was NOT removed and the remedy for it.");
+  // MSG-1 (D-26): when removeMarker kept the marker as the record a later run needs (kind kept), or could not rewrite
+  // it on a partial run (so it still records the agents this run set out to remove), the command that finishes the
+  // reversal is printed. A DRY_RUN preview prints the command the real run would.
+  if (markerOutcome.kind === "kept" || (markerOutcome.kind === "kept-for-agents" && markerOutcome.rewrite === "not-rewritten")) {
+    console.log(`  Then run \`${finishCommand()}\` to finish the reversal.`);
+  }
   // THE MACHINE-READABLE HALF OF THE CONDITIONAL CLAIM (27-21, WR-01) — the same rule and the same
   // code list as install.ts's tail: 0 complete, 1 refused or aborted, 2 bad usage, 3 incomplete.
   // Set on the SAME branch that prints the banner so the two signals cannot diverge. The two

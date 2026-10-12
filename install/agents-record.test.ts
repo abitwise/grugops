@@ -13,12 +13,15 @@
 // WHAT IS HELD HERE.
 //   - the unit tables of agentsToRecord, entryHolds and agentCommand (pure; ids taken from HOST_TOOLS, never typed);
 //   - the arm table, one scratch install and uninstall per row, each asserting the expected `agents` and the invariant
-//     (rows R1-R11, R16, R17; Task 3 of plan 34.1-14 adds R12-R15);
+//     (rows R1-R17; R12-R15 are the MSG-1 remedy rows: each runs the command a line printed);
 //   - the marker-writer census, by the TypeScript parser: every call of the target write chokepoints (install.ts
 //     writeTargetFile, uninstall.ts rewritePath and unlinkPath; installer-fs-census.test.ts rows
 //     `install.ts:writeTargetFile:writeFileSync`, `uninstall.ts:rewritePath:writeFileSync` and
 //     `uninstall.ts:unlinkPath:unlinkSync` pin them as the one whole-file writer, the one rewrite and the one removal
-//     under TARGET), classed both ways against a table, with the count of each pinned.
+//     under TARGET), classed both ways against a table, with the count of each pinned;
+//   - the uninstall re-run census (MSG-1): every string fragment of install/uninstall.ts that says to run uninstall
+//     again sits in a string expression that prints an agentCommand-built command (rerunCommand or finishCommand),
+//     so no remedy sends a per-agent run into a flag-less uninstall, which removes every agent (D-05).
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -27,7 +30,7 @@
 // Clear professional voice: this is test infrastructure for an installer safety surface. Vitest `globals: false`.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
@@ -42,8 +45,9 @@ import {
   runPrintedCommand,
   runUninstall,
   shellWords,
+  snapshotTree,
 } from "./installer-paths.test-support.js";
-import { readMarkerObject } from "./ledger.test-support.js";
+import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-agents-record-")));
@@ -375,6 +379,112 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
   });
 });
 
+// ── the MSG-1 remedy rows: each runs the command a line printed ─────────────────────────────────────────────────
+
+/** Why a directory mode cannot block a removal here, or null when the chmod row can run (the marker-rule tests' gate). */
+const CHMOD_SKIP: string | null =
+  process.platform === "win32"
+    ? "win32: a directory mode does not stop a removal"
+    : typeof process.getuid === "function" && process.getuid() === 0
+      ? "running as root: a directory mode does not stop root's removal"
+      : null;
+if (CHMOD_SKIP !== null) console.log(`SKIP R12 of agents-record.test.ts — ${CHMOD_SKIP}`);
+
+const linesWith = (stdout: string, label: string): string[] => stdout.split("\n").filter((l) => new RegExp(`^ {2}${label}\\s`).test(l));
+/** A bare re-run remedy: "re-run uninstall" or "re-run the uninstaller" with no printed command on the same line. */
+const BARE_RERUN = /re-?run (the )?uninstall(er)?\b/i;
+
+describe("MSG-1: every kept arm and every re-run remedy prints a command that, run, finishes the job", () => {
+  it.skipIf(CHMOD_SKIP !== null)(
+    "R12: a recorded verify on a flag-less run (read-only .claude/agents) exits 3, keeps the marker, and the INCOMPLETE banner prints the flag-less command; undo the cause and run it: exit 0, the marker removed",
+    () => {
+      const w = world("r12");
+      install(w, [flag("claude"), flag("codex")]);
+      const agentsDir = at(w.target, ".claude/agents");
+      chmodSync(agentsDir, 0o555); // mode-census: access-denial
+      let r: Run;
+      try {
+        r = uninstall(w, []);
+      } finally {
+        chmodSync(agentsDir, 0o755); // mode-census: restore
+      }
+      expect(r.status, r.stdout).toBe(3);
+      expect(existsSync(at(w.target, MARKER_REL)), r.stdout).toBe(true);
+      expect(agentsOf(w), r.stdout).toEqual(ids("claude"));
+      expectInvariant(w, ids("claude", "codex"), r.stdout);
+      const flagless = agentCommand("uninstall.js", w.target, []);
+      expect(r.stdout, "the INCOMPLETE banner does not print the finishing command").toContain(`  Then run \`${flagless}\` to finish the reversal.`);
+      expect(printedFlags(r.stdout), r.stdout).toEqual([]);
+      const fin = runPrinted(w, r.stdout);
+      expect(fin.status, fin.stdout).toBe(0);
+      expect(markerGone(w), fin.stdout).toBe(true);
+    },
+    300_000,
+  );
+
+  it("R13: the DRY_RUN preview of R4 changes zero bytes and prints the command the real run prints", () => {
+    const w = world("r13");
+    install(w, [flag("claude"), flag("codex")]);
+    edit(w, CLAUDE_SKILL);
+    const before = snapshotTree(w.target);
+    const dry = uninstall(w, [flag("claude")], true);
+    expect(dry.status, dry.stdout).toBe(0);
+    expect(snapshotTree(w.target), `the DRY_RUN preview changed the tree\n${dry.stdout}`).toBe(before);
+    const real = uninstall(w, [flag("claude")]);
+    expect(real.status, real.stdout).toBe(0);
+    expect(printedCommand(dry.stdout), dry.stdout).toBe(printedCommand(real.stdout));
+    expect(printedCommand(real.stdout)).toBe(agentCommand("uninstall.js", w.target, [row("claude")]));
+  });
+
+  it("R14 (removeAskRules): a settings file that is not a JSON object prints this run's own command; restored, that command removes the ask rules and records [codex]", () => {
+    const w = world("r14");
+    install(w, [flag("claude"), flag("codex")]);
+    const settings = at(w.target, ASK_RULES_REL);
+    const saved = readFileSync(settings);
+    const createdByInstall = (ledgerEntries(w).find((e) => e.kind === "ask-rules") as { createdFile?: boolean } | undefined)?.createdFile === true;
+    writeFileSync(settings, "[]\n");
+    const r = uninstall(w, [flag("claude")]);
+    expect(r.status, r.stdout).toBe(3);
+    const own = agentCommand("uninstall.js", w.target, [row("claude")]);
+    const named = linesWith(r.stdout, "verify").filter((l) => l.includes(ASK_RULES_REL));
+    expect(named.length, r.stdout).toBeGreaterThan(0);
+    expect(named.some((l) => l.includes(`\`${own}\``)), `the settings verify does not print ${own}\n${r.stdout}`).toBe(true);
+    expect(r.stdout.split("\n").filter((l) => BARE_RERUN.test(l)), "a bare re-run remedy").toEqual([]);
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+    expectInvariant(w, ids("claude", "codex"), r.stdout);
+    writeFileSync(settings, saved);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.status, fin.stdout).toBe(0);
+    if (createdByInstall) {
+      expect(existsSync(settings), `install created ${ASK_RULES_REL}, and it is still there\n${fin.stdout}`).toBe(false);
+    } else {
+      expect(readFileSync(settings, "utf8"), fin.stdout).not.toMatch(/Bash\(/);
+    }
+    expect(agentsOf(w), fin.stdout).toEqual(ids("codex"));
+  });
+
+  it("R15 (malformed ledger): the verify prints this run's own command; with the marker restored, that command removes Codex CLI's entry and records [claude]", () => {
+    const w = world("r15");
+    install(w, [flag("claude"), flag("codex")]);
+    const markerPath = at(w.target, MARKER_REL);
+    const saved = readFileSync(markerPath);
+    writeFileSync(markerPath, JSON.stringify(withLedger(readMarkerObject(w.target), (es) => [...es, { kind: "file" }]), null, 2) + "\n");
+    const r = uninstall(w, [flag("codex")]);
+    expect(r.status, r.stdout).toBe(3);
+    const own = agentCommand("uninstall.js", w.target, [row("codex")]);
+    const named = linesWith(r.stdout, "verify").filter((l) => /malformed install ledger/.test(l));
+    expect(named.length, r.stdout).toBe(1);
+    expect(named[0], r.stdout).toContain(`\`${own}\``);
+    expect(r.stdout.split("\n").filter((l) => BARE_RERUN.test(l)), "a bare re-run remedy").toEqual([]);
+    writeFileSync(markerPath, saved);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.status, fin.stdout).toBe(0);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+    expect(ledgerEntries(w).some((e) => e.path === AGENT_SKILL_REL), "the Codex CLI entry is still recorded").toBe(false);
+    expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
+  });
+});
+
 // ── the marker-writer census (TypeScript parser) ─────────────────────────────────────────────────────────────────
 
 /** A parsed product module. */
@@ -535,5 +645,52 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
     // install.ts writeMarker's one property (agentsToRecord, above), and uninstall.ts withAgentsAndLedger's two
     // assignments of its `agents` parameter, which its one caller passes agentsAfter() (above). Pinned: 3.
     expect(sites.sort()).toEqual(["install.ts:writeMarker:property", "uninstall.ts:withAgentsAndLedger:element", "uninstall.ts:withAgentsAndLedger:element"]);
+  });
+});
+
+// ── the uninstall re-run census (MSG-1, TypeScript parser) ───────────────────────────────────────────────────────
+
+/** A fragment that says to run uninstall (or the uninstaller) again. */
+const RERUN_FRAGMENT = /\bre-?run\b|\bthe uninstaller\b|\bthen uninstall\b/i;
+/** The builders of a printed uninstall command in install/uninstall.ts, both on agentCommand. */
+const COMMAND_BUILDERS: ReadonlySet<string> = new Set(["rerunCommand", "finishCommand"]);
+/**
+ * The fragments of install/uninstall.ts matching RERUN_FRAGMENT, measured 2026-10-12 (plan 34.1-14): 2. Both are in the
+ * module-top unbound-marker verifies ("Otherwise re-run install.js here" and "Re-run install.js here, then uninstall"),
+ * and each sits beside rerunCommand. The 6 fragments at HEAD 2e10cba9 were 4 bare re-run remedies (removeAskRules, the
+ * kept `left` line, the malformed-ledger verify, the KEPT_FOR banner) that now print the command instead, and these 2.
+ */
+const RERUN_FRAGMENT_COUNT = 2;
+
+describe("the uninstall re-run census (MSG-1)", () => {
+  it("every uninstall.ts fragment that says to run uninstall again sits in a string expression that prints rerunCommand or finishCommand", () => {
+    const sf = parse("install/uninstall.ts");
+    const fragments: ts.Node[] = nodesOf(sf, (n): n is ts.Node =>
+      (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) &&
+      RERUN_FRAGMENT.test((n as ts.LiteralLikeNode).text),
+    );
+    const bare: string[] = [];
+    for (const f of fragments) {
+      // The string expression holding the fragment: its template literal, then the maximal `+` chain around it.
+      let expr: ts.Node = ts.isTemplateLiteralToken(f) && !ts.isNoSubstitutionTemplateLiteral(f) ? f.parent.parent : f;
+      while (
+        (ts.isBinaryExpression(expr.parent) && expr.parent.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
+        ts.isParenthesizedExpression(expr.parent)
+      ) {
+        expr = expr.parent;
+      }
+      const prints = nodesOf(expr, ts.isCallExpression).some((c) => COMMAND_BUILDERS.has(calleeName(c) ?? ""));
+      if (!prints) bare.push(`uninstall.ts:${sf.getLineAndCharacterOfPosition(f.getStart(sf)).line + 1} ${JSON.stringify((f as ts.LiteralLikeNode).text.slice(0, 80))}`);
+    }
+    expect(bare, "a re-run remedy with no printed command").toEqual([]);
+    expect(fragments.length, "the re-run fragment count moved").toBe(RERUN_FRAGMENT_COUNT);
+  });
+
+  it("rerunCommand and finishCommand are built by agentCommand", () => {
+    const sf = parse("install/uninstall.ts");
+    for (const name of COMMAND_BUILDERS) {
+      const fn = functionNamed(sf, name);
+      expect(callsOf(fn, "agentCommand").length, `${name} does not call agentCommand`).toBeGreaterThan(0);
+    }
   });
 });

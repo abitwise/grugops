@@ -70,8 +70,10 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * agent-picker.test.ts, which has no chmod call and no expected mode (it drives a pure key decoder and reads no file).
  * 35 since plan 34.1-13 added host-entry-docs.test.ts, which has no chmod call and no expected mode (it reads tracked
  * markdown text only).
- * 36 since plan 34.1-14 added agents-record.test.ts, which has no chmod call and no expected mode (it compares the
- * marker's `agents` list and ledger entries, and parses product source).
+ * 36 since plan 34.1-14 added agents-record.test.ts, which has no expected mode (it compares the marker's `agents`
+ * list and ledger entries, and parses product source) and two tagged chmod calls, counted under rule (a) below: row R12
+ * takes the write bit from `.claude/agents` (access-denial, gated on win32 and root as the marker-rule tests are) and
+ * gives it back in a `finally` (restore).
  * SOURCE_FILE_COUNT is 9 since plan 34.1-12 added install/agent-picker.ts, which imports nothing, renders no mode and
  * compares none (it is the checkbox list's pure state machine). */
 const INSTALL_TEST_FILE_COUNT = 36;
@@ -81,10 +83,12 @@ const SOURCE_FILE_COUNT = 9;
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
  * 10 -> 9 and restore 18 -> 16 on 2026-10-11 (plan 34.1-03, D-12): settings-json-provenance.test.ts lost B2 (a mode-000
  * Gemini settings file and its restore, deleted with the Gemini merge) and its afterAll restore, which only that case
- * needed; measured per file and kind by this census's own failure message. */
+ * needed; measured per file and kind by this census's own failure message. access-denial 9 -> 10 and restore 16 -> 17
+ * on 2026-10-12 (plan 34.1-14): agents-record.test.ts row R12 (a recorded verify on a flag-less run, from a read-only
+ * `.claude/agents`, the marker-rule tests' pattern) and its `finally` restore. */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 9,
-  restore: 16,
+  "access-denial": 10,
+  restore: 17,
   "row-315": 5,
   "posix-bits": 2,
 };

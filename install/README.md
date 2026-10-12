@@ -781,6 +781,20 @@ record first, as described below.
   install ledger in `.grugops/install.json`, and its `agents` list drops the agents you removed. The
   closing line names both sets, for example `== uninstall complete — agents removed: Codex CLI; still
   installed: Claude Code ==`.
+- **An agent whose recorded file you edited stays in the `agents` list.** The run leaves that file
+  byte for byte, names it on a `left` line, and prints the command that finishes the reversal, for
+  example `node install/uninstall.js --target /path/to/repo --claude`. Run it once you have removed
+  or restored the file. Until then the closing line names the agent as not finished, for example
+  `== uninstall complete — 1 recorded item(s) left in place; .grugops/install.json kept to record
+  them — agents removed: none; not finished, still recorded: Claude Code; still installed: Codex CLI ==`.
+- **A flag-less uninstall that leaves a recorded file prints the flag-less command.** The agents
+  that own the file stay recorded; a file no agent owns (the kit's `AGENTS.md` copy, `tools/grugops/`)
+  keeps no agent recorded. Run the printed command once the file is removed or restored.
+- **A `verify` line that asks you to fix something first prints the command you ran.** A
+  `.claude/settings.json` that is not a JSON object, or a malformed install ledger, is left
+  untouched; the `verify` line names the cause and the same command, `--target` and agent flags
+  included, to run again once the cause is fixed. It never tells you to run a flag-less uninstall
+  after a per-agent one: a flag-less uninstall removes every agent.
 - **A flag for an agent that is not installed here changes nothing.** A `note` line says so, and the
   run exits `0`. "Installed" means what the marker records: its `agents` list, or, for an install
   made before 34.1, the agents described in "Which agents an unattended install is for". It never
@@ -947,8 +961,9 @@ with
 `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==`.
 Either way the kept marker is rewritten to list only what is still there: what the run
 removed or reversed is taken out of it, so a later run cannot act on a record of it. Fix the cause,
-or remove or restore the file a `left` line names, and re-run the uninstaller: it finishes the
-reversal and then removes the marker. To keep an edited file for good, delete `.grugops/install.json`
+or remove or restore the file a `left` line names, and run the command the run printed (the `left`
+line about the marker and the closing lines name it, with your `--target` and the agent flags still
+to finish): it finishes the reversal, and it removes the marker once the marker records nothing more. To keep an edited file for good, delete `.grugops/install.json`
 by hand after the run; the uninstaller then has no record and changes nothing more. A `CLAUDE.md` or
 Copilot file install created, whose grugops block was removed and which still holds lines of yours,
 does not keep the marker: what is left in it is yours. Directories and backups install recorded do
