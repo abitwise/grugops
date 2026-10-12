@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-12-PLAN.md
-last_updated: "2026-10-12T03:23:57.283Z"
-state_head: c86d1bb8cb3838eb4ba41844b097728ccdcd0d6d
+stopped_at: Completed 34.1-13-PLAN.md
+last_updated: "2026-10-12T04:07:05.959Z"
+state_head: 4ccd536ab782b0af0bd022df5d1ce892b6f0d6e2
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 404
-  completed_plans: 403
+  completed_plans: 404
   percent: 100
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -664,6 +664,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P10 | 100min | 3 tasks | 8 files |
 | Phase 34.1 P11 | 45min | 3 tasks | 7 files |
 | Phase 34.1 P12 | 55min | 2 tasks | 13 files |
+| Phase 34.1 P13 | 38min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -1830,6 +1831,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-12: the agent checkbox list is a pure state machine (install/agent-picker.ts) with a raw-mode reader in install.ts (pickAgents); readStdin is the one stdin read
 - [Phase 34.1]: 34.1-12: an empty confirm refuses with 'no agent was checked at the agent list' plus refuseSelection's flag list, not the D-03 'none recorded, none detected' clause, which would be false after unchecking
 - [Phase 34.1]: 34.1-12: render counts screen lines against the terminal width (the 116-character header wraps at 80 columns)
+- [Phase 34.1]: 34.1-13: the D-21 Codex invocation rule is held per sentence by install/host-entry-docs.test.ts (derived from HOST_TOOLS); sentences that must mention the shared skill name the flags --codex/--antigravity
+- [Phase 34.1]: 34.1-13: two unreleased install-side Gemini CHANGELOG Fixed lines made false by D-12 were removed; no released section changed
 
 ### Pending Todos
 
@@ -1960,8 +1963,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-12T03:23:56.760Z
-Stopped at: Completed 34.1-12-PLAN.md
+Last session: 2026-10-12T04:07:05.430Z
+Stopped at: Completed 34.1-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
