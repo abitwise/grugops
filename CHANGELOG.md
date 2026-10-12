@@ -88,9 +88,9 @@ CLI with Antigravity CLI.
   the host registry: `--claude`, `--codex`, `--antigravity`, `--opencode`, `--copilot` and `--pi`.
   There is no all-agents flag. A run writes the shared files (`AGENTS.md`, `tools/grugops/`, the
   per-repo state and the install marker) and the entries of the agents it is for, and records the
-  installed agents in a new `agents` field of `.grugops/install.json`. Install only adds: naming fewer
-  agents than are installed keeps the others' files and records, and the closing notes name the
-  agents left installed and the uninstall command that removes one (34.1 D-04). The closing notes
+  agents chosen for the repository and not yet removed in a new `agents` field of
+  `.grugops/install.json`. Install only adds: naming fewer agents than are installed keeps the
+  others' files and records, and the closing notes name the agents left installed and the uninstall command that removes one (34.1 D-04). The closing notes
   also give each chosen agent's invocation as its documentation states it, and say that grugops has
   not run it on a live host (`UNKNOWN - verify`, 34.1 D-19, D-21). An agent flag combined with
   `--check`, `--update` or `--prune-old-kit` is bad usage, exit `2` (34.1 D-25). The contract is in
@@ -407,6 +407,26 @@ CLI with Antigravity CLI.
   whether it was recorded, instead of saying nothing was changed, and ends INCOMPLETE with exit `3`
   after a counted `verify`. Uninstall's closing list of what it preserved now says what happened to
   the install marker (34 D-25).
+- `uninstall.js` with an agent flag, over a recorded file you edited, keeps that agent recorded in
+  `.grugops/install.json` and prints the command that finishes the reversal. It used to drop the
+  agent from the record while its file stayed in place, so the per-agent uninstall could never be
+  finished (34.1 review CR-02).
+- Messages that ask you to fix something and run the installer or uninstaller again print the exact
+  command, with the agent flags of the run, so a per-agent uninstall never points you at a command
+  that removes every agent. A failed install's closing banner prints the command that installs for
+  the same agents again.
+- Install's note about an entry file of an agent not chosen in the run gives the command that writes
+  it. It used to point at a line above that the run had not printed (34.1 review WR-17).
+- `install.js --check` names a recorded agent with nothing installed in a note with the install
+  command, instead of a line saying whether that agent reaches the kit (34.1 review IN-21).
+- Uninstall removes the empty OpenCode `permission` and `external_directory` objects install created,
+  and the `opencode.json` install created when only install's emptied file is left, even after you
+  removed the rule yourself (34.1 review IN-20).
+- Uninstall names a blank `CLAUDE.md` or `.github/copilot-instructions.md` that install created and
+  whose grugops block you removed, and keeps it for you to delete, instead of leaving it unnamed.
+- The agent list at a terminal restores the cursor and raw mode even when one restore step fails
+  (34.1 review IN-18).
+- Installer messages no longer cite planning decision IDs (34.1 review IN-22).
 
 ### Security
 
