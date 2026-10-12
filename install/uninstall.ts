@@ -133,6 +133,7 @@ import {
   askRulesEntry,
   GEMINI_SETTINGS_REL,
   createdGeminiText,
+  createdOpenCodeText,
   ASK_RULES_REL,
   BLOCK_RELS,
   blockLineSpans,
@@ -160,7 +161,7 @@ import {
 } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
-import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue, type JsonNode } from "./json-text.js";
+import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue, firstDuplicateKey, type JsonNode } from "./json-text.js";
 // DC-3 (plan 33.1-27): the ONE bounded reader of a user path, shared with install.ts. readForWrite is
 // its no-follow form for a path this run may edit, wayTo the same walk for a path removed by name,
 // and kindAt names what is at a path. isOwnLink is
@@ -170,7 +171,7 @@ import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPa
 // Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
 // per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry";
 // ADAPTER_FOOTPRINT gives the report pass its directory candidates (reportDirCandidates).
-import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, agentFlag, hostForFlag, entryOwners, type HostTool, type HostAdapterKind } from "./host-tools.js";
+import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, type HostTool, type HostAdapterKind } from "./host-tools.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -292,9 +293,9 @@ let RECORDED_VERIFIES = 0;
 
 // THE MARKER RULE (plan 33.1-39, review WR-02, D-33 (b)). The marker is the only record of what install
 // wrote, so it is removed only once that record is discharged: no verify was counted for a recorded entry,
-// and every entry whose content install wrote (file, block, gemini, ask-rules) was removed, reversed, or
+// and every entry whose content install wrote (file, block, gemini, ask-rules, opencode-permission) was removed, reversed, or
 // found already gone, or claims nothing. Directory and backup entries do not hold it (see the header).
-const HOLDING_KINDS: ReadonlySet<string> = new Set(["file", "block", "gemini", "ask-rules"]);
+const HOLDING_KINDS: ReadonlySet<string> = new Set(["file", "block", "gemini", "ask-rules", "opencode-permission"]);
 const DISCHARGED: ReadonlySet<Outcome> = new Set<Outcome>(["removed", "gone", "reversed"]);
 /** A gemini or ask-rules entry that records nothing install added or created: there is nothing of install's to reverse. */
 function entryClaimsNothing(e: LedgerEntry): boolean {
@@ -1671,7 +1672,7 @@ function markerOutcomeLine(o: MarkerOutcome): string {
 // would remove it on that record. So a well-formed install ledger is rewritten FROM OUTCOMES, through the
 // one serializer (ledgerJson):
 //   removed, gone        the entry is dropped (nothing of install's is there any more);
-//   reversed             a file or block entry is dropped (install's content in it was taken out; what is
+//   reversed             a file, block or opencode-permission entry is dropped (install's content in it was taken out; what is
 //                        left is the user's); a gemini or ask-rules entry is replaced by its after-record,
 //                        which claims nothing (GEMINI_LEDGER_AFTER, ASK_LEDGER_AFTER);
 //   left, verify         the entry is kept exactly as found, so a later run can finish it;
@@ -1722,6 +1723,8 @@ function updateKeptMarker(m: string, marker: Readonly<Record<string, unknown>>, 
           ? `${e.path} (its AGENTS.md entry)`
           : e.kind === "ask-rules"
             ? `${e.path} (its ask rules)`
+            : e.kind === "opencode-permission"
+            ? `${e.path} (its OpenCode kit-read rule)`
             : e.kind === "backup"
               ? `${e.path} (a backup)`
               : e.path;
@@ -1783,12 +1786,127 @@ function updateKeptMarker(m: string, marker: Readonly<Record<string, unknown>>, 
   return "not-rewritten";
 }
 
+// removeOpenCodePermission (phase 34.1, D-14): reverse install.ts writeOpenCodePermission() BY RECORD (brief DC-2).
+//
+// The opencode-permission entry names the one member install added to `permission.external_directory` in
+// opencode.json (`pattern`), what install created around it, and the record of `external_directory` as install left it
+// (`content`). The file is edited ONLY while `external_directory` is still exactly that object: then the recorded member
+// goes (json-text.ts removeItems, the span addMember added), then `external_directory` when install created it and it is
+// empty again, then `permission` when install created it and it is empty again, and every other byte stays. A file
+// install created is deleted only when what is left is byte for byte what the same edit leaves of the file install
+// writes (createdOpenCodeText) and its mode is the one install recorded; otherwise it is rewritten and kept.
+//
+// Anything else edits nothing: `external_directory` changed since install left it (a rule the user added: the
+// recorded rule can no longer be shown to be install's) is `left`, with the reason; a file that is not a strict JSON
+// object, has a duplicate key or another shape is `left`; a path that is a link or a special file is a counted
+// verify (the reversal could not be finished). A rule already gone, or a file already gone, is `gone`. Decided before
+// the DRY_RUN branch, so the preview reaches the real run's answer.
+
+/** The text left once the recorded rule (and the containers install created, when empty) is taken out, or null. */
+function strippedOpenCodeText(text: string, led: { readonly pattern: string; readonly createdPermission: boolean; readonly createdExternalDirectory: boolean }): string | null {
+  const step = (t: string): { root: JsonNode; perm: JsonNode | null; ext: JsonNode | null } | null => {
+    const d = readJsonText(Buffer.from(t, "utf8"));
+    if (!d.ok || d.root.kind !== "object") return null;
+    const perm = memberNamed(d.root, "permission")?.value ?? null;
+    const ext = perm === null ? null : (memberNamed(perm, "external_directory")?.value ?? null);
+    return { root: d.root, perm, ext };
+  };
+  const indexOf = (node: JsonNode, key: string): Set<number> => new Set([node.kind === "object" ? node.members.findIndex((m) => m.key === key) : -1]);
+  let s1 = step(text);
+  if (s1 === null || s1.ext === null || s1.ext.kind !== "object") return null;
+  let out = removeItems(text, s1.ext, indexOf(s1.ext, led.pattern));
+  s1 = step(out);
+  if (s1 === null) return null;
+  if (led.createdExternalDirectory && s1.perm !== null && s1.ext !== null && s1.ext.kind === "object" && s1.ext.members.length === 0) {
+    out = removeItems(out, s1.perm, indexOf(s1.perm, "external_directory"));
+    s1 = step(out);
+    if (s1 === null) return null;
+  }
+  if (led.createdPermission && s1.perm !== null && s1.perm.kind === "object" && s1.perm.members.length === 0) {
+    out = removeItems(out, s1.root, indexOf(s1.root, "permission"));
+  }
+  return out;
+}
+
+function removeOpenCodePermission(): Outcome {
+  const rel = OPENCODE_CONFIG_REL;
+  const f = `${TARGET}/${rel}`;
+  const own = owns(LEDGER, TARGET, rel, "opencode-permission");
+  if (!own.owned || own.entry === null) {
+    report("left", `${rel} OpenCode kit-read rule (${own.owned ? "" : own.reason})`);
+    return "left";
+  }
+  const led = own.entry;
+  const rule = `the OpenCode kit-read rule ${led.pattern}`;
+  // DC-3: readForWrite, never a plain read; a link or a special file is never read or written.
+  const read = readForWrite(TARGET, f);
+  if (read.state === "create") {
+    report("skipped", `${rel} (not present — ${rule} in the install ledger is already gone)`);
+    return "gone";
+  }
+  if (read.state === "blocked") {
+    verify(`${rel}: ${read.at} ${read.reason}. It was not read and was left untouched; ${rule} grugops added was NOT removed. Remove it by hand.`);
+    return "verify";
+  }
+  const leftAs = (why: string): Outcome => {
+    report("left", `${rel} (${why}, so ${rule} cannot be shown to be what install left there; the file was left byte for byte — remove the rule by hand if grugops added it)`);
+    return "left";
+  };
+  const doc = readJsonText(read.bytes);
+  if (!doc.ok) return leftAs(`it ${doc.why}`);
+  if (doc.root.kind !== "object") return leftAs("it is not a JSON object");
+  if (firstDuplicateKey(doc.root) !== null) return leftAs("it has a duplicate key");
+  const permAt = memberNamed(doc.root, "permission");
+  const extAt = permAt === null || permAt.value.kind !== "object" ? null : memberNamed(permAt.value, "external_directory");
+  const extNow = extAt === null || extAt.value.kind !== "object" ? undefined : (valueOf(doc.text, extAt.value) as Record<string, unknown>);
+  if (extNow === undefined || !Object.prototype.hasOwnProperty.call(extNow, led.pattern)) {
+    report("skipped", `${rel} (${rule} in the install ledger is not there any more — nothing to remove)`);
+    return "gone";
+  }
+  if (jsonValueRecord(extNow) !== led.content) {
+    return leftAs("its permission.external_directory is not the one install left there (a rule was added or changed since)");
+  }
+  // The value the edit must leave (THE ORACLE), computed without touching the parsed document.
+  const expected = documentValue(doc) as Record<string, unknown>;
+  const perm = { ...(expected.permission as Record<string, unknown>) };
+  const ext = { ...extNow };
+  delete ext[led.pattern];
+  perm.external_directory = ext;
+  if (led.createdExternalDirectory && Object.keys(ext).length === 0) delete perm.external_directory;
+  expected.permission = perm;
+  if (led.createdPermission && Object.keys(perm).length === 0) delete expected.permission;
+  const newText = strippedOpenCodeText(doc.text, led);
+  const check = newText === null ? null : readJsonText(Buffer.from(newText, "utf8"));
+  if (newText === null || check === null || !check.ok || !sameJsonValue(documentValue(check), expected)) {
+    verify(`${rel} could not be edited in place without changing anything but ${rule} — left untouched; the rule was NOT removed. Remove it by hand.`);
+    return "verify";
+  }
+  // "EMPTY" MEANS INSTALL'S OWN EMPTIED FILE, EXACTLY, AND ITS MODE (removeAskRules' rule).
+  const emptied = strippedOpenCodeText(createdOpenCodeText(led.pattern), led);
+  const modeKept = modeMatches(led.fileMode, read.mode);
+  const emptyAsInstalled = led.createdFile && newText === emptied;
+  const deleteFile = emptyAsInstalled && modeKept;
+  const modeNote = led.fileMode === undefined ? `; ${NO_MODE_NOTE}` : "";
+  const keptWhy = emptyAsInstalled && !modeKept ? `; grugops created the file, but its file mode is ${modeText(read.mode)}, not the ${led.fileMode} install wrote, so the file was kept` : "";
+  if (DRY_RUN) {
+    report("would-remove", `${rel} (${rule} grugops added${deleteFile ? `; the file grugops created would be deleted${modeNote}` : `; every other byte would be preserved${keptWhy}`})`);
+    if (deleteFile) markGone(f);
+    return deleteFile ? "removed" : "reversed";
+  }
+  if (deleteFile) {
+    return unlinkPath(f, rel, `${rel} (${rule} grugops added; grugops created the file and it is now empty as install wrote it${modeNote})`) ? "removed" : "verify";
+  }
+  if (!rewritePath(f, newText, rel, `remove ${JSON.stringify(led.pattern)} from permission.external_directory by hand.`)) return "verify";
+  report("removed", `${rel} (${rule} grugops added; every other byte preserved${keptWhy})`);
+  return "reversed";
+}
+
 // ── THE LEDGER WALK (plan 33.1-38, review WR-01, D-33 (b), brief §2.2) ──────────────────────────────
 // walkLedger visits every entry of the one install ledger, in a fixed kind order, and hands each to its
 // kind's reversal; each reversal asks owns before it deletes or edits anything (see the header). It runs
 // only when the ledger read is `ok`: a malformed ledger or an unusable marker removes and edits nothing
 // (the one verify at the top of the removal sequence said why). The order:
-//   ask-rules, gemini   the settings edits, before the directories that hold them;
+//   ask-rules, opencode-permission, gemini   the settings edits, before the directories that hold them;
 //   block               each pointer block, and with it the pointer file install created at that path;
 //   file                every other recorded file (a pointer file with no block entry is named, kept);
 //   backup              reported, never removed;
@@ -1797,6 +1915,9 @@ function updateKeptMarker(m: string, marker: Readonly<Record<string, unknown>>, 
 // The kinds `kit` is never in a target ledger (readLedger refuses it there, KINDS_BY_SCOPE).
 function reverseAskRules(entry: { readonly path: string; readonly kind: "ask-rules" }): void {
   setOutcome(entry, removeAskRules());
+}
+function reverseOpenCodePermission(entry: { readonly path: string; readonly kind: "opencode-permission" }): void {
+  setOutcome(entry, removeOpenCodePermission());
 }
 function reverseGemini(entry: { readonly path: string; readonly kind: "gemini" }): void {
   setOutcome(entry, unmergeGemini());
@@ -1810,6 +1931,7 @@ function walkLedger(): void {
   // updateKeptMarker keeps it verbatim for the agents that stay installed.
   const inScopeOf = <E extends LedgerEntry>(entries: readonly E[]): E[] => entries.filter(inScope);
   for (const e of inScopeOf(entriesOfKind(LEDGER, "ask-rules"))) reverseAskRules(e);
+  for (const e of inScopeOf(entriesOfKind(LEDGER, "opencode-permission"))) reverseOpenCodePermission(e);
   for (const e of inScopeOf(entriesOfKind(LEDGER, "gemini"))) reverseGemini(e);
   for (const e of inScopeOf(entriesOfKind(LEDGER, "block"))) reverseBlock(e);
   for (const e of inScopeOf(entriesOfKind(LEDGER, "file"))) {

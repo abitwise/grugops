@@ -98,6 +98,14 @@ export const AGENT_SKILL_REL = ".agents/skills/grugops/SKILL.md";
 export const OPENCODE_COMMAND_REL = ".opencode/commands/grugops.md";
 
 /**
+ * OPENCODE_CONFIG_REL (phase 34.1, D-14): the project config OpenCode reads at the repository root
+ * (opencode.ai/docs/config/, retrieved 2026-10-11). Install merges OpenCode's kit-read permission into it (a
+ * `permission.external_directory` allow rule for the kit root, recorded by the `opencode-permission` ledger kind,
+ * install-marker.ts); ADAPTER_FOOTPRINT gives it to the `opencode-command` kind.
+ */
+export const OPENCODE_CONFIG_REL = "opencode.json";
+
+/**
  * KIT_ROUTE (phase 34, D-26, the marker route): THE ONE AUTHORITY for the sentence that tells a host
  * with no Claude Code adapter where the grugops kit is after a scripted install. A scripted install
  * puts the kit in a separate kit home, never in the target, and writes the kit root into the
@@ -290,7 +298,7 @@ export const ADAPTER_FOOTPRINT: Readonly<Record<HostAdapterKind, readonly string
   "copilot-pointer": [".github/copilot-instructions.md"],
   "pi-prompt-template": [PI_PROMPT_REL],
   "agent-skill": [AGENT_SKILL_REL],
-  "opencode-command": [OPENCODE_COMMAND_REL, "opencode.json"],
+  "opencode-command": [OPENCODE_COMMAND_REL, OPENCODE_CONFIG_REL],
 };
 
 /**

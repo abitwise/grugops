@@ -113,6 +113,16 @@ const VALID: Record<(typeof LEDGER_KINDS)[number], Record<string, unknown>> = {
     createdAsk: true,
     askContent: SHA,
   },
+  // Plan 34.1-09 (D-14): the OpenCode kit-read rule install added to opencode.json.
+  "opencode-permission": {
+    path: "opencode.json",
+    kind: "opencode-permission",
+    pattern: "~/.grugops/agent-factory/**",
+    createdFile: false,
+    createdPermission: false,
+    createdExternalDirectory: true,
+    content: SHA,
+  },
   // Plan 33.1-37: a target backup (plan 33.1-40 writes them) and the kit-home record's kit entry.
   backup: { path: "agent-factory.bak.2026-01-02T03-04-05.678Z", kind: "backup", origin: "in-repo-kit", of: "agent-factory", content: null },
   kit: { path: "agent-factory", kind: "kit" },
@@ -125,10 +135,12 @@ const companionIn = (scope: LedgerScope): Record<string, unknown> =>
   scope === "target" ? VALID.dir : { path: "agent-factory.bak.2026-01-02T03-04-05.678Z", kind: "backup", origin: "kit-home", of: "agent-factory", content: null };
 
 describe("the one ledger — grammar (readLedger)", () => {
-  it("LEDGER_KINDS is the seven kinds, each in at least one scope, and the fixture covers each", () => {
-    expect([...LEDGER_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "backup", "kit"]);
+  // Eight since plan 34.1-09 (D-14): `opencode-permission`, the OpenCode kit-read rule install adds to opencode.json, is a
+  // target kind after `ask-rules` (the settings edits sit together in ledgerJson's order).
+  it("LEDGER_KINDS is the eight kinds, each in at least one scope, and the fixture covers each", () => {
+    expect([...LEDGER_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "opencode-permission", "backup", "kit"]);
     expect(Object.keys(VALID).sort()).toEqual([...LEDGER_KINDS].sort());
-    expect([...KINDS_BY_SCOPE.target]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "backup"]);
+    expect([...KINDS_BY_SCOPE.target]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "opencode-permission", "backup"]);
     expect([...KINDS_BY_SCOPE["kit-home"]]).toEqual(["backup", "kit"]);
     for (const kind of LEDGER_KINDS) {
       expect(KINDS_BY_SCOPE.target.includes(kind) || KINDS_BY_SCOPE["kit-home"].includes(kind), kind).toBe(true);
@@ -261,6 +273,7 @@ describe("the one ledger — the one serializer (ledgerJson)", () => {
       "CLAUDE.md|file",
       "CLAUDE.md|block",
       "a|dir",
+      "opencode.json|opencode-permission",
       "tools/grugops/x.js|file",
     ]);
     const keysOf = (kind: string): string[] => Object.keys(out.find((e) => e.kind === kind)!);
@@ -269,6 +282,7 @@ describe("the one ledger — the one serializer (ledgerJson)", () => {
     expect(keysOf("block")).toEqual(["path", "kind", "block", "separator"]);
     expect(keysOf("gemini")).toEqual(["path", "kind", "createdFile", "addedEntry", "createdContext", "fileNameBefore", "fileNameContent"]);
     expect(keysOf("ask-rules")).toEqual(["path", "kind", "added", "createdFile", "createdPermissions", "createdAsk", "askContent"]);
+    expect(keysOf("opencode-permission")).toEqual(["path", "kind", "pattern", "createdFile", "createdPermission", "createdExternalDirectory", "content"]);
   });
 
   it("plan 33.1-37: backup and kit sort after the other kinds at one path, with their fixed key order", () => {

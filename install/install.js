@@ -76,13 +76,13 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
-import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, } from "./json-text.js";
+import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, agentFlag, carriesKitRoute, entryOwners, hostForFlag, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
+import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, POINTER_LINE, ROUTE_POINTERS, agentFlag, carriesKitRoute, entryOwners, hostForFlag, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -93,7 +93,7 @@ import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS,
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, kindAt, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -4298,6 +4298,8 @@ function materializeRunnable() {
 //     now: uninstall checks each record against the file before it removes anything.
 //   gemini (plan 33.1-29; phase 34.1 D-12): an earlier install's entry, carried verbatim; see the gemini entry below.
 //   ask-rules (D-18): ASK_LEDGER, as writeAskRules() computed it.
+//   opencode-permission (phase 34.1, D-14): OPENCODE_LEDGER, as writeOpenCodePermission() decided it, or the earlier
+//     entry verbatim when OpenCode is not chosen in this run.
 //   backup (plan 33.1-40): the backups this run made (BACKUPS), united with the previous ledger's backup
 //     entries whose path still holds something (carriedBackups), each with the content record taken when
 //     install made it; only the outermost entries are kept. An entry whose path is gone is dropped.
@@ -4529,6 +4531,18 @@ function nextLedgerEntries(previous) {
         const prevAsk = entryAt(previous, ASK_RULES_REL, "ask-rules");
         if (prevAsk !== undefined)
             out.push(askRulesEntry(prevAsk));
+    }
+    // opencode-permission (phase 34.1, D-14): what writeOpenCodePermission() decided (null: no entry). When it did not run
+    // (OpenCode is not chosen in this run), this run read and wrote nothing in opencode.json, so an earlier install's entry
+    // is carried VERBATIM, as the ask-rules entry above is (D-04).
+    if (OPENCODE_RAN) {
+        if (OPENCODE_LEDGER !== null)
+            out.push(opencodePermissionEntry(OPENCODE_LEDGER));
+    }
+    else {
+        const prevOpenCode = entryAt(previous, OPENCODE_CONFIG_REL, "opencode-permission");
+        if (prevOpenCode !== undefined)
+            out.push(opencodePermissionEntry(prevOpenCode));
     }
     // backup (plan 33.1-40): the previous ledger's backup entries whose path still holds something
     // (carriedBackups), with this run's BACKUPS over them, outermost only. A carried entry keeps its own
@@ -5674,6 +5688,215 @@ function askRulesStep() {
     report("skipped", "Claude Code ask rules (Claude Code is not chosen in this run; .claude/settings.json is left as it is)");
     return { kind: "not-chosen" };
 }
+// ---------------------------------------------------------------------------
+// writeOpenCodePermission (phase 34.1, D-14) — let OpenCode read the out-of-repo kit without asking on every file.
+//
+// WHY. A scripted install puts the kit in the kit home, outside the repository, and OpenCode asks before every tool
+// call that touches a path outside the working directory (its `external_directory` permission defaults to "ask",
+// opencode.ai/docs/permissions/, retrieved 2026-10-11). So install adds ONE allow rule for the kit root to the project
+// opencode.json: `"permission": { "external_directory": { "~/<kit root relative to home>/**": "allow" } }`. OpenCode
+// documents `~` at the start of a pattern as the home directory, and "the last matching rule winning", so the rule is
+// appended as the LAST member of `external_directory`: a user's broader earlier rule (`"*": "ask"`) does not shadow it,
+// and a later one the user adds still wins.
+//
+// HOME-RELATIVE OR NOTHING (T-34.1-17, T-34.1-18). The pattern is kitReadPattern(): the kit root plus `/**`, never the
+// home directory itself, and never an absolute per-machine path: opencode.json is a file the user commits. A kit root
+// that is not under the home directory, or whose relative path holds a glob or control character, gets no rule.
+//
+// WHAT IS WRITTEN. When opencode.json is absent (and no opencode.jsonc is there: install does not create a second
+// OpenCode config file), install creates it with createdOpenCodeText(pattern) and nothing else. When it is present,
+// the rule is spliced into its text (json-text.ts addMember: the member, or the `external_directory` object, or the
+// `permission` object, whichever is absent) and every other byte of the user's file is kept; the spliced text must
+// parse to exactly the expected value, with the rule last, before anything is written (THE ORACLE).
+//
+// EVERY REFUSAL IS A NOTE, NOT A VERIFY. Without the rule OpenCode still reaches the kit; it asks before each read. So
+// a shape install cannot edit is a `note` that quotes the rule to add by hand, and the run is not made incomplete
+// (exit 0): the kit root is not under home, or its path holds a glob or control character (the note may print the
+// absolute kit root in the terminal; nothing is written into a file); opencode.json is a link, a special file or a hard
+// link (readForWrite); only opencode.jsonc exists; opencode.json is not strict JSON (OpenCode accepts JSONC; install
+// edits strict JSON only); its root is not an object; it has a duplicate key; `permission` or
+// `permission.external_directory` is there and is not an object (a string such as "ask" is text the user wrote and is
+// left); the splice fails the oracle; an earlier install's recorded rule for another kit root is still there.
+//
+// THE LEDGER (reversibility, brief DC-2). OPENCODE_LEDGER is the `opencode-permission` entry writeMarker records:
+//   - a run that added the rule records the pattern, what it created (the file, `permission`, `external_directory`),
+//     the record of `external_directory` as it left it, and the file mode when it created the file;
+//   - a rule for the same pattern already present records nothing new: it is the user's, unless the previous entry
+//     still holds (`external_directory` is exactly what install last left), and then that entry is carried;
+//   - a run that read `external_directory` and found it changed since install left it drops the previous entry (a rule
+//     present now cannot be shown to be install's) and says so;
+//   - A RUN THAT READ NOTHING KEEPS THE RECORD (the gemini entry's rule): the ledger cannot be used, the kit root has no
+//     pattern, or opencode.json could not be read as a strict JSON object of the right shape. The previous entry is
+//     carried verbatim, and uninstall compares it with the file before any edit.
+// The marker and the ledger are asked first, as writeAskRules does: a rule install cannot record is a rule uninstall
+// could never take out, so with an unreadable marker or a malformed ledger no rule is written.
+//
+// DRY_RUN decides every arm first, then reports `would-add` and records the bytes the real run writes (setPlanned).
+// ---------------------------------------------------------------------------
+/** OpenCode's other project config name (opencode.ai/docs/config/): when only it exists, install creates no opencode.json. */
+const OPENCODE_JSONC_REL = "opencode.jsonc";
+/**
+ * The home-relative pattern for the kit root: `~/` + KIT_ROOT relative to the home directory (POSIX separators) +
+ * `/**`, or null when KIT_ROOT is not under the home directory, or the relative path is empty, starts with `..`, or
+ * holds `*`, `?`, `[`, `]`, `{`, `}`, a backslash or a control byte (glob metacharacters would widen the rule).
+ */
+function kitReadPattern() {
+    let home;
+    try {
+        home = homedir();
+    }
+    catch {
+        return null;
+    }
+    if (home === "")
+        return null;
+    const rel = relative(canonicalPathSpelling(resolve(home)), KIT_ROOT);
+    if (rel === "" || isAbsolute(rel) || rel.startsWith(".."))
+        return null;
+    const posix = rel.split(sep).join("/");
+    if (/[*?[\]{}\\\u0000-\u001f\u007f]/.test(posix))
+        return null;
+    return `~/${posix}/**`;
+}
+// OPENCODE_RAN: true once writeOpenCodePermission ran in this run, that is, when OpenCode is chosen. nextLedgerEntries
+// records OPENCODE_LEDGER only then; otherwise it carries the previous opencode-permission entry verbatim (D-04).
+let OPENCODE_RAN = false;
+// The opencode-permission entry writeMarker() records, or null for none (see THE LEDGER above).
+let OPENCODE_LEDGER = null;
+/** The rule a note tells the user to add by hand: the pattern, or the absolute kit root (printed, never written). */
+function openCodeByHand(pattern) {
+    return `"permission": { "external_directory": { ${JSON.stringify(pattern ?? `${KIT_ROOT}/**`)}: "allow" } }`;
+}
+/** A refusal: a note naming opencode.json, why, and the rule to add by hand; nothing is written. */
+function openCodeNote(why, pattern) {
+    report("note", `${OPENCODE_CONFIG_REL}: no OpenCode kit-read rule was written — ${why}. OpenCode still reaches the kit; it asks ` +
+        `before each read. To let it read the kit without asking, add this to ${OPENCODE_CONFIG_REL} by hand: ` +
+        openCodeByHand(pattern));
+    return { kind: "note" };
+}
+function writeOpenCodePermission() {
+    const rel = OPENCODE_CONFIG_REL;
+    const file = join(TARGET, rel);
+    // THE MARKER AND THE LEDGER FIRST (writeAskRules' rule). The verify for an unreadable marker is counted by
+    // askRulesStep, and the one for a malformed ledger by writeMarker; this pass names them and writes nothing.
+    const previousMarker = readInstallMarker(TARGET);
+    if (previousMarker.state === "unreadable") {
+        return openCodeNote("the install marker could not be used (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitReadPattern());
+    }
+    const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
+    if (previousRead.state === "malformed") {
+        return openCodeNote("the install ledger is malformed (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitReadPattern());
+    }
+    const previous = entryAt(previousRead, rel, "opencode-permission") ?? null;
+    // A RUN THAT READ NOTHING KEEPS THE RECORD: carried verbatim until the file is read below.
+    OPENCODE_LEDGER = previous;
+    const pattern = kitReadPattern();
+    if (pattern === null) {
+        return openCodeNote(`the kit root ${KIT_ROOT} is not under the home directory, or its path holds a glob or control character, so no ` +
+            `home-relative pattern names it (install writes no absolute path into a file)`, null);
+    }
+    const read = readForWrite(TARGET, file);
+    if (read.state === "blocked")
+        return openCodeNote(blockedAt(read, file), pattern);
+    if (read.state === "create") {
+        if (kindAt(join(TARGET, OPENCODE_JSONC_REL)) !== null) {
+            return openCodeNote(`${OPENCODE_JSONC_REL} is there and ${rel} is not, and install does not create a second OpenCode config file`, pattern);
+        }
+        // Nothing of an earlier install's is at the path any more, so its entry claims nothing there: dropped.
+        OPENCODE_LEDGER = null;
+        const text = createdOpenCodeText(pattern);
+        if (DRY_RUN) {
+            report("would-add", `${rel} (the OpenCode kit-read rule ${pattern}; file created)`);
+            setPlanned(file, text);
+            return { kind: "dry-run" };
+        }
+        if (!writeTargetFile(file, text, "create", rel))
+            return { kind: "refused" };
+        let fileMode;
+        try {
+            fileMode = modeText(lstatSync(file).mode);
+        }
+        catch {
+            // no mode recorded; uninstall compares the text only and says so
+        }
+        OPENCODE_LEDGER = {
+            pattern,
+            createdFile: true,
+            createdPermission: true,
+            createdExternalDirectory: true,
+            content: jsonValueRecord({ [pattern]: "allow" }),
+            ...(fileMode === undefined ? {} : { fileMode }),
+        };
+        report("created", `${rel} (the OpenCode kit-read rule ${pattern}; file created)`);
+        return { kind: "written", createdFile: true };
+    }
+    const doc = readJsonText(read.bytes);
+    if (!doc.ok)
+        return openCodeNote(`it ${doc.why}; OpenCode accepts JSONC, but install edits strict JSON only`, pattern);
+    if (doc.root.kind !== "object")
+        return openCodeNote("it is not a JSON object", pattern);
+    const dup = firstDuplicateKey(doc.root);
+    if (dup !== null)
+        return openCodeNote(`it has a duplicate key (${JSON.stringify(dup).slice(0, 60)}), so which value OpenCode reads is not known`, pattern);
+    const permAt = memberNamed(doc.root, "permission");
+    if (permAt !== null && permAt.value.kind !== "object")
+        return openCodeNote(`its "permission" value is not an object`, pattern);
+    const extAt = permAt === null ? null : memberNamed(permAt.value, "external_directory");
+    if (extAt !== null && extAt.value.kind !== "object") {
+        return openCodeNote(`its "permission.external_directory" value is not an object (it is text the user wrote, and is left as it is)`, pattern);
+    }
+    const extNow = extAt === null ? undefined : valueOf(doc.text, extAt.value);
+    // THE CARRY NEEDS PROOF: the previous entry holds only while external_directory is exactly what install left.
+    const proven = previous !== null && previous.content === jsonValueRecord(extNow);
+    OPENCODE_LEDGER = proven ? previous : null;
+    if (previous !== null && !proven) {
+        report("note", `${rel}: its permission.external_directory is not the one install last left there, so the kit-read rule an earlier ` +
+            `install recorded (${previous.pattern}) is no longer claimed as install's; a copy present now is the user's own`);
+    }
+    if (proven && previous !== null && previous.pattern !== pattern) {
+        return openCodeNote(`it holds the kit-read rule an earlier install added for another kit root (${previous.pattern}), and install adds ` +
+            `no second rule; run install/uninstall.js with --opencode to take that rule out, then re-run the installer`, pattern);
+    }
+    if (extNow !== undefined && Object.prototype.hasOwnProperty.call(extNow, pattern)) {
+        report("skipped", proven
+            ? `${rel} (the OpenCode kit-read rule ${pattern} an earlier install added is already there)`
+            : `${rel} (the OpenCode kit-read rule ${pattern} is already there — kept as the user's own rule; uninstall will not remove it)`);
+        return { kind: "present" };
+    }
+    // THE SPLICE: the rule as the last member of external_directory, creating whichever container is absent.
+    const newText = permAt === null
+        ? addMember(doc.text, doc.root, "permission", { external_directory: { [pattern]: "allow" } })
+        : extAt === null
+            ? addMember(doc.text, permAt.value, "external_directory", { [pattern]: "allow" })
+            : addMember(doc.text, extAt.value, pattern, "allow");
+    // THE ORACLE: the spliced text holds exactly the value expected, with the rule last in external_directory.
+    const extAfter = { ...(extNow ?? {}), [pattern]: "allow" };
+    const expected = documentValue(doc);
+    const expPerm = (permAt === null ? (expected.permission = {}) : expected.permission);
+    expPerm.external_directory = extAfter;
+    const check = readJsonText(Buffer.from(newText, "utf8"));
+    const checkExt = check.ok ? memberNamed(memberNamed(check.root, "permission")?.value ?? check.root, "external_directory") : null;
+    const last = checkExt !== null && checkExt.value.kind === "object" ? checkExt.value.members[checkExt.value.members.length - 1] : undefined;
+    if (!check.ok || !sameJsonValue(documentValue(check), expected) || last === undefined || last.key !== pattern) {
+        return openCodeNote("it could not be edited in place without changing anything but permission.external_directory", pattern);
+    }
+    if (DRY_RUN) {
+        report("would-add", `${rel} (the OpenCode kit-read rule ${pattern}, last in permission.external_directory)`);
+        setPlanned(file, newText);
+        return { kind: "dry-run" };
+    }
+    if (!writeTargetFile(file, newText, "ok", rel))
+        return { kind: "refused" };
+    OPENCODE_LEDGER = {
+        pattern,
+        createdFile: false,
+        createdPermission: permAt === null,
+        createdExternalDirectory: extAt === null,
+        content: jsonValueRecord(extAfter),
+    };
+    report("edited", `${rel} (the OpenCode kit-read rule ${pattern} added last to permission.external_directory; every other byte preserved)`);
+    return { kind: "written", createdFile: false };
+}
 // The closing-notes sentence for one writeAskRules outcome (D-25), indented like the surrounding
 // notes. Pure: it reads the outcome and nothing else. Only `written` says this run added rules; the
 // git host is named as the only floor only when no governed ask rule is present at all.
@@ -5783,6 +6006,13 @@ reportRetiredConfigKeys();
 console.log("\n-- permission rules --");
 // The one record of what this run did with ask rules; the notes block below reads only this (D-25).
 const askOutcome = askRulesStep();
+// 7d. OpenCode's kit-read permission (phase 34.1, D-14): only when OpenCode is chosen, after the whole-file entries and
+// before writeMarker(), which records OPENCODE_LEDGER. When OpenCode is not chosen, opencode.json is neither read nor
+// written and an earlier install's entry is carried verbatim (D-04).
+if (SELECTED_KINDS.has("opencode-command")) {
+    OPENCODE_RAN = true;
+    writeOpenCodePermission();
+}
 // 8. Write the install marker (grugops-owned; overwritten unconditionally).
 writeMarker();
 console.log("\n-- notes --");

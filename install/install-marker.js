@@ -35,6 +35,9 @@
 //                                        THE gemini ENTRY below;
 //   ask-rules  the ask-rule fields       the Claude Code ask rules install added to .claude/settings.json
 //                                        (that path only, D-18); see AskRuleLedger below;
+//   opencode-permission  the OpenCode fields  the kit-read rule install added to `permission.external_directory`
+//                                        in opencode.json (that path only, phase 34.1 D-14); see
+//                                        OpenCodePermissionLedger below;
 //   backup     origin, of, content       install made this backup (plan 33.1-37): `origin` says what it
 //                                        was made from (BACKUP_ORIGINS), `of` the path it was made of,
 //                                        and `content` its file, link or tree record as install left it
@@ -43,7 +46,8 @@
 //   kit        (none)                    install wrote the kit at the kit root (KIT_ENTRY_PATH). Only in
 //                                        the kit-home record; see THE KIT-HOME RECORD below.
 // Which kinds a ledger may hold depends on the record it is read from (KINDS_BY_SCOPE): a target's
-// marker holds dir, file, block, gemini, ask-rules and backup; the kit-home record holds backup and kit.
+// marker holds dir, file, block, gemini, ask-rules, opencode-permission and backup; the kit-home record holds backup
+// and kit.
 // Two entries with the same (path, kind) are refused: which one is install's record is not known. One
 // path can hold entries of two kinds (CLAUDE.md: the file install created, and the block it appended).
 //
@@ -83,9 +87,9 @@
 // THE ONE AUTHORITY (owns). owns(ledger, root, rel, kind) answers whether install has a usable record
 // of `kind` for `rel` and, for a `file` entry, whether the path still holds it (checkRecord: bytes and
 // mode for a file, the readlink for a link compared in the one spelling, no link followed on the way, a
-// hard link refused). For a dir, block, gemini or ask-rules entry it returns the entry, and the caller compares that entry's
+// hard link refused). For a dir, block, gemini, ask-rules or opencode-permission entry it returns the entry, and the caller compares that entry's
 // own content record (the directory's emptiness and this run's removals, the block hash,
-// fileNameContent, askContent) with the file before it edits anything, as each pass did before the
+// fileNameContent, askContent, an opencode-permission entry's content) with the file before it edits anything, as each pass did before the
 // merge. Since plan 33.1-38 the uninstaller's removal sequence IS a walk over the ledger (uninstall.ts
 // walkLedger): every entry is visited, whatever the uninstalling kit source ships, and every delete or
 // edit asks owns first. The pseudo-kind `marker` (plan 33.1-38) answers for the marker itself: it is
@@ -153,7 +157,7 @@
 // Clear professional voice: this is a safety surface (installer reversal).
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { HOST_TOOLS } from "./host-tools.js";
+import { HOST_TOOLS, OPENCODE_CONFIG_REL } from "./host-tools.js";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
 import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo } from "./user-file.js";
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
@@ -442,9 +446,9 @@ export function recordHolds(root, path, record) {
  * `kit` for the kit-home record (see THE KIT-HOME RECORD below); plan 33.1-40 records target backups with
  * `backup` too.
  */
-export const LEDGER_KINDS = ["dir", "file", "block", "gemini", "ask-rules", "backup", "kit"];
+export const LEDGER_KINDS = ["dir", "file", "block", "gemini", "ask-rules", "opencode-permission", "backup", "kit"];
 export const KINDS_BY_SCOPE = {
-    target: ["dir", "file", "block", "gemini", "ask-rules", "backup"],
+    target: ["dir", "file", "block", "gemini", "ask-rules", "opencode-permission", "backup"],
     "kit-home": ["backup", "kit"],
 };
 /** The kit-home record's path relative to the kit home (plan 33.1-37). */
@@ -472,6 +476,14 @@ export const ASK_RULES_REL = ".claude/settings.json";
 export const GEMINI_CREATED_FILE_NAME = ["AGENTS.md", "GEMINI.md"];
 export function createdGeminiText() {
     return JSON.stringify({ context: { fileName: [...GEMINI_CREATED_FILE_NAME] } }, null, 2) + "\n";
+}
+/**
+ * THE ONE TEXT install writes when it creates opencode.json (phase 34.1, D-14): the kit-read rule for `pattern` and
+ * nothing else, two-space indented, with a final newline. install.ts writes it and uninstall.ts compares with it (the
+ * file it deletes), so the two binaries cannot disagree about what install wrote.
+ */
+export function createdOpenCodeText(pattern) {
+    return JSON.stringify({ permission: { external_directory: { [pattern]: "allow" } } }, null, 2) + "\n";
 }
 /** The only paths a `block` entry may name: the two pointer files install appends its block to. */
 export const BLOCK_RELS = ["CLAUDE.md", ".github/copilot-instructions.md"];
@@ -568,6 +580,31 @@ function askProblem(r) {
     }
     return null;
 }
+// openCodeProblem: the reason the fields of an `opencode-permission` entry break the OpenCodePermissionLedger rules, or
+// null. The key set is checked first (askProblem's model), so a partial or extended record never reads as a claim.
+function openCodeProblem(r) {
+    const want = ["path", "kind", "pattern", "createdFile", "createdPermission", "createdExternalDirectory", "content"];
+    if (hasOwn(r, "fileMode"))
+        want.push("fileMode");
+    const keys = keyProblem(r, want);
+    if (keys !== null)
+        return keys;
+    if (typeof r.pattern !== "string" || r.pattern === "" || /[\u0000-\u001f\u007f]/.test(r.pattern))
+        return "pattern is not a non-empty string without control characters";
+    if (typeof r.createdFile !== "boolean" || typeof r.createdPermission !== "boolean" || typeof r.createdExternalDirectory !== "boolean") {
+        return "createdFile, createdPermission and createdExternalDirectory must be booleans";
+    }
+    if (!isSha256Record(r.content))
+        return "content is not a sha256 record";
+    if (r.createdFile && (!r.createdPermission || !r.createdExternalDirectory))
+        return "createdFile true needs createdPermission and createdExternalDirectory true";
+    if (r.createdPermission && !r.createdExternalDirectory)
+        return "createdPermission true needs createdExternalDirectory true";
+    if (hasOwn(r, "fileMode") && (r.createdFile !== true || typeof r.fileMode !== "string" || !/^[0-7]{4}$/.test(r.fileMode))) {
+        return "fileMode is not four octal digits on an entry whose createdFile is true";
+    }
+    return null;
+}
 // entryProblem: the reason one raw entry is not exactly its kind's shape, or null. The rules are the
 // ones each retired record's reader applied, now asked of one entry. `scope` (plan 33.1-37) says which
 // record the entry was read from; a kind or a backup origin outside it is refused.
@@ -615,6 +652,10 @@ function entryProblem(e, scope) {
             if (e.path !== ASK_RULES_REL)
                 return `an ask-rules entry may name only ${ASK_RULES_REL}`;
             return askProblem(e);
+        case "opencode-permission":
+            if (e.path !== OPENCODE_CONFIG_REL)
+                return `an opencode-permission entry may name only ${OPENCODE_CONFIG_REL}`;
+            return openCodeProblem(e);
         case "kit":
             if (e.path !== KIT_ENTRY_PATH)
                 return `a kit entry may name only ${KIT_ENTRY_PATH}`;
@@ -684,6 +725,20 @@ function normalize(e) {
             if (typeof e.fileMode === "string")
                 a.fileMode = e.fileMode;
             return a;
+        }
+        case "opencode-permission": {
+            const o = {
+                path,
+                kind: "opencode-permission",
+                pattern: e.pattern,
+                createdFile: e.createdFile,
+                createdPermission: e.createdPermission,
+                createdExternalDirectory: e.createdExternalDirectory,
+                content: e.content,
+            };
+            if (typeof e.fileMode === "string")
+                o.fileMode = e.fileMode;
+            return o;
         }
         case "backup":
             return { path, kind: "backup", origin: e.origin, of: e.of, content: e.content };
@@ -761,6 +816,17 @@ export function ledgerJson(entries) {
                     askContent: e.askContent,
                     ...(e.fileMode === undefined ? {} : { fileMode: e.fileMode }),
                 };
+            case "opencode-permission":
+                return {
+                    path: e.path,
+                    kind: e.kind,
+                    pattern: e.pattern,
+                    createdFile: e.createdFile,
+                    createdPermission: e.createdPermission,
+                    createdExternalDirectory: e.createdExternalDirectory,
+                    content: e.content,
+                    ...(e.fileMode === undefined ? {} : { fileMode: e.fileMode }),
+                };
             case "backup":
                 return { path: e.path, kind: e.kind, origin: e.origin, of: e.of, content: e.content };
             case "kit":
@@ -784,6 +850,12 @@ export function entriesOfKind(ledger, kind) {
 export const geminiEntry = (fields) => ({ ...fields, path: GEMINI_SETTINGS_REL, kind: "gemini" });
 /** An `ask-rules` entry for `fields` (the one path such an entry may name). */
 export const askRulesEntry = (fields) => ({ ...fields, path: ASK_RULES_REL, kind: "ask-rules" });
+/** An `opencode-permission` entry for `fields` (the one path such an entry may name). */
+export const opencodePermissionEntry = (fields) => ({
+    ...fields,
+    path: OPENCODE_CONFIG_REL,
+    kind: "opencode-permission",
+});
 // notRecordedReason (re-review IN-01, plan 33.1-28; moved here with owns, plan 33.1-36): the ONE wording
 // of "there is no install record for this path", chosen from the ledger's state. It says what the record
 // shows, never more: a path missing from a readable ledger has no record that install created it, which
