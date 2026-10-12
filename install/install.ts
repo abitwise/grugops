@@ -182,6 +182,7 @@ import {
   hostForFlag,
   routeCarriers,
   reachVia,
+  scriptCommand,
   strandedBy,
   type HostAdapterKind,
   type HostTool,
@@ -2420,7 +2421,12 @@ if (CHECK) {
 // THE CLOSING (plan 34-26, D-25, the 27-13 class rule): the banner and the exit status are chosen on
 // ONE branch from VERIFY_FINDINGS, as the --prune-old-kit branch below does. copyKit raises a verify
 // for every way the kit was not copied, so a counted verify ends INCOMPLETE with status 3 and no
-// --check hint (there is no refreshed kit to check against); only a run with none says complete. ---
+// --check hint (there is no refreshed kit to check against); only a run with none says complete.
+// THE PRINTED COMMANDS (phase 34.1 gap round 2, D-31, D-33): the INCOMPLETE banner names the command that runs
+// --update again, and the success hint its --check command, both from scriptCommand with COMMAND_CONTEXT (the absolute
+// install.js, GRUGOPS_HOME when this run used another kit home), so each runs as printed from any directory against
+// the kit home this run refreshed. --update takes no target and no agent flag (D-25), so neither command names one;
+// the hint's `<repo>` is the placeholder for the repository to check. Printed under DRY_RUN too. ---
 if (UPDATE) {
   console.log("== grugops update (--update) ==");
   console.log(`source: ${GRUGOPS_SRC}`);
@@ -2431,8 +2437,9 @@ if (UPDATE) {
   updateKitHome();
   if (VERIFY_FINDINGS > 0) {
     console.log(`\n== update INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification ==`);
+    console.log(`  Once each is fixed, \`${scriptCommand("install.js", COMMAND_CONTEXT)} --update\` refreshes the kit home again.`);
   } else {
-    console.log("\n  Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.");
+    console.log(`\n  Run \`${scriptCommand("install.js", COMMAND_CONTEXT)} --check --target <repo>\` to verify a repo against the refreshed kit.`);
     console.log(`\n== update complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
   }
   process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
@@ -2454,9 +2461,13 @@ if (PRUNE_OLD_KIT) {
   console.log("\n-- removing the backups install recorded (by record, never by name; anything else is named and left) --");
   pruneOldKit();
   // Red-team of plan 33.1-27: a backup that could not be removed is a counted verify, so the banner
-  // and the status say INCOMPLETE (3) rather than complete (0) over it.
+  // and the status say INCOMPLETE (3) rather than complete (0) over it. The banner names the command that prunes again
+  // (phase 34.1 gap round 2, D-31, D-33): agentCommand with --prune-old-kit and no agent flag (prune takes none, D-25),
+  // with this run's context, so it runs as printed from any directory with the kit home this run used. Printed under
+  // DRY_RUN too.
   if (VERIFY_FINDINGS > 0) {
     console.log(`\n== prune INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification ==`);
+    console.log(`  Once each is fixed, \`${agentCommand("install.js", TARGET, [], COMMAND_CONTEXT, ["--prune-old-kit"])}\` prunes again.`);
   } else {
     console.log(`\n== prune complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
   }

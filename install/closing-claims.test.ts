@@ -20,14 +20,15 @@
 import { describe, it, expect, afterAll } from "vitest";
 import ts from "typescript";
 import { accessSync, constants as fsConstants, appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { commandContextFor, makeFixture, runInstall, runUninstall, snapshotTree, userModeEdit, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
 import { allAskRules } from "./checkpoint-ask-rules.js";
-import { HOST_TOOLS, HOST_TOOL_COUNT, agentCommand, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, agentCommand, agentFlag, scriptCommand } from "./host-tools.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gclose-"));
+const REPO_ROOT = resolve(import.meta.dirname, "..");
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
 
 let n = 0;
@@ -282,7 +283,14 @@ const lastBanner = (stdout: string): string => {
   const banners = stdout.split("\n").filter((l) => /^== .* ==$/.test(l));
   return banners.length === 0 ? "" : banners[banners.length - 1];
 };
-const CHECK_HINT = /Run `node install\/install\.js --check --target <repo>` to verify a repo against the refreshed kit\./;
+/** Any form of the --update success hint (the words after its command), so a hint printed in error is caught in any form. */
+const CHECK_HINT = /to verify a repo against the refreshed kit\./;
+/**
+ * The --update success hint as this run must print it (plan 34.1-28, D-33): its --check command from the builder's
+ * scriptCommand with the run's context, so it runs as printed from any directory with the kit home the run used.
+ */
+const checkHint = (kitHome: string, home: string): string =>
+  `  Run \`${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome, home }))} --check --target <repo>\` to verify a repo against the refreshed kit.`;
 
 describe("closing claims: --update says complete only when it copied the kit (plan 34-26, D-25, sibling A)", () => {
   it("U1 --update with a kit home that is a regular file: a verify line, the INCOMPLETE banner, no --check hint, exit 3", () => {
@@ -292,6 +300,14 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     const verifies = verifyLines(r.stdout);
     expect(verifies.length, r.stdout).toBeGreaterThan(0);
     expect(lastBanner(r.stdout), r.stdout).toBe(`== update INCOMPLETE — ${verifies.length} item(s) need verification ==`);
+    // Plan 34.1-28 (D-31, DI-09's update sibling; D-33): the line after the banner names the command that runs --update
+    // again, built by scriptCommand with this run's context (the kit home is not the default one, so GRUGOPS_HOME), and
+    // builder-independent words are checked too.
+    const lines = r.stdout.split("\n");
+    const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
+    const want = `${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome, home }))} --update`;
+    expect(after, r.stdout).toBe(`  Once each is fixed, \`${want}\` refreshes the kit home again.`);
+    expect(want, "the command sets the run's kit home and runs this checkout's install.js").toBe(`GRUGOPS_HOME=${kitHome} node ${join(REPO_ROOT, "install", "install.js")} --update`);
     expect(r.stdout, r.stdout).not.toMatch(/update complete/);
     expect(r.stdout, r.stdout).not.toMatch(CHECK_HINT);
     expect(r.status, r.stdout).toBe(3);
@@ -304,6 +320,10 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     const r = runInstall(target, kitHome, ["--update"], { home });
     expect(verifyLines(r.stdout), r.stdout).toEqual([]);
     expect(r.stdout, r.stdout).toMatch(CHECK_HINT);
+    // Plan 34.1-28 (D-33): the hint's --check command is the builder's, never the hand-built relative form.
+    const hint = checkHint(kitHome, home);
+    expect(r.stdout.split("\n"), r.stdout).toContain(hint);
+    expect(hint, "the hint sets the run's kit home and names this checkout's install.js").toContain(`GRUGOPS_HOME=${kitHome} node ${join(REPO_ROOT, "install", "install.js")} --check --target <repo>`);
     expect(lastBanner(r.stdout), r.stdout).toBe("== update complete ==");
     expect(r.stdout).not.toMatch(/INCOMPLETE/);
     expect(r.status, r.stdout).toBe(0);

@@ -26,28 +26,32 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   BACKUP_USER_BASES,
   type Run,
   backupShapes,
+  commandContextFor,
   deriveWritePaths,
   lineNamesPath,
   pathText,
   makeOldLayoutFixture,
   plantBackupShapes,
+  printedCommand,
   runInstall,
   runUninstall,
   snapshotTree,
   storedMode,
   userModeEdit,
 } from "./installer-paths.test-support.js";
+import { agentCommand } from "./host-tools.js";
 import { ledgerOf, readMarkerObject, withLedger, type RawEntry } from "./ledger.test-support.js";
 import { modeText, treeRecord } from "./user-file.js";
 import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-prune-")));
+const REPO_ROOT = resolve(import.meta.dirname, "..");
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
 let seq = 0;
 function fresh(tag: string): string {
@@ -504,10 +508,22 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     chmodSync(homeRecord, 0o444); // mode-census: row-315
     const markerBytes = readFileSync(markerPath);
     const homeBytes = readFileSync(homeRecord);
+    let again = "";
     try {
       const r = prune(w);
       expect(r.status, r.stdout).toBe(3);
       expect(r.stdout).toContain("== prune INCOMPLETE");
+      // Plan 34.1-28 (D-31, DI-09's prune sibling; D-33): the line after the banner names the command that prunes again,
+      // built by agentCommand with this run's context (no agent flag: --prune-old-kit takes none, D-25). Its words are
+      // also checked without the builder: node, this checkout's absolute install.js, the target, --prune-old-kit last.
+      const lines = r.stdout.split("\n");
+      again = lines[lines.findIndex((l) => l.startsWith("== prune INCOMPLETE")) + 1] ?? "";
+      const want = agentCommand("install.js", w.t, [], commandContextFor({ grugopsHome: w.kitHome, home: w.home }), ["--prune-old-kit"]);
+      expect(again, r.stdout).toBe(`  Once each is fixed, \`${want}\` prunes again.`);
+      const words = printedCommand(again).split(" ");
+      expect(words[0], "the world's kit home is the default, so the command sets none and starts with node").toBe("node");
+      expect(words[1], "the script word is this checkout's absolute install.js").toBe(join(REPO_ROOT, "install", "install.js"));
+      expect(words.slice(2).join(" "), "the arguments: the target, then --prune-old-kit").toBe(`--target ${w.t} --prune-old-kit`);
       const verifies = linesOf(r, "verify");
       for (const p of removable) {
         expect(existsSync(at(w.t, p)), `${p} was not removed`).toBe(false);
@@ -520,5 +536,10 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
       chmodSync(markerPath, 0o644); // mode-census: restore
       chmodSync(homeRecord, 0o644); // mode-census: restore
     }
+    // Not run as printed here: in THIS case the backups are already removed, and a second prune keeps the entry of a
+    // backup that is no longer there, so the command exits 0 with the record still listing them. That is DI-13 (the
+    // record-rewrite verify's "Re-run to finish it." does not finish it), open for human triage; plan 34.1-28 found it
+    // by running this command and does not pin the defect as correct.
+    expect(again, "premise: the banner line was read").not.toBe("");
   });
 });

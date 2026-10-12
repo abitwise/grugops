@@ -1637,16 +1637,19 @@ const RERUN_FRAGMENT_COUNT = 0;
 // call either are derived and must equal CONTEXT_CALLS both ways, with the per-module counts pinned; each such module
 // declares COMMAND_CONTEXT exactly once. host-tools.ts is the builder: its own scriptCommand call inside agentCommand
 // passes agentCommand's parameter, so it is classed here by name and not counted.
-//   install.ts   14 agentCommand calls (plans 34.1-22 and 34.1-23: 10; plan 34.1-27: doctorInstallCommand and
+//   install.ts   15 agentCommand calls (plans 34.1-22 and 34.1-23: 10; plan 34.1-27: doctorInstallCommand and
 //                 doctorCheckCommand, the doctor's flag-less install and check commands, 2, and the example with one
 //                 agent's flag in the doctor's no-agent-recorded-or-detected WARN, 1; plan 34.1-28: migrateCommand, the
-//                 --migrate same-run command both migrate INCOMPLETE banners and the handoffs abort print, 1 -> 14),
-//                 0 scriptCommand calls;
+//                 --migrate same-run command both migrate INCOMPLETE banners and the handoffs abort print, 1 -> 14;
+//                 plan 34.1-28 task 2: the prune INCOMPLETE banner's command, --prune-old-kit with no agent flag,
+//                 1 -> 15), 2 scriptCommand calls (plan 34.1-28 task 2, D-33: the update INCOMPLETE banner's
+//                 `--update` command and the --update success hint's `--check --target <repo>` command; --update takes
+//                 no target and no agent flag, so its commands are the invocation words and a mode);
 //   uninstall.ts  5 agentCommand calls (rerunCommand 1, finishCommand 3: FULL, UNFINISHED and NAMED, and, from plan
 //                 34.1-25, reinstallCommand 1: the install step of the unusable-marker remedy, WR-20), 0 scriptCommand.
 // A later plan that adds a call re-pins its count here with the reason.
 const CONTEXT_CALLS: Readonly<Record<string, { readonly agentCommand: number; readonly scriptCommand: number }>> = {
-  "install/install.ts": { agentCommand: 14, scriptCommand: 0 },
+  "install/install.ts": { agentCommand: 15, scriptCommand: 2 },
   "install/uninstall.ts": { agentCommand: 5, scriptCommand: 0 },
 };
 /** The builder module, whose own scriptCommand call passes agentCommand's context parameter. */

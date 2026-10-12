@@ -13,18 +13,28 @@
 //   (b) the fragments that point at another line (above, below, the next line, the {label} line about X) equal, both
 //       ways, REFERENCE_TABLE, each row classed by what prints the referenced line on the same path; per-module counts;
 //   (c) the fragments that name install.js or uninstall.js (with or without `node` and the `install/` prefix; the word
-//       boundary keeps `.grugops/install.json` out) equal, both ways, COMMAND_TABLE, each classed "agentCommand",
-//       "names no agent flag" (with the reason) or "file text"; and no string expression that names a binary holds an
-//       agent flag, as a literal or through agentFlag: agent flags reach a printed command only through agentCommand;
+//       boundary keeps `.grugops/install.json` out) equal, both ways, COMMAND_TABLE, each classed "builder argument" (an
+//       argument of agentCommand or scriptCommand), "builder in the same expression" (its string expression calls a
+//       builder or a command helper, the helpers DERIVED from what each function returns), or one non-command class
+//       (usage synopsis, message prefix, section heading, file text, path, note naming a mode), each held by its own
+//       rule; per-class counts are pinned. THE ZERO RULE (plan 34.1-28, D-33, brief §4): no fragment outside the two
+//       usage synopses and the one file text holds `node` followed by a word ending in install.js or uninstall.js, so no
+//       printed command is hand-built. And no string expression that names a binary holds an agent flag, as a literal
+//       or through agentFlag: agent flags reach a printed command only through agentCommand;
 //   (d) the README section the unattended selection's legacy reason names exists;
-//   (e) the scenario matrix M1-M6: scratch runs whose every "the {label} line(s) above", "the {label} line about X" and
+//   (e) the scenario matrix M1-M9: scratch runs whose every "the {label} line(s) above", "the {label} line about X" and
 //       "the line above about X" is checked against the same run's output, and whose printed commands are run;
 //   (f) the install-side re-run remedies (every product module except uninstall.ts, whose re-run remedies
 //       install/agents-record.test.ts's uninstall re-run census owns) equal, both ways, RERUN_TABLE, each classed
 //       "same-run command" (a counted verify of the install mode, finished by the command the install INCOMPLETE
-//       banner prints, agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT)), "agentCommand", or
-//       agent-independent with the reason; per-class counts are pinned, and each same-run row's path to a counted
-//       verify is asserted by the parser.
+//       banner prints, agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT)), "same-run command (a migrate
+//       banner)" (finished by migrateCommand(), plan 34.1-28), "same-run command (install or update banner)", "builder
+//       in the same expression", "no command: names another checkout (DI-12)" (open for human triage, named here and
+//       not hidden), or agent-independent with the reason; per-class counts are pinned, and each same-run row's path to a counted
+//       verify is asserted by the parser. THE BANNER RULE (plan 34.1-28, D-31, the DI-09 class): every INCOMPLETE
+//       banner of install.ts (install, update, prune, the migrate pre-check and the already-migrated migrate; found by
+//       the parser and counted) is followed in its block by a line that prints a built command, so every mode's
+//       INCOMPLETE run names the command that runs it again.
 //
 // The tables were derived at execution of plan 34.1-15 (after plan 34.1-14 and this plan's Task 3 landed), not copied
 // from the plan's sibling tables. A new fragment fails here as unclassified; classify it only once the message does
@@ -39,7 +49,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import ts from "typescript";
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag } from "./host-tools.js";
 import {
@@ -57,6 +67,14 @@ import {
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
+/**
+ * Whether `dir` is outside the checkout: a premise of a printed-command run (brief §4, WR-19), asked through relative()
+ * rather than a prefix of the host-spelled path (install/path-spelling-census.test.ts (t3)).
+ */
+const outsideCheckout = (dir: string): boolean => {
+  const rel = relative(REPO_ROOT, dir);
+  return rel.startsWith("..") || isAbsolute(rel);
+};
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-msgref-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
 
@@ -164,9 +182,62 @@ function maximal(n: ts.Node): ts.Node {
     cur = p;
   }
 }
-/** The printed-command builders a remedy may call (plan 34.1-27): agentCommand, the doctor's two helpers over it, and
- *  (plan 34.1-28) migrateCommand, the --migrate same-run command. */
-const REMEDY_BUILDERS: ReadonlySet<string> = new Set(["agentCommand", "doctorInstallCommand", "doctorCheckCommand", "migrateCommand"]);
+/** The two builders of host-tools.ts: every printed command starts in one of them (plans 34.1-22 to 34.1-24, D-33). */
+const BUILDERS: readonly string[] = ["agentCommand", "scriptCommand"];
+/**
+ * The command helpers (plan 34.1-28, D-33), DERIVED, never hand-listed: the product functions declared at module level
+ * whose every return statement (a nested function's returns are its own) returns a call to a builder or to another
+ * helper, found to a fixed point. A helper is found by what it does, so a new one is a builder here without a table
+ * edit, and census (c) pins the set with the reason.
+ */
+function commandHelpers(modules: readonly string[]): string[] {
+  const fns: { readonly name: string; readonly returns: readonly (ts.Expression | undefined)[]; readonly src: ts.SourceFile }[] = [];
+  for (const module of modules) {
+    const src = sourceOf(module);
+    for (const st of src.statements) {
+      if (!ts.isFunctionDeclaration(st) || st.name === undefined || st.body === undefined) continue;
+      const returns: (ts.Expression | undefined)[] = [];
+      const visit = (n: ts.Node): void => {
+        if (ts.isFunctionLike(n)) return;
+        if (ts.isReturnStatement(n)) returns.push(n.expression);
+        ts.forEachChild(n, visit);
+      };
+      ts.forEachChild(st.body, visit);
+      fns.push({ name: st.name.text, returns, src });
+    }
+  }
+  const known = new Set(BUILDERS);
+  const helpers: string[] = [];
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const f of fns) {
+      if (known.has(f.name) || f.returns.length === 0) continue;
+      if (f.returns.every((e) => e !== undefined && ts.isCallExpression(e) && known.has(e.expression.getText(f.src)))) {
+        known.add(f.name);
+        helpers.push(f.name);
+        grew = true;
+      }
+    }
+  }
+  return helpers.sort();
+}
+/** The printed-command builders a remedy may call: the two builders and every derived command helper. */
+const REMEDY_BUILDERS: ReadonlySet<string> = new Set([...BUILDERS, ...commandHelpers(productModules())]);
+/**
+ * Whether the expression `e` prints a built command: it calls a builder or a helper, or it is the name of a const whose
+ * initializer does (MIGRATE_AGAIN_LINE, built once and printed from two banners).
+ */
+function printsBuiltCommand(e: ts.Expression, src: ts.SourceFile): boolean {
+  if (builderCallsIn(e, src).length > 0) return true;
+  if (!ts.isIdentifier(e)) return false;
+  let init: ts.Expression | undefined;
+  const visit = (n: ts.Node): void => {
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === e.text && n.initializer !== undefined) init = n.initializer;
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return init !== undefined && builderCallsIn(init, src).length > 0;
+}
 /** The builder calls inside `n`, by callee name. */
 function builderCallsIn(n: ts.Node, src: ts.SourceFile): string[] {
   const out: string[] = [];
@@ -181,7 +252,9 @@ function builderCallsIn(n: ts.Node, src: ts.SourceFile): string[] {
 const PLANNING_ID = /\bD-\d{2}\b|\bplan \d+(\.\d+)?-\d+\b/;
 const REFERENCE = /\b(above|below)\b|\b(next|previous|following|preceding) lines?\b|\bthe [a-z`-]+ lines? about\b/;
 const COMMAND = /\b(un)?install\.js\b/;
-const RERUN = /\bre-?run\b|\bthe (un)?installer\b|\brun install\b/;
+// Case-insensitive since plan 34.1-28: a capitalized "Re-run" that names no binary and no installer was missed before
+// (the kit banner's "Re-run: node scripts/..." and rewriteLedger's "Re-run to finish it.").
+const RERUN = /\bre-?run\b|\bthe (un)?installer\b|\brun install\b/i;
 
 // ── the tables (derived at execution of plan 34.1-15) ─────────────────────────────────────────────────────────────
 
@@ -235,15 +308,15 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["uninstall.ts", " — no agent removed (which agents are installed here is unknown: the marker cannot be used; see the verify line above)", "printed reference", "AGENTS_CLAUSE under INSTALLED_UNKNOWN (plan 34.1-26, IN-27): the module-top verify for the unusable marker or its malformed ledger, printed before any walk"],
 ];
 const COMMAND_TABLE: readonly Row[] = [
-  ["host-tools.ts", "install.js", "agentCommand", "the builder itself: the binary's name in agentCommand's signature"],
-  ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: the binary's name in agentCommand's signature"],
-  ["host-tools.ts", "install.js", "agentCommand", "the builder itself: the binary's name in scriptCommand's signature (agentCommand's invocation words, plan 34.1-22)"],
-  ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: the binary's name in scriptCommand's signature (agentCommand's invocation words, plan 34.1-22)"],
-  ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: scriptCommand gives an uninstall.js command no kit home and no --symlink (D-33)"],
-  ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: agentCommand refuses a mode on an uninstall.js command"],
-  ["install.ts", "--target needs a directory (usage: node install/install.js --target <repo>, or --target=<path> for a", "names no agent flag", "the usage of --target; no agent is chosen at argument parsing"],
-  ["install.ts", "install.js:", "names no agent flag", "the install.js: prefix of a usage message"],
-  ["install.ts", "install.js: INSTALL_MODE must be copy or symlink (it is", "names no agent flag", "the install.js: prefix of a usage message"],
+  ["host-tools.ts", "install.js", "builder argument", "the builder itself: the binary's name in agentCommand's signature"],
+  ["host-tools.ts", "uninstall.js", "builder argument", "the builder itself: the binary's name in agentCommand's signature"],
+  ["host-tools.ts", "install.js", "builder argument", "the builder itself: the binary's name in scriptCommand's signature (agentCommand's invocation words, plan 34.1-22)"],
+  ["host-tools.ts", "uninstall.js", "builder argument", "the builder itself: the binary's name in scriptCommand's signature (agentCommand's invocation words, plan 34.1-22)"],
+  ["host-tools.ts", "uninstall.js", "builder argument", "the builder itself: scriptCommand gives an uninstall.js command no kit home and no --symlink (D-33)"],
+  ["host-tools.ts", "uninstall.js", "builder argument", "the builder itself: agentCommand refuses a mode on an uninstall.js command"],
+  ["install.ts", "--target needs a directory (usage: node install/install.js --target <repo>, or --target=<path> for a", "usage synopsis", "the usage of --target, printed on bad usage (exit 2): the form, with a <repo> placeholder, not a command to run"],
+  ["install.ts", "install.js:", "message prefix", "the install.js: prefix of a usage message"],
+  ["install.ts", "install.js: INSTALL_MODE must be copy or symlink (it is", "message prefix", "the install.js: prefix of a usage message"],
   ["install.ts", "it, re-run `node install/install.js --target <this repository>` from the grugops checkout. The", "file text", "written into a target file, not printed"],
   ["install.ts", "— run install.js `", "builder in the same expression", "notInstalled: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)"],
   ["install.ts", "re-run install.js `", "builder in the same expression", "markerUnreadable: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)"],
@@ -257,39 +330,43 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "Re-run install.js: it appends install's start-here block, which carries the route: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)"],
   ["install.ts", "; otherwise re-run install.js here, `", "builder in the same expression", "the doctor's unbound other-directory WARN: doctorInstallCommand() and the no-agent-flag clause (plan 34.1-27, D-33)"],
   ["install.ts", "its records here and changes nothing. Re-run install.js here, `", "builder in the same expression", "the doctor's unbound no-target or no-ledger WARN: doctorInstallCommand() and the clause, then the uninstall agentCommand (plan 34.1-27, D-33)"],
-  ["install.ts", "uninstall.js", "agentCommand", "the doctor's unbound-marker remedy (D-26)"],
-  ["install.ts", "uninstall.js", "agentCommand", "the doctor's unbound-marker remedy (D-26)"],
-  ["install.ts", "install.js", "agentCommand", "the doctor's nothing-installed note (D-26, IN-21)"],
-  ["install.ts", "install.js", "agentCommand", "doctorInstallCommand: the doctor's flag-less install command (plan 34.1-27, D-33, DI-08)"],
-  ["install.ts", "install.js", "agentCommand", "doctorCheckCommand: the doctor's check command, which takes no agent flag (plan 34.1-27, D-25, D-33)"],
-  ["install.ts", "install.js", "agentCommand", "the no-agent-recorded-or-detected WARN's example, one agent's flag (plan 34.1-27, D-33)"],
-  ["install.ts", "install.js", "agentCommand", "migrateCommand: the --migrate same-run command, for this run's agents (plan 34.1-28, D-31, DI-09)"],
+  ["install.ts", "uninstall.js", "builder argument", "the doctor's unbound-marker remedy (D-26)"],
+  ["install.ts", "uninstall.js", "builder argument", "the doctor's unbound-marker remedy (D-26)"],
+  ["install.ts", "install.js", "builder argument", "the doctor's nothing-installed note (D-26, IN-21)"],
+  ["install.ts", "install.js", "builder argument", "doctorInstallCommand: the doctor's flag-less install command (plan 34.1-27, D-33, DI-08)"],
+  ["install.ts", "install.js", "builder argument", "doctorCheckCommand: the doctor's check command, which takes no agent flag (plan 34.1-27, D-25, D-33)"],
+  ["install.ts", "install.js", "builder argument", "the no-agent-recorded-or-detected WARN's example, one agent's flag (plan 34.1-27, D-33)"],
+  ["install.ts", "install.js", "builder argument", "migrateCommand: the --migrate same-run command, for this run's agents (plan 34.1-28, D-31, DI-09)"],
+  ["install.ts", "install.js", "builder argument", "the update INCOMPLETE banner: scriptCommand, then --update (plan 34.1-28, D-31, D-33)"],
+  ["install.ts", "install.js", "builder argument", "the --update success hint: scriptCommand, then --check --target <repo> (plan 34.1-28, D-33)"],
+  ["install.ts", "install.js", "builder argument", "the prune INCOMPLETE banner: agentCommand with --prune-old-kit, no agent flag (plan 34.1-28, D-31, D-25, D-33)"],
   ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "builder in the same expression", "no agent recorded or detected: doctorInstallCommand(), then an agentCommand example with one agent's flag (plan 34.1-27, D-33)"],
   ["install.ts", "(run install.js to re-seed: `", "builder in the same expression", "the missing optional seed: doctorInstallCommand() (plan 34.1-27, D-33)"],
-  ["install.ts", "Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.", "names no agent flag", "a --check hint; --check takes no agent flag (D-25)"],
-  ["install.ts", "install.js: the real path of", "names no agent flag", "the install.js: prefix of a refusal before any agent is chosen"],
-  ["install.ts", "install.js: the kit home", "names no agent flag", "the install.js: prefix of a refusal before any agent is chosen"],
-  ["install.ts", "install.js", "agentCommand", "the route note for a carrier no writer of this run visited (D-26, WR-17)"],
-  ["install.ts", "kit version to keep, so the version of the kit files in .claude is not known (install.js --check warns)", "names no agent flag", "a note about --check, which takes no agent flag (D-25)"],
-  ["install.ts", "install.js:", "names no agent flag", "the install.js: prefix of the selection refusal; its example is agentCommand"],
-  ["install.ts", "install.js", "agentCommand", "the selection refusal's example (D-26)"],
-  ["install.ts", "uninstall.js", "agentCommand", "the ask-rules left line, for the agents owning the ask-rules entry (D-26)"],
-  ["install.ts", "uninstall.js", "agentCommand", "the OpenCode other-root note, uninstall half (D-26)"],
-  ["install.ts", "install.js", "agentCommand", "the OpenCode other-root note, install half (D-26)"],
-  ["install.ts", "uninstall.js", "agentCommand", "the left-installed note (D-26)"],
-  ["install.ts", "install.js", "agentCommand", "the install INCOMPLETE banner's same-run command (D-26)"],
-  ["kit-source.ts", "install/install.js", "names no agent flag", "a path (SOURCE_MARKERS, the files that mark a kit checkout), not a command"],
-  ["uninstall.ts", "--target needs a directory (usage: node install/uninstall.js --target <repo>, or --target=<path> for a", "names no agent flag", "the usage of --target; no agent is chosen at argument parsing"],
-  ["uninstall.ts", "uninstall.js:", "names no agent flag", "the uninstall.js: prefix of a usage message"],
-  ["uninstall.ts", "uninstall.js", "agentCommand", "rerunCommand (plan 34.1-14)"],
-  ["uninstall.ts", "install.js", "agentCommand", "reinstallCommand (plan 34.1-25, WR-20): the install step of the unusable-marker remedy, with this run's agents"],
-  ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand (plan 34.1-14)"],
-  ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand (plan 34.1-14)"],
-  ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand's NAMED case, split from the UNFINISHED case (plan 34.1-21, D-31); its last case is rerunCommand"],
-  ["uninstall.ts", "-- reversing what the install ledger records (only what install.js wrote) --", "names no agent flag", "a section heading naming the binary, not a command"],
+  ["install.ts", "install.js: the real path of", "message prefix", "the install.js: prefix of a refusal before any agent is chosen"],
+  ["install.ts", "install.js: the kit home", "message prefix", "the install.js: prefix of a refusal before any agent is chosen"],
+  ["install.ts", "install.js", "builder argument", "the route note for a carrier no writer of this run visited (D-26, WR-17)"],
+  ["install.ts", "kit version to keep, so the version of the kit files in .claude is not known (install.js --check warns)", "note naming a mode", "says what --check does about it, asks for nothing"],
+  ["install.ts", "install.js:", "message prefix", "the install.js: prefix of the selection refusal; its example is agentCommand"],
+  ["install.ts", "install.js", "builder argument", "the selection refusal's example (D-26)"],
+  ["install.ts", "uninstall.js", "builder argument", "the ask-rules left line, for the agents owning the ask-rules entry (D-26)"],
+  ["install.ts", "uninstall.js", "builder argument", "the OpenCode other-root note, uninstall half (D-26)"],
+  ["install.ts", "install.js", "builder argument", "the OpenCode other-root note, install half (D-26)"],
+  ["install.ts", "uninstall.js", "builder argument", "the left-installed note (D-26)"],
+  ["install.ts", "install.js", "builder argument", "the install INCOMPLETE banner's same-run command (D-26)"],
+  ["kit-source.ts", "install/install.js", "path", "a path (SOURCE_MARKERS, the files that mark a kit checkout), not a command"],
+  ["uninstall.ts", "--target needs a directory (usage: node install/uninstall.js --target <repo>, or --target=<path> for a", "usage synopsis", "the usage of --target, printed on bad usage (exit 2): the form, with a <repo> placeholder, not a command to run"],
+  ["uninstall.ts", "uninstall.js:", "message prefix", "the uninstall.js: prefix of a usage message"],
+  ["uninstall.ts", "uninstall.js", "builder argument", "rerunCommand (plan 34.1-14)"],
+  ["uninstall.ts", "install.js", "builder argument", "reinstallCommand (plan 34.1-25, WR-20): the install step of the unusable-marker remedy, with this run's agents"],
+  ["uninstall.ts", "uninstall.js", "builder argument", "finishCommand (plan 34.1-14)"],
+  ["uninstall.ts", "uninstall.js", "builder argument", "finishCommand (plan 34.1-14)"],
+  ["uninstall.ts", "uninstall.js", "builder argument", "finishCommand's NAMED case, split from the UNFINISHED case (plan 34.1-21, D-31); its last case is rerunCommand"],
+  ["uninstall.ts", "-- reversing what the install ledger records (only what install.js wrote) --", "section heading", "a section heading naming the binary, not a command"],
 ];
 const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "# 1. (installed) the absolute kit path the installer wrote above this line.", "file text", "written into an adapter, not printed", null],
+  ["install.ts", "<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-role-adapters.js -->", "file text", "KIT_BANNER: the generator's banner, matched in adapter text, not printed (found by plan 34.1-28's case-insensitive RERUN)", null],
+  ["install.ts", ". Re-run to finish it.", "no command: a re-run does not finish it (DI-13)", "rewriteLedger's verify (prune's record rewrite, and the already-migrated --migrate's backup record): run again, the irreversible half is already done (the backups are gone, or the handoffs are already moved), so the record is not finished; open for human triage as DI-13 (plan 34.1-28), named here and not hidden", null],
   ["install.ts", "it, re-run `node install/install.js --target <this repository>` from the grugops checkout. The", "file text", "written into a target file, not printed", null],
   ["install.ts", "// owns that grammar: the reader stays where it is declared, and the installer holds no copy of", "file text", "written into a temp mirror, not printed", null],
   ["install.ts", "Replace the link with a regular file (or remove it) and re-run; the installer never writes", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
@@ -309,8 +386,8 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "its records here and changes nothing. Re-run install.js here, `", "builder in the same expression", "the doctor's unbound no-target or no-ledger WARN: doctorInstallCommand() and the clause, then the uninstall agentCommand (plan 34.1-27, D-33)", null],
   ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "builder in the same expression", "no agent recorded or detected: doctorInstallCommand(), then an agentCommand example with one agent's flag (plan 34.1-27, D-33)", null],
   ["install.ts", "(run install.js to re-seed: `", "builder in the same expression", "the missing optional seed: doctorInstallCommand() (plan 34.1-27, D-33)", null],
-  ["install.ts", "disagree; re-run --check from a complete kit", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
-  ["install.ts", "disagree; re-run --check from a complete kit checkout.", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
+  ["install.ts", "disagree; re-run --check from a complete kit", "no command: names another checkout (DI-12)", "asks for --check from ANOTHER, complete kit checkout, which no command this run builds can name (the builder names this script's own checkout); open for human triage as DI-12 (plan 34.1-27), not hidden here", null],
+  ["install.ts", "disagree; re-run --check from a complete kit checkout.", "no command: names another checkout (DI-12)", "asks for --check from ANOTHER, complete kit checkout, which no command this run builds can name (the builder names this script's own checkout); open for human triage as DI-12 (plan 34.1-27), not hidden here", null],
   ["install.ts", "what differs here is what a re-run would change. That checkout is a DIFFERENT root", "builder in the same expression", "the stale-adapter WARN prints doctorInstallCommand() in the same expression (plan 34.1-27, DI-08)", null],
   ["install.ts", "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "not a remedy", "says what the installer does with a malformed ledger; asks for nothing", null],
   ["install.ts", "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them: `", "builder in the same expression", "printed only when Claude Code is recorded: doctorInstallCommand() (plan 34.1-27, D-33)", null],
@@ -318,7 +395,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "Move or remove the existing backup, then re-run --migrate: `", "builder in the same expression", "the handoffs backup's never-clobber abort, printed only under --migrate: migrateCommand() (plan 34.1-28, D-31, DI-09; an \"aborted\" line is not a counted verify, so no banner finishes it)", null],
   ["install.ts", "and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.", "same-run command (a migrate banner)", "a config-carry refusal: the --migrate pre-check prints it (planConfigCarry's refusals, its verify loop) and ends in the migrate INCOMPLETE banner, which prints migrateCommand() (plan 34.1-28, D-31, DI-09); migratePreSteps asks the same step only after the pre-check found no refusal", "configCarryStep"],
   ["install.ts", "and re-run --migrate.", "same-run command (a migrate banner)", "a config-carry refusal: the --migrate pre-check prints it (planConfigCarry's refusals, its verify loop) and ends in the migrate INCOMPLETE banner, which prints migrateCommand() (plan 34.1-28, D-31, DI-09); migratePreSteps asks the same step only after the pre-check found no refusal", "configCarryStep"],
-  ["install.ts", "copied (never overwrite a backup). Move that backup and re-run.", "agent-independent: shared footprint", "the kit home, which every install copies (D-06)", null],
+  ["install.ts", "copied (never overwrite a backup). Move that backup and re-run.", "same-run command (install or update banner)", "copyKit's counted verify: under install the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT); under --update (updateKitHome) the update INCOMPLETE banner prints scriptCommand(\"install.js\", COMMAND_CONTEXT) --update (plan 34.1-28, D-31)", "copyKit"],
   ["install.ts", "should contain is unknown rather than known to be unchanged. Re-run the installer from a", "agent-independent: shared footprint", "the kit checkout the render runs from, which no agent flag changes", null],
   ["install.ts", "directory writable — or point TMPDIR at one that is — and re-run.", "agent-independent: shared footprint", "the temporary directory the render runs in, which no agent flag changes", null],
   ["install.ts", "was produced. Re-run the installer from a complete kit checkout.", "agent-independent: shared footprint", "the kit checkout the render runs from, which no agent flag changes", null],
@@ -348,7 +425,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
   ["install.ts", "known — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
   ["install.ts", "is not a JSON object — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
-  ["install.ts", "; the installer never", "agentCommand", "the head of the ask-rules left line, whose remedy is agentCommand", null],
+  ["install.ts", "; the installer never", "builder in the same expression", "the head of the ask-rules left line, whose expression prints agentCommand(\"uninstall.js\", ...) (reclassified by plan 34.1-28: the class is held by the parser)", null],
   ["install.ts", "left as it was. Fix or remove the marker, then re-run the installer.", "agent-independent: shared footprint", "the marker, which every install writes (D-06)", null],
   ["user-file.ts", "is a symbolic link, and the installer never writes through a link it did not create", "not a remedy", "says what the installer never does", null],
   ["user-file.ts", ", and the installer writes only inside the target", "not a remedy", "says what the installer does", null],
@@ -381,37 +458,112 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
     const found = all.filter((f) => COMMAND.test(f.text));
     expect(compareBothWays(found, COMMAND_TABLE)).toEqual({ unclassified: [], stale: [] });
-    // Plan 34.1-26 (WR-20's other branch): the no-target or no-ledger verify's "Re-run install.js here, then uninstall"
-    // row (names no agent flag) is gone: that verify prints reinstallCommand, whose install.js fragment is the one
-    // agentCommand row plan 34.1-25 added. So uninstall.ts 9 -> 8 and "names no agent flag" 28 -> 27.
-    // Plan 34.1-27 (DI-08): the stale-adapter WARN's hand-built "run from the checkout: node install/install.js --target"
-    // (names no agent flag) is gone: the WARN prints doctorInstallCommand() in backticks, and the fragments around it
-    // name no binary. doctorInstallCommand's own agentCommand("install.js", ...) argument is a new agentCommand row. So
-    // install.ts stays 34, "names no agent flag" 27 -> 26 and agentCommand 21 -> 22.
-    // Plan 34.1-27 task 2 (D-33): the doctor's other fourteen install.js remedies (D1-D14) print doctorInstallCommand()
-    // or doctorCheckCommand() in the same expression, so they move from "names no agent flag" to "builder in the same
-    // expression" (26 -> 12, and 14), and doctorCheckCommand's and D13's example's agentCommand("install.js", ...)
-    // arguments are two new agentCommand rows (22 -> 24). So install.ts 34 -> 36.
-    // Plan 34.1-28 task 1 (D-31, DI-09): migrateCommand's agentCommand("install.js", ...) argument is a new agentCommand
-    // row, so install.ts 36 -> 37 and agentCommand 24 -> 25.
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 37, "kit-source.ts": 1, "uninstall.ts": 8 });
-    // Plan 34.1-25 (WR-20): the other-directory verify's "re-run install.js here, with any agent" row (names no agent
-    // flag) became reinstallCommand's agentCommand row, so agentCommand 20 -> 21 and "names no agent flag" 29 -> 28.
-    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 25, "builder in the same expression": 14, "file text": 1, "names no agent flag": 12 });
+    // Plan 34.1-26 (WR-20's other branch): uninstall.ts 9 -> 8. Plan 34.1-27 (DI-08, D1-D14): install.ts 34 -> 36.
+    // Plan 34.1-28 task 1 (D-31, DI-09): migrateCommand's "install.js" argument, install.ts 36 -> 37.
+    // Plan 34.1-28 task 2 (D-31, D-33): the --update hint's hand-built `node install/install.js --check --target <repo>`
+    // is gone (its words around scriptCommand name no binary), and three builder arguments are new: the update banner's
+    // and the hint's scriptCommand("install.js", ...) and the prune banner's agentCommand("install.js", ...). So
+    // install.ts 37 - 1 + 3 = 39.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 39, "kit-source.ts": 1, "uninstall.ts": 8 });
+    // THE CLASSES (plan 34.1-28, D-33, brief §4): a fragment that names a binary is a builder argument (or the builder's
+    // own signature), sits in an expression that prints a built command, or is one of the non-command classes, each
+    // held by its own rule below. Plan 34.1-28 split the former "names no agent flag" (12, of which the --update hint
+    // was the one hand-built command and is gone) into those non-command classes, and renamed "agentCommand" to
+    // "builder argument" (25 + 3 = 28: the three scriptCommand and agentCommand arguments above).
+    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({
+      "builder argument": 28,
+      "builder in the same expression": 14,
+      "file text": 1,
+      "message prefix": 6,
+      "note naming a mode": 1,
+      path: 1,
+      "section heading": 1,
+      "usage synopsis": 2,
+    });
   });
 
-  // The builder is agentCommand and the invocation words it prints first, scriptCommand (plan 34.1-22, D-33): a
-  // host-tools.ts fragment classed agentCommand lies inside one of those two functions, and nowhere else.
-  it("(c) an agentCommand row's fragment is an argument of an agentCommand call (or inside the builder: agentCommand or scriptCommand)", () => {
-    const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "agentCommand").map((r) => `${r[0]} :: ${norm(r[1])}`));
+  // The builders are agentCommand and the invocation words it prints first, scriptCommand (plan 34.1-22, D-33): a
+  // fragment classed "builder argument" is an argument of a call to one of them, or (in host-tools.ts) lies inside one
+  // of those two functions, and nowhere else.
+  it("(c) a \"builder argument\" row's fragment is an argument of an agentCommand or scriptCommand call (or inside the builder)", () => {
+    const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "builder argument").map((r) => `${r[0]} :: ${norm(r[1])}`));
     const found = all.filter((f) => COMMAND.test(f.text) && rows.has(`${f.module} :: ${norm(f.text)}`));
-    expect(found.length, "premise: the agentCommand rows are found (25 since plan 34.1-28's migrateCommand)").toBe(25);
-    const builder = new Set(["agentCommand", "scriptCommand"]);
+    expect(found.length, "premise: the builder-argument rows are found (28 since plan 34.1-28's mode banners)").toBe(28);
+    const builder = new Set(BUILDERS);
     for (const f of found) {
       const call = nearestCall(f.node);
-      const ok = (call !== null && call.expression.getText(f.src) === "agentCommand") || (f.module === "host-tools.ts" && builder.has(enclosingName(f.node) ?? ""));
-      expect(ok, `${where(f)} is classed agentCommand but is not an agentCommand argument`).toBe(true);
+      const ok = (call !== null && builder.has(call.expression.getText(f.src)) && call.arguments.some((a) => a === f.node)) || (f.module === "host-tools.ts" && builder.has(enclosingName(f.node) ?? ""));
+      expect(ok, `${where(f)} is classed "builder argument" but is not an argument of agentCommand or scriptCommand`).toBe(true);
     }
+  });
+
+  // THE COMMAND HELPERS (plan 34.1-28, D-33): derived by commandHelpers() from what each function returns, never listed
+  // by hand. Six: the doctor's two (plan 34.1-27), migrateCommand (plan 34.1-28), and uninstall's rerunCommand,
+  // reinstallCommand and finishCommand (plans 34.1-14, 34.1-21, 34.1-25). A new helper changes this pin, with its reason.
+  it("(c) the command helpers a remedy may call are derived, and are the six named", () => {
+    const helpers = commandHelpers(productModules());
+    expect(helpers).toEqual(["doctorCheckCommand", "doctorInstallCommand", "finishCommand", "migrateCommand", "reinstallCommand", "rerunCommand"]);
+  });
+
+  // THE NON-COMMAND CLASSES (plan 34.1-28, D-33, brief §4): each row of a class that is not a command is held by the rule
+  // that says what it is, so a hand-built command cannot be classed into one of them to pass.
+  //   usage synopsis      the usage of --target, printed on bad usage: "usage:" and a `<repo>` placeholder;
+  //   message prefix      `install.js:` or `uninstall.js:` at the start, and no `node ` in the fragment;
+  //   section heading     `-- ... --`, no `node `;
+  //   file text           part of a module-level const that is written into a target file: TARGET_BANNER;
+  //   path                one word with a `/`, no blank;
+  //   note naming a mode  `install.js --<mode>` inside parentheses, no `node `.
+  it("(c) each non-command row is what its class says, by its own rule", () => {
+    const rules: Readonly<Record<string, (f: Fragment) => boolean>> = {
+      "usage synopsis": (f) => /\busage: node install\/(un)?install\.js --target <repo>/.test(f.text),
+      "message prefix": (f) => /^(un)?install\.js:/.test(f.text) && !/\bnode /.test(f.text),
+      "section heading": (f) => /^-- .* --$/.test(norm(f.text)) && !/\bnode /.test(f.text),
+      "file text": (f) => {
+        for (let p: ts.Node | undefined = f.node.parent; p !== undefined; p = p.parent) {
+          if (ts.isVariableDeclaration(p)) return ts.isIdentifier(p.name) && p.name.text === "TARGET_BANNER" && ts.isSourceFile(p.parent.parent.parent);
+        }
+        return false;
+      },
+      path: (f) => /^\S*\/\S*$/.test(f.text),
+      "note naming a mode": (f) => /\((un)?install\.js --[a-z-]+ [^)]*\)/.test(f.text) && !/\bnode /.test(f.text),
+    };
+    const off: string[] = [];
+    const read = new Set<ts.Node>();
+    let rowCount = 0;
+    for (const [cls, rule] of Object.entries(rules)) {
+      const rows = COMMAND_TABLE.filter((r) => r[2] === cls);
+      expect(rows.length, `premise: the class ${cls} has rows`).toBeGreaterThan(0);
+      rowCount += rows.length;
+      for (const r of rows) {
+        const hits = all.filter((f) => f.module === r[0] && norm(f.text) === norm(r[1]) && COMMAND.test(f.text));
+        expect(hits.length, `no fragment for the row ${r[1]}`).toBeGreaterThan(0);
+        for (const f of hits) {
+          read.add(f.node);
+          if (!rule(f)) off.push(`${cls}: ${where(f)} :: ${norm(f.text)}`);
+        }
+      }
+    }
+    expect(rowCount, "premise: the non-command rows").toBe(12);
+    expect(read.size, "premise: one fragment was read for each non-command row").toBe(rowCount);
+    expect(off, "a row classed as a non-command class that is not what its class says").toEqual([]);
+  });
+
+  // THE ZERO RULE (plan 34.1-28, D-33, brief §4 DI-08: zero printed install.js/uninstall.js command strings outside the
+  // builder). No fragment that names a binary holds `node ` followed by a word ending in install.js or uninstall.js,
+  // apart from the two usage synopses (the form of --target, with a <repo> placeholder) and the one file text (the
+  // generated-adapter banner, agent instruction text written into a target file and never printed: DI-11's class,
+  // recorded for human triage by plan 34.1-32, which this plan does not change). The scan must read those three first,
+  // so a zero cannot come from a scan that read nothing.
+  it("(c) zero hand-built command strings: no fragment outside the usage synopses and the file text holds `node <...>install.js`", () => {
+    const HAND_BUILT = /\bnode\s+\S*\b(un)?install\.js\b/;
+    const excluded = new Set(COMMAND_TABLE.filter((r) => r[2] === "usage synopsis" || r[2] === "file text").map((r) => `${r[0]} :: ${norm(r[1])}`));
+    const named = all.filter((f) => COMMAND.test(f.text));
+    const hits = named.filter((f) => HAND_BUILT.test(f.text));
+    expect(hits.filter((f) => !excluded.has(`${f.module} :: ${norm(f.text)}`)).map((f) => `${where(f)} :: ${norm(f.text)}`), "a hand-built command string").toEqual([]);
+    // The premises, so the zero above is not a scan that read nothing: every fragment that names a binary was read, and
+    // the three excluded fragments, which do hold the pattern, were among them.
+    expect(named.length, "premise: the scan read the fragments that name a binary").toBe(COMMAND_TABLE.length);
+    expect(hits.filter((f) => excluded.has(`${f.module} :: ${norm(f.text)}`)).length, "premise: the usage synopses and the file text are read").toBe(3);
   });
 
   it("(c) no string expression that names install.js or uninstall.js holds an agent flag, literal or through agentFlag", () => {
@@ -442,7 +594,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(f) every install-side re-run remedy is classed (equal both ways, with class counts)", () => {
     const found = fragmentsOf(modules.filter((m) => m !== "uninstall.ts")).filter((f) => RERUN.test(f.text));
     expect(compareBothWays(found, RERUN_TABLE)).toEqual({ unclassified: [], stale: [] });
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 61, "user-file.ts": 2 });
+    // Plan 34.1-28 (RERUN case-insensitive): KIT_BANNER and rewriteLedger's "Re-run to finish it." are read, 61 -> 63.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 63, "user-file.ts": 2 });
     // Plan 34.1-27 (DI-08): the stale-adapter WARN's re-run fragment moves from "agent-independent: doctor, recorded
     // agents" (12 -> 11) to "builder in the same expression" (1): the WARN prints doctorInstallCommand().
     // Plan 34.1-27 task 2 (D-33): every other doctor remedy (D1-D14, D16, D17) prints its command in the same expression,
@@ -454,12 +607,20 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // are finished by the migrate INCOMPLETE banner, which prints migrateCommand() ("same-run command (a migrate
     // banner)", 3), and the handoffs backup's abort prints migrateCommand() itself ("builder in the same expression"
     // 17 -> 18).
+    // Plan 34.1-28 task 2 (D-31, D-33): the ask-rules left line's head moves from "agentCommand" to "builder in the same
+    // expression" (1 -> 0, 18 -> 19: the class is held by the parser); the two DI-12 "re-run --check from a complete kit
+    // checkout" rows leave "mode with no agent set" (2 -> 0) for a class that names them, "no command: names another
+    // checkout (DI-12)" (2); the kit-home copy's verify leaves "shared footprint" (10 -> 9) for "same-run command
+    // (install or update banner)" (1), since the update INCOMPLETE banner now prints its command too. RERUN is
+    // case-insensitive (plan 34.1-28): KIT_BANNER is "file text" (3 -> 4), and rewriteLedger's "Re-run to finish it." is
+    // "no command: a re-run does not finish it (DI-13)" (1).
     expect(countBy(RERUN_TABLE, (r) => r[2])).toEqual({
-      agentCommand: 1,
-      "builder in the same expression": 18,
-      "agent-independent: mode with no agent set": 2,
-      "agent-independent: shared footprint": 10,
-      "file text": 3,
+      "builder in the same expression": 19,
+      "agent-independent: shared footprint": 9,
+      "no command: names another checkout (DI-12)": 2,
+      "same-run command (install or update banner)": 1,
+      "file text": 4,
+      "no command: a re-run does not finish it (DI-13)": 1,
       "not a remedy": 4,
       "same-run command": 22,
       "same-run command (a migrate banner)": 3,
@@ -565,6 +726,30 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     }
   });
 
+  // Plan 34.1-28 (D-31): the kit-home copy's verify is counted in both modes that copy the kit: the install run (whose
+  // INCOMPLETE banner prints agentCommand) and --update (updateKitHome, whose banner prints scriptCommand --update).
+  it("(f) the \"same-run command (install or update banner)\" row is copyKit's verify, and both copyKit callers end in a banner that prints a command", () => {
+    const src = sourceOf("install.ts");
+    const rows = RERUN_TABLE.filter((r) => r[2] === "same-run command (install or update banner)");
+    expect(rows.length, "premise: the class has rows").toBe(1);
+    for (const r of rows) {
+      const hits = fragmentsOf(["install.ts"]).filter((x) => RERUN.test(x.text) && norm(x.text) === norm(r[1]));
+      expect(hits.length, `no fragment for ${r[1]}`).toBe(1);
+      expect(nearestCall(hits[0].node)?.expression.getText(src), where(hits[0])).toBe("verify");
+      expect(enclosingName(hits[0].node), where(hits[0])).toBe(r[4]);
+    }
+    const callers: string[] = [];
+    const visit = (n: ts.Node): void => {
+      if (ts.isCallExpression(n) && n.expression.getText(src) === "copyKit") callers.push(enclosingName(n) ?? "<module>");
+      ts.forEachChild(n, visit);
+    };
+    visit(src);
+    expect(callers.sort(), "copyKit's callers: the install run (module level) and updateKitHome").toEqual(["<module>", "updateKitHome"]);
+  });
+
+  // The "Once each is fixed" lines that call agentCommand directly, with their arguments (the install banner's, and from
+  // plan 34.1-28 the prune banner's); the migrate banners print migrateCommand() through MIGRATE_AGAIN_LINE and the
+  // update banner scriptCommand, which the banner row below holds.
   it("(f) the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", () => {
     const src = sourceOf("install.ts");
     const hits: string[] = [];
@@ -578,7 +763,42 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
       ts.forEachChild(n, visit);
     };
     visit(src);
-    expect(hits).toEqual(['"install.js", TARGET, SELECTION, COMMAND_CONTEXT']);
+    expect(hits).toEqual(['"install.js", TARGET, [], COMMAND_CONTEXT, ["--prune-old-kit"]', '"install.js", TARGET, SELECTION, COMMAND_CONTEXT']);
+  });
+
+  // THE BANNER ROW (plan 34.1-28, D-31, the DI-09 class): every INCOMPLETE banner of install.ts is followed, in the same
+  // block, by a console.log whose argument prints a built command (a builder or command-helper call, or a const built
+  // from one). The banners are found by the parser (a string fragment holding "INCOMPLETE — " inside a console.log),
+  // never listed by hand, and counted: install, update, prune, the migrate pre-check and the already-migrated migrate.
+  it("(f) every INCOMPLETE banner of install.ts is followed in its block by a line that prints a built command", () => {
+    const src = sourceOf("install.ts");
+    const banners: ts.ExpressionStatement[] = [];
+    for (const f of fragmentsOf(["install.ts"]).filter((x) => x.text.includes("INCOMPLETE — "))) {
+      let p: ts.Node | undefined = f.node.parent;
+      while (p !== undefined && !ts.isExpressionStatement(p)) p = p.parent;
+      expect(p !== undefined && /^console\.log\(/.test(p.getText(src)), `${where(f)}: an INCOMPLETE banner not printed by console.log`).toBe(true);
+      if (p !== undefined && !banners.includes(p as ts.ExpressionStatement)) banners.push(p as ts.ExpressionStatement);
+    }
+    expect(banners.length, "the INCOMPLETE banners of install.ts (install, update, prune, two migrate)").toBe(5);
+    const off: string[] = [];
+    for (const b of banners) {
+      const block = b.parent;
+      const line = src.getLineAndCharacterOfPosition(b.getStart(src)).line + 1;
+      if (!ts.isBlock(block)) {
+        off.push(`install.ts:${line}: the banner is not a statement of a block`);
+        continue;
+      }
+      const after = block.statements.slice(block.statements.indexOf(b) + 1);
+      const prints = after.some(
+        (st) =>
+          ts.isExpressionStatement(st) &&
+          ts.isCallExpression(st.expression) &&
+          st.expression.expression.getText(src) === "console.log" &&
+          st.expression.arguments.some((a) => printsBuiltCommand(a, src)),
+      );
+      if (!prints) off.push(`install.ts:${line}: no line after the banner prints a built command`);
+    }
+    expect(off).toEqual([]);
   });
 });
 
@@ -815,7 +1035,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     rmSync(at(w, ".grugops/factory.config.json"), { recursive: true, force: true });
     const ran = runPrintedCommand(line, { home: w.home, timeoutMs: 180_000 });
     expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
-    expect(ran.premise.cwd.startsWith(REPO_ROOT), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(false);
+    expect(outsideCheckout(ran.premise.cwd), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
     expect(existsSync(at(w, MARKER_REL)) && lstatSync(at(w, MARKER_REL)).isFile(), `the two-root marker was not written\n${ran.stdout}`).toBe(true);
     expect(readMarkerObject(w.target).agents, "the marker records the agents the banner named").toEqual(chosen.map((h) => h.id));
@@ -847,7 +1067,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     expectReferences([["install --pi", i], ["--check", doc]], false);
     const ran = runPrintedCommand(line, { home: w.home, timeoutMs: 180_000 });
     expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
-    expect(ran.premise.cwd.startsWith(REPO_ROOT), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(false);
+    expect(outsideCheckout(ran.premise.cwd), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
     expect(existsSync(at(w, PI_PROMPT_REL)), `the Pi template was not written\n${ran.stdout}`).toBe(true);
     const after = check(w);
