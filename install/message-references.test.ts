@@ -243,24 +243,26 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "install.js:", "names no agent flag", "the install.js: prefix of a usage message"],
   ["install.ts", "install.js: INSTALL_MODE must be copy or symlink (it is", "names no agent flag", "the install.js: prefix of a usage message"],
   ["install.ts", "it, re-run `node install/install.js --target <this repository>` from the grugops checkout. The", "file text", "written into a target file, not printed"],
-  ["install.ts", "— run install.js (then install.js --check)", "names no agent flag", "no install is recorded here: install with no agent flag chooses the detected agents or refuses and names every agent flag (D-03)"],
-  ["install.ts", "re-run install.js (then install.js --check)", "names no agent flag", "no usable marker: install with no agent flag chooses the detected agents or refuses and names every agent flag (D-03)"],
-  ["install.ts", "and re-run install.js, which links or copies the current kit", "names no agent flag", "a link install made for an agent recorded here: install with no agent flag chooses the recorded agents (D-03)"],
-  ["install.ts", "nothing was there when --check asked again, so run install.js --check again", "names no agent flag", "--check takes no agent flag (D-25)"],
-  ["install.ts", "kit route cannot reach the Orchestrator. Re-run install.js (then install.js --check)", "names no agent flag", "the doctor speaks for the recorded agents, and install with no agent flag chooses that set (D-03)"],
-  ["install.ts", "follows the route cannot reach the Orchestrator. Re-run install.js (then install.js --check)", "names no agent flag", "the doctor speaks for the recorded agents, and install with no agent flag chooses that set (D-03)"],
-  ["install.ts", "Re-run install.js, which writes it where nothing is", "names no agent flag", "the doctor speaks for the recorded agents, and install with no agent flag chooses that set (D-03)"],
-  ["install.ts", "is there now, so run install.js --check again", "names no agent flag", "--check takes no agent flag (D-25)"],
-  ["install.ts", "Re-run install.js: it replaces install's own unedited copy with the current one", "names no agent flag", "the doctor speaks for the recorded agents, and install with no agent flag chooses that set (D-03)"],
-  ["install.ts", "Re-run install.js: it appends install's start-here block, which carries the route", "names no agent flag", "the doctor speaks for the recorded agents, and install with no agent flag chooses that set (D-03)"],
-  ["install.ts", "; otherwise re-run install.js here, which writes a marker for", "names no agent flag", "every install writes the marker, whatever agents it names (D-06)"],
-  ["install.ts", "its records here and changes nothing. Re-run install.js here, then uninstall: install writes a marker with", "names no agent flag", "every install writes the marker (D-06); the uninstall half is agentCommand in the same expression"],
+  ["install.ts", "— run install.js `", "builder in the same expression", "notInstalled: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)"],
+  ["install.ts", "re-run install.js `", "builder in the same expression", "markerUnreadable: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)"],
+  ["install.ts", "and re-run install.js, which links or copies the current kit", "builder in the same expression", "linkOwnership's remedy ends with doctorInstallCommand() (plan 34.1-27, D-33)"],
+  ["install.ts", "nothing was there when --check asked again, so run install.js --check again: `", "builder in the same expression", "classifyCarrier: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)"],
+  ["install.ts", "kit route cannot reach the Orchestrator. Re-run install.js `", "builder in the same expression", "the kit-route FAIL: doctorInstallCommand() then doctorCheckCommand() (plan 34.1-27, D-33)"],
+  ["install.ts", "follows the route cannot reach the Orchestrator. Re-run install.js `", "builder in the same expression", "the kit-route FAIL: doctorInstallCommand() then doctorCheckCommand() (plan 34.1-27, D-33)"],
+  ["install.ts", "Re-run install.js, which writes it where nothing is: `", "builder in the same expression", "absentRemedy: doctorInstallCommand() (plan 34.1-27, D-33; matrix row M9)"],
+  ["install.ts", "is there now, so run install.js --check again: `", "builder in the same expression", "absentRemedy: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)"],
+  ["install.ts", "Re-run install.js: it replaces install's own unedited copy with the current one: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)"],
+  ["install.ts", "Re-run install.js: it appends install's start-here block, which carries the route: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)"],
+  ["install.ts", "; otherwise re-run install.js here, `", "builder in the same expression", "the doctor's unbound other-directory WARN: doctorInstallCommand() and the no-agent-flag clause (plan 34.1-27, D-33)"],
+  ["install.ts", "its records here and changes nothing. Re-run install.js here, `", "builder in the same expression", "the doctor's unbound no-target or no-ledger WARN: doctorInstallCommand() and the clause, then the uninstall agentCommand (plan 34.1-27, D-33)"],
   ["install.ts", "uninstall.js", "agentCommand", "the doctor's unbound-marker remedy (D-26)"],
   ["install.ts", "uninstall.js", "agentCommand", "the doctor's unbound-marker remedy (D-26)"],
   ["install.ts", "install.js", "agentCommand", "the doctor's nothing-installed note (D-26, IN-21)"],
   ["install.ts", "install.js", "agentCommand", "doctorInstallCommand: the doctor's flag-less install command (plan 34.1-27, D-33, DI-08)"],
-  ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "names no agent flag", "no agent is recorded or detected: the text asks for the flag of each agent"],
-  ["install.ts", "(run install.js to re-seed)", "names no agent flag", "the seeded state, which every install writes (D-06)"],
+  ["install.ts", "install.js", "agentCommand", "doctorCheckCommand: the doctor's check command, which takes no agent flag (plan 34.1-27, D-25, D-33)"],
+  ["install.ts", "install.js", "agentCommand", "the no-agent-recorded-or-detected WARN's example, one agent's flag (plan 34.1-27, D-33)"],
+  ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "builder in the same expression", "no agent recorded or detected: doctorInstallCommand(), then an agentCommand example with one agent's flag (plan 34.1-27, D-33)"],
+  ["install.ts", "(run install.js to re-seed: `", "builder in the same expression", "the missing optional seed: doctorInstallCommand() (plan 34.1-27, D-33)"],
   ["install.ts", "Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.", "names no agent flag", "a --check hint; --check takes no agent flag (D-25)"],
   ["install.ts", "install.js: the real path of", "names no agent flag", "the install.js: prefix of a refusal before any agent is chosen"],
   ["install.ts", "install.js: the kit home", "names no agent flag", "the install.js: prefix of a refusal before any agent is chosen"],
@@ -290,26 +292,26 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "Replace the link with a regular file (or remove it) and re-run; the installer never writes", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
   ["install.ts", "Check that the target directory exists and is readable, then re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
   ["install.ts", "a real one, or install into the directory the link points at, and re-run; the installer only", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
-  ["install.ts", "— run install.js (then install.js --check)", "agent-independent: doctor, recorded agents", "no install is recorded: install with no agent flag detects the agents or refuses naming every flag (D-03)", null],
-  ["install.ts", "re-run install.js (then install.js --check)", "agent-independent: doctor, recorded agents", "no usable marker: install with no agent flag detects the agents or refuses naming every flag (D-03)", null],
-  ["install.ts", "and re-run install.js, which links or copies the current kit", "agent-independent: doctor, recorded agents", "install's own link for an agent recorded here: install with no agent flag chooses the recorded agents (D-03)", null],
-  ["install.ts", "nothing was there when --check asked again, so run install.js --check again", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
-  ["install.ts", "kit route cannot reach the Orchestrator. Re-run install.js (then install.js --check)", "agent-independent: doctor, recorded agents", "--check speaks for the recorded agents, and install with no agent flag chooses that set (D-03)", null],
-  ["install.ts", "follows the route cannot reach the Orchestrator. Re-run install.js (then install.js --check)", "agent-independent: doctor, recorded agents", "--check speaks for the recorded agents, and install with no agent flag chooses that set (D-03)", null],
-  ["install.ts", "Re-run install.js, which writes it where nothing is", "agent-independent: doctor, recorded agents", "--check speaks for the recorded agents, and install with no agent flag chooses that set (D-03)", null],
-  ["install.ts", "is there now, so run install.js --check again", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
-  ["install.ts", "Re-run install.js: it replaces install's own unedited copy with the current one", "agent-independent: doctor, recorded agents", "--check speaks for the recorded agents, and install with no agent flag chooses that set (D-03)", null],
-  ["install.ts", "Re-run install.js: it appends install's start-here block, which carries the route", "agent-independent: doctor, recorded agents", "--check speaks for the recorded agents, and install with no agent flag chooses that set (D-03)", null],
-  ["install.ts", "; otherwise re-run install.js here, which writes a marker for", "agent-independent: shared footprint", "the marker, which every install writes whatever agents it names (D-06)", null],
-  ["install.ts", "its records here and changes nothing. Re-run install.js here, then uninstall: install writes a marker with", "agentCommand", "the uninstall step is agentCommand, and it says the flag-less command removes every agent", null],
-  ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "agent-independent: doctor, recorded agents", "none is recorded or detected: the text asks for the flag of each agent", null],
-  ["install.ts", "(run install.js to re-seed)", "agent-independent: shared footprint", "the seeded state, which every install writes (D-06)", null],
+  ["install.ts", "— run install.js `", "builder in the same expression", "notInstalled: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)", null],
+  ["install.ts", "re-run install.js `", "builder in the same expression", "markerUnreadable: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)", null],
+  ["install.ts", "and re-run install.js, which links or copies the current kit", "builder in the same expression", "linkOwnership's remedy ends with doctorInstallCommand() (plan 34.1-27, D-33)", null],
+  ["install.ts", "nothing was there when --check asked again, so run install.js --check again: `", "builder in the same expression", "classifyCarrier: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)", null],
+  ["install.ts", "kit route cannot reach the Orchestrator. Re-run install.js `", "builder in the same expression", "the kit-route FAIL: doctorInstallCommand() then doctorCheckCommand() (plan 34.1-27, D-33)", null],
+  ["install.ts", "follows the route cannot reach the Orchestrator. Re-run install.js `", "builder in the same expression", "the kit-route FAIL: doctorInstallCommand() then doctorCheckCommand() (plan 34.1-27, D-33)", null],
+  ["install.ts", "Re-run install.js, which writes it where nothing is: `", "builder in the same expression", "absentRemedy: doctorInstallCommand() (plan 34.1-27, D-33; matrix row M9)", null],
+  ["install.ts", "is there now, so run install.js --check again: `", "builder in the same expression", "absentRemedy: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)", null],
+  ["install.ts", "Re-run install.js: it replaces install's own unedited copy with the current one: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)", null],
+  ["install.ts", "Re-run install.js: it appends install's start-here block, which carries the route: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)", null],
+  ["install.ts", "; otherwise re-run install.js here, `", "builder in the same expression", "the doctor's unbound other-directory WARN: doctorInstallCommand() and the no-agent-flag clause (plan 34.1-27, D-33)", null],
+  ["install.ts", "its records here and changes nothing. Re-run install.js here, `", "builder in the same expression", "the doctor's unbound no-target or no-ledger WARN: doctorInstallCommand() and the clause, then the uninstall agentCommand (plan 34.1-27, D-33)", null],
+  ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "builder in the same expression", "no agent recorded or detected: doctorInstallCommand(), then an agentCommand example with one agent's flag (plan 34.1-27, D-33)", null],
+  ["install.ts", "(run install.js to re-seed: `", "builder in the same expression", "the missing optional seed: doctorInstallCommand() (plan 34.1-27, D-33)", null],
   ["install.ts", "disagree; re-run --check from a complete kit", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
   ["install.ts", "disagree; re-run --check from a complete kit checkout.", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
   ["install.ts", "what differs here is what a re-run would change. That checkout is a DIFFERENT root", "builder in the same expression", "the stale-adapter WARN prints doctorInstallCommand() in the same expression (plan 34.1-27, DI-08)", null],
   ["install.ts", "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "not a remedy", "says what the installer does with a malformed ledger; asks for nothing", null],
-  ["install.ts", "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them", "agent-independent: doctor, recorded agents", "printed only when Claude Code is recorded; install with no agent flag chooses the recorded set (D-03)", null],
-  ["install.ts", "(re-run the installer to restore it)", "agent-independent: doctor, recorded agents", "printed only when Claude Code is recorded; install with no agent flag chooses the recorded set (D-03)", null],
+  ["install.ts", "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them: `", "builder in the same expression", "printed only when Claude Code is recorded: doctorInstallCommand() (plan 34.1-27, D-33)", null],
+  ["install.ts", "(re-run the installer to restore it: `", "builder in the same expression", "printed only when Claude Code is recorded: doctorInstallCommand() (plan 34.1-27, D-33)", null],
   ["install.ts", "Move or remove the existing backup, then re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's handoffs backup, recorded for the shared layout", null],
   ["install.ts", "and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's config carry, the shared layout", null],
   ["install.ts", "and re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's config carry, the shared layout", null],
@@ -383,10 +385,14 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // (names no agent flag) is gone: the WARN prints doctorInstallCommand() in backticks, and the fragments around it
     // name no binary. doctorInstallCommand's own agentCommand("install.js", ...) argument is a new agentCommand row. So
     // install.ts stays 34, "names no agent flag" 27 -> 26 and agentCommand 21 -> 22.
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 8 });
+    // Plan 34.1-27 task 2 (D-33): the doctor's other fourteen install.js remedies (D1-D14) print doctorInstallCommand()
+    // or doctorCheckCommand() in the same expression, so they move from "names no agent flag" to "builder in the same
+    // expression" (26 -> 12, and 14), and doctorCheckCommand's and D13's example's agentCommand("install.js", ...)
+    // arguments are two new agentCommand rows (22 -> 24). So install.ts 34 -> 36.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 36, "kit-source.ts": 1, "uninstall.ts": 8 });
     // Plan 34.1-25 (WR-20): the other-directory verify's "re-run install.js here, with any agent" row (names no agent
     // flag) became reinstallCommand's agentCommand row, so agentCommand 20 -> 21 and "names no agent flag" 29 -> 28.
-    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 22, "file text": 1, "names no agent flag": 26 });
+    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 24, "builder in the same expression": 14, "file text": 1, "names no agent flag": 12 });
   });
 
   // The builder is agentCommand and the invocation words it prints first, scriptCommand (plan 34.1-22, D-33): a
@@ -394,7 +400,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) an agentCommand row's fragment is an argument of an agentCommand call (or inside the builder: agentCommand or scriptCommand)", () => {
     const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "agentCommand").map((r) => `${r[0]} :: ${norm(r[1])}`));
     const found = all.filter((f) => COMMAND.test(f.text) && rows.has(`${f.module} :: ${norm(f.text)}`));
-    expect(found.length, "premise: the agentCommand rows are found (22 since plan 34.1-27's doctorInstallCommand)").toBe(22);
+    expect(found.length, "premise: the agentCommand rows are found (24 since plan 34.1-27's doctor commands)").toBe(24);
     const builder = new Set(["agentCommand", "scriptCommand"]);
     for (const f of found) {
       const call = nearestCall(f.node);
@@ -434,12 +440,15 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 61, "user-file.ts": 2 });
     // Plan 34.1-27 (DI-08): the stale-adapter WARN's re-run fragment moves from "agent-independent: doctor, recorded
     // agents" (12 -> 11) to "builder in the same expression" (1): the WARN prints doctorInstallCommand().
+    // Plan 34.1-27 task 2 (D-33): every other doctor remedy (D1-D14, D16, D17) prints its command in the same expression,
+    // so its row moves to "builder in the same expression" (1 -> 17): "doctor, recorded agents" 11 -> 0 (the class is
+    // empty), "mode with no agent set" 8 -> 6 (the two "--check again" remedies), "shared footprint" 12 -> 10 (the
+    // unbound other-directory WARN and the missing seed) and agentCommand 2 -> 1 (the unbound no-ledger WARN).
     expect(countBy(RERUN_TABLE, (r) => r[2])).toEqual({
-      agentCommand: 2,
-      "builder in the same expression": 1,
-      "agent-independent: doctor, recorded agents": 11,
-      "agent-independent: mode with no agent set": 8,
-      "agent-independent: shared footprint": 12,
+      agentCommand: 1,
+      "builder in the same expression": 17,
+      "agent-independent: mode with no agent set": 6,
+      "agent-independent: shared footprint": 10,
       "file text": 3,
       "not a remedy": 4,
       "same-run command": 22,
@@ -718,5 +727,39 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const json = JSON.parse(readFileSync(at(w, "opencode.json"), "utf8")) as { permission?: { external_directory?: Record<string, unknown> } };
     expect(Object.keys(json.permission?.external_directory ?? {})).toEqual(["~/.grugops-b/agent-factory/**"]);
     expect(existsSync(at(w, MARKER_REL)) && lstatSync(at(w, MARKER_REL)).isFile(), "the marker").toBe(true);
+  }, 240_000);
+
+  // M9 (plan 34.1-27, D-33, D-31): a doctor carrier remedy, run as printed, finishes the job. The expected command is
+  // built by agentCommand, so the line is also checked for builder-independent words (the remedy phrase, `node`, the
+  // absolute script path, the target, no agent flag and no GRUGOPS_HOME, since the world's kit home is the default),
+  // and the command is judged by its effect: the next --check gives Pi a reach line that reaches.
+  it("M9: the doctor's remedy for a deleted Pi template names the builder's command; run as printed from a scratch directory, it gives Pi a reach line that reaches", () => {
+    const w = world("m9");
+    const pi = hostOf("pi-prompt-template");
+    const i = install(w, [agentFlag(pi)]);
+    expect(i.status, i.stdout + i.stderr).toBe(0);
+    rmSync(at(w, PI_PROMPT_REL));
+    const doc = check(w);
+    const lines = doc.stdout.split("\n").filter((l) => l.includes(`kit route: ${PI_PROMPT_REL} `));
+    expect(lines.length, `premise: one carrier line about the Pi template\n${doc.stdout}`).toBe(1);
+    const line = lines[0];
+    expect(line, "the remedy phrase").toContain("Re-run install.js, which writes it where nothing is");
+    const want = agentCommand("install.js", w.target, [], commandContextFor({ grugopsHome: w.kitHome, home: w.home }));
+    expect(line, "the remedy does not print the builder's command").toContain("`" + want + "`");
+    const words = printedCommand(line).split(" ");
+    expect(words[0], "the printed command sets no kit home (the world's is the default) and starts with node").toBe("node");
+    expect(words[1], "the script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
+    expect(words.slice(2).join(" "), "the arguments: the target only, no agent flag and no mode").toBe(`--target ${w.target}`);
+    expectReferences([["install --pi", i], ["--check", doc]], false);
+    const ran = runPrintedCommand(line, { home: w.home, timeoutMs: 180_000 });
+    expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+    expect(ran.premise.cwd.startsWith(REPO_ROOT), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(false);
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(existsSync(at(w, PI_PROMPT_REL)), `the Pi template was not written\n${ran.stdout}`).toBe(true);
+    const after = check(w);
+    const reach = after.stdout.split("\n").filter((l) => /^ {2}reach\s/.test(l) && l.slice(17).startsWith(`${pi.name}: `));
+    expect(reach.length, `one reach line for ${pi.name}\n${after.stdout}`).toBe(1);
+    expect(reach[0].slice(17 + pi.name.length + 2), reach[0]).toMatch(/^reaches the Orchestrator/);
+    expect(after.stdout.split("\n").filter((l) => l.includes(`kit route: ${PI_PROMPT_REL} `) && l.includes("Re-run install.js")), "the remedy is still printed after it ran").toEqual([]);
   }, 240_000);
 });

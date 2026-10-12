@@ -1357,8 +1357,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // Builder-independent: the span's words, read off the printed line.
     const words = shellWords(printedCommand(warn[0]));
     expect(words[0], "the span does not set the kit home this run used").toBe(`GRUGOPS_HOME=${home}`);
-    expect(words.slice(1, 3)).toEqual(["node", join(REPO_ROOT, "install", "install.js")]);
-    expect(words.slice(3)).toEqual(["--target", target]);
+    expect(words[1], "the span's interpreter word").toBe("node");
+    expect(words[2], "the span's script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
+    expect(words.slice(3).join(" "), "the span's arguments: the target only, no agent flag and no mode").toBe(`--target ${target}`);
 
     const fin = runPrintedCommand(warn[0], { home: userHome, timeoutMs: 180_000 });
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);

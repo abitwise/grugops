@@ -488,6 +488,20 @@ function doctorInstallCommand(): string {
   return agentCommand("install.js", TARGET, [], COMMAND_CONTEXT);
 }
 
+/** The doctor's check command: `agentCommand("install.js", TARGET, [], COMMAND_CONTEXT, ["--check"])` (D-25). */
+function doctorCheckCommand(): string {
+  return agentCommand("install.js", TARGET, [], COMMAND_CONTEXT, ["--check"]);
+}
+
+// DOCTOR_NO_FLAG_CLAUSE: what install does with no agent flag, printed after doctorInstallCommand() by the remedies
+// whose marker is absent or one the doctor cannot use (notInstalled, markerUnreadable, the unbound-marker WARN). It
+// states SELECTION_WHY's chain in order: at a terminal the agent list (pickAgents); unattended, the agents a usable
+// marker records (INSTALLED_BEFORE), else the agents detected here (detectedHosts), else refuseSelection, which names
+// every agent flag.
+const DOCTOR_NO_FLAG_CLAUSE =
+  "with no agent flag, install shows the agent list at a terminal; unattended, it chooses the agents a usable marker " +
+  "records, else the agents detected here, else it refuses and names the agent flags";
+
 // Materialization sentinels — byte-identical to uninstall.ts. Declared HERE (before the doctor) so
 // the doctor's adapter KIT= parser can reference them under --check; materializeAdapter on the
 // install path below reuses these same definitions verbatim (mirrors install.sh's relocation).
@@ -1211,7 +1225,7 @@ const isDangling = (p: string): boolean => {
 
 // notInstalled: the distinct, greppable "not installed" line.
 function notInstalled(): void {
-  docReport("FAIL", `grugops not installed in ${TARGET} — run install.js (then install.js --check)`);
+  docReport("FAIL", `grugops not installed in ${TARGET} — run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`); ${DOCTOR_NO_FLAG_CLAUSE}`);
   console.log("\n1 FAILURE(S)");
 }
 
@@ -1224,7 +1238,7 @@ function markerUnreadable(markerFile: string, read: { readonly why: string; read
     "FAIL",
     `the install marker ${markerFile} is present but ${markerUnusableText(read)} — the ` +
       `install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then ` +
-      `re-run install.js (then install.js --check)`,
+      `re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`); ${DOCTOR_NO_FLAG_CLAUSE}`,
   );
   console.log("\n1 FAILURE(S)");
 }
@@ -1369,7 +1383,7 @@ function linkOwnership(ledger: LedgerRead, rel: string): LinkOwnership {
   return {
     own: true,
     reason: "it is a link a --symlink install made",
-    remedy: `Remove the link at ${rel} and re-run install.js, which links or copies the current kit ${rel}`,
+    remedy: `Remove the link at ${rel} and re-run install.js, which links or copies the current kit ${rel}: \`${doctorInstallCommand()}\``,
   };
 }
 
@@ -1617,7 +1631,7 @@ function classifyCarrier(rel: string, ledger: LedgerRead, readAt: ReadAt): Carri
   if (w.act === "refresh") return { state: "own-stale", read, why: null };
   if (w.act === "append") return { state: "appendable", read, why: null };
   if (w.act === "none") return { state: "user", read, why: w.why };
-  return { state: "user", read, why: "nothing was there when --check asked again, so run install.js --check again" };
+  return { state: "user", read, why: `nothing was there when --check asked again, so run install.js --check again: \`${doctorCheckCommand()}\`` };
 }
 
 /** What a read found, as the doctor words it: `is not present`, or unreadState's text, or `is a readable file`. */
@@ -1702,7 +1716,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
   if (!kitRoot) {
     docFail(
       `kit route: ${markerFile} records no \`kitRoot\`, so a host with no Claude Code adapter that follows the ` +
-        `kit route cannot reach the Orchestrator. Re-run install.js (then install.js --check)`,
+        `kit route cannot reach the Orchestrator. Re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`)`,
     );
   } else {
     const orchestrator = join(kitRoot, "roles", "orchestrator.md");
@@ -1718,7 +1732,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       docFail(
         `kit route: the \`kitRoot\` field of ${markerFile} leads to ${orchestrator}, which ` +
           `${read.state === "absent" ? "is not present" : unreadState(read)} — a host with no Claude Code adapter that ` +
-          `follows the route cannot reach the Orchestrator. Re-run install.js (then install.js --check)`,
+          `follows the route cannot reach the Orchestrator. Re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`)`,
       );
     }
   }
@@ -1762,9 +1776,9 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
   // write it. A refresh or append answer for a path this read found absent means it changed between the two reads.
   const absentRemedy = (rel: string): string => {
     const w = installWouldWrite(ledger, rel);
-    if (w.act === "create") return `Re-run install.js, which writes it where nothing is`;
+    if (w.act === "create") return `Re-run install.js, which writes it where nothing is: \`${doctorInstallCommand()}\``;
     if (w.act === "none") return `Install will not write it: ${w.why}`;
-    return `${join(TARGET, ...rel.split("/"))} is there now, so run install.js --check again`;
+    return `${join(TARGET, ...rel.split("/"))} is there now, so run install.js --check again: \`${doctorCheckCommand()}\``;
   };
   // The `user` remedy (phase 34.1, D-16, D-17): for install's own --symlink link, linkOwnership's remedy (remove the
   // link and re-run install.js), never an edit of the file the link points to (WR-16); otherwise the sentence to add
@@ -1784,9 +1798,9 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
     }
     const remedy =
       cls.state === "own-stale"
-        ? `Re-run install.js: it replaces install's own unedited copy with the current one`
+        ? `Re-run install.js: it replaces install's own unedited copy with the current one: \`${doctorInstallCommand()}\``
         : cls.state === "appendable"
-          ? `Re-run install.js: it appends install's start-here block, which carries the route`
+          ? `Re-run install.js: it appends install's start-here block, which carries the route: \`${doctorInstallCommand()}\``
           : cls.state === "user"
             ? userRemedy(rel)
             : cls.state === "absent"
@@ -1875,10 +1889,11 @@ function doctor(): number {
       markerRead.unboundBy === "other-directory"
         ? `the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of ` +
             `its records here and changes nothing. If this is the same repository moved or renamed, set "target" in ` +
-            `the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, which writes a marker for ` +
-            `this directory and carries none of these records`
+            `the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, \`${doctorInstallCommand()}\` ` +
+            `(${DOCTOR_NO_FLAG_CLAUSE}), which writes a marker for this directory and carries none of these records`
         : `the install marker ${markerFile} is not a record uninstall can use: ${markerRead.why}. Uninstall uses none of ` +
-            `its records here and changes nothing. Re-run install.js here, then uninstall: install writes a marker with ` +
+            `its records here and changes nothing. Re-run install.js here, \`${doctorInstallCommand()}\` (${DOCTOR_NO_FLAG_CLAUSE}), then ` +
+            `uninstall: install writes a marker with ` +
             `the install ledger for this directory and carries none of these records. \`${agentCommand("uninstall.js", TARGET, [], COMMAND_CONTEXT)}\` ` +
             `with no agent flag removes every agent and the shared files; with agent flags (for example ` +
             `\`${agentCommand("uninstall.js", TARGET, [HOST_TOOLS[0]], COMMAND_CONTEXT)}\`) it removes only those agents`,
@@ -1957,7 +1972,8 @@ function doctor(): number {
     docWarn(
       `no agent is ${installed.source === "detected" ? "recorded or detected" : "recorded as installed that this build knows"} ` +
         `in ${TARGET}, so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the ` +
-        `flag of each agent to install for`,
+        `flag of each agent to install for: \`${doctorInstallCommand()}\` followed by the flag of each agent, for example ` +
+        `\`${agentCommand("install.js", TARGET, [HOST_TOOLS[0]], COMMAND_CONTEXT)}\``,
     );
   }
 
@@ -2095,7 +2111,7 @@ function doctor(): number {
     const optionalSeed = join(TARGET, "memory-bank", "00-index.md");
     const optionalRead = readUserFile(optionalSeed);
     if (optionalRead.state === "absent") {
-      docWarn(`missing optional seed: ${optionalSeed} (run install.js to re-seed)`);
+      docWarn(`missing optional seed: ${optionalSeed} (run install.js to re-seed: \`${doctorInstallCommand()}\`)`);
     } else if (optionalRead.state !== "ok") {
       docWarn(`optional seed ${optionalSeed} ${unreadState(optionalRead)} — it was not read, so NO VERDICT was reached on it`);
     }
@@ -2313,7 +2329,7 @@ function doctor(): number {
     docReport(
       "info",
       claudeInstalled
-        ? "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them"
+        ? `the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them: \`${doctorInstallCommand()}\``
         : "the install ledger records no ask rules for .claude/settings.json, and none are expected: Claude Code is not installed here",
     );
   } else {
@@ -2352,7 +2368,7 @@ function doctor(): number {
     } else {
       for (const rule of askLedger.added) {
         if ((presentAsk ?? []).includes(rule)) docReport("ok", `ask rule present: ${rule}`);
-        else docWarn(`ask rule absent from .claude/settings.json: ${rule} (re-run the installer to restore it)`);
+        else docWarn(`ask rule absent from .claude/settings.json: ${rule} (re-run the installer to restore it: \`${doctorInstallCommand()}\`)`);
       }
     }
   }
