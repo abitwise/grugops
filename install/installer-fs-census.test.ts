@@ -406,11 +406,11 @@ interface ReadSite {
 // readUserFile, never classified here.
 const READ_SITES: readonly ReadSite[] = [
   {
-    site: "install.ts:readlineSync:readSync",
+    site: "install.ts:readStdin:readSync",
     count: 1,
     cls: "stdin",
     source: "0",
-    why: "descriptor 0 is standard input, read one byte at a time for the interactive target prompt (--yes and a non-TTY never reach it); no path is opened",
+    why: "descriptor 0 is standard input, the one stdin read (plan 34.1-12): readlineSync reads it one byte at a time for the interactive prompts and pickAgents up to 16 bytes at a time for the agent checkbox list (--yes and a non-TTY never reach either); no path is opened",
   },
   {
     site: "install.ts:copyKit:cpSync",

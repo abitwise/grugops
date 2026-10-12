@@ -182,6 +182,9 @@ import {
   type HostTool,
   type RouteFacts,
 } from "./host-tools.js";
+// Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
+// nothing and does no I/O; pickAgents below is its raw-mode reader.
+import { decodeKeys, initialPicker, pickerRows, render, step, type PickerRow, type PickerState } from "./agent-picker.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -344,26 +347,81 @@ const KIT_COPY_SOURCE = join(GRUGOPS_SRC, "agent-factory");
 // yet throws EAGAIN. Before, that throw ended the loop, so the answer read as "" (the default) before
 // the human typed anything. Measured under script(1) on darwin. The wait is a synchronous sleep on
 // a private SharedArrayBuffer (Atomics.wait), so nothing else runs meanwhile.
+//
+// readStdin is THE ONE READ of standard input (the line prompts and the agent checkbox list, plan 34.1-12): it fills
+// `buf` from fd 0 and returns the byte count, waiting out EAGAIN; 0 means end of input or a read error, which every
+// caller treats as "no more input".
 const STDIN_WAIT = new Int32Array(new SharedArrayBuffer(4));
-function readlineSync(): string {
-  const chunks: number[] = [];
-  const buf = Buffer.alloc(1);
+function readStdin(buf: Buffer): number {
   for (;;) {
-    let n: number;
     try {
-      n = readSync(0, buf, 0, 1, null);
+      return readSync(0, buf, 0, buf.length, null);
     } catch (e) {
       if ((e as { code?: unknown }).code === "EAGAIN") {
         Atomics.wait(STDIN_WAIT, 0, 0, 25);
         continue;
       }
-      break;
+      return 0;
     }
+  }
+}
+function readlineSync(): string {
+  const chunks: number[] = [];
+  const buf = Buffer.alloc(1);
+  for (;;) {
+    const n = readStdin(buf);
     if (n <= 0) break;
     if (buf[0] === 0x0a) break; // newline
     chunks.push(buf[0]);
   }
   return Buffer.from(chunks).toString("utf8");
+}
+
+// pickAgents (phase 34.1, D-02): the raw-mode reader of the agent checkbox list. The list itself (keys, steps, frames)
+// is install/agent-picker.ts; this shell only moves bytes. It hides the cursor, puts standard input in raw mode, reads
+// it through readStdin (16 bytes at most per read, one key per read in practice), decodes each chunk, applies each key
+// and repaints. It answers the confirmed checkbox list, or null when the list was cancelled: Ctrl-C (byte 0x03, which
+// raises no SIGINT in raw mode) or the end of input. THE TERMINAL IS ALWAYS RESTORED: raw mode off, cursor shown and
+// a newline, in a finally block, on confirm, cancel, end of input or a thrown error. Nothing in the loop exits the
+// process; the caller refuses through refuseSelection after this returns. Reached only when standard input and
+// standard output are both terminals (the SELECTION_WHY gate below); no environment variable or file feeds it keys.
+function pickAgents(rows: readonly PickerRow[], checked: readonly boolean[]): readonly boolean[] | null {
+  const stdin = process.stdin;
+  if (typeof stdin.setRawMode !== "function") return null;
+  let state: PickerState = initialPicker(checked);
+  let answer: readonly boolean[] | null = null;
+  let carry = "";
+  let lines = 0;
+  const buf = Buffer.alloc(16);
+  const paint = (): void => {
+    const frame = render(state, rows, lines);
+    process.stdout.write(frame.text);
+    lines = frame.lines;
+  };
+  process.stdout.write("\x1b[?25l");
+  try {
+    stdin.setRawMode(true);
+    paint();
+    read: for (;;) {
+      const n = readStdin(buf);
+      if (n <= 0) break; // end of input: cancelled
+      const decoded = decodeKeys(buf.toString("latin1", 0, n), carry);
+      carry = decoded.carry;
+      for (const key of decoded.keys) {
+        const next = step(state, key);
+        if ("done" in next) {
+          if (next.done === "confirm") answer = next.checked;
+          break read;
+        }
+        state = next;
+      }
+      paint();
+    }
+  } finally {
+    stdin.setRawMode(false);
+    process.stdout.write("\x1b[?25h\n");
+  }
+  return answer;
 }
 
 // --- resolve TARGET (INSTALL-03): --target flag > TARGET env > prompt(default CWD). Non-TTY or
@@ -5535,7 +5593,12 @@ const START_HELD_DIRS: ReadonlySet<string> = (() => {
 //   4. none of these: refuseSelection, which exits 1 before the run banner and before any write in the target or the
 //      kit home, naming every per-agent flag. An empty repository is never installed for every agent by default.
 // Computed HERE, after the read-only guards and before the --migrate branch, whose pre-steps are this run's first
-// change. Until the checkbox list (plan 34.1-12) a terminal run with no flag follows the same chain as `--yes`.
+// change.
+// AT A TERMINAL (D-02, plan 34.1-12): with standard input and standard output both terminals, no agent flag and no
+// `--yes`, steps 2 to 4 are replaced by the checkbox list (pickAgents over agent-picker.ts pickerRows): every registry
+// agent, the installed (step 2) and detected (step 3) ones pre-checked and labelled why. The checked agents are chosen
+// "chosen at the prompt". A cancelled list (Ctrl-C or end of input) and an empty confirmed list both refuse through
+// refuseSelection, exit 1, before anything is written.
 // Each chosen agent carries the reason it was chosen; the run banner prints both (research Pitfall 7), so a
 // detection-driven choice is visible.
 const INSTALLED_BEFORE: InstalledAgents = installedAgents(PREVIOUS_MARKER_READ, PREVIOUS_LEDGER);
@@ -5558,6 +5621,17 @@ const SELECTION_WHY: ReadonlyMap<string, string> = (() => {
   if (SELECTED_BY_FLAG.size > 0) {
     for (const h of HOST_TOOLS) if (SELECTED_BY_FLAG.has(h.id)) why.set(h.id, "named by flag");
     return why;
+  }
+  if (!YES && process.stdin.isTTY && process.stdout.isTTY) {
+    const detectedIds = new Set(detectedHosts().map((h) => h.id));
+    const list = pickerRows(HOST_TOOLS, new Set(INSTALLED_IDS_BEFORE), detectedIds);
+    const answer = pickAgents(list.rows, list.checked);
+    if (answer === null) return refuseSelection("the agent list was cancelled, so nothing was installed.");
+    HOST_TOOLS.forEach((h, i) => {
+      if (answer[i] === true) why.set(h.id, "chosen at the prompt");
+    });
+    if (why.size > 0) return why;
+    return refuseSelection("no agent was checked at the agent list, so nothing was installed.");
   }
   if (INSTALLED_BEFORE.ids.length > 0) {
     // A legacy install (a marker written before this phase, with a usable ledger and no `agents` field) counts as the

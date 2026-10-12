@@ -2230,8 +2230,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 97 with this module tracked (2026-10-11).
+ *
+ * 97 -> 98 (plan 34.1-12, task 1, phase 34.1 D-02), ONE PURE INSTALLER MODULE:
+ *   - `install/agent-picker.ts` — the interactive agent checkbox list as a pure state machine: key
+ *     decoding with split escape sequences carried (decodeKeys), steps (step), frames (render) and the
+ *     rows with their pre-checks (pickerRows). Imported by `install/install.ts`, whose pickAgents is
+ *     the raw-mode reader. Pure: it imports nothing and does no I/O.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict (its `render` paints terminal text, never a verdict). Its
+ *     committed `.js` twin landed in the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 98 with this module tracked (2026-10-12).
  */
-const NON_TEST_MODULE_COUNT = 97;
+const NON_TEST_MODULE_COUNT = 98;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
