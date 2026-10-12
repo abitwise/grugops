@@ -653,8 +653,29 @@ function rmdirIfEmpty(d: string): Outcome {
     markGone(d);
     report("rmdir", d);
     return "removed";
-  } catch {
-    // became non-empty in a race, or not removable → leave it
+  } catch (e) {
+    // THE REMOVAL FAILED (D-31, DI-07). Two causes: the directory became non-empty in a race (something was put in it
+    // after the read above), or it cannot be removed (a permission on its parent, a read-only file system). It is read
+    // once more, the same way as above: when it is no longer empty, it is left silently, as a non-empty directory always
+    // is. Otherwise the failure is real and a `left` line names it, with the error and the by-hand remedy, so a
+    // directory install created is never left unreported. The outcome stays `left`: a directory never holds the marker
+    // and never keeps an agent recorded (install-marker.ts entryHolds, agentsToRecord), so the marker rule and D-29 are
+    // unchanged. The line says nothing about the directory's ledger record, which a FULL run may remove with the marker
+    // and a partial run rewrites, so it is true on both.
+    let after: string[] | null;
+    try {
+      after = readdirSync(d);
+    } catch {
+      after = null;
+    }
+    if (after !== null && after.length > 0) return "left";
+    const code = (e as { code?: unknown }).code;
+    const why = typeof code === "string" && code !== "" ? code : "the removal failed";
+    report(
+      "left",
+      `${d} (install created this directory and it is empty, but it could not be removed (${why}); a directory keeps ` +
+        `neither the marker nor an agent recorded, so remove it by hand once that is fixed)`,
+    );
     return "left";
   }
 }

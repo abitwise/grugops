@@ -87,10 +87,13 @@ const SOURCE_FILE_COUNT = 9;
  * Gemini settings file and its restore, deleted with the Gemini merge) and its afterAll restore, which only that case
  * needed; measured per file and kind by this census's own failure message. access-denial 9 -> 10 and restore 16 -> 17
  * on 2026-10-12 (plan 34.1-14): agents-record.test.ts row R12 (a recorded verify on a flag-less run, from a read-only
- * `.claude/agents`, the marker-rule tests' pattern) and its `finally` restore. */
+ * `.claude/agents`, the marker-rule tests' pattern) and its `finally` restore. access-denial 10 -> 11 and restore 17 -> 18
+ * on 2026-10-12 (plan 34.1-21, D-31 DI-07): agents-record.test.ts row R22 makes `.agents` read-only so the recorded
+ * directory `.agents/skills` cannot be removed (one call site, run in a loop for a partial and a flag-less run) and
+ * restores it in a `finally` (gated on win32 and root as R12 is). */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 10,
-  restore: 17,
+  "access-denial": 11,
+  restore: 18,
   "row-315": 5,
   "posix-bits": 2,
 };

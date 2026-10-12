@@ -742,11 +742,13 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   ["uninstall.ts", "unrecordedFileReason", "either", "there is no install marker, so there is no record that install wrote it — left in place; remove it by hand if grugops put it there", "touches no record", "one file; there is no marker"],
   ["uninstall.ts", "reportUnrecordedSettings", "either", "${rel} (the install ledger has no gemini entry, so there is no record of what install changed in it — left untouched; if grugops added AGENTS.md to context.fileName, remove that entry by hand)", "touches no record", "one entry of .gemini/settings.json"],
   ["uninstall.ts", "reportUnrecordedSettings", "either", "${rel} ask rules — .grugops/install.json could not be used as install's marker (${MARKER.why}), so the ledger of rules grugops added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.", "touches no record", "the ask rules in the settings file"],
+  ["uninstall.ts", "rmdirIfEmpty", "either", "${d} (install created this directory and it is empty, but it could not be removed (${why}); a directory keeps neither the marker nor an agent recorded, so remove it by hand once that is fixed)", "touches no record", "a directory install created (plan 34.1-21, DI-07); the marker is named only to say the directory does not hold it"],
   ["uninstall.ts", "<module>", "either", ".grugops/install.json ${markerUnusableText(MARKER)}, so the install ledger is unknown. No empty directory, no file install may have created, no grugops skill or adapter file and no pointer block is removed, and .gemini/settings.json is not edited — remove them by hand once you have confirmed they are yours to remove.", "touches no record", "the files the line lists"],
   // not a printed alternative: this run's own (DRY_RUN) description of the rewrite it makes.
   ["uninstall.ts", "said", "either", "the entries this run would remove or reverse would be taken out of its install ledger: ${what}", "not a printed alternative", "updateKeptMarker's DRY_RUN wording of its own ledger rewrite"],
 ];
-/** Per-class counts, measured at execution of plan 34.1-20 (31 sites: install.ts 7, uninstall.ts 24; the other 7 product modules print none). */
+/** Per-class counts, measured at execution of plan 34.1-20 (31 sites: install.ts 7, uninstall.ts 24; the other 7 product modules print none).
+ * 32 since plan 34.1-21 (DI-07): rmdirIfEmpty's failed-removal `left` line, "touches no record" 10 -> 11, uninstall.ts 24 -> 25. */
 const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
   "usable record, FULL only": 2,
   "usable record, split by FULL": 2,
@@ -754,7 +756,7 @@ const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
   "per entry": 3,
   "per field": 1,
   fix: 7,
-  "touches no record": 10,
+  "touches no record": 11,
   "not a printed alternative": 1,
 };
 /** What every row of a class must say, so a row cannot be classed against its text. */
@@ -914,8 +916,8 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     expect(unclassified, "a printed alternative that touches the marker or its ledger is not classed").toEqual([]);
     expect(stale, "a classed printed alternative is gone or changed").toEqual([]);
     expect(counts, "a classed printed alternative is printed a different number of times").toEqual([]);
-    expect(sites.length, "the census size moved").toBe(31);
-    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install.ts": 7, "uninstall.ts": 24 });
+    expect(sites.length, "the census size moved").toBe(32);
+    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install.ts": 7, "uninstall.ts": 25 });
     expect(countBy(CENSUS_TABLE, (r) => r[4]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(CENSUS_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
@@ -1159,4 +1161,60 @@ describe("the uninstall re-run census (MSG-1)", () => {
       expect(callsOf(fn, "agentCommand").length, `${name} does not call agentCommand`).toBeGreaterThan(0);
     }
   });
+});
+
+// ── D-31 (DI-07, MSG-1): a directory that cannot be removed, and the finishing command of a partial run ──────────────
+//
+// DI-07 (plan 34.1-21). A recorded verify never lands on a directory entry (every `return "verify"` and verify outcome
+// in uninstall.ts is in the reversal of a file, block, gemini, ask-rules or opencode-permission entry; reverseDir's
+// outcomes are left, gone and removed). What a directory had instead was a silent failure: rmdirIfEmpty's rmdirSync
+// catch returned `left` with no line. R22 holds the line it prints now, on a partial and a FULL run.
+
+if (CHMOD_SKIP !== null) console.log(`SKIP R22 of agents-record.test.ts — ${CHMOD_SKIP}`);
+
+/** The `left` line rmdirIfEmpty prints for recorded directory `rel` it could not remove. */
+const failedRmdirLines = (w: World, stdout: string, rel: string): string[] =>
+  linesWith(stdout, "left").filter((l) => l.includes(`${at(w.target, rel)} (install created this directory and it is empty, but it could not be removed`));
+
+describe("D-31 (DI-07): a directory that cannot be removed, and the finishing command of a partial run", () => {
+  it.skipIf(CHMOD_SKIP !== null)(
+    "R22: a recorded directory uninstall cannot remove (a read-only .agents) is named on a `left` line with its error and the by-hand remedy, on a partial (--codex) and a flag-less run",
+    () => {
+      const SKILLS = ".agents/skills";
+      const words: string[] = [];
+      for (const args of [[flag("codex")], []] as const) {
+        const w = world("r22");
+        install(w, [flag("claude"), flag("codex")]);
+        const parent = at(w.target, ".agents");
+        chmodSync(parent, 0o555); // mode-census: access-denial
+        let r: Run;
+        try {
+          r = uninstall(w, args);
+        } finally {
+          chmodSync(parent, 0o755); // mode-census: restore
+        }
+        const what = args.length === 0 ? "the flag-less run" : `uninstall ${args.join(" ")}`;
+        expect(r.status, `${what}\n${r.stdout}`).toBe(0);
+        expect(existsSync(at(w.target, SKILLS)), `premise: ${SKILLS} could not be removed\n${r.stdout}`).toBe(true);
+        expect(existsSync(at(w.target, `${SKILLS}/grugops`)), `premise: the directory under it was removed\n${r.stdout}`).toBe(false);
+        const lines = failedRmdirLines(w, r.stdout, SKILLS);
+        expect(lines.length, `${what}: no \`left\` line names the directory it could not remove\n${r.stdout}`).toBe(1);
+        expect(lines[0], r.stdout).toMatch(/could not be removed \((EACCES|EPERM)\)/);
+        expect(lines[0], r.stdout).toContain("remove it by hand once that is fixed");
+        expect(lines[0], r.stdout).toContain("a directory keeps neither the marker nor an agent recorded");
+        // The run did not claim it removed the directory.
+        const claimed = r.stdout.split("\n").filter((l) => /^ {2}(would-)?rmdir\s/.test(l) && l.trimEnd().endsWith(at(w.target, SKILLS)));
+        expect(claimed, r.stdout).toEqual([]);
+        if (args.length === 0) {
+          expect(markerGone(w), `a directory never holds the marker\n${r.stdout}`).toBe(true);
+        } else {
+          expect(agentsOf(w), `a directory never keeps an agent recorded\n${r.stdout}`).toEqual(ids("claude"));
+          expectInvariant(w, ids("claude", "codex"), r.stdout);
+        }
+        words.push(lines[0].slice(lines[0].indexOf(" (install created")));
+      }
+      expect(words[1], "the partial and the flag-less run print the line with the same words").toBe(words[0]);
+    },
+    300_000,
+  );
 });

@@ -159,3 +159,30 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **DI-08:** open for human triage (recorded by plan 34.1-15).
 - **DI-09:** open for human triage (recorded by plan 34.1-15).
 - **DI-10:** open for human triage (recorded by plan 34.1-18, found by plan 34.1-17).
+
+## From plan 34.1-21 (gap round 2)
+
+### DI-11: a partial uninstall's verify on an ask-rules entry that claims nothing leaves a finishing command that does nothing
+
+- **Found during:** plan 34.1-21, task 1 (the DI-07 sibling search over every `return "verify"` and verify outcome in
+  install/uninstall.ts). Reproduced by a scratch run (GRUGOPS_HOME and HOME set to scratch directories), not only read.
+- **What:** install records an `ask-rules` entry that claims nothing (`added` empty, no `created*` flag) when
+  `.claude/settings.json` already holds every ask rule. That entry is of a holding kind, but install-marker.ts
+  entryHolds answers false for it (entryClaimsNothing). removeAskRules has the rule "a ledger that claims nothing is no
+  record for the file" only in its `blocked` arm. Its JSON-shape arms (not a JSON object, a parse error, a duplicate
+  `permissions` key, a `permissions` or `permissions.ask` of the wrong type) still count a verify ("the 0 ask rule(s)
+  grugops added were NOT removed"). On `uninstall --claude` while Codex CLI stays, with the settings file set to `[]`:
+  exit 3; the walk removes every Claude Code file; the kept arm rewrites the marker with `agents` [codex] (no held entry
+  keeps Claude Code), and the ask-rules entry stays in the ledger. The kept `left` line and the INCOMPLETE banner print
+  `uninstall.js --target <t> --claude` (finishCommand's NAMED fallback). Run after the file is fixed, that command
+  reports "none of the named agents is installed here" and changes nothing, so the entry stays recorded until a
+  flag-less uninstall. The printed command is never the flag-less one (D-05 holds), but it names an agent the rewritten
+  marker no longer records. This is DI-07's arm (a partial kept arm with nothing held and a recorded verify), reached
+  through an entry that does not hold instead of through a directory.
+- **Not fixed:** outside plan 34.1-21's scope (the brief's §3: new findings go here for human triage), and either fix
+  changes a removal or record rule. Options for triage: (a) apply the claims-nothing rule to every arm of removeAskRules
+  (nothing of install's is in the file, so its shape is not this run's to judge: report it `left` or `skipped` and
+  return `gone`), which also stops a FULL run from exiting 3 over it; (b) keep an agent recorded while it owns an entry
+  whose reversal counted a verify (an agentsToRecord change, D-29's rule). The legacy `gemini` kind has the same shape
+  (a claims-nothing entry can still verify in unmergeGemini), but it has no owner, so it is reversed only by a FULL run,
+  whose finishing command is the flag-less one; it is listed here for completeness.
