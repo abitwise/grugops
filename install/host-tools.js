@@ -286,16 +286,22 @@ export function reachVia(host, facts) {
     };
 }
 /**
- * strandedBy (plan 34-33): THE ONE DERIVATION of the hosts a carrier leaves without a route (D-27 point 2). The
- * doctor and install both ask it; the route target's resolution is a separate FAIL and is not an input here.
- * `[]` when `rel` holds the route. Otherwise the HOST_TOOLS rows, in registry order, that read `rel` here (it is
- * one of their routeCarriers and facts.reads answers yes), read no carrier that holds the route (reachVia's
- * carriers are empty), and have no adapter route. A carrier for which this is empty is never counted.
+ * strandedBy (plan 34-33; the host set, phase 34.1 D-07): THE ONE DERIVATION of the hosts a carrier leaves without a
+ * route (D-27 point 2), among the agents installed in the target. The doctor and install both ask it; the route
+ * target's resolution is a separate FAIL and is not an input here. `hosts` is REQUIRED: the caller's installed set
+ * (the doctor's from install-marker.ts installedAgents, or the agents detected when nothing is recorded; install's
+ * from the agents installed after its run), so an agent nobody installed here is never named as stranded.
+ * `[]` when `rel` holds the route. Otherwise the HOST_TOOLS rows in `hosts`, in registry order whatever order `hosts`
+ * is in, that read `rel` here (it is one of their routeCarriers and facts.reads answers yes), read no carrier that
+ * holds the route (reachVia's carriers are empty), and have no adapter route. A carrier for which this is empty is
+ * never counted.
  */
-export function strandedBy(rel, facts) {
+export function strandedBy(rel, facts, hosts) {
     if (facts.holds(rel))
         return [];
     return HOST_TOOLS.filter((h) => {
+        if (!hosts.includes(h))
+            return false;
         if (!routeCarriers(h).includes(rel) || !facts.reads(h, rel))
             return false;
         const via = reachVia(h, facts);

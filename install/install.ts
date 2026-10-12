@@ -1322,11 +1322,43 @@ function refreshable(ledger: LedgerRead, rel: string, cur?: UserWriteRead): Refr
   return { ok: true, kind: "block", file, cur: now, own: blk.entry, span: blk.spans[0] };
 }
 
-// routeCarrierSet (plan 34-29, D-26 point 4): every file through which some registry host can reach the kit
-// route: the union of routeCarriers(host) (host-tools.ts, the one derivation) over HOST_TOOLS, in first-seen
-// registry order. Derived, so a seventh host or a new pointer is asked about with no edit here.
-function routeCarrierSet(): readonly string[] {
-  return [...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))];
+// routeCarrierSet (plan 34-29, D-26 point 4; the host set, phase 34.1 D-07): every file through which one of `hosts`
+// can reach the kit route: the union of routeCarriers(host) (host-tools.ts, the one derivation) over the HOST_TOOLS
+// rows in `hosts`, in first-seen registry order whatever order `hosts` is in. Derived, so a seventh host or a new
+// pointer is asked about with no edit here. The doctor passes its installed set (doctorHosts) and install's route-note
+// pass the agents installed after its run (hostsOf(AGENTS_AFTER)), so a carrier no installed agent reads is never
+// classified, counted or noted.
+function routeCarrierSet(hosts: readonly HostTool[]): readonly string[] {
+  return [...new Set(HOST_TOOLS.filter((h) => hosts.includes(h)).flatMap((h) => [...routeCarriers(h)]))];
+}
+
+// hostsOf (phase 34.1, D-07; AUTH-1): THE ONE MAP from a list of agent ids to the registry rows they name, in registry
+// order; an id the registry does not know names no row. The doctor's installed set (doctorHosts) and install's
+// route-note pass (noteStrandingCarriers over AGENTS_AFTER) both map through it, so the two ask strandedBy and
+// routeCarrierSet over the same kind of set. A function declaration: the doctor runs it above the `--check` early exit.
+function hostsOf(ids: readonly string[]): readonly HostTool[] {
+  return HOST_TOOLS.filter((h) => ids.includes(h.id));
+}
+
+/** The agents `--check` speaks for (doctorHosts): the rows, where they came from, and the recorded ids no row names. */
+interface DoctorHosts {
+  readonly hosts: readonly HostTool[];
+  readonly source: "recorded" | "legacy" | "detected";
+  readonly unknown: readonly string[];
+}
+
+// doctorHosts (phase 34.1, D-07; VERDICT-1): THE AGENTS `--check` REPORTS ON. It never re-derives the installed set:
+// it asks install-marker.ts installedAgents over the doctor's own marker and ledger reads. Recorded or legacy: those
+// ids, mapped through hostsOf (a recorded id the registry does not know is kept in `unknown`, for a note, and gets no
+// reach line). None (no usable marker, or a marker written before the `agents` field with no usable ledger): the
+// agents detected in the target (detectedHosts, the rule install's unattended selection falls back to), and the
+// doctor says so in a note. Reads nothing but `detect` paths; writes nothing. A function declaration: the doctor runs
+// it above the `--check` early exit, where module consts declared below are in their temporal dead zone.
+function doctorHosts(markerRead: InstallMarkerRead, ledgerRead: LedgerRead): DoctorHosts {
+  const installed = installedAgents(markerRead, ledgerRead);
+  if (installed.source === "recorded") return { hosts: hostsOf(installed.ids), source: "recorded", unknown: installed.unknown };
+  if (installed.source === "legacy") return { hosts: hostsOf(installed.ids), source: "legacy", unknown: [] };
+  return { hosts: detectedHosts(), source: "detected", unknown: [] };
 }
 
 // The state of one route carrier, as the doctor found it (kitRouteFindings below). `own-stale` means refreshable
@@ -1424,7 +1456,7 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 //     D-27 point 3, WR-01): `Re-run install.js` is named for a present carrier only when refreshable answers ok, the
 //     predicate install's refresh asks; otherwise the line carries refreshable's reason and the by-hand remedy (add
 //     KIT_ROUTE after the start-here sentence, in the file the link points to when the carrier is a link).
-// (e) ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`: the host reaches
+// (e) ONE `reach` LINE PER INSTALLED HOST (`hosts`, below), in registry order, under the uncounted label `reach`: the host reaches
 //     when the route resolved (a) and reachVia names a carrier, or when its adapter reaches; the line names the
 //     carriers and the adapter that gave the route, or, when the host cannot reach, each carrier's state and the
 //     route's. So a host that cannot reach always has a counted finding behind it: the route FAIL of (a), or the
@@ -1432,10 +1464,16 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 //     kit-route finding always has a host that cannot reach behind it.
 //     The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
 //     host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
+// THE INSTALLED SET (phase 34.1, D-07; VERDICT-1): `hosts` is the doctor's doctorHosts answer, the agents installed in
+// this target (recorded, or by the legacy rule; the detected agents, announced in a note, when nothing is recorded).
+// Every step above asks about those agents only: (b) classifies routeCarrierSet(hosts), (c) builds the facts for them,
+// (d) passes them to strandedBy and names only them as readers, and (e) prints one reach line per one of them, in
+// registry order. A carrier no installed agent reads is not reported, and an agent nobody installed here gets no
+// reach line and no counted finding.
 // It writes nothing. Ownership comes from owns over the ledger the doctor reads, and refresh from refreshable over
 // it, so install, uninstall and --check cannot disagree about whose file a carrier is or whether install refreshes it. Function declarations only, and the doctor's own
 // ledger read: module consts declared below the `--check` early exit are in their temporal dead zone here.
-function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile: string, adapterKit: string): void {
+function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile: string, adapterKit: string, hosts: readonly HostTool[]): void {
   // (a) Truthiness, as the kit-root cross-check reads the same field: a recorded path is never compared raw
   // here (WIN-1, path-spelling census); it is only joined and read.
   const kitRoot = typeof marker.kitRoot === "string" ? marker.kitRoot : "";
@@ -1474,12 +1512,12 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
     }
     return r;
   };
-  const rels = routeCarrierSet();
+  const rels = routeCarrierSet(hosts);
   const classes = new Map<string, CarrierClass>();
   for (const rel of rels) classes.set(rel, classifyCarrier(rel, ledger, readAt));
-  // (c) hostReadsCarrier, asked once per host and carrier.
+  // (c) hostReadsCarrier, asked once per installed host and carrier.
   const answers = new Map<string, Map<string, boolean>>();
-  for (const host of HOST_TOOLS) {
+  for (const host of hosts) {
     const mine = new Map<string, boolean>();
     for (const rel of rels) mine.set(rel, hostReadsCarrier(host, rel));
     answers.set(host.id, mine);
@@ -1512,7 +1550,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
   // (d) One line per carrier.
   for (const rel of rels) {
     const cls = classes.get(rel) as CarrierClass;
-    const readers = HOST_TOOLS.filter((h) => facts.reads(h, rel));
+    const readers = hosts.filter((h) => facts.reads(h, rel));
     const readBy = readers.length > 0 ? readers.map((h) => h.name).join(", ") : "no registry host here";
     if (cls.state === "route") {
       docReport("ok", `kit route carried by ${rel} (read by ${readBy})`);
@@ -1526,7 +1564,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
           : cls.state === "absent"
             ? absentRemedy(rel)
             : `It was not read, so NO VERDICT was reached on whether it carries the kit route`;
-    const stranded = strandedBy(rel, facts);
+    const stranded = strandedBy(rel, facts, hosts);
     if (stranded.length === 0) {
       const how = readers.map((h) => `${h.name} through ${hasRouteThrough(h) ?? "nothing"}`);
       const what = cls.state === "unread" ? readStateText(cls.read) : CARRIER_STATE_TEXT[cls.state];
@@ -1554,8 +1592,8 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       );
     }
   }
-  // (e): the reach line, per host.
-  for (const host of HOST_TOOLS) {
+  // (e): the reach line, per installed host.
+  for (const host of hosts) {
     const read = rels.filter((rel) => facts.reads(host, rel));
     const v = reachVia(host, facts);
     const via = routeResolves ? v.carriers : [];
@@ -1631,8 +1669,10 @@ function doctor(): number {
   // keeps the marker) printed ALL CHECKS PASSED at exit 0. It asks the one reader those two ask
   // (readLedger) and says why the install ledger is malformed in one FAIL line. The other checks still
   // run: the kit fields are not the ledger.
+  // The doctor's one ledger read: the malformed FAIL below, the installed set (doctorHosts) and the kit route's
+  // ownership answers all come from it.
+  const ledgerRead = readLedger(markerRead.state === "ok" ? markerRead.marker : null);
   if (markerRead.state === "ok") {
-    const ledgerRead = readLedger(markerRead.marker);
     if (ledgerRead.state === "malformed") {
       docFail(
         `the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it ` +
@@ -1642,6 +1682,34 @@ function doctor(): number {
     }
   }
   const marker = (markerRead.state === "ok" ? markerRead.marker : markerRead.object) as InstallMarker;
+
+  // --- the agents this run reports on (phase 34.1, D-07; VERDICT-1) ---------------------------
+  // doctorHosts asks installedAgents over the reads above and never re-derives the set. Every reach line, carrier line
+  // and counted kit-route finding below is about these agents only. When nothing is recorded the detected agents stand
+  // in, and the run says so; a recorded id this build does not know is named and gets no reach line.
+  const installed = doctorHosts(markerRead, ledgerRead);
+  const hosts = installed.hosts;
+  if (installed.source === "detected") {
+    docReport(
+      "note",
+      `no installed set is recorded in .grugops/install.json, so --check reports the agents detected here ` +
+        `(${hosts.length > 0 ? hosts.map((h) => `${h.name}: ${h.detect}`).join(", ") : "none"})`,
+    );
+  }
+  if (installed.unknown.length > 0) {
+    docReport(
+      "note",
+      `.grugops/install.json records ${installed.unknown.map((id) => JSON.stringify(id)).join(", ")}, which this build ` +
+        `does not know as an agent, so --check gives ${installed.unknown.length > 1 ? "them" : "it"} no reach line`,
+    );
+  }
+  if (hosts.length === 0) {
+    docWarn(
+      `no agent is ${installed.source === "detected" ? "recorded or detected" : "recorded as installed that this build knows"} ` +
+        `in ${TARGET}, so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the ` +
+        `flag of each agent to install for`,
+    );
+  }
 
   // --- D-03 three-source kit-root cross-check ------------------------------------------------
   // (a) the freshly re-resolved rule, (b) the marker kitRoot, (c) the adapter KIT=. Normalize all
@@ -1722,7 +1790,7 @@ function doctor(): number {
   // Orchestrator, and do the pointers name it), so a FAIL above does not answer it. The ledger is the one
   // the doctor reads above; an unbound or malformed marker gives no ownership, so a carrier without the
   // route is then a WARN, never a FAIL claimed from a record uninstall would not use.
-  kitRouteFindings(marker, readLedger(markerRead.state === "ok" ? markerRead.marker : null), markerFile, nc);
+  kitRouteFindings(marker, ledgerRead, markerFile, nc, hosts);
 
   // --- WARN tier (D-06, detect-only per D-07): only when the cross-check + stats are clean -----
   if (DOC_FAILS === 0) {
@@ -3064,12 +3132,15 @@ function noteStrandingCarriers(): void {
     }
     return r;
   };
-  const rels = routeCarrierSet();
-  const reads = new Map<string, boolean>();
   // Only the agents installed here after this run (AGENTS_AFTER, plan 34.1-08, D-04, D-06) are asked about: an agent
   // that is neither chosen nor installed needs no route, and the carriers of an agent not chosen were not written by
-  // this run, so naming it would point at a remedy line that does not exist.
-  for (const h of HOST_TOOLS) for (const rel of rels) reads.set(`${h.id}\0${rel}`, AGENTS_AFTER.includes(h.id) && hostReadsCarrier(h, rel));
+  // this run, so naming it would point at a remedy line that does not exist. THE SAME DERIVATION THE DOCTOR ASKS (phase
+  // 34.1, D-07; AUTH-1): the ids mapped through hostsOf, then routeCarrierSet and strandedBy over that host set, as the
+  // doctor does over doctorHosts, so install and the doctor name the same carriers and the same stranded hosts.
+  const hosts = hostsOf(AGENTS_AFTER);
+  const rels = routeCarrierSet(hosts);
+  const reads = new Map<string, boolean>();
+  for (const h of hosts) for (const rel of rels) reads.set(`${h.id}\0${rel}`, hostReadsCarrier(h, rel));
   const adapterAfter = adapterRouteAfterRun();
   const facts: RouteFacts = {
     reads: (h, rel) => reads.get(`${h.id}\0${rel}`) === true,
@@ -3080,20 +3151,20 @@ function noteStrandingCarriers(): void {
     adapterReaches: (h) => h.adapter === "claude-kit" && adapterAfter,
   };
   for (const rel of rels) {
-    const stranded = strandedBy(rel, facts);
+    const stranded = strandedBy(rel, facts, hosts);
     if (stranded.length === 0) continue;
-    const hosts = stranded.map((h) => h.name).join(", ");
+    const names = stranded.map((h) => h.name).join(", ");
     const r = afterReadAt(rel);
     if (r.state === "ok") {
       report(
         "note",
-        `${rel} (left as it is, with no kit route in it: it leaves ${hosts} without a route to the kit after a scripted install; ` +
+        `${rel} (left as it is, with no kit route in it: it leaves ${names} without a route to the kit after a scripted install; ` +
           `to give them one, add this sentence to it: "${KIT_ROUTE}")`,
       );
     } else {
       report(
         "note",
-        `${rel} (${r.state === "absent" ? "is not present" : unreadState(r)}: it leaves ${hosts} without a route to the kit after a ` +
+        `${rel} (${r.state === "absent" ? "is not present" : unreadState(r)}: it leaves ${names} without a route to the kit after a ` +
           `scripted install; the line above about ${rel} says why and what to do)`,
       );
     }

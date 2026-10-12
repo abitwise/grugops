@@ -974,7 +974,7 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
           : HOST_TOOLS.filter(
               (h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && oracleVia(h).length === 0 && !adapterSet.has(h.id),
             ).map((h) => h.id);
-        const got = strandedBy(rel, facts).map((h) => h.id);
+        const got = strandedBy(rel, facts, HOST_TOOLS).map((h) => h.id);
         expect(got, `strandedBy(${rel}) ${label}`).toEqual(want);
         if (holdsSet.has(rel)) expect(got, `strandedBy(${rel}) while it holds ${label}`).toEqual([]);
         if (got.length > 0) strandedSeen += 1;

@@ -126,6 +126,28 @@ describe("host entries: a single-agent install writes the shared files and that 
     }
     expect(readMarkerObject(target).agents).toEqual(["codex"]);
   });
+
+  // D-07 (plan 34.1-10, VERDICT-1): the doctor speaks only for the agents installed here. The carriers it must not
+  // report are derived: every route carrier (entry files and pointers over HOST_TOOLS) that Codex CLI does not read.
+  it("tracer: --codex, then --check: exactly one reach line, for Codex CLI, through AGENTS.md and the agent skill; no carrier line for a file Codex CLI does not read", () => {
+    const { target, kitHome } = scratchRow();
+    const codex = HOST_TOOLS.find((h) => h.id === "codex");
+    expect(codex, "premise: the registry has a codex row").toBeDefined();
+    const r = runInstall(target, kitHome, [agentFlag(codex!)]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const c = check(target, kitHome);
+    const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l));
+    expect(reach.length, c.stdout).toBe(1);
+    expect(reach[0], c.stdout).toContain(`${codex!.name}: reaches the Orchestrator through AGENTS.md, ${AGENT_SKILL_REL}`);
+    const codexReads = new Set([...codex!.entryFiles, ...ROUTE_POINTERS[codex!.adapter]]);
+    const others = [...new Set(HOST_TOOLS.flatMap((h) => [...h.entryFiles, ...ROUTE_POINTERS[h.adapter]]))].filter((rel) => !codexReads.has(rel));
+    expect(others.length, "premise: some route carrier is not Codex CLI's").toBeGreaterThan(0);
+    for (const rel of ["CLAUDE.md", ".github/copilot-instructions.md"]) expect(others, `premise: ${rel} is a carrier Codex CLI does not read`).toContain(rel);
+    for (const rel of others) {
+      const named = lines(c.stdout).filter((l) => /^ {2}\S+\s+kit route/.test(l) && (l.includes(`kit route: ${rel} `) || l.includes(`kit route missing from ${rel} `) || l.includes(`kit route carried by ${rel} `)));
+      expect(named, `${rel} is reported by --check after a Codex-only install\n${c.stdout}`).toEqual([]);
+    }
+  });
 });
 
 // ── EVERY WHOLE-FILE ENTRY (plan 34.1-01, task 2; briefs DC-2, DC-3; T-34-13) ─────────────────────────────────────────
