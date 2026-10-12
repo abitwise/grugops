@@ -155,7 +155,7 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
 import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, withoutAgentsField, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
-import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, scriptCommand } from "./host-tools.js";
 /** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"];
 
@@ -10769,7 +10769,7 @@ describe("install only adds (D-04)", () => {
       expect(left[0], `the note does not give ${agentFlag(h)}`).toContain(agentFlag(h));
     }
     expect(left[0]).toContain("install never removes an agent's files");
-    expect(left[0]).toContain("node install/uninstall.js --target ");
+    expect(left[0]).toContain(`${scriptCommand("uninstall.js", commandContextFor({ grugopsHome: home }))} --target `);
     expect(left[0], "Codex was chosen, so it is not left").not.toContain(codex());
   }, 240_000);
 
@@ -11084,7 +11084,7 @@ describe("MSG-1: install-side messages name a command or a README section (D-26)
     const home = join(mkTmp(), "kit-home");
     const r = refused(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(1);
-    expect(r.stderr).toContain(`for example \`${agentCommand("install.js", target, [HOST_TOOLS[0]])}\`.`);
+    expect(r.stderr).toContain(`for example \`${agentCommand("install.js", target, [HOST_TOOLS[0]], commandContextFor({ grugopsHome: home }))}\`.`);
     expect(decisionIdLines(r.stdout + r.stderr, target, home), "T6: a decision ID in the refusal").toEqual([]);
   }, 120_000);
 
@@ -11099,7 +11099,8 @@ describe("MSG-1: install-side messages name a command or a README section (D-26)
     expect(left, r.stdout).toHaveLength(1);
     const others = HOST_TOOLS.filter((h) => h.id !== "codex");
     expect(others.length, "premise: some agent is left").toBeGreaterThan(0);
-    for (const h of others) expect(left[0], `${h.name}'s command`).toContain(`\`${agentCommand("uninstall.js", target, [h])}\` (${h.name})`);
+    const ctx = commandContextFor({ grugopsHome: home });
+    for (const h of others) expect(left[0], `${h.name}'s command`).toContain(`\`${agentCommand("uninstall.js", target, [h], ctx)}\` (${h.name})`);
   }, 240_000);
 
   it("T3: the ask-rules `left` line names the per-agent uninstall of the agents that own the ask rules (Claude Code), and what else it removes", () => {
@@ -11111,7 +11112,7 @@ describe("MSG-1: install-side messages name a command or a README section (D-26)
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const left = r.stdout.split("\n").filter((l) => /^ {2}left\s/.test(l) && l.includes("ask rule(s) an earlier install added for protected_branch_merge"));
     expect(left, r.stdout).toHaveLength(1);
-    expect(left[0]).toContain(`\`${agentCommand("uninstall.js", target, [hostOf("claude")])}\` removes every rule install added`);
+    expect(left[0]).toContain(`\`${agentCommand("uninstall.js", target, [hostOf("claude")], commandContextFor({ grugopsHome: home }))}\` removes every rule install added`);
     expect(left[0]).toContain("with the rest of what install wrote for that agent here");
     expect(left[0]).not.toContain("run install/uninstall.js,");
   }, 240_000);
@@ -11126,8 +11127,9 @@ describe("MSG-1: install-side messages name a command or a README section (D-26)
     const doc = spawnSync("node", [INSTALL_JS, "--check"], { encoding: "utf8", env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT } });
     const warn = (doc.stdout ?? "").split("\n").filter((l) => /^ {2}WARN\s/.test(l) && l.includes("is not a record uninstall can use"));
     expect(warn, doc.stdout).toHaveLength(1);
-    expect(warn[0]).toContain(`\`${agentCommand("uninstall.js", target, [])}\` with no agent flag removes every agent`);
-    expect(warn[0]).toContain(`\`${agentCommand("uninstall.js", target, [HOST_TOOLS[0]])}\`) it removes only those agents`);
+    const ctx = commandContextFor({ grugopsHome: home });
+    expect(warn[0]).toContain(`\`${agentCommand("uninstall.js", target, [], ctx)}\` with no agent flag removes every agent`);
+    expect(warn[0]).toContain(`\`${agentCommand("uninstall.js", target, [HOST_TOOLS[0]], ctx)}\`) it removes only those agents`);
   }, 240_000);
 
   for (const dryRun of [false, true]) {

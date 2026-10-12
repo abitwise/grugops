@@ -1867,9 +1867,9 @@ function doctor(): number {
             `this directory and carries none of these records`
         : `the install marker ${markerFile} is not a record uninstall can use: ${markerRead.why}. Uninstall uses none of ` +
             `its records here and changes nothing. Re-run install.js here, then uninstall: install writes a marker with ` +
-            `the install ledger for this directory and carries none of these records. \`${agentCommand("uninstall.js", TARGET, [])}\` ` +
+            `the install ledger for this directory and carries none of these records. \`${agentCommand("uninstall.js", TARGET, [], COMMAND_CONTEXT)}\` ` +
             `with no agent flag removes every agent and the shared files; with agent flags (for example ` +
-            `\`${agentCommand("uninstall.js", TARGET, [HOST_TOOLS[0]])}\`) it removes only those agents`,
+            `\`${agentCommand("uninstall.js", TARGET, [HOST_TOOLS[0]], COMMAND_CONTEXT)}\`) it removes only those agents`,
     );
   }
   // A MALFORMED LEDGER IS A FAIL (red-team B1 of plan 33.1-34, brief DC-1). The doctor used to read the
@@ -3396,10 +3396,9 @@ function adapterRouteAfterRun(): boolean {
 // remedy is chosen by whether a writer of THIS run visited the carrier (routeCarrierSet(SELECTION) holds it, phase
 // 34.1 D-26, WR-17): if one did, that writer printed a line about the carrier, and the note points at that line; if
 // none did (the carrier belongs only to agents installed earlier and not chosen now), no such line exists, so the note
-// names the command that writes it instead, agentCommand("install.js", TARGET, stranded). Before plan 34-33 the note
-// named every host reading the file (for
-// AGENTS.md, the hosts whose only carrier it was), including hosts another carrier or Claude Code's adapters gave the
-// route (WR-02).
+// names the command that writes it instead, agentCommand("install.js", TARGET, stranded, COMMAND_CONTEXT). Before
+// plan 34-33 the note named every host reading the file (for AGENTS.md, the hosts whose only carrier it was),
+// including hosts another carrier or Claude Code's adapters gave the route (WR-02).
 // It READS AND REPORTS ONLY: it writes nothing and records nothing, so an interrupted or concurrent install cannot
 // leave a record derived from a note.
 function noteStrandingCarriers(): void {
@@ -3453,7 +3452,7 @@ function noteStrandingCarriers(): void {
       const written = routeCarrierSet(SELECTION).includes(rel);
       const remedy = written
         ? `the line above about ${rel} says why and what to do`
-        : `\`${agentCommand("install.js", TARGET, stranded)}\` writes it` + (r.state === "absent" ? "" : ", or says why it cannot");
+        : `\`${agentCommand("install.js", TARGET, stranded, COMMAND_CONTEXT)}\` writes it` + (r.state === "absent" ? "" : ", or says why it cannot");
       report(
         "note",
         `${rel} (${r.state === "absent" ? "is not present" : unreadState(r)}: it leaves ${names} without a route to the kit after a ` +
@@ -5705,7 +5704,7 @@ function refuseSelection(why: string): never {
   // brief MSG-1), for the first registry row, with this run's target.
   process.stderr.write(
     `install.js: ${why} Name the agents to install for with one or more of: ${flags.join(", ")}, for example ` +
-      `\`${agentCommand("install.js", TARGET, [HOST_TOOLS[0]])}\`.\n`,
+      `\`${agentCommand("install.js", TARGET, [HOST_TOOLS[0]], COMMAND_CONTEXT)}\`.\n`,
   );
   process.exit(1);
 }
@@ -6741,7 +6740,7 @@ function writeAskRules(): AskRulesOutcome {
       report(
         "left",
         `${left} ask rule(s) an earlier install added for ${checkpoint} remain in ${rel}; the installer never ` +
-          `removes a rule — delete them by hand, or \`${agentCommand("uninstall.js", TARGET, askRuleOwners)}\` removes ` +
+          `removes a rule — delete them by hand, or \`${agentCommand("uninstall.js", TARGET, askRuleOwners, COMMAND_CONTEXT)}\` removes ` +
           `every rule install added, with the rest of what install wrote for that agent here (everything install wrote, ` +
           `when it is the only agent recorded)`,
       );
@@ -7047,8 +7046,8 @@ function writeOpenCodePermission(): OpenCodeOutcome {
     const openCodeRows = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
     return openCodeNote(
       `it holds the OpenCode external_directory rule an earlier install added for another kit root (${previous.pattern}), and install adds ` +
-        `no second rule; \`${agentCommand("uninstall.js", TARGET, openCodeRows)}\` takes that rule out (with the rest of ` +
-        `what install wrote for OpenCode here), then \`${agentCommand("install.js", TARGET, openCodeRows)}\` adds the ` +
+        `no second rule; \`${agentCommand("uninstall.js", TARGET, openCodeRows, COMMAND_CONTEXT)}\` takes that rule out (with the rest of ` +
+        `what install wrote for OpenCode here), then \`${agentCommand("install.js", TARGET, openCodeRows, COMMAND_CONTEXT)}\` adds the ` +
         `rule for this kit root`,
       pattern,
     );
@@ -7188,7 +7187,7 @@ function agentClosingLines(): string[] {
   if (left.length > 0) {
     out.push(
       `${at}Left installed, not chosen in this run (install never removes an agent's files): ${left.map((h) => h.name).join(", ")}. ` +
-        `To remove one: ${left.map((h) => `\`${agentCommand("uninstall.js", TARGET, [h])}\` (${h.name})`).join("; ")}.`,
+        `To remove one: ${left.map((h) => `\`${agentCommand("uninstall.js", TARGET, [h], COMMAND_CONTEXT)}\` (${h.name})`).join("; ")}.`,
     );
   }
   return out;

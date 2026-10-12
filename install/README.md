@@ -49,7 +49,7 @@ The flags name the agents to install for: one flag per supported agent (`--claud
 the shared files and the entries of the agents it is for (see "What the installer touches" below).
 
 ```sh
-# Install into a chosen repo (run from anywhere) for Claude Code:
+# Install into a chosen repo (run from the grugops checkout; the target can be anywhere) for Claude Code:
 node install/install.js --target /path/to/repo --claude
 
 # For Codex CLI and OpenCode:
@@ -72,6 +72,14 @@ GRUGOPS_HOME=/opt/grugops node install/install.js --target /path/to/repo
 # back each edited file up next to itself, then refresh the whole kit (see "Re-installing"):
 node install/install.js --yes --backup-edited-kit --target /path/to/repo
 ```
+
+An install command the installer prints for named agents (for example the one the
+`install INCOMPLETE` banner gives, or the one a `--check` note gives for an agent with nothing
+installed) names the script by its absolute path, so it runs from any directory. It starts with
+`GRUGOPS_HOME=<dir>` when the run used a kit home other than `~/.grugops`, and carries `--symlink`
+when the run made a symlink install (with `--symlink` or `INSTALL_MODE=symlink`).
+`install.js --check` prints its commands in the mode it ran in, so after a `--symlink` install run
+`--check --symlink`, or add `--symlink` to the install command it prints.
 
 ### Re-installing over an existing install (your edits to the kit files, D-32)
 
@@ -532,7 +540,7 @@ reads every file first and reports afterwards, in this order:
   A recorded agent with nothing installed here (the install ledger records nothing of install's for
   it, and its entry file, such as `.pi/prompts/grugops.md` for Pi, is not present) gets no `reach`
   line and no counted finding; one `note` names it with the command that writes its entry, for
-  example `node install/install.js --target /path/to/repo --pi`. An agent whose entry file is there,
+  example `node /path/to/grugops/install/install.js --target /path/to/repo --pi`. An agent whose entry file is there,
   even your own file, keeps its `reach` line. When
   nothing is recorded (no marker, a marker install cannot use here, or an older marker with no
   ledger), `--check` reports the agents detected in the target instead and says so in a `note`. An agent id the marker records and this version does not know is named in

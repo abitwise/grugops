@@ -49,7 +49,6 @@ import {
   printedCommand,
   runInstall,
   runPrintedCommand,
-  runPrintedCommandInCheckout,
   runUninstall,
   spawnBin,
   type Run,
@@ -612,7 +611,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     rmSync(at(w, PI_PROMPT_REL));
     const oc = install(w, [agentFlag(hostOf("opencode-command"))]);
     expect(oc.status, oc.stdout + oc.stderr).toBe(0);
-    expect(oc.stdout).toContain(`\`${agentCommand("install.js", w.target, [hostOf("pi-prompt-template")])}\` writes it`);
+    expect(oc.stdout).toContain(`\`${agentCommand("install.js", w.target, [hostOf("pi-prompt-template")], commandContextFor({ grugopsHome: w.kitHome, home: w.home }))}\` writes it`);
     // WR-17: this run prints no "line above" for the Pi template (its writer did not run), so no reference is required.
     expectReferences([["install --pi", pi], ["install --opencode", oc]], false);
   }, 240_000);
@@ -653,13 +652,19 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const note = second.stdout.split("\n").find((l) => l.includes("another kit root"));
     expect(note, second.stdout).toBeDefined();
     expectReferences([["install (kit root A)", first], ["install (kit root B)", second]], false);
+    // The second run's context (D-33): its kit home is kitB, not the default, so its install command carries it and
+    // its uninstall command carries none (uninstall.js reads no kit home). Both run as printed, in the user's
+    // environment (WR-19): a scratch directory outside the checkout and no GRUGOPS_HOME the printed text does not set.
+    const ctx = commandContextFor({ grugopsHome: kitB, home: w.home });
     const un = printedCommand(note!);
-    expect(un).toBe(agentCommand("uninstall.js", w.target, [oc]));
-    const ranUn = runPrintedCommandInCheckout(note!, { grugopsHome: w.kitHome, home: w.home, timeoutMs: 180_000 });
+    expect(un).toBe(agentCommand("uninstall.js", w.target, [oc], ctx));
+    const ranUn = runPrintedCommand(note!, { home: w.home, timeoutMs: 180_000 });
+    expect(ranUn.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
     expect(ranUn.status, ranUn.stdout + ranUn.stderr).toBe(0);
     const rest = note!.slice(note!.indexOf(`\`${un}\``) + un.length + 2);
-    expect(printedCommand(rest)).toBe(agentCommand("install.js", w.target, [oc]));
-    const ranIn = runPrintedCommandInCheckout(rest, { grugopsHome: kitB, home: w.home, timeoutMs: 180_000 });
+    expect(printedCommand(rest)).toBe(agentCommand("install.js", w.target, [oc], ctx));
+    const ranIn = runPrintedCommand(rest, { home: w.home, timeoutMs: 180_000 });
+    expect(ranIn.premise.grugopsHome, "premise: the printed install command set the second kit home").toBe(ctx.kitHome);
     expect(ranIn.status, ranIn.stdout + ranIn.stderr).toBe(0);
     const json = JSON.parse(readFileSync(at(w, "opencode.json"), "utf8")) as { permission?: { external_directory?: Record<string, unknown> } };
     expect(Object.keys(json.permission?.external_directory ?? {})).toEqual(["~/.grugops-b/agent-factory/**"]);

@@ -34,7 +34,6 @@ import {
   pathText,
   runInstall,
   runPrintedCommand,
-  runPrintedCommandInCheckout,
   runUninstall,
   snapshotTree,
   spawnBin,
@@ -2213,12 +2212,15 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
     expect(second.status, second.stdout + second.stderr).toBe(0);
     const notes = notesFor(second.stdout, PI_PROMPT_REL);
     expect(notes.length, second.stdout).toBe(1);
-    const command = agentCommand("install.js", row.target, [piHost()]);
+    const command = agentCommand("install.js", row.target, [piHost()], commandContextFor({ grugopsHome: row.kitHome, home }));
     expect(notes[0], "the note does not name the command that writes the carrier").toContain(`\`${command}\` writes it`);
     for (const l of second.stdout.split("\n")) expect(l, "a line points at a line this run never printed").not.toContain(`the line above about ${PI_PROMPT_REL}`);
     const others = second.stdout.split("\n").filter((l) => l.includes(PI_PROMPT_REL) && !notes.includes(l));
     expect(others, "premise: no other line of this run names the Pi template").toEqual([]);
-    const ran = runPrintedCommandInCheckout(notes[0], { grugopsHome: row.kitHome, home });
+    // Run as printed in the user's environment (D-33, WR-19): only the printed text names the kit home.
+    const ran = runPrintedCommand(notes[0], { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(pathText(ran.premise.grugopsHome ?? ""), "premise: the printed text set the run's kit home").toBe(pathText(row.kitHome));
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
     expect(lstatSync(piFile(row.target)).isFile(), "the printed command did not write the Pi template").toBe(true);
     const third = runInstall(row.target, row.kitHome, [agentFlag(opencodeHost())], { home });

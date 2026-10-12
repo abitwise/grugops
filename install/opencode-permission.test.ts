@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, agentCommand, agentFlag, HOST_TOOLS } from "./host-tools.js";
-import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, REPO_ROOT, snapshotTree, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, REPO_ROOT, commandContextFor, snapshotTree, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
 
 const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "grugops-ocperm-")));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -352,8 +352,9 @@ describe("OpenCode external_directory rule: the user's own rule, DRY_RUN, idempo
 
 // ── MSG-1 (phase 34.1 gap round 1, D-26): the other-kit-root note names OpenCode's own commands ───────────────────────
 // A rule an earlier install added for another kit root is not replaced (install adds no second rule). The note's remedy
-// names agentCommand("uninstall.js", target, [OpenCode]) to take that rule out, then agentCommand("install.js", target,
-// [OpenCode]) to add the rule for this kit root: never a flag-less uninstall, which removes every agent.
+// names agentCommand("uninstall.js", target, [OpenCode], ctx) to take that rule out, then agentCommand("install.js",
+// target, [OpenCode], ctx) to add the rule for this kit root, with the run's context (D-33: the install command carries
+// the kit home the run used): never a flag-less uninstall, which removes every agent.
 // install/message-references.test.ts (M6) runs both printed commands.
 describe("OpenCode external_directory rule: the other-kit-root note names both commands (D-26, MSG-1)", () => {
   it("an install for one kit root, then one for another: one note names the OpenCode uninstall command, then the OpenCode install command; opencode.json is unchanged", () => {
@@ -361,13 +362,17 @@ describe("OpenCode external_directory rule: the other-kit-root note names both c
     const first = install(r);
     expect(first.status, first.stdout + first.stderr).toBe(0);
     const before = bytesOf(r.target);
-    const second = install({ ...r, kitHome: join(r.home, ".grugops-b") });
+    const kitB = join(r.home, ".grugops-b");
+    const second = install({ ...r, kitHome: kitB });
     expect(second.status, second.stdout + second.stderr).toBe(0);
     const notes = linesFor(second.stdout, "note").filter((l) => l.includes("another kit root"));
     expect(notes.length, second.stdout).toBe(1);
     const oc = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
-    const un = `\`${agentCommand("uninstall.js", r.target, oc)}\``;
-    const inst = `\`${agentCommand("install.js", r.target, oc)}\``;
+    // The second run's context (D-33): its kit home is not the default, so its install command carries it.
+    const ctx = commandContextFor({ grugopsHome: kitB, home: r.home });
+    const un = `\`${agentCommand("uninstall.js", r.target, oc, ctx)}\``;
+    const inst = `\`${agentCommand("install.js", r.target, oc, ctx)}\``;
+    expect(inst.startsWith("`GRUGOPS_HOME="), `premise: the second run used another kit home: ${inst}`).toBe(true);
     expect(notes[0]).toContain(un);
     expect(notes[0]).toContain(inst);
     expect(notes[0].indexOf(un), "the uninstall command comes first").toBeLessThan(notes[0].indexOf(inst));
