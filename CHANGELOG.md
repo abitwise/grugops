@@ -429,6 +429,32 @@ CLI with Antigravity CLI.
 - The agent list at a terminal restores the cursor and raw mode even when one restore step fails
   (34.1 review IN-18).
 - Installer messages no longer cite planning decision IDs (34.1 review IN-22).
+- After `uninstall.js` with agent flags keeps the marker for a file you edited, the printed
+  alternative is to take that file's entry out of the install ledger, never to delete the marker,
+  which still records the agents that stay (34.1 review CR-03).
+- Every command the installer and uninstaller print names the script by its absolute path, so it
+  runs from any directory. An install command starts with `GRUGOPS_HOME=` when the run used a kit
+  home other than `~/.grugops`, and carries `--symlink` when the run made a symlink install, so
+  following it never writes a second kit there or changes the install mode (34.1 review WR-19).
+- When the install marker belongs to another directory or predates the install ledger, uninstall's
+  remedy names the install command with the agent flags you gave it, and the uninstall that follows
+  reports the earlier grugops skill, command and prompt template files (34.1 review WR-20).
+- Uninstall says it does not know which agents are installed when the marker cannot be used,
+  instead of "none" (34.1 review IN-27).
+- Install's closing notes name an agent recorded with nothing installed apart from the agents left
+  installed, with the commands that install it and that take it out of the record
+  (34.1 review IN-23).
+- `install.js --check` words its note by where the agent list came from, and keeps every recorded
+  agent's checks when the install ledger is malformed (34.1 review IN-24).
+- The OpenCode prose says the `external_directory` rule stops OpenCode's `external_directory`
+  question on the kit path; whether its `edit` permission still asks stays `UNKNOWN - verify`
+  (34.1 review IN-25).
+- An install records again an agent whose files the install ledger still holds after its `agents`
+  list was edited to leave it out (34.1 review IN-26).
+- Uninstall names a directory install created that it could not remove, instead of leaving it
+  silently.
+- `install.js --check` remedies, and the `--migrate`, `--update` and `--prune-old-kit` closing
+  banners, print the command to run.
 
 ### Security
 
