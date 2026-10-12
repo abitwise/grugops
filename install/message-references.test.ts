@@ -352,6 +352,8 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "uninstall.js", "builder argument", "the OpenCode other-root note, uninstall half (D-26)"],
   ["install.ts", "install.js", "builder argument", "the OpenCode other-root note, install half (D-26)"],
   ["install.ts", "uninstall.js", "builder argument", "the left-installed note (D-26)"],
+  ["install.ts", "install.js", "builder argument", "the closing notes' Recorded-as-chosen line, the install command of a recorded agent with nothing installed (plan 34.1-29, D-31, IN-23)"],
+  ["install.ts", "uninstall.js", "builder argument", "the closing notes' Recorded-as-chosen line, the command that takes a recorded agent with nothing installed out of the record (plan 34.1-29, D-31, IN-23)"],
   ["install.ts", "install.js", "builder argument", "the install INCOMPLETE banner's same-run command (D-26)"],
   ["kit-source.ts", "install/install.js", "path", "a path (SOURCE_MARKERS, the files that mark a kit checkout), not a command"],
   ["uninstall.ts", "--target needs a directory (usage: node install/uninstall.js --target <repo>, or --target=<path> for a", "usage synopsis", "the usage of --target, printed on bad usage (exit 2): the form, with a <repo> placeholder, not a command to run"],
@@ -464,14 +466,18 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // is gone (its words around scriptCommand name no binary), and three builder arguments are new: the update banner's
     // and the hint's scriptCommand("install.js", ...) and the prune banner's agentCommand("install.js", ...). So
     // install.ts 37 - 1 + 3 = 39.
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 39, "kit-source.ts": 1, "uninstall.ts": 8 });
+    // Plan 34.1-29 (D-31, IN-23): the closing notes' "Recorded as chosen" line adds two builder arguments, the
+    // agentCommand("install.js", ...) and agentCommand("uninstall.js", ...) of a recorded agent with nothing installed.
+    // So install.ts 39 + 2 = 41.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 41, "kit-source.ts": 1, "uninstall.ts": 8 });
     // THE CLASSES (plan 34.1-28, D-33, brief §4): a fragment that names a binary is a builder argument (or the builder's
     // own signature), sits in an expression that prints a built command, or is one of the non-command classes, each
     // held by its own rule below. Plan 34.1-28 split the former "names no agent flag" (12, of which the --update hint
     // was the one hand-built command and is gone) into those non-command classes, and renamed "agentCommand" to
-    // "builder argument" (25 + 3 = 28: the three scriptCommand and agentCommand arguments above).
+    // "builder argument" (25 + 3 = 28: the three scriptCommand and agentCommand arguments above). Plan 34.1-29: 28 + 2
+    // = 30, the Recorded-as-chosen line's two agentCommand arguments.
     expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({
-      "builder argument": 28,
+      "builder argument": 30,
       "builder in the same expression": 14,
       "file text": 1,
       "message prefix": 6,
@@ -488,7 +494,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) a \"builder argument\" row's fragment is an argument of an agentCommand or scriptCommand call (or inside the builder)", () => {
     const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "builder argument").map((r) => `${r[0]} :: ${norm(r[1])}`));
     const found = all.filter((f) => COMMAND.test(f.text) && rows.has(`${f.module} :: ${norm(f.text)}`));
-    expect(found.length, "premise: the builder-argument rows are found (28 since plan 34.1-28's mode banners)").toBe(28);
+    expect(found.length, "premise: the builder-argument rows are found (28 since plan 34.1-28's mode banners; 30 since plan 34.1-29's Recorded-as-chosen line)").toBe(30);
     const builder = new Set(BUILDERS);
     for (const f of found) {
       const call = nearestCall(f.node);

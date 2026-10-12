@@ -1338,8 +1338,9 @@ function hostsOf(ids) {
 // doctor says so in a note.
 // NOTHING INSTALLED HERE (phase 34.1 D-26, IN-21). The `agents` field records the agents CHOSEN for this target and not
 // yet removed (install-marker.ts, THE `agents` FIELD), so it can name an agent none of whose writes landed (D-04's
-// retry). Of the recorded and legacy rows, the doctor speaks (`hosts`) for a row that owns a holding ledger entry
-// (agentsToRecord with keep [], the one ownership derivation, over the ledger read when it is ok) OR whose entry path
+// retry). Of the recorded and legacy rows, the doctor speaks (`hosts`) for a row installedSplit (below, the one answer
+// install's closing notes also ask) counts as installed: one that owns a holding ledger entry (agentsToRecord with
+// keep [], the one ownership derivation, over the ledger read when it is ok) OR whose entry path
 // (ROUTE_POINTERS of its adapter kind) holds something: kindAt, an lstat only, no content read (DC-3). The entry-path
 // clause keeps the reach line and its WARN for an agent whose entry is the user's own file: that file can strand the
 // agent, and the warning is what tells the user so. The other rows go to `nothingInstalled`: the doctor gives each one
@@ -1351,20 +1352,29 @@ function doctorHosts(markerRead, ledgerRead) {
     const installed = installedAgents(markerRead, ledgerRead);
     if (installed.source === "none")
         return { hosts: detectedHosts(), source: "detected", unknown: [], nothingInstalled: [] };
-    const withEntry = agentsToRecord({
-        known: installed.ids,
-        keep: [],
-        unknown: [],
-        entries: ledgerRead.state === "ok" ? ledgerRead.entries : [],
-    });
-    const speaks = (h) => withEntry.includes(h.id) || ROUTE_POINTERS[h.adapter].some((rel) => kindAt(join(TARGET, ...rel.split("/"))) !== null);
-    const rows = hostsOf(installed.ids);
+    const split = installedSplit(hostsOf(installed.ids), ledgerRead.state === "ok" ? ledgerRead.entries : []);
     return {
-        hosts: rows.filter(speaks),
+        hosts: split.installed,
         source: installed.source,
         unknown: installed.source === "recorded" ? installed.unknown : [],
-        nothingInstalled: rows.filter((h) => !speaks(h)),
+        nothingInstalled: split.nothingInstalled,
     };
+}
+// installedSplit (phase 34.1 gap round 2, D-31, brief REC-1, review IN-23): THE ONE ANSWER to "is anything installed
+// for this agent here", asked by the doctor (doctorHosts) and by install's closing notes (agentClosingLines). A row is
+// installed when it owns a holding ledger entry (install-marker.ts agentsToRecord with keep [], the one ownership
+// derivation, over `entries`), or when an entry path of its adapter kind (ROUTE_POINTERS) holds something: kindAt, an
+// lstat only, never a content read (DC-3). The entry-path clause keeps a user's own file at the entry path on the
+// installed side, where the doctor's reach line and its WARN tell the user it can strand the agent. `entries` null
+// means the ledger could not be read: the reader cannot tell what install wrote, so every row counts as installed and
+// none is called "nothing installed". It decides only what is said about an agent, never what is written, recorded or
+// removed. A function declaration: the doctor runs it above the `--check` early exit.
+function installedSplit(rows, entries) {
+    if (entries === null)
+        return { installed: [...rows], nothingInstalled: [] };
+    const withEntry = agentsToRecord({ known: rows.map((h) => h.id), keep: [], unknown: [], entries });
+    const has = (h) => withEntry.includes(h.id) || ROUTE_POINTERS[h.adapter].some((rel) => kindAt(join(TARGET, ...rel.split("/"))) !== null);
+    return { installed: rows.filter(has), nothingInstalled: rows.filter((h) => !has(h)) };
 }
 const CARRIER_STATE_TEXT = {
     route: "carries the kit route",
@@ -6402,8 +6412,14 @@ function askRulesNotes(outcome) {
 //     above, which name why.
 //   - One line saying the invocation forms come from each host's documentation and were not run on a live host
 //     (UNKNOWN - verify): no line here claims a live host result.
-//   - When agents installed before this run were not chosen in it, one line naming them, saying install never removes
-//     an agent's files (D-04), and giving the uninstall command that removes one, with each one's flag (agentFlag).
+//   - The agents recorded before this run and not chosen in it are split by installedSplit (the one answer to "is
+//     anything installed for this agent here", which the doctor asks too; phase 34.1 gap round 2, D-31, IN-23), over
+//     the install record this run left (the record the run started from under DRY_RUN; when the record cannot be read,
+//     every one counts as installed, since the run cannot tell). Those with something installed: one line naming them,
+//     saying install never removes an agent's files (D-04), and giving the uninstall command that removes one, with
+//     each one's flag (agentFlag). Those with nothing installed (recorded as chosen, D-26, e.g. an agent whose every
+//     write an earlier run refused): never called "left installed"; one line naming them, with the install command that
+//     installs one and the uninstall command that takes one out of the record, both from agentCommand.
 function agentClosingLines() {
     const at = "  ";
     const markerAfter = DRY_RUN ? null : readInstallMarker(TARGET);
@@ -6432,10 +6448,18 @@ function agentClosingLines() {
         out.push(`${at}${h.name}: ${what} — ${h.invoke}`);
     }
     out.push(`${at}These invocation forms come from each host's documentation; grugops has not run them on a live host (UNKNOWN - verify).`);
-    const left = HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) && !SELECTION.includes(h));
+    const before = HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) && !SELECTION.includes(h));
+    // The record this run left (the run's start under DRY_RUN, when nothing was written); null when it cannot be read.
+    const ledgerRead = DRY_RUN ? PREVIOUS_LEDGER : ledgerAfter;
+    const { installed: left, nothingInstalled } = installedSplit(before, ledgerRead !== null && ledgerRead.state === "ok" ? ledgerRead.entries : null);
     if (left.length > 0) {
         out.push(`${at}Left installed, not chosen in this run (install never removes an agent's files): ${left.map((h) => h.name).join(", ")}. ` +
             `To remove one: ${left.map((h) => `\`${agentCommand("uninstall.js", TARGET, [h], COMMAND_CONTEXT)}\` (${h.name})`).join("; ")}.`);
+    }
+    if (nothingInstalled.length > 0) {
+        out.push(`${at}Recorded as chosen, not chosen in this run, and nothing is installed for it here: ${nothingInstalled.map((h) => h.name).join(", ")}. ` +
+            `To install one: ${nothingInstalled.map((h) => `\`${agentCommand("install.js", TARGET, [h], COMMAND_CONTEXT)}\` (${h.name})`).join("; ")}; ` +
+            `to take one out of the record: ${nothingInstalled.map((h) => `\`${agentCommand("uninstall.js", TARGET, [h], COMMAND_CONTEXT)}\` (${h.name})`).join("; ")}.`);
     }
     return out;
 }

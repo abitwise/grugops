@@ -15,7 +15,9 @@
 //   - the arm table, one scratch install and uninstall per row, each asserting the expected `agents` and the invariant
 //     (rows R1-R17; R12-R15 are the MSG-1 remedy rows: each runs the command a line printed; R18, plan 34.1-15, is
 //     D-04's retry of a refused agent, the converse the chosen meaning deliberately does not hold; R33, plan 34.1-23,
-//     runs the install INCOMPLETE banner's command of a `--symlink` run as printed, D-33);
+//     runs the install INCOMPLETE banner's command of a `--symlink` run as printed, D-33; R29, plan 34.1-29, D-31,
+//     IN-23: install's closing notes name a recorded agent with nothing installed apart, never "Left installed", and
+//     its printed uninstall command, run, takes it out of the record);
 //   - the unusable-marker remedies, followed as printed (D-33, WR-20): R25 (plan 34.1-25, a moved target, --codex),
 //     R26 (plan 34.1-26, a moved target, flag-less, with the no-agent-flag clause), R27 (plan 34.1-26, a marker with no
 //     install ledger, --codex and flag-less) and R34 (plan 34.1-26, a moved `--symlink` install); and R28 (plan
@@ -552,6 +554,65 @@ describe("REC-1: the `agents` field means chosen and not yet removed (D-26, IN-2
     expect(banner, again.stdout).toBe(`agents: ${row("pi").name} (recorded in ${MARKER_REL})`);
     expect(agentsOf(w), again.stdout).toEqual(ids("pi"));
     expectInvariant(w, ids("pi"), again.stdout);
+  });
+});
+
+// ── D-31 (IN-23): install's closing notes read the record ───────────────────────────────────────────────────────────
+// R29 (phase 34.1 gap round 2, plan 34.1-29; the review's S4). Install's closing notes split the agents recorded before
+// the run and not chosen in it with install.ts installedSplit, the one answer the doctor asks too: an agent with nothing
+// installed here (no holding ledger entry, nothing at its entry path) is never "Left installed"; it is named on its own
+// line with the command that installs it and the command that takes it out of the record. The second is run as
+// printed. The control holds that an agent with files keeps the "Left installed" line and no "Recorded as chosen" line
+// is printed. The expected commands are built in the test with agentCommand; the agent names and flags are also
+// checked without the builder (the registry's name, agentFlag), so a builder defect cannot hide behind them.
+const LEFT_PREFIX = "  Left installed, not chosen in this run";
+const RECORDED_PREFIX = "  Recorded as chosen, not chosen in this run, and nothing is installed for it here";
+
+describe("D-31 (IN-23): install's closing notes read the record", () => {
+  it("R29 (IN-23): Pi refused, then install --claude: Pi is never \"Left installed\"; the \"Recorded as chosen\" line gives Pi's install and uninstall commands, and the uninstall command run as printed leaves `agents` [claude]", () => {
+    const w = world("r29");
+    writeFileSync(at(w.target, ".pi"), "a regular file where Pi's directory would go\n");
+    const first = runInstall(w.target, w.grugopsHome, [flag("claude"), flag("pi")], { home: w.home, timeoutMs: 180_000 });
+    finished(first, "install --claude --pi");
+    expect(first.status, first.stdout).toBe(3);
+    expect(agentsOf(w), "premise (R18): the refused Pi stays recorded").toEqual(ids("claude", "pi"));
+    expect(ledgerEntries(w).filter((e) => entryHolds(e) && entryOwners(e).includes(row("pi").id)), "premise: Pi owns no holding entry").toEqual([]);
+
+    const r = install(w, [flag("claude")]);
+    const out = r.stdout.split("\n");
+    const left = out.filter((l) => l.startsWith(LEFT_PREFIX));
+    for (const l of left) expect(l, "Pi has nothing installed, so it is not \"Left installed\"").not.toContain(row("pi").name);
+    const recorded = out.filter((l) => l.startsWith(RECORDED_PREFIX));
+    expect(recorded, r.stdout).toHaveLength(1);
+    const ctx = ctxOf(w);
+    const installCmd = agentCommand("install.js", w.target, [row("pi")], ctx);
+    const dropCmd = agentCommand("uninstall.js", w.target, [row("pi")], ctx);
+    expect(recorded[0]).toContain(`: ${row("pi").name}. To install one: `);
+    expect(recorded[0]).toContain(`\`${installCmd}\` (${row("pi").name})`);
+    expect(recorded[0]).toContain(`to take one out of the record: \`${dropCmd}\` (${row("pi").name})`);
+    // Builder-independent: each command ends with Pi's flag, and the install one names install.js, the other uninstall.js.
+    expect(shellWords(installCmd).at(-1)).toBe(flag("pi"));
+    expect(shellWords(dropCmd).at(-1)).toBe(flag("pi"));
+    expect(shellWords(installCmd).some((x) => x.endsWith("/install.js")), installCmd).toBe(true);
+    expect(shellWords(dropCmd).some((x) => x.endsWith("/uninstall.js")), dropCmd).toBe(true);
+    expect(agentsOf(w), "install never removes an agent from the record (D-04)").toEqual(ids("claude", "pi"));
+
+    const dropped = runPrinted(w, `\`${printedCommands(recorded[0]).find((c) => c === dropCmd) ?? "(no drop command printed)"}\``);
+    expect(dropped.status, dropped.stdout + dropped.stderr).toBe(0);
+    expect(agentsOf(w), dropped.stdout).toEqual(ids("claude"));
+    expectInvariant(w, ids("claude"), dropped.stdout);
+  });
+
+  it("R29 control: install --claude --codex, then install --claude: the \"Left installed\" line names Codex CLI, and no \"Recorded as chosen\" line is printed", () => {
+    const w = world("r29c");
+    install(w, [flag("claude"), flag("codex")]);
+    const r = install(w, [flag("claude")]);
+    const out = r.stdout.split("\n");
+    const left = out.filter((l) => l.startsWith(LEFT_PREFIX));
+    expect(left, r.stdout).toHaveLength(1);
+    expect(left[0]).toContain(row("codex").name);
+    expect(left[0]).toContain(`\`${agentCommand("uninstall.js", w.target, [row("codex")], ctxOf(w))}\` (${row("codex").name})`);
+    expect(out.filter((l) => l.startsWith(RECORDED_PREFIX)), r.stdout).toEqual([]);
   });
 });
 
@@ -1642,14 +1703,16 @@ const RERUN_FRAGMENT_COUNT = 0;
 //                 agent's flag in the doctor's no-agent-recorded-or-detected WARN, 1; plan 34.1-28: migrateCommand, the
 //                 --migrate same-run command both migrate INCOMPLETE banners and the handoffs abort print, 1 -> 14;
 //                 plan 34.1-28 task 2: the prune INCOMPLETE banner's command, --prune-old-kit with no agent flag,
-//                 1 -> 15), 2 scriptCommand calls (plan 34.1-28 task 2, D-33: the update INCOMPLETE banner's
+//                 1 -> 15; plan 34.1-29, D-31, IN-23: the closing notes' "Recorded as chosen" line, which gives a
+//                 recorded agent with nothing installed its install command and its uninstall command, 2 -> 17),
+//                 2 scriptCommand calls (plan 34.1-28 task 2, D-33: the update INCOMPLETE banner's
 //                 `--update` command and the --update success hint's `--check --target <repo>` command; --update takes
 //                 no target and no agent flag, so its commands are the invocation words and a mode);
 //   uninstall.ts  5 agentCommand calls (rerunCommand 1, finishCommand 3: FULL, UNFINISHED and NAMED, and, from plan
 //                 34.1-25, reinstallCommand 1: the install step of the unusable-marker remedy, WR-20), 0 scriptCommand.
 // A later plan that adds a call re-pins its count here with the reason.
 const CONTEXT_CALLS: Readonly<Record<string, { readonly agentCommand: number; readonly scriptCommand: number }>> = {
-  "install/install.ts": { agentCommand: 15, scriptCommand: 2 },
+  "install/install.ts": { agentCommand: 17, scriptCommand: 2 },
   "install/uninstall.ts": { agentCommand: 5, scriptCommand: 0 },
 };
 /** The builder module, whose own scriptCommand call passes agentCommand's context parameter. */
