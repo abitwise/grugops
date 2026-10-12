@@ -463,6 +463,18 @@ install, §1), the kit is the repository's own `agent-factory/`.
 `node install/install.js --check --target /path/to/repo` follows the route the way an agent does. It
 reads every file first and reports afterwards, in this order:
 
+- **The agents it reports on.** `--check` speaks only for the agents installed in the target: the
+  agents `.grugops/install.json` records, or, for a marker written before that record existed that
+  still holds install's ledger, Claude Code, GitHub Copilot CLI and Pi (the agents every earlier
+  install wrote for). Only their files are asked about below, only they get a `reach` line, and only
+  their files can give a counted finding; a file that no installed agent reads is not reported. When
+  nothing is recorded (no marker, a marker install cannot use here, or an older marker with no
+  ledger), `--check` reports the agents detected in the target instead and says so in a `note`. An agent id the marker records and this version does not know is named in
+  a `note` and gets no `reach` line. The Claude Code checks (the adapters' `KIT=` line in the
+  kit-root cross-check, the stat lines that name an adapter, and adapter staleness) run only when
+  Claude Code is installed; without it, the kit-root cross-check compares the kit root `install.js`
+  resolves with the marker's `kitRoot`.
+
 - **The route target.** It reads `kitRoot` and reports a FAIL when
   `<kitRoot>/roles/orchestrator.md` is not a readable file.
 - **The files each host reads here.** The files that can give a host the route are `AGENTS.md`,
@@ -491,12 +503,12 @@ reads every file first and reports afterwards, in this order:
   the Orchestrator through another file, or, for Claude Code, through its adapters, is an uncounted
   `note` that says how each of those hosts has the route and keeps the remedy. `--check --strict`
   does not fail on it.
-- **The `reach` lines.** Last, it prints one `reach` line per supported host, saying whether that
+- **The `reach` lines.** Last, it prints one `reach` line per installed agent, saying whether that
   host reaches the Orchestrator and through which of these files (for Claude Code, also through the
   adapters' `KIT=` line). A host that cannot reach always has a counted finding behind it, and a
   counted finding always has a host that cannot reach behind it.
 
-The `reach` lines report what the files say. Whether a live host other than Claude Code follows them is
+The `reach` lines report what the files say, not a run of the host. Whether a live host other than Claude Code follows them is
 `UNKNOWN - verify` until a run on that host shows it; those runs are backlog item 999.4 in
 `.planning/ROADMAP.md`.
 

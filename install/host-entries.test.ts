@@ -24,7 +24,7 @@ import { spawnSync } from "node:child_process";
 import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, agentFlag } from "./host-tools.js";
 import { ENTRY_SHAPES } from "../scripts/generate-host-entries.js";
 import { LEGACY_ADAPTER_KINDS, contentRecord, fileRecord } from "./install-marker.js";
-import { INSTALL_JS, MARKER_REL, REPO_ROOT, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, MARKER_REL, REPO_ROOT, pathText, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { fileRecords, markerLedger, readMarkerObject, withLedger, withoutAgentsField } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "ghentries-"));
@@ -182,8 +182,9 @@ describe("--check reports only the installed agents: one reach line per installe
       expect(lines(c.stdout).some((l) => ADAPTER_AGREE.test(l) && !l.includes("rule and marker")), `the adapter cross-check's ok line\n${c.stdout}`).toBe(claude);
       expect(lines(c.stdout).some((l) => MARKER_AGREE.test(l)), `the rule-and-marker cross-check's ok line\n${c.stdout}`).toBe(!claude);
       if (!claude) {
-        // No line names a Claude Code adapter path, and the install wrote none.
-        expect(lines(c.stdout).filter((l) => l.includes(join(target, ".claude", "agents"))), c.stdout).toEqual([]);
+        // No line names a path under the target's `.claude/` (a Claude Code adapter), and the install wrote none. Both
+        // sides in pathText's one spelling (WIN-1 path-spelling census).
+        expect(lines(c.stdout).filter((l) => pathText(l).includes(pathText(join(target, ".claude")))), c.stdout).toEqual([]);
         expect(existsSync(at(target, ".claude")), "premise: no .claude/ in the target").toBe(false);
       }
     }, 120_000);

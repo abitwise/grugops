@@ -23,7 +23,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentFlag } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runUninstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
@@ -42,10 +42,10 @@ function scratchRow(): { target: string; kitHome: string } {
   return { target, kitHome };
 }
 
-/** Install into a fresh scratch row; the install must exit 0. */
-function installed(): { target: string; kitHome: string } {
+/** Install into a fresh scratch row (every agent, or the agent flags in `args`); the install must exit 0. */
+function installed(args: readonly string[] = []): { target: string; kitHome: string } {
   const row = scratchRow();
-  const r: Run = runInstall(row.target, row.kitHome);
+  const r: Run = runInstall(row.target, row.kitHome, args);
   expect(r.status, r.stdout + r.stderr).toBe(0);
   return row;
 }
@@ -911,11 +911,19 @@ const isRegularFile = (path: string): boolean => {
 };
 
 interface Followed {
+  /**
+   * The agents installed in the target, as the follower reads them itself (plan 34.1-10, D-07): the registry rows named
+   * by the marker's `agents` field, read with JSON.parse here (never install-marker.ts installedAgents), in registry
+   * order. Reach, reads and stranded hosts are about these rows only.
+   */
+  readonly installed: readonly (typeof HOST_TOOLS)[number][];
+  /** The route carriers the installed agents read (carriersOf over `installed`, first-seen registry order). */
+  readonly installedCarriers: readonly string[];
   /** Whether `<kitRoot>/roles/orchestrator.md` is a regular file. */
   readonly routeResolves: boolean;
   /** The carriers without the route that the ledger still records as install's own, unedited. */
   readonly ownStale: readonly string[];
-  /** host id → whether the host reaches the Orchestrator. */
+  /** installed host id → whether the host reaches the Orchestrator (no entry for an agent not installed). */
   readonly reaches: ReadonlyMap<string, boolean>;
   /** carrier → whether its whole text (a regular file) contains KIT_ROUTE (plan 34-33). */
   readonly carries: ReadonlyMap<string, boolean>;
@@ -929,6 +937,10 @@ const followerCarriers = (h: (typeof HOST_TOOLS)[number]): string[] => carriersO
 /** THE INDEPENDENT FOLLOWER: per host, from the files alone. */
 function follow(target: string): Followed {
   const marker = JSON.parse(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
+  const agents = marker.agents;
+  expect(Array.isArray(agents) && agents.every((a) => typeof a === "string"), `premise: the marker records the installed agents (${JSON.stringify(agents)})`).toBe(true);
+  const installed = HOST_TOOLS.filter((h) => (agents as string[]).includes(h.id));
+  const installedCarriers = [...new Set(installed.flatMap(carriersOf))];
   const kitRoot = typeof marker.kitRoot === "string" ? marker.kitRoot : "";
   const routeResolves = kitRoot !== "" && isRegularFile(join(kitRoot, "roles", "orchestrator.md"));
   const files = fileRecords(marker);
@@ -959,11 +971,11 @@ function follow(target: string): Followed {
   }
   const adapterReaches = kitLine !== "" && isRegularFile(join(kitLine, "roles", "orchestrator.md"));
   const reaches = new Map<string, boolean>();
-  for (const h of HOST_TOOLS) {
+  for (const h of installed) {
     const viaCarrier = routeResolves && followerCarriers(h).some((rel) => carries.get(rel) === true);
     reaches.set(h.id, viaCarrier || (h.adapter === "claude-kit" && adapterReaches));
   }
-  return { routeResolves, ownStale, reaches, carries, adapterReaches };
+  return { installed, installedCarriers, routeResolves, ownStale, reaches, carries, adapterReaches };
 }
 
 /** Every path the pointer carriers install writes name (ROUTE_POINTERS; a block's own lines) and KIT_ROUTE names. */
@@ -1150,7 +1162,8 @@ describe("kit route: --check and an independent follower agree, host by host, on
 function strandedOf(target: string, rel: string): string[] {
   const f = follow(target);
   if (f.carries.get(rel) === true) return [];
-  return HOST_TOOLS.filter((h) => {
+  // Among the agents installed in the target only (plan 34.1-10, D-07).
+  return f.installed.filter((h) => {
     const mine = followerCarriers(h);
     if (!mine.includes(rel)) return false;
     return !mine.some((c) => f.carries.get(c) === true) && !(h.adapter === "claude-kit" && f.adapterReaches);
@@ -1506,8 +1519,10 @@ type RouteState = (typeof ROUTE_STATES)[number];
 const CLASS_CARRIERS: readonly string[] = allCarriers();
 
 interface CellSpec {
-  /** The generating group of the cell, (a) to (c). */
-  readonly group: "a" | "b" | "c";
+  /** The generating group of the cell, (a) to (d). */
+  readonly group: "a" | "b" | "c" | "d";
+  /** The one agent the install is for (group (d), its registry row's id), or undefined for every agent. */
+  readonly agent?: string;
   /** Every route carrier's state. */
   readonly carriers: ReadonlyMap<string, CarrierState>;
   readonly adapter: AdapterState;
@@ -1522,6 +1537,7 @@ function cellName(spec: CellSpec): string {
     moved.length > 0 ? moved.join(", ") : "every carrier current",
     `× adapter ${spec.adapter}`,
     `× route ${spec.route}`,
+    ...(spec.agent === undefined ? [] : [`× installed ${spec.agent} only`]),
   ].join(" ");
 }
 
@@ -1649,8 +1665,16 @@ function stageRoute(target: string, kitHome: string, state: RouteState | "resolv
 }
 
 /** A clean install into a fresh scratch row, then the staging the spec names (files only). */
+/** The agent flags a cell's installs pass: the one agent's flag, or none (every agent, through withAgentFlags). */
+function cellArgs(spec: CellSpec): string[] {
+  if (spec.agent === undefined) return [];
+  const h = HOST_TOOLS.find((x) => x.id === spec.agent);
+  expect(h, `premise: ${spec.agent} is a registry row`).toBeDefined();
+  return [agentFlag(h!)];
+}
+
 function buildCell(spec: CellSpec): { target: string; kitHome: string } {
-  const row = installed();
+  const row = installed(cellArgs(spec));
   for (const [rel, state] of spec.carriers) stageCarrier(row.target, rel, state);
   if (spec.adapter === "kit-line-to-empty-dir") breakAdapters(row.target);
   stageRoute(row.target, row.kitHome, spec.route);
@@ -1660,14 +1684,14 @@ function buildCell(spec: CellSpec): { target: string; kitHome: string } {
 /** The follower's whole answer for a target as it is now: kept, because the files change when install runs. */
 interface FollowerView {
   readonly f: Followed;
-  /** Whether host `h` reads `rel`, by the follower's own rule (every carrier of its row). */
+  /** Whether host `h` reads `rel`, by the follower's own rule (every carrier of its row; an installed host only). */
   readonly reads: (h: (typeof HOST_TOOLS)[number], rel: string) => boolean;
   /** THE FOLLOWER'S strandedHosts(rel): the hosts that read rel here, read no other carrier holding the route and have no adapter route. */
   readonly strandedHosts: (rel: string) => readonly string[];
 }
 function followerView(target: string): FollowerView {
   const f = follow(target);
-  const reads = new Map(HOST_TOOLS.map((h) => [h.id, followerCarriers(h)]));
+  const reads = new Map(f.installed.map((h) => [h.id, followerCarriers(h)]));
   const stranded = new Map(CLASS_CARRIERS.map((rel) => [rel, strandedOf(target, rel)]));
   return {
     f,
@@ -1717,15 +1741,15 @@ const isCounted = (line: string): boolean => /^ {2}(FAIL|WARN)\s/.test(line);
  */
 function expectDoctorAgrees(what: string, c: Run, view: FollowerView, exit: boolean): void {
   const out = `${what}\n${c.stdout}`;
-  // (1) one reach line per registry host, in registry order.
-  expect(reachLines(c.stdout).length, `(1) reach lines: ${out}`).toBe(HOST_TOOL_COUNT);
-  expect(reachLines(c.stdout).map((l) => messageOf(l).split(": ")[0]), `(1) reach-line order: ${out}`).toEqual(HOST_TOOLS.map((h) => h.name));
-  // (2) every host's verdict equals the follower's.
-  for (const h of HOST_TOOLS) {
+  // (1) one reach line per installed agent (the follower's own read of the marker), in registry order (D-07).
+  expect(reachLines(c.stdout).length, `(1) reach lines: ${out}`).toBe(view.f.installed.length);
+  expect(reachLines(c.stdout).map((l) => messageOf(l).split(": ")[0]), `(1) reach-line order: ${out}`).toEqual(view.f.installed.map((h) => h.name));
+  // (2) every installed host's verdict equals the follower's.
+  for (const h of view.f.installed) {
     const v = reachVerdict(c.stdout, h);
     expect(v.reaches, `(2) ${h.name}: the doctor and the follower disagree: ${v.line}\n${out}`).toBe(view.f.reaches.get(h.id));
   }
-  const cannot = HOST_TOOLS.filter((h) => view.f.reaches.get(h.id) !== true);
+  const cannot = view.f.installed.filter((h) => view.f.reaches.get(h.id) !== true);
   // (3) a counted kit-route line exists exactly when some host cannot reach.
   const counted = countedRouteLines(c.stdout);
   expect(counted.length > 0, `(3) counted kit-route lines vs hosts that cannot reach (${cannot.map((h) => h.name).join(", ") || "none"}): ${out}`).toBe(cannot.length > 0);
@@ -1734,7 +1758,11 @@ function expectDoctorAgrees(what: string, c: Run, view: FollowerView, exit: bool
   expect(target.length, `(4) one route-target line: ${out}`).toBe(1);
   expect(target[0].startsWith(view.f.routeResolves ? "  ok" : "  FAIL"), `(4) the route-target line vs the follower (resolves: ${view.f.routeResolves}): ${target[0]}\n${out}`).toBe(true);
   let classified = target.length;
-  for (const rel of CLASS_CARRIERS) {
+  // Every carrier an installed agent reads has one line; a carrier no installed agent reads has none (D-07).
+  for (const rel of CLASS_CARRIERS.filter((r) => !view.f.installedCarriers.includes(r))) {
+    expect(carrierLines(c.stdout, rel), `(4) ${rel} is read by no installed agent, and --check reports it: ${out}`).toEqual([]);
+  }
+  for (const rel of view.f.installedCarriers) {
     const mine = carrierLines(c.stdout, rel);
     expect(mine.length, `(4) one carrier line for ${rel}: ${out}`).toBe(1);
     classified += 1;
@@ -1790,10 +1818,10 @@ function checkCell(spec: CellSpec): CellResult {
   expectDoctorAgrees(`${name}: --check before the install`, doc, before, exitAsked);
   const states = new Map(MATRIX_FILES.map((rel) => [rel, pathState(join(target, ...rel.split("/")))]));
   const tree = snapshotTree(target);
-  const dry = runInstall(target, kitHome, [], { dryRun: true });
+  const dry = runInstall(target, kitHome, cellArgs(spec), { dryRun: true });
   expect([0, 3], `${name}: the DRY_RUN exit status\n${dry.stdout}${dry.stderr}`).toContain(dry.status);
   expect(snapshotTree(target), `${name}: the DRY_RUN changed the target\n${dry.stdout}`).toBe(tree);
-  const real = runInstall(target, kitHome);
+  const real = runInstall(target, kitHome, cellArgs(spec));
   expect([0, 3], `${name}: the install exit status\n${real.stdout}${real.stderr}`).toContain(real.status);
   const after = followerView(target);
   const docAfter = check(target, kitHome);
@@ -1845,6 +1873,12 @@ const CELL_TIMEOUT_MS = 120_000;
 // else clean, which is exactly two cells of group (a), so it was removed rather than run twice; the tracer below keeps
 // the user's own AGENTS.md cell as its own case. The old groups (d) and (e) are now (b) and (c).
 const D_CARRIER: readonly CarrierState[] = ["current", "user-without-route"];
+// (d) THE INSTALLED-SET AXIS (plan 34.1-10, D-07; the plan's "group (f)": the groups were relettered by plan 34.1-03):
+// for each HOST_TOOLS row, a clean install with only that agent's flag, and the same with AGENTS.md in state
+// user-without-route; the DRY_RUN and the re-install pass the same one flag. The follower reads the installed agents
+// from the marker's `agents` field itself, so every assertion (1)-(9) holds restricted to that agent: one reach line,
+// no line for a carrier only other agents read, and notes only about the installed agent.
+const D_AGENTS_MD_STATES: readonly CarrierState[] = ["current", "user-without-route"];
 const D_ADAPTER: readonly AdapterState[] = ADAPTER_STATES.filter((a) => a !== "reaches");
 function generateCells(): CellSpec[] {
   const clean = { adapter: "reaches", route: "resolves" } as const;
@@ -1856,11 +1890,19 @@ function generateCells(): CellSpec[] {
     for (const claude of D_CARRIER) for (const agents of D_CARRIER) cells.push({ ...clean, group: "b", carriers: carrierStates({ "CLAUDE.md": claude, "AGENTS.md": agents }), adapter });
   }
   for (const route of ROUTE_STATES) cells.push({ ...clean, group: "c", carriers: carrierStates({}), route });
+  for (const h of HOST_TOOLS) for (const agents of D_AGENTS_MD_STATES) cells.push({ ...clean, group: "d", carriers: carrierStates({ "AGENTS.md": agents }), agent: h.id });
   return cells;
 }
 const CELLS: readonly CellSpec[] = generateCells();
-/** The cell count, a formula over the axes: |CARRIERS|×(|CARRIER_STATES|−1) + |D_ADAPTER|×|D_CARRIER|² + |ROUTE_STATES|. */
-const CELL_COUNT = CLASS_CARRIERS.length * (CARRIER_STATES.length - 1) + D_ADAPTER.length * D_CARRIER.length * D_CARRIER.length + ROUTE_STATES.length;
+/**
+ * The cell count, a formula over the axes: |CARRIERS|×(|CARRIER_STATES|−1) + |D_ADAPTER|×|D_CARRIER|² + |ROUTE_STATES| +
+ * |D_AGENTS_MD_STATES|×HOST_TOOL_COUNT (group (d), the installed-set axis, plan 34.1-10).
+ */
+const CELL_COUNT =
+  CLASS_CARRIERS.length * (CARRIER_STATES.length - 1) +
+  D_ADAPTER.length * D_CARRIER.length * D_CARRIER.length +
+  ROUTE_STATES.length +
+  D_AGENTS_MD_STATES.length * HOST_TOOL_COUNT;
 
 describe("kit route: the class matrix — reach, counted findings and install agreement over every carrier, adapter and route state (plan 34-35, D-27)", () => {
   it(
@@ -1906,8 +1948,13 @@ describe("kit route: the class matrix — reach, counted findings and install ag
     expect(HOST_TOOLS.length, "premise: the registry pin").toBe(HOST_TOOL_COUNT);
   });
 
-  it(`the matrix has ${CELL_COUNT} cells, the formula over the axes (${CLASS_CARRIERS.length} carriers × ${CARRIER_STATES.length - 1} states, ${D_ADAPTER.length * D_CARRIER.length ** 2} adapter, ${ROUTE_STATES.length} route), each named once`, () => {
+  it(`the matrix has ${CELL_COUNT} cells, the formula over the axes (${CLASS_CARRIERS.length} carriers × ${CARRIER_STATES.length - 1} states, ${D_ADAPTER.length * D_CARRIER.length ** 2} adapter, ${ROUTE_STATES.length} route, ${D_AGENTS_MD_STATES.length} × ${HOST_TOOL_COUNT} installed-set), each named once`, () => {
     expect(CELLS.length).toBe(CELL_COUNT);
+    // The installed-set axis (group (d)): 2 × HOST_TOOL_COUNT cells, one pair per registry row, derived.
+    expect(HOST_TOOLS.length, "premise: the registry pin").toBe(HOST_TOOL_COUNT);
+    const d = CELLS.filter((c) => c.group === "d");
+    expect(d.length).toBe(2 * HOST_TOOL_COUNT);
+    for (const h of HOST_TOOLS) expect(d.filter((c) => c.agent === h.id).length, `group (d) cells for ${h.id}`).toBe(2);
     expect(new Set(CELLS.map(cellName)).size, "two cells share a name").toBe(CELL_COUNT);
     // Every state of every axis occurs in some cell.
     for (const s of CARRIER_STATES) expect(CELLS.some((c) => [...c.carriers.values()].includes(s)), `carrier state ${s}`).toBe(true);
