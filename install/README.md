@@ -279,7 +279,13 @@ no all-agents flag. With one or more of them, the run chooses exactly the agents
    the agents chosen for that repository and not yet removed. Naming fewer agents later never removes
    one from the record: install only adds. That includes an agent none of whose files could be
    written: the next unattended run chooses it again, so a fixed cause is retried. Uninstall drops an
-   agent from the record only once nothing install recorded for it is left in place.
+   agent from the record only once nothing install recorded for it is left in place. If the `agents`
+   list is edited to leave out an agent whose files the install ledger still records (a file, a
+   pointer block or a settings entry install wrote; a directory alone does not count), the next
+   install records that agent again. For the agent skill two agents share,
+   `.agents/skills/grugops/SKILL.md` (`--codex` and `--antigravity`), it records both, because the
+   ledger cannot tell which of the two the file was installed for; an uninstall with both flags then
+   removes the file.
 2. **An install made before this release** (its `.grugops/install.json` has an install ledger but no
    `agents` field) counts as Claude Code, Copilot and Pi, the agents those installs wrote files for.
    Its old Gemini settings record does not choose Antigravity.

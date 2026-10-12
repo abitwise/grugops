@@ -155,7 +155,7 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
 import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, withoutAgentsField, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
-import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, scriptCommand } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners, scriptCommand } from "./host-tools.js";
 /** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"];
 
@@ -10679,17 +10679,24 @@ describe("agent selection (D-03)", () => {
   }, 240_000);
 
   // D-23: a marker written before this phase (a usable ledger, no `agents` field) counts as the hosts of
-  // LEGACY_ADAPTER_KINDS; its gemini ledger entry (and the .gemini/ it planted) selects nothing.
+  // LEGACY_ADAPTER_KINDS; its gemini ledger entry (and the .gemini/ it planted) selects nothing. The fixture has the
+  // shape a pre-release install left: entries of the legacy agents only, plus the unowned gemini entry. (Plan 34.1-30,
+  // D-31, IN-26: install records again every owner of a held ledger entry, so a ledger holding Codex CLI, Antigravity
+  // CLI or OpenCode files, which no pre-release install wrote, would record them too.)
   it("(d) a legacy marker with a gemini entry: --yes chooses Claude Code, Copilot and Pi, records them, and not Antigravity", () => {
     const target = mkTmp();
     const home = mkTmp();
-    const first = runInstall(target, home);
+    const legacy = HOST_TOOLS.filter((h) => LEGACY_ADAPTER_KINDS.includes(h.adapter));
+    expect(legacy.map((h) => h.id)).toEqual(["claude", "copilot", "pi"]);
+    const first = runInstall(target, home, ...legacy.map((h) => agentFlag(h)));
     expect(first.status, first.stdout + first.stderr).toBe(0);
     withoutAgentsField(target);
     plantLegacyGemini(target, "merged");
     expect(existsSync(join(target, ".gemini")), "PREMISE: the legacy Gemini wiring is in the target").toBe(true);
-    const legacy = HOST_TOOLS.filter((h) => LEGACY_ADAPTER_KINDS.includes(h.adapter));
-    expect(legacy.map((h) => h.id)).toEqual(["claude", "copilot", "pi"]);
+    const ledger = markerLedger(target);
+    expect(ledger.some((e) => e.kind === "gemini"), "PREMISE: the ledger records the legacy gemini entry").toBe(true);
+    const foreign = ledger.filter((e) => entryOwners(e).some((id) => !legacy.some((h) => h.id === id)));
+    expect(foreign.map((e) => `${e.path}#${e.kind}`), "PREMISE: no ledger entry is owned by an agent no pre-release install wrote for").toEqual([]);
     const r = runUnattended(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const reason = `installed before this release (${legacy[0].shortName}, ${legacy[1].shortName} and ${legacy[2].shortName}; see "Which agents an unattended install is for" in install/README.md)`;

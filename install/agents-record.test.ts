@@ -17,9 +17,10 @@
 //     D-04's retry of a refused agent, the converse the chosen meaning deliberately does not hold; R33, plan 34.1-23,
 //     runs the install INCOMPLETE banner's command of a `--symlink` run as printed, D-33; R29, plan 34.1-29, D-31,
 //     IN-23: install's closing notes name a recorded agent with nothing installed apart, never "Left installed", and
-//     its printed uninstall command, run, takes it out of the record; R30, plan 34.1-30, D-31, IN-26: install's write
-//     of `agents` reads the ledger it writes, so an agent left out of `agents` by a hand edit while the ledger holds
-//     its files is recorded again);
+//     its printed uninstall command, run, takes it out of the record; R30, R31 and R35, plan 34.1-30, D-31, IN-26:
+//     install's write of `agents` reads the ledger it writes, so an agent left out of `agents` by a hand edit while the
+//     ledger holds its files is recorded again (R30), both owners of the held shared agent skill are recorded and a
+//     per-agent uninstall of both removes it (R31), and an agent owning only a directory entry is not (R35));
 //   - the unusable-marker remedies, followed as printed (D-33, WR-20): R25 (plan 34.1-25, a moved target, --codex),
 //     R26 (plan 34.1-26, a moved target, flag-less, with the no-agent-flag clause), R27 (plan 34.1-26, a marker with no
 //     install ledger, --codex and flag-less) and R34 (plan 34.1-26, a moved `--symlink` install); and R28 (plan
@@ -647,6 +648,46 @@ describe("D-31 (IN-26): install's derivation reads the ledger it writes", () => 
     const r = install(w, [flag("codex")]);
     expect(ledgerEntries(w).filter((e) => entryHolds(e) && entryOwners(e).includes(row("claude").id)).length, "premise: the ledger after the run still holds Claude Code's entries").toBe(held.length);
     expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+    expectInvariant(w, ALL_IDS, r.stdout);
+  });
+
+  it("R31 (IN-26, the shared agent skill): install --claude --codex, `agents` edited to [claude], install --claude: [claude, codex, antigravity]; uninstall --codex --antigravity then removes the shared skill and leaves [claude]", () => {
+    const w = world("r31");
+    install(w, [flag("claude"), flag("codex")]);
+    handEditAgents(w, ids("claude"));
+    const sharedHeld = (): LedgerEntry[] => ledgerEntries(w).filter((e) => e.path === AGENT_SKILL_REL && entryHolds(e));
+    expect(sharedHeld().length, "premise: the ledger holds the shared agent skill").toBe(1);
+    expect(entryOwners(sharedHeld()[0]), "premise: Codex CLI and Antigravity CLI both own it").toEqual(ids("codex", "antigravity"));
+
+    const r = install(w, [flag("claude")]);
+    expect(sharedHeld().length, "premise: the ledger after the run still holds the shared agent skill").toBe(1);
+    // ids() keeps the order typed here; the registry lists Claude Code, Codex CLI, Antigravity CLI in this order.
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex", "antigravity"));
+    expectInvariant(w, ALL_IDS, r.stdout);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), "premise: the shared agent skill is on disk").toBe(true);
+
+    const u = uninstall(w, [flag("codex"), flag("antigravity")]);
+    expect(u.status, u.stdout).toBe(0);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), u.stdout).toBe(false);
+    expect(agentsOf(w), u.stdout).toEqual(ids("claude"));
+    expectInvariant(w, ALL_IDS, u.stdout);
+  });
+
+  // R35: a directory entry never records its owner again. Pi's template is deleted (its file entry is no longer
+  // carried) while `.pi/prompts/` holds a user file (its directory entries are carried); with Pi edited out of
+  // `agents`, the next install leaves Pi out. Directory entries do not hold (install-marker.ts entryHolds).
+  it("R35 (IN-26, a directory entry): install --claude --pi, Pi's template deleted and a user file in .pi/prompts/, `agents` edited to [claude], install --claude: [claude], and the ledger still records Pi's directories", () => {
+    const w = world("r35");
+    install(w, [flag("claude"), flag("pi")]);
+    rmSync(at(w.target, PI_PROMPT_REL));
+    writeFileSync(at(w.target, ".pi/prompts/mine.md"), "a prompt the user made\n");
+    handEditAgents(w, ids("claude"));
+
+    const r = install(w, [flag("claude")]);
+    const piEntries = ledgerEntries(w).filter((e) => entryOwners(e).includes(row("pi").id));
+    expect(piEntries.filter((e) => e.kind === "dir").length, "premise: the ledger still records a directory Pi owns").toBeGreaterThan(0);
+    expect(piEntries.filter(entryHolds), "premise: Pi owns no holding entry").toEqual([]);
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude"));
     expectInvariant(w, ALL_IDS, r.stdout);
   });
 });
@@ -1650,6 +1691,31 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
     expect(props.length, "writeMarker sets `agents` once").toBe(1);
     const init = props[0].initializer;
     expect(ts.isCallExpression(init) && calleeName(init), `writeMarker's agents is ${init.getText()}`).toBe("agentsToRecord");
+  });
+
+  // D-31 (IN-26, plan 34.1-30): install's own call reads the ledger it writes. Its `known` is not its `keep`, and it
+  // reads nextEntries through entryHolds and entryOwners; `keep` is AGENTS_AFTER's registry ids (knownAfter). The
+  // agentsToRecord calls are derived over every product module under install/ (the walk is asserted to read them).
+  it("writeMarker: agentsToRecord's `known` is not its `keep` and reads nextEntries (D-31, IN-26); the product modules hold 3 agentsToRecord calls: writeMarker, installedSplit, agentsAfter", () => {
+    const mods = readdirSync(join(REPO_ROOT, "install"))
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.endsWith(".test.ts") && !f.endsWith(".test-support.ts"))
+      .sort();
+    expect(mods, "premise: the walk read the installer's product modules").toEqual(expect.arrayContaining(["install-marker.ts", "install.ts", "uninstall.ts"]));
+    const calls = mods.flatMap((m) => callsOf(parse(`install/${m}`), "agentsToRecord").map((c) => ({ site: `${m}:${enclosing(c)}`, c })));
+    expect(calls.map((x) => x.site).sort()).toEqual(["install.ts:installedSplit", "install.ts:writeMarker", "uninstall.ts:agentsAfter"]);
+    const arg = calls.find((x) => x.site === "install.ts:writeMarker")?.c.arguments[0];
+    expect(arg !== undefined && ts.isObjectLiteralExpression(arg), `writeMarker's agentsToRecord argument is ${arg?.getText()}`).toBe(true);
+    const prop = (name: string): ts.Expression => {
+      const p = (arg as ts.ObjectLiteralExpression).properties.filter(ts.isPropertyAssignment).filter((x) => ts.isIdentifier(x.name) && x.name.text === name);
+      expect(p.length, `writeMarker's agentsToRecord argument sets \`${name}\` once`).toBe(1);
+      return p[0].initializer;
+    };
+    const known = prop("known");
+    const keep = prop("keep");
+    expect(keep.getText(), "keep is this run's agents").toBe("knownAfter");
+    expect(known.getText(), "known is the same expression as keep: it never reads the ledger").not.toBe(keep.getText());
+    const read = new Set(nodesOf(known, ts.isIdentifier).map((i) => i.text));
+    for (const name of ["knownAfter", "nextEntries", "entryHolds", "entryOwners"]) expect(read.has(name), `known does not read ${name}: ${known.getText()}`).toBe(true);
   });
 
   it("updateKeptMarker: the one withAgentsAndLedger call takes agentsAfter(), whose body returns agentsToRecord(...); updateKeptMarker has 3 call sites", () => {
