@@ -473,6 +473,21 @@ function resolveTarget(): string {
 }
 const TARGET = resolveTarget();
 
+// THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
+// install.js prints its command from the helpers below, so the command runs as printed from any directory, with the
+// kit home and the install mode this run used (host-tools.ts agentCommand with COMMAND_CONTEXT, the one builder).
+//
+// Why they are flag-less: `--check` takes no agent flag (D-25) and speaks for the agents the marker records. install.js
+// with no agent flag chooses that same recorded set when it runs unattended (D-03), and at a terminal it shows the
+// agent list with them checked (D-02). With no marker, or one the doctor cannot use, install detects the agents here
+// or refuses and names the agent flags; the remedy text says so where that applies. The one doctor note that names a
+// single agent (the nothing-installed note) keeps that agent's flag and does not use these.
+
+/** The doctor's install command: `agentCommand("install.js", TARGET, [], COMMAND_CONTEXT)` (no agent flag). */
+function doctorInstallCommand(): string {
+  return agentCommand("install.js", TARGET, [], COMMAND_CONTEXT);
+}
+
 // Materialization sentinels — byte-identical to uninstall.ts. Declared HERE (before the doctor) so
 // the doctor's adapter KIT= parser can reference them under --check; materializeAdapter on the
 // install path below reuses these same definitions verbatim (mirrors install.sh's relocation).
@@ -2262,7 +2277,7 @@ function doctor(): number {
               `${GRUGOPS_SRC}, materialized exactly the way an install would materialize it — so ` +
               `what differs here is what a re-run would change. That checkout is a DIFFERENT root ` +
               `from the installed kit at ${KIT_ROOT} the version line reports on, and the remedy is ` +
-              `run from the checkout: node install/install.js --target ${TARGET}`,
+              `\`${doctorInstallCommand()}\`, which renders from the checkout at ${resolve(SCRIPT_DIR, "..")}`,
           );
         }
       });

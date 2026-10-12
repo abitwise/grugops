@@ -47,7 +47,7 @@ import {
   readlinkSync,
   linkSync,
 } from "node:fs";
-import { basename, join, resolve, dirname } from "node:path";
+import { basename, join, relative, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -138,7 +138,7 @@ import { realTargetPath } from "./user-file.js";
 // Plan 34.1-06 (D-23): the adapter kinds every install before this phase wrote, the one statement of the legacy rule.
 import { LEGACY_ADAPTER_KINDS } from "./install-marker.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
-import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, pathText, spawnBin, withAgentFlags } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, pathText, printedCommand, runPrintedCommand, shellWords, spawnBin, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
 const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
@@ -1330,6 +1330,45 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(`status=${strict.status}`).toBe("status=1");
     expect(strict.stdout).toContain("promoted to failure");
     expect(strict.stdout).toContain("stale adapter");
+  });
+
+  // DI-08 (phase 34.1 gap round 2, D-33, D-31; brief §4 and WR-19's rule): the stale-adapter remedy is the builder's
+  // command, and it is tested by running it the way a user would: from a directory that is not the checkout, with no
+  // GRUGOPS_HOME in the environment unless the printed text sets one, and HOME a scratch directory. The expected command
+  // is built with agentCommand, so two builder-independent facts are asserted too: the literal words of the span (the
+  // kit home assignment, `node`, the absolute script path, `--target <target>`, no agent flag, no mode) and the effect
+  // of running it (the next --check names no stale adapter, and the adapters carry the new resolution).
+  it("DI-08 (D-33): the stale-adapter remedy, run as printed, refreshes the adapters", () => {
+    const target = realpathSync(makeFixture());
+    const home = realpathSync(mkTmp());
+    const userHome = realpathSync(mkTmp());
+    expect(runInstall(target, home).status).toBe(0);
+    expect(installedAdapters(target).length).toBe(17);
+    writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
+    // PREMISE: the edit has not reached the adapters, so the remedy has something to do.
+    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+
+    const bare = runCheck(target, home);
+    const warn = bare.stdout.split("\n").filter((l) => l.includes("stale adapter(s) under"));
+    expect(warn.length, `premise: one stale-adapter WARN line\n${bare.stdout}`).toBe(1);
+    const want = agentCommand("install.js", target, [], commandContextFor({ grugopsHome: home }));
+    expect(warn[0], "the WARN does not print the builder's command in backticks").toContain("`" + want + "`");
+    expect(warn[0], "the hand-built relative command is still printed").not.toContain("node install/install.js");
+    // Builder-independent: the span's words, read off the printed line.
+    const words = shellWords(printedCommand(warn[0]));
+    expect(words[0], "the span does not set the kit home this run used").toBe(`GRUGOPS_HOME=${home}`);
+    expect(words.slice(1, 3)).toEqual(["node", join(REPO_ROOT, "install", "install.js")]);
+    expect(words.slice(3)).toEqual(["--target", target]);
+
+    const fin = runPrintedCommand(warn[0], { home: userHome, timeoutMs: 180_000 });
+    expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
+    expect(fin.premise.grugopsHome, "premise: the kit home is the one the printed text sets").toBe(home);
+    expect(fin.status, fin.stdout + fin.stderr).toBe(0);
+
+    const after = runCheck(target, home);
+    expect(`status=${after.status}`).toBe("status=0");
+    expect(`names a stale adapter: ${after.stdout.includes("stale adapter")}`, after.stdout).toBe("names a stale adapter: false");
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
   });
 
   it("doctor: a --check run over a STALE target leaves the target byte-identical (T-29.2-10)", () => {

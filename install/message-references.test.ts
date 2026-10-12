@@ -147,6 +147,35 @@ function enclosingName(n: ts.Node): string | null {
   return null;
 }
 
+/** The maximal `+` chain or template literal holding `n`, conditional arms and parentheses included. */
+function maximal(n: ts.Node): ts.Node {
+  let cur: ts.Node = n;
+  for (;;) {
+    const p = cur.parent;
+    if (p === undefined) return cur;
+    const grows =
+      ts.isTemplateSpan(p) ||
+      ts.isTemplateExpression(p) ||
+      ts.isParenthesizedExpression(p) ||
+      (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
+      (ts.isConditionalExpression(p) && (p.whenTrue === cur || p.whenFalse === cur));
+    if (!grows) return cur;
+    cur = p;
+  }
+}
+/** The printed-command builders a remedy may call (plan 34.1-27): agentCommand, and the doctor's two helpers over it. */
+const REMEDY_BUILDERS: ReadonlySet<string> = new Set(["agentCommand", "doctorInstallCommand", "doctorCheckCommand"]);
+/** The builder calls inside `n`, by callee name. */
+function builderCallsIn(n: ts.Node, src: ts.SourceFile): string[] {
+  const out: string[] = [];
+  const visit = (x: ts.Node): void => {
+    if (ts.isCallExpression(x) && REMEDY_BUILDERS.has(x.expression.getText(src))) out.push(x.expression.getText(src));
+    ts.forEachChild(x, visit);
+  };
+  visit(n);
+  return out;
+}
+
 const PLANNING_ID = /\bD-\d{2}\b|\bplan \d+(\.\d+)?-\d+\b/;
 const REFERENCE = /\b(above|below)\b|\b(next|previous|following|preceding) lines?\b|\bthe [a-z`-]+ lines? about\b/;
 const COMMAND = /\b(un)?install\.js\b/;
@@ -229,9 +258,9 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "uninstall.js", "agentCommand", "the doctor's unbound-marker remedy (D-26)"],
   ["install.ts", "uninstall.js", "agentCommand", "the doctor's unbound-marker remedy (D-26)"],
   ["install.ts", "install.js", "agentCommand", "the doctor's nothing-installed note (D-26, IN-21)"],
+  ["install.ts", "install.js", "agentCommand", "doctorInstallCommand: the doctor's flag-less install command (plan 34.1-27, D-33, DI-08)"],
   ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "names no agent flag", "no agent is recorded or detected: the text asks for the flag of each agent"],
   ["install.ts", "(run install.js to re-seed)", "names no agent flag", "the seeded state, which every install writes (D-06)"],
-  ["install.ts", "run from the checkout: node install/install.js --target", "names no agent flag", "stale Claude Code adapters, checked only when Claude Code is recorded; install with no agent flag chooses the recorded set (D-03)"],
   ["install.ts", "Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.", "names no agent flag", "a --check hint; --check takes no agent flag (D-25)"],
   ["install.ts", "install.js: the real path of", "names no agent flag", "the install.js: prefix of a refusal before any agent is chosen"],
   ["install.ts", "install.js: the kit home", "names no agent flag", "the install.js: prefix of a refusal before any agent is chosen"],
@@ -277,7 +306,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "(run install.js to re-seed)", "agent-independent: shared footprint", "the seeded state, which every install writes (D-06)", null],
   ["install.ts", "disagree; re-run --check from a complete kit", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
   ["install.ts", "disagree; re-run --check from a complete kit checkout.", "agent-independent: mode with no agent set", "--check takes no agent flag (D-25)", null],
-  ["install.ts", "what differs here is what a re-run would change. That checkout is a DIFFERENT root", "agent-independent: doctor, recorded agents", "stale Claude Code adapters, checked only when Claude Code is recorded; install with no agent flag chooses the recorded set (D-03)", null],
+  ["install.ts", "what differs here is what a re-run would change. That checkout is a DIFFERENT root", "builder in the same expression", "the stale-adapter WARN prints doctorInstallCommand() in the same expression (plan 34.1-27, DI-08)", null],
   ["install.ts", "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "not a remedy", "says what the installer does with a malformed ledger; asks for nothing", null],
   ["install.ts", "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them", "agent-independent: doctor, recorded agents", "printed only when Claude Code is recorded; install with no agent flag chooses the recorded set (D-03)", null],
   ["install.ts", "(re-run the installer to restore it)", "agent-independent: doctor, recorded agents", "printed only when Claude Code is recorded; install with no agent flag chooses the recorded set (D-03)", null],
@@ -350,10 +379,14 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // Plan 34.1-26 (WR-20's other branch): the no-target or no-ledger verify's "Re-run install.js here, then uninstall"
     // row (names no agent flag) is gone: that verify prints reinstallCommand, whose install.js fragment is the one
     // agentCommand row plan 34.1-25 added. So uninstall.ts 9 -> 8 and "names no agent flag" 28 -> 27.
+    // Plan 34.1-27 (DI-08): the stale-adapter WARN's hand-built "run from the checkout: node install/install.js --target"
+    // (names no agent flag) is gone: the WARN prints doctorInstallCommand() in backticks, and the fragments around it
+    // name no binary. doctorInstallCommand's own agentCommand("install.js", ...) argument is a new agentCommand row. So
+    // install.ts stays 34, "names no agent flag" 27 -> 26 and agentCommand 21 -> 22.
     expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 8 });
     // Plan 34.1-25 (WR-20): the other-directory verify's "re-run install.js here, with any agent" row (names no agent
     // flag) became reinstallCommand's agentCommand row, so agentCommand 20 -> 21 and "names no agent flag" 29 -> 28.
-    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 21, "file text": 1, "names no agent flag": 27 });
+    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 22, "file text": 1, "names no agent flag": 26 });
   });
 
   // The builder is agentCommand and the invocation words it prints first, scriptCommand (plan 34.1-22, D-33): a
@@ -361,7 +394,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) an agentCommand row's fragment is an argument of an agentCommand call (or inside the builder: agentCommand or scriptCommand)", () => {
     const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "agentCommand").map((r) => `${r[0]} :: ${norm(r[1])}`));
     const found = all.filter((f) => COMMAND.test(f.text) && rows.has(`${f.module} :: ${norm(f.text)}`));
-    expect(found.length, "premise: the agentCommand rows are found (21 since plan 34.1-25's reinstallCommand)").toBe(21);
+    expect(found.length, "premise: the agentCommand rows are found (22 since plan 34.1-27's doctorInstallCommand)").toBe(22);
     const builder = new Set(["agentCommand", "scriptCommand"]);
     for (const f of found) {
       const call = nearestCall(f.node);
@@ -373,22 +406,6 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) no string expression that names install.js or uninstall.js holds an agent flag, literal or through agentFlag", () => {
     const flags = HOST_TOOLS.map(agentFlag);
     const flagWord = new RegExp(`(^|[^\\w-])(${flags.map((x) => x.replace(/[-]/g, "\\-")).join("|")})(?![\\w-])`);
-    /** The maximal `+` chain or template literal holding `n`, conditional arms and parentheses included. */
-    const maximal = (n: ts.Node): ts.Node => {
-      let cur: ts.Node = n;
-      for (;;) {
-        const p = cur.parent;
-        if (p === undefined) return cur;
-        const grows =
-          ts.isTemplateSpan(p) ||
-          ts.isTemplateExpression(p) ||
-          ts.isParenthesizedExpression(p) ||
-          (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
-          (ts.isConditionalExpression(p) && (p.whenTrue === cur || p.whenFalse === cur));
-        if (!grows) return cur;
-        cur = p;
-      }
-    };
     const breaks: string[] = [];
     for (const f of all.filter((x) => COMMAND.test(x.text))) {
       const expr = maximal(f.node);
@@ -415,15 +432,38 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     const found = fragmentsOf(modules.filter((m) => m !== "uninstall.ts")).filter((f) => RERUN.test(f.text));
     expect(compareBothWays(found, RERUN_TABLE)).toEqual({ unclassified: [], stale: [] });
     expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 61, "user-file.ts": 2 });
+    // Plan 34.1-27 (DI-08): the stale-adapter WARN's re-run fragment moves from "agent-independent: doctor, recorded
+    // agents" (12 -> 11) to "builder in the same expression" (1): the WARN prints doctorInstallCommand().
     expect(countBy(RERUN_TABLE, (r) => r[2])).toEqual({
       agentCommand: 2,
-      "agent-independent: doctor, recorded agents": 12,
+      "builder in the same expression": 1,
+      "agent-independent: doctor, recorded agents": 11,
       "agent-independent: mode with no agent set": 8,
       "agent-independent: shared footprint": 12,
       "file text": 3,
       "not a remedy": 4,
       "same-run command": 22,
     });
+  });
+
+  // Plan 34.1-27 (D-33): a row classed "builder in the same expression" is a remedy whose command is printed by a
+  // builder in the same string expression. The class is held by the parser, so a row cannot be classed there when its
+  // message prints no command.
+  it("(c)(f) every \"builder in the same expression\" row's fragment sits in a string expression that calls a builder", () => {
+    const rows = [...COMMAND_TABLE, ...RERUN_TABLE].filter((r) => r[2] === "builder in the same expression");
+    expect(rows.length, "premise: the class has rows").toBeGreaterThan(0);
+    const off: string[] = [];
+    let seen = 0;
+    for (const r of rows) {
+      const hits = all.filter((f) => f.module === r[0] && norm(f.text) === norm(r[1]));
+      expect(hits.length, `no fragment for the row ${r[1]}`).toBeGreaterThan(0);
+      for (const f of hits) {
+        seen++;
+        if (builderCallsIn(maximal(f.node), f.src).length === 0) off.push(`${where(f)} :: ${norm(f.text)}`);
+      }
+    }
+    expect(seen, "premise: the fragments were found").toBeGreaterThanOrEqual(rows.length);
+    expect(off, "classed 'builder in the same expression' but its expression calls no builder").toEqual([]);
   });
 
   it("(f) each same-run command row reaches a counted verify of the install mode, by the parser", () => {
