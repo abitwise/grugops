@@ -440,13 +440,9 @@ function isInstallerScriptWord(script: string | undefined): boolean {
   return isAbsolute(script) && PRINTED_BINARIES.some((b) => pathText(script).endsWith("/install/" + b));
 }
 
-/**
- * The first backtick-quoted span in `text` whose shell words, after any leading `NAME=value` words, are `node` and an
- * installer script word by its absolute path (isInstallerScriptWord): the command a line printed (an agentCommand-built
- * remedy). A span whose script word is the relative `install/install.js` or `install/uninstall.js` is never returned.
- * Throws when there is none; the message says so when a relative one was seen.
- */
-export function printedCommand(text: string): string {
+/** Every backtick-quoted span of `text` that is a printed installer command by its absolute script path, in order, and the spans whose script word was the relative form. */
+function scanPrintedCommands(text: string): { readonly spans: string[]; readonly relativeSeen: string[] } {
+  const spans: string[] = [];
   const relativeSeen: string[] = [];
   for (const m of text.matchAll(/`([^`]*)`/g)) {
     let words: string[];
@@ -457,9 +453,30 @@ export function printedCommand(text: string): string {
     }
     const at = nodeWordAt(words);
     if (at === -1) continue;
-    if (isInstallerScriptWord(words[at + 1])) return m[1];
-    if (PRINTED_BINARIES.some((b) => words[at + 1] === "install/" + b)) relativeSeen.push(m[1]);
+    if (isInstallerScriptWord(words[at + 1])) spans.push(m[1]);
+    else if (PRINTED_BINARIES.some((b) => words[at + 1] === "install/" + b)) relativeSeen.push(m[1]);
   }
+  return { spans, relativeSeen };
+}
+
+/**
+ * Every backtick-quoted span in `text` that printedCommand would accept, in the order printed (plan 34.1-25, D-33): a
+ * multi-step remedy prints more than one command, and a test that follows it end to end runs each in turn. A span
+ * whose script word is the relative form is never returned. [] when there is none.
+ */
+export function printedCommands(text: string): string[] {
+  return scanPrintedCommands(text).spans;
+}
+
+/**
+ * The first backtick-quoted span in `text` whose shell words, after any leading `NAME=value` words, are `node` and an
+ * installer script word by its absolute path (isInstallerScriptWord): the command a line printed (an agentCommand-built
+ * remedy); printedCommands(text)[0]. A span whose script word is the relative `install/install.js` or
+ * `install/uninstall.js` is never returned. Throws when there is none; the message says so when a relative one was seen.
+ */
+export function printedCommand(text: string): string {
+  const { spans, relativeSeen } = scanPrintedCommands(text);
+  if (spans.length > 0) return spans[0];
   const why = relativeSeen.length > 0 ? ` (a relative script word was seen, which is not a printed command's form: ${relativeSeen.join(" | ")})` : "";
   throw new Error(`no printed installer command (\`[NAME=value ...] node </abs/.../install/install.js|uninstall.js> ...\`)${why} in:\n${text}`);
 }

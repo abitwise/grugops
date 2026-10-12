@@ -153,7 +153,8 @@ describe("install's marker is bound to its directory, and only install's own mar
       const v = lines(u.stdout, "verify").find((l) => l.includes(".grugops/install.json")) ?? "";
       expect(v, u.stdout).toContain(recorded);
       expect(v, u.stdout).toContain(recordedTarget(moved));
-      expect(v, u.stdout).toMatch(/re-run install/);
+      // The remedy prints the install command (uninstall.ts reinstallCommand, plan 34.1-25), by the script's absolute path.
+      expect(v, u.stdout).toMatch(/Otherwise run `[^`]*\/install\/install\.js --target /);
     });
   }
 

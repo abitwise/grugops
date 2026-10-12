@@ -120,7 +120,7 @@ import { allAskRules, createdSettingsText } from "./checkpoint-ask-rules.js";
 // D-33 (b), plan 33.1-36: the ONE reader of the install marker and of the one install ledger
 // (readLedger), its one serializer (ledgerJson) and the one ownership authority (owns), shared with
 // install.ts (WR-05).
-import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, entryHolds, agentsToRecord, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, entryHolds, agentsToRecord, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue, firstDuplicateKey } from "./json-text.js";
@@ -196,6 +196,17 @@ if (USAGE_ERROR !== null) {
  */
 function rerunCommand() {
     return agentCommand("uninstall.js", TARGET, HOST_TOOLS.filter((h) => REMOVE.has(h.id)), COMMAND_CONTEXT);
+}
+/**
+ * reinstallCommand (plan 34.1-25, D-33, review WR-20; brief MSG-1): the install step of the unusable-marker remedies,
+ * built by host-tools.ts agentCommand from this run's flags (the HOST_TOOLS rows whose id is in REMOVE, in registry
+ * order, as rerunCommand) with COMMAND_CONTEXT, so it uses the kit home and install mode the run resolved. The marker
+ * that install writes then records the agents this run names, so the follow-up uninstall (rerunCommand) names agents
+ * the new marker records and does not find them "not installed here". A flag-less run gives the flag-less install
+ * command. The unusable marker's kit fields decide only this command's text (COMMAND_CONTEXT), never a removal.
+ */
+function reinstallCommand() {
+    return agentCommand("install.js", TARGET, HOST_TOOLS.filter((h) => REMOVE.has(h.id)), COMMAND_CONTEXT);
 }
 const SCRIPT_DIR = import.meta.dirname;
 const GRUGOPS_SRC = process.env.GRUGOPS_SRC ? resolve(process.env.GRUGOPS_SRC) : resolve(SCRIPT_DIR, "..");
@@ -2271,9 +2282,9 @@ if (MARKER_READ.state === "unbound") {
         verify(`.grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its ` +
             `records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same ` +
             `repository moved or renamed${MARKER_READ.boundTo !== null ? ` from ${MARKER_READ.boundTo}` : ""}, set "target" in the marker to ` +
-            `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise re-run install.js here, with any agent ` +
-            `flag (every install writes a marker for this directory, whatever agents it names): it carries none of these ` +
-            `records, so what an earlier install made here is then left and reported, for you to remove by hand.`);
+            `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise run \`${reinstallCommand()}\`: it writes ` +
+            `a marker for this directory and carries none of these records; then run \`${rerunCommand()}\`: what an earlier ` +
+            `install made here is then left and reported, for you to remove by hand.`);
     }
     else {
         // D-31 item 5's remedy, for a marker written before markers were bound (no-target) or before the
@@ -2447,6 +2458,23 @@ function reportUnrecordedRunnables() {
     if (entryAt(LEDGER, "tools", "dir") === undefined && isDir(`${TARGET}/tools`))
         report("left", TOOLS_LEFT);
 }
+// reportUnrecordedHostEntries (plan 34.1-25, D-33, review WR-20; report only): a whole-file host entry (the agent
+// skill, the OpenCode command, the Pi prompt template: install-marker.ts wholeFileEntryRels, the list install writes
+// from) present in the target with no ledger `file` entry is left, with the reason. Only an entry this run may reverse
+// is asked about (inScope: every entry on a FULL run; on a partial run, an entry an agent this run removes owns and no
+// staying agent owns), so a partial run names only its own agents' entries. The kit source carries each entry at the
+// same relative path, and it is read only to word the line. It removes nothing: what install has no record of
+// writing is the user's to remove, which the unusable-marker remedy above promises ("left and reported").
+function reportUnrecordedHostEntries() {
+    const reason = unrecordedFileReason();
+    for (const rel of wholeFileEntryRels(HOST_TOOLS)) {
+        if (!inScope({ path: rel, kind: "file" }))
+            continue;
+        if (entryAt(LEDGER, rel, "file") !== undefined)
+            continue;
+        reportUnrecordedFile(rel, join(GRUGOPS_SRC, rel), reason);
+    }
+}
 // 1. THE WALK: every entry of the install ledger, reversed through owns (plan 33.1-38). Nothing outside
 //    the ledger is removed or edited.
 console.log("\n-- reversing what the install ledger records (only what install.js wrote) --");
@@ -2464,6 +2492,7 @@ if (adapterRemoved("claude-kit")) {
     // Every backup install made of an edited kit file (D-32, plan 33.1-32) is reported left, never removed.
     reportKitBackups();
 }
+reportUnrecordedHostEntries();
 if (FULL)
     reportUnrecordedAgentsMd();
 if (adapterRemoved("claude-kit"))

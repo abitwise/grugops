@@ -39,7 +39,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
@@ -56,6 +56,7 @@ import {
   makeOldLayoutFixture,
   pathText,
   printedCommand,
+  printedCommands,
   runInstall,
   runPrintedCommand,
   runUninstall,
@@ -725,6 +726,84 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
   }, 300_000);
 });
 
+// ── D-33 (WR-20): the unusable-marker remedy, followed as printed (plan 34.1-25) ─────────────────────────────────────
+//
+// The rule (34.1-GAP-PLANNING-BRIEF.md §4, WR-20): a remedy names concrete flags from THIS run, and a test follows a
+// multi-step remedy end to end. When uninstall cannot use the marker because it is another directory's record (the
+// repository was moved), the verify's second remedy is two printed commands: the install command with this run's own
+// agents (reinstallCommand), then this run's own uninstall command (rerunCommand). R25 is the verifier's S3 with the
+// WR-19 condition added (no GRUGOPS_HOME in the uninstall run, the marker's kit home is not the default): it follows
+// both steps as printed and asserts the branch the run takes. Install leaves the old Codex skill untouched and does
+// not record it; the second uninstall names it on a `left` line (uninstall.ts reportUnrecordedHostEntries) and keeps
+// its bytes, which is what the remedy says ("left and reported").
+
+/** The `left` lines of a run that name `rel` as the path. */
+const leftLinesNaming = (stdout: string, rel: string): string[] =>
+  linesWith(stdout, "left").filter((l) => l.replace(/^ {2}left\s+/, "").startsWith(`${rel} (`));
+
+describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => {
+  it("R25 (WR-20): install --claude --codex with kit home K, move the target, uninstall --codex with no GRUGOPS_HOME prints the install command with --codex and K, then the uninstall command; run as printed, the second uninstall reports the old Codex skill on a `left` line and keeps its bytes, and no kit appears under HOME", () => {
+    const w = world("r25");
+    const K = join(dirname(w.home), "kit-k");
+    const defaultKit = join(w.home, ".grugops");
+    expect(pathText(K), "premise: the kit home is not the default").not.toBe(pathText(defaultKit));
+    const i = runInstall(w.target, K, [flag("claude"), flag("codex")], { home: w.home, timeoutMs: 180_000 });
+    finished(i, "install --claude --codex with kit home K");
+    expect(i.status, i.stdout).toBe(0);
+    expect(existsSync(defaultKit), "premise: install wrote no kit under HOME").toBe(false);
+    const b = join(dirname(w.target), "b", "target");
+    mkdirSync(dirname(b), { recursive: true });
+    renameSync(w.target, b);
+    const moved: World = { ...w, target: b };
+    const skill = at(b, AGENT_SKILL_REL);
+    expect(existsSync(skill), "premise: the moved target holds the Codex skill").toBe(true);
+    const skillBytes = readFileSync(skill);
+
+    const r = runUninstall(b, K, { home: w.home, omitKitHome: true, timeoutMs: 120_000 }, [flag("codex")]);
+    finished(r, "uninstall --codex in the moved target with no GRUGOPS_HOME");
+    expect(r.status, r.stdout).toBe(3);
+    const verifies = linesWith(r.stdout, "verify").filter((l) => l.includes(".grugops/install.json") && l.includes("not this directory's record"));
+    expect(verifies.length, r.stdout).toBe(1);
+    const v = verifies[0];
+    expect(r.stdout, "the remedy no longer says any agent flag will do").not.toMatch(/any agent flag/);
+    const cmds = printedCommands(v);
+    expect(cmds.length, `premise: the verify printed commands\n${v}`).toBeGreaterThan(0);
+    // Builder-independent facts about the install step first: the expected side below is built by the builder under test.
+    const installSpans = cmds.filter((c) => shellWords(c).some((x) => isAbsolute(x) && pathText(x) === pathText(INSTALL_JS)));
+    expect(installSpans.length, `the verify names one install command\n${v}`).toBe(1);
+    const iw = shellWords(installSpans[0]);
+    expect(iw[0].startsWith("GRUGOPS_HOME="), `the install command carries no kit home: ${installSpans[0]}`).toBe(true);
+    expect(pathText(iw[0].slice("GRUGOPS_HOME=".length)), `the install command's kit home is not the marker's: ${installSpans[0]}`).toBe(pathText(K));
+    expect(iw[1], `the install command's second word is not node: ${installSpans[0]}`).toBe("node");
+    expect(isAbsolute(iw[2]) && pathText(iw[2]) === pathText(INSTALL_JS), `the install script is not this checkout's install.js by its absolute path: ${installSpans[0]}`).toBe(true);
+    expect(iw, `the install command does not name this run's agent: ${installSpans[0]}`).toContain("--codex");
+    expect(iw, "the install command names an agent this run did not name").not.toContain("--claude");
+    const ctx = commandContextFor({ grugopsHome: K, home: w.home });
+    const installCmd = agentCommand("install.js", b, [row("codex")], ctx);
+    const uninstallCmd = agentCommand("uninstall.js", b, [row("codex")], ctx);
+    // In order: the "same repository moved" remedy's command, then the install step, then the uninstall step.
+    expect(cmds, v).toEqual([uninstallCmd, installCmd, uninstallCmd]);
+
+    const step1 = runPrintedCommand("`" + installCmd + "`", { home: w.home, timeoutMs: 180_000 });
+    finished(step1, `the printed install command ${installCmd}`);
+    expect(relative(REPO_ROOT, step1.premise.cwd).startsWith(".."), `premise: the printed command ran from ${step1.premise.cwd}`).toBe(true);
+    expect(pathText(String(step1.premise.grugopsHome)), "premise: the child's kit home is the printed one").toBe(pathText(K));
+    expect(step1.status, step1.stdout + step1.stderr).toBe(0);
+    const untouched = linesWith(step1.stdout, "skipped").filter((l) => l.includes(`${AGENT_SKILL_REL} (`) && l.includes("a file is already there — left untouched"));
+    expect(untouched.length, `install did not leave the existing Codex skill untouched\n${step1.stdout}`).toBe(1);
+    expect(agentsOf(moved), step1.stdout).toEqual(ids("codex"));
+    expect(ledgerEntries(moved).some((e) => e.path === AGENT_SKILL_REL), "install recorded the file it left untouched").toBe(false);
+    expect(existsSync(defaultKit), `the printed install command wrote a kit under HOME\n${step1.stdout}`).toBe(false);
+
+    const step2 = runPrinted(moved, "`" + uninstallCmd + "`");
+    expect(step2.status, step2.stdout + step2.stderr).toBe(0);
+    expect(step2.stdout, "the second uninstall says Codex CLI is not installed").not.toMatch(/Codex CLI is not installed here/);
+    expect(leftLinesNaming(step2.stdout, AGENT_SKILL_REL).length, `no left line names the old Codex skill\n${step2.stdout}`).toBe(1);
+    expect(existsSync(skill) && readFileSync(skill).equals(skillBytes), `the old Codex skill was changed or removed\n${step2.stdout}`).toBe(true);
+    expect(existsSync(defaultKit), `a kit appeared under HOME\n${step2.stdout}`).toBe(false);
+  }, 600_000);
+});
+
 // ── D-32: printed alternatives that touch the marker or its ledger (CR-03) ───────────────────────────────────────────
 //
 // The rule (34.1-GAP-PLANNING-BRIEF.md §4): every remedy the installer prints, by-hand alternatives included, leaves
@@ -930,8 +1009,8 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   // per field (U6): one field set to the value the run computed.
   ["uninstall.ts", "updateKeptMarker", "either", "its `agents` list still names the agents this run removed; set it to ${agentsNow} by hand, or a later install chooses them again", "per field", "U6: the value is agentsAfter's, which agentsToRecord derives"],
   // fix: the record is repaired in place and every agent's record stays.
-  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed from ${MARKER_READ.boundTo}, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise re-run install.js here, with any agent flag (every install writes a marker for this directory, whatever agents it names): it carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7: set \"target\"; the re-install is offered only when the records are another directory's"],
-  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise re-run install.js here, with any agent flag (every install writes a marker for this directory, whatever agents it names): it carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7 (no boundTo recorded): as above"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed from ${MARKER_READ.boundTo}, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise run `${reinstallCommand()}`: it writes a marker for this directory and carries none of these records; then run `${rerunCommand()}`: what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7: set \"target\"; the re-install is offered only when the records are another directory's"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise run `${reinstallCommand()}`: it writes a marker for this directory and carries none of these records; then run `${rerunCommand()}`: what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7 (no boundTo recorded): as above"],
   ["install.ts", "doctor", "either", "the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of its records here and changes nothing. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, which writes a marker for this directory and carries none of these records", "fix", "the doctor's unbound marker: set \"target\"; the re-install is offered only when the records are another directory's"],
   ["install.ts", "doctor", "either", "the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). Fix the ledger field by hand", "fix", "I2: the doctor's malformed ledger"],
   ["install.ts", "writeMarker", "either", ".grugops/install.json — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and nothing this run did was recorded. Uninstall will remove and edit nothing on it; fix the ledger field by hand to restore the record.", "fix", "I3: writeMarker's malformed ledger"],
@@ -1328,12 +1407,14 @@ const RERUN_FRAGMENT = /\bre-?run\b|\bthe uninstaller\b|\bthen uninstall\b/i;
 /** The builders of a printed uninstall command in install/uninstall.ts, both on agentCommand. */
 const COMMAND_BUILDERS: ReadonlySet<string> = new Set(["rerunCommand", "finishCommand"]);
 /**
- * The fragments of install/uninstall.ts matching RERUN_FRAGMENT, measured 2026-10-12 (plan 34.1-14): 2. Both are in the
- * module-top unbound-marker verifies ("Otherwise re-run install.js here" and "Re-run install.js here, then uninstall"),
- * and each sits beside rerunCommand. The 6 fragments at HEAD 2e10cba9 were 4 bare re-run remedies (removeAskRules, the
- * kept `left` line, the malformed-ledger verify, the KEPT_FOR banner) that now print the command instead, and these 2.
+ * The fragments of install/uninstall.ts matching RERUN_FRAGMENT, measured 2026-10-12 (plan 34.1-25): 1, the no-target
+ * or no-ledger verify ("Re-run install.js here, then uninstall"), beside rerunCommand. Plan 34.1-14 measured 2: plan
+ * 34.1-25 (D-33, WR-20) rewrote the other-directory verify's "Otherwise re-run install.js here, with any agent flag"
+ * as "Otherwise run `reinstallCommand()` ...; then run `rerunCommand()`", which prints both commands and no longer
+ * matches the fragment. The 6 fragments at HEAD 2e10cba9 were 4 bare re-run remedies (removeAskRules, the kept `left`
+ * line, the malformed-ledger verify, the KEPT_FOR banner) that now print the command instead, and those 2.
  */
-const RERUN_FRAGMENT_COUNT = 2;
+const RERUN_FRAGMENT_COUNT = 1;
 
 // ── the command-context census (phase 34.1 gap round 2, D-33, the class; plan 34.1-24) ─────────────────────────────
 //
@@ -1345,11 +1426,12 @@ const RERUN_FRAGMENT_COUNT = 2;
 // declares COMMAND_CONTEXT exactly once. host-tools.ts is the builder: its own scriptCommand call inside agentCommand
 // passes agentCommand's parameter, so it is classed here by name and not counted.
 //   install.ts   10 agentCommand calls (plans 34.1-22 and 34.1-23), 0 scriptCommand calls;
-//   uninstall.ts  4 agentCommand calls (rerunCommand 1, finishCommand 3: FULL, UNFINISHED and NAMED), 0 scriptCommand.
+//   uninstall.ts  5 agentCommand calls (rerunCommand 1, finishCommand 3: FULL, UNFINISHED and NAMED, and, from plan
+//                 34.1-25, reinstallCommand 1: the install step of the unusable-marker remedy, WR-20), 0 scriptCommand.
 // A later plan that adds a call re-pins its count here with the reason.
 const CONTEXT_CALLS: Readonly<Record<string, { readonly agentCommand: number; readonly scriptCommand: number }>> = {
   "install/install.ts": { agentCommand: 10, scriptCommand: 0 },
-  "install/uninstall.ts": { agentCommand: 4, scriptCommand: 0 },
+  "install/uninstall.ts": { agentCommand: 5, scriptCommand: 0 },
 };
 /** The builder module, whose own scriptCommand call passes agentCommand's context parameter. */
 const BUILDER_MODULE = "install/host-tools.ts";

@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -1084,21 +1084,17 @@ const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 // kit-root variable or a resolver slot (check-kit-refs Assertion 3), and no config, argv or environment value reaches
 // one (T-34-13 holds; POINTER_LINE is fixed literal text).
 // ROUTE_BLOCKS (plan 34-29, D-26 point 4): the route carriers install writes as a sentinel block appended to a
-// file (BLOCK_RELS in install-marker.ts: CLAUDE.md and the Copilot pointer), with their sentinels. A carrier not
+// file, with their sentinels. Its keys are the same two paths as BLOCK_RELS in install-marker.ts (CLAUDE.md and the
+// Copilot pointer), the list wholeFileEntryRels leaves out. A carrier not
 // listed here is a whole file install writes (AGENTS.md, and every whole-file entry wholeFileEntryRels names),
 // owned through its `file` entry.
 const ROUTE_BLOCKS = new Map([
     ["CLAUDE.md", { open: CLAUDE_OPEN, close: CLAUDE_CLOSE }],
     [COPILOT_REL, { open: COPILOT_OPEN, close: COPILOT_CLOSE }],
 ]);
-// wholeFileEntryRels (phase 34.1, plan 34.1-01, D-08, D-11): THE ONE DERIVATION of the whole-file entries install
-// writes for `hosts`: the ROUTE_POINTERS paths of the hosts' adapter kinds (host-tools.ts) that are not ROUTE_BLOCKS
-// carriers, without duplicates, in registry order. Each is a committed generated file in the kit source
-// (scripts/generate-host-entries.ts renders it from the one pointer template), copied by writeWholeFileEntry. A
-// function declaration over imports and consts declared above the doctor, so the doctor can ask it.
-function wholeFileEntryRels(hosts) {
-    return [...new Set(hosts.flatMap((h) => ROUTE_POINTERS[h.adapter].filter((rel) => !ROUTE_BLOCKS.has(rel))))];
-}
+// wholeFileEntryRels, the one derivation of the whole-file entries install writes for a set of hosts, lives in
+// install-marker.ts (plan 34.1-25, D-33), so install writes them (writeWholeFileEntry) and uninstall reports an
+// unrecorded one (reportUnrecordedHostEntries) from the same list.
 // ENTRY_NOUN (phase 34.1, plan 34.1-01): what a whole-file entry of each adapter kind is called in install's lines,
 // keyed by HostAdapterKind so a new kind is a compile error until it is named here; null for a kind that writes no
 // whole-file entry. entryLabel puts the names of the hosts that read the entry before it ("Pi prompt template").

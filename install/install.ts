@@ -147,6 +147,7 @@ import {
   type OpenCodePermissionLedger,
   installedAgents,
   agentsToRecord,
+  wholeFileEntryRels,
   type InstalledAgents,
   type InstallMarkerRead,
 } from "./install-marker.js";
@@ -1242,7 +1243,8 @@ const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 // one (T-34-13 holds; POINTER_LINE is fixed literal text).
 
 // ROUTE_BLOCKS (plan 34-29, D-26 point 4): the route carriers install writes as a sentinel block appended to a
-// file (BLOCK_RELS in install-marker.ts: CLAUDE.md and the Copilot pointer), with their sentinels. A carrier not
+// file, with their sentinels. Its keys are the same two paths as BLOCK_RELS in install-marker.ts (CLAUDE.md and the
+// Copilot pointer), the list wholeFileEntryRels leaves out. A carrier not
 // listed here is a whole file install writes (AGENTS.md, and every whole-file entry wholeFileEntryRels names),
 // owned through its `file` entry.
 const ROUTE_BLOCKS: ReadonlyMap<string, { readonly open: string; readonly close: string }> = new Map([
@@ -1250,14 +1252,9 @@ const ROUTE_BLOCKS: ReadonlyMap<string, { readonly open: string; readonly close:
   [COPILOT_REL, { open: COPILOT_OPEN, close: COPILOT_CLOSE }],
 ]);
 
-// wholeFileEntryRels (phase 34.1, plan 34.1-01, D-08, D-11): THE ONE DERIVATION of the whole-file entries install
-// writes for `hosts`: the ROUTE_POINTERS paths of the hosts' adapter kinds (host-tools.ts) that are not ROUTE_BLOCKS
-// carriers, without duplicates, in registry order. Each is a committed generated file in the kit source
-// (scripts/generate-host-entries.ts renders it from the one pointer template), copied by writeWholeFileEntry. A
-// function declaration over imports and consts declared above the doctor, so the doctor can ask it.
-function wholeFileEntryRels(hosts: readonly HostTool[]): readonly string[] {
-  return [...new Set(hosts.flatMap((h) => ROUTE_POINTERS[h.adapter].filter((rel) => !ROUTE_BLOCKS.has(rel))))];
-}
+// wholeFileEntryRels, the one derivation of the whole-file entries install writes for a set of hosts, lives in
+// install-marker.ts (plan 34.1-25, D-33), so install writes them (writeWholeFileEntry) and uninstall reports an
+// unrecorded one (reportUnrecordedHostEntries) from the same list.
 
 // ENTRY_NOUN (phase 34.1, plan 34.1-01): what a whole-file entry of each adapter kind is called in install's lines,
 // keyed by HostAdapterKind so a new kind is a compile error until it is named here; null for a kind that writes no
