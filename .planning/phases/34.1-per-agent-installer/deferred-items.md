@@ -229,3 +229,21 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   against 33.1-40's "kept in the record"); (b) the verify says plainly what a re-run does and does not do (for prune, a
   gone backup's entry stays and removes nothing on a later prune); (c) the migrate caller records
   the earlier run's backup when the backup path exists and matches.
+
+## From plan 34.1-30 (gap round 2)
+
+### DI-14: an agent install records again from the ledger is named by no closing note and asked about by no route note
+
+- status: open
+- **Found during:** plan 34.1-30, Task 1 (sibling search after the writeMarker change).
+- **What:** plan 34.1-30 (D-31, IN-26) makes writeMarker record every owner of a holding entry of the ledger it
+  writes. The rest of the run still reads AGENTS_AFTER (the agents recorded before the run plus the agents chosen in
+  it): agentClosingLines splits only the agents recorded before the run, and the route notes ask hostsOf(AGENTS_AFTER).
+  So in R30's second run (`agents` hand-edited to [codex], then `install --codex`), the marker ends up recording
+  Claude Code, but no closing line names it ("Left installed" or "Recorded as chosen") and no route note asks about it.
+  The doctor (`--check`) reads the record and names it on the next run. Read from the code, not reproduced as a
+  printed-output assertion.
+- **Not fixed:** it reaches only a marker whose `agents` already contradicts its ledger (a hand edit, or the
+  unreleased round-0 uninstall), and the change would move the closing notes' and route notes' input (brief §3: new
+  findings go here). Option for triage: derive the "recorded after this run" set once (the value writeMarker records)
+  and have agentClosingLines and the route notes read it in place of AGENTS_AFTER.
