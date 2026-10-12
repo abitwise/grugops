@@ -456,3 +456,107 @@ describe("the live tree carries no host count and no short host list (plan 34-09
     liveCase("ts");
   });
 });
+
+// ── DOC-1 (DI-10, plan 34.1-31, D-31): the retired whole-file host entry claim ───────────────────
+// Since the per-agent selection (phase 34.1, D-01), install writes the whole-file host entry of each CHOSEN agent
+// only (install.ts writeWholeFileEntry, wholeFileEntryRels(SELECTION)). Five dated count re-pin notes from plan
+// 34.1-01 said otherwise, and no test read a comment, so they stayed. This scan reads comments too (brief §4).
+//
+// THE NEEDLE is one sentence that names a host entry (or host entries) and says the write happens every run, the
+// retired wording. Both parts are built from words below, so no source line of this file holds the claim. A sentence
+// is a piece of a joined block (markdownBlocks, typescriptBlocks, joinBlock above) cut after `.`, `!` or `?` and
+// whitespace, so a claim wrapped across comment lines or string parts is read whole. The true sentences that share
+// one part only (the marker's `kitRoot` field, AGENTS.md's shared step, the README's shared files) are not hits.
+//
+// THE SCAN SET IS DERIVED: every tracked `.ts` under install/ (sources, tests and test support; `.js` twins are build
+// outputs and follow their `.ts`), plus install/README.md, from `git ls-files -z`. Its size is held by a floor (46
+// `.ts` files on 2026-10-12), so an empty or wrong listing cannot pass.
+
+const DI10_ENTRY_WORDS = ["host", "entr"].join(" ");
+const DI10_EVERY_WORDS = ["on", "every", "install"].join(" ");
+const DI10_ENTRY_RE = new RegExp(`\\b${DI10_ENTRY_WORDS}(?:y|ies)\\b`, "i");
+const DI10_EVERY_RE = new RegExp(`\\b${DI10_EVERY_WORDS}\\b`, "i");
+/** The retired claim, spelled from parts, for the describe name and the planted proof. */
+const DI10_CLAIM = `every whole-file ${DI10_ENTRY_WORDS}y ${DI10_EVERY_WORDS}`;
+const DI10_SCAN_FLOOR = 40;
+
+interface Di10Scan {
+  readonly scanned: string[];
+  /** `file:line`, the line holding the host entry words of a sentence that also holds the every-run words. */
+  readonly hits: string[];
+}
+
+/** The DI-10 hits in one file's text: each sentence of each joined block that holds both parts of the needle. */
+function di10Hits(file: string, body: string): string[] {
+  const lines = body.split(/\r?\n/);
+  const blocks = file.endsWith(".md") ? markdownBlocks(lines) : typescriptBlocks(lines);
+  const out: string[] = [];
+  for (const b of blocks) {
+    const { text, lineAt } = joinBlock(b);
+    let start = 0;
+    for (const cut of [...text.matchAll(/[.!?]\s+/g), null]) {
+      const end = cut === null ? text.length : (cut.index ?? 0) + 1;
+      const sentence = text.slice(start, end);
+      const entry = sentence.search(DI10_ENTRY_RE);
+      if (entry >= 0 && DI10_EVERY_RE.test(sentence)) out.push(`${file}:${lineAt(start + entry)}`);
+      if (cut !== null) start = (cut.index ?? 0) + cut[0].length;
+    }
+  }
+  return out;
+}
+
+function di10Scan(root: string): Di10Scan {
+  const scanned = trackedFiles(root).filter((p) => (p.startsWith("install/") && p.endsWith(".ts")) || p === "install/README.md");
+  const hits: string[] = [];
+  for (const f of scanned) hits.push(...di10Hits(f, readFileSync(join(root, ...f.split("/")), "utf8")));
+  return { scanned, hits };
+}
+
+describe(`DOC-1 (DI-10): no tracked installer source or README says install writes ${DI10_CLAIM}`, () => {
+  it("the live scan finds no hit, over a derived set held by a floor that holds the README, this file and the five re-pinned tests", () => {
+    const scan = di10Scan(REPO);
+    expect(scan.hits, "tracked installer files that still say install writes every agent's whole-file host entry every run").toEqual([]);
+    expect(scan.scanned.filter((f) => f.endsWith(".ts")).length, "the derived install/*.ts set is too small").toBeGreaterThanOrEqual(DI10_SCAN_FLOOR);
+    for (const f of [
+      "install/README.md",
+      "install/host-tools-prose.test.ts",
+      "install/installer-paths.test-support.ts",
+      "install/installer-cross-version.test.ts",
+      "install/installer-never-installed.test.ts",
+      "install/installer-special-files.test.ts",
+      "install/installer-user-edit.test.ts",
+      "install/ledger-provenance.test.ts",
+    ]) {
+      expect(scan.scanned, `${f} is not in the DI-10 scan set`).toContain(f);
+    }
+    expect(scan.scanned.some((f) => f.endsWith(".js")), "a `.js` build output is in the scan set").toBe(false);
+  });
+
+  it("a planted copy of a re-pinned test with its old wrapped comment restored is a hit naming the file and line; the true marker sentence is not", () => {
+    const rel = "install/installer-user-edit.test.ts";
+    const real = readFileSync(join(REPO, ...rel.split("/")), "utf8");
+    // The note as plan 34.1-31 reworded it, and as plan 34.1-01 wrapped it before: the claim starts on one comment
+    // line and ends on the next. The copy puts the old note back in place of the new one.
+    const newNote =
+      " * `.opencode/commands` entered INSTALLED_DIRS (29 -> 34), because install writes the whole-file host entry of each\n" +
+      " * chosen agent and this test chooses every agent (runInstall's withAgentFlags). 59 -> 61.\n";
+    const oldNote =
+      ` * \`.opencode/commands\` entered INSTALLED_DIRS (29 -> 34), because install now writes every whole-file ${DI10_ENTRY_WORDS}y\n` +
+      ` * ${DI10_EVERY_WORDS}. 59 -> 61.\n`;
+    expect(real.split(newNote).length - 1, `premise: ${rel} holds the reworded note exactly once`).toBe(1);
+    const planted = real.replace(newNote, oldNote);
+    const claimLine = real.slice(0, real.indexOf(newNote)).split("\n").length;
+    expect(planted.split("\n")[claimLine - 1], "premise: the claim line holds the host entry words").toContain(`whole-file ${DI10_ENTRY_WORDS}y`);
+    // The control: the true sentence about the marker's `kitRoot` field shares the every-run words and no host entry.
+    const control =
+      "# Install\n\nInstall writes the kit root into the `kitRoot` field of `.grugops/install.json`\n" +
+      `${DI10_EVERY_WORDS} (install.ts writeMarker).\n`;
+    const controlTs =
+      "// Install writes the kit root into the `kitRoot` field of `.grugops/install.json`\n" +
+      `// ${DI10_EVERY_WORDS} (install.ts writeMarker).\nexport const c = 1;\n`;
+    const root = plantedRepo("di10", { [rel]: planted, "install/README.md": control, "install/clean.ts": controlTs });
+    const scan = di10Scan(root);
+    expect(scan.scanned.sort()).toEqual(["install/README.md", "install/clean.ts", rel].sort());
+    expect(scan.hits).toEqual([`${rel}:${claimLine}`]);
+  });
+});

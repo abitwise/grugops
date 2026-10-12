@@ -333,8 +333,9 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * marker's removable set because install now writes the Pi prompt template unconditionally (D-17);
  * derived listing (the assertion message lists REMOVABLE) named it between the Copilot file and AGENTS.md.
  * 34 -> 36 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and
- * `.opencode/commands/grugops.md` entered, because install now writes every whole-file host entry on every
- * install; the derived listing names them first and beside the Copilot file.
+ * `.opencode/commands/grugops.md` entered, because install writes the whole-file host entry of each chosen agent
+ * and this test chooses every agent (runInstall's withAgentFlags); the derived listing names them first and beside
+ * the Copilot file.
  * 36 -> 35 on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` left, because install no longer creates it
  * (no gemini entry with createdFile true is written); the derived listing no longer names it. A legacy created
  * settings file is still removed by uninstall (install/uninstall-removal.test.ts, "legacy Gemini entry (D-12)").

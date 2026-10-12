@@ -33,7 +33,8 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // .github/copilot-instructions.md (each holding only install's block) and, since plan 34-04 (2026-10-06,
 // D-17), the Pi prompt template `.pi/prompts/grugops.md`. 31 -> 32 on that date; derived line:
 // "empty-source: 32 file entr(ies) recorded, 32 holding". 32 -> 34 on 2026-10-11 (plan 34.1-01, D-08, D-11): install
-// now writes every whole-file host entry on every install, so `.agents/skills/grugops/SKILL.md` (Codex CLI's skill)
+// writes the whole-file host entry of each chosen agent, and this test chooses every agent (runInstall adds every
+// agent flag through withAgentFlags), so `.agents/skills/grugops/SKILL.md` (Codex CLI's skill)
 // and `.opencode/commands/grugops.md` (OpenCode's command) are recorded too; derived line "empty-source: 34 file
 // entr(ies) recorded, 34 holding". The test DERIVES the set from the ledger and asserts its size equals this pin, so a
 // change to what install records shows here by name.

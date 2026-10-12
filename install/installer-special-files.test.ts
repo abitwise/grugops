@@ -87,8 +87,9 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // two read-only inputs), because install now writes the Pi prompt template unconditionally (D-17), so a
 // FIFO and a directory are planted at it by derivation. Derived listing line: "READ_PATHS (61):".
 // 63 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md`
-// entered (61 files and links written, plus the two read-only inputs), because install now writes every whole-file
-// host entry on every install, so a FIFO and a directory are planted at each by derivation. 61 -> 63.
+// entered (61 files and links written, plus the two read-only inputs), because install writes the whole-file host
+// entry of each chosen agent and this test chooses every agent (runInstall's withAgentFlags), so a FIFO and a
+// directory are planted at each by derivation. 61 -> 63.
 // 62 on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` left (60 files and links written, plus the two
 // read-only inputs), because install no longer reads, creates or edits it; nothing is planted there now. 63 -> 62.
 // 63 on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered (61 files and links written, plus the two read-only

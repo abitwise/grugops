@@ -131,8 +131,8 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * checkpoints-notify, migrate)".
  * 61 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md`
  * entered as files (edited in: default), and `.agents`, `.agents/skills`, `.agents/skills/grugops`, `.opencode` and
- * `.opencode/commands` entered INSTALLED_DIRS (29 -> 34), because install now writes every whole-file host entry
- * on every install. 59 -> 61.
+ * `.opencode/commands` entered INSTALLED_DIRS (29 -> 34), because install writes the whole-file host entry of each
+ * chosen agent and this test chooses every agent (runInstall's withAgentFlags). 59 -> 61.
  * 60 on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` left the files and `.gemini` left INSTALLED_DIRS
  * (34 -> 33), because install no longer creates them. A user edit to a settings file an earlier install created is
  * held by the legacy-seeded rows (install/installer-marker-retention.test.ts WR-03, install/install.test.ts "Gemini

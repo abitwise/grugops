@@ -98,7 +98,8 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
   // .pi/prompts/grugops.md, AGENTS.md, CLAUDE.md, the 4 tools/grugops runnables) and `.pi` and
   // `.pi/prompts` entered REMOVED_DIRS (13 -> 15; derived list: the 10 .claude directories, .gemini,
   // .github, .pi, .pi/prompts, tools/grugops).
-  // Re-pinned 2026-10-11 (plan 34.1-01, D-08, D-11): install now writes every whole-file host entry on every install,
+  // Re-pinned 2026-10-11 (plan 34.1-01, D-08, D-11): install writes the whole-file host entry of each chosen agent,
+  // and this test chooses every agent (runInstall's withAgentFlags),
   // so `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md` entered CREATED (8 -> 10; derived list
   // adds them) and `.agents`, `.agents/skills`, `.agents/skills/grugops`, `.opencode` and `.opencode/commands`
   // entered REMOVED_DIRS (15 -> 20).

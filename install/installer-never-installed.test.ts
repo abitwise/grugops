@@ -92,8 +92,9 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * 29 directories)".
  * 61 files and links + 34 directories on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md`
  * and `.opencode/commands/grugops.md` entered as files, and `.agents`, `.agents/skills`, `.agents/skills/grugops`,
- * `.opencode` and `.opencode/commands` as directories, in every variant, because install now writes every
- * whole-file host entry (wholeFileEntryRels) on every install. 88 -> 95.
+ * `.opencode` and `.opencode/commands` as directories, in every variant, because install writes the whole-file host
+ * entry (wholeFileEntryRels) of each chosen agent and this test chooses every agent (runInstall's withAgentFlags).
+ * 88 -> 95.
  * 60 files and links + 33 directories on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` and `.gemini` left,
  * in every variant, because install no longer reads, creates or edits the Gemini settings. 95 -> 93.
  * 61 files and links + 33 directories on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered as a file, because an
