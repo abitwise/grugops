@@ -145,6 +145,9 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   asserts the sentence.
 - **Not fixed:** outside plan 34.1-18's files (it writes closing records only). Options for triage: reword each note to
   "every whole-file host entry of the chosen agents", or leave them as dated history.
+- **Closed by plan 34.1-31 (D-31, commit 8d730df2):** the five notes, plus two wrapped siblings the new scan found
+  (install/install.test.ts, install/record-truth.test.ts), now name the entries of the chosen agents; the DI-10 scan in
+  install/host-tools-prose.test.ts reads comments and holds the claim at zero.
 
 ## Status after gap round 1 (plans 34.1-14 to 34.1-18)
 
