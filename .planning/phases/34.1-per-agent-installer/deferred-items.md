@@ -186,3 +186,20 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   whose reversal counted a verify (an agentsToRecord change, D-29's rule). The legacy `gemini` kind has the same shape
   (a claims-nothing entry can still verify in unmergeGemini), but it has no owner, so it is reversed only by a FULL run,
   whose finishing command is the flag-less one; it is listed here for completeness.
+
+## From plan 34.1-27 (gap round 2)
+
+### DI-12: two doctor lines ask for "re-run --check from a complete kit checkout" and print no command
+
+- **Found during:** plan 34.1-27, task 2 (the sibling search over the doctor's re-run remedies, `\bre-?run\b` over
+  install/install.ts string fragments).
+- **What:** install/install.ts doctor, the two adapter-staleness WARNs where the adapter directory and the role corpus
+  disagree (the fresh render produced members the kit's adapter set does not carry, or produced no file for a member),
+  end "re-run --check from a complete kit checkout". The checkout is the
+  one the run rendered from (GRUGOPS_SRC), so the fix is a different checkout, and doctorCheckCommand() would name this
+  run's install.js, the incomplete one. The lines name no binary, so plan 34.1-27's D-list (fragments matching
+  `install.js` or "re-run the installer") does not hold them; message-references (f) classes them "agent-independent:
+  mode with no agent set".
+- **Not fixed:** a command that runs another checkout's install.js is not something agentCommand builds. Options for
+  triage: leave the text (the user names the checkout), or print the --check command with a placeholder for the
+  checkout's install.js path. Read from the code, not reproduced.
