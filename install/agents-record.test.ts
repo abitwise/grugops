@@ -17,7 +17,9 @@
 //     D-04's retry of a refused agent, the converse the chosen meaning deliberately does not hold; R33, plan 34.1-23,
 //     runs the install INCOMPLETE banner's command of a `--symlink` run as printed, D-33; R29, plan 34.1-29, D-31,
 //     IN-23: install's closing notes name a recorded agent with nothing installed apart, never "Left installed", and
-//     its printed uninstall command, run, takes it out of the record);
+//     its printed uninstall command, run, takes it out of the record; R30, plan 34.1-30, D-31, IN-26: install's write
+//     of `agents` reads the ledger it writes, so an agent left out of `agents` by a hand edit while the ledger holds
+//     its files is recorded again);
 //   - the unusable-marker remedies, followed as printed (D-33, WR-20): R25 (plan 34.1-25, a moved target, --codex),
 //     R26 (plan 34.1-26, a moved target, flag-less, with the no-agent-flag clause), R27 (plan 34.1-26, a marker with no
 //     install ledger, --codex and flag-less) and R34 (plan 34.1-26, a moved `--symlink` install); and R28 (plan
@@ -613,6 +615,39 @@ describe("D-31 (IN-23): install's closing notes read the record", () => {
     expect(left[0]).toContain(row("codex").name);
     expect(left[0]).toContain(`\`${agentCommand("uninstall.js", w.target, [row("codex")], ctxOf(w))}\` (${row("codex").name})`);
     expect(out.filter((l) => l.startsWith(RECORDED_PREFIX)), r.stdout).toEqual([]);
+  });
+});
+
+// ── D-31 (IN-26): install's derivation reads the ledger it writes ───────────────────────────────────────────────────
+// R30, R31 (phase 34.1 gap round 2, plan 34.1-30; brief §4: the install call site is exercised with a held entry).
+// install.ts writeMarker passes agentsToRecord `known` = this run's agents plus the owners of every holding entry of
+// the ledger the marker carries, and `keep` = this run's agents. A marker whose `agents` leaves out an agent whose
+// files the ledger still holds (a hand edit, or a marker written by the unreleased round-0 uninstall) is put right by
+// the next install: the agent is recorded again. For the shared agent skill held with no recorded owner, both owners
+// are recorded (the ledger cannot tell which one install wrote it for; install-marker.ts WHY A RECORDED FIELD), and a
+// per-agent uninstall of both then removes it. Each row asserts the strict invariant: every holding entry with an
+// owner has an owner in `agents` (invariantBreaks over every registry id).
+
+/** Rewrite the marker's `agents` by hand, every other field kept as read. */
+function handEditAgents(w: World, agents: readonly string[]): void {
+  writeFileSync(at(w.target, MARKER_REL), JSON.stringify({ ...readMarkerObject(w.target), agents }, null, 2) + "\n");
+  expect(agentsOf(w), "premise: the hand edit took").toEqual(agents);
+}
+const ALL_IDS: readonly string[] = HOST_TOOLS.map((h) => h.id);
+
+describe("D-31 (IN-26): install's derivation reads the ledger it writes", () => {
+  it("R30 (IN-26): install --claude --codex, `agents` edited to [codex], install --codex: Claude Code is recorded again, [claude, codex]", () => {
+    const w = world("r30");
+    install(w, [flag("claude"), flag("codex")]);
+    handEditAgents(w, ids("codex"));
+    const held = ledgerEntries(w).filter((e) => entryHolds(e) && entryOwners(e).includes(row("claude").id));
+    expect(held.length, "premise: the ledger holds an entry Claude Code owns").toBeGreaterThan(0);
+    expect(invariantBreaks(w, ALL_IDS).length, "premise: the hand edit contradicts the ledger").toBeGreaterThan(0);
+
+    const r = install(w, [flag("codex")]);
+    expect(ledgerEntries(w).filter((e) => entryHolds(e) && entryOwners(e).includes(row("claude").id)).length, "premise: the ledger after the run still holds Claude Code's entries").toBe(held.length);
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+    expectInvariant(w, ALL_IDS, r.stdout);
   });
 });
 

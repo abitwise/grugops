@@ -147,6 +147,7 @@ import {
   type OpenCodePermissionLedger,
   installedAgents,
   agentsToRecord,
+  entryHolds,
   wholeFileEntryRels,
   type InstalledAgents,
   type InstallMarkerRead,
@@ -5507,12 +5508,19 @@ function writeMarker(): void {
     kitRoot: kept("kitRoot", KIT_ROOT),
     installMode: kept("installMode", INSTALL_MODE),
     target: here,
-    // D-04 (plan 34.1-06), D-26 (plan 34.1-14): `agents`, between target and ledger, from the one derivation every
-    // marker write that sets the field asks (install-marker.ts agentsToRecord). Install keeps every agent installed
-    // before the run and every agent chosen in it (AGENTS_AFTER is both `known` and `keep`), so the value is
-    // AGENTS_AFTER, and a chosen agent whose every write was refused stays recorded for a later `--yes` to retry (D-04).
+    // D-04 (plan 34.1-06), D-26 (plan 34.1-14), D-31 (plan 34.1-30, IN-26): `agents`, between target and ledger, from
+    // the one derivation every marker write that sets the field asks (install-marker.ts agentsToRecord), over the
+    // ledger this write records (nextEntries). Install keeps every agent installed before the run and every agent
+    // chosen in it (`keep` is AGENTS_AFTER's registry ids, D-04), so a chosen agent whose every write was refused stays
+    // recorded for a later `--yes` to retry. It also records again any agent that owns an entry the ledger still holds
+    // (`known` adds, in registry order, the owners of every holding entry of nextEntries), so `agents` never
+    // contradicts the ledger the marker carries (brief REC-1): a hand edit, or a marker written by the unreleased
+    // round-0 uninstall, can leave such an agent out. For a shared entry with no owner in `keep` (the agent skill
+    // Codex CLI and Antigravity CLI share) every owner is recorded: the ledger cannot tell which one install wrote it
+    // for (install-marker.ts WHY A RECORDED FIELD), and recording both keeps the file removable per agent. A malformed
+    // previous ledger is written back raw (nextEntries is null), so no owner is added from it.
     agents: agentsToRecord({
-      known: knownAfter,
+      known: HOST_TOOLS.filter((h) => knownAfter.includes(h.id) || (nextEntries ?? []).some((e) => entryHolds(e) && entryOwners(e).includes(h.id))).map((h) => h.id),
       keep: knownAfter,
       unknown: AGENTS_AFTER.filter((id) => !knownAfter.includes(id)),
       entries: nextEntries ?? [],

@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, wholeFileEntryRels, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -4851,12 +4851,19 @@ function writeMarker() {
         kitRoot: kept("kitRoot", KIT_ROOT),
         installMode: kept("installMode", INSTALL_MODE),
         target: here,
-        // D-04 (plan 34.1-06), D-26 (plan 34.1-14): `agents`, between target and ledger, from the one derivation every
-        // marker write that sets the field asks (install-marker.ts agentsToRecord). Install keeps every agent installed
-        // before the run and every agent chosen in it (AGENTS_AFTER is both `known` and `keep`), so the value is
-        // AGENTS_AFTER, and a chosen agent whose every write was refused stays recorded for a later `--yes` to retry (D-04).
+        // D-04 (plan 34.1-06), D-26 (plan 34.1-14), D-31 (plan 34.1-30, IN-26): `agents`, between target and ledger, from
+        // the one derivation every marker write that sets the field asks (install-marker.ts agentsToRecord), over the
+        // ledger this write records (nextEntries). Install keeps every agent installed before the run and every agent
+        // chosen in it (`keep` is AGENTS_AFTER's registry ids, D-04), so a chosen agent whose every write was refused stays
+        // recorded for a later `--yes` to retry. It also records again any agent that owns an entry the ledger still holds
+        // (`known` adds, in registry order, the owners of every holding entry of nextEntries), so `agents` never
+        // contradicts the ledger the marker carries (brief REC-1): a hand edit, or a marker written by the unreleased
+        // round-0 uninstall, can leave such an agent out. For a shared entry with no owner in `keep` (the agent skill
+        // Codex CLI and Antigravity CLI share) every owner is recorded: the ledger cannot tell which one install wrote it
+        // for (install-marker.ts WHY A RECORDED FIELD), and recording both keeps the file removable per agent. A malformed
+        // previous ledger is written back raw (nextEntries is null), so no owner is added from it.
         agents: agentsToRecord({
-            known: knownAfter,
+            known: HOST_TOOLS.filter((h) => knownAfter.includes(h.id) || (nextEntries ?? []).some((e) => entryHolds(e) && entryOwners(e).includes(h.id))).map((h) => h.id),
             keep: knownAfter,
             unknown: AGENTS_AFTER.filter((id) => !knownAfter.includes(id)),
             entries: nextEntries ?? [],
