@@ -23,9 +23,9 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
-import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runUninstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runPrintedCommand, runUninstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gkroute-"));
@@ -2133,4 +2133,56 @@ describe("kit route: the class matrix — reach, counted findings and install ag
   for (const spec of CELLS) {
     it(`${cellName(spec)}: assertions (1)-(10)`, () => void checkCell(spec), CELL_TIMEOUT_MS);
   }
+});
+
+// ── WR-17 (phase 34.1, D-26; brief MSG-1): A ROUTE NOTE NEVER POINTS AT A LINE THE RUN DID NOT PRINT ─────────────────
+//
+// noteStrandingCarriers asks about every agent installed after the run (AGENTS_AFTER), which holds agents installed
+// earlier and not chosen now. No writer of this run visits such an agent's carrier, so no line about it is printed;
+// the note for it names the command that writes it (agentCommand), and the test runs exactly that printed command.
+// When this run's writer did visit the carrier (row B), the note's "line above" is checked against the same stdout.
+describe("WR-17: a route note never points at a line the run did not print (D-26)", () => {
+  const opencodeHost = (): (typeof HOST_TOOLS)[number] => {
+    const o = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
+    expect(o.length, "premise: exactly one registry host has the opencode-command adapter").toBe(1);
+    return o[0];
+  };
+
+  it("row A (the review's reproduction): a Pi template deleted, then an OpenCode-only install: the note names the command that writes it, the command run as printed writes it, and the next install notes nothing about it", () => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    ownAgents(row);
+    const first = runInstall(row.target, row.kitHome, [agentFlag(piHost())], { home });
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    rmSync(piFile(row.target));
+    const second = runInstall(row.target, row.kitHome, [agentFlag(opencodeHost())], { home });
+    expect(second.status, second.stdout + second.stderr).toBe(0);
+    const notes = notesFor(second.stdout, PI_PROMPT_REL);
+    expect(notes.length, second.stdout).toBe(1);
+    const command = agentCommand("install.js", row.target, [piHost()]);
+    expect(notes[0], "the note does not name the command that writes the carrier").toContain(`\`${command}\` writes it`);
+    for (const l of second.stdout.split("\n")) expect(l, "a line points at a line this run never printed").not.toContain(`the line above about ${PI_PROMPT_REL}`);
+    const others = second.stdout.split("\n").filter((l) => l.includes(PI_PROMPT_REL) && !notes.includes(l));
+    expect(others, "premise: no other line of this run names the Pi template").toEqual([]);
+    const ran = runPrintedCommand(notes[0], { grugopsHome: row.kitHome, home });
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(lstatSync(piFile(row.target)).isFile(), "the printed command did not write the Pi template").toBe(true);
+    const third = runInstall(row.target, row.kitHome, [agentFlag(opencodeHost())], { home });
+    expect(third.status, third.stdout + third.stderr).toBe(0);
+    expect(notesFor(third.stdout, PI_PROMPT_REL), third.stdout).toEqual([]);
+  });
+
+  it("row B (the carrier's writer ran): the Pi template write refused: the note says `the line above about` the template, and an earlier line of the same stdout names it", () => {
+    const row = scratchRow();
+    ownAgents(row);
+    mkdirSync(join(row.target, ".pi"), { recursive: true });
+    writeFileSync(join(row.target, ".pi", "prompts"), "not a directory\n");
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    const lines = r.stdout.split("\n");
+    const at = lines.findIndex((l) => notesFor(l, PI_PROMPT_REL).length === 1);
+    expect(at, r.stdout).toBeGreaterThan(-1);
+    expect(lines[at]).toContain(`the line above about ${PI_PROMPT_REL} says why and what to do`);
+    expect(lines.slice(0, at).some((l) => l.includes(PI_PROMPT_REL)), "no earlier line of the run names the Pi template").toBe(true);
+  });
 });

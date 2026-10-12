@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, POINTER_LINE, ROUTE_POINTERS, agentFlag, carriesKitRoute, entryOwners, hostForFlag, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
+import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, POINTER_LINE, ROUTE_POINTERS, agentCommand, agentFlag, carriesKitRoute, entryOwners, hostForFlag, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { decodeKeys, initialPicker, pickerRows, render, step } from "./agent-picker.js";
@@ -2959,8 +2959,12 @@ function adapterRouteAfterRun() {
 //   adapterReaches(h)   = a `claude-kit` host while adapterRouteAfterRun.
 // For each carrier of routeCarrierSet that does not hold and whose strandedBy names hosts, one `note` names the file
 // and those hosts in registry order. Its sentence makes no grammatical claim about how many hosts it names. A carrier
-// left with text and no route quotes KIT_ROUTE as the sentence to add; an absent or unread carrier says so and points
-// to the line above about it for the remedy. Before plan 34-33 the note named every host reading the file (for
+// left with text and no route quotes KIT_ROUTE as the sentence to add. An absent or unread carrier says so, and its
+// remedy is chosen by whether a writer of THIS run visited the carrier (routeCarrierSet(SELECTION) holds it, phase
+// 34.1 D-26, WR-17): if one did, that writer printed a line about the carrier, and the note points at that line; if
+// none did (the carrier belongs only to agents installed earlier and not chosen now), no such line exists, so the note
+// names the command that writes it instead, agentCommand("install.js", TARGET, stranded). Before plan 34-33 the note
+// named every host reading the file (for
 // AGENTS.md, the hosts whose only carrier it was), including hosts another carrier or Claude Code's adapters gave the
 // route (WR-02).
 // It READS AND REPORTS ONLY: it writes nothing and records nothing, so an interrupted or concurrent install cannot
@@ -2977,8 +2981,10 @@ function noteStrandingCarriers() {
         return r;
     };
     // Only the agents installed here after this run (AGENTS_AFTER, plan 34.1-08, D-04, D-06) are asked about: an agent
-    // that is neither chosen nor installed needs no route, and the carriers of an agent not chosen were not written by
-    // this run, so naming it would point at a remedy line that does not exist. THE SAME DERIVATION THE DOCTOR ASKS (phase
+    // that is neither chosen nor installed needs no route. AGENTS_AFTER also holds agents installed earlier and not
+    // chosen now, whose carriers no writer of this run visited; the absent-or-unread arm below therefore asks `written`
+    // and names the command for such a carrier rather than a line this run never printed (D-26, WR-17). THE SAME
+    // DERIVATION THE DOCTOR ASKS (phase
     // 34.1, D-07; AUTH-1): the ids mapped through hostsOf, then routeCarrierSet and strandedBy over that host set, as the
     // doctor does over doctorHosts, so install and the doctor name the same carriers and the same stranded hosts.
     const hosts = hostsOf(AGENTS_AFTER);
@@ -3010,8 +3016,14 @@ function noteStrandingCarriers() {
                 (link.own ? `${link.reason}: ${link.remedy})` : `to give them one, add this sentence to it: "${KIT_ROUTE}")`));
         }
         else {
+            // `written` (D-26, WR-17): a writer of this run visited the carrier, so it printed the line about it. AGENTS.md is
+            // always written (it is in every row's entry files and its step runs on every install).
+            const written = routeCarrierSet(SELECTION).includes(rel);
+            const remedy = written
+                ? `the line above about ${rel} says why and what to do`
+                : `\`${agentCommand("install.js", TARGET, stranded)}\` writes it` + (r.state === "absent" ? "" : ", or says why it cannot");
             report("note", `${rel} (${r.state === "absent" ? "is not present" : unreadState(r)}: it leaves ${names} without a route to the kit after a ` +
-                `scripted install; the line above about ${rel} says why and what to do)`);
+                `scripted install; ${remedy})`);
         }
     }
 }
