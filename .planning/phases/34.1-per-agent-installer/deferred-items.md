@@ -56,3 +56,12 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   the project `opencode.json` (D-14). The row is not false about the command file, but it omits the second write.
 - **Not fixed:** `CLAUDE.md` is a project instruction file outside this plan's files; plan 34.1-13 owns the sweep of
   shipped docs. Proposed remedy: add "plus the `opencode.json` kit-read permission (D-14)" to that row's adapter cell.
+
+## Status after plan 34.1-13 (2026-10-12)
+
+- **DI-01:** still open. It awaits a human decision (admit the generated entries as a derived banned-claims part, or
+  keep the by-name exclusion). Plan 34.1-13 did not decide it.
+- **DI-02:** resolved in plan 34.1-02 (the gate reads `TEMPLATE_REL`); nothing left.
+- **DI-03:** still open. The five Node 26 reds are reported by plan 34.1-13's final regression; whether CI on Node 22
+  shows them is `UNKNOWN - verify`.
+- **DI-04:** closed by plan 34.1-13 (commit ac790deb): CLAUDE.md's OpenCode row names the `opencode.json` kit-read rule.

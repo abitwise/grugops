@@ -5,35 +5,35 @@ titles: json
 findings:
   - id: WR-13
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The doctor says install will not write a block carrier whose install block is gone, but install re-appends the block and the WARN clears (one rule, two derivations)"
   - id: WR-14
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The Gemini gate says \"Gemini CLI does not read AGENTS.md here\" for every settings shape install refuses to merge, including one whose own reason says which `context` Gemini reads is not known"
   - id: WR-15
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A linked `.gemini/settings.json` that lists AGENTS.md: the doctor says Gemini reads it and reaches, while install on the same file exits 3 and says to add AGENTS.md by hand"
   - id: WR-16
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Install's own `--symlink` AGENTS.md link: the doctor says install made it, the re-install's verify says install did not, and the by-hand remedy edits a file outside the target"
   - id: IN-14
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`hostsReading` is now a dead product export, and it gives the ungated \"could read\" answer"
   - id: IN-15
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The Gemini gate's `why` states what Gemini CLI reads without reading user-level settings"
   - id: IN-16
     severity: info
-    disposition: open
+    disposition: fixed
     title: "An absent carrier's uncounted note says \"the hosts that read it here\""
   - id: IN-17
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The by-hand remedy says \"after its start-here sentence\" for files that have none"
   - id: CR-01
     severity: critical
@@ -139,7 +139,7 @@ findings:
     severity: warning
     disposition: fixed
     title: "Phase-34 edits re-assert, and widen to Pi, a claim that \"the installer sets `GRUGOPS_PROJECT_DIR`\", which no code does"
-open: 8
+open: 0
 total: 34
 recorded: 2026-10-10T17:48:26.699Z
 ---
@@ -148,14 +148,14 @@ recorded: 2026-10-10T17:48:26.699Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-13 | warning | open | - |
-| WR-14 | warning | open | - |
-| WR-15 | warning | open | - |
-| WR-16 | warning | open | - |
-| IN-14 | info | open | - |
-| IN-15 | info | open | - |
-| IN-16 | info | open | - |
-| IN-17 | info | open | - |
+| WR-13 | warning | fixed | plan 34.1-11, D-15: one owner, installWouldWrite in install/install.ts, answers refresh, append, create or none for install and the doctor alike, so --check names the re-run that appends the block; class-matrix assertion (10) holds the append (commits 710bb94c, a27d03dc, 6f6e3376) |
+| WR-14 | warning | fixed | Dissolved by 34.1 D-12: the install-side Gemini merge, gate and readGeminiContext were deleted (plan 34.1-03, commits 835bbf89, 91231f1d); Antigravity CLI replaces Gemini CLI (plan 34.1-04, commits 478e4324, 226a64c9) |
+| WR-15 | warning | fixed | Dissolved by 34.1 D-12: the install-side Gemini merge, gate and readGeminiContext were deleted (plan 34.1-03, commits 835bbf89, 91231f1d); Antigravity CLI replaces Gemini CLI (plan 34.1-04, commits 478e4324, 226a64c9) |
+| WR-16 | warning | fixed | plan 34.1-11, D-16: linkOwnership in install/install.ts answers whose link AGENTS.md is for the doctor and the re-install, one reason and one remedy (remove the link at AGENTS.md and re-run install.js) (commits a27d03dc, 6f6e3376) |
+| IN-14 | info | fixed | plan 34.1-03, D-17: the hostsReading export is deleted and held out by the D-12 census in install/installer-fs-census.test.ts (commit 91231f1d) |
+| IN-15 | info | fixed | Dissolved by 34.1 D-12: the install-side Gemini merge, gate and readGeminiContext were deleted (plan 34.1-03, commits 835bbf89, 91231f1d); Antigravity CLI replaces Gemini CLI (plan 34.1-04, commits 478e4324, 226a64c9) |
+| IN-16 | info | fixed | plan 34.1-11, D-17: the absent carrier's note says "the hosts that would read it" (commit a27d03dc) |
+| IN-17 | info | fixed | plan 34.1-11, D-17: the by-hand remedy says "after the start-here sentence, if the file has one" (commit a27d03dc) |
 | CR-01 | critical | fixed | plan 34-32: the Gemini row's entryGates and one owner, hostReadsCarrier, asking ENTRY_GATE_CHECKS over this repository's .gemini/settings.json through readGeminiContext; the remedy reads geminiMergePlan (D-27) (commits 242a55fb, d8b6b2da) (not in the current review) |
 | WR-01 | warning | fixed | plan 34-34: one predicate, refreshable, decides refresh for refreshOwnFile, ensureBlock and the doctor, so a link install made gets a WARN with the by-hand remedy; the absent arm asks readForWrite (D-27) (commits 1b91bc2d, 10bcf91f) (not in the current review) |
 | WR-02 | warning | fixed | plan 34-33: one derivation, strandedBy, for the doctor's counted lines and install's route notes over the state the run leaves, so a note names only the hosts left without any route (D-27) (commits 1327ac26, e6a36b9d) (not in the current review) |
