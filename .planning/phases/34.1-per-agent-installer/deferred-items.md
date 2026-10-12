@@ -82,3 +82,28 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   changing what keeps an agent recorded is D-29's rule). Not reproduced by a run; read from the code. Options for
   triage: count a recorded verify on any entry an agent owns as keeping that agent, or word the `left` line for this
   case without a per-agent command.
+
+## From plan 34.1-15 (2026-10-12)
+
+### DI-08: the doctor's stale-adapter remedy hand-builds an install command with an unquoted target
+
+- **Found during:** plan 34.1-15, task 4 (the install.js and uninstall.js command census, table (c)).
+- **What:** install/install.ts doctor, the stale-adapter docWarn, ends with `run from the checkout: node
+  install/install.js --target ${TARGET}`. It names no agent flag, so the census classes it "names no agent flag" (the
+  doctor speaks for the recorded agents, and install with no agent flag chooses that set). But the target is not
+  shell-quoted, so a target path holding a space or a quote prints a command that does not run as printed. agentCommand
+  quotes such a target.
+- **Not fixed:** outside this plan's sites (the plan's agentCommand list is five sites and the banner). Proposed
+  remedy: `agentCommand("install.js", TARGET, [])` in backticks. Read from the code, not reproduced.
+
+### DI-09: kit-plan verifies printed by the --migrate pre-check end in the migrate banner, which prints no same-run command
+
+- **Found during:** plan 34.1-15, task 4 (the re-run census, table (f)).
+- **What:** the "same-run command" rows of message-references.test.ts (buildKitPlan refusals, kitDestDecision,
+  kitWriteDecision, adapterDestHazard) are finished by the command the install INCOMPLETE banner prints. The same
+  reasons are also printed by the --migrate pre-check (`for (const why of refusals) verify(why)`), which exits through
+  the migrate INCOMPLETE banner. That banner says "re-run --migrate" and names no agent; a flag-less `--migrate` over an
+  old layout with no marker chooses by detection, which may not be the agents the first run named.
+- **Not fixed:** the plan classes the migrate banners as agent-independent and leaves them unchanged. Options for
+  triage: print agentCommand with `--migrate` in the migrate banner, or class the pre-check's verifies separately.
+  Read from the code, not reproduced.

@@ -74,9 +74,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * list and ledger entries, and parses product source) and two tagged chmod calls, counted under rule (a) below: row R12
  * takes the write bit from `.claude/agents` (access-denial, gated on win32 and root as the marker-rule tests are) and
  * gives it back in a `finally` (restore).
+ * 37 since plan 34.1-15 added message-references.test.ts, which has no chmod call and no expected mode (it parses
+ * product source for string fragments and matches printed lines).
  * SOURCE_FILE_COUNT is 9 since plan 34.1-12 added install/agent-picker.ts, which imports nothing, renders no mode and
  * compares none (it is the checkbox list's pure state machine). */
-const INSTALL_TEST_FILE_COUNT = 36;
+const INSTALL_TEST_FILE_COUNT = 37;
 const SCRIPTS_TEST_FILE_COUNT = 73;
 const SOURCE_FILE_COUNT = 9;
 
