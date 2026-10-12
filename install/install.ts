@@ -170,6 +170,7 @@ import {
   HOST_TOOLS,
   KIT_ROUTE,
   OPENCODE_CONFIG_REL,
+  OPENCODE_RULE_SCOPE,
   POINTER_LINE,
   ROUTE_POINTERS,
   agentCommand,
@@ -6922,15 +6923,24 @@ function openCodeByHand(pattern: string | null): string {
   return `"permission": { "external_directory": { ${JSON.stringify(pattern ?? `${KIT_ROOT}/**`)}: "allow" } }`;
 }
 
-/** A refusal: a note naming opencode.json, why, and the rule to add by hand; nothing is written. */
+/** A refusal: a note naming opencode.json, why, the rule to add by hand and what that rule allows; nothing is written. */
 function openCodeNote(why: string, pattern: string | null): OpenCodeOutcome {
   report(
     "note",
-    `${OPENCODE_CONFIG_REL}: no OpenCode kit-read rule was written — ${why}. OpenCode still reaches the kit; it asks ` +
-      `before each read. To let it read the kit without asking, add this to ${OPENCODE_CONFIG_REL} by hand: ` +
-      openCodeByHand(pattern),
+    `${OPENCODE_CONFIG_REL}: no OpenCode external_directory rule was written — ${why}. OpenCode still reaches the kit, ` +
+      `asking before each tool call on the kit path. To allow those calls without asking, add this to ` +
+      `${OPENCODE_CONFIG_REL} by hand: ${openCodeByHand(pattern)}. ${OPENCODE_RULE_SCOPE}`,
   );
   return { kind: "note" };
+}
+
+/**
+ * A line that writes, would write or finds the rule (`created`, `edited`, `would-add`, `skipped`), then the one note
+ * saying what the rule allows (OPENCODE_RULE_SCOPE, D-27), so the scope is printed wherever the rule is.
+ */
+function reportOpenCodeRule(verb: string, text: string): void {
+  report(verb, text);
+  report("note", `${OPENCODE_CONFIG_REL}: ${OPENCODE_RULE_SCOPE}`);
 }
 
 function writeOpenCodePermission(): OpenCodeOutcome {
@@ -6967,7 +6977,7 @@ function writeOpenCodePermission(): OpenCodeOutcome {
     OPENCODE_LEDGER = null;
     const text = createdOpenCodeText(pattern);
     if (DRY_RUN) {
-      report("would-add", `${rel} (the OpenCode kit-read rule ${pattern}; file created)`);
+      reportOpenCodeRule("would-add", `${rel} (the OpenCode external_directory rule ${pattern}; file created)`);
       setPlanned(file, text);
       return { kind: "dry-run" };
     }
@@ -6986,7 +6996,7 @@ function writeOpenCodePermission(): OpenCodeOutcome {
       content: jsonValueRecord({ [pattern]: "allow" }) as string,
       ...(fileMode === undefined ? {} : { fileMode }),
     };
-    report("created", `${rel} (the OpenCode kit-read rule ${pattern}; file created)`);
+    reportOpenCodeRule("created", `${rel} (the OpenCode external_directory rule ${pattern}; file created)`);
     return { kind: "written", createdFile: true };
   }
   const doc = readJsonText(read.bytes);
@@ -7007,7 +7017,7 @@ function writeOpenCodePermission(): OpenCodeOutcome {
   if (previous !== null && !proven) {
     report(
       "note",
-      `${rel}: its permission.external_directory is not the one install last left there, so the kit-read rule an earlier ` +
+      `${rel}: its permission.external_directory is not the one install last left there, so the OpenCode external_directory rule an earlier ` +
         `install recorded (${previous.pattern}) is no longer claimed as install's; a copy present now is the user's own`,
     );
   }
@@ -7016,7 +7026,7 @@ function writeOpenCodePermission(): OpenCodeOutcome {
     // every agent, far more than this one rule.
     const openCodeRows = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
     return openCodeNote(
-      `it holds the kit-read rule an earlier install added for another kit root (${previous.pattern}), and install adds ` +
+      `it holds the OpenCode external_directory rule an earlier install added for another kit root (${previous.pattern}), and install adds ` +
         `no second rule; \`${agentCommand("uninstall.js", TARGET, openCodeRows)}\` takes that rule out (with the rest of ` +
         `what install wrote for OpenCode here), then \`${agentCommand("install.js", TARGET, openCodeRows)}\` adds the ` +
         `rule for this kit root`,
@@ -7024,11 +7034,11 @@ function writeOpenCodePermission(): OpenCodeOutcome {
     );
   }
   if (extNow !== undefined && Object.prototype.hasOwnProperty.call(extNow, pattern)) {
-    report(
+    reportOpenCodeRule(
       "skipped",
       proven
-        ? `${rel} (the OpenCode kit-read rule ${pattern} an earlier install added is already there)`
-        : `${rel} (the OpenCode kit-read rule ${pattern} is already there — kept as the user's own rule; uninstall will not remove it)`,
+        ? `${rel} (the OpenCode external_directory rule ${pattern} an earlier install added is already there)`
+        : `${rel} (the OpenCode external_directory rule ${pattern} is already there — kept as the user's own rule; uninstall will not remove it)`,
     );
     return { kind: "present" };
   }
@@ -7051,7 +7061,7 @@ function writeOpenCodePermission(): OpenCodeOutcome {
     return openCodeNote("it could not be edited in place without changing anything but permission.external_directory", pattern);
   }
   if (DRY_RUN) {
-    report("would-add", `${rel} (the OpenCode kit-read rule ${pattern}, last in permission.external_directory)`);
+    reportOpenCodeRule("would-add", `${rel} (the OpenCode external_directory rule ${pattern}, last in permission.external_directory)`);
     setPlanned(file, newText);
     return { kind: "dry-run" };
   }
@@ -7063,7 +7073,7 @@ function writeOpenCodePermission(): OpenCodeOutcome {
     createdExternalDirectory: extAt === null,
     content: jsonValueRecord(extAfter) as string,
   };
-  report("edited", `${rel} (the OpenCode kit-read rule ${pattern} added last to permission.external_directory; every other byte preserved)`);
+  reportOpenCodeRule("edited", `${rel} (the OpenCode external_directory rule ${pattern} added last to permission.external_directory; every other byte preserved)`);
   return { kind: "written", createdFile: false };
 }
 

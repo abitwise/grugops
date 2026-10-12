@@ -64,6 +64,19 @@ export const OPENCODE_COMMAND_REL = ".opencode/commands/grugops.md";
  */
 export const OPENCODE_CONFIG_REL = "opencode.json";
 /**
+ * OPENCODE_RULE_SCOPE (phase 34.1, D-27): THE ONE SENTENCE for what the OpenCode `external_directory` rule install
+ * writes allows. install.ts prints it beside every line that writes, finds or proposes the rule, and install/README.md
+ * carries it word for word (opencode-permission.test.ts compares the two with whitespace collapsed).
+ *
+ * What it rests on: OpenCode asks before any tool call that touches a path outside the working directory unless a
+ * `permission.external_directory` rule allows it (opencode.ai/docs/permissions/, retrieved 2026-10-11), so an allow
+ * rule for the kit path covers every such tool call, edits included, not only reads. Whether OpenCode's separate
+ * `edit` permission still asks before an edit on that path was not checked, so the sentence says `UNKNOWN - verify`;
+ * the live OpenCode check is a human item (D-19).
+ */
+export const OPENCODE_RULE_SCOPE = "The rule allows every tool call OpenCode gates by `external_directory` on the kit path, edits included; " +
+    "whether OpenCode's separate `edit` permission still asks before an edit there is `UNKNOWN - verify`.";
+/**
  * KIT_ROUTE (phase 34, D-26, the marker route): THE ONE AUTHORITY for the sentence that tells a host
  * with no Claude Code adapter where the grugops kit is after a scripted install. A scripted install
  * puts the kit in a separate kit home, never in the target, and writes the kit root into the

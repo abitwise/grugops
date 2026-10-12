@@ -1533,7 +1533,7 @@ function keptLedger() {
                 : e.kind === "ask-rules"
                     ? `${e.path} (its ask rules)`
                     : e.kind === "opencode-permission"
-                        ? `${e.path} (its OpenCode kit-read rule)`
+                        ? `${e.path} (its OpenCode external_directory rule)`
                         : e.kind === "backup"
                             ? `${e.path} (a backup)`
                             : e.path;
@@ -1682,11 +1682,11 @@ function removeOpenCodePermission() {
     const f = `${TARGET}/${rel}`;
     const own = owns(LEDGER, TARGET, rel, "opencode-permission");
     if (!own.owned || own.entry === null) {
-        report("left", `${rel} OpenCode kit-read rule (${own.owned ? "" : own.reason})`);
+        report("left", `${rel} OpenCode external_directory rule (${own.owned ? "" : own.reason})`);
         return "left";
     }
     const led = own.entry;
-    const rule = `the OpenCode kit-read rule ${led.pattern}`;
+    const rule = `the OpenCode external_directory rule ${led.pattern}`;
     // DC-3: readForWrite, never a plain read; a link or a special file is never read or written.
     const read = readForWrite(TARGET, f);
     if (read.state === "create") {

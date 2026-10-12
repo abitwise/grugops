@@ -1,5 +1,6 @@
-// opencode-permission.test.ts — OpenCode reads the out-of-repo kit without asking on every file (phase 34.1, plan
-// 34.1-09, D-14; T-34.1-17, T-34.1-18, T-34.1-19).
+// opencode-permission.test.ts — the OpenCode external_directory rule for the out-of-repo kit (phase 34.1, plan
+// 34.1-09, D-14; T-34.1-17, T-34.1-18, T-34.1-19), and how install and its README describe that rule's scope (plan
+// 34.1-17, D-27, brief DOC-1).
 //
 // WHAT IS UNDER TEST. When OpenCode is chosen and the kit root lies under the home directory, install adds
 // `"~/<kit root relative to home>/**": "allow"` as the LAST member of `permission.external_directory` in the project
@@ -17,8 +18,8 @@ import { describe, it, expect, afterAll } from "vitest";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OPENCODE_CONFIG_REL, agentCommand, agentFlag, HOST_TOOLS } from "./host-tools.js";
-import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, snapshotTree, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
+import { OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, agentCommand, agentFlag, HOST_TOOLS } from "./host-tools.js";
+import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, REPO_ROOT, snapshotTree, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
 
 const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "grugops-ocperm-")));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -49,7 +50,7 @@ function ledgerOf(target: string): RawEntry[] {
 }
 const openCodeEntries = (target: string): RawEntry[] => ledgerOf(target).filter((e) => e.kind === "opencode-permission");
 
-describe("OpenCode kit-read permission: create, record, reverse (plan 34.1-09, D-14)", () => {
+describe("OpenCode external_directory rule: create, record, reverse (plan 34.1-09, D-14)", () => {
   it("tracer: --opencode with the kit under home creates opencode.json holding exactly the kit rule, records one entry with createdFile true, and uninstall removes the file", () => {
     const r = row();
     const i = install(r);
@@ -109,7 +110,7 @@ const USER_FILES: ReadonlyArray<{ readonly name: string; readonly text: string }
   },
 ];
 
-describe("OpenCode kit-read permission: merge into a user's file (plan 34.1-09, D-14 case (a))", () => {
+describe("OpenCode external_directory rule: merge into a user's file (plan 34.1-09, D-14 case (a))", () => {
   for (const uf of USER_FILES) {
     it(`(a) ${uf.name}: the kit rule is appended last, every other byte is kept, and uninstall gives the file back byte for byte (DRY_RUN changes nothing)`, () => {
       const r = row();
@@ -164,13 +165,13 @@ describe("OpenCode kit-read permission: merge into a user's file (plan 34.1-09, 
 
 /** The by-hand note: names opencode.json and quotes the rule. */
 function expectNote(run: Run, ctx: string): void {
-  const notes = linesFor(run.stdout, "note").filter((l) => l.includes("no OpenCode kit-read rule was written"));
+  const notes = linesFor(run.stdout, "note").filter((l) => l.includes("no OpenCode external_directory rule was written"));
   expect(notes.length, `${ctx}: no note naming opencode.json\n${run.stdout}`).toBe(1);
   expect(notes[0], ctx).toContain('"permission": { "external_directory": {');
   expect(notes[0], ctx).toContain(': "allow" } }');
 }
 
-describe("OpenCode kit-read permission: every refusal is a note, writes nothing and records nothing (D-14 case (b))", () => {
+describe("OpenCode external_directory rule: every refusal is a note, writes nothing and records nothing (D-14 case (b))", () => {
   // Each arm plants what the user has, runs `--opencode`, and asserts: exit 0, one note naming opencode.json with the
   // rule to add by hand, opencode.json (or its absence) byte-identical, and no opencode-permission entry.
   const ARMS: ReadonlyArray<{
@@ -233,7 +234,7 @@ describe("OpenCode kit-read permission: every refusal is a note, writes nothing 
   }
 });
 
-describe("OpenCode kit-read permission: the user's own rule, DRY_RUN, idempotence and D-04 (cases (c)-(g))", () => {
+describe("OpenCode external_directory rule: the user's own rule, DRY_RUN, idempotence and D-04 (cases (c)-(g))", () => {
   it("(c) the rule for the same pattern already present as the user's own: unchanged, no entry, and uninstall leaves it", () => {
     const r = row();
     const text = `{\n  "permission": {\n    "external_directory": {\n      ${JSON.stringify(KIT_PATTERN)}: "allow"\n    }\n  }\n}\n`;
@@ -353,7 +354,7 @@ describe("OpenCode kit-read permission: the user's own rule, DRY_RUN, idempotenc
 // names agentCommand("uninstall.js", target, [OpenCode]) to take that rule out, then agentCommand("install.js", target,
 // [OpenCode]) to add the rule for this kit root: never a flag-less uninstall, which removes every agent.
 // install/message-references.test.ts (M6) runs both printed commands.
-describe("OpenCode kit-read permission: the other-kit-root note names both commands (D-26, MSG-1)", () => {
+describe("OpenCode external_directory rule: the other-kit-root note names both commands (D-26, MSG-1)", () => {
   it("an install for one kit root, then one for another: one note names the OpenCode uninstall command, then the OpenCode install command; opencode.json is unchanged", () => {
     const r = row();
     const first = install(r);
@@ -458,5 +459,66 @@ describe("IN-20: the rule is already gone (D-26)", () => {
     const u = uninstall(r, [OPENCODE_FLAG]);
     expect(u.status, u.stdout + u.stderr).toBe(0);
     expect(readFileSync(fileOf(r.target), "utf8"), u.stdout).toBe(text);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// DOC-1 (plan 34.1-17, D-27, review WR-18). The rule install writes is an `external_directory` allow: OpenCode gates
+// every tool call that touches a path outside the working directory by that permission, so the rule is not a read rule.
+// No printed line and no README sentence may call it one, and wherever the rule is written, found or proposed the scope
+// sentence (host-tools.ts OPENCODE_RULE_SCOPE, the one authority) is printed. Each needle below is the old wording,
+// built from parts so the literal never sits in this file, which the repository-wide row scans too.
+// ---------------------------------------------------------------------------------------------------------------------
+
+const OLD_RULE_WORDING: readonly string[] = [
+  ["kit", "read"].join("-"),
+  ["read", "the", "kit", "without"].join(" "),
+  ["before", "each", "read"].join(" "),
+  ["allows", "reading", "the", "kit"].join(" "),
+];
+
+/** The old-wording needles `text` holds, compared case-insensitively. */
+function oldWordingIn(text: string): string[] {
+  const lower = text.toLowerCase();
+  return OLD_RULE_WORDING.filter((needle) => lower.includes(needle));
+}
+
+/** `text` with every run of whitespace collapsed to one space, so a wrapped README sentence compares equal. */
+const collapsed = (text: string): string => text.replace(/\s+/g, " ");
+
+describe("DOC-1: the OpenCode external_directory rule is described by its scope (D-27)", () => {
+  it("the scope sentence names every gated tool call, edits included, and marks the edit-permission interaction UNKNOWN - verify", () => {
+    expect(OPENCODE_RULE_SCOPE).toContain("every tool call OpenCode gates by `external_directory` on the kit path, edits included");
+    expect(OPENCODE_RULE_SCOPE).toContain("`UNKNOWN - verify`");
+    expect(oldWordingIn(OPENCODE_RULE_SCOPE)).toEqual([]);
+  });
+
+  it("(a) install/README.md holds none of the old wording and carries the scope sentence", () => {
+    const readme = readFileSync(join(REPO_ROOT, "install", "README.md"), "utf8");
+    expect(oldWordingIn(readme), "install/README.md still calls the rule a read rule").toEqual([]);
+    expect(collapsed(readme).includes(OPENCODE_RULE_SCOPE), "install/README.md does not carry OPENCODE_RULE_SCOPE").toBe(true);
+  });
+
+  it("(b) the install and uninstall output for OpenCode holds none of the old wording; the write, find and note runs print the scope", () => {
+    const runs: Array<{ readonly name: string; readonly run: Run; readonly scope: boolean }> = [];
+    // The rule created (the kit under home), then found on a second install.
+    const r = row();
+    runs.push({ name: "install, rule created", run: install(r), scope: true });
+    runs.push({ name: "install again, rule present", run: install(r), scope: true });
+    // The kit outside home: no rule, a note with the rule to add by hand.
+    const outside = row((dir) => join(dir, "elsewhere", ".grugops"));
+    runs.push({ name: "install, kit outside home (note)", run: install(outside), scope: true });
+    // DRY_RUN install (would-add), then the uninstall arms, dry and real.
+    const dry = row();
+    runs.push({ name: "DRY_RUN install", run: install(dry, [OPENCODE_FLAG], true), scope: false });
+    runs.push({ name: "DRY_RUN uninstall --opencode", run: uninstall(r, [OPENCODE_FLAG], true), scope: false });
+    runs.push({ name: "uninstall --opencode", run: uninstall(r, [OPENCODE_FLAG]), scope: false });
+    for (const { name, run, scope } of runs) {
+      expect(run.status, `${name}\n${run.stdout}${run.stderr}`).toBe(0);
+      expect(oldWordingIn(run.stdout + run.stderr), `${name}: the output calls the rule a read rule\n${run.stdout}`).toEqual([]);
+      if (scope) expect(run.stdout.includes(OPENCODE_RULE_SCOPE), `${name}: the scope sentence is not printed\n${run.stdout}`).toBe(true);
+    }
+    // The uninstall run reversed what the first install wrote, so the scan saw the removal line and not an empty run.
+    expect(existsSync(fileOf(r.target)), runs[runs.length - 1].run.stdout).toBe(false);
   });
 });

@@ -421,10 +421,13 @@ writes no path under `.claude/` and no `CLAUDE.md`:
 
 - `.opencode/commands/grugops.md` — a command OpenCode reads from `.opencode/commands/`
   (`/grugops <request>`), written by the same rules as the skill above
-- `opencode.json` — the kit-read rule, so OpenCode reads the kit outside the repository without
-  asking before every file. OpenCode asks before a tool call touches a path outside the working
-  directory unless a `permission.external_directory` rule allows it. Install adds one rule for the
-  kit root, home-relative, for example `"~/.grugops/agent-factory/**": "allow"`. It is appended as the last
+- `opencode.json` — the OpenCode `external_directory` rule, so OpenCode reaches the kit outside the
+  repository without asking before each tool call on the kit path. OpenCode asks before a tool call
+  touches a path outside the working directory unless a `permission.external_directory` rule allows
+  it. The rule allows every tool call OpenCode gates by `external_directory` on the kit path, edits
+  included; whether OpenCode's separate `edit` permission still asks before an edit there is
+  `UNKNOWN - verify`. Install prints that sentence as a `note` whenever it writes, finds or proposes
+  the rule. Install adds one rule for the kit root, home-relative, for example `"~/.grugops/agent-factory/**": "allow"`. It is appended as the last
   member of `permission.external_directory`, because OpenCode uses the last matching rule
   (opencode.ai/docs/permissions/, retrieved 2026-10-11). Install creates `opencode.json` holding only
   that rule when the repository has none, and adds `permission` or `external_directory` when either is
@@ -439,7 +442,7 @@ writes no path under `.claude/` and no `CLAUDE.md`:
   accepts them, install edits strict JSON only), has a duplicate key or a `permission` or
   `external_directory` that is not an object, is a link or a special file, or when only
   `opencode.jsonc` exists (install does not create a second config file). OpenCode still reaches the
-  kit then; it asks before each read. How this project rule combines with an `external_directory`
+  kit then; it asks before each tool call on the kit path. How this project rule combines with an `external_directory`
   rule in your global OpenCode config is `UNKNOWN - verify`
 
 **GitHub Copilot CLI** (`--copilot`), only when Copilot is chosen:
@@ -657,15 +660,18 @@ pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
 `agent-factory/roles/orchestrator.md`, and it names the kit route, the `kitRoot` field of
 `.grugops/install.json`.
 
-- **The kit-read rule.** The kit is outside the repository, and OpenCode asks before a tool call
+- **The OpenCode `external_directory` rule.** The kit is outside the repository, and OpenCode asks before a tool call
   touches a path outside its working directory. So install also adds one rule to the project
   `opencode.json`, a `permission.external_directory` allow rule for the kit root, written
   home-relative (opencode.ai/docs/permissions/, retrieved 2026-10-11). Install writes no rule, and
   prints the rule to add by hand as a `note`, when the kit is not under your home directory, when the
   kit path holds a glob or control character, when `opencode.json` is JSONC, has a duplicate key or a
   `permission` or `external_directory` that is not an object, is a link or a special file, or when
-  only `opencode.jsonc` exists. OpenCode then still reaches the kit, asking before each read. The
-  full rule is under "What the installer touches (per-repo), and only this".
+  only `opencode.jsonc` exists. OpenCode then still reaches the kit, asking before each tool call on
+  the kit path. The rule allows every tool call OpenCode gates by `external_directory` on the kit
+  path, edits included; whether OpenCode's separate `edit` permission still asks before an edit there
+  is `UNKNOWN - verify`. The full rule is under "What the installer touches (per-repo), and only
+  this".
 - **What is not known.** How this project rule combines with an `external_directory` rule in your
   global OpenCode config is `UNKNOWN - verify`. OpenCode also reads skills from `.claude/skills/` and
   `.agents/skills/` (opencode.ai/docs/skills/, retrieved 2026-10-11); which `grugops` it offers when
@@ -673,8 +679,8 @@ pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
   install"). Whether OpenCode follows the route to the Orchestrator on a live run is
   `UNKNOWN - verify` until the live run queued as a human check for phase 34.1 passes
   (`.planning/phases/34.1-per-agent-installer/34.1-VALIDATION.md`, "Manual-Only Verifications").
-- **Safety on OpenCode** is in §5, "Other tools": the kit-read rule governs no command, and the git
-  host is the hard floor.
+- **Safety on OpenCode** is in §5, "Other tools": the OpenCode `external_directory` rule governs no
+  command, and the git host is the hard floor.
 
 ### Using grugops on GitHub Copilot CLI
 
@@ -765,7 +771,7 @@ install stays), the runnable checks under `tools/grugops/` that still hold what 
 `.pi/prompts/grugops.md` only while the template still holds what install wrote, and removes
 `.pi/prompts` and `.pi` only when install created them and they are empty. The agent skill
 `.agents/skills/grugops/SKILL.md` and the OpenCode command `.opencode/commands/grugops.md` are removed
-by the same rule, and the kit-read rule install added to `opencode.json` is taken out as described
+by the same rule, and the OpenCode `external_directory` rule install added to `opencode.json` is taken out as described
 under "What the installer touches (per-repo), and only this".
 
 #### Removing one agent
@@ -1576,9 +1582,10 @@ context, which checks structured tool calls, not shell text.
 ### Other tools (documentation only)
 
 grugops generates no approval configuration for the governed commands on Codex CLI, Antigravity
-CLI, OpenCode, GitHub Copilot CLI or Pi. (For OpenCode, install writes only the kit-read rule in
-`opencode.json` described under "What the installer touches (per-repo), and only this", which
-allows reading the kit and governs no command.) Codex CLI, OpenCode and GitHub Copilot CLI each have their own approval mode,
+CLI, OpenCode, GitHub Copilot CLI or Pi. (For OpenCode, install writes only the OpenCode
+`external_directory` rule in `opencode.json` described under "What the installer touches
+(per-repo), and only this". It is not an approval rule for the governed commands: it allows every
+tool call OpenCode gates by `external_directory` on the kit path, edits included.) Codex CLI, OpenCode and GitHub Copilot CLI each have their own approval mode,
 which you configure yourself; Pi has none (see its entry below); for Antigravity CLI it is
 `UNKNOWN - verify` (see its entry below). The notes below come from each tool's documentation and are **not
 verified by grugops**; confirm them against the current docs before you rely on them. On every
