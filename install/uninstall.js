@@ -107,6 +107,7 @@
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
 import { existsSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync } from "node:fs";
 import { dirname, join, relative, resolve, isAbsolute } from "node:path";
+import { homedir } from "node:os";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts. Since plan
 // 33.1-38 it decides no removal (the ledger walk does); it only words the report of unrecorded
 // grugops-shaped paths, and hasSourceMarkers serves the self-checkout guard. Node stdlib only, sibling
@@ -128,11 +129,11 @@ import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItem
 // and kindAt names what is at a path. isOwnLink is
 // the one "this link is the link install makes" predicate, shared with install.ts, and gone is the
 // one "nothing is there any more" check a removal is reported by (red-team of plan 33.1-27).
-import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPathSpelling } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPathSpelling, isRecordedAbsolute } from "./user-file.js";
 // Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
 // per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry";
 // ADAPTER_FOOTPRINT gives the report pass its directory candidates (reportDirCandidates).
-import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand } from "./host-tools.js";
+import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand, commandContext } from "./host-tools.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -194,7 +195,7 @@ if (USAGE_ERROR !== null) {
  * widens a per-agent run into a flag-less one (a flag-less uninstall removes every agent, D-05).
  */
 function rerunCommand() {
-    return agentCommand("uninstall.js", TARGET, HOST_TOOLS.filter((h) => REMOVE.has(h.id)));
+    return agentCommand("uninstall.js", TARGET, HOST_TOOLS.filter((h) => REMOVE.has(h.id)), COMMAND_CONTEXT);
 }
 const SCRIPT_DIR = import.meta.dirname;
 const GRUGOPS_SRC = process.env.GRUGOPS_SRC ? resolve(process.env.GRUGOPS_SRC) : resolve(SCRIPT_DIR, "..");
@@ -2232,6 +2233,36 @@ const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 // MARKER, the read every pass consults, treats both as a marker that could not be used: no record in it
 // is believed, nothing is removed on it, and it is left in place.
 const MARKER_READ = readInstallMarker(TARGET);
+// COMMAND_CONTEXT (phase 34.1 gap round 2, D-33, review WR-19): how this run was invoked, built once, for every command
+// it prints (host-tools.ts agentCommand's fourth argument, passed by rerunCommand and finishCommand). The script
+// directory is this script's own, so a printed command names uninstall.js (or install.js) by its absolute path and
+// runs from any directory. An uninstall.js command carries no kit home and no install mode (scriptCommand): this
+// binary removes by the install record alone and never reads or removes the kit. The kit home and the install mode
+// decide only the text of an install command this run prints, never a removal (brief DC-2: nothing here is read by an
+// owns() question). The kit home is, in order:
+//   1. the GRUGOPS_HOME this run was given, when it is set and not blank, resolved and spelled as install.ts spells
+//      its own (canonicalPathSpelling(resolve(...)));
+//   2. else the `grugopsHome` the target's marker records, read from MARKER_READ: the marker of an `ok` read, or the
+//      parsed object of an `unbound` one (whose kit fields the doctor reads too; no record in it is believed), and
+//      only when it is a non-empty string that user-file.ts isRecordedAbsolute accepts (the one absoluteness rule for
+//      a recorded path), spelled with canonicalPathSpelling. Without it an uninstall run given no GRUGOPS_HOME would
+//      print an install command that writes a second kit into `~/.grugops` (WR-19's harm) for a target installed from
+//      another kit home;
+//   3. else the default `~/.grugops`, which commandContext turns into no GRUGOPS_HOME prefix.
+// The install mode is `symlink` when that same marker records installMode `symlink`, and copy otherwise.
+// It is declared after MARKER_READ and before the first verify that prints rerunCommand(); no statement above this
+// line calls rerunCommand or finishCommand at module load (they are called only from the passes and verifies below).
+const COMMAND_CONTEXT = (() => {
+    const recorded = MARKER_READ.state === "ok" ? MARKER_READ.marker : MARKER_READ.state === "unbound" ? MARKER_READ.object : null;
+    const recordedHome = recorded?.grugopsHome;
+    const given = process.env.GRUGOPS_HOME;
+    const kitHome = given && given.trim()
+        ? canonicalPathSpelling(resolve(given))
+        : typeof recordedHome === "string" && recordedHome !== "" && isRecordedAbsolute(recordedHome)
+            ? canonicalPathSpelling(recordedHome)
+            : canonicalPathSpelling(resolve(homedir(), ".grugops"));
+    return commandContext(canonicalPathSpelling(SCRIPT_DIR), kitHome, canonicalPathSpelling(resolve(homedir(), ".grugops")), recorded?.installMode === "symlink");
+})();
 const MARKER = MARKER_READ.state === "unbound" ? { state: "unreadable", marker: null, why: MARKER_READ.why, jsonObject: true } : MARKER_READ;
 const LEDGER = readLedger(MARKER.state === "ok" ? MARKER.marker : null);
 if (MARKER_READ.state === "unbound") {
@@ -2316,11 +2347,11 @@ const hostsOf = (ids) => HOST_TOOLS.filter((h) => ids.includes(h.id));
  */
 function finishCommand() {
     if (FULL)
-        return agentCommand("uninstall.js", TARGET, []);
+        return agentCommand("uninstall.js", TARGET, [], COMMAND_CONTEXT);
     if (UNFINISHED.length > 0)
-        return agentCommand("uninstall.js", TARGET, hostsOf(UNFINISHED));
+        return agentCommand("uninstall.js", TARGET, hostsOf(UNFINISHED), COMMAND_CONTEXT);
     if (NAMED.length > 0)
-        return agentCommand("uninstall.js", TARGET, hostsOf(NAMED));
+        return agentCommand("uninstall.js", TARGET, hostsOf(NAMED), COMMAND_CONTEXT);
     return rerunCommand();
 }
 /**

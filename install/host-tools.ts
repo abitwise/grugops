@@ -317,8 +317,9 @@ export function commandContext(scriptDir: string, kitHome: string, defaultKitHom
  * scriptCommand (D-33, WR-19): the invocation words of a printed command, before its arguments. For install.js:
  * `GRUGOPS_HOME=<kit home>` when the context's kit home is not the default, then `node`, then the absolute path of
  * install.js, then `--symlink` when the run was a symlink install. For uninstall.js: `node` and the absolute path of
- * uninstall.js only, whatever the context holds, because uninstall.js reads no kit home and no install mode (its
- * environment reads are GRUGOPS_SRC, DRY_RUN and TARGET) and refuses `--symlink` as an unknown argument (exit 2).
+ * uninstall.js only, whatever the context holds, because uninstall.js removes by the install record alone and never
+ * reads or removes the kit (the kit home and install mode in its own COMMAND_CONTEXT word only the install commands
+ * it prints), and it refuses `--symlink` as an unknown argument (exit 2).
  * The script path and the kit home pass through shellWord. Pure: no I/O.
  */
 export function scriptCommand(binary: "install.js" | "uninstall.js", ctx: CommandContext): string {

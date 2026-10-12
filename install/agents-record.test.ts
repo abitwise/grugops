@@ -40,7 +40,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
 import { AGENT_SKILL_REL, HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag, commandContext, entryOwners, scriptCommand, type HostTool } from "./host-tools.js";
@@ -48,6 +48,8 @@ import { ASK_RULES_REL, agentsToRecord, entryHolds, readLedger, type LedgerEntry
 import {
   INSTALL_JS,
   MARKER_REL,
+  UNINSTALL_JS,
+  type PrintedRun,
   type Run,
   commandContextFor,
   lineNamesPath,
@@ -56,7 +58,6 @@ import {
   printedCommand,
   runInstall,
   runPrintedCommand,
-  runPrintedCommandInCheckout,
   runUninstall,
   shellWords,
   snapshotTree,
@@ -110,11 +111,20 @@ function uninstall(w: World, args: readonly string[], dryRun = false): Run {
   finished(r, `uninstall ${args.join(" ")}`);
   return r;
 }
-function runPrinted(w: World, stdout: string): Run {
-  const r = runPrintedCommandInCheckout(stdout, { grugopsHome: w.grugopsHome, home: w.home, timeoutMs: 120_000 });
+/**
+ * Run the uninstall command a line printed, as a user would (plan 34.1-24, D-33): runPrintedCommand, from a scratch
+ * directory outside the checkout, with HOME the world's scratch home and no GRUGOPS_HOME unless the printed text sets
+ * one. An uninstall.js command never sets one (scriptCommand), and the premise is asserted here.
+ */
+function runPrinted(w: World, stdout: string): PrintedRun {
+  const r = runPrintedCommand(stdout, { home: w.home, timeoutMs: 120_000 });
   finished(r, `the printed command ${printedCommand(stdout)}`);
+  expect(relative(REPO_ROOT, r.premise.cwd).startsWith(".."), `premise: the printed command ran from ${r.premise.cwd}, inside the checkout`).toBe(true);
+  expect(r.premise.grugopsHome, `premise: an uninstall command sets no kit home: ${printedCommand(stdout)}`).toBeUndefined();
   return r;
 }
+/** The context an uninstall run in world `w` builds (its kit home and HOME); the expected side of a printed command. */
+const ctxOf = (w: World): ReturnType<typeof commandContextFor> => commandContextFor({ grugopsHome: w.grugopsHome, home: w.home });
 const agentsOf = (w: World): unknown => readMarkerObject(w.target).agents;
 const markerGone = (w: World): boolean => !existsSync(at(w.target, MARKER_REL));
 /** The marker's ledger, through the product's one reader, so entryHolds and entryOwners see typed entries. */
@@ -166,10 +176,18 @@ function expectInvariant(w: World, atStart: readonly string[], out: string): voi
   expect(invariantBreaks(w, atStart), `held entries whose owners left the record\n${out}`).toEqual([]);
 }
 
-/** The words of the printed command after `node install/<binary> --target <target>`: its agent flags. */
+/**
+ * The words of the printed uninstall command after `node <absolute uninstall.js> --target <target>`: its agent flags.
+ * The script word must be this checkout's uninstall.js by its absolute path (D-33), and no GRUGOPS_HOME word may lead
+ * the command.
+ */
 function printedFlags(stdout: string): string[] {
-  const words = shellWords(printedCommand(stdout));
-  expect(words.slice(0, 3), printedCommand(stdout)).toEqual(["node", "install/uninstall.js", "--target"]);
+  const printed = printedCommand(stdout);
+  const words = shellWords(printed);
+  expect(words[0], `the printed command does not start with node: ${printed}`).toBe("node");
+  expect(isAbsolute(words[1]), `the uninstall script is not named by its absolute path: ${printed}`).toBe(true);
+  expect(pathText(words[1]), printed).toBe(pathText(UNINSTALL_JS));
+  expect(words[2], printed).toBe("--target");
   return words.slice(4);
 }
 
@@ -217,24 +235,9 @@ describe("entryHolds: the marker rule's holding set (moved from uninstall.ts)", 
 });
 
 describe("agentCommand: the one builder of a printed command that names agents (MSG-1)", () => {
-  it("names the binary, the target and the hosts' flags in the order given", () => {
-    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("claude")])).toBe(`node install/uninstall.js --target /tmp/a/t ${flag("claude")}`);
-    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex"), row("antigravity")])).toBe(
-      `node install/uninstall.js --target /tmp/a/t ${flag("codex")} ${flag("antigravity")}`,
-    );
-  });
-  it("no hosts gives no flag", () => {
-    expect(agentCommand("uninstall.js", "/tmp/a/t", [])).toBe("node install/uninstall.js --target /tmp/a/t");
-  });
-  it("a target with a space or a quote is one shell word, and shellWords reads it back as one", () => {
-    for (const target of ["/tmp/my repo/t", "/tmp/it's/t", "/tmp/a;b/$x"]) {
-      const cmd = agentCommand("uninstall.js", target, [row("claude")]);
-      expect(shellWords(cmd), cmd).toEqual(["node", "install/uninstall.js", "--target", target, flag("claude")]);
-    }
-  });
-
-  // The invocation context (plan 34.1-22, D-33, review WR-19). The rows above are the transitional form with no context,
-  // which plan 34.1-24 removes. Pure: no row runs an installer.
+  // The invocation context (plan 34.1-22, D-33, review WR-19). Pure: no row runs an installer. Each expected command is
+  // scriptCommand's words followed by the arguments, and the literal `node <DIR>/uninstall.js` is checked beside it,
+  // so a defect in scriptCommand cannot hide behind an expected side built by the same function.
   const DIR = "/opt/grugops/install";
   const KIT = "/srv/kits/k";
   const DEFAULT_KIT = "/home/u/.grugops";
@@ -242,6 +245,26 @@ describe("agentCommand: the one builder of a printed command that names agents (
   const withKit = commandContext(DIR, KIT, DEFAULT_KIT);
   const linked = commandContext(DIR, DEFAULT_KIT, DEFAULT_KIT, true);
   const everything = commandContext(DIR, KIT, DEFAULT_KIT, true);
+
+  it("names the binary, the target and the hosts' flags in the order given", () => {
+    const head = scriptCommand("uninstall.js", plain);
+    expect(head).toBe(`node ${DIR}/uninstall.js`);
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("claude")], plain)).toBe(`${head} --target /tmp/a/t ${flag("claude")}`);
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex"), row("antigravity")], plain)).toBe(
+      `${head} --target /tmp/a/t ${flag("codex")} ${flag("antigravity")}`,
+    );
+  });
+  it("no hosts gives no flag", () => {
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [], plain)).toBe(`${scriptCommand("uninstall.js", plain)} --target /tmp/a/t`);
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [], plain)).toBe(`node ${DIR}/uninstall.js --target /tmp/a/t`);
+  });
+  it("a target with a space or a quote is one shell word, and shellWords reads it back as one", () => {
+    for (const target of ["/tmp/my repo/t", "/tmp/it's/t", "/tmp/a;b/$x"]) {
+      const cmd = agentCommand("uninstall.js", target, [row("claude")], plain);
+      expect(shellWords(cmd), cmd).toEqual([...shellWords(scriptCommand("uninstall.js", plain)), "--target", target, flag("claude")]);
+      expect(shellWords(cmd).slice(0, 2), cmd).toEqual(["node", `${DIR}/uninstall.js`]);
+    }
+  });
 
   it("commandContext: kitHome is null when it equals the default, and the value otherwise", () => {
     expect(plain).toEqual({ scriptDir: DIR, kitHome: null, symlink: false });
@@ -554,7 +577,7 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
       expect(existsSync(at(w.target, MARKER_REL)), r.stdout).toBe(true);
       expect(agentsOf(w), r.stdout).toEqual(ids("claude"));
       expectInvariant(w, ids("claude", "codex"), r.stdout);
-      const flagless = agentCommand("uninstall.js", w.target, []);
+      const flagless = agentCommand("uninstall.js", w.target, [], ctxOf(w));
       expect(r.stdout, "the INCOMPLETE banner does not print the finishing command").toContain(`  Then run \`${flagless}\` to finish the reversal.`);
       expect(printedFlags(r.stdout), r.stdout).toEqual([]);
       const fin = runPrinted(w, r.stdout);
@@ -575,7 +598,7 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     const real = uninstall(w, [flag("claude")]);
     expect(real.status, real.stdout).toBe(0);
     expect(printedCommand(dry.stdout), dry.stdout).toBe(printedCommand(real.stdout));
-    expect(printedCommand(real.stdout)).toBe(agentCommand("uninstall.js", w.target, [row("claude")]));
+    expect(printedCommand(real.stdout)).toBe(agentCommand("uninstall.js", w.target, [row("claude")], ctxOf(w)));
   });
 
   it("R14 (removeAskRules): a settings file that is not a JSON object prints this run's own command; restored, that command removes the ask rules and records [codex]", () => {
@@ -587,7 +610,7 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     writeFileSync(settings, "[]\n");
     const r = uninstall(w, [flag("claude")]);
     expect(r.status, r.stdout).toBe(3);
-    const own = agentCommand("uninstall.js", w.target, [row("claude")]);
+    const own = agentCommand("uninstall.js", w.target, [row("claude")], ctxOf(w));
     const named = linesWith(r.stdout, "verify").filter((l) => l.includes(ASK_RULES_REL));
     expect(named.length, r.stdout).toBeGreaterThan(0);
     expect(named.some((l) => l.includes(`\`${own}\``)), `the settings verify does not print ${own}\n${r.stdout}`).toBe(true);
@@ -613,7 +636,7 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     writeFileSync(markerPath, JSON.stringify(withLedger(readMarkerObject(w.target), (es) => [...es, { kind: "file" }]), null, 2) + "\n");
     const r = uninstall(w, [flag("codex")]);
     expect(r.status, r.stdout).toBe(3);
-    const own = agentCommand("uninstall.js", w.target, [row("codex")]);
+    const own = agentCommand("uninstall.js", w.target, [row("codex")], ctxOf(w));
     const named = linesWith(r.stdout, "verify").filter((l) => /malformed install ledger/.test(l));
     expect(named.length, r.stdout).toBe(1);
     expect(named[0], r.stdout).toContain(`\`${own}\``);
@@ -655,6 +678,44 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     expect(readMarkerObject(w.target).installMode, fin.stdout).toBe("symlink");
     const notLinks = links.filter((p) => !lstatSync(p).isSymbolicLink());
     expect(notLinks, `a link the first run made is no longer a link\n${fin.stdout}`).toEqual([]);
+  }, 300_000);
+
+  // R24 (phase 34.1 gap round 2, D-33, plan 34.1-24): uninstall.ts builds its context once (COMMAND_CONTEXT). An
+  // uninstall.js command names the script by its absolute path and carries no kit home and no `--symlink`, because
+  // uninstall.js reads neither; this uninstall run was given no GRUGOPS_HOME, so its context's kit home is the one the
+  // marker records (K), and the printed command still carries none. Run as printed with no kit home from a scratch
+  // directory, it finishes the reversal and writes no kit under <HOME>/.grugops.
+  it("R24 (D-33): install with another kit home, then uninstall --claude with no GRUGOPS_HOME over an edited skill prints `node <absolute uninstall.js> ...` with no kit home; restored and run as printed with no kit home, it records [codex] and writes no kit under HOME", () => {
+    const w = world("r24");
+    const K = join(dirname(w.home), "kit-k");
+    const defaultKit = join(w.home, ".grugops");
+    expect(pathText(K), "premise: the kit home is not the default").not.toBe(pathText(defaultKit));
+    const i = runInstall(w.target, K, [flag("claude"), flag("codex")], { home: w.home, timeoutMs: 180_000 });
+    finished(i, "install --claude --codex with kit home K");
+    expect(i.status, i.stdout).toBe(0);
+    expect(pathText(String(readMarkerObject(w.target).grugopsHome)), "premise: the marker records K").toBe(pathText(K));
+    expect(existsSync(defaultKit), "premise: install wrote no kit under HOME").toBe(false);
+    const original = edit(w, CLAUDE_SKILL);
+    const r = runUninstall(w.target, K, { home: w.home, omitKitHome: true, timeoutMs: 120_000 }, [flag("claude")]);
+    finished(r, "uninstall --claude with no GRUGOPS_HOME");
+    expect(r.status, r.stdout).toBe(0);
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+    const printed = printedCommand(r.stdout);
+    const words = shellWords(printed);
+    // Builder-independent facts first: the expected side below is built by the builder under test.
+    expect(words[0], `the printed command does not start with node: ${printed}`).toBe("node");
+    expect(isAbsolute(words[1]), `the uninstall script is not named by its absolute path: ${printed}`).toBe(true);
+    expect(pathText(words[1]), printed).toBe(pathText(UNINSTALL_JS));
+    expect(printed, "an uninstall command carries no kit home").not.toContain("GRUGOPS_HOME=");
+    expect(words, "an uninstall command carries no --symlink").not.toContain("--symlink");
+    expect(printed).toBe(agentCommand("uninstall.js", w.target, [row("claude")], commandContextFor({ grugopsHome: K, home: w.home })));
+    writeFileSync(at(w.target, CLAUDE_SKILL), original);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.premise.grugopsHome, "premise: the child had no kit home").toBeUndefined();
+    expect(fin.status, fin.stdout + fin.stderr).toBe(0);
+    expect(agentsOf(w), fin.stdout).toEqual(ids("codex"));
+    expect(existsSync(at(w.target, CLAUDE_SKILL)), fin.stdout).toBe(false);
+    expect(existsSync(defaultKit), `the printed command wrote a kit under HOME\n${fin.stdout}`).toBe(false);
   }, 300_000);
 });
 
@@ -1365,11 +1426,19 @@ describe("D-31 (DI-07): a directory that cannot be removed, and the finishing co
 
 /** The INCOMPLETE banner's "Then run `...` to finish the reversal." line. */
 const finishBannerLines = (stdout: string): string[] => stdout.split("\n").filter((l) => l.startsWith("  Then run `") && l.endsWith("` to finish the reversal."));
-/** Every printed `node install/uninstall.js ...` command in a run's output, as its agent flags. */
+/**
+ * Every printed uninstall command in a run's output (a backtick span whose words start `node <this checkout's
+ * uninstall.js by its absolute path>`), as its agent flags. A span that does not split into shell words is skipped.
+ */
 const everyPrintedUninstallFlags = (stdout: string): string[][] =>
-  [...stdout.matchAll(/`(node install\/uninstall\.js[^`]*)`/g)].map((m) => {
-    const words = shellWords(m[1]);
-    return words.slice(4);
+  [...stdout.matchAll(/`([^`]*)`/g)].flatMap((m) => {
+    let words: string[];
+    try {
+      words = shellWords(m[1]);
+    } catch {
+      return [];
+    }
+    return words[0] === "node" && words[1] !== undefined && pathText(words[1]) === pathText(UNINSTALL_JS) ? [words.slice(4)] : [];
   });
 /** The conditions that decide whether `n` runs within its function: statementGuards plus every enclosing conditional. */
 function guardsOf(n: ts.Node): Map<string, boolean> {
@@ -1418,6 +1487,7 @@ describe("D-31 (MSG-1, D-05): the finishing command of a partial run is never th
       const fin = finishBannerLines(r.stdout);
       expect(fin.length, `the INCOMPLETE banner does not print the finishing command\n${r.stdout}`).toBe(1);
       expect(printedFlags(fin[0]), fin[0]).toEqual([flag("codex")]);
+      expect(everyPrintedUninstallFlags(r.stdout).length, `premise: the run printed an uninstall command\n${r.stdout}`).toBeGreaterThan(0);
       const flagless = everyPrintedUninstallFlags(r.stdout).filter((f) => f.length === 0);
       expect(flagless, `a partial run printed the flag-less uninstall command\n${r.stdout}`).toEqual([]);
       // The cause fixed (the mode restored above), the printed command finishes the reversal and keeps Claude Code.
@@ -1457,6 +1527,7 @@ describe("D-31 (MSG-1, D-05): the finishing command of a partial run is never th
       const fin = finishBannerLines(r.stdout);
       expect(fin.length, `the INCOMPLETE banner does not print the finishing command\n${r.stdout}`).toBe(1);
       expect(printedFlags(fin[0]), fin[0]).toEqual([flag("codex")]);
+      expect(everyPrintedUninstallFlags(r.stdout).length, `premise: the run printed an uninstall command\n${r.stdout}`).toBeGreaterThan(0);
       expect(everyPrintedUninstallFlags(r.stdout).filter((f) => f.length === 0), r.stdout).toEqual([]);
       const done = runPrinted(w, fin[0]);
       expect(done.status, done.stdout).toBe(0);

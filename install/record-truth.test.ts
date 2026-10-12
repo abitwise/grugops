@@ -59,10 +59,11 @@ import {
   NOTIFY_CONFIG,
   type Run,
   pathText,
+  commandContextFor,
   printedCommand,
   rebindMarker,
   runInstall,
-  runPrintedCommandInCheckout,
+  runPrintedCommand,
   runUninstall,
   snapshotTree,
   spawnBin,
@@ -632,11 +633,13 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expect(markerPresent(t), "the marker was removed while CLAUDE.md is held").toBe(true);
     expect(markerOf(t).agents).toEqual([CLAUDE.id]);
     expect(ledgerHas(t, CLAUDE_MD, "file"), "the CLAUDE.md file entry left the ledger").toBe(true);
-    const finish = agentCommand("uninstall.js", t, []);
+    const finish = agentCommand("uninstall.js", t, [], commandContextFor({ grugopsHome: KIT_HOME, home: HOME }));
     expect(u.stdout).toContain(`\`${finish}\``);
     expect(printedCommand(u.stdout)).toBe(finish);
+    expect(pathText(printedCommand(u.stdout)).startsWith(`node ${pathText(UNINSTALL_JS)} `), "the uninstall script is not named by its absolute path").toBe(true);
     rmSync(at(t, CLAUDE_MD));
-    const f = runPrintedCommandInCheckout(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
+    const f = runPrintedCommand(u.stdout, { home: HOME, timeoutMs: 120_000 });
+    expect(f.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
     expect(f.status, f.stdout + f.stderr).toBe(0);
     expect(markerPresent(t), `the marker is still there after the printed command\n${f.stdout}`).toBe(false);
   }, 60_000);
@@ -653,11 +656,13 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expectNamedAndKept(named[0], u.stdout);
     expect(readFileSync(at(t, COPILOT_MD), "utf8")).toBe("");
     expect(markerOf(t).agents).toEqual([CLAUDE.id, COPILOT.id]);
-    const finish = agentCommand("uninstall.js", t, [COPILOT]);
+    const finish = agentCommand("uninstall.js", t, [COPILOT], commandContextFor({ grugopsHome: KIT_HOME, home: HOME }));
     expect(u.stdout).toContain(`\`${finish}\``);
     expect(printedCommand(u.stdout)).toBe(finish);
+    expect(pathText(printedCommand(u.stdout)).startsWith(`node ${pathText(UNINSTALL_JS)} `), "the uninstall script is not named by its absolute path").toBe(true);
     rmSync(at(t, COPILOT_MD));
-    const f = runPrintedCommandInCheckout(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
+    const f = runPrintedCommand(u.stdout, { home: HOME, timeoutMs: 120_000 });
+    expect(f.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
     expect(f.status, f.stdout + f.stderr).toBe(0);
     expect(markerOf(t).agents).toEqual([CLAUDE.id]);
   }, 60_000);

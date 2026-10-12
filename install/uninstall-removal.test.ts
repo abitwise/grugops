@@ -54,15 +54,17 @@ import {
   INSTALL_JS,
   MARKER_REL,
   REPO_ROOT,
+  UNINSTALL_JS,
   type Run,
   deriveWritePaths,
   lineNamesPath,
   makeOldLayoutFixture,
   pathText,
   printedRel,
+  commandContextFor,
   rebindMarker,
   runInstall,
-  runPrintedCommandInCheckout,
+  runPrintedCommand,
   runUninstall,
   snapshotTree,
   spawnBin,
@@ -814,7 +816,7 @@ describe("per-agent uninstall (D-05)", () => {
       /== uninstall complete — 1 recorded item\(s\) left in place; .* — agents removed: none; not finished, still recorded: Codex CLI; still installed: Claude Code ==/,
     );
     const codexRow = HOST_TOOLS.filter((h) => h.id === "codex");
-    expect(r.stdout, "the command that finishes the reversal is not printed").toContain(`\`${agentCommand("uninstall.js", t.target, codexRow)}\``);
+    expect(r.stdout, "the command that finishes the reversal is not printed").toContain(`\`${agentCommand("uninstall.js", t.target, codexRow, commandContextFor({ grugopsHome: t.grugopsHome, home: t.home }))}\``);
   });
 
   it("(h) CR-02: restore the edited file and run the printed command: the agent's files and its record go", () => {
@@ -831,13 +833,15 @@ describe("per-agent uninstall (D-05)", () => {
     expect(kept.agents, `Claude Code left the record while it owns a held entry\n${r.stdout}`).toEqual(["claude", "codex"]);
     expect(ledgerOf(kept).some((e) => e.path === rel && e.kind === "file"), "the held entry left the ledger").toBe(true);
     const claudeRow = HOST_TOOLS.filter((h) => h.id === "claude");
-    const expected = agentCommand("uninstall.js", t.target, claudeRow);
+    const expected = agentCommand("uninstall.js", t.target, claudeRow, commandContextFor({ grugopsHome: t.grugopsHome, home: t.home }));
+    expect(pathText(expected).startsWith(`node ${pathText(UNINSTALL_JS)} --target `), `the uninstall script is not named by its absolute path: ${expected}`).toBe(true);
     expect(expected.endsWith(` ${flag("claude")}`), expected).toBe(true);
     expect(r.stdout, "the finishing command is not printed").toContain(`\`${expected}\``);
 
     writeFileSync(file, original);
-    const fin = runPrintedCommandInCheckout(r.stdout, { grugopsHome: t.grugopsHome, home: t.home });
+    const fin = runPrintedCommand(r.stdout, { home: t.home });
     expectFinished(fin, "the printed command");
+    expect(fin.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
     expect(fin.status, `${fin.stdout}\n${fin.stderr}`).toBe(0);
     expect(existsSync(at(t.target, ".claude/skills/grugops-gate")), `the restored skill is still there\n${fin.stdout}`).toBe(false);
     expect(readMarkerObject(t.target).agents, fin.stdout).toEqual(["codex"]);
