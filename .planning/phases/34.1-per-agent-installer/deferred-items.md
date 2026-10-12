@@ -45,3 +45,14 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   warning). Both causes come from Node 26, not from repository code.
 - **Not fixed:** out of scope for plan 34.1-01. Whether CI on Node 22 shows them is
   `UNKNOWN - verify`.
+
+## From plan 34.1-09 (2026-10-12)
+
+### DI-04: CLAUDE.md's per-tool table names only `.opencode/commands/grugops.md` as OpenCode's adapter
+
+- **Found during:** plan 34.1-09, task 3 (sibling search for the README's OpenCode bullet, DOC-1).
+- **What:** `CLAUDE.md` ("AGENTS.md + per-tool entry files" table, the OpenCode row) says the installer lays down
+  `.opencode/commands/grugops.md`. Since plan 34.1-09 an install that chooses OpenCode also merges the kit-read rule into
+  the project `opencode.json` (D-14). The row is not false about the command file, but it omits the second write.
+- **Not fixed:** `CLAUDE.md` is a project instruction file outside this plan's files; plan 34.1-13 owns the sweep of
+  shipped docs. Proposed remedy: add "plus the `opencode.json` kit-read permission (D-14)" to that row's adapter cell.
