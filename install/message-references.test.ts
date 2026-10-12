@@ -249,7 +249,6 @@ const COMMAND_TABLE: readonly Row[] = [
   ["uninstall.ts", "uninstall.js:", "names no agent flag", "the uninstall.js: prefix of a usage message"],
   ["uninstall.ts", "uninstall.js", "agentCommand", "rerunCommand (plan 34.1-14)"],
   ["uninstall.ts", "install.js", "agentCommand", "reinstallCommand (plan 34.1-25, WR-20): the install step of the unusable-marker remedy, with this run's agents"],
-  ["uninstall.ts", "its records is used here, and this run removes and edits nothing. Re-run install.js here, then uninstall", "names no agent flag", "every install writes the marker, whatever agents it names (plan 34.1-14 says so in the text)"],
   ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand (plan 34.1-14)"],
   ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand (plan 34.1-14)"],
   ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand's NAMED case, split from the UNFINISHED case (plan 34.1-21, D-31); its last case is rerunCommand"],
@@ -348,10 +347,13 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
     const found = all.filter((f) => COMMAND.test(f.text));
     expect(compareBothWays(found, COMMAND_TABLE)).toEqual({ unclassified: [], stale: [] });
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 9 });
+    // Plan 34.1-26 (WR-20's other branch): the no-target or no-ledger verify's "Re-run install.js here, then uninstall"
+    // row (names no agent flag) is gone: that verify prints reinstallCommand, whose install.js fragment is the one
+    // agentCommand row plan 34.1-25 added. So uninstall.ts 9 -> 8 and "names no agent flag" 28 -> 27.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 8 });
     // Plan 34.1-25 (WR-20): the other-directory verify's "re-run install.js here, with any agent" row (names no agent
     // flag) became reinstallCommand's agentCommand row, so agentCommand 20 -> 21 and "names no agent flag" 29 -> 28.
-    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 21, "file text": 1, "names no agent flag": 28 });
+    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 21, "file text": 1, "names no agent flag": 27 });
   });
 
   // The builder is agentCommand and the invocation words it prints first, scriptCommand (plan 34.1-22, D-33): a

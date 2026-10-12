@@ -962,13 +962,21 @@ another directory is not this directory's record either: a `.grugops/` copied fr
 a repository you moved, renamed or copied after installing, a marker written before this release
 (it has no `target`), and a marker with no install ledger. The uninstaller then uses none of its
 records, changes nothing, and exits `3` with a `verify` line that gives the remedy. If it is the same
-repository moved or renamed, set `"target"` in the marker to the path the line names and re-run the
-uninstaller; for a marker with no `target` or no install ledger, re-run the installer here, then the
-uninstaller. Otherwise re-run the
-installer: it replaces that marker with one for this directory and carries none of its records (it
-says so in a `note` line), so what an earlier install made here has no record and the uninstaller
-leaves it and says so; remove it by hand. `--check` warns about such a marker. `INSTALL_MODE` other
-than `copy` or `symlink` is refused as bad usage (exit `2`) before anything is written.
+repository moved or renamed, set `"target"` in the marker to the path the line names and run the
+uninstall command the line prints again. Otherwise, and for a marker with no `target` or no install
+ledger, the line prints two commands to run in order. The first is the install command, with the agent
+flags you gave the uninstaller, the kit home (the `GRUGOPS_HOME` you ran the uninstaller with, else the
+one the marker records), and `--symlink` when the marker records a symlink install. If you gave no agent
+flag, the line also says what install does without one: it chooses the agents detected here, shows the
+agent list at a terminal, or refuses and names the agent flags. The second is the uninstall command
+you ran. The install replaces that marker with one for this directory and carries none of its records
+(it says so in a `note` line). The uninstaller then reports what an earlier install made here as
+`left` and leaves it, including the grugops skill, OpenCode command and Pi prompt template files of
+the agents it removes; remove them by hand. While the marker cannot be used, which agents are
+installed here is unknown, and the run says so on the `agents to remove` line, in the `note` line for
+each agent flag, and in the closing line; it never says that an agent is not installed. `--check`
+warns about such a marker. `INSTALL_MODE` other than `copy` or `symlink` is refused as bad usage
+(exit `2`) before anything is written.
 
 The marker is removed only when it is install's marker for this directory, its install ledger is
 well-formed, and nothing it records is left (see the next paragraph). It is never read through a symbolic link: a link at

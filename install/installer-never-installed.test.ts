@@ -326,7 +326,9 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       const o = uninstallAndDiff(t, dryRun);
       expectZeroBytes(o, `FN ${mode}`);
       expect(o.run.status, o.run.stdout).toBe(3);
-      expect(o.run.stdout).toMatch(/re-run install\.js here, then uninstall/i);
+      // Plan 34.1-26 (D-33): the remedy prints the flag-less install command with the no-agent-flag clause, then the
+      // flag-less uninstall command (this run named no agent).
+      expect(o.run.stdout).toMatch(/Run `[^`]*\/install\.js --target [^`]*` \(with no agent flag, install chooses the agents detected here[^)]*\), then `[^`]*\/uninstall\.js --target [^`]*`: install writes a marker for this directory/);
     });
   }
 

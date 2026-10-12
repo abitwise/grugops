@@ -929,7 +929,8 @@ describe("a marker in the round-2 six-record shape is read as no record (fail cl
       const u = uninstall(t, dryRun);
       expect(u.status, u.stdout).toBe(3);
       expect(snapshotTree(t)).toBe(before);
-      expect(lines(u.stdout, "verify").some((l) => /re-run install\.js here, then uninstall/i.test(l) && /no install ledger/.test(l)), u.stdout).toBe(true);
+      // Plan 34.1-26 (D-33): the remedy prints the install command, then the uninstall command, both flag-less here.
+      expect(lines(u.stdout, "verify").some((l) => /Run `[^`]*\/install\.js --target [^`]*` \(with no agent flag, install chooses the agents detected here[^)]*\), then `[^`]*\/uninstall\.js --target [^`]*`: install writes a marker for this directory/.test(l) && /no install ledger/.test(l)), u.stdout).toBe(true);
       expect(lines(u.stdout, "removed")).toEqual([]);
       // A re-install replaces it: one ledger, none of the retired records.
       const i = install(t, ["--yes"]);

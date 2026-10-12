@@ -208,6 +208,17 @@ function rerunCommand() {
 function reinstallCommand() {
     return agentCommand("install.js", TARGET, HOST_TOOLS.filter((h) => REMOVE.has(h.id)), COMMAND_CONTEXT);
 }
+/**
+ * NO_FLAG_INSTALL_CLAUSE (plan 34.1-26, D-33): THE ONE WORDING of what install does with no agent flag, printed after
+ * reinstallCommand() by both unusable-marker verifies when this run names no agent (REMOVE is empty, so the printed
+ * install command carries no agent flag). It states install.ts's selection chain (SELECTION_WHY): at a terminal the
+ * agent list; otherwise the agents detected here (an unusable marker records no installed set, so install falls to
+ * detection); with none detected, refuseSelection, which names every agent flag. Empty on a per-agent run, whose
+ * install command names this run's agents.
+ */
+const NO_FLAG_INSTALL_CLAUSE = REMOVE.size === 0
+    ? " (with no agent flag, install chooses the agents detected here, shows the agent list at a terminal, or refuses and names the agent flags)"
+    : "";
 const SCRIPT_DIR = import.meta.dirname;
 const GRUGOPS_SRC = process.env.GRUGOPS_SRC ? resolve(process.env.GRUGOPS_SRC) : resolve(SCRIPT_DIR, "..");
 const DRY_RUN = process.env.DRY_RUN === "1";
@@ -2282,18 +2293,20 @@ if (MARKER_READ.state === "unbound") {
         verify(`.grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its ` +
             `records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same ` +
             `repository moved or renamed${MARKER_READ.boundTo !== null ? ` from ${MARKER_READ.boundTo}` : ""}, set "target" in the marker to ` +
-            `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise run \`${reinstallCommand()}\`: it writes ` +
+            `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise run \`${reinstallCommand()}\`${NO_FLAG_INSTALL_CLAUSE}: it writes ` +
             `a marker for this directory and carries none of these records; then run \`${rerunCommand()}\`: what an earlier ` +
             `install made here is then left and reported, for you to remove by hand.`);
     }
     else {
         // D-31 item 5's remedy, for a marker written before markers were bound (no-target) or before the
-        // one ledger (no-ledger): neither carries a record this build reads.
+        // one ledger (no-ledger): neither carries a record this build reads. The remedy is two printed commands (plan
+        // 34.1-26, D-33, WR-20): the install command with this run's agents (reinstallCommand, with the no-agent-flag
+        // clause on a flag-less run), then this run's uninstall command (rerunCommand).
         verify(`.grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of ` +
-            `its records is used here, and this run removes and edits nothing. Re-run install.js here, then uninstall ` +
-            `with \`${rerunCommand()}\`: install, with any agent flag (every install writes the marker, whatever agents ` +
-            `it names), writes a marker for this directory with the install ledger and carries none of these records, so ` +
-            `what an earlier install made here is then left and reported, for you to remove by hand.`);
+            `its records is used here, and this run removes and edits nothing. Run \`${reinstallCommand()}\`` +
+            `${NO_FLAG_INSTALL_CLAUSE}, then \`${rerunCommand()}\`: install writes a marker for this directory with the ` +
+            `install ledger and carries none of these records, so what an earlier install made here is then left and ` +
+            `reported, for you to remove by hand.`);
     }
 }
 else if (MARKER.state === "unreadable") {
