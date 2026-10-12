@@ -866,7 +866,9 @@ export function notRecordedReason(ledger, what) {
         return `there is no record that install created it — it is not in the install ledger as a ${what}; left in place`;
     }
     if (ledger.state === "malformed") {
-        return "the install ledger could not be used (see the verify line above), so there is no record that install created it; left in place";
+        // No position is named (D-26, brief MSG-1): install prints its verify about the ledger after the passes that use
+        // this reason, and the doctor prints a FAIL, not a verify.
+        return "the install ledger in .grugops/install.json could not be used (this run reports why on its own line), so there is no record that install created it; left in place";
     }
     return "there is no install marker this run can use, so there is no record that install created it; left in place";
 }

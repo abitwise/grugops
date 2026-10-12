@@ -155,7 +155,7 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
 import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, withoutAgentsField, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
-import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag } from "./host-tools.js";
 /** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"];
 
@@ -6176,7 +6176,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // read in the output is a materialization a host operator cannot confirm.
     expect(r.stdout).toMatch(new RegExp(`created\\s+${PHASE31_RUNNABLE.replace(/[./]/g, "\\$&")}`));
     for (const rel of RUNNABLE_RELS.filter((x) => x !== PHASE31_RUNNABLE)) {
-      expect(r.stdout).toContain(`${rel} (target already has it — D-04)`);
+      expect(r.stdout).toContain(`${rel} (target already has it)`);
     }
   });
 
@@ -10652,7 +10652,7 @@ describe("agent selection (D-03)", () => {
     expect(legacy.map((h) => h.id)).toEqual(["claude", "copilot", "pi"]);
     const r = runUnattended(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
-    const reason = `installed before this release (${legacy[0].shortName}, ${legacy[1].shortName} and ${legacy[2].shortName}, per D-23)`;
+    const reason = `installed before this release (${legacy[0].shortName}, ${legacy[1].shortName} and ${legacy[2].shortName}; see "Which agents an unattended install is for" in install/README.md)`;
     expect(agentsLine(r.stdout)).toBe(`agents: ${legacy.map((h) => `${h.name} (${reason})`).join(", ")}`);
     expect(recordedAgents(target)).toEqual(legacy.map((h) => h.id));
     expect(recordedAgents(target)).not.toContain("antigravity");
@@ -11038,4 +11038,139 @@ describe("agent picker at a terminal (D-02)", () => {
     expect(r.out, "the repaint did not move up every screen line of the previous frame").toContain(`\x1b[${screenLines}A\x1b[J`);
     expectRestored(r);
   }, 180_000);
+});
+
+// ── MSG-1 on the install side (phase 34.1 gap round 1, D-26; 34.1-GAP-PLANNING-BRIEF.md §1) ─────────────────────────
+// Every install-side message that names a command builds it with host-tools.ts agentCommand, the one builder that
+// spells the agent flags, and each case below builds its expected command with the same builder, so the printed text
+// is checked against it. No printed message cites a planning decision ID, and the malformed-ledger reason names no
+// position. install/message-references.test.ts holds the class over every fragment; these are the targeted cases.
+describe("MSG-1: install-side messages name a command or a README section (D-26)", () => {
+  const hostOf = (id: string): (typeof HOST_TOOLS)[number] => {
+    const h = HOST_TOOLS.find((t) => t.id === id);
+    if (h === undefined) throw new Error(`no registry row ${id}`);
+    return h;
+  };
+  const DECISION_ID = /\bD-\d{2}\b/;
+  /** The lines of `out` with the target and kit-home paths removed, that still match a decision ID. */
+  const decisionIdLines = (out: string, ...paths: string[]): string[] =>
+    out
+      .split("\n")
+      .map((l) => paths.reduce((acc, p) => acc.split(p).join("<path>"), l))
+      .filter((l) => DECISION_ID.test(l));
+  // agent-flag-census: T1 runs install.js with no agent flag on purpose: the refusal it prints is what it tests
+  const refused = (target: string, home: string) => spawnBin(INSTALL_JS, ["--yes", "--target", target], target, home, { timeoutMs: 120_000 });
+  /** The banner line after "Each `verify` line above names ...", or "(none)". */
+  const bannerCommandLine = (stdout: string): string => {
+    const lines = stdout.split("\n");
+    const at = lines.findIndex((l) => l.startsWith("  Each `verify` line above names"));
+    return at === -1 ? "(none)" : (lines[at + 1] ?? "(none)");
+  };
+  /** Install --claude over a `.claude/settings.json` holding `[]`: the ask rules' verify, exit 3. */
+  const claudeOverArraySettings = (dryRun: boolean): { target: string; home: string; r: { status: number | null; stdout: string; stderr: string } } => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".claude"), { recursive: true });
+    writeFileSync(settingsFile(target), "[]\n");
+    const r = spawnSync("node", [INSTALL_JS, "--yes", agentFlag(hostOf("claude"))], {
+      encoding: "utf8",
+      env: { ...process.env, ...(dryRun ? { DRY_RUN: "1" } : {}), INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    return { target, home, r: { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" } };
+  };
+
+  it("T1: the agent-selection refusal's example is agentCommand(\"install.js\", target, [the first registry row])", () => {
+    const target = mkTmp();
+    const home = join(mkTmp(), "kit-home");
+    const r = refused(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stderr).toContain(`for example \`${agentCommand("install.js", target, [HOST_TOOLS[0]])}\`.`);
+    expect(decisionIdLines(r.stdout + r.stderr, target, home), "T6: a decision ID in the refusal").toEqual([]);
+  }, 120_000);
+
+  it("T2: the left-installed note gives, for each agent left, `agentCommand(\"uninstall.js\", target, [h])` (its name)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const all = runInstall(target, home);
+    expect(all.status, all.stdout + all.stderr).toBe(0);
+    const r = runInstall(target, home, agentFlag(hostOf("codex")));
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const left = r.stdout.split("\n").filter((l) => l.startsWith("  Left installed, not chosen in this run"));
+    expect(left, r.stdout).toHaveLength(1);
+    const others = HOST_TOOLS.filter((h) => h.id !== "codex");
+    expect(others.length, "premise: some agent is left").toBeGreaterThan(0);
+    for (const h of others) expect(left[0], `${h.name}'s command`).toContain(`\`${agentCommand("uninstall.js", target, [h])}\` (${h.name})`);
+  }, 240_000);
+
+  it("T3: the ask-rules `left` line names the per-agent uninstall of the agents that own the ask rules (Claude Code), and what else it removes", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    writeCheckpointConfig(target, { protected_branch_merge: "off" });
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const left = r.stdout.split("\n").filter((l) => /^ {2}left\s/.test(l) && l.includes("ask rule(s) an earlier install added for protected_branch_merge"));
+    expect(left, r.stdout).toHaveLength(1);
+    expect(left[0]).toContain(`\`${agentCommand("uninstall.js", target, [hostOf("claude")])}\` removes every rule install added`);
+    expect(left[0]).toContain("with the rest of what install wrote for that agent here");
+    expect(left[0]).not.toContain("run install/uninstall.js,");
+  }, 240_000);
+
+  it("T4: --check over a marker uninstall cannot use names the flag-less uninstall command and says it removes every agent", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, agentFlag(hostOf("claude"))).status).toBe(0);
+    const m = readMarkerObject(target);
+    delete m.target;
+    writeFileSync(join(target, ...MARKER_REL.split("/")), JSON.stringify(m, null, 2) + "\n");
+    const doc = spawnSync("node", [INSTALL_JS, "--check"], { encoding: "utf8", env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT } });
+    const warn = (doc.stdout ?? "").split("\n").filter((l) => /^ {2}WARN\s/.test(l) && l.includes("is not a record uninstall can use"));
+    expect(warn, doc.stdout).toHaveLength(1);
+    expect(warn[0]).toContain(`\`${agentCommand("uninstall.js", target, [])}\` with no agent flag removes every agent`);
+    expect(warn[0]).toContain(`\`${agentCommand("uninstall.js", target, [HOST_TOOLS[0]])}\`) it removes only those agents`);
+  }, 240_000);
+
+  for (const dryRun of [false, true]) {
+    it(`T5${dryRun ? " (DRY_RUN)" : ""}: the install INCOMPLETE banner prints agentCommand("install.js", target, the chosen agents) after its verify line`, () => {
+      const { target, home, r } = claudeOverArraySettings(dryRun);
+      expect(r.status, r.stdout + r.stderr).toBe(3);
+      expect(r.stdout).toContain("install INCOMPLETE");
+      expect(bannerCommandLine(r.stdout)).toBe(
+        `  Once each is fixed, \`${agentCommand("install.js", target, [hostOf("claude")])}\` installs for the same agents again (add any other option this run was given).`,
+      );
+      expect(decisionIdLines(r.stdout + r.stderr, target, home), "T6: a decision ID in the run").toEqual([]);
+    }, 240_000);
+  }
+
+  it("T6: no line of an install that keeps runnables, or of a legacy unattended run, carries a decision ID", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const again = runInstall(target, home);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(again.stdout, "premise: the run says a runnable is kept").toContain("(target already has it)");
+    expect(decisionIdLines(again.stdout + again.stderr, target, home)).toEqual([]);
+    withoutAgentsField(target);
+    // agent-flag-census: T6 runs install.js with no agent flag on purpose, to reach the legacy selection reason
+    const legacy = spawnBin(INSTALL_JS, ["--yes", "--target", target], target, home, { timeoutMs: 120_000 });
+    expect(legacy.status, legacy.stdout + legacy.stderr).toBe(0);
+    expect(legacy.stdout, "premise: the legacy reason was printed").toContain('see "Which agents an unattended install is for" in install/README.md');
+    expect(decisionIdLines(legacy.stdout + legacy.stderr, target, home)).toEqual([]);
+  }, 240_000);
+
+  it("T7: a malformed ledger's reason names no position: --check's carrier line says this run reports why on its own line", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, agentFlag(hostOf("pi"))).status).toBe(0);
+    writeFileSync(join(target, ...PI_PROMPT_REL.split("/")), "my own prompt\n");
+    const m = withLedger(readMarkerObject(target), (entries) => [...entries, { path: "x", kind: "bogus" }]);
+    writeFileSync(join(target, ...MARKER_REL.split("/")), JSON.stringify(m, null, 2) + "\n");
+    const doc = spawnSync("node", [INSTALL_JS, "--check"], { encoding: "utf8", env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT } });
+    const lines = (doc.stdout ?? "").split("\n").filter((l) => l.includes("could not be used"));
+    expect(lines.length, doc.stdout).toBeGreaterThan(0);
+    for (const l of lines) {
+      expect(l).toContain("the install ledger in .grugops/install.json could not be used (this run reports why on its own line)");
+      expect(l).not.toMatch(/\b(above|below)\b/);
+    }
+  }, 240_000);
 });

@@ -17,7 +17,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OPENCODE_CONFIG_REL, agentFlag, HOST_TOOLS } from "./host-tools.js";
+import { OPENCODE_CONFIG_REL, agentCommand, agentFlag, HOST_TOOLS } from "./host-tools.js";
 import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
 
 const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "grugops-ocperm-")));
@@ -345,5 +345,31 @@ describe("OpenCode kit-read permission: the user's own rule, DRY_RUN, idempotenc
     expect(would[0]).toContain("so the file was kept");
     expect(would[0]).not.toContain("would be deleted");
     expect(bytesOf(r.target)!.equals(before)).toBe(true);
+  });
+});
+
+// ── MSG-1 (phase 34.1 gap round 1, D-26): the other-kit-root note names OpenCode's own commands ───────────────────────
+// A rule an earlier install added for another kit root is not replaced (install adds no second rule). The note's remedy
+// names agentCommand("uninstall.js", target, [OpenCode]) to take that rule out, then agentCommand("install.js", target,
+// [OpenCode]) to add the rule for this kit root: never a flag-less uninstall, which removes every agent.
+// install/message-references.test.ts (M6) runs both printed commands.
+describe("OpenCode kit-read permission: the other-kit-root note names both commands (D-26, MSG-1)", () => {
+  it("an install for one kit root, then one for another: one note names the OpenCode uninstall command, then the OpenCode install command; opencode.json is unchanged", () => {
+    const r = row();
+    const first = install(r);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const before = bytesOf(r.target);
+    const second = install({ ...r, kitHome: join(r.home, ".grugops-b") });
+    expect(second.status, second.stdout + second.stderr).toBe(0);
+    const notes = linesFor(second.stdout, "note").filter((l) => l.includes("another kit root"));
+    expect(notes.length, second.stdout).toBe(1);
+    const oc = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
+    const un = `\`${agentCommand("uninstall.js", r.target, oc)}\``;
+    const inst = `\`${agentCommand("install.js", r.target, oc)}\``;
+    expect(notes[0]).toContain(un);
+    expect(notes[0]).toContain(inst);
+    expect(notes[0].indexOf(un), "the uninstall command comes first").toBeLessThan(notes[0].indexOf(inst));
+    expect(notes[0]).not.toContain("re-run the installer");
+    expect(bytesOf(r.target)?.toString("base64"), "opencode.json changed").toBe(before?.toString("base64"));
   });
 });

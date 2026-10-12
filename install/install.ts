@@ -1749,7 +1749,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
     }
     const remedy =
       cls.state === "own-stale"
-        ? `Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`
+        ? `Re-run install.js: it replaces install's own unedited copy with the current one`
         : cls.state === "appendable"
           ? `Re-run install.js: it appends install's start-here block, which carries the route`
           : cls.state === "user"
@@ -1844,7 +1844,9 @@ function doctor(): number {
             `this directory and carries none of these records`
         : `the install marker ${markerFile} is not a record uninstall can use: ${markerRead.why}. Uninstall uses none of ` +
             `its records here and changes nothing. Re-run install.js here, then uninstall: install writes a marker with ` +
-            `the install ledger for this directory and carries none of these records`,
+            `the install ledger for this directory and carries none of these records. \`${agentCommand("uninstall.js", TARGET, [])}\` ` +
+            `with no agent flag removes every agent and the shared files; with agent flags (for example ` +
+            `\`${agentCommand("uninstall.js", TARGET, [HOST_TOOLS[0]])}\`) it removes only those agents`,
     );
   }
   // A MALFORMED LEDGER IS A FAIL (red-team B1 of plan 33.1-34, brief DC-1). The doctor used to read the
@@ -2550,7 +2552,7 @@ function dirsSameContent(a: string, b: string): boolean {
 // backupIfDiffers: the single rename-to-backup primitive (never-delete-first). If `target` does
 // not exist there is nothing to back up → return false. If `target` is byte-identical to
 // `replacement` (file: sameContent; dir: dirsSameContent), this is a true no-op (D-09) → report
-// `skipped (identical — no backup, D-09)` and return false (NO artifact created). Otherwise rename
+// `skipped (identical — no backup)` (D-09) and return false (NO artifact created). Otherwise rename
 // `target` aside to `${target}.bak.<ISO>` (filesystem-safe via isoStamp) and report `backed-up`,
 // returning true. DRY_RUN mutates nothing and reports a `would-backup` line. Returns true iff a
 // backup was (or would be) made.
@@ -2567,7 +2569,7 @@ function backupIfDiffers(target: string, replacement: string, label: string, ori
     identical = false; // fail-safe-to-differs
   }
   if (identical) {
-    report("skipped", `${label} (identical — no backup, D-09)`);
+    report("skipped", `${label} (identical — no backup)`);
     return false;
   }
   const backup = `${target}.bak.${isoStamp()}`;
@@ -3082,7 +3084,7 @@ function migratePreSteps(): void {
         previewCarried = true;
         report("would-move", `user config ${legacy} → ${SEEDED_CONFIG} (original left as .bak)`);
       } else {
-        report("would-move", `user config ${legacy} → .bak (.grugops/factory.config.json already present — kept, D-04)`);
+        report("would-move", `user config ${legacy} → .bak (.grugops/factory.config.json already present — kept)`);
       }
       continue;
     }
@@ -3091,9 +3093,9 @@ function migratePreSteps(): void {
         // Not carried forward, so the original stays where it is, unrenamed (the verify says why).
         continue;
       }
-      report("moved", `user config → ${SEEDED_CONFIG} (carried forward, D-04)`);
+      report("moved", `user config → ${SEEDED_CONFIG} (carried forward)`);
     } else {
-      report("skipped", `user config (.grugops/factory.config.json already present — kept, D-04)`);
+      report("skipped", `user config (.grugops/factory.config.json already present — kept)`);
     }
     // Leave the original in place renamed to a timestamped .bak (never deleted, D-04).
     const bak = `${legacy}.bak.${isoStamp()}`;
@@ -3592,7 +3594,7 @@ function copyKit(retainBackup = false): void {
   const why =
     arm === "backup"
       ? recordedKit
-        ? "the kit install recorded writing there differs from the new one (--update keeps it, D-06)"
+        ? "the kit install recorded writing there differs from the new one (--update keeps it)"
         : atRoot === "directory"
           ? "no kit-home record names it as the kit install wrote, so it is kept"
           : `it is a ${atRoot}, not a kit install wrote, so it is kept as it is (a link is moved, never followed)`
@@ -3600,7 +3602,7 @@ function copyKit(retainBackup = false): void {
   const content = arm === "backup" ? treeRecord(GRUGOPS_HOME, KIT_ENTRY_PATH) : null;
   if (DRY_RUN) {
     if (arm === "backup") report("would-back-up", `${KIT_ROOT} → ${backup} (${why}; recorded in ${KIT_HOME_RECORD_REL})`);
-    if (arm === "replace") report("would-replace", `${KIT_ROOT} (the kit install recorded writing there, D-31 item 14)`);
+    if (arm === "replace") report("would-replace", `${KIT_ROOT} (the kit install recorded writing there)`);
     report("would-copy", `kit → ${KIT_ROOT}`);
     KIT_HOME_WOULD_COPY = true;
     return;
@@ -3677,7 +3679,7 @@ function copyKit(retainBackup = false): void {
       verify(`the replaced kit in ${holder} could not be removed (${errCode(e)}); remove it by hand.`);
     }
   }
-  report("copied", `kit → ${KIT_ROOT}${arm === "replace" ? " (replaced the kit install recorded writing there, D-31 item 14)" : ""}`);
+  report("copied", `kit → ${KIT_ROOT}${arm === "replace" ? " (replaced the kit install recorded writing there)" : ""}`);
   writeKitHomeRecord(kitHome, made, true);
 }
 
@@ -4917,7 +4919,7 @@ function kitWriteDecision(plan: KitPlanReady): KitWrite {
   const list = pre.edited.map((f) => f.label).join(", ");
   const remedy =
     "re-run with --backup-edited-kit to back them up and refresh the whole kit, or restore them first";
-  const nothing = `No kit file was written: the whole kit, these files included, was left exactly as it was (D-32)`;
+  const nothing = `No kit file was written: the whole kit, these files included, was left exactly as it was`;
   if (DRY_RUN) {
     for (const f of pre.edited) report("would-back-up", `${shownPath(f.dest)} → ${shownPath(f.backup)}`);
     if (BACKUP_EDITED_KIT) return { go: "backup-then-write", files: pre.edited };
@@ -5069,7 +5071,7 @@ function seedFile(src: string, dest: string, label: string): void {
     return;
   }
   if (destRead.state === "ok") {
-    report("skipped", `${label} (target already has it — D-04)`);
+    report("skipped", `${label} (target already has it)`);
     return;
   }
   const srcRead = readUserFile(src);
@@ -5188,7 +5190,7 @@ function materializeRunnable(): void {
       report(
         "skipped",
         destRead.text === srcRead.text
-          ? `${destRel} (target already has it — D-04)`
+          ? `${destRel} (target already has it)`
           : `${destRel} (target has a different copy — left untouched, never-overwrite)`,
       );
       continue;
@@ -5676,9 +5678,11 @@ const INSTALLED_IDS_BEFORE: readonly string[] = INSTALLED_BEFORE.ids;
 // written when it runs.
 function refuseSelection(why: string): never {
   const flags = HOST_TOOLS.map(agentFlag);
+  // The example is built by agentCommand (host-tools.ts), the one builder of a printed command that names agents (D-26,
+  // brief MSG-1), for the first registry row, with this run's target.
   process.stderr.write(
     `install.js: ${why} Name the agents to install for with one or more of: ${flags.join(", ")}, for example ` +
-      `\`node install/install.js --target <repo> ${flags[0]}\`.\n`,
+      `\`${agentCommand("install.js", TARGET, [HOST_TOOLS[0]])}\`.\n`,
   );
   process.exit(1);
 }
@@ -5708,7 +5712,7 @@ const SELECTION_WHY: ReadonlyMap<string, string> = (() => {
     const legacyList =
       legacyNames.length > 1 ? `${legacyNames.slice(0, -1).join(", ")} and ${legacyNames[legacyNames.length - 1]}` : legacyNames.join("");
     const reason =
-      INSTALLED_BEFORE.source === "legacy" ? `installed before this release (${legacyList}, per D-23)` : `recorded in ${MARKER_REL}`;
+      INSTALLED_BEFORE.source === "legacy" ? `installed before this release (${legacyList}; see "Which agents an unattended install is for" in install/README.md)` : `recorded in ${MARKER_REL}`;
     for (const id of INSTALLED_BEFORE.ids) why.set(id, reason);
     return why;
   }
@@ -6296,7 +6300,7 @@ if (!SELECTED_KINDS.has("claude-kit")) {
       for (const why of go.verifies) verify(why);
       report(
         "kit",
-        `no skill or adapter was written, linked or unlinked: the kit is written whole or not at all (D-32), and ` +
+        `no skill or adapter was written, linked or unlinked: the kit is written whole or not at all, and ` +
           `every kit file already in ${join(TARGET, ".claude")} was left exactly as it was. Resolve each verify above and re-run.`,
       );
     } else if (go.go === "write" || backupEditedKitFiles(go.files)) {
@@ -6306,7 +6310,7 @@ if (!SELECTED_KINDS.has("claude-kit")) {
       report(
         "kit",
         `no skill or adapter was written, linked or unlinked: a backup failed, and no kit file is written until every ` +
-          `edited file is backed up (D-32, D-18). Every kit file in ${join(TARGET, ".claude")} was left exactly as it was.`,
+          `edited file is backed up. Every kit file in ${join(TARGET, ".claude")} was left exactly as it was.`,
       );
     }
   } else {
@@ -6314,7 +6318,7 @@ if (!SELECTED_KINDS.has("claude-kit")) {
     report(
       "kit",
       `no skill or adapter was written, linked or unlinked: ${kitPlan.refusals.length} refusal(s) above ` +
-        `were found before the first kit write, and the kit is written whole or not at all (D-32). ` +
+        `were found before the first kit write, and the kit is written whole or not at all. ` +
         `Every kit file already in ${join(TARGET, ".claude")} was left exactly as it was. Resolve each ` +
         `verify above and re-run.`,
     );
@@ -6702,6 +6706,9 @@ function writeAskRules(): AskRulesOutcome {
   // is wanted, counted from the same `present`/`prevAdded` sets the `left` lines use.
   let leftTotal = 0;
   let loweredUsers = 0;
+  // The agents that own the ask-rules entry (entryOwners, the one ownership answer), so the `left` line's remedy names
+  // their per-agent uninstall (agentCommand, D-26, brief MSG-1) and never a flag-less one, which removes every agent.
+  const askRuleOwners = HOST_TOOLS.filter((h) => entryOwners({ path: ASK_RULES_REL, kind: "ask-rules" }).includes(h.id));
   for (const checkpoint of ASK_RULE_CHECKPOINTS) {
     if (toWrite.includes(checkpoint)) continue;
     const left = askRulesFor(checkpoint).filter((r) => present.has(r) && prevAdded.has(r)).length;
@@ -6711,7 +6718,9 @@ function writeAskRules(): AskRulesOutcome {
       report(
         "left",
         `${left} ask rule(s) an earlier install added for ${checkpoint} remain in ${rel}; the installer never ` +
-          `removes a rule — delete them by hand, or run install/uninstall.js, which removes every rule it added`,
+          `removes a rule — delete them by hand, or \`${agentCommand("uninstall.js", TARGET, askRuleOwners)}\` removes ` +
+          `every rule install added, with the rest of what install wrote for that agent here (everything install wrote, ` +
+          `when it is the only agent recorded)`,
       );
     }
   }
@@ -6997,9 +7006,14 @@ function writeOpenCodePermission(): OpenCodeOutcome {
     );
   }
   if (proven && previous !== null && previous.pattern !== pattern) {
+    // The remedy names OpenCode's own commands (agentCommand, D-26, brief MSG-1): a flag-less uninstall would remove
+    // every agent, far more than this one rule.
+    const openCodeRows = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
     return openCodeNote(
       `it holds the kit-read rule an earlier install added for another kit root (${previous.pattern}), and install adds ` +
-        `no second rule; run install/uninstall.js with --opencode to take that rule out, then re-run the installer`,
+        `no second rule; \`${agentCommand("uninstall.js", TARGET, openCodeRows)}\` takes that rule out (with the rest of ` +
+        `what install wrote for OpenCode here), then \`${agentCommand("install.js", TARGET, openCodeRows)}\` adds the ` +
+        `rule for this kit root`,
       pattern,
     );
   }
@@ -7138,7 +7152,7 @@ function agentClosingLines(): string[] {
   if (left.length > 0) {
     out.push(
       `${at}Left installed, not chosen in this run (install never removes an agent's files): ${left.map((h) => h.name).join(", ")}. ` +
-        `To remove one: node install/uninstall.js --target ${TARGET} <its flag> (${left.map(agentFlag).join(", ")}).`,
+        `To remove one: ${left.map((h) => `\`${agentCommand("uninstall.js", TARGET, [h])}\` (${h.name})`).join("; ")}.`,
     );
   }
   return out;
@@ -7200,6 +7214,12 @@ if (VERIFY_FINDINGS > 0) {
       `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
   );
   console.log("  Each `verify` line above names what was NOT installed and the remedy for it.");
+  // THE SAME-RUN COMMAND (D-26, brief MSG-1): every counted verify of the install mode is finished by running install
+  // again for the agents this run chose, built by agentCommand. Printed under DRY_RUN too.
+  console.log(
+    `  Once each is fixed, \`${agentCommand("install.js", TARGET, SELECTION)}\` installs for the same agents again ` +
+      `(add any other option this run was given).`,
+  );
   // THE MACHINE-READABLE HALF OF THE CONDITIONAL CLAIM (27-21, WR-01). Exit codes: 0 complete,
   // 1 refused or aborted, 2 bad usage, 3 incomplete. Set on the SAME branch that prints the banner
   // so the human-readable and machine-readable signals cannot diverge — a chained `install.js &&

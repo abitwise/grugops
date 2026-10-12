@@ -67,8 +67,10 @@ const SITE_FLOOR = 64;
  * (an agent flag skips it).
  * One more since plan 34.1-15 (D-26, IN-21): install/agents-record.test.ts R18, the one spawn that shows a recorded agent
  * whose every write was refused is chosen again by an unattended install with no agent flag (D-04's retry).
+ * Two more since plan 34.1-15 (D-26, MSG-1): install/install.test.ts T1 (the selection refusal, whose printed example
+ * command is what it tests) and T6 (the legacy unattended selection, whose printed reason is what it tests).
  */
-const EXEMPT_COUNT = 6;
+const EXEMPT_COUNT = 8;
 
 /** Every tracked TypeScript module directly under install/ or scripts/ (no declaration files), from git. */
 function modules(): string[] {
