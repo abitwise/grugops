@@ -1169,8 +1169,14 @@ describe("the uninstall re-run census (MSG-1)", () => {
 // in uninstall.ts is in the reversal of a file, block, gemini, ask-rules or opencode-permission entry; reverseDir's
 // outcomes are left, gone and removed). What a directory had instead was a silent failure: rmdirIfEmpty's rmdirSync
 // catch returned `left` with no line. R22 holds the line it prints now, on a partial and a FULL run.
+//
+// MSG-1 and D-05 (plan 34.1-21). finishCommand never prints the flag-less command on a partial run, which removes every
+// agent. Its partial branch names UNFINISHED; when that is empty (the marker rewrite failed, so the marker on disk
+// still records the agents this run named), NAMED; when that is empty too, this run's own flags (rerunCommand, REMOVE's
+// rows). R32 forces the empty-UNFINISHED state with a marker that cannot be rewritten and runs the printed command; R23
+// is the held-entry verify (UNFINISHED not empty); the parser row holds the order and the guards.
 
-if (CHMOD_SKIP !== null) console.log(`SKIP R22 of agents-record.test.ts — ${CHMOD_SKIP}`);
+if (CHMOD_SKIP !== null) console.log(`SKIP R22, R23 and R32 of agents-record.test.ts — ${CHMOD_SKIP}`);
 
 /** The `left` line rmdirIfEmpty prints for recorded directory `rel` it could not remove. */
 const failedRmdirLines = (w: World, stdout: string, rel: string): string[] =>
@@ -1217,4 +1223,151 @@ describe("D-31 (DI-07): a directory that cannot be removed, and the finishing co
     },
     300_000,
   );
+});
+
+/** The INCOMPLETE banner's "Then run `...` to finish the reversal." line. */
+const finishBannerLines = (stdout: string): string[] => stdout.split("\n").filter((l) => l.startsWith("  Then run `") && l.endsWith("` to finish the reversal."));
+/** Every printed `node install/uninstall.js ...` command in a run's output, as its agent flags. */
+const everyPrintedUninstallFlags = (stdout: string): string[][] =>
+  [...stdout.matchAll(/`(node install\/uninstall\.js[^`]*)`/g)].map((m) => {
+    const words = shellWords(m[1]);
+    return words.slice(4);
+  });
+/** The conditions that decide whether `n` runs within its function: statementGuards plus every enclosing conditional. */
+function guardsOf(n: ts.Node): Map<string, boolean> {
+  const g = statementGuards(n);
+  let child: ts.Node = n;
+  for (let p: ts.Node | undefined = n.parent; p !== undefined && !ts.isFunctionLike(p); child = p, p = p.parent) {
+    if (ts.isConditionalExpression(p) && p.condition !== child) {
+      const [k, pol] = condKey(p.condition);
+      g.set(k, p.whenTrue === child ? pol : !pol);
+    }
+  }
+  return g;
+}
+const within = (n: ts.Node, outer: ts.Node): boolean => {
+  for (let p: ts.Node | undefined = n; p !== undefined; p = p.parent) if (p === outer) return true;
+  return false;
+};
+
+describe("D-31 (MSG-1, D-05): the finishing command of a partial run is never the flag-less one", () => {
+  it.skipIf(CHMOD_SKIP !== null)(
+    "R32: a marker that cannot be rewritten on uninstall --codex (UNFINISHED empty): exit 3, the marker still records [claude, codex], the INCOMPLETE banner prints a command whose agent flags are exactly --codex; fixed and run, it removes Codex CLI's record and leaves Claude Code",
+    () => {
+      const w = world("r32");
+      install(w, [flag("claude"), flag("codex")]);
+      const markerPath = at(w.target, MARKER_REL);
+      const before = readFileSync(markerPath);
+      chmodSync(markerPath, 0o444); // mode-census: access-denial
+      let r: Run;
+      try {
+        r = uninstall(w, [flag("codex")]);
+      } finally {
+        chmodSync(markerPath, 0o644); // mode-census: restore
+      }
+      expect(r.status, r.stdout).toBe(3);
+      // The premises: the rewrite failed, so the marker on disk is the one install wrote and still records both agents;
+      // this run's own entries were all removed, so no named agent is "not finished" (UNFINISHED is empty).
+      expect(readFileSync(markerPath).equals(before), `the marker was rewritten\n${r.stdout}`).toBe(true);
+      expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+      expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(false);
+      expect(r.stdout, "premise: the marker outcome is kept-for-agents, not rewritten").toContain("kept for the agents still installed here, but not rewritten");
+      const banner = r.stdout.split("\n").filter((l) => l.startsWith("== uninstall INCOMPLETE"));
+      expect(banner.length, r.stdout).toBe(1);
+      expect(banner[0], "premise: UNFINISHED is empty").toContain(`agents removed: ${row("codex").name}`);
+      expect(banner[0], "premise: UNFINISHED is empty").not.toContain("not finished");
+      // The guard: the printed command names exactly --codex, and no printed uninstall command is the flag-less one.
+      const fin = finishBannerLines(r.stdout);
+      expect(fin.length, `the INCOMPLETE banner does not print the finishing command\n${r.stdout}`).toBe(1);
+      expect(printedFlags(fin[0]), fin[0]).toEqual([flag("codex")]);
+      const flagless = everyPrintedUninstallFlags(r.stdout).filter((f) => f.length === 0);
+      expect(flagless, `a partial run printed the flag-less uninstall command\n${r.stdout}`).toEqual([]);
+      // The cause fixed (the mode restored above), the printed command finishes the reversal and keeps Claude Code.
+      const done = runPrinted(w, fin[0]);
+      expect(done.status, done.stdout).toBe(0);
+      expect(agentsOf(w), done.stdout).toEqual(ids("claude"));
+      expect(ledgerEntries(w).filter((e) => entryOwners(e).includes(row("codex").id) && !entryOwners(e).includes(row("claude").id)), done.stdout).toEqual([]);
+      expect(existsSync(at(w.target, ".claude/agents")), done.stdout).toBe(true);
+      expect(existsSync(at(w.target, ".claude/skills")), done.stdout).toBe(true);
+      expect(existsSync(markerPath), done.stdout).toBe(true);
+      expectInvariant(w, ids("claude"), done.stdout);
+    },
+    300_000,
+  );
+
+  it.skipIf(CHMOD_SKIP !== null)(
+    "R23: a held-entry verify on uninstall --codex (a read-only .agents/skills/grugops): exit 3, `agents` [claude, codex]; the kept line names SKILL.md, and it and the INCOMPLETE banner print a command whose agent flags are exactly --codex; fixed and run: SKILL.md gone, `agents` [claude]",
+    () => {
+      const w = world("r23");
+      install(w, [flag("claude"), flag("codex")]);
+      const dir = at(w.target, ".agents/skills/grugops");
+      chmodSync(dir, 0o555); // mode-census: access-denial
+      let r: Run;
+      try {
+        r = uninstall(w, [flag("codex")]);
+      } finally {
+        chmodSync(dir, 0o755); // mode-census: restore
+      }
+      expect(r.status, r.stdout).toBe(3);
+      expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(true);
+      expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+      expectInvariant(w, ids("claude", "codex"), r.stdout);
+      const kept = keptMarkerLine(r.stdout);
+      expect(kept.length, r.stdout).toBe(1);
+      expect(kept[0], r.stdout).toContain(AGENT_SKILL_REL);
+      expect(printedFlags(kept[0]), kept[0]).toEqual([flag("codex")]);
+      const fin = finishBannerLines(r.stdout);
+      expect(fin.length, `the INCOMPLETE banner does not print the finishing command\n${r.stdout}`).toBe(1);
+      expect(printedFlags(fin[0]), fin[0]).toEqual([flag("codex")]);
+      expect(everyPrintedUninstallFlags(r.stdout).filter((f) => f.length === 0), r.stdout).toEqual([]);
+      const done = runPrinted(w, fin[0]);
+      expect(done.status, done.stdout).toBe(0);
+      expect(existsSync(at(w.target, AGENT_SKILL_REL)), done.stdout).toBe(false);
+      expect(agentsOf(w), done.stdout).toEqual(ids("claude"));
+      expectInvariant(w, ids("claude"), done.stdout);
+    },
+    300_000,
+  );
+
+  it("the parser row: finishCommand's partial branch reads UNFINISHED, then NAMED, then REMOVE (rerunCommand), each host list guarded non-empty, and never passes an empty array literal to agentCommand", () => {
+    const sf = parse("install/uninstall.ts");
+    const fn = functionNamed(sf, "finishCommand");
+    const body = fn.body?.statements ?? ts.factory.createNodeArray<ts.Statement>([]);
+    // The FULL branch comes first and always leaves; it is the only place an empty host list may appear.
+    const first = body[0];
+    expect(first !== undefined && ts.isIfStatement(first) && first.expression.getText() === "FULL" && first.elseStatement === undefined && alwaysLeaves(first.thenStatement), "finishCommand does not open with `if (FULL) return ...`").toBe(true);
+    const fullBranch = (first as ts.IfStatement).thenStatement;
+    const empties = nodesOf(fn, ts.isArrayLiteralExpression).filter((a) => a.elements.length === 0);
+    expect(empties.filter((a) => !within(a, fullBranch)).map((a) => a.getText()), "an empty array literal on the partial branch").toEqual([]);
+    const partial = body.slice(1);
+    // Every agentCommand call on the partial branch takes hostsOf(UNFINISHED) or hostsOf(NAMED), each guarded by that
+    // list being non-empty; the chain ends in rerunCommand(), whose rows are REMOVE's.
+    const calls = partial.flatMap((s) => callsOf(s, "agentCommand"));
+    expect(calls.length, "the partial branch builds no command of its own").toBeGreaterThan(0);
+    for (const c of calls) {
+      const hosts = c.arguments[2];
+      expect(hosts !== undefined && ts.isCallExpression(hosts) && calleeName(hosts) === "hostsOf", `not hostsOf(...): ${c.getText()}`).toBe(true);
+      const list = (hosts as ts.CallExpression).arguments[0];
+      expect(list !== undefined && ts.isIdentifier(list) && ["UNFINISHED", "NAMED"].includes(list.text), `hostsOf of something other than UNFINISHED or NAMED: ${c.getText()}`).toBe(true);
+      const name = (list as ts.Identifier).text;
+      expect(guardsOf(c).get(`${name}.length > 0`), `hostsOf(${name}) is not guarded by ${name}.length > 0: ${c.getText()}`).toBe(true);
+    }
+    const reads: string[] = [];
+    const visit = (n: ts.Node): void => {
+      if (ts.isIdentifier(n) && ["UNFINISHED", "NAMED", "REMOVE"].includes(n.text) && !reads.includes(n.text)) reads.push(n.text);
+      if (ts.isCallExpression(n) && calleeName(n) === "rerunCommand" && !reads.includes("REMOVE")) reads.push("REMOVE");
+      ts.forEachChild(n, visit);
+    };
+    for (const s of partial) visit(s);
+    expect(reads, "the partial branch's sources, in order").toEqual(["UNFINISHED", "NAMED", "REMOVE"]);
+    // The last case leaves unconditionally with this run's own command, so no path falls through to an empty list.
+    const last = partial[partial.length - 1];
+    expect(last !== undefined && ts.isReturnStatement(last) && last.expression !== undefined && ts.isCallExpression(last.expression) && calleeName(last.expression) === "rerunCommand", "the partial branch does not end in `return rerunCommand()`").toBe(true);
+    // rerunCommand's rows are REMOVE's, which is never empty on a partial run (FULL is true when no agent flag is given).
+    const rerun = functionNamed(sf, "rerunCommand");
+    expect(nodesOf(rerun, ts.isIdentifier).some((i) => i.text === "REMOVE"), "rerunCommand does not read REMOVE").toBe(true);
+    const fullDecl = nodesOf(sf, ts.isVariableDeclaration).filter((d) => ts.isIdentifier(d.name) && d.name.text === "FULL");
+    expect(fullDecl.length).toBe(1);
+    expect(fullDecl[0].initializer?.getText(), "FULL is no longer true when no agent flag is given").toMatch(/^REMOVE\.size === 0 \|\|/);
+  });
 });

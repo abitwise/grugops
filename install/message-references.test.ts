@@ -235,6 +235,7 @@ const COMMAND_TABLE: readonly Row[] = [
   ["uninstall.ts", "its records is used here, and this run removes and edits nothing. Re-run install.js here, then uninstall", "names no agent flag", "every install writes the marker, whatever agents it names (plan 34.1-14 says so in the text)"],
   ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand (plan 34.1-14)"],
   ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand (plan 34.1-14)"],
+  ["uninstall.ts", "uninstall.js", "agentCommand", "finishCommand's NAMED case, split from the UNFINISHED case (plan 34.1-21, D-31); its last case is rerunCommand"],
   ["uninstall.ts", "-- reversing what the install ledger records (only what install.js wrote) --", "names no agent flag", "a section heading naming the binary, not a command"],
 ];
 const RERUN_TABLE: readonly RerunRow[] = [
@@ -328,14 +329,14 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
     const found = all.filter((f) => COMMAND.test(f.text));
     expect(compareBothWays(found, COMMAND_TABLE)).toEqual({ unclassified: [], stale: [] });
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 2, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 8 });
-    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 15, "file text": 1, "names no agent flag": 29 });
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 2, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 9 });
+    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 16, "file text": 1, "names no agent flag": 29 });
   });
 
   it("(c) an agentCommand row's fragment is an argument of an agentCommand call (or agentCommand's own signature)", () => {
     const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "agentCommand").map((r) => `${r[0]} :: ${norm(r[1])}`));
     const found = all.filter((f) => COMMAND.test(f.text) && rows.has(`${f.module} :: ${norm(f.text)}`));
-    expect(found.length, "premise: the agentCommand rows are found").toBe(15);
+    expect(found.length, "premise: the agentCommand rows are found").toBe(16);
     for (const f of found) {
       const call = nearestCall(f.node);
       const ok = (call !== null && call.expression.getText(f.src) === "agentCommand") || (f.module === "host-tools.ts" && enclosingName(f.node) === "agentCommand");

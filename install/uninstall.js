@@ -2299,16 +2299,29 @@ const nameList = (ids) => (ids.length === 0 ? "none" : ids.map(hostName).join(",
 /** The HOST_TOOLS rows of `ids`, in registry order. */
 const hostsOf = (ids) => HOST_TOOLS.filter((h) => ids.includes(h.id));
 /**
- * finishCommand (plan 34.1-14, D-26; brief MSG-1): the command that finishes the reversal this run could not finish,
- * built by host-tools.ts agentCommand. A FULL run finishes with the flag-less command. A partial run names the agents
- * it set out to remove that stay recorded (UNFINISHED), so running it removes their held entries once each is removed
- * or restored, and never the agents that stay. A partial run never prints the flag-less command, which removes every
- * agent (D-05): when no named agent stays recorded it names the agents this run's flags named.
+ * finishCommand (plan 34.1-14, D-26; plan 34.1-21, D-31; brief MSG-1): the command that finishes the reversal this run
+ * could not finish, built by host-tools.ts agentCommand. Each case names agents the marker on disk records:
+ *   - FULL run: the flag-less command. No agent stays installed, and the flag-less run removes every agent (D-05).
+ *   - Partial run, UNFINISHED not empty: the agents this run set out to remove that the marker still records, because
+ *     each owns an entry this run left in place (agentsAfter). Run once each is removed or restored, it finishes them
+ *     and never touches the agents that stay. This is the case after the marker was rewritten.
+ *   - Partial run, UNFINISHED empty, NAMED not empty: the marker could not be rewritten (the INCOMPLETE banner prints
+ *     this only on kept-for-agents with rewrite `not-rewritten`), so the marker on disk still records the agents this
+ *     run named, and running the command for them takes their entries out of it once the cause is fixed.
+ *   - Partial run, NAMED empty too: this run's own command, rerunCommand(), whose rows are REMOVE's. REMOVE is never
+ *     empty on a partial run, because FULL is true when no agent flag is given, so this case always carries an agent
+ *     flag.
+ * So no partial case yields the flag-less command, which would remove the agents the user kept (D-05). Each host list
+ * is passed only when it is not empty, so agentCommand is never handed an empty list on a partial run.
  */
 function finishCommand() {
     if (FULL)
         return agentCommand("uninstall.js", TARGET, []);
-    return agentCommand("uninstall.js", TARGET, hostsOf(UNFINISHED.length > 0 ? UNFINISHED : NAMED));
+    if (UNFINISHED.length > 0)
+        return agentCommand("uninstall.js", TARGET, hostsOf(UNFINISHED));
+    if (NAMED.length > 0)
+        return agentCommand("uninstall.js", TARGET, hostsOf(NAMED));
+    return rerunCommand();
 }
 /**
  * keepWithoutRecord (plan 34.1-19, D-32; brief §4, CR-03): THE ONE WORDING of the alternative to finishing a kept
