@@ -46,6 +46,7 @@ import {
   INSTALL_JS,
   MARKER_REL,
   commandContextFor,
+  makeOldLayoutFixture,
   printedCommand,
   runInstall,
   runPrintedCommand,
@@ -163,8 +164,9 @@ function maximal(n: ts.Node): ts.Node {
     cur = p;
   }
 }
-/** The printed-command builders a remedy may call (plan 34.1-27): agentCommand, and the doctor's two helpers over it. */
-const REMEDY_BUILDERS: ReadonlySet<string> = new Set(["agentCommand", "doctorInstallCommand", "doctorCheckCommand"]);
+/** The printed-command builders a remedy may call (plan 34.1-27): agentCommand, the doctor's two helpers over it, and
+ *  (plan 34.1-28) migrateCommand, the --migrate same-run command. */
+const REMEDY_BUILDERS: ReadonlySet<string> = new Set(["agentCommand", "doctorInstallCommand", "doctorCheckCommand", "migrateCommand"]);
 /** The builder calls inside `n`, by callee name. */
 function builderCallsIn(n: ts.Node, src: ts.SourceFile): string[] {
   const out: string[] = [];
@@ -261,6 +263,7 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "install.js", "agentCommand", "doctorInstallCommand: the doctor's flag-less install command (plan 34.1-27, D-33, DI-08)"],
   ["install.ts", "install.js", "agentCommand", "doctorCheckCommand: the doctor's check command, which takes no agent flag (plan 34.1-27, D-25, D-33)"],
   ["install.ts", "install.js", "agentCommand", "the no-agent-recorded-or-detected WARN's example, one agent's flag (plan 34.1-27, D-33)"],
+  ["install.ts", "install.js", "agentCommand", "migrateCommand: the --migrate same-run command, for this run's agents (plan 34.1-28, D-31, DI-09)"],
   ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "builder in the same expression", "no agent recorded or detected: doctorInstallCommand(), then an agentCommand example with one agent's flag (plan 34.1-27, D-33)"],
   ["install.ts", "(run install.js to re-seed: `", "builder in the same expression", "the missing optional seed: doctorInstallCommand() (plan 34.1-27, D-33)"],
   ["install.ts", "Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.", "names no agent flag", "a --check hint; --check takes no agent flag (D-25)"],
@@ -312,9 +315,9 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "not a remedy", "says what the installer does with a malformed ledger; asks for nothing", null],
   ["install.ts", "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them: `", "builder in the same expression", "printed only when Claude Code is recorded: doctorInstallCommand() (plan 34.1-27, D-33)", null],
   ["install.ts", "(re-run the installer to restore it: `", "builder in the same expression", "printed only when Claude Code is recorded: doctorInstallCommand() (plan 34.1-27, D-33)", null],
-  ["install.ts", "Move or remove the existing backup, then re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's handoffs backup, recorded for the shared layout", null],
-  ["install.ts", "and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's config carry, the shared layout", null],
-  ["install.ts", "and re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's config carry, the shared layout", null],
+  ["install.ts", "Move or remove the existing backup, then re-run --migrate: `", "builder in the same expression", "the handoffs backup's never-clobber abort, printed only under --migrate: migrateCommand() (plan 34.1-28, D-31, DI-09; an \"aborted\" line is not a counted verify, so no banner finishes it)", null],
+  ["install.ts", "and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.", "same-run command (a migrate banner)", "a config-carry refusal: the --migrate pre-check prints it (planConfigCarry's refusals, its verify loop) and ends in the migrate INCOMPLETE banner, which prints migrateCommand() (plan 34.1-28, D-31, DI-09); migratePreSteps asks the same step only after the pre-check found no refusal", "configCarryStep"],
+  ["install.ts", "and re-run --migrate.", "same-run command (a migrate banner)", "a config-carry refusal: the --migrate pre-check prints it (planConfigCarry's refusals, its verify loop) and ends in the migrate INCOMPLETE banner, which prints migrateCommand() (plan 34.1-28, D-31, DI-09); migratePreSteps asks the same step only after the pre-check found no refusal", "configCarryStep"],
   ["install.ts", "copied (never overwrite a backup). Move that backup and re-run.", "agent-independent: shared footprint", "the kit home, which every install copies (D-06)", null],
   ["install.ts", "should contain is unknown rather than known to be unchanged. Re-run the installer from a", "agent-independent: shared footprint", "the kit checkout the render runs from, which no agent flag changes", null],
   ["install.ts", "directory writable — or point TMPDIR at one that is — and re-run.", "agent-independent: shared footprint", "the temporary directory the render runs in, which no agent flag changes", null],
@@ -325,7 +328,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "and not unlinked, and nothing was written. Replace it with a regular file (or remove it) and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "kitDestDecision"],
   ["install.ts", "re-run with --backup-edited-kit to back them up and refresh the whole kit, or restore them first", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT); the verify names --backup-edited-kit itself", "kitWriteDecision"],
   ["install.ts", "(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT); the verify names --backup-edited-kit itself", "verify"],
-  ["install.ts", "is still the old layout. Resolve each verify above and re-run --migrate.", "agent-independent: mode with no agent set", "--migrate's pre-check: the migrate INCOMPLETE banner, the shared layout", null],
+  ["install.ts", "is still the old layout. Resolve each verify above and re-run --migrate.", "same-run command (a migrate banner)", "the --migrate pre-check's report, right after its verify loop; the migrate INCOMPLETE banner after it prints migrateCommand() (plan 34.1-28, D-31, DI-09)", "report"],
   ["install.ts", "unknown. No skill was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
   ["install.ts", "unknown. No adapter was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
   ["install.ts", "as it was. Re-run the installer from a complete kit checkout whose adapter directory", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
@@ -389,10 +392,12 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // or doctorCheckCommand() in the same expression, so they move from "names no agent flag" to "builder in the same
     // expression" (26 -> 12, and 14), and doctorCheckCommand's and D13's example's agentCommand("install.js", ...)
     // arguments are two new agentCommand rows (22 -> 24). So install.ts 34 -> 36.
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 36, "kit-source.ts": 1, "uninstall.ts": 8 });
+    // Plan 34.1-28 task 1 (D-31, DI-09): migrateCommand's agentCommand("install.js", ...) argument is a new agentCommand
+    // row, so install.ts 36 -> 37 and agentCommand 24 -> 25.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 37, "kit-source.ts": 1, "uninstall.ts": 8 });
     // Plan 34.1-25 (WR-20): the other-directory verify's "re-run install.js here, with any agent" row (names no agent
     // flag) became reinstallCommand's agentCommand row, so agentCommand 20 -> 21 and "names no agent flag" 29 -> 28.
-    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 24, "builder in the same expression": 14, "file text": 1, "names no agent flag": 12 });
+    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 25, "builder in the same expression": 14, "file text": 1, "names no agent flag": 12 });
   });
 
   // The builder is agentCommand and the invocation words it prints first, scriptCommand (plan 34.1-22, D-33): a
@@ -400,7 +405,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) an agentCommand row's fragment is an argument of an agentCommand call (or inside the builder: agentCommand or scriptCommand)", () => {
     const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "agentCommand").map((r) => `${r[0]} :: ${norm(r[1])}`));
     const found = all.filter((f) => COMMAND.test(f.text) && rows.has(`${f.module} :: ${norm(f.text)}`));
-    expect(found.length, "premise: the agentCommand rows are found (24 since plan 34.1-27's doctor commands)").toBe(24);
+    expect(found.length, "premise: the agentCommand rows are found (25 since plan 34.1-28's migrateCommand)").toBe(25);
     const builder = new Set(["agentCommand", "scriptCommand"]);
     for (const f of found) {
       const call = nearestCall(f.node);
@@ -444,14 +449,20 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // so its row moves to "builder in the same expression" (1 -> 17): "doctor, recorded agents" 11 -> 0 (the class is
     // empty), "mode with no agent set" 8 -> 6 (the two "--check again" remedies), "shared footprint" 12 -> 10 (the
     // unbound other-directory WARN and the missing seed) and agentCommand 2 -> 1 (the unbound no-ledger WARN).
+    // Plan 34.1-28 task 1 (D-31, DI-09): the migrate re-run rows leave "mode with no agent set" (6 -> 2, the two DI-12
+    // "re-run --check from a complete kit checkout" rows stay): the two config-carry refusals and the pre-check's report
+    // are finished by the migrate INCOMPLETE banner, which prints migrateCommand() ("same-run command (a migrate
+    // banner)", 3), and the handoffs backup's abort prints migrateCommand() itself ("builder in the same expression"
+    // 17 -> 18).
     expect(countBy(RERUN_TABLE, (r) => r[2])).toEqual({
       agentCommand: 1,
-      "builder in the same expression": 17,
-      "agent-independent: mode with no agent set": 6,
+      "builder in the same expression": 18,
+      "agent-independent: mode with no agent set": 2,
       "agent-independent: shared footprint": 10,
       "file text": 3,
       "not a remedy": 4,
       "same-run command": 22,
+      "same-run command (a migrate banner)": 3,
     });
   });
 
@@ -512,6 +523,44 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
       } else {
         expect(["adapterDestHazard", "kitDestDecision", "kitWriteDecision"], `${where(f)}: an unknown via ${via}`).toContain(via);
         expect(enclosingName(f.node), where(f)).toBe(via);
+      }
+    }
+  });
+
+  // Plan 34.1-28 (D-31, DI-09): a "same-run command (a migrate banner)" row is printed by the --migrate pre-check, whose
+  // verify loop over `refusals` is followed by its report, the migrate INCOMPLETE banner, and the line that prints
+  // migrateCommand(). Held by the parser: the pre-check's statement order, the line's initializer, and each row's site.
+  it("(f) each \"same-run command (a migrate banner)\" row is printed by the --migrate pre-check, whose banner line prints migrateCommand()", () => {
+    const src = sourceOf("install.ts");
+    const loops: ts.ForOfStatement[] = [];
+    let againInit: ts.Expression | undefined;
+    const visit = (n: ts.Node): void => {
+      if (ts.isForOfStatement(n) && n.expression.getText(src) === "refusals" && /^verify\(why\);?$|^\{\s*verify\(why\);?\s*\}$/.test(n.statement.getText(src).trim())) loops.push(n);
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "MIGRATE_AGAIN_LINE") againInit = n.initializer;
+      ts.forEachChild(n, visit);
+    };
+    visit(src);
+    expect(loops.length, "premise: the --migrate pre-check's verify loop over refusals").toBe(1);
+    expect(againInit !== undefined && builderCallsIn(againInit, src).includes("migrateCommand"), "MIGRATE_AGAIN_LINE prints migrateCommand()").toBe(true);
+    const block = loops[0].parent as ts.Block;
+    const stmts = block.statements;
+    const i = stmts.indexOf(loops[0]);
+    const texts = stmts.slice(i + 1, i + 4).map((s) => s.getText(src));
+    expect(texts[0], "the pre-check's report follows its verify loop").toMatch(/^report\(\s*"migrate"/);
+    expect(texts[1], "then the migrate INCOMPLETE banner").toContain("== migrate INCOMPLETE — ");
+    expect(texts[2], "then the line that prints migrateCommand()").toBe("console.log(MIGRATE_AGAIN_LINE);");
+    const rows = RERUN_TABLE.filter((r) => r[2] === "same-run command (a migrate banner)");
+    expect(rows.length, "premise: the class has rows").toBe(3);
+    const found = fragmentsOf(["install.ts"]).filter((f) => RERUN.test(f.text));
+    for (const r of rows) {
+      const hits = found.filter((x) => norm(x.text) === norm(r[1]));
+      expect(hits.length, `no fragment for the migrate-banner row ${r[1]}`).toBeGreaterThan(0);
+      for (const f of hits) {
+        if (r[4] === "report") expect(nearestCall(f.node)?.parent, `${where(f)}: not the pre-check's report`).toBe(stmts[i + 1]);
+        else {
+          expect(r[4], `${where(f)}: an unknown via`).toBe("configCarryStep");
+          expect(enclosingName(f.node), where(f)).toBe("configCarryStep");
+        }
       }
     }
   });
@@ -727,6 +776,51 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const json = JSON.parse(readFileSync(at(w, "opencode.json"), "utf8")) as { permission?: { external_directory?: Record<string, unknown> } };
     expect(Object.keys(json.permission?.external_directory ?? {})).toEqual(["~/.grugops-b/agent-factory/**"]);
     expect(existsSync(at(w, MARKER_REL)) && lstatSync(at(w, MARKER_REL)).isFile(), "the marker").toBe(true);
+  }, 240_000);
+
+  // M8 (plan 34.1-28, D-31, DI-09; D-33): the --migrate pre-check refuses an old layout before any change (the seeded
+  // config path is a directory, so the legacy config cannot be carried into it), and the migrate INCOMPLETE banner
+  // names the command that runs --migrate again for the agents this run chose. Fixed, that command run as printed from
+  // a scratch directory migrates the target whole. The expected command is built by agentCommand, so the line is also
+  // checked for builder-independent words (node, the absolute install.js of this checkout, the target, --migrate last),
+  // and the command is judged by its effect: the two-root marker exists, records the chosen agents, and the old
+  // in-repo kit is gone.
+  it("M8: the --migrate pre-check's INCOMPLETE banner names the builder's --migrate command; run as printed after the fix, it migrates the target", () => {
+    const w = world("m8");
+    makeOldLayoutFixture(w.target);
+    // The fixture's pre-existing Claude Code kit files differ from the kit source, so a migrate for Claude Code would also
+    // need --backup-edited-kit consent (a second refusal, asked only once the first is fixed). Without them the one
+    // refusal is the seeded config path.
+    rmSync(at(w, ".claude"), { recursive: true, force: true });
+    mkdirSync(at(w, ".grugops/factory.config.json"), { recursive: true });
+    const chosen = [hostOf("claude-kit"), hostOf("pi-prompt-template")];
+    const r = install(w, [...chosen.map(agentFlag), "--migrate"]);
+    expect(r.status, r.stdout + r.stderr).toBe(3);
+    expect(r.stdout, "premise: the pre-check refused before any change").toContain("nothing was migrated");
+    expect(r.stdout, "premise: the refusal is the seeded config path").toContain("factory.config.json a regular file (or remove it) and re-run --migrate.");
+    expect(existsSync(at(w, MARKER_REL)), "premise: no marker was written").toBe(false);
+    const lines = r.stdout.split("\n");
+    const at0 = lines.findIndex((l) => l.startsWith("== migrate INCOMPLETE — "));
+    expect(at0, r.stdout).toBeGreaterThan(-1);
+    const line = lines[at0 + 1] ?? "";
+    const want = agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.kitHome, home: w.home }), ["--migrate"]);
+    expect(line, "the migrate banner does not print the builder's --migrate command").toContain("`" + want + "`");
+    const words = printedCommand(line).split(" ");
+    expect(words[0], "the printed command sets no kit home (the world's is the default) and starts with node").toBe("node");
+    expect(words[1], "the script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
+    expect(words.slice(2, 4).join(" "), "the target").toBe(`--target ${w.target}`);
+    expect(words[words.length - 1], "the mode is --migrate").toBe("--migrate");
+    // The pre-check's "verify above" names no labelled line the reference check reads, so no reference is required.
+    expectReferences([["install --migrate (refused)", r]], false);
+    rmSync(at(w, ".grugops/factory.config.json"), { recursive: true, force: true });
+    const ran = runPrintedCommand(line, { home: w.home, timeoutMs: 180_000 });
+    expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+    expect(ran.premise.cwd.startsWith(REPO_ROOT), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(false);
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(existsSync(at(w, MARKER_REL)) && lstatSync(at(w, MARKER_REL)).isFile(), `the two-root marker was not written\n${ran.stdout}`).toBe(true);
+    expect(readMarkerObject(w.target).agents, "the marker records the agents the banner named").toEqual(chosen.map((h) => h.id));
+    expect(existsSync(at(w, "agent-factory/roles/orchestrator.md")), "the old in-repo kit is still live").toBe(false);
+    expect(readFileSync(at(w, ".grugops/factory.config.json"), "utf8"), "the legacy config was carried forward").toContain("OLD-USER-EDITED-CONFIG-KIT-LOCATION");
   }, 240_000);
 
   // M9 (plan 34.1-27, D-33, D-31): a doctor carrier remedy, run as printed, finishes the job. The expected command is

@@ -377,6 +377,16 @@ function doctorInstallCommand() {
 function doctorCheckCommand() {
     return agentCommand("install.js", TARGET, [], COMMAND_CONTEXT, ["--check"]);
 }
+/**
+ * THE --migrate SAME-RUN COMMAND (phase 34.1 gap round 2, D-31, DI-09; D-33): `agentCommand("install.js", TARGET,
+ * SELECTION, COMMAND_CONTEXT, ["--migrate"])`, the command that runs --migrate again for the agents this run chose, with
+ * this run's kit home and install mode. Every --migrate remedy that asks for a re-run prints it: both migrate
+ * INCOMPLETE banners (MIGRATE_AGAIN_LINE) and the handoffs backup's never-clobber abort. Called only under MIGRATE,
+ * after SELECTION is set.
+ */
+function migrateCommand() {
+    return agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT, ["--migrate"]);
+}
 // DOCTOR_NO_FLAG_CLAUSE: what install does with no agent flag, printed after doctorInstallCommand() by the remedies
 // whose marker is absent or one the doctor cannot use (notInstalled, markerUnreadable, the unbound-marker WARN). It
 // states SELECTION_WHY's chain in order: at a terminal the agent list (pickAgents); unattended, the agents a usable
@@ -2392,7 +2402,7 @@ function backupDir(target, label, origin) {
         // original in place untouched, and tell the human plainly. (isoStamp millisecond precision makes
         // a routine collision unlikely; this abort is the safety floor, not the common path.)
         report("aborted", `${label}: a backup named ${backup} already exists — leaving ${target} untouched to avoid overwriting it. ` +
-            `Move or remove the existing backup, then re-run --migrate.`);
+            `Move or remove the existing backup, then re-run --migrate: \`${migrateCommand()}\`.`);
         return false;
     }
     if (DRY_RUN) {
@@ -5145,6 +5155,15 @@ let MIGRATE_KIT_PLAN = null;
 // kit the human did not consent to refuses the whole migration, and so the prompt is asked once.
 let MIGRATE_KIT_WRITE = null;
 if (MIGRATE) {
+    // THE MIGRATE SAME-RUN COMMAND (phase 34.1 gap round 2, D-31, DI-09; D-33). Both migrate INCOMPLETE banners (the
+    // pre-check's and the already-migrated arm's) print this line, built once here: running --migrate again for the
+    // agents this run chose, by migrateCommand (agentCommand with this run's context: the absolute script path, GRUGOPS_HOME when this
+    // run used another kit home, and `--symlink` when it was a symlink install). A pre-check refusal changes nothing, so the
+    // target is still the old layout and this command, run as printed once the cause is fixed, migrates it whole. Before,
+    // the banner said only "re-run --migrate", and a flag-less --migrate over an old layout with no marker chooses its
+    // agents by detection, which may not be the agents this run named. Printed under DRY_RUN too.
+    const MIGRATE_AGAIN_LINE = `  Once each is fixed, \`${migrateCommand()}\` runs ` +
+        `--migrate again for the same agents (add any other option this run was given).`;
     const layout = detectOldLayout();
     // A --MIGRATE IS WHOLE OR NOT AT ALL, TOO (red-team B1 of plan 33.1-31, D-32, D-18). Everything the
     // migration can refuse before it changes anything is asked first: the legacy config carry and the
@@ -5185,6 +5204,7 @@ if (MIGRATE) {
                 `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`);
             console.log(`\n== migrate INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
                 `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+            console.log(MIGRATE_AGAIN_LINE);
             // A MID-SCRIPT EXIT, the seventh of the pinned count: the run must stop before the handoffs
             // backup and the install run below. Its output is a few kilobytes.
             process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
@@ -5208,6 +5228,7 @@ if (MIGRATE) {
         if (VERIFY_FINDINGS > 0) {
             console.log(`\n== migrate INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
                 `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+            console.log(MIGRATE_AGAIN_LINE);
         }
         else {
             console.log(layout.leftoverKit

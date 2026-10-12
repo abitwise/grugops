@@ -23,9 +23,9 @@ import { accessSync, constants as fsConstants, appendFileSync, existsSync, lstat
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { makeFixture, runInstall, runUninstall, snapshotTree, userModeEdit, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
+import { commandContextFor, makeFixture, runInstall, runUninstall, snapshotTree, userModeEdit, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
 import { allAskRules } from "./checkpoint-ask-rules.js";
-import { HOST_TOOLS, HOST_TOOL_COUNT, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, agentCommand, agentFlag } from "./host-tools.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gclose-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -391,6 +391,16 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     const verifies = verifyLines(r.stdout);
     expect(verifies.length, r.stdout).toBeGreaterThan(0);
     expect(lastBanner(r.stdout), r.stdout).toBe(`== migrate INCOMPLETE — ${verifies.length} item(s) need verification ==`);
+    // Plan 34.1-28 (D-31, DI-09; D-33): the line after the banner names the command that runs --migrate again for the
+    // agents this run chose (runInstall names every registry agent), built by agentCommand with this run's context: the
+    // kit home is not the default one, so the command carries GRUGOPS_HOME. Builder-independent words are checked too.
+    const lines = r.stdout.split("\n");
+    const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
+    const want = agentCommand("install.js", target, HOST_TOOLS, commandContextFor({ grugopsHome: kitHome, home }), ["--migrate"]);
+    expect(after, r.stdout).toContain("`" + want + "`");
+    expect(after, "the line names the mode it runs again").toContain(" runs --migrate again for the same agents");
+    expect(want.startsWith(`GRUGOPS_HOME=${kitHome} node `), want).toBe(true);
+    expect(want.endsWith(` --migrate`), want).toBe(true);
     expect(r.stdout, r.stdout).not.toMatch(NO_CHANGE_SENTENCE);
     expect(r.status, r.stdout).toBe(3);
     expect(snapBoth(target, kitHome)).toBe(before);
