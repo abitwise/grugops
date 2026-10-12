@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: "34.1"
-current_phase_name: Per-agent installer
+current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-13-PLAN.md
-last_updated: "2026-10-12T06:30:52.044Z"
-state_head: 680a4cfbdd8ae05174ab5a31878a2c27d9baec9c
+stopped_at: Completed 34.1-14-PLAN.md
+last_updated: "2026-10-12T07:22:59.299Z"
+state_head: b9a10559cde3af03b25857f8afea94a3c388cf3f
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 409
-  completed_plans: 404
+  completed_plans: 405
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -26,12 +26,12 @@ last_activity_desc: "Phase 33 CLOSED by human override D-33-R4-08 after round-4 
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 34.1 — Per-agent installer
+**Current focus:** Phase 34.1 — Per-agent installer (INSERTED)
 
 ## Current Position
 
-Phase: 34.1 (Per-agent installer) — READY TO EXECUTE
-Plan: 13 of 18 (gap round 1 of 4 planned: 34.1-14..18, D-26..D-30)
+Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING
+Plan: 14 of 18 (gap round 1 of 4: 34.1-14 complete; next 34.1-15)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -665,6 +665,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P11 | 45min | 3 tasks | 7 files |
 | Phase 34.1 P12 | 55min | 2 tasks | 13 files |
 | Phase 34.1 P13 | 38min | 3 tasks | 11 files |
+| Phase 34.1 P14 | 41min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -1833,6 +1834,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-12: render counts screen lines against the terminal width (the 116-character header wraps at 80 columns)
 - [Phase 34.1]: 34.1-13: the D-21 Codex invocation rule is held per sentence by install/host-entry-docs.test.ts (derived from HOST_TOOLS); sentences that must mention the shared skill name the flags --codex/--antigravity
 - [Phase 34.1]: 34.1-13: two unreleased install-side Gemini CHANGELOG Fixed lines made false by D-12 were removed; no released section changed
+- [Phase 34.1]: 34.1-14: agentsToRecord (install-marker.ts) is the one derivation of the marker agents field for install and every uninstall kept arm; an agent stays recorded while it owns a held entry (D-26, D-29)
+- [Phase 34.1]: 34.1-14: a partial uninstall never prints the flag-less command; finishCommand names the unfinished agents, or this run's own flags (DI-07 deferred)
 
 ### Pending Todos
 
@@ -1963,8 +1966,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-12T04:07:05.430Z
-Stopped at: Completed 34.1-13-PLAN.md
+Last session: 2026-10-12T07:22:50.934Z
+Stopped at: Completed 34.1-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
