@@ -22,6 +22,8 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   floor and a moved `BANNED_CLAIM_SCAN_COUNT`, as `.claude/` and `.claude-plugin/` were admitted. That
   touches the gate's test harness (mirror plants, part overrides, PASS-line arithmetic), which is why
   it was not done inside plan 34.1-01.
+- Decided (D-28, human, 2026-10-12): the three generated host entries keep their by-name exclusion from the
+  banned-claims gate; 0 occurrences measured 2026-10-11; no plan admits them as a derived part.
 
 ### DI-02: plan 34.1-02 names the template path `host-entry.template.md`; the file is `host-entry.pointer.md`
 
@@ -128,3 +130,32 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   file with the recorded mode) through the same oracle path as the main arm; otherwise name the file on a `left` line
   with a by-hand remedy. Read from the code, not reproduced.
 - **Not fixed:** kept deferred by D-30; human triage.
+
+## From plan 34.1-18 (gap round 1)
+
+### DI-10: five test comments still say a whole-file host entry is written "on every install"
+
+- **Found during:** plan 34.1-17, task 2 (the IN-19 search, which covers install/install.ts only); recorded here by
+  plan 34.1-18.
+- **What:** install/installer-cross-version.test.ts ~36, install/installer-never-installed.test.ts ~96,
+  install/installer-special-files.test.ts ~91, install/installer-user-edit.test.ts ~135 and
+  install/ledger-provenance.test.ts ~101 say install writes every whole-file host entry "on every install". Since the
+  per-agent selection, install writes only the entries of the chosen agents (writeWholeFileEntry's header, IN-19). Each
+  comment is a dated count re-pin note from plan 34.1-01 that records what was true when the count moved; no test
+  asserts the sentence.
+- **Not fixed:** outside plan 34.1-18's files (it writes closing records only). Options for triage: reword each note to
+  "every whole-file host entry of the chosen agents", or leave them as dated history.
+
+## Status after gap round 1 (plans 34.1-14 to 34.1-18)
+
+- **DI-01:** decided (D-28): the by-name exclusion stays; scripts/check-banned-claims.ts is unchanged by this round.
+- **DI-02:** resolved in plan 34.1-02 (the gate reads `TEMPLATE_REL`); nothing left.
+- **DI-03:** still open. The five Node 26 reds are reported again by plan 34.1-18's full regression; whether CI on
+  Node 22 shows them is `UNKNOWN - verify`.
+- **DI-04:** closed by plan 34.1-13 (commit ac790deb).
+- **DI-05:** open for human triage (kept deferred by D-30, recorded by plan 34.1-16).
+- **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822). It was never a deferred-items entry.
+- **DI-07:** open for human triage (recorded by plan 34.1-14).
+- **DI-08:** open for human triage (recorded by plan 34.1-15).
+- **DI-09:** open for human triage (recorded by plan 34.1-15).
+- **DI-10:** open for human triage (recorded by plan 34.1-18, found by plan 34.1-17).
