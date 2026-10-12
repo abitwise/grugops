@@ -802,6 +802,8 @@ record first, as described below.
   or restored the file. Until then the closing line names the agent as not finished, for example
   `== uninstall complete — 1 recorded item(s) left in place; .grugops/install.json kept to record
   them — agents removed: none; not finished, still recorded: Claude Code; still installed: Codex CLI ==`.
+  To keep the edited file instead, take its entry out of the `ledger` list in `.grugops/install.json`
+  by hand and run the printed command; never delete the marker, which still records the agents that stay.
 - **A flag-less uninstall that leaves a recorded file prints the flag-less command.** The agents
   that own the file stay recorded; a file no agent owns (the kit's `AGENTS.md` copy, `tools/grugops/`)
   keeps no agent recorded. Run the printed command once the file is removed or restored.
@@ -978,8 +980,11 @@ Either way the kept marker is rewritten to list only what is still there: what t
 removed or reversed is taken out of it, so a later run cannot act on a record of it. Fix the cause,
 or remove or restore the file a `left` line names, and run the command the run printed (the `left`
 line about the marker and the closing lines name it, with your `--target` and the agent flags still
-to finish): it finishes the reversal, and it removes the marker once the marker records nothing more. To keep an edited file for good, delete `.grugops/install.json`
-by hand after the run; the uninstaller then has no record and changes nothing more. A `CLAUDE.md` or
+to finish): it finishes the reversal, and it removes the marker once the marker records nothing more. After a flag-less
+uninstall, delete `.grugops/install.json` by hand to keep the edited file for good; the uninstaller then has no record and
+changes nothing more. After an uninstall with agent flags, never delete it: it is still the record of the agents that
+stay. Take the edited file's entry out of the `ledger` list in `.grugops/install.json` by hand, then run the command the
+run printed; it finishes removing the agent and leaves your file. A `CLAUDE.md` or
 Copilot file install created, whose grugops block was removed and which still holds lines of yours,
 does not keep the marker: what is left in it is yours. Directories and backups install recorded do
 not keep the marker either. A directory holds nothing of install's own (its files are their own

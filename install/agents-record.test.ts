@@ -587,6 +587,34 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     expect(markerGone(w), last.stdout).toBe(true);
     expect(readFileSync(at(w.target, AGENT_SKILL_REL)).equals(edited), `the user's edited skill was not kept\n${last.stdout}`).toBe(true);
   });
+
+  it("R20 (FULL kept): a flag-less uninstall over an edited Claude Code skill offers deleting the marker; deleted, the file stays and a further flag-less uninstall changes nothing of it", () => {
+    const w = world("r20");
+    install(w, [flag("claude")]);
+    edit(w, CLAUDE_SKILL);
+    const edited = readFileSync(at(w.target, CLAUDE_SKILL));
+
+    const r = uninstall(w, []);
+    expect(r.status, r.stdout).toBe(0);
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude"));
+    expectInvariant(w, ids("claude"), r.stdout);
+    const line = keptMarkerLine(r.stdout);
+    const banner = keptBannerLine(r.stdout);
+    expect(line.length, `no kept \`left\` line about the marker\n${r.stdout}`).toBe(1);
+    expect(banner.length, `no KEPT_FOR banner\n${r.stdout}`).toBe(1);
+    expect(line[0], r.stdout).toContain("or delete the marker by hand to keep them without a record");
+    expect(banner[0], r.stdout).toContain(`delete ${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more)`);
+    expect(r.stdout, "a FULL run says the marker must not be deleted").not.toContain("never delete");
+    expect(r.stdout, "a FULL run names a per-entry ledger edit").not.toContain("out of the install ledger");
+
+    // Follow the printed alternative: delete the marker by hand.
+    rmSync(at(w.target, MARKER_REL));
+    expect(readFileSync(at(w.target, CLAUDE_SKILL)).equals(edited), "the edited skill is not in place").toBe(true);
+    const again = uninstall(w, []);
+    expect(again.status, again.stdout).toBe(0);
+    expect(markerGone(w), again.stdout).toBe(true);
+    expect(readFileSync(at(w.target, CLAUDE_SKILL)).equals(edited), `the further uninstall changed the edited skill\n${again.stdout}`).toBe(true);
+  });
 });
 
 // ── the marker-writer census (TypeScript parser) ─────────────────────────────────────────────────────────────────
