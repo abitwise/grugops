@@ -262,6 +262,10 @@ function heldEntries() {
         return o === undefined || !DISCHARGED.has(o);
     });
 }
+/** The paths of the entries still holding the marker (heldEntries), once each, sorted: what the kept `left` line names. */
+function heldPaths() {
+    return [...new Set(heldEntries().map((e) => e.path))].sort();
+}
 /** True only when the marker's record is discharged: no recorded verify, and no entry still holds it. */
 function markerDischarged() {
     return RECORDED_VERIFIES === 0 && heldEntries().length === 0;
@@ -1420,7 +1424,7 @@ function removeMarker() {
         return { kind: "kept-for-agents", rewrite: updateKeptMarker(m, MARKER.marker, MARKER.bytes) };
     }
     if (!markerDischarged()) {
-        const held = [...new Set(heldEntries().map((e) => e.path))].sort();
+        const held = heldPaths();
         const why = held.length > 0
             ? `${held.length} recorded item(s) are still in place (${held.join(", ")})`
             : "this run could not finish a recorded reversal (see the verify lines above)";
@@ -1432,8 +1436,10 @@ function removeMarker() {
             : "";
         // With nothing held, the marker was kept for a recorded verify: the remedy is the cause the verify line names.
         const once = held.length > 0 ? "once each named item is removed or restored" : "once the cause in each verify line above is fixed";
+        // D-32 (CR-03): the alternative to finishing is keepWithoutRecord's, the one wording the KEPT_FOR banner asks too.
+        const keep = keepWithoutRecord(held);
         report("left", `${MARKER_REL} (kept: ${why}, so the record a later run needs to finish the reversal is kept; ${recorded}${once}, ` +
-            `\`${finishCommand()}\` finishes the reversal; or delete the marker by hand to keep them without a record)`);
+            `\`${finishCommand()}\` finishes the reversal${keep === "" ? "" : `; ${keep}`})`);
         if (RECORDED_VERIFIES === 0)
             KEPT_FOR = held.length;
         return { kind: "kept", rewrite: updateKeptMarker(m, MARKER.marker, MARKER.bytes) };
@@ -2279,6 +2285,34 @@ function finishCommand() {
         return agentCommand("uninstall.js", TARGET, []);
     return agentCommand("uninstall.js", TARGET, hostsOf(UNFINISHED.length > 0 ? UNFINISHED : NAMED));
 }
+/**
+ * keepWithoutRecord (plan 34.1-19, D-32; brief §4, CR-03): THE ONE WORDING of the alternative to finishing a kept
+ * reversal, asked by the kept `left` line in removeMarker (`where` "line") and by the KEPT_FOR closing banner
+ * (`where` "banner"), so the two cannot word the rule two ways. The rule: no printed alternative removes the record of
+ * an agent that stays installed.
+ *   - FULL run: no agent stays installed, so deleting the marker by hand keeps the `held` items without a record, and
+ *     uninstall then changes nothing more. This branch is the only place the delete-the-marker text is written.
+ *   - Partial run with `held` items: the marker is still the record of the agents that stay (STAYING); deleting it would
+ *     leave them with nothing a later uninstall can reverse. The by-hand alternative is per entry: take each held
+ *     entry out of the install ledger, then run finishCommand, which finishes the agents this run set out to remove
+ *     and leaves the user's file (its entry is gone from the record).
+ *   - Partial run with nothing held (the marker was kept for a recorded verify): the empty string. Nothing edited is
+ *     there to keep, and the remedy is the cause the verify line names.
+ */
+function keepWithoutRecord(held, where = "line") {
+    if (FULL) {
+        return where === "line"
+            ? "or delete the marker by hand to keep them without a record"
+            : `or, to keep them, delete ${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more)`;
+    }
+    if (held.length === 0)
+        return "";
+    const one = held.length === 1;
+    const then = where === "line" ? `, then run \`${finishCommand()}\`` : " and run that command";
+    const marker = where === "line" ? "the marker" : MARKER_REL;
+    return (`or, to keep ${one ? "it" : "them"}, take ${one ? "its entry" : "their entries"} out of the install ledger in ` +
+        `${MARKER_REL} by hand${then}; never delete ${marker}: it is still the record of ${nameList(STAYING)}`);
+}
 if (REMOVE.size > 0) {
     console.log(`agents to remove: ${nameList(NAMED)}`);
     for (const host of HOST_TOOLS) {
@@ -2459,8 +2493,11 @@ else if (KEPT_FOR > 0) {
     // banner says so on the same branch, with the two ways forward.
     console.log(`\n== uninstall complete — ${KEPT_FOR} recorded item(s) left in place; ${MARKER_REL} kept to record them${AGENTS_CLAUSE}` +
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
-    console.log(`  To finish: remove or restore what the \`left\` lines name, then run \`${finishCommand()}\`; or, to keep them, ` +
-        `delete ${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more).`);
+    // D-32 (CR-03): the alternative is keepWithoutRecord's, the one wording the kept `left` line asks too. On a partial
+    // run it never offers deleting the marker, which still records the agents that stay.
+    const keep = keepWithoutRecord(heldPaths(), "banner");
+    console.log(`  To finish: remove or restore what the \`left\` lines name, then run \`${finishCommand()}\`` +
+        `${keep === "" ? "" : `; ${keep}`}.`);
 }
 else {
     console.log(`\n== uninstall complete${AGENTS_CLAUSE}${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);

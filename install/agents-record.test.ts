@@ -513,6 +513,82 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
   });
 });
 
+// ── D-32: printed alternatives that touch the marker or its ledger (CR-03) ───────────────────────────────────────────
+//
+// The rule (34.1-GAP-PLANNING-BRIEF.md §4): every remedy the installer prints, by-hand alternatives included, leaves
+// every staying agent reversible. uninstall.ts keepWithoutRecord is the one wording of the alternative to finishing a
+// kept reversal, asked by the kept `left` line and the KEPT_FOR banner. R19 holds its partial branch by following the
+// printed alternative and then removing the staying agent; R20 holds its FULL branch.
+
+/** The kept `left` line about the marker (removeMarker's kept arm). */
+const keptMarkerLine = (stdout: string): string[] => linesWith(stdout, "left").filter((l) => l.includes(`${MARKER_REL} (kept:`));
+/** The KEPT_FOR banner's second line. */
+const keptBannerLine = (stdout: string): string[] => stdout.split("\n").filter((l) => l.startsWith("  To finish:"));
+
+describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)", () => {
+  it("R19 (CR-03, partial): uninstall --codex over an edited shared skill never offers deleting the marker; following the printed alternative records [claude] and keeps the file; uninstall --claude then removes Claude Code", () => {
+    const w = world("r19");
+    install(w, [flag("claude"), flag("codex")]);
+    const ask = ledgerEntries(w).find((e) => e.kind === "ask-rules") as { added?: readonly string[]; createdFile?: boolean } | undefined;
+    expect(ask, "PREMISE: install recorded Claude Code's ask rules").toBeDefined();
+    const original = edit(w, AGENT_SKILL_REL);
+    const edited = readFileSync(at(w.target, AGENT_SKILL_REL));
+    expect(edited.equals(original), "PREMISE: the edit changed the shared skill").toBe(false);
+
+    const r = uninstall(w, [flag("codex")]);
+    expect(r.status, r.stdout).toBe(0);
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+    expectInvariant(w, ids("claude", "codex"), r.stdout);
+    const line = keptMarkerLine(r.stdout);
+    const banner = keptBannerLine(r.stdout);
+    expect(line.length, `no kept \`left\` line about the marker\n${r.stdout}`).toBe(1);
+    expect(banner.length, `no KEPT_FOR banner\n${r.stdout}`).toBe(1);
+    expect(line[0], r.stdout).toContain("never delete the marker");
+    expect(banner[0], r.stdout).toContain(`never delete ${MARKER_REL}`);
+    for (const l of [line[0], banner[0]]) {
+      expect(l, `the line does not name the agent the marker still records\n${r.stdout}`).toContain(`it is still the record of ${row("claude").name}`);
+      expect(l, r.stdout).toContain("out of the install ledger");
+    }
+    expect(r.stdout, "a partial run offers deleting the marker").not.toContain("delete the marker by hand to keep");
+    expect(r.stdout, "a partial run offers deleting the marker").not.toContain(`delete ${MARKER_REL} by hand`);
+
+    // Follow the printed alternative: take the held entry out of the ledger by hand, then run the printed command.
+    const markerPath = at(w.target, MARKER_REL);
+    let taken = 0;
+    const next = withLedger(readMarkerObject(w.target), (es) =>
+      es.filter((e) => {
+        const drop = e.path === AGENT_SKILL_REL && e.kind === "file";
+        if (drop) taken++;
+        return !drop;
+      }),
+    );
+    expect(taken, "PREMISE: the ledger held exactly one file entry for the shared skill").toBe(1);
+    writeFileSync(markerPath, JSON.stringify(next, null, 2) + "\n");
+    expect(printedFlags(r.stdout), r.stdout).toEqual([flag("codex")]);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.status, fin.stdout).toBe(0);
+    expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
+    expect(readFileSync(at(w.target, AGENT_SKILL_REL)).equals(edited), `the user's edited skill was not kept\n${fin.stdout}`).toBe(true);
+    expectInvariant(w, ids("claude", "codex"), fin.stdout);
+
+    // The staying agent is still reversible.
+    const last = uninstall(w, [flag("claude")]);
+    expect(last.status, last.stdout).toBe(0);
+    for (const rel of [".claude/agents", ".claude/skills"]) {
+      expect(existsSync(at(w.target, rel)), `${rel} is still there\n${last.stdout}`).toBe(false);
+    }
+    const settings = at(w.target, ASK_RULES_REL);
+    if (ask?.createdFile === true) {
+      expect(existsSync(settings), `install created ${ASK_RULES_REL}, and it is still there\n${last.stdout}`).toBe(false);
+    } else if (existsSync(settings)) {
+      const text = readFileSync(settings, "utf8");
+      for (const rule of ask?.added ?? []) expect(text, `install's ask rule ${rule} is still there\n${last.stdout}`).not.toContain(rule);
+    }
+    expect(markerGone(w), last.stdout).toBe(true);
+    expect(readFileSync(at(w.target, AGENT_SKILL_REL)).equals(edited), `the user's edited skill was not kept\n${last.stdout}`).toBe(true);
+  });
+});
+
 // ── the marker-writer census (TypeScript parser) ─────────────────────────────────────────────────────────────────
 
 /** A parsed product module. */
