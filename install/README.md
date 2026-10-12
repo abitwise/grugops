@@ -555,6 +555,29 @@ The `reach` lines report what the files say, not a run of the host. Whether a li
 `UNKNOWN - verify` until a run on that host shows it; those runs are backlog item 999.4 in
 `.planning/ROADMAP.md`.
 
+### Using grugops on Codex CLI
+
+Install Codex CLI itself; grugops does not install it. An install that chooses Codex CLI (`--codex`)
+writes `.agents/skills/grugops/SKILL.md`, a skill. Codex CLI reads repository skills from
+`.agents/skills/`, and a skill is not a slash command there: type `$grugops <request>` to mention the
+skill, or pick `grugops` from the `/skills` list. (Source: learn.chatgpt.com/docs/build-skills,
+retrieved 2026-10-11.)
+
+The skill is a pointer, with no role text: it sends Codex to `AGENTS.md` and then
+`agent-factory/roles/orchestrator.md`, and it names the kit route, the `kitRoot` field of
+`.grugops/install.json` (see "How a host finds the kit after a scripted install" above). Codex CLI also
+reads `AGENTS.md` itself, and the kit's `AGENTS.md` carries the same route.
+
+- **What is not known.** Whether Codex CLI asks for project trust before it loads a repository skill
+  is `UNKNOWN - verify`: its skills documentation says nothing about it. Whether Codex follows the
+  route to the Orchestrator on a live run is `UNKNOWN - verify` until the live run queued as a human
+  check for phase 34.1 passes (`.planning/phases/34.1-per-agent-installer/34.1-VALIDATION.md`,
+  "Manual-Only Verifications").
+- **The same file serves Antigravity CLI.** Antigravity CLI reads `.agents/skills/` too, so an install
+  for either agent writes the one file, and uninstalling one of them keeps it while the other is still
+  installed (see "Removing one agent" under Undo).
+- **Safety on Codex CLI** is in §5, "Other tools": the git host is the hard floor there.
+
 ### Using grugops on Pi
 
 Install Pi itself from [pi.dev](https://pi.dev); grugops does not install it. Start Pi from the
