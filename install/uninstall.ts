@@ -1828,14 +1828,36 @@ function updateKeptMarker(m: string, marker: Readonly<Record<string, unknown>>, 
 // install created is deleted only when what is left is byte for byte what the same edit leaves of the file install
 // writes (createdOpenCodeText) and its mode is the one install recorded; otherwise it is rewritten and kept.
 //
-// Anything else edits nothing: `external_directory` changed since install left it (a rule the user added: the
-// recorded rule can no longer be shown to be install's) is `left`, with the reason; a file that is not a strict JSON
-// object, has a duplicate key or another shape is `left`; a path that is a link or a special file is a counted
-// verify (the reversal could not be finished). A rule already gone, or a file already gone, is `gone`. Decided before
-// the DRY_RUN branch, so the preview reaches the real run's answer.
+// THE RULE-GONE ARM (plan 34.1-16, review IN-20, brief CLEAN-1): when the recorded rule is no longer in the file (the
+// user took it out), install's scaffolding around it is still install's. When the record says install created
+// `external_directory`, `permission` or the file, the same splice and THE ORACLE run without the rule step: each
+// container install created goes once it is an object with no member left, the file install created goes once what is
+// left is byte for byte install's own emptied file with the recorded mode, and the rewrite and the delete are the same
+// two calls the main path makes. A container install did not create (createdExternalDirectory or createdPermission
+// false), a container holding the user's key or another rule, and a `permission` that is no longer an object all stay,
+// so the file comes back unchanged and the entry is `gone` with its `skipped` line. A record that says install created
+// nothing around the rule is `gone` at once.
+//
+// Anything else edits nothing: `external_directory` changed since install left it while the rule is still there (a
+// rule the user added: the recorded rule can no longer be shown to be install's) is `left`, with the reason; a file
+// that is not a strict JSON object or has a duplicate key is `left`; a path that is a link or a special file is a
+// counted verify (the reversal could not be finished). A file already gone is `gone`. Decided before the DRY_RUN
+// branch, so the preview reaches the real run's answer and writes nothing.
 
-/** The text left once the recorded rule (and the containers install created, when empty) is taken out, or null. */
-function strippedOpenCodeText(text: string, led: { readonly pattern: string; readonly createdPermission: boolean; readonly createdExternalDirectory: boolean }): string | null {
+/** What install created around the recorded rule, as the reversal asks it (the opencode-permission entry's fields). */
+interface OpenCodeScope {
+  readonly pattern: string;
+  readonly createdPermission: boolean;
+  readonly createdExternalDirectory: boolean;
+}
+
+/**
+ * The text left once the recorded rule (when it is still there) and each container install created that is then
+ * empty are taken out, or null when the text is not a JSON object. A member that is absent, a container that is not
+ * an object and a container install did not create are left as they are, so a file with nothing of install's left in
+ * it comes back unchanged (plan 34.1-16, review IN-20).
+ */
+function strippedOpenCodeText(text: string, led: OpenCodeScope): string | null {
   const step = (t: string): { root: JsonNode; perm: JsonNode | null; ext: JsonNode | null } | null => {
     const d = readJsonText(Buffer.from(t, "utf8"));
     if (!d.ok || d.root.kind !== "object") return null;
@@ -1845,10 +1867,13 @@ function strippedOpenCodeText(text: string, led: { readonly pattern: string; rea
   };
   const indexOf = (node: JsonNode, key: string): Set<number> => new Set([node.kind === "object" ? node.members.findIndex((m) => m.key === key) : -1]);
   let s1 = step(text);
-  if (s1 === null || s1.ext === null || s1.ext.kind !== "object") return null;
-  let out = removeItems(text, s1.ext, indexOf(s1.ext, led.pattern));
-  s1 = step(out);
   if (s1 === null) return null;
+  let out = text;
+  if (s1.ext !== null && memberNamed(s1.ext, led.pattern) !== null) {
+    out = removeItems(out, s1.ext, indexOf(s1.ext, led.pattern));
+    s1 = step(out);
+    if (s1 === null) return null;
+  }
   if (led.createdExternalDirectory && s1.perm !== null && s1.ext !== null && s1.ext.kind === "object" && s1.ext.members.length === 0) {
     out = removeItems(out, s1.perm, indexOf(s1.perm, "external_directory"));
     s1 = step(out);
@@ -1891,45 +1916,86 @@ function removeOpenCodePermission(): Outcome {
   const permAt = memberNamed(doc.root, "permission");
   const extAt = permAt === null || permAt.value.kind !== "object" ? null : memberNamed(permAt.value, "external_directory");
   const extNow = extAt === null || extAt.value.kind !== "object" ? undefined : (valueOf(doc.text, extAt.value) as Record<string, unknown>);
-  if (extNow === undefined || !Object.prototype.hasOwnProperty.call(extNow, led.pattern)) {
-    report("skipped", `${rel} (${rule} in the install ledger is not there any more — nothing to remove)`);
+  const ruleGone = extNow === undefined || !Object.prototype.hasOwnProperty.call(extNow, led.pattern);
+  const nothingLeftLine = (why: string): Outcome => {
+    report("skipped", `${rel} (${rule} in the install ledger is not there any more — nothing to remove${why})`);
     return "gone";
-  }
-  if (jsonValueRecord(extNow) !== led.content) {
+  };
+  // THE RULE-GONE ARM (plan 34.1-16, review IN-20, brief CLEAN-1 and DC-2): a record that says install created
+  // nothing around the rule has nothing more to reverse.
+  if (ruleGone && !led.createdFile && !led.createdPermission && !led.createdExternalDirectory) return nothingLeftLine("");
+  if (!ruleGone && jsonValueRecord(extNow) !== led.content) {
     return leftAs("its permission.external_directory is not the one install left there (a rule was added or changed since)");
   }
-  // The value the edit must leave (THE ORACLE), computed without touching the parsed document.
+  // THE SCOPE of the edit, asked by THE ORACLE and by the splice alike: the recorded rule and the containers the
+  // record says install created. A container install did not create is never taken out.
+  const scope: OpenCodeScope = { pattern: led.pattern, createdPermission: led.createdPermission, createdExternalDirectory: led.createdExternalDirectory };
+  // The value the edit must leave (THE ORACLE), computed without touching the parsed document: the recorded rule,
+  // when present, goes; then `external_directory` when install created it, it is an object and it is empty; then
+  // `permission` likewise. Anything that is not an object, and anything holding a key, stays.
+  const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
   const expected = documentValue(doc) as Record<string, unknown>;
-  const perm = { ...(expected.permission as Record<string, unknown>) };
-  const ext = { ...extNow };
-  delete ext[led.pattern];
-  perm.external_directory = ext;
-  if (led.createdExternalDirectory && Object.keys(ext).length === 0) delete perm.external_directory;
-  expected.permission = perm;
-  if (led.createdPermission && Object.keys(perm).length === 0) delete expected.permission;
-  const newText = strippedOpenCodeText(doc.text, led);
+  const removedContainers: string[] = [];
+  if (isObject(expected.permission)) {
+    const perm = { ...expected.permission };
+    if (isObject(perm.external_directory)) {
+      const ext = { ...perm.external_directory };
+      delete ext[scope.pattern];
+      perm.external_directory = ext;
+      if (scope.createdExternalDirectory && Object.keys(ext).length === 0) {
+        delete perm.external_directory;
+        removedContainers.push("`external_directory`");
+      }
+    }
+    expected.permission = perm;
+    if (scope.createdPermission && Object.keys(perm).length === 0) {
+      delete expected.permission;
+      removedContainers.push("`permission`");
+    }
+  }
+  const newText = strippedOpenCodeText(doc.text, scope);
   const check = newText === null ? null : readJsonText(Buffer.from(newText, "utf8"));
+  // What this run takes out, as the lines name it: the rule, or (rule gone) the empty containers install created.
+  const containers =
+    removedContainers.length === 2
+      ? "the empty `external_directory` and `permission` objects install created"
+      : removedContainers.length === 1
+        ? `the empty ${removedContainers[0]} object install created`
+        : "the empty containers install created";
+  const subject = !ruleGone
+    ? `${rule} grugops added`
+    : removedContainers.length === 0
+      ? `${rule} in the install ledger was already gone`
+      : `${containers}; ${rule} in the install ledger was already gone`;
   if (newText === null || check === null || !check.ok || !sameJsonValue(documentValue(check), expected)) {
-    verify(`${rel} could not be edited in place without changing anything but ${rule} — left untouched; the rule was NOT removed. Remove it by hand.`);
+    verify(
+      ruleGone
+        ? `${rel} could not be edited in place without changing anything but ${containers} — left untouched; they were NOT removed. Remove them by hand.`
+        : `${rel} could not be edited in place without changing anything but ${rule} — left untouched; the rule was NOT removed. Remove it by hand.`,
+    );
     return "verify";
   }
   // "EMPTY" MEANS INSTALL'S OWN EMPTIED FILE, EXACTLY, AND ITS MODE (removeAskRules' rule).
-  const emptied = strippedOpenCodeText(createdOpenCodeText(led.pattern), led);
+  const emptied = strippedOpenCodeText(createdOpenCodeText(led.pattern), scope);
   const modeKept = modeMatches(led.fileMode, read.mode);
   const emptyAsInstalled = led.createdFile && newText === emptied;
   const deleteFile = emptyAsInstalled && modeKept;
   const modeNote = led.fileMode === undefined ? `; ${NO_MODE_NOTE}` : "";
   const keptWhy = emptyAsInstalled && !modeKept ? `; grugops created the file, but its file mode is ${modeText(read.mode)}, not the ${led.fileMode} install wrote, so the file was kept` : "";
+  // Rule gone and nothing of install's left to take out: the file stays as it is (its own words say why when it is
+  // install's emptied file with another mode).
+  if (ruleGone && !deleteFile && newText === doc.text) return nothingLeftLine(keptWhy);
   if (DRY_RUN) {
-    report("would-remove", `${rel} (${rule} grugops added${deleteFile ? `; the file grugops created would be deleted${modeNote}` : `; every other byte would be preserved${keptWhy}`})`);
+    report("would-remove", `${rel} (${subject}${deleteFile ? `; the file grugops created would be deleted${modeNote}` : `; every other byte would be preserved${keptWhy}`})`);
     if (deleteFile) markGone(f);
     return deleteFile ? "removed" : "reversed";
   }
   if (deleteFile) {
-    return unlinkPath(f, rel, `${rel} (${rule} grugops added; grugops created the file and it is now empty as install wrote it${modeNote})`) ? "removed" : "verify";
+    return unlinkPath(f, rel, `${rel} (${subject}; grugops created the file and it is now empty as install wrote it${modeNote})`) ? "removed" : "verify";
   }
-  if (!rewritePath(f, newText, rel, `remove ${JSON.stringify(led.pattern)} from permission.external_directory by hand.`)) return "verify";
-  report("removed", `${rel} (${rule} grugops added; every other byte preserved${keptWhy})`);
+  const byHand = ruleGone ? `remove ${containers} from ${rel} by hand.` : `remove ${JSON.stringify(led.pattern)} from permission.external_directory by hand.`;
+  if (!rewritePath(f, newText, rel, byHand)) return "verify";
+  report("removed", `${rel} (${subject}; every other byte preserved${keptWhy})`);
   return "reversed";
 }
 

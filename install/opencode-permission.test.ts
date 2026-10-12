@@ -18,7 +18,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSy
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { OPENCODE_CONFIG_REL, agentCommand, agentFlag, HOST_TOOLS } from "./host-tools.js";
-import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, snapshotTree, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
 
 const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "grugops-ocperm-")));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -371,5 +371,92 @@ describe("OpenCode kit-read permission: the other-kit-root note names both comma
     expect(notes[0].indexOf(un), "the uninstall command comes first").toBeLessThan(notes[0].indexOf(inst));
     expect(notes[0]).not.toContain("re-run the installer");
     expect(bytesOf(r.target)?.toString("base64"), "opencode.json changed").toBe(before?.toString("base64"));
+  });
+});
+
+// ── IN-20 (phase 34.1 gap round 1, D-26, brief CLEAN-1 and 33.1 DC-2): the rule is already gone ───────────────────────
+// The user took the recorded rule out of opencode.json and left the containers around it. Uninstall still reverses
+// what install created, by record: `external_directory` and `permission` go when the entry says install created them
+// and they are empty objects, the file install created goes when what is left is byte for byte install's own emptied
+// file with the recorded mode, and a user's key, another rule, a container install did not create, or a `permission`
+// that is no longer an object keeps every byte. DRY_RUN changes nothing and names what it would take out.
+describe("IN-20: the rule is already gone (D-26)", () => {
+  const json = (v: unknown): string => JSON.stringify(v, null, 2) + "\n";
+  const markerGoneOrNoEntry = (target: string): boolean =>
+    !existsSync(join(target, ...MARKER_REL.split("/"))) || openCodeEntries(target).length === 0;
+  const CONTAINERS = "the empty `external_directory` and `permission` objects install created";
+
+  it("(a) tracer: install created opencode.json, the user removed only the rule; uninstall --opencode removes install's containers and the file goes", () => {
+    const r = row();
+    const i = install(r);
+    expect(i.status, i.stdout + i.stderr).toBe(0);
+    expect(openCodeEntries(r.target)[0]?.createdFile).toBe(true);
+    writeFileSync(fileOf(r.target), json({ permission: { external_directory: {} } }));
+    const u = uninstall(r, [OPENCODE_FLAG]);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(linesFor(u.stdout, "left"), u.stdout).toEqual([]);
+    const after = bytesOf(r.target);
+    if (after !== null) expect(Object.prototype.hasOwnProperty.call(JSON.parse(after.toString("utf8")), "permission"), u.stdout).toBe(false);
+    expect(markerGoneOrNoEntry(r.target), u.stdout).toBe(true);
+  });
+
+  it("(b) a user key beside the containers: the containers go, the user's key and the file stay", () => {
+    const r = row();
+    expect(install(r).status).toBe(0);
+    writeFileSync(fileOf(r.target), json({ theme: "x", permission: { external_directory: {} } }));
+    const u = uninstall(r, [OPENCODE_FLAG]);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(fileOf(r.target)), "the file holding the user's key was deleted").toBe(true);
+    expect(JSON.parse(readFileSync(fileOf(r.target), "utf8"))).toEqual({ theme: "x" });
+    const removed = linesFor(u.stdout, "removed");
+    expect(removed.length, u.stdout).toBe(1);
+    expect(removed[0]).toContain(CONTAINERS);
+    expect(markerGoneOrNoEntry(r.target), u.stdout).toBe(true);
+  });
+
+  it("(c) another rule the user left in external_directory: the file is byte-identical", () => {
+    const r = row();
+    expect(install(r).status).toBe(0);
+    const text = json({ permission: { external_directory: { "/elsewhere/**": "ask" } } });
+    writeFileSync(fileOf(r.target), text);
+    const u = uninstall(r, [OPENCODE_FLAG]);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(readFileSync(fileOf(r.target), "utf8"), u.stdout).toBe(text);
+  });
+
+  it("(d) install did not create the containers (the user's file already held them): the file is byte-identical", () => {
+    const r = row();
+    const text = json({ permission: { external_directory: {} } });
+    writeFileSync(fileOf(r.target), text);
+    expect(install(r).status).toBe(0);
+    const e = openCodeEntries(r.target);
+    expect([e[0]?.createdFile, e[0]?.createdPermission, e[0]?.createdExternalDirectory]).toEqual([false, false, false]);
+    writeFileSync(fileOf(r.target), text);
+    const u = uninstall(r, [OPENCODE_FLAG]);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(readFileSync(fileOf(r.target), "utf8"), u.stdout).toBe(text);
+  });
+
+  it("(e) DRY_RUN of (b): zero bytes change, and a would-remove line names the containers", () => {
+    const r = row();
+    expect(install(r).status).toBe(0);
+    writeFileSync(fileOf(r.target), json({ theme: "x", permission: { external_directory: {} } }));
+    const before = snapshotTree(r.target);
+    const u = uninstall(r, [OPENCODE_FLAG], true);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(snapshotTree(r.target), "a DRY_RUN uninstall changed the target").toBe(before);
+    const would = linesFor(u.stdout, "would-remove");
+    expect(would.length, u.stdout).toBe(1);
+    expect(would[0]).toContain(CONTAINERS);
+  });
+
+  it("(f) `permission` turned into the string \"ask\" by the user: the file is byte-identical", () => {
+    const r = row();
+    expect(install(r).status).toBe(0);
+    const text = json({ permission: "ask" });
+    writeFileSync(fileOf(r.target), text);
+    const u = uninstall(r, [OPENCODE_FLAG]);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(readFileSync(fileOf(r.target), "utf8"), u.stdout).toBe(text);
   });
 });

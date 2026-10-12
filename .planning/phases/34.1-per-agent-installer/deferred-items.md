@@ -107,3 +107,24 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **Not fixed:** the plan classes the migrate banners as agent-independent and leaves them unchanged. Options for
   triage: print agentCommand with `--migrate` in the migrate banner, or class the pre-check's verifies separately.
   Read from the code, not reproduced.
+
+## From plan 34.1-16 (gap round 1)
+
+### DI-05: the legacy Gemini entry-gone arm leaves the `context` object or the file install created
+
+- **Found during:** plan 34.1-16, task 1 (the CLEAN-1 sibling search over every teardown of an install-created
+  container: `grep -n "createdFile\|createdPermission\|createdExternalDirectory\|createdPermissions\|createdAsk\|createdContext" install/uninstall.ts`,
+  then each reversal's "already gone" arm).
+- **What:** install/uninstall.ts unmergeGemini, the arm at about line 1105 ("context.fileName no longer lists AGENTS.md
+  — the entry install added was already removed"), returns `gone` and edits nothing. When the `gemini` entry records
+  that install created `context` (createdContext) or the whole `.gemini/settings.json` (createdFile), that container or
+  file stays with no line naming it. It is the same class as IN-20 (fixed for OpenCode in this plan). It reaches only
+  legacy installs from before phase 34.1 (D-12 and D-23: install writes no Gemini entry any more).
+- **Why it is not a one-line copy of the IN-20 fix:** a created Gemini file lists two names (`AGENTS.md` and
+  `GEMINI.md`, install-marker.ts GEMINI_CREATED_FILE_NAME), so "install's content is gone" is not a one-member question:
+  the user may have kept `GEMINI.md` on purpose.
+- **Proposed remedy:** when the record says install created `context` or the file, and `context.fileName` holds none of
+  the names install wrote, take out `context` (and the file, when what is left is byte for byte install's own emptied
+  file with the recorded mode) through the same oracle path as the main arm; otherwise name the file on a `left` line
+  with a by-hand remedy. Read from the code, not reproduced.
+- **Not fixed:** kept deferred by D-30; human triage.
