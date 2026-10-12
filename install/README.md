@@ -489,12 +489,25 @@ reads every file first and reports afterwards, in this order:
   read it too and install creates it.
 - **The files without the route.** Such a file is counted only when it leaves some host without a
   route: a host that reads it reads no other file holding the route and, for Claude Code, has no
-  adapter route. A counted file is reported as follows:
+  adapter route. `--check` names re-running `install.js` exactly when an install run on the same
+  state would write the file: refresh install's own copy, append install's block to `CLAUDE.md` or
+  the Copilot pointer when the file has none, or create an absent file. Install and `--check` ask
+  the same rule (`installWouldWrite` in `install/install.ts`). Otherwise the line gives the reason
+  and the remedy. A counted file is reported as follows:
   - install's own unedited copy from an earlier install, which re-running `install.js` would
     replace, is a FAIL whose remedy is to re-run `install.js`;
-  - any other file without the route (your own, install's copy that you edited, a link, a file that
-    holds a second copy of install's block) is a WARN that gives the reason install will not refresh
-    it and quotes the sentence to add;
+  - `CLAUDE.md` or `.github/copilot-instructions.md` with neither install's block nor the route is a
+    WARN whose remedy is to re-run `install.js`, which appends install's start-here block, and the
+    block carries the route;
+  - the `AGENTS.md` link a `--symlink` install made (the install ledger records the link) is a WARN
+    whose remedy is to remove the link at `AGENTS.md` and re-run `install.js`, which links or copies
+    the current kit `AGENTS.md`. The file the link points to is in a grugops checkout outside the
+    repository, so it is never the file to edit. A re-install gives the same reason and remedy
+    (`linkOwnership` in `install/install.ts`);
+  - any other file without the route (your own, install's copy that you edited, a link install did
+    not make, a file that holds a second copy of install's block) is a WARN that gives the reason
+    install will not write the route into it and quotes the sentence to add, after the start-here
+    sentence if the file has one;
   - an absent file is a WARN, which names re-running `install.js` only when install would create the
     file there, and otherwise the reason install will not;
   - a file that cannot be read (a directory, a FIFO, a device or an oversized file) is a WARN that

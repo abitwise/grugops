@@ -322,8 +322,15 @@ per-role effort setting and Pi support.
     Claude Code reaches the Orchestrator through `AGENTS.md` and its adapters. A note now names only
     the hosts the file leaves without any route.
   - `--check` told you to re-run `install.js` for a link that install never refreshes. It now names
-    the re-run only when install would refresh or create the file, and otherwise gives the reason
-    and the sentence to add by hand.
+    the re-run only when install would refresh, append to or create the file, and otherwise gives
+    the reason and the remedy.
+- `--check` said install leaves `CLAUDE.md` or the Copilot pointer as it is when their install block
+  had been removed, and gave a sentence to add by hand, while a re-install appends the block, route
+  included. It now names the re-run, which appends the block (34.1 D-15, WR-13).
+- For the `AGENTS.md` link a `--symlink` install made, `--check` said install made the link while
+  the re-install said it did not, and the remedy edited the file the link points to, outside the
+  repository. Both now give one reason and one remedy: remove the link at `AGENTS.md` and re-run
+  `install.js`, which links or copies the current kit `AGENTS.md` (34.1 D-16, WR-16).
 - The install `-- notes --` block now says what the run did with the Claude Code ask rules: added
   them (with the count), added none, would add them under `DRY_RUN`, or refused (see the `verify`
   line). It used to say the installer wrote ask rules in a run that wrote none (WR-12, 34 D-25).
