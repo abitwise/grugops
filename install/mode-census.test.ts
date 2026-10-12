@@ -70,9 +70,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * agent-picker.test.ts, which has no chmod call and no expected mode (it drives a pure key decoder and reads no file).
  * 35 since plan 34.1-13 added host-entry-docs.test.ts, which has no chmod call and no expected mode (it reads tracked
  * markdown text only).
+ * 36 since plan 34.1-14 added agents-record.test.ts, which has no chmod call and no expected mode (it compares the
+ * marker's `agents` list and ledger entries, and parses product source).
  * SOURCE_FILE_COUNT is 9 since plan 34.1-12 added install/agent-picker.ts, which imports nothing, renders no mode and
  * compares none (it is the checkbox list's pure state machine). */
-const INSTALL_TEST_FILE_COUNT = 35;
+const INSTALL_TEST_FILE_COUNT = 36;
 const SCRIPTS_TEST_FILE_COUNT = 73;
 const SOURCE_FILE_COUNT = 9;
 

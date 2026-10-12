@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -4717,20 +4717,32 @@ function writeMarker() {
     // installed here after it, else from the previous marker (see A RUN THAT WROTE NO KIT FILE above). Field order is
     // kept stable.
     const kept = (k, current) => kitFromThisRun ? current : (prevString(k) ?? current);
+    // The ledger this write records, computed once (after the mkdirp above, so a .grugops/ it created is recorded): the
+    // next entries, or none of this run's when the previous ledger is malformed and is written back raw.
+    const nextEntries = previousLedger.state === "malformed" ? null : nextLedgerEntries(previousLedger);
+    const knownAfter = AGENTS_AFTER.filter((id) => HOST_TOOLS.some((h) => h.id === id));
     const marker = {
         ...(ver === null ? {} : { kitVersion: ver }),
         grugopsHome: kept("grugopsHome", GRUGOPS_HOME),
         kitRoot: kept("kitRoot", KIT_ROOT),
         installMode: kept("installMode", INSTALL_MODE),
         target: here,
-        // D-04 (plan 34.1-06): the agents installed here after this run (AGENTS_AFTER), between target and ledger.
-        agents: [...AGENTS_AFTER],
+        // D-04 (plan 34.1-06), D-26 (plan 34.1-14): `agents`, between target and ledger, from the one derivation every
+        // marker write that sets the field asks (install-marker.ts agentsToRecord). Install keeps every agent installed
+        // before the run and every agent chosen in it (AGENTS_AFTER is both `known` and `keep`), so the value is
+        // AGENTS_AFTER, and a chosen agent whose every write was refused stays recorded for a later `--yes` to retry (D-04).
+        agents: agentsToRecord({
+            known: knownAfter,
+            keep: knownAfter,
+            unknown: AGENTS_AFTER.filter((id) => !knownAfter.includes(id)),
+            entries: nextEntries ?? [],
+        }),
     };
     if (previousLedger.state === "malformed") {
         marker.ledger = previousLedger.raw;
     }
     else {
-        marker.ledger = ledgerJson(nextLedgerEntries(previousLedger));
+        marker.ledger = ledgerJson(nextEntries ?? []);
     }
     if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
         report("created", ".grugops/install.json (marker)");
@@ -5021,10 +5033,13 @@ const SELECTION_WHY = (() => {
 })();
 /** The agents this run installs for, in registry order (D-03). */
 const SELECTION = HOST_TOOLS.filter((h) => SELECTION_WHY.has(h.id));
-// AGENTS_AFTER (D-04): the `agents` field writeMarker records. The registry-ordered union of the agents installed
-// before this run and the agents chosen in it, followed by the recorded ids the registry does not know, verbatim:
-// install only adds, so naming fewer agents never removes one from the record, and an unknown id is kept, never
-// acted on.
+// AGENTS_AFTER (D-04): install's `keep` input to install-marker.ts agentsToRecord, which gives the `agents` field
+// writeMarker records (D-26, plan 34.1-14). The registry-ordered union of the agents installed before this run and the
+// agents chosen in it, followed by the recorded ids the registry does not know, verbatim: install only adds, so naming
+// fewer agents never removes one from the record, and an unknown id is kept, never acted on. Because install keeps
+// every recorded agent (D-04), a chosen agent whose every write was refused stays recorded and a later `--yes`
+// re-chooses it: the field means "chosen and not yet removed" (plan 34.1-15 writes that meaning into install-marker.ts
+// and the README).
 const AGENTS_AFTER = [
     ...HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) || SELECTION.includes(h)).map((h) => h.id),
     ...(INSTALLED_BEFORE.source === "recorded" ? INSTALLED_BEFORE.unknown : []),
