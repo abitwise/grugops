@@ -603,7 +603,7 @@ function reverseDir(entry) {
     }
     setOutcome(entry, rmdirIfEmpty(`${TARGET}/${entry.path}`));
 }
-const NO_BLOCK_REMOVED = { removed: false, blankAfter: false, before: null, beforeMode: null };
+const NO_BLOCK_REMOVED = { removed: false, blankAfter: false, before: null, beforeMode: null, blankWithoutBlock: false };
 // blockLineSpans (every copy of the block lines in a file) moved into install-marker.ts in plan 34-28, so
 // this removal and install's block refresh (install.ts ensureBlock) find a block's bytes by one function.
 /**
@@ -670,7 +670,7 @@ function removeSentinelBlock(rel, open, close, label) {
     const buf = read.bytes;
     if (!buf.includes(Buffer.from(open, "utf8"))) {
         report("skipped", `${label} (no grugops block present)`);
-        return { ...NO_BLOCK_REMOVED, outcome: "gone" };
+        return { ...NO_BLOCK_REMOVED, blankWithoutBlock: buf.every(isBlankByte), outcome: "gone" };
     }
     const matches = blockLineSpans(buf, open, close).filter((sp) => contentRecord(buf.subarray(sp.start, sp.end)) === record.block);
     if (matches.length === 0) {
@@ -689,7 +689,7 @@ function removeSentinelBlock(rel, open, close, label) {
     }
     const cut = blockRemovalSpan(buf, matches[0], record);
     const result = Buffer.concat([buf.subarray(0, cut.start), buf.subarray(cut.end)]);
-    const blankAfter = result.every(isBlankByte);
+    const blankAfter = result.every(isBlankByte); // the one blank test, also asked by the no-block arm above
     const how = cut.separator || matches[0].start === 0
         ? "sentinel block only; rest of file preserved"
         : matches[0].end === buf.length
@@ -697,12 +697,12 @@ function removeSentinelBlock(rel, open, close, label) {
             : "sentinel block only; rest of file preserved, including the newline before the block — the block is no longer at the end of the file, where install appended it, so which newline install added is not known";
     if (DRY_RUN) {
         report("would-remove", `${label} (${how})`);
-        return { removed: true, blankAfter, before: buf, beforeMode: read.mode, outcome: "reversed" };
+        return { removed: true, blankAfter, before: buf, beforeMode: read.mode, blankWithoutBlock: false, outcome: "reversed" };
     }
     if (!rewritePath(f, result, label))
         return { ...NO_BLOCK_REMOVED, outcome: "verify" };
     report("removed", `${label} (${how})`);
-    return { removed: true, blankAfter, before: buf, beforeMode: read.mode, outcome: "reversed" };
+    return { removed: true, blankAfter, before: buf, beforeMode: read.mode, blankWithoutBlock: false, outcome: "reversed" };
 }
 // reportUnrecordedBlock (plan 33.1-38, report only): a pointer file with no `block` entry in the ledger.
 // It is read (readForWrite: bounded, no link followed) only to say whether a grugops-shaped block is in
@@ -755,7 +755,27 @@ function reportUnrecordedBlock(rel) {
 // block is still there, and holds the marker itself). When this run removed the block and the file still
 // holds lines of the user's, the file entry is `reversed`: nothing of install's is left in it, and what
 // is left is the user's, so it does not hold the marker.
+// THE BLOCK-ALREADY-GONE ARM (plan 34.1-16, D-30, DI-06, brief CLEAN-1). When the user already removed the block
+// and the file install created is now blank (result.blankWithoutBlock, from the bytes removeSentinelBlock read), the
+// file would otherwise stay with no line naming it. It is not deleted: the bytes from before a block removal, which
+// condition 3 compares with the record, do not exist here, so nothing proves the file holds only what install wrote
+// (33.1 DC-2). It is named on a `left` line with the by-hand remedy, and the entry is `left`: a `left` line is a held
+// entry in the Outcome vocabulary, so the agent that owns the file (Claude Code for CLAUDE.md, GitHub Copilot CLI for
+// the Copilot file) stays recorded (D-29), the marker is kept, and the kept line prints the command that finishes the
+// reversal once the user deletes the file (finishCommand). The arm acts only when the install ledger has a `file`
+// entry at the path (install created it); a file that still holds lines of the user's is `gone` as before: nothing of
+// install's is in it. It deletes nothing and writes nothing, under DRY_RUN or not, and prints the same line in both.
 function removeOwnedEmptyFile(rel, label, result) {
+    // THE BLOCK-ALREADY-GONE ARM (plan 34.1-16, D-30, DI-06, brief CLEAN-1). See the header above.
+    if (!result.removed && result.outcome === "gone" && result.blankWithoutBlock && entryAt(LEDGER, rel, "file") !== undefined) {
+        if (isProtected(`${TARGET}/${rel}`)) {
+            report("refused", `${label} (protected path — never removed)`);
+            return "left";
+        }
+        report("left", `${rel} (install created it, and its grugops block is no longer in it; it is blank, but the bytes install wrote ` +
+            `are not here to compare, so it was not removed; delete it by hand if you do not need it)`);
+        return "left";
+    }
     if (!result.removed)
         return result.outcome === "gone" ? "gone" : "left";
     if (!result.blankAfter)

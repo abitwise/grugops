@@ -730,7 +730,8 @@ function reverseDir(entry: { readonly path: string; readonly kind: "dir" }): voi
 // without the block are nothing but spaces, tabs, CR and LF. Both are computed BEFORE the DRY_RUN branch,
 // from the one readForWrite read, so the preview and the real run hand the same answer to
 // removeOwnedEmptyFile, which deletes a file only on `removed && blankAfter` AND its file entry in the install ledger.
-// Every early return is `{ removed: false, blankAfter: false }`.
+// Every early return is `{ removed: false, blankAfter: false }`; `blankWithoutBlock` is true only in the no-block
+// arm, for a blank file (plan 34.1-16, D-30).
 interface BlockRemoval {
   readonly removed: boolean;
   readonly blankAfter: boolean;
@@ -740,8 +741,14 @@ interface BlockRemoval {
   readonly beforeMode: number | null;
   /** The block entry's outcome (plan 33.1-38). */
   readonly outcome: Outcome;
+  /**
+   * True only when this run read the file as a regular file (readForWrite), found no grugops open sentinel in it, and
+   * its bytes are blank by the same predicate as `blankAfter` (spaces, tabs, CR and LF only; plan 34.1-16, D-30). No
+   * read is made for it: the no-block arm already holds the bytes.
+   */
+  readonly blankWithoutBlock: boolean;
 }
-const NO_BLOCK_REMOVED: Omit<BlockRemoval, "outcome"> = { removed: false, blankAfter: false, before: null, beforeMode: null };
+const NO_BLOCK_REMOVED: Omit<BlockRemoval, "outcome"> = { removed: false, blankAfter: false, before: null, beforeMode: null, blankWithoutBlock: false };
 
 
 // blockLineSpans (every copy of the block lines in a file) moved into install-marker.ts in plan 34-28, so
@@ -815,7 +822,7 @@ function removeSentinelBlock(rel: string, open: string, close: string, label: st
   const buf = read.bytes;
   if (!buf.includes(Buffer.from(open, "utf8"))) {
     report("skipped", `${label} (no grugops block present)`);
-    return { ...NO_BLOCK_REMOVED, outcome: "gone" };
+    return { ...NO_BLOCK_REMOVED, blankWithoutBlock: buf.every(isBlankByte), outcome: "gone" };
   }
   const matches = blockLineSpans(buf, open, close).filter((sp) => contentRecord(buf.subarray(sp.start, sp.end)) === record.block);
   if (matches.length === 0) {
@@ -840,7 +847,7 @@ function removeSentinelBlock(rel: string, open: string, close: string, label: st
   }
   const cut = blockRemovalSpan(buf, matches[0], record);
   const result = Buffer.concat([buf.subarray(0, cut.start), buf.subarray(cut.end)]);
-  const blankAfter = result.every(isBlankByte);
+  const blankAfter = result.every(isBlankByte); // the one blank test, also asked by the no-block arm above
   const how =
     cut.separator || matches[0].start === 0
       ? "sentinel block only; rest of file preserved"
@@ -849,11 +856,11 @@ function removeSentinelBlock(rel: string, open: string, close: string, label: st
       : "sentinel block only; rest of file preserved, including the newline before the block — the block is no longer at the end of the file, where install appended it, so which newline install added is not known";
   if (DRY_RUN) {
     report("would-remove", `${label} (${how})`);
-    return { removed: true, blankAfter, before: buf, beforeMode: read.mode, outcome: "reversed" };
+    return { removed: true, blankAfter, before: buf, beforeMode: read.mode, blankWithoutBlock: false, outcome: "reversed" };
   }
   if (!rewritePath(f, result, label)) return { ...NO_BLOCK_REMOVED, outcome: "verify" };
   report("removed", `${label} (${how})`);
-  return { removed: true, blankAfter, before: buf, beforeMode: read.mode, outcome: "reversed" };
+  return { removed: true, blankAfter, before: buf, beforeMode: read.mode, blankWithoutBlock: false, outcome: "reversed" };
 }
 
 // reportUnrecordedBlock (plan 33.1-38, report only): a pointer file with no `block` entry in the ledger.
@@ -906,7 +913,30 @@ function reportUnrecordedBlock(rel: string): void {
 // block is still there, and holds the marker itself). When this run removed the block and the file still
 // holds lines of the user's, the file entry is `reversed`: nothing of install's is left in it, and what
 // is left is the user's, so it does not hold the marker.
+// THE BLOCK-ALREADY-GONE ARM (plan 34.1-16, D-30, DI-06, brief CLEAN-1). When the user already removed the block
+// and the file install created is now blank (result.blankWithoutBlock, from the bytes removeSentinelBlock read), the
+// file would otherwise stay with no line naming it. It is not deleted: the bytes from before a block removal, which
+// condition 3 compares with the record, do not exist here, so nothing proves the file holds only what install wrote
+// (33.1 DC-2). It is named on a `left` line with the by-hand remedy, and the entry is `left`: a `left` line is a held
+// entry in the Outcome vocabulary, so the agent that owns the file (Claude Code for CLAUDE.md, GitHub Copilot CLI for
+// the Copilot file) stays recorded (D-29), the marker is kept, and the kept line prints the command that finishes the
+// reversal once the user deletes the file (finishCommand). The arm acts only when the install ledger has a `file`
+// entry at the path (install created it); a file that still holds lines of the user's is `gone` as before: nothing of
+// install's is in it. It deletes nothing and writes nothing, under DRY_RUN or not, and prints the same line in both.
 function removeOwnedEmptyFile(rel: string, label: string, result: BlockRemoval): Outcome {
+  // THE BLOCK-ALREADY-GONE ARM (plan 34.1-16, D-30, DI-06, brief CLEAN-1). See the header above.
+  if (!result.removed && result.outcome === "gone" && result.blankWithoutBlock && entryAt(LEDGER, rel, "file") !== undefined) {
+    if (isProtected(`${TARGET}/${rel}`)) {
+      report("refused", `${label} (protected path — never removed)`);
+      return "left";
+    }
+    report(
+      "left",
+      `${rel} (install created it, and its grugops block is no longer in it; it is blank, but the bytes install wrote ` +
+        `are not here to compare, so it was not removed; delete it by hand if you do not need it)`,
+    );
+    return "left";
+  }
   if (!result.removed) return result.outcome === "gone" ? "gone" : "left";
   if (!result.blankAfter) return "reversed";
   const f = `${TARGET}/${rel}`;

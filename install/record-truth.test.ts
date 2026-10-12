@@ -47,7 +47,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { KINDS_BY_SCOPE, fileRecord, modeMatches, modeText, readLedger, recordedModeOf, recordMatches } from "./install-marker.js";
+import { BLOCK_RELS, KINDS_BY_SCOPE, fileRecord, modeMatches, modeText, readLedger, recordedModeOf, recordMatches } from "./install-marker.js";
+import { HOST_TOOLS, agentCommand, agentFlag } from "./host-tools.js";
 import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { askRecord, blockRecords, fileRecords, plantLegacyGemini, withLedger } from "./ledger.test-support.js";
 import {
@@ -58,8 +59,10 @@ import {
   NOTIFY_CONFIG,
   type Run,
   pathText,
+  printedCommand,
   rebindMarker,
   runInstall,
+  runPrintedCommand,
   runUninstall,
   snapshotTree,
   spawnBin,
@@ -589,4 +592,114 @@ describe("L4: `--target` with no value is bad usage in both binaries (exit 2), n
       expect(snapshotTree(cwd) + snapshotTree(envTarget)).toBe(before);
     });
   }
+});
+
+// ── D-30 (phase 34.1 gap round 1, DI-06, brief CLEAN-1 and 33.1 DC-2) ─────────────────────────────────────────────────
+// A CLAUDE.md or Copilot file install created, whose grugops block the user already removed, used to stay blank with no
+// line naming it: the file rule deletes a pointer file only from the bytes read before THIS run's block removal, and
+// there are none when the block is already gone. It is still never deleted; it is named on a `left` line with a by-hand
+// remedy, its entry is held, so the agent that owns it stays recorded (D-29), and deleting the file and running the
+// command the run printed finishes the reversal. A file with the user's lines, and a file install did not create, get
+// no line from this arm. Every expected command is built with agentCommand and agentFlag.
+describe("D-30 (DI-06): a blank pointer file install created, whose block the user removed, is named and kept", () => {
+  const CLAUDE = HOST_TOOLS.find((h) => h.id === "claude")!;
+  const COPILOT = HOST_TOOLS.find((h) => h.id === "copilot")!;
+  const [CLAUDE_MD, COPILOT_MD] = BLOCK_RELS;
+  /** The `left` lines whose message starts with `rel` (the file, not its block label). */
+  const leftFor = (stdout: string, rel: string): string[] => lines(stdout, "left").filter((l) => pathText(l).replace(/^ {2}left\s+/, "").startsWith(`${rel} (`));
+  const expectNamedAndKept = (line: string | undefined, out: string): void => {
+    expect(line, out).toBeDefined();
+    for (const want of ["install created it", "its grugops block is no longer in it", "it is blank", "it was not removed", "delete it by hand"]) {
+      expect(line!, `the left line does not say "${want}"`).toContain(want);
+    }
+  };
+  const ledgerHas = (t: string, rel: string, kind: string): boolean =>
+    ((markerOf(t).ledger as Array<Record<string, unknown>>) ?? []).some((e) => e.path === rel && e.kind === kind);
+  const markerPresent = (t: string): boolean => existsSync(at(t, MARKER_REL));
+
+  it("(a) CLAUDE.md made blank: one `left` line names it, it is kept byte for byte, Claude Code stays recorded, and the printed flag-less command finishes once it is deleted", () => {
+    const t = fresh("d30-a");
+    expect(install(t, [agentFlag(CLAUDE)]).status).toBe(0);
+    expect(ledgerHas(t, CLAUDE_MD, "file"), "install did not record creating CLAUDE.md").toBe(true);
+    writeFileSync(at(t, CLAUDE_MD), "\n");
+    const before = readFileSync(at(t, CLAUDE_MD));
+    const u = uninstall(t);
+    expect(u.status, u.stdout).toBe(0);
+    const named = leftFor(u.stdout, CLAUDE_MD);
+    expect(named.length, u.stdout).toBe(1);
+    expectNamedAndKept(named[0], u.stdout);
+    expect(readFileSync(at(t, CLAUDE_MD)).equals(before), "CLAUDE.md changed").toBe(true);
+    expect(markerPresent(t), "the marker was removed while CLAUDE.md is held").toBe(true);
+    expect(markerOf(t).agents).toEqual([CLAUDE.id]);
+    expect(ledgerHas(t, CLAUDE_MD, "file"), "the CLAUDE.md file entry left the ledger").toBe(true);
+    const finish = agentCommand("uninstall.js", t, []);
+    expect(u.stdout).toContain(`\`${finish}\``);
+    expect(printedCommand(u.stdout)).toBe(finish);
+    rmSync(at(t, CLAUDE_MD));
+    const f = runPrintedCommand(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
+    expect(f.status, f.stdout + f.stderr).toBe(0);
+    expect(markerPresent(t), `the marker is still there after the printed command\n${f.stdout}`).toBe(false);
+  }, 60_000);
+
+  it("(b) the Copilot file made blank, then uninstall --copilot: a `left` line names it, both agents stay recorded, and the printed Copilot command finishes once it is deleted", () => {
+    const t = fresh("d30-b");
+    expect(install(t, [agentFlag(CLAUDE), agentFlag(COPILOT)]).status).toBe(0);
+    expect(ledgerHas(t, COPILOT_MD, "file"), "install did not record creating the Copilot file").toBe(true);
+    writeFileSync(at(t, COPILOT_MD), "");
+    const u = runUninstall(t, KIT_HOME, { home: HOME, timeoutMs: 120_000 }, [agentFlag(COPILOT)]);
+    expect(u.status, u.stdout).toBe(0);
+    const named = leftFor(u.stdout, COPILOT_MD);
+    expect(named.length, u.stdout).toBe(1);
+    expectNamedAndKept(named[0], u.stdout);
+    expect(readFileSync(at(t, COPILOT_MD), "utf8")).toBe("");
+    expect(markerOf(t).agents).toEqual([CLAUDE.id, COPILOT.id]);
+    const finish = agentCommand("uninstall.js", t, [COPILOT]);
+    expect(u.stdout).toContain(`\`${finish}\``);
+    expect(printedCommand(u.stdout)).toBe(finish);
+    rmSync(at(t, COPILOT_MD));
+    const f = runPrintedCommand(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
+    expect(f.status, f.stdout + f.stderr).toBe(0);
+    expect(markerOf(t).agents).toEqual([CLAUDE.id]);
+  }, 60_000);
+
+  it("(c) CLAUDE.md holding the user's lines and no block: no `left` line names it, it is byte-identical, and the marker is removed", () => {
+    const t = fresh("d30-c");
+    expect(install(t, [agentFlag(CLAUDE)]).status).toBe(0);
+    writeFileSync(at(t, CLAUDE_MD), "my notes\n");
+    const u = uninstall(t);
+    expect(u.status, u.stdout).toBe(0);
+    expect(leftFor(u.stdout, CLAUDE_MD), u.stdout).toEqual([]);
+    expect(readFileSync(at(t, CLAUDE_MD), "utf8")).toBe("my notes\n");
+    expect(markerPresent(t), u.stdout).toBe(false);
+  }, 60_000);
+
+  it("(d) a CLAUDE.md the user had (empty), block appended by install and removed by the user: no `file` entry, no line from the new arm, file unchanged", () => {
+    const t = fresh("d30-d");
+    writeFileSync(at(t, CLAUDE_MD), "");
+    expect(install(t, [agentFlag(CLAUDE)]).status).toBe(0);
+    expect(ledgerHas(t, CLAUDE_MD, "block"), "install recorded no block in the user's CLAUDE.md").toBe(true);
+    expect(ledgerHas(t, CLAUDE_MD, "file"), "install recorded creating a CLAUDE.md the user had").toBe(false);
+    writeFileSync(at(t, CLAUDE_MD), "");
+    const u = uninstall(t);
+    expect(u.status, u.stdout).toBe(0);
+    expect(leftFor(u.stdout, CLAUDE_MD), u.stdout).toEqual([]);
+    expect(u.stdout).not.toContain("its grugops block is no longer in it");
+    expect(readFileSync(at(t, CLAUDE_MD), "utf8")).toBe("");
+  }, 60_000);
+
+  it("(e) DRY_RUN of (a): zero bytes change, and the same `left` line is printed as by the real run", () => {
+    const t = fresh("d30-e");
+    expect(install(t, [agentFlag(CLAUDE)]).status).toBe(0);
+    writeFileSync(at(t, CLAUDE_MD), "\n");
+    const before = snapshotTree(t);
+    const dry = uninstall(t, true);
+    expect(dry.status, dry.stdout).toBe(0);
+    expect(snapshotTree(t), "a DRY_RUN uninstall changed the target").toBe(before);
+    const dryNamed = leftFor(dry.stdout, CLAUDE_MD);
+    expect(dryNamed.length, dry.stdout).toBe(1);
+    expectNamedAndKept(dryNamed[0], dry.stdout);
+    const real = uninstall(t);
+    expect(real.status, real.stdout).toBe(0);
+    expect(leftFor(real.stdout, CLAUDE_MD)).toEqual(dryNamed);
+  }, 60_000);
 });
