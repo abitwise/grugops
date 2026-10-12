@@ -250,3 +250,56 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   unreleased round-0 uninstall), and the change would move the closing notes' and route notes' input (brief §3: new
   findings go here). Option for triage: derive the "recorded after this run" set once (the value writeMarker records)
   and have agentClosingLines and the route notes read it in place of AGENTS_AFTER.
+
+## From the gap round 2 plan check (recorded by plan 34.1-32)
+
+### DI-15: agent instruction text tells the reader to run `node install/install.js`, a path relative to the grugops checkout
+
+- status: open
+- **Id note:** the round-2 plan texts (34.1-28-PLAN.md, 34.1-32-PLAN.md) and the 34.1-28 SUMMARY call this finding
+  "DI-11". Plan 34.1-21 had already recorded a different finding as DI-11 (above), so this one is recorded as DI-15.
+  Read "DI-11" in those plan texts as this entry.
+- **Found during:** the plan check of gap round 2 (2026-10-12).
+- **What:** AGENTS.md line 40 ("Re-run the installer (`node install/install.js` or `node install/install.js --check`)")
+  and the resolver comment that scripts/kit-model.ts RESOLVER (~line 301) writes into every generated Claude Code
+  adapter (`.claude/agents/*.md` and `.claude/skills/grugops/SKILL.md`, 18 files at HEAD 543cca28; for example
+  `.claude/agents/grugops-orchestrator.md` line 19) tell the reader to run `node install/install.js`. That path is
+  relative to the grugops checkout; in a target repository it does not exist. These texts are outside the
+  printed-command census of plan 34.1-28, whose scan set is the product modules' printed strings. Plan 34.1-28
+  excluded the related install/install.ts TARGET_BANNER (the comment written into generated target adapters) from its
+  zero rule as file text of this class; that banner already says the command is run "from the grugops checkout".
+- **Why it is deferred, not fixed:** these are agent instruction texts, fixed text by D-09 and T-34-13 (no install-time
+  value, so no absolute checkout path, may enter them), so agentCommand's absolute form cannot apply. A fix is a
+  wording decision (for example "run install.js from your grugops checkout") plus a regeneration of the adapters
+  through the freshness gate, which is for the human to choose.
+- **Not fixed:** deferred for human triage.
+
+## Status after gap round 2 (plans 34.1-19 to 34.1-32)
+
+- **DI-01:** decided (D-28): the by-name exclusion stays.
+- **DI-02:** resolved in plan 34.1-02; nothing left.
+- **DI-03:** still open. Plan 34.1-32's full regression reports the five Node 26 reds again; whether CI on Node 22
+  shows them is `UNKNOWN - verify`.
+- **DI-04:** closed by plan 34.1-13 (commit ac790deb).
+- **DI-05:** still deferred (D-31); open for human triage.
+- **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
+- **DI-07:** fixed by plan 34.1-21 under D-31 (commits c4e2c43d, 2e6e9b96, 03ed2a0c). The arm it described is shown
+  unreachable through a directory: no recorded verify lands on a directory entry. A failed rmdir of a recorded
+  directory that install created is now named on a `left` line with its error code and the by-hand remedy. A partial
+  run's finishing command never names the flag-less command, and names only agents the marker on disk records (R32).
+  The same arm is still reachable through an `ask-rules` entry that claims nothing; that is DI-11.
+- **DI-08:** fixed by plan 34.1-27 under D-31 and D-33 (commits 5af55277, 0a72286c): the doctor's stale-adapter
+  remedy prints doctorInstallCommand() (agentCommand) in backticks, and the DI-08 case (M7) runs it as printed.
+- **DI-09:** fixed by plan 34.1-28 under D-31 and D-33 (commits f65cfa0b, 2a055d1a): both migrate INCOMPLETE banners,
+  and the update and prune banners, print their command from the builder; M8 runs the migrate command as printed.
+- **DI-10:** fixed by plan 34.1-31 under D-31 (commit 8d730df2): seven test comments reworded, and a derived scan in
+  install/host-tools-prose.test.ts holds the retired claim at zero.
+- **DI-11:** deferred for human triage (recorded by plan 34.1-21, commit c4e2c43d): a partial uninstall's verify on
+  an `ask-rules` entry that claims nothing leaves a finishing command that does nothing.
+- **DI-12:** recorded for human triage by plan 34.1-27 (commit 7980cc7f): two doctor lines ask for "re-run --check
+  from a complete kit checkout" and print no command. Plan 34.1-28 names them as their own census class.
+- **DI-13:** recorded for human triage by plan 34.1-28 (commit bcc0f32b): rewriteLedger's "Re-run to finish it."
+  does not finish it.
+- **DI-14:** recorded for human triage by plan 34.1-30 (commit 585ba921): an agent install records again from the
+  ledger is named by no closing note and asked about by no route note in the same run.
+- **DI-15:** deferred for human triage (recorded above by plan 34.1-32; the round-2 plan texts call it "DI-11").
