@@ -48,6 +48,7 @@ import {
   INSTALL_JS,
   MARKER_REL,
   type Run,
+  lineNamesPath,
   makeOldLayoutFixture,
   printedCommand,
   runInstall,
@@ -1180,7 +1181,7 @@ if (CHMOD_SKIP !== null) console.log(`SKIP R22, R23 and R32 of agents-record.tes
 
 /** The `left` line rmdirIfEmpty prints for recorded directory `rel` it could not remove. */
 const failedRmdirLines = (w: World, stdout: string, rel: string): string[] =>
-  linesWith(stdout, "left").filter((l) => l.includes(`${at(w.target, rel)} (install created this directory and it is empty, but it could not be removed`));
+  linesWith(stdout, "left").filter((l) => lineNamesPath(l, at(w.target, rel)) && l.includes(" (install created this directory and it is empty, but it could not be removed"));
 
 describe("D-31 (DI-07): a directory that cannot be removed, and the finishing command of a partial run", () => {
   it.skipIf(CHMOD_SKIP !== null)(
@@ -1209,7 +1210,7 @@ describe("D-31 (DI-07): a directory that cannot be removed, and the finishing co
         expect(lines[0], r.stdout).toContain("remove it by hand once that is fixed");
         expect(lines[0], r.stdout).toContain("a directory keeps neither the marker nor an agent recorded");
         // The run did not claim it removed the directory.
-        const claimed = r.stdout.split("\n").filter((l) => /^ {2}(would-)?rmdir\s/.test(l) && l.trimEnd().endsWith(at(w.target, SKILLS)));
+        const claimed = r.stdout.split("\n").filter((l) => /^ {2}(would-)?rmdir\s/.test(l) && lineNamesPath(l, at(w.target, SKILLS)));
         expect(claimed, r.stdout).toEqual([]);
         if (args.length === 0) {
           expect(markerGone(w), `a directory never holds the marker\n${r.stdout}`).toBe(true);
