@@ -200,6 +200,8 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["uninstall.ts", "ask rules (the install ledger could not be used — see the verify line above; nothing removed)", "printed reference", "the module-top verify for a malformed ledger, printed before any walk"],
   ["uninstall.ts", ".grugops/ (seeded state) is kept; its install.json marker is reported on the next line.", "printed reference", "the preserved block: the marker line, printed by the next console.log"],
   ["uninstall.ts", "Each `verify` line above names what was NOT removed and the remedy for it.", "printed reference", "the uninstall INCOMPLETE banner: printed only when VERIFY_FINDINGS > 0"],
+  ["uninstall.ts", "unknown (the marker cannot be used; see the verify line above)", "printed reference", "the agents to remove line under INSTALLED_UNKNOWN (plan 34.1-26, IN-27): every marker state it covers (unbound, unreadable, or no `agents` field with a malformed ledger) prints a module-top verify before this line"],
+  ["uninstall.ts", " — no agent removed (which agents are installed here is unknown: the marker cannot be used; see the verify line above)", "printed reference", "AGENTS_CLAUSE under INSTALLED_UNKNOWN (plan 34.1-26, IN-27): the module-top verify for the unusable marker or its malformed ledger, printed before any walk"],
 ];
 const COMMAND_TABLE: readonly Row[] = [
   ["host-tools.ts", "install.js", "agentCommand", "the builder itself: the binary's name in agentCommand's signature"],
@@ -337,8 +339,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(b) every fragment that points at another line is classed by what prints that line (equal both ways, with counts)", () => {
     const found = all.filter((f) => REFERENCE.test(f.text));
     expect(compareBothWays(found, REFERENCE_TABLE)).toEqual({ unclassified: [], stale: [] });
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 26, "uninstall.ts": 19 });
-    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 41, "same block": 1 });
+    // Plan 34.1-26 (IN-27): the agents to remove line and AGENTS_CLAUSE under INSTALLED_UNKNOWN point at the module-top
+    // verify, so uninstall.ts 19 -> 21 and "printed reference" 41 -> 43.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 26, "uninstall.ts": 21 });
+    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 43, "same block": 1 });
   });
 
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {

@@ -802,6 +802,59 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(existsSync(skill) && readFileSync(skill).equals(skillBytes), `the old Codex skill was changed or removed\n${step2.stdout}`).toBe(true);
     expect(existsSync(defaultKit), `a kit appeared under HOME\n${step2.stdout}`).toBe(false);
   }, 600_000);
+
+  // R28 (plan 34.1-26, D-31, review IN-27): over a marker this run cannot use, which agents are installed is unknown, not
+  // "none". The `agents to remove` line, the per-flag note and the closing banner say so, and each points at the
+  // verify line printed above it. Every shape for which installedAgents answers "none" while a marker is present is a
+  // row: another directory's marker (R25's moved target), a marker with no install ledger, a marker that is not JSON,
+  // and a marker with no `agents` field whose ledger is malformed.
+  it("R28 (IN-27): over a marker this run cannot use, `uninstall --codex` says which agents are installed is unknown on the agents line, the per-flag note and the closing banner, and never 'is not installed here' or 'still installed: none'", () => {
+    const shapes: ReadonlyArray<readonly [what: string, make: (t: string) => void]> = [
+      ["another directory's marker (the target moved)", () => undefined],
+      ["a marker with no install ledger", (t) => {
+        const m = readMarkerObject(t);
+        delete m.ledger;
+        writeFileSync(at(t, MARKER_REL), JSON.stringify(m, null, 2) + "\n");
+      }],
+      ["a marker that is not JSON", (t) => writeFileSync(at(t, MARKER_REL), "not json\n")],
+      ["a marker with no agents field and a malformed ledger", (t) => {
+        const m = readMarkerObject(t);
+        delete m.agents;
+        m.ledger = "not a list";
+        writeFileSync(at(t, MARKER_REL), JSON.stringify(m, null, 2) + "\n");
+      }],
+    ];
+    for (const [what, make] of shapes) {
+      const w = world("r28");
+      install(w, [flag("claude"), flag("codex")]);
+      let t = w.target;
+      if (what.startsWith("another directory")) {
+        t = join(dirname(w.target), "b", "target");
+        mkdirSync(dirname(t), { recursive: true });
+        renameSync(w.target, t);
+      }
+      make(t);
+      const r = runUninstall(t, w.grugopsHome, { home: w.home, timeoutMs: 120_000 }, [flag("codex")]);
+      finished(r, `uninstall --codex over ${what}`);
+      const out = r.stdout.split("\n");
+      expect(r.status, `${what}\n${r.stdout}`).toBe(3);
+      // The candidate lines are printed (no vacuous pass on zero matches).
+      const agentsLine = out.findIndex((l) => l.startsWith("agents to remove: "));
+      expect(agentsLine, `${what}: no agents to remove line\n${r.stdout}`).toBeGreaterThanOrEqual(0);
+      const notes = linesWith(r.stdout, "note").filter((l) => l.includes(`${flag("codex")}: `));
+      expect(notes.length, `${what}: no per-flag note for ${flag("codex")}\n${r.stdout}`).toBe(1);
+      const banners = out.filter((l) => l.startsWith("== uninstall "));
+      expect(banners.length, `${what}: no closing banner\n${r.stdout}`).toBe(1);
+      // What each says (literal words, not the product's own builder).
+      expect(out[agentsLine], what).toBe("agents to remove: unknown (the marker cannot be used; see the verify line above)");
+      expect(notes[0], what).toMatch(/--codex: whether Codex CLI is installed here is unknown \(the marker cannot be used\), so nothing is removed for it$/);
+      expect(banners[0], what).toContain("no agent removed (which agents are installed here is unknown: the marker cannot be used; see the verify line above)");
+      // The verify line it points at is printed above the agents line.
+      const firstVerify = out.findIndex((l) => /^ {2}verify\s/.test(l));
+      expect(firstVerify >= 0 && firstVerify < agentsLine, `${what}: no verify line above the agents line\n${r.stdout}`).toBe(true);
+      expect(out.filter((l) => /is not installed here|still installed: none/.test(l)), `${what}: a line states an installed set the run did not read`).toEqual([]);
+    }
+  }, 900_000);
 });
 
 // ── D-32: printed alternatives that touch the marker or its ledger (CR-03) ───────────────────────────────────────────

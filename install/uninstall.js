@@ -2329,6 +2329,15 @@ const NAMED = INSTALLED.ids.filter((id) => REMOVE.has(id));
 const REMAINING = INSTALLED.ids.filter((id) => !REMOVE.has(id));
 const STAYING = [...REMAINING, ...(INSTALLED.source === "recorded" ? INSTALLED.unknown : [])];
 const FULL = REMOVE.size === 0 || (NAMED.length > 0 && STAYING.length === 0);
+/**
+ * INSTALLED_UNKNOWN (plan 34.1-26, D-31, review IN-27): a marker is present (MARKER_READ is not `absent`) but
+ * installedAgents read no installed set from it (source `none`): it is another directory's marker, one with no target
+ * or no install ledger, one that cannot be read, or one with no `agents` field whose ledger is malformed. Each of those
+ * prints a verify line above (the module-top verifies). Whether an agent is installed here is then unknown, not "none",
+ * so the `agents to remove` line, the per-flag note and AGENTS_CLAUSE say unknown and point at that verify line. It
+ * decides only wording: NAMED is empty, so nothing is removed for any agent (brief DC-2).
+ */
+const INSTALLED_UNKNOWN = INSTALLED.source === "none" && MARKER_READ.state !== "absent";
 /** Whether this run may reverse ledger entry `e` (D-05): every entry on a FULL run; otherwise the rule above. */
 function inScope(e) {
     if (FULL)
@@ -2394,11 +2403,16 @@ function keepWithoutRecord(held, where = "line") {
         `${MARKER_REL} by hand${then}; never delete ${marker}: it is still the record of ${nameList(STAYING)}`);
 }
 if (REMOVE.size > 0) {
-    console.log(`agents to remove: ${nameList(NAMED)}`);
+    // The value of the `agents to remove` line, its own expression: under INSTALLED_UNKNOWN the set is unknown, not
+    // "none" (IN-27). It names no remedy; the label's "remove" is not a verb aimed at the marker.
+    const toRemove = INSTALLED_UNKNOWN ? "unknown (the marker cannot be used; see the verify line above)" : nameList(NAMED);
+    console.log(`agents to remove: ${toRemove}`);
     for (const host of HOST_TOOLS) {
         if (!REMOVE.has(host.id) || NAMED.includes(host.id))
             continue;
-        report("note", `${agentFlag(host)}: ${host.name} is not installed here, so nothing is removed for it`);
+        report("note", INSTALLED_UNKNOWN
+            ? `${agentFlag(host)}: whether ${host.name} is installed here is unknown (the marker cannot be used), so nothing is removed for it`
+            : `${agentFlag(host)}: ${host.name} is not installed here, so nothing is removed for it`);
     }
 }
 /**
@@ -2532,12 +2546,16 @@ console.log(`  ${MARKER_REL} (the install marker): ${markerOutcomeLine(markerOut
 // never reads as if grugops were gone from the repository.
 // An agent this run set out to remove that stays recorded (UNFINISHED) is not named as removed: it is named as not
 // finished (D-26), and the `left` line and the banner print the command that finishes it.
+// INSTALLED_UNKNOWN (IN-27): over a marker this run cannot use, the installed set is unknown, so the clause says so
+// and names no "still installed" set.
 const AGENTS_CLAUSE = FULL
     ? ""
-    : NAMED.length === 0
-        ? ` — no agent removed (none of the named agents is installed here); still installed: ${nameList(STAYING)}`
-        : ` — agents removed: ${nameList(NAMED.filter((id) => !UNFINISHED.includes(id)))}` +
-            `${UNFINISHED.length > 0 ? `; not finished, still recorded: ${nameList(UNFINISHED)}` : ""}; still installed: ${nameList(STAYING)}`;
+    : INSTALLED_UNKNOWN
+        ? " — no agent removed (which agents are installed here is unknown: the marker cannot be used; see the verify line above)"
+        : NAMED.length === 0
+            ? ` — no agent removed (none of the named agents is installed here); still installed: ${nameList(STAYING)}`
+            : ` — agents removed: ${nameList(NAMED.filter((id) => !UNFINISHED.includes(id)))}` +
+                `${UNFINISHED.length > 0 ? `; not finished, still recorded: ${nameList(UNFINISHED)}` : ""}; still installed: ${nameList(STAYING)}`;
 if (VERIFY_FINDINGS > 0) {
     console.log(`\n== uninstall INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification${AGENTS_CLAUSE}` +
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
