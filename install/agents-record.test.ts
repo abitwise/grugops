@@ -22,7 +22,13 @@
 //     under TARGET), classed both ways against a table, with the count of each pinned;
 //   - the uninstall re-run census (MSG-1): every string fragment of install/uninstall.ts that says to run uninstall
 //     again sits in a string expression that prints an agentCommand-built command (rerunCommand or finishCommand),
-//     so no remedy sends a per-agent run into a flag-less uninstall, which removes every agent (D-05).
+//     so no remedy sends a per-agent run into a flag-less uninstall, which removes every agent (D-05);
+//   - D-32 (CR-03, plans 34.1-19 and 34.1-20): no printed alternative removes the record of an agent that stays
+//     installed. R19 and R20 follow keepWithoutRecord's partial and FULL alternatives; R21 holds removeMarker's
+//     malformed-ledger line on a partial and a FULL run; the by-hand remedy census finds, by the parser, every printed
+//     alternative in a product module that touches .grugops/install.json, its ledger or its `agents` field, compares it
+//     both ways with a classed table, checks each row against its class's rule, pins the per-class counts, and holds
+//     the delete-the-marker text to keepWithoutRecord's FULL branch.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -31,6 +37,7 @@
 // Clear professional voice: this is test infrastructure for an installer safety surface. Vitest `globals: false`.
 
 import { describe, it, expect, afterAll } from "vitest";
+import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -525,6 +532,256 @@ const keptMarkerLine = (stdout: string): string[] => linesWith(stdout, "left").f
 /** The KEPT_FOR banner's second line. */
 const keptBannerLine = (stdout: string): string[] => stdout.split("\n").filter((l) => l.startsWith("  To finish:"));
 
+// ── the by-hand remedy census (plan 34.1-20, D-32; brief §2.3, §4) ──────────────────────────────────────────────────
+//
+// Every printed alternative that touches .grugops/install.json or its ledger, found by a TypeScript parser walk over
+// the string expressions of every product module (install/*.ts that is not a test, test-support or declaration file,
+// from git), never by a line regex. A string expression is maximal: a template literal with its substitutions, the
+// `+` chain and parentheses around it, and a conditional whose branch it is. It is read once per VARIANT: each
+// conditional (`c ? a : b`) inside it gives one reading per branch, tagged with its condition; a contradictory pair of
+// tags is dropped. `${MARKER_REL}` and `${markerRel}` read as `.grugops/install.json`; any other substitution reads as
+// its source text. A variant is in the census when it matches TOUCH (a remedy verb whose object reaches the marker, its
+// ledger or its `agents` field before a full stop) or holds "by hand" together with one of those nouns.
+//
+// Each variant carries a FULL guard: "FULL" or "partial" when FULL decides it (a conditional on FULL in the expression,
+// an enclosing `if (FULL)` branch, or an earlier `if (FULL) { return }` in the same block), else "either". The census
+// equals CENSUS_TABLE both ways, keyed by module, enclosing function, guard and the whole normalized reading, and each
+// class is asserted against what its rows say (CLASS_RULES), with the per-class counts pinned.
+
+/** The marker's spelling in the product (MARKER_REL in both binaries, markerRel in install.ts writeMarker). */
+const MARKER_SPELLINGS: ReadonlySet<string> = new Set(["MARKER_REL", "markerRel"]);
+const NOUN = /\b(marker|install\.json|ledger)\b|`agents`/i;
+const TOUCH = /\b(delete|remove|take|fix|set)\b[^.]*(\b(marker|install\.json|ledger)\b|`agents`)/i;
+const BY_HAND = /\bby hand\b/i;
+/** The delete-the-marker text: telling the user to delete the marker. "never delete" is its opposite. */
+const DELETE_MARKER = /(?<!never )\bdelete (the marker|\.grugops\/install\.json)\b/i;
+
+type Guard = "FULL" | "partial" | "either";
+interface Variant {
+  readonly text: string;
+  readonly conds: ReadonlyMap<string, boolean>;
+}
+interface CensusSite {
+  readonly module: string;
+  readonly fn: string;
+  readonly guard: Guard;
+  readonly text: string;
+  readonly line: number;
+}
+
+/** The source text of a condition and its polarity, with `!` and parentheses peeled. */
+function condKey(e: ts.Expression): [string, boolean] {
+  let pol = true;
+  let x: ts.Expression = e;
+  for (;;) {
+    if (ts.isPrefixUnaryExpression(x) && x.operator === ts.SyntaxKind.ExclamationToken) {
+      pol = !pol;
+      x = x.operand;
+    } else if (ts.isParenthesizedExpression(x)) x = x.expression;
+    else return [x.getText(), pol];
+  }
+}
+function joinVariants(a: Variant, b: Variant): Variant | null {
+  const conds = new Map(a.conds);
+  for (const [k, v] of b.conds) {
+    if (conds.has(k) && conds.get(k) !== v) return null;
+    conds.set(k, v);
+  }
+  return { text: a.text + b.text, conds };
+}
+function crossVariants(xs: readonly Variant[], ys: readonly Variant[]): Variant[] {
+  const out: Variant[] = [];
+  for (const x of xs) for (const y of ys) {
+    const j = joinVariants(x, y);
+    if (j !== null) out.push(j);
+  }
+  return out;
+}
+const plain = (text: string): Variant[] => [{ text, conds: new Map() }];
+/** Every reading of a string expression, one per consistent choice of its conditionals' branches. */
+function readingsOf(e: ts.Node): Variant[] {
+  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return plain(e.text);
+  if (ts.isParenthesizedExpression(e)) return readingsOf(e.expression);
+  if (ts.isTemplateExpression(e)) {
+    let acc = plain(e.head.text);
+    for (const s of e.templateSpans) acc = crossVariants(crossVariants(acc, readingsOf(s.expression)), plain(s.literal.text));
+    return acc;
+  }
+  if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.PlusToken) return crossVariants(readingsOf(e.left), readingsOf(e.right));
+  if (ts.isConditionalExpression(e)) {
+    const [k, pol] = condKey(e.condition);
+    const tag = (v: Variant, p: boolean): Variant | null => joinVariants({ text: "", conds: new Map([[k, p]]) }, v);
+    return [
+      ...readingsOf(e.whenTrue).map((v) => tag(v, pol)),
+      ...readingsOf(e.whenFalse).map((v) => tag(v, !pol)),
+    ].filter((v): v is Variant => v !== null);
+  }
+  if (ts.isIdentifier(e) && MARKER_SPELLINGS.has(e.text)) return plain(MARKER_REL);
+  return plain("${" + e.getText() + "}");
+}
+/** The maximal string expression a string fragment sits in. */
+function maximalString(n: ts.Node): ts.Node {
+  let e: ts.Node = ts.isTemplateHead(n) ? n.parent : ts.isTemplateMiddle(n) || ts.isTemplateTail(n) ? n.parent.parent : n;
+  for (;;) {
+    const p = e.parent;
+    if (ts.isTemplateSpan(p) && p.expression === e) e = p.parent;
+    else if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.PlusToken) e = p;
+    else if (ts.isParenthesizedExpression(p)) e = p;
+    else if (ts.isConditionalExpression(p) && p.condition !== e) e = p;
+    else return e;
+  }
+}
+const alwaysLeaves = (s: ts.Statement): boolean =>
+  ts.isReturnStatement(s) || ts.isThrowStatement(s) || (ts.isBlock(s) && s.statements.length > 0 && alwaysLeaves(s.statements[s.statements.length - 1]));
+/** The conditions that decide whether `n` runs, within its function: enclosing if branches and earlier early returns. */
+function statementGuards(n: ts.Node): Map<string, boolean> {
+  const g = new Map<string, boolean>();
+  let child: ts.Node = n;
+  for (let p: ts.Node | undefined = n.parent; p !== undefined; child = p, p = p.parent) {
+    if (ts.isIfStatement(p) && p.expression !== child) {
+      const [k, pol] = condKey(p.expression);
+      g.set(k, p.thenStatement === child ? pol : !pol);
+    }
+    if (ts.isBlock(p) || ts.isSourceFile(p)) {
+      for (const s of p.statements) {
+        if (s === child) break;
+        if (ts.isIfStatement(s) && s.elseStatement === undefined && alwaysLeaves(s.thenStatement)) {
+          const [k, pol] = condKey(s.expression);
+          if (!g.has(k)) g.set(k, !pol);
+        }
+      }
+    }
+    if (ts.isFunctionLike(p)) break;
+  }
+  return g;
+}
+/** Every tracked install/*.ts that is not a test, test-support or declaration file, from git. */
+function productModules(): string[] {
+  const listed = execFileSync("git", ["ls-files", "--", "install"], { cwd: REPO_ROOT, encoding: "utf8" });
+  return listed
+    .split("\n")
+    .filter((f) => /^install\/[^/]+\.ts$/.test(f) && !/\.(test|test-support|d)\.ts$/.test(f))
+    .map((f) => f.slice("install/".length))
+    .sort();
+}
+/** The census: every variant of every maximal string expression that touches the marker, its ledger or `agents`. */
+function remedyCensus(): CensusSite[] {
+  const out: CensusSite[] = [];
+  for (const module of productModules()) {
+    const sf = parse(`install/${module}`);
+    const seen = new Set<ts.Node>();
+    const isFragment = (n: ts.Node): boolean =>
+      ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n);
+    for (const f of nodesOf(sf, (n): n is ts.Node => isFragment(n))) {
+      const m = maximalString(f);
+      if (seen.has(m)) continue;
+      seen.add(m);
+      const guards = statementGuards(m);
+      for (const v of readingsOf(m)) {
+        const text = v.text.replace(/\s+/g, " ").trim();
+        if (!TOUCH.test(text) && !(BY_HAND.test(text) && NOUN.test(text))) continue;
+        const conds = new Map([...guards, ...v.conds]);
+        const guard: Guard = conds.has("FULL") ? (conds.get("FULL") === true ? "FULL" : "partial") : "either";
+        out.push({ module, fn: enclosing(m), guard, text, line: sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1 });
+      }
+    }
+  }
+  return out;
+}
+
+type RemedyClass =
+  | "usable record, FULL only"
+  | "usable record, split by FULL"
+  | "not a usable record"
+  | "per entry"
+  | "per field"
+  | "fix"
+  | "touches no record"
+  | "not a printed alternative";
+type CensusRow = readonly [module: string, fn: string, guard: Guard, text: string, cls: RemedyClass, why: string];
+
+/**
+ * THE TABLE (derived at execution of plan 34.1-20, after plan 34.1-19 and this plan's Task 1, by the walk above; not
+ * copied from the plan's sibling table). A new or changed printed alternative fails as unclassified until it is classed
+ * here, and it is classed only once it does what its class says: a breaking site is fixed in the product.
+ */
+const CENSUS_TABLE: readonly CensusRow[] = [
+  // usable record, FULL only (U1, U2): keepWithoutRecord's FULL branch, the one place the delete-the-marker text is written.
+  ["uninstall.ts", "keepWithoutRecord", "FULL", "or delete the marker by hand to keep them without a record", "usable record, FULL only", "the kept `left` line's alternative; no agent stays installed on a FULL run"],
+  ["uninstall.ts", "keepWithoutRecord", "FULL", "or, to keep them, delete .grugops/install.json by hand (uninstall then has no record of them and changes nothing more)", "usable record, FULL only", "the KEPT_FOR banner's alternative; no agent stays installed on a FULL run"],
+  // usable record, split by FULL (U4): install's own marker with a malformed ledger.
+  ["uninstall.ts", "removeMarker", "FULL", ".grugops/install.json (its install ledger is malformed, so the record of what install did could not be used; it was left in place — fix or remove it by hand)", "usable record, split by FULL", "FULL run: no agent stays installed, so removing the marker drops no staying agent's record"],
+  ["uninstall.ts", "removeMarker", "partial", ".grugops/install.json (its install ledger is malformed, so the record of what install did could not be used; it was left in place — fix the ledger field by hand: the marker is still the record of every agent installed here, so removing it would leave each of them with no record)", "usable record, split by FULL", "partial run: the marker is the record of every agent installed here, so only the field is fixed"],
+  // not a usable record (U3, I1, I5, I6, and the legacy-marker verify): no run reads a record from it, before or after the remedy.
+  ["uninstall.ts", "removeMarker", "either", ".grugops/install.json (it could not be read as install's marker: ${why}; it was left in place — fix or remove it by hand)", "not a usable record", "U3: not a JSON object, a damaged file, or gone when the run started; installedAgents reads no agent from it"],
+  ["install.ts", "markerUnreadable", "either", "the install marker ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then re-run install.js (then install.js --check)", "not a usable record", "I1: the doctor's unreadable marker (markerUnusableText)"],
+  ["install.ts", "writeAskRules", "either", ".grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — no ask rule was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.", "not a usable record", "I5: readInstallMarker answered unreadable"],
+  ["install.ts", "askRulesStep", "either", ".grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — the marker was left as it was. Fix or remove the marker, then re-run the installer.", "not a usable record", "I6: readInstallMarker answered unreadable (Claude Code not chosen)"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of its records is used here, and this run removes and edits nothing. Re-run install.js here, then uninstall with `${rerunCommand()}`: install, with any agent flag (every install writes the marker, whatever agents it names), writes a marker for this directory with the install ledger and carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "not a usable record", "a marker written before markers were bound or before the one ledger: this build reads no record from it, so the re-install that replaces it drops none"],
+  // per entry (U5, plan 34.1-19's partial-run alternative): only named ledger entries leave the record.
+  ["uninstall.ts", "updateKeptMarker", "either", "it still lists what this run removed or reversed (${what}); take those entries out of its install ledger by hand, or a later run may act on them", "per entry", "U5: only the entries this run already removed or reversed"],
+  ["uninstall.ts", "keepWithoutRecord", "partial", "or, to keep it, take its entry out of the install ledger in .grugops/install.json by hand${then}; never delete ${marker}: it is still the record of ${nameList(STAYING)}", "per entry", "the held entry only; the marker stays the record of the staying agents (R19)"],
+  ["uninstall.ts", "keepWithoutRecord", "partial", "or, to keep them, take their entries out of the install ledger in .grugops/install.json by hand${then}; never delete ${marker}: it is still the record of ${nameList(STAYING)}", "per entry", "the held entries only; the marker stays the record of the staying agents (R19)"],
+  // per field (U6): one field set to the value the run computed.
+  ["uninstall.ts", "updateKeptMarker", "either", "its `agents` list still names the agents this run removed; set it to ${agentsNow} by hand, or a later install chooses them again", "per field", "U6: the value is agentsAfter's, which agentsToRecord derives"],
+  // fix: the record is repaired in place and every agent's record stays.
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed from ${MARKER_READ.boundTo}, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise re-run install.js here, with any agent flag (every install writes a marker for this directory, whatever agents it names): it carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7: set \"target\"; the re-install is offered only when the records are another directory's"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise re-run install.js here, with any agent flag (every install writes a marker for this directory, whatever agents it names): it carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7 (no boundTo recorded): as above"],
+  ["install.ts", "doctor", "either", "the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of its records here and changes nothing. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, which writes a marker for this directory and carries none of these records", "fix", "the doctor's unbound marker: set \"target\"; the re-install is offered only when the records are another directory's"],
+  ["install.ts", "doctor", "either", "the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). Fix the ledger field by hand", "fix", "I2: the doctor's malformed ledger"],
+  ["install.ts", "writeMarker", "either", ".grugops/install.json — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and nothing this run did was recorded. Uninstall will remove and edit nothing on it; fix the ledger field by hand to restore the record.", "fix", "I3: writeMarker's malformed ledger"],
+  ["install.ts", "writeAskRules", "either", "${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was added and the ledger is written back unchanged. Fix the ledger field, then re-run the installer.", "fix", "I4: the ask-rules step's malformed ledger"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json holds a malformed install ledger (${LEDGER.why}), so what install created, wrote and changed here is unknown. No empty directory, no file install may have created, no grugops skill or adapter file and no pointer block is removed, .gemini/settings.json is not edited and no ask rule is removed — fix the ledger field and run `${rerunCommand()}` again, or remove them by hand once you have confirmed they are yours to remove.", "fix", "the module-top malformed-ledger verify: fix the field; the by-hand alternative is about the files, not the marker"],
+  // touches no record: the by-hand remedy is about a file, a block or a rule; the marker or ledger is only named as the reason.
+  ["uninstall.ts", "removeSentinelBlock", "either", "${label} (the grugops block in it no longer matches the block install recorded appending — a line inside it was added, edited or removed, its line ends or spacing changed, or a marker line is missing — so nothing was removed and the file was left as it is; remove the grugops lines by hand, keeping any line of yours)", "touches no record", "the pointer block's lines; \"marker line\" is the block's own sentinel"],
+  ["uninstall.ts", "removeAskRules", "either", "${rel}: ${read.at} ${read.reason}. It was not read and was left untouched; the ${ledger.size} ask rule(s) grugops added were NOT removed. Remove them by hand.", "touches no record", "the ask rules in the settings file"],
+  ["uninstall.ts", "removeAskRules", "either", "${rel} is not a JSON object — left untouched; the ${ledger.size} ask rule(s) grugops added were NOT removed. Fix the file, then run `${rerunCommand()}` again, or remove them by hand.", "touches no record", "the settings file and its ask rules"],
+  ["uninstall.ts", "removeAskRules", "either", "${rel} ${doc.why} — left untouched; the ${ledger.size} ask rule(s) grugops added were NOT removed. Fix the file, then run `${rerunCommand()}` again, or remove them by hand.", "touches no record", "the settings file and its ask rules"],
+  ["uninstall.ts", "removeAskRules", "either", "${rel} has more than one \"permissions\" or \"permissions.ask\" key, so which one Claude Code reads is not known — left untouched; the ${ledger.size} ask rule(s) grugops added were NOT removed. Remove them by hand.", "touches no record", "the ask rules in the settings file"],
+  ["uninstall.ts", "removeAskRules", "either", "${r} (present in ${rel} but not in the install ledger — there is no record that install added this copy, so it is left in place; remove it by hand if grugops added it)", "touches no record", "one ask rule"],
+  ["uninstall.ts", "unrecordedFileReason", "either", "there is no install marker, so there is no record that install wrote it — left in place; remove it by hand if grugops put it there", "touches no record", "one file; there is no marker"],
+  ["uninstall.ts", "reportUnrecordedSettings", "either", "${rel} (the install ledger has no gemini entry, so there is no record of what install changed in it — left untouched; if grugops added AGENTS.md to context.fileName, remove that entry by hand)", "touches no record", "one entry of .gemini/settings.json"],
+  ["uninstall.ts", "reportUnrecordedSettings", "either", "${rel} ask rules — .grugops/install.json could not be used as install's marker (${MARKER.why}), so the ledger of rules grugops added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.", "touches no record", "the ask rules in the settings file"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json ${markerUnusableText(MARKER)}, so the install ledger is unknown. No empty directory, no file install may have created, no grugops skill or adapter file and no pointer block is removed, and .gemini/settings.json is not edited — remove them by hand once you have confirmed they are yours to remove.", "touches no record", "the files the line lists"],
+  // not a printed alternative: this run's own (DRY_RUN) description of the rewrite it makes.
+  ["uninstall.ts", "said", "either", "the entries this run would remove or reverse would be taken out of its install ledger: ${what}", "not a printed alternative", "updateKeptMarker's DRY_RUN wording of its own ledger rewrite"],
+];
+/** Per-class counts, measured at execution of plan 34.1-20 (31 sites: install.ts 7, uninstall.ts 24; the other 7 product modules print none). */
+const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
+  "usable record, FULL only": 2,
+  "usable record, split by FULL": 2,
+  "not a usable record": 5,
+  "per entry": 3,
+  "per field": 1,
+  fix: 7,
+  "touches no record": 10,
+  "not a printed alternative": 1,
+};
+/** What every row of a class must say, so a row cannot be classed against its text. */
+const CLASS_RULES: Readonly<Record<RemedyClass, (s: CensusSite) => string | null>> = {
+  "usable record, FULL only": (s) =>
+    s.guard === "FULL" && s.fn === "keepWithoutRecord" && DELETE_MARKER.test(s.text) ? null : "not keepWithoutRecord's FULL branch with the delete text",
+  "usable record, split by FULL": (s) =>
+    s.guard === "FULL"
+      ? /\bremove it by hand\b/.test(s.text) ? null : "the FULL arm does not offer removing it"
+      : s.guard === "partial" && /\bfix the ledger field by hand\b/.test(s.text) && /\bstill the record of\b/.test(s.text) && !/\b(remove|delete) it by hand\b/.test(s.text) && !DELETE_MARKER.test(s.text)
+        ? null
+        : "the partial arm does not say fix the field because the marker is still the record, or it offers removing it",
+  "not a usable record": (s) =>
+    /could not be read as install's marker|\$\{markerUnusableText\((read|previousMarker)\)\}|not a record this run can use/.test(s.text) ? null : "names no reason the record is unusable",
+  "per entry": (s) => (/\bout of (its|the) install ledger\b/.test(s.text) && !DELETE_MARKER.test(s.text) ? null : "is not a per-entry ledger edit"),
+  "per field": (s) => (/`agents` list\b.*\bset it to\b/.test(s.text) ? null : "is not a per-field edit of `agents`"),
+  fix: (s) => (/\bfix the ledger field\b|\bset "target" in the marker\b/i.test(s.text) && !DELETE_MARKER.test(s.text) ? null : "is not a fix of the field"),
+  "touches no record": (s) => (!TOUCH.test(s.text) && !DELETE_MARKER.test(s.text) ? null : "its remedy verb reaches the marker or its ledger"),
+  "not a printed alternative": (s) => (s.fn === "said" && /\bwould be taken out\b/.test(s.text) ? null : "is not the DRY_RUN wording of the run's own rewrite"),
+};
+const censusKey = (module: string, fn: string, guard: Guard, text: string): string => `${module} :: ${fn} :: {${guard}} :: ${text}`;
+function countBy<T>(items: readonly T[], key: (t: T) => string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const i of items) out[key(i)] = (out[key(i)] ?? 0) + 1;
+  return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
+}
+
 describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)", () => {
   it("R19 (CR-03, partial): uninstall --codex over an edited shared skill never offers deleting the marker; following the printed alternative records [claude] and keeps the file; uninstall --claude then removes Claude Code", () => {
     const w = world("r19");
@@ -640,6 +897,57 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     expect(f[0], full.stdout).toContain("fix or remove it by hand");
     expect(f[0], full.stdout).not.toContain("fix the ledger field by hand");
     expect(existsSync(markerPath), full.stdout).toBe(true);
+  });
+
+  it("the by-hand remedy census: every printed alternative that touches the marker or its ledger is classed, both ways, with per-class counts", () => {
+    const sites = remedyCensus();
+    const found = new Map<string, CensusSite[]>();
+    for (const s of sites) {
+      const k = censusKey(s.module, s.fn, s.guard, s.text);
+      found.set(k, [...(found.get(k) ?? []), s]);
+    }
+    const want = new Map<string, number>();
+    for (const r of CENSUS_TABLE) want.set(censusKey(r[0], r[1], r[2], r[3]), (want.get(censusKey(r[0], r[1], r[2], r[3])) ?? 0) + 1);
+    const unclassified = sites.filter((s) => !want.has(censusKey(s.module, s.fn, s.guard, s.text))).map((s) => `${s.module}:${s.line} [${s.fn}] {${s.guard}} ${s.text}`);
+    const stale = [...want.keys()].filter((k) => !found.has(k));
+    const counts = [...want].filter(([k, n]) => found.has(k) && (found.get(k) ?? []).length !== n).map(([k, n]) => `${k}: table ${n}, found ${(found.get(k) ?? []).length}`);
+    expect(unclassified, "a printed alternative that touches the marker or its ledger is not classed").toEqual([]);
+    expect(stale, "a classed printed alternative is gone or changed").toEqual([]);
+    expect(counts, "a classed printed alternative is printed a different number of times").toEqual([]);
+    expect(sites.length, "the census size moved").toBe(31);
+    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install.ts": 7, "uninstall.ts": 24 });
+    expect(countBy(CENSUS_TABLE, (r) => r[4]), "per-class counts").toEqual(
+      Object.fromEntries(Object.entries(CENSUS_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
+    );
+  });
+
+  it("the by-hand remedy census: each row says what its class says (the classes are not a label)", () => {
+    const sites = remedyCensus();
+    const cls = new Map(CENSUS_TABLE.map((r) => [censusKey(r[0], r[1], r[2], r[3]), r[4]]));
+    const wrong: string[] = [];
+    for (const s of sites) {
+      const c = cls.get(censusKey(s.module, s.fn, s.guard, s.text));
+      if (c === undefined) continue; // unclassified: the census row above reports it
+      const why = CLASS_RULES[c](s);
+      if (why !== null) wrong.push(`${s.module}:${s.line} [${s.fn}] {${s.guard}} (${c}): ${why} — ${s.text}`);
+    }
+    expect(wrong, "a row breaks its class's rule").toEqual([]);
+    // "usable record, split by FULL" comes in pairs: one FULL and one partial reading of the same expression.
+    const split = sites.filter((s) => cls.get(censusKey(s.module, s.fn, s.guard, s.text)) === "usable record, split by FULL");
+    const byLine = countBy(split, (s) => `${s.module}:${s.line}:${s.guard}`);
+    expect(Object.values(byLine).every((n) => n === 1) && new Set(split.map((s) => `${s.module}:${s.line}`)).size * 2 === split.length, `split rows are not FULL/partial pairs: ${JSON.stringify(byLine)}`).toBe(true);
+  });
+
+  it("the delete-the-marker text is written only in keepWithoutRecord's FULL branch (by the parser)", () => {
+    const deleting = remedyCensus().filter((s) => DELETE_MARKER.test(s.text));
+    expect(deleting.map((s) => `${s.module} [${s.fn}] {${s.guard}} ${s.text}`), "the delete-the-marker text outside keepWithoutRecord's FULL branch").toEqual(
+      CENSUS_TABLE.filter((r) => r[4] === "usable record, FULL only").map((r) => `${r[0]} [${r[1]}] {${r[2]}} ${r[3]}`),
+    );
+    expect(deleting.length).toBe(2);
+    for (const s of deleting) {
+      expect(s.fn).toBe("keepWithoutRecord");
+      expect(s.guard).toBe("FULL");
+    }
   });
 });
 
