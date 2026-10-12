@@ -39,19 +39,22 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
-import { AGENT_SKILL_REL, HOST_TOOLS, agentCommand, agentFlag, entryOwners, type HostTool } from "./host-tools.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, agentCommand, agentFlag, commandContext, entryOwners, scriptCommand, type HostTool } from "./host-tools.js";
 import { ASK_RULES_REL, agentsToRecord, entryHolds, readLedger, type LedgerEntry } from "./install-marker.js";
 import {
   INSTALL_JS,
   MARKER_REL,
   type Run,
+  commandContextFor,
   lineNamesPath,
   makeOldLayoutFixture,
+  pathText,
   printedCommand,
   runInstall,
+  runPrintedCommand,
   runPrintedCommandInCheckout,
   runUninstall,
   shellWords,
@@ -212,6 +215,93 @@ describe("agentCommand: the one builder of a printed command that names agents (
       const cmd = agentCommand("uninstall.js", target, [row("claude")]);
       expect(shellWords(cmd), cmd).toEqual(["node", "install/uninstall.js", "--target", target, flag("claude")]);
     }
+  });
+
+  // The invocation context (plan 34.1-22, D-33, review WR-19). The rows above are the transitional form with no context,
+  // which plan 34.1-24 removes. Pure: no row runs an installer.
+  const DIR = "/opt/grugops/install";
+  const KIT = "/srv/kits/k";
+  const DEFAULT_KIT = "/home/u/.grugops";
+  const plain = commandContext(DIR, DEFAULT_KIT, DEFAULT_KIT);
+  const withKit = commandContext(DIR, KIT, DEFAULT_KIT);
+  const linked = commandContext(DIR, DEFAULT_KIT, DEFAULT_KIT, true);
+  const everything = commandContext(DIR, KIT, DEFAULT_KIT, true);
+
+  it("commandContext: kitHome is null when it equals the default, and the value otherwise", () => {
+    expect(plain).toEqual({ scriptDir: DIR, kitHome: null, symlink: false });
+    expect(withKit).toEqual({ scriptDir: DIR, kitHome: KIT, symlink: false });
+    expect(linked.symlink).toBe(true);
+  });
+  it("scriptCommand(install.js) with the default kit home is `node <dir>/install.js`", () => {
+    expect(scriptCommand("install.js", plain)).toBe(`node ${DIR}/install.js`);
+    expect(scriptCommand("install.js", commandContext(DIR + "/", DEFAULT_KIT, DEFAULT_KIT)), "a trailing / on the script directory").toBe(`node ${DIR}/install.js`);
+  });
+  it("scriptCommand(install.js) with another kit home starts `GRUGOPS_HOME=<home> node`", () => {
+    expect(scriptCommand("install.js", withKit)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/install.js`);
+  });
+  it("scriptCommand(install.js) of a symlink run ends `<dir>/install.js --symlink`", () => {
+    expect(scriptCommand("install.js", linked)).toBe(`node ${DIR}/install.js --symlink`);
+    expect(scriptCommand("install.js", everything)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/install.js --symlink`);
+  });
+  it("scriptCommand(uninstall.js) is exactly `node <dir>/uninstall.js`, even with a kit home and symlink in the context", () => {
+    expect(scriptCommand("uninstall.js", everything)).toBe(`node ${DIR}/uninstall.js`);
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex")], everything)).toBe(`node ${DIR}/uninstall.js --target /tmp/a/t ${flag("codex")}`);
+  });
+  it("a script directory or a kit home with a space or a quote is single-quoted, and shellWords reads each back as one word", () => {
+    for (const odd of ["/opt/my grugops/install", "/opt/it's/install", "/opt/a;b/$x/install"]) {
+      const ctx = commandContext(odd, odd + "/kit", DEFAULT_KIT, true);
+      const cmd = agentCommand("install.js", "/tmp/my repo/t", [row("pi")], ctx);
+      expect(shellWords(cmd), cmd).toEqual([`GRUGOPS_HOME=${odd}/kit`, "node", `${odd}/install.js`, "--symlink", "--target", "/tmp/my repo/t", agentFlag(row("pi"))]);
+    }
+  });
+  it("agentCommand with a context appends the flags in the order given, then the modes", () => {
+    expect(agentCommand("install.js", "/tmp/a/t", [row("codex"), row("claude")], withKit, ["--migrate"])).toBe(
+      `GRUGOPS_HOME=${KIT} node ${DIR}/install.js --target /tmp/a/t ${flag("codex")} ${flag("claude")} --migrate`,
+    );
+    expect(agentCommand("install.js", "/tmp/a/t", [], plain, ["--check"])).toBe(`node ${DIR}/install.js --target /tmp/a/t --check`);
+  });
+  it("agentCommand throws for a combination the binary would refuse", () => {
+    expect(() => agentCommand("install.js", "/tmp/a/t", [row("claude")], plain, ["--check"])).toThrow(/--check/);
+    expect(() => agentCommand("install.js", "/tmp/a/t", [row("claude")], plain, ["--prune-old-kit"])).toThrow(/--prune-old-kit/);
+    expect(() => agentCommand("uninstall.js", "/tmp/a/t", [], plain, ["--migrate"])).toThrow(/uninstall\.js takes no mode/);
+  });
+});
+
+// ── the harness premise (plan 34.1-22, D-33; brief §4, WR-19) ─────────────────────────────────────────────────────
+//
+// runPrintedCommand runs a printed command in the user's environment: only the printed text sets GRUGOPS_HOME, and the
+// working directory is not the checkout. These rows hold that premise against the test process's own environment.
+describe("runPrintedCommand: the harness premise (D-33, WR-19)", () => {
+  it("a printed command with no GRUGOPS_HOME prefix, run from a test process whose environment sets GRUGOPS_HOME, runs with no GRUGOPS_HOME and outside the checkout", () => {
+    const dir = join(SCRATCH, `premise-${seq++}`);
+    const home = join(dir, "home");
+    const target = join(dir, "t");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(target, { recursive: true });
+    const injected = join(dir, "injected-kit");
+    const ctx = commandContextFor({ grugopsHome: join(home, ".grugops"), home });
+    expect(ctx.kitHome, "premise: the kit home is the default, so the printed text sets none").toBeNull();
+    const text = "`" + agentCommand("install.js", target, [], ctx, ["--check"]) + "`";
+    const saved = process.env.GRUGOPS_HOME;
+    process.env.GRUGOPS_HOME = injected;
+    try {
+      const r = runPrintedCommand(text, { home, timeoutMs: 120_000 });
+      expect(r.premise.grugopsHome, "the child's environment held the test process's GRUGOPS_HOME").toBeUndefined();
+      expect(relative(REPO_ROOT, r.premise.cwd).startsWith(".."), `the printed command ran from ${r.premise.cwd}, inside the checkout`).toBe(true);
+      expect(r.signal, r.stderr).toBeNull();
+      expect(pathText(r.stdout + r.stderr), "the child names the injected kit home").not.toContain(pathText(injected));
+      expect(existsSync(injected), "the child wrote into the injected kit home").toBe(false);
+    } finally {
+      if (saved === undefined) delete process.env.GRUGOPS_HOME;
+      else process.env.GRUGOPS_HOME = saved;
+    }
+  });
+  it("runPrintedCommand refuses a command whose script word is relative, and a working directory inside the checkout", () => {
+    const home = join(SCRATCH, `premise-${seq++}`, "home");
+    mkdirSync(home, { recursive: true });
+    expect(() => runPrintedCommand("`" + agentCommand("uninstall.js", "/tmp/a/t", []) + "`", { home })).toThrow(/relative/);
+    const absolute = "`" + agentCommand("uninstall.js", "/tmp/a/t", [], commandContextFor({ grugopsHome: join(home, ".grugops"), home })) + "`";
+    expect(() => runPrintedCommand(absolute, { home, cwd: REPO_ROOT })).toThrow(/inside the checkout/);
   });
 });
 
