@@ -203,3 +203,29 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **Not fixed:** a command that runs another checkout's install.js is not something agentCommand builds. Options for
   triage: leave the text (the user names the checkout), or print the --check command with a placeholder for the
   checkout's install.js path. Read from the code, not reproduced.
+
+## From plan 34.1-28 (gap round 2)
+
+### DI-13: rewriteLedger's verify says "Re-run to finish it.", and a re-run does not finish it
+
+- **Found during:** plan 34.1-28, task 2. The prune INCOMPLETE banner now prints `install.js --target <t>
+  --prune-old-kit` (agentCommand). installer-prune.test.ts "a record that cannot be rewritten after the removals" ran
+  that command as printed, from a scratch directory, after making the records writable again: it exited 0 with
+  `== prune complete ==`, and the marker still listed the removed backup (`agent-factory.bak.<ISO>`). The same case
+  showed the census hole below.
+- **What:** install/install.ts rewriteLedger, the verify `<holder>: <why>, so it was not rewritten and this was not
+  done: <what>. Re-run to finish it.` Two callers:
+  - prune (rewriteLedgerWithout): the backups were already removed. A second prune finds each entry's backup gone,
+    reports it `left` ("it is no longer there; its entry is kept in the record") and keeps the entry, by design (33.1-40:
+    by record, never by presence). So the re-run never takes the entries out.
+  - the already-migrated --migrate (recordBackupsInMarker): the handoffs were already moved to the backup. A second
+    --migrate finds no plans/handoffs/ and records only the backups of its own run, so the first run's backup stays
+    unrecorded. Read from the code, not reproduced.
+- **Census hole, fixed in this plan:** message-references.test.ts RERUN was case-sensitive, so this capitalized
+  `Re-run` (and the kit banner's `Re-run: node scripts/...`) was never in census (f). RERUN is case-insensitive now,
+  and the row is classed "no command: a re-run does not finish it (DI-13)", named rather than hidden.
+- **Not fixed:** either fix changes a prune or record rule (brief §3: new findings go here). Options for triage: (a)
+  prune takes out an entry whose backup is gone when the entry is install's own and unchanged (a record rule change
+  against 33.1-40's "kept in the record"); (b) the verify says plainly what a re-run does and does not do (for prune, a
+  gone backup's entry stays and removes nothing on a later prune); (c) the migrate caller records
+  the earlier run's backup when the backup path exists and matches.
