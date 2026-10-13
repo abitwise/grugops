@@ -278,7 +278,8 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-16: the doctor's FAIL over a marker that is not JSON (or has no usable ledger) prints an install command without naming its kit home
 
-- status: open
+- status: resolved 2026-10-13, closed by D-38 in gap round 4 (plans 34.1-44, 34.1-47 and 34.1-49; commits 30003a2c,
+  fadff0bb, c3d99e71). See "Status after gap round 4" below.
 - **Found during:** plan 34.1-41, Task 1 (sibling search for the MSG-1 shape "a printed install step over an unusable
   marker whose kit home the line does not name").
 - **What:** plan 34.1-41 adds the kit-home clause (contextKitHome) to uninstall.ts's two unusable-marker verifies and
@@ -298,7 +299,8 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-17: no follow-as-printed row runs an `--update` or `--prune-old-kit` command printed under a non-default kit home
 
-- status: open
+- status: resolved 2026-10-13, closed by D-38 in gap round 4 (plan 34.1-49; commits fc4e57a4, c3d99e71). See "Status
+  after gap round 4" below.
 - **Found during:** plan 34.1-38, Task 2 (the claim table for install/README.md's printed-command paragraph).
 - **What:** the README sentence "An install, `--migrate`, `--update` or `--prune-old-kit` run prints commands with the
   kit home and mode it was run with" is true by the code (install.ts DOCTOR_MARKER_READ is null outside `--check`, and
@@ -390,6 +392,32 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   through stageShapeOrSkip, or record them in the mkfifo census with a reason; plan 34.1-52's full regression will
   report the case either way.
 
+## From plan 34.1-52 (gap round 4)
+
+### DI-22: printed commands outside the installer's builder name no kit home or install mode, so D-38's rule does not reach them
+
+- status: residual at phase close (D-39); open for the human; no round 5
+- **Found during:** the gap round 4 plan check, recorded by plan 34.1-52, Task 1 (2026-10-13).
+- **What:** D-38 makes every command the installer's builder prints (host-tools.ts scriptCommand) state
+  `GRUGOPS_HOME`, `INSTALL_MODE` (install.js) and `GRUGOPS_SRC`. Three texts outside that builder still print an
+  install command that names no kit home and no install mode:
+  - agent-factory/packaging/subagent.frontmatter.md (about lines 57 and 106) and the resolver comment written by
+    scripts/kit-model.ts RESOLVER (about line 301) into every generated Claude Code adapter print "grugops kit not
+    found at $KIT. Run node install/install.js (or node install/install.js --check) to install the kit.";
+  - install/install.ts TARGET_BANNER (about line 613 at HEAD 33201603) prints
+    `node install/install.js --target <this repository>` with a placeholder target.
+  A user who follows one of them in a shell that exports `GRUGOPS_HOME` or `INSTALL_MODE` gets whatever that shell
+  holds, which is the WR-25 shape D-38 closed for the builder's commands.
+- **Relation to DI-15:** the same texts' other half (the path `install/install.js` is relative to the grugops
+  checkout and does not exist in a target repository) is DI-15. The reason for not fixing them here is the same:
+  they are fixed agent instruction text (D-09, T-34-13), so no install-time value (no kit home, mode or absolute
+  checkout path) may enter them, and a fix is a wording decision plus a regeneration of the adapters through the
+  freshness gate.
+- **Not fixed:** residual at phase close by D-39; plan 34.1-52 changes none of the three files (it writes closing
+  records only). Option for the human: one wording for every fixed instruction text, for example "run install.js
+  from your grugops checkout, stating GRUGOPS_HOME and INSTALL_MODE as the install recorded them", decided with
+  DI-15.
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.
@@ -456,3 +484,74 @@ IN-28 to IN-31, DI-05 and DI-11 to DI-15 to triage. "Not changed in round 3" bel
   `mayRemove` arm and notInstalled print an install command without naming its kit home.
 - **DI-17:** open for human triage, recorded by plan 34.1-38 (commit 4ab7e9b8): no follow-as-printed row runs an
   `--update` or `--prune-old-kit` command printed under a non-default kit home.
+
+## Status after gap round 4 (plans 34.1-42 to 34.1-52)
+
+Scope of the round is D-37 (CR-05, CR-06, WR-26, IN-33, IN-34), D-38 (WR-24, WR-25, IN-32, DI-16, DI-17) and D-39
+(human, 2026-10-13): IN-28 to IN-31, DI-05 and DI-11 to DI-15 are deferred as residual at phase close, DI-03 stays a
+human item, and new findings are recorded here because there is no round 5. "Not changed in round 4" below was checked
+against `git diff a34bbb2e..HEAD`: the round's code changes are in install/ only (CHANGELOG.md and install/README.md
+for prose); AGENTS.md, scripts/ and agent-factory/ are unchanged.
+
+- **DI-01:** decided (D-28): the by-name exclusion stays; scripts/check-banned-claims.ts is unchanged by this round.
+- **DI-02:** resolved in plan 34.1-02 (the gate reads `TEMPLATE_REL`); nothing left.
+- **DI-03:** a human item; whether CI on Node 22 shows the Node 26 reds is `UNKNOWN - verify`. Plan 34.1-52's full
+  regression reports them again (its SUMMARY lists each failing case against this baseline).
+- **DI-04:** closed by plan 34.1-13 (commit ac790deb).
+- **DI-05:** deferred as residual at phase close by D-39; not changed in round 4. install/uninstall.ts unmergeGemini is
+  untouched; plans 34.1-42 to 34.1-45 and 34.1-47 to 34.1-48 changed uninstall.ts elsewhere (noBlockRecordReason,
+  removeMarker, reportUnrecordedSettings, the module-top marker verifies, COMMAND_CONTEXT, finishCommand and
+  keepWithoutRecord).
+- **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
+- **DI-07:** fixed in round 2 by plan 34.1-21 under D-31 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); its remaining arm is
+  DI-11.
+- **DI-08:** fixed in round 2 by plan 34.1-27 under D-31 and D-33 (commits 5af55277, 0a72286c).
+- **DI-09:** fixed in round 2 by plan 34.1-28 under D-31 and D-33 (commits f65cfa0b, 2a055d1a).
+- **DI-10:** fixed in round 2 by plan 34.1-31 under D-31 (commit 8d730df2).
+- **DI-11:** deferred as residual at phase close by D-39; not changed in round 4. removeAskRules is untouched; plan
+  34.1-45 (commit 7f407082) changed reportUnrecordedSettings's ask-rules arm beside it (IN-34: over an unusable marker
+  the report is a `left` line pointing at the marker's verify) and did not change which arm counts a verify or what
+  the finishing command names.
+- **DI-12:** deferred as residual at phase close by D-39; not changed in round 4. Plan 34.1-50 (commit 0c210f4d)
+  changed the doctor's stale-adapter render and wording beside the two lines (DOCTOR_KIT_ROOT); the two "re-run
+  --check from a complete kit checkout" lines still print no command.
+- **DI-13:** deferred as residual at phase close by D-39; not changed in round 4. rewriteLedger's "Re-run to finish
+  it." is unchanged; plan 34.1-49's `--prune-old-kit` row (commit c3d99e71) asserts which kit home the printed
+  command acts on, not that entries leave the record.
+- **DI-14:** deferred as residual at phase close by D-39; not changed in round 4. Plan 34.1-44 (commit 87eead65)
+  changed writeMarker's skipped line (it now words the cause through markerDefectText); agentClosingLines
+  and the route notes still read AGENTS_AFTER.
+- **DI-15:** deferred as residual at phase close by D-39; not changed in round 4. AGENTS.md and scripts/kit-model.ts
+  RESOLVER are unchanged, so the generated adapters still say `node install/install.js`; DI-22 names the kit-home
+  half of the same texts.
+- **DI-16:** closed by D-38: plan 34.1-44 removed the install command from the doctor's unreadable-marker FAIL (commit
+  30003a2c; the FAIL now prints only the check command), plan 34.1-47 made every printed command state its kit home
+  (commits fadff0bb, 335a98e3), and plan 34.1-49's R51 follows the doctor's not-installed FAIL, its install command
+  and its check command as printed under conflicting values (commit c3d99e71).
+- **DI-17:** closed by D-38: plan 34.1-49's `--update` row (commit fc4e57a4) and `--prune-old-kit` row (commit
+  c3d99e71) run each INCOMPLETE banner's command as printed under a non-default kit home with a conflicting
+  GRUGOPS_HOME in the child.
+- **DI-18:** open for the human; no round 5 (recorded by plan 34.1-42, commit 8a40b76d): over a user's own JSON object
+  at the marker path in a target grugops never installed into, the uninstaller's verify calls the file the record of
+  the agents installed here. Wording only; uninstall changes zero bytes there.
+- **DI-19:** open for the human; no round 5 (recorded by plan 34.1-45, commit 6bdda559): the doctor's ask-rules WARN
+  over an unreadable marker names the wrong cause, reached only if the marker changes between two reads.
+- **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551; recorded by plan 34.1-49, commit c60277ce).
+- **DI-21:** resolved by commit 4e0fa03a (recorded by plan 34.1-50, commit 73770fbf): both FIFO shapes are staged
+  through stageShapeOrSkip; the mkfifo census is unedited.
+- **DI-22:** residual at phase close by D-39; open for the human; no round 5 (recorded by plan 34.1-52, this
+  commit): printed commands outside the installer's builder (subagent.frontmatter.md, scripts/kit-model.ts RESOLVER,
+  install/install.ts TARGET_BANNER) name no kit home or install mode.
+
+### Recorded for the human at round close (no round 5)
+
+- **(a) The uninstall half of D-38, as read by plan 34.1-48.** D-38's wording says every printed install or uninstall
+  command states its install mode. Plan 34.1-48 read it for uninstall as "a printed uninstall.js command states
+  GRUGOPS_HOME and GRUGOPS_SRC and no INSTALL_MODE", because uninstall.js reads no INSTALL_MODE (plan 34.1-49's
+  env-read census holds that, and its scriptCommand property test asserts the stated set exactly) and refuses
+  `--symlink`. The follow-as-printed harness keeps a conflicting INSTALL_MODE in the child for every followed
+  uninstall command (H4), so an exported INSTALL_MODE cannot change what a printed uninstall command does. The human
+  confirms this reading or amends D-38's wording.
+- **(b) DRY_RUN is the user's chosen preview.** Plan 34.1-49 classes DRY_RUN in the env-read census as "preview": no
+  printed command states it, so a DRY_RUN exported in the user's shell turns a followed command into a preview that
+  writes nothing. Residual at phase close (D-39), not fixed.
