@@ -58,10 +58,16 @@ import {
   commandContextFor,
   makeOldLayoutFixture,
   printedCommand,
+  printedInvocation,
   runInstall,
   runPrintedCommand,
   runUninstall,
   spawnBin,
+  statedKitHome,
+  statedSpelling,
+  statedWords,
+  pathText,
+  type PrintedRun,
   type Run,
 } from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
@@ -853,6 +859,8 @@ function world(tag: string): World {
   mkdirSync(home, { recursive: true });
   return { target, home, kitHome: join(home, ".grugops") };
 }
+/** The GRUGOPS_HOME a follow-as-printed child saw, in pathText's spelling, or undefined when it saw none (plan 34.1-47). */
+const childKitHome = (r: PrintedRun): string | undefined => (r.premise.grugopsHome === undefined ? undefined : pathText(r.premise.grugopsHome));
 const hostOf = (adapter: string): (typeof HOST_TOOLS)[number] => {
   const h = HOST_TOOLS.filter((x) => x.adapter === adapter);
   expect(h.length, `premise: one registry row has the ${adapter} adapter`).toBe(1);
@@ -995,7 +1003,9 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
       // Run as printed in the user's environment (D-33, WR-19): a scratch directory outside the checkout, with no
       // GRUGOPS_HOME the printed text does not set (the world's kit home is the default under its HOME).
       const ran = runPrintedCommand(banner, { home: w.home, timeoutMs: 180_000 });
-      expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+      expect(childKitHome(ran), "premise: the child's kit home is the one stated (the world's is the default)").toBe(
+        statedKitHome("install.js", { kitHome: w.kitHome, home: w.home }),
+      );
       expect(ran.status, ran.stdout + ran.stderr).toBe(0);
       const ask = (JSON.parse(readFileSync(at(w, ".claude/settings.json"), "utf8")) as { permissions?: { ask?: unknown } }).permissions?.ask;
       expect(Array.isArray(ask) && ask.length > 0, `no ask rule was written: ${JSON.stringify(ask)}`).toBe(true);
@@ -1021,7 +1031,9 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const un = printedCommand(note!);
     expect(un).toBe(agentCommand("uninstall.js", w.target, [oc], ctx));
     const ranUn = runPrintedCommand(note!, { home: w.home, timeoutMs: 180_000 });
-    expect(ranUn.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
+    expect(childKitHome(ranUn), "premise: the child's kit home is the one stated for an uninstall command of the second run").toBe(
+      statedKitHome("uninstall.js", { kitHome: kitB, home: w.home }),
+    );
     expect(ranUn.status, ranUn.stdout + ranUn.stderr).toBe(0);
     const rest = note!.slice(note!.indexOf(`\`${un}\``) + un.length + 2);
     expect(printedCommand(rest)).toBe(agentCommand("install.js", w.target, [oc], ctx));
@@ -1060,8 +1072,11 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const line = lines[at0 + 1] ?? "";
     const want = agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.kitHome, home: w.home }), ["--migrate"]);
     expect(line, "the migrate banner does not print the builder's --migrate command").toContain("`" + want + "`");
-    const words = printedCommand(line).split(" ");
-    expect(words[0], "the printed command sets no kit home (the world's is the default) and starts with node").toBe("node");
+    const { assigned, words } = printedInvocation(printedCommand(line));
+    expect(statedSpelling(assigned), "the printed command's assignments are the ones stated for the world's kit home (the default)").toEqual(
+      statedWords("install.js", { kitHome: w.kitHome, home: w.home }),
+    );
+    expect(words[0], "the printed command starts with node after its assignments").toBe("node");
     expect(words[1], "the script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
     expect(words.slice(2, 4).join(" "), "the target").toBe(`--target ${w.target}`);
     expect(words[words.length - 1], "the mode is --migrate").toBe("--migrate");
@@ -1069,7 +1084,9 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     expectReferences([["install --migrate (refused)", r]], false);
     rmSync(at(w, ".grugops/factory.config.json"), { recursive: true, force: true });
     const ran = runPrintedCommand(line, { home: w.home, timeoutMs: 180_000 });
-    expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+    expect(childKitHome(ran), "premise: the child's kit home is the one stated (the world's is the default)").toBe(
+      statedKitHome("install.js", { kitHome: w.kitHome, home: w.home }),
+    );
     expect(outsideCheckout(ran.premise.cwd), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
     expect(existsSync(at(w, MARKER_REL)) && lstatSync(at(w, MARKER_REL)).isFile(), `the two-root marker was not written\n${ran.stdout}`).toBe(true);
@@ -1095,13 +1112,18 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     expect(line, "the remedy phrase").toContain("Re-run install.js, which writes it where nothing is");
     const want = agentCommand("install.js", w.target, [], commandContextFor({ grugopsHome: w.kitHome, home: w.home }));
     expect(line, "the remedy does not print the builder's command").toContain("`" + want + "`");
-    const words = printedCommand(line).split(" ");
-    expect(words[0], "the printed command sets no kit home (the world's is the default) and starts with node").toBe("node");
+    const { assigned, words } = printedInvocation(printedCommand(line));
+    expect(statedSpelling(assigned), "the printed command's assignments are the ones stated for the world's kit home (the default)").toEqual(
+      statedWords("install.js", { kitHome: w.kitHome, home: w.home }),
+    );
+    expect(words[0], "the printed command starts with node after its assignments").toBe("node");
     expect(words[1], "the script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
     expect(words.slice(2).join(" "), "the arguments: the target only, no agent flag and no mode").toBe(`--target ${w.target}`);
     expectReferences([["install --pi", i], ["--check", doc]], false);
     const ran = runPrintedCommand(line, { home: w.home, timeoutMs: 180_000 });
-    expect(ran.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+    expect(childKitHome(ran), "premise: the child's kit home is the one stated (the world's is the default)").toBe(
+      statedKitHome("install.js", { kitHome: w.kitHome, home: w.home }),
+    );
     expect(outsideCheckout(ran.premise.cwd), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
     expect(existsSync(at(w, PI_PROMPT_REL)), `the Pi template was not written\n${ran.stdout}`).toBe(true);

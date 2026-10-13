@@ -39,9 +39,12 @@ import {
   makeOldLayoutFixture,
   plantBackupShapes,
   printedCommand,
+  printedInvocation,
   runInstall,
   runUninstall,
   snapshotTree,
+  statedSpelling,
+  statedWords,
   storedMode,
   userModeEdit,
 } from "./installer-paths.test-support.js";
@@ -520,8 +523,13 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
       again = lines[lines.findIndex((l) => l.startsWith("== prune INCOMPLETE")) + 1] ?? "";
       const want = agentCommand("install.js", w.t, [], commandContextFor({ grugopsHome: w.kitHome, home: w.home }), ["--prune-old-kit"]);
       expect(again, r.stdout).toBe(`  Once each is fixed, \`${want}\` prunes again.`);
-      const words = printedCommand(again).split(" ");
-      expect(words[0], "the world's kit home is the default, so the command sets none and starts with node").toBe("node");
+      // The assignments are compared with the tests' own statement of the rule (statedWords, plan 34.1-47), and the
+      // positions are read after them (printedInvocation).
+      const { assigned, words } = printedInvocation(printedCommand(again));
+      expect(statedSpelling(assigned), "the command's assignments are the ones stated for the world's kit home (the default)").toEqual(
+        statedWords("install.js", { kitHome: w.kitHome, home: w.home }),
+      );
+      expect(words[0], "the command starts with node after its assignments").toBe("node");
       expect(words[1], "the script word is this checkout's absolute install.js").toBe(join(REPO_ROOT, "install", "install.js"));
       expect(words.slice(2).join(" "), "the arguments: the target, then --prune-old-kit").toBe(`--target ${w.t} --prune-old-kit`);
       const verifies = linesOf(r, "verify");

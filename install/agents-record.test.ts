@@ -140,12 +140,16 @@ import {
   pathText,
   printedCommand,
   printedCommands,
+  printedInvocation,
   runInstall,
   runPrintedCommand,
   runUninstall,
   shellWords,
   snapshotTree,
   spawnBin,
+  statedKitHome,
+  statedSpelling,
+  statedWords,
 } from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 import { USER_FILE_MAX_BYTES } from "./user-file.js";
@@ -198,17 +202,42 @@ function uninstall(w: World, args: readonly string[], dryRun = false): Run {
   return r;
 }
 /**
- * Run the uninstall command a line printed, as a user would (plan 34.1-24, D-33): runPrintedCommand, from a scratch
- * directory outside the checkout, with HOME the world's scratch home and no GRUGOPS_HOME unless the printed text sets
- * one. An uninstall.js command never sets one (scriptCommand), and the premise is asserted here.
+ * The binary a printed command runs, read from its script word (printedInvocation's words[1]), not from the builder.
  */
-function runPrinted(w: World, stdout: string): PrintedRun {
+function printedBinary(span: string): "install.js" | "uninstall.js" {
+  const script = printedInvocation(span).words[1] ?? "";
+  return pathText(script).endsWith("/uninstall.js") ? "uninstall.js" : "install.js";
+}
+/**
+ * Run the command a line printed, as a user would (plan 34.1-24, D-33): runPrintedCommand, from a scratch directory
+ * outside the checkout, with HOME the world's scratch home. The kit home the child sees is the one the printed text
+ * states, and the premise is asserted here against the tests' own statement of the rule (statedWords, plan 34.1-47):
+ * `kitHome` is the kit home of the context the command was printed from (the world's when omitted).
+ */
+function runPrinted(w: World, stdout: string, kitHome: string = w.grugopsHome): PrintedRun {
+  const span = printedCommand(stdout);
   const r = runPrintedCommand(stdout, { home: w.home, timeoutMs: 120_000 });
-  finished(r, `the printed command ${printedCommand(stdout)}`);
+  finished(r, `the printed command ${span}`);
   expect(relative(REPO_ROOT, r.premise.cwd).startsWith(".."), `premise: the printed command ran from ${r.premise.cwd}, inside the checkout`).toBe(true);
-  expect(r.premise.grugopsHome, `premise: an uninstall command sets no kit home: ${printedCommand(stdout)}`).toBeUndefined();
+  const child = r.premise.grugopsHome === undefined ? undefined : pathText(r.premise.grugopsHome);
+  expect(child, `premise: the child's kit home is not the one the rule states for this command: ${span}`).toBe(
+    statedKitHome(printedBinary(span), { kitHome, home: w.home }),
+  );
   return r;
 }
+/**
+ * A printed command's leading assignments compared with the tests' own statement of the rule (statedWords, plan
+ * 34.1-47) for `binary`, the kit home `kitHome` of the context it was printed from and HOME `home`; returns its words
+ * from `node` on, after asserting the first is `node`. Builder-independent: nothing here calls the builder.
+ */
+function expectStated(span: string, binary: "install.js" | "uninstall.js", kitHome: string, home: string): readonly string[] {
+  const { assigned, words } = printedInvocation(span);
+  expect(statedSpelling(assigned), `the printed command's assignments are not the stated ones: ${span}`).toEqual(statedWords(binary, { kitHome, home }));
+  expect(words[0], `the printed command does not start with node after its assignments: ${span}`).toBe("node");
+  return words;
+}
+/** The GRUGOPS_HOME a follow-as-printed child saw, in pathText's spelling, or undefined when it saw none. */
+const childKitHome = (r: PrintedRun): string | undefined => (r.premise.grugopsHome === undefined ? undefined : pathText(r.premise.grugopsHome));
 /** The context an uninstall run in world `w` builds (its kit home and HOME); the expected side of a printed command. */
 const ctxOf = (w: World): ReturnType<typeof commandContextFor> => commandContextFor({ grugopsHome: w.grugopsHome, home: w.home });
 const agentsOf = (w: World): unknown => readMarkerObject(w.target).agents;
@@ -264,13 +293,18 @@ function expectInvariant(w: World, atStart: readonly string[], out: string): voi
 
 /**
  * The words of the printed uninstall command after `node <absolute uninstall.js> --target <target>`: its agent flags.
- * The script word must be this checkout's uninstall.js by its absolute path (D-33), and no GRUGOPS_HOME word may lead
- * the command.
+ * The script word must be this checkout's uninstall.js by its absolute path (D-33), and the command's leading
+ * assignments must be exactly the ones the tests' statement of the rule gives an uninstall command in world `w`
+ * (statedWords, plan 34.1-47), `kitHome` being the kit home of the context it was printed from (the world's when
+ * omitted).
  */
-function printedFlags(stdout: string): string[] {
+function printedFlags(w: World, stdout: string, kitHome: string = w.grugopsHome): string[] {
   const printed = printedCommand(stdout);
-  const words = shellWords(printed);
-  expect(words[0], `the printed command does not start with node: ${printed}`).toBe("node");
+  const { assigned, words } = printedInvocation(printed);
+  expect(statedSpelling(assigned), `the printed command's assignments are not the stated ones: ${printed}`).toEqual(
+    statedWords("uninstall.js", { kitHome, home: w.home }),
+  );
+  expect(words[0], `the printed command does not start with node after its assignments: ${printed}`).toBe("node");
   expect(isAbsolute(words[1]), `the uninstall script is not named by its absolute path: ${printed}`).toBe(true);
   expect(pathText(words[1]), printed).toBe(pathText(UNINSTALL_JS));
   expect(words[2], printed).toBe("--target");
@@ -609,7 +643,7 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
     expect(r.status, r.stdout).toBe(0);
     expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
     expectInvariant(w, ids("claude", "codex"), r.stdout);
-    expect(printedFlags(r.stdout), r.stdout).toEqual([flag("claude")]);
+    expect(printedFlags(w, r.stdout), r.stdout).toEqual([flag("claude")]);
     writeFileSync(at(w.target, CLAUDE_SKILL), original);
     const fin = runPrinted(w, r.stdout);
     expect(fin.status, fin.stdout).toBe(0);
@@ -625,7 +659,7 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
     expect(r.status, r.stdout).toBe(0);
     expect(agentsOf(w), r.stdout).toEqual(ids("claude"));
     expectInvariant(w, ids("claude", "codex"), r.stdout);
-    expect(printedFlags(r.stdout), r.stdout).toEqual([]);
+    expect(printedFlags(w, r.stdout), r.stdout).toEqual([]);
     writeFileSync(at(w.target, CLAUDE_SKILL), original);
     const fin = runPrinted(w, r.stdout);
     expect(fin.status, fin.stdout).toBe(0);
@@ -642,7 +676,7 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
     expect(existsSync(at(w.target, MARKER_REL)), `the marker was removed beside a held AGENTS.md\n${r.stdout}`).toBe(true);
     expect(agentsOf(w), r.stdout).toEqual([]);
     expectInvariant(w, ids("claude", "codex"), r.stdout);
-    expect(printedFlags(r.stdout), r.stdout).toEqual([]);
+    expect(printedFlags(w, r.stdout), r.stdout).toEqual([]);
     writeFileSync(at(w.target, "AGENTS.md"), original);
     const fin = runPrinted(w, r.stdout);
     expect(fin.status, fin.stdout).toBe(0);
@@ -668,7 +702,7 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
     expect(r.status, r.stdout).toBe(0);
     expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex", "antigravity"));
     expectInvariant(w, ids("claude", "codex", "antigravity"), r.stdout);
-    expect(printedFlags(r.stdout), r.stdout).toEqual([flag("codex"), flag("antigravity")]);
+    expect(printedFlags(w, r.stdout), r.stdout).toEqual([flag("codex"), flag("antigravity")]);
     writeFileSync(at(w.target, AGENT_SKILL_REL), original);
     const fin = runPrinted(w, r.stdout);
     expect(fin.status, fin.stdout).toBe(0);
@@ -941,7 +975,7 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
       expectInvariant(w, ids("claude", "codex"), r.stdout);
       const flagless = agentCommand("uninstall.js", w.target, [], ctxOf(w));
       expect(r.stdout, "the INCOMPLETE banner does not print the finishing command").toContain(`  Then run \`${flagless}\` to finish the reversal.`);
-      expect(printedFlags(r.stdout), r.stdout).toEqual([]);
+      expect(printedFlags(w, r.stdout), r.stdout).toEqual([]);
       const fin = runPrinted(w, r.stdout);
       expect(fin.status, fin.stdout).toBe(0);
       expect(markerGone(w), fin.stdout).toBe(true);
@@ -1034,7 +1068,9 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     const fin = runPrintedCommand(banner[0], { home: w.home, timeoutMs: 180_000 });
     finished(fin, `the printed command ${printed}`);
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
-    expect(fin.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+    expect(childKitHome(fin), "premise: the child's kit home is the one the rule states (the world's is the default)").toBe(
+      statedKitHome("install.js", { kitHome: w.grugopsHome, home: w.home }),
+    );
     expect(fin.status, fin.stdout + fin.stderr).toBe(0);
     expect(existsSync(at(w.target, PI_PROMPT_REL)), `the Pi template was not written\n${fin.stdout}`).toBe(true);
     expect(readMarkerObject(w.target).installMode, fin.stdout).toBe("symlink");
@@ -1063,17 +1099,21 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     expect(r.status, r.stdout).toBe(0);
     expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
     const printed = printedCommand(r.stdout);
-    const words = shellWords(printed);
-    // Builder-independent facts first: the expected side below is built by the builder under test.
-    expect(words[0], `the printed command does not start with node: ${printed}`).toBe("node");
+    const { assigned, words } = printedInvocation(printed);
+    // Builder-independent facts first: the expected side below is built by the builder under test. The assignments
+    // are compared with the tests' own statement of the rule (statedWords, plan 34.1-47), for the kit home the
+    // uninstall run's context holds (K, the one the marker records).
+    expect(words[0], `the printed command does not start with node after its assignments: ${printed}`).toBe("node");
     expect(isAbsolute(words[1]), `the uninstall script is not named by its absolute path: ${printed}`).toBe(true);
     expect(pathText(words[1]), printed).toBe(pathText(UNINSTALL_JS));
-    expect(printed, "an uninstall command carries no kit home").not.toContain("GRUGOPS_HOME=");
+    expect(statedSpelling(assigned), "an uninstall command carries the stated assignments").toEqual(statedWords("uninstall.js", { kitHome: K, home: w.home }));
     expect(words, "an uninstall command carries no --symlink").not.toContain("--symlink");
     expect(printed).toBe(agentCommand("uninstall.js", w.target, [row("claude")], commandContextFor({ grugopsHome: K, home: w.home })));
     writeFileSync(at(w.target, CLAUDE_SKILL), original);
-    const fin = runPrinted(w, r.stdout);
-    expect(fin.premise.grugopsHome, "premise: the child had no kit home").toBeUndefined();
+    const fin = runPrinted(w, r.stdout, K);
+    expect(childKitHome(fin), "premise: the child's kit home is the stated one").toBe(
+      statedKitHome("uninstall.js", { kitHome: K, home: w.home }),
+    );
     expect(fin.status, fin.stdout + fin.stderr).toBe(0);
     expect(agentsOf(w), fin.stdout).toEqual(ids("codex"));
     expect(existsSync(at(w.target, CLAUDE_SKILL)), fin.stdout).toBe(false);
@@ -1154,7 +1194,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(r0.status, r0.stdout).toBe(3);
     const spans0 = installSpansOf(movedVerify(r0));
     expect(spans0.length, `the verify names one install command\n${r0.stdout}`).toBe(1);
-    expect(shellWords(spans0[0]).filter((x) => x.startsWith("GRUGOPS_HOME=")), `the install command carries a kit home from the moved marker: ${spans0[0]}`).toEqual([]);
+    // The install command's assignments are the ones stated for this run's own kit home (the default), never K.
+    expectStated(spans0[0], "install.js", defaultKit, w.home);
     // Plan 34.1-41 (2026-10-13, D-36): the line says where that step puts the kit, this run's default kit home, not K.
     expect(namedKitHome(movedVerify(r0)), `the verify does not name the kit home its install step copies into\n${r0.stdout}`).toBe(pathText(defaultKit));
 
@@ -1168,11 +1209,10 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     // Builder-independent facts about the install step first: the expected side below is built by the builder under test.
     const installSpans = installSpansOf(v);
     expect(installSpans.length, `the verify names one install command\n${v}`).toBe(1);
-    const iw = shellWords(installSpans[0]);
-    expect(iw[0].startsWith("GRUGOPS_HOME="), `the install command carries no kit home: ${installSpans[0]}`).toBe(true);
-    expect(pathText(iw[0].slice("GRUGOPS_HOME=".length)), `the install command's kit home is not the run's: ${installSpans[0]}`).toBe(pathText(K));
-    expect(iw[1], `the install command's second word is not node: ${installSpans[0]}`).toBe("node");
-    expect(isAbsolute(iw[2]) && pathText(iw[2]) === pathText(INSTALL_JS), `the install script is not this checkout's install.js by its absolute path: ${installSpans[0]}`).toBe(true);
+    // The assignments are the ones stated for the run's kit home K (statedWords: K is not the default, so the install
+    // command carries GRUGOPS_HOME=K under every statement of the rule).
+    const iw = expectStated(installSpans[0], "install.js", K, w.home);
+    expect(isAbsolute(iw[1]) && pathText(iw[1]) === pathText(INSTALL_JS), `the install script is not this checkout's install.js by its absolute path: ${installSpans[0]}`).toBe(true);
     expect(iw, `the install command does not name this run's agent: ${installSpans[0]}`).toContain("--codex");
     expect(iw, "the install command names an agent this run did not name").not.toContain("--claude");
     // Plan 34.1-41 (2026-10-13, D-36): the line names K as the kit home the install step copies into.
@@ -1194,7 +1234,7 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(ledgerEntries(moved).some((e) => e.path === AGENT_SKILL_REL), "install recorded the file it left untouched").toBe(false);
     expect(existsSync(defaultKit), `the printed install command wrote a kit under HOME\n${step1.stdout}`).toBe(false);
 
-    const step2 = runPrinted(moved, "`" + uninstallCmd + "`");
+    const step2 = runPrinted(moved, "`" + uninstallCmd + "`", K);
     expect(step2.status, step2.stdout + step2.stderr).toBe(0);
     expect(step2.stdout, "the second uninstall says Codex CLI is not installed").not.toMatch(/Codex CLI is not installed here/);
     expect(leftLinesNaming(step2.stdout, AGENT_SKILL_REL).length, `no left line names the old Codex skill\n${step2.stdout}`).toBe(1);
@@ -1283,7 +1323,7 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     // Builder-independent facts first: the install span is `node <abs install.js> --target <b>` and nothing else.
     const installSpans = cmds.filter((c) => shellWords(c).some((x) => isAbsolute(x) && pathText(x) === pathText(INSTALL_JS)));
     expect(installSpans.length, `the verify names one install command\n${v}`).toBe(1);
-    const iw = shellWords(installSpans[0]);
+    const iw = expectStated(installSpans[0], "install.js", join(w.home, ".grugops"), w.home);
     expect(iw.length, `the flag-less install command carries more than node, the script and --target: ${installSpans[0]}`).toBe(4);
     expect([iw[0], iw[2]], installSpans[0]).toEqual(["node", "--target"]);
     expect(pathText(iw[3]), installSpans[0]).toBe(pathText(b));
@@ -1297,7 +1337,9 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     const step1 = runPrintedCommand("`" + installCmd + "`", { home: w.home, timeoutMs: 180_000 });
     finished(step1, `the printed install command ${installCmd}`);
     expect(relative(REPO_ROOT, step1.premise.cwd).startsWith(".."), `premise: the printed command ran from ${step1.premise.cwd}`).toBe(true);
-    expect(step1.premise.grugopsHome, "premise: the default kit home, so the printed text sets none").toBeUndefined();
+    expect(childKitHome(step1), "premise: the child's kit home is the stated one (the world's is the default)").toBe(
+      statedKitHome("install.js", { kitHome: join(w.home, ".grugops"), home: w.home }),
+    );
     expect(step1.status, step1.stdout + step1.stderr).toBe(0);
     expect(step1.stdout, "install did not choose Claude Code because .claude is there").toMatch(/^agents: Claude Code \(detected: \.claude\)$/m);
     expect(agentsOf(moved), step1.stdout).toEqual(ids("claude"));
@@ -1397,10 +1439,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(v, "a per-agent run carries the no-agent-flag clause").not.toContain(NO_FLAG_CLAUSE);
     const installSpans = printedCommands(v).filter((c) => shellWords(c).some((x) => isAbsolute(x) && pathText(x) === pathText(INSTALL_JS)));
     expect(installSpans.length, `the verify names one install command\n${v}`).toBe(1);
-    const iw = shellWords(installSpans[0]);
-    // Builder-independent facts first.
-    expect(iw[0].startsWith("GRUGOPS_HOME="), `the install command carries no kit home: ${installSpans[0]}`).toBe(true);
-    expect(pathText(iw[0].slice("GRUGOPS_HOME=".length)), installSpans[0]).toBe(pathText(K));
+    // Builder-independent facts first: the assignments are the ones stated for the run's kit home K.
+    const iw = expectStated(installSpans[0], "install.js", K, w.home);
     expect(iw, `the install command takes --symlink from the moved marker: ${installSpans[0]}`).not.toContain("--symlink");
     expect(iw, installSpans[0]).toContain("--codex");
     // Plan 34.1-41 (2026-10-13, D-36): the line names K as the kit home the install step copies into.
@@ -1454,10 +1494,10 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     const av = linesWith(a.stdout, "verify").filter((l) => l.includes("not this directory's record"));
     expect(av.length, a.stdout).toBe(1);
     const aSpan = installSpanOf(av[0]);
+    // The assignments are the ones stated for the run's own kit home (the default), never F.
+    expectStated(aSpan, "install.js", join(w.home, ".grugops"), w.home);
     const aw = shellWords(aSpan);
-    expect(aw.filter((x) => x.startsWith("GRUGOPS_HOME=")), `the install command carries a kit home: ${aSpan}`).toEqual([]);
     expect(aw.filter((x) => x.includes(pathText(F))), `a word of the install command holds the foreign kit home: ${aSpan}`).toEqual([]);
-    expect(aw[0], aSpan).toBe("node");
     // Plan 34.1-41 (2026-10-13, D-36): the line names the run's default kit home as where the install step puts the kit.
     const defaultKitHome = pathText(join(w.home, ".grugops"));
     expect(namedKitHome(av[0]), `the verify does not name the kit home its install step copies into\n${av[0]}`).toBe(defaultKitHome);
@@ -1479,9 +1519,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     const cv = linesWith(c.stdout, "verify").filter((l) => l.includes("not this directory's record"));
     expect(cv.length, c.stdout).toBe(1);
     const cSpan = installSpanOf(cv[0]);
+    expectStated(cSpan, "install.js", X, w.home);
     const cw = shellWords(cSpan);
-    expect(cw[0].startsWith("GRUGOPS_HOME="), `the install command does not carry the run's kit home: ${cSpan}`).toBe(true);
-    expect(pathText(cw[0].slice("GRUGOPS_HOME=".length)), cSpan).toBe(pathText(X));
     expect(cw.filter((x) => x.includes(pathText(F))), `a word of the install command holds the foreign kit home: ${cSpan}`).toEqual([]);
     expect(namedKitHome(cv[0]), `the verify does not name X as the kit home its install step copies into\n${cv[0]}`).toBe(pathText(X));
 
@@ -1489,7 +1528,9 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     const step = runPrintedCommand("`" + aSpan + "`", { home: w.home, timeoutMs: 180_000 });
     finished(step, `the printed install command ${aSpan}`);
     expect(relative(REPO_ROOT, step.premise.cwd).startsWith(".."), `premise: the printed command ran from ${step.premise.cwd}`).toBe(true);
-    expect(step.premise.grugopsHome, "premise: the printed text sets no kit home").toBeUndefined();
+    expect(childKitHome(step), "premise: the child's kit home is the stated one (the run's own, the default)").toBe(
+      statedKitHome("install.js", { kitHome: join(w.home, ".grugops"), home: w.home }),
+    );
     expect(step.status, step.stdout + step.stderr).toBe(0);
     expect(step.stdout, "install did not choose Claude Code because .claude is there").toMatch(/^agents: Claude Code \(detected: \.claude\)$/m);
     expect(existsSync(F), `the printed install wrote under the foreign kit home\n${step.stdout}`).toBe(false);
@@ -1834,18 +1875,20 @@ describe("D-36 (WR-23): an uninstall command carries the kit checkout the run us
     expect(r.status, r.stdout).toBe(0);
     const kept = keptMarkerLine(r.stdout);
     expect(kept.length, `no kept \`left\` line about the marker\n${r.stdout}`).toBe(1);
-    const words = shellWords(printedCommand(kept[0]));
-    const nodeAt = words.indexOf("node");
-    expect(nodeAt, `the kept line's command has no node word: ${kept[0]}`).toBeGreaterThan(0);
-    expect(words.slice(0, nodeAt), `the kept line's command does not carry the run's GRUGOPS_SRC before node: ${kept[0]}`).toEqual([`GRUGOPS_SRC=${link}`]);
-    expect(pathText(words[nodeAt + 1]), kept[0]).toBe(pathText(UNINSTALL_JS));
-    expect(words.slice(nodeAt + 2), kept[0]).toEqual(["--target", w.target, flag("codex")]);
+    const { assigned, words } = printedInvocation(printedCommand(kept[0]));
+    expect(statedSpelling(assigned), `the kept line's command does not carry the stated assignments (the run's GRUGOPS_SRC) before node: ${kept[0]}`).toEqual(
+      statedWords("uninstall.js", { kitHome: w.grugopsHome, home: w.home, src: link }),
+    );
+    expect(assigned.GRUGOPS_SRC, `the kept line's command does not carry the run's GRUGOPS_SRC: ${kept[0]}`).toBe(link);
+    expect(words[0], `the kept line's command has no node word after its assignments: ${kept[0]}`).toBe("node");
+    expect(pathText(words[1]), kept[0]).toBe(pathText(UNINSTALL_JS));
+    expect(words.slice(2), kept[0]).toEqual(["--target", w.target, flag("codex")]);
 
     writeFileSync(at(w.target, AGENT_SKILL_REL), original);
     const fin = runPrintedCommand(kept[0], { home: w.home, timeoutMs: 120_000, expectSrc: true });
     finished(fin, `the printed command ${printedCommand(kept[0])}`);
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
-    expect(fin.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
+    expect(childKitHome(fin), "premise: the child's kit home is the stated one").toBe(statedKitHome("uninstall.js", { kitHome: w.grugopsHome, home: w.home }));
     expect(fin.premise.grugopsSrc, "premise: the child saw no GRUGOPS_SRC").toBeDefined();
     expect(pathText(fin.premise.grugopsSrc ?? ""), "premise: the child's GRUGOPS_SRC is not the printed link").toBe(pathText(link));
     expect(fin.status, fin.stdout).toBe(0);
@@ -1893,7 +1936,7 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     );
     expect(taken, "PREMISE: the ledger held exactly one file entry for the shared skill").toBe(1);
     writeFileSync(markerPath, JSON.stringify(next, null, 2) + "\n");
-    expect(printedFlags(r.stdout), r.stdout).toEqual([flag("codex")]);
+    expect(printedFlags(w, r.stdout), r.stdout).toEqual([flag("codex")]);
     const fin = runPrinted(w, r.stdout);
     expect(fin.status, fin.stdout).toBe(0);
     expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
@@ -1946,8 +1989,8 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
       expect(l, r.stdout).toContain("its entry out of the install ledger");
       expect(l, r.stdout).toContain("it is still the record of what install made here");
     }
-    expect(printedFlags(line[0]), line[0]).toEqual([]);
-    expect(printedFlags(banner[0]), banner[0]).toEqual([]);
+    expect(printedFlags(w, line[0]), line[0]).toEqual([]);
+    expect(printedFlags(w, banner[0]), banner[0]).toEqual([]);
 
     // Follow the printed alternative: take the skill's entry out of the ledger by hand, then run the printed command.
     let taken = 0;
@@ -2142,7 +2185,9 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
     const again = runPrintedCommand(failLine, { home: w.home, timeoutMs: 120_000 });
     finished(again, `the printed check command ${printedCommand(failLine)}`);
     expect(relative(REPO_ROOT, again.premise.cwd).startsWith(".."), `premise: the printed command ran from ${again.premise.cwd}, inside the checkout`).toBe(true);
-    expect(again.premise.grugopsHome, `premise: the printed check command sets no kit home: ${printedCommand(failLine)}`).toBeUndefined();
+    expect(childKitHome(again), `premise: the child's kit home is the one stated for the printed check command: ${printedCommand(failLine)}`).toBe(
+      statedKitHome("install.js", { kitHome: w.grugopsHome, home: w.home }),
+    );
     expect(linesWith(again.stdout, "FAIL"), again.stdout).toEqual([]);
     expect(again.status, again.stdout).toBe(0);
 
@@ -2323,7 +2368,7 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
 
   it("R38a (uninstall, flag-less): over `agents` set to [Codex, claude-code], the verify names the field, says never delete the marker and offers no removal; fixed by hand and run as printed from outside the checkout, it exits 0 and removes the marker and both agents' skills, with no recorded path left", () => {
     const { w, verifyLine, recorded } = neverRemoveUninstall("r38a", []);
-    expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+    expect(printedFlags(w, verifyLine), verifyLine).toEqual([]);
 
     // Follow it: fix the field the line named, by hand, then run the printed uninstall command as printed.
     setAgentsByHand(w, ids("claude", "codex"));
@@ -2337,7 +2382,7 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
 
   it("R38b (uninstall --codex): the same verify prints a --codex command; fixed by hand and run as printed, it removes Codex CLI only: its skill is gone, Claude Code's stays, `agents` is [claude] and the marker stays", () => {
     const { w, verifyLine } = neverRemoveUninstall("r38b", [flag("codex")]);
-    expect(printedFlags(verifyLine), verifyLine).toEqual([flag("codex")]);
+    expect(printedFlags(w, verifyLine), verifyLine).toEqual([flag("codex")]);
 
     setAgentsByHand(w, ids("claude", "codex"));
     const fin = runPrinted(w, verifyLine);
@@ -2665,7 +2710,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 
   it("R41a (flag-less): one trailing comma inside `agents`; the verify names the cause and its place, says fix it by hand and never delete the marker, and nothing offers removal or is removed; with the comma taken out by hand, the printed command run from outside the checkout exits 0 and removes the marker and both agents' skills, with no recorded path left", () => {
     const { w, verifyLine, original, recorded } = trailingCommaUninstall("r41a", []);
-    expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+    expect(printedFlags(w, verifyLine), verifyLine).toEqual([]);
 
     // Follow it: take the comma out by hand (the fix the line named), then run the printed command as printed.
     writeFileSync(at(w.target, MARKER_REL), original);
@@ -2679,7 +2724,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 
   it("R41b (--codex): the same marker; the verify prints a --codex command; with the comma taken out by hand and the command run as printed, it removes Codex CLI only: its skill is gone, Claude Code's stays, `agents` is [claude] and the marker stays", () => {
     const { w, verifyLine, original } = trailingCommaUninstall("r41b", [flag("codex")]);
-    expect(printedFlags(verifyLine), verifyLine).toEqual([flag("codex")]);
+    expect(printedFlags(w, verifyLine), verifyLine).toEqual([flag("codex")]);
 
     writeFileSync(at(w.target, MARKER_REL), original);
     const fin = runPrinted(w, verifyLine);
@@ -2732,7 +2777,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 
   it("R43a (flag-less, CR-06 followed as printed): one ledger entry's kind set to banana; the uninstall exits 3, removes nothing and says fix the ledger by hand and never delete the marker; with the entry restored by hand, the printed command run from outside the checkout exits 0 and removes the marker and both agents' skills, with no recorded path left", () => {
     const { w, verifyLine, original, recorded } = bananaUninstall("r43a", []);
-    expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+    expect(printedFlags(w, verifyLine), verifyLine).toEqual([]);
 
     // Follow it: restore the entry by hand (the fix the line named), then run the printed command as printed.
     writeFileSync(at(w.target, MARKER_REL), original);
@@ -2746,7 +2791,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 
   it("R43b (--codex): the same banana entry; the verify prints a --codex command; with the entry restored by hand and the command run as printed, it removes Codex CLI only: its skill is gone, Claude Code's stays, `agents` is [claude] and the marker stays", () => {
     const { w, verifyLine, original } = bananaUninstall("r43b", [flag("codex")]);
-    expect(printedFlags(verifyLine), verifyLine).toEqual([flag("codex")]);
+    expect(printedFlags(w, verifyLine), verifyLine).toEqual([flag("codex")]);
 
     writeFileSync(at(w.target, MARKER_REL), original);
     const fin = runPrinted(w, verifyLine);
@@ -2973,7 +3018,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     expect(verifyLine, r.stdout).toMatch(/\b2 times\b/);
     expect(verifyLine, r.stdout).toContain("by hand");
     expect(verifyLine, r.stdout).toContain("never delete the marker");
-    expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+    expect(printedFlags(w, verifyLine), verifyLine).toEqual([]);
     expect(linesWith(r.stdout, "removed"), `something was removed\n${r.stdout}`).toEqual([]);
     expect(readFileSync(at(w.target, MARKER_REL)).equals(bytes), `the marker changed\n${r.stdout}`).toBe(true);
     expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(true);
@@ -3019,7 +3064,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
       expect(verifyLine, r.stdout).toContain("EACCES");
       expect(verifyLine, r.stdout).toContain("by hand");
       expect(verifyLine, r.stdout).toContain("never delete the marker");
-      expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+      expect(printedFlags(w, verifyLine), verifyLine).toEqual([]);
       for (const l of [...r.stdout.split("\n"), ...r.stderr.split("\n")]) {
         expect(l, "a line tells the user to delete the marker").not.toMatch(DELETE_MARKER);
         expect(l, "a line offers removing the marker").not.toMatch(MARKER_REMOVAL);
@@ -3402,7 +3447,7 @@ function followAsPrinted(tag: string, defect: MarkerDefect, shape: (w: World) =>
   expect(verifyLine, r.stdout).toContain("by hand");
   expect(verifyLine, r.stdout).toContain("never delete the marker");
   expect(verifyLine, `the verify names the fix this row applies\n${r.stdout}`).toMatch(fixWords);
-  expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+  expect(printedFlags(w, verifyLine), verifyLine).toEqual([]);
   expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
   expect(linesWith(r.stdout, "removed"), `something was removed\n${r.stdout}`).toEqual([]);
   expect(markerPathState(w), `the marker path changed\n${r.stdout}`).toBe(before);
@@ -4510,7 +4555,7 @@ describe("D-31 (MSG-1, D-05): the finishing command of a partial run is never th
       // The guard: the printed command names exactly --codex, and no printed uninstall command is the flag-less one.
       const fin = finishBannerLines(r.stdout);
       expect(fin.length, `the INCOMPLETE banner does not print the finishing command\n${r.stdout}`).toBe(1);
-      expect(printedFlags(fin[0]), fin[0]).toEqual([flag("codex")]);
+      expect(printedFlags(w, fin[0]), fin[0]).toEqual([flag("codex")]);
       expect(everyPrintedUninstallFlags(r.stdout).length, `premise: the run printed an uninstall command\n${r.stdout}`).toBeGreaterThan(0);
       const flagless = everyPrintedUninstallFlags(r.stdout).filter((f) => f.length === 0);
       expect(flagless, `a partial run printed the flag-less uninstall command\n${r.stdout}`).toEqual([]);
@@ -4547,10 +4592,10 @@ describe("D-31 (MSG-1, D-05): the finishing command of a partial run is never th
       const kept = keptMarkerLine(r.stdout);
       expect(kept.length, r.stdout).toBe(1);
       expect(kept[0], r.stdout).toContain(AGENT_SKILL_REL);
-      expect(printedFlags(kept[0]), kept[0]).toEqual([flag("codex")]);
+      expect(printedFlags(w, kept[0]), kept[0]).toEqual([flag("codex")]);
       const fin = finishBannerLines(r.stdout);
       expect(fin.length, `the INCOMPLETE banner does not print the finishing command\n${r.stdout}`).toBe(1);
-      expect(printedFlags(fin[0]), fin[0]).toEqual([flag("codex")]);
+      expect(printedFlags(w, fin[0]), fin[0]).toEqual([flag("codex")]);
       expect(everyPrintedUninstallFlags(r.stdout).length, `premise: the run printed an uninstall command\n${r.stdout}`).toBeGreaterThan(0);
       expect(everyPrintedUninstallFlags(r.stdout).filter((f) => f.length === 0), r.stdout).toEqual([]);
       const done = runPrinted(w, fin[0]);

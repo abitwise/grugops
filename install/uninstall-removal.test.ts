@@ -62,12 +62,17 @@ import {
   pathText,
   printedRel,
   commandContextFor,
+  printedCommand,
+  printedInvocation,
   rebindMarker,
   runInstall,
   runPrintedCommand,
   runUninstall,
   snapshotTree,
   spawnBin,
+  statedKitHome,
+  statedSpelling,
+  statedWords,
 } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-removal-")));
@@ -834,14 +839,20 @@ describe("per-agent uninstall (D-05)", () => {
     expect(ledgerOf(kept).some((e) => e.path === rel && e.kind === "file"), "the held entry left the ledger").toBe(true);
     const claudeRow = HOST_TOOLS.filter((h) => h.id === "claude");
     const expected = agentCommand("uninstall.js", t.target, claudeRow, commandContextFor({ grugopsHome: t.grugopsHome, home: t.home }));
-    expect(pathText(expected).startsWith(`node ${pathText(UNINSTALL_JS)} --target `), `the uninstall script is not named by its absolute path: ${expected}`).toBe(true);
+    // Builder-independent (plan 34.1-47): the printed command's assignments are the stated ones (statedWords), then
+    // `node`, the absolute uninstall.js and --target.
+    const inv = printedInvocation(printedCommand(r.stdout));
+    expect(statedSpelling(inv.assigned), "the uninstall command's assignments are not the stated ones").toEqual(statedWords("uninstall.js", { kitHome: t.grugopsHome, home: t.home }));
+    expect(pathText(inv.words.slice(0, 3).join(" ")), `the uninstall script is not named by its absolute path: ${expected}`).toBe(`node ${pathText(UNINSTALL_JS)} --target`);
     expect(expected.endsWith(` ${flag("claude")}`), expected).toBe(true);
     expect(r.stdout, "the finishing command is not printed").toContain(`\`${expected}\``);
 
     writeFileSync(file, original);
     const fin = runPrintedCommand(r.stdout, { home: t.home });
     expectFinished(fin, "the printed command");
-    expect(fin.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
+    expect(fin.premise.grugopsHome === undefined ? undefined : pathText(fin.premise.grugopsHome), "premise: the child's kit home is the stated one").toBe(
+      statedKitHome("uninstall.js", { kitHome: t.grugopsHome, home: t.home }),
+    );
     expect(fin.status, `${fin.stdout}\n${fin.stderr}`).toBe(0);
     expect(existsSync(at(t.target, ".claude/skills/grugops-gate")), `the restored skill is still there\n${fin.stdout}`).toBe(false);
     expect(readMarkerObject(t.target).agents, fin.stdout).toEqual(["codex"]);

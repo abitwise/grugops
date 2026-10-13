@@ -481,6 +481,81 @@ export function printedCommand(text: string): string {
   throw new Error(`no printed installer command (\`[NAME=value ...] node </abs/.../install/install.js|uninstall.js> ...\`)${why} in:\n${text}`);
 }
 
+/** A printed command read as a shell would run it: its leading `NAME=value` assignments, and its words from `node` on. */
+export interface PrintedInvocation {
+  /** Each leading assignment's name and value, in the order printed (a name printed twice throws). */
+  readonly assigned: Readonly<Record<string, string>>;
+  /** The words from `node` on: `node`, the script word, then the arguments. */
+  readonly words: readonly string[];
+}
+
+/**
+ * printedInvocation (plan 34.1-47, D-38): a printed command `span` (shellWords) split into its leading `NAME=value`
+ * assignments and its words from `node` on. A row reads a word position from `words` and an assignment from
+ * `assigned`, so neither depends on how many assignments the command carries. Throws when the words are not
+ * `[NAME=value ...] node ...` or when a name is assigned twice.
+ */
+export function printedInvocation(span: string): PrintedInvocation {
+  const all = shellWords(span);
+  const at = nodeWordAt(all);
+  if (at === -1) throw new Error(`printedInvocation: not \`[NAME=value ...] node ...\`: ${span}`);
+  const assigned: Record<string, string> = {};
+  for (const w of all.slice(0, at)) {
+    const eq = w.indexOf("=");
+    const name = w.slice(0, eq);
+    if (Object.hasOwn(assigned, name)) throw new Error(`printedInvocation: ${name} is assigned twice: ${span}`);
+    assigned[name] = w.slice(eq + 1);
+  }
+  return { assigned, words: all.slice(at) };
+}
+
+/** The facts of a run that decide a printed command's assignment words: its kit home, its HOME, and its kit checkout. */
+export interface StatedRun {
+  /** The kit home the command's context holds (GRUGOPS_HOME, or the one an `ok` marker records under `--check`). */
+  readonly kitHome: string;
+  /** The run's HOME: the default kit home is `<home>/.grugops`. */
+  readonly home: string;
+  /** The kit checkout the run used (GRUGOPS_SRC); this checkout when omitted. */
+  readonly src?: string;
+}
+
+/**
+ * statedWords (plan 34.1-47, D-38): THE TESTS' OWN STATEMENT of the assignment words a printed command of `binary`
+ * carries for the run `run`, as a name-to-value map in pathText's spelling. It imports nothing from host-tools.ts, so a
+ * row that compares a printed command's assignments (printedInvocation) with it does not build its expected value with
+ * the builder under test.
+ *
+ * The rule it states: GRUGOPS_HOME only on an install.js command and only for a kit home other than the default
+ * `<home>/.grugops` (D-33); GRUGOPS_SRC on both binaries when the run's kit checkout is not this checkout (D-36,
+ * WR-23).
+ */
+export function statedWords(binary: "install.js" | "uninstall.js", run: StatedRun): Readonly<Record<string, string>> {
+  const kitHome = pathText(canonicalPathSpelling(resolve(run.kitHome)));
+  const defaultKitHome = pathText(canonicalPathSpelling(resolve(run.home, ".grugops")));
+  const out: Record<string, string> = {};
+  if (binary === "install.js" && kitHome !== defaultKitHome) out.GRUGOPS_HOME = kitHome;
+  if (run.src !== undefined) {
+    const src = pathText(canonicalPathSpelling(resolve(run.src)));
+    if (src !== pathText(canonicalPathSpelling(REPO_ROOT))) out.GRUGOPS_SRC = src;
+  }
+  return out;
+}
+
+/** `assigned` with every value in pathText's spelling, for a comparison with statedWords. */
+export function statedSpelling(assigned: Readonly<Record<string, string | undefined>>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(assigned)) if (v !== undefined) out[k] = pathText(v);
+  return out;
+}
+
+/**
+ * The GRUGOPS_HOME a follow-as-printed child sees for a printed command of `binary` in run `run`, in pathText's
+ * spelling: statedWords' GRUGOPS_HOME, or undefined when the rule states none (the harness then gives the child none).
+ */
+export function statedKitHome(binary: "install.js" | "uninstall.js", run: StatedRun): string | undefined {
+  return statedWords(binary, run).GRUGOPS_HOME;
+}
+
 /**
  * The context a run with these values builds (plan 34.1-22, D-33): this checkout's install directory, the kit home
  * `grugopsHome`, the default kit home under `home` (the real home directory when omitted), the install mode, and the
