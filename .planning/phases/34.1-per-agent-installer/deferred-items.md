@@ -351,7 +351,12 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-20: three install.ts comments and one test comment still say a printed command carries GRUGOPS_HOME only for another kit home, and `--symlink` for a symlink install
 
-- status: open (for the human; no round 5)
+- status: resolved 2026-10-13 by plan 34.1-51 Task 2 (the commit "docs(34.1-51): ... (D-38)"): the three install.ts
+  comments (the --update header, the migrate same-run comment, the install same-run comment) and both closing-claims
+  comments (U1, and the migrate row's at about line 493) state the D-38 rule; a fourth install.ts sibling found by
+  search (the doctor's ONE CHECKOUT comment, "`GRUGOPS_SRC=<dir>` when it is not this script's own checkout") was
+  reworded too. install.js rebuilt. host-tools-prose.test.ts holds every spelling at zero (`home-when-another`,
+  `home-not-default-so`, `symlink-word`, `src-only-other`), with a planted proof.
 - **Found during:** plan 34.1-49, Task 3 (reading the --update branch to class TARGET for the env-read census), then a
   search for the phrase over install/.
 - **What:** since plans 34.1-47 and 34.1-48 (D-38) every printed command states GRUGOPS_HOME (the default kit home
