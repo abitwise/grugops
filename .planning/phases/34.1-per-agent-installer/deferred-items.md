@@ -365,6 +365,24 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **Not fixed:** comments only, outside this plan's file scope (test files). Option: plan 34.1-51 (the D-38 DOC-1
   sweep) rewords them to the D-38 rule, with the same grep as its check.
 
+## From plan 34.1-50 (gap round 4)
+
+### DI-21: two agents-record.test.ts rows spawn mkfifo directly, which the mkfifo census in scripts/uat-gate-exit-contract.test.ts refuses
+
+- status: open (for the human; no round 5)
+- **Found during:** plan 34.1-50, a full `npx vitest run --exclude '**/scripts/e2e/**'` started after Task 3 (it was
+  stopped at its 25-minute timeout, so this is not a complete suite result; the complete run is plan 34.1-52's).
+- **What:** `scripts/uat-gate-exit-contract.test.ts` "NO test module spawns mkfifo itself, and the ONE spawn in the
+  tree is the corpus constructor" fails, naming `install/agents-record.test.ts:2610` (added by commit df92e96b, plan
+  34.1-44) and `install/agents-record.test.ts:3313` (added by commit d800e971, plan 34.1-46). Each calls
+  `execFileSync("mkfifo", ...)` instead of staging the FIFO through stageShapeOrSkip, so a host that cannot make a
+  FIFO gets an error rather than a counted skip. Neither line was changed by plan 34.1-50; `git blame` names the two
+  commits above. The other red seen in that partial run, install/installer-fs-census.test.ts (`openAsBlobSync`
+  unclassified), is the DI-03 Node 26 baseline.
+- **Not fixed:** outside this plan's scope (the rows belong to plans 34.1-44 and 34.1-46). Option: route both FIFOs
+  through stageShapeOrSkip, or record them in the mkfifo census with a reason; plan 34.1-52's full regression will
+  report the case either way.
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.
