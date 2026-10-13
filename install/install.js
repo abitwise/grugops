@@ -1741,12 +1741,16 @@ function doctor() {
     // run: the kit fields are not the ledger.
     // The doctor's one ledger read: the malformed FAIL below, the installed set (doctorHosts) and the kit route's
     // ownership answers all come from it.
+    // D-37 (34.1 review CR-06, plan 34.1-43): install's own marker with a malformed install ledger is the record of every
+    // agent installed here, so the FAIL's remedy is the owner's never-remove wording (install-marker.ts markerFixText of
+    // markerRemedy's answer, whose fix names the ledger problem and the by-hand fix), then the check command. It never
+    // offers removing the marker.
     const ledgerRead = readLedger(markerRead.state === "ok" ? markerRead.marker : null);
     if (markerRead.state === "ok") {
         if (ledgerRead.state === "malformed") {
             docFail(`the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it ` +
                 `back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). ` +
-                `Fix the ledger field by hand`);
+                `${markerFixText(markerRemedy(markerRead, "install"))}; then run \`${doctorCheckCommand()}\``);
         }
     }
     const marker = (markerRead.state === "ok" ? markerRead.marker : markerRead.object);
@@ -4842,9 +4846,11 @@ function writeMarker() {
     }
     const previousLedger = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
     if (previousLedger.state === "malformed") {
+        // D-37 (34.1 review CR-06, plan 34.1-43): the marker is still the record of every agent installed here; the remedy is
+        // the owner's never-remove wording (markerFixText), which names the ledger problem and the by-hand fix.
         verify(`${markerRel} — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and ` +
-            `nothing this run did was recorded. Uninstall will remove and edit nothing on it; fix the ledger field by hand ` +
-            `to restore the record.`);
+            `nothing this run did was recorded. Uninstall will remove and edit nothing on it; ` +
+            `${markerFixText(markerRemedy(previousMarker, "install"))}; then re-run the installer.`);
     }
     // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3): the kit home and
     // the checkout are user-controlled paths. An absent kit VERSION falls back to the checkout's, as
@@ -5996,8 +6002,10 @@ function writeAskRules() {
     }
     const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
     if (previousRead.state === "malformed") {
+        // D-37 (34.1 review CR-06, plan 34.1-43): the owner's never-remove wording, as writeMarker's verify prints it.
         verify(`${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was ` +
-            `added and the ledger is written back unchanged. Fix the ledger field, then re-run the installer.`);
+            `added and the ledger is written back unchanged. ${markerFixText(markerRemedy(previousMarker, "install"))}` +
+            `; then re-run the installer.`);
         return ASK_REFUSED;
     }
     const previous = entryAt(previousRead, ASK_RULES_REL, "ask-rules") ?? null;

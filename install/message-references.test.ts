@@ -427,7 +427,8 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "verify above and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "report"],
   ["install.ts", "Fix or remove the marker, then re-run the installer.", "agent-independent: shared footprint", "writeAskRules' may-remove remedy (markerRemedy mayRemove true: no well-formed install ledger), moved out of the opening fragment by plan 34.1-33 (D-35); the marker, which every install writes (D-06)", null],
   ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "writeAskRules' never-remove remedy after markerFixText (plan 34.1-33, D-35: a well-formed install ledger, so fix by hand and never delete the marker); the marker, which every install writes (D-06)", null],
-  ["install.ts", "added and the ledger is written back unchanged. Fix the ledger field, then re-run the installer.", "agent-independent: shared footprint", "the marker's ledger, which every install writes (D-06)", null],
+  ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "writeAskRules' malformed-ledger remedy after markerFixText (I4; re-pinned by plan 34.1-43, 2026-10-13, D-37, 34.1 review CR-06: the owner's never-remove wording replaces \"Fix the ledger field, then re-run the installer.\"); the marker's ledger, which every install writes (D-06)", null],
+  ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "writeMarker's malformed-ledger remedy after markerFixText (I3; plan 34.1-43, 2026-10-13, D-37, 34.1 review CR-06: the owner's never-remove wording replaces \"fix the ledger field by hand to restore the record.\", which named no re-run); the marker's ledger, which every install writes (D-06)", null],
   ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
   ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
   ["install.ts", "known — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
@@ -617,7 +618,9 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // Plan 34.1-28 (RERUN case-insensitive): KIT_BANNER and rewriteLedger's "Re-run to finish it." are read, 61 -> 63.
     // Plan 34.1-33 (D-35): writeAskRules' and askRulesStep's marker remedies split on markerRemedy's mayRemove, so each
     // opening fragment no longer re-runs and each has two remedy fragments (may-remove, never-remove): 63 - 2 + 4 = 65.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 65, "user-file.ts": 2 });
+    // Plan 34.1-43 (2026-10-13, D-37): writeMarker's malformed-ledger verify (I3) now ends with a re-run after
+    // markerFixText, and writeAskRules' (I4) re-run moves to its own fragment: 65 + 1 = 66.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 66, "user-file.ts": 2 });
     // Plan 34.1-27 (DI-08): the stale-adapter WARN's re-run fragment moves from "agent-independent: doctor, recorded
     // agents" (12 -> 11) to "builder in the same expression" (1): the WARN prints doctorInstallCommand().
     // Plan 34.1-27 task 2 (D-33): every other doctor remedy (D1-D14, D16, D17) prints its command in the same expression,
@@ -639,7 +642,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     expect(countBy(RERUN_TABLE, (r) => r[2])).toEqual({
       "builder in the same expression": 19,
       // Plan 34.1-33 (D-35): 9 - 2 + 4 = 11, the two marker remedies' may-remove and never-remove fragments.
-      "agent-independent: shared footprint": 11,
+      // Plan 34.1-43 (2026-10-13, D-37): 11 + 1 = 12, writeMarker's malformed-ledger re-run (I3).
+      "agent-independent: shared footprint": 12,
       "no command: names another checkout (DI-12)": 2,
       "same-run command (install or update banner)": 1,
       "file text": 4,
