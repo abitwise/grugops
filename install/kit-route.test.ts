@@ -33,13 +33,17 @@ import {
   makeFixture,
   pathText,
   printedCommand,
+  printedInvocation,
   runInstall,
   runPrintedCommand,
   runUninstall,
-  shellWords,
   snapshotTree,
   spawnBin,
+  statedModeWords,
+  statedSpelling,
+  statedWords,
   type Run,
+  type StatedRun,
 } from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger, withoutAgentsField } from "./ledger.test-support.js";
 
@@ -2425,6 +2429,24 @@ const codexHost = (): (typeof HOST_TOOLS)[number] => {
   expect(c.length, "premise: exactly one registry row has the id codex").toBe(1);
   return c[0];
 };
+/**
+ * The words of the AGENTS.md remedy's install command, checked without the builder (plan 34.1-48, D-38): its leading
+ * assignments are the ones the tests' own statement of the rule gives an install command for `stated` (statedWords),
+ * then `node`, this checkout's install.js, the stated mode words (statedModeWords), `--target <target>`, and no more (no
+ * agent flag, no mode). Returns the words from `node` on.
+ */
+const expectStatedRemedy = (line: string, stated: StatedRun, target: string): readonly string[] => {
+  const { assigned, words } = printedInvocation(printedCommand(line));
+  expect(statedSpelling(assigned), `the printed command's assignments are not the stated ones: ${line}`).toEqual(statedWords("install.js", stated));
+  expect(words[0], line).toBe("node");
+  expect(pathText(words[1] ?? ""), line).toBe(pathText(INSTALL_JS));
+  const mode = statedModeWords("install.js", stated);
+  expect(words.slice(2, 2 + mode.length), `the printed command does not state the install mode the rule gives: ${line}`).toEqual(mode);
+  expect(words[2 + mode.length], line).toBe("--target");
+  expect(pathText(words[3 + mode.length] ?? ""), line).toBe(pathText(target));
+  expect(words.length, `the printed command carries more than the target (an agent flag or a mode): ${line}`).toBe(4 + mode.length);
+  return words;
+};
 /** The one line of --check's output that carries the AGENTS.md absent remedy (install.ts absentRemedy, `create`). */
 const agentsRemedyLine = (stdout: string): string => {
   const lines = stdout.split("\n").filter((l) => l.includes("which writes it where nothing is") && l.includes("AGENTS.md"));
@@ -2454,15 +2476,10 @@ describe("WR-21 (D-36): the doctor's printed commands carry the record's kit hom
     const c = spawnBin(INSTALL_JS, ["--check"], target, kitHome, { home, omitKitHome: true });
     expect(c.stdout, "premise: the --check run's own kit home is the default, so it reports the kit-root disagreement").toContain("kit-root sources DISAGREE");
     const line = agentsRemedyLine(c.stdout);
-    const words = shellWords(printedCommand(line));
-    // Word by word, builder-independent: GRUGOPS_HOME=<K>, node, this checkout's install.js, --target <target>, no more.
-    expect(words[0]?.startsWith("GRUGOPS_HOME="), `word 0 is not GRUGOPS_HOME=<K>: ${line}`).toBe(true);
-    expect(pathText((words[0] ?? "").slice("GRUGOPS_HOME=".length)), "word 0 names another kit home").toBe(pathText(kitHome));
-    expect(words[1], line).toBe("node");
-    expect(pathText(words[2] ?? ""), line).toBe(pathText(INSTALL_JS));
-    expect(words[3], line).toBe("--target");
-    expect(pathText(words[4] ?? ""), line).toBe(pathText(target));
-    expect(words.length, `the printed command carries more than the target (an agent flag or a mode): ${line}`).toBe(5);
+    // Word by word, builder-independent (routed through the tests' statement of the rule by plan 34.1-48, 2026-10-13,
+    // D-38): the stated assignments for the record's kit home K and copy mode, node, this checkout's install.js, the
+    // stated mode words, --target <target>, no more.
+    const words = expectStatedRemedy(line, { kitHome, home }, target);
     expect(words.filter((w) => hostForFlag(w) !== null), line).toEqual([]);
     const ran = runPrintedCommand(line, { home });
     expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
@@ -2487,15 +2504,10 @@ describe("WR-21 (D-36): the doctor's printed commands carry the record's kit hom
     // spawnBin sets INSTALL_MODE=copy and the arguments carry no --symlink, so this --check run is a copy-mode run.
     const c = spawnBin(INSTALL_JS, ["--check"], target, kitHome, { home, omitKitHome: true });
     const line = agentsRemedyLine(c.stdout);
-    const words = shellWords(printedCommand(line));
-    expect(words[0]?.startsWith("GRUGOPS_HOME="), `word 0 is not GRUGOPS_HOME=<K>: ${line}`).toBe(true);
-    expect(pathText((words[0] ?? "").slice("GRUGOPS_HOME=".length)), "word 0 names another kit home").toBe(pathText(kitHome));
-    expect(words[1], line).toBe("node");
-    expect(pathText(words[2] ?? ""), line).toBe(pathText(INSTALL_JS));
-    expect(words[3], `the printed install command does not carry the recorded symlink mode: ${line}`).toBe("--symlink");
-    expect(words[4], line).toBe("--target");
-    expect(pathText(words[5] ?? ""), line).toBe(pathText(target));
-    expect(words.length, `the printed command carries more than the target (an agent flag or a mode): ${line}`).toBe(6);
+    // Builder-independent (routed through the tests' statement of the rule by plan 34.1-48, 2026-10-13, D-38): the
+    // stated words for the record's kit home K and its symlink mode, so the printed install command states the recorded
+    // symlink mode the way the rule says.
+    expectStatedRemedy(line, { kitHome, home, installMode: "symlink" }, target);
     const ran = runPrintedCommand(line, { home });
     expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
     expect(pathText(ran.premise.grugopsHome ?? ""), "premise: the printed text set K").toBe(pathText(kitHome));
@@ -2533,16 +2545,12 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     // The --check run's own GRUGOPS_HOME is the exported directory, as in a shell that exports it.
     const c = spawnBin(INSTALL_JS, ["--check"], row.target, exported, { home });
     const line = agentsRemedyLine(c.stdout);
-    const words = shellWords(printedCommand(line));
     // Word by word, builder-independent: GRUGOPS_HOME=<HOME>/.grugops, node, this checkout's install.js, --target
-    // <target>, no more.
-    expect(words[0]?.startsWith("GRUGOPS_HOME="), `word 0 is not GRUGOPS_HOME=<HOME>/.grugops: ${line}`).toBe(true);
-    expect(pathText((words[0] ?? "").slice("GRUGOPS_HOME=".length)), `word 0 names another kit home than the recorded default: ${line}`).toBe(pathText(defaultKit));
-    expect(words[1], line).toBe("node");
-    expect(pathText(words[2] ?? ""), line).toBe(pathText(INSTALL_JS));
-    expect(words[3], line).toBe("--target");
-    expect(pathText(words[4] ?? ""), line).toBe(pathText(row.target));
-    expect(words.length, `the printed command carries more than the target (an agent flag or a mode): ${line}`).toBe(5);
+    // <target>, no more. Routed through the tests' statement of the rule by plan 34.1-48 (2026-10-13, D-38): the stated
+    // assignments for the recorded default kit home and copy mode, then the stated mode words.
+    const { assigned } = printedInvocation(printedCommand(line));
+    expect(pathText(assigned.GRUGOPS_HOME ?? ""), `the printed GRUGOPS_HOME is not the recorded default <HOME>/.grugops: ${line}`).toBe(pathText(defaultKit));
+    expectStatedRemedy(line, { kitHome: defaultKit, home }, row.target);
     expect(existsSync(exported), "premise: the --check run created the exported kit home").toBe(false);
     const ran = runPrintedCommand(line, { home });
     expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);

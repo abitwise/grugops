@@ -138,7 +138,7 @@ import { realTargetPath } from "./user-file.js";
 // Plan 34.1-06 (D-23): the adapter kinds every install before this phase wrote, the one statement of the legacy rule.
 import { LEGACY_ADAPTER_KINDS } from "./install-marker.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
-import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, pathText, printedCommand, runPrintedCommand, shellWords, spawnBin, withAgentFlags } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, pathText, printedCommand, printedInvocation, runPrintedCommand, spawnBin, statedModeWords, statedSpelling, statedWords, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
 const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
@@ -1354,12 +1354,17 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const want = agentCommand("install.js", target, [], commandContextFor({ grugopsHome: home }));
     expect(warn[0], "the WARN does not print the builder's command in backticks").toContain("`" + want + "`");
     expect(warn[0], "the hand-built relative command is still printed").not.toContain("node install/install.js");
-    // Builder-independent: the span's words, read off the printed line.
-    const words = shellWords(printedCommand(warn[0]));
-    expect(words[0], "the span does not set the kit home this run used").toBe(`GRUGOPS_HOME=${home}`);
-    expect(words[1], "the span's interpreter word").toBe("node");
-    expect(words[2], "the span's script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
-    expect(words.slice(3).join(" "), "the span's arguments: the target only, no agent flag and no mode").toBe(`--target ${target}`);
+    // Builder-independent: the span's words, read off the printed line. Routed through the tests' statement of the rule
+    // by plan 34.1-48 (2026-10-13, D-38): the span's assignments are the stated ones for this run's kit home (statedWords),
+    // its words are read after them (printedInvocation), and its arguments after the stated mode words.
+    const { assigned, words } = printedInvocation(printedCommand(warn[0]));
+    expect(statedSpelling(assigned), "the span's assignments are not the stated ones for the kit home this run used").toEqual(statedWords("install.js", { kitHome: home, home: process.env.HOME ?? "" }));
+    expect(assigned.GRUGOPS_HOME, "the span does not set the kit home this run used").toBe(home);
+    expect(words[0], "the span's interpreter word").toBe("node");
+    expect(words[1], "the span's script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
+    const mode = statedModeWords("install.js", { kitHome: home, home: process.env.HOME ?? "" });
+    expect(words.slice(2, 2 + mode.length), "the span does not state the install mode the rule gives").toEqual(mode);
+    expect(words.slice(2 + mode.length).join(" "), "the span's arguments: the target only, no agent flag and no mode").toBe(`--target ${target}`);
 
     const fin = runPrintedCommand(warn[0], { home: userHome, timeoutMs: 180_000 });
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
@@ -1424,13 +1429,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(warn[0], "the WARN does not say which checkout the remedy renders from").toContain("renders from the checkout at ");
     expect(checkouts.length, `the WARN names fewer than two checkout paths\n${warn[0]}`).toBeGreaterThanOrEqual(2);
     expect([...new Set(checkouts)], `the WARN names more than one checkout\n${warn[0]}`).toEqual([pathText(src)]);
-    // The span's words, read off the printed line.
-    const words = shellWords(printedCommand(warn[0]));
-    expect(words[0], "the span does not set the kit home this run used").toBe(`GRUGOPS_HOME=${home}`);
-    expect(words[1], "the span does not set the checkout the doctor compared").toBe(`GRUGOPS_SRC=${src}`);
-    expect(words[2], "the span's interpreter word").toBe("node");
-    expect(words[3], "the span's script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
-    expect(words.slice(4).join(" "), "the span's arguments: the target only, no agent flag and no mode").toBe(`--target ${target}`);
+    // The span's words, read off the printed line. Routed through the tests' statement of the rule by plan 34.1-48
+    // (2026-10-13, D-38): the span's assignments are the stated ones for this run's kit home and the checkout S the
+    // doctor compared (statedWords), its words are read after them, and its arguments after the stated mode words.
+    const { assigned, words } = printedInvocation(printedCommand(warn[0]));
+    expect(statedSpelling(assigned), "the span's assignments are not the stated ones for this run's kit home and S").toEqual(statedWords("install.js", { kitHome: home, home: process.env.HOME ?? "", src }));
+    expect(assigned.GRUGOPS_HOME, "the span does not set the kit home this run used").toBe(home);
+    expect(assigned.GRUGOPS_SRC, "the span does not set the checkout the doctor compared").toBe(src);
+    expect(words[0], "the span's interpreter word").toBe("node");
+    expect(words[1], "the span's script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
+    const mode = statedModeWords("install.js", { kitHome: home, home: process.env.HOME ?? "", src });
+    expect(words.slice(2, 2 + mode.length), "the span does not state the install mode the rule gives").toEqual(mode);
+    expect(words.slice(2 + mode.length).join(" "), "the span's arguments: the target only, no agent flag and no mode").toBe(`--target ${target}`);
 
     const fin = runPrintedCommand(warn[0], { home: userHome, timeoutMs: 180_000, expectSrc: true });
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);

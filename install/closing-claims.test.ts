@@ -23,7 +23,22 @@ import { accessSync, constants as fsConstants, appendFileSync, existsSync, lstat
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { commandContextFor, makeFixture, runInstall, runUninstall, snapshotTree, userModeEdit, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
+import {
+  commandContextFor,
+  makeFixture,
+  printedCommand,
+  printedInvocation,
+  runInstall,
+  runUninstall,
+  snapshotTree,
+  statedModeWords,
+  statedSpelling,
+  statedWords,
+  userModeEdit,
+  NOTIFY_CONFIG,
+  MARKER_REL,
+  type Run,
+} from "./installer-paths.test-support.js";
 import { allAskRules } from "./checkpoint-ask-rules.js";
 import { HOST_TOOLS, HOST_TOOL_COUNT, agentCommand, agentFlag, scriptCommand } from "./host-tools.js";
 
@@ -291,6 +306,19 @@ const CHECK_HINT = /to verify a repo against the refreshed kit\./;
  */
 const checkHint = (kitHome: string): string =>
   `  Run \`${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome }))} --check --target <repo>\` to verify a repo against the refreshed kit.`;
+/**
+ * Builder-independent words of a printed install.js command `span` (routed through the tests' statement of the rule by
+ * plan 34.1-48, 2026-10-13, D-38): its assignments are the ones statedWords gives an install command for the kit home
+ * `kitHome` (copy mode, this checkout), and its words from `node` on are `node`, this checkout's install.js, the stated
+ * mode words (statedModeWords), then `args`.
+ */
+function expectStatedInstall(span: string, kitHome: string, home: string, args: readonly string[], why: string): void {
+  const { assigned, words } = printedInvocation(span);
+  expect(statedSpelling(assigned), `${why}: the assignments are not the stated ones: ${span}`).toEqual(statedWords("install.js", { kitHome, home }));
+  expect(words[0], `${why}: ${span}`).toBe("node");
+  expect(words[1], `${why}: the script is not this checkout's install.js: ${span}`).toBe(join(REPO_ROOT, "install", "install.js"));
+  expect(words.slice(2), `${why}: ${span}`).toEqual([...statedModeWords("install.js", { kitHome, home }), ...args]);
+}
 
 describe("closing claims: --update says complete only when it copied the kit (plan 34-26, D-25, sibling A)", () => {
   it("U1 --update with a kit home that is a regular file: a verify line, the INCOMPLETE banner, no --check hint, exit 3", () => {
@@ -307,7 +335,7 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
     const want = `${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome }))} --update`;
     expect(after, r.stdout).toBe(`  Once each is fixed, \`${want}\` refreshes the kit home again.`);
-    expect(want, "the command sets the run's kit home and runs this checkout's install.js").toBe(`GRUGOPS_HOME=${kitHome} node ${join(REPO_ROOT, "install", "install.js")} --update`);
+    expectStatedInstall(want, kitHome, home, ["--update"], "the command sets the run's kit home and runs this checkout's install.js");
     expect(r.stdout, r.stdout).not.toMatch(/update complete/);
     expect(r.stdout, r.stdout).not.toMatch(CHECK_HINT);
     expect(r.status, r.stdout).toBe(3);
@@ -323,7 +351,7 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     // Plan 34.1-28 (D-33): the hint's --check command is the builder's, never the hand-built relative form.
     const hint = checkHint(kitHome);
     expect(r.stdout.split("\n"), r.stdout).toContain(hint);
-    expect(hint, "the hint sets the run's kit home and names this checkout's install.js").toContain(`GRUGOPS_HOME=${kitHome} node ${join(REPO_ROOT, "install", "install.js")} --check --target <repo>`);
+    expectStatedInstall(printedCommand(hint), kitHome, home, ["--check", "--target", "<repo>"], "the hint sets the run's kit home and names this checkout's install.js");
     expect(lastBanner(r.stdout), r.stdout).toBe("== update complete ==");
     expect(r.stdout).not.toMatch(/INCOMPLETE/);
     expect(r.status, r.stdout).toBe(0);
@@ -419,7 +447,9 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     const want = agentCommand("install.js", target, HOST_TOOLS, commandContextFor({ grugopsHome: kitHome }), ["--migrate"]);
     expect(after, r.stdout).toContain("`" + want + "`");
     expect(after, "the line names the mode it runs again").toContain(" runs --migrate again for the same agents");
-    expect(want.startsWith(`GRUGOPS_HOME=${kitHome} node `), want).toBe(true);
+    // Routed through the tests' statement of the rule by plan 34.1-48 (2026-10-13, D-38): the stated assignments, then
+    // node and the script, the stated mode words, the target, every registry agent's flag and --migrate.
+    expectStatedInstall(want, kitHome, home, ["--target", target, ...HOST_TOOLS.map(agentFlag), "--migrate"], "the command runs --migrate again with the run's kit home");
     expect(want.endsWith(` --migrate`), want).toBe(true);
     expect(r.stdout, r.stdout).not.toMatch(NO_CHANGE_SENTENCE);
     expect(r.status, r.stdout).toBe(3);

@@ -148,6 +148,7 @@ import {
   snapshotTree,
   spawnBin,
   statedKitHome,
+  statedModeWords,
   statedSpelling,
   statedWords,
 } from "./installer-paths.test-support.js";
@@ -227,13 +228,23 @@ function runPrinted(w: World, stdout: string, kitHome: string = w.grugopsHome): 
 }
 /**
  * A printed command's leading assignments compared with the tests' own statement of the rule (statedWords, plan
- * 34.1-47) for `binary`, the kit home `kitHome` of the context it was printed from and HOME `home`; returns its words
- * from `node` on, after asserting the first is `node`. Builder-independent: nothing here calls the builder.
+ * 34.1-47) for `binary`, the kit home `kitHome` of the context it was printed from, HOME `home` and the context's
+ * install mode `installMode` (copy when omitted); and the words right after its script word compared with the stated
+ * mode words (statedModeWords, plan 34.1-48, D-38). Returns its words from `node` on, after asserting the first is
+ * `node`. Builder-independent: nothing here calls the builder.
  */
-function expectStated(span: string, binary: "install.js" | "uninstall.js", kitHome: string, home: string): readonly string[] {
+function expectStated(
+  span: string,
+  binary: "install.js" | "uninstall.js",
+  kitHome: string,
+  home: string,
+  installMode: "copy" | "symlink" = "copy",
+): readonly string[] {
   const { assigned, words } = printedInvocation(span);
-  expect(statedSpelling(assigned), `the printed command's assignments are not the stated ones: ${span}`).toEqual(statedWords(binary, { kitHome, home }));
+  expect(statedSpelling(assigned), `the printed command's assignments are not the stated ones: ${span}`).toEqual(statedWords(binary, { kitHome, home, installMode }));
   expect(words[0], `the printed command does not start with node after its assignments: ${span}`).toBe("node");
+  const mode = statedModeWords(binary, { kitHome, home, installMode });
+  expect(words.slice(2, 2 + mode.length), `the printed command does not state the install mode the rule gives: ${span}`).toEqual(mode);
   return words;
 }
 /** The GRUGOPS_HOME a follow-as-printed child saw, in pathText's spelling (D-38: every printed command states one). */
@@ -1106,7 +1117,11 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     const banner = r.stdout.split("\n").filter((l) => l.startsWith("  Once each is fixed, `"));
     expect(banner, r.stdout).toHaveLength(1);
     const printed = printedCommand(banner[0]);
-    expect(shellWords(printed), `the printed command of a --symlink run does not carry --symlink: ${printed}`).toContain("--symlink");
+    // Routed through the tests' statement of the rule by plan 34.1-48 (2026-10-13, D-38): the printed command of a
+    // --symlink run states the symlink mode the way the rule says (statedWords and statedModeWords for a symlink
+    // context), and its arguments follow the stated mode words.
+    const words = expectStated(printed, "install.js", w.grugopsHome, w.home, "symlink");
+    expect(words[2 + statedModeWords("install.js", { kitHome: w.grugopsHome, home: w.home, installMode: "symlink" }).length], printed).toBe("--target");
     expect(printed).toBe(agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.grugopsHome, symlink: true })));
     rmSync(at(w.target, ".pi/prompts"));
     const fin = runPrintedCommand(banner[0], { home: w.home, timeoutMs: 180_000 });

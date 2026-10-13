@@ -509,7 +509,7 @@ export function printedInvocation(span: string): PrintedInvocation {
   return { assigned, words: all.slice(at) };
 }
 
-/** The facts of a run that decide a printed command's assignment words: its kit home, its HOME, and its kit checkout. */
+/** The facts of a run that decide a printed command's stated words: its kit home, HOME, kit checkout and install mode. */
 export interface StatedRun {
   /** The kit home the command's context holds (GRUGOPS_HOME, or the one an `ok` marker records under `--check`). */
   readonly kitHome: string;
@@ -517,29 +517,58 @@ export interface StatedRun {
   readonly home: string;
   /** The kit checkout the run used (GRUGOPS_SRC); this checkout when omitted. */
   readonly src?: string;
+  /**
+   * The install mode the command's context holds (the run's, or the one an `ok` marker records under `--check`); copy
+   * when omitted (plan 34.1-48).
+   */
+  readonly installMode?: "copy" | "symlink";
+}
+
+/** What a printed command of one binary states for one run: its leading assignments and the mode words after its script word. */
+interface StatedCommand {
+  readonly assigned: Readonly<Record<string, string>>;
+  readonly modeWords: readonly string[];
 }
 
 /**
- * statedWords (plan 34.1-47, D-38): THE TESTS' OWN STATEMENT of the assignment words a printed command of `binary`
- * carries for the run `run`, as a name-to-value map in pathText's spelling. It imports nothing from host-tools.ts, so a
- * row that compares a printed command's assignments (printedInvocation) with it does not build its expected value with
- * the builder under test.
+ * statedCommand (plans 34.1-47 and 34.1-48, D-38): THE TESTS' OWN STATEMENT of the rule for a printed command of
+ * `binary` in run `run`: its leading assignment words and the mode words right after its script word. It imports
+ * nothing from host-tools.ts, so a row that compares a printed command with it (statedWords, statedModeWords) does not
+ * build its expected value with the builder under test.
  *
- * The rule it states (D-38, plan 34.1-47, review WR-25; it amends D-33's "only for a kit home other than the
- * default"): GRUGOPS_HOME on every command of both binaries, the default kit home `<home>/.grugops` included, so an
- * exported GRUGOPS_HOME in the user's shell cannot change where a printed command puts or reads the kit; GRUGOPS_SRC on
- * both binaries when the run's kit checkout is not this checkout (D-36, WR-23). `binary` and `run.home` are kept as
- * facts of the run the rule may read: the D-38 statement reads neither (the default kit home no longer changes what a
- * command states), and plan 34.1-48 states the install mode per binary.
+ * The rule it states, as the plan-47 build prints (D-38, plan 34.1-47, review WR-25; it amends D-33's "only for a kit
+ * home other than the default"): GRUGOPS_HOME on every command of both binaries, the default kit home
+ * `<home>/.grugops` included; GRUGOPS_SRC on both binaries when the run's kit checkout is not this checkout (D-36,
+ * WR-23); and the install mode as a word, not an assignment: `--symlink` after an install command's script word for a
+ * symlink context, nothing for copy, and nothing on an uninstall command (uninstall.js refuses `--symlink`). `run.home`
+ * is kept as a fact of the run the rule may read; this statement does not read it.
  */
-export function statedWords(binary: "install.js" | "uninstall.js", run: StatedRun): Readonly<Record<string, string>> {
-  void binary;
-  const out: Record<string, string> = { GRUGOPS_HOME: pathText(canonicalPathSpelling(resolve(run.kitHome))) };
+function statedCommand(binary: "install.js" | "uninstall.js", run: StatedRun): StatedCommand {
+  void run.home;
+  const mode = run.installMode ?? "copy";
+  const assigned: Record<string, string> = { GRUGOPS_HOME: pathText(canonicalPathSpelling(resolve(run.kitHome))) };
   if (run.src !== undefined) {
     const src = pathText(canonicalPathSpelling(resolve(run.src)));
-    if (src !== pathText(canonicalPathSpelling(REPO_ROOT))) out.GRUGOPS_SRC = src;
+    if (src !== pathText(canonicalPathSpelling(REPO_ROOT))) assigned.GRUGOPS_SRC = src;
   }
-  return out;
+  return { assigned, modeWords: binary === "install.js" && mode === "symlink" ? ["--symlink"] : [] };
+}
+
+/**
+ * statedWords (plans 34.1-47 and 34.1-48, D-38): the leading assignment words statedCommand states for a printed
+ * command of `binary` in run `run`, as a name-to-value map in pathText's spelling.
+ */
+export function statedWords(binary: "install.js" | "uninstall.js", run: StatedRun): Readonly<Record<string, string>> {
+  return statedCommand(binary, run).assigned;
+}
+
+/**
+ * statedModeWords (plan 34.1-48, D-38): the words statedCommand states right after a printed command's script word,
+ * before its arguments (`--target ...`). A row reads a printed command's arguments after them:
+ * `printedInvocation(span).words.slice(2 + statedModeWords(binary, run).length)`.
+ */
+export function statedModeWords(binary: "install.js" | "uninstall.js", run: StatedRun): readonly string[] {
+  return statedCommand(binary, run).modeWords;
 }
 
 /** `assigned` with every value in pathText's spelling, for a comparison with statedWords. */
