@@ -79,6 +79,12 @@
 //     duplicated key with its count (R46 follows a duplicate `ledger` key as printed). The unusable-marker census, derived
 //     by search, holds the class: every reading that says the marker or its ledger could not be used carries the owner's
 //     wording, points at the line that does, or names a cause only, and none removes anything by hand.
+//   - D-37 (plan 34.1-46, brief §6): R47 follows the blocked read D-37 names (a mode 000 marker) as printed. The
+//     reader-state matrix enumerates its rows from the reader, not from known cases: READER_STATES (typed
+//     Record<MarkerDefect, ...>, 21 shapes over the 8 defects) times PRINTING_RUNS (--check, install --claude, install
+//     --codex, a flag-less uninstall, uninstall --codex), 105 cells, each asserting the owner's wording, no removal offer,
+//     nothing removed, the marker path as it was and no control byte on the terminal; three controls run the zero-offer
+//     rule only.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -88,7 +94,8 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
@@ -138,6 +145,7 @@ import {
   spawnBin,
 } from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
+import { USER_FILE_MAX_BYTES } from "./user-file.js";
 import { memberNamed, readJsonText } from "./json-text.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -3026,6 +3034,335 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
       expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
       expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
       expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
+    },
+    300_000,
+  );
+});
+
+// ── D-37 (brief §6): the reader-state matrix (plan 34.1-46) ─────────────────────────────────────────────────────────
+//
+// Rounds 1-3 each closed the reproduced instance and the class came back one arm over (CR-04, CR-05, CR-06), because
+// the rows were the cases already known. This matrix enumerates its rows from what the READER reports instead: every
+// MarkerDefect (READER_STATES is typed Record<MarkerDefect, ...>, so a new defect is a compile error until it has
+// shapes), several shapes each, each a hand edit of the marker install wrote, times every run that prints about the
+// marker (PRINTING_RUNS: --check, install --claude, install --codex, a flag-less uninstall, uninstall --codex). Each cell
+// asserts D-37 as a user sees it: the exit code (1 for --check, 3 otherwise); at least one line names
+// .grugops/install.json and carries the owner's wording ("by hand", "never delete the marker" and every problem
+// markerRemedy reports for that read); no line offers deleting or removing the marker; no uninstall run removes
+// anything; the marker path is left as it was (its lstat kind and name count, its bytes when it is a regular file, its
+// link text when it is a link, its entries when it is a directory); and no line holds a C0 or C1 control character other than
+// tab, or U+FFFD (T-34.1-87: the marker's bytes never reach the terminal). The controls (absent, unbound to another
+// directory, unbound with no ledger) run the same five runs and assert the zero-offer rule only.
+//
+// Each cell starts from a real .grugops directory holding the files install wrote (resetGrugops), applies one shape,
+// asserts the premise through the product's reader (the state and the defect the row is keyed by), runs, and undoes
+// what the shape made outside .grugops. The install runs may write other files in the target; only the marker and the
+// printed lines are asserted.
+
+/** What a shape plants, beside the target, that resetGrugops does not undo (each name a sibling of the target). */
+const MATRIX_SIDE = ["marker-copy.json", "marker-second-name", "grugops-real"] as const;
+/** A line holds a C0 or C1 control character other than tab, or U+FFFD (the line split already took the newline). */
+const CONTROL_OR_REPLACEMENT = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f�]/;
+
+interface ReaderShape {
+  readonly name: string;
+  /** Turn the good marker in a reset .grugops into this shape. */
+  readonly apply: (w: World) => void;
+  /** Undo what apply did that a later reset cannot (a mode); run in a `finally`. */
+  readonly undo?: (w: World) => void;
+  /** Skip with a printed reason where a mode does not stop a read (win32, root). */
+  readonly chmodGated?: boolean;
+}
+const sideOf = (w: World, name: (typeof MATRIX_SIDE)[number]): string => join(dirname(w.target), name);
+const markerPath = (w: World): string => at(w.target, MARKER_REL);
+/** Rewrite the marker as the good object with `edit` applied, through JSON.stringify (a value-level hand edit). */
+function rewriteMarkerObject(w: World, edit: (o: Record<string, unknown>) => Record<string, unknown>): void {
+  writeFileSync(markerPath(w), JSON.stringify(edit({ ...readMarkerObject(w.target) }), null, 2) + "\n");
+}
+
+const READER_STATES: Readonly<Record<MarkerDefect, readonly ReaderShape[]>> = {
+  blocked: [
+    {
+      name: "mode 000",
+      apply: (w) => chmodSync(markerPath(w), 0o000), // mode-census: access-denial
+      undo: (w) => chmodSync(markerPath(w), 0o644), // mode-census: restore
+      chmodGated: true,
+    },
+    {
+      name: "a symbolic link at the marker path, to a copy of the marker",
+      apply: (w) => {
+        writeFileSync(sideOf(w, "marker-copy.json"), readFileSync(markerPath(w)));
+        rmSync(markerPath(w));
+        symlinkSync(sideOf(w, "marker-copy.json"), markerPath(w));
+      },
+    },
+    {
+      name: "a FIFO at the marker path",
+      apply: (w) => {
+        rmSync(markerPath(w));
+        execFileSync("mkfifo", [markerPath(w)]);
+      },
+    },
+    {
+      name: "a directory at the marker path",
+      apply: (w) => {
+        rmSync(markerPath(w));
+        mkdirSync(markerPath(w));
+      },
+    },
+    {
+      name: "`.grugops` a symbolic link to a directory holding the marker",
+      apply: (w) => {
+        renameSync(at(w.target, ".grugops"), sideOf(w, "grugops-real"));
+        symlinkSync(sideOf(w, "grugops-real"), at(w.target, ".grugops"));
+      },
+    },
+    { name: "a second hard-link name for the marker", apply: (w) => linkSync(markerPath(w), sideOf(w, "marker-second-name")) },
+    { name: "a marker larger than USER_FILE_MAX_BYTES (sparse)", apply: (w) => truncateSync(markerPath(w), USER_FILE_MAX_BYTES + 1) },
+  ],
+  "not-json": [
+    { name: "one trailing comma inside `agents`", apply: (w) => void addTrailingComma(w) },
+    {
+      name: "the first half of the bytes",
+      apply: (w) => {
+        const b = readFileSync(markerPath(w));
+        writeFileSync(markerPath(w), b.subarray(0, Math.floor(b.length / 2)));
+      },
+    },
+    { name: "an empty file", apply: (w) => writeFileSync(markerPath(w), "") },
+  ],
+  "not-object": [{ name: "`[]`", apply: (w) => writeFileSync(markerPath(w), "[]\n") }],
+  bytes: [
+    {
+      name: "one 0xff byte inside a string value",
+      apply: (w) => {
+        const t = readFileSync(markerPath(w));
+        writeFileSync(markerPath(w), Buffer.concat([Buffer.from('{\n  "note": "a', "utf8"), Buffer.from([0xff]), Buffer.from('b",', "utf8"), t.subarray(1)]));
+      },
+    },
+  ],
+  "duplicate-key": [
+    { name: "`agents` twice", apply: (w) => void addDuplicateMember(w, "agents", '["codex"]') },
+    { name: "`ledger` twice (one good, one garbage)", apply: (w) => void addDuplicateMember(w, "ledger", '"x"') },
+    {
+      name: "`agents` and `ledger` both twice",
+      apply: (w) => {
+        addDuplicateMember(w, "agents", '["codex"]');
+        addDuplicateMember(w, "ledger", '"x"');
+      },
+    },
+  ],
+  field: [
+    { name: "`agents` malformed", apply: (w) => setAgentsByHand(w, BAD_AGENTS) },
+    { name: "`installMode` banana", apply: (w) => rewriteMarkerObject(w, (o) => ({ ...o, installMode: "banana" })) },
+    {
+      name: "`kitRoot` deleted",
+      apply: (w) =>
+        rewriteMarkerObject(w, (o) => {
+          delete o.kitRoot;
+          return o;
+        }),
+    },
+  ],
+  "retired-record": [{ name: "`createdFiles` next to the ledger", apply: (w) => rewriteMarkerObject(w, (o) => ({ ...o, createdFiles: [] })) }],
+  ledger: [
+    { name: "one ledger entry's kind banana", apply: (w) => void setLedgerKindByHand(w) },
+    { name: "`ledger` \"x\"", apply: (w) => rewriteMarkerObject(w, (o) => ({ ...o, ledger: "x" })) },
+  ],
+};
+
+/** The controls: no remedy is owed, and none may offer removing the marker. */
+const READER_CONTROLS: readonly (ReaderShape & { readonly state: InstallMarkerRead["state"] })[] = [
+  { name: "absent", state: "absent", apply: (w) => rmSync(markerPath(w)) },
+  {
+    name: "unbound (another directory's target)",
+    state: "unbound",
+    apply: (w) => rewriteMarkerObject(w, (o) => ({ ...o, target: dirname(w.target) })),
+  },
+  {
+    name: "unbound (no ledger)",
+    state: "unbound",
+    apply: (w) =>
+      rewriteMarkerObject(w, (o) => {
+        delete o.ledger;
+        return o;
+      }),
+  },
+];
+
+interface PrintingRun {
+  readonly name: string;
+  readonly exit: number;
+  readonly uninstall: boolean;
+  readonly go: (w: World) => Run;
+}
+const PRINTING_RUNS: readonly PrintingRun[] = [
+  { name: "--check", exit: 1, uninstall: false, go: (w) => spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, timeoutMs: 120_000 }) },
+  { name: "install --claude", exit: 3, uninstall: false, go: (w) => runInstall(w.target, w.grugopsHome, [flag("claude")], { home: w.home, timeoutMs: 180_000 }) },
+  { name: "install --codex", exit: 3, uninstall: false, go: (w) => runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, timeoutMs: 180_000 }) },
+  { name: "uninstall (flag-less)", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, []) },
+  { name: "uninstall --codex", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, [flag("codex")]) },
+];
+
+/** The files install wrote into .grugops, read once after the install of a matrix world. */
+function grugopsFiles(w: World): ReadonlyMap<string, Buffer> {
+  const dir = at(w.target, ".grugops");
+  return new Map(readdirSync(dir).sort().map((n) => [n, readFileSync(join(dir, n))]));
+}
+/** Put back a real .grugops directory holding exactly the files install wrote, and remove what a shape planted beside. */
+function resetGrugops(w: World, files: ReadonlyMap<string, Buffer>): void {
+  const dir = at(w.target, ".grugops");
+  let st: ReturnType<typeof lstatSync> | null = null;
+  try {
+    st = lstatSync(dir);
+  } catch {
+    st = null;
+  }
+  if (st !== null) rmSync(dir, { recursive: true, force: true });
+  for (const n of MATRIX_SIDE) rmSync(sideOf(w, n), { recursive: true, force: true });
+  mkdirSync(dir);
+  for (const [n, b] of files) writeFileSync(join(dir, n), b);
+}
+/** What is at the marker path, by lstat (never opening a FIFO): its kind and name count, and its bytes (a digest), link text or entries. */
+function markerPathState(w: World): string {
+  const p = markerPath(w);
+  let st: ReturnType<typeof lstatSync>;
+  try {
+    st = lstatSync(p);
+  } catch (e) {
+    return `absent (${(e as { code?: string }).code})`;
+  }
+  const kind = st.isFile() ? "file" : st.isDirectory() ? "directory" : st.isSymbolicLink() ? "symlink" : st.isFIFO() ? "fifo" : "other";
+  let content = "";
+  if (st.isSymbolicLink()) content = `-> ${readlinkSync(p)}`;
+  else if (st.isFile()) {
+    try {
+      content = `sha256:${createHash("sha256").update(readFileSync(p)).digest("hex")}`;
+    } catch (e) {
+      // A file this process cannot read (mode 000): its identity, size and mtime stand in for its bytes.
+      content = `unreadable (${(e as { code?: string }).code}) ino=${st.ino} size=${st.size} mtime=${st.mtimeMs}`;
+    }
+  } else if (st.isDirectory()) content = `[${readdirSync(p).sort().join(",")}]`;
+  return `${kind} nlink=${st.nlink} ${content}`;
+}
+/** Every line of stdout and stderr. */
+const allLines = (r: Run): string[] => [...r.stdout.split("\n"), ...r.stderr.split("\n")];
+/** The lines of a run that offer deleting or removing the marker (D-37's zero). */
+const removalOffers = (r: Run): string[] => allLines(r).filter((l) => DELETE_MARKER.test(l) || MARKER_REMOVAL.test(l) || REMOVAL_OFFER.test(l));
+
+/**
+ * One defect's rows: install Claude Code and Codex CLI once, then for each shape and each printing run, reset, apply,
+ * check the premise (the read's state and defect, and markerRemedy's fix), run, undo, and collect every broken rule.
+ * Returns the findings and the number of cells run.
+ */
+function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; skipped: string[] } {
+  const w = world(`matrix-${defect}`);
+  install(w, [flag("claude"), flag("codex")]);
+  const files = grugopsFiles(w);
+  expect(files.has("install.json"), "PREMISE: install wrote the marker").toBe(true);
+  const findings: string[] = [];
+  const skipped: string[] = [];
+  let cells = 0;
+  for (const shape of READER_STATES[defect]) {
+    if (shape.chmodGated === true && CHMOD_SKIP !== null) {
+      skipped.push(`${defect} / ${shape.name}: ${CHMOD_SKIP}`);
+      console.log(`SKIP the matrix shape ${defect} / ${shape.name} — ${CHMOD_SKIP}`);
+      continue;
+    }
+    for (const run of PRINTING_RUNS) {
+      const cell = `${defect} / ${shape.name} / ${run.name}`;
+      resetGrugops(w, files);
+      expect(readInstallMarker(w.target).state, `PREMISE: ${cell}: the reset marker reads ok`).toBe("ok");
+      let r: Run;
+      let before: string;
+      let after: string;
+      let fix: readonly string[];
+      shape.apply(w);
+      try {
+        const read = readInstallMarker(w.target);
+        if (defect === "ledger") {
+          expect(read.state, `PREMISE: ${cell}: the marker reads ok`).toBe("ok");
+          expect(readLedger(read.state === "ok" ? read.marker : null).state, `PREMISE: ${cell}: its ledger is malformed`).toBe("malformed");
+        } else {
+          expect(read.state === "unreadable" ? read.defect : read.state, `PREMISE: ${cell}: the read's defect`).toBe(defect);
+        }
+        const remedy = markerRemedy(read);
+        expect(remedy?.defect, `PREMISE: ${cell}: markerRemedy names the defect`).toBe(defect);
+        fix = remedy?.fix ?? [];
+        expect(fix.length, `PREMISE: ${cell}: markerRemedy reports a problem`).toBeGreaterThan(0);
+        before = markerPathState(w);
+        r = run.go(w);
+        after = markerPathState(w);
+      } finally {
+        shape.undo?.(w);
+      }
+      cells++;
+      const bad = (why: string): void => void findings.push(`${cell}: ${why}`);
+      if (r.error !== undefined || r.signal !== null) bad(`did not finish (${r.error?.message ?? r.signal})`);
+      if (NO_STACK.test(r.stderr)) bad(`uncaught throw\n${r.stderr}`);
+      if (r.status !== run.exit) bad(`exit ${r.status}, want ${run.exit}\n${r.stdout}`);
+      const owner = allLines(r).filter(
+        (l) => l.includes(MARKER_REL) && BY_HAND.test(l) && l.includes("never delete the marker") && fix.every((f) => l.includes(f)),
+      );
+      if (owner.length === 0) bad(`no line names ${MARKER_REL} with by hand, never delete the marker and every problem ${JSON.stringify(fix)}\n${r.stdout}`);
+      for (const l of removalOffers(r)) bad(`a line offers removing the marker: ${l}`);
+      if (run.uninstall && linesWith(r.stdout, "removed").length > 0) bad(`something was removed\n${linesWith(r.stdout, "removed").join("\n")}`);
+      if (after !== before) bad(`the marker path changed\n  before ${before.slice(0, 200)}\n  after  ${after.slice(0, 200)}`);
+      for (const l of allLines(r)) if (CONTROL_OR_REPLACEMENT.test(l)) bad(`a line holds a control character or U+FFFD: ${JSON.stringify(l)}`);
+    }
+  }
+  resetGrugops(w, files);
+  return { findings, cells, skipped };
+}
+
+describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every shape x every printing run", () => {
+  it("the table is keyed by MARKER_DEFECTS (8), with at least one shape per defect; the runs are the five that print about the marker", () => {
+    expect(MARKER_DEFECTS.length, "MARKER_DEFECTS has 8 members").toBe(8);
+    expect(Object.keys(READER_STATES).sort(), "READER_STATES's keys are MARKER_DEFECTS").toEqual([...MARKER_DEFECTS].sort());
+    for (const d of MARKER_DEFECTS) expect(READER_STATES[d].length, `the defect ${d} has no shape`).toBeGreaterThan(0);
+    const shapes = MARKER_DEFECTS.reduce((n, d) => n + READER_STATES[d].length, 0);
+    expect(shapes, "the matrix has 21 shapes").toBe(21);
+    expect(PRINTING_RUNS.map((p) => p.name), "the printing runs").toEqual(["--check", "install --claude", "install --codex", "uninstall (flag-less)", "uninstall --codex"]);
+  });
+
+  for (const defect of MARKER_DEFECTS) {
+    it(
+      `${defect}: every shape under every printing run names the cause and the by-hand fix, never offers removal, removes nothing and leaves the marker path as it was`,
+      () => {
+        const { findings, cells, skipped } = matrixRows(defect);
+        const gated = READER_STATES[defect].filter((s) => s.chmodGated === true).length;
+        expect(skipped.length, "only the gated mode 000 shape is ever skipped").toBe(CHMOD_SKIP === null ? 0 : gated);
+        expect(cells, `PREMISE: ${defect}: the cells run`).toBe((READER_STATES[defect].length - skipped.length) * PRINTING_RUNS.length);
+        expect(findings, `${defect}: a cell breaks D-37`).toEqual([]);
+      },
+      300_000,
+    );
+  }
+
+  it(
+    "the controls (absent, unbound to another directory, unbound with no ledger): no run offers removing the marker",
+    () => {
+      const w = world("matrix-controls");
+      install(w, [flag("claude"), flag("codex")]);
+      const files = grugopsFiles(w);
+      const findings: string[] = [];
+      let cells = 0;
+      for (const c of READER_CONTROLS) {
+        for (const run of PRINTING_RUNS) {
+          resetGrugops(w, files);
+          c.apply(w);
+          const read = readInstallMarker(w.target);
+          expect(read.state, `PREMISE: ${c.name}: the read's state`).toBe(c.state);
+          expect(markerRemedy(read), `PREMISE: ${c.name}: no remedy is owed`).toBeNull();
+          const r = run.go(w);
+          cells++;
+          if (r.error !== undefined || r.signal !== null) findings.push(`${c.name} / ${run.name}: did not finish`);
+          for (const l of removalOffers(r)) findings.push(`${c.name} / ${run.name}: a line offers removing the marker: ${l}`);
+        }
+      }
+      resetGrugops(w, files);
+      expect(cells, "PREMISE: the control cells run").toBe(READER_CONTROLS.length * PRINTING_RUNS.length);
+      expect(findings, "a control run offers removing the marker").toEqual([]);
     },
     300_000,
   );

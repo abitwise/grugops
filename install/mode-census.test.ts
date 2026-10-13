@@ -95,10 +95,13 @@ const SOURCE_FILE_COUNT = 9;
  * `.agents/skills/grugops` read-only so the recorded SKILL.md cannot be removed; each restores in a `finally`.
  * access-denial 13 -> 14 and restore 20 -> 21 on 2026-10-13 (plan 34.1-46, D-37): agents-record.test.ts row R47 makes the
  * install marker mode 000 (the blocked read D-37 names) and restores its read permission in a `finally` (gated on win32
- * and root as R12 is). */
+ * and root as R12 is). access-denial 14 -> 15 and restore 21 -> 22 on 2026-10-13 (plan 34.1-46, D-37, brief §6): the
+ * reader-state matrix's mode 000 shape (READER_STATES.blocked) takes the marker's read permission in its `apply` and gives
+ * it back in its `undo`, which the cell runs in a `finally` (the shape is skipped with a printed reason on win32 and as
+ * root). */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 14,
-  restore: 21,
+  "access-denial": 15,
+  restore: 22,
   "row-315": 5,
   "posix-bits": 2,
 };
