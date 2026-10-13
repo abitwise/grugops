@@ -369,7 +369,7 @@ describe("OpenCode external_directory rule: the other-kit-root note names both c
     expect(notes.length, second.stdout).toBe(1);
     const oc = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
     // The second run's context (D-33): its kit home is not the default, so its install command carries it.
-    const ctx = commandContextFor({ grugopsHome: kitB, home: r.home });
+    const ctx = commandContextFor({ grugopsHome: kitB });
     const un = `\`${agentCommand("uninstall.js", r.target, oc, ctx)}\``;
     const inst = `\`${agentCommand("install.js", r.target, oc, ctx)}\``;
     expect(inst.startsWith("`GRUGOPS_HOME="), `premise: the second run used another kit home: ${inst}`).toBe(true);

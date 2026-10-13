@@ -638,7 +638,7 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expect(markerPresent(t), "the marker was removed while CLAUDE.md is held").toBe(true);
     expect(markerOf(t).agents).toEqual([CLAUDE.id]);
     expect(ledgerHas(t, CLAUDE_MD, "file"), "the CLAUDE.md file entry left the ledger").toBe(true);
-    const finish = agentCommand("uninstall.js", t, [], commandContextFor({ grugopsHome: KIT_HOME, home: HOME }));
+    const finish = agentCommand("uninstall.js", t, [], commandContextFor({ grugopsHome: KIT_HOME }));
     expect(u.stdout).toContain(`\`${finish}\``);
     expect(printedCommand(u.stdout)).toBe(finish);
     // Builder-independent (plan 34.1-47): the assignments are the stated ones (statedWords), then `node` and the
@@ -648,7 +648,7 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expect(pathText(inv.words.slice(0, 2).join(" ")), "the uninstall script is not named by its absolute path").toBe(`node ${pathText(UNINSTALL_JS)}`);
     rmSync(at(t, CLAUDE_MD));
     const f = runPrintedCommand(u.stdout, { home: HOME, timeoutMs: 120_000 });
-    expect(f.premise.grugopsHome === undefined ? undefined : pathText(f.premise.grugopsHome), "premise: the child's kit home is the stated one").toBe(
+    expect(pathText(f.premise.grugopsHome), "premise: the child's kit home is the stated one").toBe(
       statedKitHome("uninstall.js", { kitHome: KIT_HOME, home: HOME }),
     );
     expect(f.status, f.stdout + f.stderr).toBe(0);
@@ -667,7 +667,7 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expectNamedAndKept(named[0], u.stdout);
     expect(readFileSync(at(t, COPILOT_MD), "utf8")).toBe("");
     expect(markerOf(t).agents).toEqual([CLAUDE.id, COPILOT.id]);
-    const finish = agentCommand("uninstall.js", t, [COPILOT], commandContextFor({ grugopsHome: KIT_HOME, home: HOME }));
+    const finish = agentCommand("uninstall.js", t, [COPILOT], commandContextFor({ grugopsHome: KIT_HOME }));
     expect(u.stdout).toContain(`\`${finish}\``);
     expect(printedCommand(u.stdout)).toBe(finish);
     // Builder-independent (plan 34.1-47): the assignments are the stated ones (statedWords), then `node` and the
@@ -677,7 +677,7 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expect(pathText(inv.words.slice(0, 2).join(" ")), "the uninstall script is not named by its absolute path").toBe(`node ${pathText(UNINSTALL_JS)}`);
     rmSync(at(t, COPILOT_MD));
     const f = runPrintedCommand(u.stdout, { home: HOME, timeoutMs: 120_000 });
-    expect(f.premise.grugopsHome === undefined ? undefined : pathText(f.premise.grugopsHome), "premise: the child's kit home is the stated one").toBe(
+    expect(pathText(f.premise.grugopsHome), "premise: the child's kit home is the stated one").toBe(
       statedKitHome("uninstall.js", { kitHome: KIT_HOME, home: HOME }),
     );
     expect(f.status, f.stdout + f.stderr).toBe(0);

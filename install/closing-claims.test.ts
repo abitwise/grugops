@@ -289,8 +289,8 @@ const CHECK_HINT = /to verify a repo against the refreshed kit\./;
  * The --update success hint as this run must print it (plan 34.1-28, D-33): its --check command from the builder's
  * scriptCommand with the run's context, so it runs as printed from any directory with the kit home the run used.
  */
-const checkHint = (kitHome: string, home: string): string =>
-  `  Run \`${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome, home }))} --check --target <repo>\` to verify a repo against the refreshed kit.`;
+const checkHint = (kitHome: string): string =>
+  `  Run \`${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome }))} --check --target <repo>\` to verify a repo against the refreshed kit.`;
 
 describe("closing claims: --update says complete only when it copied the kit (plan 34-26, D-25, sibling A)", () => {
   it("U1 --update with a kit home that is a regular file: a verify line, the INCOMPLETE banner, no --check hint, exit 3", () => {
@@ -305,7 +305,7 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     // builder-independent words are checked too.
     const lines = r.stdout.split("\n");
     const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
-    const want = `${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome, home }))} --update`;
+    const want = `${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome }))} --update`;
     expect(after, r.stdout).toBe(`  Once each is fixed, \`${want}\` refreshes the kit home again.`);
     expect(want, "the command sets the run's kit home and runs this checkout's install.js").toBe(`GRUGOPS_HOME=${kitHome} node ${join(REPO_ROOT, "install", "install.js")} --update`);
     expect(r.stdout, r.stdout).not.toMatch(/update complete/);
@@ -321,7 +321,7 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     expect(verifyLines(r.stdout), r.stdout).toEqual([]);
     expect(r.stdout, r.stdout).toMatch(CHECK_HINT);
     // Plan 34.1-28 (D-33): the hint's --check command is the builder's, never the hand-built relative form.
-    const hint = checkHint(kitHome, home);
+    const hint = checkHint(kitHome);
     expect(r.stdout.split("\n"), r.stdout).toContain(hint);
     expect(hint, "the hint sets the run's kit home and names this checkout's install.js").toContain(`GRUGOPS_HOME=${kitHome} node ${join(REPO_ROOT, "install", "install.js")} --check --target <repo>`);
     expect(lastBanner(r.stdout), r.stdout).toBe("== update complete ==");
@@ -416,7 +416,7 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     // kit home is not the default one, so the command carries GRUGOPS_HOME. Builder-independent words are checked too.
     const lines = r.stdout.split("\n");
     const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
-    const want = agentCommand("install.js", target, HOST_TOOLS, commandContextFor({ grugopsHome: kitHome, home }), ["--migrate"]);
+    const want = agentCommand("install.js", target, HOST_TOOLS, commandContextFor({ grugopsHome: kitHome }), ["--migrate"]);
     expect(after, r.stdout).toContain("`" + want + "`");
     expect(after, "the line names the mode it runs again").toContain(" runs --migrate again for the same agents");
     expect(want.startsWith(`GRUGOPS_HOME=${kitHome} node `), want).toBe(true);

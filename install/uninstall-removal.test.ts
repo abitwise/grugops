@@ -821,7 +821,7 @@ describe("per-agent uninstall (D-05)", () => {
       /== uninstall complete — 1 recorded item\(s\) left in place; .* — agents removed: none; not finished, still recorded: Codex CLI; still installed: Claude Code ==/,
     );
     const codexRow = HOST_TOOLS.filter((h) => h.id === "codex");
-    expect(r.stdout, "the command that finishes the reversal is not printed").toContain(`\`${agentCommand("uninstall.js", t.target, codexRow, commandContextFor({ grugopsHome: t.grugopsHome, home: t.home }))}\``);
+    expect(r.stdout, "the command that finishes the reversal is not printed").toContain(`\`${agentCommand("uninstall.js", t.target, codexRow, commandContextFor({ grugopsHome: t.grugopsHome }))}\``);
   });
 
   it("(h) CR-02: restore the edited file and run the printed command: the agent's files and its record go", () => {
@@ -838,7 +838,7 @@ describe("per-agent uninstall (D-05)", () => {
     expect(kept.agents, `Claude Code left the record while it owns a held entry\n${r.stdout}`).toEqual(["claude", "codex"]);
     expect(ledgerOf(kept).some((e) => e.path === rel && e.kind === "file"), "the held entry left the ledger").toBe(true);
     const claudeRow = HOST_TOOLS.filter((h) => h.id === "claude");
-    const expected = agentCommand("uninstall.js", t.target, claudeRow, commandContextFor({ grugopsHome: t.grugopsHome, home: t.home }));
+    const expected = agentCommand("uninstall.js", t.target, claudeRow, commandContextFor({ grugopsHome: t.grugopsHome }));
     // Builder-independent (plan 34.1-47): the printed command's assignments are the stated ones (statedWords), then
     // `node`, the absolute uninstall.js and --target.
     const inv = printedInvocation(printedCommand(r.stdout));
@@ -850,7 +850,7 @@ describe("per-agent uninstall (D-05)", () => {
     writeFileSync(file, original);
     const fin = runPrintedCommand(r.stdout, { home: t.home });
     expectFinished(fin, "the printed command");
-    expect(fin.premise.grugopsHome === undefined ? undefined : pathText(fin.premise.grugopsHome), "premise: the child's kit home is the stated one").toBe(
+    expect(pathText(fin.premise.grugopsHome), "premise: the child's kit home is the stated one").toBe(
       statedKitHome("uninstall.js", { kitHome: t.grugopsHome, home: t.home }),
     );
     expect(fin.status, `${fin.stdout}\n${fin.stderr}`).toBe(0);

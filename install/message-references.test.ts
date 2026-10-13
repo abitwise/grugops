@@ -859,8 +859,8 @@ function world(tag: string): World {
   mkdirSync(home, { recursive: true });
   return { target, home, kitHome: join(home, ".grugops") };
 }
-/** The GRUGOPS_HOME a follow-as-printed child saw, in pathText's spelling, or undefined when it saw none (plan 34.1-47). */
-const childKitHome = (r: PrintedRun): string | undefined => (r.premise.grugopsHome === undefined ? undefined : pathText(r.premise.grugopsHome));
+/** The GRUGOPS_HOME a follow-as-printed child saw, in pathText's spelling (plan 34.1-47, D-38: every printed command states one). */
+const childKitHome = (r: PrintedRun): string | undefined => (pathText(r.premise.grugopsHome));
 const hostOf = (adapter: string): (typeof HOST_TOOLS)[number] => {
   const h = HOST_TOOLS.filter((x) => x.adapter === adapter);
   expect(h.length, `premise: one registry row has the ${adapter} adapter`).toBe(1);
@@ -980,7 +980,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     rmSync(at(w, PI_PROMPT_REL));
     const oc = install(w, [agentFlag(hostOf("opencode-command"))]);
     expect(oc.status, oc.stdout + oc.stderr).toBe(0);
-    expect(oc.stdout).toContain(`\`${agentCommand("install.js", w.target, [hostOf("pi-prompt-template")], commandContextFor({ grugopsHome: w.kitHome, home: w.home }))}\` writes it`);
+    expect(oc.stdout).toContain(`\`${agentCommand("install.js", w.target, [hostOf("pi-prompt-template")], commandContextFor({ grugopsHome: w.kitHome }))}\` writes it`);
     // WR-17: this run prints no "line above" for the Pi template (its writer did not run), so no reference is required.
     expectReferences([["install --pi", pi], ["install --opencode", oc]], false);
   }, 240_000);
@@ -997,7 +997,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
       const at0 = lines.findIndex((l) => l.startsWith("  Each `verify` line above names"));
       expect(at0, r.stdout).toBeGreaterThan(-1);
       const banner = lines[at0 + 1] ?? "";
-      expect(banner).toContain(`\`${agentCommand("install.js", w.target, [claude], commandContextFor({ grugopsHome: w.kitHome, home: w.home }))}\``);
+      expect(banner).toContain(`\`${agentCommand("install.js", w.target, [claude], commandContextFor({ grugopsHome: w.kitHome }))}\``);
       expectReferences([["install --claude", r]]);
       writeFileSync(at(w, ".claude/settings.json"), "{}\n");
       // Run as printed in the user's environment (D-33, WR-19): a scratch directory outside the checkout, with no
@@ -1023,11 +1023,10 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const note = second.stdout.split("\n").find((l) => l.includes("another kit root"));
     expect(note, second.stdout).toBeDefined();
     expectReferences([["install (kit root A)", first], ["install (kit root B)", second]], false);
-    // The second run's context (D-33): its kit home is kitB, not the default, so its install command carries it and
-    // its uninstall command carries none (uninstall.js removes by the install record and needs no kit home). Both run
-    // as printed, in the user's environment (WR-19): a scratch directory outside the checkout and no GRUGOPS_HOME the
-    // printed text does not set.
-    const ctx = commandContextFor({ grugopsHome: kitB, home: w.home });
+    // The second run's context (D-33): its kit home is kitB, so both its install command and (since plan 34.1-47,
+    // D-38) its uninstall command state it. Both run as printed, in the user's environment (WR-19, WR-25): a scratch
+    // directory outside the checkout, under the harness's conflicting GRUGOPS_HOME that only the printed text overrides.
+    const ctx = commandContextFor({ grugopsHome: kitB });
     const un = printedCommand(note!);
     expect(un).toBe(agentCommand("uninstall.js", w.target, [oc], ctx));
     const ranUn = runPrintedCommand(note!, { home: w.home, timeoutMs: 180_000 });
@@ -1070,7 +1069,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const at0 = lines.findIndex((l) => l.startsWith("== migrate INCOMPLETE — "));
     expect(at0, r.stdout).toBeGreaterThan(-1);
     const line = lines[at0 + 1] ?? "";
-    const want = agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.kitHome, home: w.home }), ["--migrate"]);
+    const want = agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.kitHome }), ["--migrate"]);
     expect(line, "the migrate banner does not print the builder's --migrate command").toContain("`" + want + "`");
     const { assigned, words } = printedInvocation(printedCommand(line));
     expect(statedSpelling(assigned), "the printed command's assignments are the ones stated for the world's kit home (the default)").toEqual(
@@ -1110,7 +1109,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     expect(lines.length, `premise: one carrier line about the Pi template\n${doc.stdout}`).toBe(1);
     const line = lines[0];
     expect(line, "the remedy phrase").toContain("Re-run install.js, which writes it where nothing is");
-    const want = agentCommand("install.js", w.target, [], commandContextFor({ grugopsHome: w.kitHome, home: w.home }));
+    const want = agentCommand("install.js", w.target, [], commandContextFor({ grugopsHome: w.kitHome }));
     expect(line, "the remedy does not print the builder's command").toContain("`" + want + "`");
     const { assigned, words } = printedInvocation(printedCommand(line));
     expect(statedSpelling(assigned), "the printed command's assignments are the ones stated for the world's kit home (the default)").toEqual(

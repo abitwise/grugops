@@ -133,7 +133,7 @@ import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPa
 // Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
 // per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry";
 // ADAPTER_FOOTPRINT gives the report pass its directory candidates (reportDirCandidates).
-import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand, commandContextFromRecord, contextKitHome } from "./host-tools.js";
+import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand, commandContextFromRecord } from "./host-tools.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -2279,13 +2279,13 @@ const MARKER_READ = readInstallMarker(TARGET);
 // reinstallCommand and finishCommand). It is host-tools.ts commandContextFromRecord's answer for MARKER_READ and this
 // run, the one derivation install.ts uses too, so both binaries print the same install command for one marker. The
 // script directory is this script's own, so a printed command names uninstall.js (or install.js) by its absolute path
-// and runs from any directory. An uninstall.js command carries no kit home and no install mode (scriptCommand): this
-// binary removes by the install record alone and never reads or removes the kit. The kit home and the install mode
-// decide only the text of an install command this run prints, never a removal (brief DC-2: nothing here is read by an
-// owns() question).
+// and runs from any directory. An uninstall.js command states its kit home like every printed command (D-38, plan
+// 34.1-47, scriptCommand) and carries no install mode: this binary removes by the install record alone and never reads
+// or removes the kit. The kit home and the install mode decide only the text of the commands this run prints, never a
+// removal (brief DC-2: nothing here is read by an owns() question).
 //   - This run's kit home is the GRUGOPS_HOME it was given, when it is set and not blank, resolved and spelled as
-//     install.ts spells its own (canonicalPathSpelling(resolve(...))); else the default `~/.grugops`, which the owner
-//     turns into no GRUGOPS_HOME prefix.
+//     install.ts spells its own (canonicalPathSpelling(resolve(...))); else the default `~/.grugops`, which every
+//     printed command states as `GRUGOPS_HOME=<HOME>/.grugops` (D-38).
 //   - An uninstall run has no install mode (it refuses `--symlink` as an unknown argument), so this run's is copy.
 //   - Nothing from an `unbound` marker reaches a printed command: it is another directory's record (copied, moved, or
 //     written before markers carried `target`), and for a cloned repository it names another person's paths, so a
@@ -2296,9 +2296,12 @@ const MARKER_READ = readInstallMarker(TARGET);
 // It is declared after MARKER_READ and before the first verify that prints rerunCommand(); no statement above this
 // line calls rerunCommand, reinstallCommand or finishCommand at module load (they are called only from the passes and
 // verifies below).
-// DEFAULT_KIT_HOME is `~/.grugops` under this run's home directory, in the one spelling. The two unusable-marker
-// verifies below name contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME), the kit home their printed install step copies
-// the kit into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
+// DEFAULT_KIT_HOME is `~/.grugops` under this run's home directory, in the one spelling: the run's kit home when it was
+// given no GRUGOPS_HOME. The kit home is a path in every case (D-38, plan 34.1-47, review WR-25), so every command this
+// run prints, of either binary, states `GRUGOPS_HOME=<dir>` and an exported GRUGOPS_HOME in the user's shell cannot
+// change where it puts or reads the kit. The two unusable-marker verifies below name COMMAND_CONTEXT.kitHome, the kit
+// home their printed install step copies the kit into (plan 34.1-41, D-36), so the user sees where that step puts the
+// kit before running it.
 // The kit checkout (plan 34.1-37, D-36, review WR-23): `src` is this run's GRUGOPS_SRC and `checkout` this script's own
 // checkout, both in the one spelling; the marker records no checkout, so `src` always comes from the run. When they
 // differ, every command this run prints carries `GRUGOPS_SRC=<src>` (host-tools.ts scriptCommand): an uninstall command
@@ -2309,7 +2312,6 @@ const DEFAULT_KIT_HOME = canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const COMMAND_CONTEXT = commandContextFromRecord(MARKER_READ, {
     scriptDir: canonicalPathSpelling(SCRIPT_DIR),
     kitHome: GIVEN_KIT_HOME && GIVEN_KIT_HOME.trim() ? canonicalPathSpelling(resolve(GIVEN_KIT_HOME)) : DEFAULT_KIT_HOME,
-    defaultKitHome: DEFAULT_KIT_HOME,
     symlink: false,
     src: canonicalPathSpelling(GRUGOPS_SRC),
     checkout: canonicalPathSpelling(resolve(SCRIPT_DIR, "..")),
@@ -2323,7 +2325,7 @@ if (MARKER_READ.state === "unbound") {
             `records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same ` +
             `repository moved or renamed${MARKER_READ.boundTo !== null ? ` from ${MARKER_READ.boundTo}` : ""}, set "target" in the marker to ` +
             `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise run \`${reinstallCommand()}\`${NO_FLAG_INSTALL_CLAUSE}: it copies ` +
-            `the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory and ` +
+            `the kit into ${COMMAND_CONTEXT.kitHome}, writes a marker for this directory and ` +
             `carries none of these records; then run \`${rerunCommand()}\`: what an earlier ` +
             `install made here is then left and reported, for you to remove by hand.`);
     }
@@ -2335,7 +2337,7 @@ if (MARKER_READ.state === "unbound") {
         verify(`.grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of ` +
             `its records is used here, and this run removes and edits nothing. Run \`${reinstallCommand()}\`` +
             `${NO_FLAG_INSTALL_CLAUSE}, then \`${rerunCommand()}\`: install copies the kit into ` +
-            `${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory with the ` +
+            `${COMMAND_CONTEXT.kitHome}, writes a marker for this directory with the ` +
             `install ledger and carries none of these records, so what an earlier install made here is then left and ` +
             `reported, for you to remove by hand.`);
     }

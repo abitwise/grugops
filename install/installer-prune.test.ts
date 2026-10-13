@@ -521,7 +521,7 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
       // also checked without the builder: node, this checkout's absolute install.js, the target, --prune-old-kit last.
       const lines = r.stdout.split("\n");
       again = lines[lines.findIndex((l) => l.startsWith("== prune INCOMPLETE")) + 1] ?? "";
-      const want = agentCommand("install.js", w.t, [], commandContextFor({ grugopsHome: w.kitHome, home: w.home }), ["--prune-old-kit"]);
+      const want = agentCommand("install.js", w.t, [], commandContextFor({ grugopsHome: w.kitHome }), ["--prune-old-kit"]);
       expect(again, r.stdout).toBe(`  Once each is fixed, \`${want}\` prunes again.`);
       // The assignments are compared with the tests' own statement of the rule (statedWords, plan 34.1-47), and the
       // positions are read after them (printedInvocation).

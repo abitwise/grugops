@@ -183,7 +183,6 @@ import {
   agentFlag,
   carriesKitRoute,
   commandContextFromRecord,
-  contextKitHome,
   entryOwners,
   hostForFlag,
   routeCarriers,
@@ -487,22 +486,20 @@ const DOCTOR_MARKER_READ: InstallMarkerRead | null = CHECK ? readInstallMarker(T
 //     and Claude Code stays installed after it (for example `--codex` with a new GRUGOPS_HOME over a Claude Code
 //     install), writeMarker's kept() keeps the previous marker's grugopsHome, kitRoot and installMode, so the marker
 //     can hold an older kit home than the one this run's printed commands carry.
-// The kit home is null when it is the default `~/.grugops`, so a printed install command carries `GRUGOPS_HOME=<dir>`
-// exactly when it names another kit home, and `--symlink` for a symlink install. Every path is in canonicalPathSpelling's
-// one spelling. Declared after TARGET (the marker read needs it); no module-level statement above calls agentCommand,
-// scriptCommand or the doctor's command helpers below, which run only from functions and branches after this line.
-// DEFAULT_KIT_HOME is `~/.grugops` under this run's home directory, in the one spelling. The doctor's unbound-marker
-// WARN names contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME), the kit home its printed install step copies the kit
-// into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
+// The kit home is a path, the default `~/.grugops` included (D-38, plan 34.1-47, review WR-25), so every printed
+// command, of either binary, states `GRUGOPS_HOME=<dir>` and an exported GRUGOPS_HOME in the user's shell cannot change
+// where it puts or reads the kit; a printed install command carries `--symlink` for a symlink install. Every path is in
+// canonicalPathSpelling's one spelling. Declared after TARGET (the marker read needs it); no module-level statement
+// above calls agentCommand, scriptCommand or the doctor's command helpers below, which run only from functions and
+// branches after this line. The doctor's unbound-marker WARN names COMMAND_CONTEXT.kitHome, the kit home its printed
+// install step copies the kit into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
 // The kit checkout (plan 34.1-37, D-36, review WR-23): `src` is this run's GRUGOPS_SRC and `checkout` this script's own
 // checkout, both in the one spelling. When they differ, every printed command carries `GRUGOPS_SRC=<src>`, so the
 // doctor's stale-adapter remedy renders from the checkout the doctor compared, and an install's printed commands use
 // the checkout the install used. The marker records no checkout, so this always comes from the run.
-const DEFAULT_KIT_HOME = canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
   scriptDir: canonicalPathSpelling(SCRIPT_DIR),
   kitHome: GRUGOPS_HOME,
-  defaultKitHome: DEFAULT_KIT_HOME,
   symlink: INSTALL_MODE === "symlink",
   src: canonicalPathSpelling(GRUGOPS_SRC),
   checkout: canonicalPathSpelling(resolve(SCRIPT_DIR, "..")),
@@ -1974,11 +1971,11 @@ function doctor(): number {
         ? `the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of ` +
             `its records here and changes nothing. If this is the same repository moved or renamed, set "target" in ` +
             `the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, \`${doctorInstallCommand()}\` ` +
-            `(${DOCTOR_NO_FLAG_CLAUSE}), which copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, ` +
+            `(${DOCTOR_NO_FLAG_CLAUSE}), which copies the kit into ${COMMAND_CONTEXT.kitHome}, ` +
             `writes a marker for this directory and carries none of these records`
         : `the install marker ${markerFile} is not a record uninstall can use: ${markerRead.why}. Uninstall uses none of ` +
             `its records here and changes nothing. Re-run install.js here, \`${doctorInstallCommand()}\` (${DOCTOR_NO_FLAG_CLAUSE}), then ` +
-            `uninstall: install copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a ` +
+            `uninstall: install copies the kit into ${COMMAND_CONTEXT.kitHome}, writes a ` +
             `marker with the install ledger for this directory and carries none of these records. \`${agentCommand("uninstall.js", TARGET, [], COMMAND_CONTEXT)}\` ` +
             `with no agent flag removes every agent and the shared files; with agent flags (for example ` +
             `\`${agentCommand("uninstall.js", TARGET, [HOST_TOOLS[0]], COMMAND_CONTEXT)}\`) it removes only those agents`,
