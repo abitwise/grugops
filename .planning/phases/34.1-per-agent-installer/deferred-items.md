@@ -274,6 +274,26 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   through the freshness gate, which is for the human to choose.
 - **Not fixed:** deferred for human triage.
 
+## From plan 34.1-41 (gap round 3)
+
+### DI-16: the doctor's FAIL over a marker that is not JSON (or has no usable ledger) prints an install command without naming its kit home
+
+- status: open
+- **Found during:** plan 34.1-41, Task 1 (sibling search for the MSG-1 shape "a printed install step over an unusable
+  marker whose kit home the line does not name").
+- **What:** plan 34.1-41 adds the kit-home clause (contextKitHome) to uninstall.ts's two unusable-marker verifies and
+  to both arms of the doctor's unbound-marker WARN. The grep the plan named (`writes a marker for this directory`)
+  found three of those four sites; the doctor's no-target or no-ledger WARN arm was found by reading and is covered
+  (R27 now runs `--check` over the no-ledger marker). Two other doctor remedies also print doctorInstallCommand()
+  without naming the kit home: install.ts markerUnreadable's `mayRemove` arm (a marker that is not JSON, not an
+  object, or holds no usable ledger) and notInstalled (no marker). Their kit home is this `--check` run's, as it was
+  before D-36, and the marker they cover records no kit home that can be read, so the printed step cannot move the
+  install away from a kit home a usable record names. Read from the code, not reproduced as a printed-output
+  assertion.
+- **Not fixed:** outside the plan's file scope and not the WR-22 shape (no recorded kit home is dropped). Option for
+  triage: add the same contextKitHome clause after doctorInstallCommand() in both lines, so every printed install step
+  names where it puts the kit.
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.

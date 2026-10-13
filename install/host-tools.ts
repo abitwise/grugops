@@ -377,12 +377,17 @@ export function contextKitHome(ctx: CommandContext, defaultKitHome: string): str
  * `GRUGOPS_HOME=<kit home>` when the context's kit home is not the default, then `node`, then the absolute path of
  * install.js, then `--symlink` when the context is a symlink install. Both come from the context alone; each binary's
  * context is decided by commandContextFromRecord: the values of an `ok` install record for a run that does not choose
- * its kit home itself (`install.js --check`), the run's own otherwise (uninstall.js, over the unusable marker it prints
- * an install command for: its own kit home, copy mode). For uninstall.js: `node` and the absolute path of
- * uninstall.js only, whatever the context holds, because uninstall.js removes by the install record alone and never
- * reads or removes the kit (the kit home and install mode in its own COMMAND_CONTEXT word only the install commands
- * it prints), and it refuses `--symlink` as an unknown argument (exit 2).
- * The script path and the kit home pass through shellWord. Pure: no I/O.
+ * its kit home itself (`install.js --check`), the run's own otherwise. For uninstall.js: `node` and the absolute path
+ * of uninstall.js only, whatever the context holds, because uninstall.js removes by the install record alone and
+ * reads no kit home for its own work, and it refuses `--symlink` as an unknown argument (exit 2).
+ *
+ * The D-36 rule (plan 34.1-41, review WR-22): uninstall.js's context words only the install commands it prints, and
+ * it comes from the owner (commandContextFromRecord), never from an `unbound` marker. uninstall.js prints an install
+ * command only over a marker it cannot use, so that command carries the kit home the uninstall run was given
+ * (`GRUGOPS_HOME`, else the default `~/.grugops`, which gives no GRUGOPS_HOME word) and is a copy install, because an
+ * uninstall run has no install mode. Following it can therefore put the kit somewhere other than the earlier install
+ * did, so both binaries' unusable-marker remedies name contextKitHome of their context, the kit home that command
+ * copies the kit into. The script path and the kit home pass through shellWord. Pure: no I/O.
  */
 export function scriptCommand(binary: "install.js" | "uninstall.js", ctx: CommandContext): string {
   let dir = ctx.scriptDir;

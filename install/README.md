@@ -984,18 +984,22 @@ records, changes nothing, and exits `3` with a `verify` line that gives the reme
 repository moved or renamed, set `"target"` in the marker to the path the line names and run the
 uninstall command the line prints again. Otherwise, and for a marker with no `target` or no install
 ledger, the line prints two commands to run in order. The first is the install command, with the agent
-flags you gave the uninstaller, the kit home (the `GRUGOPS_HOME` you ran the uninstaller with, else the
-one the marker records), and `--symlink` when the marker records a symlink install. If you gave no agent
-flag, the line also says what install does without one: it chooses the agents detected here, shows the
-agent list at a terminal, or refuses and names the agent flags. The second is the uninstall command
-you ran. The install replaces that marker with one for this directory and carries none of its records
-(it says so in a `note` line). The uninstaller then reports what an earlier install made here as
+flags you gave the uninstaller and the kit home you ran the uninstaller with (`GRUGOPS_HOME`, else
+`~/.grugops`). The line names that kit home as the place the install command copies the kit into. The
+install command never takes a kit home or an install mode from the marker: the marker is not this
+directory's record, and in a cloned repository it can name another person's path. After an earlier
+`--symlink` install, the install command is a copy install that finishes, and the new marker records a
+copy install. If you gave no agent flag, the line also says what install does without one: it chooses
+the agents detected here, shows the agent list at a terminal, or refuses and names the agent flags.
+The second is the uninstall command you ran. The install replaces that marker with one for this
+directory and carries none of its records (it says so in a `note` line). The uninstaller then reports what an earlier install made here as
 `left` and leaves it, including the grugops skill, OpenCode command and Pi prompt template files of
 the agents it removes; remove them by hand. While the marker cannot be used, which agents are
 installed here is unknown, and the run says so on the `agents to remove` line, in the `note` line for
 each agent flag, and in the closing line; it never says that an agent is not installed. `--check`
-warns about such a marker. `INSTALL_MODE` other than `copy` or `symlink` is refused as bad usage
-(exit `2`) before anything is written.
+warns about such a marker, and its warning names the kit home its install command copies the kit into.
+`INSTALL_MODE` other than `copy` or `symlink` is refused as bad usage (exit `2`) before anything is
+written.
 
 The marker is removed only when it is install's marker for this directory, its install ledger is
 well-formed, and nothing it records is left (see the next paragraph). It is never read through a symbolic link: a link at
