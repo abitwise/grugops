@@ -4467,6 +4467,246 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
   });
 });
 
+// ── D-38: the env-read census (phase 34.1 gap round 4, brief §6, WR-25 class; plan 34.1-49) ─────────────────────────
+//
+// WR-25 kept returning through a variable nobody had listed: a printed command that leaves a value to the user's shell
+// does what the shell exports, not what the run decided. This census derives the list from the code instead of taking it
+// from the review. A TypeScript-parser walk over every product module (productModules: git ls-files, no test,
+// test-support or declaration file) finds every environment read:
+//   - `process.env.<NAME>` and `process.env["<NAME>"]` (a named read);
+//   - any other use of `process.env` (passing or spreading the whole environment), as the name `*`;
+//   - a call of an identifier imported from node:os that reads the environment: homedir() reads HOME, tmpdir() reads
+//     TMPDIR (and TMP, TEMP);
+//   - and, as names no row can class, a `process.env[<expression>]` read, a `process["env"]` access, an `env` taken from
+//     `process` by destructuring or imported from node:process, a namespace import of node:os, and any other node:os
+//     import that is not in ENV_OS_READS or ENV_OS_PURE.
+// Each read is keyed `module :: NAME :: function` (enclosing()) and the result must equal ENV_READ_TABLE both ways,
+// with the counts pinned. Every row carries a class:
+//   - stated: the variable is an assignment word of every printed command of the binary that reads it (D-38). The
+//     scriptCommand property test below holds that for every context shape, and holds that a printed command states
+//     no variable its binary does not read (uninstall.js reads no INSTALL_MODE, so it states none);
+//   - overridden: TARGET. A printed command names its target with `--target`, which the argument parser takes over the
+//     TARGET variable (install.ts resolveTarget, uninstall.ts TARGET); agentCommand always prints it (held below). The
+//     two scriptCommand-built commands are --update's: its INCOMPLETE banner's `--update` and its success hint's
+//     `--check --target <repo>`; --update writes only under the kit home and never reads its target (the DI-17 update
+//     row in install/closing-claims.test.ts runs it under a conflicting TARGET that stays empty);
+//   - preview: DRY_RUN, the preview a user chose by exporting it; a run under it writes nothing;
+//   - home: HOME through homedir(), the default kit home (`<HOME>/.grugops`), which every printed command overrides
+//     with GRUGOPS_HOME, and in install.ts kitRulePattern the user's own home for the OpenCode kit-path pattern;
+//   - temp: TMPDIR through tmpdir(), the scratch directory install.ts renders the adapters in and removes; it decides no
+//     kit home, mode, checkout or target;
+//   - whole environment: install.ts passes process.env to the adapter render child and its resolution probe. Their own
+//     comment says the generator reads no resolution-affecting variable, and the walk below asks that of the child's
+//     module graph (scripts/generate-role-adapters.ts and the probe's scripts/model-tiers.ts, through their relative
+//     imports): zero environment reads.
+// A later plan that adds a read re-pins ENV_READ_TABLE here with its class and the reason.
+
+/** The classes an environment read may have (D-38). */
+type EnvReadClass = "stated" | "overridden" | "preview" | "home" | "temp" | "whole environment";
+/** node:os functions that read the environment, and the variable each reads. */
+const ENV_OS_READS: Readonly<Record<string, string>> = { homedir: "HOME", tmpdir: "TMPDIR" };
+/** node:os names that read no environment variable; a product module may import them unclassed. */
+const ENV_OS_PURE: readonly string[] = ["EOL", "platform", "arch", "constants"];
+/**
+ * Every environment read of the product modules, `module :: NAME :: function`, with its count and class (measured
+ * 2026-10-13, plan 34.1-49, D-38). The counts are reads, not variables: each binary reads GRUGOPS_SRC twice (its
+ * ternary's test and its value), install.ts reads GRUGOPS_HOME three times (its set-and-not-blank test twice, its value
+ * once), TARGET twice in resolveTarget (test and value), process.env twice (the generator's spawn and the probe's) and
+ * TMPDIR twice (the render mirror and the message naming it when the mirror cannot be made).
+ */
+const ENV_READ_TABLE: Readonly<Record<string, { readonly count: number; readonly cls: EnvReadClass }>> = {
+  "install.ts :: GRUGOPS_SRC :: <module>": { count: 2, cls: "stated" },
+  "install.ts :: DRY_RUN :: <module>": { count: 1, cls: "preview" },
+  "install.ts :: INSTALL_MODE :: <module>": { count: 1, cls: "stated" },
+  "install.ts :: GRUGOPS_HOME :: <module>": { count: 3, cls: "stated" },
+  "install.ts :: HOME :: <module>": { count: 1, cls: "home" },
+  "install.ts :: TARGET :: resolveTarget": { count: 2, cls: "overridden" },
+  "install.ts :: * :: renderAdaptersInMirror": { count: 2, cls: "whole environment" },
+  "install.ts :: TMPDIR :: renderAdaptersInMirror": { count: 2, cls: "temp" },
+  "install.ts :: HOME :: kitRulePattern": { count: 1, cls: "home" },
+  "uninstall.ts :: GRUGOPS_SRC :: <module>": { count: 2, cls: "stated" },
+  "uninstall.ts :: DRY_RUN :: <module>": { count: 1, cls: "preview" },
+  "uninstall.ts :: TARGET :: <module>": { count: 1, cls: "overridden" },
+  "uninstall.ts :: GRUGOPS_HOME :: <module>": { count: 1, cls: "stated" },
+  "uninstall.ts :: HOME :: <module>": { count: 1, cls: "home" },
+};
+/** The binary each product module that reads the environment is part of. */
+const ENV_BINARY: Readonly<Record<string, "install.js" | "uninstall.js">> = { "install.ts": "install.js", "uninstall.ts": "uninstall.js" };
+
+/** Whether `n` is the expression `process.env` or `process["env"]` (the second is reported, never classed). */
+function processEnvAccess(n: ts.Node): "dot" | "element" | null {
+  if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "process" && n.name.text === "env") return "dot";
+  if (ts.isElementAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "process" && ts.isStringLiteralLike(n.argumentExpression) && n.argumentExpression.text === "env") return "element";
+  return null;
+}
+
+/** Every environment read of one parsed module, as `NAME :: function` with its count (see the header above). */
+function envReadsOf(sf: ts.SourceFile): Map<string, number> {
+  const out = new Map<string, number>();
+  const add = (name: string, at: ts.Node): void => {
+    const key = `${name} :: ${enclosing(at)}`;
+    out.set(key, (out.get(key) ?? 0) + 1);
+  };
+  const osLocal = new Map<string, string>();
+  for (const imp of sf.statements.filter(ts.isImportDeclaration)) {
+    const from = ts.isStringLiteral(imp.moduleSpecifier) ? imp.moduleSpecifier.text : "";
+    const bindings = imp.importClause?.namedBindings;
+    if (from === "node:os" || from === "os") {
+      if (imp.importClause?.name !== undefined || (bindings !== undefined && ts.isNamespaceImport(bindings))) add("?node:os namespace or default import", imp);
+      if (bindings !== undefined && ts.isNamedImports(bindings)) {
+        for (const el of bindings.elements) {
+          const orig = (el.propertyName ?? el.name).text;
+          if (Object.hasOwn(ENV_OS_READS, orig)) osLocal.set(el.name.text, ENV_OS_READS[orig]);
+          else if (!ENV_OS_PURE.includes(orig)) add(`?node:os ${orig}`, imp);
+        }
+      }
+    }
+    if ((from === "node:process" || from === "process") && bindings !== undefined) add("?node:process import", imp);
+  }
+  const visit = (n: ts.Node): void => {
+    const access = processEnvAccess(n);
+    if (access === "element") add('?process["env"]', n);
+    if (access === "dot") {
+      const p = n.parent;
+      if (ts.isPropertyAccessExpression(p) && p.expression === n) add(p.name.text, p);
+      else if (ts.isElementAccessExpression(p) && p.expression === n) {
+        if (ts.isStringLiteralLike(p.argumentExpression)) add(p.argumentExpression.text, p);
+        else add("?process.env[<expression>]", p);
+      } else add("*", n);
+    }
+    if (ts.isVariableDeclaration(n) && ts.isObjectBindingPattern(n.name) && n.initializer !== undefined && ts.isIdentifier(n.initializer) && n.initializer.text === "process") {
+      if (n.name.elements.some((e) => ((e.propertyName ?? e.name) as ts.Identifier).text === "env")) add("?env destructured from process", n);
+    }
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && osLocal.has(n.expression.text)) add(osLocal.get(n.expression.text)!, n);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The census over every product module: `module :: NAME :: function` to count. */
+function envReadCensus(): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const m of productModules()) {
+    for (const [k, v] of envReadsOf(parse(`install/${m}`))) out.set(`${m} :: ${k}`, v);
+  }
+  return out;
+}
+
+/** The relative-import closure of `entry` (a repo-relative .ts path): every module the child process can load from the mirror. */
+function importClosure(entry: string): string[] {
+  const seen = new Set<string>();
+  const queue = [entry];
+  while (queue.length > 0) {
+    const rel = queue.shift()!;
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const sf = parse(rel);
+    for (const imp of sf.statements.filter(ts.isImportDeclaration)) {
+      const from = ts.isStringLiteral(imp.moduleSpecifier) ? imp.moduleSpecifier.text : "";
+      if (from.startsWith("./") || from.startsWith("../")) queue.push(join(dirname(rel), from).replace(/\.js$/, ".ts"));
+    }
+  }
+  return [...seen].sort();
+}
+
+describe("D-38: every environment variable a binary reads is stated in its printed commands, overridden, or classed", () => {
+  const census = envReadCensus();
+
+  it("the walk sees the nine product modules and both binaries", () => {
+    expect(productModules(), "premise: the product module walk").toHaveLength(9);
+    expect(productModules()).toEqual(expect.arrayContaining(Object.keys(ENV_BINARY)));
+  });
+
+  it("the derived reads equal ENV_READ_TABLE both ways, with the counts pinned", () => {
+    const unclassified = [...census].filter(([k]) => !Object.hasOwn(ENV_READ_TABLE, k)).map(([k, v]) => `${k} (x${v})`);
+    const stale = Object.keys(ENV_READ_TABLE).filter((k) => !census.has(k));
+    const counts = Object.entries(ENV_READ_TABLE).filter(([k, r]) => census.has(k) && census.get(k) !== r.count).map(([k, r]) => `${k}: ${census.get(k)} read(s), pinned ${r.count}`);
+    expect(unclassified, "an environment read no ENV_READ_TABLE row classes (D-38: class it, or state it in every printed command)").toEqual([]);
+    expect(stale, "an ENV_READ_TABLE row the code no longer has").toEqual([]);
+    expect(counts, "a read count changed").toEqual([]);
+    expect([...census.values()].reduce((a, b) => a + b, 0), "premise: the census saw reads").toBe(Object.values(ENV_READ_TABLE).reduce((n, r) => n + r.count, 0));
+  });
+
+  it("only the binaries read the environment, and every stated row is a variable a printed command can carry", () => {
+    const modules = new Set([...census.keys()].map((k) => k.split(" :: ")[0]));
+    expect([...modules].sort()).toEqual(Object.keys(ENV_BINARY).sort());
+    for (const [k, r] of Object.entries(ENV_READ_TABLE)) {
+      if (r.cls === "stated") expect(["GRUGOPS_HOME", "INSTALL_MODE", "GRUGOPS_SRC"], k).toContain(k.split(" :: ")[1]);
+      if (r.cls === "overridden") expect(k.split(" :: ")[1], k).toBe("TARGET");
+      if (r.cls === "preview") expect(k.split(" :: ")[1], k).toBe("DRY_RUN");
+      if (r.cls === "home") expect(k.split(" :: ")[1], k).toBe("HOME");
+      if (r.cls === "temp") expect(k.split(" :: ")[1], k).toBe("TMPDIR");
+      if (r.cls === "whole environment") expect(k, k).toBe("install.ts :: * :: renderAdaptersInMirror");
+    }
+    expect(Object.keys(ENV_READ_TABLE).filter((k) => k.startsWith("uninstall.ts :: INSTALL_MODE ")), "uninstall.ts reads no INSTALL_MODE").toEqual([]);
+  });
+
+  it("the whole environment goes only to the adapter render child, whose comment says it reads no resolution-affecting variable, and whose module graph reads none", () => {
+    const sf = parse("install/install.ts");
+    const fn = functionNamed(sf, "renderAdaptersInMirror");
+    expect(fn.getFullText(sf), "the render child's comment no longer says the generator reads no resolution-affecting variable").toMatch(/reads NO resolution-affecting environment variable/);
+    const spawned = callsOf(fn, "spawnSync").map((c) => c.getText(sf));
+    expect(spawned.length, "premise: the render spawns the generator and the probe").toBe(2);
+    expect(spawned.every((t) => /env: process\.env/.test(t)), spawned.join("\n")).toBe(true);
+    const graph = [...new Set([...importClosure("scripts/generate-role-adapters.ts"), ...importClosure("scripts/model-tiers.ts")])];
+    expect(graph, "premise: the child's module graph holds the generator and model-tiers").toEqual(expect.arrayContaining(["scripts/generate-role-adapters.ts", "scripts/model-tiers.ts"]));
+    const reads = graph.flatMap((rel) => [...envReadsOf(parse(rel))].map(([k, v]) => `${rel} :: ${k} (x${v})`));
+    expect(reads, "the adapter render child reads the environment: delete the variable from its environment by name (install.ts renderAdaptersInMirror) or class it").toEqual([]);
+  });
+
+  it("agentCommand prints --target right after the invocation words, and scriptCommand's own two calls are --update's", () => {
+    const ctx = commandContextFromRecord(null, { scriptDir: "/opt/g/install", kitHome: "/k", installMode: "copy", src: "/opt/g" });
+    for (const binary of ["install.js", "uninstall.js"] as const) {
+      const words = shellWords(agentCommand(binary, "/t a", [], ctx));
+      const at = words.indexOf("node");
+      expect(words.slice(at + 2, at + 4), binary).toEqual(["--target", "/t a"]);
+    }
+    const sf = parse("install/install.ts");
+    const after = callsOf(sf, "scriptCommand").map((c) => (ts.isTemplateSpan(c.parent) ? c.parent.literal.text : `<not in a template: ${c.parent.getText(sf).slice(0, 60)}>`));
+    expect(after.sort()).toEqual([" --check --target <repo>` to verify a repo against the refreshed kit.", " --update` refreshes the kit home again."]);
+    const inUpdate = (n: ts.Node): boolean => {
+      for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) if (ts.isIfStatement(p) && p.expression.getText(sf) === "UPDATE") return true;
+      return false;
+    };
+    expect(callsOf(sf, "scriptCommand").filter((c) => !inUpdate(c)).map((c) => c.getText(sf)), "a scriptCommand call outside the --update branch").toEqual([]);
+  });
+
+  // The property test: for every CommandContext shape a run can build (kit home: the default, another, one with a space
+  // and a quote; install mode: copy, symlink; checkout: this one, another), the assignment words of scriptCommand are
+  // exactly the names ENV_READ_TABLE classes "stated" for that binary's module, each with the context's value.
+  it("property: scriptCommand states exactly the variables its binary reads that are classed stated, with the context's values", () => {
+    const stated = (mod: string): string[] =>
+      [...new Set(Object.entries(ENV_READ_TABLE).filter(([k, r]) => r.cls === "stated" && k.startsWith(`${mod} :: `)).map(([k]) => k.split(" :: ")[1]))].sort();
+    expect(stated("install.ts"), "premise: install.ts's stated set").toEqual(["GRUGOPS_HOME", "GRUGOPS_SRC", "INSTALL_MODE"]);
+    expect(stated("uninstall.ts"), "premise: uninstall.ts's stated set").toEqual(["GRUGOPS_HOME", "GRUGOPS_SRC"]);
+    const kitHomes = ["/home/u/.grugops", "/srv/kits/other", "/tmp/a kit/it's here"];
+    const modes = ["copy", "symlink"] as const;
+    const checkouts = ["/opt/grugops", "/opt/other checkout"];
+    let cells = 0;
+    const off: string[] = [];
+    for (const kitHome of kitHomes) {
+      for (const installMode of modes) {
+        for (const src of checkouts) {
+          const ctx = commandContextFromRecord(null, { scriptDir: `${src}/install`, kitHome, installMode, src });
+          for (const [mod, binary] of Object.entries(ENV_BINARY)) {
+            cells++;
+            const text = scriptCommand(binary, ctx);
+            const { assigned, words } = printedInvocation(text);
+            const want: Record<string, string> = { GRUGOPS_HOME: kitHome, INSTALL_MODE: installMode, GRUGOPS_SRC: src };
+            const names = Object.keys(assigned).sort();
+            if (JSON.stringify(names) !== JSON.stringify(stated(mod))) off.push(`${binary} [${kitHome} | ${installMode} | ${src}]: states ${names.join(",")}, the stated set is ${stated(mod).join(",")}: ${text}`);
+            for (const name of names) if (assigned[name] !== want[name]) off.push(`${binary}: ${name}=${assigned[name]}, the context's is ${want[name]}: ${text}`);
+            if (words[0] !== "node" || words[1] !== `${src}/install/${binary}` || words.length !== 2) off.push(`${binary}: the words after the assignments are not node and the script: ${text}`);
+          }
+        }
+      }
+    }
+    expect(cells, "premise: every cell ran").toBe(kitHomes.length * modes.length * checkouts.length * Object.keys(ENV_BINARY).length);
+    expect(off, "a printed command leaves a variable its binary reads to the shell, or states one it does not read (D-38)").toEqual([]);
+  });
+});
+
 // ── the markerRemedy call sites (phase 34.1 gap round 3, D-35, 34.1 review CR-04; plan 34.1-40) ────────────────────
 //
 // Every remedy site that reads .grugops/install.json asks install-marker.ts markerRemedy, the one owner (brief §5). The
