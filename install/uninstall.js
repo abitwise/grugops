@@ -1456,9 +1456,11 @@ function removeMarker() {
     if (!own.owned) {
         // D-32 (U4, CR-03's rule one arm over): the marker is install's own, with a malformed ledger. On a partial run it is
         // still the record of every agent installed here, so the by-hand remedy is to fix the field; removing the marker is
-        // offered only on a FULL run, where no agent stays installed.
+        // offered only on a FULL run, where no agent stays installed. D-35 (plan 34.1-34): that split is the owner's
+        // (install-marker.ts markerRemedy answers mayRemove for an `ok` read only on "uninstall-full"), read here.
+        const remedy = markerRemedy(MARKER_READ, FULL ? "uninstall-full" : "uninstall-partial");
         report("left", `${MARKER_REL} (its install ledger is malformed, so the record of what install did could not be used; ` +
-            `it was left in place — ${FULL
+            `it was left in place — ${remedy.mayRemove
                 ? "fix or remove it by hand"
                 : "fix the ledger field by hand: the marker is still the record of every agent installed here, so removing it would leave each of them with no record"})`);
         // updateKeptMarker rewrites only install's own marker holding a well-formed ledger, so it leaves this one.
@@ -2411,9 +2413,12 @@ function finishCommand() {
  * keepWithoutRecord (plan 34.1-19, D-32; brief §4, CR-03): THE ONE WORDING of the alternative to finishing a kept
  * reversal, asked by the kept `left` line in removeMarker (`where` "line") and by the KEPT_FOR closing banner
  * (`where` "banner"), so the two cannot word the rule two ways. The rule: no printed alternative removes the record of
- * an agent that stays installed.
+ * an agent that stays installed. WHETHER the marker may be deleted is not decided here (D-35, plan 34.1-34): it is the
+ * owner's, install-marker.ts markerRemedy, which holds D-32's FULL-run rule (for install's own marker, mayRemove only on
+ * "uninstall-full"); the delete text is written only under its yes.
  *   - FULL run: no agent stays installed, so deleting the marker by hand keeps the `held` items without a record, and
- *     uninstall then changes nothing more. This branch is the only place the delete-the-marker text is written.
+ *     uninstall then changes nothing more. This branch is the only place the delete-the-marker text is written, and
+ *     only when markerRemedy answers mayRemove (otherwise the empty string).
  *   - Partial run with `held` items: the marker is still the record of the agents that stay (STAYING); deleting it would
  *     leave them with nothing a later uninstall can reverse. The by-hand alternative is per entry: take each held
  *     entry out of the install ledger, then run finishCommand, which finishes the agents this run set out to remove
@@ -2422,7 +2427,10 @@ function finishCommand() {
  *     there to keep, and the remedy is the cause the verify line names.
  */
 function keepWithoutRecord(held, where = "line") {
+    const remedy = markerRemedy(MARKER_READ, FULL ? "uninstall-full" : "uninstall-partial");
     if (FULL) {
+        if (!remedy.mayRemove)
+            return "";
         return where === "line"
             ? "or delete the marker by hand to keep them without a record"
             : `or, to keep them, delete ${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more)`;
