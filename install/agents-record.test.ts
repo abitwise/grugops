@@ -380,17 +380,25 @@ describe("agentCommand: the one builder of a printed command that names agents (
   // the run's values decide it. Plan 34.1-37: the run's kit checkout is the script's own unless `src` names another.
   // Plan 34.1-47 (2026-10-13, D-38): the run has no default-kit-home member any more, and every expected command below
   // starts `GRUGOPS_HOME=<kit home>`, the default kit home included, on both binaries.
-  const runContext = (scriptDir: string, kitHome: string, symlink = false, src = CHECKOUT) =>
-    commandContextFromRecord(null, { scriptDir, kitHome, symlink, src, checkout: CHECKOUT });
+  // Re-pinned by plan 34.1-48 (2026-10-13, D-38): the run carries an install mode ("copy" or "symlink") in place of the boolean and no `checkout`;
+  // every expected install.js command states `INSTALL_MODE=<mode>` and `GRUGOPS_SRC=<checkout>` after the kit home and
+  // carries no `--symlink`, and every expected uninstall.js command states `GRUGOPS_SRC=<checkout>` and no install mode.
+  const runContext = (scriptDir: string, kitHome: string, installMode: "copy" | "symlink" = "copy", src = CHECKOUT) =>
+    commandContextFromRecord(null, { scriptDir, kitHome, installMode, src });
   const plain = runContext(DIR, DEFAULT_KIT);
   const withKit = runContext(DIR, KIT);
-  const linked = runContext(DIR, DEFAULT_KIT, true);
-  const everything = runContext(DIR, KIT, true);
+  const linked = runContext(DIR, DEFAULT_KIT, "symlink");
+  const everything = runContext(DIR, KIT, "symlink");
+  /** The literal lead of an expected uninstall.js command: the kit home, then this checkout. */
+  const unLead = (kit: string, src = CHECKOUT): string => `GRUGOPS_HOME=${kit} GRUGOPS_SRC=${src}`;
+  /** The literal lead of an expected install.js command: the kit home, the install mode, then the checkout. */
+  const inLead = (kit: string, mode: "copy" | "symlink" = "copy", src = CHECKOUT): string => `GRUGOPS_HOME=${kit} INSTALL_MODE=${mode} GRUGOPS_SRC=${src}`;
 
   it("names the binary, the target and the hosts' flags in the order given", () => {
     const head = scriptCommand("uninstall.js", plain);
     // Re-pinned by plan 34.1-47 (2026-10-13, D-38): an uninstall command states its kit home, the default included.
-    expect(head).toBe(`GRUGOPS_HOME=${DEFAULT_KIT} node ${DIR}/uninstall.js`);
+    // Re-pinned by plan 34.1-48 (2026-10-13, D-38): and its kit checkout, this checkout included.
+    expect(head).toBe(`${unLead(DEFAULT_KIT)} node ${DIR}/uninstall.js`);
     expect(agentCommand("uninstall.js", "/tmp/a/t", [row("claude")], plain)).toBe(`${head} --target /tmp/a/t ${flag("claude")}`);
     expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex"), row("antigravity")], plain)).toBe(
       `${head} --target /tmp/a/t ${flag("codex")} ${flag("antigravity")}`,
@@ -398,15 +406,16 @@ describe("agentCommand: the one builder of a printed command that names agents (
   });
   it("no hosts gives no flag", () => {
     expect(agentCommand("uninstall.js", "/tmp/a/t", [], plain)).toBe(`${scriptCommand("uninstall.js", plain)} --target /tmp/a/t`);
-    // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is stated.
-    expect(agentCommand("uninstall.js", "/tmp/a/t", [], plain)).toBe(`GRUGOPS_HOME=${DEFAULT_KIT} node ${DIR}/uninstall.js --target /tmp/a/t`);
+    // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is stated. Re-pinned by plan 34.1-48 (2026-10-13, D-38): and the checkout.
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [], plain)).toBe(`${unLead(DEFAULT_KIT)} node ${DIR}/uninstall.js --target /tmp/a/t`);
   });
   it("a target with a space or a quote is one shell word, and shellWords reads it back as one", () => {
     for (const target of ["/tmp/my repo/t", "/tmp/it's/t", "/tmp/a;b/$x"]) {
       const cmd = agentCommand("uninstall.js", target, [row("claude")], plain);
       expect(shellWords(cmd), cmd).toEqual([...shellWords(scriptCommand("uninstall.js", plain)), "--target", target, flag("claude")]);
-      // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the stated default kit home comes first.
-      expect(shellWords(cmd).slice(0, 3), cmd).toEqual([`GRUGOPS_HOME=${DEFAULT_KIT}`, "node", `${DIR}/uninstall.js`]);
+      // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the stated default kit home comes first. Re-pinned by plan 34.1-48 (2026-10-13, D-38): then the
+      // stated checkout.
+      expect(shellWords(cmd).slice(0, 4), cmd).toEqual([`GRUGOPS_HOME=${DEFAULT_KIT}`, `GRUGOPS_SRC=${CHECKOUT}`, "node", `${DIR}/uninstall.js`]);
     }
   });
 
@@ -418,21 +427,22 @@ describe("agentCommand: the one builder of a printed command that names agents (
   describe("commandContextFromRecord: the record's kit home and mode only from an ok marker, the run's otherwise (D-36)", () => {
     const REC_KIT = "/srv/kits/recorded";
     const RUN_KIT = "/srv/kits/run";
-    const records: ReadonlyArray<{ readonly name: string; readonly record: RecordRead | null; readonly takes: "record" | "run"; readonly home?: string; readonly symlink?: boolean }> = [
+    // Re-pinned by plan 34.1-48 (2026-10-13, D-38): the context's install mode is "copy" or "symlink", not a boolean; each row names it.
+    const records: ReadonlyArray<{ readonly name: string; readonly record: RecordRead | null; readonly takes: "record" | "run"; readonly home?: string; readonly mode?: "copy" | "symlink" }> = [
       { name: "no record (null)", record: null, takes: "run" },
       { name: "absent", record: { state: "absent", marker: null }, takes: "run" },
       { name: "unreadable", record: { state: "unreadable", marker: null }, takes: "run" },
       { name: "unbound, carrying a kit home and symlink", record: { state: "unbound", marker: { grugopsHome: REC_KIT, installMode: "symlink" } }, takes: "run" },
-      { name: "ok, kit home K, symlink", record: { state: "ok", marker: { grugopsHome: REC_KIT, installMode: "symlink" } }, takes: "record", home: REC_KIT, symlink: true },
-      { name: "ok, the default kit home, copy", record: { state: "ok", marker: { grugopsHome: DEFAULT_KIT, installMode: "copy" } }, takes: "record", home: DEFAULT_KIT, symlink: false },
+      { name: "ok, kit home K, symlink", record: { state: "ok", marker: { grugopsHome: REC_KIT, installMode: "symlink" } }, takes: "record", home: REC_KIT, mode: "symlink" },
+      { name: "ok, the default kit home, copy", record: { state: "ok", marker: { grugopsHome: DEFAULT_KIT, installMode: "copy" } }, takes: "record", home: DEFAULT_KIT, mode: "copy" },
       { name: "ok, a non-string grugopsHome", record: { state: "ok", marker: { grugopsHome: 42, installMode: "symlink" } }, takes: "run" },
       { name: "ok, an installMode that is neither copy nor symlink", record: { state: "ok", marker: { grugopsHome: REC_KIT, installMode: "banana" } }, takes: "run" },
     ];
-    const runs: ReadonlyArray<{ readonly name: string; readonly kitHome: string; readonly symlink: boolean }> = [
-      { name: "run: default kit home, copy", kitHome: DEFAULT_KIT, symlink: false },
-      { name: "run: default kit home, symlink", kitHome: DEFAULT_KIT, symlink: true },
-      { name: "run: another kit home, copy", kitHome: RUN_KIT, symlink: false },
-      { name: "run: another kit home, symlink", kitHome: RUN_KIT, symlink: true },
+    const runs: ReadonlyArray<{ readonly name: string; readonly kitHome: string; readonly mode: "copy" | "symlink" }> = [
+      { name: "run: default kit home, copy", kitHome: DEFAULT_KIT, mode: "copy" },
+      { name: "run: default kit home, symlink", kitHome: DEFAULT_KIT, mode: "symlink" },
+      { name: "run: another kit home, copy", kitHome: RUN_KIT, mode: "copy" },
+      { name: "run: another kit home, symlink", kitHome: RUN_KIT, mode: "symlink" },
     ];
     it("premise: the table holds 8 record shapes times 4 runs, and two of the shapes take the record", () => {
       expect(records.length * runs.length).toBe(32);
@@ -441,96 +451,111 @@ describe("agentCommand: the one builder of a printed command that names agents (
     for (const rec of records) {
       for (const run of runs) {
         it(`${rec.name} / ${run.name} -> the ${rec.takes}'s values`, () => {
-          const got = commandContextFromRecord(rec.record, { scriptDir: DIR, kitHome: run.kitHome, symlink: run.symlink, src: CHECKOUT, checkout: CHECKOUT });
+          const got = commandContextFromRecord(rec.record, { scriptDir: DIR, kitHome: run.kitHome, installMode: run.mode, src: CHECKOUT });
           const home = rec.takes === "record" ? rec.home : run.kitHome;
-          const symlink = rec.takes === "record" ? rec.symlink : run.symlink;
+          const mode = rec.takes === "record" ? rec.mode : run.mode;
           expect(got.scriptDir).toBe(DIR);
           // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the kit home is the chosen path, never null, the default included.
           expect(got.kitHome, "kitHome is the chosen kit home, as a path").toBe(home);
-          expect(got.symlink).toBe(symlink);
+          // Re-pinned by plan 34.1-48 (2026-10-13, D-38): the install mode is the chosen one, and the checkout is the run's whatever the record.
+          expect(got.installMode).toBe(mode);
+          expect(got.src).toBe(CHECKOUT);
         });
       }
     }
   });
 
   // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is a path in the context, not null.
-  it("commandContextFromRecord with no record: kitHome is the run's kit home as a path, the default included", () => {
-    expect(plain).toEqual({ scriptDir: DIR, kitHome: DEFAULT_KIT, symlink: false, src: null });
-    expect(withKit).toEqual({ scriptDir: DIR, kitHome: KIT, symlink: false, src: null });
-    expect(linked.symlink).toBe(true);
+  // Re-pinned by plan 34.1-48 (2026-10-13, D-38): the context holds the install mode and the checkout as stated values, this checkout included.
+  it("commandContextFromRecord with no record: kitHome is the run's kit home as a path, the default included; installMode and src are the run's", () => {
+    expect(plain).toEqual({ scriptDir: DIR, kitHome: DEFAULT_KIT, installMode: "copy", src: CHECKOUT });
+    expect(withKit).toEqual({ scriptDir: DIR, kitHome: KIT, installMode: "copy", src: CHECKOUT });
+    expect(linked.installMode).toBe("symlink");
   });
   // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is stated like any other.
-  it("scriptCommand(install.js) with the default kit home is `GRUGOPS_HOME=<default> node <dir>/install.js`", () => {
-    expect(scriptCommand("install.js", plain)).toBe(`GRUGOPS_HOME=${DEFAULT_KIT} node ${DIR}/install.js`);
-    expect(scriptCommand("install.js", runContext(DIR + "/", DEFAULT_KIT)), "a trailing / on the script directory").toBe(`GRUGOPS_HOME=${DEFAULT_KIT} node ${DIR}/install.js`);
+  // Re-pinned by plan 34.1-48 (2026-10-13, D-38): an install command states INSTALL_MODE=copy and GRUGOPS_SRC=<checkout> after the kit home.
+  it("scriptCommand(install.js) with the default kit home is `GRUGOPS_HOME=<default> INSTALL_MODE=copy GRUGOPS_SRC=<checkout> node <dir>/install.js`", () => {
+    expect(scriptCommand("install.js", plain)).toBe(`${inLead(DEFAULT_KIT)} node ${DIR}/install.js`);
+    expect(scriptCommand("install.js", runContext(DIR + "/", DEFAULT_KIT)), "a trailing / on the script directory").toBe(`${inLead(DEFAULT_KIT)} node ${DIR}/install.js`);
   });
-  it("scriptCommand(install.js) with another kit home starts `GRUGOPS_HOME=<home> node`", () => {
-    expect(scriptCommand("install.js", withKit)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/install.js`);
+  it("scriptCommand(install.js) with another kit home starts `GRUGOPS_HOME=<home> INSTALL_MODE=copy GRUGOPS_SRC=<checkout> node`", () => {
+    expect(scriptCommand("install.js", withKit)).toBe(`${inLead(KIT)} node ${DIR}/install.js`);
   });
-  it("scriptCommand(install.js) of a symlink run ends `<dir>/install.js --symlink`", () => {
-    // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is stated.
-    expect(scriptCommand("install.js", linked)).toBe(`GRUGOPS_HOME=${DEFAULT_KIT} node ${DIR}/install.js --symlink`);
-    expect(scriptCommand("install.js", everything)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/install.js --symlink`);
+  // Re-pinned by plan 34.1-48 (2026-10-13, D-38, review WR-25): a symlink context states INSTALL_MODE=symlink, the one spelling install.js accepts for
+  // both modes, and no printed command carries `--symlink`.
+  it("scriptCommand(install.js) of a symlink run states INSTALL_MODE=symlink and carries no --symlink", () => {
+    expect(scriptCommand("install.js", linked)).toBe(`${inLead(DEFAULT_KIT, "symlink")} node ${DIR}/install.js`);
+    expect(scriptCommand("install.js", everything)).toBe(`${inLead(KIT, "symlink")} node ${DIR}/install.js`);
+    expect(shellWords(scriptCommand("install.js", everything)), "a printed command carries --symlink").not.toContain("--symlink");
   });
   // Re-pinned by plan 34.1-47 (2026-10-13, D-38): an uninstall command states its kit home, and still never --symlink.
-  it("scriptCommand(uninstall.js) is exactly `GRUGOPS_HOME=<kit home> node <dir>/uninstall.js`, with no --symlink even for a symlink context", () => {
-    expect(scriptCommand("uninstall.js", everything)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/uninstall.js`);
-    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex")], everything)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/uninstall.js --target /tmp/a/t ${flag("codex")}`);
-    expect(scriptCommand("uninstall.js", plain)).toBe(`GRUGOPS_HOME=${DEFAULT_KIT} node ${DIR}/uninstall.js`);
+  // Re-pinned by plan 34.1-48 (2026-10-13, D-38): it states its checkout too, and no install mode (uninstall.js reads none and refuses --symlink).
+  it("scriptCommand(uninstall.js) is exactly `GRUGOPS_HOME=<kit home> GRUGOPS_SRC=<checkout> node <dir>/uninstall.js`, with no install mode even for a symlink context", () => {
+    expect(scriptCommand("uninstall.js", everything)).toBe(`${unLead(KIT)} node ${DIR}/uninstall.js`);
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex")], everything)).toBe(`${unLead(KIT)} node ${DIR}/uninstall.js --target /tmp/a/t ${flag("codex")}`);
+    expect(scriptCommand("uninstall.js", plain)).toBe(`${unLead(DEFAULT_KIT)} node ${DIR}/uninstall.js`);
+    expect(scriptCommand("uninstall.js", everything), "an uninstall command states an install mode").not.toContain("INSTALL_MODE");
   });
   it("a script directory or a kit home with a space or a quote is single-quoted, and shellWords reads each back as one word", () => {
     for (const odd of ["/opt/my grugops/install", "/opt/it's/install", "/opt/a;b/$x/install"]) {
-      const ctx = runContext(odd, odd + "/kit", true);
+      const ctx = runContext(odd, odd + "/kit", "symlink");
       const cmd = agentCommand("install.js", "/tmp/my repo/t", [row("pi")], ctx);
-      expect(shellWords(cmd), cmd).toEqual([`GRUGOPS_HOME=${odd}/kit`, "node", `${odd}/install.js`, "--symlink", "--target", "/tmp/my repo/t", agentFlag(row("pi"))]);
+      // Re-pinned by plan 34.1-48 (2026-10-13, D-38): the mode is the INSTALL_MODE word and the checkout is stated; no --symlink.
+      expect(shellWords(cmd), cmd).toEqual([`GRUGOPS_HOME=${odd}/kit`, "INSTALL_MODE=symlink", `GRUGOPS_SRC=${CHECKOUT}`, "node", `${odd}/install.js`, "--target", "/tmp/my repo/t", agentFlag(row("pi"))]);
     }
   });
-  // `src` (plan 34.1-37, D-36, WR-23): the kit checkout the run used (GRUGOPS_SRC), null when it is the running
-  // script's own. Every expected command here is a literal, so the rows do not lean on scriptCommand to check itself.
-  it("commandContextFromRecord: src is null when the run's checkout is the script's own, and the run's GRUGOPS_SRC otherwise, whatever the record", () => {
-    expect(runContext(DIR, DEFAULT_KIT).src).toBeNull();
-    expect(runContext(DIR, DEFAULT_KIT, false, OTHER_SRC).src).toBe(OTHER_SRC);
+  // `src` (plan 34.1-37, D-36, WR-23): the kit checkout the run used (GRUGOPS_SRC). Every expected command here is a
+  // literal, so the rows do not lean on scriptCommand to check itself. Re-pinned by plan 34.1-48 (2026-10-13, D-38, review WR-25): src is a path
+  // also when it is the running script's own checkout, and both binaries state it.
+  it("commandContextFromRecord: src is the run's GRUGOPS_SRC, the script's own checkout included, whatever the record", () => {
+    expect(runContext(DIR, DEFAULT_KIT).src).toBe(CHECKOUT);
+    expect(runContext(DIR, DEFAULT_KIT, "copy", OTHER_SRC).src).toBe(OTHER_SRC);
     const ok: RecordRead = { state: "ok", marker: { grugopsHome: KIT, installMode: "symlink" } };
-    const run = { scriptDir: DIR, kitHome: DEFAULT_KIT, symlink: false, checkout: CHECKOUT };
-    expect(commandContextFromRecord(ok, { ...run, src: CHECKOUT }).src, "an ok record names no checkout").toBeNull();
+    const run = { scriptDir: DIR, kitHome: DEFAULT_KIT, installMode: "copy" as const };
+    expect(commandContextFromRecord(ok, { ...run, src: CHECKOUT }).src, "an ok record names no checkout").toBe(CHECKOUT);
     expect(commandContextFromRecord(ok, { ...run, src: OTHER_SRC }).src, "an ok record names no checkout").toBe(OTHER_SRC);
   });
-  // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is stated before GRUGOPS_SRC.
-  it("scriptCommand(install.js) with src set carries `GRUGOPS_SRC=<src>` after the GRUGOPS_HOME word, before `node`", () => {
-    expect(scriptCommand("install.js", runContext(DIR, DEFAULT_KIT, false, OTHER_SRC))).toBe(`GRUGOPS_HOME=${DEFAULT_KIT} GRUGOPS_SRC=${OTHER_SRC} node ${DIR}/install.js`);
-    expect(scriptCommand("install.js", runContext(DIR, KIT, true, OTHER_SRC))).toBe(`GRUGOPS_HOME=${KIT} GRUGOPS_SRC=${OTHER_SRC} node ${DIR}/install.js --symlink`);
+  // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is stated before GRUGOPS_SRC. Re-pinned by plan 34.1-48 (2026-10-13, D-38): the
+  // install mode is stated between them, and a symlink context carries no --symlink.
+  it("scriptCommand(install.js) with src set carries `GRUGOPS_SRC=<src>` after the GRUGOPS_HOME and INSTALL_MODE words, before `node`", () => {
+    expect(scriptCommand("install.js", runContext(DIR, DEFAULT_KIT, "copy", OTHER_SRC))).toBe(`${inLead(DEFAULT_KIT, "copy", OTHER_SRC)} node ${DIR}/install.js`);
+    expect(scriptCommand("install.js", runContext(DIR, KIT, "symlink", OTHER_SRC))).toBe(`${inLead(KIT, "symlink", OTHER_SRC)} node ${DIR}/install.js`);
   });
   // Re-pinned by plan 34.1-47 (2026-10-13, D-38): an uninstall command states its kit home before GRUGOPS_SRC.
   it("scriptCommand(uninstall.js) with src set is `GRUGOPS_HOME=<kit home> GRUGOPS_SRC=<src> node <dir>/uninstall.js` (its report of unrecorded files reads the kit source)", () => {
-    expect(scriptCommand("uninstall.js", runContext(DIR, KIT, true, OTHER_SRC))).toBe(`GRUGOPS_HOME=${KIT} GRUGOPS_SRC=${OTHER_SRC} node ${DIR}/uninstall.js`);
-    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex")], runContext(DIR, DEFAULT_KIT, false, OTHER_SRC))).toBe(
-      `GRUGOPS_HOME=${DEFAULT_KIT} GRUGOPS_SRC=${OTHER_SRC} node ${DIR}/uninstall.js --target /tmp/a/t ${flag("codex")}`,
+    expect(scriptCommand("uninstall.js", runContext(DIR, KIT, "symlink", OTHER_SRC))).toBe(`${unLead(KIT, OTHER_SRC)} node ${DIR}/uninstall.js`);
+    expect(agentCommand("uninstall.js", "/tmp/a/t", [row("codex")], runContext(DIR, DEFAULT_KIT, "copy", OTHER_SRC))).toBe(
+      `${unLead(DEFAULT_KIT, OTHER_SRC)} node ${DIR}/uninstall.js --target /tmp/a/t ${flag("codex")}`,
     );
   });
-  it("with src equal to the script's checkout, neither binary's command carries a GRUGOPS_SRC word", () => {
-    const ctx = runContext(DIR, KIT, false, CHECKOUT);
-    expect(scriptCommand("install.js", ctx)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/install.js`);
+  // Re-pinned by plan 34.1-48 (2026-10-13, D-38, review WR-25): reversed. A command with no GRUGOPS_SRC word renders from whatever GRUGOPS_SRC the
+  // user's shell exports, so the running script's own checkout is stated like any other.
+  it("with src equal to the script's checkout, both binaries' commands state GRUGOPS_SRC=<that checkout>", () => {
+    const ctx = runContext(DIR, KIT, "copy", CHECKOUT);
+    expect(scriptCommand("install.js", ctx)).toBe(`${inLead(KIT, "copy", CHECKOUT)} node ${DIR}/install.js`);
     // Re-pinned by plan 34.1-47 (2026-10-13, D-38): an uninstall command states its kit home.
-    expect(scriptCommand("uninstall.js", ctx)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/uninstall.js`);
+    expect(scriptCommand("uninstall.js", ctx)).toBe(`${unLead(KIT, CHECKOUT)} node ${DIR}/uninstall.js`);
   });
   it("a src with a space or a quote is one shell word, and shellWords reads it back as one", () => {
     for (const odd of ["/srv/my checkouts/s", "/srv/it's/s", "/srv/a;b/$x"]) {
-      const ctx = runContext(DIR, KIT, false, odd);
+      const ctx = runContext(DIR, KIT, "copy", odd);
       for (const binary of ["install.js", "uninstall.js"] as const) {
         const cmd = agentCommand(binary, "/tmp/a/t", [row("codex")], ctx);
         const words = shellWords(cmd);
         // Re-pinned by plan 34.1-47 (2026-10-13, D-38): both binaries state the kit home first.
-        const lead = [`GRUGOPS_HOME=${KIT}`, `GRUGOPS_SRC=${odd}`];
+        // Re-pinned by plan 34.1-48 (2026-10-13, D-38): an install command states its install mode between the kit home and the checkout.
+        const lead = binary === "install.js" ? [`GRUGOPS_HOME=${KIT}`, "INSTALL_MODE=copy", `GRUGOPS_SRC=${odd}`] : [`GRUGOPS_HOME=${KIT}`, `GRUGOPS_SRC=${odd}`];
         expect(words, cmd).toEqual([...lead, "node", `${DIR}/${binary}`, "--target", "/tmp/a/t", flag("codex")]);
       }
     }
   });
   it("agentCommand with a context appends the flags in the order given, then the modes", () => {
+    // Re-pinned by plan 34.1-48 (2026-10-13, D-38): the install mode and the checkout are stated.
     expect(agentCommand("install.js", "/tmp/a/t", [row("codex"), row("claude")], withKit, ["--migrate"])).toBe(
-      `GRUGOPS_HOME=${KIT} node ${DIR}/install.js --target /tmp/a/t ${flag("codex")} ${flag("claude")} --migrate`,
+      `${inLead(KIT)} node ${DIR}/install.js --target /tmp/a/t ${flag("codex")} ${flag("claude")} --migrate`,
     );
     // Re-pinned by plan 34.1-47 (2026-10-13, D-38): the default kit home is stated.
-    expect(agentCommand("install.js", "/tmp/a/t", [], plain, ["--check"])).toBe(`GRUGOPS_HOME=${DEFAULT_KIT} node ${DIR}/install.js --target /tmp/a/t --check`);
+    expect(agentCommand("install.js", "/tmp/a/t", [], plain, ["--check"])).toBe(`${inLead(DEFAULT_KIT)} node ${DIR}/install.js --target /tmp/a/t --check`);
   });
   it("agentCommand throws for a combination the binary would refuse", () => {
     expect(() => agentCommand("install.js", "/tmp/a/t", [row("claude")], plain, ["--check"])).toThrow(/--check/);
@@ -556,7 +581,8 @@ describe("runPrintedCommand: the harness premise (D-33, WR-19; D-38, WR-25)", ()
     mkdirSync(target, { recursive: true });
     const injected = join(dir, "injected-kit");
     const printedKit = join(home, ".grugops");
-    const text = "`GRUGOPS_HOME=" + printedKit + " node " + INSTALL_JS + " --target " + target + " --check`";
+    // Re-pinned by plan 34.1-48 (2026-10-13, D-38): the hand-written text states the install mode and the checkout too.
+    const text = "`GRUGOPS_HOME=" + printedKit + " INSTALL_MODE=copy GRUGOPS_SRC=" + REPO_ROOT + " node " + INSTALL_JS + " --target " + target + " --check`";
     const saved = process.env.GRUGOPS_HOME;
     process.env.GRUGOPS_HOME = injected;
     try {
@@ -594,11 +620,11 @@ describe("runPrintedCommand: the harness premise (D-33, WR-19; D-38, WR-25)", ()
     expect(readdirSync(target), "the command ran: the target holds files").toEqual([]);
     expect(readdirSync(home), "the command ran: something appeared under HOME").toEqual([]);
   });
-  // H1-H3 (plan 34.1-37, D-36, WR-23): a printed GRUGOPS_SRC reaches the child only on a call that opts in with
-  // `expectSrc: true`. Every earlier follow-as-printed row runs without it, so a command that starts carrying
-  // GRUGOPS_SRC unexpectedly fails those rows (the harness throws) instead of passing them. The texts are written by
-  // hand, so these rows do not depend on the builder.
-  it("H1: a printed GRUGOPS_SRC on a call without `expectSrc: true` throws, naming GRUGOPS_SRC, before anything runs", () => {
+  // H1-H3 (plan 34.1-37, D-36, WR-23; re-pinned by plan 34.1-48 (2026-10-13, D-38), which retired the `expectSrc: true` opt-in):
+  // every printed command states its kit checkout, so `expectSrc` names the checkout a row expects (this checkout when
+  // omitted), and the harness holds a conflicting GRUGOPS_SRC, INSTALL_MODE and TARGET in the child's environment. The
+  // texts are written by hand, so these rows do not depend on the builder.
+  it("H1 (D-38): a printed GRUGOPS_SRC other than the one the call expects throws, naming GRUGOPS_SRC, before anything runs; so does a command that states no GRUGOPS_SRC, or an install command that states no INSTALL_MODE", () => {
     const dir = join(SCRATCH, `premise-${seq++}`);
     const home = join(dir, "home");
     const target = join(dir, "t");
@@ -606,13 +632,22 @@ describe("runPrintedCommand: the harness premise (D-33, WR-19; D-38, WR-25)", ()
     mkdirSync(target, { recursive: true });
     const src = join(dir, "checkout-link");
     symlinkSync(REPO_ROOT, src);
-    const text = "`GRUGOPS_SRC=" + src + " node " + INSTALL_JS + " --target " + target + " " + flag("codex") + "`";
-    expect(() => runPrintedCommand(text, { home, timeoutMs: 120_000 })).toThrow(/GRUGOPS_SRC/);
-    expect(() => runPrintedCommand(text, { home, timeoutMs: 120_000, expectSrc: false })).toThrow(/GRUGOPS_SRC/);
+    const kitWord = "GRUGOPS_HOME=" + join(home, ".grugops") + " ";
+    const text = "`" + kitWord + "INSTALL_MODE=copy GRUGOPS_SRC=" + src + " node " + INSTALL_JS + " --target " + target + " " + flag("codex") + "`";
+    expect(() => runPrintedCommand(text, { home, timeoutMs: 120_000 }), "expected this checkout").toThrow(/GRUGOPS_SRC/);
+    expect(() => runPrintedCommand(text, { home, timeoutMs: 120_000, expectSrc: join(dir, "elsewhere") }), "expected another directory").toThrow(/GRUGOPS_SRC/);
+    const noSrc = "`" + kitWord + "INSTALL_MODE=copy node " + INSTALL_JS + " --target " + target + " " + flag("codex") + "`";
+    expect(() => runPrintedCommand(noSrc, { home, timeoutMs: 120_000 }), noSrc).toThrow(/states no GRUGOPS_SRC/);
+    const unNoSrc = "`" + kitWord + "node " + UNINSTALL_JS + " --target " + target + " " + flag("codex") + "`";
+    expect(() => runPrintedCommand(unNoSrc, { home, timeoutMs: 120_000 }), unNoSrc).toThrow(/states no GRUGOPS_SRC/);
+    const noMode = "`" + kitWord + "GRUGOPS_SRC=" + REPO_ROOT + " node " + INSTALL_JS + " --target " + target + " " + flag("codex") + "`";
+    expect(() => runPrintedCommand(noMode, { home, timeoutMs: 120_000 }), noMode).toThrow(/states no INSTALL_MODE/);
+    const unMode = "`" + kitWord + "INSTALL_MODE=copy GRUGOPS_SRC=" + REPO_ROOT + " node " + UNINSTALL_JS + " --target " + target + "`";
+    expect(() => runPrintedCommand(unMode, { home, timeoutMs: 120_000 }), unMode).toThrow(/INSTALL_MODE/);
     expect(readdirSync(target), "the command ran: the target holds files").toEqual([]);
     expect(existsSync(join(home, ".grugops")), "the command ran: a kit appeared under HOME").toBe(false);
   });
-  it("H2: with `expectSrc: true` a printed GRUGOPS_SRC reaches the child; a text that sets none gives the child none, whatever the test process sets", () => {
+  it("H2 (D-38): the printed GRUGOPS_SRC and INSTALL_MODE reach the child over conflicting ones, whatever the test process sets, and the conflicting TARGET is held and left empty", () => {
     const dir = join(SCRATCH, `premise-${seq++}`);
     const home = join(dir, "home");
     const target = join(dir, "t");
@@ -622,31 +657,48 @@ describe("runPrintedCommand: the harness premise (D-33, WR-19; D-38, WR-25)", ()
     const injectedSrc = join(dir, "injected-src");
     mkdirSync(printedSrc, { recursive: true });
     mkdirSync(injectedSrc, { recursive: true });
-    // Plan 34.1-47 (2026-10-13, D-38): every printed command states its kit home, so the hand-written texts do too.
     const kitWord = "GRUGOPS_HOME=" + join(home, ".grugops") + " ";
-    const withSrc = "`" + kitWord + "GRUGOPS_SRC=" + printedSrc + " node " + INSTALL_JS + " --target " + target + " --check`";
-    const r = runPrintedCommand(withSrc, { home, timeoutMs: 120_000, expectSrc: true });
-    expect(r.signal, r.stderr).toBeNull();
-    expect(r.premise.grugopsSrc, "the printed GRUGOPS_SRC did not reach the child").toBeDefined();
-    expect(pathText(r.premise.grugopsSrc ?? "")).toBe(pathText(printedSrc));
-    const saved = process.env.GRUGOPS_SRC;
+    const withSrc = "`" + kitWord + "INSTALL_MODE=copy GRUGOPS_SRC=" + printedSrc + " node " + INSTALL_JS + " --target " + target + " --check`";
+    const saved = { src: process.env.GRUGOPS_SRC, mode: process.env.INSTALL_MODE, target: process.env.TARGET };
     process.env.GRUGOPS_SRC = injectedSrc;
+    process.env.INSTALL_MODE = "copy";
+    process.env.TARGET = target;
     try {
-      const none = "`" + kitWord + "node " + INSTALL_JS + " --target " + target + " --check`";
-      const q = runPrintedCommand(none, { home, timeoutMs: 120_000, expectSrc: true });
+      const r = runPrintedCommand(withSrc, { home, timeoutMs: 120_000, expectSrc: printedSrc });
+      expect(r.signal, r.stderr).toBeNull();
+      expect(pathText(r.premise.grugopsSrc), "the printed GRUGOPS_SRC did not reach the child").toBe(pathText(printedSrc));
+      expect(r.premise.srcBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_SRC first").toBe(r.premise.conflictingSrc);
+      expect(pathText(r.premise.conflictingSrc), "premise: the conflicting GRUGOPS_SRC is the printed one").not.toBe(pathText(printedSrc));
+      expect(pathText(r.premise.conflictingSrc), "premise: the conflicting GRUGOPS_SRC is the test process's own").not.toBe(pathText(injectedSrc));
+      expect(r.premise.installMode, "the printed INSTALL_MODE did not reach the child").toBe("copy");
+      expect(r.premise.conflictingInstallMode, "premise: the conflicting INSTALL_MODE is the printed one").toBe("symlink");
+      expect(r.premise.installModeBeforePrinted, "premise: the child's environment did not hold the conflicting INSTALL_MODE first").toBe("symlink");
+      expect(r.premise.targetBeforeRun, "premise: the child's environment did not hold the conflicting TARGET").toBe(r.premise.conflictingTarget);
+      expect(pathText(r.premise.conflictingTarget), "premise: the conflicting TARGET is the test process's own").not.toBe(pathText(target));
+      expect(r.premise.conflictingTargetEmpty, "the child wrote into the conflicting TARGET").toBe(true);
+      const linked = "`" + kitWord + "INSTALL_MODE=symlink GRUGOPS_SRC=" + REPO_ROOT + " node " + INSTALL_JS + " --target " + target + " --check`";
+      const q = runPrintedCommand(linked, { home, timeoutMs: 120_000 });
       expect(q.signal, q.stderr).toBeNull();
-      expect(q.premise.grugopsSrc, "the child's environment held the test process's GRUGOPS_SRC").toBeUndefined();
+      expect(q.premise.installMode, "the printed INSTALL_MODE=symlink did not reach the child").toBe("symlink");
+      expect(q.premise.conflictingInstallMode, "premise: the conflicting INSTALL_MODE of a symlink text is copy").toBe("copy");
+      expect(q.premise.installModeBeforePrinted).toBe("copy");
     } finally {
-      if (saved === undefined) delete process.env.GRUGOPS_SRC;
-      else process.env.GRUGOPS_SRC = saved;
+      for (const [key, value] of [["GRUGOPS_SRC", saved.src], ["INSTALL_MODE", saved.mode], ["TARGET", saved.target]] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });
-  it("H3: a printed assignment to any other name (INSTALL_MODE) throws with or without `expectSrc`", () => {
+  it("H3 (D-38): a printed assignment to any name other than GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC throws, whatever the call expects", () => {
     const home = join(SCRATCH, `premise-${seq++}`, "home");
     mkdirSync(home, { recursive: true });
-    const text = "`INSTALL_MODE=symlink node " + INSTALL_JS + " --target /tmp/a/t`";
-    expect(() => runPrintedCommand(text, { home })).toThrow(/INSTALL_MODE/);
-    expect(() => runPrintedCommand(text, { home, expectSrc: true })).toThrow(/INSTALL_MODE/);
+    const stated = "GRUGOPS_HOME=" + join(home, ".grugops") + " INSTALL_MODE=copy GRUGOPS_SRC=" + REPO_ROOT;
+    for (const extra of ["TARGET=/tmp/a/t", "DRY_RUN=1", "HOME=/tmp/a"]) {
+      const text = "`" + extra + " " + stated + " node " + INSTALL_JS + " --target /tmp/a/t`";
+      const name = extra.slice(0, extra.indexOf("="));
+      expect(() => runPrintedCommand(text, { home }), text).toThrow(new RegExp(`sets ${name}`));
+      expect(() => runPrintedCommand(text, { home, expectSrc: REPO_ROOT }), text).toThrow(new RegExp(`sets ${name}`));
+    }
   });
   it("printedCommand finds no span whose script word is relative: a relative command alone is refused, and beside an absolute one it is skipped", () => {
     const relativeSpan = "`node install/uninstall.js --target /tmp/a/t`";
@@ -1101,8 +1153,9 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
   });
 
   // R33 (phase 34.1 gap round 2, D-33, plan 34.1-23): the install mode is carried like the kit home. A printed install
-  // command of a `--symlink` run that dropped `--symlink` would run a copy install over the symlink install.
-  it("R33 (D-33): a --symlink run with the Pi write refused prints a banner command that carries --symlink; run as printed from a scratch directory it finishes the install and keeps it a symlink install", () => {
+  // command of a `--symlink` run that dropped its mode would run a copy install over the symlink install. Plan 34.1-48
+  // (D-38): the mode is stated as INSTALL_MODE=symlink, the one spelling install.js accepts for both modes.
+  it("R33 (D-33, D-38): a --symlink run with the Pi write refused prints a banner command that states INSTALL_MODE=symlink and carries no --symlink; run as printed from a scratch directory under a conflicting INSTALL_MODE=copy it finishes the install and keeps it a symlink install", () => {
     const w = world("r33");
     mkdirSync(at(w.target, ".pi"), { recursive: true });
     writeFileSync(at(w.target, ".pi/prompts"), "not a directory\n");
@@ -1122,9 +1175,16 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
     // context), and its arguments follow the stated mode words.
     const words = expectStated(printed, "install.js", w.grugopsHome, w.home, "symlink");
     expect(words[2 + statedModeWords("install.js", { kitHome: w.grugopsHome, home: w.home, installMode: "symlink" }).length], printed).toBe("--target");
-    expect(printed).toBe(agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.grugopsHome, symlink: true })));
+    // Re-pinned by plan 34.1-48 (2026-10-13, D-38, review WR-25): the symlink mode is stated as INSTALL_MODE=symlink, and no
+    // printed command carries --symlink.
+    expect(shellWords(printed), `the printed command carries --symlink: ${printed}`).not.toContain("--symlink");
+    expect(printedInvocation(printed).assigned.INSTALL_MODE, `the printed command does not state INSTALL_MODE=symlink: ${printed}`).toBe("symlink");
+    expect(printed).toBe(agentCommand("install.js", w.target, chosen, commandContextFor({ grugopsHome: w.grugopsHome, installMode: "symlink" })));
     rmSync(at(w.target, ".pi/prompts"));
     const fin = runPrintedCommand(banner[0], { home: w.home, timeoutMs: 180_000 });
+    // Plan 34.1-48 (D-38): the child held a conflicting INSTALL_MODE=copy before the printed INSTALL_MODE=symlink.
+    expect(fin.premise.installModeBeforePrinted, "premise: the child's environment did not hold the conflicting copy mode").toBe("copy");
+    expect(fin.premise.installMode, "premise: the child's INSTALL_MODE is not the printed symlink").toBe("symlink");
     finished(fin, `the printed command ${printed}`);
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
     expect(childKitHome(fin), "premise: the child's kit home is the one the rule states (the world's is the default)").toBe(
@@ -1920,9 +1980,9 @@ function countBy<T>(items: readonly T[], key: (t: T) => string): Record<string, 
 // ── D-36 (34.1 review WR-23, plan 34.1-37): an uninstall command carries the kit checkout the run used ──────────────
 //
 // uninstall.js reads GRUGOPS_SRC for its report of files grugops did not record, so a command it prints carries
-// `GRUGOPS_SRC=<dir>` when the run used a checkout other than its script's own (host-tools.ts scriptCommand, the
-// context's `src`). With GRUGOPS_SRC equal to this checkout the command is unchanged: R19 and every earlier row follow
-// it through runPrinted without the harness opt-in, and the harness throws on a printed GRUGOPS_SRC there (H1).
+// `GRUGOPS_SRC=<dir>` naming the checkout the run used (host-tools.ts scriptCommand, the context's `src`). Plan 34.1-48
+// (D-38): every printed command states it, this checkout included, so R19 and every earlier row follow it through
+// runPrinted expecting this checkout, and the harness throws on a printed GRUGOPS_SRC other than the expected one (H1).
 describe("D-36 (WR-23): an uninstall command carries the kit checkout the run used", () => {
   it("R40: uninstall --codex with GRUGOPS_SRC set to another spelling of this checkout prints its finishing command with `GRUGOPS_SRC=<that dir>`; restored and run as printed, the child sees that GRUGOPS_SRC and the reversal finishes with [claude]", () => {
     const w = world("r40");
@@ -1948,7 +2008,8 @@ describe("D-36 (WR-23): an uninstall command carries the kit checkout the run us
     expect(words.slice(2), kept[0]).toEqual(["--target", w.target, flag("codex")]);
 
     writeFileSync(at(w.target, AGENT_SKILL_REL), original);
-    const fin = runPrintedCommand(kept[0], { home: w.home, timeoutMs: 120_000, expectSrc: true });
+    // Re-pinned by plan 34.1-48 (2026-10-13, D-38): `expectSrc` names the checkout this row set (the link), not an opt-in.
+    const fin = runPrintedCommand(kept[0], { home: w.home, timeoutMs: 120_000, expectSrc: link });
     finished(fin, `the printed command ${printedCommand(kept[0])}`);
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
     expect(childKitHome(fin), "premise: the child's kit home is the stated one").toBe(statedKitHome("uninstall.js", { kitHome: w.grugopsHome, home: w.home }));
@@ -4287,10 +4348,10 @@ describe("the command-context census (D-33): every agentCommand and scriptComman
 // uninstaller printed another person's kit home. D-36 gives the context one owner, host-tools.ts
 // commandContextFromRecord, and this census holds it by the TypeScript parser over every product module (productModules:
 // git ls-files, no test, test-support or declaration file):
-//   - the object literals that build a context (property names include scriptDir, kitHome and symlink) number exactly
-//     one, and it sits inside commandContextFromRecord in host-tools.ts. The `run` argument of a commandContextFromRecord
-//     call (a RunInvocation, which carries the same three names and defaultKitHome) is the owner's input, not a
-//     context, and is not counted;
+//   - the object literals that build a context (property names include scriptDir, kitHome and installMode; symlink
+//     before plan 34.1-48) number exactly one, and it sits inside commandContextFromRecord in host-tools.ts. The `run`
+//     argument of a commandContextFromRecord call (a RunInvocation, which carries the same three names and src) is the
+//     owner's input, not a context, and is not counted;
 //   - no product function other than commandContextFromRecord declares CommandContext as its return type;
 //   - in each binary the initializer of COMMAND_CONTEXT is a call of commandContextFromRecord whose first argument is
 //     the binary's one marker read (install.ts DOCTOR_MARKER_READ, uninstall.ts MARKER_READ);
@@ -4330,7 +4391,8 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
       for (const o of nodesOf(sf, ts.isObjectLiteralExpression)) {
         const names = literalNames(o);
         const runArgument = ts.isCallExpression(o.parent) && calleeName(o.parent) === CONTEXT_CONSTRUCTORS.owner.fn && o.parent.arguments[1] === o;
-        if (!runArgument && ["scriptDir", "kitHome", "symlink"].every((n) => names.includes(n))) found.push(`${where(rel, o)} in ${enclosing(o)}`);
+        // Re-pinned by plan 34.1-48 (2026-10-13, D-38): a context's members are scriptDir, kitHome and installMode (the boolean symlink is gone).
+        if (!runArgument && ["scriptDir", "kitHome", "installMode"].every((n) => names.includes(n))) found.push(`${where(rel, o)} in ${enclosing(o)}`);
       }
     }
     expect(found.length, `context-building object literals:\n${found.join("\n")}`).toBe(CONTEXT_CONSTRUCTORS.literals);

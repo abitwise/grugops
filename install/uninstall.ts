@@ -2519,14 +2519,15 @@ const MARKER_READ: InstallMarkerRead = readInstallMarker(TARGET);
 // reinstallCommand and finishCommand). It is host-tools.ts commandContextFromRecord's answer for MARKER_READ and this
 // run, the one derivation install.ts uses too, so both binaries print the same install command for one marker. The
 // script directory is this script's own, so a printed command names uninstall.js (or install.js) by its absolute path
-// and runs from any directory. An uninstall.js command states its kit home like every printed command (D-38, plan
-// 34.1-47, scriptCommand) and carries no install mode: this binary removes by the install record alone and never reads
-// or removes the kit. The kit home and the install mode decide only the text of the commands this run prints, never a
+// and runs from any directory. An uninstall.js command states its kit home and its kit checkout like every printed
+// command (D-38, plans 34.1-47 and 34.1-48, scriptCommand) and states no install mode: this binary reads no
+// INSTALL_MODE, refuses `--symlink`, removes by the install record alone and never reads or removes the kit. The kit home and the install mode decide only the text of the commands this run prints, never a
 // removal (brief DC-2: nothing here is read by an owns() question).
 //   - This run's kit home is the GRUGOPS_HOME it was given, when it is set and not blank, resolved and spelled as
 //     install.ts spells its own (canonicalPathSpelling(resolve(...))); else the default `~/.grugops`, which every
 //     printed command states as `GRUGOPS_HOME=<HOME>/.grugops` (D-38).
-//   - An uninstall run has no install mode (it refuses `--symlink` as an unknown argument), so this run's is copy.
+//   - An uninstall run has no install mode (it refuses `--symlink` as an unknown argument), so this run's is copy: an
+//     install command it prints states `INSTALL_MODE=copy` (D-38, plan 34.1-48).
 //   - Nothing from an `unbound` marker reaches a printed command: it is another directory's record (copied, moved, or
 //     written before markers carried `target`), and for a cloned repository it names another person's paths, so a
 //     command built from it would write a kit where this user never installed one (WR-22). Over an unusable marker the
@@ -2542,19 +2543,19 @@ const MARKER_READ: InstallMarkerRead = readInstallMarker(TARGET);
 // change where it puts or reads the kit. The two unusable-marker verifies below name COMMAND_CONTEXT.kitHome, the kit
 // home their printed install step copies the kit into (plan 34.1-41, D-36), so the user sees where that step puts the
 // kit before running it.
-// The kit checkout (plan 34.1-37, D-36, review WR-23): `src` is this run's GRUGOPS_SRC and `checkout` this script's own
-// checkout, both in the one spelling; the marker records no checkout, so `src` always comes from the run. When they
-// differ, every command this run prints carries `GRUGOPS_SRC=<src>` (host-tools.ts scriptCommand): an uninstall command
-// because this binary's report of files grugops did not record reads the kit source (GRUGOPS_SRC), so a re-run reports
-// against the same checkout this run did, and an install command because install renders from it.
+// The kit checkout (plan 34.1-37, D-36, review WR-23; plan 34.1-48, D-38): `src` is this run's GRUGOPS_SRC (this
+// script's own checkout when none was given), in the one spelling; the marker records no checkout, so `src` always
+// comes from the run. Every command this run prints states it as `GRUGOPS_SRC=<src>` (host-tools.ts scriptCommand), this
+// checkout included, so an exported GRUGOPS_SRC cannot change it: an uninstall command because this binary's report of
+// files grugops did not record reads the kit source (GRUGOPS_SRC), so a re-run reports against the same checkout this
+// run did, and an install command because install renders from it.
 const GIVEN_KIT_HOME = process.env.GRUGOPS_HOME;
 const DEFAULT_KIT_HOME = canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const COMMAND_CONTEXT: CommandContext = commandContextFromRecord(MARKER_READ, {
   scriptDir: canonicalPathSpelling(SCRIPT_DIR),
   kitHome: GIVEN_KIT_HOME && GIVEN_KIT_HOME.trim() ? canonicalPathSpelling(resolve(GIVEN_KIT_HOME)) : DEFAULT_KIT_HOME,
-  symlink: false,
+  installMode: "copy",
   src: canonicalPathSpelling(GRUGOPS_SRC),
-  checkout: canonicalPathSpelling(resolve(SCRIPT_DIR, "..")),
 });
 // MARKER's type is not InstallMarkerRead (D-37): an unbound read folded in carries no reader defect and no problems, so
 // its `unreadable` arm holds only what every pass reads of it (state, why, jsonObject). A remedy over the marker reads

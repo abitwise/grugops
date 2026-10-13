@@ -2493,7 +2493,7 @@ describe("WR-21 (D-36): the doctor's printed commands carry the record's kit hom
     expect(String(after.kitRoot), "the printed command moved the marker's kit root").toBe(recordedRoot);
   });
 
-  it("row 2, the install-mode half: install --symlink --codex with K, AGENTS.md deleted, --check WITHOUT --symlink and WITHOUT GRUGOPS_HOME; the AGENTS.md remedy carries GRUGOPS_HOME=<K> and --symlink, and run as printed it exits 0, keeps installMode symlink and the kit home K, and writes no default kit", () => {
+  it("row 2, the install-mode half: install --symlink --codex with K, AGENTS.md deleted, --check WITHOUT --symlink and WITHOUT GRUGOPS_HOME; the AGENTS.md remedy states GRUGOPS_HOME=<K> and INSTALL_MODE=symlink (no --symlink; plan 34.1-48, D-38), and run as printed it exits 0, keeps installMode symlink and the kit home K, and writes no default kit", () => {
     const { target, kitHome, home, defaultKit } = rowWithHome();
     const r = runInstall(target, kitHome, ["--symlink", agentFlag(codexHost())], { home });
     expect(r.status, r.stdout + r.stderr).toBe(0);
@@ -2507,7 +2507,10 @@ describe("WR-21 (D-36): the doctor's printed commands carry the record's kit hom
     // Builder-independent (routed through the tests' statement of the rule by plan 34.1-48, 2026-10-13, D-38): the
     // stated words for the record's kit home K and its symlink mode, so the printed install command states the recorded
     // symlink mode the way the rule says.
-    expectStatedRemedy(line, { kitHome, home, installMode: "symlink" }, target);
+    const words = expectStatedRemedy(line, { kitHome, home, installMode: "symlink" }, target);
+    // Plan 34.1-48 (2026-10-13, D-38, review WR-25): the mode is stated as INSTALL_MODE=symlink, never as --symlink.
+    expect(printedInvocation(printedCommand(line)).assigned.INSTALL_MODE, `the printed command does not state INSTALL_MODE=symlink: ${line}`).toBe("symlink");
+    expect(words, `the printed command carries --symlink: ${line}`).not.toContain("--symlink");
     const ran = runPrintedCommand(line, { home });
     expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
     expect(pathText(ran.premise.grugopsHome ?? ""), "premise: the printed text set K").toBe(pathText(kitHome));
@@ -2526,9 +2529,10 @@ describe("WR-21 (D-36): the doctor's printed commands carry the record's kit hom
 // shell exports". WR-25 reproduced that: a default-home install, AGENTS.md deleted, `--check` run in a shell exporting
 // GRUGOPS_HOME to another directory printed an install command with no kit home word, and following it in that shell
 // wrote a second kit and moved the install there. D-38 makes every printed command state its kit home
-// (`GRUGOPS_HOME=<dir>`, the default included). R49 is WR-25's reproduction, kit-home half (plan 34.1-47; the install
-// mode is plan 34.1-48's): the remedy's words are checked without the builder, and it is followed by
-// runPrintedCommand, whose child environment holds a conflicting GRUGOPS_HOME that only the printed text can override.
+// (`GRUGOPS_HOME=<dir>`, the default included). R49 is WR-25's reproduction, kit-home half (plan 34.1-47), and R50 its
+// install-mode half (plan 34.1-48: every printed install command states INSTALL_MODE and GRUGOPS_SRC): the remedy's
+// words are checked without the builder, and it is followed by runPrintedCommand, whose child environment holds a
+// conflicting GRUGOPS_HOME, INSTALL_MODE, GRUGOPS_SRC and TARGET that only the printed text can override.
 describe("WR-25 (D-38): a printed command states its kit home and install mode", () => {
   it("R49 (WR-25, the kit-home half): a default-home copy install --codex, AGENTS.md deleted, --check with GRUGOPS_HOME exported to another directory; the AGENTS.md remedy starts GRUGOPS_HOME=<HOME>/.grugops, and run as printed under a conflicting GRUGOPS_HOME it exits 0, rewrites AGENTS.md, keeps the marker's kit home and kit root, and creates neither the exported nor the conflicting kit home", () => {
     const row = scratchRow();
@@ -2563,5 +2567,61 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     expect(String(after.grugopsHome), "the printed command moved the marker's kit home").toBe(String(before.grugopsHome));
     expect(String(after.kitRoot), "the printed command moved the marker's kit root").toBe(String(before.kitRoot));
     expect(existsSync(exported), "the exported kit home was created").toBe(false);
+  });
+
+  // R50 (plan 34.1-48, D-38; review WR-25, the install-mode half): WR-25's reproduction showed that a shell exporting
+  // INSTALL_MODE=symlink turned a printed copy-mode remedy, which stated no mode, into a symlink install. The remedy's
+  // words are checked without the builder, and it is followed by runPrintedCommand, whose child environment holds a
+  // conflicting INSTALL_MODE (symlink), GRUGOPS_SRC (an empty scratch directory) and TARGET (an empty scratch directory)
+  // that only the printed text can override.
+  it("R50 (WR-25, the mode half): a default-home copy install --codex, AGENTS.md deleted, --check with INSTALL_MODE=symlink exported; the AGENTS.md remedy states INSTALL_MODE=copy and GRUGOPS_SRC=<this checkout> and no --symlink, and run as printed under a conflicting INSTALL_MODE, GRUGOPS_SRC and TARGET it exits 0, keeps the copy install and the kit home, and leaves the conflicting TARGET untouched", () => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    const defaultKit = join(home, ".grugops");
+    const r = runInstall(row.target, defaultKit, [agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const before = readMarkerObject(row.target);
+    expect(pathText(String(before.grugopsHome)), "premise: the marker records the default kit home <HOME>/.grugops").toBe(pathText(defaultKit));
+    expect(before.installMode, "premise: a copy install").toBe("copy");
+    rmSync(join(row.target, "AGENTS.md"));
+    // The --check run is given no GRUGOPS_HOME (its kit home is the default) and INSTALL_MODE=symlink, as in a shell
+    // that exports it.
+    const c = spawnBin(INSTALL_JS, ["--check"], row.target, defaultKit, { home, omitKitHome: true, installMode: "symlink" });
+    const line = agentsRemedyLine(c.stdout);
+    // Word by word, builder-independent: exactly the three assignments, each with the value the record and this run
+    // give, then node, this checkout's install.js, --target <target>, and no more (no --symlink).
+    const { assigned, words } = printedInvocation(printedCommand(line));
+    expect(Object.keys(assigned).sort(), `the printed command does not state exactly GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC: ${line}`).toEqual(["GRUGOPS_HOME", "GRUGOPS_SRC", "INSTALL_MODE"]);
+    expect(pathText(assigned.GRUGOPS_HOME ?? ""), `the printed GRUGOPS_HOME is not the recorded default: ${line}`).toBe(pathText(defaultKit));
+    expect(assigned.INSTALL_MODE, `the printed command does not state the recorded copy mode: ${line}`).toBe("copy");
+    expect(pathText(assigned.GRUGOPS_SRC ?? ""), `the printed GRUGOPS_SRC is not this checkout: ${line}`).toBe(pathText(REPO_ROOT));
+    expect(words[0], line).toBe("node");
+    expect(pathText(words[1] ?? ""), line).toBe(pathText(INSTALL_JS));
+    expect(words[2], line).toBe("--target");
+    expect(pathText(words[3] ?? ""), line).toBe(pathText(row.target));
+    expect(words.length, `the printed command carries more than the target (an agent flag, a mode or --symlink): ${line}`).toBe(4);
+    expect(words, `the printed command carries --symlink: ${line}`).not.toContain("--symlink");
+
+    const ran = runPrintedCommand(line, { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(ran.premise.conflictingInstallMode, "premise: the conflicting INSTALL_MODE is not symlink").toBe("symlink");
+    expect(ran.premise.installModeBeforePrinted, "premise: the child's environment did not hold INSTALL_MODE=symlink before the printed assignments").toBe("symlink");
+    expect(ran.premise.installMode, "premise: the child's INSTALL_MODE is not the printed copy").toBe("copy");
+    expect(ran.premise.srcBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_SRC before the printed assignments").toBe(ran.premise.conflictingSrc);
+    expect(pathText(ran.premise.conflictingSrc), "premise: the conflicting GRUGOPS_SRC is this checkout").not.toBe(pathText(REPO_ROOT));
+    expect(pathText(ran.premise.grugopsSrc), "premise: the child's GRUGOPS_SRC is not this checkout").toBe(pathText(REPO_ROOT));
+    expect(ran.premise.targetBeforeRun, "premise: the child's environment did not hold the conflicting TARGET").toBe(ran.premise.conflictingTarget);
+    expect(pathText(ran.premise.grugopsHome), "premise: the child's GRUGOPS_HOME is not the printed one").toBe(pathText(defaultKit));
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(ran.premise.conflictingTargetEmpty, "the printed command wrote into the conflicting TARGET").toBe(true);
+    expect(ran.premise.conflictingKitHomeCreated, "the printed command created the conflicting kit home").toBe(false);
+    const agents = lstatSync(join(row.target, "AGENTS.md"));
+    expect(agents.isSymbolicLink(), "the printed command made AGENTS.md a link: it ran as a symlink install").toBe(false);
+    expect(agents.isFile(), "the printed command did not write AGENTS.md again").toBe(true);
+    const after = readMarkerObject(row.target);
+    expect(after.installMode, "the printed command changed the install mode").toBe("copy");
+    expect(String(after.grugopsHome), "the printed command moved the marker's kit home").toBe(String(before.grugopsHome));
+    expect(String(after.kitRoot), "the printed command moved the marker's kit root").toBe(String(before.kitRoot));
   });
 });

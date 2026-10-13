@@ -322,14 +322,20 @@ export interface RunOptions {
    * `$HOME/.grugops`. Requires `home`: without a scratch HOME the default kit home would be the real one.
    */
   readonly omitKitHome?: boolean;
+  /**
+   * The INSTALL_MODE in the child's environment (plan 34.1-48, D-38): "copy" when omitted. A row sets "symlink" to run
+   * in a shell that exports INSTALL_MODE=symlink (R50, WR-25's mode half).
+   */
+  readonly installMode?: "copy" | "symlink";
 }
 
 /**
- * Run a committed installer binary against `target` with the kit home at `grugopsHome`. Copy mode
- * unless `args` says `--symlink`; GRUGOPS_SRC is this repository unless `opts.src` names another.
+ * Run a committed installer binary against `target` with the kit home at `grugopsHome`. INSTALL_MODE is
+ * `opts.installMode` (copy when omitted; `--symlink` in `args` overrides it); GRUGOPS_SRC is this repository
+ * unless `opts.src` names another.
  */
 export function spawnBin(bin: string, args: readonly string[], target: string, grugopsHome: string, opts: RunOptions = {}): Run {
-  const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: opts.src ?? REPO_ROOT, GRUGOPS_HOME: grugopsHome, TARGET: target };
+  const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: opts.installMode ?? "copy", GRUGOPS_SRC: opts.src ?? REPO_ROOT, GRUGOPS_HOME: grugopsHome, TARGET: target };
   if (opts.omitKitHome) {
     if (opts.home === undefined || opts.home === "") {
       throw new Error("spawnBin: omitKitHome needs a scratch home (the default kit home would be the real ~/.grugops)");
@@ -536,22 +542,21 @@ interface StatedCommand {
  * nothing from host-tools.ts, so a row that compares a printed command with it (statedWords, statedModeWords) does not
  * build its expected value with the builder under test.
  *
- * The rule it states, as the plan-47 build prints (D-38, plan 34.1-47, review WR-25; it amends D-33's "only for a kit
- * home other than the default"): GRUGOPS_HOME on every command of both binaries, the default kit home
- * `<home>/.grugops` included; GRUGOPS_SRC on both binaries when the run's kit checkout is not this checkout (D-36,
- * WR-23); and the install mode as a word, not an assignment: `--symlink` after an install command's script word for a
- * symlink context, nothing for copy, and nothing on an uninstall command (uninstall.js refuses `--symlink`). `run.home`
- * is kept as a fact of the run the rule may read; this statement does not read it.
+ * The rule it states (D-38, plans 34.1-47 and 34.1-48, review WR-25; it amends D-33's "only for a kit home other than
+ * the default" and D-36's "GRUGOPS_SRC only for another checkout"): nothing a printed command does is left to an absent
+ * word. An install.js command states GRUGOPS_HOME (the default kit home `<home>/.grugops` included), INSTALL_MODE (copy
+ * or symlink: the one spelling install.js accepts for both modes) and GRUGOPS_SRC (this checkout included); an
+ * uninstall.js command states GRUGOPS_HOME and GRUGOPS_SRC and no install mode, because uninstall.js reads no
+ * INSTALL_MODE and refuses `--symlink`. No printed command carries a mode word after its script word, so the mode words
+ * are empty. `run.home` is kept as a fact of the run the rule may read; this statement does not read it.
  */
 function statedCommand(binary: "install.js" | "uninstall.js", run: StatedRun): StatedCommand {
   void run.home;
   const mode = run.installMode ?? "copy";
   const assigned: Record<string, string> = { GRUGOPS_HOME: pathText(canonicalPathSpelling(resolve(run.kitHome))) };
-  if (run.src !== undefined) {
-    const src = pathText(canonicalPathSpelling(resolve(run.src)));
-    if (src !== pathText(canonicalPathSpelling(REPO_ROOT))) assigned.GRUGOPS_SRC = src;
-  }
-  return { assigned, modeWords: binary === "install.js" && mode === "symlink" ? ["--symlink"] : [] };
+  if (binary === "install.js") assigned.INSTALL_MODE = mode;
+  assigned.GRUGOPS_SRC = pathText(canonicalPathSpelling(resolve(run.src ?? REPO_ROOT)));
+  return { assigned, modeWords: [] };
 }
 
 /**
@@ -591,19 +596,18 @@ export function statedKitHome(binary: "install.js" | "uninstall.js", run: Stated
 
 /**
  * The context a run with these values builds (plan 34.1-22, D-33): this checkout's install directory, the kit home
- * `grugopsHome`, the install mode, and the kit checkout `src` the run used (GRUGOPS_SRC; this checkout when omitted, so the context's src is null; plan
- * 34.1-37, D-36), all in the product's one spelling. A test builds an expected printed command with agentCommand(...,
- * this context). It is built by the product's one constructor, host-tools.ts commandContextFromRecord, with no record
- * (plan 34.1-36, D-36). Plan 34.1-47 (D-38) dropped its `home` option: the default kit home decided only whether the
- * context's kit home was null, and since D-38 a context's kit home is always a path.
+ * `grugopsHome`, the install mode (copy when omitted), and the kit checkout `src` the run used (GRUGOPS_SRC; this
+ * checkout when omitted; plan 34.1-37, D-36), all in the product's one spelling. A test builds an expected printed
+ * command with agentCommand(..., this context). It is built by the product's one constructor, host-tools.ts
+ * commandContextFromRecord, with no record (plan 34.1-36, D-36). Plan 34.1-47 (D-38) dropped its `home` option and
+ * plan 34.1-48 (D-38) its boolean `symlink`: a context's kit home, install mode and checkout are always stated values.
  */
-export function commandContextFor(opts: { readonly grugopsHome: string; readonly symlink?: boolean; readonly src?: string }): CommandContext {
+export function commandContextFor(opts: { readonly grugopsHome: string; readonly installMode?: "copy" | "symlink"; readonly src?: string }): CommandContext {
   return commandContextFromRecord(null, {
     scriptDir: canonicalPathSpelling(import.meta.dirname),
     kitHome: canonicalPathSpelling(resolve(opts.grugopsHome)),
-    symlink: opts.symlink ?? false,
+    installMode: opts.installMode ?? "copy",
     src: canonicalPathSpelling(resolve(opts.src ?? REPO_ROOT)),
-    checkout: canonicalPathSpelling(REPO_ROOT),
   });
 }
 
@@ -614,11 +618,13 @@ export interface PrintedRun extends Run {
     readonly cwd: string;
     /** The GRUGOPS_HOME the child's environment held: the printed text's own (D-38: every printed command states one). */
     readonly grugopsHome: string;
+    /** The GRUGOPS_SRC the child's environment held: the printed text's own (D-38: every printed command states one). */
+    readonly grugopsSrc: string;
     /**
-     * The GRUGOPS_SRC the child's environment held: the printed text's own (only on a call with `expectSrc: true`), or
-     * undefined when it set none (plan 34.1-37, D-36).
+     * The INSTALL_MODE the child's environment held: the printed text's own for an install.js command (D-38), and the
+     * conflicting one for an uninstall.js command, which states none because uninstall.js reads none.
      */
-    readonly grugopsSrc: string | undefined;
+    readonly installMode: string;
     /**
      * The conflicting GRUGOPS_HOME the child's environment held before the printed assignments were applied (plan
      * 34.1-47, D-38): a not-yet-existing directory under a scratch directory the harness made for this run, so only the
@@ -632,6 +638,30 @@ export interface PrintedRun extends Run {
     readonly kitHomeBeforePrinted: string | undefined;
     /** Whether the conflicting kit home exists after the run: true means the command took its kit home from the environment (WR-25). */
     readonly conflictingKitHomeCreated: boolean;
+    /**
+     * The conflicting INSTALL_MODE the child's environment held before the printed assignments (plan 34.1-48, D-38):
+     * the mode the printed text does not state ("symlink" when it states "copy" or none, "copy" when it states
+     * "symlink"), so only the printed text can set the install mode.
+     */
+    readonly conflictingInstallMode: "copy" | "symlink";
+    /** The INSTALL_MODE the child's environment held just before the printed assignments: the conflicting one. */
+    readonly installModeBeforePrinted: string | undefined;
+    /**
+     * The conflicting GRUGOPS_SRC the child's environment held before the printed assignments (plan 34.1-48, D-38): an
+     * empty scratch directory that holds no kit, so a command that rendered from it would fail or write nothing.
+     */
+    readonly conflictingSrc: string;
+    /** The GRUGOPS_SRC the child's environment held just before the printed assignments: the conflicting one. */
+    readonly srcBeforePrinted: string | undefined;
+    /**
+     * The conflicting TARGET the child's environment held (plan 34.1-48, D-38): an empty scratch directory. A printed
+     * command names its target with `--target`, so the child must never write there.
+     */
+    readonly conflictingTarget: string;
+    /** The TARGET the child's environment held: the conflicting one (no printed command assigns TARGET). */
+    readonly targetBeforeRun: string | undefined;
+    /** Whether the conflicting TARGET directory is still empty after the run (false means the command wrote into it). */
+    readonly conflictingTargetEmpty: boolean;
   };
 }
 
@@ -641,37 +671,41 @@ function insideCheckout(dir: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
+/** The assignment names a printed command may carry (D-38): the variables the run decided and the binaries read. */
+const PRINTED_ASSIGNMENT_NAMES = ["GRUGOPS_HOME", "INSTALL_MODE", "GRUGOPS_SRC"] as const;
+
 /**
- * Run a printed command in the user's environment (plan 34.1-22, D-33; brief §4, WR-19; plan 34.1-47, D-38, brief §6,
- * WR-25). The printed text alone decides the kit home, in a shell that exports another one, and the working directory
- * is not the checkout:
+ * Run a printed command in the user's environment (plan 34.1-22, D-33; brief §4, WR-19; plans 34.1-47 and 34.1-48,
+ * D-38, brief §6, WR-25). The printed text alone decides the kit home, the install mode and the kit checkout, in a
+ * shell that exports conflicting values of each and of TARGET, and the working directory is not the checkout:
  *   - the span is printedCommand(text), split by shellWords, so its script word is absolute (printedCommand returns no
- *     span with a relative one, and says so when it saw one). Its leading assignments may only be GRUGOPS_HOME, and
- *     GRUGOPS_SRC on a call that passes `expectSrc: true`; any other name throws, and so does GRUGOPS_SRC on a call
- *     without the opt-in, before anything runs. The script word must be install.js or uninstall.js of this checkout,
- *     and the command must state GRUGOPS_HOME (D-38: every printed command of either binary states its kit home);
- *     one that states none throws before anything runs, naming GRUGOPS_HOME;
- *   - the environment is this process's with GRUGOPS_SRC, INSTALL_MODE, TARGET and DRY_RUN removed, HOME set to the
- *     required scratch `home` (so the real HOME is never inherited), GRUGOPS_HOME set to a CONFLICTING kit home (a
- *     not-yet-existing directory under a scratch directory the harness makes for this run, never the printed one: it
- *     throws when they are equal), and then the printed assignments, so only the printed text can override it. This is
- *     the premise WR-25 named: the harness used to remove GRUGOPS_HOME, which is exactly the variable whose presence
- *     shows a command that leaves its kit home to the shell;
+ *     span with a relative one, and says so when it saw one). Its leading assignments may only be GRUGOPS_HOME,
+ *     INSTALL_MODE and GRUGOPS_SRC; any other name throws before anything runs. The script word must be install.js or
+ *     uninstall.js of this checkout. D-38's shape is checked before anything runs: an install.js command must state all
+ *     three, an uninstall.js command GRUGOPS_HOME and GRUGOPS_SRC (and no INSTALL_MODE, which uninstall.js does not
+ *     read); a missing word throws, naming it. The printed GRUGOPS_SRC must be `expectSrc` (the kit checkout the row
+ *     expects; this checkout when omitted), or it throws naming both;
+ *   - the environment is this process's with DRY_RUN removed, HOME set to the required scratch `home` (so the real HOME
+ *     is never inherited), and CONFLICTING values set before the printed assignments: GRUGOPS_HOME a not-yet-existing
+ *     directory under a scratch directory the harness makes for this run (it throws when the printed one is equal),
+ *     INSTALL_MODE the mode the printed text does not state ("symlink" when it states "copy" or none), GRUGOPS_SRC an
+ *     empty scratch directory that holds no kit, and TARGET an empty scratch directory. Then the printed assignments
+ *     are applied, so only the printed text can override them. This is the premise WR-25 named: the harness used to
+ *     remove exactly the variables whose presence shows a command that leaves a value to the shell;
  *   - the working directory is `cwd` or a fresh scratch directory under the OS temp directory (removed afterwards);
  *     it throws when that directory is the checkout root or inside it.
- * The command is run with this Node binary. The result carries its premise (the cwd, the GRUGOPS_HOME and GRUGOPS_SRC
- * the child saw, the conflicting kit home, and whether that kit home exists after the run), which the tests assert.
+ * The command is run with this Node binary. The result carries its premise (the cwd, the values the child saw, each
+ * conflicting value and what the child held before the printed assignments, whether the conflicting kit home was
+ * created and whether the conflicting TARGET is still empty), which the tests assert.
  *
- * WHY `expectSrc` IS AN OPT-IN (plan 34.1-37, D-36, review WR-23). A printed command carries `GRUGOPS_SRC=<dir>` only
- * when the run used a kit checkout other than the running script's. Every follow-as-printed row written before that
- * runs without the opt-in, so a command that starts carrying GRUGOPS_SRC where its row does not expect it makes that
- * row fail on this throw instead of passing with a checkout nobody asked for. Only a row that sets up another checkout
- * on purpose (the WR-23 case, R40) passes `expectSrc: true`. The test process's own GRUGOPS_SRC never reaches the
- * child either way.
+ * `expectSrc` (plan 34.1-48, D-38) replaces plan 34.1-37's boolean opt-in: every printed command now states its kit
+ * checkout, so a row names the checkout it expects instead of opting in to one. A row that sets up another checkout on
+ * purpose (the WR-23 case, R40) passes that checkout; every other row expects this checkout. The test process's own
+ * GRUGOPS_SRC never reaches the child.
  */
 export function runPrintedCommand(
   text: string,
-  opts: { readonly home: string; readonly timeoutMs?: number; readonly cwd?: string; readonly expectSrc?: boolean },
+  opts: { readonly home: string; readonly timeoutMs?: number; readonly cwd?: string; readonly expectSrc?: string },
 ): PrintedRun {
   if (typeof opts.home !== "string" || opts.home === "") throw new Error("runPrintedCommand: a scratch home is required");
   const span = printedCommand(text);
@@ -681,11 +715,8 @@ export function runPrintedCommand(
   for (const w of words.slice(0, at)) {
     const eq = w.indexOf("=");
     const name = w.slice(0, eq);
-    if (name === "GRUGOPS_SRC" && opts.expectSrc !== true) {
-      throw new Error(`runPrintedCommand: the printed command sets GRUGOPS_SRC, and this call did not opt in with expectSrc: true: ${span}`);
-    }
-    if (name !== "GRUGOPS_HOME" && name !== "GRUGOPS_SRC") {
-      throw new Error(`runPrintedCommand: the printed command sets ${name}, not only GRUGOPS_HOME (and GRUGOPS_SRC on an opt-in call): ${span}`);
+    if (!(PRINTED_ASSIGNMENT_NAMES as readonly string[]).includes(name)) {
+      throw new Error(`runPrintedCommand: the printed command sets ${name}, not only ${PRINTED_ASSIGNMENT_NAMES.join(", ")}: ${span}`);
     }
     assigned[name] = w.slice(eq + 1);
   }
@@ -693,11 +724,29 @@ export function runPrintedCommand(
   if (![INSTALL_JS, UNINSTALL_JS].some((p) => pathText(p) === pathText(script))) {
     throw new Error(`runPrintedCommand: the script word ${JSON.stringify(script)} is not an installer script of this checkout: ${span}`);
   }
-  if (!Object.hasOwn(assigned, "GRUGOPS_HOME")) {
-    throw new Error(`runPrintedCommand: the printed command states no GRUGOPS_HOME (D-38: every printed install.js and uninstall.js command states its kit home): ${span}`);
+  const install = pathText(script) === pathText(INSTALL_JS);
+  const required = install ? ["GRUGOPS_HOME", "INSTALL_MODE", "GRUGOPS_SRC"] : ["GRUGOPS_HOME", "GRUGOPS_SRC"];
+  for (const name of required) {
+    if (!Object.hasOwn(assigned, name)) {
+      throw new Error(
+        `runPrintedCommand: the printed ${install ? "install.js" : "uninstall.js"} command states no ${name} (D-38: every printed install.js command states GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC, every uninstall.js command GRUGOPS_HOME and GRUGOPS_SRC): ${span}`,
+      );
+    }
+  }
+  if (!install && Object.hasOwn(assigned, "INSTALL_MODE")) {
+    throw new Error(`runPrintedCommand: the printed uninstall.js command states INSTALL_MODE, which uninstall.js does not read (D-38): ${span}`);
+  }
+  const wantSrc = pathText(canonicalPathSpelling(resolve(opts.expectSrc ?? REPO_ROOT)));
+  if (pathText(canonicalPathSpelling(resolve(assigned.GRUGOPS_SRC))) !== wantSrc) {
+    throw new Error(`runPrintedCommand: the printed GRUGOPS_SRC ${JSON.stringify(assigned.GRUGOPS_SRC)} is not the kit checkout this row expects (${wantSrc}): ${span}`);
   }
   const envScratch = mkdtempSync(join(tmpdir(), "gprinted-env-"));
   const conflictingKitHome = join(envScratch, "conflicting-kit");
+  const conflictingSrc = join(envScratch, "conflicting-src");
+  const conflictingTarget = join(envScratch, "conflicting-target");
+  mkdirSync(conflictingSrc);
+  mkdirSync(conflictingTarget);
+  const conflictingInstallMode: "copy" | "symlink" = assigned.INSTALL_MODE === "symlink" ? "copy" : "symlink";
   const made = opts.cwd === undefined;
   let cwd = opts.cwd ?? "";
   try {
@@ -705,10 +754,16 @@ export function runPrintedCommand(
       throw new Error(`runPrintedCommand: the printed GRUGOPS_HOME is the conflicting kit home, so the premise cannot tell them apart: ${span}`);
     }
     const env: NodeJS.ProcessEnv = { ...process.env };
-    for (const key of ["GRUGOPS_SRC", "INSTALL_MODE", "TARGET", "DRY_RUN"]) delete env[key];
+    delete env.DRY_RUN;
     env.GRUGOPS_HOME = conflictingKitHome;
+    env.INSTALL_MODE = conflictingInstallMode;
+    env.GRUGOPS_SRC = conflictingSrc;
+    env.TARGET = conflictingTarget;
     env.HOME = opts.home;
     const kitHomeBeforePrinted = env.GRUGOPS_HOME;
+    const installModeBeforePrinted = env.INSTALL_MODE;
+    const srcBeforePrinted = env.GRUGOPS_SRC;
+    const targetBeforeRun = env.TARGET;
     Object.assign(env, assigned);
     if (made) cwd = mkdtempSync(join(tmpdir(), "gprinted-"));
     try {
@@ -729,10 +784,18 @@ export function runPrintedCommand(
         premise: {
           cwd,
           grugopsHome: String(env.GRUGOPS_HOME),
-          grugopsSrc: env.GRUGOPS_SRC,
+          grugopsSrc: String(env.GRUGOPS_SRC),
+          installMode: String(env.INSTALL_MODE),
           conflictingKitHome,
           kitHomeBeforePrinted,
           conflictingKitHomeCreated: existsSync(conflictingKitHome),
+          conflictingInstallMode,
+          installModeBeforePrinted,
+          conflictingSrc,
+          srcBeforePrinted,
+          conflictingTarget,
+          targetBeforeRun,
+          conflictingTargetEmpty: readdirSync(conflictingTarget).length === 0,
         },
       };
     } finally {

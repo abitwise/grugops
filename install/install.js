@@ -374,21 +374,23 @@ const DOCTOR_MARKER_READ = CHECK ? readInstallMarker(TARGET) : null;
 //     can hold an older kit home than the one this run's printed commands carry.
 // The kit home is a path, the default `~/.grugops` included (D-38, plan 34.1-47, review WR-25), so every printed
 // command, of either binary, states `GRUGOPS_HOME=<dir>` and an exported GRUGOPS_HOME in the user's shell cannot change
-// where it puts or reads the kit; a printed install command carries `--symlink` for a symlink install. Every path is in
+// where it puts or reads the kit. A printed install command states its install mode as `INSTALL_MODE=<copy|symlink>`,
+// the one spelling install.js accepts for both modes, and never carries `--symlink` (D-38, plan 34.1-48, review WR-25:
+// an exported INSTALL_MODE turned a printed copy-mode remedy into a symlink install). Every path is in
 // canonicalPathSpelling's one spelling. Declared after TARGET (the marker read needs it); no module-level statement
 // above calls agentCommand, scriptCommand or the doctor's command helpers below, which run only from functions and
 // branches after this line. The doctor's unbound-marker WARN names COMMAND_CONTEXT.kitHome, the kit home its printed
 // install step copies the kit into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
-// The kit checkout (plan 34.1-37, D-36, review WR-23): `src` is this run's GRUGOPS_SRC and `checkout` this script's own
-// checkout, both in the one spelling. When they differ, every printed command carries `GRUGOPS_SRC=<src>`, so the
-// doctor's stale-adapter remedy renders from the checkout the doctor compared, and an install's printed commands use
-// the checkout the install used. The marker records no checkout, so this always comes from the run.
+// The kit checkout (plan 34.1-37, D-36, review WR-23; plan 34.1-48, D-38): `src` is this run's GRUGOPS_SRC (this
+// script's own checkout when none was given), in the one spelling. Every printed command states it as
+// `GRUGOPS_SRC=<src>`, this checkout included, so the doctor's stale-adapter remedy renders from the checkout the doctor
+// compared, an install's printed commands use the checkout the install used, and an exported GRUGOPS_SRC in the user's
+// shell cannot change either. The marker records no checkout, so this always comes from the run.
 const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
     scriptDir: canonicalPathSpelling(SCRIPT_DIR),
     kitHome: GRUGOPS_HOME,
-    symlink: INSTALL_MODE === "symlink",
+    installMode: INSTALL_MODE,
     src: canonicalPathSpelling(GRUGOPS_SRC),
-    checkout: canonicalPathSpelling(resolve(SCRIPT_DIR, "..")),
 });
 // THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
 // install.js prints its command from the helpers below, so the command runs as printed from any directory, with the

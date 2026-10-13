@@ -1378,11 +1378,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // WR-23 (phase 34.1 gap round 3, D-36; brief §5, MSG-1): with GRUGOPS_SRC set to another kit checkout S, the doctor
-  // compares the adapters against a render of S, so its remedy must render from S too. The context carries `src` (null
-  // when it equals the running script's checkout), and the printed command starts `GRUGOPS_SRC=<S>`. The row is
+  // compares the adapters against a render of S, so its remedy must render from S too. The context carries `src` (a path,
+  // the running script's own checkout included since plan 34.1-48, D-38), and the printed command states `GRUGOPS_SRC=<S>`. The row is
   // builder-independent: it reads the WARN's checkout paths and the span's words off the printed line, runs the span as
   // printed from outside the checkout with GRUGOPS_SRC set only by the printed text (runPrintedCommand's `expectSrc`
-  // opt-in), and then re-checks against S.
+  // names S; plan 34.1-48, D-38), and then re-checks against S.
   //
   // Staleness setup (plan 34.1-37, recorded in its SUMMARY): install from this repository, then `--check` with S. S is
   // a copy of this checkout's kit inputs (copyCheckoutWithEditedRole) whose Orchestrator role has another `## One job`
@@ -1442,7 +1442,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(words.slice(2, 2 + mode.length), "the span does not state the install mode the rule gives").toEqual(mode);
     expect(words.slice(2 + mode.length).join(" "), "the span's arguments: the target only, no agent flag and no mode").toBe(`--target ${target}`);
 
-    const fin = runPrintedCommand(warn[0], { home: userHome, timeoutMs: 180_000, expectSrc: true });
+    // Re-pinned by plan 34.1-48 (2026-10-13, D-38): `expectSrc` names the checkout S this row set, not an opt-in.
+    const fin = runPrintedCommand(warn[0], { home: userHome, timeoutMs: 180_000, expectSrc: src });
     expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
     expect(fin.premise.grugopsSrc, "premise: the child saw no GRUGOPS_SRC").toBeDefined();
     expect(pathText(fin.premise.grugopsSrc ?? ""), "premise: the child's GRUGOPS_SRC is not the printed S").toBe(pathText(src));
