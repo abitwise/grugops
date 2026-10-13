@@ -2474,4 +2474,35 @@ describe("WR-21 (D-36): the doctor's printed commands carry the record's kit hom
     expect(String(after.grugopsHome), "the printed command moved the marker's kit home").toBe(recordedHome);
     expect(String(after.kitRoot), "the printed command moved the marker's kit root").toBe(recordedRoot);
   });
+
+  it("row 2, the install-mode half: install --symlink --codex with K, AGENTS.md deleted, --check WITHOUT --symlink and WITHOUT GRUGOPS_HOME; the AGENTS.md remedy carries GRUGOPS_HOME=<K> and --symlink, and run as printed it exits 0, keeps installMode symlink and the kit home K, and writes no default kit", () => {
+    const { target, kitHome, home, defaultKit } = rowWithHome();
+    const r = runInstall(target, kitHome, ["--symlink", agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const before = readMarkerObject(target);
+    expect(before.installMode, "premise: the marker records a symlink install").toBe("symlink");
+    expect(pathText(String(before.grugopsHome)), "premise: the marker records K").toBe(pathText(kitHome));
+    rmSync(join(target, "AGENTS.md"));
+    // spawnBin sets INSTALL_MODE=copy and the arguments carry no --symlink, so this --check run is a copy-mode run.
+    const c = spawnBin(INSTALL_JS, ["--check"], target, kitHome, { home, omitKitHome: true });
+    const line = agentsRemedyLine(c.stdout);
+    const words = shellWords(printedCommand(line));
+    expect(words[0]?.startsWith("GRUGOPS_HOME="), `word 0 is not GRUGOPS_HOME=<K>: ${line}`).toBe(true);
+    expect(pathText((words[0] ?? "").slice("GRUGOPS_HOME=".length)), "word 0 names another kit home").toBe(pathText(kitHome));
+    expect(words[1], line).toBe("node");
+    expect(pathText(words[2] ?? ""), line).toBe(pathText(INSTALL_JS));
+    expect(words[3], `the printed install command does not carry the recorded symlink mode: ${line}`).toBe("--symlink");
+    expect(words[4], line).toBe("--target");
+    expect(pathText(words[5] ?? ""), line).toBe(pathText(target));
+    expect(words.length, `the printed command carries more than the target (an agent flag or a mode): ${line}`).toBe(6);
+    const ran = runPrintedCommand(line, { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(pathText(ran.premise.grugopsHome ?? ""), "premise: the printed text set K").toBe(pathText(kitHome));
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(existsSync(join(target, "AGENTS.md")), "the printed command did not write AGENTS.md again").toBe(true);
+    const after = readMarkerObject(target);
+    expect(after.installMode, "the printed command changed the install mode").toBe("symlink");
+    expect(String(after.grugopsHome), "the printed command moved the marker's kit home").toBe(String(before.grugopsHome));
+    expect(existsSync(defaultKit), "a second kit was written into the default kit home <HOME>/.grugops").toBe(false);
+  });
 });

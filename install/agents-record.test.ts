@@ -62,7 +62,19 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
-import { AGENT_SKILL_REL, HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag, commandContext, entryOwners, scriptCommand, type HostTool } from "./host-tools.js";
+import {
+  AGENT_SKILL_REL,
+  HOST_TOOLS,
+  PI_PROMPT_REL,
+  agentCommand,
+  agentFlag,
+  commandContext,
+  commandContextFromRecord,
+  entryOwners,
+  scriptCommand,
+  type HostTool,
+  type RecordRead,
+} from "./host-tools.js";
 import {
   ASK_RULES_REL,
   agentsToRecord,
@@ -294,6 +306,48 @@ describe("agentCommand: the one builder of a printed command that names agents (
       const cmd = agentCommand("uninstall.js", target, [row("claude")], plain);
       expect(shellWords(cmd), cmd).toEqual([...shellWords(scriptCommand("uninstall.js", plain)), "--target", target, flag("claude")]);
       expect(shellWords(cmd).slice(0, 2), cmd).toEqual(["node", `${DIR}/uninstall.js`]);
+    }
+  });
+
+  // commandContextFromRecord (phase 34.1 gap round 3, D-36, WR-21): the one derivation of a printed command's kit home
+  // and install mode. Only an `ok` record whose grugopsHome is a non-empty string and whose installMode is copy or
+  // symlink gives its values; every other record gives the run's. The unbound row carries a marker object with a kit
+  // home and symlink on purpose: an owner that read an `unbound` record would take them (M2). Each row names which
+  // side it takes, and the expected context is built from that side by hand, so the rule is not computed twice.
+  describe("commandContextFromRecord: the record's kit home and mode only from an ok marker, the run's otherwise (D-36)", () => {
+    const REC_KIT = "/srv/kits/recorded";
+    const RUN_KIT = "/srv/kits/run";
+    const records: ReadonlyArray<{ readonly name: string; readonly record: RecordRead | null; readonly takes: "record" | "run"; readonly home?: string; readonly symlink?: boolean }> = [
+      { name: "no record (null)", record: null, takes: "run" },
+      { name: "absent", record: { state: "absent", marker: null }, takes: "run" },
+      { name: "unreadable", record: { state: "unreadable", marker: null }, takes: "run" },
+      { name: "unbound, carrying a kit home and symlink", record: { state: "unbound", marker: { grugopsHome: REC_KIT, installMode: "symlink" } }, takes: "run" },
+      { name: "ok, kit home K, symlink", record: { state: "ok", marker: { grugopsHome: REC_KIT, installMode: "symlink" } }, takes: "record", home: REC_KIT, symlink: true },
+      { name: "ok, the default kit home, copy", record: { state: "ok", marker: { grugopsHome: DEFAULT_KIT, installMode: "copy" } }, takes: "record", home: DEFAULT_KIT, symlink: false },
+      { name: "ok, a non-string grugopsHome", record: { state: "ok", marker: { grugopsHome: 42, installMode: "symlink" } }, takes: "run" },
+      { name: "ok, an installMode that is neither copy nor symlink", record: { state: "ok", marker: { grugopsHome: REC_KIT, installMode: "banana" } }, takes: "run" },
+    ];
+    const runs: ReadonlyArray<{ readonly name: string; readonly kitHome: string; readonly symlink: boolean }> = [
+      { name: "run: default kit home, copy", kitHome: DEFAULT_KIT, symlink: false },
+      { name: "run: default kit home, symlink", kitHome: DEFAULT_KIT, symlink: true },
+      { name: "run: another kit home, copy", kitHome: RUN_KIT, symlink: false },
+      { name: "run: another kit home, symlink", kitHome: RUN_KIT, symlink: true },
+    ];
+    it("premise: the table holds 8 record shapes times 4 runs, and two of the shapes take the record", () => {
+      expect(records.length * runs.length).toBe(32);
+      expect(records.filter((r) => r.takes === "record").length).toBe(2);
+    });
+    for (const rec of records) {
+      for (const run of runs) {
+        it(`${rec.name} / ${run.name} -> the ${rec.takes}'s values`, () => {
+          const got = commandContextFromRecord(rec.record, { scriptDir: DIR, kitHome: run.kitHome, defaultKitHome: DEFAULT_KIT, symlink: run.symlink });
+          const home = rec.takes === "record" ? rec.home : run.kitHome;
+          const symlink = rec.takes === "record" ? rec.symlink : run.symlink;
+          expect(got.scriptDir).toBe(DIR);
+          expect(got.kitHome, "kitHome is null exactly when the chosen kit home is the default").toBe(home === DEFAULT_KIT ? null : home);
+          expect(got.symlink).toBe(symlink);
+        });
+      }
     }
   });
 
