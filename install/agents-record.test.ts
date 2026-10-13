@@ -103,6 +103,7 @@ import {
   agentsToRecord,
   entryHolds,
   MARKER_DEFECTS,
+  markerDefectText,
   markerFixText,
   markerRemedy,
   readInstallMarker,
@@ -2746,6 +2747,67 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     writeFileSync(at(w.target, MARKER_REL), original);
     install(w, [flag("claude")]);
     expect(readLedger(readMarkerObject(w.target)).state, "the ledger is well formed again").toBe("ok");
+  });
+
+  // R44 (plan 34.1-44, 2026-10-13, D-37, 34.1 review IN-33): the skipped line of install and the `left` line of a
+  // flag-less uninstall over a marker this run cannot use word the cause the reader saw, from the read's defect, through
+  // one wording (install-marker.ts markerDefectText). Until plan 34.1-44 writeMarker said "a field in it holds a value
+  // install never writes" for a duplicate key or a byte the strict reader refuses. One shape per defect, each made from
+  // the marker install wrote by one hand edit, the premise asserted through the product's reader.
+  it("R44 (IN-33): over one shape per unreadable defect (duplicate key, a byte the strict reader refuses, a field problem, a retired record, not valid JSON), install --codex's skipped line and a flag-less uninstall's `left` line for the marker word the defect's cause through markerDefectText and point at the verify line above; only the field shape says a field holds a value install never writes, and no line says the marker is not install's", () => {
+    const FIELD_CLAUSE = "a field in it holds a value install never writes";
+    /** Each shape's hand edit of the marker text install wrote. */
+    const SHAPES: readonly { readonly defect: Exclude<MarkerDefect, "ledger">; readonly edit: (w: World) => void }[] = [
+      {
+        defect: "duplicate-key",
+        edit: (w) => {
+          const t = readFileSync(at(w.target, MARKER_REL), "utf8");
+          expect(t.startsWith("{\n"), "PREMISE: the marker install wrote opens an object on its own line").toBe(true);
+          writeFileSync(at(w.target, MARKER_REL), `{\n  "agents": [],${t.slice(1)}`);
+        },
+      },
+      {
+        defect: "bytes",
+        edit: (w) => {
+          const t = readFileSync(at(w.target, MARKER_REL));
+          writeFileSync(at(w.target, MARKER_REL), Buffer.concat([Buffer.from('{\n  "note": "', "utf8"), Buffer.from([0xff]), Buffer.from('",', "utf8"), t.subarray(1)]));
+        },
+      },
+      { defect: "field", edit: (w) => setAgentsByHand(w, BAD_AGENTS) },
+      {
+        defect: "retired-record",
+        edit: (w) => writeFileSync(at(w.target, MARKER_REL), JSON.stringify({ ...readMarkerObject(w.target), createdFiles: [] }, null, 2) + "\n"),
+      },
+      { defect: "not-json", edit: (w) => void addTrailingComma(w) },
+    ];
+    for (const { defect, edit } of SHAPES) {
+      const clause = markerDefectText(defect);
+      const w = world(`r44-${defect}`);
+      install(w, [flag("codex")]);
+      edit(w);
+      const read = readInstallMarker(w.target);
+      expect(read.state === "unreadable" ? read.defect : read.state, `PREMISE: the ${defect} shape reads unreadable with that defect`).toBe(defect);
+
+      const a = runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, timeoutMs: 180_000 });
+      finished(a, `install --codex over the ${defect} shape`);
+      expect(a.status, `${defect}: install exit\n${a.stdout}`).toBe(3);
+      const skipped = linesWith(a.stdout, "skipped").filter((l) => l.includes(`${MARKER_REL} (`));
+      expect(skipped.length, `${defect}: the marker's skipped line\n${a.stdout}`).toBe(1);
+      expect(skipped[0], `${defect}: install`).toContain(`${MARKER_REL} (left unchanged — ${clause}; see the verify line above)`);
+
+      const u = uninstall(w, []);
+      expect(u.status, `${defect}: uninstall exit\n${u.stdout}`).toBe(3);
+      const left = linesWith(u.stdout, "left").filter((l) => l.includes(`${MARKER_REL} (`));
+      expect(left.length, `${defect}: the marker's left line\n${u.stdout}`).toBe(1);
+      expect(left[0], `${defect}: uninstall`).toContain(`${MARKER_REL} (left in place — ${clause}; see the verify line above)`);
+
+      for (const l of [skipped[0], left[0]]) {
+        expect(l.includes(FIELD_CLAUSE), `${defect}: only the field shape says a field holds a value install never writes: ${l}`).toBe(defect === "field");
+      }
+      for (const l of [...a.stdout.split("\n"), ...u.stdout.split("\n")]) {
+        expect(l, `${defect}: a line says the marker is not install's`).not.toMatch(/not install's/);
+      }
+    }
   });
 });
 

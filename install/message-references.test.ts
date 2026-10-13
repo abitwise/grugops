@@ -265,7 +265,7 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["install.ts", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules", "printed reference", "doctor: the malformed-ledger docFail, printed earlier in the same --check run"],
   ["install.ts", "the line above about", "printed reference", "noteStrandingCarriers: only when `written` (a writer of this run visited the carrier and printed its line; D-26, WR-17)"],
   ["install.ts", "(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.", "printed reference", "backupEditedKitFiles: the backed-up lines of the same backup pass"],
-  ["install.ts", "(left unchanged — it could not be used as install's marker; see the verify line above)", "printed reference", "writeMarker (step 8): askRulesStep's never-remove verify for the marker (step 7c, every run). Re-pinned by plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): one line for every unreadable read, which never says the marker is not install's (it had three, split on the jsonObject flag and the owner's well-formed-ledger answer)"],
+  ["install.ts", "; see the verify line above)", "printed reference", "writeMarker (step 8): askRulesStep's never-remove verify for the marker (step 7c, every run). Re-pinned by plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05, IN-33): one line for every unreadable read, which never says the marker is not install's (it had three, split on the jsonObject flag and the owner's well-formed-ledger answer), and whose cause clause is install-marker.ts markerDefectText of the read's defect"],
   ["install.ts", "refusal(s) above were found before the first change, and", "printed reference", "--migrate pre-check: its verify(why) loop, printed just before"],
   ["install.ts", "is still the old layout. Resolve each verify above and re-run --migrate.", "printed reference", "--migrate pre-check: its verify(why) loop, printed just before"],
   ["install.ts", "DRY_RUN: this run would back up plans/handoffs/ (see the would-backup line above). Nothing was changed.", "printed reference", "--migrate handoffs backup: its would-backup line, printed just before"],
@@ -287,8 +287,7 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["uninstall.ts", "the install marker could not be used (see the verify line above), so there is no usable record that install appended this block — left in place;", "printed reference", "the module-top verify for an unusable marker, printed before any walk"],
   ["uninstall.ts", "the install ledger could not be used (see the verify line above) — left in place;", "printed reference", "the module-top verify for a malformed ledger, printed before any walk"],
   ["uninstall.ts", "; left in place — see the verify line above)", "printed reference", "the module-top verify for an unbound marker, printed before any walk"],
-  ["uninstall.ts", " (it could not be used as install's marker; left in place — see the verify line above)", "printed reference", "removeMarker's JSON-object arm (re-pinned by plan 34.1-42, 2026-10-13, D-37: one line for every JSON-object read, with no owner call): the module-top never-remove verify for the unreadable marker, printed before any walk; the line never says the marker is not install's"],
-  ["uninstall.ts", "; left in place — see the verify line above)", "printed reference", "removeMarker's U3 line (plan 34.1-42, 2026-10-13, D-37): a marker that is not JSON, not an object, a blocked read, a duplicate key or refused by the strict reader; the module-top never-remove verify for the unreadable marker, printed before any walk"],
+  ["uninstall.ts", "; see the verify line above)", "printed reference", "removeMarker's line over an unreadable marker (re-pinned by plan 34.1-44, 2026-10-13, D-37, 34.1 review IN-33: the JSON-object arm and U3 are one line whose cause clause is install-marker.ts markerDefectText of the read's defect): the module-top never-remove verify for the unreadable marker, printed before any walk; the line never says the marker is not install's"],
   ["uninstall.ts", "it was left in place — see the verify line above)", "printed reference", "removeMarker's U4 line (plan 34.1-43, 2026-10-13, D-37, 34.1 review CR-06): install's own marker with a malformed install ledger; the module-top never-remove verify for the malformed ledger, printed before any walk (it offered fixing or removing the marker before)"],
   ["uninstall.ts", "this run could not finish a recorded reversal (see the verify lines above)", "printed reference", "removeMarker: the walk's verify lines (markerDischarged false with nothing held)"],
   ["uninstall.ts", "once the cause in each verify line above is fixed", "printed reference", "removeMarker: the walk's verify lines (markerDischarged false with nothing held)"],
@@ -464,8 +463,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // verify (it offered fixing or removing the marker before), so uninstall.ts 23 -> 24 and "printed reference" 46 -> 47.
     // Plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): writeMarker's three skipped lines for an unreadable marker are
     // one, so install.ts 27 -> 25 and "printed reference" 47 -> 45.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 25, "uninstall.ts": 24 });
-    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 45, "same block": 1 });
+    // Plan 34.1-44 Task 3 (2026-10-13, D-37, 34.1 review IN-33): removeMarker's JSON-object arm and U3 line are one line
+    // whose cause is markerDefectText of the read's defect, so uninstall.ts 24 -> 23 and "printed reference" 45 -> 44.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 25, "uninstall.ts": 23 });
+    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 44, "same block": 1 });
   });
 
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {

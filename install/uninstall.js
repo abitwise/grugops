@@ -120,7 +120,7 @@ import { allAskRules, createdSettingsText } from "./checkpoint-ask-rules.js";
 // D-33 (b), plan 33.1-36: the ONE reader of the install marker and of the one install ledger
 // (readLedger), its one serializer (ledgerJson) and the one ownership authority (owns), shared with
 // install.ts (WR-05).
-import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, markerRemedy, markerFixText, noMarkerRemedy, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, entryHolds, agentsToRecord, wholeFileEntryRels, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, markerRemedy, markerFixText, markerDefectText, noMarkerRemedy, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, entryHolds, agentsToRecord, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue, firstDuplicateKey } from "./json-text.js";
@@ -1432,18 +1432,15 @@ function removeMarker() {
     if (!own.owned && MARKER_READ.state !== "ok") {
         // D-37 (34.1 review CR-05, plan 34.1-42): a marker this run could not use is left in place, and no line here offers
         // removing it or says it is not install's. For a read this run made, the module-top verify already named the cause,
-        // the by-hand fix and this run's command, so each line points at it.
-        if (MARKER_READ.state === "unreadable" && MARKER_READ.jsonObject) {
-            report("left", `${MARKER_REL} (it could not be used as install's marker; left in place — see the verify line above)`);
+        // the by-hand fix and this run's command, so each line points at it. An unreadable read's line words the cause the
+        // reader saw (install-marker.ts markerDefectText of its defect; 34.1 review IN-33): not JSON, not an object, a
+        // blocked read, a duplicate key, bytes the strict reader refuses, a field install never writes, a retired record.
+        if (MARKER_READ.state === "unreadable") {
+            report("left", `${MARKER_REL} (left in place — ${markerDefectText(MARKER_READ.defect)}; see the verify line above)`);
             return { kind: "left" };
         }
         if (MARKER_READ.state === "unbound") {
             report("left", `${MARKER_REL} (it is not a record this run can use: ${MARKER_READ.why}; left in place — see the verify line above)`);
-            return { kind: "left" };
-        }
-        // U3: not JSON, not an object, a blocked read, a duplicate key, or bytes the strict reader refuses.
-        if (MARKER_READ.state === "unreadable") {
-            report("left", `${MARKER_REL} (it could not be read as install's marker: ${MARKER_READ.why}; left in place — see the verify line above)`);
             return { kind: "left" };
         }
         // Not present when this run started, present now: this run read none of its records and printed no verify about

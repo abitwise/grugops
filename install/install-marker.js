@@ -428,6 +428,30 @@ export function markerFixText(remedy) {
     return (`Fix ${MARKER_REL} by hand${named}; never delete the marker: it is the one record install keeps of the agents ` +
         `installed here, so without it no uninstall can undo what install made`);
 }
+/**
+ * MARKER_DEFECT_TEXT (D-37, 34.1 review IN-33): one short cause clause per MarkerDefect. A Record over MarkerDefect, so
+ * a new defect is a compile error until it is worded. Only `field` says a field holds a value install never writes: a
+ * duplicate key or a byte the strict reader refuses is not a field problem.
+ */
+const MARKER_DEFECT_TEXT = {
+    blocked: "it could not be read as a JSON object",
+    "not-json": "it could not be read as a JSON object",
+    "not-object": "it could not be read as a JSON object",
+    bytes: "its bytes are not text install writes",
+    "duplicate-key": "a key in it appears more than once",
+    // installMarkerProblems reports a missing field ("no grugopsHome") as well as a wrong value, so both are named.
+    field: "a field in it holds a value install never writes, or a field install writes is missing",
+    "retired-record": "it holds a retired record next to the install ledger",
+    ledger: "its install ledger is malformed",
+};
+/**
+ * markerDefectText (D-37, 34.1 review IN-33): THE ONE WORDING of a defect's cause in a skipped or left line about the
+ * marker (install.ts writeMarker's skipped line, uninstall.ts removeMarker's line over an unreadable marker). The line
+ * names the cause the reader saw, never another one, and points at the never-remove verify the run printed.
+ */
+export function markerDefectText(defect) {
+    return MARKER_DEFECT_TEXT[defect];
+}
 // isLedgerPath: the `path` of one ledger entry has the shape stated in the header. The same rule serves
 // every kind, because a file path and a directory path under the target have the same shape: relative
 // to the target in POSIX form, non-empty, not starting with `/`, containing no `\` and no `:`, and every

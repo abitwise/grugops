@@ -210,8 +210,8 @@ export type MarkerDefect = (typeof MARKER_DEFECTS)[number];
 // object) it is the one entry the reader words there. `object` (the parsed object) and `duplicateKey` (the key
 // firstDuplicateKey named) are set only after JSON.parse returned a JSON object, on the four arms that can still refuse
 // it (the strict reader, a duplicate key, installMarkerProblems, the one ledger next to a retired record). They decide
-// only the WORDING of a remedy (markerRemedy and markerFixText below): no record is ever read from an `unreadable`
-// marker for a removal or an edit (brief DC-2).
+// only the WORDING of a remedy (markerRemedy, markerFixText and markerDefectText below): no record is ever read from an
+// `unreadable` marker for a removal or an edit (brief DC-2).
 export type InstallMarkerRead =
   | { readonly state: "absent"; readonly marker: null }
   | {
@@ -495,9 +495,9 @@ export function markerUnusableText(read: { readonly why: string; readonly jsonOb
 // from a trailing comma, CR-06 from one bad ledger entry). Where a binary cannot use the marker, the remedy names the
 // cause the reader saw, says to fix the file by hand and never delete the marker.
 //
-// The owner decides only the WORDING: markerRemedy names the defect and the by-hand fix, and markerFixText is the one
-// wording of the remedy. There is no answer for a site to branch on: every remedy over the marker is the never-remove
-// one.
+// The owner decides only the WORDING: markerRemedy names the defect and the by-hand fix, markerFixText is the one
+// wording of the remedy, and markerDefectText the one wording of a defect's cause in a skipped or left line. There is no
+// answer for a site to branch on: every remedy over the marker is the never-remove one.
 
 /** The remedy over a marker a binary cannot use: which defect the reader saw, and what a hand edit of the file fixes. */
 export interface MarkerRemedy {
@@ -563,6 +563,32 @@ export function markerFixText(remedy: MarkerRemedy): string {
     `Fix ${MARKER_REL} by hand${named}; never delete the marker: it is the one record install keeps of the agents ` +
     `installed here, so without it no uninstall can undo what install made`
   );
+}
+
+/**
+ * MARKER_DEFECT_TEXT (D-37, 34.1 review IN-33): one short cause clause per MarkerDefect. A Record over MarkerDefect, so
+ * a new defect is a compile error until it is worded. Only `field` says a field holds a value install never writes: a
+ * duplicate key or a byte the strict reader refuses is not a field problem.
+ */
+const MARKER_DEFECT_TEXT: Readonly<Record<MarkerDefect, string>> = {
+  blocked: "it could not be read as a JSON object",
+  "not-json": "it could not be read as a JSON object",
+  "not-object": "it could not be read as a JSON object",
+  bytes: "its bytes are not text install writes",
+  "duplicate-key": "a key in it appears more than once",
+  // installMarkerProblems reports a missing field ("no grugopsHome") as well as a wrong value, so both are named.
+  field: "a field in it holds a value install never writes, or a field install writes is missing",
+  "retired-record": "it holds a retired record next to the install ledger",
+  ledger: "its install ledger is malformed",
+};
+
+/**
+ * markerDefectText (D-37, 34.1 review IN-33): THE ONE WORDING of a defect's cause in a skipped or left line about the
+ * marker (install.ts writeMarker's skipped line, uninstall.ts removeMarker's line over an unreadable marker). The line
+ * names the cause the reader saw, never another one, and points at the never-remove verify the run printed.
+ */
+export function markerDefectText(defect: MarkerDefect): string {
+  return MARKER_DEFECT_TEXT[defect];
 }
 
 // isLedgerPath: the `path` of one ledger entry has the shape stated in the header. The same rule serves

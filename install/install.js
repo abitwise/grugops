@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, noMarkerRemedy, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, markerDefectText, noMarkerRemedy, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -4815,10 +4815,11 @@ function writeMarker() {
     const previousMarker = readInstallMarker(TARGET);
     // WR-05: a marker that exists but cannot be read holds records this run cannot see. Overwriting it
     // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
-    // D-37 (34.1 review CR-05): whatever the read, the marker is still the record of the agents installed here, so the line
-    // never calls it "not install's"; it points at the never-remove verify askRulesStep printed.
+    // D-37 (34.1 review CR-05, IN-33): whatever the read, the marker is still the record of the agents installed here, so
+    // the line never calls it "not install's". It words the cause the reader saw (install-marker.ts markerDefectText of the
+    // read's defect) and points at the never-remove verify askRulesStep printed.
     if (previousMarker.state === "unreadable") {
-        report("skipped", `${markerRel} (left unchanged — it could not be used as install's marker; see the verify line above)`);
+        report("skipped", `${markerRel} (left unchanged — ${markerDefectText(previousMarker.defect)}; see the verify line above)`);
         return;
     }
     const here = realTargetPath(TARGET);

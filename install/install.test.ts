@@ -10292,10 +10292,10 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
         // for byte and writes no marker over it; the run is still refused (exit 3) and claims nothing.
         // Plan 34.1-33 (D-35, 34.1 review CR-04): its install ledger is still well formed, so install-marker.ts
         // markerRemedy keeps it install's record with a field to fix by hand, and the skipped line no longer says it is
-        // not install's. Re-pinned by plan 34.1-44 (2026-10-13, D-37): one skipped line for every unreadable read, until
-        // the line words the read's defect (plan 34.1-44 Task 3).
+        // not install's. Re-pinned by plan 34.1-44 (2026-10-13, D-37, 34.1 review IN-33): the line words the read's
+        // defect through install-marker.ts markerDefectText; a kitVersion install never writes is a field problem.
         expect(m.kitVersion, r.stdout).toEqual(bad);
-        expect(r.stdout).toMatch(/^ {2}skipped\s+\.grugops\/install\.json \(left unchanged — it could not be used as install's marker; see the verify line above\)/m);
+        expect(r.stdout).toMatch(/^ {2}skipped\s+\.grugops\/install\.json \(left unchanged — a field in it holds a value install never writes, or a field install writes is missing; see the verify line above\)/m);
         expect(r.stdout).not.toMatch(/^ {2}skipped\s+\.grugops\/install\.json .*not install's/m);
       }
       if (bad === 5) {

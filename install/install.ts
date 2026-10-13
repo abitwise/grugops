@@ -120,6 +120,7 @@ import {
   markerUnusableText,
   markerRemedy,
   markerFixText,
+  markerDefectText,
   noMarkerRemedy,
   contentRecord,
   fileRecord,
@@ -5459,10 +5460,11 @@ function writeMarker(): void {
   const previousMarker = readInstallMarker(TARGET);
   // WR-05: a marker that exists but cannot be read holds records this run cannot see. Overwriting it
   // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
-  // D-37 (34.1 review CR-05): whatever the read, the marker is still the record of the agents installed here, so the line
-  // never calls it "not install's"; it points at the never-remove verify askRulesStep printed.
+  // D-37 (34.1 review CR-05, IN-33): whatever the read, the marker is still the record of the agents installed here, so
+  // the line never calls it "not install's". It words the cause the reader saw (install-marker.ts markerDefectText of the
+  // read's defect) and points at the never-remove verify askRulesStep printed.
   if (previousMarker.state === "unreadable") {
-    report("skipped", `${markerRel} (left unchanged — it could not be used as install's marker; see the verify line above)`);
+    report("skipped", `${markerRel} (left unchanged — ${markerDefectText(previousMarker.defect)}; see the verify line above)`);
     return;
   }
   const here = realTargetPath(TARGET);
