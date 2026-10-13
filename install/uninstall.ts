@@ -1703,7 +1703,8 @@ function removeMarker(): MarkerOutcome {
         : "";
     // With nothing held, the marker was kept for a recorded verify: the remedy is the cause the verify line names.
     const once = held.length > 0 ? "once each named item is removed or restored" : "once the cause in each verify line above is fixed";
-    // D-32 (CR-03): the alternative to finishing is keepWithoutRecord's, the one wording the KEPT_FOR banner asks too.
+    // D-32 (CR-03), D-37: the alternative to finishing is keepWithoutRecord's, the one wording the KEPT_FOR banner asks
+    // too; it never offers deleting the marker.
     const keep = keepWithoutRecord(held);
     report(
       "left",
@@ -2664,37 +2665,31 @@ function finishCommand(): string {
   return rerunCommand();
 }
 /**
- * keepWithoutRecord (plan 34.1-19, D-32; brief §4, CR-03): THE ONE WORDING of the alternative to finishing a kept
- * reversal, asked by the kept `left` line in removeMarker (`where` "line") and by the KEPT_FOR closing banner
- * (`where` "banner"), so the two cannot word the rule two ways. The rule: no printed alternative removes the record of
- * an agent that stays installed. WHETHER the marker may be deleted is not decided here (D-35, plan 34.1-34): it is the
- * owner's, install-marker.ts markerRemedy, which holds D-32's FULL-run rule (for install's own marker, mayRemove only on
- * "uninstall-full"); the delete text is written only under its yes.
- *   - FULL run: no agent stays installed, so deleting the marker by hand keeps the `held` items without a record, and
- *     uninstall then changes nothing more. This branch is the only place the delete-the-marker text is written, and
- *     only when markerRemedy answers mayRemove (otherwise the empty string).
- *   - Partial run with `held` items: the marker is still the record of the agents that stay (STAYING); deleting it would
- *     leave them with nothing a later uninstall can reverse. The by-hand alternative is per entry: take each held
- *     entry out of the install ledger, then run finishCommand, which finishes the agents this run set out to remove
- *     and leaves the user's file (its entry is gone from the record).
- *   - Partial run with nothing held (the marker was kept for a recorded verify): the empty string. Nothing edited is
- *     there to keep, and the remedy is the cause the verify line names.
+ * keepWithoutRecord (plan 34.1-19, D-32; brief §4, CR-03; plan 34.1-42, D-37, 34.1 review CR-05): THE ONE WORDING of the
+ * alternative to finishing a kept reversal, asked by the kept `left` line in removeMarker (`where` "line") and by the
+ * KEPT_FOR closing banner (`where` "banner"), so the two cannot word the rule two ways. The rule: the alternative never
+ * offers deleting the marker, on any run kind (D-37, which amends D-32: the FULL-run "delete the marker by hand"
+ * alternative is withdrawn). The marker is the record a later run needs: deleting it leaves every file install made
+ * here with no record, so no uninstall can take them out.
+ *   - A run with `held` items, partial or FULL: the by-hand alternative is per entry. Take each held entry out of the
+ *     install ledger, then run finishCommand (on a FULL run the flag-less command), which finishes the reversal and
+ *     leaves the user's file, because its entry is gone from the record; never delete the marker, which is still the
+ *     record of the agents that stay (STAYING) on a partial run, and of what install made here on a FULL run (STAYING
+ *     is empty there). The FULL arm was chosen by plan 34.1-42's step-0 probe: install --claude, an edited Claude Code
+ *     skill, a flag-less uninstall kept the marker; with the skill's entry taken out by hand, the flag-less uninstall
+ *     exited 0, removed the marker, kept the edited skill byte for byte and left no other recorded path (R20 follows it).
+ *   - A run with nothing held (the marker was kept for a recorded verify): the empty string. Nothing edited is there to
+ *     keep, and the remedy is the cause the verify line names.
  */
 function keepWithoutRecord(held: readonly string[], where: "line" | "banner" = "line"): string {
-  const remedy = markerRemedy(MARKER_READ, FULL ? "uninstall-full" : "uninstall-partial");
-  if (FULL) {
-    if (!remedy.mayRemove) return "";
-    return where === "line"
-      ? "or delete the marker by hand to keep them without a record"
-      : `or, to keep them, delete ${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more)`;
-  }
   if (held.length === 0) return "";
   const one = held.length === 1;
   const then = where === "line" ? `, then run \`${finishCommand()}\`` : " and run that command";
   const marker = where === "line" ? "the marker" : MARKER_REL;
   return (
     `or, to keep ${one ? "it" : "them"}, take ${one ? "its entry" : "their entries"} out of the install ledger in ` +
-    `${MARKER_REL} by hand${then}; never delete ${marker}: it is still the record of ${nameList(STAYING)}`
+    `${MARKER_REL} by hand${then}; never delete ${marker}: it is still the record of ` +
+    `${FULL ? "what install made here" : nameList(STAYING)}`
   );
 }
 if (REMOVE.size > 0) {
@@ -2909,8 +2904,8 @@ if (VERIFY_FINDINGS > 0) {
     `\n== uninstall complete — ${KEPT_FOR} recorded item(s) left in place; ${MARKER_REL} kept to record them${AGENTS_CLAUSE}` +
       `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
   );
-  // D-32 (CR-03): the alternative is keepWithoutRecord's, the one wording the kept `left` line asks too. On a partial
-  // run it never offers deleting the marker, which still records the agents that stay.
+  // D-32 (CR-03), D-37: the alternative is keepWithoutRecord's, the one wording the kept `left` line asks too. On no run
+  // kind does it offer deleting the marker, which is still the record a later run needs.
   const keep = keepWithoutRecord(heldPaths(), "banner");
   console.log(
     `  To finish: remove or restore what the \`left\` lines name, then run \`${finishCommand()}\`` +
