@@ -567,6 +567,22 @@ describe("runPrintedCommand: the harness premise (D-33, WR-19; D-38, WR-25)", ()
       else process.env.GRUGOPS_HOME = saved;
     }
   });
+  // H0b (plan 34.1-47, D-38): a printed install.js or uninstall.js command that states no GRUGOPS_HOME would run with
+  // whatever GRUGOPS_HOME the shell exports, so the harness refuses it before anything runs instead of running it under
+  // the conflicting kit home. The texts are written by hand, so this row does not depend on the builder.
+  it("H0b (D-38): a printed command that states no GRUGOPS_HOME makes runPrintedCommand throw, naming GRUGOPS_HOME, before anything runs, for either binary", () => {
+    const dir = join(SCRATCH, `premise-${seq++}`);
+    const home = join(dir, "home");
+    const target = join(dir, "t");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(target, { recursive: true });
+    for (const script of [INSTALL_JS, UNINSTALL_JS]) {
+      const text = "`node " + script + " --target " + target + " " + flag("codex") + "`";
+      expect(() => runPrintedCommand(text, { home, timeoutMs: 120_000 }), text).toThrow(/GRUGOPS_HOME/);
+    }
+    expect(readdirSync(target), "the command ran: the target holds files").toEqual([]);
+    expect(readdirSync(home), "the command ran: something appeared under HOME").toEqual([]);
+  });
   // H1-H3 (plan 34.1-37, D-36, WR-23): a printed GRUGOPS_SRC reaches the child only on a call that opts in with
   // `expectSrc: true`. Every earlier follow-as-printed row runs without it, so a command that starts carrying
   // GRUGOPS_SRC unexpectedly fails those rows (the harness throws) instead of passing them. The texts are written by
