@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-47-PLAN.md
-last_updated: "2026-10-13T17:34:03.595Z"
-state_head: 2275557774dd4bc228890ea55a29f117c03fa70e
+stopped_at: Completed 34.1-48-PLAN.md
+last_updated: "2026-10-13T18:42:55.752Z"
+state_head: 8dba1821857befce6befe0c5d076955cf89050b8
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 443
-  completed_plans: 438
+  completed_plans: 439
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING
-Plan: 47 of 52 (gap round 4 of 4, the last on the cap: 34.1-47 complete 2026-10-13, D-38 kit-home half: every printed install.js and uninstall.js command states GRUGOPS_HOME=<kit home>, the default included; the follow-as-printed harness runs under a conflicting GRUGOPS_HOME; R49 follows WR-25; next 34.1-48, the install mode and the checkout)
+Plan: 48 of 52 (gap round 4 of 4, the last on the cap: 34.1-48 complete 2026-10-13, D-38 mode and checkout half: every printed install.js command states GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC, every printed uninstall.js command GRUGOPS_HOME and GRUGOPS_SRC, and none carries --symlink; the follow-as-printed harness runs under conflicting INSTALL_MODE, GRUGOPS_SRC and TARGET; R50 follows WR-25's mode half; next 34.1-49)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -699,6 +699,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P45 | 33 min | 3 tasks | 10 files |
 | Phase 34.1 P46 | 16 min | 3 tasks | 2 files |
 | Phase 34.1 P47 | 44 min | 2 tasks | 15 files |
+| Phase 34.1 P48 | 65 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -1924,6 +1925,7 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-45 (WR-26): json-text.ts duplicateKeys names every duplicated key with its count; the marker reader's duplicate-key arm gives one problem per key; the unusable-marker census (33 readings, derived by search, mutation-proven) holds the D-37 class
 - [Phase 34.1]: 34.1-46: D-37 is proved over the reader's state space: READER_STATES (Record<MarkerDefect, shapes>, 21 shapes) x 5 printing runs, 105 cells, plus R47 (mode 000) and R48a-e followed as printed and a widened removal census over every printed reading; no product file needed a change
 - [Phase 34.1]: 34.1-47 (D-38, kit-home half): every printed install.js and uninstall.js command states GRUGOPS_HOME=<kit home>, the default included; CommandContext.kitHome is a path and contextKitHome is deleted; runPrintedCommand runs each printed command under a conflicting GRUGOPS_HOME only the printed text overrides; R49 follows WR-25
+- [Phase 34.1]: 34.1-48 (D-38, mode and checkout half): every printed install.js command states INSTALL_MODE=<copy|symlink> (the one spelling install.js accepts for both modes; no copy flag added, no --symlink printed) and GRUGOPS_SRC=<checkout>, this checkout included; an uninstall.js command states GRUGOPS_HOME and GRUGOPS_SRC and no mode; runPrintedCommand holds conflicting INSTALL_MODE, GRUGOPS_SRC and TARGET; R50 follows WR-25's mode half
 
 ### Pending Todos
 
@@ -2054,8 +2056,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-13T17:33:57.744Z
-Stopped at: Completed 34.1-47-PLAN.md
+Last session: 2026-10-13T18:42:31.752Z
+Stopped at: Completed 34.1-48-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
