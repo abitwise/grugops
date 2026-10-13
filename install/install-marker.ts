@@ -160,7 +160,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { HOST_TOOLS, OPENCODE_CONFIG_REL, ROUTE_POINTERS, entryOwners, type HostAdapterKind, type HostTool } from "./host-tools.js";
-import { firstDuplicateKey, readJsonText } from "./json-text.js";
+import { duplicateKeys, firstDuplicateKey, readJsonText } from "./json-text.js";
 import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo, type PathFlavor } from "./user-file.js";
 
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
@@ -179,6 +179,9 @@ export const RETIRED_RECORDS = ["createdDirs", "createdFiles", "geminiSettings",
 /** Why an `unbound` marker is not this directory's record. */
 export type UnboundBy = "other-directory" | "no-target" | "no-ledger";
 
+/** How many duplicated keys the duplicate-key arm names one by one (plan 34.1-45, D-37, WR-26); the rest are counted. */
+const DUPLICATES_NAMED = 8;
+
 /**
  * MARKER_DEFECTS (D-37, brief §6): every defect the reader reports, one per arm of readInstallMarker that refuses a
  * marker as unreadable, and `ledger` for install's own marker (`ok`) whose install ledger readLedger refuses:
@@ -186,7 +189,7 @@ export type UnboundBy = "other-directory" | "no-target" | "no-ledger";
  *   not-json        JSON.parse refused the text;
  *   not-object      the JSON is not an object;
  *   bytes           the strict reader refused the bytes (not UTF-8, or nesting past its bound);
- *   duplicate-key   a key appears more than once;
+ *   duplicate-key   a key appears more than once in one object (every such key is named, plan 34.1-45);
  *   field           a field holds a value install never writes (installMarkerProblems);
  *   retired-record  a retired record sits next to the install ledger;
  *   ledger          an `ok` marker whose install ledger is malformed.
@@ -207,8 +210,9 @@ export type MarkerDefect = (typeof MARKER_DEFECTS)[number];
 // (required, never empty) lists what it saw: each entry names the cause and the by-hand fix of the file, and none echoes
 // a byte of the file (reasons, error codes, kinds, sizes, line and column numbers and the paths the binary resolved
 // only). On the three arms that end before a JSON object exists (a blocked read, not valid JSON, JSON that is not an
-// object) it is the one entry the reader words there. `object` (the parsed object) and `duplicateKey` (the key
-// firstDuplicateKey named) are set only after JSON.parse returned a JSON object, on the four arms that can still refuse
+// object) it is the one entry the reader words there. `object` (the parsed object) and `duplicateKeys` (every key
+// json-text.ts duplicateKeys named, one per object and key, in its order; plan 34.1-45, D-37, 34.1 review WR-26, in
+// place of the first duplicate only) are set only after JSON.parse returned a JSON object, on the four arms that can still refuse
 // it (the strict reader, a duplicate key, installMarkerProblems, the one ledger next to a retired record). They decide
 // only the WORDING of a remedy (markerRemedy, markerFixText and markerDefectText below): no record is ever read from an
 // `unreadable` marker for a removal or an edit (brief DC-2).
@@ -222,7 +226,7 @@ export type InstallMarkerRead =
       readonly defect: Exclude<MarkerDefect, "ledger">;
       readonly problems: readonly string[];
       readonly object?: Readonly<Record<string, unknown>>;
-      readonly duplicateKey?: string;
+      readonly duplicateKeys?: readonly string[];
     }
   | {
       readonly state: "unbound";
@@ -364,17 +368,33 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   const object = parsed as Readonly<Record<string, unknown>>;
   const doc = readJsonText(read.bytes);
   if (!doc.ok) return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false, defect: "bytes", object, problems: [`the file ${doc.why}`] };
-  const dup = firstDuplicateKey(doc.root);
-  if (dup !== null) {
+  // EVERY DUPLICATED KEY IS NAMED (plan 34.1-45, D-37, 34.1 review WR-26). The arm used to name the first duplicate
+  // only, so a marker duplicating both `agents` and `ledger` got a fix naming `agents` alone. Each duplicated key gets one
+  // problem: the key (JSON-quoted and length-bounded, so no byte of the file is echoed raw), how many times it appears
+  // in one object, and the fix, keep the one value install wrote. For `ledger` that value is the list of what install
+  // made here; nothing here claims either value is a well-formed install ledger. At most DUPLICATES_NAMED keys are named
+  // (DC-3: a hand-made file can repeat any number of keys); the rest are counted.
+  const dups = duplicateKeys(doc.root);
+  if (dups.length > 0) {
+    const quoted = (key: string): string => JSON.stringify(key).slice(0, 120);
+    const shown = dups.slice(0, DUPLICATES_NAMED);
+    const more = dups.length - shown.length;
+    const problems = shown.map((d) => {
+      const which = d.key === "ledger" ? " (for this key, the list of what install made here)" : "";
+      return `the key ${quoted(d.key)} appears ${d.count} times in one object: keep the one value install wrote${which} and take the others out`;
+    });
+    if (more > 0) problems.push(`${more} more key(s) appear more than once: keep one value of each, the one install wrote`);
     return {
       state: "unreadable",
       marker: null,
-      why: `it has a duplicate key (${JSON.stringify(dup).slice(0, 120)}), so which of its values is install's record is not known`,
+      why:
+        `it has ${dups.length === 1 ? "a duplicate key" : "duplicate keys"} (${shown.map((d) => quoted(d.key)).join(", ")}` +
+        `${more > 0 ? `, and ${more} more` : ""}), so which of its values is install's record is not known`,
       jsonObject: false,
       defect: "duplicate-key",
       object,
-      problems: [`the key ${JSON.stringify(dup).slice(0, 120)} appears more than once (keep the one install wrote)`],
-      duplicateKey: dup,
+      problems,
+      duplicateKeys: dups.map((d) => d.key),
     };
   }
   // INSTALL'S OWN MARKER, FOR THIS DIRECTORY (red-team B2 of plan 33.1-33, brief DC-2). A JSON object here

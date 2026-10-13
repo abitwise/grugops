@@ -9,6 +9,8 @@ import {
   addMember,
   appendElements,
   documentValue,
+  duplicateKeys,
+  firstDuplicateKey,
   keyCount,
   memberNamed,
   readJsonText,
@@ -155,5 +157,47 @@ describe("json-text: the tokenizer accepts exactly strict JSON (B3)", () => {
     expect(keyCount(d.root, "a")).toBe(2);
     expect(keyCount(d.root, "b")).toBe(1);
     expect(d.text.charCodeAt(0)).toBe(0xfeff);
+  });
+});
+
+// duplicateKeys (plan 34.1-45, 2026-10-13, D-37, 34.1 review WR-26): the marker reader names every duplicated key, not
+// only the first, so a marker that duplicates both `agents` and `ledger` gets a fix naming both.
+describe("json-text: duplicateKeys names every key that appears more than once in one object (WR-26)", () => {
+  it("lists each duplicated key with how many times it appears, in text order", () => {
+    expect(duplicateKeys(read('{"a":1,"a":2,"b":{"c":1,"c":2,"c":3}}').root)).toEqual([
+      { key: "a", count: 2 },
+      { key: "c", count: 3 },
+    ]);
+  });
+  it("is empty for a document with no duplicate key", () => {
+    expect(duplicateKeys(read('{"a":1,"b":{"c":1,"d":[{"e":1},{"e":2}]}}').root)).toEqual([]);
+    expect(duplicateKeys(read("[1, \"x\", null]").root)).toEqual([]);
+  });
+  it("reads each element of an array of objects", () => {
+    expect(duplicateKeys(read('[{"x":1,"x":2},{"y":1},{"z":1,"z":2,"x":1}]').root)).toEqual([
+      { key: "x", count: 2 },
+      { key: "z", count: 2 },
+    ]);
+  });
+  it("gives one entry per object and key: the same key duplicated in two objects is named twice", () => {
+    expect(duplicateKeys(read('{"o":{"k":1,"k":2},"p":{"k":1,"k":2,"k":3}}').root)).toEqual([
+      { key: "k", count: 2 },
+      { key: "k", count: 3 },
+    ]);
+  });
+  it("orders one object's duplicates by where each is repeated, so its first entry is firstDuplicateKey's answer", () => {
+    const docs = [
+      '{"a":1,"b":1,"b":2,"a":2}',
+      '{"agents":["claude"],"agents":["codex"],"ledger":[],"ledger":7}',
+      '{"ledger":5,"ledger":"x"}',
+      '{"x":{"k":1,"k":2},"a":1,"a":2}',
+      '[{"q":1},{"r":{"s":1,"s":2}}]',
+      '{"none":1}',
+    ];
+    for (const t of docs) {
+      const root = read(t).root;
+      expect(duplicateKeys(root)[0]?.key ?? null, t).toBe(firstDuplicateKey(root));
+    }
+    expect(duplicateKeys(read('{"a":1,"b":1,"b":2,"a":2}').root).map((d) => d.key)).toEqual(["b", "a"]);
   });
 });

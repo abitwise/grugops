@@ -262,6 +262,41 @@ export function firstDuplicateKey(node: JsonNode): string | null {
   return null;
 }
 
+/** One key that appears more than once in one object, and how many times it appears there. */
+export interface DuplicateKey {
+  readonly key: string;
+  readonly count: number;
+}
+
+/**
+ * Every key that appears more than once in one object anywhere in `node` (plan 34.1-45, D-37, 34.1 review WR-26): one
+ * entry per object and key, with how many times the key appears in that object. Objects are visited in text order, an
+ * object before the objects nested in it (firstDuplicateKey's order), and one object's keys are listed by where each is
+ * first repeated, so the first entry is firstDuplicateKey's answer. Empty when no object repeats a key. For a caller
+ * that words a remedy naming every duplicate (install-marker.ts readInstallMarker), not only the first. The depth is
+ * bounded by the tokenizer (MAX_DEPTH).
+ */
+export function duplicateKeys(node: JsonNode): DuplicateKey[] {
+  const out: DuplicateKey[] = [];
+  const visit = (n: JsonNode): void => {
+    if (n.kind === "object") {
+      const counts = new Map<string, number>();
+      const repeated: string[] = [];
+      for (const m of n.members) {
+        const c = (counts.get(m.key) ?? 0) + 1;
+        counts.set(m.key, c);
+        if (c === 2) repeated.push(m.key);
+      }
+      for (const key of repeated) out.push({ key, count: counts.get(key) ?? 0 });
+      for (const m of n.members) visit(m.value);
+    } else if (n.kind === "array") {
+      for (const e of n.elements) visit(e);
+    }
+  };
+  visit(node);
+  return out;
+}
+
 /** The member of `obj` named `key` (the caller has refused duplicates), or null. */
 export function memberNamed(obj: JsonNode, key: string): JsonMember | null {
   if (obj.kind !== "object") return null;

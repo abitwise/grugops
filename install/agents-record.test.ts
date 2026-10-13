@@ -132,6 +132,7 @@ import {
   spawnBin,
 } from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
+import { memberNamed, readJsonText } from "./json-text.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-agents-record-")));
@@ -2350,7 +2351,8 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       readonly state: InstallMarkerRead["state"];
       /** For an `unreadable` row: whether readInstallMarker parsed a JSON object. */
       readonly object?: boolean;
-      readonly duplicateKey?: string;
+      /** For a duplicate-key row: every duplicated key the reader names (plan 34.1-45, D-37, WR-26). */
+      readonly duplicateKeys?: readonly string[];
     };
     const kit = join(SCRATCH, "unit-kit");
     const fields = (here: string): string =>
@@ -2395,8 +2397,12 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       // A byte that is not UTF-8 inside a string: JSON.parse of the decoded text accepts it, the strict reader does not.
       bytes: [{ name: "a byte the strict reader refuses, ledger []", bytes: (h) => Buffer.concat([text(`{${fields(h)}, "note": "`), Buffer.from([0xff]), text(`", "ledger": []}\n`)]), state: "unreadable", object: true }],
       "duplicate-key": [
-        { name: "a duplicate `agents` key, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": []}\n`), state: "unreadable", object: true, duplicateKey: "agents" },
-        { name: "a duplicate `ledger` key", bytes: (h) => text(`{${fields(h)}, "ledger": [], "ledger": "x"}\n`), state: "unreadable", object: true, duplicateKey: "ledger" },
+        { name: "a duplicate `agents` key, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": []}\n`), state: "unreadable", object: true, duplicateKeys: ["agents"] },
+        { name: "a duplicate `ledger` key", bytes: (h) => text(`{${fields(h)}, "ledger": [], "ledger": "x"}\n`), state: "unreadable", object: true, duplicateKeys: ["ledger"] },
+        // Plan 34.1-45 (2026-10-13, D-37, 34.1 review WR-26): the reviewer's two probes. Until plan 34.1-45 the reader named
+        // the first duplicate only, so the fix of the first row named `agents` and never `ledger`.
+        { name: "duplicate `agents` and `ledger` keys", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": [], "ledger": 7}\n`), state: "unreadable", object: true, duplicateKeys: ["agents", "ledger"] },
+        { name: "a duplicate `ledger` key whose two values are both garbage", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": 5, "ledger": "x"}\n`), state: "unreadable", object: true, duplicateKeys: ["ledger"] },
       ],
       field: [
         { name: "`agents` malformed, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["Codex", "claude-code"], "ledger": []}\n`), state: "unreadable", object: true },
@@ -2432,7 +2438,7 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       expect(read.state, `PREMISE: ${s.name} reads ${s.state}${read.state === "unreadable" ? ` (${read.why})` : ""}`).toBe(s.state);
       if (read.state === "unreadable") {
         expect(read.object !== undefined, `PREMISE: ${s.name}: a parsed object`).toBe(s.object === true);
-        expect(read.duplicateKey, `PREMISE: ${s.name}: the duplicated key`).toBe(s.duplicateKey);
+        expect(read.duplicateKeys, `PREMISE: ${s.name}: the duplicated keys`).toEqual(s.duplicateKeys);
       }
       if (read.state === "unbound") expect(read.unboundBy, `PREMISE: ${s.name}`).toBe("other-directory");
       return read;
@@ -2473,7 +2479,9 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       if (got !== null) cells.push(`${s.name}: got ${JSON.stringify(got)}, want null`);
     }
     const shapes = MARKER_DEFECTS.reduce((n, d) => n + BY_DEFECT[d].length, 0);
-    expect(shapes + NO_REMEDY.length, "the table is 13 defect shapes and 3 no-remedy shapes").toBe(16);
+    // 13 -> 15 defect shapes (plan 34.1-45, 2026-10-13, D-37, WR-26): duplicate `agents` and `ledger` keys, and a
+    // duplicate `ledger` key whose two values are both garbage.
+    expect(shapes + NO_REMEDY.length, "the table is 15 defect shapes and 3 no-remedy shapes").toBe(18);
     expect(cells, "markerRemedy's answer breaks the rule").toEqual([]);
 
     // markerFixText of every answer names each of its fix entries, says by hand and never delete the marker, and offers
@@ -2491,6 +2499,28 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       )
       .map((n) => `${n.name}: ${n.text}`);
     expect(badText, "markerFixText of an answer").toEqual([]);
+
+    // WR-26 (plan 34.1-45, D-37): a duplicate-key answer has one fix entry per duplicated key, naming the key and how many
+    // times it appears; markerFixText of the agents-and-ledger row names both keys, and no duplicate-key answer claims
+    // anything about the install ledger being intact (the garbage-ledger row has no ledger to claim).
+    const dupRows = BY_DEFECT["duplicate-key"].map((s) => ({ s, got: markerRemedy(readOf(s)) }));
+    const dupBad: string[] = [];
+    for (const { s, got } of dupRows) {
+      const keys = s.duplicateKeys ?? [];
+      if (got === null) {
+        dupBad.push(`${s.name}: no remedy`);
+        continue;
+      }
+      if (got.fix.length !== keys.length) dupBad.push(`${s.name}: ${got.fix.length} fix entries for ${keys.length} duplicated keys: ${JSON.stringify(got.fix)}`);
+      keys.forEach((k, i) => {
+        const f = got.fix[i] ?? "";
+        if (!f.includes(JSON.stringify(k)) || !/\b2 times\b/.test(f)) dupBad.push(`${s.name}: fix entry ${i} does not name ${JSON.stringify(k)} and its count: ${f}`);
+      });
+      const t = markerFixText(got);
+      for (const k of keys) if (!t.includes(JSON.stringify(k))) dupBad.push(`${s.name}: markerFixText does not name ${JSON.stringify(k)}: ${t}`);
+      if (/\bledger is (still|intact|well[- ]formed)\b|\bstill the record of every agent\b/i.test(t)) dupBad.push(`${s.name}: markerFixText claims the install ledger is intact: ${t}`);
+    }
+    expect(dupBad, "the duplicate-key answers (WR-26)").toEqual([]);
   });
 });
 
@@ -2551,6 +2581,28 @@ function setLedgerKindByHand(w: World): { original: Buffer; why: string } {
   expect(read.why ?? "", "PREMISE: readLedger names the bad entry").toMatch(/^entry 0: /);
   expect(JSON.parse(original.toString("utf8")), "PREMISE: the original bytes are the marker read before").toEqual(o);
   return { original, why: read.why ?? "" };
+}
+
+/**
+ * WR-26's hand edit (plan 34.1-45, D-37): insert a second member `"<key>": <valueJson>` right after the real `key` member
+ * of the marker text install wrote, and return the original bytes. The real member's end is found by the product's strict
+ * tokenizer (json-text.ts), so the edit adds exactly one member and changes no other byte. The premise is asserted: the
+ * original has exactly one `key` member, and JSON.parse of the original bytes equals the marker object read before.
+ */
+function addDuplicateMember(w: World, key: string, valueJson: string): Buffer {
+  const path = at(w.target, MARKER_REL);
+  const original = readFileSync(path);
+  const before = readMarkerObject(w.target);
+  const doc = readJsonText(original);
+  expect(doc.ok, "PREMISE: the marker install wrote reads as strict JSON").toBe(true);
+  if (!doc.ok) return original;
+  const member = memberNamed(doc.root, key);
+  expect(member, `PREMISE: the marker install wrote has a ${key} member`).not.toBeNull();
+  if (member === null) return original;
+  const text = original.toString("utf8");
+  writeFileSync(path, `${text.slice(0, member.value.end)},\n  ${JSON.stringify(key)}: ${valueJson}${text.slice(member.value.end)}`);
+  expect(JSON.parse(text), "PREMISE: the original bytes are the marker read before").toEqual(before);
+  return original;
 }
 
 describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, whatever the read", () => {
@@ -2873,6 +2925,50 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
     expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
     expect(markerGone(w), fin.stdout).toBe(true);
+    expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
+  });
+
+  // R46 (plan 34.1-45, 2026-10-13, D-37, 34.1 review WR-26): D-37's duplicate `ledger` follow row. A second `ledger`
+  // member holding garbage, added after the real one: the reader names the duplicated key with its count, the uninstaller
+  // removes nothing and offers no removal, and with the extra member taken out by hand the printed command finishes.
+  it("R46 (WR-26, the duplicate `ledger` key followed as printed): install --claude --codex, a second `ledger` member holding garbage added after the real one; a flag-less uninstall exits 3, removes nothing, offers no removal and names the duplicated key with its count; with the extra member taken out by hand, the printed command run as printed removes the marker and both agents' skills, with no recorded path left", () => {
+    const w = world("r46");
+    install(w, [flag("claude"), flag("codex")]);
+    const recorded = recordedPaths(w);
+    expect(recorded, "PREMISE: the ledger names both skills").toEqual(expect.arrayContaining([AGENT_SKILL_REL, ".claude/skills/grugops/SKILL.md"]));
+    const original = addDuplicateMember(w, "ledger", '"x"');
+    const read = readInstallMarker(w.target);
+    expect(read.state === "unreadable" ? read.defect : read.state, "PREMISE: the marker reads unreadable with defect duplicate-key").toBe("duplicate-key");
+    expect(read.state === "unreadable" ? read.duplicateKeys : undefined, "PREMISE: the reader names the duplicated key").toEqual(["ledger"]);
+    const bytes = readFileSync(at(w.target, MARKER_REL));
+
+    const r = uninstall(w, []);
+    expect(r.status, r.stdout).toBe(3);
+    for (const l of [...r.stdout.split("\n"), ...r.stderr.split("\n")]) {
+      expect(l, "a line tells the user to delete the marker").not.toMatch(DELETE_MARKER);
+      expect(l, "a line offers removing the marker").not.toMatch(MARKER_REMOVAL);
+      expect(l, "a line offers removing the marker").not.toMatch(REMOVAL_OFFER);
+    }
+    const about = linesWith(r.stdout, "verify").filter((l) => l.replace(/^ {2}verify\s+/, "").startsWith(MARKER_REL));
+    expect(about.length, `one verify line about the marker\n${r.stdout}`).toBe(1);
+    const verifyLine = about[0];
+    expect(verifyLine, r.stdout).toContain('"ledger"');
+    expect(verifyLine, r.stdout).toMatch(/\b2 times\b/);
+    expect(verifyLine, r.stdout).toContain("by hand");
+    expect(verifyLine, r.stdout).toContain("never delete the marker");
+    expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+    expect(linesWith(r.stdout, "removed"), `something was removed\n${r.stdout}`).toEqual([]);
+    expect(readFileSync(at(w.target, MARKER_REL)).equals(bytes), `the marker changed\n${r.stdout}`).toBe(true);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(true);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), r.stdout).toBe(true);
+
+    // Follow it: take the extra member out by hand (the fix the verify named), then run the printed command as printed.
+    writeFileSync(at(w.target, MARKER_REL), original);
+    const fin = runPrinted(w, verifyLine);
+    expect(fin.status, fin.stdout).toBe(0);
+    expect(markerGone(w), fin.stdout).toBe(true);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
     expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
   });
 });
