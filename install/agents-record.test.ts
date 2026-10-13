@@ -84,7 +84,10 @@
 //     Record<MarkerDefect, ...>, 21 shapes over the 8 defects) times PRINTING_RUNS (--check, install --claude, install
 //     --codex, a flag-less uninstall, uninstall --codex), 105 cells, each asserting the owner's wording, no removal offer,
 //     nothing removed, the marker path as it was and no control byte on the terminal; three controls run the zero-offer
-//     rule only.
+//     rule only. R48a-e follow the reader's remaining states as printed (not an object, a 0xff byte, a retired record, a
+//     field install never writes, a link at the marker path). The widened removal-matcher census asks MARKER_REMOVAL_ANY
+//     of every reading of every product module: zero offers to delete, remove or erase the marker, and every other hit
+//     in REMOVAL_EXEMPT (85 rows, 131 hits) with the object it removes.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -3366,6 +3369,333 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
     },
     300_000,
   );
+});
+
+// ── D-37: the remaining reader states, followed as printed (plan 34.1-46) ───────────────────────────────────────────
+//
+// R41 (not JSON), R43 (a malformed ledger), R46 (a duplicate key), R38 (a field) and R47 (a blocked read, mode 000)
+// follow D-37's named defects as printed. R48a-e close the reader's other states: each installs Claude Code and Codex
+// CLI, applies one shape by hand, runs a flag-less uninstall (exit 3, the never-remove verify, nothing removed, no
+// removal offer), applies the by-hand fix the verify names, runs the printed command as printed from outside the
+// checkout, and asserts the marker and both agents' skills are gone with no recorded path left.
+
+/**
+ * One follow row: `shape` turns the marker install wrote into the reader state `defect`; `fix` is the by-hand fix the
+ * verify line names (it gets the original bytes).
+ */
+function followAsPrinted(tag: string, defect: MarkerDefect, shape: (w: World) => void, fix: (w: World, original: Buffer) => void, fixWords: RegExp): void {
+  const w = world(tag);
+  install(w, [flag("claude"), flag("codex")]);
+  const recorded = recordedPaths(w);
+  expect(recorded, "PREMISE: the ledger names both skills").toEqual(expect.arrayContaining([AGENT_SKILL_REL, ".claude/skills/grugops/SKILL.md"]));
+  const original = readFileSync(markerPath(w));
+  shape(w);
+  const read = readInstallMarker(w.target);
+  expect(read.state === "unreadable" ? read.defect : read.state, `PREMISE: the ${defect} shape reads unreadable with that defect`).toBe(defect);
+  const before = markerPathState(w);
+
+  const r = uninstall(w, []);
+  expect(r.status, r.stdout).toBe(3);
+  const about = linesWith(r.stdout, "verify").filter((l) => l.replace(/^ {2}verify\s+/, "").startsWith(MARKER_REL));
+  expect(about.length, `one verify line about the marker\n${r.stdout}`).toBe(1);
+  const verifyLine = about[0];
+  expect(verifyLine, r.stdout).toContain("by hand");
+  expect(verifyLine, r.stdout).toContain("never delete the marker");
+  expect(verifyLine, `the verify names the fix this row applies\n${r.stdout}`).toMatch(fixWords);
+  expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+  expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
+  expect(linesWith(r.stdout, "removed"), `something was removed\n${r.stdout}`).toEqual([]);
+  expect(markerPathState(w), `the marker path changed\n${r.stdout}`).toBe(before);
+  expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(true);
+  expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), r.stdout).toBe(true);
+
+  // Follow it: apply the fix the verify named, by hand, then run the printed command as printed.
+  fix(w, original);
+  expect(readInstallMarker(w.target).state, "PREMISE: after the fix the marker reads ok").toBe("ok");
+  const fin = runPrinted(w, verifyLine);
+  expect(fin.status, fin.stdout).toBe(0);
+  expect(markerGone(w), fin.stdout).toBe(true);
+  expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+  expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
+  expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
+}
+
+describe("D-37: the remaining reader states, followed as printed (R48a-e)", () => {
+  it("R48a (not an object): the marker replaced by `[]`; restoring the JSON object install wrote and running the printed command removes the marker and both agents' skills", () => {
+    followAsPrinted("r48a", "not-object", (w) => writeFileSync(markerPath(w), "[]\n"), (w, original) => writeFileSync(markerPath(w), original), /restore the JSON object install wrote/);
+  });
+
+  it("R48b (a byte the strict reader refuses): one 0xff byte inside a string value; restoring the bytes and running the printed command removes the marker and both agents' skills", () => {
+    followAsPrinted(
+      "r48b",
+      "bytes",
+      (w) => {
+        const t = readFileSync(markerPath(w));
+        writeFileSync(markerPath(w), Buffer.concat([Buffer.from('{\n  "note": "a', "utf8"), Buffer.from([0xff]), Buffer.from('b",', "utf8"), t.subarray(1)]));
+      },
+      (w, original) => writeFileSync(markerPath(w), original),
+      /not valid UTF-8/,
+    );
+  });
+
+  it("R48c (a retired record): `createdFiles` next to the ledger; taking that member out by hand and running the printed command removes the marker and both agents' skills", () => {
+    followAsPrinted(
+      "r48c",
+      "retired-record",
+      (w) => rewriteMarkerObject(w, (o) => ({ ...o, createdFiles: [] })),
+      (w) =>
+        rewriteMarkerObject(w, (o) => {
+          delete o.createdFiles;
+          return o;
+        }),
+      /createdFiles/,
+    );
+  });
+
+  it("R48d (a field install never writes): `installMode` banana; setting it back to copy by hand and running the printed command removes the marker and both agents' skills", () => {
+    followAsPrinted(
+      "r48d",
+      "field",
+      (w) => rewriteMarkerObject(w, (o) => ({ ...o, installMode: "banana" })),
+      (w) => rewriteMarkerObject(w, (o) => ({ ...o, installMode: "copy" })),
+      /installMode/,
+    );
+  });
+
+  it("R48e (a blocked read): a symbolic link at the marker path to a copy of the marker; replacing the link with the file it points to and running the printed command removes the marker and both agents' skills", () => {
+    followAsPrinted(
+      "r48e",
+      "blocked",
+      (w) => {
+        writeFileSync(sideOf(w, "marker-copy.json"), readFileSync(markerPath(w)));
+        rmSync(markerPath(w));
+        symlinkSync(sideOf(w, "marker-copy.json"), markerPath(w));
+      },
+      (w) => {
+        const real = readlinkSync(markerPath(w));
+        rmSync(markerPath(w));
+        renameSync(real, markerPath(w));
+      },
+      /putting the file a link points to in place of the link/,
+    );
+  });
+});
+
+// ── D-37: the widened removal-matcher census, by search over every printed reading (plan 34.1-46) ─────────────────
+//
+// DELETE_MARKER and MARKER_REMOVAL hold the spellings a remedy has used; the by-hand remedy census asks them only of the
+// readings TOUCH selects. A new spelling of the same offer ("erase the file", "remove it by hand" in a line about the
+// marker, "removing the marker") would pass both. This census asks a WIDER matcher of EVERY reading of every maximal
+// string expression of every product module (the walk of the censuses above: productModules, maximalString,
+// readingsOf), with no TOUCH preselection. MARKER_REMOVAL_ANY finds every removal verb (delete, remove, erase and their
+// -s and -ing forms, or an `rm` command); each hit is read as the verb and its object (the text after the verb up to the
+// end of its clause). A hit is an OFFER TO REMOVE THE MARKER when it is not negated (never, not, nor, cannot, nothing
+// before the verb, or nothing in its object) and its object is the marker: named (the marker, the install marker or
+// ledger, .grugops/install.json, .grugops, a substitution of a marker spelling), or a pronoun or "the file" in a reading
+// or a sentence whose subject is the marker. The offers must be zero. Every other hit is a row of REMOVAL_EXEMPT, keyed
+// by module, enclosing function and the hit's clause, with its count and the object it removes; the table equals the
+// hits both ways, so a new removal sentence anywhere is a finding until it is classed with its object.
+
+/** A removal verb, or an `rm` command (with its options). */
+const MARKER_REMOVAL_ANY = /\b(delete|deletes|deleting|remove|removes|removing|erase|erases|erasing)\b|(?<![\w-])rm\s+(?:-\w+\s+)*/gi;
+/** The marker, named as an object. */
+const MARKER_OBJECT = /^(the (install )?(marker|ledger)\b|install's (marker|record)\b|the install record\b|\.grugops\/install\.json|\.grugops\b|\$\{(marker|markerFile|markerRel|MARKER_REL)\})/i;
+/** An object that names what the subject of its reading or sentence is. */
+const PRONOUN_OBJECT = /^(it|this|that|them|the file|this file|that file)\b/i;
+/** A reading or sentence whose subject is the marker (optionally after "Fix" or a line label). */
+const MARKER_SUBJECT = /^((fix|so|then)\s+)?(\.grugops\/install\.json|\.grugops\/|\$\{(marker|markerFile|markerRel|MARKER_REL)\}|the (install )?marker\b|its install ledger\b)/i;
+/** Negation just before the verb (within its clause). */
+const NEGATED_BEFORE = /\b(never|not|nor|cannot|nothing|no)\s+(\S+\s+){0,2}$|n't\s+$/i;
+
+interface RemovalHit {
+  readonly module: string;
+  readonly fn: string;
+  readonly line: number;
+  readonly clause: string;
+  /** The hit's object is the marker (negated or not). */
+  readonly marker: boolean;
+  readonly offer: boolean;
+  readonly text: string;
+}
+/** Every hit of MARKER_REMOVAL_ANY in every reading of every product module, each read as an offer or not. */
+function removalHits(): RemovalHit[] {
+  const out: RemovalHit[] = [];
+  for (const module of productModules()) {
+    const sf = parse(`install/${module}`);
+    const seen = new Set<ts.Node>();
+    const isFragment = (n: ts.Node): boolean =>
+      ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n);
+    for (const f of nodesOf(sf, (n): n is ts.Node => isFragment(n))) {
+      const m = maximalString(f);
+      if (seen.has(m)) continue;
+      seen.add(m);
+      for (const v of readingsOf(m)) {
+        const text = v.text.replace(/\s+/g, " ").trim();
+        for (const h of text.matchAll(MARKER_REMOVAL_ANY)) {
+          const at0 = h.index ?? 0;
+          const before = text.slice(0, at0);
+          const clauseBefore = before.split(/[.;:—(]\s*/).pop() ?? "";
+          const sentence = before.split(/[.;]\s+/).pop() ?? "";
+          const object = text.slice(at0 + h[0].length).split(/[.;:—()]/)[0].trim();
+          const verb = h[0].trim().toLowerCase();
+          const negated = NEGATED_BEFORE.test(clauseBefore) || /\bnothing\b/i.test(object);
+          const aboutMarker = MARKER_SUBJECT.test(text) || MARKER_SUBJECT.test(sentence.trim());
+          const markerObject = MARKER_OBJECT.test(object) || (PRONOUN_OBJECT.test(object) && aboutMarker) || (verb.startsWith("rm") && /install\.json|\.grugops/.test(object));
+          out.push({
+            module,
+            fn: enclosing(m),
+            line: sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1,
+            clause: `${verb} ${object}`.trim().slice(0, 100),
+            marker: markerObject,
+            offer: markerObject && !negated,
+            text,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Every other hit of MARKER_REMOVAL_ANY, classed with the object it removes (module, function, clause, count, object). */
+type ExemptRow = readonly [module: string, fn: string, clause: string, count: number, removes: string];
+/**
+ * THE EXEMPT TABLE (derived at execution of plan 34.1-46 by the walk above, 131 hits in 85 rows; not copied from a
+ * review). The two rows whose object is the marker are negated ("never delete the marker", "never delete ${marker}"); the
+ * "remove(s) and edit(s) nothing" rows are negated by "nothing"; the `would-remove` labels and the `remove` decision values
+ * are status words with no object.
+ */
+const REMOVAL_EXEMPT: readonly ExemptRow[] = [
+  ["checkpoint-ask-rules.ts", "<module>", "delete", 1, "a kubectl verb in the checkpoint ask-rule table (a command word, not a sentence)"],
+  ["install-marker.ts", "markerFixText", "delete the marker", 1, "the marker, negated: \"never delete the marker\" (the owner's wording)"],
+  ["install.ts", "adapterDestHazard", "remove it", 1, "the user's symbolic link at an adapter destination"],
+  ["install.ts", "linkOwnership", "remove the link at ${rel} and re-run install", 1, "a link at a kit path that is not install's"],
+  ["install.ts", "doctor", "removes every agent and the shared files", 1, "what the printed flag-less uninstall command removes (a statement)"],
+  ["install.ts", "doctor", "removes only those agents", 1, "what the printed per-agent uninstall command removes (a statement)"],
+  ["install.ts", "<module>", "removing the backups install recorded", 1, "the backups install recorded (the --prune-old-kit section heading)"],
+  ["install.ts", "backupDir", "remove the existing backup, then re-run --migrate", 1, "an existing backup at the name --migrate would use"],
+  ["install.ts", "removeBackup", "remove", 3, "the `would-remove` dry-run label (a status word: the run changes nothing)"],
+  ["install.ts", "removeBackup", "remove it by hand", 2, "a recorded backup still present after its removal"],
+  ["install.ts", "pruneOldKit", "removes nothing there", 1, "nothing (prune over a kit home with no record)"],
+  ["install.ts", "pruneOldKit", "removes a backup of your content", 1, "a backup of the user's content, negated (prune never removes it)"],
+  ["install.ts", "pruneOldKit", "remove it", 1, "an unrecorded backup, negated (prune does not remove it)"],
+  ["install.ts", "pruneOldKit", "remove it by hand if it is a grugops backup you no longer need", 1, "an unrecorded backup the user may no longer need"],
+  ["install.ts", "pruneOldKit", "remove", 1, "nothing (no recorded backup is there to remove)"],
+  ["install.ts", "configCarryStep", "remove it", 2, "the seeded factory.config.json path that is not a regular file"],
+  ["install.ts", "copyKit", "remove", 4, "the new kit staged in a temporary directory"],
+  ["install.ts", "copyKit", "remove it by hand", 2, "the replaced kit left in its holder directory"],
+  ["install.ts", "writeKitHomeRecord", "remove it by hand when you no longer need it", 1, "an unrecorded backup of the kit-home record"],
+  ["install.ts", "renderAdaptersInMirror", "remove it, and re-run", 2, "the model configuration file that could not be read"],
+  ["install.ts", "kitDestDecision", "remove it", 1, "a symbolic link at a kit destination that is not install's"],
+  ["install.ts", "materializeAdapter", "remove it by hand", 1, "a symlink adapter still present after it was unlinked"],
+  ["install.ts", "backupEditedKitFiles", "remove it by hand", 1, "the second name of a kit backup"],
+  ["install.ts", "discardIncompleteBackup", "remove it by hand", 1, "an incomplete backup copy"],
+  ["install.ts", "writeMarker", "remove and edit nothing on it", 1, "the marker, negated: uninstall will remove and edit nothing on it"],
+  ["install.ts", "updateKitHome", "remove it later with --prune-old-kit", 1, "the displaced kit's timestamped backup (by --prune-old-kit)"],
+  ["install.ts", "<module>", "remove the leftover agent-factory/ by hand", 1, "a leftover agent-factory/ directory of the old layout"],
+  ["install.ts", "<module>", "removes only the backups install", 1, "the backups install recorded (what prune removes, a statement)"],
+  ["install.ts", "<module>", "removes anything for them and keeps them in the record", 1, "nothing, negated: install neither installs nor removes anything for an unknown agent"],
+  ["install.ts", "<module>", "removes anything for it and keeps it in the record", 1, "nothing, negated: install neither installs nor removes anything for an unknown agent"],
+  ["install.ts", "buildKitPlan", "remove the cross-linked symlinks under the adapter directory and re-run", 1, "cross-linked symlinks under the adapter directory"],
+  ["install.ts", "writeAskRules", "remove it", 2, "the user's own ask rule, negated (uninstall will not remove it)"],
+  ["install.ts", "writeAskRules", "removes a rule", 1, "an ask rule, negated (the installer never removes one)"],
+  ["install.ts", "writeAskRules", "delete them by hand, or `${agentCommand", 1, "ask rules an earlier install added"],
+  ["install.ts", "writeAskRules", "removes every rule install added, with the rest of what install wrote for that agent here", 1, "the ask rules install added (what the printed uninstall command removes, a statement)"],
+  ["install.ts", "writeOpenCodePermission", "remove it", 1, "the user's own OpenCode rule, negated (uninstall will not remove it)"],
+  ["install.ts", "askRulesNotes", "remove them", 1, "the user's own ask rules, negated (uninstall will not remove them)"],
+  ["install.ts", "agentClosingLines", "removes an agent's files", 1, "an agent's files, negated (install never removes them)"],
+  ["install.ts", "agentClosingLines", "remove one", 1, "an agent left installed (by its printed uninstall command)"],
+  ["uninstall.ts", "unlinkPath", "remove it by hand if it is grugops's", 2, "a path still present after its removal"],
+  ["uninstall.ts", "<module>", "remove", 3, "the agents this run removes (the `agents to remove` heading)"],
+  ["uninstall.ts", "removalDecision", "remove it by hand if it is grugops's", 3, "a path the uninstaller left (a link that is not install's, or a path it could not examine)"],
+  ["uninstall.ts", "removalDecision", "remove", 2, "the `remove` decision value (a discriminant, never printed)"],
+  ["uninstall.ts", "reportDecision", "remove", 2, "the `remove` decision value (a discriminant, never printed)"],
+  ["uninstall.ts", "removeFile", "remove", 1, "the `would-remove` dry-run label (a status word: the run changes nothing)"],
+  ["uninstall.ts", "reportBackup", "removes a backup", 1, "a backup of the user's content, negated (uninstall never removes one)"],
+  ["uninstall.ts", "rmdirIfEmpty", "remove it by hand once that is fixed", 1, "an empty directory install created that could not be removed"],
+  ["uninstall.ts", "noBlockRecordReason", "remove the grugops lines by hand if grugops put them there", 1, "the grugops lines of a CLAUDE.md-style block with no record (no marker)"],
+  ["uninstall.ts", "removeSentinelBlock", "remove the grugops lines by hand, keeping any line of yours", 2, "the grugops block lines in a file"],
+  ["uninstall.ts", "removeSentinelBlock", "remove the grugops lines by hand", 1, "the grugops block lines in a file"],
+  ["uninstall.ts", "removeSentinelBlock", "remove", 1, "the `would-remove` dry-run label (a status word: the run changes nothing)"],
+  ["uninstall.ts", "removeOwnedEmptyFile", "delete it by hand if you do not need it", 1, "a blank file install created whose bytes are not recorded"],
+  ["uninstall.ts", "removeOwnedEmptyFile", "remove", 1, "the `would-remove` dry-run label (a status word: the run changes nothing)"],
+  ["uninstall.ts", "unmergeGemini", "remove AGENTS", 4, "the AGENTS.md entry install added to the Gemini settings' context.fileName"],
+  ["uninstall.ts", "unmergeGemini", "remove it from context", 3, "the AGENTS.md entry install added to the Gemini settings' context.fileName"],
+  ["uninstall.ts", "unmergeGemini", "remove it by hand", 2, "what install wrote in the Gemini settings' context"],
+  ["uninstall.ts", "unmergeGemini", "remove", 2, "the `would-remove` dry-run label (a status word: the run changes nothing)"],
+  ["uninstall.ts", "unmergeGemini", "remove the AGENTS", 1, "the AGENTS.md entry install added (what this run removes, a statement)"],
+  ["uninstall.ts", "unmergeGemini", "remove the context object install wrote when it created the file, holding only its context", 1, "the context object install wrote (what this run removes, a statement)"],
+  ["uninstall.ts", "unmergeGemini", "remove the context", 1, "the context.fileName list install wrote (what this run removes, a statement)"],
+  ["uninstall.ts", "unmergeGemini", "remove context", 1, "the context.fileName list install wrote"],
+  ["uninstall.ts", "removeAskRules", "remove", 3, "the `would-remove` dry-run label (a status word: the run changes nothing)"],
+  ["uninstall.ts", "removeAskRules", "remove them by hand", 5, "the ask rules grugops added"],
+  ["uninstall.ts", "removeAskRules", "remove it by hand if grugops added it", 1, "an ask rule the install ledger does not record"],
+  ["uninstall.ts", "removeAskRules", "removing", 5, "the `removing` list substitution (the ask rules this run removes)"],
+  ["uninstall.ts", "removeMarker", "remove", 2, "the marker's `would-remove` dry-run label (a status word: DRY_RUN changes nothing)"],
+  ["uninstall.ts", "markerOutcomeLine", "remove", 2, "the marker's outcome words: the `would-remove` label and \"nothing to remove\" (the marker absent)"],
+  ["uninstall.ts", "said", "remove or reverse would be taken out of its install ledger", 1, "the ledger entries a run would remove or reverse (a statement)"],
+  ["uninstall.ts", "removeOpenCodePermission", "remove it by hand", 2, "the OpenCode rule grugops added"],
+  ["uninstall.ts", "leftAs", "remove the rule by hand if grugops added it", 1, "an OpenCode rule grugops may have added"],
+  ["uninstall.ts", "nothingLeftLine", "remove ${why}", 1, "nothing (the recorded OpenCode rule is gone)"],
+  ["uninstall.ts", "removeOpenCodePermission", "remove them by hand", 1, "the OpenCode containers install created"],
+  ["uninstall.ts", "removeOpenCodePermission", "remove", 1, "the `would-remove` dry-run label (a status word: the run changes nothing)"],
+  ["uninstall.ts", "removeOpenCodePermission", "remove ${containers} from ${rel} by hand", 1, "the OpenCode containers install created"],
+  ["uninstall.ts", "removeOpenCodePermission", "remove ${JSON", 1, "the OpenCode rule pattern install added"],
+  ["uninstall.ts", "unrecordedFileReason", "remove it by hand if grugops put it there", 1, "an unrecorded grugops-shaped file (there is no marker)"],
+  ["uninstall.ts", "reportUnrecordedFile", "remove", 1, "the `remove` decision value (a discriminant, never printed)"],
+  ["uninstall.ts", "reportUnrecordedSettings", "remove that entry by hand", 1, "the AGENTS.md entry in the Gemini settings"],
+  ["uninstall.ts", "<module>", "delete the kit's own committed adapters and skills under", 1, "the kit's own committed adapters (the refusal of an uninstall of the source checkout)"],
+  ["uninstall.ts", "<module>", "removes and edits nothing on it", 2, "nothing, negated: this run removes and edits nothing on a marker it cannot use"],
+  ["uninstall.ts", "<module>", "remove by hand", 3, "what an earlier install made here (left and reported after the printed re-install)"],
+  ["uninstall.ts", "<module>", "removes and edits nothing", 1, "nothing, negated: this run removes and edits nothing on a marker it cannot use"],
+  ["uninstall.ts", "<module>", "removes and edits nothing here", 2, "nothing, negated: this run removes and edits nothing on a marker it cannot use"],
+  ["uninstall.ts", "keepWithoutRecord", "delete ${marker}", 4, "the marker, negated: \"never delete\" it (it is still the record of the agents staying)"],
+  ["uninstall.ts", "<module>", "remove or restore what the `left` lines name, then run `${finishCommand", 2, "what the `left` lines name"],
+];
+const removalKey = (module: string, fn: string, clause: string): string => `${module} :: ${fn} :: ${clause}`;
+
+describe("D-37: the widened removal-matcher census, by search over every printed reading", () => {
+  it("the walk reads all nine product modules, finds hits in both binaries and the owner's module, finds the known non-marker hits in the exempt table, and sees the negated marker objects as the marker (premise)", () => {
+    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+    const hits = removalHits();
+    for (const m of ["install.ts", "uninstall.ts", "install-marker.ts"]) expect(hits.some((h) => h.module === m), `PREMISE: a hit in ${m}`).toBe(true);
+    const keys = new Set(REMOVAL_EXEMPT.map((r) => removalKey(r[0], r[1], r[2])));
+    for (const fn of ["unlinkPath", "removalDecision"]) {
+      expect(hits.some((h) => h.module === "uninstall.ts" && h.fn === fn && h.clause === "remove it by hand if it is grugops's"), `PREMISE: the uninstaller's ${fn} by-hand line is a hit`).toBe(true);
+      expect(keys.has(removalKey("uninstall.ts", fn, "remove it by hand if it is grugops's")), `PREMISE: ${fn}'s by-hand line is in the exempt table`).toBe(true);
+    }
+    // The object reader sees the marker: the owner's "never delete the marker" and keepWithoutRecord's "never delete
+    // ${marker}" are the two hits whose object is the marker, each negated. (The "removes and edits nothing on it" hits
+    // have "and edit nothing on it" as their object, negated by "nothing"; the planted offers of plan 34.1-46 prove the
+    // pronoun-in-a-reading-about-the-marker arm.)
+    const markerHits = hits.filter((h) => h.marker).map((h) => `${h.module} :: ${h.fn} :: ${h.clause}`);
+    expect([...new Set(markerHits)].sort(), "PREMISE: the hits whose object is the marker").toEqual(
+      ["install-marker.ts :: markerFixText :: delete the marker", "uninstall.ts :: keepWithoutRecord :: delete ${marker}"].sort(),
+    );
+  });
+
+  it("no reading in any product module offers deleting, removing or erasing the marker (D-37)", () => {
+    const offers = removalHits().filter((h) => h.offer).map((h) => `${h.module}:${h.line} [${h.fn}] ${h.clause} — ${h.text}`);
+    expect(offers, "a printed reading offers removing the marker").toEqual([]);
+  });
+
+  it("every other hit equals REMOVAL_EXEMPT both ways, with its count and the object it removes", () => {
+    const hits = removalHits().filter((h) => !h.offer);
+    const found = new Map<string, number>();
+    for (const h of hits) found.set(removalKey(h.module, h.fn, h.clause), (found.get(removalKey(h.module, h.fn, h.clause)) ?? 0) + 1);
+    const want = new Map(REMOVAL_EXEMPT.map((r) => [removalKey(r[0], r[1], r[2]), r[3]]));
+    expect(want.size, "REMOVAL_EXEMPT has no duplicate row").toBe(REMOVAL_EXEMPT.length);
+    const unclassed = [...found.keys()].filter((k) => !want.has(k)).map((k) => `${k} (${found.get(k)})`);
+    const stale = [...want.keys()].filter((k) => !found.has(k));
+    const counts = [...want].filter(([k, n]) => found.has(k) && found.get(k) !== n).map(([k, n]) => `${k}: table ${n}, found ${found.get(k)}`);
+    expect(unclassed, "a removal sentence is not classed with the object it removes").toEqual([]);
+    expect(stale, "a classed removal sentence is gone or changed").toEqual([]);
+    expect(counts, "a classed removal sentence is printed a different number of times").toEqual([]);
+    expect(REMOVAL_EXEMPT.every((r) => r[4].trim() !== ""), "every row names the object it removes").toBe(true);
+    expect(hits.length, "the hit count moved").toBe(131);
+    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(85);
+    expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({ "checkpoint-ask-rules.ts": 1, "install-marker.ts": 1, "install.ts": 47, "uninstall.ts": 82 });
+  });
 });
 
 // ── D-37: every reading that says the marker cannot be used carries the owner's wording or points at it ─────────────
