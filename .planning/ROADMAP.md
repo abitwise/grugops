@@ -1748,7 +1748,7 @@ Plans:
 **Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
 **Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
 **Depends on:** Phase 34
-**Plans:** 41/41 plans executed; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
+**Plans:** 41/52 plans executed; gap round 4 of 4 (the last on the cap), 34.1-42..34.1-52, planned 2026-10-13 under D-37, D-38 and D-39; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
 
 Plans:
 **Wave 1**
@@ -1878,6 +1878,41 @@ Plans:
 **Wave 28** *(blocked on Wave 27 completion)*
 - [x] 34.1-39-PLAN.md — round close: deferred items after round 3, review dispositions (CR-04, WR-21..WR-23 fixed; IN-28..IN-31 deferred), CHANGELOG [Unreleased] Fixed, count re-pins, the one full regression (D-34, D-35, D-36)
 
+**Gap round 4 of 4 (D-37, D-38, D-39; the last round on the cap)**
+
+**Wave 29** *(gap round; blocked on Wave 28 completion)*
+- [ ] 34.1-42-PLAN.md — CR-05 tracer on the uninstaller: no printed text offers removing the marker; every unreadable read names its cause and fix; R41 follows a trailing comma as printed; keepWithoutRecord's FULL delete alternative withdrawn, R20 inverted (D-37)
+
+**Wave 30** *(blocked on Wave 29 completion)*
+- [ ] 34.1-43-PLAN.md — CR-06: an ok marker with a malformed ledger is a record to fix by hand on every run kind, in both binaries; R21 inverted; R43 follows the reproduction as printed (D-37)
+
+**Wave 31** *(blocked on Wave 30 completion)*
+- [ ] 34.1-44-PLAN.md — CR-05 on the installer and the doctor; the removal answer deleted from markerRemedy; MARKER_DEFECTS; IN-33 wording; R36 control inverted (D-37)
+
+**Wave 32** *(blocked on Wave 31 completion)*
+- [ ] 34.1-45-PLAN.md — IN-34 and its block-report sibling, WR-26 (every duplicated key), R46 duplicate ledger key followed, the unusable-marker converse census (D-37)
+
+**Wave 33** *(blocked on Wave 32 completion)*
+- [ ] 34.1-46-PLAN.md — the reader-state matrix (every MarkerDefect x every printing run), R47 mode 000 and the remaining follow rows, the widened removal-matcher census (D-37)
+
+**Wave 34** *(blocked on Wave 33 completion)*
+- [ ] 34.1-47-PLAN.md — WR-25 kit-home half: every printed command states GRUGOPS_HOME; the harness keeps a conflicting GRUGOPS_HOME; R49 (D-38)
+
+**Wave 35** *(blocked on Wave 34 completion)*
+- [ ] 34.1-48-PLAN.md — WR-25 mode and checkout: INSTALL_MODE and GRUGOPS_SRC stated, no --symlink word; the harness keeps conflicting INSTALL_MODE, GRUGOPS_SRC and TARGET; R50 (D-38)
+
+**Wave 36** *(blocked on Wave 35 completion)*
+- [ ] 34.1-49-PLAN.md — DI-16 and DI-17 followed as printed (not-installed, --update, --prune-old-kit) and the env-read census (D-38)
+
+**Wave 37** *(blocked on Wave 36 completion)*
+- [ ] 34.1-50-PLAN.md — WR-24: --check reads one kit home, the record's, for its header, cross-check and kit checks; R52 (D-38)
+
+**Wave 38** *(blocked on Wave 37 completion)*
+- [ ] 34.1-51-PLAN.md — DOC-1: README and CHANGELOG made true for D-37 and D-38 (IN-32 narrowed), retired sentences held by the scan (D-37, D-38)
+
+**Wave 39** *(blocked on Wave 38 completion)*
+- [ ] 34.1-52-PLAN.md — round close: deferred items after round 4 (DI-16, DI-17 closed; D-39 residuals), review dispositions, CHANGELOG [Unreleased] Fixed, count re-pins, the one full regression (D-37, D-38, D-39)
+
 ## Progress
 
 **Execution order:** 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34
@@ -1921,7 +1956,7 @@ Plans:
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
 | 34. Model Effort Dial & Pi Support | v2.1 | 36/36 | Closed by human decision D-28 (verification human_needed 23/26 left standing; UAT 1 pass / 2 issues / 1 deferred; G-34-R3-2, G-34-R3-4 carried to 34.1; HOST-02 to backlog 999.5) | 2026-10-10 |
-| 34.1. Per-agent installer (INSERTED) | v2.1 | 41/41 | In Progress | - |
+| 34.1. Per-agent installer (INSERTED) | v2.1 | 41/52 | In Progress | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
