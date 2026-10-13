@@ -2133,9 +2133,9 @@ function doctor() {
                         parts.push(`${absent.length} absent from the target: ${absent.join(", ")}`);
                     }
                     // ONE CHECKOUT (plan 34.1-37, D-36, review WR-23). The render compared above is of GRUGOPS_SRC, and the
-                    // remedy renders from the same checkout: doctorInstallCommand's context carries `GRUGOPS_SRC=<dir>` when it
-                    // is not this script's own checkout (host-tools.ts scriptCommand). So both places name that one checkout, in
-                    // the one spelling (canonicalPathSpelling).
+                    // remedy renders from the same checkout: doctorInstallCommand's context states `GRUGOPS_SRC=<dir>`, this
+                    // script's own checkout included (host-tools.ts scriptCommand, D-38). So both places name that one checkout,
+                    // in the one spelling (canonicalPathSpelling).
                     const comparedCheckout = canonicalPathSpelling(GRUGOPS_SRC);
                     docWarn(`stale adapter(s) under ${join(TARGET, ".claude", "agents")} — ${parts.join("; ")}. ` +
                         `Each was byte-compared, whole file, against a fresh render of the kit checkout at ` +
@@ -2248,8 +2248,8 @@ if (CHECK) {
 // --check hint (there is no refreshed kit to check against); only a run with none says complete.
 // THE PRINTED COMMANDS (phase 34.1 gap round 2, D-31, D-33): the INCOMPLETE banner names the command that runs
 // --update again, and the success hint its --check command, both from scriptCommand with COMMAND_CONTEXT (the absolute
-// install.js, GRUGOPS_HOME when this run used another kit home), so each runs as printed from any directory against
-// the kit home this run refreshed. --update takes no target and no agent flag (D-25), so neither command names one;
+// install.js, and this run's kit home, install mode and kit checkout stated as GRUGOPS_HOME, INSTALL_MODE and
+// GRUGOPS_SRC, D-38), so each runs as printed from any directory against the kit home this run refreshed. --update takes no target and no agent flag (D-25), so neither command names one;
 // the hint's `<repo>` is the placeholder for the repository to check. Printed under DRY_RUN too. ---
 if (UPDATE) {
     console.log("== grugops update (--update) ==");
@@ -5293,8 +5293,9 @@ let MIGRATE_KIT_WRITE = null;
 if (MIGRATE) {
     // THE MIGRATE SAME-RUN COMMAND (phase 34.1 gap round 2, D-31, DI-09; D-33). Both migrate INCOMPLETE banners (the
     // pre-check's and the already-migrated arm's) print this line, built once here: running --migrate again for the
-    // agents this run chose, by migrateCommand (agentCommand with this run's context: the absolute script path, GRUGOPS_HOME when this
-    // run used another kit home, and `--symlink` when it was a symlink install). A pre-check refusal changes nothing, so the
+    // agents this run chose, by migrateCommand (agentCommand with this run's context: the absolute script path, and this
+    // run's kit home, install mode and kit checkout stated as GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC, D-38; no printed
+    // command carries `--symlink`). A pre-check refusal changes nothing, so the
     // target is still the old layout and this command, run as printed once the cause is fixed, migrates it whole. Before,
     // the banner said only "re-run --migrate", and a flag-less --migrate over an old layout with no marker chooses its
     // agents by detection, which may not be the agents this run named. Printed under DRY_RUN too.
@@ -6642,8 +6643,9 @@ if (VERIFY_FINDINGS > 0) {
     console.log("  Each `verify` line above names what was NOT installed and the remedy for it.");
     // THE SAME-RUN COMMAND (D-26, brief MSG-1): every counted verify of the install mode is finished by running install
     // again for the agents this run chose, built by agentCommand with this run's context (D-33): the absolute script
-    // path, GRUGOPS_HOME when this run used another kit home, and `--symlink` when this run was a symlink install, so
-    // the command run as printed, from any directory, finishes this install and not a copy install or a second kit.
+    // path, and this run's kit home, install mode and kit checkout stated as GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC
+    // (D-38; no printed command carries `--symlink`), so the command run as printed, from any directory and whatever the
+    // shell exports, finishes this install and not a copy install or a second kit.
     // Printed under DRY_RUN too.
     console.log(`  Once each is fixed, \`${agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT)}\` installs for the same agents again ` +
         `(add any other option this run was given).`);

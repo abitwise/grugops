@@ -593,6 +593,17 @@ describe(`DOC-1 (DI-10): no tracked installer source or README says install writ
 // offers the per-entry ledger edit on every run kind). Each is spelled so it matches the retired sentence and not the
 // removal-offer patterns, test names and expectations in agents-record.test.ts that name the retired behaviour (its
 // MARKER_REMOVAL and REMOVAL_OFFER patterns, and a `not.toContain` of the old kept-line text, which stops before "the").
+//
+// D-38 (gap round 4, plan 34.1-51, 34.1 review WR-25 and IN-32; plans 34.1-47 and 34.1-48): every printed install
+// command states GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC, every printed uninstall command GRUGOPS_HOME and
+// GRUGOPS_SRC, and none carries `--symlink` (host-tools.ts scriptCommand; the env-read census, R49 to R52 and the DI-16
+// and DI-17 rows follow it). Plan 34.1-51 removed the sentences that said otherwise, in the README, the CHANGELOG and
+// the code and test comments DI-20 found: the kit-home word only for a kit home other than the default
+// (`home-only-not-default`, `home-when-another`, `home-not-default-so`), the symlink flag for a symlink install
+// (`symlink-word`, which leaves "no printed command carries `--symlink`" alone), the checkout word only for another
+// checkout (`src-only-other`), an uninstall command stating no kit home (`uninstall-no-kit-home`), and the CHANGELOG's
+// general equality of the uninstaller's install command with `install.js --check`'s, which R39 shows only for one
+// case (`same-command-as-check`, 34.1 review IN-32).
 
 const RETIRED_PRINTED_CLAIMS: readonly { readonly id: string; readonly words: readonly string[] }[] = [
   { id: "second-kit", words: ["never", "writes", "a", "second", "kit"] },
@@ -602,6 +613,13 @@ const RETIRED_PRINTED_CLAIMS: readonly { readonly id: string; readonly words: re
   { id: "fix-or-remove-marker", words: ["says?", "to", "fix", "or", "remove"] },
   { id: "no-record-a-fix", words: ["no", "record", "a", "fix", "could", "give", "back"] },
   { id: "delete-marker-by-hand", words: ["delete", "(?:the\\s+marker|`?\\.grugops/install\\.json`?)", "by", "hand", "to", "keep", "the"] },
+  { id: "home-only-not-default", words: ["`?GRUGOPS_HOME=<dir>`?", "when", "the", "kit", "home", "it", "names", "is", "not"] },
+  { id: "home-when-another", words: ["GRUGOPS_HOME", "when", "this", "run", "used", "another", "kit", "home"] },
+  { id: "home-not-default-so", words: ["kit", "home", "is", "not", "the", "default", "one,", "so"] },
+  { id: "symlink-word", words: ["(?:carries|and)", "`?--symlink`?", "(?:for\\s+a|when\\s+(?:it|this\\s+run)\\s+was\\s+a)", "symlink", "install"] },
+  { id: "src-only-other", words: ["(?:other\\s+than\\s+the\\s+one\\s+the\\s+script\\s+is\\s+in|is\\s+not\\s+this\\s+script's\\s+own\\s+checkout)"] },
+  { id: "uninstall-no-kit-home", words: ["carries", "no", "`?GRUGOPS_HOME"] },
+  { id: "same-command-as-check", words: ["is", "the", "one", "`?install\\.js", "--check`?", "prints", "for", "the", "same", "marker"] },
 ];
 /** One retired claim's words, by id, so a planted proof reads them from the table rather than by index. */
 const claimWords = (id: string): readonly string[] => {
@@ -680,7 +698,7 @@ describe("DOC-1 (D-34): no tracked document or comment carries a retired printed
       `// ${w2.slice(2).join(" ")}).\nexport const c = 1;\n`;
     // Controls: true sentences that share words with a claim, and copies outside the scan set.
     const controlTs = "// --check: following one writes no second kit and does not move the install.\n" +
-      "// An install command starts with GRUGOPS_HOME=<dir> for another kit home.\n" +
+      "// An install command starts with GRUGOPS_HOME=<dir>, the default kit home included.\n" +
       "// The new marker records a copy install, and the kit home and install mode the marker records.\nexport const d = 1;\n";
     const outside = `${w0.join(" ")}\n`;
     const root = plantedRepo("doc1-printed", {
@@ -750,6 +768,66 @@ describe("DOC-1 (D-34): no tracked document or comment carries a retired printed
         `install/README.md:${base + 1} [fix-or-remove-marker]`,
         `install/README.md:${base + 4} [delete-marker-by-hand]`,
         "CHANGELOG.md:4 [delete-marker-by-hand]",
+      ].sort(),
+    );
+  });
+
+  it("D-38 (plan 34.1-51): planted docs and comments with the printed-command sentences restored are hits naming the file and line, each wrapped; the sentences that replaced them are not", () => {
+    const real = readFileSync(join(REPO, "install", "README.md"), "utf8");
+    const anchor = "**When uninstall keeps `.grugops/install.json`.** The marker is the only record of what install\n";
+    expect(real.split(anchor).length - 1, "premise: install/README.md holds the kept-marker heading exactly once").toBe(1);
+    // The README sentences plan 34.1-51 removed, put back in front of the kept-marker heading, wrapped as they were.
+    // The words come from parts, so no source line here holds a claim.
+    const home = "`GRUGOPS_HOME=<dir>`";
+    const restored =
+      `It starts with ${home} ${["when", "the", "kit"].join(" ")}\n` +
+      `${["home", "it", "names", "is", "not"].join(" ")} \`~/.grugops\`, and ${["carries", "`--symlink`", "for", "a"].join(" ")} symlink install.\n` +
+      `It ${["carries", "no"].join(" ")} ${"`GRUGOPS_HOME=`"} and no \`--symlink\`: the uninstaller needs neither.\n` +
+      `A command carries \`GRUGOPS_SRC=<dir>\` when the run used a kit checkout ${["other", "than"].join(" ")}\n` +
+      `${["the", "one", "the", "script", "is", "in"].join(" ")}, so it renders from the checkout the run used.\n\n`;
+    const planted = real.replace(anchor, restored + anchor);
+    const base = real.slice(0, real.indexOf(anchor)).split("\n").length;
+    expect(planted.split("\n")[base - 1], "premise: the first restored line is where the test puts it").toContain("It starts with");
+    const changelog =
+      "# Changelog\n\n- The uninstall line names that kit home, and the command is\n" +
+      `  the one \`install.js --check\` ${["prints", "for", "the", "same"].join(" ")} marker and environment (a review id).\n` +
+      "- A printed command always states `GRUGOPS_SRC=<dir>`, the kit checkout the run used (`GRUGOPS_SRC`,\n" +
+      "  else the checkout the script is in). No printed command carries `--symlink`, so a `GRUGOPS_HOME`,\n" +
+      "  `INSTALL_MODE` or `GRUGOPS_SRC` exported in your shell does not change what it does.\n";
+    // The DI-20 comment forms: a product comment and a test comment.
+    const productTs =
+      `// path, ${["GRUGOPS_HOME", "when", "this", "run", "used"].join(" ")} another\n` +
+      `// kit home, ${["and", "`--symlink`", "when", "this", "run"].join(" ")} was a symlink install, so\nexport const c = 1;\n`;
+    const testTs =
+      `    // context (the ${["kit", "home", "is", "not", "the", "default"].join(" ")} one, so GRUGOPS_HOME), and the\n` +
+      "    // remedy renders from the same checkout: the context carries `GRUGOPS_SRC=<dir>` when it\n" +
+      `    // ${["is", "not", "this", "script's", "own"].join(" ")} checkout.\nexport const e = 1;\n`;
+    // Controls: the sentences that replaced them, and test expectations that name the retired word.
+    const controlTs =
+      "// no printed command carries `--symlink`; INSTALL_MODE is the one spelling install.js accepts for both modes.\n" +
+      "// scriptCommand states GRUGOPS_HOME, the default kit home included, and GRUGOPS_SRC, this script's own checkout included.\n" +
+      "// An uninstall command states GRUGOPS_HOME and GRUGOPS_SRC; an install command it prints states INSTALL_MODE=copy.\n" +
+      'expect(words, "the printed command carries --symlink").not.toContain("--symlink");\nexport const d = 1;\n';
+    const root = plantedRepo("doc1-d38", {
+      "install/README.md": planted,
+      "CHANGELOG.md": changelog,
+      "install/install.ts": productTs,
+      "install/closing-claims.test.ts": testTs,
+      "install/clean.ts": controlTs,
+    });
+    const scan = retiredClaimScan(root);
+    expect(scan.scanned.sort()).toEqual(["CHANGELOG.md", "install/README.md", "install/clean.ts", "install/closing-claims.test.ts", "install/install.ts"]);
+    expect(scan.hits.sort()).toEqual(
+      [
+        `install/README.md:${base} [home-only-not-default]`,
+        `install/README.md:${base + 1} [symlink-word]`,
+        `install/README.md:${base + 2} [uninstall-no-kit-home]`,
+        `install/README.md:${base + 3} [src-only-other]`,
+        "CHANGELOG.md:3 [same-command-as-check]",
+        "install/install.ts:1 [home-when-another]",
+        "install/install.ts:2 [symlink-word]",
+        "install/closing-claims.test.ts:1 [home-not-default-so]",
+        "install/closing-claims.test.ts:3 [src-only-other]",
       ].sort(),
     );
   });

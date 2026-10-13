@@ -434,16 +434,18 @@ CLI with Antigravity CLI.
   alternative is to take that file's entry out of the install ledger, never to delete the marker,
   which still records the agents that stay (34.1 review CR-03).
 - Every command the installer and uninstaller print names the script by its absolute path, so it
-  runs from any directory. An install command starts with `GRUGOPS_HOME=<dir>` when the kit home it
-  names is not `~/.grugops`, and carries `--symlink` for a symlink install. `install.js --check`
-  takes that kit home and install mode from install's own marker for the repository it checks, so
-  following a `--check` remedy writes no second kit and leaves the install where it was; with no
-  marker it can use, it takes them from the `--check` run. An install, `--migrate`, `--update` or
-  `--prune-old-kit` run takes them from how it was run. An install command the uninstaller prints
-  names the kit home the uninstaller was run with (`GRUGOPS_HOME`, else `~/.grugops`) and is a copy
-  install; it never takes a kit home or an install mode from a marker that belongs to another
-  directory. A printed command also carries `GRUGOPS_SRC=<dir>` when the run used a kit checkout
-  other than the one the script is in (34.1 review WR-19).
+  runs from any directory, and states its kit home, its kit checkout and, for an install command, its
+  install mode: an install command starts with `GRUGOPS_HOME=<dir> INSTALL_MODE=<copy or symlink>
+  GRUGOPS_SRC=<dir>`, and an uninstall command with `GRUGOPS_HOME=<dir> GRUGOPS_SRC=<dir>`, the
+  default kit home `~/.grugops`, a copy install and the checkout the script is in included. No
+  printed command carries `--symlink`, so a `GRUGOPS_HOME`, `INSTALL_MODE` or `GRUGOPS_SRC`
+  exported in your shell does not change what a printed command does. `install.js --check` takes the kit home and install mode from install's own
+  marker for the repository it checks, so following a `--check` remedy writes no second kit and
+  leaves the install where it was; with no marker it can use, it takes them from the `--check` run.
+  An install, `--migrate`, `--update` or `--prune-old-kit` run takes them from how it was run. An
+  install command the uninstaller prints states the kit home the uninstaller was run with
+  (`GRUGOPS_HOME`, else `~/.grugops`) and `INSTALL_MODE=copy`; it never takes a kit home or an
+  install mode from a marker that belongs to another directory (34.1 review WR-19).
 - When the install marker belongs to another directory or predates the install ledger, uninstall's
   remedy names the install command with the agent flags you gave it, and the uninstall that follows
   reports the earlier grugops skill, command and prompt template files (34.1 review WR-20).
@@ -475,11 +477,11 @@ CLI with Antigravity CLI.
   `GRUGOPS_HOME` or `--symlink` the install used (34.1 review WR-21).
 - Over a marker that belongs to another directory (a moved or cloned repository), the install command
   the uninstaller prints uses the kit home the uninstaller was run with (`GRUGOPS_HOME`, else
-  `~/.grugops`), never a kit home the marker names. The line names that kit home, and the command is
-  the one `install.js --check` prints for the same marker and environment (34.1 review WR-22).
-- A printed command carries `GRUGOPS_SRC=<dir>` when the run used a kit checkout other than the one
-  the script is in, so the `install.js --check` stale-adapter remedy renders from the checkout it
-  compared the adapters against (34.1 review WR-23).
+  `~/.grugops`), never a kit home the marker names, and states `INSTALL_MODE=copy`. The line names
+  that kit home (34.1 review WR-22).
+- A printed command always states `GRUGOPS_SRC=<dir>`, the kit checkout the run used (`GRUGOPS_SRC`,
+  else the checkout the script is in), so the `install.js --check` stale-adapter remedy renders from
+  the checkout it compared the adapters against (34.1 review WR-23).
 
 ### Security
 

@@ -330,8 +330,8 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     expect(verifies.length, r.stdout).toBeGreaterThan(0);
     expect(lastBanner(r.stdout), r.stdout).toBe(`== update INCOMPLETE — ${verifies.length} item(s) need verification ==`);
     // Plan 34.1-28 (D-31, DI-09's update sibling; D-33): the line after the banner names the command that runs --update
-    // again, built by scriptCommand with this run's context (the kit home is not the default one, so GRUGOPS_HOME), and
-    // builder-independent words are checked too.
+    // again, built by scriptCommand with this run's context (it states this run's kit home as GRUGOPS_HOME, as every
+    // printed command does, D-38), and builder-independent words are checked too.
     const lines = r.stdout.split("\n");
     const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
     const want = `${scriptCommand("install.js", commandContextFor({ grugopsHome: kitHome }))} --update`;
@@ -490,7 +490,8 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     expect(lastBanner(r.stdout), r.stdout).toBe(`== migrate INCOMPLETE — ${verifies.length} item(s) need verification ==`);
     // Plan 34.1-28 (D-31, DI-09; D-33): the line after the banner names the command that runs --migrate again for the
     // agents this run chose (runInstall names every registry agent), built by agentCommand with this run's context: the
-    // kit home is not the default one, so the command carries GRUGOPS_HOME. Builder-independent words are checked too.
+    // command states this run's kit home as GRUGOPS_HOME, as every printed command does (D-38). Builder-independent
+    // words are checked too.
     const lines = r.stdout.split("\n");
     const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
     const want = agentCommand("install.js", target, HOST_TOOLS, commandContextFor({ grugopsHome: kitHome }), ["--migrate"]);

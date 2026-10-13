@@ -73,25 +73,33 @@ GRUGOPS_HOME=/opt/grugops node install/install.js --target /path/to/repo
 node install/install.js --yes --backup-edited-kit --target /path/to/repo
 ```
 
-An install command the installer prints (for example the one the `install INCOMPLETE` banner
-gives, or the one a `--check` note gives for an agent with nothing installed) names the script by
-its absolute path, so it runs from any directory. It starts with `GRUGOPS_HOME=<dir>` when the kit
-home it names is not `~/.grugops`, and carries `--symlink` for a symlink install.
+A command the installer or the uninstaller prints (for example the one the `install INCOMPLETE`
+banner gives, the one a `--check` note gives for an agent with nothing installed, or the one a
+`left` or `verify` line gives to finish an uninstall) names the script by its absolute path, so it
+runs from any directory, and states before `node` every value the script would otherwise take from
+your shell. An install command starts with `GRUGOPS_HOME=<dir> INSTALL_MODE=<copy or symlink>
+GRUGOPS_SRC=<dir> node`, and an uninstall command with `GRUGOPS_HOME=<dir> GRUGOPS_SRC=<dir> node`
+(the uninstaller reads no `INSTALL_MODE`). The default kit home `~/.grugops`, a copy install and the
+checkout the script is in are stated too, and no printed command carries `--symlink`, so a
+`GRUGOPS_HOME`, `INSTALL_MODE` or `GRUGOPS_SRC` exported in your shell does not change what a
+printed command does.
 `install.js --check` reads the install marker it checks (`.grugops/install.json`). When that marker
 is install's own record for this directory, the install commands `--check` prints carry the kit home
-and install mode the marker records, whatever kit home or mode the `--check` run was given. With no
-marker it can use, they carry the kit home and mode of the `--check` run itself.
+and install mode the marker records, whatever kit home or mode the `--check` run was given, and
+`--check` reads that kit home for its own checks too (see "How a host finds the kit after a scripted
+install"). With no marker it can use, they carry the kit home and mode of the `--check` run itself.
 An install, `--migrate`, `--update` or `--prune-old-kit` run prints commands with the kit home and
-mode it was run with (`GRUGOPS_HOME`, and `--symlink` or `INSTALL_MODE=symlink`).
-A command the uninstaller prints to finish or repeat a run (on a `left` line, a `verify` line or the
-`uninstall INCOMPLETE` banner) names `uninstall.js` by its absolute path too, so it also runs from
-any directory. It carries no `GRUGOPS_HOME=` and no `--symlink`: the uninstaller removes only what
-the install record in the target names, and needs neither.
-A command either script prints carries `GRUGOPS_SRC=<dir>` (after any `GRUGOPS_HOME=<dir>`, before
-`node`) when the run used a kit checkout (`GRUGOPS_SRC`) other than the one the script is in, so the
-command renders from, and reports against, the checkout the run used. The `--check` warning about
-stale adapters names one checkout, the one it compared the adapters against, and its install command
-renders from that checkout.
+mode it was run with (`GRUGOPS_HOME`, else `~/.grugops`; `--symlink` or `INSTALL_MODE`, else copy).
+An uninstall command the uninstaller prints to finish or repeat a run (on a `left` line, a `verify`
+line or the `uninstall INCOMPLETE` banner) states the kit home install recorded when the marker is
+install's own record for this directory, else the kit home the uninstaller was run with
+(`GRUGOPS_HOME`, else `~/.grugops`). The uninstaller removes only what the install record in the
+target names; the kit home decides only the install command it prints over a marker it cannot use,
+which states the kit home the uninstaller was run with and `INSTALL_MODE=copy`.
+`GRUGOPS_SRC=<dir>` names the kit checkout the run used (`GRUGOPS_SRC`, else the checkout the script
+is in), so the command renders from, and reports against, that checkout. The `--check` warning
+about stale adapters names one checkout, the one it compared the adapters against, and its install
+command renders from that checkout.
 
 ### Re-installing over an existing install (your edits to the kit files, D-32)
 
@@ -574,8 +582,14 @@ reads every file first and reports afterwards, in this order:
   ledger), `--check` reports the agents detected in the target instead and says so in a `note`. An agent id the marker records and this version does not know is named in
   a `note` and gets no `reach` line. The Claude Code checks (the adapters' `KIT=` line in the
   kit-root cross-check, the stat lines that name an adapter, and adapter staleness) run only when
-  Claude Code is installed; without it, the kit-root cross-check compares the kit root `install.js`
-  resolves with the marker's `kitRoot`.
+  Claude Code is installed; without it, the kit-root cross-check compares the marker's `kitRoot` with
+  the kit root of the kit home `--check` reads.
+- **The kit home it reads.** `--check` reads one kit home for its header (`home:` and `kit:`), its
+  kit-root cross-check and its checks of the kit: the kit home install recorded in the marker, or,
+  with no marker it can use, the kit home of the `--check` run (`GRUGOPS_HOME`, else `~/.grugops`).
+  It is the kit home its printed commands state, so a plain `--check` on an install with another kit
+  home does not report a stale or moved install for that reason alone. When the run's own kit home
+  is a different one, a `given:` line in the header names it as not used.
 
 - **The route target.** It reads `kitRoot` and reports a FAIL when
   `<kitRoot>/roles/orchestrator.md` is not a readable file.
@@ -989,13 +1003,14 @@ records, changes nothing, and exits `3` with a `verify` line that gives the reme
 repository moved or renamed, set `"target"` in the marker to the path the line names and run the
 uninstall command the line prints again. Otherwise, and for a marker with no `target` or no install
 ledger, the line prints two commands to run in order. The first is the install command, with the agent
-flags you gave the uninstaller and the kit home you ran the uninstaller with (`GRUGOPS_HOME`, else
-`~/.grugops`). The line names that kit home as the place the install command copies the kit into. The
-install command never takes a kit home or an install mode from the marker: the marker is not this
-directory's record, and in a cloned repository it can name another person's path. After an earlier
-`--symlink` install, the install command is a copy install that finishes, and the new marker records a
-copy install. If you gave no agent flag, the line also says what install does without one: it chooses
-the agents detected here, shows the agent list at a terminal, or refuses and names the agent flags.
+flags you gave the uninstaller, `GRUGOPS_HOME=<dir>` stating the kit home you ran the uninstaller with
+(`GRUGOPS_HOME`, else `~/.grugops`), and `INSTALL_MODE=copy`. The line names that kit home as the place
+the install command copies the kit into. The install command never takes a kit home or an install mode
+from the marker: the marker is not this directory's record, and in a cloned repository it can name
+another person's path. After an earlier symlink install, the install command is still a copy install
+that finishes, and the new marker records a copy install. If you gave no agent flag, the line also
+says what install does without one: it chooses the agents detected here, shows the agent list at a
+terminal, or refuses and names the agent flags.
 The second is the uninstall command you ran. The install replaces that marker with one for this
 directory and carries none of its records (it says so in a `note` line). The uninstaller then reports what an earlier install made here as
 `left` and leaves it, including the grugops skill, OpenCode command and Pi prompt template files of
