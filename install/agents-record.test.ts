@@ -1753,6 +1753,75 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
     expect(existsSync(at(w.target, CLAUDE_SKILL)), r.stdout).toBe(false);
     expect(leftRecorded(r.stdout, recorded), `a path the ledger recorded was left\n${r.stdout}`).toEqual([]);
   });
+
+  /**
+   * R38's first half (plan 34.1-34, D-35): install Claude Code and Codex CLI, set `agents` to [Codex, claude-code] by
+   * hand, and uninstall with `args`. The run exits 3 with one verify line about the marker that names the field, says
+   * fix it by hand and never delete the marker, and offers no removal anywhere in the run; the marker's `left` line
+   * does not call it not install's, and the marker is left byte for byte. Returns the world, the verify line and the
+   * paths the ledger recorded.
+   */
+  function neverRemoveUninstall(tag: string, args: readonly string[]): { w: World; verifyLine: string; recorded: string[] } {
+    const w = world(tag);
+    install(w, [flag("claude"), flag("codex")]);
+    const recorded = recordedPaths(w);
+    expect(recorded, "PREMISE: the ledger names both skills").toEqual(expect.arrayContaining([AGENT_SKILL_REL, ".claude/skills/grugops/SKILL.md"]));
+    setAgentsByHand(w, BAD_AGENTS);
+    expect(readInstallMarker(w.target).state, "PREMISE: the marker is unusable").toBe("unreadable");
+    expect(readLedger(readMarkerObject(w.target)).state, "PREMISE: its ledger still reads ok").toBe("ok");
+    const bytes = readFileSync(at(w.target, MARKER_REL));
+
+    const r = uninstall(w, args);
+    const what = `uninstall ${args.join(" ") || "(flag-less)"}`;
+    expect(r.status, `${what}: exit\n${r.stdout}`).toBe(3);
+    const about = linesWith(r.stdout, "verify").filter((l) => l.replace(/^ {2}verify\s+/, "").startsWith(MARKER_REL));
+    expect(about.length, `${what}: one verify line about the marker\n${r.stdout}`).toBe(1);
+    const verifyLine = about[0];
+    expect(verifyLine, what).toContain("agents is not a list of agent ids");
+    expect(verifyLine, what).toContain("by hand");
+    expect(verifyLine, what).toContain("never delete the marker");
+    for (const l of r.stdout.split("\n")) {
+      expect(l, `${what}: a line tells the user to delete the marker`).not.toMatch(DELETE_MARKER);
+      expect(l, `${what}: a line offers removing the marker`).not.toMatch(REMOVAL_OFFER);
+    }
+    const markerLeft = linesWith(r.stdout, "left").filter((l) => l.includes(`${MARKER_REL} (`));
+    expect(markerLeft.length, `${what}: the marker's \`left\` line\n${r.stdout}`).toBe(1);
+    expect(markerLeft[0], `${what}: the \`left\` line says the marker is not install's`).not.toMatch(/not install's/);
+    expect(markerLeft[0], what).toContain("see the verify line above");
+    expect(readFileSync(at(w.target, MARKER_REL)).equals(bytes), `${what}: the marker changed\n${r.stdout}`).toBe(true);
+    // The verify says this run removes nothing here: both agents' skills are still in place.
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), `${what}: the Codex CLI skill was removed\n${r.stdout}`).toBe(true);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), `${what}: the Claude Code skill was removed\n${r.stdout}`).toBe(true);
+    return { w, verifyLine, recorded };
+  }
+
+  it("R38a (uninstall, flag-less): over `agents` set to [Codex, claude-code], the verify names the field, says never delete the marker and offers no removal; fixed by hand and run as printed from outside the checkout, it exits 0 and removes the marker and both agents' skills, with no recorded path left", () => {
+    const { w, verifyLine, recorded } = neverRemoveUninstall("r38a", []);
+    expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+
+    // Follow it: fix the field the line named, by hand, then run the printed uninstall command as printed.
+    setAgentsByHand(w, ids("claude", "codex"));
+    const fin = runPrinted(w, verifyLine);
+    expect(fin.status, fin.stdout).toBe(0);
+    expect(markerGone(w), fin.stdout).toBe(true);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
+    expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
+  });
+
+  it("R38b (uninstall --codex): the same verify prints a --codex command; fixed by hand and run as printed, it removes Codex CLI only: its skill is gone, Claude Code's stays, `agents` is [claude] and the marker stays", () => {
+    const { w, verifyLine } = neverRemoveUninstall("r38b", [flag("codex")]);
+    expect(printedFlags(verifyLine), verifyLine).toEqual([flag("codex")]);
+
+    setAgentsByHand(w, ids("claude", "codex"));
+    const fin = runPrinted(w, verifyLine);
+    expect(fin.status, fin.stdout).toBe(0);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(true);
+    expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
+    expect(markerGone(w), fin.stdout).toBe(false);
+    expectInvariant(w, ids("claude", "codex"), fin.stdout);
+  });
 });
 
 // ── the marker-writer census (TypeScript parser) ─────────────────────────────────────────────────────────────────

@@ -139,6 +139,8 @@ import {
   BLOCK_RELS,
   blockLineSpans,
   markerUnusableText,
+  markerRemedy,
+  markerFixText,
   contentRecord,
   recordMatches,
   NO_MODE_NOTE,
@@ -1622,16 +1624,34 @@ function removeMarker(): MarkerOutcome {
   // read is `ok`, which it is only for install's own marker for this directory holding a well-formed ledger.
   const own = owns(LEDGER, TARGET, MARKER_REL, "marker");
   if (!own.owned && MARKER_READ.state !== "ok") {
+    // D-35 (34.1 review CR-04, plan 34.1-34): the one owner (install-marker.ts markerRemedy) decides, from the read
+    // this run made, whether the marker's line may offer removing it: never while its bytes hold a well-formed install
+    // ledger, which is still the record of every agent installed here. For a read that is not `ok` the run kind
+    // changes nothing in the answer; it is passed as this run's own.
+    const remedy = markerRemedy(MARKER_READ, FULL ? "uninstall-full" : "uninstall-partial");
     if (MARKER_READ.state === "unreadable" && MARKER_READ.jsonObject) {
-      report("left", `${MARKER_REL} (${MARKER_READ.why} — so it is not install's; left in place)`);
+      report(
+        "left",
+        remedy.ledgerWellFormed
+          ? `${MARKER_REL} (left in place: a field in it holds a value install never writes, while its install ledger is ` +
+              `still the record of every agent installed here; see the verify line above)`
+          : `${MARKER_REL} (${MARKER_READ.why} — so it is not install's; left in place)`,
+      );
       return { kind: "left" };
     }
     if (MARKER_READ.state === "unbound") {
       report("left", `${MARKER_REL} (it is not a record this run can use: ${MARKER_READ.why}; left in place — see the verify line above)`);
       return { kind: "left" };
     }
+    // U3: not JSON, not an object, a damaged file, or gone when the run started. A duplicate-key or strict-reader
+    // marker whose install ledger is well formed is still the record, so its tail is the owner's never-remove wording.
     const why = MARKER_READ.state === "unreadable" ? MARKER_READ.why : "it was not present when this run started";
-    report("left", `${MARKER_REL} (it could not be read as install's marker: ${why}; it was left in place — fix or remove it by hand)`);
+    report(
+      "left",
+      `${MARKER_REL} (it could not be read as install's marker: ${why}; it was left in place — ${
+        remedy.mayRemove ? "fix or remove it by hand" : markerFixText(remedy)
+      })`,
+    );
     return { kind: "left" };
   }
   // MARKER_READ is `ok` here, so MARKER is that read; the check narrows the type.
@@ -2555,10 +2575,20 @@ if (MARKER_READ.state === "unbound") {
     );
   }
 } else if (MARKER.state === "unreadable") {
+  // D-35 (34.1 review CR-04, plan 34.1-34): the one owner (install-marker.ts markerRemedy) decides the remedy. FULL is
+  // declared below and does not exist yet; for an unreadable marker NAMED is empty, so FULL would be exactly
+  // `REMOVE.size === 0`, and that decides the run kind here. The owner's answer for an unreadable read does not depend
+  // on the run kind anyway: a marker whose bytes hold a well-formed install ledger is the record of every agent
+  // installed here, so the remedy names the field to fix by hand, says never to delete the marker, and prints this
+  // run's own command; with no well-formed ledger the old text stands.
+  const remedy = markerRemedy(MARKER_READ, REMOVE.size === 0 ? "uninstall-full" : "uninstall-partial");
   verify(
-    `.grugops/install.json ${markerUnusableText(MARKER)}, so the install ledger is unknown. No empty directory, ` +
-      `no file install may have created, no grugops skill or adapter file and no pointer block is removed, and ` +
-      `.gemini/settings.json is not edited — remove them by hand once you have confirmed they are yours to remove.`,
+    remedy.mayRemove
+      ? `.grugops/install.json ${markerUnusableText(MARKER)}, so the install ledger is unknown. No empty directory, ` +
+          `no file install may have created, no grugops skill or adapter file and no pointer block is removed, and ` +
+          `.gemini/settings.json is not edited — remove them by hand once you have confirmed they are yours to remove.`
+      : `.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and ` +
+          `edits nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`,
   );
 } else if (LEDGER.state === "malformed") {
   verify(
