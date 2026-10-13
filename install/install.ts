@@ -180,7 +180,7 @@ import {
   agentCommand,
   agentFlag,
   carriesKitRoute,
-  commandContext,
+  commandContextFromRecord,
   entryOwners,
   hostForFlag,
   routeCarriers,
@@ -343,21 +343,6 @@ const GRUGOPS_HOME = canonicalPathSpelling(
     : resolve(homedir(), ".grugops"),
 );
 const KIT_ROOT = canonicalPathSpelling(resolve(GRUGOPS_HOME, "agent-factory"));
-// COMMAND_CONTEXT (phase 34.1 gap round 2, D-33, review WR-19): how this run was invoked, built once, for every
-// command it prints (host-tools.ts agentCommand's fourth argument). The script directory is this script's own, so a
-// printed command names install.js and uninstall.js by their absolute paths and runs from any directory. The kit home
-// is the one this run resolved and used (GRUGOPS_HOME above), null when it is the default `~/.grugops`, so a printed
-// install command carries `GRUGOPS_HOME=<dir>` exactly when this run used another kit home; that holds in every mode
-// (install, --check, --migrate, --update, --prune-old-kit), and a doctor run given a kit home other than the one the
-// marker records prints the kit home it used itself (the kit-root disagreement is reported on its own line). The
-// install mode is this run's INSTALL_MODE (`--symlink` or INSTALL_MODE=symlink), so a `--check` run made without
-// `--symlink` prints copy-mode install commands. Every path is in canonicalPathSpelling's one spelling.
-const COMMAND_CONTEXT = commandContext(
-  canonicalPathSpelling(SCRIPT_DIR),
-  GRUGOPS_HOME,
-  canonicalPathSpelling(resolve(homedir(), ".grugops")),
-  INSTALL_MODE === "symlink",
-);
 // KIT_COPY_SOURCE: the directory copyKit copies to KIT_ROOT (copyKit spells the same join for the fs
 // census). seedRoot reads a DRY_RUN's seed from it (red-team L2 of plan 33.1-34).
 const KIT_COPY_SOURCE = join(GRUGOPS_SRC, "agent-factory");
@@ -476,6 +461,39 @@ function resolveTarget(): string {
   return canonicalPathSpelling(ans ? resolve(ans) : def);
 }
 const TARGET = resolveTarget();
+
+// DOCTOR_MARKER_READ (phase 34.1 gap round 3, D-36, review WR-21): under `--check`, the one read of this target's install
+// marker. The doctor checks it, and COMMAND_CONTEXT below takes the doctor's printed kit home and install mode from it,
+// so the two read one marker. Null in every other mode: a run that chooses the kit home itself passes no record.
+const DOCTOR_MARKER_READ: InstallMarkerRead | null = CHECK ? readInstallMarker(TARGET) : null;
+// COMMAND_CONTEXT (phase 34.1 gap round 2, D-33, WR-19; gap round 3, D-36, WR-21): how a command this run prints is
+// invoked, built once by host-tools.ts commandContextFromRecord (the one owner), for every command it prints
+// (agentCommand's fourth argument, scriptCommand's second). The script directory is this script's own, so a printed
+// command names install.js and uninstall.js by their absolute paths and runs from any directory. The kit home and the
+// install mode come from:
+//   --check: the marker the doctor checks (DOCTOR_MARKER_READ). When it reads `ok` (install's own record for this
+//     directory), the printed install commands carry the kit home and install mode it records, whatever kit home or
+//     mode the `--check` run was given, so following one writes no second kit and does not move the install (WR-21).
+//     When there is no usable marker (absent, unreadable, or `unbound`, another directory's record, never read for
+//     this), they carry this run's own GRUGOPS_HOME and INSTALL_MODE.
+//   install, --migrate, --update, --prune-old-kit: this run's own GRUGOPS_HOME and INSTALL_MODE (no record is passed).
+//     Such a run chooses the kit home itself, so its printed commands repeat the invocation the user gave. When it
+//     writes the kit, writeMarker records this run's kit home and mode (kitFromThisRun), so the commands match the
+//     marker it leaves; taking the kit home from the marker as it was before the run would print the old one, and
+//     following that command would move the install back. One case does not match: when the run writes no kit file
+//     and Claude Code stays installed after it (for example `--codex` with a new GRUGOPS_HOME over a Claude Code
+//     install), writeMarker's kept() keeps the previous marker's grugopsHome, kitRoot and installMode, so the marker
+//     can hold an older kit home than the one this run's printed commands carry.
+// The kit home is null when it is the default `~/.grugops`, so a printed install command carries `GRUGOPS_HOME=<dir>`
+// exactly when it names another kit home, and `--symlink` for a symlink install. Every path is in canonicalPathSpelling's
+// one spelling. Declared after TARGET (the marker read needs it); no module-level statement above calls agentCommand,
+// scriptCommand or the doctor's command helpers below, which run only from functions and branches after this line.
+const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
+  scriptDir: canonicalPathSpelling(SCRIPT_DIR),
+  kitHome: GRUGOPS_HOME,
+  defaultKitHome: canonicalPathSpelling(resolve(homedir(), ".grugops")),
+  symlink: INSTALL_MODE === "symlink",
+});
 
 // THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
 // install.js prints its command from the helpers below, so the command runs as printed from any directory, with the
@@ -1918,7 +1936,14 @@ function doctor(): number {
   // such (red-team of plan 33.1-27), never as "not installed". Both fail closed BEFORE touching
   // adapters: print a distinct greppable line and return nonzero. Never crash, never
   // false-green (ties to C3 — the dev checkout has agent-factory/ but no marker).
-  const markerRead = readInstallMarker(TARGET);
+  // The one marker read under --check (DOCTOR_MARKER_READ, D-36): the marker COMMAND_CONTEXT's kit home and install
+  // mode were taken from is the marker checked here. It is null only outside --check, where the doctor never runs; a
+  // null here fails closed rather than reading the marker a second time.
+  if (DOCTOR_MARKER_READ === null) {
+    docFail(`the doctor ran without its marker read (${markerFile}); this is an installer defect, nothing was checked`);
+    return 1;
+  }
+  const markerRead: InstallMarkerRead = DOCTOR_MARKER_READ;
   if (markerRead.state === "unreadable") {
     markerUnreadable(markerFile, markerRead);
     return 1;

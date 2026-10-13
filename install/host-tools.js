@@ -243,9 +243,39 @@ function shellWord(s) {
  * The CommandContext of a run (D-33): `kitHome` is null when it equals `defaultKitHome`, and the value otherwise.
  * The callers spell both paths with user-file.ts canonicalPathSpelling, so the comparison is between two values in
  * the one spelling. Pure: no I/O.
+ *
+ * Kept for uninstall.ts until plan 34.1-36 moves it to commandContextFromRecord (phase 34.1 gap round 3, D-36, WR-22);
+ * install.ts builds its context through commandContextFromRecord already.
  */
 export function commandContext(scriptDir, kitHome, defaultKitHome, symlink = false) {
     return { scriptDir, kitHome: kitHome === defaultKitHome ? null : kitHome, symlink };
+}
+/**
+ * commandContextFromRecord (phase 34.1 gap round 3, D-36, review WR-21; brief §5): THE ONE DERIVATION of a printed
+ * command's kit home and install mode. When `record` reads `ok` and its marker holds a non-empty string `grugopsHome`
+ * and an `installMode` of "copy" or "symlink", the context's kit home is the recorded grugopsHome and `symlink` is
+ * `installMode === "symlink"`. In every other case (no record, `absent`, `unreadable`, `unbound`, or a field of
+ * another type or value) both come from `run`. The kit home is null when it equals `run.defaultKitHome` (commandContext's
+ * rule), and the script directory is always `run.scriptDir`.
+ *
+ * An `unbound` marker is never read: it is another directory's record (copied, moved, or written before markers
+ * carried `target`), and for a cloned repository it can name another person's home, so a command built from it would
+ * write a kit where this user never installed one. An `ok` marker is install's own record for this directory, and its
+ * grugopsHome is the value install wrote, held absolute and trimmed by install-marker.ts installMarkerProblems, which
+ * an `ok` read has passed. Every value reaches the printed command through shellWord. Pure: no I/O.
+ */
+export function commandContextFromRecord(record, run) {
+    let kitHome = run.kitHome;
+    let symlink = run.symlink;
+    if (record !== null && record.state === "ok" && record.marker !== null) {
+        const home = record.marker.grugopsHome;
+        const mode = record.marker.installMode;
+        if (typeof home === "string" && home !== "" && (mode === "copy" || mode === "symlink")) {
+            kitHome = home;
+            symlink = mode === "symlink";
+        }
+    }
+    return { scriptDir: run.scriptDir, kitHome: kitHome === run.defaultKitHome ? null : kitHome, symlink };
 }
 /**
  * scriptCommand (D-33, WR-19): the invocation words of a printed command, before its arguments. For install.js:

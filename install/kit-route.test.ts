@@ -23,7 +23,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners, hostForFlag } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
 import {
   INSTALL_JS,
@@ -32,9 +32,11 @@ import {
   commandContextFor,
   makeFixture,
   pathText,
+  printedCommand,
   runInstall,
   runPrintedCommand,
   runUninstall,
+  shellWords,
   snapshotTree,
   spawnBin,
   type Run,
@@ -2403,5 +2405,73 @@ describe("WR-19 (D-33): a printed command carries the kit home the run used and 
     expect(pathText(String(marker.grugopsHome)), "the marker does not record the run's kit home").toBe(pathText(kitHome));
     expect(existsSync(join(kitHome, "agent-factory")), "the kit home the run used holds no kit").toBe(true);
     expect(existsSync(defaultKit), "a second kit was written into the default kit home <HOME>/.grugops").toBe(false);
+  });
+});
+
+// ── WR-21 (phase 34.1 gap round 3, D-36; brief §5): THE DOCTOR'S PRINTED COMMANDS CARRY THE RECORD'S KIT HOME ────────
+//
+// install.ts builds its COMMAND_CONTEXT through host-tools.ts commandContextFromRecord, the one owner. Under `--check`
+// the record is the marker the doctor checks: when it reads `ok`, a printed command carries the kit home and install
+// mode the marker records, whatever kit home or mode the `--check` run was given. The rows are the verifier's
+// reproduction: an install with a kit home K other than the default, AGENTS.md deleted, `--check` run with NO
+// GRUGOPS_HOME (so its own kit home is the default under a scratch HOME), and the AGENTS.md remedy's install command
+// run as printed by runPrintedCommand, from a scratch directory outside the checkout with no inherited GRUGOPS_HOME.
+// Only the printed text can name K, so a command built from the `--check` run would write a second kit into
+// `<HOME>/.grugops` and rewrite the marker's kit home there.
+describe("WR-21 (D-36): the doctor's printed commands carry the record's kit home and install mode", () => {
+  /** The registry row with id `codex`, found by id and asserted unique. */
+  const codexHost = (): (typeof HOST_TOOLS)[number] => {
+    const c = HOST_TOOLS.filter((h) => h.id === "codex");
+    expect(c.length, "premise: exactly one registry row has the id codex").toBe(1);
+    return c[0];
+  };
+  /** The one line of --check's output that carries the AGENTS.md absent remedy (install.ts absentRemedy, `create`). */
+  const agentsRemedyLine = (stdout: string): string => {
+    const lines = stdout.split("\n").filter((l) => l.includes("which writes it where nothing is") && l.includes("AGENTS.md"));
+    expect(lines.length, `premise: --check printed the AGENTS.md absent remedy once:\n${stdout}`).toBe(1);
+    return lines[0];
+  };
+  /** A scratch row and a scratch HOME beside it, with the premise that the row's kit home is not the default. */
+  const rowWithHome = (): { target: string; kitHome: string; home: string; defaultKit: string } => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    const defaultKit = join(home, ".grugops");
+    expect(pathText(row.kitHome), "premise: the kit home is not the default under HOME").not.toBe(pathText(defaultKit));
+    return { ...row, home, defaultKit };
+  };
+
+  it("row 1, the verifier's reproduction: install --codex with K, AGENTS.md deleted, --check WITHOUT GRUGOPS_HOME; the AGENTS.md remedy starts GRUGOPS_HOME=<K>, and run as printed outside the checkout it exits 0, writes no default kit and leaves the marker's kit home and kit root as they were", () => {
+    const { target, kitHome, home, defaultKit } = rowWithHome();
+    const r = runInstall(target, kitHome, [agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const before = readMarkerObject(target);
+    const recordedHome = String(before.grugopsHome);
+    const recordedRoot = String(before.kitRoot);
+    expect(pathText(recordedHome), "premise: the marker records K").toBe(pathText(kitHome));
+    rmSync(join(target, "AGENTS.md"));
+    const c = spawnBin(INSTALL_JS, ["--check"], target, kitHome, { home, omitKitHome: true });
+    expect(c.stdout, "premise: the --check run's own kit home is the default, so it reports the kit-root disagreement").toContain("kit-root sources DISAGREE");
+    const line = agentsRemedyLine(c.stdout);
+    const words = shellWords(printedCommand(line));
+    // Word by word, builder-independent: GRUGOPS_HOME=<K>, node, this checkout's install.js, --target <target>, no more.
+    expect(words[0]?.startsWith("GRUGOPS_HOME="), `word 0 is not GRUGOPS_HOME=<K>: ${line}`).toBe(true);
+    expect(pathText((words[0] ?? "").slice("GRUGOPS_HOME=".length)), "word 0 names another kit home").toBe(pathText(kitHome));
+    expect(words[1], line).toBe("node");
+    expect(pathText(words[2] ?? ""), line).toBe(pathText(INSTALL_JS));
+    expect(words[3], line).toBe("--target");
+    expect(pathText(words[4] ?? ""), line).toBe(pathText(target));
+    expect(words.length, `the printed command carries more than the target (an agent flag or a mode): ${line}`).toBe(5);
+    expect(words.filter((w) => hostForFlag(w) !== null), line).toEqual([]);
+    const ran = runPrintedCommand(line, { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(ran.premise.grugopsHome, "premise: the child's GRUGOPS_HOME came from the printed text").toBeDefined();
+    expect(pathText(ran.premise.grugopsHome ?? ""), "premise: the printed text set K").toBe(pathText(kitHome));
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(lstatSync(join(target, "AGENTS.md")).isFile(), "the printed command did not write AGENTS.md again").toBe(true);
+    expect(existsSync(defaultKit), "a second kit was written into the default kit home <HOME>/.grugops").toBe(false);
+    const after = readMarkerObject(target);
+    expect(String(after.grugopsHome), "the printed command moved the marker's kit home").toBe(recordedHome);
+    expect(String(after.kitRoot), "the printed command moved the marker's kit root").toBe(recordedRoot);
   });
 });
