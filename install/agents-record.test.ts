@@ -2084,6 +2084,44 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     expect(readFileSync(at(w.target, AGENT_SKILL_REL)).equals(edited), `the user's edited skill was not kept\n${last.stdout}`).toBe(true);
   });
 
+  // H4 (plan 34.1-48, D-38): uninstall.js reads no INSTALL_MODE and refuses `--symlink`, so a printed uninstall.js command
+  // states no install mode, and the harness leaves its conflicting INSTALL_MODE in the child's environment. This row
+  // follows R19's finishing command (the printed alternative, taken by hand) and asserts that premise: the child ran
+  // with INSTALL_MODE=symlink, the conflicting value, and still finished exactly as R19 asserts.
+  it("H4 (D-38): R19's finishing uninstall.js command, followed as printed, runs with the conflicting INSTALL_MODE still in the child's environment and finishes exactly as R19 asserts: [claude] recorded, the edited skill kept, the invariant held", () => {
+    const w = world("h4");
+    install(w, [flag("claude"), flag("codex")]);
+    edit(w, AGENT_SKILL_REL);
+    const edited = readFileSync(at(w.target, AGENT_SKILL_REL));
+    const r = uninstall(w, [flag("codex")]);
+    expect(r.status, r.stdout).toBe(0);
+    expect(agentsOf(w), r.stdout).toEqual(ids("claude", "codex"));
+    expect(keptMarkerLine(r.stdout).length, `no kept \`left\` line about the marker\n${r.stdout}`).toBe(1);
+    let taken = 0;
+    const next = withLedger(readMarkerObject(w.target), (es) =>
+      es.filter((e) => {
+        const drop = e.path === AGENT_SKILL_REL && e.kind === "file";
+        if (drop) taken++;
+        return !drop;
+      }),
+    );
+    expect(taken, "PREMISE: the ledger held exactly one file entry for the shared skill").toBe(1);
+    writeFileSync(at(w.target, MARKER_REL), JSON.stringify(next, null, 2) + "\n");
+    const printed = printedCommand(r.stdout);
+    expect(printedBinary(printed), `premise: the finishing command is an uninstall.js command: ${printed}`).toBe("uninstall.js");
+    expect(Object.hasOwn(printedInvocation(printed).assigned, "INSTALL_MODE"), `premise: the uninstall.js command states an install mode: ${printed}`).toBe(false);
+    expect(printedFlags(w, r.stdout), r.stdout).toEqual([flag("codex")]);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.premise.conflictingInstallMode, "premise: the conflicting INSTALL_MODE of a text that states none is not symlink").toBe("symlink");
+    expect(fin.premise.installModeBeforePrinted, "premise: the child's environment did not hold the conflicting INSTALL_MODE before the printed assignments").toBe("symlink");
+    expect(fin.premise.installMode, "premise: the conflicting INSTALL_MODE was not still in the child's environment when it ran").toBe("symlink");
+    expect(fin.premise.conflictingTargetEmpty, "the printed command wrote into the conflicting TARGET").toBe(true);
+    expect(fin.status, fin.stdout).toBe(0);
+    expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
+    expect(readFileSync(at(w.target, AGENT_SKILL_REL)).equals(edited), `the user's edited skill was not kept\n${fin.stdout}`).toBe(true);
+    expectInvariant(w, ids("claude", "codex"), fin.stdout);
+  });
+
   it("R20 (FULL kept, D-37): a flag-less uninstall over an edited Claude Code skill never offers deleting the marker; its kept line and banner name the per-entry ledger edit and the flag-less command; followed (the entry taken out by hand, the printed command run), the edited skill stays byte for byte and the marker is gone", () => {
     const w = world("r20");
     install(w, [flag("claude")]);
