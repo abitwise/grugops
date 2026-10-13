@@ -141,6 +141,7 @@ import {
   markerUnusableText,
   markerRemedy,
   markerFixText,
+  noMarkerRemedy,
   contentRecord,
   recordMatches,
   NO_MODE_NOTE,
@@ -2546,7 +2547,13 @@ const COMMAND_CONTEXT: CommandContext = commandContextFromRecord(MARKER_READ, {
   src: canonicalPathSpelling(GRUGOPS_SRC),
   checkout: canonicalPathSpelling(resolve(SCRIPT_DIR, "..")),
 });
-const MARKER: InstallMarkerRead =
+// MARKER's type is not InstallMarkerRead (D-37): an unbound read folded in carries no reader defect and no problems, so
+// its `unreadable` arm holds only what every pass reads of it (state, why, jsonObject). A remedy over the marker reads
+// MARKER_READ, the reader's own answer.
+type MarkerUse =
+  | Exclude<InstallMarkerRead, { readonly state: "unbound" | "unreadable" }>
+  | { readonly state: "unreadable"; readonly marker: null; readonly why: string; readonly jsonObject: boolean };
+const MARKER: MarkerUse =
   MARKER_READ.state === "unbound" ? { state: "unreadable", marker: null, why: MARKER_READ.why, jsonObject: true } : MARKER_READ;
 const LEDGER: LedgerRead = readLedger(MARKER.state === "ok" ? MARKER.marker : null);
 if (MARKER_READ.state === "unbound") {
@@ -2580,9 +2587,8 @@ if (MARKER_READ.state === "unbound") {
   // read, a duplicate key, the strict reader, a field install never writes, a retired record). It names the cause the
   // reader saw, says to fix the file by hand and never delete the marker (install-marker.ts markerFixText, of the
   // owner's answer, which supplies the read's problems as `fix`), and prints this run's own command. It never offers
-  // removing the marker or anything else by hand. FULL is declared below and does not exist yet; for an unreadable
-  // marker NAMED is empty, so FULL would be exactly `REMOVE.size === 0`, which names the run kind passed here.
-  const remedy = markerRemedy(MARKER_READ, REMOVE.size === 0 ? "uninstall-full" : "uninstall-partial");
+  // removing the marker or anything else by hand (D-37: the owner has no removal answer for any read).
+  const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: unreadable marker");
   verify(
     `.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits ` +
       `nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`,
@@ -2592,9 +2598,8 @@ if (MARKER_READ.state === "unbound") {
   // agent installed here, on every run kind; a malformed ledger is typically one bad entry, and fixing it gives the
   // whole record back. One reading: the cause (readLedger's why), the owner's never-remove wording (install-marker.ts
   // markerFixText of markerRemedy's answer, whose fix names that why and the by-hand fix), and this run's own command.
-  // It offers removing neither the marker nor any file by hand. The run kind is passed as for the unreadable verify
-  // above; for an `ok` read with a malformed ledger the owner answers the same on every run kind.
-  const remedy = markerRemedy(MARKER_READ, REMOVE.size === 0 ? "uninstall-full" : "uninstall-partial");
+  // It offers removing neither the marker nor any file by hand, on any run kind.
+  const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: malformed ledger");
   verify(
     `.grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and ` +
       `removes and edits nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`,

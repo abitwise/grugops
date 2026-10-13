@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, noMarkerRemedy, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -1130,7 +1130,7 @@ function notInstalled() {
 // fix is the read's problems), and prints only the check command: once the file is fixed by hand the check re-reads the
 // record. No install command is printed, so none names a kit home over a record this run could not read.
 function markerUnreadable(markerFile, read) {
-    const remedy = markerRemedy(read, "install");
+    const remedy = markerRemedy(read) ?? noMarkerRemedy("markerUnreadable");
     docReport("FAIL", `the install marker ${markerFile} is present but ${markerUnusableText(read)} — the ` +
         `install state of ${TARGET} is unknown, so nothing else was checked. ` +
         `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``);
@@ -1745,9 +1745,10 @@ function doctor() {
     const ledgerRead = readLedger(markerRead.state === "ok" ? markerRead.marker : null);
     if (markerRead.state === "ok") {
         if (ledgerRead.state === "malformed") {
+            const remedy = markerRemedy(markerRead) ?? noMarkerRemedy("doctor");
             docFail(`the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it ` +
                 `back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). ` +
-                `${markerFixText(markerRemedy(markerRead, "install"))}; then run \`${doctorCheckCommand()}\``);
+                `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``);
         }
     }
     const marker = (markerRead.state === "ok" ? markerRead.marker : markerRead.object);
@@ -4841,9 +4842,10 @@ function writeMarker() {
     if (previousLedger.state === "malformed") {
         // D-37 (34.1 review CR-06, plan 34.1-43): the marker is still the record of every agent installed here; the remedy is
         // the owner's never-remove wording (markerFixText), which names the ledger problem and the by-hand fix.
+        const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeMarker");
         verify(`${markerRel} — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and ` +
             `nothing this run did was recorded. Uninstall will remove and edit nothing on it; ` +
-            `${markerFixText(markerRemedy(previousMarker, "install"))}; then re-run the installer.`);
+            `${markerFixText(remedy)}; then re-run the installer.`);
     }
     // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3): the kit home and
     // the checkout are user-controlled paths. An absent kit VERSION falls back to the checkout's, as
@@ -5988,16 +5990,17 @@ function writeAskRules() {
     // wording (34.1 review IN-33): the sentence claims nothing about the ledger that markerFixText contradicts.
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
+        const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeAskRules");
         verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — no ask rule ` +
-            `was added to ${rel} and the marker was left as it was. ` +
-            `${markerFixText(markerRemedy(previousMarker, "install"))}; then re-run the installer.`);
+            `was added to ${rel} and the marker was left as it was. ${markerFixText(remedy)}; then re-run the installer.`);
         return ASK_REFUSED;
     }
     const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
     if (previousRead.state === "malformed") {
         // D-37 (34.1 review CR-06, plan 34.1-43): the owner's never-remove wording, as writeMarker's verify prints it.
+        const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeAskRules");
         verify(`${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was ` +
-            `added and the ledger is written back unchanged. ${markerFixText(markerRemedy(previousMarker, "install"))}` +
+            `added and the ledger is written back unchanged. ${markerFixText(remedy)}` +
             `; then re-run the installer.`);
         return ASK_REFUSED;
     }
@@ -6209,8 +6212,9 @@ function askRulesStep() {
     // The same never-remove remedy as writeAskRules' (D-37, 34.1 review CR-05, IN-33).
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
+        const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("askRulesStep");
         verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — the marker ` +
-            `was left as it was. ${markerFixText(markerRemedy(previousMarker, "install"))}; then re-run the installer.`);
+            `was left as it was. ${markerFixText(remedy)}; then re-run the installer.`);
     }
     report("skipped", "Claude Code ask rules (Claude Code is not chosen in this run; .claude/settings.json is left as it is)");
     return { kind: "not-chosen" };

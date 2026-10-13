@@ -171,6 +171,20 @@ export const LEDGER_FIELD = "ledger";
  * that has them next to `ledger` is `unreadable`.
  */
 export const RETIRED_RECORDS = ["createdDirs", "createdFiles", "geminiSettings", "kitFiles", "claudeAskRules", "appendedBlocks"];
+/**
+ * MARKER_DEFECTS (D-37, brief §6): every defect the reader reports, one per arm of readInstallMarker that refuses a
+ * marker as unreadable, and `ledger` for install's own marker (`ok`) whose install ledger readLedger refuses:
+ *   blocked         the path is not a readable regular file inside a real .grugops directory (readForWrite);
+ *   not-json        JSON.parse refused the text;
+ *   not-object      the JSON is not an object;
+ *   bytes           the strict reader refused the bytes (not UTF-8, or nesting past its bound);
+ *   duplicate-key   a key appears more than once;
+ *   field           a field holds a value install never writes (installMarkerProblems);
+ *   retired-record  a retired record sits next to the install ledger;
+ *   ledger          an `ok` marker whose install ledger is malformed.
+ * Tests enumerate their rows from this list, so a new defect is a new row.
+ */
+export const MARKER_DEFECTS = ["blocked", "not-json", "not-object", "bytes", "duplicate-key", "field", "retired-record", "ledger"];
 const NO_ENTRY_REASONS = ["already-listed", "refused", "reset", "reversed"];
 /** Read `<target>/.grugops/install.json` without following a link (see the header). */
 export function readInstallMarker(target) {
@@ -187,6 +201,7 @@ export function readInstallMarker(target) {
             marker: null,
             why: read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`,
             jsonObject: false,
+            defect: "blocked",
             problems: [
                 `${read.at === path ? "the file" : read.at} ${read.reason}: make ${MARKER_REL} the readable regular file install ` +
                     `wrote, inside a real .grugops directory, for example by restoring its read permission or by putting the file ` +
@@ -205,6 +220,7 @@ export function readInstallMarker(target) {
             marker: null,
             why: "it is not valid JSON",
             jsonObject: false,
+            defect: "not-json",
             problems: [
                 `the file is not valid JSON${place === null ? "" : ` (line ${place.line}, column ${place.column})`}: correct ` +
                     `its JSON syntax, for example a trailing comma or a missing quote`,
@@ -217,6 +233,7 @@ export function readInstallMarker(target) {
             marker: null,
             why: "it is JSON but not a JSON object",
             jsonObject: false,
+            defect: "not-object",
             problems: [
                 `the file is JSON but ${jsonKind(parsed)}, not a JSON object: restore the JSON object install wrote, for ` +
                     `example from version control or a backup`,
@@ -235,7 +252,7 @@ export function readInstallMarker(target) {
     const object = parsed;
     const doc = readJsonText(read.bytes);
     if (!doc.ok)
-        return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false, object, problems: [`the file ${doc.why}`] };
+        return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false, defect: "bytes", object, problems: [`the file ${doc.why}`] };
     const dup = firstDuplicateKey(doc.root);
     if (dup !== null) {
         return {
@@ -243,6 +260,7 @@ export function readInstallMarker(target) {
             marker: null,
             why: `it has a duplicate key (${JSON.stringify(dup).slice(0, 120)}), so which of its values is install's record is not known`,
             jsonObject: false,
+            defect: "duplicate-key",
             object,
             problems: [`the key ${JSON.stringify(dup).slice(0, 120)} appears more than once (keep the one install wrote)`],
             duplicateKey: dup,
@@ -264,6 +282,7 @@ export function readInstallMarker(target) {
             marker: null,
             why: `it does not read as a grugops install marker — ${problems.join(", ")}`,
             jsonObject: true,
+            defect: "field",
             object,
             problems,
         };
@@ -275,6 +294,7 @@ export function readInstallMarker(target) {
             marker: null,
             why: `it carries both the one ledger and a retired record (${retired.join(", ")}), which install never writes`,
             jsonObject: true,
+            defect: "retired-record",
             object,
             problems: retired.map((r) => `the retired record ${r} next to the install ledger (install never writes it; take it out)`),
         };
@@ -357,37 +377,34 @@ export function markerUnusableText(read) {
         : `could not be read as a JSON object (${read.why})`;
 }
 /**
- * markerRemedy (D-35): THE ONE DECISION of whether a printed remedy may offer removing the marker, from the read the
- * binary just made. Pure: no I/O; it reads only `read` (readLedger is pure).
- *   ok          ledgerWellFormed from readLedger(marker). A malformed install ledger (D-37, 34.1 review CR-06): mayRemove
- *               false on every run, and fix is one entry naming readLedger's why and the by-hand fix (the marker is still
- *               the record of every agent installed here; a flag-less run over it removes nothing, so D-32's "no agent
- *               stays installed" is false there). A well-formed one: mayRemove only for "uninstall-full", fix empty;
- *   unbound     ledgerWellFormed from readLedger(object); mayRemove false for every run: its remedy is to set "target"
- *               or re-install, never removal;
- *   unreadable  ledgerWellFormed when the parsed object's ledger reads `ok`, or when the duplicated key is the ledger;
- *               mayRemove is !ledgerWellFormed; fix is the read's problems;
- *   absent      ledgerWellFormed false; mayRemove true (there is no record to lose).
- * The run argument changes nothing for `unreadable`, `absent`, `unbound` and an `ok` read whose ledger is malformed: such
- * a marker is the record of every agent installed here whichever run reads it.
+ * markerRemedy (D-35, D-37): the remedy over the read the binary just made, or null when there is none to print. Pure:
+ * no I/O; it reads only `read` (readLedger is pure).
+ *   unreadable  { defect: the read's defect, fix: the read's problems };
+ *   ok          { defect: "ledger", fix: one entry naming readLedger's why } when readLedger refuses the install ledger
+ *               (34.1 review CR-06: a malformed ledger is typically one bad entry, and fixing it gives the whole record
+ *               back), else null;
+ *   absent, unbound  null (an unbound marker's remedy is to set "target" or re-install; an absent one has no record).
  */
-export function markerRemedy(read, run) {
+export function markerRemedy(read) {
     switch (read.state) {
+        case "unreadable":
+            return { defect: read.defect, fix: read.problems };
         case "ok": {
             const ledger = readLedger(read.marker);
-            if (ledger.state === "malformed")
-                return { mayRemove: false, ledgerWellFormed: false, fix: [ledgerFixEntry(ledger.why ?? "")] };
-            return { mayRemove: run === "uninstall-full", ledgerWellFormed: ledger.state === "ok", fix: [] };
-        }
-        case "unbound":
-            return { mayRemove: false, ledgerWellFormed: readLedger(read.object).state === "ok", fix: [] };
-        case "unreadable": {
-            const ledgerWellFormed = read.object !== undefined && (readLedger(read.object).state === "ok" || read.duplicateKey === LEDGER_FIELD);
-            return { mayRemove: !ledgerWellFormed, ledgerWellFormed, fix: read.problems ?? [] };
+            return ledger.state === "malformed" ? { defect: "ledger", fix: [ledgerFixEntry(ledger.why ?? "")] } : null;
         }
         case "absent":
-            return { mayRemove: true, ledgerWellFormed: false, fix: [] };
+        case "unbound":
+            return null;
     }
+}
+/**
+ * noMarkerRemedy: the guard a site uses when it holds a read it already knows is unusable (`markerRemedy(read) ??
+ * noMarkerRemedy("<site>")`). markerRemedy answers null only for a read with nothing to fix, so reaching this is a bug
+ * in the site's own check; it throws, naming the site, rather than print a remedy with nothing in it.
+ */
+export function noMarkerRemedy(site) {
+    throw new Error(`${site}: markerRemedy answered no remedy for a marker read this site holds as unusable`);
 }
 /**
  * ledgerFixEntry (D-37, 34.1 review CR-06, plan 34.1-43): the fix entry of an `ok` marker whose install ledger readLedger

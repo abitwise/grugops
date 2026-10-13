@@ -120,7 +120,7 @@ import { allAskRules, createdSettingsText } from "./checkpoint-ask-rules.js";
 // D-33 (b), plan 33.1-36: the ONE reader of the install marker and of the one install ledger
 // (readLedger), its one serializer (ledgerJson) and the one ownership authority (owns), shared with
 // install.ts (WR-05).
-import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, markerRemedy, markerFixText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, entryHolds, agentsToRecord, wholeFileEntryRels, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, markerRemedy, markerFixText, noMarkerRemedy, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, entryHolds, agentsToRecord, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue, firstDuplicateKey } from "./json-text.js";
@@ -2338,9 +2338,8 @@ else if (MARKER.state === "unreadable") {
     // read, a duplicate key, the strict reader, a field install never writes, a retired record). It names the cause the
     // reader saw, says to fix the file by hand and never delete the marker (install-marker.ts markerFixText, of the
     // owner's answer, which supplies the read's problems as `fix`), and prints this run's own command. It never offers
-    // removing the marker or anything else by hand. FULL is declared below and does not exist yet; for an unreadable
-    // marker NAMED is empty, so FULL would be exactly `REMOVE.size === 0`, which names the run kind passed here.
-    const remedy = markerRemedy(MARKER_READ, REMOVE.size === 0 ? "uninstall-full" : "uninstall-partial");
+    // removing the marker or anything else by hand (D-37: the owner has no removal answer for any read).
+    const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: unreadable marker");
     verify(`.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits ` +
         `nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`);
 }
@@ -2349,9 +2348,8 @@ else if (LEDGER.state === "malformed") {
     // agent installed here, on every run kind; a malformed ledger is typically one bad entry, and fixing it gives the
     // whole record back. One reading: the cause (readLedger's why), the owner's never-remove wording (install-marker.ts
     // markerFixText of markerRemedy's answer, whose fix names that why and the by-hand fix), and this run's own command.
-    // It offers removing neither the marker nor any file by hand. The run kind is passed as for the unreadable verify
-    // above; for an `ok` read with a malformed ledger the owner answers the same on every run kind.
-    const remedy = markerRemedy(MARKER_READ, REMOVE.size === 0 ? "uninstall-full" : "uninstall-partial");
+    // It offers removing neither the marker nor any file by hand, on any run kind.
+    const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: malformed ledger");
     verify(`.grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and ` +
         `removes and edits nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`);
 }

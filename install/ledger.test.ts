@@ -996,7 +996,8 @@ describe("installedAgents: the one derivation of the installed set (D-03, D-23)"
 
   it("none: absent, unreadable, unbound (a v2.1.0-shaped marker with no ledger) and a malformed ledger", () => {
     expect(ask({ state: "absent", marker: null })).toEqual({ source: "none", ids: [] });
-    expect(ask({ state: "unreadable", marker: null, why: "it is not valid JSON", jsonObject: false })).toEqual({ source: "none", ids: [] });
+    // `defect` and `problems` are required on an unreadable read since plan 34.1-44 (2026-10-13, D-37).
+    expect(ask({ state: "unreadable", marker: null, why: "it is not valid JSON", jsonObject: false, defect: "not-json", problems: ["the file is not valid JSON"] })).toEqual({ source: "none", ids: [] });
     // The unbound read is a real one: install's marker shape for this directory, with no install ledger.
     const t = fresh("v210");
     mkdirSync(at(t, ".grugops"), { recursive: true });
