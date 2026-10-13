@@ -47,7 +47,8 @@
 //     R38 follows the uninstaller's never-remove verify (flag-less and --codex) as printed; the by-hand remedy census
 //     tags each reading with the owner's answer, and every printed offer to remove the marker sits under its yes. Plan
 //     34.1-40: the markerRemedy call-site census (MARKER_REMEDY_CALLS, by the parser, both ways, counts pinned) and its
-//     converse derived from the census owner tags.
+//     converse derived from the census owner tags; markerRemedy's unit table, 12 read shapes (real marker files read
+//     through readInstallMarker) times 3 runs, with markerFixText of every never-remove answer.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -62,7 +63,18 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
 import { AGENT_SKILL_REL, HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag, commandContext, entryOwners, scriptCommand, type HostTool } from "./host-tools.js";
-import { ASK_RULES_REL, agentsToRecord, entryHolds, readInstallMarker, readLedger, type LedgerEntry } from "./install-marker.js";
+import {
+  ASK_RULES_REL,
+  agentsToRecord,
+  entryHolds,
+  markerFixText,
+  markerRemedy,
+  readInstallMarker,
+  readLedger,
+  type InstallMarkerRead,
+  type LedgerEntry,
+  type MarkerRemedyRun,
+} from "./install-marker.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -1884,6 +1896,89 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
     expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
     expect(markerGone(w), fin.stdout).toBe(false);
     expectInvariant(w, ids("claude", "codex"), fin.stdout);
+  });
+
+  // The owner's unit table (plan 34.1-40, D-35): one row per shape of read a remedy site can pass, each built as a real
+  // file in a scratch target and read through readInstallMarker, the one reader both binaries use; each row is asked
+  // for every run. The expected answer is derived here from the rule markerRemedy's docblock states, not typed per
+  // cell: `ok` may offer removal only on "uninstall-full", `unbound` never, `unreadable` and `absent` only without a
+  // well-formed install ledger. `fix` is non-empty exactly for an `unreadable` read that parsed a JSON object, and it is
+  // that read's own problems.
+  it("markerRemedy's rule over 12 read shapes times 3 runs, each shape a real marker file read through readInstallMarker; markerFixText of every never-remove answer names its fix entries and says never delete the marker", () => {
+    const RUNS: readonly MarkerRemedyRun[] = ["install", "uninstall-full", "uninstall-partial"];
+    type Shape = {
+      readonly name: string;
+      /** The marker file's bytes, from the scratch target's real path; null writes no file. */
+      readonly bytes: ((here: string) => Buffer) | null;
+      readonly state: InstallMarkerRead["state"];
+      /** Whether the marker holds a well-formed install ledger, as the row builds it. */
+      readonly ledgerWellFormed: boolean;
+      /** For an `unreadable` row: whether readInstallMarker parsed a JSON object (so its problems name a fix). */
+      readonly object?: boolean;
+      readonly duplicateKey?: string;
+    };
+    const kit = join(SCRATCH, "unit-kit");
+    const fields = (here: string): string =>
+      `"grugopsHome": ${JSON.stringify(kit)}, "kitRoot": ${JSON.stringify(join(kit, "kit"))}, "installMode": "copy", "target": ${JSON.stringify(here)}`;
+    const text = (s: string): Buffer => Buffer.from(s, "utf8");
+    const elsewhere = realpathSync(mkdtempSync(join(SCRATCH, "unit-elsewhere-")));
+    const SHAPES: readonly Shape[] = [
+      { name: "absent", bytes: null, state: "absent", ledgerWellFormed: false },
+      { name: "not json", bytes: () => text("not json\n"), state: "unreadable", ledgerWellFormed: false, object: false },
+      { name: "a JSON array", bytes: () => text("[]\n"), state: "unreadable", ledgerWellFormed: false, object: false },
+      { name: "`agents` malformed, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["Codex", "claude-code"], "ledger": []}\n`), state: "unreadable", ledgerWellFormed: true, object: true },
+      { name: "`agents` malformed, ledger \"x\"", bytes: (h) => text(`{${fields(h)}, "agents": ["Codex", "claude-code"], "ledger": "x"}\n`), state: "unreadable", ledgerWellFormed: false, object: true },
+      { name: "a duplicate `agents` key, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": []}\n`), state: "unreadable", ledgerWellFormed: true, object: true, duplicateKey: "agents" },
+      // The second `ledger` is not a list, and JSON.parse keeps it: well formed only because the duplicated key is the
+      // ledger, so one of its two values is still a record (markerRemedy's duplicateKey arm, not readLedger, answers).
+      { name: "a duplicate `ledger` key", bytes: (h) => text(`{${fields(h)}, "ledger": [], "ledger": "x"}\n`), state: "unreadable", ledgerWellFormed: true, object: true, duplicateKey: "ledger" },
+      { name: "a retired record next to ledger []", bytes: (h) => text(`{${fields(h)}, "createdFiles": [], "ledger": []}\n`), state: "unreadable", ledgerWellFormed: true, object: true },
+      // A byte that is not UTF-8 inside a string: JSON.parse of the decoded text accepts it, the strict reader does not.
+      { name: "a byte the strict reader refuses, ledger []", bytes: (h) => Buffer.concat([text(`{${fields(h)}, "note": "`), Buffer.from([0xff]), text(`", "ledger": []}\n`)]), state: "unreadable", ledgerWellFormed: true, object: true },
+      { name: "ok, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": []}\n`), state: "ok", ledgerWellFormed: true },
+      { name: "ok, ledger \"x\"", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": "x"}\n`), state: "ok", ledgerWellFormed: false },
+      { name: "unbound (another directory's target), ledger []", bytes: () => text(`{${fields(elsewhere)}, "agents": ["claude"], "ledger": []}\n`), state: "unbound", ledgerWellFormed: true },
+    ];
+    /** markerRemedy's docblock rule, stated once for the table. */
+    const ruleMayRemove = (s: Shape, run: MarkerRemedyRun): boolean =>
+      s.state === "ok" ? run === "uninstall-full" : s.state === "unbound" ? false : !s.ledgerWellFormed;
+
+    const cells: string[] = [];
+    const neverRemove: { name: string; run: MarkerRemedyRun; fix: readonly string[]; text: string }[] = [];
+    for (const s of SHAPES) {
+      const target = realpathSync(mkdtempSync(join(SCRATCH, "unit-remedy-")));
+      if (s.bytes !== null) {
+        mkdirSync(join(target, ".grugops"));
+        writeFileSync(at(target, MARKER_REL), s.bytes(target));
+      }
+      const read = readInstallMarker(target);
+      // The premise: the file reads as the shape the row names, through the product's reader.
+      expect(read.state, `PREMISE: ${s.name} reads ${s.state}${read.state === "unreadable" ? ` (${read.why})` : ""}`).toBe(s.state);
+      if (read.state === "unreadable") {
+        expect(read.object !== undefined, `PREMISE: ${s.name}: a parsed object`).toBe(s.object === true);
+        expect(read.duplicateKey, `PREMISE: ${s.name}: the duplicated key`).toBe(s.duplicateKey);
+      }
+      if (read.state === "ok") expect(readLedger(read.marker).state === "ok", `PREMISE: ${s.name}: the ledger`).toBe(s.ledgerWellFormed);
+      if (read.state === "unbound") expect(read.unboundBy, `PREMISE: ${s.name}`).toBe("other-directory");
+      const wantFix = read.state === "unreadable" && read.object !== undefined ? (read.problems ?? []) : [];
+      if (read.state === "unreadable" && read.object !== undefined) expect(wantFix.length, `PREMISE: ${s.name}: the read names a fix`).toBeGreaterThan(0);
+      for (const run of RUNS) {
+        const got = markerRemedy(read, run);
+        const want = { mayRemove: ruleMayRemove(s, run), ledgerWellFormed: s.ledgerWellFormed, fix: wantFix };
+        if (JSON.stringify(got) !== JSON.stringify(want)) cells.push(`${s.name} / ${run}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+        if (!got.mayRemove) neverRemove.push({ name: s.name, run, fix: got.fix, text: markerFixText(got) });
+      }
+    }
+    expect(SHAPES.length * RUNS.length, "the table is 12 shapes times 3 runs").toBe(36);
+    expect(cells, "markerRemedy's answer breaks the rule its docblock states").toEqual([]);
+
+    // Every never-remove answer's wording names each of its fix entries, says never delete the marker and offers no
+    // removal. The premise: the rows with a fix to name are the five unreadable shapes over a well-formed ledger.
+    expect(new Set(neverRemove.filter((n) => n.fix.length > 0).map((n) => n.name)).size, "PREMISE: never-remove answers with a fix to name").toBe(5);
+    const badText = neverRemove
+      .filter((n) => !n.text.includes("never delete the marker") || n.fix.some((f) => !n.text.includes(f)) || offersRemoval(n.text) || REMOVAL_OFFER.test(n.text))
+      .map((n) => `${n.name} / ${n.run}: ${n.text}`);
+    expect(badText, "markerFixText of a never-remove answer").toEqual([]);
   });
 });
 
