@@ -392,6 +392,19 @@ const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
     installMode: INSTALL_MODE,
     src: canonicalPathSpelling(GRUGOPS_SRC),
 });
+// DOCTOR_KIT_HOME and DOCTOR_KIT_ROOT (plan 34.1-50, D-38, review WR-24): the one kit home a `--check` run reads, and
+// its agent-factory in canonicalPathSpelling's one spelling. It is COMMAND_CONTEXT's, so the doctor's header (`home:`
+// and `kit:`), the kit-root cross-check's rule source, the stat checks of the kit, the kit VERSION read, the
+// stale-adapter wording and the stale-adapter render (transformAdapter's kit root) read the kit home its printed
+// commands state: an `ok` marker's recorded kit home, else this run's own (an absent, unreadable or unbound marker).
+// Before, the printed commands took the record's while every check took this run's GRUGOPS_HOME, so a plain `--check` on
+// an install with a kit home other than the default FAILed "kit-root sources DISAGREE (stale/moved install)", and the
+// printed remedy could not clear it. A real stale or moved install still FAILs: the marker's kitRoot or the adapter's
+// KIT= line then disagrees with the recorded kit home. The doctor names this run's own kit home only on one header
+// line, when it differs, as not used. Outside `--check` COMMAND_CONTEXT is this run's, so both equal GRUGOPS_HOME and
+// KIT_ROOT; only the doctor reads them. Held by the "WR-24 census" in install/agents-record.test.ts.
+const DOCTOR_KIT_HOME = canonicalPathSpelling(COMMAND_CONTEXT.kitHome);
+const DOCTOR_KIT_ROOT = canonicalPathSpelling(resolve(DOCTOR_KIT_HOME, "agent-factory"));
 // THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
 // install.js prints its command from the helpers below, so the command runs as printed from any directory, with the
 // kit home and the install mode COMMAND_CONTEXT holds (host-tools.ts agentCommand with COMMAND_CONTEXT, the one
@@ -1024,8 +1037,9 @@ const GRUGOPS_BACKUP_SUFFIX = /\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}
 // landed, and a false sentence in the one file whose job is producing true ones is rewritten, not
 // left standing.
 //
-// It reuses the one resolution rule (GRUGOPS_HOME / KIT_ROOT, source (a) of the D-03 cross-check,
-// resolved above). Fail-closed parsing: a garbled or absent marker/adapter becomes a finding, never
+// It reads one kit home, DOCTOR_KIT_HOME / DOCTOR_KIT_ROOT (plan 34.1-50, D-38, review WR-24): the kit home its
+// printed commands state, which is the one an `ok` marker records, else this run's GRUGOPS_HOME / KIT_ROOT. It is
+// source (a) of the D-03 cross-check, the root of the kit stat checks and the kit VERSION read. Fail-closed parsing: a garbled or absent marker/adapter becomes a finding, never
 // an unhandled throw. Findings are greppable lines; FAIL names the path + referencing file.
 // ---------------------------------------------------------------------------
 // docReport / docFail / docWarn: greppable finding lines (printf '  %-14s %s\n'). The counters
@@ -1686,8 +1700,13 @@ function doctor() {
     DOC_FAILS = 0;
     DOC_WARNS = 0;
     console.log("== grugops doctor (--check) ==");
-    console.log(`home:   ${GRUGOPS_HOME}`);
-    console.log(`kit:    ${KIT_ROOT}`);
+    console.log(`home:   ${DOCTOR_KIT_HOME}`);
+    console.log(`kit:    ${DOCTOR_KIT_ROOT}`);
+    // This run's own kit home, named once when it is not the one checked (plan 34.1-50, D-38, review WR-24): the only
+    // place the doctor reads it. Everything below reads DOCTOR_KIT_HOME / DOCTOR_KIT_ROOT.
+    if (canonicalPathSpelling(DOCTOR_KIT_HOME) !== canonicalPathSpelling(GRUGOPS_HOME)) {
+        console.log(`given:  ${GRUGOPS_HOME} (this run's kit home, not used: --check reads the kit home install recorded for this repository)`);
+    }
     console.log(`target: ${TARGET}`);
     console.log("");
     const markerFile = join(TARGET, ".grugops", "install.json");
@@ -1809,9 +1828,14 @@ function doctor() {
     // three via docAbspath (mirrors the sh abspath); all-equal → pass; differ-but-all-real-and-
     // cosmetic → WARN; any unresolvable or genuinely different real kits → FAIL (name all three).
     // Bias to FAIL when unsure.
+    // Source (a) is DOCTOR_KIT_ROOT (plan 34.1-50, D-38, review WR-24): the kit root of the kit home the printed commands
+    // state, which an `ok` marker records, else this run's. It used to be this run's KIT_ROOT, so a plain `--check` on an
+    // install with another kit home FAILed below although the install was neither stale nor moved. The DISAGREE FAILs now
+    // fire when the marker's kitRoot, or the adapter's KIT= line, disagrees with the recorded kit home (or, with no usable
+    // marker, with this run's).
     // Without Claude Code (D-07) there is no adapter source: the rule and the marker are compared with the same three
     // outcomes, and the ok line says no adapter KIT= line was read because no Claude Code adapter is installed here.
-    const a = KIT_ROOT;
+    const a = DOCTOR_KIT_ROOT;
     const b = marker.kitRoot ? String(marker.kitRoot) : "";
     const na = docAbspath(a);
     const nb = b ? docAbspath(b) : "";
@@ -1841,7 +1865,8 @@ function doctor() {
     // Claude Code adapter is installed here (D-07).
     const statRef = adapterFile ?? markerFile;
     // --- deterministic ordered first-failure stat set (D-02 / D-05) ----------------------------
-    // Fixed order, most-load-bearing first. Kit refs resolve under KIT_ROOT; state refs resolve
+    // Fixed order, most-load-bearing first. Kit refs resolve under DOCTOR_KIT_ROOT (the kit home the printed commands
+    // state; plan 34.1-50, D-38); state refs resolve
     // repo-relative (Phase-7 classification). A dangling symlink is a FAIL with a symlink-specific
     // message. On the FIRST stat failure, name path + referencing file and STOP. Each entry is
     // [path, referencing-file].
@@ -1852,10 +1877,10 @@ function doctor() {
     // ALL CHECKS PASSED). A directory entry must stat as a directory. Anything else present is a WARN
     // that says no verdict was reached on it; absent stays the FAIL it always was.
     const refs = [
-        [KIT_ROOT, markerFile, "dir"],
-        [join(KIT_ROOT, "roles", "orchestrator.md"), statRef, "file"],
-        [join(KIT_ROOT, "roles", "_role-switch-protocol.md"), statRef, "file"],
-        [join(KIT_ROOT, "workflows"), statRef, "dir"],
+        [DOCTOR_KIT_ROOT, markerFile, "dir"],
+        [join(DOCTOR_KIT_ROOT, "roles", "orchestrator.md"), statRef, "file"],
+        [join(DOCTOR_KIT_ROOT, "roles", "_role-switch-protocol.md"), statRef, "file"],
+        [join(DOCTOR_KIT_ROOT, "workflows"), statRef, "dir"],
         [join(TARGET, ".grugops", "factory.config.json"), statRef, "file"],
         [join(TARGET, "plans", "board.md"), statRef, "file"],
         // MIGR-02 (Phase 24): plans/handoffs/ is no longer seeded (the note-native trace replaced the
@@ -1924,7 +1949,7 @@ function doctor() {
                 `version of ${claudeInstalled ? `the grugops kit files in ${join(TARGET, ".claude")}` : `the grugops kit this target uses (${nb || "<unset>"})`} is not known and NO VERDICT on kit-version skew was ` +
                 `reached. A re-install that writes the kit records it`);
         }
-        const verFile = join(KIT_ROOT, "VERSION");
+        const verFile = join(DOCTOR_KIT_ROOT, "VERSION");
         const kitVer = readKitVersion(verFile);
         const kver = kitVer.version;
         if (kitVer.problem !== null) {
@@ -2116,7 +2141,7 @@ function doctor() {
                         `Each was byte-compared, whole file, against a fresh render of the kit checkout at ` +
                         `${comparedCheckout}, materialized exactly the way an install would materialize it — so ` +
                         `what differs here is what a re-run would change. That checkout is a DIFFERENT root ` +
-                        `from the installed kit at ${KIT_ROOT} the version line reports on, and the remedy is ` +
+                        `from the installed kit at ${DOCTOR_KIT_ROOT} the version line reports on, and the remedy is ` +
                         `\`${doctorInstallCommand()}\`, which renders from the checkout at ${comparedCheckout}, the one compared here`);
                 }
             });

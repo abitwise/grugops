@@ -263,8 +263,13 @@ function comparisonSites(): ComparisonSite[] {
   return out;
 }
 
-/** The derived comparison sites when plan 34-21 wrote rule (e) (the SUMMARY lists each with its verdict). */
-const DERIVED_COMPARISON_COUNT = 5;
+/**
+ * The derived comparison sites when plan 34-21 wrote rule (e) (the SUMMARY lists each with its verdict): 5.
+ * Re-pinned to 6 by plan 34.1-50 (2026-10-13, D-38, review WR-24): install.ts doctor() compares the kit home it reads
+ * (DOCTOR_KIT_HOME) with this run's GRUGOPS_HOME, both spelled by canonicalPathSpelling, to name this run's kit home on
+ * one header line as not used when the two differ. Spelled on every path operand, so it is not an offender.
+ */
+const DERIVED_COMPARISON_COUNT = 6;
 
 /** A comparison site that is neither inside a spelling function nor spelled on every path operand, with its reason. Keyed by file, scope and operator. */
 const CLASSIFIED_COMPARISONS = new Map<string, string>([

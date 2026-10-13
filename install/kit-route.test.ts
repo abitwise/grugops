@@ -2475,7 +2475,10 @@ describe("WR-21 (D-36): the doctor's printed commands carry the record's kit hom
     expect(pathText(recordedHome), "premise: the marker records K").toBe(pathText(kitHome));
     rmSync(join(target, "AGENTS.md"));
     const c = spawnBin(INSTALL_JS, ["--check"], target, kitHome, { home, omitKitHome: true });
-    expect(c.stdout, "premise: the --check run's own kit home is the default, so it reports the kit-root disagreement").toContain("kit-root sources DISAGREE");
+    // Premise inverted by plan 34.1-50 (2026-10-13, D-38, review WR-24): the --check run's own kit home is the default,
+    // and the doctor now reads the recorded kit home K for its checks too, the one its printed commands state, so it
+    // reports no kit-root disagreement (before, it FAILed "kit-root sources DISAGREE (stale/moved install)" here).
+    expect(c.stdout, "the --check run reports a kit-root disagreement on an install that is neither stale nor moved").not.toContain("DISAGREE");
     const line = agentsRemedyLine(c.stdout);
     // Word by word, builder-independent (routed through the tests' statement of the rule by plan 34.1-48, 2026-10-13,
     // D-38): the stated assignments for the record's kit home K and copy mode, node, this checkout's install.js, the
@@ -2688,5 +2691,92 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     expect(checked.stdout.split("\n").filter((l) => /\bFAIL\b/.test(l)), checked.stdout).toEqual([]);
     expect(checked.premise.conflictingKitHomeCreated, "the check created the conflicting kit home").toBe(false);
     expect(existsSync(defaultKit), "the check wrote the default kit home <HOME>/.grugops").toBe(false);
+  });
+
+  // ── R52 (plan 34.1-50, D-38; review WR-24): ONE KIT HOME PER --check RUN ──────────────────────────────────────────
+  //
+  // WR-24: since gap round 3 the doctor's printed commands take the kit home from the record (commandContextFromRecord),
+  // while its header, the kit-root cross-check's rule source, the stat checks and the stale-adapter wording took the
+  // run's own. A plain `--check` (no GRUGOPS_HOME, so the run's kit home is the default under HOME) on an install with
+  // kit home K therefore FAILed "kit-root sources DISAGREE (stale/moved install)", and following the printed remedy did
+  // not clear it. These rows run that plain `--check` and assert it reads one kit home, the recorded K, everywhere.
+  /** The value of the doctor's header line `<label>:` (the one line of stdout that starts with it), in pathText's spelling. */
+  const headerValue = (stdout: string, label: string): string => {
+    const lines = stdout.split(/\r?\n/).filter((l) => l.startsWith(`${label}:`));
+    expect(lines.length, `premise: the doctor printed one \`${label}:\` header line:\n${stdout}`).toBe(1);
+    return pathText(lines[0].slice(label.length + 1).trim());
+  };
+  /** The doctor's FAIL lines. */
+  const failLines = (stdout: string): string[] => stdout.split(/\r?\n/).filter((l) => /\bFAIL\b/.test(l));
+  /** A scratch row with a scratch HOME beside it, the premise that K is not the default kit home, and an install --codex with K. */
+  const codexWithOwnKitHome = (): { target: string; kitHome: string; home: string; defaultKit: string } => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    const defaultKit = join(home, ".grugops");
+    expect(pathText(row.kitHome), "premise: the kit home K is not the default <HOME>/.grugops").not.toBe(pathText(defaultKit));
+    const r = runInstall(row.target, row.kitHome, [agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(pathText(String(readMarkerObject(row.target).grugopsHome)), "premise: the marker records K").toBe(pathText(row.kitHome));
+    return { ...row, home, defaultKit };
+  };
+  /** `--check` with no GRUGOPS_HOME in its environment (its own kit home is <HOME>/.grugops): the user's plain `--check`. */
+  const plainCheck = (target: string, kitHome: string, home: string, extra: readonly string[] = []): Run =>
+    spawnBin(INSTALL_JS, ["--check", ...extra], target, kitHome, { home, omitKitHome: true });
+
+  it("R52 (WR-24): install --codex with kit home K, then a plain --check with no GRUGOPS_HOME: exit 0, no FAIL and no DISAGREE; the home: and kit: header lines name K and its agent-factory; one header line names <HOME>/.grugops as this run's kit home, not used; the kit-root ok line names K's agent-factory. After AGENTS.md is deleted its printed remedy, run as printed, exits 0 and the same plain --check then passes; a malformed-ledger FAIL's printed check command, run as printed after the by-hand fix, exits 0 with no FAIL; <HOME>/.grugops is never created", () => {
+    const { target, kitHome, home, defaultKit } = codexWithOwnKitHome();
+    const kitRoot = join(kitHome, "agent-factory");
+
+    const c = plainCheck(target, kitHome, home);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(failLines(c.stdout), c.stdout).toEqual([]);
+    expect(c.stdout.split(/\r?\n/).filter((l) => l.includes("DISAGREE")), c.stdout).toEqual([]);
+    expect(headerValue(c.stdout, "home"), "the home: header does not name the recorded kit home K").toBe(pathText(kitHome));
+    expect(headerValue(c.stdout, "kit"), "the kit: header does not name K's agent-factory").toBe(pathText(kitRoot));
+    const naming = c.stdout.split(/\r?\n/).filter((l) => l.includes(pathText(defaultKit)));
+    expect(naming.length, `one line names this run's own kit home <HOME>/.grugops:\n${c.stdout}`).toBe(1);
+    expect(naming[0].startsWith("given:"), `the line naming this run's kit home is not a header line: ${naming[0]}`).toBe(true);
+    expect(naming[0], "the header line does not say the run's kit home is this run's").toContain("this run's kit home");
+    expect(naming[0], "the header line does not say the run's kit home is not used").toContain("not used");
+    const agree = linesUnder(c.stdout, "ok").filter((l) => messageOf(l).startsWith("kit-root sources agree ("));
+    expect(agree.length, c.stdout).toBe(1);
+    expect(agree[0], "the kit-root ok line does not name K's agent-factory").toContain(pathText(kitRoot));
+    expect(existsSync(defaultKit), "the plain --check created <HOME>/.grugops").toBe(false);
+
+    // AGENTS.md deleted: the plain --check prints its remedy; the remedy run as printed restores it, and the same plain
+    // --check passes again.
+    rmSync(join(target, "AGENTS.md"));
+    const d = plainCheck(target, kitHome, home);
+    expect(failLines(d.stdout), d.stdout).toEqual([]);
+    const ran = runPrintedCommand(agentsRemedyLine(d.stdout), { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(pathText(ran.premise.grugopsHome), "premise: the printed command states K").toBe(pathText(kitHome));
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(lstatSync(join(target, "AGENTS.md")).isFile(), "the printed command did not write AGENTS.md again").toBe(true);
+    const again = plainCheck(target, kitHome, home);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(failLines(again.stdout), again.stdout).toEqual([]);
+
+    // The doctor's printed check command: a malformed install ledger gives a FAIL whose remedy is a by-hand fix and
+    // then the check command. The fix applied by hand (the marker's bytes restored), the check command run as printed
+    // exits 0 with no FAIL.
+    const markerPath = join(target, ...MARKER_REL.split("/"));
+    const good = readFileSync(markerPath);
+    writeFileSync(markerPath, JSON.stringify(withLedger(readMarkerObject(target), (l) => [...l, { kind: "not-a-kind", path: "x" }]), null, 2) + "\n");
+    const m = plainCheck(target, kitHome, home);
+    const malformed = linesUnder(m.stdout, "FAIL").filter((l) => l.includes("malformed install ledger"));
+    expect(malformed.length, m.stdout).toBe(1);
+    expect(failLines(m.stdout).filter((l) => l.includes("DISAGREE")), m.stdout).toEqual([]);
+    const spans = printedCommands(malformed[0]);
+    const checkSpan = spans[spans.length - 1] ?? "";
+    expect(printedInvocation(checkSpan).words.slice(-1), `premise: the FAIL's last printed command is the check command: ${malformed[0]}`).toEqual(["--check"]);
+    writeFileSync(markerPath, good);
+    const checked = runPrintedCommand(`\`${checkSpan}\``, { home });
+    expect(pathText(checked.premise.grugopsHome), "premise: the printed check command states K").toBe(pathText(kitHome));
+    expect(checked.premise.kitHomeBeforePrinted, "premise: the check's environment held the conflicting GRUGOPS_HOME").toBe(checked.premise.conflictingKitHome);
+    expect(checked.status, checked.stdout + checked.stderr).toBe(0);
+    expect(failLines(checked.stdout), checked.stdout).toEqual([]);
+    expect(existsSync(defaultKit), "<HOME>/.grugops was created").toBe(false);
   });
 });
