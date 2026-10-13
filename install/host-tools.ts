@@ -293,10 +293,13 @@ function shellWord(s: string): string {
 }
 
 /**
- * CommandContext (phase 34.1 gap round 2, D-33, review WR-19): how the run that prints a command was invoked, so the
- * command it prints runs the same way from any directory. `scriptDir` is the absolute directory of the running
- * script (install.js and uninstall.js sit side by side in it); `kitHome` is the kit home the run used, or null when
- * it is the default `~/.grugops`; `symlink` is whether the run was a symlink install.
+ * CommandContext (phase 34.1 gap round 2, D-33, review WR-19; gap round 3, D-36): how a command the run prints is
+ * invoked, so it runs from any directory with the right kit home and install mode. `scriptDir` is the absolute
+ * directory of the running script (install.js and uninstall.js sit side by side in it); `kitHome` is the kit home a
+ * printed install command names, or null when it is the default `~/.grugops`; `symlink` is whether a printed install
+ * command is a symlink install. install.ts builds its context through commandContextFromRecord, which decides `kitHome`
+ * and `symlink`: from an `ok` install record for a run that does not choose its kit home itself, from the run's own
+ * invocation otherwise (uninstall.ts still builds its context with commandContext until plan 34.1-36 moves it).
  */
 export interface CommandContext {
   readonly scriptDir: string;
@@ -368,9 +371,11 @@ export function commandContextFromRecord(record: RecordRead | null, run: RunInvo
 }
 
 /**
- * scriptCommand (D-33, WR-19): the invocation words of a printed command, before its arguments. For install.js:
+ * scriptCommand (D-33, WR-19; D-36): the invocation words of a printed command, before its arguments. For install.js:
  * `GRUGOPS_HOME=<kit home>` when the context's kit home is not the default, then `node`, then the absolute path of
- * install.js, then `--symlink` when the run was a symlink install. For uninstall.js: `node` and the absolute path of
+ * install.js, then `--symlink` when the context is a symlink install. Both come from the context alone; install.ts's
+ * context is decided by commandContextFromRecord: the values of an `ok` install record for a run that does not choose
+ * its kit home itself (`install.js --check`), the run's own otherwise. For uninstall.js: `node` and the absolute path of
  * uninstall.js only, whatever the context holds, because uninstall.js removes by the install record alone and never
  * reads or removes the kit (the kit home and install mode in its own COMMAND_CONTEXT word only the install commands
  * it prints), and it refuses `--symlink` as an unknown argument (exit 2).
@@ -392,9 +397,11 @@ export type CommandMode = "--check" | "--migrate" | "--prune-old-kit";
  * agentCommand (phase 34.1, D-26, D-33; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names agents.
  * It returns scriptCommand(binary, ctx) (so the script is printed by its absolute path and the command runs from any
  * directory), then `--target <target>`, then agentFlag(h) for each host in the order given, then each mode. An install
- * command carries `GRUGOPS_HOME=<dir>` when the run used a kit home other than the default and `--symlink` when the
- * run was a symlink install, so a command run as printed uses the kit and the mode the run used and never writes a
- * second kit into `~/.grugops` (WR-19). An uninstall command carries neither, because uninstall.js removes by the
+ * command carries `GRUGOPS_HOME=<dir>` when its context's kit home is not the default and `--symlink` when its context
+ * is a symlink install (WR-19). install.ts's context is decided by commandContextFromRecord (D-36, WR-21): the kit home
+ * and install mode an `ok` install record holds, for a run that does not choose its kit home itself (`install.js
+ * --check`), and the run's own otherwise (uninstall.ts builds its own with commandContext until plan 34.1-36). An
+ * uninstall command carries neither, because uninstall.js removes by the
  * install record alone. The flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no
  * flag: the flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what
  * it means. The target is one shell word (shellWord).

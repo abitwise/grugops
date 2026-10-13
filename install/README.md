@@ -73,13 +73,16 @@ GRUGOPS_HOME=/opt/grugops node install/install.js --target /path/to/repo
 node install/install.js --yes --backup-edited-kit --target /path/to/repo
 ```
 
-An install command the installer prints for named agents (for example the one the
-`install INCOMPLETE` banner gives, or the one a `--check` note gives for an agent with nothing
-installed) names the script by its absolute path, so it runs from any directory. It starts with
-`GRUGOPS_HOME=<dir>` when the run used a kit home other than `~/.grugops`, and carries `--symlink`
-when the run made a symlink install (with `--symlink` or `INSTALL_MODE=symlink`).
-`install.js --check` prints its commands in the mode it ran in, so after a `--symlink` install run
-`--check --symlink`, or add `--symlink` to the install command it prints.
+An install command the installer prints (for example the one the `install INCOMPLETE` banner
+gives, or the one a `--check` note gives for an agent with nothing installed) names the script by
+its absolute path, so it runs from any directory. It starts with `GRUGOPS_HOME=<dir>` when the kit
+home it names is not `~/.grugops`, and carries `--symlink` for a symlink install.
+`install.js --check` reads the install marker it checks (`.grugops/install.json`). When that marker
+is install's own record for this directory, the install commands `--check` prints carry the kit home
+and install mode the marker records, whatever kit home or mode the `--check` run was given. With no
+marker it can use, they carry the kit home and mode of the `--check` run itself.
+An install, `--migrate`, `--update` or `--prune-old-kit` run prints commands with the kit home and
+mode it was run with (`GRUGOPS_HOME`, and `--symlink` or `INSTALL_MODE=symlink`).
 A command the uninstaller prints to finish or repeat a run (on a `left` line, a `verify` line or the
 `uninstall INCOMPLETE` banner) names `uninstall.js` by its absolute path too, so it also runs from
 any directory. It carries no `GRUGOPS_HOME=` and no `--symlink`: the uninstaller removes only what
