@@ -1670,7 +1670,6 @@ function remedyCensus(): CensusSite[] {
 }
 
 type RemedyClass =
-  | "no well-formed ledger: fix or remove"
   | "not a usable record"
   | "never remove the marker"
   | "per entry"
@@ -1694,14 +1693,11 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   // retired by plan 34.1-43 (2026-10-13, D-37, 34.1 review CR-06): U4 has one line, which points at the module-top
   // verify for a malformed ledger ("see the verify line above") and names no remedy verb aimed at the marker, so the
   // walk no longer reports it; its two rows left.
-  // no well-formed ledger: fix or remove (I1, I5, I6): the may-remove readings, each under markerRemedy's yes. Until
-  // plan 34.1-34 these were "not a usable record"; since plan 34.1-34 (2026-10-13, D-35) they are classed under the owner:
-  // markerRemedy answers mayRemove true only where no well-formed install ledger exists, and a well-formed one gets
-  // markerFixText (class "never remove the marker"). U3 (removeMarker) left this class at plan 34.1-42 (2026-10-13,
-  // D-37): its line points at the module-top verify and offers no removal. Plan 34.1-44 moves I1, I5 and I6.
-  ["install.ts", "markerUnreadable", "either", "the install marker ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then re-run install.js `${doctorInstallCommand()}` (then `${doctorCheckCommand()}`); ${DOCTOR_NO_FLAG_CLAUSE}", "no well-formed ledger: fix or remove", "I1: the doctor's unreadable marker (markerUnusableText); plan 34.1-27 adds the doctor's install and check commands and the no-agent-flag clause. Since plan 34.1-33 (D-35) this is the may-remove reading only (markerRemedy(read, \"install\").mayRemove true: no well-formed install ledger); the other reading prints markerFixText and is not a removal offer. Reclassed under the owner by plan 34.1-34"],
-  ["install.ts", "writeAskRules", "either", ".grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — no ask rule was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.", "no well-formed ledger: fix or remove", "I5: readInstallMarker answered unreadable; since plan 34.1-33 (D-35) the may-remove reading only (markerRemedy mayRemove true: no well-formed install ledger); the other reading prints markerFixText (R37). Reclassed under the owner by plan 34.1-34"],
-  ["install.ts", "askRulesStep", "either", ".grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — the marker was left as it was. Fix or remove the marker, then re-run the installer.", "no well-formed ledger: fix or remove", "I6: readInstallMarker answered unreadable (Claude Code not chosen); since plan 34.1-33 (D-35) the may-remove reading only; the other reading prints markerFixText (R37). Reclassed under the owner by plan 34.1-34"],
+  // The class "no well-formed ledger: fix or remove" (I1: the doctor's unreadable-marker FAIL; I5 and I6: writeAskRules'
+  // and askRulesStep's unreadable-marker verifies; U3 left it at plan 34.1-42) was retired by plan 34.1-44 (2026-10-13,
+  // D-37, 34.1 review CR-05): each of the three has one reading, the cause then markerFixText of the owner's answer (a
+  // substitution, whose own row is "never remove the marker" below), so its own text names no remedy verb aimed at the
+  // marker and the walk no longer reports it (R36 control and R37d follow the trailing-comma marker as printed).
   // not a usable record (the legacy-marker verify): no run reads a record from it, before or after the remedy, and it
   // offers no removal of the marker (markerRemedy answers no for an unbound read; the remedy is a re-install).
   ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of its records is used here, and this run removes and edits nothing. Run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}, then `${rerunCommand()}`: install copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory with the install ledger and carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "not a usable record", "a marker written before markers were bound or before the one ledger: this build reads no record from it, so the re-install that replaces it drops none (re-pinned by plan 34.1-41, 2026-10-13, D-36: the line names the kit home its printed install step copies the kit into, this run's, never the unusable marker's)"],
@@ -1767,9 +1763,10 @@ const CENSUS_TABLE: readonly CensusRow[] = [
  * module-top malformed-ledger verify leaves "fix" (7 -> 6); neither new reading names a remedy verb aimed at the marker
  * in its own text, so the walk no longer reports them. uninstall.ts 23 -> 20.
  * 25 since plan 34.1-43 Task 2 (2026-10-13, D-37): I2, I3 and I4 leave "fix" (6 -> 3) for the same reason; install.ts
- * 7 -> 4. */
+ * 7 -> 4.
+ * 22 since plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): I1, I5 and I6 have one never-remove reading each, so
+ * "no well-formed ledger: fix or remove" (3) is retired; install.ts 4 -> 1. */
 const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
-  "no well-formed ledger: fix or remove": 3,
   "not a usable record": 1,
   "never remove the marker": 1,
   "per entry": 5,
@@ -1780,10 +1777,6 @@ const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
 };
 /** What every row of a class must say, so a row cannot be classed against its text. */
 const CLASS_RULES: Readonly<Record<RemedyClass, (s: CensusSite) => string | null>> = {
-  "no well-formed ledger: fix or remove": (s) =>
-    s.owner === "yes" && /could not be read as install's marker|\$\{markerUnusableText\((read|previousMarker)\)\}/.test(s.text)
-      ? null
-      : "not under markerRemedy's yes, or names no reason the record is unusable",
   "not a usable record": (s) =>
     /not a record this run can use/.test(s.text) && !offersRemoval(s.text) ? null : "names no reason the record is unusable, or offers removing the marker",
   "never remove the marker": (s) =>
@@ -2016,8 +2009,10 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     // files-by-hand reading and U3's fix-or-remove reading leave uninstall.ts (25 -> 23). 31 -> 28 (plan 34.1-43,
     // 2026-10-13, D-37, 34.1 review CR-06): U4's two readings and the module-top malformed-ledger verify leave (23 -> 20).
     // 28 -> 25 (plan 34.1-43 Task 2, D-37): I2, I3 and I4 print markerFixText and leave install.ts (7 -> 4).
-    expect(sites.length, "the census size moved").toBe(25);
-    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 1, "install.ts": 4, "uninstall.ts": 20 });
+    // 25 -> 22 (plan 34.1-44, 2026-10-13, D-37, 34.1 review CR-05): I1, I5 and I6 print markerFixText on every read and
+    // leave install.ts (4 -> 1).
+    expect(sites.length, "the census size moved").toBe(22);
+    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 1, "install.ts": 1, "uninstall.ts": 20 });
     expect(countBy(CENSUS_TABLE, (r) => r[4]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(CENSUS_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
@@ -2039,15 +2034,16 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     expect(sites.filter((s) => cls.has(censusKey(s.module, s.fn, s.guard, s.text))).length, "PREMISE: classed rows were checked").toBeGreaterThan(0);
   });
 
-  it("D-35: every printed offer to remove the marker sits under markerRemedy's yes (every product module)", () => {
+  // D-37 (plan 34.1-44, 2026-10-13, 34.1 review CR-05; replaces D-35's "every offer sits under markerRemedy's yes"): no
+  // printed reading in any product module offers removing the marker, under any condition. The premise: the walk read
+  // all nine product modules and found census sites in both binaries.
+  it("D-37: no reading in any product module offers removing the marker", () => {
     const sites = remedyCensus();
-    const offers = sites.filter((s) => offersRemoval(s.text));
-    // The premise: the filter finds the offers it must hold, at least the doctor's I1 removal reading (plan 34.1-44
-    // removes it). keepWithoutRecord holds none since plan 34.1-42 (2026-10-13, D-37, amends D-32).
-    expect(offers.filter((s) => s.fn === "keepWithoutRecord").length, "keepWithoutRecord offers removing the marker").toBe(0);
-    expect(offers.some((s) => s.module === "install.ts" && s.fn === "markerUnreadable"), "PREMISE: the doctor's I1 removal reading is found").toBe(true);
-    const outside = offers.filter((s) => s.owner !== "yes").map((s) => `${s.module}:${s.line} [${s.fn}] {${s.guard}} owner ${s.owner}: ${s.text}`);
-    expect(outside, "a printed offer to remove the marker outside markerRemedy's yes").toEqual([]);
+    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+    expect(sites.some((s) => s.module === "install.ts"), "PREMISE: the census found a site in install.ts").toBe(true);
+    expect(sites.some((s) => s.module === "uninstall.ts"), "PREMISE: the census found a site in uninstall.ts").toBe(true);
+    const offers = sites.filter((s) => offersRemoval(s.text)).map((s) => `${s.module}:${s.line} [${s.fn}] {${s.guard}} ${s.text}`);
+    expect(offers, "a printed reading offers removing the marker").toEqual([]);
   });
 
   it("D-37 (34.1 review CR-05): the delete-the-marker text is found at zero sites in every product module (by the parser)", () => {
@@ -2141,19 +2137,50 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
     expect(leftRecorded(r.stdout, recorded), `a path the ledger recorded was left\n${r.stdout}`).toEqual([]);
   });
 
-  it("R36 control (the owner discriminates): a marker that is not JSON still gets the fix-or-remove FAIL, with the install and check commands", () => {
+  // R36 control (inverted by plan 34.1-44, 2026-10-13, D-37, 34.1 review CR-05): until plan 34.1-44 a marker that is not
+  // JSON got the fix-or-remove FAIL with an install command, and following "remove" left every agent installed with no
+  // record. The reviewer's reproduction (one trailing comma inside `agents`) now gets the never-remove FAIL, and the row
+  // follows it as printed: the comma taken out by hand, the check command run from outside the checkout, then a
+  // flag-less uninstall that removes grugops' files.
+  it("R36 control (D-37, 34.1 review CR-05): the doctor over a trailing comma: --check names the cause and its place, says fix by hand and never delete the marker, offers no removal and prints only the check command; with the comma taken out by hand, that command run as printed from outside the checkout exits 0 with no FAIL, and a flag-less uninstall removes grugops' files and the marker", () => {
     const w = world("r36c");
     install(w, [flag("claude"), flag("codex")]);
-    writeFileSync(at(w.target, MARKER_REL), "not json\n");
-    expect(readInstallMarker(w.target).state, "PREMISE: the marker is unusable").toBe("unreadable");
+    const recorded = recordedPaths(w);
+    expect(recorded, "PREMISE: the ledger names both skills").toEqual(expect.arrayContaining([AGENT_SKILL_REL, ".claude/skills/grugops/SKILL.md"]));
+    const original = addTrailingComma(w);
     const check = spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, timeoutMs: 120_000 });
     finished(check, "--check");
     expect(check.status, check.stdout).toBe(1);
     const fails = linesWith(check.stdout, "FAIL");
     expect(fails.length, check.stdout).toBe(1);
-    expect(fails[0], check.stdout).toContain("Fix or remove the marker");
-    expect(fails[0], check.stdout).not.toContain("never delete the marker");
-    expect(printedCommands(fails[0]).length, `the install command, then the check command\n${fails[0]}`).toBe(2);
+    const failLine = fails[0];
+    expect(failLine, check.stdout).toContain(MARKER_REL);
+    expect(failLine, check.stdout).toContain("not valid JSON");
+    expect(failLine, `the FAIL names no place in the file: ${failLine}`).toMatch(/\bline \d+/);
+    expect(failLine, check.stdout).toContain("by hand");
+    expect(failLine, check.stdout).toContain("never delete the marker");
+    expect(failLine, "the FAIL tells the user to delete the marker").not.toMatch(DELETE_MARKER);
+    expect(failLine, "the FAIL offers removing the marker").not.toMatch(MARKER_REMOVAL);
+    expect(failLine, "the FAIL offers removing the marker").not.toMatch(REMOVAL_OFFER);
+    const spans = printedCommands(failLine);
+    expect(spans.length, `only the check command\n${failLine}`).toBe(1);
+    const words = shellWords(spans[0]);
+    expect(words[words.length - 1], failLine).toBe("--check");
+
+    // Follow it: take the comma out by hand (the fix the line named), then run the printed check command as printed.
+    writeFileSync(at(w.target, MARKER_REL), original);
+    const again = runPrintedCommand(failLine, { home: w.home, timeoutMs: 120_000 });
+    finished(again, `the printed check command ${printedCommand(failLine)}`);
+    expect(relative(REPO_ROOT, again.premise.cwd).startsWith(".."), `premise: the printed command ran from ${again.premise.cwd}, inside the checkout`).toBe(true);
+    expect(linesWith(again.stdout, "FAIL"), again.stdout).toEqual([]);
+    expect(again.status, again.stdout).toBe(0);
+
+    const r = uninstall(w, []);
+    expect(r.status, r.stdout).toBe(0);
+    expect(markerGone(w), r.stdout).toBe(true);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(false);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), r.stdout).toBe(false);
+    expect(leftRecorded(r.stdout, recorded), `a path the ledger recorded was left\n${r.stdout}`).toEqual([]);
   });
 
   /** Install over the marker as it is: the run exits 3 when the marker is unusable, so the `install` helper (exit 0) is not used. */
@@ -2209,6 +2236,29 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
     expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), r.stdout).toBe(false);
     expect(existsSync(at(w.target, CLAUDE_SKILL)), r.stdout).toBe(false);
     expect(leftRecorded(r.stdout, recorded), `a path the ledger recorded was left\n${r.stdout}`).toEqual([]);
+
+    // R37d (plan 34.1-44, 2026-10-13, D-37, 34.1 review CR-05): the same two arms over the reviewer's trailing comma, a
+    // marker that is not JSON. Until plan 34.1-44 both offered "Fix or remove the marker".
+    const c = world("r37d");
+    install(c, [flag("claude"), flag("codex")]);
+    addTrailingComma(c);
+    const commaBytes = readFileSync(at(c.target, MARKER_REL));
+    for (const args of [[flag("claude")], [flag("codex")]] as const) {
+      const what = `R37d install ${args.join(" ")} over a trailing comma`;
+      const run = installOver(c, args);
+      expect(run.status, `${what}: exit\n${run.stdout}`).toBe(3);
+      const about = linesWith(run.stdout, "verify").filter((l) => l.includes(MARKER_REL));
+      expect(about.length, `${what}: one verify line about the marker\n${run.stdout}`).toBe(1);
+      expect(about[0], what).toContain("not valid JSON");
+      expect(about[0], what).toContain("by hand");
+      expect(about[0], what).toContain("never delete the marker");
+      for (const l of [...run.stdout.split("\n"), ...run.stderr.split("\n")]) {
+        expect(l, `${what}: a line tells the user to delete the marker`).not.toMatch(DELETE_MARKER);
+        expect(l, `${what}: a line offers removing the marker`).not.toMatch(MARKER_REMOVAL);
+        expect(l, `${what}: a line offers removing the marker`).not.toMatch(REMOVAL_OFFER);
+      }
+      expect(readFileSync(at(c.target, MARKER_REL)).equals(commaBytes), `${what}: the marker changed\n${run.stdout}`).toBe(true);
+    }
   });
 
   /**
@@ -3074,9 +3124,8 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
 // plan 34.1-40). Every other mention of the name must be its declaration or an import, so no alias or namespace call
 // can sit outside the count.
 //
-// The converse is derived from the by-hand remedy census, never typed: every function that holds a printed reading
-// whose owner tag is "yes" or "no" (a condition or statement guard on `.mayRemove` decides it) holds a markerRemedy
-// call, so no reading is decided by a `.mayRemove` that the function did not get from the owner.
+// The converse derived from the census owner tags was deleted by plan 34.1-44 (2026-10-13, D-37): no reading is decided
+// by the owner's answer any more (see the end of this describe).
 
 /**
  * The markerRemedy calls per product module and enclosing function, measured at execution of plan 34.1-40
@@ -3085,7 +3134,9 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
  *                 writeMarker (its skipped line reads ledgerWellFormed), one call each. 7 since plan 34.1-43 (2026-10-13,
  *                 D-37, 34.1 review CR-06): the doctor's malformed-ledger FAIL (I2, doctor 0 -> 1), writeMarker's
  *                 malformed-ledger verify (I3, writeMarker 1 -> 2) and writeAskRules' (I4, writeAskRules 1 -> 2) each ask
- *                 the owner for markerFixText's fix;
+ *                 the owner for markerFixText's fix. 6 since plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05):
+ *                 writeMarker's skipped line asks the owner nothing (one line for every unreadable read), writeMarker
+ *                 2 -> 1;
  *   uninstall.ts  4 (plan 34.1-34): the module-top unreadable-marker verify (`<module>`, 1), removeMarker (2: one call
  *                 at the top of its not-owned block, which the JSON-object arm and U3 both read, and one for U4) and
  *                 keepWithoutRecord (1). 3 since plan 34.1-42 (2026-10-13, D-37): removeMarker's not-owned block asks the
@@ -3099,7 +3150,7 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
  * install-marker.ts declares markerRemedy and calls it nowhere; no other product module calls it.
  */
 const MARKER_REMEDY_CALLS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
-  "install.ts": { askRulesStep: 1, doctor: 1, markerUnreadable: 1, writeAskRules: 2, writeMarker: 2 },
+  "install.ts": { askRulesStep: 1, doctor: 1, markerUnreadable: 1, writeAskRules: 2, writeMarker: 1 },
   "uninstall.ts": { "<module>": 2 },
 };
 
@@ -3141,30 +3192,15 @@ describe("D-35: the markerRemedy call sites (34.1 review CR-04)", () => {
     // uninstall.ts 4 -> 3 -> 2 (plan 34.1-42, 2026-10-13, D-37): removeMarker's not-owned block and keepWithoutRecord no
     // longer ask the owner. Still 2 since plan 34.1-43 (2026-10-13, D-37): U4's call moved to the module-top
     // malformed-ledger verify.
-    // install.ts 4 -> 7 (plan 34.1-43 Task 2, 2026-10-13, D-37): I2, I3 and I4 ask the owner.
-    expect(perModule, "the per-module markerRemedy call counts moved").toEqual({ "install.ts": 7, "uninstall.ts": 2 });
+    // install.ts 4 -> 7 (plan 34.1-43 Task 2, 2026-10-13, D-37): I2, I3 and I4 ask the owner. 7 -> 6 (plan 34.1-44,
+    // 2026-10-13, D-37): writeMarker's skipped line no longer asks it.
+    expect(perModule, "the per-module markerRemedy call counts moved").toEqual({ "install.ts": 6, "uninstall.ts": 2 });
     expect(other, "markerRemedy is named somewhere other than its declaration, a plain import or a call").toEqual([]);
   });
 
-  it("the converse: every function holding a reading decided by markerRemedy's answer (owner yes or no) holds a markerRemedy call (derived from the census)", () => {
-    const owned = [...new Set(remedyCensus().filter((s) => s.owner !== "none").map((s) => `${s.module} :: ${s.fn}`))].sort();
-    // The premise: the census tags the readings the owner decides, at least the doctor's FAIL (I1). removeMarker's
-    // malformed-ledger line (U4) was the uninstall.ts premise until plan 34.1-43 (2026-10-13, D-37, 34.1 review CR-06)
-    // gave it one reading; since then no uninstall.ts reading is decided by `.mayRemove`, and that is asserted.
-    expect(owned, "PREMISE: the census tags the owner's readings").toEqual(expect.arrayContaining(["install.ts :: markerUnreadable"]));
-    expect(owned.filter((k) => k.startsWith("uninstall.ts")), "an uninstall.ts reading is decided by markerRemedy's mayRemove").toEqual([]);
-    // Measured at plan 34.1-40: 6 functions (install.ts markerUnreadable, writeAskRules, askRulesStep; uninstall.ts
-    // `<module>`, removeMarker, keepWithoutRecord). writeMarker asks the owner for ledgerWellFormed only, so it holds a
-    // call and no owner-tagged reading. 5 since plan 34.1-42 (2026-10-13, D-37): the module-top unreadable verify has
-    // one reading, not one per `.mayRemove` answer, so uninstall.ts `<module>` holds no owner-tagged reading (it still
-    // calls the owner for `fix`); removeMarker stays for U4 (plan 34.1-43). 4 since plan 34.1-42 Task 2 (D-37, amends
-    // D-32): keepWithoutRecord holds no reading the owner decides. 3 since plan 34.1-43 (2026-10-13, D-37): removeMarker's
-    // U4 line has one reading.
-    expect(owned.length, `the functions whose readings the owner decides moved: ${owned.join(", ")}`).toBe(3);
-    const { calls } = markerRemedyWalk();
-    const calling = new Set([...calls].flatMap(([m, fns]) => [...fns.keys()].map((fn) => `${m} :: ${fn}`)));
-    expect(owned.filter((k) => !calling.has(k)), "a reading decided by `.mayRemove` in a function that never asks markerRemedy").toEqual([]);
-  });
+  // The converse ("every function holding a reading decided by markerRemedy's answer holds a markerRemedy call") was
+  // deleted by plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): no product function holds a reading the owner's answer
+  // decides any more (I1, I5 and I6 have one reading each). Plan 34.1-45 replaces it with the unusable-marker converse.
 });
 
 describe("the uninstall re-run census (MSG-1)", () => {

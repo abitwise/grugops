@@ -422,10 +422,10 @@ function migrateCommand() {
     return agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT, ["--migrate"]);
 }
 // DOCTOR_NO_FLAG_CLAUSE: what install does with no agent flag, printed after doctorInstallCommand() by the remedies
-// whose marker is absent or one the doctor cannot use (notInstalled, markerUnreadable, the unbound-marker WARN). It
-// states SELECTION_WHY's chain in order: at a terminal the agent list (pickAgents); unattended, the agents a usable
-// marker records (INSTALLED_BEFORE), else the agents detected here (detectedHosts), else refuseSelection, which names
-// every agent flag.
+// whose marker is absent or not this directory's record (notInstalled, the unbound-marker WARN; markerUnreadable prints
+// no install command, D-37). It states SELECTION_WHY's chain in order: at a terminal the agent list (pickAgents);
+// unattended, the agents a usable marker records (INSTALLED_BEFORE), else the agents detected here (detectedHosts), else
+// refuseSelection, which names every agent flag.
 const DOCTOR_NO_FLAG_CLAUSE = "with no agent flag, install shows the agent list at a terminal; unattended, it chooses the agents a usable marker " +
     "records, else the agents detected here, else it refuses and names the agent flags";
 // Materialization sentinels — byte-identical to uninstall.ts. Declared HERE (before the doctor) so
@@ -1122,21 +1122,18 @@ function notInstalled() {
 // "not installed" would claim it is absent, which is false and hides the one file the human must
 // look at. Still a FAIL with the same exit code, and still fail-closed: nothing else is checked.
 //
-// THE REMEDY IS THE OWNER'S (phase 34.1 gap round 3, D-35, 34.1 review CR-04). install-marker.ts markerRemedy decides,
-// from this read, whether the FAIL may offer removing the marker. When its parsed object still holds a well-formed
-// install ledger, the marker is the record of every agent installed here: the FAIL names what to fix by hand
-// (markerFixText), never offers removal, and prints only the check command (once the field is fixed the install is
-// intact, and the check re-reads the fixed marker; no install command is printed, so none carries this run's kit home
-// over a record that names another). Otherwise (not JSON, not an object, no usable ledger) the fix-or-remove remedy
-// stays, with the install and check commands.
+// THE REMEDY NEVER REMOVES THE MARKER (phase 34.1 gap round 4, D-37, 34.1 review CR-05; amends D-35). Whatever the read
+// (not JSON, not an object, a blocked read, a duplicate key, a byte the strict reader refuses, a field install never
+// writes, a retired record next to the ledger), the marker is the one record install keeps of the agents installed
+// here: removing it would leave every file install made with no record, so no uninstall could take them out. The FAIL
+// names the cause the reader saw and its by-hand fix (install-marker.ts markerFixText of markerRemedy's answer, whose
+// fix is the read's problems), and prints only the check command: once the file is fixed by hand the check re-reads the
+// record. No install command is printed, so none names a kit home over a record this run could not read.
 function markerUnreadable(markerFile, read) {
     const remedy = markerRemedy(read, "install");
     docReport("FAIL", `the install marker ${markerFile} is present but ${markerUnusableText(read)} — the ` +
         `install state of ${TARGET} is unknown, so nothing else was checked. ` +
-        (remedy.mayRemove
-            ? `Fix or remove the marker, then ` +
-                `re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`); ${DOCTOR_NO_FLAG_CLAUSE}`
-            : `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``));
+        `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``);
     console.log("\n1 FAILURE(S)");
 }
 // CLAUDE.md sentinel block — byte-identical to uninstall.ts (GSD:grugops-start-here).
@@ -4817,14 +4814,10 @@ function writeMarker() {
     const previousMarker = readInstallMarker(TARGET);
     // WR-05: a marker that exists but cannot be read holds records this run cannot see. Overwriting it
     // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
-    // D-35 (34.1 review CR-04): when install-marker.ts markerRemedy finds a well-formed install ledger in it, the marker
-    // is still install's record with a field to fix by hand, so the line never calls it "not install's".
+    // D-37 (34.1 review CR-05): whatever the read, the marker is still the record of the agents installed here, so the line
+    // never calls it "not install's"; it points at the never-remove verify askRulesStep printed.
     if (previousMarker.state === "unreadable") {
-        report("skipped", markerRemedy(previousMarker, "install").ledgerWellFormed
-            ? `${markerRel} (left unchanged — a field in it holds a value install never writes, while its install ledger is still the record of every agent installed here; see the verify line above)`
-            : previousMarker.jsonObject
-                ? `${markerRel} (left unchanged — it is a JSON object that is not install's marker, so it is not install's to replace; see the verify line above)`
-                : `${markerRel} (left unchanged — it could not be read; see the verify line above)`);
+        report("skipped", `${markerRel} (left unchanged — it could not be used as install's marker; see the verify line above)`);
         return;
     }
     const here = realTargetPath(TARGET);
@@ -5990,14 +5983,14 @@ function writeAskRules() {
     // cannot tell a rule an earlier install added from the user's own identical rule, so it adds no
     // rule, relabels none, and leaves the ledger as it found it. A ledger with no ask-rules entry, or no
     // marker at all, is not a defect: nothing was recorded.
-    // The remedy is install-marker.ts markerRemedy's (D-35, 34.1 review CR-04): a marker whose install ledger is still
-    // well formed is fixed by hand and never removed (markerFixText); only a marker with no usable ledger may be removed.
+    // The remedy is install-marker.ts markerFixText of markerRemedy's answer (D-37, 34.1 review CR-05): whatever the
+    // read, the marker is fixed by hand and never removed. "this run uses none of its records" is the uninstaller's
+    // wording (34.1 review IN-33): the sentence claims nothing about the ledger that markerFixText contradicts.
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
-        const remedy = markerRemedy(previousMarker, "install");
-        verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — no ask rule ` +
+        verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — no ask rule ` +
             `was added to ${rel} and the marker was left as it was. ` +
-            (remedy.mayRemove ? `Fix or remove the marker, then re-run the installer.` : `${markerFixText(remedy)}; then re-run the installer.`));
+            `${markerFixText(markerRemedy(previousMarker, "install"))}; then re-run the installer.`);
         return ASK_REFUSED;
     }
     const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
@@ -6213,13 +6206,11 @@ function askRulesStep() {
         ASK_RULES_RAN = true;
         return writeAskRules();
     }
-    // The same remedy as writeAskRules', from install-marker.ts markerRemedy (D-35, 34.1 review CR-04).
+    // The same never-remove remedy as writeAskRules' (D-37, 34.1 review CR-05, IN-33).
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
-        const remedy = markerRemedy(previousMarker, "install");
-        verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — the marker was ` +
-            `left as it was. ` +
-            (remedy.mayRemove ? `Fix or remove the marker, then re-run the installer.` : `${markerFixText(remedy)}; then re-run the installer.`));
+        verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — the marker ` +
+            `was left as it was. ${markerFixText(markerRemedy(previousMarker, "install"))}; then re-run the installer.`);
     }
     report("skipped", "Claude Code ask rules (Claude Code is not chosen in this run; .claude/settings.json is left as it is)");
     return { kind: "not-chosen" };

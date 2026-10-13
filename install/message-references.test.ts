@@ -265,9 +265,7 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["install.ts", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules", "printed reference", "doctor: the malformed-ledger docFail, printed earlier in the same --check run"],
   ["install.ts", "the line above about", "printed reference", "noteStrandingCarriers: only when `written` (a writer of this run visited the carrier and printed its line; D-26, WR-17)"],
   ["install.ts", "(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.", "printed reference", "backupEditedKitFiles: the backed-up lines of the same backup pass"],
-  ["install.ts", "(left unchanged — it is a JSON object that is not install's marker, so it is not install's to replace; see the verify line above)", "printed reference", "writeMarker (step 8): askRulesStep's verify for the marker (step 7c, every run)"],
-  ["install.ts", "(left unchanged — it could not be read; see the verify line above)", "printed reference", "writeMarker (step 8): askRulesStep's verify for the marker (step 7c, every run)"],
-  ["install.ts", "(left unchanged — a field in it holds a value install never writes, while its install ledger is still the record of every agent installed here; see the verify line above)", "printed reference", "writeMarker (step 8), when markerRemedy finds a well-formed install ledger (plan 34.1-33, D-35): askRulesStep's never-remove verify for the marker (step 7c, every run); the line no longer says the marker is not install's"],
+  ["install.ts", "(left unchanged — it could not be used as install's marker; see the verify line above)", "printed reference", "writeMarker (step 8): askRulesStep's never-remove verify for the marker (step 7c, every run). Re-pinned by plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): one line for every unreadable read, which never says the marker is not install's (it had three, split on the jsonObject flag and the owner's well-formed-ledger answer)"],
   ["install.ts", "refusal(s) above were found before the first change, and", "printed reference", "--migrate pre-check: its verify(why) loop, printed just before"],
   ["install.ts", "is still the old layout. Resolve each verify above and re-run --migrate.", "printed reference", "--migrate pre-check: its verify(why) loop, printed just before"],
   ["install.ts", "DRY_RUN: this run would back up plans/handoffs/ (see the would-backup line above). Nothing was changed.", "printed reference", "--migrate handoffs backup: its would-backup line, printed just before"],
@@ -323,7 +321,6 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "install.js: INSTALL_MODE must be copy or symlink (it is", "message prefix", "the install.js: prefix of a usage message"],
   ["install.ts", "it, re-run `node install/install.js --target <this repository>` from the grugops checkout. The", "file text", "written into a target file, not printed"],
   ["install.ts", "— run install.js `", "builder in the same expression", "notInstalled: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)"],
-  ["install.ts", "re-run install.js `", "builder in the same expression", "markerUnreadable: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)"],
   ["install.ts", "and re-run install.js, which links or copies the current kit", "builder in the same expression", "linkOwnership's remedy ends with doctorInstallCommand() (plan 34.1-27, D-33)"],
   ["install.ts", "nothing was there when --check asked again, so run install.js --check again: `", "builder in the same expression", "classifyCarrier: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)"],
   ["install.ts", "kit route cannot reach the Orchestrator. Re-run install.js `", "builder in the same expression", "the kit-route FAIL: doctorInstallCommand() then doctorCheckCommand() (plan 34.1-27, D-33)"],
@@ -379,7 +376,6 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "Check that the target directory exists and is readable, then re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
   ["install.ts", "a real one, or install into the directory the link points at, and re-run; the installer only", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "adapterDestHazard"],
   ["install.ts", "— run install.js `", "builder in the same expression", "notInstalled: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)", null],
-  ["install.ts", "re-run install.js `", "builder in the same expression", "markerUnreadable: doctorInstallCommand() then doctorCheckCommand(), and the no-agent-flag clause (plan 34.1-27, D-33)", null],
   ["install.ts", "and re-run install.js, which links or copies the current kit", "builder in the same expression", "linkOwnership's remedy ends with doctorInstallCommand() (plan 34.1-27, D-33)", null],
   ["install.ts", "nothing was there when --check asked again, so run install.js --check again: `", "builder in the same expression", "classifyCarrier: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)", null],
   ["install.ts", "kit route cannot reach the Orchestrator. Re-run install.js `", "builder in the same expression", "the kit-route FAIL: doctorInstallCommand() then doctorCheckCommand() (plan 34.1-27, D-33)", null],
@@ -425,8 +421,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "they are ONE path, and the second write would overwrite the first. Re-run the installer from", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
   ["install.ts", "was left exactly as it was. Resolve each verify above and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "report"],
   ["install.ts", "verify above and re-run.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "report"],
-  ["install.ts", "Fix or remove the marker, then re-run the installer.", "agent-independent: shared footprint", "writeAskRules' may-remove remedy (markerRemedy mayRemove true: no well-formed install ledger), moved out of the opening fragment by plan 34.1-33 (D-35); the marker, which every install writes (D-06)", null],
-  ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "writeAskRules' never-remove remedy after markerFixText (plan 34.1-33, D-35: a well-formed install ledger, so fix by hand and never delete the marker); the marker, which every install writes (D-06)", null],
+  ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "writeAskRules' never-remove remedy after markerFixText (plan 34.1-33, D-35; re-pinned by plan 34.1-44, 2026-10-13, D-37, 34.1 review CR-05: the one reading for every unreadable marker, its may-remove reading deleted); the marker, which every install writes (D-06)", null],
   ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "writeAskRules' malformed-ledger remedy after markerFixText (I4; re-pinned by plan 34.1-43, 2026-10-13, D-37, 34.1 review CR-06: the owner's never-remove wording replaces \"Fix the ledger field, then re-run the installer.\"); the marker's ledger, which every install writes (D-06)", null],
   ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "writeMarker's malformed-ledger remedy after markerFixText (I3; plan 34.1-43, 2026-10-13, D-37, 34.1 review CR-06: the owner's never-remove wording replaces \"fix the ledger field by hand to restore the record.\", which named no re-run); the marker's ledger, which every install writes (D-06)", null],
   ["install.ts", "— left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
@@ -434,8 +429,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "known — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
   ["install.ts", "is not a JSON object — left untouched; no ask rule was written. Fix the file and re-run the installer.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "verify"],
   ["install.ts", "; the installer never", "builder in the same expression", "the head of the ask-rules left line, whose expression prints agentCommand(\"uninstall.js\", ...) (reclassified by plan 34.1-28: the class is held by the parser)", null],
-  ["install.ts", "Fix or remove the marker, then re-run the installer.", "agent-independent: shared footprint", "askRulesStep's may-remove remedy (markerRemedy mayRemove true), moved out of the opening fragment by plan 34.1-33 (D-35); the marker, which every install writes (D-06)", null],
-  ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "askRulesStep's never-remove remedy after markerFixText (plan 34.1-33, D-35); the marker, which every install writes (D-06)", null],
+  ["install.ts", "; then re-run the installer.", "agent-independent: shared footprint", "askRulesStep's never-remove remedy after markerFixText (plan 34.1-33, D-35; re-pinned by plan 34.1-44, 2026-10-13, D-37, 34.1 review CR-05: the one reading for every unreadable marker, its may-remove reading deleted); the marker, which every install writes (D-06)", null],
   ["user-file.ts", "is a symbolic link, and the installer never writes through a link it did not create", "not a remedy", "says what the installer never does", null],
   ["user-file.ts", ", and the installer writes only inside the target", "not a remedy", "says what the installer does", null],
 ];
@@ -468,8 +462,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // removing the marker before), so uninstall.ts 22 -> 23 and "printed reference" 45 -> 46.
     // Plan 34.1-43 (2026-10-13, D-37, 34.1 review CR-06): removeMarker's U4 line points at the module-top malformed-ledger
     // verify (it offered fixing or removing the marker before), so uninstall.ts 23 -> 24 and "printed reference" 46 -> 47.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 27, "uninstall.ts": 24 });
-    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 47, "same block": 1 });
+    // Plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): writeMarker's three skipped lines for an unreadable marker are
+    // one, so install.ts 27 -> 25 and "printed reference" 47 -> 45.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 25, "uninstall.ts": 24 });
+    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 45, "same block": 1 });
   });
 
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
@@ -484,16 +480,19 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // Plan 34.1-29 (D-31, IN-23): the closing notes' "Recorded as chosen" line adds two builder arguments, the
     // agentCommand("install.js", ...) and agentCommand("uninstall.js", ...) of a recorded agent with nothing installed.
     // So install.ts 39 + 2 = 41.
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 41, "kit-source.ts": 1, "uninstall.ts": 8 });
+    // Plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): markerUnreadable prints no install command over a marker it
+    // could not read (only the check command), so its "re-run install.js `" fragment is gone: install.ts 41 - 1 = 40.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 40, "kit-source.ts": 1, "uninstall.ts": 8 });
     // THE CLASSES (plan 34.1-28, D-33, brief §4): a fragment that names a binary is a builder argument (or the builder's
     // own signature), sits in an expression that prints a built command, or is one of the non-command classes, each
     // held by its own rule below. Plan 34.1-28 split the former "names no agent flag" (12, of which the --update hint
     // was the one hand-built command and is gone) into those non-command classes, and renamed "agentCommand" to
     // "builder argument" (25 + 3 = 28: the three scriptCommand and agentCommand arguments above). Plan 34.1-29: 28 + 2
-    // = 30, the Recorded-as-chosen line's two agentCommand arguments.
+    // = 30, the Recorded-as-chosen line's two agentCommand arguments. Plan 34.1-44 (2026-10-13, D-37): markerUnreadable's
+    // install command is gone, "builder in the same expression" 14 -> 13.
     expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({
       "builder argument": 30,
-      "builder in the same expression": 14,
+      "builder in the same expression": 13,
       "file text": 1,
       "message prefix": 6,
       "note naming a mode": 1,
@@ -620,7 +619,9 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // opening fragment no longer re-runs and each has two remedy fragments (may-remove, never-remove): 63 - 2 + 4 = 65.
     // Plan 34.1-43 (2026-10-13, D-37): writeMarker's malformed-ledger verify (I3) now ends with a re-run after
     // markerFixText, and writeAskRules' (I4) re-run moves to its own fragment: 65 + 1 = 66.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 66, "user-file.ts": 2 });
+    // Plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): markerUnreadable's "re-run install.js `" and the two "Fix or
+    // remove the marker, then re-run the installer." readings (I5, I6) are deleted: 66 - 3 = 63.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 63, "user-file.ts": 2 });
     // Plan 34.1-27 (DI-08): the stale-adapter WARN's re-run fragment moves from "agent-independent: doctor, recorded
     // agents" (12 -> 11) to "builder in the same expression" (1): the WARN prints doctorInstallCommand().
     // Plan 34.1-27 task 2 (D-33): every other doctor remedy (D1-D14, D16, D17) prints its command in the same expression,
@@ -640,10 +641,12 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // case-insensitive (plan 34.1-28): KIT_BANNER is "file text" (3 -> 4), and rewriteLedger's "Re-run to finish it." is
     // "no command: a re-run does not finish it (DI-13)" (1).
     expect(countBy(RERUN_TABLE, (r) => r[2])).toEqual({
-      "builder in the same expression": 19,
+      // Plan 34.1-44 (2026-10-13, D-37): 19 - 1 = 18, markerUnreadable prints no install command.
+      "builder in the same expression": 18,
       // Plan 34.1-33 (D-35): 9 - 2 + 4 = 11, the two marker remedies' may-remove and never-remove fragments.
       // Plan 34.1-43 (2026-10-13, D-37): 11 + 1 = 12, writeMarker's malformed-ledger re-run (I3).
-      "agent-independent: shared footprint": 12,
+      // Plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): 12 - 2 = 10, the two may-remove fragments (I5, I6) deleted.
+      "agent-independent: shared footprint": 10,
       "no command: names another checkout (DI-12)": 2,
       "same-run command (install or update banner)": 1,
       "file text": 4,
