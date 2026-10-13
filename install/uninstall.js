@@ -670,15 +670,21 @@ function blockRemovalSpan(buf, sp, rec) {
 // noBlockRecordReason (plan 33.1-33, D-18; plan 33.1-38): why there is no record of a block install appended
 // to `rel`, from the ledger's state. Only the ledger answers; the file's content never does. Used by the
 // report of an unrecorded block (reportUnrecordedBlock), which never edits the file.
+// D-37 (34.1 review IN-34, plan 34.1-45): over a marker this run cannot use (unreadable, or unbound and folded into
+// MARKER as unreadable) or a malformed install ledger, the marker may still hold the record of this block, and the fix
+// its module-top verify names gives that record back. So those two arms say this run could not tell and point at that
+// verify; they never send the user to remove the grugops lines by hand. Only the arms with no record at all (no marker,
+// or a usable ledger with no entry for the block) keep the by-hand removal.
 function noBlockRecordReason() {
     const remedy = "remove the grugops lines by hand if grugops put them there";
     if (MARKER.state === "absent")
         return `there is no install marker, so there is no record that install appended this block — left in place; ${remedy}`;
     if (MARKER.state === "unreadable") {
-        return `the install marker could not be used (see the verify line above), so there is no usable record that install appended this block — left in place; ${remedy}`;
+        return "the install marker could not be used (see the verify line above), so this run could not tell whether install appended this block — left in place";
     }
-    if (LEDGER.state === "malformed")
-        return `the install ledger could not be used (see the verify line above) — left in place; ${remedy}`;
+    if (LEDGER.state === "malformed") {
+        return "the install ledger could not be used (see the verify line above), so this run could not tell whether install appended this block — left in place";
+    }
     return `there is no record that install appended this block — it is not in the install ledger; left in place; ${remedy}`;
 }
 const isBlankByte = (b) => b === 0x20 || b === 0x09 || b === 0x0d || b === 0x0a;
@@ -2071,8 +2077,12 @@ function reportUnrecordedSettings(which) {
             report("skipped", `${rel} ask rules (no install marker, so no ledger of added rules — nothing removed)`);
         }
         else if (MARKER.state === "unreadable") {
-            verify(`${rel} ask rules — .grugops/install.json could not be used as install's marker (${MARKER.why}), so the ledger of rules ` +
-                `grugops added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.`);
+            // D-37 (34.1 review IN-34, plan 34.1-45): an unreadable marker (an unbound one is folded in) already has its one
+            // verify at the top of the removal sequence, which names the cause and the by-hand fix of the marker; fixing it
+            // gives back the record of the rules install added, and the uninstaller then removes exactly those. So this is a
+            // `left` line pointing at that verify, not a second verify for the one cause, and it never says to remove the
+            // grugops ask rules by hand.
+            report("left", `${rel} ask rules (the install marker could not be used — see the verify line above; nothing removed)`);
         }
         else if (LEDGER.state === "malformed") {
             // The one verify at the top of the removal sequence counted the malformed ledger (plan 33.1-36).

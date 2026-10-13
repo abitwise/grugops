@@ -1732,7 +1732,10 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   ["uninstall.ts", "removeAskRules", "either", "${r} (present in ${rel} but not in the install ledger — there is no record that install added this copy, so it is left in place; remove it by hand if grugops added it)", "touches no record", "one ask rule"],
   ["uninstall.ts", "unrecordedFileReason", "either", "there is no install marker, so there is no record that install wrote it — left in place; remove it by hand if grugops put it there", "touches no record", "one file; there is no marker"],
   ["uninstall.ts", "reportUnrecordedSettings", "either", "${rel} (the install ledger has no gemini entry, so there is no record of what install changed in it — left untouched; if grugops added AGENTS.md to context.fileName, remove that entry by hand)", "touches no record", "one entry of .gemini/settings.json"],
-  ["uninstall.ts", "reportUnrecordedSettings", "either", "${rel} ask rules — .grugops/install.json could not be used as install's marker (${MARKER.why}), so the ledger of rules grugops added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.", "touches no record", "the ask rules in the settings file"],
+  // reportUnrecordedSettings' ask-rules verify over an unusable marker ("... Remove the grugops ask rules by hand.") left
+  // this class at plan 34.1-45 (2026-10-13, D-37, 34.1 review IN-34): it is a `left` line pointing at the module-top
+  // verify, "ask rules (the install marker could not be used — see the verify line above; nothing removed)", which names
+  // no remedy verb and no by-hand removal, so the walk no longer reports it (R45 follows it as printed).
   ["uninstall.ts", "rmdirIfEmpty", "either", "${d} (install created this directory and it is empty, but it could not be removed (${why}); a directory keeps neither the marker nor an agent recorded, so remove it by hand once that is fixed)", "touches no record", "a directory install created (plan 34.1-21, DI-07); the marker is named only to say the directory does not hold it"],
   // not a printed alternative: this run's own (DRY_RUN) description of the rewrite it makes.
   ["uninstall.ts", "said", "either", "the entries this run would remove or reverse would be taken out of its install ledger: ${what}", "not a printed alternative", "updateKeptMarker's DRY_RUN wording of its own ledger rewrite"],
@@ -1759,14 +1762,16 @@ const CENSUS_TABLE: readonly CensusRow[] = [
  * 25 since plan 34.1-43 Task 2 (2026-10-13, D-37): I2, I3 and I4 leave "fix" (6 -> 3) for the same reason; install.ts
  * 7 -> 4.
  * 22 since plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): I1, I5 and I6 have one never-remove reading each, so
- * "no well-formed ledger: fix or remove" (3) is retired; install.ts 4 -> 1. */
+ * "no well-formed ledger: fix or remove" (3) is retired; install.ts 4 -> 1.
+ * 21 since plan 34.1-45 (2026-10-13, D-37, 34.1 review IN-34): reportUnrecordedSettings' ask-rules verify over an
+ * unusable marker is a pointer with no by-hand removal, so it leaves "touches no record" (10 -> 9); uninstall.ts 20 -> 19. */
 const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
   "not a usable record": 1,
   "never remove the marker": 1,
   "per entry": 5,
   "per field": 1,
   fix: 3,
-  "touches no record": 10,
+  "touches no record": 9,
   "not a printed alternative": 1,
 };
 /** What every row of a class must say, so a row cannot be classed against its text. */
@@ -2005,8 +2010,10 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     // 28 -> 25 (plan 34.1-43 Task 2, D-37): I2, I3 and I4 print markerFixText and leave install.ts (7 -> 4).
     // 25 -> 22 (plan 34.1-44, 2026-10-13, D-37, 34.1 review CR-05): I1, I5 and I6 print markerFixText on every read and
     // leave install.ts (4 -> 1).
-    expect(sites.length, "the census size moved").toBe(22);
-    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 1, "install.ts": 1, "uninstall.ts": 20 });
+    // 22 -> 21 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): reportUnrecordedSettings' ask-rules verify over an
+    // unusable marker became a `left` line pointing at the marker's verify, with no by-hand removal (20 -> 19).
+    expect(sites.length, "the census size moved").toBe(21);
+    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 1, "install.ts": 1, "uninstall.ts": 19 });
     expect(countBy(CENSUS_TABLE, (r) => r[4]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(CENSUS_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
@@ -2808,6 +2815,65 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
         expect(l, `${defect}: a line says the marker is not install's`).not.toMatch(/not install's/);
       }
     }
+  });
+
+  // R45 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): over a marker this run cannot use, the ask-rules report and
+  // the unrecorded-block report point at the marker's verify line. Neither is a second verify for the one cause, and
+  // neither sends the user to remove the grugops ask rules or block lines by hand: fixing the marker gives the record
+  // back, and the record reverses them. Until plan 34.1-45 the ask-rules report was a verify that said "Remove the
+  // grugops ask rules by hand", and the block report said to remove the grugops lines by hand.
+  it("R45 (IN-34, CR-04's scenario with ask rules): install --claude --codex, `agents` set to malformed ids; a flag-less uninstall exits 3 with one verify, about the marker; the ask-rules line is `left` and points at it; no line but that verify says `by hand`; nothing is removed; with `agents` fixed by hand, the printed command run as printed removes every recorded ask rule, the CLAUDE.md block, both skills and the marker", () => {
+    const w = world("r45");
+    install(w, [flag("claude"), flag("codex")]);
+    const recorded = recordedPaths(w);
+    const ask = ledgerEntries(w).find((e) => e.kind === "ask-rules");
+    expect(ask?.kind, "PREMISE: the ledger records the ask rules install added").toBe("ask-rules");
+    const added: readonly string[] = ask?.kind === "ask-rules" ? ask.added : [];
+    expect(added.length, "PREMISE: install added at least one ask rule").toBeGreaterThan(0);
+    const BLOCK_OPEN = "<!-- GSD:grugops-start-here -->";
+    const claudeMd = (): string => (existsSync(at(w.target, "CLAUDE.md")) ? readFileSync(at(w.target, "CLAUDE.md"), "utf8") : "");
+    expect(claudeMd(), "PREMISE: CLAUDE.md holds the grugops block").toContain(BLOCK_OPEN);
+    setAgentsByHand(w, BAD_AGENTS);
+    const read = readInstallMarker(w.target);
+    expect(read.state === "unreadable" ? read.defect : read.state, "PREMISE: the marker reads unreadable with a field defect").toBe("field");
+    const bytes = readFileSync(at(w.target, MARKER_REL));
+
+    const r = uninstall(w, []);
+    expect(r.status, r.stdout).toBe(3);
+    const verifies = linesWith(r.stdout, "verify");
+    expect(verifies.filter((l) => l.includes(ASK_RULES_REL)), `a verify line names ${ASK_RULES_REL}\n${r.stdout}`).toEqual([]);
+    const about = verifies.filter((l) => l.replace(/^ {2}verify\s+/, "").startsWith(MARKER_REL));
+    expect(about.length, `one verify line about the marker\n${r.stdout}`).toBe(1);
+    expect(verifies.length, `the one cause counts one verify\n${r.stdout}`).toBe(1);
+    const askLine = linesWith(r.stdout, "left").filter((l) => l.includes(`${ASK_RULES_REL} ask rules`));
+    expect(askLine.length, `the ask-rules \`left\` line\n${r.stdout}`).toBe(1);
+    expect(askLine[0], r.stdout).toContain("see the verify line above");
+    expect(askLine[0], r.stdout).toContain("nothing removed");
+    const blockLine = linesWith(r.stdout, "left").filter((l) => l.includes("CLAUDE.md start-here pointer"));
+    for (const l of blockLine) expect(l, r.stdout).toContain("see the verify line above");
+    for (const l of [...r.stdout.split("\n"), ...r.stderr.split("\n")]) {
+      if (l === about[0]) continue;
+      expect(l, `a line other than the marker's verify says to do something by hand\n${r.stdout}`).not.toMatch(/\bby hand\b/i);
+      expect(l, "a line offers removing the marker").not.toMatch(REMOVAL_OFFER);
+    }
+    expect(linesWith(r.stdout, "removed"), `something was removed\n${r.stdout}`).toEqual([]);
+    expect(readFileSync(at(w.target, MARKER_REL)).equals(bytes), `the marker changed\n${r.stdout}`).toBe(true);
+    expect(claudeMd(), "the CLAUDE.md block was touched").toContain(BLOCK_OPEN);
+
+    // Follow it: fix `agents` by hand (the fix the verify named), then run the printed command as printed.
+    setAgentsByHand(w, ids("claude", "codex"));
+    const fin = runPrinted(w, about[0]);
+    expect(fin.status, fin.stdout).toBe(0);
+    const settings = at(w.target, ASK_RULES_REL);
+    if (existsSync(settings)) {
+      const text = readFileSync(settings, "utf8");
+      for (const rule of added) expect(text.includes(JSON.stringify(rule)), `a recorded ask rule is still in ${ASK_RULES_REL}: ${rule}\n${fin.stdout}`).toBe(false);
+    }
+    expect(claudeMd(), `CLAUDE.md still holds the grugops block\n${fin.stdout}`).not.toContain(BLOCK_OPEN);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
+    expect(markerGone(w), fin.stdout).toBe(true);
+    expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
   });
 });
 

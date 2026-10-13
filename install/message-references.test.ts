@@ -284,8 +284,8 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["install.ts", "the install record could not be read after this run (see the lines above)", "printed reference", "agentClosingLines: writeMarker's verify (step 8), printed before the notes"],
   ["install.ts", "nothing of install's is recorded for it (the lines above say why)", "printed reference", "agentClosingLines: the agent's writers' lines of the run (verify, skipped or note)"],
   ["install.ts", "Each `verify` line above names what was NOT installed and the remedy for it.", "printed reference", "the install INCOMPLETE banner: printed only when VERIFY_FINDINGS > 0, so some verify line came before"],
-  ["uninstall.ts", "the install marker could not be used (see the verify line above), so there is no usable record that install appended this block — left in place;", "printed reference", "the module-top verify for an unusable marker, printed before any walk"],
-  ["uninstall.ts", "the install ledger could not be used (see the verify line above) — left in place;", "printed reference", "the module-top verify for a malformed ledger, printed before any walk"],
+  ["uninstall.ts", "the install marker could not be used (see the verify line above), so this run could not tell whether install appended this block — left in place", "printed reference", "the module-top verify for an unusable marker, printed before any walk (re-pinned by plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34: noBlockRecordReason's unusable-marker arm no longer sends the user to remove the grugops lines by hand; the fix the verify names gives the record back)"],
+  ["uninstall.ts", "the install ledger could not be used (see the verify line above), so this run could not tell whether install appended this block — left in place", "printed reference", "the module-top verify for a malformed ledger, printed before any walk (re-pinned by plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34: noBlockRecordReason's malformed-ledger arm no longer sends the user to remove the grugops lines by hand)"],
   ["uninstall.ts", "; left in place — see the verify line above)", "printed reference", "the module-top verify for an unbound marker, printed before any walk"],
   ["uninstall.ts", "; see the verify line above)", "printed reference", "removeMarker's line over an unreadable marker (re-pinned by plan 34.1-44, 2026-10-13, D-37, 34.1 review IN-33: the JSON-object arm and U3 are one line whose cause clause is install-marker.ts markerDefectText of the read's defect): the module-top never-remove verify for the unreadable marker, printed before any walk; the line never says the marker is not install's"],
   ["uninstall.ts", "it was left in place — see the verify line above)", "printed reference", "removeMarker's U4 line (plan 34.1-43, 2026-10-13, D-37, 34.1 review CR-06): install's own marker with a malformed install ledger; the module-top never-remove verify for the malformed ledger, printed before any walk (it offered fixing or removing the marker before)"],
@@ -303,6 +303,7 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["uninstall.ts", "(the install marker could not be used (see the verify line above), so there is no usable record of what install changed in it — left untouched)", "printed reference", "the module-top verify for an unusable marker, printed before any walk"],
   ["uninstall.ts", "(the install ledger could not be used — see the verify line above; left untouched)", "printed reference", "the module-top verify for a malformed ledger, printed before any walk"],
   ["uninstall.ts", "ask rules (the install ledger could not be used — see the verify line above; nothing removed)", "printed reference", "the module-top verify for a malformed ledger, printed before any walk"],
+  ["uninstall.ts", "ask rules (the install marker could not be used — see the verify line above; nothing removed)", "printed reference", "the module-top verify for an unusable marker, printed before any walk (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34: reportUnrecordedSettings' ask-rules arm over an unusable marker was a second verify that said to remove the grugops ask rules by hand; it is a `left` line pointing at the marker's verify, R45)"],
   ["uninstall.ts", ".grugops/ (seeded state) is kept; its install.json marker is reported on the next line.", "printed reference", "the preserved block: the marker line, printed by the next console.log"],
   ["uninstall.ts", "Each `verify` line above names what was NOT removed and the remedy for it.", "printed reference", "the uninstall INCOMPLETE banner: printed only when VERIFY_FINDINGS > 0"],
   ["uninstall.ts", "unknown (the marker cannot be used; see the verify line above)", "printed reference", "the agents to remove line under INSTALLED_UNKNOWN (plan 34.1-26, IN-27): every marker state it covers (unbound, unreadable, or no `agents` field with a malformed ledger) prints a module-top verify before this line"],
@@ -465,8 +466,11 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // one, so install.ts 27 -> 25 and "printed reference" 47 -> 45.
     // Plan 34.1-44 Task 3 (2026-10-13, D-37, 34.1 review IN-33): removeMarker's JSON-object arm and U3 line are one line
     // whose cause is markerDefectText of the read's defect, so uninstall.ts 24 -> 23 and "printed reference" 45 -> 44.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 25, "uninstall.ts": 23 });
-    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 44, "same block": 1 });
+    // Plan 34.1-45 (2026-10-13, D-37, 34.1 review IN-34): reportUnrecordedSettings' ask-rules arm over an unusable marker
+    // is a `left` line pointing at the module-top verify (it was a second verify), so uninstall.ts 23 -> 24 and "printed
+    // reference" 44 -> 45; noBlockRecordReason's two unusable arms keep their pointer and lose the by-hand removal.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 25, "uninstall.ts": 24 });
+    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 45, "same block": 1 });
   });
 
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
