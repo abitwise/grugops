@@ -29,6 +29,7 @@ import {
   printedCommand,
   printedInvocation,
   runInstall,
+  runPrintedCommand,
   runUninstall,
   snapshotTree,
   statedModeWords,
@@ -356,6 +357,54 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     expect(r.stdout).not.toMatch(/INCOMPLETE/);
     expect(r.status, r.stdout).toBe(0);
     expect(existsSync(join(kitHome, "agent-factory", "VERSION"))).toBe(true);
+  });
+
+  // DI-17 (plan 34.1-49, D-38; brief §6): no row followed an `--update` command printed under a kit home other than the
+  // default. This one makes --update INCOMPLETE under a non-default kit home K (U1's setup), checks the banner's command
+  // word by word without the builder, applies the fix the verify line names (K is a regular file, so it is removed by
+  // hand), and runs the command as printed with runPrintedCommand: from a scratch directory outside the checkout, in a
+  // child environment that holds a conflicting GRUGOPS_HOME, INSTALL_MODE, GRUGOPS_SRC and TARGET that only the printed
+  // text can override. The command must refresh K, and create neither the conflicting kit home nor <HOME>/.grugops.
+  it("DI-17 (D-38): --update's printed command, followed under a conflicting kit home: the INCOMPLETE banner's command states GRUGOPS_HOME=<K>, INSTALL_MODE and GRUGOPS_SRC; with K fixed by hand it exits 0, refreshes K and creates neither the conflicting kit home nor <HOME>/.grugops", () => {
+    const { target, kitHome, home } = scratchRow();
+    const defaultKit = join(home, ".grugops");
+    expect(resolve(kitHome), "premise: the kit home K is not the default <HOME>/.grugops").not.toBe(resolve(defaultKit));
+    writeFileSync(kitHome, "a regular file where the kit home should be\n");
+    const r = runInstall(target, kitHome, ["--update"], { home });
+    const verifies = verifyLines(r.stdout);
+    expect(verifies.length, r.stdout).toBeGreaterThan(0);
+    expect(lastBanner(r.stdout), r.stdout).toBe(`== update INCOMPLETE — ${verifies.length} item(s) need verification ==`);
+    expect(r.status, r.stdout).toBe(3);
+    const lines = r.stdout.split("\n");
+    const after = lines[lines.indexOf(lastBanner(r.stdout)) + 1] ?? "";
+    expect(after, `premise: the line after the INCOMPLETE banner carries the command that runs --update again:\n${r.stdout}`).toMatch(/refreshes the kit home again\.$/);
+    // Word by word, without the builder: GRUGOPS_HOME=<K>, INSTALL_MODE=copy, GRUGOPS_SRC=<this checkout>, node, this
+    // checkout's install.js, --update, and nothing else.
+    const { assigned, words } = printedInvocation(printedCommand(after));
+    expect(Object.keys(assigned).sort(), `the printed command does not state exactly GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC: ${after}`).toEqual(["GRUGOPS_HOME", "GRUGOPS_SRC", "INSTALL_MODE"]);
+    expect(resolve(assigned.GRUGOPS_HOME ?? ""), `the printed GRUGOPS_HOME is not the run's kit home K: ${after}`).toBe(resolve(kitHome));
+    expect(assigned.INSTALL_MODE, `the printed command does not state copy: ${after}`).toBe("copy");
+    expect(resolve(assigned.GRUGOPS_SRC ?? ""), `the printed GRUGOPS_SRC is not this checkout: ${after}`).toBe(REPO_ROOT);
+    expect(words[0], after).toBe("node");
+    expect(words[1], `the script is not this checkout's install.js: ${after}`).toBe(join(REPO_ROOT, "install", "install.js"));
+    expect(words.slice(2), `the printed command carries more than --update: ${after}`).toEqual(["--update"]);
+    // The fix the verify line names: the kit home is a regular file. It is removed by hand.
+    rmSync(kitHome);
+    const ran = runPrintedCommand(after, { home });
+    expect(ran.premise.cwd.startsWith(REPO_ROOT + "/"), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(false);
+    expect(ran.premise.kitHomeBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_HOME before the printed assignments").toBe(ran.premise.conflictingKitHome);
+    expect(resolve(ran.premise.conflictingKitHome), "premise: the conflicting kit home is K").not.toBe(resolve(kitHome));
+    expect(resolve(ran.premise.grugopsHome), "premise: the child's GRUGOPS_HOME is not the printed K").toBe(resolve(kitHome));
+    expect(ran.premise.installModeBeforePrinted, "premise: the child's environment did not hold the conflicting INSTALL_MODE").toBe("symlink");
+    expect(ran.premise.srcBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_SRC").toBe(ran.premise.conflictingSrc);
+    expect(ran.premise.targetBeforeRun, "premise: the child's environment did not hold the conflicting TARGET").toBe(ran.premise.conflictingTarget);
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(lastBanner(ran.stdout), ran.stdout).toBe("== update complete ==");
+    expect(verifyLines(ran.stdout), ran.stdout).toEqual([]);
+    expect(existsSync(join(kitHome, "agent-factory", "roles", "orchestrator.md")), "the printed command did not refresh the kit at K").toBe(true);
+    expect(ran.premise.conflictingKitHomeCreated, "the conflicting kit home was created: the printed command took its kit home from the environment").toBe(false);
+    expect(existsSync(defaultKit), "a kit was written into the default kit home <HOME>/.grugops").toBe(false);
+    expect(ran.premise.conflictingTargetEmpty, "the printed command wrote into the conflicting TARGET").toBe(true);
   });
 });
 
