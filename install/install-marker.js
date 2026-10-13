@@ -205,9 +205,10 @@ export function readInstallMarker(target) {
     // next run. So the whole marker is `unreadable` (fail closed): install leaves it unchanged and
     // uninstall uses none of it. The strict tokenizer (json-text.ts) also refuses bytes that are not UTF-8
     // and nesting past its bound, which JSON.parse of the decoded text would have accepted.
+    const object = parsed;
     const doc = readJsonText(read.bytes);
     if (!doc.ok)
-        return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false };
+        return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false, object, problems: [`the file ${doc.why}`] };
     const dup = firstDuplicateKey(doc.root);
     if (dup !== null) {
         return {
@@ -215,6 +216,9 @@ export function readInstallMarker(target) {
             marker: null,
             why: `it has a duplicate key (${JSON.stringify(dup).slice(0, 120)}), so which of its values is install's record is not known`,
             jsonObject: false,
+            object,
+            problems: [`the key ${JSON.stringify(dup).slice(0, 120)} appears more than once (keep the one install wrote)`],
+            duplicateKey: dup,
         };
     }
     // INSTALL'S OWN MARKER, FOR THIS DIRECTORY (red-team B2 of plan 33.1-33, brief DC-2). A JSON object here
@@ -233,6 +237,8 @@ export function readInstallMarker(target) {
             marker: null,
             why: `it does not read as a grugops install marker — ${problems.join(", ")}`,
             jsonObject: true,
+            object,
+            problems,
         };
     }
     const retired = RETIRED_RECORDS.filter(has);
@@ -242,6 +248,8 @@ export function readInstallMarker(target) {
             marker: null,
             why: `it carries both the one ledger and a retired record (${retired.join(", ")}), which install never writes`,
             jsonObject: true,
+            object,
+            problems: retired.map((r) => `the retired record ${r} next to the install ledger (install never writes it; take it out)`),
         };
     }
     const here = realTargetPath(target);
@@ -284,6 +292,44 @@ export function markerUnusableText(read) {
     return read.jsonObject
         ? `is a JSON object but could not be used as install's marker (${read.why})`
         : `could not be read as a JSON object (${read.why})`;
+}
+/**
+ * markerRemedy (D-35): THE ONE DECISION of whether a printed remedy may offer removing the marker, from the read the
+ * binary just made. Pure: no I/O; it reads only `read` (readLedger is pure).
+ *   ok          ledgerWellFormed from readLedger(marker); mayRemove only for "uninstall-full" (D-32's FULL-run rule: no
+ *               agent stays installed, so removing the marker drops no staying agent's record);
+ *   unbound     ledgerWellFormed from readLedger(object); mayRemove false for every run: its remedy is to set "target"
+ *               or re-install, never removal;
+ *   unreadable  ledgerWellFormed when the parsed object's ledger reads `ok`, or when the duplicated key is the ledger;
+ *               mayRemove is !ledgerWellFormed; fix is the read's problems;
+ *   absent      ledgerWellFormed false; mayRemove true (there is no record to lose).
+ * The run argument changes nothing for `unreadable`, `absent` and `unbound`: a well-formed ledger is the record of every
+ * agent installed here whichever run reads it.
+ */
+export function markerRemedy(read, run) {
+    switch (read.state) {
+        case "ok":
+            return { mayRemove: run === "uninstall-full", ledgerWellFormed: readLedger(read.marker).state === "ok", fix: [] };
+        case "unbound":
+            return { mayRemove: false, ledgerWellFormed: readLedger(read.object).state === "ok", fix: [] };
+        case "unreadable": {
+            const ledgerWellFormed = read.object !== undefined && (readLedger(read.object).state === "ok" || read.duplicateKey === LEDGER_FIELD);
+            return { mayRemove: !ledgerWellFormed, ledgerWellFormed, fix: read.problems ?? [] };
+        }
+        case "absent":
+            return { mayRemove: true, ledgerWellFormed: false, fix: [] };
+    }
+}
+/**
+ * markerFixText (D-35): THE ONE WORDING of the never-remove remedy. It names every entry of `remedy.fix`, says to fix it
+ * in the marker by hand, and says never to delete the marker, because its install ledger is still the record of every
+ * agent installed here. It offers no removal. A sentence without a final full stop, so a caller can go on with "; then
+ * run ...". Its callers pass a remedy whose `fix` is not empty (an `unreadable` read with a parsed object always
+ * carries its problems).
+ */
+export function markerFixText(remedy) {
+    return (`Fix ${MARKER_REL} by hand (${remedy.fix.join("; ")}); ` +
+        `never delete the marker: its install ledger is still the record of every agent installed here`);
 }
 // isLedgerPath: the `path` of one ledger entry has the shape stated in the header. The same rule serves
 // every kind, because a file path and a directory path under the target have the same shape: relative

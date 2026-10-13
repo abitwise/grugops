@@ -39,6 +39,10 @@
 //     alternative in a product module that touches .grugops/install.json, its ledger or its `agents` field, compares it
 //     both ways with a classed table, checks each row against its class's rule, pins the per-class counts, and holds
 //     the delete-the-marker text to keepWithoutRecord's FULL branch.
+//   - D-35 (34.1 review CR-04, plan 34.1-33): install-marker.ts markerRemedy is the one owner of whether a printed remedy
+//     may offer removing the marker, never while a well-formed install ledger is present. R36 follows the doctor's FAIL
+//     over a marker with a malformed `agents` field (fix by hand, run the printed check command, then a flag-less
+//     uninstall removes grugops' files), with a not-JSON control row; R37 does the same for install's verify.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -53,7 +57,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
 import { AGENT_SKILL_REL, HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag, commandContext, entryOwners, scriptCommand, type HostTool } from "./host-tools.js";
-import { ASK_RULES_REL, agentsToRecord, entryHolds, readLedger, type LedgerEntry } from "./install-marker.js";
+import { ASK_RULES_REL, agentsToRecord, entryHolds, readInstallMarker, readLedger, type LedgerEntry } from "./install-marker.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -1324,6 +1328,7 @@ type RemedyClass =
   | "usable record, FULL only"
   | "usable record, split by FULL"
   | "not a usable record"
+  | "never remove while a well-formed ledger is present"
   | "per entry"
   | "per field"
   | "fix"
@@ -1345,10 +1350,12 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   ["uninstall.ts", "removeMarker", "partial", ".grugops/install.json (its install ledger is malformed, so the record of what install did could not be used; it was left in place — fix the ledger field by hand: the marker is still the record of every agent installed here, so removing it would leave each of them with no record)", "usable record, split by FULL", "partial run: the marker is the record of every agent installed here, so only the field is fixed"],
   // not a usable record (U3, I1, I5, I6, and the legacy-marker verify): no run reads a record from it, before or after the remedy.
   ["uninstall.ts", "removeMarker", "either", ".grugops/install.json (it could not be read as install's marker: ${why}; it was left in place — fix or remove it by hand)", "not a usable record", "U3: not a JSON object, a damaged file, or gone when the run started; installedAgents reads no agent from it"],
-  ["install.ts", "markerUnreadable", "either", "the install marker ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then re-run install.js `${doctorInstallCommand()}` (then `${doctorCheckCommand()}`); ${DOCTOR_NO_FLAG_CLAUSE}", "not a usable record", "I1: the doctor's unreadable marker (markerUnusableText); plan 34.1-27 adds the doctor's install and check commands and the no-agent-flag clause"],
+  ["install.ts", "markerUnreadable", "either", "the install marker ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then re-run install.js `${doctorInstallCommand()}` (then `${doctorCheckCommand()}`); ${DOCTOR_NO_FLAG_CLAUSE}", "not a usable record", "I1: the doctor's unreadable marker (markerUnusableText); plan 34.1-27 adds the doctor's install and check commands and the no-agent-flag clause. Since plan 34.1-33 (D-35) this is the may-remove reading only (markerRemedy(read, \"install\").mayRemove true: no well-formed install ledger); the other reading prints markerFixText and is not a removal offer"],
   ["install.ts", "writeAskRules", "either", ".grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — no ask rule was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.", "not a usable record", "I5: readInstallMarker answered unreadable"],
   ["install.ts", "askRulesStep", "either", ".grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — the marker was left as it was. Fix or remove the marker, then re-run the installer.", "not a usable record", "I6: readInstallMarker answered unreadable (Claude Code not chosen)"],
   ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of its records is used here, and this run removes and edits nothing. Run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}, then `${rerunCommand()}`: install writes a marker for this directory with the install ledger and carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "not a usable record", "a marker written before markers were bound or before the one ledger: this build reads no record from it, so the re-install that replaces it drops none"],
+  // never remove while a well-formed ledger is present (plan 34.1-33, D-35, 34.1 review CR-04): the owner's one wording.
+  ["install-marker.ts", "markerFixText", "either", "Fix .grugops/install.json by hand (${remedy.fix.join(\"; \")}); never delete the marker: its install ledger is still the record of every agent installed here", "never remove while a well-formed ledger is present", "markerRemedy answered mayRemove false: the marker's install ledger is well formed, so fixing the named field gives the whole record back (R36)"],
   // per entry (U5, plan 34.1-19's partial-run alternative): only named ledger entries leave the record.
   ["uninstall.ts", "updateKeptMarker", "either", "it still lists what this run removed or reversed (${what}); take those entries out of its install ledger by hand, or a later run may act on them", "per entry", "U5: only the entries this run already removed or reversed"],
   ["uninstall.ts", "keepWithoutRecord", "partial", "or, to keep it, take its entry out of the install ledger in .grugops/install.json by hand${then}; never delete ${marker}: it is still the record of ${nameList(STAYING)}", "per entry", "the held entry only; the marker stays the record of the staying agents (R19)"],
@@ -1379,11 +1386,15 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   ["uninstall.ts", "said", "either", "the entries this run would remove or reverse would be taken out of its install ledger: ${what}", "not a printed alternative", "updateKeptMarker's DRY_RUN wording of its own ledger rewrite"],
 ];
 /** Per-class counts, measured at execution of plan 34.1-20 (31 sites: install.ts 7, uninstall.ts 24; the other 7 product modules print none).
- * 32 since plan 34.1-21 (DI-07): rmdirIfEmpty's failed-removal `left` line, "touches no record" 10 -> 11, uninstall.ts 24 -> 25. */
+ * 32 since plan 34.1-21 (DI-07): rmdirIfEmpty's failed-removal `left` line, "touches no record" 10 -> 11, uninstall.ts 24 -> 25.
+ * 33 since plan 34.1-33 (2026-10-13, D-35): install-marker.ts markerFixText, the owner's never-remove wording, is the one
+ * site in install-marker.ts (0 -> 1), class "never remove while a well-formed ledger is present" (0 -> 1); I1's other
+ * reading prints it through a substitution, so it adds no install.ts site. */
 const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
   "usable record, FULL only": 2,
   "usable record, split by FULL": 2,
   "not a usable record": 5,
+  "never remove while a well-formed ledger is present": 1,
   "per entry": 3,
   "per field": 1,
   fix: 7,
@@ -1402,6 +1413,10 @@ const CLASS_RULES: Readonly<Record<RemedyClass, (s: CensusSite) => string | null
         : "the partial arm does not say fix the field because the marker is still the record, or it offers removing it",
   "not a usable record": (s) =>
     /could not be read as install's marker|\$\{markerUnusableText\((read|previousMarker)\)\}|not a record this run can use/.test(s.text) ? null : "names no reason the record is unusable",
+  "never remove while a well-formed ledger is present": (s) =>
+    s.text.includes("never delete the marker") && BY_HAND.test(s.text) && !DELETE_MARKER.test(s.text) && !/\b(fix or remove|remove (it|the marker))\b/i.test(s.text)
+      ? null
+      : "does not say to fix it by hand and never delete the marker, or offers removing it",
   "per entry": (s) => (/\bout of (its|the) install ledger\b/.test(s.text) && !DELETE_MARKER.test(s.text) ? null : "is not a per-entry ledger edit"),
   "per field": (s) => (/`agents` list\b.*\bset it to\b/.test(s.text) ? null : "is not a per-field edit of `agents`"),
   fix: (s) => (/\bfix the ledger field\b|\bset "target" in the marker\b/i.test(s.text) && !DELETE_MARKER.test(s.text) ? null : "is not a fix of the field"),
@@ -1547,8 +1562,9 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     expect(unclassified, "a printed alternative that touches the marker or its ledger is not classed").toEqual([]);
     expect(stale, "a classed printed alternative is gone or changed").toEqual([]);
     expect(counts, "a classed printed alternative is printed a different number of times").toEqual([]);
-    expect(sites.length, "the census size moved").toBe(32);
-    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install.ts": 7, "uninstall.ts": 25 });
+    // 32 -> 33 (plan 34.1-33, D-35): install-marker.ts markerFixText, the owner's never-remove wording.
+    expect(sites.length, "the census size moved").toBe(33);
+    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 1, "install.ts": 7, "uninstall.ts": 25 });
     expect(countBy(CENSUS_TABLE, (r) => r[4]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(CENSUS_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
@@ -1581,6 +1597,104 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
       expect(s.fn).toBe("keepWithoutRecord");
       expect(s.guard).toBe("FULL");
     }
+  });
+});
+
+// ── D-35 (34.1 review CR-04): the marker remedy has one owner ────────────────────────────────────────────────────────
+//
+// install-marker.ts markerRemedy decides, from the marker read the binary just made, whether a printed remedy may offer
+// removing .grugops/install.json: never while its bytes hold a well-formed install ledger, because that marker is the
+// record of every agent installed here and fixing one field gives the whole ledger back (34.1 review CR-04 reproduced 57
+// ledger entries becoming 1, and a later uninstall leaving 87 items with no record). The rows follow each printed remedy
+// as a user would, then uninstall, and assert grugops' files are removed.
+
+/** The malformed `agents` value of the reviewer's reproduction: two ids that fail AGENT_ID_SHAPE. */
+const BAD_AGENTS = ["Codex", "claude-code"];
+/** A removal offer for the marker, in any of the spellings a remedy has used. */
+const REMOVAL_OFFER = /\bremove the marker\b|\bfix or remove\b/i;
+/** Write `agents` into the marker by hand (handEditAgents writes valid ids only), keeping every other field. */
+function setAgentsByHand(w: World, agents: readonly string[]): void {
+  const o = readMarkerObject(w.target);
+  writeFileSync(at(w.target, MARKER_REL), JSON.stringify({ ...o, agents }, null, 2) + "\n");
+}
+/** The ledger's entry paths before a run, read through the product's one reader. */
+const recordedPaths = (w: World): string[] => [...new Set(ledgerEntries(w).map((e) => e.path))];
+/**
+ * The `left` lines of an uninstall that name a path the ledger recorded. A `left` line names its path relative to the
+ * target, as its first word (a directory with a trailing `/`). The one by-design exception is `tools/`: install records
+ * creating it, and uninstall leaves the directory itself because grugops owns only tools/grugops/ (uninstall.ts prints
+ * that reason on the line); a clean flag-less uninstall prints it too, so it is no sign of a lost record.
+ */
+function leftRecorded(stdout: string, recorded: readonly string[]): string[] {
+  const set = new Set(recorded);
+  return linesWith(stdout, "left").filter((l) => {
+    const path = l.replace(/^ {2}left\s+/, "").split(" ")[0].replace(/\/+$/, "");
+    if (path === "tools" && l.includes("(grugops owns tools/grugops/ only")) return false;
+    return set.has(path);
+  });
+}
+
+describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well-formed install ledger is present", () => {
+  it("R36 (the doctor): `agents` set to [Codex, claude-code] over a well-formed ledger: --check names the field, says never delete the marker and offers no removal; fixed by hand and checked as printed from outside the checkout, no FAIL; a flag-less uninstall then removes grugops' files and the marker", () => {
+    const w = world("r36");
+    install(w, [flag("claude"), flag("codex")]);
+    const before = readLedger(readMarkerObject(w.target));
+    expect(before.state, `PREMISE: the ledger is well formed (${before.why})`).toBe("ok");
+    expect(before.entries.length, "PREMISE: the ledger records what install did").toBeGreaterThan(0);
+
+    setAgentsByHand(w, BAD_AGENTS);
+    expect(readInstallMarker(w.target).state, "PREMISE: the marker is unusable").toBe("unreadable");
+    expect(readLedger(readMarkerObject(w.target)).state, "PREMISE: its ledger still reads ok").toBe("ok");
+
+    const check = spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, timeoutMs: 120_000 });
+    finished(check, "--check");
+    expect(check.status, check.stdout).toBe(1);
+    const fails = linesWith(check.stdout, "FAIL");
+    expect(fails.length, `one FAIL line\n${check.stdout}`).toBe(1);
+    const failLine = fails[0];
+    expect(failLine, check.stdout).toContain(MARKER_REL);
+    expect(failLine, check.stdout).toContain("agents is not a list of agent ids");
+    expect(failLine, check.stdout).toContain("by hand");
+    expect(failLine, check.stdout).toContain("never delete the marker");
+    expect(failLine, "the FAIL tells the user to delete the marker").not.toMatch(DELETE_MARKER);
+    expect(failLine, "the FAIL offers removing the marker").not.toMatch(REMOVAL_OFFER);
+    const words = shellWords(printedCommand(failLine));
+    expect(words[words.length - 1], failLine).toBe("--check");
+    const flags = HOST_TOOLS.map(agentFlag);
+    expect(words.filter((x) => flags.includes(x)), `the printed check command names an agent flag: ${failLine}`).toEqual([]);
+
+    // Follow it: fix the field the line named, by hand, then run the printed check command as printed.
+    setAgentsByHand(w, ids("claude", "codex"));
+    const again = runPrintedCommand(failLine, { home: w.home, timeoutMs: 120_000 });
+    finished(again, `the printed check command ${printedCommand(failLine)}`);
+    expect(relative(REPO_ROOT, again.premise.cwd).startsWith(".."), `premise: the printed command ran from ${again.premise.cwd}, inside the checkout`).toBe(true);
+    expect(again.premise.grugopsHome, `premise: the printed check command sets no kit home: ${printedCommand(failLine)}`).toBeUndefined();
+    expect(linesWith(again.stdout, "FAIL"), again.stdout).toEqual([]);
+    expect(again.status, again.stdout).toBe(0);
+
+    const recorded = recordedPaths(w);
+    const r = uninstall(w, []);
+    expect(r.status, r.stdout).toBe(0);
+    expect(markerGone(w), r.stdout).toBe(true);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(false);
+    expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), r.stdout).toBe(false);
+    expect(recorded, "PREMISE: the ledger names the skills the run must remove").toEqual(expect.arrayContaining([AGENT_SKILL_REL, ".claude/skills/grugops/SKILL.md"]));
+    expect(leftRecorded(r.stdout, recorded), `a path the ledger recorded was left\n${r.stdout}`).toEqual([]);
+  });
+
+  it("R36 control (the owner discriminates): a marker that is not JSON still gets the fix-or-remove FAIL, with the install and check commands", () => {
+    const w = world("r36c");
+    install(w, [flag("claude"), flag("codex")]);
+    writeFileSync(at(w.target, MARKER_REL), "not json\n");
+    expect(readInstallMarker(w.target).state, "PREMISE: the marker is unusable").toBe("unreadable");
+    const check = spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, timeoutMs: 120_000 });
+    finished(check, "--check");
+    expect(check.status, check.stdout).toBe(1);
+    const fails = linesWith(check.stdout, "FAIL");
+    expect(fails.length, check.stdout).toBe(1);
+    expect(fails[0], check.stdout).toContain("Fix or remove the marker");
+    expect(fails[0], check.stdout).not.toContain("never delete the marker");
+    expect(printedCommands(fails[0]).length, `the install command, then the check command\n${fails[0]}`).toBe(2);
   });
 });
 

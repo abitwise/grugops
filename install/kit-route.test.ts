@@ -1699,7 +1699,8 @@ type AdapterState = (typeof ADAPTER_STATES)[number];
 /**
  * The two route-target states: the marker's kitRoot pointed at an empty directory, and roles/orchestrator.md removed from
  * the row's own kit home. A marker with no kitRoot is not one: the doctor stops before the kit-route section with its
- * "Fix or remove the marker" FAIL (planner probe, 2026-10-10).
+ * unreadable-marker FAIL, whose remedy install-marker.ts markerRemedy chooses (a marker whose install ledger is still
+ * well formed is to be fixed by hand and never removed; plan 34.1-33, D-35).
  */
 const ROUTE_STATES = ["kit-root-to-empty-dir", "orchestrator-removed"] as const;
 type RouteState = (typeof ROUTE_STATES)[number];

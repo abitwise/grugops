@@ -118,6 +118,8 @@ import {
   type LedgerRead,
   type EntryOf,
   markerUnusableText,
+  markerRemedy,
+  markerFixText,
   contentRecord,
   fileRecord,
   modeText,
@@ -1246,12 +1248,24 @@ function notInstalled(): void {
 // target's JSON object (a FIFO, a directory, a symbolic link, a link on the way, garbage, too large).
 // "not installed" would claim it is absent, which is false and hides the one file the human must
 // look at. Still a FAIL with the same exit code, and still fail-closed: nothing else is checked.
-function markerUnreadable(markerFile: string, read: { readonly why: string; readonly jsonObject: boolean }): void {
+//
+// THE REMEDY IS THE OWNER'S (phase 34.1 gap round 3, D-35, 34.1 review CR-04). install-marker.ts markerRemedy decides,
+// from this read, whether the FAIL may offer removing the marker. When its parsed object still holds a well-formed
+// install ledger, the marker is the record of every agent installed here: the FAIL names what to fix by hand
+// (markerFixText), never offers removal, and prints only the check command (once the field is fixed the install is
+// intact, and the check re-reads the fixed marker; no install command is printed, so none carries this run's kit home
+// over a record that names another). Otherwise (not JSON, not an object, no usable ledger) the fix-or-remove remedy
+// stays, with the install and check commands.
+function markerUnreadable(markerFile: string, read: Extract<InstallMarkerRead, { readonly state: "unreadable" }>): void {
+  const remedy = markerRemedy(read, "install");
   docReport(
     "FAIL",
     `the install marker ${markerFile} is present but ${markerUnusableText(read)} — the ` +
-      `install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then ` +
-      `re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`); ${DOCTOR_NO_FLAG_CLAUSE}`,
+      `install state of ${TARGET} is unknown, so nothing else was checked. ` +
+      (remedy.mayRemove
+        ? `Fix or remove the marker, then ` +
+          `re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`); ${DOCTOR_NO_FLAG_CLAUSE}`
+        : `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``),
   );
   console.log("\n1 FAILURE(S)");
 }

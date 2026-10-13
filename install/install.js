@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -1087,10 +1087,22 @@ function notInstalled() {
 // target's JSON object (a FIFO, a directory, a symbolic link, a link on the way, garbage, too large).
 // "not installed" would claim it is absent, which is false and hides the one file the human must
 // look at. Still a FAIL with the same exit code, and still fail-closed: nothing else is checked.
+//
+// THE REMEDY IS THE OWNER'S (phase 34.1 gap round 3, D-35, 34.1 review CR-04). install-marker.ts markerRemedy decides,
+// from this read, whether the FAIL may offer removing the marker. When its parsed object still holds a well-formed
+// install ledger, the marker is the record of every agent installed here: the FAIL names what to fix by hand
+// (markerFixText), never offers removal, and prints only the check command (once the field is fixed the install is
+// intact, and the check re-reads the fixed marker; no install command is printed, so none carries this run's kit home
+// over a record that names another). Otherwise (not JSON, not an object, no usable ledger) the fix-or-remove remedy
+// stays, with the install and check commands.
 function markerUnreadable(markerFile, read) {
+    const remedy = markerRemedy(read, "install");
     docReport("FAIL", `the install marker ${markerFile} is present but ${markerUnusableText(read)} — the ` +
-        `install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then ` +
-        `re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`); ${DOCTOR_NO_FLAG_CLAUSE}`);
+        `install state of ${TARGET} is unknown, so nothing else was checked. ` +
+        (remedy.mayRemove
+            ? `Fix or remove the marker, then ` +
+                `re-run install.js \`${doctorInstallCommand()}\` (then \`${doctorCheckCommand()}\`); ${DOCTOR_NO_FLAG_CLAUSE}`
+            : `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``));
     console.log("\n1 FAILURE(S)");
 }
 // CLAUDE.md sentinel block — byte-identical to uninstall.ts (GSD:grugops-start-here).
