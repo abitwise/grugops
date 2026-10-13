@@ -560,3 +560,117 @@ describe(`DOC-1 (DI-10): no tracked installer source or README says install writ
     expect(scan.hits).toEqual([`${rel}:${claimLine}`]);
   });
 });
+
+// ── DOC-1 (D-34, plan 34.1-38): the retired printed-command claims ─────────────────────────────────
+// Gap round 3 (D-36) changed where a printed install command takes its kit home and install mode from:
+// host-tools.ts commandContextFromRecord takes them from an `ok` install marker for `install.js --check`, from the run
+// for install, `--migrate`, `--update` and `--prune-old-kit`, and from the uninstall run (never an `unbound` marker) for
+// the install command the uninstaller prints. Three shipped sentences said otherwise: the CHANGELOG line that following
+// a printed install command never wrote a second kit, the README sentence that `--check` printed its commands in the
+// mode it was run in, and the README sentence that the uninstaller's install step took its kit home from the marker
+// when no GRUGOPS_HOME was given. Plans 34.1-35, 34.1-41 and 34.1-38 corrected them; this scan holds them at zero.
+//
+// THE CLAIMS are spelled from parts below, so no source line of this file holds one, and a grep for a claim finds only
+// real hits. Each is matched over a joined block (markdownBlocks, typescriptBlocks, joinBlock above) with any run of
+// whitespace between its words, so a claim wrapped across lines or string parts is found, and the hit names the line
+// where the claim starts.
+//
+// THE SCAN SET IS DERIVED from `git ls-files -z`: every tracked README.md, CHANGELOG.md, AGENTS.md, the markdown files
+// directly under agent-factory/packaging/, and every `.ts` directly under install/ (sources, tests and test support;
+// the `.js` twins are build outputs that follow their `.ts`). `.planning/` is never scanned: planning history records
+// what was true then. A floor holds the anchor files and the size of the `.ts` arm, so an empty or wrong listing cannot
+// pass.
+
+const RETIRED_PRINTED_CLAIMS: readonly { readonly id: string; readonly words: readonly string[] }[] = [
+  { id: "second-kit", words: ["never", "writes", "a", "second", "kit"] },
+  { id: "mode-it-ran-in", words: ["in", "the", "mode", "it", "ran", "in"] },
+  { id: "marker-kit-home", words: ["else", "the", "one", "the", "marker", "records"] },
+];
+const retiredClaimRe = (words: readonly string[]): RegExp => new RegExp(`\\b${words.join("\\s+")}\\b`, "gi");
+const RETIRED_SCAN_ANCHORS = [
+  "install/README.md",
+  "CHANGELOG.md",
+  "AGENTS.md",
+  "install/host-tools.ts",
+  "install/install.ts",
+  "install/uninstall.ts",
+  "install/host-tools-prose.test.ts",
+];
+const RETIRED_SCAN_TS_FLOOR = 40;
+
+function inRetiredScanSet(p: string): boolean {
+  if (p.startsWith(".planning/")) return false;
+  if (p === "README.md" || p.endsWith("/README.md")) return true;
+  if (p === "CHANGELOG.md" || p === "AGENTS.md") return true;
+  if (/^agent-factory\/packaging\/[^/]+\.md$/.test(p)) return true;
+  return /^install\/[^/]+\.ts$/.test(p);
+}
+
+/** Every retired claim in one file's text, as `file:line [id]`, the line where the claim starts. */
+function retiredClaimHits(file: string, body: string): string[] {
+  const lines = body.split(/\r?\n/);
+  const blocks = file.endsWith(".ts") ? typescriptBlocks(lines) : markdownBlocks(lines);
+  const out: string[] = [];
+  for (const b of blocks) {
+    const { text, lineAt } = joinBlock(b);
+    for (const c of RETIRED_PRINTED_CLAIMS) {
+      for (const m of text.matchAll(retiredClaimRe(c.words))) out.push(`${file}:${lineAt(m.index ?? 0)} [${c.id}]`);
+    }
+  }
+  return out;
+}
+
+function retiredClaimScan(root: string): { scanned: string[]; hits: string[] } {
+  const scanned = trackedFiles(root).filter(inRetiredScanSet);
+  const hits: string[] = [];
+  for (const f of scanned) hits.push(...retiredClaimHits(f, readFileSync(join(root, ...f.split("/")), "utf8")));
+  return { scanned, hits };
+}
+
+describe("DOC-1 (D-34): no tracked document or comment carries a retired printed-command claim", () => {
+  it("the live scan finds no hit, over a derived set held by a floor of anchor files and a `.ts` count", () => {
+    const scan = retiredClaimScan(REPO);
+    expect(scan.hits, "tracked documents or comments that still carry a retired printed-command claim").toEqual([]);
+    for (const f of RETIRED_SCAN_ANCHORS) expect(scan.scanned, `${f} is not in the scan set`).toContain(f);
+    expect(scan.scanned.filter((f) => f.endsWith(".ts")).length, "the derived install/*.ts set is too small").toBeGreaterThanOrEqual(RETIRED_SCAN_TS_FLOOR);
+    expect(scan.scanned.some((f) => /^agent-factory\/packaging\/[^/]+\.md$/.test(f)), "no packaging markdown in the scan set").toBe(true);
+    expect(scan.scanned.some((f) => f.startsWith(".planning/")), "a .planning/ file is in the scan set").toBe(false);
+    expect(scan.scanned.some((f) => f.endsWith(".js")), "a `.js` build output is in the scan set").toBe(false);
+  });
+
+  it("a planted copy of install/README.md with a retired claim restored is a hit naming the file and line; each claim is found wrapped, and true sentences that share words are not", () => {
+    const real = readFileSync(join(REPO, "install", "README.md"), "utf8");
+    const anchor = "`install.js --check` reads the install marker it checks (`.grugops/install.json`). When that marker\n";
+    expect(real.split(anchor).length - 1, "premise: install/README.md holds the --check sentence exactly once").toBe(1);
+    // The sentence plan 34.1-35 removed, put back in front of the one that replaced it, wrapped as it was.
+    const restored = `\`install.js --check\` prints its commands ${RETIRED_PRINTED_CLAIMS[1].words.join(" ")}, so after a \`--symlink\` install run\n` +
+      "`--check --symlink`, or add `--symlink` to the install command it prints.\n";
+    const planted = real.replace(anchor, restored + anchor);
+    const claimLine = real.slice(0, real.indexOf(anchor)).split("\n").length;
+    expect(planted.split("\n")[claimLine - 1], "premise: the claim line holds the restored sentence").toContain("prints its commands");
+    // The other two claims, each wrapped across a line break, in a changelog entry and a code comment.
+    const [w0, w2] = [RETIRED_PRINTED_CLAIMS[0].words, RETIRED_PRINTED_CLAIMS[2].words];
+    const changelog = "# Changelog\n\n- An install command carries `--symlink`, so following it\n" +
+      `  ${w0.slice(0, 2).join(" ")}\n  ${w0.slice(2).join(" ")} there (a review id).\n`;
+    const comment = `// the kit home (the GRUGOPS_HOME you ran the uninstaller with, ${w2.slice(0, 2).join(" ")}\n` +
+      `// ${w2.slice(2).join(" ")}).\nexport const c = 1;\n`;
+    // Controls: true sentences that share words with a claim, and copies outside the scan set.
+    const controlTs = "// --check: following one writes no second kit and does not move the install.\n" +
+      "// The new marker records a copy install, and the kit home and install mode the marker records.\nexport const d = 1;\n";
+    const outside = `${w0.join(" ")}\n`;
+    const root = plantedRepo("doc1-printed", {
+      "install/README.md": planted,
+      "CHANGELOG.md": changelog,
+      "install/uninstall.ts": comment,
+      "install/clean.ts": controlTs,
+      "install/uninstall.js": outside,
+      ".planning/old/README.md": outside,
+      "docs/other.md": outside,
+    });
+    const scan = retiredClaimScan(root);
+    expect(scan.scanned.sort()).toEqual(["CHANGELOG.md", "install/README.md", "install/clean.ts", "install/uninstall.ts"]);
+    expect(scan.hits.sort()).toEqual(
+      [`install/README.md:${claimLine} [mode-it-ran-in]`, "CHANGELOG.md:4 [second-kit]", "install/uninstall.ts:1 [marker-kit-home]"].sort(),
+    );
+  });
+});
