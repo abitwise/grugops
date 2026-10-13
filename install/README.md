@@ -1004,6 +1004,13 @@ unusable, so nothing is removed or edited on it. `--check` fails on such a marke
 exit `1`): one that cannot be read is named as present but unreadable, not as "not installed", and a
 malformed install ledger is named in a `FAIL` line with the entry and the reason.
 
+A marker that is a JSON object with a well-formed install ledger and one field install never writes (for
+example `agents` edited by hand) is still the record of every agent installed here. `--check`, the
+installer and the uninstaller then name the field to fix by hand and say never to delete the marker;
+none of them offers to remove it. After the fix, run the command the `--check` or uninstall line prints,
+or run the installer again. A marker that is not JSON, or whose install ledger is malformed as well,
+holds no record a fix could give back, so `--check` and the installer still say to fix or remove it.
+
 **When uninstall keeps `.grugops/install.json`.** The marker is the only record of what install
 wrote, so the uninstaller removes it only when everything install recorded writing is gone: every
 file it recorded was removed or was already gone, and every pointer block, Gemini entry and ask rule

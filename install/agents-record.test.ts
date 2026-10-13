@@ -45,7 +45,9 @@
 //     uninstall removes grugops' files), with a not-JSON control row; R37 does the same for install's verify. Plan
 //     34.1-34: uninstall.ts's unreadable-marker verify, removeMarker's arms and keepWithoutRecord read the same owner;
 //     R38 follows the uninstaller's never-remove verify (flag-less and --codex) as printed; the by-hand remedy census
-//     tags each reading with the owner's answer, and every printed offer to remove the marker sits under its yes.
+//     tags each reading with the owner's answer, and every printed offer to remove the marker sits under its yes. Plan
+//     34.1-40: the markerRemedy call-site census (MARKER_REMEDY_CALLS, by the parser, both ways, counts pinned) and its
+//     converse derived from the census owner tags.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -2183,6 +2185,89 @@ describe("the command-context census (D-33): every agentCommand and scriptComman
     expect(ctxParam !== undefined && ts.isIdentifier(ctxParam.name) ? ctxParam.name.text : null).toBe("ctx");
     const arg = inner[0].arguments[1];
     expect(arg !== undefined && ts.isIdentifier(arg) && arg.text === "ctx", inner[0].getText(sf)).toBe(true);
+  });
+});
+
+// ── the markerRemedy call sites (phase 34.1 gap round 3, D-35, 34.1 review CR-04; plan 34.1-40) ────────────────────
+//
+// Every remedy site that reads .grugops/install.json asks install-marker.ts markerRemedy, the one owner (brief §5). The
+// census walks every product module (productModules: git ls-files, no test, test-support or declaration file) with the
+// TypeScript parser, finds every call of markerRemedy and keys it by module and enclosing function. The result must
+// equal MARKER_REMEDY_CALLS both ways, with the per-function and per-module counts pinned. A site that reads the marker
+// in place of the owner (for example `previousMarker.jsonObject`) drops a call and turns the count red (mutation M4 of
+// plan 34.1-40). Every other mention of the name must be its declaration or an import, so no alias or namespace call
+// can sit outside the count.
+//
+// The converse is derived from the by-hand remedy census, never typed: every function that holds a printed reading
+// whose owner tag is "yes" or "no" (a condition or statement guard on `.mayRemove` decides it) holds a markerRemedy
+// call, so no reading is decided by a `.mayRemove` that the function did not get from the owner.
+
+/**
+ * The markerRemedy calls per product module and enclosing function, measured at execution of plan 34.1-40
+ * (2026-10-13, HEAD 9d9d9c9a) by the walk below.
+ *   install.ts    4 (plan 34.1-33): markerUnreadable (the doctor's FAIL, I1), writeAskRules (I5), askRulesStep (I6) and
+ *                 writeMarker (its skipped line reads ledgerWellFormed), one call each;
+ *   uninstall.ts  4 (plan 34.1-34): the module-top unreadable-marker verify (`<module>`, 1), removeMarker (2: one call
+ *                 at the top of its not-owned block, which the JSON-object arm and U3 both read, and one for U4) and
+ *                 keepWithoutRecord (1).
+ * install-marker.ts declares markerRemedy and calls it nowhere; no other product module calls it.
+ */
+const MARKER_REMEDY_CALLS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  "install.ts": { askRulesStep: 1, markerUnreadable: 1, writeAskRules: 1, writeMarker: 1 },
+  "uninstall.ts": { "<module>": 1, keepWithoutRecord: 1, removeMarker: 2 },
+};
+
+/** Every markerRemedy call in the product modules, and every other mention of the name, by the TypeScript parser. */
+function markerRemedyWalk(): { calls: Map<string, Map<string, number>>; other: string[]; modules: string[] } {
+  const calls = new Map<string, Map<string, number>>();
+  const other: string[] = [];
+  const modules = productModules();
+  for (const module of modules) {
+    const sf = parse(`install/${module}`);
+    for (const id of nodesOf(sf, ts.isIdentifier).filter((i) => i.text === "markerRemedy")) {
+      const p = id.parent;
+      if (ts.isCallExpression(p) && p.expression === id) {
+        const fns = calls.get(module) ?? new Map<string, number>();
+        fns.set(enclosing(p), (fns.get(enclosing(p)) ?? 0) + 1);
+        calls.set(module, fns);
+      } else if (module === "install-marker.ts" && ts.isFunctionDeclaration(p) && p.name === id) {
+        // the owner's own declaration
+      } else if (ts.isImportSpecifier(p) && p.propertyName === undefined) {
+        // `import { markerRemedy } from "./install-marker.js"`: a plain import, the name is not rebound
+      } else {
+        other.push(`${module}:${sf.getLineAndCharacterOfPosition(id.getStart(sf)).line + 1} ${ts.SyntaxKind[p.kind]}: ${p.getText(sf).slice(0, 120)}`);
+      }
+    }
+  }
+  return { calls, other, modules };
+}
+const sortedRecord = (m: ReadonlyMap<string, ReadonlyMap<string, number>>): Record<string, Record<string, number>> =>
+  Object.fromEntries([...m].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, Object.fromEntries([...v].sort(([a], [b]) => a.localeCompare(b)))]));
+
+describe("D-35: the markerRemedy call sites (34.1 review CR-04)", () => {
+  it("every markerRemedy call in the product modules equals MARKER_REMEDY_CALLS, both ways, with the counts pinned", () => {
+    const { calls, other, modules } = markerRemedyWalk();
+    expect(modules, "PREMISE: the walk read the owner's module and both binaries").toEqual(expect.arrayContaining(["install-marker.ts", "install.ts", "uninstall.ts"]));
+    expect(sortedRecord(calls), "a markerRemedy call site is not pinned, or a pinned one is gone").toEqual(
+      sortedRecord(new Map(Object.entries(MARKER_REMEDY_CALLS).map(([k, v]) => [k, new Map(Object.entries(v))]))),
+    );
+    const perModule = Object.fromEntries([...calls].map(([m, fns]) => [m, [...fns.values()].reduce((n, c) => n + c, 0)]).sort(([a], [b]) => String(a).localeCompare(String(b))));
+    expect(perModule, "the per-module markerRemedy call counts moved").toEqual({ "install.ts": 4, "uninstall.ts": 4 });
+    expect(other, "markerRemedy is named somewhere other than its declaration, a plain import or a call").toEqual([]);
+  });
+
+  it("the converse: every function holding a reading decided by markerRemedy's answer (owner yes or no) holds a markerRemedy call (derived from the census)", () => {
+    const owned = [...new Set(remedyCensus().filter((s) => s.owner !== "none").map((s) => `${s.module} :: ${s.fn}`))].sort();
+    // The premise: the census tags the readings the owner decides in both binaries, at least the doctor's FAIL and
+    // keepWithoutRecord's FULL delete text.
+    expect(owned, "PREMISE: the census tags the owner's readings").toEqual(expect.arrayContaining(["install.ts :: markerUnreadable", "uninstall.ts :: keepWithoutRecord"]));
+    // Measured at plan 34.1-40: 6 functions (install.ts markerUnreadable, writeAskRules, askRulesStep; uninstall.ts
+    // `<module>`, removeMarker, keepWithoutRecord). writeMarker asks the owner for ledgerWellFormed only, so it holds a
+    // call and no owner-tagged reading.
+    expect(owned.length, `the functions whose readings the owner decides moved: ${owned.join(", ")}`).toBe(6);
+    const { calls } = markerRemedyWalk();
+    const calling = new Set([...calls].flatMap(([m, fns]) => [...fns.keys()].map((fn) => `${m} :: ${fn}`)));
+    expect(owned.filter((k) => !calling.has(k)), "a reading decided by `.mayRemove` in a function that never asks markerRemedy").toEqual([]);
   });
 });
 
