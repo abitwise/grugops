@@ -64,7 +64,7 @@ import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readd
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
-import { HOST_TOOLS, agentFlag, commandContext, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
+import { HOST_TOOLS, agentFlag, commandContextFromRecord, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -484,15 +484,16 @@ export function printedCommand(text: string): string {
 /**
  * The context a run with these values builds (plan 34.1-22, D-33): this checkout's install directory, the kit home
  * `grugopsHome`, the default kit home under `home` (the real home directory when omitted), and the install mode, all
- * in the product's one spelling. A test builds an expected printed command with agentCommand(..., this context).
+ * in the product's one spelling. A test builds an expected printed command with agentCommand(..., this context). It is
+ * built by the product's one constructor, host-tools.ts commandContextFromRecord, with no record (plan 34.1-36, D-36).
  */
 export function commandContextFor(opts: { readonly grugopsHome: string; readonly home?: string; readonly symlink?: boolean }): CommandContext {
-  return commandContext(
-    canonicalPathSpelling(import.meta.dirname),
-    canonicalPathSpelling(resolve(opts.grugopsHome)),
-    canonicalPathSpelling(resolve(opts.home ?? homedir(), ".grugops")),
-    opts.symlink ?? false,
-  );
+  return commandContextFromRecord(null, {
+    scriptDir: canonicalPathSpelling(import.meta.dirname),
+    kitHome: canonicalPathSpelling(resolve(opts.grugopsHome)),
+    defaultKitHome: canonicalPathSpelling(resolve(opts.home ?? homedir(), ".grugops")),
+    symlink: opts.symlink ?? false,
+  });
 }
 
 /** What runPrintedCommand ran: the Run, and the premise it ran under (asserted inside the tests). */

@@ -70,7 +70,6 @@ import {
   PI_PROMPT_REL,
   agentCommand,
   agentFlag,
-  commandContext,
   commandContextFromRecord,
   entryOwners,
   scriptCommand,
@@ -286,10 +285,14 @@ describe("agentCommand: the one builder of a printed command that names agents (
   const DIR = "/opt/grugops/install";
   const KIT = "/srv/kits/k";
   const DEFAULT_KIT = "/home/u/.grugops";
-  const plain = commandContext(DIR, DEFAULT_KIT, DEFAULT_KIT);
-  const withKit = commandContext(DIR, KIT, DEFAULT_KIT);
-  const linked = commandContext(DIR, DEFAULT_KIT, DEFAULT_KIT, true);
-  const everything = commandContext(DIR, KIT, DEFAULT_KIT, true);
+  // Plan 34.1-36 (D-36): every context is built by the one constructor, commandContextFromRecord, with no record, so
+  // the run's values decide it.
+  const runContext = (scriptDir: string, kitHome: string, defaultKitHome: string, symlink = false) =>
+    commandContextFromRecord(null, { scriptDir, kitHome, defaultKitHome, symlink });
+  const plain = runContext(DIR, DEFAULT_KIT, DEFAULT_KIT);
+  const withKit = runContext(DIR, KIT, DEFAULT_KIT);
+  const linked = runContext(DIR, DEFAULT_KIT, DEFAULT_KIT, true);
+  const everything = runContext(DIR, KIT, DEFAULT_KIT, true);
 
   it("names the binary, the target and the hosts' flags in the order given", () => {
     const head = scriptCommand("uninstall.js", plain);
@@ -353,14 +356,14 @@ describe("agentCommand: the one builder of a printed command that names agents (
     }
   });
 
-  it("commandContext: kitHome is null when it equals the default, and the value otherwise", () => {
+  it("commandContextFromRecord with no record: kitHome is null when it equals the default, and the value otherwise", () => {
     expect(plain).toEqual({ scriptDir: DIR, kitHome: null, symlink: false });
     expect(withKit).toEqual({ scriptDir: DIR, kitHome: KIT, symlink: false });
     expect(linked.symlink).toBe(true);
   });
   it("scriptCommand(install.js) with the default kit home is `node <dir>/install.js`", () => {
     expect(scriptCommand("install.js", plain)).toBe(`node ${DIR}/install.js`);
-    expect(scriptCommand("install.js", commandContext(DIR + "/", DEFAULT_KIT, DEFAULT_KIT)), "a trailing / on the script directory").toBe(`node ${DIR}/install.js`);
+    expect(scriptCommand("install.js", runContext(DIR + "/", DEFAULT_KIT, DEFAULT_KIT)), "a trailing / on the script directory").toBe(`node ${DIR}/install.js`);
   });
   it("scriptCommand(install.js) with another kit home starts `GRUGOPS_HOME=<home> node`", () => {
     expect(scriptCommand("install.js", withKit)).toBe(`GRUGOPS_HOME=${KIT} node ${DIR}/install.js`);
@@ -375,7 +378,7 @@ describe("agentCommand: the one builder of a printed command that names agents (
   });
   it("a script directory or a kit home with a space or a quote is single-quoted, and shellWords reads each back as one word", () => {
     for (const odd of ["/opt/my grugops/install", "/opt/it's/install", "/opt/a;b/$x/install"]) {
-      const ctx = commandContext(odd, odd + "/kit", DEFAULT_KIT, true);
+      const ctx = runContext(odd, odd + "/kit", DEFAULT_KIT, true);
       const cmd = agentCommand("install.js", "/tmp/my repo/t", [row("pi")], ctx);
       expect(shellWords(cmd), cmd).toEqual([`GRUGOPS_HOME=${odd}/kit`, "node", `${odd}/install.js`, "--symlink", "--target", "/tmp/my repo/t", agentFlag(row("pi"))]);
     }
@@ -2435,6 +2438,93 @@ describe("the command-context census (D-33): every agentCommand and scriptComman
     expect(ctxParam !== undefined && ts.isIdentifier(ctxParam.name) ? ctxParam.name.text : null).toBe("ctx");
     const arg = inner[0].arguments[1];
     expect(arg !== undefined && ts.isIdentifier(arg) && arg.text === "ctx", inner[0].getText(sf)).toBe(true);
+  });
+});
+
+// ── D-36: one CommandContext constructor (phase 34.1 gap round 3, reviews WR-21 and WR-22; plan 34.1-36) ─────────────
+//
+// WR-21 and WR-22 were two derivations of one invocation context: install.ts built it from the run, uninstall.ts from
+// the marker, an `unbound` one included, so the two binaries printed different install commands for one marker and the
+// uninstaller printed another person's kit home. D-36 gives the context one owner, host-tools.ts
+// commandContextFromRecord, and this census holds it by the TypeScript parser over every product module (productModules:
+// git ls-files, no test, test-support or declaration file):
+//   - the object literals that build a context (property names include scriptDir, kitHome and symlink) number exactly
+//     one, and it sits inside commandContextFromRecord in host-tools.ts. The `run` argument of a commandContextFromRecord
+//     call (a RunInvocation, which carries the same three names and defaultKitHome) is the owner's input, not a
+//     context, and is not counted;
+//   - no product function other than commandContextFromRecord declares CommandContext as its return type;
+//   - in each binary the initializer of COMMAND_CONTEXT is a call of commandContextFromRecord whose first argument is
+//     the binary's one marker read (install.ts DOCTOR_MARKER_READ, uninstall.ts MARKER_READ);
+//   - commandContextFromRecord is called exactly once per binary and nowhere else in the product modules.
+// A later plan that adds a constructor re-pins CONTEXT_CONSTRUCTORS here with the reason.
+const CONTEXT_CONSTRUCTORS = {
+  owner: { module: "install/host-tools.ts", fn: "commandContextFromRecord" },
+  literals: 1,
+  returnTypeFunctions: 1,
+  initializers: { "install/install.ts": "DOCTOR_MARKER_READ", "install/uninstall.ts": "MARKER_READ" } as Readonly<Record<string, string>>,
+} as const;
+
+/** The property names of an object literal (plain and shorthand assignments). */
+const literalNames = (o: ts.ObjectLiteralExpression): string[] =>
+  o.properties.flatMap((p) => ((ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && ts.isIdentifier(p.name) ? [p.name.text] : []));
+/** The name a function-like node is known by (its declared name, or the const it is bound to), or `<anonymous>`. */
+function functionLikeName(f: ts.SignatureDeclaration): string {
+  if (f.name !== undefined && ts.isIdentifier(f.name)) return f.name.text;
+  if (ts.isVariableDeclaration(f.parent) && ts.isIdentifier(f.parent.name)) return f.parent.name.text;
+  return "<anonymous>";
+}
+
+describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
+  const modules = productModules().map((m) => `install/${m}`);
+  const parsed = new Map(modules.map((rel) => [rel, parse(rel)] as const));
+  const where = (rel: string, n: ts.Node): string => `${rel}:${parsed.get(rel)!.getLineAndCharacterOfPosition(n.getStart(parsed.get(rel)!)).line + 1}`;
+
+  it("premise: the walk sees the owner's module and both binaries", () => {
+    expect(modules, "premise: the walk found product modules").toEqual(
+      expect.arrayContaining([CONTEXT_CONSTRUCTORS.owner.module, ...Object.keys(CONTEXT_CONSTRUCTORS.initializers)]),
+    );
+  });
+
+  it("exactly one object literal builds a context, inside commandContextFromRecord", () => {
+    const found: string[] = [];
+    for (const [rel, sf] of parsed) {
+      for (const o of nodesOf(sf, ts.isObjectLiteralExpression)) {
+        const names = literalNames(o);
+        const runArgument = ts.isCallExpression(o.parent) && calleeName(o.parent) === CONTEXT_CONSTRUCTORS.owner.fn && o.parent.arguments[1] === o;
+        if (!runArgument && ["scriptDir", "kitHome", "symlink"].every((n) => names.includes(n))) found.push(`${where(rel, o)} in ${enclosing(o)}`);
+      }
+    }
+    expect(found.length, `context-building object literals:\n${found.join("\n")}`).toBe(CONTEXT_CONSTRUCTORS.literals);
+    expect(found[0]?.replace(/:\d+ in /, " in ")).toBe(`${CONTEXT_CONSTRUCTORS.owner.module} in ${CONTEXT_CONSTRUCTORS.owner.fn}`);
+  });
+
+  it("no product function other than commandContextFromRecord declares CommandContext as its return type", () => {
+    const found: string[] = [];
+    for (const [rel, sf] of parsed) {
+      const fns = nodesOf(sf, ts.isFunctionLike);
+      for (const f of fns) {
+        if (f.type !== undefined && ts.isTypeReferenceNode(f.type) && ts.isIdentifier(f.type.typeName) && f.type.typeName.text === "CommandContext") {
+          found.push(`${rel}:${functionLikeName(f)}`);
+        }
+      }
+    }
+    expect(found.length, found.join("\n")).toBe(CONTEXT_CONSTRUCTORS.returnTypeFunctions);
+    expect(found).toEqual([`${CONTEXT_CONSTRUCTORS.owner.module}:${CONTEXT_CONSTRUCTORS.owner.fn}`]);
+  });
+
+  it("each binary's COMMAND_CONTEXT is commandContextFromRecord called on its one marker read, and the owner is called nowhere else", () => {
+    for (const [rel, read] of Object.entries(CONTEXT_CONSTRUCTORS.initializers)) {
+      const sf = parsed.get(rel)!;
+      const decls = nodesOf(sf, ts.isVariableDeclaration).filter((d) => ts.isIdentifier(d.name) && d.name.text === "COMMAND_CONTEXT");
+      expect(decls.length, `${rel}: COMMAND_CONTEXT declarations`).toBe(1);
+      const init = decls[0].initializer;
+      expect(init !== undefined && ts.isCallExpression(init) && calleeName(init) === CONTEXT_CONSTRUCTORS.owner.fn, `${rel}: COMMAND_CONTEXT is not the owner's call: ${init?.getText(sf).slice(0, 120)}`).toBe(true);
+      const first = (init as ts.CallExpression).arguments[0];
+      expect(first !== undefined && ts.isIdentifier(first) ? first.text : first?.getText(sf), `${rel}: the owner's first argument`).toBe(read);
+    }
+    const calls: string[] = [];
+    for (const [rel, sf] of parsed) for (const c of callsOf(sf, CONTEXT_CONSTRUCTORS.owner.fn)) calls.push(`${rel}:${enclosing(c)}`);
+    expect(calls.sort()).toEqual(Object.keys(CONTEXT_CONSTRUCTORS.initializers).map((rel) => `${rel}:<module>`).sort());
   });
 });
 

@@ -308,18 +308,6 @@ export interface CommandContext {
 }
 
 /**
- * The CommandContext of a run (D-33): `kitHome` is null when it equals `defaultKitHome`, and the value otherwise.
- * The callers spell both paths with user-file.ts canonicalPathSpelling, so the comparison is between two values in
- * the one spelling. Pure: no I/O.
- *
- * Neither binary calls it (both build their context through commandContextFromRecord, D-36); only the test support's
- * commandContextFor does, until plan 34.1-36 Task 3 deletes it.
- */
-export function commandContext(scriptDir: string, kitHome: string, defaultKitHome: string, symlink = false): CommandContext {
-  return { scriptDir, kitHome: kitHome === defaultKitHome ? null : kitHome, symlink };
-}
-
-/**
  * RecordRead (phase 34.1 gap round 3, D-36): the shape of an install-marker read that commandContextFromRecord reads,
  * structural so this module stays import-free. install-marker.ts InstallMarkerRead satisfies it: `state` is how the
  * marker read, and `marker` is the marker object when it reads `ok`.
@@ -347,8 +335,10 @@ export interface RunInvocation {
  * command's kit home and install mode. When `record` reads `ok` and its marker holds a non-empty string `grugopsHome`
  * and an `installMode` of "copy" or "symlink", the context's kit home is the recorded grugopsHome and `symlink` is
  * `installMode === "symlink"`. In every other case (no record, `absent`, `unreadable`, `unbound`, or a field of
- * another type or value) both come from `run`. The kit home is null when it equals `run.defaultKitHome` (commandContext's
- * rule), and the script directory is always `run.scriptDir`.
+ * another type or value) both come from `run`. The kit home is null when it equals `run.defaultKitHome` (both paths in
+ * the caller's one spelling, user-file.ts canonicalPathSpelling), and the script directory is always `run.scriptDir`.
+ * It is the only constructor of a CommandContext: the object literal below is the one place a context is built, which
+ * the "D-36: one CommandContext constructor" census in install/agents-record.test.ts holds (plan 34.1-36, WR-22).
  *
  * An `unbound` marker is never read: it is another directory's record (copied, moved, or written before markers
  * carried `target`), and for a cloned repository it can name another person's home, so a command built from it would
