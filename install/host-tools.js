@@ -246,6 +246,8 @@ function shellWord(s) {
  * `installMode === "symlink"`. In every other case (no record, `absent`, `unreadable`, `unbound`, or a field of
  * another type or value) both come from `run`. The kit home is null when it equals `run.defaultKitHome` (both paths in
  * the caller's one spelling, user-file.ts canonicalPathSpelling), and the script directory is always `run.scriptDir`.
+ * `src` is null when `run.src` equals `run.checkout` and `run.src` otherwise, whatever the record: the marker records no
+ * checkout, so the kit checkout a printed command renders from is always this run's (plan 34.1-37, WR-23).
  * It is the only constructor of a CommandContext: the object literal below is the one place a context is built, which
  * the "D-36: one CommandContext constructor" census in install/agents-record.test.ts holds (plan 34.1-36, WR-22).
  *
@@ -266,7 +268,12 @@ export function commandContextFromRecord(record, run) {
             symlink = mode === "symlink";
         }
     }
-    return { scriptDir: run.scriptDir, kitHome: kitHome === run.defaultKitHome ? null : kitHome, symlink };
+    return {
+        scriptDir: run.scriptDir,
+        kitHome: kitHome === run.defaultKitHome ? null : kitHome,
+        symlink,
+        src: run.src === run.checkout ? null : run.src,
+    };
 }
 /**
  * contextKitHome (phase 34.1 gap round 3, D-36, review WR-22; plan 34.1-41): the kit home an install command built
@@ -285,8 +292,15 @@ export function contextKitHome(ctx, defaultKitHome) {
  * install.js, then `--symlink` when the context is a symlink install. Both come from the context alone; each binary's
  * context is decided by commandContextFromRecord: the values of an `ok` install record for a run that does not choose
  * its kit home itself (`install.js --check`), the run's own otherwise. For uninstall.js: `node` and the absolute path
- * of uninstall.js only, whatever the context holds, because uninstall.js removes by the install record alone and
- * reads no kit home for its own work, and it refuses `--symlink` as an unknown argument (exit 2).
+ * of uninstall.js, whatever kit home and install mode the context holds, because uninstall.js removes by the install
+ * record alone and reads no kit home for its own work, and it refuses `--symlink` as an unknown argument (exit 2).
+ *
+ * The kit checkout (plan 34.1-37, D-36, review WR-23): when the context's `src` is set (this run used a GRUGOPS_SRC
+ * other than the running script's checkout), both binaries' commands carry `GRUGOPS_SRC=<src>` before `node`, after
+ * any GRUGOPS_HOME word. An install command then renders from the checkout the run compared or used, so a remedy
+ * changes what the run measured; an uninstall command reads it too, because its report of files grugops did not record
+ * names the kit source's files. With `src` null no GRUGOPS_SRC word is printed, and the command uses the running
+ * script's checkout, which is the checkout the run used.
  *
  * The D-36 rule (plan 34.1-41, review WR-22): uninstall.js's context words only the install commands it prints, and
  * it comes from the owner (commandContextFromRecord), never from an `unbound` marker. uninstall.js prints an install
@@ -301,10 +315,11 @@ export function scriptCommand(binary, ctx) {
     while (dir.length > 1 && dir.endsWith("/"))
         dir = dir.slice(0, -1);
     const script = shellWord(dir + "/" + binary);
+    const src = ctx.src === null ? [] : ["GRUGOPS_SRC=" + shellWord(ctx.src)];
     if (binary === "uninstall.js")
-        return ["node", script].join(" ");
-    const env = ctx.kitHome === null ? [] : ["GRUGOPS_HOME=" + shellWord(ctx.kitHome)];
-    return [...env, "node", script, ...(ctx.symlink ? ["--symlink"] : [])].join(" ");
+        return [...src, "node", script].join(" ");
+    const home = ctx.kitHome === null ? [] : ["GRUGOPS_HOME=" + shellWord(ctx.kitHome)];
+    return [...home, ...src, "node", script, ...(ctx.symlink ? ["--symlink"] : [])].join(" ");
 }
 /**
  * agentCommand (phase 34.1, D-26, D-33; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names agents.
@@ -315,7 +330,8 @@ export function scriptCommand(binary, ctx) {
  * kit home and install mode an `ok` install record holds, for a run that does not choose its kit home itself
  * (`install.js --check`), and the run's own otherwise, never an `unbound` marker's. An
  * uninstall command carries neither, because uninstall.js removes by the
- * install record alone. The flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no
+ * install record alone. Both binaries' commands carry `GRUGOPS_SRC=<dir>` when the run used a kit checkout other than
+ * the running script's (the context's `src`, scriptCommand; plan 34.1-37, WR-23). The flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no
  * flag: the flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what
  * it means. The target is one shell word (shellWord).
  *

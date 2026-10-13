@@ -483,16 +483,20 @@ export function printedCommand(text: string): string {
 
 /**
  * The context a run with these values builds (plan 34.1-22, D-33): this checkout's install directory, the kit home
- * `grugopsHome`, the default kit home under `home` (the real home directory when omitted), and the install mode, all
- * in the product's one spelling. A test builds an expected printed command with agentCommand(..., this context). It is
- * built by the product's one constructor, host-tools.ts commandContextFromRecord, with no record (plan 34.1-36, D-36).
+ * `grugopsHome`, the default kit home under `home` (the real home directory when omitted), the install mode, and the
+ * kit checkout `src` the run used (GRUGOPS_SRC; this checkout when omitted, so the context's src is null; plan
+ * 34.1-37, D-36), all in the product's one spelling. A test builds an expected printed command with agentCommand(...,
+ * this context). It is built by the product's one constructor, host-tools.ts commandContextFromRecord, with no record
+ * (plan 34.1-36, D-36).
  */
-export function commandContextFor(opts: { readonly grugopsHome: string; readonly home?: string; readonly symlink?: boolean }): CommandContext {
+export function commandContextFor(opts: { readonly grugopsHome: string; readonly home?: string; readonly symlink?: boolean; readonly src?: string }): CommandContext {
   return commandContextFromRecord(null, {
     scriptDir: canonicalPathSpelling(import.meta.dirname),
     kitHome: canonicalPathSpelling(resolve(opts.grugopsHome)),
     defaultKitHome: canonicalPathSpelling(resolve(opts.home ?? homedir(), ".grugops")),
     symlink: opts.symlink ?? false,
+    src: canonicalPathSpelling(resolve(opts.src ?? REPO_ROOT)),
+    checkout: canonicalPathSpelling(REPO_ROOT),
   });
 }
 
@@ -503,6 +507,11 @@ export interface PrintedRun extends Run {
     readonly cwd: string;
     /** The GRUGOPS_HOME the child's environment held: the printed text's own, or undefined when it set none. */
     readonly grugopsHome: string | undefined;
+    /**
+     * The GRUGOPS_SRC the child's environment held: the printed text's own (only on a call with `expectSrc: true`), or
+     * undefined when it set none (plan 34.1-37, D-36).
+     */
+    readonly grugopsSrc: string | undefined;
   };
 }
 
@@ -516,17 +525,28 @@ function insideCheckout(dir: string): boolean {
  * Run a printed command in the user's environment (plan 34.1-22, D-33; brief §4, WR-19). The printed text alone
  * decides the kit home, and the working directory is not the checkout:
  *   - the span is printedCommand(text), split by shellWords, so its script word is absolute (printedCommand returns no
- *     span with a relative one, and says so when it saw one). Its leading assignments may only be GRUGOPS_HOME (any
- *     other name throws); the script word must be install.js or uninstall.js of this checkout;
+ *     span with a relative one, and says so when it saw one). Its leading assignments may only be GRUGOPS_HOME, and
+ *     GRUGOPS_SRC on a call that passes `expectSrc: true`; any other name throws, and so does GRUGOPS_SRC on a call
+ *     without the opt-in, before anything runs. The script word must be install.js or uninstall.js of this checkout;
  *   - the environment is this process's with GRUGOPS_HOME, GRUGOPS_SRC, INSTALL_MODE, TARGET and DRY_RUN removed, HOME
  *     set to the required scratch `home` (a command with no GRUGOPS_HOME prefix uses `$HOME/.grugops`, so the real HOME
  *     is never inherited), and the printed assignments added;
  *   - the working directory is `cwd` or a fresh scratch directory under the OS temp directory (removed afterwards);
  *     it throws when that directory is the checkout root or inside it.
- * The command is run with this Node binary. The result carries its premise (the cwd, and the GRUGOPS_HOME the child
- * saw), which the tests assert.
+ * The command is run with this Node binary. The result carries its premise (the cwd, and the GRUGOPS_HOME and
+ * GRUGOPS_SRC the child saw), which the tests assert.
+ *
+ * WHY `expectSrc` IS AN OPT-IN (plan 34.1-37, D-36, review WR-23). A printed command carries `GRUGOPS_SRC=<dir>` only
+ * when the run used a kit checkout other than the running script's. Every follow-as-printed row written before that
+ * runs without the opt-in, so a command that starts carrying GRUGOPS_SRC where its row does not expect it makes that
+ * row fail on this throw instead of passing with a checkout nobody asked for. Only a row that sets up another checkout
+ * on purpose (the WR-23 case, R40) passes `expectSrc: true`. The test process's own GRUGOPS_SRC never reaches the
+ * child either way.
  */
-export function runPrintedCommand(text: string, opts: { readonly home: string; readonly timeoutMs?: number; readonly cwd?: string }): PrintedRun {
+export function runPrintedCommand(
+  text: string,
+  opts: { readonly home: string; readonly timeoutMs?: number; readonly cwd?: string; readonly expectSrc?: boolean },
+): PrintedRun {
   if (typeof opts.home !== "string" || opts.home === "") throw new Error("runPrintedCommand: a scratch home is required");
   const span = printedCommand(text);
   const words = shellWords(span);
@@ -535,7 +555,12 @@ export function runPrintedCommand(text: string, opts: { readonly home: string; r
   for (const w of words.slice(0, at)) {
     const eq = w.indexOf("=");
     const name = w.slice(0, eq);
-    if (name !== "GRUGOPS_HOME") throw new Error(`runPrintedCommand: the printed command sets ${name}, not only GRUGOPS_HOME: ${span}`);
+    if (name === "GRUGOPS_SRC" && opts.expectSrc !== true) {
+      throw new Error(`runPrintedCommand: the printed command sets GRUGOPS_SRC, and this call did not opt in with expectSrc: true: ${span}`);
+    }
+    if (name !== "GRUGOPS_HOME" && name !== "GRUGOPS_SRC") {
+      throw new Error(`runPrintedCommand: the printed command sets ${name}, not only GRUGOPS_HOME (and GRUGOPS_SRC on an opt-in call): ${span}`);
+    }
     assigned[name] = w.slice(eq + 1);
   }
   const script = words[at + 1];
@@ -563,7 +588,7 @@ export function runPrintedCommand(text: string, opts: { readonly home: string; r
       error: r.error,
       stdout: r.stdout ?? "",
       stderr: r.stderr ?? "",
-      premise: { cwd, grugopsHome: env.GRUGOPS_HOME },
+      premise: { cwd, grugopsHome: env.GRUGOPS_HOME, grugopsSrc: env.GRUGOPS_SRC },
     };
   } finally {
     if (made) rmSync(cwd, { recursive: true, force: true });

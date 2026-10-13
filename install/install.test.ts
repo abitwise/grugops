@@ -1372,6 +1372,81 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
   });
 
+  // WR-23 (phase 34.1 gap round 3, D-36; brief §5, MSG-1): with GRUGOPS_SRC set to another kit checkout S, the doctor
+  // compares the adapters against a render of S, so its remedy must render from S too. The context carries `src` (null
+  // when it equals the running script's checkout), and the printed command starts `GRUGOPS_SRC=<S>`. The row is
+  // builder-independent: it reads the WARN's checkout paths and the span's words off the printed line, runs the span as
+  // printed from outside the checkout with GRUGOPS_SRC set only by the printed text (runPrintedCommand's `expectSrc`
+  // opt-in), and then re-checks against S.
+  //
+  // Staleness setup (plan 34.1-37, recorded in its SUMMARY): install from this repository, then `--check` with S. S is
+  // a copy of this checkout's kit inputs (copyCheckoutWithEditedRole) whose Orchestrator role has another `## One job`
+  // sentence, so S renders grugops-orchestrator.md differently from this checkout. makeSyntheticSrc() could not serve:
+  // its render inputs are copies of this repository's (no stale verdict), and its kit has no workflows/ (installed from
+  // it, the doctor FAILs the kit cross-check and never reaches the staleness block); both measured at execution.
+  // Because S's render differs from this checkout's, a remedy that rendered from this checkout would leave the adapter
+  // stale against S, and the kit it copied would not carry S's role text.
+  function copyCheckoutWithEditedRole(): { src: string; role: string } {
+    const src = realpathSync(mkTmp());
+    for (const rel of ["agent-factory", ".claude", "AGENTS.md", "scripts/runnable-ref", ...SYNTH_GENERATOR_TWINS]) {
+      cpSync(join(REPO_ROOT, ...rel.split("/")), join(src, ...rel.split("/")), { recursive: true });
+    }
+    const rolePath = join(src, "agent-factory", "roles", "orchestrator.md");
+    const before = readFileSync(rolePath, "utf8");
+    const after = before.replace(/(## One job\n)(\S)/, "$1In checkout S: $2");
+    expect(after, "premise: the Orchestrator role of the copy has a `## One job` sentence to change").not.toBe(before);
+    writeFileSync(rolePath, after);
+    return { src, role: after };
+  }
+
+  it("WR-23 (D-36): with GRUGOPS_SRC set to another checkout, the stale-adapter remedy renders from the checkout it compared", () => {
+    const { src, role } = copyCheckoutWithEditedRole();
+    // PREMISE: S is another checkout from the running script's, by spelling and by realpath, and the test process does
+    // not itself set GRUGOPS_SRC to S (so only the printed text can give it to the child).
+    expect(pathText(src), "premise: S is this checkout by its spelling").not.toBe(pathText(REPO_ROOT));
+    expect(realpathSync(src), "premise: S is this checkout by realpath").not.toBe(realpathSync(REPO_ROOT));
+    expect(pathText(process.env.GRUGOPS_SRC ?? ""), "premise: the test process sets GRUGOPS_SRC to S").not.toBe(pathText(src));
+    const target = realpathSync(makeFixture());
+    const home = realpathSync(mkTmp());
+    const userHome = realpathSync(mkTmp());
+    expect(runInstall(target, home).status).toBe(0);
+    expect(installedAdapters(target).length).toBe(17);
+    // PREMISE: against this checkout the install is current, so the verdict below is S's difference.
+    expect(runCheck(target, home).stdout.includes("stale adapter"), "premise: stale against this checkout").toBe(false);
+
+    const bare = runCheck(target, home, { src });
+    const warn = bare.stdout.split("\n").filter((l) => l.includes("stale adapter(s) under"));
+    expect(warn.length, `premise: one stale-adapter WARN line\n${bare.stdout}`).toBe(1);
+    // One checkout, spelled once: every "checkout at <path>" in the WARN (the one compared, and the one the remedy
+    // renders from) names S.
+    const checkouts = [...warn[0].matchAll(/checkout at (\S+?)[.,]?(?=\s|$)/g)].map((m) => pathText(m[1]));
+    expect(warn[0], "the WARN does not say which checkout it compared").toContain("kit checkout at ");
+    expect(warn[0], "the WARN does not say which checkout the remedy renders from").toContain("renders from the checkout at ");
+    expect(checkouts.length, `the WARN names fewer than two checkout paths\n${warn[0]}`).toBeGreaterThanOrEqual(2);
+    expect([...new Set(checkouts)], `the WARN names more than one checkout\n${warn[0]}`).toEqual([pathText(src)]);
+    // The span's words, read off the printed line.
+    const words = shellWords(printedCommand(warn[0]));
+    expect(words[0], "the span does not set the kit home this run used").toBe(`GRUGOPS_HOME=${home}`);
+    expect(words[1], "the span does not set the checkout the doctor compared").toBe(`GRUGOPS_SRC=${src}`);
+    expect(words[2], "the span's interpreter word").toBe("node");
+    expect(words[3], "the span's script word is not the absolute install.js of this checkout").toBe(join(REPO_ROOT, "install", "install.js"));
+    expect(words.slice(4).join(" "), "the span's arguments: the target only, no agent flag and no mode").toBe(`--target ${target}`);
+
+    const fin = runPrintedCommand(warn[0], { home: userHome, timeoutMs: 180_000, expectSrc: true });
+    expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
+    expect(fin.premise.grugopsSrc, "premise: the child saw no GRUGOPS_SRC").toBeDefined();
+    expect(pathText(fin.premise.grugopsSrc ?? ""), "premise: the child's GRUGOPS_SRC is not the printed S").toBe(pathText(src));
+    expect(fin.premise.grugopsHome, "premise: the kit home is the one the printed text sets").toBe(home);
+    expect(fin.status, fin.stdout + fin.stderr).toBe(0);
+    // The remedy rendered from S: the kit it copied carries S's role text.
+    expect(readFileSync(join(home, "agent-factory", "roles", "orchestrator.md"), "utf8"), "the printed remedy copied the kit from another checkout than S").toBe(role);
+
+    const after = runCheck(target, home, { src });
+    expect(`names a stale adapter: ${after.stdout.includes("stale adapter")}`, after.stdout).toBe("names a stale adapter: false");
+    expect(after.stdout, "the re-check reached no staleness verdict").not.toContain("NO VERDICT");
+    expect(after.stdout).toContain("ALL CHECKS PASSED");
+  });
+
   it("doctor: a --check run over a STALE target leaves the target byte-identical (T-29.2-10)", () => {
     const target = makeFixture();
     const home = mkTmp();

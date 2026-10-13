@@ -2294,6 +2294,11 @@ const MARKER_READ = readInstallMarker(TARGET);
 // DEFAULT_KIT_HOME is `~/.grugops` under this run's home directory, in the one spelling. The two unusable-marker
 // verifies below name contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME), the kit home their printed install step copies
 // the kit into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
+// The kit checkout (plan 34.1-37, D-36, review WR-23): `src` is this run's GRUGOPS_SRC and `checkout` this script's own
+// checkout, both in the one spelling; the marker records no checkout, so `src` always comes from the run. When they
+// differ, every command this run prints carries `GRUGOPS_SRC=<src>` (host-tools.ts scriptCommand): an uninstall command
+// because this binary's report of files grugops did not record reads the kit source (GRUGOPS_SRC), so a re-run reports
+// against the same checkout this run did, and an install command because install renders from it.
 const GIVEN_KIT_HOME = process.env.GRUGOPS_HOME;
 const DEFAULT_KIT_HOME = canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const COMMAND_CONTEXT = commandContextFromRecord(MARKER_READ, {
@@ -2301,6 +2306,8 @@ const COMMAND_CONTEXT = commandContextFromRecord(MARKER_READ, {
     kitHome: GIVEN_KIT_HOME && GIVEN_KIT_HOME.trim() ? canonicalPathSpelling(resolve(GIVEN_KIT_HOME)) : DEFAULT_KIT_HOME,
     defaultKitHome: DEFAULT_KIT_HOME,
     symlink: false,
+    src: canonicalPathSpelling(GRUGOPS_SRC),
+    checkout: canonicalPathSpelling(resolve(SCRIPT_DIR, "..")),
 });
 const MARKER = MARKER_READ.state === "unbound" ? { state: "unreadable", marker: null, why: MARKER_READ.why, jsonObject: true } : MARKER_READ;
 const LEDGER = readLedger(MARKER.state === "ok" ? MARKER.marker : null);

@@ -492,12 +492,18 @@ const DOCTOR_MARKER_READ: InstallMarkerRead | null = CHECK ? readInstallMarker(T
 // DEFAULT_KIT_HOME is `~/.grugops` under this run's home directory, in the one spelling. The doctor's unbound-marker
 // WARN names contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME), the kit home its printed install step copies the kit
 // into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
+// The kit checkout (plan 34.1-37, D-36, review WR-23): `src` is this run's GRUGOPS_SRC and `checkout` this script's own
+// checkout, both in the one spelling. When they differ, every printed command carries `GRUGOPS_SRC=<src>`, so the
+// doctor's stale-adapter remedy renders from the checkout the doctor compared, and an install's printed commands use
+// the checkout the install used. The marker records no checkout, so this always comes from the run.
 const DEFAULT_KIT_HOME = canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
   scriptDir: canonicalPathSpelling(SCRIPT_DIR),
   kitHome: GRUGOPS_HOME,
   defaultKitHome: DEFAULT_KIT_HOME,
   symlink: INSTALL_MODE === "symlink",
+  src: canonicalPathSpelling(GRUGOPS_SRC),
+  checkout: canonicalPathSpelling(resolve(SCRIPT_DIR, "..")),
 });
 
 // THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
@@ -2372,13 +2378,18 @@ function doctor(): number {
           if (absent.length > 0) {
             parts.push(`${absent.length} absent from the target: ${absent.join(", ")}`);
           }
+          // ONE CHECKOUT (plan 34.1-37, D-36, review WR-23). The render compared above is of GRUGOPS_SRC, and the
+          // remedy renders from the same checkout: doctorInstallCommand's context carries `GRUGOPS_SRC=<dir>` when it
+          // is not this script's own checkout (host-tools.ts scriptCommand). So both places name that one checkout, in
+          // the one spelling (canonicalPathSpelling).
+          const comparedCheckout = canonicalPathSpelling(GRUGOPS_SRC);
           docWarn(
             `stale adapter(s) under ${join(TARGET, ".claude", "agents")} — ${parts.join("; ")}. ` +
               `Each was byte-compared, whole file, against a fresh render of the kit checkout at ` +
-              `${GRUGOPS_SRC}, materialized exactly the way an install would materialize it — so ` +
+              `${comparedCheckout}, materialized exactly the way an install would materialize it — so ` +
               `what differs here is what a re-run would change. That checkout is a DIFFERENT root ` +
               `from the installed kit at ${KIT_ROOT} the version line reports on, and the remedy is ` +
-              `\`${doctorInstallCommand()}\`, which renders from the checkout at ${resolve(SCRIPT_DIR, "..")}`,
+              `\`${doctorInstallCommand()}\`, which renders from the checkout at ${comparedCheckout}, the one compared here`,
           );
         }
       });
