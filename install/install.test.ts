@@ -10215,8 +10215,12 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
         // Red-team B2 of plan 33.1-33: a kitVersion that is not a string is not a value install writes,
         // so the marker is not install's own (the one reader, readInstallMarker). Install leaves it byte
         // for byte and writes no marker over it; the run is still refused (exit 3) and claims nothing.
+        // Plan 34.1-33 (D-35, 34.1 review CR-04): its install ledger is still well formed, so install-marker.ts
+        // markerRemedy keeps it install's record with a field to fix by hand, and the skipped line no longer says it is
+        // not install's.
         expect(m.kitVersion, r.stdout).toEqual(bad);
-        expect(r.stdout).toMatch(/^ {2}skipped\s+\.grugops\/install\.json \(left unchanged — it is a JSON object that is not install's marker/m);
+        expect(r.stdout).toMatch(/^ {2}skipped\s+\.grugops\/install\.json \(left unchanged — a field in it holds a value install never writes, while its install ledger is still the record of every agent installed here/m);
+        expect(r.stdout).not.toMatch(/^ {2}skipped\s+\.grugops\/install\.json .*not install's/m);
       }
       if (bad === 5) {
         const c = run(src, target, home, ["--check"]);

@@ -5412,12 +5412,16 @@ function writeMarker(): void {
   const previousMarker = readInstallMarker(TARGET);
   // WR-05: a marker that exists but cannot be read holds records this run cannot see. Overwriting it
   // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
+  // D-35 (34.1 review CR-04): when install-marker.ts markerRemedy finds a well-formed install ledger in it, the marker
+  // is still install's record with a field to fix by hand, so the line never calls it "not install's".
   if (previousMarker.state === "unreadable") {
     report(
       "skipped",
-      previousMarker.jsonObject
-        ? `${markerRel} (left unchanged — it is a JSON object that is not install's marker, so it is not install's to replace; see the verify line above)`
-        : `${markerRel} (left unchanged — it could not be read; see the verify line above)`,
+      markerRemedy(previousMarker, "install").ledgerWellFormed
+        ? `${markerRel} (left unchanged — a field in it holds a value install never writes, while its install ledger is still the record of every agent installed here; see the verify line above)`
+        : previousMarker.jsonObject
+          ? `${markerRel} (left unchanged — it is a JSON object that is not install's marker, so it is not install's to replace; see the verify line above)`
+          : `${markerRel} (left unchanged — it could not be read; see the verify line above)`,
     );
     return;
   }
@@ -6703,11 +6707,15 @@ function writeAskRules(): AskRulesOutcome {
   // cannot tell a rule an earlier install added from the user's own identical rule, so it adds no
   // rule, relabels none, and leaves the ledger as it found it. A ledger with no ask-rules entry, or no
   // marker at all, is not a defect: nothing was recorded.
+  // The remedy is install-marker.ts markerRemedy's (D-35, 34.1 review CR-04): a marker whose install ledger is still
+  // well formed is fixed by hand and never removed (markerFixText); only a marker with no usable ledger may be removed.
   const previousMarker = readInstallMarker(TARGET);
   if (previousMarker.state === "unreadable") {
+    const remedy = markerRemedy(previousMarker, "install");
     verify(
       `.grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — no ask rule ` +
-        `was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.`,
+        `was added to ${rel} and the marker was left as it was. ` +
+        (remedy.mayRemove ? `Fix or remove the marker, then re-run the installer.` : `${markerFixText(remedy)}; then re-run the installer.`),
     );
     return ASK_REFUSED;
   }
@@ -6947,11 +6955,14 @@ function askRulesStep(): AskRulesOutcome {
     ASK_RULES_RAN = true;
     return writeAskRules();
   }
+  // The same remedy as writeAskRules', from install-marker.ts markerRemedy (D-35, 34.1 review CR-04).
   const previousMarker = readInstallMarker(TARGET);
   if (previousMarker.state === "unreadable") {
+    const remedy = markerRemedy(previousMarker, "install");
     verify(
       `.grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — the marker was ` +
-        `left as it was. Fix or remove the marker, then re-run the installer.`,
+        `left as it was. ` +
+        (remedy.mayRemove ? `Fix or remove the marker, then re-run the installer.` : `${markerFixText(remedy)}; then re-run the installer.`),
     );
   }
   report("skipped", "Claude Code ask rules (Claude Code is not chosen in this run; .claude/settings.json is left as it is)");
