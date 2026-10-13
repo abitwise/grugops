@@ -155,6 +155,7 @@ import {
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 import { USER_FILE_MAX_BYTES } from "./user-file.js";
 import { memberNamed, readJsonText } from "./json-text.js";
+import { skipLine, stageShapeOrSkip, type SkipEntry } from "../scripts/check-platform-shapes.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-agents-record-")));
@@ -2570,8 +2571,11 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       readonly name: string;
       /** The marker file's bytes, from the scratch target's real path; null writes no file. */
       readonly bytes: ((here: string) => Buffer) | null;
-      /** Plants something other than a file at the marker path (the row's bytes are then null). */
-      readonly plant?: (target: string) => void;
+      /**
+       * Plants something other than a file at the marker path (the row's bytes are then null). A plant that stages a
+       * platform shape returns the skip entry when this host cannot construct it (DI-21), and null when it did.
+       */
+      readonly plant?: (target: string) => SkipEntry | null | void;
       readonly state: InstallMarkerRead["state"];
       /** For an `unreadable` row: whether readInstallMarker parsed a JSON object. */
       readonly object?: boolean;
@@ -2601,13 +2605,14 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
           state: "unreadable",
           object: false,
         },
-        // A FIFO at the marker path (plan 34.1-44): readForWrite refuses it without opening it, so nothing blocks.
+        // A FIFO at the marker path (plan 34.1-44): readForWrite refuses it without opening it, so nothing blocks. Staged
+        // through the corpus constructor (DI-21), so a host that cannot make a FIFO prints a counted skip.
         {
           name: "a FIFO at the marker path",
           bytes: null,
           plant: (t) => {
             mkdirSync(join(t, ".grugops"));
-            execFileSync("mkfifo", [at(t, MARKER_REL)]);
+            return stageShapeOrSkip("FIFO", at(t, MARKER_REL), "markerRemedy unit table, a FIFO at the marker path");
           },
           state: "unreadable",
           object: false,
@@ -2650,13 +2655,21 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
     expect(Object.keys(BY_DEFECT).sort(), "the table's keys are MARKER_DEFECTS").toEqual([...MARKER_DEFECTS].sort());
     for (const d of MARKER_DEFECTS) expect(BY_DEFECT[d].length, `the defect ${d} has no shape`).toBeGreaterThan(0);
 
-    const readOf = (s: Shape): InstallMarkerRead => {
+    // The shapes this host could not construct (DI-21): each printed as a counted skip, and only ever a FIFO.
+    const platformSkips: SkipEntry[] = [];
+    /** The shape's read, or null when its plant could not construct the shape on this host (printed, counted). */
+    const readOf = (s: Shape): InstallMarkerRead | null => {
       const target = realpathSync(mkdtempSync(join(SCRATCH, "unit-remedy-")));
       if (s.bytes !== null) {
         mkdirSync(join(target, ".grugops"));
         writeFileSync(at(target, MARKER_REL), s.bytes(target));
       }
-      s.plant?.(target);
+      const skip = s.plant?.(target);
+      if (skip !== undefined && skip !== null) {
+        platformSkips.push(skip);
+        console.log(skipLine(skip, "the directory-at-the-marker-path row of the reader-state matrix (the same not-a-regular-file refusal)"));
+        return null;
+      }
       const read = readInstallMarker(target);
       // The premise: the file reads as the shape the row names, through the product's reader.
       expect(read.state, `PREMISE: ${s.name} reads ${s.state}${read.state === "unreadable" ? ` (${read.why})` : ""}`).toBe(s.state);
@@ -2667,12 +2680,19 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       if (read.state === "unbound") expect(read.unboundBy, `PREMISE: ${s.name}`).toBe("other-directory");
       return read;
     };
+    /** A shape with no platform plant: its read always exists. */
+    const mustRead = (s: Shape): InstallMarkerRead => {
+      const read = readOf(s);
+      if (read === null) throw new Error(`PREMISE: ${s.name} has no platform shape, yet its plant was skipped`);
+      return read;
+    };
 
     const cells: string[] = [];
     const answers: { name: string; fix: readonly string[]; text: string }[] = [];
     for (const d of MARKER_DEFECTS) {
       for (const s of BY_DEFECT[d]) {
         const read = readOf(s);
+        if (read === null) continue;
         let want: { defect: MarkerDefect; fix: readonly string[] };
         if (read.state === "unreadable") {
           // D-37: every unreadable read names its defect, a non-empty list of problems, none echoing the planted canary.
@@ -2699,7 +2719,7 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       }
     }
     for (const s of NO_REMEDY) {
-      const got = markerRemedy(readOf(s));
+      const got = markerRemedy(mustRead(s));
       if (got !== null) cells.push(`${s.name}: got ${JSON.stringify(got)}, want null`);
     }
     const shapes = MARKER_DEFECTS.reduce((n, d) => n + BY_DEFECT[d].length, 0);
@@ -2710,7 +2730,10 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
 
     // markerFixText of every answer names each of its fix entries, says by hand and never delete the marker, and offers
     // no removal. The premise: every defect shape gave an answer with a fix to name.
-    expect(answers.filter((n) => n.fix.length > 0).length, "PREMISE: answers with a fix to name").toBe(shapes);
+    // DI-21: a shape this host could not construct is a counted, printed skip, and only the FIFO shape ever is one.
+    expect(platformSkips.map((k) => k.shape), "only the FIFO shape is ever a platform skip").toEqual(platformSkips.map(() => "FIFO"));
+    expect(platformSkips.length, "at most the one FIFO row is skipped").toBeLessThanOrEqual(1);
+    expect(answers.filter((n) => n.fix.length > 0).length, "PREMISE: answers with a fix to name").toBe(shapes - platformSkips.length);
     const badText = answers
       .filter(
         (n) =>
@@ -2727,7 +2750,7 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
     // WR-26 (plan 34.1-45, D-37): a duplicate-key answer has one fix entry per duplicated key, naming the key and how many
     // times it appears; markerFixText of the agents-and-ledger row names both keys, and no duplicate-key answer claims
     // anything about the install ledger being intact (the garbage-ledger row has no ledger to claim).
-    const dupRows = BY_DEFECT["duplicate-key"].map((s) => ({ s, got: markerRemedy(readOf(s)) }));
+    const dupRows = BY_DEFECT["duplicate-key"].map((s) => ({ s, got: markerRemedy(mustRead(s)) }));
     const dupBad: string[] = [];
     for (const { s, got } of dupRows) {
       const keys = s.duplicateKeys ?? [];
@@ -3277,7 +3300,11 @@ const CONTROL_OR_REPLACEMENT = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f�]/;
 interface ReaderShape {
   readonly name: string;
   /** Turn the good marker in a reset .grugops into this shape. */
-  readonly apply: (w: World) => void;
+  /**
+   * Turn the marker into the shape. An apply that stages a platform shape returns the skip entry when this host cannot
+   * construct it (DI-21), and null when it did; the matrix then prints a counted skip for the shape.
+   */
+  readonly apply: (w: World) => SkipEntry | null | void;
   /** Undo what apply did that a later reset cannot (a mode); run in a `finally`. */
   readonly undo?: (w: World) => void;
   /** Skip with a printed reason where a mode does not stop a read (win32, root). */
@@ -3308,9 +3335,10 @@ const READER_STATES: Readonly<Record<MarkerDefect, readonly ReaderShape[]>> = {
     },
     {
       name: "a FIFO at the marker path",
+      // Staged through the corpus constructor (DI-21), so a host that cannot make a FIFO prints a counted skip.
       apply: (w) => {
         rmSync(markerPath(w));
-        execFileSync("mkfifo", [markerPath(w)]);
+        return stageShapeOrSkip("FIFO", markerPath(w), "reader-state matrix, a FIFO at the marker path");
       },
     },
     {
@@ -3465,15 +3493,17 @@ const removalOffers = (r: Run): string[] => allLines(r).filter((l) => DELETE_MAR
  * check the premise (the read's state and defect, and markerRemedy's fix), run, undo, and collect every broken rule.
  * Returns the findings and the number of cells run.
  */
-function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; skipped: string[] } {
+function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; skipped: string[]; platformSkips: SkipEntry[] } {
   const w = world(`matrix-${defect}`);
   install(w, [flag("claude"), flag("codex")]);
   const files = grugopsFiles(w);
   expect(files.has("install.json"), "PREMISE: install wrote the marker").toBe(true);
   const findings: string[] = [];
   const skipped: string[] = [];
+  // The shapes this host could not construct (DI-21): printed as a counted skip, never run.
+  const platformSkips: SkipEntry[] = [];
   let cells = 0;
-  for (const shape of READER_STATES[defect]) {
+  shapes: for (const shape of READER_STATES[defect]) {
     if (shape.chmodGated === true && CHMOD_SKIP !== null) {
       skipped.push(`${defect} / ${shape.name}: ${CHMOD_SKIP}`);
       console.log(`SKIP the matrix shape ${defect} / ${shape.name} — ${CHMOD_SKIP}`);
@@ -3487,7 +3517,12 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
       let before: string;
       let after: string;
       let fix: readonly string[];
-      shape.apply(w);
+      const staged = shape.apply(w);
+      if (staged !== undefined && staged !== null) {
+        platformSkips.push(staged);
+        console.log(skipLine(staged, "the directory-at-the-marker-path row of this matrix (the same not-a-regular-file refusal)"));
+        continue shapes;
+      }
       try {
         const read = readInstallMarker(w.target);
         if (defect === "ledger") {
@@ -3522,7 +3557,7 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
     }
   }
   resetGrugops(w, files);
-  return { findings, cells, skipped };
+  return { findings, cells, skipped, platformSkips };
 }
 
 describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every shape x every printing run", () => {
@@ -3539,10 +3574,15 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
     it(
       `${defect}: every shape under every printing run names the cause and the by-hand fix, never offers removal, removes nothing and leaves the marker path as it was`,
       () => {
-        const { findings, cells, skipped } = matrixRows(defect);
+        const { findings, cells, skipped, platformSkips } = matrixRows(defect);
         const gated = READER_STATES[defect].filter((s) => s.chmodGated === true).length;
         expect(skipped.length, "only the gated mode 000 shape is ever skipped").toBe(CHMOD_SKIP === null ? 0 : gated);
-        expect(cells, `PREMISE: ${defect}: the cells run`).toBe((READER_STATES[defect].length - skipped.length) * PRINTING_RUNS.length);
+        // DI-21: a shape this host could not construct is a counted, printed skip, and only the FIFO shape ever is one.
+        expect(platformSkips.map((k) => k.shape), "only the FIFO shape is ever a platform skip").toEqual(platformSkips.map(() => "FIFO"));
+        expect(platformSkips.length, "at most the one FIFO shape is a platform skip").toBeLessThanOrEqual(1);
+        expect(cells, `PREMISE: ${defect}: the cells run`).toBe(
+          (READER_STATES[defect].length - skipped.length - platformSkips.length) * PRINTING_RUNS.length,
+        );
         expect(findings, `${defect}: a cell breaks D-37`).toEqual([]);
       },
       300_000,

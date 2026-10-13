@@ -369,7 +369,9 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-21: two agents-record.test.ts rows spawn mkfifo directly, which the mkfifo census in scripts/uat-gate-exit-contract.test.ts refuses
 
-- status: open (for the human; no round 5)
+- status: resolved 2026-10-13 by the commit "fix(34.1): stage the reader-state FIFO shapes through stageShapeOrSkip
+  (DI-21)" (a commit cannot carry its own sha): both rows now stage the FIFO through stageShapeOrSkip, which returns a
+  printed, counted skip on a host that cannot make one; the census stays unedited and green.
 - **Found during:** plan 34.1-50, a full `npx vitest run --exclude '**/scripts/e2e/**'` started after Task 3 (it was
   stopped at its 25-minute timeout, so this is not a complete suite result; the complete run is plan 34.1-52's).
 - **What:** `scripts/uat-gate-exit-contract.test.ts` "NO test module spawns mkfifo itself, and the ONE spawn in the
