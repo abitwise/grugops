@@ -24,7 +24,9 @@
 //   - the unusable-marker remedies, followed as printed (D-33, WR-20): R25 (plan 34.1-25, a moved target, --codex),
 //     R26 (plan 34.1-26, a moved target, flag-less, with the no-agent-flag clause), R27 (plan 34.1-26, a marker with no
 //     install ledger, --codex and flag-less) and R34 (plan 34.1-26, a moved `--symlink` install); and R28 (plan
-//     34.1-26, D-31, IN-27): over a marker the run cannot use, which agents are installed is unknown, not "none";
+//     34.1-26, D-31, IN-27): over a marker the run cannot use, which agents are installed is unknown, not "none".
+//     Plan 34.1-36 (D-36, review WR-22) reshapes R25 and R34 to "nothing from an `unbound` marker reaches a printed
+//     command" and adds R39 (a cloned repository's marker naming another person's kit home, against both binaries);
 //   - the marker-writer census, by the TypeScript parser: every call of the target write chokepoints (install.ts
 //     writeTargetFile, uninstall.ts rewritePath and unlinkPath; installer-fs-census.test.ts rows
 //     `install.ts:writeTargetFile:writeFileSync`, `uninstall.ts:rewritePath:writeFileSync` and
@@ -948,20 +950,27 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
 // multi-step remedy end to end. When uninstall cannot use the marker because it is another directory's record (the
 // repository was moved), the verify's second remedy is two printed commands: the install command with this run's own
 // agents (reinstallCommand), then this run's own uninstall command (rerunCommand). R25 is the verifier's S3 with the
-// WR-19 condition added (no GRUGOPS_HOME in the uninstall run, the marker's kit home is not the default): it follows
-// both steps as printed and asserts the branch the run takes. Install leaves the old Codex skill untouched and does
-// not record it; the second uninstall names it on a `left` line (uninstall.ts reportUnrecordedHostEntries) and keeps
-// its bytes, which is what the remedy says ("left and reported"). Plan 34.1-26 adds R26 (the flag-less form, whose
-// install step carries uninstall.ts NO_FLAG_INSTALL_CLAUSE), R27 (the no-target or no-ledger verify, which prints the
-// same two steps), R28 (IN-27: the agents line, the per-flag note and the banner say the installed set is unknown) and
-// R34 (a `--symlink` install's remedy keeps `--symlink` and the marker's kit home, run as printed).
+// marker's kit home not the default: it follows both steps as printed and asserts the branch the run takes. Install
+// leaves the old Codex skill untouched and does not record it; the second uninstall names it on a `left` line
+// (uninstall.ts reportUnrecordedHostEntries) and keeps its bytes, which is what the remedy says ("left and reported").
+// Plan 34.1-26 adds R26 (the flag-less form, whose install step carries uninstall.ts NO_FLAG_INSTALL_CLAUSE), R27 (the
+// no-target or no-ledger verify, which prints the same two steps), R28 (IN-27: the agents line, the per-flag note and
+// the banner say the installed set is unknown) and R34 (a `--symlink` install's remedy, run as printed).
+// D-36 (plan 34.1-36, review WR-22): the install step takes nothing from the unusable marker. Its kit home is the
+// uninstall run's (the GRUGOPS_HOME it was given, else the default) and it is a copy-mode install, because an
+// uninstall run has no install mode; R25 and R34 are reshaped to that rule, and R39 is WR-22's reproduction (a cloned
+// repository's marker naming another person's kit home), run against both binaries.
 
 /** The `left` lines of a run that name `rel` as the path. */
 const leftLinesNaming = (stdout: string, rel: string): string[] =>
   linesWith(stdout, "left").filter((l) => l.replace(/^ {2}left\s+/, "").startsWith(`${rel} (`));
 
 describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => {
-  it("R25 (WR-20): install --claude --codex with kit home K, move the target, uninstall --codex with no GRUGOPS_HOME prints the install command with --codex and K, then the uninstall command; run as printed, the second uninstall reports the old Codex skill on a `left` line and keeps its bytes, and no kit appears under HOME", () => {
+  // R25 (plan 34.1-25, D-33; reshaped by plan 34.1-36 to D-36, review WR-22): the moved marker is another directory's
+  // record, so its kit home K never reaches a printed command. The first uninstall run, given no GRUGOPS_HOME, prints an
+  // install command with no kit home (not followed: it would install from the default kit home). The second, given
+  // GRUGOPS_HOME=K, prints the install command with K; both steps are followed as printed.
+  it("R25 (WR-20, D-36): install --claude --codex with kit home K, move the target; uninstall --codex with no GRUGOPS_HOME prints an install command with no kit home (not K: the moved marker is another directory's record); with GRUGOPS_HOME=K it prints the install command with --codex and K, then the uninstall command; run as printed, the second uninstall reports the old Codex skill on a `left` line and keeps its bytes, and no kit appears under HOME", () => {
     const w = world("r25");
     const K = join(dirname(w.home), "kit-k");
     const defaultKit = join(w.home, ".grugops");
@@ -977,22 +986,36 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     const skill = at(b, AGENT_SKILL_REL);
     expect(existsSync(skill), "premise: the moved target holds the Codex skill").toBe(true);
     const skillBytes = readFileSync(skill);
+    const movedVerify = (r: Run): string => {
+      const verifies = linesWith(r.stdout, "verify").filter((l) => l.includes(".grugops/install.json") && l.includes("not this directory's record"));
+      expect(verifies.length, r.stdout).toBe(1);
+      expect(r.stdout, "the remedy no longer says any agent flag will do").not.toMatch(/any agent flag/);
+      return verifies[0];
+    };
+    const installSpansOf = (v: string): string[] =>
+      printedCommands(v).filter((c) => shellWords(c).some((x) => isAbsolute(x) && pathText(x) === pathText(INSTALL_JS)));
 
-    const r = runUninstall(b, K, { home: w.home, omitKitHome: true, timeoutMs: 120_000 }, [flag("codex")]);
-    finished(r, "uninstall --codex in the moved target with no GRUGOPS_HOME");
+    // First run, no GRUGOPS_HOME: the moved marker's K is another directory's record and never reaches the command.
+    const r0 = runUninstall(b, K, { home: w.home, omitKitHome: true, timeoutMs: 120_000 }, [flag("codex")]);
+    finished(r0, "uninstall --codex in the moved target with no GRUGOPS_HOME");
+    expect(r0.status, r0.stdout).toBe(3);
+    const spans0 = installSpansOf(movedVerify(r0));
+    expect(spans0.length, `the verify names one install command\n${r0.stdout}`).toBe(1);
+    expect(shellWords(spans0[0]).filter((x) => x.startsWith("GRUGOPS_HOME=")), `the install command carries a kit home from the moved marker: ${spans0[0]}`).toEqual([]);
+
+    // Second run, GRUGOPS_HOME=K given: the install command carries this run's kit home.
+    const r = runUninstall(b, K, { home: w.home, timeoutMs: 120_000 }, [flag("codex")]);
+    finished(r, "uninstall --codex in the moved target with GRUGOPS_HOME=K");
     expect(r.status, r.stdout).toBe(3);
-    const verifies = linesWith(r.stdout, "verify").filter((l) => l.includes(".grugops/install.json") && l.includes("not this directory's record"));
-    expect(verifies.length, r.stdout).toBe(1);
-    const v = verifies[0];
-    expect(r.stdout, "the remedy no longer says any agent flag will do").not.toMatch(/any agent flag/);
+    const v = movedVerify(r);
     const cmds = printedCommands(v);
     expect(cmds.length, `premise: the verify printed commands\n${v}`).toBeGreaterThan(0);
     // Builder-independent facts about the install step first: the expected side below is built by the builder under test.
-    const installSpans = cmds.filter((c) => shellWords(c).some((x) => isAbsolute(x) && pathText(x) === pathText(INSTALL_JS)));
+    const installSpans = installSpansOf(v);
     expect(installSpans.length, `the verify names one install command\n${v}`).toBe(1);
     const iw = shellWords(installSpans[0]);
     expect(iw[0].startsWith("GRUGOPS_HOME="), `the install command carries no kit home: ${installSpans[0]}`).toBe(true);
-    expect(pathText(iw[0].slice("GRUGOPS_HOME=".length)), `the install command's kit home is not the marker's: ${installSpans[0]}`).toBe(pathText(K));
+    expect(pathText(iw[0].slice("GRUGOPS_HOME=".length)), `the install command's kit home is not the run's: ${installSpans[0]}`).toBe(pathText(K));
     expect(iw[1], `the install command's second word is not node: ${installSpans[0]}`).toBe("node");
     expect(isAbsolute(iw[2]) && pathText(iw[2]) === pathText(INSTALL_JS), `the install script is not this checkout's install.js by its absolute path: ${installSpans[0]}`).toBe(true);
     expect(iw, `the install command does not name this run's agent: ${installSpans[0]}`).toContain("--codex");
@@ -1178,10 +1201,13 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     }
   }, 900_000);
 
-  // R34 (plan 34.1-26, D-33, the install mode; the plan check's symlink finding, uninstall side): after a `--symlink`
-  // install, the moved-target remedy's install command carries `--symlink` and the marker's kit home, and run as
-  // printed it keeps the install a symlink install with that kit home.
-  it("R34 (D-33, --symlink): install --symlink --codex with kit home K, move the target, uninstall --codex with no GRUGOPS_HOME prints an install command with GRUGOPS_HOME=K and --symlink; run as printed it exits 0 and the new marker records installMode symlink and kit home K", () => {
+  // R34 (plan 34.1-26, D-33, the install mode; reshaped by plan 34.1-36 to D-36, review WR-22): after a `--symlink`
+  // install with kit home K, the target moves. The moved marker is another directory's record, so neither its kit home
+  // nor its install mode reaches the printed install command, and an uninstall run has no install mode: the install step
+  // is a copy-mode install with the kit home the uninstall run was given (GRUGOPS_HOME=K here). Plan 34.1-36 Task 1 step
+  // 0 ran that step over a moved `--symlink` install before any edit and observed one outcome, arm (i): exit 0, the
+  // marker records installMode copy and grugopsHome K, and no kit under HOME. This row pins that outcome only.
+  it("R34 (D-33, D-36, --symlink): install --symlink --codex with kit home K, move the target, uninstall --codex with GRUGOPS_HOME=K prints an install command with GRUGOPS_HOME=K and no --symlink (the moved marker's install mode is another directory's record); run as printed it exits 0, the new marker records installMode copy and kit home K, and no kit appears under HOME", () => {
     const w = world("r34");
     const K = join(dirname(w.home), "kit-k");
     const i = runInstall(w.target, K, ["--symlink", flag("codex")], { home: w.home, timeoutMs: 180_000 });
@@ -1193,8 +1219,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     renameSync(w.target, b);
     const moved: World = { ...w, target: b };
 
-    const r = runUninstall(b, K, { home: w.home, omitKitHome: true, timeoutMs: 120_000 }, [flag("codex")]);
-    finished(r, "uninstall --codex in the moved target with no GRUGOPS_HOME");
+    const r = runUninstall(b, K, { home: w.home, timeoutMs: 120_000 }, [flag("codex")]);
+    finished(r, "uninstall --codex in the moved target with GRUGOPS_HOME=K");
     expect(r.status, r.stdout).toBe(3);
     const verifies = linesWith(r.stdout, "verify").filter((l) => l.includes("not this directory's record"));
     expect(verifies.length, r.stdout).toBe(1);
@@ -1206,19 +1232,94 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     // Builder-independent facts first.
     expect(iw[0].startsWith("GRUGOPS_HOME="), `the install command carries no kit home: ${installSpans[0]}`).toBe(true);
     expect(pathText(iw[0].slice("GRUGOPS_HOME=".length)), installSpans[0]).toBe(pathText(K));
-    expect(iw, `the install command of a --symlink install does not carry --symlink: ${installSpans[0]}`).toContain("--symlink");
+    expect(iw, `the install command takes --symlink from the moved marker: ${installSpans[0]}`).not.toContain("--symlink");
     expect(iw, installSpans[0]).toContain("--codex");
-    expect(installSpans[0]).toBe(agentCommand("install.js", b, [row("codex")], commandContextFor({ grugopsHome: K, home: w.home, symlink: true })));
+    expect(installSpans[0]).toBe(agentCommand("install.js", b, [row("codex")], commandContextFor({ grugopsHome: K, home: w.home })));
 
     const step1 = runPrintedCommand("`" + installSpans[0] + "`", { home: w.home, timeoutMs: 180_000 });
     finished(step1, `the printed install command ${installSpans[0]}`);
     expect(relative(REPO_ROOT, step1.premise.cwd).startsWith(".."), `premise: the printed command ran from ${step1.premise.cwd}`).toBe(true);
     expect(pathText(String(step1.premise.grugopsHome)), "premise: the child's kit home is the printed one").toBe(pathText(K));
+    expect(existsSync(join(w.home, ".grugops")), `the printed install wrote a kit under HOME\n${step1.stdout}`).toBe(false);
+    // The one outcome plan 34.1-36 Task 1 step 0 observed (arm (i)).
     expect(step1.status, step1.stdout + step1.stderr).toBe(0);
     const after = readMarkerObject(moved.target);
-    expect(after.installMode, `the printed install did not keep a symlink install\n${step1.stdout}`).toBe("symlink");
+    expect(after.installMode, `the printed copy-mode install did not record a copy install\n${step1.stdout}`).toBe("copy");
     expect(pathText(String(after.grugopsHome)), step1.stdout).toBe(pathText(K));
-    expect(existsSync(join(w.home, ".grugops")), `the printed install wrote a kit under HOME\n${step1.stdout}`).toBe(false);
+  }, 600_000);
+
+  // R39 (plan 34.1-36, D-36, review WR-22): another directory's marker contributes nothing to a printed command. A
+  // cloned repository's marker names another person's kit home F; the uninstaller's other-directory verify used to
+  // print `GRUGOPS_HOME=<F> node .../install.js`, and disagreed with the doctor for the same marker. (a) with no
+  // GRUGOPS_HOME the uninstaller's install span carries no kit home and no word holding F; (b) the doctor's unbound
+  // WARN prints the same install span for the same marker and environment; (c) with GRUGOPS_HOME X the span carries X
+  // and not F. (a)'s span, run as printed, chooses Claude Code (detected by `.claude`), writes nothing under F, and
+  // leaves a marker for this directory with the run's default kit home.
+  it("R39 (WR-22, D-36): over another directory's marker naming a foreign kit home F, the uninstaller's printed install command carries no GRUGOPS_HOME word and no F, equals the doctor's, carries the run's own GRUGOPS_HOME when given; run as printed it exits 0 and writes nothing under F", () => {
+    const w = world("r39");
+    install(w, [flag("claude")]);
+    const root = dirname(w.target);
+    const other = join(root, "elsewhere", "target");
+    const F = join(root, "alice", ".grugops");
+    const m = readMarkerObject(w.target);
+    m.target = other;
+    m.grugopsHome = F;
+    m.kitRoot = join(F, "agent-factory");
+    writeFileSync(at(w.target, MARKER_REL), JSON.stringify(m, null, 2) + "\n");
+    const read = readInstallMarker(w.target);
+    expect(read.state, "premise: the hand-edited marker reads unbound").toBe("unbound");
+    expect(read.state === "unbound" && read.unboundBy, "premise: unbound because it names another directory").toBe("other-directory");
+    expect(existsSync(F), "premise: the foreign kit home does not exist").toBe(false);
+    const installSpanOf = (text: string): string => {
+      const spans = printedCommands(text).filter((c) => shellWords(c).some((x) => isAbsolute(x) && pathText(x) === pathText(INSTALL_JS)));
+      expect(spans.length, `the line names one install command\n${text}`).toBe(1);
+      return spans[0];
+    };
+
+    // (a) flag-less uninstall with no GRUGOPS_HOME.
+    const a = runUninstall(w.target, w.grugopsHome, { home: w.home, omitKitHome: true, timeoutMs: 120_000 });
+    finished(a, "flag-less uninstall over another directory's marker with no GRUGOPS_HOME");
+    expect(a.status, a.stdout).toBe(3);
+    const av = linesWith(a.stdout, "verify").filter((l) => l.includes("not this directory's record"));
+    expect(av.length, a.stdout).toBe(1);
+    const aSpan = installSpanOf(av[0]);
+    const aw = shellWords(aSpan);
+    expect(aw.filter((x) => x.startsWith("GRUGOPS_HOME=")), `the install command carries a kit home: ${aSpan}`).toEqual([]);
+    expect(aw.filter((x) => x.includes(pathText(F))), `a word of the install command holds the foreign kit home: ${aSpan}`).toEqual([]);
+    expect(aw[0], aSpan).toBe("node");
+
+    // (b) the doctor, same target, same environment: the same install span.
+    const b = spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, omitKitHome: true, timeoutMs: 120_000 });
+    finished(b, "--check over another directory's marker with no GRUGOPS_HOME");
+    const bw = b.stdout.split("\n").filter((l) => l.includes("WARN") && l.includes("not this directory's record"));
+    expect(bw.length, b.stdout).toBe(1);
+    expect(installSpanOf(bw[0]), "the doctor and the uninstaller print different install commands for one marker").toBe(aSpan);
+
+    // (c) GRUGOPS_HOME X given to the uninstall run: the span carries X, never F.
+    const X = join(root, "kit-x");
+    expect(pathText(X), "premise: X is not the default kit home").not.toBe(pathText(join(w.home, ".grugops")));
+    const c = runUninstall(w.target, X, { home: w.home, timeoutMs: 120_000 });
+    finished(c, "flag-less uninstall over another directory's marker with GRUGOPS_HOME X");
+    expect(c.status, c.stdout).toBe(3);
+    const cv = linesWith(c.stdout, "verify").filter((l) => l.includes("not this directory's record"));
+    expect(cv.length, c.stdout).toBe(1);
+    const cSpan = installSpanOf(cv[0]);
+    const cw = shellWords(cSpan);
+    expect(cw[0].startsWith("GRUGOPS_HOME="), `the install command does not carry the run's kit home: ${cSpan}`).toBe(true);
+    expect(pathText(cw[0].slice("GRUGOPS_HOME=".length)), cSpan).toBe(pathText(X));
+    expect(cw.filter((x) => x.includes(pathText(F))), `a word of the install command holds the foreign kit home: ${cSpan}`).toEqual([]);
+
+    // (a)'s install span, followed as printed.
+    const step = runPrintedCommand("`" + aSpan + "`", { home: w.home, timeoutMs: 180_000 });
+    finished(step, `the printed install command ${aSpan}`);
+    expect(relative(REPO_ROOT, step.premise.cwd).startsWith(".."), `premise: the printed command ran from ${step.premise.cwd}`).toBe(true);
+    expect(step.premise.grugopsHome, "premise: the printed text sets no kit home").toBeUndefined();
+    expect(step.status, step.stdout + step.stderr).toBe(0);
+    expect(step.stdout, "install did not choose Claude Code because .claude is there").toMatch(/^agents: Claude Code \(detected: \.claude\)$/m);
+    expect(existsSync(F), `the printed install wrote under the foreign kit home\n${step.stdout}`).toBe(false);
+    const after = readMarkerObject(w.target);
+    expect(pathText(String(after.target)), step.stdout).toBe(pathText(w.target));
+    expect(pathText(String(after.grugopsHome)), step.stdout).toBe(pathText(join(w.home, ".grugops")));
   }, 600_000);
 });
 

@@ -244,8 +244,8 @@ function shellWord(s) {
  * The callers spell both paths with user-file.ts canonicalPathSpelling, so the comparison is between two values in
  * the one spelling. Pure: no I/O.
  *
- * Kept for uninstall.ts until plan 34.1-36 moves it to commandContextFromRecord (phase 34.1 gap round 3, D-36, WR-22);
- * install.ts builds its context through commandContextFromRecord already.
+ * Neither binary calls it (both build their context through commandContextFromRecord, D-36); only the test support's
+ * commandContextFor does, until plan 34.1-36 Task 3 deletes it.
  */
 export function commandContext(scriptDir, kitHome, defaultKitHome, symlink = false) {
     return { scriptDir, kitHome: kitHome === defaultKitHome ? null : kitHome, symlink };
@@ -280,9 +280,10 @@ export function commandContextFromRecord(record, run) {
 /**
  * scriptCommand (D-33, WR-19; D-36): the invocation words of a printed command, before its arguments. For install.js:
  * `GRUGOPS_HOME=<kit home>` when the context's kit home is not the default, then `node`, then the absolute path of
- * install.js, then `--symlink` when the context is a symlink install. Both come from the context alone; install.ts's
+ * install.js, then `--symlink` when the context is a symlink install. Both come from the context alone; each binary's
  * context is decided by commandContextFromRecord: the values of an `ok` install record for a run that does not choose
- * its kit home itself (`install.js --check`), the run's own otherwise. For uninstall.js: `node` and the absolute path of
+ * its kit home itself (`install.js --check`), the run's own otherwise (uninstall.js, over the unusable marker it prints
+ * an install command for: its own kit home, copy mode). For uninstall.js: `node` and the absolute path of
  * uninstall.js only, whatever the context holds, because uninstall.js removes by the install record alone and never
  * reads or removes the kit (the kit home and install mode in its own COMMAND_CONTEXT word only the install commands
  * it prints), and it refuses `--symlink` as an unknown argument (exit 2).
@@ -303,9 +304,9 @@ export function scriptCommand(binary, ctx) {
  * It returns scriptCommand(binary, ctx) (so the script is printed by its absolute path and the command runs from any
  * directory), then `--target <target>`, then agentFlag(h) for each host in the order given, then each mode. An install
  * command carries `GRUGOPS_HOME=<dir>` when its context's kit home is not the default and `--symlink` when its context
- * is a symlink install (WR-19). install.ts's context is decided by commandContextFromRecord (D-36, WR-21): the kit home
- * and install mode an `ok` install record holds, for a run that does not choose its kit home itself (`install.js
- * --check`), and the run's own otherwise (uninstall.ts builds its own with commandContext until plan 34.1-36). An
+ * is a symlink install (WR-19). Each binary's context is decided by commandContextFromRecord (D-36, WR-21, WR-22): the
+ * kit home and install mode an `ok` install record holds, for a run that does not choose its kit home itself
+ * (`install.js --check`), and the run's own otherwise, never an `unbound` marker's. An
  * uninstall command carries neither, because uninstall.js removes by the
  * install record alone. The flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no
  * flag: the flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what
