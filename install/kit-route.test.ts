@@ -2837,4 +2837,29 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     expect(inv.words.slice(-1), `premise: the FAIL's last printed command is the check command: ${fails[0]}`).toEqual(["--check"]);
     expect(pathText(inv.assigned.GRUGOPS_HOME ?? ""), `the FAIL's check command does not state the run's kit home K2: ${checkSpan}`).toBe(pathText(k2));
   });
+
+  // R52c (plan 34.1-50, D-38; the WR-24 sibling the line search over doctor() missed, found by the WR-24 census in
+  // install/agents-record.test.ts): the doctor's stale-adapter compare renders each adapter through transformAdapter,
+  // which wrote this run's KIT_ROOT into the adapter's KIT= line. Under a plain --check on a Claude Code install with
+  // kit home K, every adapter then read as stale (a FAIL under --strict), and the printed re-install, which writes K's
+  // kit root, could not clear it. The doctor's render now writes the kit root the doctor reads (the recorded one).
+  it("R52c (WR-24, the stale-adapter render): a Claude Code install with kit home K, then a plain --check with no GRUGOPS_HOME prints no 'stale adapter' line and exits 0 with no FAIL; --check --strict the same", () => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    const defaultKit = join(home, ".grugops");
+    expect(pathText(row.kitHome), "premise: the kit home K is not the default <HOME>/.grugops").not.toBe(pathText(defaultKit));
+    const r = runInstall(row.target, row.kitHome, [agentFlag(claudeHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const agents = readdirSync(join(row.target, ".claude", "agents")).filter((f) => f.endsWith(".md"));
+    expect(agents.length, "premise: the install laid Claude Code adapters down, so the compare has something to compare").toBeGreaterThan(0);
+    for (const extra of [[], ["--strict"]] as const) {
+      const c = plainCheck(row.target, row.kitHome, home, extra);
+      expect(c.stdout.split(/\r?\n/).filter((l) => l.includes("stale adapter")), `--check ${extra.join(" ")}: an adapter reads as stale`).toEqual([]);
+      expect(c.stdout, `--check ${extra.join(" ")}: the staleness compare reached no verdict`).not.toContain("NO VERDICT on adapter staleness");
+      expect(failLines(c.stdout), c.stdout).toEqual([]);
+      expect(c.status, `--check ${extra.join(" ")}\n${c.stdout}${c.stderr}`).toBe(0);
+    }
+    expect(existsSync(defaultKit), "<HOME>/.grugops was created").toBe(false);
+  });
 });

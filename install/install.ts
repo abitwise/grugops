@@ -2349,7 +2349,7 @@ function doctor(): number {
             unrendered.push(name);
             continue;
           }
-          const expected = transformAdapter(renderedRead.text).text;
+          const expected = transformAdapter(renderedRead.text, DOCTOR_KIT_ROOT).text;
           const destPath = join(TARGET, ".claude", "agents", name);
           const destHazard = adapterDestHazard(destPath);
           if (destHazard !== null) {
@@ -4542,11 +4542,20 @@ interface AdapterTransform {
   readonly banners: number;
 }
 
-// transformAdapter: the PURE half of materialization. Takes a source file's text and returns the
-// final text plus the recognised banner count. It writes nothing, reads nothing off disk and
-// depends on no argument but its input and KIT_ROOT, which is what lets THREE callers share one
-// authority: the writer below, the agents loop's pre-write banner floor, and the --check doctor's
-// like-for-like staleness comparison. A second implementation of this transform anywhere would be
+// transformAdapter: the PURE half of materialization. Takes a source file's text and the kit root
+// its KIT= line names, and returns the final text plus the recognised banner count. It writes
+// nothing, reads nothing off disk and depends on nothing but its two arguments, which is what lets
+// THREE callers share one authority: the writer below (the skills plan), the agents loop's pre-write
+// banner floor, and the --check doctor's like-for-like staleness comparison.
+//
+// THE KIT ROOT IS A PARAMETER (plan 34.1-50, D-38, review WR-24). The two install callers pass
+// KIT_ROOT, install's own kit root, the one the marker it writes records. The doctor passes
+// DOCTOR_KIT_ROOT, the recorded kit root its printed commands state: it compares the target's
+// adapters with what the printed re-install would write. It used to read KIT_ROOT itself, so under a
+// plain --check on an install with another kit home every adapter read as stale (a FAIL under
+// --strict) and the printed re-install, which writes the recorded kit root, could not clear it. The
+// WR-24 census in install/agents-record.test.ts names any function the doctor reaches that reads
+// this run's kit home. A second implementation of this transform anywhere would be
 // two grammars over the same bytes, which is the failure class this milestone exists to delete.
 //
 // ONE STATE MACHINE OVER BOTH SLOTS, whole-line equality throughout and never a pattern — the same
@@ -4574,7 +4583,7 @@ interface AdapterTransform {
 // for the same reason. This is a CORRECTED CLAIM, not a behaviour change: making the banner slot
 // anchor-preserving would move rendered bytes in every target, and that is not what this comment is
 // for.
-function transformAdapter(srcText: string): AdapterTransform {
+function transformAdapter(srcText: string, kitRoot: string): AdapterTransform {
   const out: string[] = [];
   let close: string | null = null;
   let buf: string[] = [];
@@ -4595,7 +4604,7 @@ function transformAdapter(srcText: string): AdapterTransform {
     }
     if (line === MAT_SLOT) {
       out.push(MAT_OPEN);
-      out.push(`KIT="${KIT_ROOT}"`);
+      out.push(`KIT="${kitRoot}"`);
       out.push(MAT_CLOSE);
       out.push(line);
       continue;
@@ -6151,7 +6160,7 @@ function buildKitPlan(): KitPlan {
       } else if (read.state !== "ok") {
         refusals.push(`${label}: the kit source ${src} ${unreadState(read)}. Nothing was installed for it.`);
       } else if (carriesSlot(read.text)) {
-        skills.push({ dest, label, kind: "materialize", src, text: transformAdapter(read.text).text });
+        skills.push({ dest, label, kind: "materialize", src, text: transformAdapter(read.text, KIT_ROOT).text });
       } else {
         skills.push({ dest, label, kind: INSTALL_MODE === "copy" ? "copy" : "link", src, bytes: read.bytes, srcText: read.text });
       }
@@ -6317,7 +6326,7 @@ function buildKitPlan(): KitPlan {
         // assertion belongs at the call site that knows what it is looking at. A COUNT, not a boolean:
         // zero (the generator's wording moved, so every target adapter would keep naming a command it
         // cannot run) and two-or-more (a shape this installer cannot rewrite) are different defects.
-        const transformed = transformAdapter(text);
+        const transformed = transformAdapter(text, KIT_ROOT);
         if (transformed.banners !== 1) {
           refusals.push(
             `.claude/agents/ — ${label} was rendered carrying ${transformed.banners} recognised provenance ` +

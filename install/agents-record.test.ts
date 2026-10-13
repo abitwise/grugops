@@ -4707,6 +4707,173 @@ describe("D-38: every environment variable a binary reads is stated in its print
   });
 });
 
+// ── WR-24 census (phase 34.1 gap round 4, D-38, review WR-24; plan 34.1-50): THE DOCTOR READS ONE KIT HOME ──────────
+//
+// Under `--check` the doctor's printed commands take the kit home from the record (COMMAND_CONTEXT, built by
+// host-tools.ts commandContextFromRecord), and so must everything else it reads or says about the kit: WR-24 found the
+// header, the kit-root cross-check, the stat checks and the stale-adapter wording on this run's own kit home, so a plain
+// `--check` on a custom-home install FAILed "stale/moved install". The class rule is "no --check run derives its kit
+// home twice". This census holds it by the TypeScript parser over install/install.ts, never by a line range:
+//   C1 (reach set): the module-level functions (function declarations, and arrow or function expressions bound to a
+//      module-level const or let) reachable from doctor() through identifier references, closed. A helper the doctor
+//      comes to call is in the set without any edit here.
+//   C2 (run kit-home names): the module-level names whose initializer reads process.env.GRUGOPS_HOME or calls homedir(),
+//      closed over initializers that reference a name already in the set. Function-valued initializers are C1's, not
+//      C2's. COMMAND_CONTEXT is excluded: it is the record owner, and this run's kit home reaches it only as
+//      commandContextFromRecord's fallback (no usable marker). DOCTOR_KIT_HOME and DOCTOR_KIT_ROOT read COMMAND_CONTEXT
+//      and so are not in the set.
+//   C3 (the rule): inside the reach set, every reference to a C2 name, every process.env.GRUGOPS_HOME read and every
+//      homedir() call, keyed `function :: name` with a count, equals WR24_EXEMPT both ways. The table holds only
+//      doctor()'s header line that names this run's kit home as not used.
+// Functions the doctor imports from other modules are outside this walk: an environment read added to any product
+// module is an unpinned row of the env-read census above (plan 34.1-49), so the two censuses cover both arms.
+// Outside the reach set, KIT_ROOT and GRUGOPS_HOME are this run's by design (install, --migrate, --update and
+// --prune-old-kit choose the kit home themselves): not the class.
+/** C1's premise: members the doctor reaches (pinned by plan 34.1-50, 2026-10-13, D-38). */
+const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "markerUnreadable", "adapterKitOnDisk", "readKitVersion", "renderAdaptersInMirror", "transformAdapter"] as const;
+/** C1's size (plan 34.1-50, 2026-10-13, D-38: 43 at HEAD 078a95a4, measured by this walk; the plan's revision-time count at 2b6b6624 was also 43). */
+const WR24_REACH_SIZE = 43;
+/** C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed by plan 34.1-47). */
+const WR24_RUN_KIT_HOME_NAMES = ["GRUGOPS_HOME", "KIT_ROOT"] as const;
+/**
+ * C3's exemption table, `function :: name` to count, each with its reason (plan 34.1-50, 2026-10-13, D-38). Only
+ * doctor()'s header line: it compares this run's kit home with the one the doctor reads (both spelled by
+ * canonicalPathSpelling) and, when they differ, names this run's as not used. Nothing else in the reach set may read it.
+ */
+const WR24_EXEMPT: Readonly<Record<string, { readonly count: number; readonly why: string }>> = {
+  "doctor :: GRUGOPS_HOME": { count: 2, why: "the `given:` header line: the comparison with DOCTOR_KIT_HOME and the printed path of this run's kit home, named as not used" },
+};
+
+/** Whether an identifier is a reference (not a property name, a declared name, or a type name). */
+function isValueReference(id: ts.Identifier): boolean {
+  const p = id.parent;
+  if (ts.isPropertyAccessExpression(p) && p.name === id) return false;
+  if ((ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p) || ts.isPropertySignature(p) || ts.isPropertyDeclaration(p)) && p.name === id) return false;
+  if ((ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isFunctionDeclaration(p) || ts.isBindingElement(p) || ts.isImportSpecifier(p)) && p.name === id) return false;
+  if (ts.isQualifiedName(p) || ts.isTypeReferenceNode(p)) return false;
+  return true;
+}
+/** `process.env.GRUGOPS_HOME` or `process.env["GRUGOPS_HOME"]`. */
+function readsKitHomeEnv(n: ts.Node): boolean {
+  const isProcessEnv = (e: ts.Expression): boolean =>
+    ts.isPropertyAccessExpression(e) && e.name.text === "env" && ts.isIdentifier(e.expression) && e.expression.text === "process";
+  if (ts.isPropertyAccessExpression(n)) return n.name.text === "GRUGOPS_HOME" && isProcessEnv(n.expression);
+  if (ts.isElementAccessExpression(n)) return ts.isStringLiteralLike(n.argumentExpression) && n.argumentExpression.text === "GRUGOPS_HOME" && isProcessEnv(n.expression);
+  return false;
+}
+const callsHomedir = (n: ts.Node): boolean => ts.isCallExpression(n) && calleeName(n) === "homedir";
+
+interface Wr24Census {
+  readonly reach: ReadonlySet<string>;
+  readonly runNames: ReadonlySet<string>;
+  /** `function :: name` to the lines of each reference. */
+  readonly refs: ReadonlyMap<string, readonly number[]>;
+}
+/** The WR-24 census over one source text of install.ts (the committed source, or a mutated copy for the self-test). */
+function wr24Census(sf: ts.SourceFile): Wr24Census {
+  const isFunctionInit = (e: ts.Expression | undefined): e is ts.ArrowFunction | ts.FunctionExpression =>
+    e !== undefined && (ts.isArrowFunction(e) || ts.isFunctionExpression(e));
+  const fns = new Map<string, ts.Node>();
+  const values = new Map<string, ts.Expression | undefined>();
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name !== undefined) fns.set(st.name.text, st);
+    if (ts.isVariableStatement(st)) {
+      for (const d of st.declarationList.declarations) {
+        if (!ts.isIdentifier(d.name)) continue;
+        if (isFunctionInit(d.initializer)) fns.set(d.name.text, d.initializer);
+        else values.set(d.name.text, d.initializer);
+      }
+    }
+  }
+  const refsIn = (root: ts.Node | undefined): ts.Identifier[] => (root === undefined ? [] : nodesOf(root, ts.isIdentifier).filter(isValueReference));
+  // C1
+  const reach = new Set<string>(["doctor"]);
+  const queue = ["doctor"];
+  while (queue.length > 0) {
+    const f = queue.pop()!;
+    for (const id of refsIn(fns.get(f))) {
+      if (fns.has(id.text) && !reach.has(id.text)) {
+        reach.add(id.text);
+        queue.push(id.text);
+      }
+    }
+  }
+  // C2
+  const runNames = new Set<string>();
+  for (const [name, init] of values) {
+    if (name !== "COMMAND_CONTEXT" && init !== undefined && nodesOf(init, (n): n is ts.Node => readsKitHomeEnv(n) || callsHomedir(n)).length > 0) runNames.add(name);
+  }
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [name, init] of values) {
+      if (name === "COMMAND_CONTEXT" || runNames.has(name)) continue;
+      if (refsIn(init).some((id) => runNames.has(id.text))) {
+        runNames.add(name);
+        grew = true;
+      }
+    }
+  }
+  // C3
+  const refs = new Map<string, number[]>();
+  const add = (key: string, n: ts.Node): void => {
+    refs.set(key, [...(refs.get(key) ?? []), sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1]);
+  };
+  for (const f of reach) {
+    const visit = (n: ts.Node): void => {
+      if (ts.isIdentifier(n) && isValueReference(n) && runNames.has(n.text)) add(`${f} :: ${n.text}`, n);
+      if (readsKitHomeEnv(n)) add(`${f} :: process.env.GRUGOPS_HOME`, n);
+      if (callsHomedir(n)) add(`${f} :: homedir()`, n);
+      ts.forEachChild(n, visit);
+    };
+    visit(fns.get(f)!);
+  }
+  return { reach, runNames, refs };
+}
+/** C3's verdict: the references outside WR24_EXEMPT (`function :: name :: line`), the stale exemptions, and the count mismatches. */
+function wr24Verdict(c: Wr24Census): { readonly outside: string[]; readonly stale: string[]; readonly counts: string[] } {
+  const outside = [...c.refs].filter(([k]) => !Object.hasOwn(WR24_EXEMPT, k)).flatMap(([k, lines]) => lines.map((l) => `${k} :: ${l}`));
+  const stale = Object.keys(WR24_EXEMPT).filter((k) => !c.refs.has(k));
+  const counts = Object.entries(WR24_EXEMPT)
+    .filter(([k, e]) => c.refs.has(k) && c.refs.get(k)!.length !== e.count)
+    .map(([k, e]) => `${k}: ${c.refs.get(k)!.length} reference(s) at ${c.refs.get(k)!.join(", ")}, pinned ${e.count}`);
+  return { outside, stale, counts };
+}
+
+describe("D-38: the doctor reads one kit home (WR-24 census)", () => {
+  const census = wr24Census(parse("install/install.ts"));
+
+  it("C1: the reach set from doctor() holds the pinned members, and its size is pinned", () => {
+    expect([...census.reach], "premise: the reach set lacks a function the doctor reaches").toEqual(expect.arrayContaining([...WR24_REACH_MEMBERS]));
+    expect(census.reach.size, `the reach set changed: ${[...census.reach].sort().join(", ")} — read each new function for kit-home reads, then re-pin WR24_REACH_SIZE with the reason`).toBe(WR24_REACH_SIZE);
+  });
+
+  it("C2: the module-level names holding this run's kit home equal the pinned list, both ways (COMMAND_CONTEXT excluded as the record owner)", () => {
+    expect([...census.runNames].sort()).toEqual([...WR24_RUN_KIT_HOME_NAMES].sort());
+    expect(census.runNames.has("COMMAND_CONTEXT")).toBe(false);
+    expect(census.runNames.has("DOCTOR_KIT_HOME") || census.runNames.has("DOCTOR_KIT_ROOT"), "the doctor's kit home is derived from this run's, not from COMMAND_CONTEXT").toBe(false);
+  });
+
+  it("C3: inside the reach set, every reference to this run's kit home equals WR24_EXEMPT both ways, with the counts pinned", () => {
+    expect(Object.keys(WR24_EXEMPT).every((k) => k.startsWith("doctor :: ")), "WR24_EXEMPT holds a row outside doctor()'s header line").toBe(true);
+    const v = wr24Verdict(census);
+    expect(v.outside, "a function the doctor reaches reads this run's kit home (D-38: read DOCTOR_KIT_HOME / DOCTOR_KIT_ROOT, the kit home the printed commands state)").toEqual([]);
+    expect(v.stale, "a stale exemption: a WR24_EXEMPT row no reference matched").toEqual([]);
+    expect(v.counts, "an exempt reference count changed").toEqual([]);
+  });
+
+  it("self-test: a helper that returns KIT_ROOT, called from kitRouteFindings, is taken into the reach set and named by C3 (no edit to the census)", () => {
+    const text = readFileSync(join(REPO_ROOT, "install", "install.ts"), "utf8");
+    const at = text.indexOf("function kitRouteFindings(");
+    expect(at, "premise: install.ts declares kitRouteFindings").toBeGreaterThan(0);
+    const open = text.indexOf("{", text.indexOf(")", text.indexOf("hosts: readonly HostTool[]", at))) + 1;
+    expect(open, "premise: kitRouteFindings' body was found").toBeGreaterThan(at);
+    const mutated = `${text.slice(0, open)}\n  void wr24SelfTestKit();${text.slice(open)}\nfunction wr24SelfTestKit(): string {\n  return KIT_ROOT;\n}\n`;
+    const c = wr24Census(ts.createSourceFile("install.ts", mutated, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS));
+    expect(c.reach.has("wr24SelfTestKit"), "the walk did not take the new helper into the reach set").toBe(true);
+    expect(wr24Verdict(c).outside.some((l) => l.startsWith("wr24SelfTestKit :: KIT_ROOT :: ")), "C3 did not name the new helper's KIT_ROOT").toBe(true);
+  });
+});
+
 // ── the markerRemedy call sites (phase 34.1 gap round 3, D-35, 34.1 review CR-04; plan 34.1-40) ────────────────────
 //
 // Every remedy site that reads .grugops/install.json asks install-marker.ts markerRemedy, the one owner (brief §5). The
