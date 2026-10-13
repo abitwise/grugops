@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Gap round 4 planned (34.1-42..34.1-52), ready to execute
-last_updated: "2026-10-13T13:15:42.880Z"
-state_head: 657f645a466ffd62330a8024c190c699d609c280
+stopped_at: Completed 34.1-42-PLAN.md
+last_updated: "2026-10-13T14:15:45.760Z"
+state_head: 8a40b76dd0e5a030f7992c8ae1bda64b7b89693f
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 443
-  completed_plans: 432
+  completed_plans: 433
   percent: 98
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 34.1 (Per-agent installer (INSERTED)) — READY TO EXECUTE
-Plan: 41 of 52 (gap round 4 of 4 PLANNED 2026-10-13, the LAST round on the cap: 11 sequential gap plans 34.1-42..34.1-52 in waves 29-39, scope D-37 (no printed message ever offers deleting the marker; mayRemove deleted; CR-05, CR-06, WR-26, IN-33, IN-34), D-38 (every printed command states kit home, install mode and checkout; --check reads one kit home; WR-24, WR-25, DI-16, DI-17, IN-32), D-39 (IN-28..IN-31, DI-05, DI-11..DI-15 deferred as residual). Plan check passed at iteration 2 (0 blockers, 0 warnings). Gap round 3 (34.1-33..34.1-41) executed and re-verified gaps_found 7/10. Next: /gsd-execute-phase 34.1 --gaps-only)
+Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING
+Plan: 42 of 52 (gap round 4 of 4, the last on the cap: 34.1-42 complete 2026-10-13, D-37 on the uninstaller; next 34.1-43)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -693,6 +693,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P37 | 59min | 2 tasks | 10 files |
 | Phase 34.1 P38 | 9 min | 2 tasks | 6 files |
 | Phase 34.1 P39 | 33 min | 3 tasks | 3 files |
+| Phase 34.1 P42 | 34 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1908,6 +1909,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-37: printed commands carry GRUGOPS_SRC=<dir> when the run used a kit checkout other than the script's own (CommandContext.src, set only by commandContextFromRecord); runPrintedCommand applies a printed GRUGOPS_SRC only with expectSrc: true
 - [Phase 34.1]: 34.1-38: the CHANGELOG WR-19 line states the D-36 sources of a printed command's kit home, mode and checkout (no blanket second-kit claim); the README GRUGOPS_SRC word follows any GRUGOPS_HOME word; four retired printed-command claims held at zero by a derived scan in host-tools-prose.test.ts (DOC-1, D-34)
 - [Phase 34.1]: 34.1-39: gap round 3 closed on record: review ledger 20 fixed / 4 deferred (IN-28..IN-31 by D-34), open 0; every DI given a round-3 status (DI-05, DI-11..DI-15 deferred by D-34, DI-16/DI-17 open, DI-03 human); four CHANGELOG lines (CR-04, WR-21..WR-23); full non-e2e regression 1 failed (DI-03 openAsBlobSync) / 8153 passed / 2 skipped; no count pin moved
+- [Phase 34.1]: 34.1-42 (D-37): the uninstaller prints one never-remove reading (markerFixText, then this run's command) for every unreadable marker; keepWithoutRecord's FULL-run alternative is the per-entry ledger edit (step-0 probe passed), never deleting the marker
+- [Phase 34.1]: 34.1-42: a not-JSON marker's place is a line and column from JSON.parse's position digits, else the strict reader's at-character position (V8 reports none for a trailing comma); no parser message text is copied
 
 ### Pending Todos
 
@@ -2038,8 +2041,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-13T11:33:09.438Z
-Stopped at: Completed 34.1-39-PLAN.md
+Last session: 2026-10-13T14:15:19.937Z
+Stopped at: Completed 34.1-42-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
