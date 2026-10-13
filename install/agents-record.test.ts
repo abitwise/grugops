@@ -73,6 +73,12 @@
 //     answer: markerRemedy(read) is { defect, fix } or null, every unreadable read carries its MARKER_DEFECTS member, and
 //     the unit table is enumerated from MARKER_DEFECTS. The census test "D-37: no reading in any product module offers
 //     removing the marker" holds the zero.
+//   - D-37 (plan 34.1-45, 34.1 review IN-34 and WR-26): over a marker the uninstaller cannot use, the ask-rules and
+//     unrecorded-block reports point at the marker's verify line and never send the user to remove anything by hand (R45
+//     follows it as printed until the recorded ask rules and the CLAUDE.md block are gone); the reader names every
+//     duplicated key with its count (R46 follows a duplicate `ledger` key as printed). The unusable-marker census, derived
+//     by search, holds the class: every reading that says the marker or its ledger could not be used carries the owner's
+//     wording, points at the line that does, or names a cause only, and none removes anything by hand.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -2970,6 +2976,179 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
     expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
     expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
+  });
+});
+
+// ── D-37: every reading that says the marker cannot be used carries the owner's wording or points at it ─────────────
+//
+// The converse of the owner (plan 34.1-45, 2026-10-13, D-37; it replaces the census-owner converse plan 34.1-44
+// deleted). CR-04, CR-05 and CR-06 each came back one arm over because a site beside the owner spoke about the marker
+// without asking it; IN-34 was a fourth. So the class rule is held by a census DERIVED BY SEARCH, not by a list of known
+// sites: the walk reads every maximal string expression of every product module (the by-hand remedy census's walk:
+// productModules, maximalString, readingsOf) and selects each reading that says the marker or its install ledger could
+// not be used (UNUSABLE_SAYS). Each selected reading is one of three classes, by its own text:
+//   owner wording  it carries a markerFixText substitution (the one never-remove wording, install-marker.ts);
+//   pointer        it points at the line that carries it ("see the verify line", "see the FAIL", or "the verify line
+//                  about .grugops/install.json");
+//   cause only     it names the cause and no remedy verb at all (UNUSABLE_REMEDY_VERB).
+// And none tells the user to remove or delete anything by hand (BY_HAND_REMOVAL): over a marker whose record a fix gives
+// back, a by-hand removal makes a later reversal by record impossible (T-34.1-84). The selected readings equal
+// UNUSABLE_TABLE both ways, with per-class and per-module counts pinned. A reading that fits no class is a finding: the
+// product is fixed, never classed to pass.
+
+/** A reading that says the marker or its install ledger could not be used: a cause substitution, or one of the phrases. */
+const UNUSABLE_SAYS =
+  /\$\{(markerUnusableText|markerDefectText)\(|could not be used as install's marker|install marker could not be (used|read)\b|could not be read as a JSON object|holds a malformed install ledger|install ledger (in \S+ )?is (malformed|unknown)|install ledger could not be used/i;
+const OWNER_WORDING = /\$\{markerFixText\(/;
+const POINTER = /\bsee the verify line\b|\bsee the FAIL\b|\bthe verify line about \.grugops\/install\.json\b/;
+/** A remedy verb, as an instruction: "run" only before a printed command (this run, a run, are nouns). */
+const UNUSABLE_REMEDY_VERB = /\b(remove|delete|fix|set|take|restore|correct|edit|re-?run)\b|\brun `/i;
+/** Telling the user to remove or delete something by hand. */
+const BY_HAND_REMOVAL = /\b(remove|delete)\b[^.]*\bby hand\b/i;
+
+type UnusableClass = "owner wording" | "pointer" | "cause only";
+interface UnusableSite {
+  readonly module: string;
+  readonly fn: string;
+  readonly text: string;
+  readonly line: number;
+}
+type UnusableRow = readonly [module: string, fn: string, text: string, cls: UnusableClass, why: string];
+
+/**
+ * Whether `fn` in install-marker.ts is one of the owner's own fix-entry builders: a function whose every call in every
+ * product module sits inside markerRemedy, so what it returns is printed only as markerRemedy's `fix`, inside
+ * markerFixText. Derived by the parser, not listed (ledgerFixEntry is the one such function at plan 34.1-45).
+ */
+function ownerFixBuilder(module: string, fn: string): boolean {
+  if (module !== "install-marker.ts") return false;
+  const calls: string[] = [];
+  for (const m of productModules()) {
+    const sf = parse(`install/${m}`);
+    for (const c of nodesOf(sf, ts.isCallExpression)) if (ts.isIdentifier(c.expression) && c.expression.text === fn) calls.push(enclosing(c));
+  }
+  return calls.length > 0 && calls.every((e) => e === "markerRemedy");
+}
+/** The class a selected reading's own text (or, for the owner's fix-entry builders, the parser) puts it in, or null. */
+function unusableClass(s: UnusableSite): UnusableClass | null {
+  if (OWNER_WORDING.test(s.text) || ownerFixBuilder(s.module, s.fn)) return "owner wording";
+  if (POINTER.test(s.text)) return "pointer";
+  if (!UNUSABLE_REMEDY_VERB.test(s.text)) return "cause only";
+  return null;
+}
+/** Every reading of every maximal string expression in every product module that says the marker cannot be used. */
+function unusableCensus(): UnusableSite[] {
+  const out: UnusableSite[] = [];
+  for (const module of productModules()) {
+    const sf = parse(`install/${module}`);
+    const seen = new Set<ts.Node>();
+    const isFragment = (n: ts.Node): boolean =>
+      ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n);
+    for (const f of nodesOf(sf, (n): n is ts.Node => isFragment(n))) {
+      const m = maximalString(f);
+      if (seen.has(m)) continue;
+      seen.add(m);
+      for (const v of readingsOf(m)) {
+        const text = v.text.replace(/\s+/g, " ").trim();
+        if (!UNUSABLE_SAYS.test(text)) continue;
+        out.push({ module, fn: enclosing(m), text, line: sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1 });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * THE TABLE (derived at execution of plan 34.1-45, after its Tasks 1 and 2, by the walk above; not copied from the plan's
+ * sibling list, which named install.ts's pointer and cause-only sites by line). The walk found 33 readings: install.ts 15,
+ * uninstall.ts 11, install-marker.ts 7; the other six product modules print none. A cause-only reading is a value another
+ * message interpolates (pruneRoots' note, kitPreflight's edited reason, the owner's cause clauses); that consumer's own
+ * text is not followed here, and the by-hand remedy census above reads it when it touches the marker or its ledger.
+ */
+const UNUSABLE_TABLE: readonly UnusableRow[] = [
+  ["install-marker.ts", "markerUnusableText", "is a JSON object but could not be used as install's marker (${read.why})", "cause only", "the owner module's cause clause, printed only as a substitution inside a reading that carries markerFixText (I1, I5, I6, the uninstaller's module-top verify) or as pruneRoots' cause"],
+  ["install-marker.ts", "markerUnusableText", "could not be read as a JSON object (${read.why})", "cause only", "the owner module's cause clause, printed only as a substitution inside a reading that carries markerFixText (I1, I5, I6, the uninstaller's module-top verify) or as pruneRoots' cause"],
+  ["install-marker.ts", "ledgerFixEntry", "the install ledger is malformed, ${why}: correct that entry or field of the install ledger to what install wrote, for example from version control or a backup", "owner wording", "the owner's fix entry for a malformed ledger: markerRemedy returns it as `fix`, printed only inside markerFixText (the parser row below asserts its one caller)"],
+  ["install-marker.ts", "<module>", "it could not be read as a JSON object", "cause only", "MARKER_DEFECT_TEXT, the one cause clause of a skipped or left line (markerDefectText); its readers point at the verify line"],
+  ["install-marker.ts", "<module>", "it could not be read as a JSON object", "cause only", "MARKER_DEFECT_TEXT, the one cause clause of a skipped or left line (markerDefectText); its readers point at the verify line"],
+  ["install-marker.ts", "<module>", "it could not be read as a JSON object", "cause only", "MARKER_DEFECT_TEXT, the one cause clause of a skipped or left line (markerDefectText); its readers point at the verify line"],
+  ["install-marker.ts", "<module>", "its install ledger is malformed", "cause only", "MARKER_DEFECT_TEXT, the one cause clause of a skipped or left line (markerDefectText); its readers point at the verify line"],
+  ["install.ts", "markerUnreadable", "the install marker ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. ${markerFixText(remedy)}; then run `${doctorCheckCommand()}`", "owner wording", "I1, the doctor's FAIL over an unreadable marker (R36 control)"],
+  ["install.ts", "doctor", "the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). ${markerFixText(remedy)}; then run `${doctorCheckCommand()}`", "owner wording", "I2, the doctor's FAIL over a malformed ledger (R43c)"],
+  ["install.ts", "doctor", ".grugops/install.json could not be read as a JSON object — the install ledger is unknown, so the ask rules were not checked", "cause only", "the doctor's ask-rules WARN over an unreadable re-read (reached only if the marker changed after DOCTOR_MARKER_READ: markerUnreadable returns first); names no remedy (its wrong-cause wording is deferred-items.md DI-19)"],
+  ["install.ts", "doctor", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "pointer", "the doctor's ask-rules info over a malformed ledger: points at the malformed-ledger FAIL (I2)"],
+  ["install.ts", "pruneRoots", ".grugops/install.json ${markerUnusableText(marker)}", "cause only", "--prune-old-kit's note: why there is no record to prune by; no remedy"],
+  ["install.ts", "pruneRoots", "the install ledger in .grugops/install.json is malformed (${targetLedger.why})", "cause only", "--prune-old-kit's note: why there is no record to prune by; no remedy"],
+  ["install.ts", "kitPreflight", "the install marker could not be read", "cause only", "why a kit file is treated as edited (backed up before it is overwritten); no remedy"],
+  ["install.ts", "kitPreflight", "the install ledger is malformed", "cause only", "why a kit file is treated as edited (backed up before it is overwritten); no remedy"],
+  ["install.ts", "writeMarker", ".grugops/install.json (left unchanged — ${markerDefectText(previousMarker.defect)}; see the verify line above)", "pointer", "writeMarker's skipped line (IN-33, R44): points at the never-remove verify"],
+  ["install.ts", "writeMarker", ".grugops/install.json — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and nothing this run did was recorded. Uninstall will remove and edit nothing on it; ${markerFixText(remedy)}; then re-run the installer.", "owner wording", "I3, writeMarker's verify over a malformed ledger (R43c)"],
+  ["install.ts", "writeAskRules", ".grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — no ask rule was added to ${rel} and the marker was left as it was. ${markerFixText(remedy)}; then re-run the installer.", "owner wording", "I5, writeAskRules' verify over an unreadable marker (R37d)"],
+  ["install.ts", "writeAskRules", "${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was added and the ledger is written back unchanged. ${markerFixText(remedy)}; then re-run the installer.", "owner wording", "I4, writeAskRules' verify over a malformed ledger (R43c)"],
+  ["install.ts", "askRulesStep", ".grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — the marker was left as it was. ${markerFixText(remedy)}; then re-run the installer.", "owner wording", "I6, askRulesStep's verify over an unreadable marker (R37)"],
+  ["install.ts", "writeOpenCodePermission", "the install marker could not be used (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", "pointer", "the OpenCode note: points at the verify line about the marker"],
+  ["install.ts", "writeOpenCodePermission", "the install ledger is malformed (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", "pointer", "the OpenCode note: points at the verify line about the marker"],
+  ["uninstall.ts", "noBlockRecordReason", "the install marker could not be used (see the verify line above), so this run could not tell whether install appended this block — left in place", "pointer", "the unrecorded-block report (IN-34's sibling, plan 34.1-45 Task 1): points at the module-top verify; no by-hand removal (R45)"],
+  ["uninstall.ts", "noBlockRecordReason", "the install ledger could not be used (see the verify line above), so this run could not tell whether install appended this block — left in place", "pointer", "the unrecorded-block report (IN-34's sibling, plan 34.1-45 Task 1): points at the module-top verify; no by-hand removal (R45)"],
+  ["uninstall.ts", "removeMarker", ".grugops/install.json (left in place — ${markerDefectText(MARKER_READ.defect)}; see the verify line above)", "pointer", "U3, removeMarker's line over an unreadable marker (IN-33, R44)"],
+  ["uninstall.ts", "removeMarker", ".grugops/install.json (its install ledger is malformed, so the record of what install did could not be used; it was left in place — see the verify line above)", "pointer", "U4, removeMarker's line over a malformed ledger (R43a)"],
+  ["uninstall.ts", "unrecordedFileReason", "the install ledger could not be used (see the verify line above) — left in place", "pointer", "an unrecorded grugops-shaped file's left line: points at the module-top verify"],
+  ["uninstall.ts", "reportUnrecordedSettings", "${rel} (the install marker could not be used (see the verify line above), so there is no usable record of what install changed in it — left untouched)", "pointer", "the Gemini settings left line: points at the module-top verify"],
+  ["uninstall.ts", "reportUnrecordedSettings", "${rel} (the install ledger could not be used — see the verify line above; left untouched)", "pointer", "the Gemini settings left line: points at the module-top verify"],
+  ["uninstall.ts", "reportUnrecordedSettings", "${rel} ask rules (the install marker could not be used — see the verify line above; nothing removed)", "pointer", "IN-34 (plan 34.1-45 Task 1): the ask-rules left line points at the marker's verify; it was a second verify saying to remove the rules by hand (R45)"],
+  ["uninstall.ts", "reportUnrecordedSettings", "${rel} ask rules (the install ledger could not be used — see the verify line above; nothing removed)", "pointer", "the ask-rules left line over a malformed ledger: points at the module-top verify"],
+  ["uninstall.ts", "<module>", ".grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy)}; then run `${rerunCommand()}` again.", "owner wording", "the module-top verify over an unreadable (or unbound-folded) marker (R41, R45)"],
+  ["uninstall.ts", "<module>", ".grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy)}; then run `${rerunCommand()}` again.", "owner wording", "the module-top verify over a malformed ledger (R43a)"],
+];
+const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 9, pointer: 13, "cause only": 11 };
+const unusableKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
+
+describe("D-37: every reading that says the marker cannot be used carries the owner's wording or points at it", () => {
+  it("the walk reads all nine product modules and finds readings in both binaries and the owner's module (premise)", () => {
+    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+    const sites = unusableCensus();
+    for (const m of ["install.ts", "uninstall.ts", "install-marker.ts"]) {
+      expect(sites.some((s) => s.module === m), `PREMISE: the walk found a reading in ${m}`).toBe(true);
+    }
+    // The owner's fix-entry builder is derived by the parser, and the derivation finds the one at this plan.
+    expect(ownerFixBuilder("install-marker.ts", "ledgerFixEntry"), "PREMISE: ledgerFixEntry is called only inside markerRemedy").toBe(true);
+    expect(ownerFixBuilder("install-marker.ts", "markerUnusableText"), "PREMISE: markerUnusableText is not an owner fix builder").toBe(false);
+  });
+
+  it("the census equals UNUSABLE_TABLE both ways, with per-class and per-module counts", () => {
+    const sites = unusableCensus();
+    const found = new Map<string, number>();
+    for (const s of sites) found.set(unusableKey(s.module, s.fn, s.text), (found.get(unusableKey(s.module, s.fn, s.text)) ?? 0) + 1);
+    const want = new Map<string, number>();
+    for (const r of UNUSABLE_TABLE) want.set(unusableKey(r[0], r[1], r[2]), (want.get(unusableKey(r[0], r[1], r[2])) ?? 0) + 1);
+    const unclassified = sites.filter((s) => !want.has(unusableKey(s.module, s.fn, s.text))).map((s) => `${s.module}:${s.line} [${s.fn}] ${s.text}`);
+    const stale = [...want.keys()].filter((k) => !found.has(k));
+    const counts = [...want].filter(([k, n]) => found.has(k) && found.get(k) !== n).map(([k, n]) => `${k}: table ${n}, found ${found.get(k)}`);
+    expect(unclassified, "a reading that says the marker cannot be used is not classed").toEqual([]);
+    expect(stale, "a classed reading is gone or changed").toEqual([]);
+    expect(counts, "a classed reading is printed a different number of times").toEqual([]);
+    expect(sites.length, "the census size moved").toBe(33);
+    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 15, "uninstall.ts": 11 });
+    expect(countBy(UNUSABLE_TABLE, (r) => r[3]), "per-class counts").toEqual(
+      Object.fromEntries(Object.entries(UNUSABLE_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
+    );
+  });
+
+  it("each reading is in the class its own text puts it in, and none tells the user to remove or delete anything by hand or offers removing the marker", () => {
+    const sites = unusableCensus();
+    const cls = new Map(UNUSABLE_TABLE.map((r) => [unusableKey(r[0], r[1], r[2]), r[3]]));
+    const wrong: string[] = [];
+    for (const s of sites) {
+      const where = `${s.module}:${s.line} [${s.fn}] ${s.text}`;
+      const got = unusableClass(s);
+      if (got === null) wrong.push(`fits no class (no owner wording, no pointer, and a remedy verb): ${where}`);
+      const row = cls.get(unusableKey(s.module, s.fn, s.text));
+      if (row !== undefined && got !== null && row !== got) wrong.push(`classed ${row}, but its text is ${got}: ${where}`);
+      if (BY_HAND_REMOVAL.test(s.text)) wrong.push(`tells the user to remove or delete something by hand: ${where}`);
+      if (offersRemoval(s.text)) wrong.push(`offers removing the marker: ${where}`);
+    }
+    expect(sites.length, "PREMISE: the rules were asked of readings").toBeGreaterThan(0);
+    expect(wrong, "a reading that says the marker cannot be used breaks the class rule (D-37)").toEqual([]);
   });
 });
 

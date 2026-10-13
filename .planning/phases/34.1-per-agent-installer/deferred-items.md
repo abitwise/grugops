@@ -329,6 +329,24 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   "not written by install; if it is yours, leave it" without offering removal, in the one owner (plan 34.1-46's
   matrix is the place that enumerates reader states).
 
+## From plan 34.1-45 (gap round 4)
+
+### DI-19: the doctor's ask-rules WARN over an unreadable marker names the wrong cause and calls the install ledger unknown
+
+- status: open (for the human; no round 5)
+- **Found during:** plan 34.1-45, Task 3 (the unusable-marker census, derived by search over every product module).
+- **What:** install.ts doctor, the ask-rules check, re-reads the marker (`askMarker`) and, when it is `unreadable`,
+  prints the WARN ".grugops/install.json could not be read as a JSON object — the install ledger is unknown, so the ask
+  rules were not checked". For a read that IS a JSON object (a field install never writes, a retired record) the cause
+  is wrong (the IN-33 class), and "the install ledger is unknown" is not what the run saw: the ledger was not used. The
+  line is reached only if the marker changes between DOCTOR_MARKER_READ and this re-read, because the doctor's
+  markerUnreadable FAIL returns first over an unreadable marker. It names no remedy and offers no removal, so it passes
+  the D-37 class rule (the census classes it "cause only"). Wording only (MSG-1/DOC-1); read from the source, not
+  reproduced by a run.
+- **Not fixed:** outside D-37's rule (it offers nothing by hand) and round 4 is the last on the cap. Option for triage:
+  word it from the same read as markerUnusableText, or read the ask-rules state from DOCTOR_MARKER_READ instead of a
+  second read.
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.
