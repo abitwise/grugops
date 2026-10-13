@@ -462,6 +462,23 @@ CLI with Antigravity CLI.
   silently.
 - `install.js --check` remedies, and the `--migrate`, `--update` and `--prune-old-kit` closing
   banners, print the command to run.
+- When `.grugops/install.json` is a JSON object with a well-formed install ledger and one field that
+  holds a value install never writes (for example `agents` edited by hand), `install.js --check`, the
+  installer and the uninstaller name the field to fix by hand and say never to delete the marker,
+  which is still the record of every agent installed here; none of them offers to remove it. After
+  the fix, run the command the `--check` or uninstall line prints, or run the installer again
+  (34.1 review CR-04).
+- When the install marker is install's own record for the repository it checks, `install.js --check`
+  prints its remedy commands with the kit home and install mode the marker records. Run as printed,
+  a remedy uses that kit and keeps the install where it is, even when `--check` was run without the
+  `GRUGOPS_HOME` or `--symlink` the install used (34.1 review WR-21).
+- Over a marker that belongs to another directory (a moved or cloned repository), the install command
+  the uninstaller prints uses the kit home the uninstaller was run with (`GRUGOPS_HOME`, else
+  `~/.grugops`), never a kit home the marker names. The line names that kit home, and the command is
+  the one `install.js --check` prints for the same marker and environment (34.1 review WR-22).
+- A printed command carries `GRUGOPS_SRC=<dir>` when the run used a kit checkout other than the one
+  the script is in, so the `install.js --check` stale-adapter remedy renders from the checkout it
+  compared the adapters against (34.1 review WR-23).
 
 ### Security
 
