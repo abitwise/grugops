@@ -339,3 +339,40 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **DI-14:** recorded for human triage by plan 34.1-30 (commit 585ba921): an agent install records again from the
   ledger is named by no closing note and asked about by no route note in the same run.
 - **DI-15:** deferred for human triage (recorded above by plan 34.1-32; the round-2 plan texts call it "DI-11").
+
+## Status after gap round 3 (plans 34.1-33 to 34.1-41)
+
+Scope of the round is D-34 (human, 2026-10-12): it fixed CR-04 (D-35) and WR-21, WR-22 and WR-23 (D-36), and deferred
+IN-28 to IN-31, DI-05 and DI-11 to DI-15 to triage. "Not changed in round 3" below was checked against
+`git diff e9693a3f..HEAD` (the round's code changes are in install/ only; scripts/ and AGENTS.md are unchanged).
+
+- **DI-01:** decided (D-28): the by-name exclusion stays; scripts/check-banned-claims.ts is unchanged by this round.
+- **DI-02:** resolved in plan 34.1-02 (the gate reads `TEMPLATE_REL`); nothing left.
+- **DI-03:** a human item. Whether CI on Node 22 shows the Node 26 reds is `UNKNOWN - verify`. Plan 34.1-39's full
+  regression reports them again (its SUMMARY lists each failing case against this baseline).
+- **DI-04:** closed by plan 34.1-13 (commit ac790deb).
+- **DI-05:** deferred to triage by D-34; not changed in round 3. install/uninstall.ts unmergeGemini is untouched (plans
+  34.1-34, 34.1-36, 34.1-37 and 34.1-41 changed uninstall.ts elsewhere: the marker verify, removeMarker,
+  keepWithoutRecord, COMMAND_CONTEXT and the unbound remedies).
+- **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
+- **DI-07:** fixed in round 2 by plan 34.1-21 under D-31 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); its remaining arm is
+  DI-11.
+- **DI-08:** fixed in round 2 by plan 34.1-27 under D-31 and D-33 (commits 5af55277, 0a72286c).
+- **DI-09:** fixed in round 2 by plan 34.1-28 under D-31 and D-33 (commits f65cfa0b, 2a055d1a).
+- **DI-10:** fixed in round 2 by plan 34.1-31 under D-31 (commit 8d730df2).
+- **DI-11:** deferred to triage by D-34; not changed in round 3. removeAskRules is untouched; plan 34.1-34 changed
+  removeMarker and keepWithoutRecord in the same file (they read markerRemedy) and did not change which arm counts a
+  verify or what the finishing command names.
+- **DI-12:** deferred to triage by D-34; not changed in round 3. Plan 34.1-37 rewrote the doctor's stale-adapter WARN
+  beside the two lines (one checkout, `GRUGOPS_SRC` in its remedy); the two "re-run --check from a complete kit
+  checkout" lines still print no command.
+- **DI-13:** deferred to triage by D-34; not changed in round 3. rewriteLedger's "Re-run to finish it." is unchanged;
+  plan 34.1-33 only re-pinned the RERUN census count in install/message-references.test.ts beside it.
+- **DI-14:** deferred to triage by D-34; not changed in round 3. Plan 34.1-33 changed writeMarker's skipped line (it
+  reads markerRemedy); agentClosingLines and the route notes still read AGENTS_AFTER.
+- **DI-15:** deferred to triage by D-34; not changed in round 3. AGENTS.md and scripts/kit-model.ts RESOLVER are
+  unchanged, so the generated adapters still say `node install/install.js`.
+- **DI-16:** open for human triage, recorded by plan 34.1-41 (commit aa44ef6e): the doctor's markerUnreadable
+  `mayRemove` arm and notInstalled print an install command without naming its kit home.
+- **DI-17:** open for human triage, recorded by plan 34.1-38 (commit 4ab7e9b8): no follow-as-printed row runs an
+  `--update` or `--prune-old-kit` command printed under a non-default kit home.
