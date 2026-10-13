@@ -1780,6 +1780,47 @@ function countBy<T>(items: readonly T[], key: (t: T) => string): Record<string, 
   return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
 }
 
+// ── D-36 (34.1 review WR-23, plan 34.1-37): an uninstall command carries the kit checkout the run used ──────────────
+//
+// uninstall.js reads GRUGOPS_SRC for its report of files grugops did not record, so a command it prints carries
+// `GRUGOPS_SRC=<dir>` when the run used a checkout other than its script's own (host-tools.ts scriptCommand, the
+// context's `src`). With GRUGOPS_SRC equal to this checkout the command is unchanged: R19 and every earlier row follow
+// it through runPrinted without the harness opt-in, and the harness throws on a printed GRUGOPS_SRC there (H1).
+describe("D-36 (WR-23): an uninstall command carries the kit checkout the run used", () => {
+  it("R40: uninstall --codex with GRUGOPS_SRC set to another spelling of this checkout prints its finishing command with `GRUGOPS_SRC=<that dir>`; restored and run as printed, the child sees that GRUGOPS_SRC and the reversal finishes with [claude]", () => {
+    const w = world("r40");
+    const link = join(dirname(w.target), "checkout-link");
+    symlinkSync(REPO_ROOT, link);
+    expect(pathText(link), "premise: the link is another spelling of this checkout").not.toBe(pathText(REPO_ROOT));
+    expect(pathText(process.env.GRUGOPS_SRC ?? ""), "premise: the test process sets GRUGOPS_SRC to the link").not.toBe(pathText(link));
+    install(w, [flag("claude"), flag("codex")]);
+    const original = edit(w, AGENT_SKILL_REL);
+
+    const r = runUninstall(w.target, w.grugopsHome, { home: w.home, timeoutMs: 120_000, src: link }, [flag("codex")]);
+    finished(r, "uninstall --codex with GRUGOPS_SRC set to the link");
+    expect(r.status, r.stdout).toBe(0);
+    const kept = keptMarkerLine(r.stdout);
+    expect(kept.length, `no kept \`left\` line about the marker\n${r.stdout}`).toBe(1);
+    const words = shellWords(printedCommand(kept[0]));
+    const nodeAt = words.indexOf("node");
+    expect(nodeAt, `the kept line's command has no node word: ${kept[0]}`).toBeGreaterThan(0);
+    expect(words.slice(0, nodeAt), `the kept line's command does not carry the run's GRUGOPS_SRC before node: ${kept[0]}`).toEqual([`GRUGOPS_SRC=${link}`]);
+    expect(pathText(words[nodeAt + 1]), kept[0]).toBe(pathText(UNINSTALL_JS));
+    expect(words.slice(nodeAt + 2), kept[0]).toEqual(["--target", w.target, flag("codex")]);
+
+    writeFileSync(at(w.target, AGENT_SKILL_REL), original);
+    const fin = runPrintedCommand(kept[0], { home: w.home, timeoutMs: 120_000, expectSrc: true });
+    finished(fin, `the printed command ${printedCommand(kept[0])}`);
+    expect(relative(REPO_ROOT, fin.premise.cwd).startsWith(".."), `premise: the printed command ran from ${fin.premise.cwd}, inside the checkout`).toBe(true);
+    expect(fin.premise.grugopsHome, "premise: an uninstall command sets no kit home").toBeUndefined();
+    expect(fin.premise.grugopsSrc, "premise: the child saw no GRUGOPS_SRC").toBeDefined();
+    expect(pathText(fin.premise.grugopsSrc ?? ""), "premise: the child's GRUGOPS_SRC is not the printed link").toBe(pathText(link));
+    expect(fin.status, fin.stdout).toBe(0);
+    expect(agentsOf(w), fin.stdout).toEqual(ids("claude"));
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+  });
+});
+
 describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)", () => {
   it("R19 (CR-03, partial): uninstall --codex over an edited shared skill never offers deleting the marker; following the printed alternative records [claude] and keeps the file; uninstall --claude then removes Claude Code", () => {
     const w = world("r19");
