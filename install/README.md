@@ -1016,12 +1016,15 @@ unusable, so nothing is removed or edited on it. `--check` fails on such a marke
 exit `1`): one that cannot be read is named as present but unreadable, not as "not installed", and a
 malformed install ledger is named in a `FAIL` line with the entry and the reason.
 
-A marker that is a JSON object with a well-formed install ledger and one field install never writes (for
-example `agents` edited by hand) is still the record of every agent installed here. `--check`, the
-installer and the uninstaller then name the field to fix by hand and say never to delete the marker;
-none of them offers to remove it. After the fix, run the command the `--check` or uninstall line prints,
-or run the installer again. A marker that is not JSON, or whose install ledger is malformed as well,
-holds no record a fix could give back, so `--check` and the installer still say to fix or remove it.
+A marker that `--check`, the installer or the uninstaller cannot use is still the record of the agents
+installed here, whatever the cause: it cannot be read (for example mode 000, a FIFO, a directory or a
+link), it is not JSON (for example a trailing comma) or not a JSON object, a key in it appears more than
+once, its bytes are not text install writes, a field holds a value install never writes or a field
+install writes is missing (for example `agents` edited by hand), it holds a retired record, or its
+install ledger is malformed (for example one entry with a kind install never writes). Each of them names
+the cause it saw and what to fix by hand, and says never to delete the marker; none of them offers to
+remove it. After the fix, run the command the `--check` or uninstall line prints, or run the installer
+again.
 
 **When uninstall keeps `.grugops/install.json`.** The marker is the only record of what install
 wrote, so the uninstaller removes it only when everything install recorded writing is gone: every
@@ -1035,11 +1038,12 @@ Either way the kept marker is rewritten to list only what is still there: what t
 removed or reversed is taken out of it, so a later run cannot act on a record of it. Fix the cause,
 or remove or restore the file a `left` line names, and run the command the run printed (the `left`
 line about the marker and the closing lines name it, with your `--target` and the agent flags still
-to finish): it finishes the reversal, and it removes the marker once the marker records nothing more. After a flag-less
-uninstall, delete `.grugops/install.json` by hand to keep the edited file for good; the uninstaller then has no record and
-changes nothing more. After an uninstall with agent flags, never delete it: it is still the record of the agents that
-stay. Take the edited file's entry out of the `ledger` list in `.grugops/install.json` by hand, then run the command the
-run printed; it finishes removing the agent and leaves your file. A `CLAUDE.md` or
+to finish): it finishes the reversal, and it removes the marker once the marker records nothing more. To keep the
+edited file instead, after any uninstall, take its entry out of the `ledger` list in `.grugops/install.json` by hand,
+then run the command the run printed; it finishes the reversal and leaves your file, and after a flag-less uninstall it
+also removes the marker once nothing else is recorded. Never delete the marker: after a flag-less uninstall it is still
+the record of what install made here, and after an uninstall with agent flags it is still the record of the agents that
+stay. A `CLAUDE.md` or
 Copilot file install created, whose grugops block was removed and which still holds lines of yours,
 does not keep the marker: what is left in it is yours. Directories and backups install recorded do
 not keep the marker either. A directory holds nothing of install's own (its files are their own

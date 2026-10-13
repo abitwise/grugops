@@ -582,13 +582,33 @@ describe(`DOC-1 (DI-10): no tracked installer source or README says install writ
 // the `.js` twins are build outputs that follow their `.ts`). `.planning/` is never scanned: planning history records
 // what was true then. A floor holds the anchor files and the size of the `.ts` arm, so an empty or wrong listing cannot
 // pass.
+//
+// D-37 (gap round 4, plan 34.1-51, 34.1 review CR-05 and CR-06): no printed remedy offers removing the marker, for any
+// marker read (install-marker.ts markerFixText is the one wording; the reader-state matrix in agents-record.test.ts and
+// R20, R41, R43 and the R36 control follow it as printed). Three shipped sentences said otherwise and plan 34.1-51
+// removed them: the README sentence that over a not-JSON marker `--check` and the installer still offered the
+// fix-or-remove remedy (`fix-or-remove-marker`), that sentence's reason, that a fix could not give such a marker's
+// record back (`no-record-a-fix`), and the README and CHANGELOG sentences that offered deleting the marker by hand
+// after a flag-less uninstall so as to keep an edited file (`delete-marker-by-hand`; uninstall.ts keepWithoutRecord now
+// offers the per-entry ledger edit on every run kind). Each is spelled so it matches the retired sentence and not the
+// removal-offer patterns, test names and expectations in agents-record.test.ts that name the retired behaviour (its
+// MARKER_REMOVAL and REMOVAL_OFFER patterns, and a `not.toContain` of the old kept-line text, which stops before "the").
 
 const RETIRED_PRINTED_CLAIMS: readonly { readonly id: string; readonly words: readonly string[] }[] = [
   { id: "second-kit", words: ["never", "writes", "a", "second", "kit"] },
   { id: "mode-it-ran-in", words: ["in", "the", "mode", "it", "ran", "in"] },
   { id: "marker-kit-home", words: ["else", "the", "one", "the", "marker", "records"] },
   { id: "src-first", words: ["starts", "with", "`?GRUGOPS_SRC"] },
+  { id: "fix-or-remove-marker", words: ["says?", "to", "fix", "or", "remove"] },
+  { id: "no-record-a-fix", words: ["no", "record", "a", "fix", "could", "give", "back"] },
+  { id: "delete-marker-by-hand", words: ["delete", "(?:the\\s+marker|`?\\.grugops/install\\.json`?)", "by", "hand", "to", "keep", "the"] },
 ];
+/** One retired claim's words, by id, so a planted proof reads them from the table rather than by index. */
+const claimWords = (id: string): readonly string[] => {
+  const c = RETIRED_PRINTED_CLAIMS.find((x) => x.id === id);
+  if (c === undefined) throw new Error(`no retired claim ${id}`);
+  return c.words;
+};
 const retiredClaimRe = (words: readonly string[]): RegExp => new RegExp(`\\b${words.join("\\s+")}\\b`, "gi");
 const RETIRED_SCAN_ANCHORS = [
   "install/README.md",
@@ -680,6 +700,56 @@ describe("DOC-1 (D-34): no tracked document or comment carries a retired printed
         "CHANGELOG.md:4 [second-kit]",
         "CHANGELOG.md:6 [src-first]",
         "install/uninstall.ts:1 [marker-kit-home]",
+      ].sort(),
+    );
+  });
+
+  it("D-37 (plan 34.1-51): a planted README and CHANGELOG with the marker-removal sentences restored are hits naming the file and line, each wrapped; the never-remove sentences and the census patterns that name the old behaviour are not", () => {
+    const real = readFileSync(join(REPO, "install", "README.md"), "utf8");
+    const anchor = "**When uninstall keeps `.grugops/install.json`.** The marker is the only record of what install\n";
+    expect(real.split(anchor).length - 1, "premise: install/README.md holds the kept-marker heading exactly once").toBe(1);
+    // The sentences plan 34.1-51 removed, put back in front of the kept-marker heading, each wrapped across a line
+    // break as it was. The words come from the claim table (or from parts), so no source line here holds a claim.
+    const noRecord = claimWords("no-record-a-fix");
+    const say = ["say", "to", "fix"].join(" ");
+    const restored =
+      `A marker that is not JSON, or whose install ledger is malformed as well, holds ${noRecord.slice(0, 4).join(" ")}\n` +
+      `${noRecord.slice(4).join(" ")}, so \`--check\` and the installer still ${say}\n` +
+      "or remove it.\n\n" +
+      `After a flag-less uninstall, ${"delete"} ${"`.grugops/install.json`"} ${"by"} hand\n` +
+      `${["to", "keep", "the"].join(" ")} edited file for good; the uninstaller then has no record.\n\n`;
+    const planted = real.replace(anchor, restored + anchor);
+    const base = real.slice(0, real.indexOf(anchor)).split("\n").length;
+    const plantedLines = planted.split("\n");
+    expect(plantedLines[base - 1], "premise: the first restored line holds the no-record words").toContain(noRecord.slice(0, 4).join(" "));
+    expect(plantedLines[base], "premise: the second restored line holds the fix-or-remove words").toContain(say);
+    expect(plantedLines[base + 3], "premise: the delete line is where the test puts it").toContain("by hand");
+    const changelog =
+      "# Changelog\n\n- A file you edited keeps the install marker. To keep the file instead, after\n" +
+      `  a flag-less uninstall ${["delete", "the", "marker"].join(" ")} by hand\n` +
+      `  ${["to", "keep", "the"].join(" ")} file without a record (a review id).\n` +
+      "- Uninstall names the field to fix by hand and says never to delete the marker; none of them offers to\n" +
+      "  remove it. To keep the edited file, take its entry out of the `ledger` list in `.grugops/install.json`\n" +
+      "  by hand, then run the command the run printed.\n";
+    // Controls in a code file: the census patterns and expectations that name the retired behaviour.
+    const controlTs =
+      `const MARKER_REMOVAL = /\\b(fix or remove the marker|fix or remove it by hand|remove the marker)\\b/i;\n` +
+      `const REMOVAL_OFFER = /\\bremove the marker\\b|\\bfix or remove\\b/i;\n` +
+      `expect(out, "a partial run offers deleting the marker").not.toContain("${["delete", "the", "marker", "by", "hand", "to", "keep"].join(" ")}");\n` +
+      "// The class \"no well-formed ledger: fix or remove\" is retired; never delete the marker by hand.\nexport const d = 1;\n";
+    const root = plantedRepo("doc1-d37", {
+      "install/README.md": planted,
+      "CHANGELOG.md": changelog,
+      "install/clean.ts": controlTs,
+    });
+    const scan = retiredClaimScan(root);
+    expect(scan.scanned.sort()).toEqual(["CHANGELOG.md", "install/README.md", "install/clean.ts"]);
+    expect(scan.hits.sort()).toEqual(
+      [
+        `install/README.md:${base} [no-record-a-fix]`,
+        `install/README.md:${base + 1} [fix-or-remove-marker]`,
+        `install/README.md:${base + 4} [delete-marker-by-hand]`,
+        "CHANGELOG.md:4 [delete-marker-by-hand]",
       ].sort(),
     );
   });

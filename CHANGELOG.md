@@ -143,12 +143,13 @@ CLI with Antigravity CLI.
 - A file you edited, which uninstall leaves, now keeps the install marker `.grugops/install.json`.
   Uninstall exits `0` and ends with `== uninstall complete — N recorded item(s) left in place;
   .grugops/install.json kept to record them ==`, and the marker is rewritten to list only what is
-  still there. Remove or restore the file and re-run uninstall to finish. To keep the file instead, after
-  a flag-less uninstall delete the marker by hand to keep the file without a record; after an uninstall
-  with agent flags, take the file's entry out of the install ledger instead, because the marker still
-  records the agents that stay. Directories and backups install recorded do not keep the marker:
-  this narrows 33.1 D-33 (b), which keeps the marker while any recorded entry is left, to the entries
-  that hold content install wrote, and the repository owner has yet to confirm it. The consequence:
+  still there. Remove or restore the file and re-run uninstall to finish. To keep the file instead, take
+  its entry out of the install ledger by hand and run the printed command, which finishes the uninstall
+  and leaves the file. Never delete the marker: after a flag-less uninstall it still records what install
+  made here, and after an uninstall with agent flags it still records the agents that stay. Directories
+  and backups install recorded do not keep the marker: this narrows 33.1 D-33 (b), which keeps the
+  marker while any recorded entry is left, to the entries that hold content install wrote, and the
+  repository owner has yet to confirm it. The consequence:
   once uninstall removes the marker, a backup install recorded is on no record any more, so
   `--prune-old-kit` can no longer remove it. Run `--prune-old-kit` before uninstall if you want
   grugops to remove its backups.
@@ -462,7 +463,7 @@ CLI with Antigravity CLI.
   silently.
 - `install.js --check` remedies, and the `--migrate`, `--update` and `--prune-old-kit` closing
   banners, print the command to run.
-- When `.grugops/install.json` is a JSON object with a well-formed install ledger and one field that
+- When `.grugops/install.json` is a JSON object with a well-formed install ledger and a field that
   holds a value install never writes (for example `agents` edited by hand), `install.js --check`, the
   installer and the uninstaller name the field to fix by hand and say never to delete the marker,
   which is still the record of every agent installed here; none of them offers to remove it. After
