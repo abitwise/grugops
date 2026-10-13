@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, ROUTE_POINTERS, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostForFlag, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
+import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, ROUTE_POINTERS, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, contextKitHome, entryOwners, hostForFlag, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -376,10 +376,14 @@ const DOCTOR_MARKER_READ = CHECK ? readInstallMarker(TARGET) : null;
 // exactly when it names another kit home, and `--symlink` for a symlink install. Every path is in canonicalPathSpelling's
 // one spelling. Declared after TARGET (the marker read needs it); no module-level statement above calls agentCommand,
 // scriptCommand or the doctor's command helpers below, which run only from functions and branches after this line.
+// DEFAULT_KIT_HOME is `~/.grugops` under this run's home directory, in the one spelling. The doctor's unbound-marker
+// WARN names contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME), the kit home its printed install step copies the kit
+// into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
+const DEFAULT_KIT_HOME = canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
     scriptDir: canonicalPathSpelling(SCRIPT_DIR),
     kitHome: GRUGOPS_HOME,
-    defaultKitHome: canonicalPathSpelling(resolve(homedir(), ".grugops")),
+    defaultKitHome: DEFAULT_KIT_HOME,
     symlink: INSTALL_MODE === "symlink",
 });
 // THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
@@ -1712,11 +1716,12 @@ function doctor() {
             ? `the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of ` +
                 `its records here and changes nothing. If this is the same repository moved or renamed, set "target" in ` +
                 `the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, \`${doctorInstallCommand()}\` ` +
-                `(${DOCTOR_NO_FLAG_CLAUSE}), which writes a marker for this directory and carries none of these records`
+                `(${DOCTOR_NO_FLAG_CLAUSE}), which copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, ` +
+                `writes a marker for this directory and carries none of these records`
             : `the install marker ${markerFile} is not a record uninstall can use: ${markerRead.why}. Uninstall uses none of ` +
                 `its records here and changes nothing. Re-run install.js here, \`${doctorInstallCommand()}\` (${DOCTOR_NO_FLAG_CLAUSE}), then ` +
-                `uninstall: install writes a marker with ` +
-                `the install ledger for this directory and carries none of these records. \`${agentCommand("uninstall.js", TARGET, [], COMMAND_CONTEXT)}\` ` +
+                `uninstall: install copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a ` +
+                `marker with the install ledger for this directory and carries none of these records. \`${agentCommand("uninstall.js", TARGET, [], COMMAND_CONTEXT)}\` ` +
                 `with no agent flag removes every agent and the shared files; with agent flags (for example ` +
                 `\`${agentCommand("uninstall.js", TARGET, [HOST_TOOLS[0]], COMMAND_CONTEXT)}\`) it removes only those agents`);
     }

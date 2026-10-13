@@ -37,7 +37,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ALL_AGENT_FLAGS, INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, makeFixture, nativeRealPath, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, lineNamesPath, makeFixture, nativeRealPath, pathText, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { dirList, fileRecords } from "./ledger.test-support.js";
 import { realTargetPath } from "./user-file.js";
 
@@ -155,6 +155,9 @@ describe("install's marker is bound to its directory, and only install's own mar
       expect(v, u.stdout).toContain(recordedTarget(moved));
       // The remedy prints the install command (uninstall.ts reinstallCommand, plan 34.1-25), by the script's absolute path.
       expect(v, u.stdout).toMatch(/Otherwise run `[^`]*\/install\/install\.js --target /);
+      // Re-pinned by plan 34.1-41 (2026-10-13, D-36): the remedy names the kit home its install step copies the kit into,
+      // this run's (GRUGOPS_HOME is KIT_HOME here), never the moved marker's.
+      expect(lineNamesPath(v, KIT_HOME) && pathText(v).includes(`copies the kit into ${pathText(KIT_HOME)}, `), `the remedy does not name the kit home its install step copies into\n${v}`).toBe(true);
     });
   }
 

@@ -269,6 +269,17 @@ export function commandContextFromRecord(record, run) {
     return { scriptDir: run.scriptDir, kitHome: kitHome === run.defaultKitHome ? null : kitHome, symlink };
 }
 /**
+ * contextKitHome (phase 34.1 gap round 3, D-36, review WR-22; plan 34.1-41): the kit home an install command built
+ * from `ctx` copies the kit into, as a path: the context's kit home, or `defaultKitHome` (`~/.grugops` under the
+ * running binary's home directory, in the caller's one spelling, user-file.ts canonicalPathSpelling) when the context
+ * names none, which is the case in which its printed command carries no `GRUGOPS_HOME` word. A remedy that prints an
+ * install step over a marker it cannot use names this path, so the user sees where the step puts the kit before
+ * running it: since D-36 that is the running binary's own kit home, never the unusable marker's. Pure: no I/O.
+ */
+export function contextKitHome(ctx, defaultKitHome) {
+    return ctx.kitHome ?? defaultKitHome;
+}
+/**
  * scriptCommand (D-33, WR-19; D-36): the invocation words of a printed command, before its arguments. For install.js:
  * `GRUGOPS_HOME=<kit home>` when the context's kit home is not the default, then `node`, then the absolute path of
  * install.js, then `--symlink` when the context is a symlink install. Both come from the context alone; each binary's

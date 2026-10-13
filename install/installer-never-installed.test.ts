@@ -329,7 +329,9 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       expect(o.run.status, o.run.stdout).toBe(3);
       // Plan 34.1-26 (D-33): the remedy prints the flag-less install command with the no-agent-flag clause, then the
       // flag-less uninstall command (this run named no agent).
-      expect(o.run.stdout).toMatch(/Run `[^`]*\/install\.js --target [^`]*` \(with no agent flag, install chooses the agents detected here[^)]*\), then `[^`]*\/uninstall\.js --target [^`]*`: install writes a marker for this directory/);
+      // Re-pinned by plan 34.1-41 (2026-10-13, D-36): the explanation after the two commands names the kit home the
+      // install step copies the kit into before it says the install writes a marker for this directory.
+      expect(o.run.stdout).toMatch(/Run `[^`]*\/install\.js --target [^`]*` \(with no agent flag, install chooses the agents detected here[^)]*\), then `[^`]*\/uninstall\.js --target [^`]*`: install copies the kit into [^,]+, writes a marker for this directory/);
     });
   }
 

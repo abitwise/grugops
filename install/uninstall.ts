@@ -177,7 +177,7 @@ import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPa
 // Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
 // per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry";
 // ADAPTER_FOOTPRINT gives the report pass its directory candidates (reportDirCandidates).
-import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand, commandContextFromRecord, type CommandContext, type HostTool, type HostAdapterKind } from "./host-tools.js";
+import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand, commandContextFromRecord, contextKitHome, type CommandContext, type HostTool, type HostAdapterKind } from "./host-tools.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -2537,14 +2537,15 @@ const MARKER_READ: InstallMarkerRead = readInstallMarker(TARGET);
 // It is declared after MARKER_READ and before the first verify that prints rerunCommand(); no statement above this
 // line calls rerunCommand, reinstallCommand or finishCommand at module load (they are called only from the passes and
 // verifies below).
+// DEFAULT_KIT_HOME is `~/.grugops` under this run's home directory, in the one spelling. The two unusable-marker
+// verifies below name contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME), the kit home their printed install step copies
+// the kit into (plan 34.1-41, D-36), so the user sees where that step puts the kit before running it.
 const GIVEN_KIT_HOME = process.env.GRUGOPS_HOME;
+const DEFAULT_KIT_HOME = canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const COMMAND_CONTEXT: CommandContext = commandContextFromRecord(MARKER_READ, {
   scriptDir: canonicalPathSpelling(SCRIPT_DIR),
-  kitHome:
-    GIVEN_KIT_HOME && GIVEN_KIT_HOME.trim()
-      ? canonicalPathSpelling(resolve(GIVEN_KIT_HOME))
-      : canonicalPathSpelling(resolve(homedir(), ".grugops")),
-  defaultKitHome: canonicalPathSpelling(resolve(homedir(), ".grugops")),
+  kitHome: GIVEN_KIT_HOME && GIVEN_KIT_HOME.trim() ? canonicalPathSpelling(resolve(GIVEN_KIT_HOME)) : DEFAULT_KIT_HOME,
+  defaultKitHome: DEFAULT_KIT_HOME,
   symlink: false,
 });
 const MARKER: InstallMarkerRead =
@@ -2557,8 +2558,9 @@ if (MARKER_READ.state === "unbound") {
       `.grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its ` +
         `records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same ` +
         `repository moved or renamed${MARKER_READ.boundTo !== null ? ` from ${MARKER_READ.boundTo}` : ""}, set "target" in the marker to ` +
-        `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise run \`${reinstallCommand()}\`${NO_FLAG_INSTALL_CLAUSE}: it writes ` +
-        `a marker for this directory and carries none of these records; then run \`${rerunCommand()}\`: what an earlier ` +
+        `${JSON.stringify(here)} and run \`${rerunCommand()}\` again. Otherwise run \`${reinstallCommand()}\`${NO_FLAG_INSTALL_CLAUSE}: it copies ` +
+        `the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory and ` +
+        `carries none of these records; then run \`${rerunCommand()}\`: what an earlier ` +
         `install made here is then left and reported, for you to remove by hand.`,
     );
   } else {
@@ -2569,7 +2571,8 @@ if (MARKER_READ.state === "unbound") {
     verify(
       `.grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of ` +
         `its records is used here, and this run removes and edits nothing. Run \`${reinstallCommand()}\`` +
-        `${NO_FLAG_INSTALL_CLAUSE}, then \`${rerunCommand()}\`: install writes a marker for this directory with the ` +
+        `${NO_FLAG_INSTALL_CLAUSE}, then \`${rerunCommand()}\`: install copies the kit into ` +
+        `${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory with the ` +
         `install ledger and carries none of these records, so what an earlier install made here is then left and ` +
         `reported, for you to remove by hand.`,
     );

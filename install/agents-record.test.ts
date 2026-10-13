@@ -968,6 +968,22 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
 const leftLinesNaming = (stdout: string, rel: string): string[] =>
   linesWith(stdout, "left").filter((l) => l.replace(/^ {2}left\s+/, "").startsWith(`${rel} (`));
 
+/** The words before the kit home an unusable-marker remedy names for its printed install step (plan 34.1-41, D-36). */
+const KIT_HOME_CLAUSE = "copies the kit into ";
+/**
+ * The kit home a remedy line says its printed install step copies the kit into (plan 34.1-41, D-36, review WR-22), in
+ * pathText's spelling, or a `<...>` text saying why none was read: the clause must appear once, and the path runs to the
+ * next `, ` (the clause ends there in every remedy that prints it). Read from the line, never from the product's builder.
+ */
+function namedKitHome(line: string): string {
+  const at = line.indexOf(KIT_HOME_CLAUSE);
+  if (at === -1) return "<no kit-home clause>";
+  if (line.indexOf(KIT_HOME_CLAUSE, at + 1) !== -1) return "<the kit-home clause twice>";
+  const rest = line.slice(at + KIT_HOME_CLAUSE.length);
+  const end = rest.indexOf(", ");
+  return end === -1 ? "<no end to the kit-home clause>" : pathText(rest.slice(0, end));
+}
+
 describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => {
   // R25 (plan 34.1-25, D-33; reshaped by plan 34.1-36 to D-36, review WR-22): the moved marker is another directory's
   // record, so its kit home K never reaches a printed command. The first uninstall run, given no GRUGOPS_HOME, prints an
@@ -1005,6 +1021,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     const spans0 = installSpansOf(movedVerify(r0));
     expect(spans0.length, `the verify names one install command\n${r0.stdout}`).toBe(1);
     expect(shellWords(spans0[0]).filter((x) => x.startsWith("GRUGOPS_HOME=")), `the install command carries a kit home from the moved marker: ${spans0[0]}`).toEqual([]);
+    // Plan 34.1-41 (2026-10-13, D-36): the line says where that step puts the kit, this run's default kit home, not K.
+    expect(namedKitHome(movedVerify(r0)), `the verify does not name the kit home its install step copies into\n${r0.stdout}`).toBe(pathText(defaultKit));
 
     // Second run, GRUGOPS_HOME=K given: the install command carries this run's kit home.
     const r = runUninstall(b, K, { home: w.home, timeoutMs: 120_000 }, [flag("codex")]);
@@ -1023,6 +1041,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(isAbsolute(iw[2]) && pathText(iw[2]) === pathText(INSTALL_JS), `the install script is not this checkout's install.js by its absolute path: ${installSpans[0]}`).toBe(true);
     expect(iw, `the install command does not name this run's agent: ${installSpans[0]}`).toContain("--codex");
     expect(iw, "the install command names an agent this run did not name").not.toContain("--claude");
+    // Plan 34.1-41 (2026-10-13, D-36): the line names K as the kit home the install step copies into.
+    expect(namedKitHome(v), `the verify does not name K as the kit home its install step copies into\n${v}`).toBe(pathText(K));
     const ctx = commandContextFor({ grugopsHome: K, home: w.home });
     const installCmd = agentCommand("install.js", b, [row("codex")], ctx);
     const uninstallCmd = agentCommand("uninstall.js", b, [row("codex")], ctx);
@@ -1134,6 +1154,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect([iw[0], iw[2]], installSpans[0]).toEqual(["node", "--target"]);
     expect(pathText(iw[3]), installSpans[0]).toBe(pathText(b));
     expect(v, "the clause does not follow the flag-less install command").toContain(`\`${installSpans[0]}\`${NO_FLAG_CLAUSE}`);
+    // Plan 34.1-41 (2026-10-13, D-36): the line names the run's default kit home as where the install step puts the kit.
+    expect(namedKitHome(v), `the verify does not name the kit home its install step copies into\n${v}`).toBe(pathText(join(w.home, ".grugops")));
     const installCmd = agentCommand("install.js", b, [], ctxOf(w));
     const uninstallCmd = agentCommand("uninstall.js", b, [], ctxOf(w));
     expect(cmds, v).toEqual([uninstallCmd, installCmd, uninstallCmd]);
@@ -1184,8 +1206,18 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
       expect(iw.some((x) => isAbsolute(x) && pathText(x) === pathText(INSTALL_JS)), `the first printed command is not install.js: ${cmds[0]}`).toBe(true);
       expect(iw.filter((x) => /^--(?!target$)/.test(x)), `the install command's agent flags are not this run's: ${cmds[0]}`).toEqual([...args]);
       expect(cmds, v).toEqual([installCmd, uninstallCmd]);
+      // Plan 34.1-41 (2026-10-13, D-36): the line names the run's default kit home as where the install step puts the kit.
+      expect(namedKitHome(v), `${what}: the verify does not name the kit home its install step copies into\n${v}`).toBe(pathText(join(w.home, ".grugops")));
       if (args.length === 0) {
         expect(v, "the flag-less form does not carry the no-agent-flag clause after the install command").toContain(`\`${installCmd}\`${NO_FLAG_CLAUSE}`);
+        // Plan 34.1-41 (2026-10-13, D-36): the doctor's no-target or no-ledger WARN over the same marker prints the same
+        // install command and names the same kit home as where it puts the kit.
+        const d = spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, timeoutMs: 120_000 });
+        finished(d, "--check over a marker with no install ledger");
+        const dw = d.stdout.split("\n").filter((l) => /^ {2}WARN\s/.test(l) && l.includes("not a record uninstall can use"));
+        expect(dw.length, d.stdout).toBe(1);
+        expect(printedCommands(dw[0])[0], `the doctor's WARN does not print the uninstaller's install command first\n${dw[0]}`).toBe(installCmd);
+        expect(namedKitHome(dw[0]), `the doctor's WARN does not name the kit home its install step copies into\n${dw[0]}`).toBe(pathText(join(w.home, ".grugops")));
         continue;
       }
       expect(v, "a per-agent run carries the no-agent-flag clause").not.toContain(NO_FLAG_CLAUSE);
@@ -1237,6 +1269,8 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(pathText(iw[0].slice("GRUGOPS_HOME=".length)), installSpans[0]).toBe(pathText(K));
     expect(iw, `the install command takes --symlink from the moved marker: ${installSpans[0]}`).not.toContain("--symlink");
     expect(iw, installSpans[0]).toContain("--codex");
+    // Plan 34.1-41 (2026-10-13, D-36): the line names K as the kit home the install step copies into.
+    expect(namedKitHome(v), `the verify does not name K as the kit home its install step copies into\n${v}`).toBe(pathText(K));
     expect(installSpans[0]).toBe(agentCommand("install.js", b, [row("codex")], commandContextFor({ grugopsHome: K, home: w.home })));
 
     const step1 = runPrintedCommand("`" + installSpans[0] + "`", { home: w.home, timeoutMs: 180_000 });
@@ -1290,6 +1324,9 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(aw.filter((x) => x.startsWith("GRUGOPS_HOME=")), `the install command carries a kit home: ${aSpan}`).toEqual([]);
     expect(aw.filter((x) => x.includes(pathText(F))), `a word of the install command holds the foreign kit home: ${aSpan}`).toEqual([]);
     expect(aw[0], aSpan).toBe("node");
+    // Plan 34.1-41 (2026-10-13, D-36): the line names the run's default kit home as where the install step puts the kit.
+    const defaultKitHome = pathText(join(w.home, ".grugops"));
+    expect(namedKitHome(av[0]), `the verify does not name the kit home its install step copies into\n${av[0]}`).toBe(defaultKitHome);
 
     // (b) the doctor, same target, same environment: the same install span.
     const b = spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, omitKitHome: true, timeoutMs: 120_000 });
@@ -1297,6 +1334,7 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     const bw = b.stdout.split("\n").filter((l) => l.includes("WARN") && l.includes("not this directory's record"));
     expect(bw.length, b.stdout).toBe(1);
     expect(installSpanOf(bw[0]), "the doctor and the uninstaller print different install commands for one marker").toBe(aSpan);
+    expect(namedKitHome(bw[0]), `the doctor's WARN does not name the kit home its install step copies into\n${bw[0]}`).toBe(defaultKitHome);
 
     // (c) GRUGOPS_HOME X given to the uninstall run: the span carries X, never F.
     const X = join(root, "kit-x");
@@ -1311,6 +1349,7 @@ describe("D-33 (WR-20): the unusable-marker remedy, followed as printed", () => 
     expect(cw[0].startsWith("GRUGOPS_HOME="), `the install command does not carry the run's kit home: ${cSpan}`).toBe(true);
     expect(pathText(cw[0].slice("GRUGOPS_HOME=".length)), cSpan).toBe(pathText(X));
     expect(cw.filter((x) => x.includes(pathText(F))), `a word of the install command holds the foreign kit home: ${cSpan}`).toEqual([]);
+    expect(namedKitHome(cv[0]), `the verify does not name X as the kit home its install step copies into\n${cv[0]}`).toBe(pathText(X));
 
     // (a)'s install span, followed as printed.
     const step = runPrintedCommand("`" + aSpan + "`", { home: w.home, timeoutMs: 180_000 });
@@ -1560,7 +1599,7 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   ["install.ts", "askRulesStep", "either", ".grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — the marker was left as it was. Fix or remove the marker, then re-run the installer.", "no well-formed ledger: fix or remove", "I6: readInstallMarker answered unreadable (Claude Code not chosen); since plan 34.1-33 (D-35) the may-remove reading only; the other reading prints markerFixText (R37). Reclassed under the owner by plan 34.1-34"],
   // not a usable record (the legacy-marker verify): no run reads a record from it, before or after the remedy, and it
   // offers no removal of the marker (markerRemedy answers no for an unbound read; the remedy is a re-install).
-  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of its records is used here, and this run removes and edits nothing. Run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}, then `${rerunCommand()}`: install writes a marker for this directory with the install ledger and carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "not a usable record", "a marker written before markers were bound or before the one ledger: this build reads no record from it, so the re-install that replaces it drops none"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not a record this run can use: ${MARKER_READ.why}. So none of its records is used here, and this run removes and edits nothing. Run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}, then `${rerunCommand()}`: install copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory with the install ledger and carries none of these records, so what an earlier install made here is then left and reported, for you to remove by hand.", "not a usable record", "a marker written before markers were bound or before the one ledger: this build reads no record from it, so the re-install that replaces it drops none (re-pinned by plan 34.1-41, 2026-10-13, D-36: the line names the kit home its printed install step copies the kit into, this run's, never the unusable marker's)"],
   // never remove while a well-formed ledger is present (plan 34.1-33, D-35, 34.1 review CR-04): the owner's one wording.
   ["install-marker.ts", "markerFixText", "either", "Fix .grugops/install.json by hand (${remedy.fix.join(\"; \")}); never delete the marker: its install ledger is still the record of every agent installed here", "never remove while a well-formed ledger is present", "markerRemedy answered mayRemove false: the marker's install ledger is well formed, so fixing the named field gives the whole record back (R36)"],
   // per entry (U5, plan 34.1-19's partial-run alternative): only named ledger entries leave the record.
@@ -1570,9 +1609,9 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   // per field (U6): one field set to the value the run computed.
   ["uninstall.ts", "updateKeptMarker", "either", "its `agents` list still names the agents this run removed; set it to ${agentsNow} by hand, or a later install chooses them again", "per field", "U6: the value is agentsAfter's, which agentsToRecord derives"],
   // fix: the record is repaired in place and every agent's record stays.
-  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed from ${MARKER_READ.boundTo}, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}: it writes a marker for this directory and carries none of these records; then run `${rerunCommand()}`: what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7: set \"target\"; the re-install is offered only when the records are another directory's"],
-  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}: it writes a marker for this directory and carries none of these records; then run `${rerunCommand()}`: what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7 (no boundTo recorded): as above"],
-  ["install.ts", "doctor", "either", "the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of its records here and changes nothing. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, `${doctorInstallCommand()}` (${DOCTOR_NO_FLAG_CLAUSE}), which writes a marker for this directory and carries none of these records", "fix", "the doctor's unbound marker: set \"target\"; the re-install is offered only when the records are another directory's (plan 34.1-27: with the doctor's install command and the no-agent-flag clause)"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed from ${MARKER_READ.boundTo}, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}: it copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory and carries none of these records; then run `${rerunCommand()}`: what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7: set \"target\"; the re-install is offered only when the records are another directory's (re-pinned by plan 34.1-41, 2026-10-13, D-36: the line names the kit home its printed install step copies the kit into, this run's, never the unusable marker's)"],
+  ["uninstall.ts", "<module>", "either", ".grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its records is used here (the install ledger), and this run removes and edits nothing on it. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(here)} and run `${rerunCommand()}` again. Otherwise run `${reinstallCommand()}`${NO_FLAG_INSTALL_CLAUSE}: it copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory and carries none of these records; then run `${rerunCommand()}`: what an earlier install made here is then left and reported, for you to remove by hand.", "fix", "U7 (no boundTo recorded): as above (re-pinned by plan 34.1-41, 2026-10-13, D-36: the line names the kit home its printed install step copies the kit into, this run's, never the unusable marker's)"],
+  ["install.ts", "doctor", "either", "the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of its records here and changes nothing. If this is the same repository moved or renamed, set \"target\" in the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, `${doctorInstallCommand()}` (${DOCTOR_NO_FLAG_CLAUSE}), which copies the kit into ${contextKitHome(COMMAND_CONTEXT, DEFAULT_KIT_HOME)}, writes a marker for this directory and carries none of these records", "fix", "the doctor's unbound marker: set \"target\"; the re-install is offered only when the records are another directory's (plan 34.1-27: with the doctor's install command and the no-agent-flag clause) (re-pinned by plan 34.1-41, 2026-10-13, D-36: the line names the kit home its printed install step copies the kit into, this run's, never the unusable marker's)"],
   ["install.ts", "doctor", "either", "the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). Fix the ledger field by hand", "fix", "I2: the doctor's malformed ledger"],
   ["install.ts", "writeMarker", "either", ".grugops/install.json — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and nothing this run did was recorded. Uninstall will remove and edit nothing on it; fix the ledger field by hand to restore the record.", "fix", "I3: writeMarker's malformed ledger"],
   ["install.ts", "writeAskRules", "either", "${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was added and the ledger is written back unchanged. Fix the ledger field, then re-run the installer.", "fix", "I4: the ask-rules step's malformed ledger"],
