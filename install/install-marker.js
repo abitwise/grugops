@@ -359,20 +359,26 @@ export function markerUnusableText(read) {
 /**
  * markerRemedy (D-35): THE ONE DECISION of whether a printed remedy may offer removing the marker, from the read the
  * binary just made. Pure: no I/O; it reads only `read` (readLedger is pure).
- *   ok          ledgerWellFormed from readLedger(marker); mayRemove only for "uninstall-full" (D-32's FULL-run rule: no
- *               agent stays installed, so removing the marker drops no staying agent's record);
+ *   ok          ledgerWellFormed from readLedger(marker). A malformed install ledger (D-37, 34.1 review CR-06): mayRemove
+ *               false on every run, and fix is one entry naming readLedger's why and the by-hand fix (the marker is still
+ *               the record of every agent installed here; a flag-less run over it removes nothing, so D-32's "no agent
+ *               stays installed" is false there). A well-formed one: mayRemove only for "uninstall-full", fix empty;
  *   unbound     ledgerWellFormed from readLedger(object); mayRemove false for every run: its remedy is to set "target"
  *               or re-install, never removal;
  *   unreadable  ledgerWellFormed when the parsed object's ledger reads `ok`, or when the duplicated key is the ledger;
  *               mayRemove is !ledgerWellFormed; fix is the read's problems;
  *   absent      ledgerWellFormed false; mayRemove true (there is no record to lose).
- * The run argument changes nothing for `unreadable`, `absent` and `unbound`: a well-formed ledger is the record of every
- * agent installed here whichever run reads it.
+ * The run argument changes nothing for `unreadable`, `absent`, `unbound` and an `ok` read whose ledger is malformed: such
+ * a marker is the record of every agent installed here whichever run reads it.
  */
 export function markerRemedy(read, run) {
     switch (read.state) {
-        case "ok":
-            return { mayRemove: run === "uninstall-full", ledgerWellFormed: readLedger(read.marker).state === "ok", fix: [] };
+        case "ok": {
+            const ledger = readLedger(read.marker);
+            if (ledger.state === "malformed")
+                return { mayRemove: false, ledgerWellFormed: false, fix: [ledgerFixEntry(ledger.why ?? "")] };
+            return { mayRemove: run === "uninstall-full", ledgerWellFormed: ledger.state === "ok", fix: [] };
+        }
         case "unbound":
             return { mayRemove: false, ledgerWellFormed: readLedger(read.object).state === "ok", fix: [] };
         case "unreadable": {
@@ -382,6 +388,15 @@ export function markerRemedy(read, run) {
         case "absent":
             return { mayRemove: true, ledgerWellFormed: false, fix: [] };
     }
+}
+/**
+ * ledgerFixEntry (D-37, 34.1 review CR-06, plan 34.1-43): the fix entry of an `ok` marker whose install ledger readLedger
+ * refuses. It names readLedger's why (the entry index and the reason, the reader's own wording, never the file's bytes)
+ * and the by-hand fix: correct that entry or field to what install wrote. markerFixText names it inside its parentheses.
+ */
+function ledgerFixEntry(why) {
+    return (`the install ledger is malformed, ${why}: correct that entry or field of the install ledger to what install wrote, ` +
+        `for example from version control or a backup`);
 }
 /**
  * markerFixText (D-35, D-37): THE ONE WORDING of the never-remove remedy, true for every reader state. It names every

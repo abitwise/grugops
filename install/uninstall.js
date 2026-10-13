@@ -1456,15 +1456,12 @@ function removeMarker() {
     if (MARKER.state !== "ok")
         return { kind: "left" };
     if (!own.owned) {
-        // D-32 (U4, CR-03's rule one arm over): the marker is install's own, with a malformed ledger. On a partial run it is
-        // still the record of every agent installed here, so the by-hand remedy is to fix the field; removing the marker is
-        // offered only on a FULL run, where no agent stays installed. D-35 (plan 34.1-34): that split is the owner's
-        // (install-marker.ts markerRemedy answers mayRemove for an `ok` read only on "uninstall-full"), read here.
-        const remedy = markerRemedy(MARKER_READ, FULL ? "uninstall-full" : "uninstall-partial");
+        // U4: the marker is install's own, with a malformed ledger. D-37 (34.1 review CR-06, plan 34.1-43): it is still the
+        // record of every agent installed here on every run kind (a flag-less run over it removes nothing, so no agent left
+        // the install), so this line offers nothing by hand: the module-top verify for a malformed ledger, printed before
+        // any walk, names the ledger problem, says fix it by hand and never delete the marker, and prints this run's command.
         report("left", `${MARKER_REL} (its install ledger is malformed, so the record of what install did could not be used; ` +
-            `it was left in place — ${remedy.mayRemove
-                ? "fix or remove it by hand"
-                : "fix the ledger field by hand: the marker is still the record of every agent installed here, so removing it would leave each of them with no record"})`);
+            `it was left in place — see the verify line above)`);
         // updateKeptMarker rewrites only install's own marker holding a well-formed ledger, so it leaves this one.
         updateKeptMarker(m, MARKER.marker, MARKER.bytes);
         return { kind: "left" };
@@ -2348,11 +2345,15 @@ else if (MARKER.state === "unreadable") {
         `nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`);
 }
 else if (LEDGER.state === "malformed") {
-    verify(`.grugops/install.json holds a malformed install ledger (${LEDGER.why}), so what install created, wrote and ` +
-        `changed here is unknown. No empty directory, no file install may have created, no grugops skill or adapter ` +
-        `file and no pointer block is removed, .gemini/settings.json is not edited and no ask rule is removed — fix ` +
-        `the ledger field and run \`${rerunCommand()}\` again, or remove them by hand once you have confirmed they are ` +
-        `yours to remove.`);
+    // D-37 (34.1 review CR-06, plan 34.1-43): install's own marker with a malformed install ledger is the record of every
+    // agent installed here, on every run kind; a malformed ledger is typically one bad entry, and fixing it gives the
+    // whole record back. One reading: the cause (readLedger's why), the owner's never-remove wording (install-marker.ts
+    // markerFixText of markerRemedy's answer, whose fix names that why and the by-hand fix), and this run's own command.
+    // It offers removing neither the marker nor any file by hand. The run kind is passed as for the unreadable verify
+    // above; for an `ok` read with a malformed ledger the owner answers the same on every run kind.
+    const remedy = markerRemedy(MARKER_READ, REMOVE.size === 0 ? "uninstall-full" : "uninstall-partial");
+    verify(`.grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and ` +
+        `removes and edits nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`);
 }
 // ── WHICH AGENTS THIS RUN REMOVES (phase 34.1, D-05, D-20, D-23) ─────────────────────────────────────────────────
 // INSTALLED is the one derivation of the installed set (install-marker.ts installedAgents: the marker's recorded
