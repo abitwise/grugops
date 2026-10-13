@@ -347,6 +347,24 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   word it from the same read as markerUnusableText, or read the ask-rules state from DOCTOR_MARKER_READ instead of a
   second read.
 
+## From plan 34.1-49 (gap round 4)
+
+### DI-20: three install.ts comments and one test comment still say a printed command carries GRUGOPS_HOME only for another kit home, and `--symlink` for a symlink install
+
+- status: open (for the human; no round 5)
+- **Found during:** plan 34.1-49, Task 3 (reading the --update branch to class TARGET for the env-read census), then a
+  search for the phrase over install/.
+- **What:** since plans 34.1-47 and 34.1-48 (D-38) every printed command states GRUGOPS_HOME (the default kit home
+  included), INSTALL_MODE and GRUGOPS_SRC, and none carries `--symlink`. Three comments in install/install.ts still
+  describe the retired rule: the --update branch's header ("GRUGOPS_HOME when this run used another kit home", about
+  line 2516), the migrate pre-check comment ("GRUGOPS_HOME when this run used another kit home, and `--symlink` when it
+  was a symlink install", about lines 5929-5930) and a third at about line 7440 with the same two clauses. U1's comment
+  in install/closing-claims.test.ts (about line 333) says "the kit home is not the default one, so GRUGOPS_HOME". The
+  code is right (scriptCommand, held by the env-read census's property test and the DI-17 rows); the prose is DOC-1
+  (brief §1). Found by `grep -n 'used another kit home' install/*.ts` and a read of U1; not reproduced as a run.
+- **Not fixed:** comments only, outside this plan's file scope (test files). Option: plan 34.1-51 (the D-38 DOC-1
+  sweep) rewords them to the D-38 rule, with the same grep as its check.
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.
