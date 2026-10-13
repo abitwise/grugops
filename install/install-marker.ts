@@ -186,11 +186,15 @@ export type UnboundBy = "other-directory" | "no-target" | "no-ledger";
 // for reporting its kit fields only (the doctor); no record is ever read from it. `here` is this
 // directory's real path, or null when it could not be resolved.
 //
-// The three optional fields of `unreadable` (phase 34.1 gap round 3, D-35, 34.1 review CR-04) are set only after
-// JSON.parse returned a JSON object, on the four arms that can still refuse it (the strict reader, a duplicate key,
-// installMarkerProblems, the one ledger next to a retired record): `object` is the parsed object, `problems` what a hand
-// edit of the file fixes, and `duplicateKey` the key firstDuplicateKey named. They decide only the WORDING of a remedy
-// (markerRemedy below): no record is ever read from an `unreadable` marker for a removal or an edit (brief DC-2).
+// The optional fields of `unreadable` (phase 34.1 gap round 3, D-35, 34.1 review CR-04; gap round 4, D-37, 34.1 review
+// CR-05): `object` (the parsed object) and `duplicateKey` (the key firstDuplicateKey named) are set only after JSON.parse
+// returned a JSON object, on the four arms that can still refuse it (the strict reader, a duplicate key,
+// installMarkerProblems, the one ledger next to a retired record). `problems` is set on EVERY `unreadable` arm (D-37):
+// each entry names the cause the reader saw and the by-hand fix of the file, and none echoes a byte of the file (reasons,
+// error codes, kinds, sizes, line and column numbers and the paths the binary resolved only). On the three arms that end
+// before a JSON object exists (a blocked read, not valid JSON, JSON that is not an object) it is the one entry the reader
+// words there. They decide only the WORDING of a remedy (markerRemedy and markerFixText below): no record is ever read
+// from an `unreadable` marker for a removal or an edit (brief DC-2).
 export type InstallMarkerRead =
   | { readonly state: "absent"; readonly marker: null }
   | {
@@ -283,22 +287,49 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   const path = join(target, ...MARKER_REL.split("/"));
   const read = readForWrite(target, path);
   if (read.state === "create") return { state: "absent", marker: null };
+  // D-37 (34.1 review CR-05): the three arms below end before a JSON object exists. Each carries one problem that names
+  // the cause and the by-hand fix, so the one never-remove wording (markerFixText) has something true to name; none
+  // copies a byte of the file.
   if (read.state === "blocked") {
     return {
       state: "unreadable",
       marker: null,
       why: read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`,
       jsonObject: false,
+      problems: [
+        `${read.at === path ? "the file" : read.at} ${read.reason}: make ${MARKER_REL} the readable regular file install ` +
+          `wrote, inside a real .grugops directory, for example by restoring its read permission or by putting the file ` +
+          `a link points to in place of the link`,
+      ],
     };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(read.text);
-  } catch {
-    return { state: "unreadable", marker: null, why: "it is not valid JSON", jsonObject: false };
+  } catch (e) {
+    const place = jsonErrorPlace(read.text, e, read.bytes);
+    return {
+      state: "unreadable",
+      marker: null,
+      why: "it is not valid JSON",
+      jsonObject: false,
+      problems: [
+        `the file is not valid JSON${place === null ? "" : ` (line ${place.line}, column ${place.column})`}: correct ` +
+          `its JSON syntax, for example a trailing comma or a missing quote`,
+      ],
+    };
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { state: "unreadable", marker: null, why: "it is JSON but not a JSON object", jsonObject: false };
+    return {
+      state: "unreadable",
+      marker: null,
+      why: "it is JSON but not a JSON object",
+      jsonObject: false,
+      problems: [
+        `the file is JSON but ${jsonKind(parsed)}, not a JSON object: restore the JSON object install wrote, for ` +
+          `example from version control or a backup`,
+      ],
+    };
   }
   // A DUPLICATE KEY IS REFUSED, NOT RESOLVED (red-team RT3 of plan 33.1-30). JSON.parse keeps the last
   // of two equal keys and says nothing, so `"ledger": [], "ledger": [...]` would read as the second
@@ -370,6 +401,37 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   return { state: "ok", marker, bytes: read.bytes };
 }
 
+/**
+ * jsonErrorPlace (D-37, T-34.1-80): the line and column (both from 1) where a parser stopped in `text`, or null when no
+ * parser reported a position. Only the DIGITS of a reported position are read, never the rest of a message: V8's
+ * JSON.parse message quotes the file's text, so it is never copied into a printed line. The position comes from
+ * JSON.parse's "at position N" when its message carries one, else from the strict reader's "at character N"
+ * (json-text.ts readJsonText): V8 reports no position for some syntax errors, a trailing comma among them, and the strict
+ * reader stops at the same character. Both count UTF-16 code units of the decoded text.
+ */
+function jsonErrorPlace(text: string, error: unknown, bytes: Buffer): { readonly line: number; readonly column: number } | null {
+  let digits = error instanceof Error ? /\bat position (\d+)\b/.exec(error.message)?.[1] : undefined;
+  if (digits === undefined) {
+    const strict = readJsonText(bytes);
+    if (!strict.ok) digits = /\bat character (\d+)\b/.exec(strict.why)?.[1];
+  }
+  if (digits === undefined) return null;
+  const pos = Number(digits);
+  if (!Number.isSafeInteger(pos) || pos > text.length) return null;
+  const before = text.slice(0, pos);
+  const line = before.split("\n").length;
+  return { line, column: pos - (before.lastIndexOf("\n") + 1) + 1 };
+}
+
+/** The JSON kind of a parsed value that is not an object, for a problem text: its kind or literal, never its content. */
+function jsonKind(value: unknown): string {
+  if (Array.isArray(value)) return "an array";
+  if (value === null) return "null";
+  if (typeof value === "string") return "a string";
+  if (typeof value === "number") return "a number";
+  return value === true ? "true" : "false";
+}
+
 // markerBinding: null when `marker` (whose fields hold install's values) is bound to the directory whose
 // real path is `here`; otherwise why it is not this directory's record, and which way.
 function markerBinding(marker: Readonly<Record<string, unknown>>, here: string | null): { why: string; by: UnboundBy } | null {
@@ -400,18 +462,19 @@ export function markerUnusableText(read: { readonly why: string; readonly jsonOb
     : `could not be read as a JSON object (${read.why})`;
 }
 
-// ── THE MARKER REMEDY (phase 34.1 gap round 3, D-35, 34.1 review CR-04) ─────────────────────────────────────────────
+// ── THE MARKER REMEDY (phase 34.1 gap round 3, D-35, 34.1 review CR-04; gap round 4, D-37, 34.1 review CR-05) ───────
 //
-// THE RULE, stated once: a printed remedy may offer removing .grugops/install.json only while the marker the binary just
-// read holds no well-formed install ledger. A marker with one bad field (a hand-edit typo in `agents`, a missing
-// `kitRoot`) next to a well-formed ledger is still the record of every agent installed here: fixing the field gives the
-// whole ledger back, and removing the marker leaves every file install made with no record, so no uninstall can take
-// them out (CR-04 reproduced 57 ledger entries becoming 1, and a later uninstall leaving 87 items). So the remedy names
-// what a hand edit fixes and never offers removal; the remove alternative stays only where no usable ledger exists.
+// THE RULE, stated once (D-37, which amends D-35): no printed remedy offers deleting or removing .grugops/install.json,
+// on any run kind and for any marker read. The marker is the one record install keeps of the agents installed here:
+// removing it leaves every file install made with no record, so no uninstall can take them out (CR-04 reproduced 57
+// ledger entries becoming 1, and a later uninstall leaving 87 items; CR-05 reached the same harm from a trailing comma).
+// Where a binary cannot use the marker, the remedy names the cause the reader saw (the read's `problems`), says to fix
+// the file by hand and never delete the marker.
 //
-// markerRemedy is the one place that decides it. Every printed remedy that touches the marker reads it: install.ts
-// markerUnreadable (the doctor), writeAskRules, askRulesStep and writeMarker's skipped line; the uninstaller's sites
-// join in plan 34.1-34. markerFixText is the one wording of the never-remove remedy.
+// markerFixText is the one wording of that remedy. The uninstaller prints it for every unusable read (plan 34.1-42):
+// its module-top verify over an `unreadable` marker. markerRemedy still answers `mayRemove`, which install.ts reads
+// (markerUnreadable, writeAskRules, askRulesStep) and removeMarker's malformed-ledger line reads, until plan 34.1-43
+// moves that line and plan 34.1-44 moves the installer onto the never-remove wording and deletes the answer.
 
 /** Which run asks for a marker remedy: an install (or --check), a flag-less (FULL) uninstall, or a per-agent one. */
 export type MarkerRemedyRun = "install" | "uninstall-full" | "uninstall-partial";
@@ -458,16 +521,18 @@ export function markerRemedy(read: InstallMarkerRead, run: MarkerRemedyRun): Mar
 }
 
 /**
- * markerFixText (D-35): THE ONE WORDING of the never-remove remedy. It names every entry of `remedy.fix`, says to fix it
- * in the marker by hand, and says never to delete the marker, because its install ledger is still the record of every
- * agent installed here. It offers no removal. A sentence without a final full stop, so a caller can go on with "; then
- * run ...". Its callers pass a remedy whose `fix` is not empty (an `unreadable` read with a parsed object always
- * carries its problems).
+ * markerFixText (D-35, D-37): THE ONE WORDING of the never-remove remedy, true for every reader state. It names every
+ * entry of `remedy.fix` (the read's problems: each names a cause and its by-hand fix), says to fix the marker by hand
+ * and never to delete it, because it is the one record install keeps of the agents installed here, so without it no
+ * uninstall can undo what install made. It claims nothing about the install ledger being intact (a not-JSON or blocked
+ * marker shows nothing of it) and offers no removal. A sentence without a final full stop, so a caller can go on with
+ * "; then run ...". With an empty `fix` it names no entry.
  */
 export function markerFixText(remedy: MarkerRemedy): string {
+  const named = remedy.fix.length > 0 ? ` (${remedy.fix.join("; ")})` : "";
   return (
-    `Fix ${MARKER_REL} by hand (${remedy.fix.join("; ")}); ` +
-    `never delete the marker: its install ledger is still the record of every agent installed here`
+    `Fix ${MARKER_REL} by hand${named}; never delete the marker: it is the one record install keeps of the agents ` +
+    `installed here, so without it no uninstall can undo what install made`
   );
 }
 

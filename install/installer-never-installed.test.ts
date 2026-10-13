@@ -209,7 +209,10 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       plant(t, true);
       const o = uninstallAndDiff(t, dryRun);
       expectZeroBytes(o, `FD ${mode}`);
-      expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(it does not read as a grugops install marker/m);
+      // Re-pinned by plan 34.1-42 (2026-10-13, D-37, 34.1 review CR-05): the marker's `left` line points at the module-top
+      // verify, which names why it could not be used, and never says it is not install's.
+      expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(it could not be used as install's marker; left in place — see the verify line above\)/m);
+      expect(o.run.stdout).toMatch(/^ {2}verify\s+\.grugops\/install\.json is a JSON object but could not be used as install's marker \(it does not read as a grugops install marker/m);
     });
 
     it(`D (every directory path made empty), ${mode}: every directory is still there`, () => {
@@ -233,7 +236,10 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       copyInstalled(t, "default", userBody(MARKER_REL));
       const o = uninstallAndDiff(t, dryRun);
       expectZeroBytes(o, `FM ${mode}`);
-      expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(it does not read as a grugops install marker/m);
+      // Re-pinned by plan 34.1-42 (2026-10-13, D-37, 34.1 review CR-05): the marker's `left` line points at the module-top
+      // verify, which names why it could not be used, and never says it is not install's.
+      expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(it could not be used as install's marker; left in place — see the verify line above\)/m);
+      expect(o.run.stdout).toMatch(/^ {2}verify\s+\.grugops\/install\.json is a JSON object but could not be used as install's marker \(it does not read as a grugops install marker/m);
     });
   }
 

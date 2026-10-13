@@ -1626,33 +1626,28 @@ function removeMarker(): MarkerOutcome {
   // read is `ok`, which it is only for install's own marker for this directory holding a well-formed ledger.
   const own = owns(LEDGER, TARGET, MARKER_REL, "marker");
   if (!own.owned && MARKER_READ.state !== "ok") {
-    // D-35 (34.1 review CR-04, plan 34.1-34): the one owner (install-marker.ts markerRemedy) decides, from the read
-    // this run made, whether the marker's line may offer removing it: never while its bytes hold a well-formed install
-    // ledger, which is still the record of every agent installed here. For a read that is not `ok` the run kind
-    // changes nothing in the answer; it is passed as this run's own.
-    const remedy = markerRemedy(MARKER_READ, FULL ? "uninstall-full" : "uninstall-partial");
+    // D-37 (34.1 review CR-05, plan 34.1-42): a marker this run could not use is left in place, and no line here offers
+    // removing it or says it is not install's. For a read this run made, the module-top verify already named the cause,
+    // the by-hand fix and this run's command, so each line points at it.
     if (MARKER_READ.state === "unreadable" && MARKER_READ.jsonObject) {
-      report(
-        "left",
-        remedy.ledgerWellFormed
-          ? `${MARKER_REL} (left in place: a field in it holds a value install never writes, while its install ledger is ` +
-              `still the record of every agent installed here; see the verify line above)`
-          : `${MARKER_REL} (${MARKER_READ.why} — so it is not install's; left in place)`,
-      );
+      report("left", `${MARKER_REL} (it could not be used as install's marker; left in place — see the verify line above)`);
       return { kind: "left" };
     }
     if (MARKER_READ.state === "unbound") {
       report("left", `${MARKER_REL} (it is not a record this run can use: ${MARKER_READ.why}; left in place — see the verify line above)`);
       return { kind: "left" };
     }
-    // U3: not JSON, not an object, a damaged file, or gone when the run started. A duplicate-key or strict-reader
-    // marker whose install ledger is well formed is still the record, so its tail is the owner's never-remove wording.
-    const why = MARKER_READ.state === "unreadable" ? MARKER_READ.why : "it was not present when this run started";
+    // U3: not JSON, not an object, a blocked read, a duplicate key, or bytes the strict reader refuses.
+    if (MARKER_READ.state === "unreadable") {
+      report("left", `${MARKER_REL} (it could not be read as install's marker: ${MARKER_READ.why}; left in place — see the verify line above)`);
+      return { kind: "left" };
+    }
+    // Not present when this run started, present now: this run read none of its records and printed no verify about
+    // it (MSG-1), so the line names this run's own command, which reads it.
     report(
       "left",
-      `${MARKER_REL} (it could not be read as install's marker: ${why}; it was left in place — ${
-        remedy.mayRemove ? "fix or remove it by hand" : markerFixText(remedy)
-      })`,
+      `${MARKER_REL} (it was not present when this run started, so this run read none of its records; left in place — ` +
+        `run \`${rerunCommand()}\` again to use it)`,
     );
     return { kind: "left" };
   }
@@ -2585,20 +2580,16 @@ if (MARKER_READ.state === "unbound") {
     );
   }
 } else if (MARKER.state === "unreadable") {
-  // D-35 (34.1 review CR-04, plan 34.1-34): the one owner (install-marker.ts markerRemedy) decides the remedy. FULL is
-  // declared below and does not exist yet; for an unreadable marker NAMED is empty, so FULL would be exactly
-  // `REMOVE.size === 0`, and that decides the run kind here. The owner's answer for an unreadable read does not depend
-  // on the run kind anyway: a marker whose bytes hold a well-formed install ledger is the record of every agent
-  // installed here, so the remedy names the field to fix by hand, says never to delete the marker, and prints this
-  // run's own command; with no well-formed ledger the old text stands.
+  // D-37 (34.1 review CR-05, plan 34.1-42): one reading for every unreadable read (not JSON, not an object, a blocked
+  // read, a duplicate key, the strict reader, a field install never writes, a retired record). It names the cause the
+  // reader saw, says to fix the file by hand and never delete the marker (install-marker.ts markerFixText, of the
+  // owner's answer, which supplies the read's problems as `fix`), and prints this run's own command. It never offers
+  // removing the marker or anything else by hand. FULL is declared below and does not exist yet; for an unreadable
+  // marker NAMED is empty, so FULL would be exactly `REMOVE.size === 0`, which names the run kind passed here.
   const remedy = markerRemedy(MARKER_READ, REMOVE.size === 0 ? "uninstall-full" : "uninstall-partial");
   verify(
-    remedy.mayRemove
-      ? `.grugops/install.json ${markerUnusableText(MARKER)}, so the install ledger is unknown. No empty directory, ` +
-          `no file install may have created, no grugops skill or adapter file and no pointer block is removed, and ` +
-          `.gemini/settings.json is not edited — remove them by hand once you have confirmed they are yours to remove.`
-      : `.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and ` +
-          `edits nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`,
+    `.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits ` +
+      `nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`,
   );
 } else if (LEDGER.state === "malformed") {
   verify(

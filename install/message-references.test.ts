@@ -289,7 +289,8 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["uninstall.ts", "the install marker could not be used (see the verify line above), so there is no usable record that install appended this block — left in place;", "printed reference", "the module-top verify for an unusable marker, printed before any walk"],
   ["uninstall.ts", "the install ledger could not be used (see the verify line above) — left in place;", "printed reference", "the module-top verify for a malformed ledger, printed before any walk"],
   ["uninstall.ts", "; left in place — see the verify line above)", "printed reference", "the module-top verify for an unbound marker, printed before any walk"],
-  ["uninstall.ts", "still the record of every agent installed here; see the verify line above)", "printed reference", "removeMarker's JSON-object arm when markerRemedy finds a well-formed install ledger (plan 34.1-34, 2026-10-13, D-35): the module-top never-remove verify for the unusable marker, printed before any walk; the line no longer says the marker is not install's"],
+  ["uninstall.ts", " (it could not be used as install's marker; left in place — see the verify line above)", "printed reference", "removeMarker's JSON-object arm (re-pinned by plan 34.1-42, 2026-10-13, D-37: one line for every JSON-object read, with no owner call): the module-top never-remove verify for the unreadable marker, printed before any walk; the line never says the marker is not install's"],
+  ["uninstall.ts", "; left in place — see the verify line above)", "printed reference", "removeMarker's U3 line (plan 34.1-42, 2026-10-13, D-37): a marker that is not JSON, not an object, a blocked read, a duplicate key or refused by the strict reader; the module-top never-remove verify for the unreadable marker, printed before any walk"],
   ["uninstall.ts", "this run could not finish a recorded reversal (see the verify lines above)", "printed reference", "removeMarker: the walk's verify lines (markerDischarged false with nothing held)"],
   ["uninstall.ts", "once the cause in each verify line above is fixed", "printed reference", "removeMarker: the walk's verify lines (markerDischarged false with nothing held)"],
   ["uninstall.ts", "kept, and rewritten so its install ledger lists only what is still in place (the `left` line above says why it was kept).", "printed reference", "markerOutcomeLine: removeMarker's left line on the same arm"],
@@ -461,8 +462,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // the never-remove verify, so install.ts 26 -> 27 and "printed reference" 43 -> 44.
     // Plan 34.1-34 (2026-10-13, D-35): removeMarker's JSON-object arm, over a marker whose install ledger is still well
     // formed, points at the module-top never-remove verify, so uninstall.ts 21 -> 22 and "printed reference" 44 -> 45.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 27, "uninstall.ts": 22 });
-    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 45, "same block": 1 });
+    // Plan 34.1-42 (2026-10-13, D-37): removeMarker's U3 line points at the module-top verify too (it offered fixing or
+    // removing the marker before), so uninstall.ts 22 -> 23 and "printed reference" 45 -> 46.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 27, "uninstall.ts": 23 });
+    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 46, "same block": 1 });
   });
 
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
