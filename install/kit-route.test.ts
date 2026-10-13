@@ -33,6 +33,7 @@ import {
   makeFixture,
   pathText,
   printedCommand,
+  printedCommands,
   printedInvocation,
   runInstall,
   runPrintedCommand,
@@ -2623,5 +2624,69 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     expect(after.installMode, "the printed command changed the install mode").toBe("copy");
     expect(String(after.grugopsHome), "the printed command moved the marker's kit home").toBe(String(before.grugopsHome));
     expect(String(after.kitRoot), "the printed command moved the marker's kit root").toBe(String(before.kitRoot));
+  });
+
+  // R51 (plan 34.1-49, D-38; DI-16): the doctor's no-marker FAIL (install.ts notInstalled) printed an install command
+  // without its kit home. Since plan 34.1-47 every printed command states it; this row follows that FAIL as printed. The
+  // other DI-16 arm, the unreadable-marker FAIL, prints no install command since plan 34.1-44 (D-37). A fresh target with
+  // a `.claude/` directory, so install detects Claude Code unattended, gets `--check` with kit home K: the FAIL's install
+  // command is checked word by word without the builder, then run as printed in a child environment that holds a
+  // conflicting GRUGOPS_HOME, INSTALL_MODE, GRUGOPS_SRC and TARGET; then the FAIL's check command is run as printed.
+  it("R51 (DI-16): `--check` with kit home K in a target with no marker prints a 'not installed' FAIL whose install command states GRUGOPS_HOME=<K>, INSTALL_MODE=copy and GRUGOPS_SRC; run as printed under conflicting values it installs with kit home K in copy mode, and the FAIL's check command run as printed then exits 0 with no FAIL", () => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    const defaultKit = join(home, ".grugops");
+    expect(pathText(row.kitHome), "premise: the kit home K is not the default <HOME>/.grugops").not.toBe(pathText(defaultKit));
+    mkdirSync(join(row.target, ".claude"));
+    expect(existsSync(join(row.target, MARKER_REL)), "premise: the target holds no marker").toBe(false);
+    const c = check(row.target, row.kitHome, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    const fails = c.stdout.split("\n").filter((l) => l.includes("FAIL") && l.includes("grugops not installed in"));
+    expect(fails.length, `premise: --check printed the 'not installed' FAIL once:\n${c.stdout}`).toBe(1);
+    const fail = fails[0];
+    const spans = printedCommands(fail);
+    expect(spans.length, `the FAIL does not carry exactly an install command and a check command: ${fail}`).toBe(2);
+    // Word by word, without the builder: the stated assignments for K and copy (statedWords), node, this checkout's
+    // install.js, the stated mode words, --target <target>, and no more; the check command the same with --check last.
+    const stated: StatedRun = { kitHome: row.kitHome, home };
+    const installWords = expectStatedRemedy(`\`${spans[0]}\``, stated, row.target);
+    expect(installWords.filter((w) => hostForFlag(w) !== null), spans[0]).toEqual([]);
+    const { assigned } = printedInvocation(spans[0]);
+    expect(pathText(assigned.GRUGOPS_HOME ?? ""), `the printed GRUGOPS_HOME is not K: ${spans[0]}`).toBe(pathText(row.kitHome));
+    expect(assigned.INSTALL_MODE, `the printed command does not state copy: ${spans[0]}`).toBe("copy");
+    expect(pathText(assigned.GRUGOPS_SRC ?? ""), `the printed GRUGOPS_SRC is not this checkout: ${spans[0]}`).toBe(pathText(REPO_ROOT));
+    const checkInv = printedInvocation(spans[1]);
+    expect(statedSpelling(checkInv.assigned), `the check command's assignments are not the stated ones: ${spans[1]}`).toEqual(statedWords("install.js", stated));
+    expect(checkInv.words[0], spans[1]).toBe("node");
+    expect(pathText(checkInv.words[1] ?? ""), spans[1]).toBe(pathText(INSTALL_JS));
+    expect(checkInv.words.slice(2).map((w, i) => (i === 1 ? pathText(w) : w)), spans[1]).toEqual(["--target", pathText(row.target), "--check"]);
+
+    // The install command, followed as printed (runPrintedCommand runs the first printed command in the text).
+    const ran = runPrintedCommand(fail, { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(ran.premise.kitHomeBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_HOME before the printed assignments").toBe(ran.premise.conflictingKitHome);
+    expect(pathText(ran.premise.grugopsHome), "premise: the child's GRUGOPS_HOME is not the printed K").toBe(pathText(row.kitHome));
+    expect(ran.premise.installModeBeforePrinted, "premise: the child's environment did not hold the conflicting INSTALL_MODE").toBe("symlink");
+    expect(ran.premise.installMode, "premise: the child's INSTALL_MODE is not the printed copy").toBe("copy");
+    expect(ran.premise.srcBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_SRC").toBe(ran.premise.conflictingSrc);
+    expect(ran.premise.targetBeforeRun, "premise: the child's environment did not hold the conflicting TARGET").toBe(ran.premise.conflictingTarget);
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(ran.premise.conflictingKitHomeCreated, "the conflicting kit home was created: the printed command took its kit home from the environment").toBe(false);
+    expect(ran.premise.conflictingTargetEmpty, "the printed command wrote into the conflicting TARGET").toBe(true);
+    expect(existsSync(defaultKit), "a kit was written into the default kit home <HOME>/.grugops").toBe(false);
+    const marker = readMarkerObject(row.target);
+    expect(pathText(String(marker.grugopsHome)), "the marker does not record the kit home K").toBe(pathText(row.kitHome));
+    expect(marker.installMode, "the marker does not record copy mode").toBe("copy");
+    expect(lstatSync(join(row.target, "AGENTS.md")).isSymbolicLink(), "AGENTS.md is a link: the printed command ran as a symlink install").toBe(false);
+
+    // The FAIL's check command, followed as printed: it now finds the install and reports no FAIL.
+    const checked = runPrintedCommand(`\`${spans[1]}\``, { home });
+    expect(pathText(checked.premise.grugopsHome), "premise: the check's GRUGOPS_HOME is not the printed K").toBe(pathText(row.kitHome));
+    expect(checked.premise.kitHomeBeforePrinted, "premise: the check's environment did not hold the conflicting GRUGOPS_HOME").toBe(checked.premise.conflictingKitHome);
+    expect(checked.status, checked.stdout + checked.stderr).toBe(0);
+    expect(checked.stdout.split("\n").filter((l) => /\bFAIL\b/.test(l)), checked.stdout).toEqual([]);
+    expect(checked.premise.conflictingKitHomeCreated, "the check created the conflicting kit home").toBe(false);
+    expect(existsSync(defaultKit), "the check wrote the default kit home <HOME>/.grugops").toBe(false);
   });
 });

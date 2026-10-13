@@ -41,6 +41,7 @@ import {
   printedCommand,
   printedInvocation,
   runInstall,
+  runPrintedCommand,
   runUninstall,
   snapshotTree,
   statedSpelling,
@@ -292,9 +293,21 @@ const CHMOD_SKIP: string | null =
       ? "running as root: a file mode does not stop root"
       : null;
 
+/**
+ * A world whose kit home is NOT the default `<home>/.grugops` (plan 34.1-49, D-38, DI-17): `<root>/kit`, beside the
+ * target and the scratch HOME. The existing rows keep world()'s default kit home; only the DI-17 prune row uses this.
+ */
+function worldWithOtherKitHome(tag: string): World {
+  const w = world(tag);
+  return { ...w, kitHome: join(w.t, "..", "kit") };
+}
+
 /** A migrated tree: the old layout (with handoffs) and an unrecorded agent-factory/ at the kit root, so every origin is recorded. */
 function migrated(tag: string): World {
-  const w = world(tag);
+  return migrate(world(tag));
+}
+/** migrated()'s steps on a given world (plan 34.1-49 split them out so the DI-17 row can migrate a world with another kit home). */
+function migrate(w: World): World {
   oldLayout(w);
   mkdirSync(join(w.kitHome, "agent-factory"), { recursive: true });
   writeFileSync(join(w.kitHome, "agent-factory", "MYNOTES.md"), "the user's notes at the kit root\n");
@@ -549,5 +562,71 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     // record-rewrite verify's "Re-run to finish it." does not finish it), open for human triage; plan 34.1-28 found it
     // by running this command and does not pin the defect as correct.
     expect(again, "premise: the banner line was read").not.toBe("");
+  });
+
+  // DI-17 (plan 34.1-49, D-38; brief §6): no row followed a `--prune-old-kit` command printed under a kit home other
+  // than the default. This one is the failed-rewrite case above on a world whose kit home K is `<root>/kit`: the prune
+  // ends INCOMPLETE, the banner's command is checked word by word without the builder, the modes are restored (the fix
+  // the verifies name), and the command is run as printed by runPrintedCommand, from a scratch directory outside the
+  // checkout, in a child environment that holds a conflicting GRUGOPS_HOME, INSTALL_MODE, GRUGOPS_SRC and TARGET. It
+  // asserts which kit home the command acts on, not that the entries leave the record: a re-run keeps the entry of a
+  // backup that is gone (DI-13, deferred by D-39).
+  if (CHMOD_SKIP !== null) console.log(`SKIP the DI-17 prune follow-as-printed case of installer-prune.test.ts — ${CHMOD_SKIP}`);
+  it.skipIf(CHMOD_SKIP !== null)("DI-17 (D-38): --prune-old-kit's printed command, followed under a conflicting kit home: under a non-default kit home K the INCOMPLETE banner's command states GRUGOPS_HOME=<K>, INSTALL_MODE and GRUGOPS_SRC, and run as printed once the cause is fixed it exits 0 against K and creates neither the conflicting kit home nor <HOME>/.grugops", () => {
+    const w = migrate(worldWithOtherKitHome("di17-prune"));
+    const defaultKit = join(w.home, ".grugops");
+    expect(resolve(w.kitHome), "premise: the kit home K is not the default <HOME>/.grugops").not.toBe(resolve(defaultKit));
+    expect(existsSync(join(w.kitHome, ".grugops-kit.json")), "premise: the migrate wrote the kit-home record at K").toBe(true);
+    expect(existsSync(defaultKit), "premise: nothing wrote the default kit home").toBe(false);
+    expect(String(readMarkerObject(w.t).grugopsHome), "premise: the marker records K").toBe(w.kitHome);
+    const markerPath = at(w.t, ".grugops/install.json");
+    const homeRecord = join(w.kitHome, ".grugops-kit.json");
+    const homeBak = kitHomeBackups(w.kitHome)[0].path;
+    chmodSync(markerPath, 0o444); // mode-census: row-315
+    chmodSync(homeRecord, 0o444); // mode-census: row-315
+    let again = "";
+    try {
+      const r = prune(w);
+      expect(r.status, r.stdout).toBe(3);
+      expect(r.stdout).toContain("== prune INCOMPLETE");
+      const lines = r.stdout.split("\n");
+      again = lines[lines.findIndex((l) => l.startsWith("== prune INCOMPLETE")) + 1] ?? "";
+      expect(again, `premise: the line after the banner carries the command that prunes again:\n${r.stdout}`).toMatch(/prunes again\.$/);
+      expect(linesOf(r, "verify").some((l) => lineNamesPath(l, homeRecord)), `premise: a verify names the kit-home record at K\n${r.stdout}`).toBe(true);
+    } finally {
+      chmodSync(markerPath, 0o644); // mode-census: restore
+      chmodSync(homeRecord, 0o644); // mode-census: restore
+    }
+    // Word by word, without the builder: GRUGOPS_HOME=<K>, INSTALL_MODE=copy, GRUGOPS_SRC=<this checkout>, node, this
+    // checkout's install.js, --target <target>, --prune-old-kit, and nothing else.
+    const { assigned, words } = printedInvocation(printedCommand(again));
+    expect(Object.keys(assigned).sort(), `the printed command does not state exactly GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC: ${again}`).toEqual(["GRUGOPS_HOME", "GRUGOPS_SRC", "INSTALL_MODE"]);
+    expect(resolve(assigned.GRUGOPS_HOME ?? ""), `the printed GRUGOPS_HOME is not the run's kit home K: ${again}`).toBe(resolve(w.kitHome));
+    expect(assigned.INSTALL_MODE, `the printed command does not state copy: ${again}`).toBe("copy");
+    expect(resolve(assigned.GRUGOPS_SRC ?? ""), `the printed GRUGOPS_SRC is not this checkout: ${again}`).toBe(REPO_ROOT);
+    expect(words[0], again).toBe("node");
+    expect(words[1], `the script is not this checkout's install.js: ${again}`).toBe(join(REPO_ROOT, "install", "install.js"));
+    expect(words.slice(2), `the arguments are not --target <target> --prune-old-kit: ${again}`).toEqual(["--target", w.t, "--prune-old-kit"]);
+
+    const ran = runPrintedCommand(again, { home: w.home, timeoutMs: 120_000 });
+    expect(ran.premise.cwd.startsWith(REPO_ROOT + "/"), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(false);
+    expect(ran.premise.kitHomeBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_HOME before the printed assignments").toBe(ran.premise.conflictingKitHome);
+    expect(resolve(ran.premise.conflictingKitHome), "premise: the conflicting kit home is K").not.toBe(resolve(w.kitHome));
+    expect(resolve(ran.premise.grugopsHome), "premise: the child's GRUGOPS_HOME is not the printed K").toBe(resolve(w.kitHome));
+    expect(ran.premise.installModeBeforePrinted, "premise: the child's environment did not hold the conflicting INSTALL_MODE").toBe("symlink");
+    expect(ran.premise.srcBeforePrinted, "premise: the child's environment did not hold the conflicting GRUGOPS_SRC").toBe(ran.premise.conflictingSrc);
+    expect(ran.premise.targetBeforeRun, "premise: the child's environment did not hold the conflicting TARGET").toBe(ran.premise.conflictingTarget);
+    finished(ran, "the printed --prune-old-kit command");
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(ran.stdout, ran.stdout).toContain("== prune complete ==");
+    // It acted on K: its header names K as the kit home, and it read K's record (the kit-home backup entry K's record
+    // holds is reported on a `kit home:` line).
+    expect(ran.stdout.split("\n").filter((l) => /^home:\s/.test(l)).map((l) => resolve(l.replace(/^home:\s+/, ""))), `the run's kit home is not K:\n${ran.stdout}`).toEqual([resolve(w.kitHome)]);
+    expect(ran.stdout.split("\n").some((l) => /^ {2}left\s+kit home: /.test(l) && l.includes(homeBak)), `no line reports the backup K's record holds (${homeBak}):\n${ran.stdout}`).toBe(true);
+    expect(existsSync(homeRecord), "the kit-home record at K is gone").toBe(true);
+    expect(ran.premise.conflictingKitHomeCreated, "the conflicting kit home was created: the printed command took its kit home from the environment").toBe(false);
+    expect(existsSync(defaultKit), "the printed command wrote the default kit home <HOME>/.grugops").toBe(false);
+    expect(ran.premise.conflictingTargetEmpty, "the printed command wrote into the conflicting TARGET").toBe(true);
+    expect(String(readMarkerObject(w.t).grugopsHome), "the printed command moved the marker's kit home").toBe(w.kitHome);
   });
 });

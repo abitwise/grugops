@@ -98,11 +98,14 @@ const SOURCE_FILE_COUNT = 9;
  * and root as R12 is). access-denial 14 -> 15 and restore 21 -> 22 on 2026-10-13 (plan 34.1-46, D-37, brief §6): the
  * reader-state matrix's mode 000 shape (READER_STATES.blocked) takes the marker's read permission in its `apply` and gives
  * it back in its `undo`, which the cell runs in a `finally` (the shape is skipped with a printed reason on win32 and as
- * root). */
+ * root). row-315 5 -> 7 and restore 22 -> 24 on 2026-10-13 (plan 34.1-49, D-38, DI-17): installer-prune.test.ts's DI-17
+ * prune row makes the marker and the kit-home record read-only so the prune's record rewrite fails under a non-default
+ * kit home (the failed-rewrite case's setup, in a file WINDOWS.md row 315 names), and restores both in a `finally`
+ * before following the printed command; the case is skipped with a printed reason on win32 and as root. */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
   "access-denial": 15,
-  restore: 22,
-  "row-315": 5,
+  restore: 24,
+  "row-315": 7,
   "posix-bits": 2,
 };
 const USER_MODE_EDIT_CHMOD_COUNT = 1;
