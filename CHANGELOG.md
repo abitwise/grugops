@@ -482,6 +482,27 @@ CLI with Antigravity CLI.
 - A printed command always states `GRUGOPS_SRC=<dir>`, the kit checkout the run used (`GRUGOPS_SRC`,
   else the checkout the script is in), so the `install.js --check` stale-adapter remedy renders from
   the checkout it compared the adapters against (34.1 review WR-23).
+- When `.grugops/install.json` is not valid JSON (for example a trailing comma left by a hand edit),
+  cannot be read, or is not a JSON object, `install.js --check`, the installer and the uninstaller
+  name the cause and what to fix by hand, and none of them offers removing the marker, which keeps
+  the record of what install did here (34.1 review CR-05).
+- The same holds when the install ledger in the marker has a malformed entry, on every kind of
+  uninstall run, with agent flags or without (34.1 review CR-06).
+- When the marker repeats a key, the line names each repeated key and how many times it appears
+  (up to eight keys by name, then a count of the rest), and it no longer says the install ledger is
+  intact when both `ledger` values are unusable (34.1 review WR-26).
+- The lines about a marker that cannot be used name the cause the installer saw, instead of a cause
+  that did not apply (34.1 review IN-33).
+- Over a marker that cannot be used, the uninstaller reports the Claude Code ask rules and the
+  grugops pointer blocks as left for the marker's remedy, and no longer tells you to remove them by
+  hand (34.1 review IN-34).
+- Every command the installer and uninstaller print states its kit home and its kit checkout and,
+  for an install command, its install mode, the default kit home and a copy install included, so a
+  `GRUGOPS_HOME`, `INSTALL_MODE` or `GRUGOPS_SRC` exported in your shell does not change what a
+  printed command does (34.1 review WR-25).
+- `install.js --check` checks the kit home the install recorded, the same one its printed commands
+  use, so a plain `--check` on an install with another kit home no longer reports a stale or moved
+  install, nor stale Claude Code adapters (34.1 review WR-24).
 
 ### Security
 
