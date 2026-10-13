@@ -294,6 +294,22 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   triage: add the same contextKitHome clause after doctorInstallCommand() in both lines, so every printed install step
   names where it puts the kit.
 
+## From plan 34.1-38 (gap round 3)
+
+### DI-17: no follow-as-printed row runs an `--update` or `--prune-old-kit` command printed under a non-default kit home
+
+- status: open
+- **Found during:** plan 34.1-38, Task 2 (the claim table for install/README.md's printed-command paragraph).
+- **What:** the README sentence "An install, `--migrate`, `--update` or `--prune-old-kit` run prints commands with the
+  kit home and mode it was run with" is true by the code (install.ts DOCTOR_MARKER_READ is null outside `--check`, and
+  commandContextFromRecord's unit table gives the run's kit home and mode for a null record). Install is followed as
+  printed under `--symlink` (R33) and `--migrate` after its fix (M8), but no row prints an `--update` or
+  `--prune-old-kit` command with `GRUGOPS_HOME` set to a non-default kit home and runs it as printed outside the
+  checkout. The sentence is backed by the derivation, not by a follow-as-printed row for those two modes.
+- **Not fixed:** a test-coverage gap, not a wrong sentence; outside the plan's scope (prose, comments and one test
+  file). Option for triage: a row per mode that runs the printed banner command with no inherited GRUGOPS_HOME and
+  asserts it refreshes or prunes the kit home K, not `~/.grugops`.
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.
