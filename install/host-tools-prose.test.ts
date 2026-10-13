@@ -568,7 +568,9 @@ describe(`DOC-1 (DI-10): no tracked installer source or README says install writ
 // the install command the uninstaller prints. Three shipped sentences said otherwise: the CHANGELOG line that following
 // a printed install command never wrote a second kit, the README sentence that `--check` printed its commands in the
 // mode it was run in, and the README sentence that the uninstaller's install step took its kit home from the marker
-// when no GRUGOPS_HOME was given. Plans 34.1-35, 34.1-41 and 34.1-38 corrected them; this scan holds them at zero.
+// when no GRUGOPS_HOME was given. Plans 34.1-35, 34.1-41 and 34.1-38 corrected them. A fourth, from plan 34.1-37's
+// README sentence, put the GRUGOPS_SRC word first in every printed command, while scriptCommand prints it after any
+// GRUGOPS_HOME word (the WR-23 case's span); plan 34.1-38 corrected it. This scan holds all four at zero.
 //
 // THE CLAIMS are spelled from parts below, so no source line of this file holds one, and a grep for a claim finds only
 // real hits. Each is matched over a joined block (markdownBlocks, typescriptBlocks, joinBlock above) with any run of
@@ -585,6 +587,7 @@ const RETIRED_PRINTED_CLAIMS: readonly { readonly id: string; readonly words: re
   { id: "second-kit", words: ["never", "writes", "a", "second", "kit"] },
   { id: "mode-it-ran-in", words: ["in", "the", "mode", "it", "ran", "in"] },
   { id: "marker-kit-home", words: ["else", "the", "one", "the", "marker", "records"] },
+  { id: "src-first", words: ["starts", "with", "`?GRUGOPS_SRC"] },
 ];
 const retiredClaimRe = (words: readonly string[]): RegExp => new RegExp(`\\b${words.join("\\s+")}\\b`, "gi");
 const RETIRED_SCAN_ANCHORS = [
@@ -651,11 +654,13 @@ describe("DOC-1 (D-34): no tracked document or comment carries a retired printed
     // The other two claims, each wrapped across a line break, in a changelog entry and a code comment.
     const [w0, w2] = [RETIRED_PRINTED_CLAIMS[0].words, RETIRED_PRINTED_CLAIMS[2].words];
     const changelog = "# Changelog\n\n- An install command carries `--symlink`, so following it\n" +
-      `  ${w0.slice(0, 2).join(" ")}\n  ${w0.slice(2).join(" ")} there (a review id).\n`;
+      `  ${w0.slice(0, 2).join(" ")}\n  ${w0.slice(2).join(" ")} there (a review id).\n` +
+      `- A printed command ${RETIRED_PRINTED_CLAIMS[3].words.slice(0, 2).join(" ")} \`GRUGOPS_SRC=<dir>\` when the run used another checkout.\n`;
     const comment = `// the kit home (the GRUGOPS_HOME you ran the uninstaller with, ${w2.slice(0, 2).join(" ")}\n` +
       `// ${w2.slice(2).join(" ")}).\nexport const c = 1;\n`;
     // Controls: true sentences that share words with a claim, and copies outside the scan set.
     const controlTs = "// --check: following one writes no second kit and does not move the install.\n" +
+      "// An install command starts with GRUGOPS_HOME=<dir> for another kit home.\n" +
       "// The new marker records a copy install, and the kit home and install mode the marker records.\nexport const d = 1;\n";
     const outside = `${w0.join(" ")}\n`;
     const root = plantedRepo("doc1-printed", {
@@ -670,7 +675,12 @@ describe("DOC-1 (D-34): no tracked document or comment carries a retired printed
     const scan = retiredClaimScan(root);
     expect(scan.scanned.sort()).toEqual(["CHANGELOG.md", "install/README.md", "install/clean.ts", "install/uninstall.ts"]);
     expect(scan.hits.sort()).toEqual(
-      [`install/README.md:${claimLine} [mode-it-ran-in]`, "CHANGELOG.md:4 [second-kit]", "install/uninstall.ts:1 [marker-kit-home]"].sort(),
+      [
+        `install/README.md:${claimLine} [mode-it-ran-in]`,
+        "CHANGELOG.md:4 [second-kit]",
+        "CHANGELOG.md:6 [src-first]",
+        "install/uninstall.ts:1 [marker-kit-home]",
+      ].sort(),
     );
   });
 });

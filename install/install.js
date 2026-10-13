@@ -394,7 +394,9 @@ const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
 });
 // THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
 // install.js prints its command from the helpers below, so the command runs as printed from any directory, with the
-// kit home and the install mode this run used (host-tools.ts agentCommand with COMMAND_CONTEXT, the one builder).
+// kit home and the install mode COMMAND_CONTEXT holds (host-tools.ts agentCommand with COMMAND_CONTEXT, the one
+// builder): the ones install's own marker for this directory records when the doctor reads it `ok`, whatever this
+// `--check` run was given, and this run's own otherwise (gap round 3, D-36, WR-21; see COMMAND_CONTEXT above).
 //
 // Why they are flag-less: `--check` takes no agent flag (D-25) and speaks for the agents the marker records. install.js
 // with no agent flag chooses that same recorded set when it runs unattended (D-03), and at a terminal it shows the

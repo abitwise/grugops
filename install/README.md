@@ -87,10 +87,11 @@ A command the uninstaller prints to finish or repeat a run (on a `left` line, a 
 `uninstall INCOMPLETE` banner) names `uninstall.js` by its absolute path too, so it also runs from
 any directory. It carries no `GRUGOPS_HOME=` and no `--symlink`: the uninstaller removes only what
 the install record in the target names, and needs neither.
-A command either script prints starts with `GRUGOPS_SRC=<dir>` when the run used a kit checkout
-(`GRUGOPS_SRC`) other than the one the script is in, so the command renders from, and reports
-against, the checkout the run used. The `--check` warning about stale adapters names one checkout,
-the one it compared the adapters against, and its install command renders from that checkout.
+A command either script prints carries `GRUGOPS_SRC=<dir>` (after any `GRUGOPS_HOME=<dir>`, before
+`node`) when the run used a kit checkout (`GRUGOPS_SRC`) other than the one the script is in, so the
+command renders from, and reports against, the checkout the run used. The `--check` warning about
+stale adapters names one checkout, the one it compared the adapters against, and its install command
+renders from that checkout.
 
 ### Re-installing over an existing install (your edits to the kit files, D-32)
 
