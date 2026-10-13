@@ -310,6 +310,25 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   file). Option for triage: a row per mode that runs the printed banner command with no inherited GRUGOPS_HOME and
   asserts it refreshes or prunes the kit home K, not `~/.grugops`.
 
+## From plan 34.1-42 (gap round 4)
+
+### DI-18: over a user's own JSON object at .grugops/install.json in a target grugops never installed into, the uninstaller's verify calls the file the record of the agents installed here
+
+- status: open (for the human; no round 5)
+- **Found during:** plan 34.1-42, Task 1 (the install/ regression run: installer-never-installed.test.ts FD and FM pin
+  the marker's `left` line over a user's JSON object at the marker path).
+- **What:** D-37 gives the uninstaller one reading for every `unreadable` marker read: markerUnusableText, then
+  markerFixText ("Fix .grugops/install.json by hand (no grugopsHome; no kitRoot; no installMode); never delete the
+  marker: it is the one record install keeps of the agents installed here, ..."), then this run's command. In a target
+  grugops was never installed into, with a JSON object of the user's own at that path (the FD and FM rows), the file is
+  not a record of anything grugops did, so the sentence that it is the one record of the installed agents, and the fix
+  that names install's fields, are not true for that file. Uninstall still changes zero bytes there (FD, FM pass), so no
+  file is lost; the defect is wording only (DOC-1/MSG-1). Read from the run output, reproduced by the FD row.
+- **Not fixed:** D-37 is locked ("for any marker read") and no round 5 exists. Option for triage: a reader state for a
+  JSON object that holds none of install's fields (no grugopsHome, kitRoot, installMode, target or ledger), worded as
+  "not written by install; if it is yours, leave it" without offering removal, in the one owner (plan 34.1-46's
+  matrix is the place that enumerates reader states).
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.
