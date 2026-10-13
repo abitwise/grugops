@@ -2779,4 +2779,62 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     expect(failLines(checked.stdout), checked.stdout).toEqual([]);
     expect(existsSync(defaultKit), "<HOME>/.grugops was created").toBe(false);
   });
+
+  // R52 control (plan 34.1-50, D-38): reading the recorded kit home must not hide a real stale or moved install. The
+  // marker's kitRoot is set by hand to a directory that holds no kit (the marker still reads `ok`), so the recorded kit
+  // home and the recorded kit root disagree: the plain --check FAILs naming that directory. Its printed remedy (the kit
+  // route FAIL's install command, then its check command) is followed as printed and clears it.
+  it("R52 control (a moved kit): install --codex with K, the marker's kitRoot set by hand to a directory with no kit: a plain --check exits 1 and FAILs 'kit-root sources DISAGREE (stale/moved install)' naming that directory; the kit route FAIL's install command and then its check command, run as printed, re-record K's kit root and exit 0", () => {
+    const { target, kitHome, home, defaultKit } = codexWithOwnKitHome();
+    const moved = join(dirname(target), "moved", "agent-factory");
+    const markerPath = join(target, ...MARKER_REL.split("/"));
+    writeFileSync(markerPath, JSON.stringify({ ...readMarkerObject(target), kitRoot: moved }, null, 2) + "\n");
+    expect(existsSync(moved), "premise: the hand-set kitRoot holds no kit").toBe(false);
+    const c = plainCheck(target, kitHome, home);
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    expect(headerValue(c.stdout, "home"), "premise: the marker still reads ok, so the doctor reads its kit home K").toBe(pathText(kitHome));
+    const disagree = linesUnder(c.stdout, "FAIL").filter((l) => messageOf(l).startsWith("kit-root sources DISAGREE (stale/moved install)"));
+    expect(disagree.length, c.stdout).toBe(1);
+    expect(disagree[0], "the DISAGREE FAIL does not name the moved directory").toContain(`marker=${pathText(moved)}`);
+    expect(disagree[0], "the DISAGREE FAIL does not name the recorded kit root as the rule").toContain(`rule=${pathText(join(kitHome, "agent-factory"))}`);
+
+    const route = linesUnder(c.stdout, "FAIL").filter((l) => messageOf(l).startsWith("kit route: the `kitRoot` field"));
+    expect(route.length, c.stdout).toBe(1);
+    const spans = printedCommands(route[0]);
+    expect(spans.length, `premise: the kit route FAIL prints an install command and a check command: ${route[0]}`).toBe(2);
+    const ran = runPrintedCommand(`\`${spans[0]}\``, { home });
+    expect(pathText(ran.premise.grugopsHome), "premise: the printed install command states K").toBe(pathText(kitHome));
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(pathText(String(readMarkerObject(target).kitRoot)), "the printed install command did not re-record K's kit root").toBe(pathText(join(kitHome, "agent-factory")));
+    const checked = runPrintedCommand(`\`${spans[1]}\``, { home });
+    expect(checked.status, checked.stdout + checked.stderr).toBe(0);
+    expect(failLines(checked.stdout), checked.stdout).toEqual([]);
+    expect(existsSync(defaultKit), "<HOME>/.grugops was created").toBe(false);
+  });
+
+  // R52b (plan 34.1-50, D-38): over a marker the doctor cannot use, nothing is recorded to read, so the header and the
+  // checks keep the run's kit home, which is also the kit home its printed commands state (commandContextFromRecord
+  // falls back to the run's). A trailing comma makes the marker unreadable; --check is given GRUGOPS_HOME=K2.
+  it("R52b (an unusable marker): a marker with a trailing comma, --check with GRUGOPS_HOME=K2: the home: header names K2 (the run's), no line names a kit home as not used, and the FAIL's printed check command states GRUGOPS_HOME=<K2>", () => {
+    const { target, kitHome, home } = codexWithOwnKitHome();
+    const k2 = join(dirname(target), "kit2");
+    expect(pathText(k2), "premise: K2 is not the recorded K").not.toBe(pathText(kitHome));
+    const markerPath = join(target, ...MARKER_REL.split("/"));
+    const text = readFileSync(markerPath, "utf8");
+    const at = text.lastIndexOf("}");
+    writeFileSync(markerPath, `${text.slice(0, at).trimEnd()},\n}\n`);
+    expect(() => JSON.parse(readFileSync(markerPath, "utf8")), "premise: the marker is not valid JSON").toThrow();
+    const c = spawnBin(INSTALL_JS, ["--check"], target, k2, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    expect(headerValue(c.stdout, "home"), "the home: header does not name the run's kit home K2 over an unusable marker").toBe(pathText(k2));
+    expect(headerValue(c.stdout, "kit"), "the kit: header does not name K2's agent-factory").toBe(pathText(join(k2, "agent-factory")));
+    expect(c.stdout.split(/\r?\n/).filter((l) => l.startsWith("given:")), "a kit home is named as not used, but nothing recorded is read").toEqual([]);
+    const fails = linesUnder(c.stdout, "FAIL");
+    expect(fails.length, c.stdout).toBe(1);
+    const spans = printedCommands(fails[0]);
+    const checkSpan = spans[spans.length - 1] ?? "";
+    const inv = printedInvocation(checkSpan);
+    expect(inv.words.slice(-1), `premise: the FAIL's last printed command is the check command: ${fails[0]}`).toEqual(["--check"]);
+    expect(pathText(inv.assigned.GRUGOPS_HOME ?? ""), `the FAIL's check command does not state the run's kit home K2: ${checkSpan}`).toBe(pathText(k2));
+  });
 });
