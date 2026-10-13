@@ -92,10 +92,13 @@ const SOURCE_FILE_COUNT = 9;
  * directory `.agents/skills` cannot be removed (one call site, run in a loop for a partial and a flag-less run) and
  * restores it in a `finally` (gated on win32 and root as R12 is). access-denial 11 -> 13 and restore 18 -> 20 (plan
  * 34.1-21, D-31 MSG-1): row R32 makes the marker read-only so its rewrite fails, and row R23 makes
- * `.agents/skills/grugops` read-only so the recorded SKILL.md cannot be removed; each restores in a `finally`. */
+ * `.agents/skills/grugops` read-only so the recorded SKILL.md cannot be removed; each restores in a `finally`.
+ * access-denial 13 -> 14 and restore 20 -> 21 on 2026-10-13 (plan 34.1-46, D-37): agents-record.test.ts row R47 makes the
+ * install marker mode 000 (the blocked read D-37 names) and restores its read permission in a `finally` (gated on win32
+ * and root as R12 is). */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 13,
-  restore: 20,
+  "access-denial": 14,
+  restore: 21,
   "row-315": 5,
   "posix-bits": 2,
 };

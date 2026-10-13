@@ -2977,6 +2977,58 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
     expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
   });
+
+  // R47 (plan 34.1-46, 2026-10-13, D-37): the blocked read D-37 names, a mode 000 marker, followed as printed. The reader
+  // answers `blocked` with the cause EACCES; the uninstaller removes nothing, names the cause, says fix the file by hand
+  // and never delete the marker, and offers no removal; with read permission restored by hand (the fix the line names),
+  // the printed command finishes the reversal. Gated like R12: a mode does not stop a read on win32 or as root.
+  it.skipIf(CHMOD_SKIP !== null)(
+    "R47 (D-37, a mode 000 marker followed as printed): install --claude --codex, the marker made unreadable; a flag-less uninstall exits 3, removes nothing, names the cause (EACCES), says fix by hand and never delete the marker, and offers no removal; with read permission restored by hand, the printed command run as printed removes the marker and both agents' skills, with no recorded path left",
+    () => {
+      const w = world("r47");
+      install(w, [flag("claude"), flag("codex")]);
+      const recorded = recordedPaths(w);
+      expect(recorded, "PREMISE: the ledger names both skills").toEqual(expect.arrayContaining([AGENT_SKILL_REL, ".claude/skills/grugops/SKILL.md"]));
+      const marker = at(w.target, MARKER_REL);
+      const bytes = readFileSync(marker);
+      let r: Run;
+      chmodSync(marker, 0o000); // mode-census: access-denial
+      try {
+        const read = readInstallMarker(w.target);
+        expect(read.state === "unreadable" ? read.defect : read.state, "PREMISE: a mode 000 marker reads unreadable with defect blocked").toBe("blocked");
+        expect(read.state === "unreadable" ? read.why : "", "PREMISE: the read's cause names EACCES").toContain("EACCES");
+        r = uninstall(w, []);
+      } finally {
+        chmodSync(marker, 0o644); // mode-census: restore
+      }
+      expect(r.status, r.stdout).toBe(3);
+      const about = linesWith(r.stdout, "verify").filter((l) => l.replace(/^ {2}verify\s+/, "").startsWith(MARKER_REL));
+      expect(about.length, `one verify line about the marker\n${r.stdout}`).toBe(1);
+      const verifyLine = about[0];
+      expect(verifyLine, r.stdout).toContain("EACCES");
+      expect(verifyLine, r.stdout).toContain("by hand");
+      expect(verifyLine, r.stdout).toContain("never delete the marker");
+      expect(printedFlags(verifyLine), verifyLine).toEqual([]);
+      for (const l of [...r.stdout.split("\n"), ...r.stderr.split("\n")]) {
+        expect(l, "a line tells the user to delete the marker").not.toMatch(DELETE_MARKER);
+        expect(l, "a line offers removing the marker").not.toMatch(MARKER_REMOVAL);
+        expect(l, "a line offers removing the marker").not.toMatch(REMOVAL_OFFER);
+      }
+      expect(linesWith(r.stdout, "removed"), `something was removed\n${r.stdout}`).toEqual([]);
+      expect(readFileSync(marker).equals(bytes), `the marker changed\n${r.stdout}`).toBe(true);
+      expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(true);
+      expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), r.stdout).toBe(true);
+
+      // Follow it: read permission is back (the `finally` above is the fix the line named), then run the printed command.
+      const fin = runPrinted(w, verifyLine);
+      expect(fin.status, fin.stdout).toBe(0);
+      expect(markerGone(w), fin.stdout).toBe(true);
+      expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(false);
+      expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), fin.stdout).toBe(false);
+      expect(leftRecorded(fin.stdout, recorded), `a path the ledger recorded was left\n${fin.stdout}`).toEqual([]);
+    },
+    300_000,
+  );
 });
 
 // ── D-37: every reading that says the marker cannot be used carries the owner's wording or points at it ─────────────
