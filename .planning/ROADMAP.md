@@ -1748,7 +1748,7 @@ Plans:
 **Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
 **Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
 **Depends on:** Phase 34
-**Plans:** 41/52 plans executed; gap round 4 of 4 (the last on the cap), 34.1-42..34.1-52, planned 2026-10-13 under D-37, D-38 and D-39; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
+**Plans:** 41/52 plans executed; gap round 4 of 4 (the last on the cap), 34.1-42..34.1-52, planned 2026-10-13 under D-37, D-38 and D-39, revised at the plan check the same day: 34.1-50 gains the parser-derived WR-24 census and the stale-adapter sibling it found, 34.1-47 and 34.1-48 land in two green commits with a stop rule, 34.1-52 surfaces the uninstall INSTALL_MODE reading and DRY_RUN and records a residual DI row; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
 
 Plans:
 **Wave 1**
@@ -1896,22 +1896,22 @@ Plans:
 - [ ] 34.1-46-PLAN.md — the reader-state matrix (every MarkerDefect x every printing run), R47 mode 000 and the remaining follow rows, the widened removal-matcher census (D-37)
 
 **Wave 34** *(blocked on Wave 33 completion)*
-- [ ] 34.1-47-PLAN.md — WR-25 kit-home half: every printed command states GRUGOPS_HOME; the harness keeps a conflicting GRUGOPS_HOME; R49 (D-38)
+- [ ] 34.1-47-PLAN.md — WR-25 kit-home half: every printed command states GRUGOPS_HOME; the harness keeps a conflicting GRUGOPS_HOME; R49; two green commits (expand, flip) with a stop rule (D-38)
 
 **Wave 35** *(blocked on Wave 34 completion)*
-- [ ] 34.1-48-PLAN.md — WR-25 mode and checkout: INSTALL_MODE and GRUGOPS_SRC stated, no --symlink word; the harness keeps conflicting INSTALL_MODE, GRUGOPS_SRC and TARGET; R50 (D-38)
+- [ ] 34.1-48-PLAN.md — WR-25 mode and checkout: INSTALL_MODE and GRUGOPS_SRC stated, no --symlink word; the harness keeps conflicting INSTALL_MODE, GRUGOPS_SRC and TARGET; R50; two green commits (expand, flip) with a stop rule (D-38)
 
 **Wave 36** *(blocked on Wave 35 completion)*
 - [ ] 34.1-49-PLAN.md — DI-16 and DI-17 followed as printed (not-installed, --update, --prune-old-kit) and the env-read census (D-38)
 
 **Wave 37** *(blocked on Wave 36 completion)*
-- [ ] 34.1-50-PLAN.md — WR-24: --check reads one kit home, the record's, for its header, cross-check and kit checks; R52 (D-38)
+- [ ] 34.1-50-PLAN.md — WR-24: --check reads one kit home, the record's, for its header, cross-check, kit checks and stale-adapter render; R52, R52c; the parser-derived WR-24 census with mutation proofs (D-38)
 
 **Wave 38** *(blocked on Wave 37 completion)*
 - [ ] 34.1-51-PLAN.md — DOC-1: README and CHANGELOG made true for D-37 and D-38 (IN-32 narrowed), retired sentences held by the scan (D-37, D-38)
 
 **Wave 39** *(blocked on Wave 38 completion)*
-- [ ] 34.1-52-PLAN.md — round close: deferred items after round 4 (DI-16, DI-17 closed; D-39 residuals), review dispositions, CHANGELOG [Unreleased] Fixed, count re-pins, the one full regression (D-37, D-38, D-39)
+- [ ] 34.1-52-PLAN.md — round close: deferred items after round 4 (DI-16, DI-17 closed; D-39 residuals; the uninstall INSTALL_MODE reading and DRY_RUN surfaced to the human; a residual DI row for printed commands outside the builder), review dispositions, CHANGELOG [Unreleased] Fixed, count re-pins, the one full regression (D-37, D-38, D-39)
 
 ## Progress
 
