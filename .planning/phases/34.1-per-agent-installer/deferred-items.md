@@ -418,6 +418,29 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   from your grugops checkout, stating GRUGOPS_HOME and INSTALL_MODE as the install recorded them", decided with
   DI-15.
 
+## From plan 34.1-54 (gap round 5)
+
+### DI-23: over a foreign read, three uninstall lines still call the file "the install marker"
+
+- status: open (for the human; no round 6)
+- **Found during:** plan 34.1-54, Task 1 (a scratch uninstall over a user's own JSON object at the marker path, with
+  GRUGOPS_HOME and HOME set to scratch directories, after the `foreign` state landed).
+- **What:** the verify and the marker's `left` line now say the file was not written by install and, if it is yours,
+  to leave it (DI-18). Three other lines of the same run still name the file "the install marker":
+  - the closing's preserved section: ".grugops/ (seeded state) is kept; its install.json marker is reported on the next
+    line." and ".grugops/install.json (the install marker): left in place, untouched (the `left` or `verify` line
+    above says why).";
+  - the ask-rules `left` line: ".claude/settings.json ask rules (the install marker could not be used — see the verify
+    line above; nothing removed)" (uninstall.ts reportUnrecordedSettings), and its sibling pointer lines in
+    noBlockRecordReason and reportUnrecordedSettings' Gemini line.
+  None says to fix the file by hand, to never delete it, or that it is the record of the agents installed here, and
+  none offers removal, so the plan's rules hold; the noun names the path's role, not the file's author. Uninstall
+  still changes zero bytes (FD, FM).
+- **Not fixed:** outside D-40's DI-18 item (the plan's sibling search listed the markerFixText, markerDefectText and
+  markerUnusableText sites only) and no round 6 exists. Option for triage: word these pointer and closing lines
+  through the owner (for example "the file at .grugops/install.json" when the read is `foreign`), or accept the noun
+  as naming the path.
+
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
 - **DI-01:** decided (D-28): the by-name exclusion stays.
