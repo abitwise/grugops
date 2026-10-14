@@ -30,6 +30,7 @@ import {
   MARKER_REL,
   REPO_ROOT,
   commandContextFor,
+  lineNamesPath,
   makeFixture,
   pathText,
   printedCommand,
@@ -2861,5 +2862,132 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
       expect(c.status, `--check ${extra.join(" ")}\n${c.stdout}${c.stderr}`).toBe(0);
     }
     expect(existsSync(defaultKit), "<HOME>/.grugops was created").toBe(false);
+  });
+
+  // ── R54 (plan 34.1-56, D-40 item 1 as narrowed by D-42; review WR-37): A KIT HOME MOVED BY HAND ─────────────────────
+  //
+  // WR-37: since WR-24 all three kit-root sources come from the record, so a kit home the user moved by hand read
+  // "kit-root sources agree" right above a FAIL on the absent kit, and every install command the doctor printed copied a
+  // second kit to the old recorded home. D-42: when the `--check` run is given a kit home (GRUGOPS_HOME) other than the
+  // recorded one, the recorded kit root holds no kit and the given kit home's agent-factory holds one, the cross-check
+  // prints one FAIL naming both kit homes. Its remedy is by hand and writes no kit (move the kit home back, then the
+  // printed check command); the line says the install commands on the doctor's other lines copy a kit to the recorded
+  // kit home. A plain `--check` (no GRUGOPS_HOME) does not detect a moved kit home. Kit homes are counted with the same
+  // test the doctor's kitReal makes: `<kit home>/agent-factory/roles/orchestrator.md` exists.
+  /** Whether `kitHome/agent-factory` holds a kit, by the doctor's own test (install.ts kitReal). */
+  const holdsKit = (kitHome: string): boolean => existsSync(join(kitHome, "agent-factory", "roles", "orchestrator.md"));
+  /** The doctor's `kit home moved:` FAIL lines. */
+  const movedLines = (stdout: string): string[] => linesUnder(stdout, "FAIL").filter((l) => messageOf(l).startsWith("kit home moved:"));
+  /** The doctor's `kit-root sources agree` ok lines. */
+  const agreeLines = (stdout: string): string[] => linesUnder(stdout, "ok").filter((l) => messageOf(l).startsWith("kit-root sources agree"));
+  /** Every printed installer command of a run's output, line by line. */
+  const commandsOf = (stdout: string): string[] => stdout.split(/\r?\n/).flatMap((l) => printedCommands(l));
+
+  it("R54 (WR-37, D-42): install --codex with kit home A, A moved by hand to B, --check with GRUGOPS_HOME=B: exit 1, one 'kit home moved:' FAIL naming A and B whose only printed command is the check command (GRUGOPS_HOME=<A>) and which says the other lines' install commands copy a kit to A, no 'kit-root sources agree' line, every other printed install command states A. B moved back to A by hand, the check command run as printed exits 0 with no FAIL, and exactly one kit exists: A's, with no backup copy, no B and no <HOME>/.grugops", () => {
+    const { target, kitHome, home, defaultKit } = codexWithOwnKitHome();
+    const moved = join(dirname(target), "moved-kit");
+    expect(holdsKit(kitHome), "premise: the install put a kit in A").toBe(true);
+    renameSync(kitHome, moved);
+    expect(holdsKit(moved) && !existsSync(kitHome), "premise: the kit home moved by hand from A to B").toBe(true);
+
+    const c = spawnBin(INSTALL_JS, ["--check"], target, moved, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    expect(headerValue(c.stdout, "home"), "premise: the marker reads ok, so the doctor reads its recorded kit home A").toBe(pathText(kitHome));
+    const lines = movedLines(c.stdout);
+    expect(lines.length, `one 'kit home moved:' FAIL:\n${c.stdout}`).toBe(1);
+    const line = lines[0];
+    expect(lineNamesPath(line, kitHome), `the moved-kit FAIL does not name the recorded kit home A: ${line}`).toBe(true);
+    expect(lineNamesPath(line, moved), `the moved-kit FAIL does not name the given kit home B: ${line}`).toBe(true);
+    expect(agreeLines(c.stdout), "a 'kit-root sources agree' line beside a moved kit home").toEqual([]);
+    const spans = printedCommands(line);
+    expect(spans.length, `the moved-kit FAIL prints exactly one command: ${line}`).toBe(1);
+    const inv = printedInvocation(spans[0]);
+    expect(inv.words.slice(-1), `the moved-kit FAIL's command is not the check command: ${line}`).toEqual(["--check"]);
+    expect(pathText(inv.assigned.GRUGOPS_HOME ?? ""), `the moved-kit FAIL's check command does not state A: ${line}`).toBe(pathText(kitHome));
+    expect(pathText(line), "the moved-kit FAIL does not say the other lines' install commands copy a kit to A").toContain(`copy a kit to ${pathText(kitHome)}.`);
+    const installs = commandsOf(c.stdout).filter((s) => printedInvocation(s).words.slice(-1)[0] !== "--check");
+    expect(installs.length, `premise: the run printed an install command on another line (the kit route FAIL's):\n${c.stdout}`).toBeGreaterThan(0);
+    for (const s of installs) expect(pathText(printedInvocation(s).assigned.GRUGOPS_HOME ?? ""), `a printed install command does not state A: ${s}`).toBe(pathText(kitHome));
+
+    // The by-hand step, then the check command as printed.
+    renameSync(moved, kitHome);
+    const ran = runPrintedCommand(line, { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(ran.premise.kitHomeBeforePrinted, "premise: the child's environment held the conflicting GRUGOPS_HOME").toBe(ran.premise.conflictingKitHome);
+    expect(ran.premise.installModeBeforePrinted, "premise: the child's environment held the conflicting INSTALL_MODE").toBe(ran.premise.conflictingInstallMode);
+    expect(pathText(ran.premise.grugopsHome), "premise: the printed check command states A").toBe(pathText(kitHome));
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(failLines(ran.stdout), ran.stdout).toEqual([]);
+    expect(ran.premise.conflictingKitHomeCreated, "the conflicting kit home was created").toBe(false);
+    // Exactly one kit: A's.
+    expect(holdsKit(kitHome), "A holds no kit after the move back").toBe(true);
+    expect(existsSync(moved), "B still exists after the move back").toBe(false);
+    expect(existsSync(defaultKit), "<HOME>/.grugops was created").toBe(false);
+    expect(readdirSync(kitHome).filter((e) => e.startsWith("agent-factory.bak.")), "A holds a backup copy of the kit").toEqual([]);
+  });
+
+  it("R54 with Claude Code (WR-37, D-42): install --claude --codex with kit home A (an adapter KIT= line present), A moved to B, --check with GRUGOPS_HOME=B: exit 1, one 'kit home moved:' FAIL and no 'kit-root sources agree' line", () => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    const r = runInstall(row.target, row.kitHome, [agentFlag(claudeHost()), agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(readdirSync(join(row.target, ".claude", "agents")).some((f) => f.endsWith(".md")), "premise: Claude Code adapters (with their KIT= line) are installed").toBe(true);
+    const moved = join(dirname(row.target), "moved-kit");
+    renameSync(row.kitHome, moved);
+    const c = spawnBin(INSTALL_JS, ["--check"], row.target, moved, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    const lines = movedLines(c.stdout);
+    expect(lines.length, `one 'kit home moved:' FAIL:\n${c.stdout}`).toBe(1);
+    expect(lineNamesPath(lines[0], row.kitHome) && lineNamesPath(lines[0], moved), `the moved-kit FAIL does not name A and B: ${lines[0]}`).toBe(true);
+    expect(printedCommands(lines[0]).length, `the moved-kit FAIL prints exactly one command: ${lines[0]}`).toBe(1);
+    expect(agreeLines(c.stdout), "a 'kit-root sources agree' line beside a moved kit home").toEqual([]);
+  });
+
+  it("R54 control (not given, D-42): with another repository's kit at the default <HOME>/.grugops, the moved install under a plain --check (no GRUGOPS_HOME) prints no 'kit home moved:' line, never tells the user to move <HOME>/.grugops, and exits 1 with a FAIL naming <A>/agent-factory", () => {
+    const { target, kitHome, home, defaultKit } = codexWithOwnKitHome();
+    const other = scratchRow();
+    const seeded = runInstall(other.target, defaultKit, [agentFlag(codexHost())], { home, omitKitHome: true });
+    expect(seeded.status, seeded.stdout + seeded.stderr).toBe(0);
+    expect(holdsKit(defaultKit), "premise: the default kit home <HOME>/.grugops holds another repository's kit").toBe(true);
+    const moved = join(dirname(target), "moved-kit");
+    renameSync(kitHome, moved);
+    const c = plainCheck(target, kitHome, home);
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    expect(movedLines(c.stdout), "a plain --check detected a moved kit home (D-42: not detected without GRUGOPS_HOME)").toEqual([]);
+    const moveDefault = c.stdout.split(/\r?\n/).filter((l) => /\bmove\b/i.test(l) && lineNamesPath(l, defaultKit));
+    expect(moveDefault, "a line tells the user to move the shared default kit home").toEqual([]);
+    const kitRoot = join(kitHome, "agent-factory");
+    expect(failLines(c.stdout).some((l) => lineNamesPath(l, kitRoot)), `no FAIL names <A>/agent-factory:\n${c.stdout}`).toBe(true);
+  });
+
+  it("R54 control (given, no kit, D-42): the moved install, --check given a third kit home that holds no kit: no 'kit home moved:' line", () => {
+    const { target, kitHome, home } = codexWithOwnKitHome();
+    const moved = join(dirname(target), "moved-kit");
+    renameSync(kitHome, moved);
+    const third = join(dirname(target), "third-kit");
+    expect(holdsKit(third), "premise: the third kit home holds no kit").toBe(false);
+    const c = spawnBin(INSTALL_JS, ["--check"], target, third, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    expect(movedLines(c.stdout), "a moved-kit line for a given kit home that holds no kit").toEqual([]);
+    expect(existsSync(third), "the --check run created the third kit home").toBe(false);
+  });
+
+  it("R54 control (both hold a kit, D-42): kit home A not moved, another repository installed with kit home K2, --check on the first given GRUGOPS_HOME=K2: no 'kit home moved:' line, one 'kit-root sources agree' line naming A's agent-factory, and the given: header names K2 as not used", () => {
+    const { target, kitHome, home } = codexWithOwnKitHome();
+    const other = scratchRow();
+    const r = runInstall(other.target, other.kitHome, [agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(holdsKit(kitHome) && holdsKit(other.kitHome), "premise: both A and K2 hold a kit").toBe(true);
+    const c = spawnBin(INSTALL_JS, ["--check"], target, other.kitHome, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(movedLines(c.stdout), "a moved-kit line while the recorded kit home still holds its kit").toEqual([]);
+    const agree = agreeLines(c.stdout);
+    expect(agree.length, c.stdout).toBe(1);
+    expect(lineNamesPath(agree[0], join(kitHome, "agent-factory")), `the agree line does not name A's agent-factory: ${agree[0]}`).toBe(true);
+    const given = c.stdout.split(/\r?\n/).filter((l) => l.startsWith("given:"));
+    expect(given.length, c.stdout).toBe(1);
+    expect(lineNamesPath(given[0], other.kitHome), `the given: header does not name K2: ${given[0]}`).toBe(true);
+    expect(given[0], "the given: header does not say K2 is not used").toContain("not used");
   });
 });

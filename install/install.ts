@@ -339,11 +339,15 @@ const INSTALL_MODE: "copy" | "symlink" = (() => {
 // install records (plan 34-11, D-19, WIN-1): forward slashes on Windows so the materialized KIT= line is
 // byte-identical to the sh side, and unchanged on POSIX, where a backslash is a filename byte and
 // folding it would name another directory (full Windows parity is UNKNOWN - verify).
-const GRUGOPS_HOME = canonicalPathSpelling(
-  process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim()
-    ? resolve(process.env.GRUGOPS_HOME)
-    : resolve(homedir(), ".grugops"),
-);
+// GIVEN_KIT_HOME (plan 34.1-56, D-42, review WR-37): the kit home this run was given, the GRUGOPS_HOME it was started
+// with when that is set and not blank, resolved and spelled by canonicalPathSpelling; null when none was given. It holds
+// the three reads of process.env.GRUGOPS_HOME this module makes (no other read of it exists). GRUGOPS_HOME is this value,
+// or the default `~/.grugops` when it is null. Under `--check` the doctor reads it in one place besides its `given:`
+// header: to recognise a kit home moved by hand (the moved-kit FAIL in doctor()'s kit-root cross-check). Null means no
+// kit home was given, and then a moved kit home is not detected.
+const GIVEN_KIT_HOME: string | null =
+  process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim() ? canonicalPathSpelling(resolve(process.env.GRUGOPS_HOME)) : null;
+const GRUGOPS_HOME = GIVEN_KIT_HOME ?? canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const KIT_ROOT = canonicalPathSpelling(resolve(GRUGOPS_HOME, "agent-factory"));
 // KIT_COPY_SOURCE: the directory copyKit copies to KIT_ROOT (copyKit spells the same join for the fs
 // census). seedRoot reads a DRY_RUN's seed from it (red-team L2 of plan 33.1-34).
@@ -2111,7 +2115,20 @@ function doctor(): number {
   const b = marker.kitRoot ? String(marker.kitRoot) : "";
   const na = docAbspath(a);
   const nb = b ? docAbspath(b) : "";
-  if (adapterOnDisk !== null) {
+  if (
+    markerRead.state === "ok" &&
+    GIVEN_KIT_HOME !== null &&
+    GIVEN_KIT_HOME !== DOCTOR_KIT_HOME &&
+    !kitReal(DOCTOR_KIT_ROOT) &&
+    kitReal(canonicalPathSpelling(resolve(GIVEN_KIT_HOME, "agent-factory")))
+  ) {
+    docFail(
+      `kit home moved: install recorded the kit home ${DOCTOR_KIT_HOME}, whose agent-factory holds no kit, and this ` +
+        `--check run was given the kit home ${GIVEN_KIT_HOME} (GRUGOPS_HOME), whose agent-factory holds one. Move ` +
+        `${GIVEN_KIT_HOME} back to ${DOCTOR_KIT_HOME}, then run \`${doctorCheckCommand()}\`; that step writes no kit. The ` +
+        `install commands this check prints on its other lines copy a kit to ${DOCTOR_KIT_HOME}.`,
+    );
+  } else if (adapterOnDisk !== null) {
     const c = adapterOnDisk.kit;
     const nc = c ? docAbspath(c) : "";
     if (na === nb && nb === nc) {

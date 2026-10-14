@@ -5365,7 +5365,8 @@ describe("D-38: every environment variable a binary reads is stated in its print
 //      and so are not in the set.
 //   C3 (the rule): inside the reach set, every reference to a C2 name, every process.env.GRUGOPS_HOME read and every
 //      homedir() call, keyed `function :: name` with a count, equals WR24_EXEMPT both ways. The table holds only
-//      doctor()'s header line that names this run's kit home as not used.
+//      doctor()'s header line that names this run's kit home as not used, and (since plan 34.1-56, 2026-10-14, D-42)
+//      doctor()'s moved-kit FAIL, which compares the kit home this run was given with the recorded one and names both.
 // Functions the doctor imports from other modules are outside this walk: an environment read added to any product
 // module is an unpinned row of the env-read census above (plan 34.1-49), so the two censuses cover both arms.
 // Outside the reach set, KIT_ROOT and GRUGOPS_HOME are this run's by design (install, --migrate, --update and
@@ -5374,15 +5375,26 @@ describe("D-38: every environment variable a binary reads is stated in its print
 const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "markerUnreadable", "adapterKitOnDisk", "readKitVersion", "renderAdaptersInMirror", "transformAdapter"] as const;
 /** C1's size (plan 34.1-50, 2026-10-13, D-38: 43 at HEAD 078a95a4, measured by this walk; the plan's revision-time count at 2b6b6624 was also 43). */
 const WR24_REACH_SIZE = 43;
-/** C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed by plan 34.1-47). */
-const WR24_RUN_KIT_HOME_NAMES = ["GRUGOPS_HOME", "KIT_ROOT"] as const;
+/**
+ * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
+ * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run
+ * was given (the GRUGOPS_HOME it was started with, or null), holding the three process.env.GRUGOPS_HOME reads that were
+ * GRUGOPS_HOME's own; GRUGOPS_HOME is built from it, so the walk derives all three.
+ */
+const WR24_RUN_KIT_HOME_NAMES = ["GIVEN_KIT_HOME", "GRUGOPS_HOME", "KIT_ROOT"] as const;
 /**
  * C3's exemption table, `function :: name` to count, each with its reason (plan 34.1-50, 2026-10-13, D-38). Only
  * doctor()'s header line: it compares this run's kit home with the one the doctor reads (both spelled by
  * canonicalPathSpelling) and, when they differ, names this run's as not used. Nothing else in the reach set may read it.
+ * Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): one more row, the doctor's moved-kit FAIL in the kit-root
+ * cross-check, which reads the kit home this run was given (GIVEN_KIT_HOME) five times, measured by this walk: the
+ * given-at-all test, the comparison with DOCTOR_KIT_HOME, the kitReal test of its agent-factory, and the two places the
+ * FAIL names it. No other reference to this run's kit home is exempt; a further read of it in the doctor is a stop for
+ * the human (D-40 flexibility), not a new row.
  */
 const WR24_EXEMPT: Readonly<Record<string, { readonly count: number; readonly why: string }>> = {
   "doctor :: GRUGOPS_HOME": { count: 2, why: "the `given:` header line: the comparison with DOCTOR_KIT_HOME and the printed path of this run's kit home, named as not used" },
+  "doctor :: GIVEN_KIT_HOME": { count: 5, why: "the moved-kit FAIL (D-42): compares the kit home this run was given with the recorded one and names it" },
 };
 
 /** Whether an identifier is a reference (not a property name, a declared name, or a type name). */
@@ -5495,7 +5507,7 @@ describe("D-38: the doctor reads one kit home (WR-24 census)", () => {
   });
 
   it("C3: inside the reach set, every reference to this run's kit home equals WR24_EXEMPT both ways, with the counts pinned", () => {
-    expect(Object.keys(WR24_EXEMPT).every((k) => k.startsWith("doctor :: ")), "WR24_EXEMPT holds a row outside doctor()'s header line").toBe(true);
+    expect(Object.keys(WR24_EXEMPT).every((k) => k.startsWith("doctor :: ")), "WR24_EXEMPT holds a row outside doctor() (its header line and its moved-kit FAIL)").toBe(true);
     const v = wr24Verdict(census);
     expect(v.outside, "a function the doctor reaches reads this run's kit home (D-38: read DOCTOR_KIT_HOME / DOCTOR_KIT_ROOT, the kit home the printed commands state)").toEqual([]);
     expect(v.stale, "a stale exemption: a WR24_EXEMPT row no reference matched").toEqual([]);
