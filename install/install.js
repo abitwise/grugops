@@ -4362,10 +4362,13 @@ function kitPreflight(plan) {
     const ledger = readLedger(marker.state === "ok" ? marker.marker : null);
     // D-32 reads each kit file's record from the one ledger: a `file` entry with `kit: true`.
     const records = ledger.state === "ok" ? new Map(entriesOfKind(ledger, "file").filter((e) => e.kit).map((e) => [e.path, e.content])) : null;
+    // Why there is no record to tell an edit by. For a marker this run cannot read the reason is the owner's cause clause
+    // (D-43, plan 34.1-55, the kitPreflight sibling of 34.1 review WR-38): `.grugops/install.json` plus markerUnusableText
+    // of the read, as pruneRoots words the same read. It never says the marker is not install's: a field defect of
+    // install's own marker is still the record of the agents installed here, and askRulesStep's verify says never to
+    // delete it (a foreign read's clause says the file holds none of install's fields; its verify says leave it).
     const noRecord = marker.state === "unreadable"
-        ? marker.jsonObject
-            ? "the file at the install marker's path is not install's marker"
-            : "the install marker could not be read"
+        ? `${MARKER_REL} ${markerUnusableText(marker)}`
         : marker.state === "unbound"
             ? marker.unboundBy === "no-ledger"
                 ? "the install marker has no install ledger (it was written before the one ledger)"

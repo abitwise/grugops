@@ -123,6 +123,7 @@ import {
   markerDefectText,
   markerFixText,
   markerRemedy,
+  markerUnusableText,
   readInstallMarker,
   readLedger,
   type InstallMarkerRead,
@@ -3152,6 +3153,57 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     }
   });
 
+  // R53 (plan 34.1-55, 2026-10-14, D-43, the kitPreflight sibling of 34.1 review WR-38): install's edited-kit reason for
+  // a marker it cannot read is the owner's wording, `.grugops/install.json` plus markerUnusableText of the read, as
+  // pruneRoots words the same read. Until plan 34.1-55 kitPreflight said "the file at the install marker's path is not
+  // install's marker" for every JSON-object read, a field defect of install's own marker included, right beside a verify
+  // that says never to delete the marker. Three shapes of the marker install wrote, each restored before the next: a
+  // field defect, not valid JSON, and a user's own JSON object (foreign, plan 34.1-54). kitPreflight decides wording
+  // only: the edited skill's bytes are not changed by the run.
+  it("R53 (D-43): install --claude over an edited Claude Code skill and a field, a not-JSON or a foreign marker exits 3 with one edited-kit line for the skill holding .grugops/install.json and markerUnusableText of the read; no line says the marker is not install's; the verify about the marker keeps its never-delete or leave-it wording; the skill is unchanged", () => {
+    const SKILL_REL = ".claude/skills/grugops/SKILL.md";
+    const w = world("r53");
+    install(w, [flag("claude"), flag("codex")]);
+    const skill = at(w.target, SKILL_REL);
+    expect(lstatSync(skill).isFile(), "PREMISE: install wrote the Claude Code skill as a regular file").toBe(true);
+    writeFileSync(skill, readFileSync(skill, "utf8") + "\nA line a user added by hand.\n");
+    const edited = readFileSync(skill);
+    const original = readFileSync(markerPath(w));
+    const SHAPES: readonly { readonly defect: Exclude<MarkerDefect, "ledger">; readonly name: string; readonly apply: (w: World) => void; readonly verifyWords: string }[] = [
+      { defect: "field", name: "`installMode` banana", apply: (x) => rewriteMarkerObject(x, (o) => ({ ...o, installMode: "banana" })), verifyWords: "never delete the marker" },
+      { defect: "not-json", name: "one trailing comma inside `agents`", apply: (x) => void addTrailingComma(x), verifyWords: "never delete the marker" },
+      {
+        defect: "foreign",
+        name: "a user's own JSON object",
+        apply: (x) => writeFileSync(markerPath(x), JSON.stringify({ owner: "a user of this repository", note: "my own file" }, null, 2) + "\n"),
+        verifyWords: "if it is yours, leave it",
+      },
+    ];
+    for (const shape of SHAPES) {
+      writeFileSync(markerPath(w), original);
+      expect(readInstallMarker(w.target).state, `PREMISE: ${shape.name}: the restored marker reads ok`).toBe("ok");
+      shape.apply(w);
+      const read = readInstallMarker(w.target);
+      expect(read.state === "unreadable" ? read.defect : read.state, `PREMISE: ${shape.name}: the read's defect`).toBe(shape.defect);
+      if (read.state !== "unreadable") continue;
+      const reason = `${MARKER_REL} ${markerUnusableText(read)}`;
+
+      const a = runInstall(w.target, w.grugopsHome, [flag("claude")], { home: w.home, timeoutMs: 180_000 });
+      finished(a, `install --claude over ${shape.name}`);
+      expect(a.status, `${shape.name}: install exit\n${a.stdout}`).toBe(3);
+      const kit = linesWith(a.stdout, "edited-kit").filter((l) => l.includes(SKILL_REL));
+      expect(kit.length, `${shape.name}: one edited-kit line for ${SKILL_REL}\n${a.stdout}`).toBe(1);
+      expect(kit[0], `${shape.name}: the edited-kit reason is the owner's`).toContain(`(${reason}, and it differs from the kit source)`);
+      for (const l of [...a.stdout.split("\n"), ...a.stderr.split("\n")]) {
+        expect(l, `${shape.name}: a line says the marker is not install's`).not.toMatch(/not install's|not the marker install writes/);
+      }
+      const about = linesWith(a.stdout, "verify").filter((l) => l.includes(MARKER_REL) && l.includes(shape.verifyWords));
+      expect(about.length, `${shape.name}: a verify about the marker says ${shape.verifyWords}\n${a.stdout}`).toBeGreaterThan(0);
+      expect(readFileSync(skill).equals(edited), `${shape.name}: the edited skill's bytes changed`).toBe(true);
+    }
+    writeFileSync(markerPath(w), original);
+  });
+
   // R45 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): over a marker this run cannot use, the ask-rules report and
   // the unrecorded-block report point at the marker's verify line. Neither is a second verify for the one cause, and
   // neither sends the user to remove the grugops ask rules or block lines by hand: fixing the marker gives the record
@@ -4167,6 +4219,11 @@ function unusableCensus(): UnusableSite[] {
  * next step as markerFixText's second argument (the owner decides whether it follows), so each row's text carries it
  * inside the substitution; and markerUnreadable's subject branches on a foreign read ("the file at ${markerFile}"), a
  * second reading of I1. 32 readings to 33: install.ts 14 to 15, owner wording 9 to 10.
+ * Re-derived 2026-10-14 by plan 34.1-55 (D-40, D-43, WR-38's kitPreflight sibling) by running the walk: kitPreflight's
+ * reason for an unreadable read is `${MARKER_REL} ${markerUnusableText(marker)}`, the owner's cause clause as pruneRoots
+ * words it. Its old two branches ("the file at the install marker's path is not install's marker", which this matcher
+ * never matched, and "the install marker could not be read") are one reading now. The count does not move: 33 readings,
+ * install.ts 15, cause only 10.
  */
 const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install-marker.ts", "markerUnusableText", "is a JSON object but could not be used as install's marker (${read.why})", "cause only", "the owner module's cause clause, printed only as a substitution inside a reading that carries markerFixText (I1, I5, I6, the uninstaller's module-top verify) or as pruneRoots' cause"],
@@ -4182,7 +4239,7 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install.ts", "doctor", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "pointer", "the doctor's ask-rules info over a malformed ledger: points at the malformed-ledger FAIL (I2)"],
   ["install.ts", "pruneRoots", ".grugops/install.json ${markerUnusableText(marker)}", "cause only", "--prune-old-kit's note: why there is no record to prune by; no remedy"],
   ["install.ts", "pruneRoots", "the install ledger in .grugops/install.json is malformed (${targetLedger.why})", "cause only", "--prune-old-kit's note: why there is no record to prune by; no remedy"],
-  ["install.ts", "kitPreflight", "the install marker could not be read", "cause only", "why a kit file is treated as edited (backed up before it is overwritten); no remedy"],
+  ["install.ts", "kitPreflight", ".grugops/install.json ${markerUnusableText(marker)}", "cause only", "why a kit file is treated as edited; the owner's cause clause, no remedy (D-43, plan 34.1-55: it replaced \"the install marker could not be read\" and \"... is not install's marker\")"],
   ["install.ts", "kitPreflight", "the install ledger is malformed", "cause only", "why a kit file is treated as edited (backed up before it is overwritten); no remedy"],
   ["install.ts", "writeMarker", ".grugops/install.json (left unchanged — ${markerDefectText(previousMarker.defect)}; see the verify line above)", "pointer", "writeMarker's skipped line (IN-33, R44): points at the never-remove verify"],
   ["install.ts", "writeMarker", ".grugops/install.json — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and nothing this run did was recorded. Uninstall will remove and edit nothing on it; ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "I3, writeMarker's verify over a malformed ledger (R43c)"],
