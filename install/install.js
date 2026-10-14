@@ -2150,17 +2150,16 @@ function doctor() {
     // --- Claude Code ask rules (D-18): report each ledger rule present or absent; never repair ---
     // The rules are a speed bump, not a security boundary; the git host is the hard floor. A missing
     // rule is a WARN (someone removed it), not a FAIL, and the doctor writes nothing either way.
-    // One reader, three states (WR-05): a malformed ledger is named, never read as "no ask rules".
-    const askMarker = readInstallMarker(TARGET);
-    const askRead = readLedger(askMarker.state === "ok" ? askMarker.marker : null);
-    const askLedger = entryAt(askRead, ASK_RULES_REL, "ask-rules") ?? null;
-    if (askMarker.state === "unbound") {
+    // One marker read (D-40, DI-19, plan 34.1-53): this check reads the doctor's one marker read, DOCTOR_MARKER_READ,
+    // through markerRead and the doctor's one ledger read, ledgerRead, so the ask rules are checked against the same
+    // record as every other line the doctor prints. It never reads the marker again. An unreadable or absent marker never
+    // reaches it: markerUnreadable and notInstalled return first, so the marker here is install's own (`ok`) or another
+    // directory's (`unbound`). A malformed ledger is named, never read as "no ask rules" (WR-05).
+    const askLedger = entryAt(ledgerRead, ASK_RULES_REL, "ask-rules") ?? null;
+    if (markerRead.state === "unbound") {
         docReport("info", "the install marker is not a record uninstall can use here (see the WARN above), so its ask-rule entry was not used and the ask rules were not checked");
     }
-    else if (askMarker.state === "unreadable") {
-        docWarn(".grugops/install.json could not be read as a JSON object — the install ledger is unknown, so the ask rules were not checked");
-    }
-    else if (askRead.state === "malformed") {
+    else if (ledgerRead.state === "malformed") {
         // Counted once, as the FAIL above (red-team B1 of plan 33.1-34); this line only says what was skipped.
         docReport("info", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules " +
             "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed");

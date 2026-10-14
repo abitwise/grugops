@@ -4030,6 +4030,10 @@ function unusableCensus(): UnusableSite[] {
  * uninstall.ts 11, install-marker.ts 7; the other six product modules print none. A cause-only reading is a value another
  * message interpolates (pruneRoots' note, kitPreflight's edited reason, the owner's cause clauses); that consumer's own
  * text is not followed here, and the by-hand remedy census above reads it when it touches the marker or its ledger.
+ * Re-pinned 2026-10-14 by plan 34.1-53 (D-40, DI-19): the doctor's ask-rules check reads DOCTOR_MARKER_READ instead of
+ * a second marker read, so its "could not be read as a JSON object — the install ledger is unknown" WARN (a cause-only
+ * reading of install.ts doctor) is deleted with the arm that printed it. 33 readings to 32: install.ts 15 to 14, cause
+ * only 11 to 10.
  */
 const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install-marker.ts", "markerUnusableText", "is a JSON object but could not be used as install's marker (${read.why})", "cause only", "the owner module's cause clause, printed only as a substitution inside a reading that carries markerFixText (I1, I5, I6, the uninstaller's module-top verify) or as pruneRoots' cause"],
@@ -4041,7 +4045,6 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install-marker.ts", "<module>", "its install ledger is malformed", "cause only", "MARKER_DEFECT_TEXT, the one cause clause of a skipped or left line (markerDefectText); its readers point at the verify line"],
   ["install.ts", "markerUnreadable", "the install marker ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. ${markerFixText(remedy)}; then run `${doctorCheckCommand()}`", "owner wording", "I1, the doctor's FAIL over an unreadable marker (R36 control)"],
   ["install.ts", "doctor", "the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). ${markerFixText(remedy)}; then run `${doctorCheckCommand()}`", "owner wording", "I2, the doctor's FAIL over a malformed ledger (R43c)"],
-  ["install.ts", "doctor", ".grugops/install.json could not be read as a JSON object — the install ledger is unknown, so the ask rules were not checked", "cause only", "the doctor's ask-rules WARN over an unreadable re-read (reached only if the marker changed after DOCTOR_MARKER_READ: markerUnreadable returns first); names no remedy (its wrong-cause wording is deferred-items.md DI-19)"],
   ["install.ts", "doctor", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "pointer", "the doctor's ask-rules info over a malformed ledger: points at the malformed-ledger FAIL (I2)"],
   ["install.ts", "pruneRoots", ".grugops/install.json ${markerUnusableText(marker)}", "cause only", "--prune-old-kit's note: why there is no record to prune by; no remedy"],
   ["install.ts", "pruneRoots", "the install ledger in .grugops/install.json is malformed (${targetLedger.why})", "cause only", "--prune-old-kit's note: why there is no record to prune by; no remedy"],
@@ -4066,7 +4069,7 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["uninstall.ts", "<module>", ".grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy)}; then run `${rerunCommand()}` again.", "owner wording", "the module-top verify over an unreadable (or unbound-folded) marker (R41, R45)"],
   ["uninstall.ts", "<module>", ".grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy)}; then run `${rerunCommand()}` again.", "owner wording", "the module-top verify over a malformed ledger (R43a)"],
 ];
-const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 9, pointer: 13, "cause only": 11 };
+const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 9, pointer: 13, "cause only": 10 };
 const unusableKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
 
 describe("D-37: every reading that says the marker cannot be used carries the owner's wording or points at it", () => {
@@ -4093,8 +4096,8 @@ describe("D-37: every reading that says the marker cannot be used carries the ow
     expect(unclassified, "a reading that says the marker cannot be used is not classed").toEqual([]);
     expect(stale, "a classed reading is gone or changed").toEqual([]);
     expect(counts, "a classed reading is printed a different number of times").toEqual([]);
-    expect(sites.length, "the census size moved").toBe(33);
-    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 15, "uninstall.ts": 11 });
+    expect(sites.length, "the census size moved").toBe(32);
+    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 14, "uninstall.ts": 11 });
     expect(countBy(UNUSABLE_TABLE, (r) => r[3]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(UNUSABLE_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
