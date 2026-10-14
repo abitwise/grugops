@@ -4312,6 +4312,114 @@ describe("D-37: every reading that says the marker cannot be used carries the ow
   });
 });
 
+// ── D-43: no printed reading says the marker is not install's (plan 34.1-55) ───────────────────────────────────────
+//
+// D-40 item 2 and D-43 (34.1 review WR-38): removeMarker's shape arm said a link, a directory or a FIFO at the marker path
+// was "not the marker install writes", and kitPreflight's edited-kit reason said "the file at the install marker's path
+// is not install's marker" for every JSON-object read, both right beside a verify that says never to delete the marker
+// because it is the one record install keeps. Plan 34.1-55 rewords both through the owner. This census holds the two
+// retired wordings (NOT_INSTALLS) at zero about the marker, derived by search: the walk of the censuses above
+// (productModules, maximalString, readingsOf, enclosing) asks NOT_INSTALLS of every reading of every maximal string
+// expression of every product module. Every hit must be a row of NOT_INSTALLS_EXEMPT, both ways with counts, and every
+// exempt row names the object it is about, which is never .grugops/install.json. A hit about the marker is a sibling of
+// WR-38: it goes to the human (D-40 flexibility), never into this table.
+//
+// Pinned 2026-10-14 by plan 34.1-55 (D-40, D-43, WR-38), derived by running the walk: 3 readings, all about the kit-home
+// record (<kit home>/.grugops-kit.json), not the marker: install-marker.ts readKitHomeRecord's why (1) and install.ts
+// writeKitHomeRecord's verify (2: its backup clause is a ternary, so the template has two readings).
+
+/** The two retired wordings D-43 names. */
+const NOT_INSTALLS = /not install's|not the marker install writes/i;
+/** A reading about the marker: its path, "the marker" or "install marker". */
+const ABOUT_THE_MARKER = /\.grugops\/install\.json|\$\{MARKER_REL\}|\$\{markerRel\}|\bthe marker\b|\binstall marker\b/i;
+type NotInstallsRow = readonly [module: string, fn: string, text: string, object: string, why: string];
+const NOT_INSTALLS_EXEMPT: readonly NotInstallsRow[] = [
+  ["install-marker.ts", "readKitHomeRecord", "it is not install's kit-home record: ${keys}", "the kit-home record", "readKitHomeRecord's why for a kit-home record holding none of install's fields"],
+  [
+    "install.ts",
+    "writeKitHomeRecord",
+    "${path}: ${previous.why}. It is not install's kit-home record, so it was left as it is and this run was not recorded there.",
+    "the kit-home record",
+    "writeKitHomeRecord's verify over an unreadable kit-home record, no backup this run",
+  ],
+  [
+    "install.ts",
+    "writeKitHomeRecord",
+    "${path}: ${previous.why}. It is not install's kit-home record, so it was left as it is and this run was not recorded there (the backup ${join(GRUGOPS_HOME, made.path)} is unrecorded; remove it by hand when you no longer need it).",
+    "the kit-home record",
+    "writeKitHomeRecord's verify over an unreadable kit-home record, with this run's backup",
+  ],
+];
+interface NotInstallsSite {
+  readonly module: string;
+  readonly fn: string;
+  readonly text: string;
+  readonly line: number;
+}
+/** Every reading of every maximal string expression in every product module that says NOT_INSTALLS. */
+function notInstallsCensus(): NotInstallsSite[] {
+  const out: NotInstallsSite[] = [];
+  for (const module of productModules()) {
+    const sf = parse(`install/${module}`);
+    const seen = new Set<ts.Node>();
+    const isFragment = (n: ts.Node): boolean =>
+      ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n);
+    for (const f of nodesOf(sf, (n): n is ts.Node => isFragment(n))) {
+      const m = maximalString(f);
+      if (seen.has(m)) continue;
+      seen.add(m);
+      for (const v of readingsOf(m)) {
+        const text = v.text.replace(/\s+/g, " ").trim();
+        if (!NOT_INSTALLS.test(text)) continue;
+        out.push({ module, fn: enclosing(m), text, line: sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1 });
+      }
+    }
+  }
+  return out;
+}
+const notInstallsKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
+
+describe("D-43: no printed reading says the marker is not install's", () => {
+  it("the walk reads all nine product modules and finds both kit-home record readings (premise)", () => {
+    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+    const sites = notInstallsCensus();
+    for (const [module, fn] of [
+      ["install-marker.ts", "readKitHomeRecord"],
+      ["install.ts", "writeKitHomeRecord"],
+    ] as const) {
+      expect(sites.some((s) => s.module === module && s.fn === fn), `PREMISE: the walk found the kit-home record reading in ${module} ${fn}`).toBe(true);
+    }
+  });
+
+  it("every reading that says NOT_INSTALLS equals NOT_INSTALLS_EXEMPT both ways, with counts; 3 readings, 3 rows", () => {
+    const sites = notInstallsCensus();
+    const found = new Map<string, number>();
+    for (const s of sites) found.set(notInstallsKey(s.module, s.fn, s.text), (found.get(notInstallsKey(s.module, s.fn, s.text)) ?? 0) + 1);
+    const want = new Map<string, number>();
+    for (const r of NOT_INSTALLS_EXEMPT) want.set(notInstallsKey(r[0], r[1], r[2]), (want.get(notInstallsKey(r[0], r[1], r[2])) ?? 0) + 1);
+    const unclassified = sites.filter((s) => !want.has(notInstallsKey(s.module, s.fn, s.text))).map((s) => `${s.module}:${s.line} [${s.fn}] ${s.text}`);
+    const stale = [...want.keys()].filter((k) => !found.has(k));
+    const counts = [...want].filter(([k, n]) => found.has(k) && found.get(k) !== n).map(([k, n]) => `${k}: table ${n}, found ${found.get(k)}`);
+    expect(unclassified, "a reading says not install's and is not an exempt row (about the marker, it is a WR-38 sibling for the human)").toEqual([]);
+    expect(stale, "an exempt row is gone or changed").toEqual([]);
+    expect(counts, "an exempt reading is printed a different number of times").toEqual([]);
+    expect(sites.length, "the census size moved").toBe(3);
+    expect(NOT_INSTALLS_EXEMPT.length, "the exempt table's size moved").toBe(3);
+  });
+
+  it("every exempt row names the object it is about, the reading names it too, and no row or reading is about the marker", () => {
+    const wrong: string[] = [];
+    for (const r of NOT_INSTALLS_EXEMPT) {
+      const where = `${r[0]} [${r[1]}] ${r[2]}`;
+      if (r[3].trim() === "") wrong.push(`names no object: ${where}`);
+      if (/install\.json|marker/i.test(r[3])) wrong.push(`is about the marker (${r[3]}): ${where}`);
+      if (!r[2].includes(r[3].replace(/^the /, ""))) wrong.push(`its reading does not name ${r[3]}: ${where}`);
+    }
+    for (const s of notInstallsCensus()) if (ABOUT_THE_MARKER.test(s.text)) wrong.push(`a reading about the marker says not install's: ${s.module}:${s.line} [${s.fn}] ${s.text}`);
+    expect(wrong, "an exempt row or a reading that says not install's is about the marker (D-43)").toEqual([]);
+  });
+});
+
 // ── the marker-writer census (TypeScript parser) ─────────────────────────────────────────────────────────────────
 
 /** A parsed product module. */
