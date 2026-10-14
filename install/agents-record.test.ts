@@ -4309,6 +4309,154 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
   });
 });
 
+// ── DI-19 (D-40): the doctor reads the marker once (TypeScript parser) ───────────────────────────────────────────────
+//
+// Plan 34.1-53, 2026-10-14 (D-40 item 4, DI-19; brief §2.2 one owner per rule, §2.3 siblings found by search). Under
+// `--check` the doctor reads `.grugops/install.json` once, DOCTOR_MARKER_READ, and every line it prints describes that
+// one record. The ask-rules check used to read the marker a second time; a report built from two reads can describe two
+// records. The rule is held over the doctor's whole REACH, derived from the source, never listed: start at install.ts
+// `doctor`; every identifier in a reached body that names an install.ts function (a function declaration, or a function
+// or arrow expression bound to a const) is reached, called or passed as a value; repeat to a fixed point. A property
+// name (`x.name`, `{ name: ... }`) is not a reference. The derivation over-approximates (a name is followed wherever it
+// appears), which can only add functions to the reach, never hide one.
+// What the census holds:
+//   - no reached function calls readInstallMarker;
+//   - the reached functions call readLedger exactly once, in doctor, on the doctor's markerRead;
+//   - install.ts has two module-level readInstallMarker calls, DOCTOR_MARKER_READ's (on CHECK) and
+//     PREVIOUS_MARKER_READ's, and the `if (CHECK)` dispatch that calls doctor() comes before PREVIOUS_MARKER_READ, so
+//     under --check the one marker read that runs is DOCTOR_MARKER_READ's;
+//   - the module-level statements that run before the dispatch reach no readInstallMarker call either;
+//   - the doctor cannot reach another module's marker read: of the other product modules only uninstall.ts calls
+//     readInstallMarker, and no product module imports uninstall.ts.
+// Pinned 2026-10-14 by plan 34.1-53 (D-40, DI-19): the doctor's reach is 51 functions (measured by this census). A
+// later plan that moves it re-pins it here with the reason.
+const DOCTOR_REACH_SIZE = 51;
+
+/** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
+function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
+  const out = new Map<string, ts.Node[]>();
+  const add = (name: string, node: ts.Node): void => {
+    out.set(name, [...(out.get(name) ?? []), node]);
+  };
+  for (const f of nodesOf(sf, ts.isFunctionDeclaration)) if (f.name !== undefined) add(f.name.text, f);
+  for (const v of nodesOf(sf, ts.isVariableDeclaration)) {
+    if (ts.isIdentifier(v.name) && v.initializer !== undefined && (ts.isArrowFunction(v.initializer) || ts.isFunctionExpression(v.initializer))) {
+      add(v.name.text, v.initializer);
+    }
+  }
+  return out;
+}
+/** Whether an identifier is a reference to a value (not a property name in an access, an object literal or a member). */
+function isReference(id: ts.Identifier): boolean {
+  const p = id.parent;
+  if (ts.isPropertyAccessExpression(p) && p.name === id) return false;
+  if ((ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p)) && p.name === id) return false;
+  return true;
+}
+/** The install.ts functions reached from `roots`, to a fixed point. */
+function reachFrom(fns: ReadonlyMap<string, readonly ts.Node[]>, roots: readonly ts.Node[]): Set<string> {
+  const reached = new Set<string>();
+  const queue: ts.Node[] = [...roots];
+  while (queue.length > 0) {
+    const body = queue.pop() as ts.Node;
+    for (const id of nodesOf(body, ts.isIdentifier)) {
+      if (!isReference(id) || !fns.has(id.text) || reached.has(id.text)) continue;
+      reached.add(id.text);
+      queue.push(...(fns.get(id.text) ?? []));
+    }
+  }
+  return reached;
+}
+/** Whether a node sits inside no function (a module-level statement runs at load). */
+const atModuleLevel = (n: ts.Node): boolean => {
+  for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) if (ts.isFunctionLike(p)) return false;
+  return true;
+};
+
+describe("DI-19 (D-40): the doctor reads the marker once", () => {
+  const sf = parse("install/install.ts");
+  const fns = functionsByName(sf);
+  const doctorFn = functionNamed(sf, "doctor");
+  const reach = reachFrom(fns, [doctorFn]);
+  reach.add("doctor");
+  const callsInReach = (name: string): { fn: string; call: ts.CallExpression }[] =>
+    [...reach].flatMap((fn) => (fns.get(fn) ?? []).flatMap((body) => callsOf(body, name).map((call) => ({ fn, call }))));
+
+  it("the reach is derived from doctor to a fixed point and holds the doctor's helpers (premise)", () => {
+    expect(fns.has("readInstallMarker"), "PREMISE: readInstallMarker is imported, not an install.ts function").toBe(false);
+    for (const helper of ["doctor", "markerUnreadable", "notInstalled", "doctorHosts", "adapterKitOnDisk", "kitRouteFindings"]) {
+      expect(reach.has(helper), `PREMISE: the derived reach holds ${helper}`).toBe(true);
+    }
+    expect(reach.size, `the doctor's reach moved: ${[...reach].sort().join(", ")}`).toBe(DOCTOR_REACH_SIZE);
+  });
+
+  it("no function the doctor reaches calls readInstallMarker", () => {
+    const sites = callsInReach("readInstallMarker").map(({ fn, call }) => `${fn}:${sf.getLineAndCharacterOfPosition(call.getStart(sf)).line + 1}`);
+    expect(sites, "a second read of the marker in the doctor's reach (DI-19)").toEqual([]);
+  });
+
+  it("the doctor's reach calls readLedger exactly once, in doctor, on markerRead", () => {
+    const sites = callsInReach("readLedger");
+    expect(sites.map((s) => s.fn), "readLedger calls in the doctor's reach").toEqual(["doctor"]);
+    const arg = sites[0].call.arguments[0];
+    const read = new Set(nodesOf(arg, ts.isIdentifier).map((i) => i.text));
+    expect(read.has("markerRead"), `doctor's readLedger argument is ${arg.getText(sf)}`).toBe(true);
+  });
+
+  it("install.ts reads the marker at module level twice, and the --check dispatch runs before PREVIOUS_MARKER_READ", () => {
+    const moduleReads = callsOf(sf, "readInstallMarker").filter(atModuleLevel);
+    const declOf = (c: ts.CallExpression): string => {
+      for (let p: ts.Node | undefined = c.parent; p !== undefined; p = p.parent) if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+      return "<none>";
+    };
+    expect(moduleReads.map(declOf), "module-level readInstallMarker calls").toEqual(["DOCTOR_MARKER_READ", "PREVIOUS_MARKER_READ"]);
+    const varDecl = (name: string): ts.VariableDeclaration => {
+      const found = nodesOf(sf, ts.isVariableDeclaration).filter((v) => ts.isIdentifier(v.name) && v.name.text === name && atModuleLevel(v));
+      expect(found.length, `module-level ${name}`).toBe(1);
+      return found[0];
+    };
+    const doctorRead = varDecl("DOCTOR_MARKER_READ").initializer;
+    expect(doctorRead !== undefined && ts.isConditionalExpression(doctorRead), "DOCTOR_MARKER_READ is a conditional expression").toBe(true);
+    const cond = doctorRead as ts.ConditionalExpression;
+    expect(ts.isIdentifier(cond.condition) && cond.condition.text, "DOCTOR_MARKER_READ reads the marker only on CHECK").toBe("CHECK");
+    expect(ts.isCallExpression(cond.whenTrue) && calleeName(cond.whenTrue), "DOCTOR_MARKER_READ's CHECK arm").toBe("readInstallMarker");
+    const previous = varDecl("PREVIOUS_MARKER_READ");
+    const dispatches = sf.statements.filter(
+      (s): s is ts.IfStatement => ts.isIfStatement(s) && ts.isIdentifier(s.expression) && s.expression.text === "CHECK" && callsOf(s.thenStatement, "doctor").length > 0,
+    );
+    expect(dispatches.length, "the module-level `if (CHECK)` that calls doctor()").toBe(1);
+    expect(dispatches[0].getStart(sf), "the --check dispatch comes after DOCTOR_MARKER_READ").toBeGreaterThan(varDecl("DOCTOR_MARKER_READ").getStart(sf));
+    expect(dispatches[0].getStart(sf), "the --check dispatch comes before PREVIOUS_MARKER_READ").toBeLessThan(previous.getStart(sf));
+  });
+
+  it("the module-level statements before the --check dispatch reach no readInstallMarker call", () => {
+    const dispatchAt = sf.statements.findIndex((s) => ts.isIfStatement(s) && ts.isIdentifier(s.expression) && s.expression.text === "CHECK");
+    expect(dispatchAt, "PREMISE: the --check dispatch is a module-level statement").toBeGreaterThan(0);
+    const before = sf.statements.slice(0, dispatchAt).filter((s) => !ts.isFunctionDeclaration(s));
+    expect(before.length, "PREMISE: statements run before the dispatch").toBeGreaterThan(0);
+    const reached = reachFrom(fns, before);
+    const sites = [...reached].flatMap((fn) => (fns.get(fn) ?? []).flatMap((body) => callsOf(body, "readInstallMarker").map(() => fn)));
+    expect(sites, "a function the pre-dispatch statements reach reads the marker").toEqual([]);
+    const direct = before.flatMap((s) => callsOf(s, "readInstallMarker")).filter(atModuleLevel);
+    expect(direct.length, "the pre-dispatch statements read the marker once (DOCTOR_MARKER_READ)").toBe(1);
+  });
+
+  it("the doctor cannot reach another module's marker read: only uninstall.ts calls it, and no product module imports uninstall.ts", () => {
+    const callers: string[] = [];
+    const importers: string[] = [];
+    for (const m of productModules()) {
+      const msf = parse(`install/${m}`);
+      if (m !== "install.ts" && callsOf(msf, "readInstallMarker").length > 0) callers.push(m);
+      for (const imp of msf.statements.filter(ts.isImportDeclaration)) {
+        if (ts.isStringLiteral(imp.moduleSpecifier) && /(^|\/)uninstall(\.js)?$/.test(imp.moduleSpecifier.text)) importers.push(m);
+      }
+    }
+    expect(productModules(), "PREMISE: the walk reads install.ts and uninstall.ts").toEqual(expect.arrayContaining(["install.ts", "uninstall.ts"]));
+    expect(callers, "product modules other than install.ts that call readInstallMarker").toEqual(["uninstall.ts"]);
+    expect(importers, "product modules that import uninstall.ts").toEqual([]);
+  });
+});
+
 // ── the uninstall re-run census (MSG-1, TypeScript parser) ───────────────────────────────────────────────────────
 
 /** A fragment that says to run uninstall (or the uninstaller) again. */
