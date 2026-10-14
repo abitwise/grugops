@@ -440,8 +440,13 @@ CLI with Antigravity CLI.
   default kit home `~/.grugops`, a copy install and the checkout the script is in included. No
   printed command carries `--symlink`, so a `GRUGOPS_HOME`, `INSTALL_MODE` or `GRUGOPS_SRC`
   exported in your shell does not change what a printed command does. `install.js --check` takes the kit home and install mode from install's own
-  marker for the repository it checks, so following a `--check` remedy writes no second kit and
-  leaves the install where it was; with no marker it can use, it takes them from the `--check` run.
+  marker for the repository it checks, so its printed commands put the kit where the install recorded
+  it and leave the install where it was; with no marker it can use, it takes them from the `--check`
+  run. When the kit home was moved by hand and `--check` is given the new one through `GRUGOPS_HOME`,
+  it fails naming both kit homes. Its remedy is to move the kit home back and run the check again,
+  which writes no kit, and it says that the install commands it prints on its other lines copy a kit
+  to the recorded kit home. A plain `--check`, given no `GRUGOPS_HOME`, does not detect a moved kit home: it fails on the
+  absent kit, and its install commands copy a kit to the recorded kit home.
   An install, `--migrate`, `--update` or `--prune-old-kit` run takes them from how it was run. An
   install command the uninstaller prints states the kit home the uninstaller was run with
   (`GRUGOPS_HOME`, else `~/.grugops`) and `INSTALL_MODE=copy`; it never takes a kit home or an

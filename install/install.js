@@ -224,9 +224,9 @@ const INSTALL_MODE = (() => {
 // GIVEN_KIT_HOME (plan 34.1-56, D-42, review WR-37): the kit home this run was given, the GRUGOPS_HOME it was started
 // with when that is set and not blank, resolved and spelled by canonicalPathSpelling; null when none was given. It holds
 // the three reads of process.env.GRUGOPS_HOME this module makes (no other read of it exists). GRUGOPS_HOME is this value,
-// or the default `~/.grugops` when it is null. Under `--check` the doctor reads it in one place besides its `given:`
-// header: to recognise a kit home moved by hand (the moved-kit FAIL in doctor()'s kit-root cross-check). Null means no
-// kit home was given, and then a moved kit home is not detected.
+// or the default `~/.grugops` when it is null. Under `--check` the doctor reads it in one place, to recognise a kit home
+// moved by hand (the moved-kit FAIL in doctor()'s kit-root cross-check); its `given:` header line reads GRUGOPS_HOME.
+// Null means no kit home was given, and then a moved kit home is not detected.
 const GIVEN_KIT_HOME = process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim() ? canonicalPathSpelling(resolve(process.env.GRUGOPS_HOME)) : null;
 const GRUGOPS_HOME = GIVEN_KIT_HOME ?? canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const KIT_ROOT = canonicalPathSpelling(resolve(GRUGOPS_HOME, "agent-factory"));
@@ -366,7 +366,9 @@ const DOCTOR_MARKER_READ = CHECK ? readInstallMarker(TARGET) : null;
 // install mode come from:
 //   --check: the marker the doctor checks (DOCTOR_MARKER_READ). When it reads `ok` (install's own record for this
 //     directory), the printed install commands carry the kit home and install mode it records, whatever kit home or
-//     mode the `--check` run was given, so following one writes no second kit and does not move the install (WR-21).
+//     mode the `--check` run was given, so following one writes the kit where the record says and does not move the
+//     install (WR-21). A kit home moved by hand is the exception: the record then names a kit home that holds no kit,
+//     and such a command copies a kit back there, so the doctor's moved-kit FAIL names that (plan 34.1-56, D-42, WR-37).
 //     When there is no usable marker (absent, unreadable, or `unbound`, another directory's record, never read for
 //     this), they carry this run's own GRUGOPS_HOME and INSTALL_MODE.
 //   install, --migrate, --update, --prune-old-kit: this run's own GRUGOPS_HOME and INSTALL_MODE (no record is passed).
@@ -404,10 +406,14 @@ const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
 // commands state: an `ok` marker's recorded kit home, else this run's own (an absent, unreadable or unbound marker).
 // Before, the printed commands took the record's while every check took this run's GRUGOPS_HOME, so a plain `--check` on
 // an install with a kit home other than the default FAILed "kit-root sources DISAGREE (stale/moved install)", and the
-// printed remedy could not clear it. A real stale or moved install still FAILs: the marker's kitRoot or the adapter's
-// KIT= line then disagrees with the recorded kit home. The doctor names this run's own kit home only on one header
-// line, when it differs, as not used. Outside `--check` COMMAND_CONTEXT is this run's, so both equal GRUGOPS_HOME and
-// KIT_ROOT; only the doctor reads them. Held by the "WR-24 census" in install/agents-record.test.ts.
+// printed remedy could not clear it. A kit home moved by hand FAILs as "kit home moved" when `--check` is given the new
+// kit home (GRUGOPS_HOME, held in GIVEN_KIT_HOME), naming both, with a by-hand remedy that writes no kit (plan 34.1-56,
+// D-42, review WR-37). It is not detected when `--check` is given no GRUGOPS_HOME: then the kit stat line FAILs on the
+// absent kit and the printed install commands copy a kit to the recorded kit home. The DISAGREE FAILs fire when the
+// marker's kitRoot or the adapter's KIT= line disagrees with the recorded kit home. The doctor names this run's own kit
+// home in two places: one header line, when it differs, as not used, and the moved-kit FAIL. Outside `--check`
+// COMMAND_CONTEXT is this run's, so both equal GRUGOPS_HOME and KIT_ROOT; only the doctor reads them. Held by the
+// "WR-24 census" in install/agents-record.test.ts.
 const DOCTOR_KIT_HOME = canonicalPathSpelling(COMMAND_CONTEXT.kitHome);
 const DOCTOR_KIT_ROOT = canonicalPathSpelling(resolve(DOCTOR_KIT_HOME, "agent-factory"));
 // THE DOCTOR'S COMMANDS (phase 34.1 gap round 2, D-33, D-31; DI-08). Every doctor remedy that asks the user to run
@@ -1710,8 +1716,9 @@ function doctor() {
     console.log("== grugops doctor (--check) ==");
     console.log(`home:   ${DOCTOR_KIT_HOME}`);
     console.log(`kit:    ${DOCTOR_KIT_ROOT}`);
-    // This run's own kit home, named once when it is not the one checked (plan 34.1-50, D-38, review WR-24): the only
-    // place the doctor reads it. Everything below reads DOCTOR_KIT_HOME / DOCTOR_KIT_ROOT.
+    // This run's own kit home, named here when it is not the one checked (plan 34.1-50, D-38, review WR-24). The doctor
+    // reads it in one other place, the moved-kit FAIL in the kit-root cross-check below (GIVEN_KIT_HOME, plan 34.1-56,
+    // D-42). Everything else below reads DOCTOR_KIT_HOME / DOCTOR_KIT_ROOT.
     if (canonicalPathSpelling(DOCTOR_KIT_HOME) !== canonicalPathSpelling(GRUGOPS_HOME)) {
         console.log(`given:  ${GRUGOPS_HOME} (this run's kit home, not used: --check reads the kit home install recorded for this repository)`);
     }
@@ -1841,6 +1848,16 @@ function doctor() {
     // install with another kit home FAILed below although the install was neither stale nor moved. The DISAGREE FAILs now
     // fire when the marker's kitRoot, or the adapter's KIT= line, disagrees with the recorded kit home (or, with no usable
     // marker, with this run's).
+    // A KIT HOME MOVED BY HAND (plan 34.1-56, D-42, review WR-37). All three sources come from the record, so a kit home the
+    // user moved reads the same in each. When this `--check` run was given a kit home (GIVEN_KIT_HOME, its GRUGOPS_HOME)
+    // other than the recorded one, the recorded kit root holds no kit (kitReal) and the given kit home's agent-factory
+    // holds one, the comparison is skipped and one FAIL, "kit home moved", names both kit homes. Its remedy is by hand and
+    // writes no kit: move the given kit home back to the recorded one, then run the printed check command
+    // (doctorCheckCommand, the only command on the line). The line also says that the install commands the doctor prints
+    // on its other lines copy a kit to the recorded kit home: they state the record's kit home (D-38), so following one
+    // before the move back leaves a second kit. When `--check` is given no GRUGOPS_HOME a moved kit home is not detected:
+    // the comparison agrees, the kit stat line below FAILs on the absent kit, and the install commands copy a kit to the
+    // recorded kit home.
     // Without Claude Code (D-07) there is no adapter source: the rule and the marker are compared with the same three
     // outcomes, and the ok line says no adapter KIT= line was read because no Claude Code adapter is installed here.
     const a = DOCTOR_KIT_ROOT;

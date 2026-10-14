@@ -590,6 +590,14 @@ reads every file first and reports afterwards, in this order:
   It is the kit home its printed commands state, so a plain `--check` on an install with another kit
   home does not report a stale or moved install for that reason alone. When the run's own kit home
   is a different one, a `given:` line in the header names it as not used.
+  A kit home you moved by hand is reported when `--check` is given the new kit home through
+  `GRUGOPS_HOME`: if the recorded kit home holds no kit and the given one does, the kit-root
+  cross-check prints a `kit home moved` FAIL that names both. Its remedy writes no kit: move the kit
+  home back to the recorded one, then run the check command the line prints. The line also says that
+  the install commands `--check` prints on its other lines copy a kit to the recorded kit home, so
+  following one before the move back leaves a second kit. A plain `--check`, given no
+  `GRUGOPS_HOME`, does not detect a moved kit home: it fails on the absent kit, and its install
+  commands copy a kit to the recorded kit home.
 
 - **The route target.** It reads `kitRoot` and reports a FAIL when
   `<kitRoot>/roles/orchestrator.md` is not a readable file.

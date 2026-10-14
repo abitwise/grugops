@@ -604,6 +604,13 @@ describe(`DOC-1 (DI-10): no tracked installer source or README says install writ
 // checkout (`src-only-other`), an uninstall command stating no kit home (`uninstall-no-kit-home`), and the CHANGELOG's
 // general equality of the uninstaller's install command with `install.js --check`'s, which R39 shows only for one
 // case (`same-command-as-check`, 34.1 review IN-32).
+//
+// D-42 (gap round 5, plan 34.1-56, 2026-10-14, 34.1 review WR-37): the bare claim that following a `--check` remedy, or
+// a printed command, never leaves a second kit behind (`no-second-kit`). A kit home moved by hand made it false: the
+// doctor's printed install commands state the recorded kit home, so following one copies a kit back there while the
+// moved kit stays. The CHANGELOG sentence and the install.ts COMMAND_CONTEXT comment that said it now say what the doctor does
+// with a moved kit home (its moved-kit FAIL, whose by-hand remedy writes no kit), and R54 in kit-route.test.ts follows
+// that remedy as printed.
 
 const RETIRED_PRINTED_CLAIMS: readonly { readonly id: string; readonly words: readonly string[] }[] = [
   { id: "second-kit", words: ["never", "writes", "a", "second", "kit"] },
@@ -620,6 +627,7 @@ const RETIRED_PRINTED_CLAIMS: readonly { readonly id: string; readonly words: re
   { id: "src-only-other", words: ["(?:other\\s+than\\s+the\\s+one\\s+the\\s+script\\s+is\\s+in|is\\s+not\\s+this\\s+script's\\s+own\\s+checkout)"] },
   { id: "uninstall-no-kit-home", words: ["carries", "no", "`?GRUGOPS_HOME"] },
   { id: "same-command-as-check", words: ["is", "the", "one", "`?install\\.js", "--check`?", "prints", "for", "the", "same", "marker"] },
+  { id: "no-second-kit", words: ["writes", "no", "second", "kit"] },
 ];
 /** One retired claim's words, by id, so a planted proof reads them from the table rather than by index. */
 const claimWords = (id: string): readonly string[] => {
@@ -697,7 +705,7 @@ describe("DOC-1 (D-34): no tracked document or comment carries a retired printed
     const comment = `// the kit home (the GRUGOPS_HOME you ran the uninstaller with, ${w2.slice(0, 2).join(" ")}\n` +
       `// ${w2.slice(2).join(" ")}).\nexport const c = 1;\n`;
     // Controls: true sentences that share words with a claim, and copies outside the scan set.
-    const controlTs = "// --check: following one writes no second kit and does not move the install.\n" +
+    const controlTs = "// --check: a printed command names its kit home, so it writes the kit there; no second kit home is named.\n" +
       "// An install command starts with GRUGOPS_HOME=<dir>, the default kit home included.\n" +
       "// The new marker records a copy install, and the kit home and install mode the marker records.\nexport const d = 1;\n";
     const outside = `${w0.join(" ")}\n`;
@@ -830,5 +838,21 @@ describe("DOC-1 (D-34): no tracked document or comment carries a retired printed
         "install/closing-claims.test.ts:3 [src-only-other]",
       ].sort(),
     );
+  });
+
+  it("D-42 (plan 34.1-56): a planted CHANGELOG with the no-second-kit sentence restored, wrapped across a line, is a hit naming the file and line; the sentences that replaced it are not", () => {
+    // The CHANGELOG sentence plan 34.1-56 replaced, wrapped as it was. The words come from the claim table, so no
+    // source line here holds the claim.
+    const w = claimWords("no-second-kit");
+    const changelog =
+      "# Changelog\n\n- `install.js --check` takes the kit home from the marker, so following a `--check` remedy\n" +
+      `  ${w.slice(0, 2).join(" ")}\n  ${w.slice(2).join(" ")} and leaves the install where it was (a review id).\n` +
+      "- When the kit home was moved by hand and `--check` is given the new one, it fails naming both kit homes.\n" +
+      "  Its remedy is to move the kit home back and run the check again, which writes no kit.\n";
+    const controlTs = "// The moved-kit FAIL's remedy writes no kit; the install commands copy a kit to the recorded kit home.\nexport const d = 1;\n";
+    const root = plantedRepo("doc1-d42", { "CHANGELOG.md": changelog, "install/clean.ts": controlTs });
+    const scan = retiredClaimScan(root);
+    expect(scan.scanned.sort()).toEqual(["CHANGELOG.md", "install/clean.ts"]);
+    expect(scan.hits).toEqual(["CHANGELOG.md:4 [no-second-kit]"]);
   });
 });
