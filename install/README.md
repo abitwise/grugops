@@ -993,9 +993,13 @@ the directory it installed into (every symbolic link on the way resolved). Both 
 uninstaller use a marker only when its fields hold install's values (`grugopsHome` and `kitRoot`
 non-empty absolute paths, `installMode` `copy` or `symlink`, `kitVersion` a string when it is there)
 and its `target` is this directory. A JSON object at `.grugops/install.json` whose fields do not hold
-those values is not install's marker: the uninstaller uses none of the records in it, removes nothing
-on it, leaves it in place, and reports a `verify` finding (exit `3`); the installer leaves it byte for
-byte, writes no marker, adds no ask rule, and exits `3` too. Install's marker for
+those values is not used as install's marker: the uninstaller uses none of the records in it, removes
+nothing on it, leaves it in place, and reports a `verify` finding (exit `3`); the installer leaves it
+byte for byte, writes no marker, adds no ask rule, and exits `3` too. When the object holds none of
+install's fields (`grugopsHome`, `kitRoot`, `installMode`, `target`, `ledger`), install never wrote it:
+`--check`, the installer and the uninstaller say in their line about it that it was not written by
+install and, if it is yours, to leave it; that line names no next step and offers no removal.
+Otherwise they name the field to fix by hand (see below). Install's marker for
 another directory is not this directory's record either: a `.grugops/` copied from another repository,
 a repository you moved, renamed or copied after installing, a marker written before this release
 (it has no `target`), and a marker with no install ledger. The uninstaller then uses none of its
@@ -1032,8 +1036,11 @@ exit `1`): one that cannot be read is named as present but unreadable, not as "n
 malformed install ledger is named in a `FAIL` line with the entry and the reason.
 
 A marker that `--check`, the installer or the uninstaller cannot use is still the record of the agents
-installed here, whatever the cause: it cannot be read (for example mode 000, a FIFO, a directory or a
-link), it is not JSON (for example a trailing comma) or not a JSON object, a key in it appears more than
+installed here, whatever the cause, with one exception: a JSON object that holds none of the five
+fields `grugopsHome`, `kitRoot`, `installMode`, `target` and `ledger` was not written by install, and
+each of them says so and, if it is yours, to leave it, in a line that names no next step and offers no
+removal. Any other unusable marker is still that record: it cannot be read (for example mode 000, a
+FIFO, a directory or a link), it is not JSON (for example a trailing comma) or not a JSON object, a key in it appears more than
 once, its bytes are not text install writes, a field holds a value install never writes or a field
 install writes is missing (for example `agents` edited by hand), it holds a retired record, or its
 install ledger is malformed (for example one entry with a kind install never writes). Each of them names

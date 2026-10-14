@@ -1300,8 +1300,11 @@ function notInstalled(): void {
 // writes, a retired record next to the ledger), the marker is the one record install keeps of the agents installed
 // here: removing it would leave every file install made with no record, so no uninstall could take them out. The FAIL
 // names the cause the reader saw and its by-hand fix (install-marker.ts markerFixText of markerRemedy's answer, whose
-// fix is the read's problems), and prints only the check command: once the file is fixed by hand the check re-reads the
-// record. No install command is printed, so none names a kit home over a record this run could not read.
+// fix is the read's problems), and the check command as markerFixText's next step: once the file is fixed by hand the
+// check re-reads the record. No install command is printed, so none names a kit home over a record this run could not
+// read. A FOREIGN READ (D-40, DI-18) is the one exception: a JSON object holding none of install's fields was not written
+// by install, so the FAIL's subject is "the file at <path>", not "the install marker", and the owner's wording says it
+// was not written by install and, if it is yours, to leave it, with no check command after it.
 function markerUnreadable(markerFile: string, read: Extract<InstallMarkerRead, { readonly state: "unreadable" }>): void {
   const remedy = markerRemedy(read) ?? noMarkerRemedy("markerUnreadable");
   docReport(
@@ -5481,11 +5484,13 @@ function materializeRunnable(): void {
 //               one ledger; a note says so. Carrying it would launder another directory's records into
 //               this one's (a copied file entry for README §1's hand-copied AGENTS.md would then remove
 //               the user's file);
-//   unreadable  not a readable JSON object, or a JSON object that is not install's marker (a user's
-//               `{"mine":1}`, `{}`, or one that mixes the one ledger with a retired record): it is never
-//               written over. It is left byte for byte, and writeAskRules() has counted a verify for
-//               it (exit 3). It used to be replaced, every key lost, and reported
-//               `created`.
+//   unreadable  not a readable JSON object, or a JSON object that could not be used as install's marker:
+//               one holding none of install's fields (a user's `{"mine":1}`, `{}`), which install never wrote
+//               (`foreign`, D-40, DI-18: left, and if it is the user's, theirs to keep), or install's record
+//               with a field to fix by hand (a field install never writes, or the one ledger mixed with a
+//               retired record). It is never written over. It is left byte for byte, and
+//               writeAskRules() has counted a verify for it (exit 3). It used to be replaced, every
+//               key lost, and reported `created`.
 function writeMarker(): void {
   const markerRel = ".grugops/install.json";
   const previousMarker = readInstallMarker(TARGET);
@@ -5493,7 +5498,9 @@ function writeMarker(): void {
   // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
   // D-37 (34.1 review CR-05, IN-33): whatever the read, the marker is still the record of the agents installed here, so
   // the line never calls it "not install's". It words the cause the reader saw (install-marker.ts markerDefectText of the
-  // read's defect) and points at the never-remove verify askRulesStep printed.
+  // read's defect) and points at the never-remove verify askRulesStep printed. The one exception is a foreign read (D-40,
+  // DI-18): a JSON object holding none of install's fields, whose owner clause says it was not written by install and, if
+  // it is yours, to leave it, and whose verify says the same.
   if (previousMarker.state === "unreadable") {
     report("skipped", `${markerRel} (left unchanged — ${markerDefectText(previousMarker.defect)}; see the verify line above)`);
     return;
@@ -6785,8 +6792,11 @@ function writeAskRules(): AskRulesOutcome {
   // rule, relabels none, and leaves the ledger as it found it. A ledger with no ask-rules entry, or no
   // marker at all, is not a defect: nothing was recorded.
   // The remedy is install-marker.ts markerFixText of markerRemedy's answer (D-37, 34.1 review CR-05): whatever the
-  // read, the marker is fixed by hand and never removed. "this run uses none of its records" is the uninstaller's
-  // wording (34.1 review IN-33): the sentence claims nothing about the ledger that markerFixText contradicts.
+  // read, the marker is fixed by hand and never removed, except a foreign read (D-40, DI-18), a JSON object install never
+  // wrote, which the owner words as not written by install and left with no next step; markerFixText decides that, so
+  // this site passes its next step ("re-run the installer") and never appends one. "this run uses none of its
+  // records" is the uninstaller's wording (34.1 review IN-33): the sentence claims nothing about the ledger that
+  // markerFixText contradicts.
   const previousMarker = readInstallMarker(TARGET);
   if (previousMarker.state === "unreadable") {
     const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeAskRules");

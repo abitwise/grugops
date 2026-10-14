@@ -58,9 +58,14 @@
 //                                   within the bound (a FIFO, a directory, a symbolic link, a path
 //                                   under a non-directory or under a link, ...), or it is not JSON,
 //                                   or it is not a plain JSON object; `why` says which. A JSON object
-//                                   whose fields do not hold install's values (a user's file, a
-//                                   hand-made marker), or one that carries `ledger` next to a retired
-//                                   record, is `unreadable` with `jsonObject` true;
+//                                   that holds none of INSTALL_RECORD_FIELDS was not written by install
+//                                   (a user's own file, `{}`): `unreadable` with defect `foreign`, worded
+//                                   "not written by install; if it is yours, leave it" (D-40, DI-18). A
+//                                   JSON object that holds some of them but whose fields do not hold
+//                                   install's values (a hand-made or hand-edited marker), or one that
+//                                   carries `ledger` next to a retired record, is install's record with a
+//                                   field to fix by hand: `unreadable` with defect `field` or
+//                                   `retired-record`. Both are `unreadable` with `jsonObject` true;
 //                      `unbound`    install's marker shape, but not this directory's record, and
 //                                   `unboundBy` says why: `other-directory` (its `target` names another
 //                                   directory), `no-target` (written before markers were bound;
@@ -209,9 +214,11 @@ const DUPLICATES_NAMED = 8;
 export const MARKER_DEFECTS = ["blocked", "not-json", "not-object", "foreign", "bytes", "duplicate-key", "field", "retired-record", "ledger"] as const;
 export type MarkerDefect = (typeof MARKER_DEFECTS)[number];
 
-// `jsonObject` on `unreadable` is true when the file IS a JSON object, but not install's marker (its
-// fields do not hold install's values; installMarkerProblems says which; or it carries `ledger` next to
-// a retired record), so a caller can say that rather than "could not be read". `unbound` is install's
+// `jsonObject` on `unreadable` is true when the file IS a JSON object that could not be used as install's marker, so a
+// caller can say that rather than "could not be read". Two halves (D-40, DI-18): an object holding none of
+// INSTALL_RECORD_FIELDS was not written by install (`foreign`: leave it if it is yours); an object holding some of them
+// whose fields do not hold install's values (installMarkerProblems says which), or that carries `ledger` next to a
+// retired record, is install's record with a field to fix by hand (`field`, `retired-record`). `unbound` is install's
 // marker shape that is not this directory's record (`unboundBy` says why): `object` is the parsed file,
 // for reporting its kit fields only (the doctor); no record is ever read from it. `here` is this
 // directory's real path, or null when it could not be resolved.
@@ -433,9 +440,10 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   // is used only when its fields hold install's values (installMarkerProblems), it does not mix the one
   // ledger with a retired record, its `target` is this directory's real path (markerBinding), and it
   // carries the one ledger. Anything else is not this directory's record, however well formed: a user's
-  // object, a hand-made marker, a `.grugops/` copied from another installed repository, a marker written
-  // before markers were bound or before the one ledger. This is the one place both binaries learn whether
-  // a marker is install's own; readLedger is handed only an `ok` marker.
+  // object holding none of install's fields (the `foreign` arm above; not written by install), a hand-made
+  // or hand-edited marker (a field to fix by hand), a `.grugops/` copied from another installed repository,
+  // a marker written before markers were bound or before the one ledger. This is the one place both
+  // binaries learn whether a marker is install's own; readLedger is handed only an `ok` marker.
   const marker = parsed as Record<string, unknown>;
   const has = (k: string): boolean => Object.prototype.hasOwnProperty.call(marker, k);
   const problems = installMarkerProblems(marker);
@@ -545,11 +553,15 @@ export function markerUnusableText(read: { readonly why: string; readonly jsonOb
 // agents installed here: removing it leaves every file install made with no record, so no uninstall can take them out
 // (CR-04 reproduced 57 ledger entries becoming 1, and a later uninstall leaving 87 items; CR-05 reached the same harm
 // from a trailing comma, CR-06 from one bad ledger entry). Where a binary cannot use the marker, the remedy names the
-// cause the reader saw, says to fix the file by hand and never delete the marker.
+// cause the reader saw, says to fix the file by hand and never delete the marker. The one exception (D-40, DI-18): a
+// JSON object holding none of INSTALL_RECORD_FIELDS (`foreign`) was not written by install, so it is no record of
+// anything install did; the remedy says it was not written by install and, if it is yours, to leave it, with no next
+// step. It offers no removal either.
 //
-// The owner decides only the WORDING: markerRemedy names the defect and the by-hand fix, markerFixText is the one
-// wording of the remedy, and markerDefectText the one wording of a defect's cause in a skipped or left line. There is no
-// answer for a site to branch on: every remedy over the marker is the never-remove one.
+// The owner decides the WORDING and whether a next step follows: markerRemedy names the defect and the by-hand fix,
+// markerFixText is the one wording of the remedy and takes the caller's next step (printed for every defect but
+// `foreign`), and markerDefectText the one wording of a defect's cause in a skipped or left line. There is no answer for
+// a site to branch on: no remedy over the marker offers removal.
 
 /** The remedy over a marker a binary cannot use: which defect the reader saw, and what a hand edit of the file fixes. */
 export interface MarkerRemedy {
@@ -630,7 +642,8 @@ export function markerFixText(remedy: MarkerRemedy, then: string | null): string
 /**
  * MARKER_DEFECT_TEXT (D-37, 34.1 review IN-33): one short cause clause per MarkerDefect. A Record over MarkerDefect, so
  * a new defect is a compile error until it is worded. Only `field` says a field holds a value install never writes: a
- * duplicate key or a byte the strict reader refuses is not a field problem.
+ * duplicate key or a byte the strict reader refuses is not a field problem. Only `foreign` (D-40, DI-18) says the file
+ * was not written by install; every other clause is about install's own record.
  */
 const MARKER_DEFECT_TEXT: Readonly<Record<MarkerDefect, string>> = {
   blocked: "it could not be read as a JSON object",
@@ -649,7 +662,8 @@ const MARKER_DEFECT_TEXT: Readonly<Record<MarkerDefect, string>> = {
 /**
  * markerDefectText (D-37, 34.1 review IN-33): THE ONE WORDING of a defect's cause in a skipped or left line about the
  * marker (install.ts writeMarker's skipped line, uninstall.ts removeMarker's line over an unreadable marker). The line
- * names the cause the reader saw, never another one, and points at the never-remove verify the run printed.
+ * names the cause the reader saw, never another one, and points at the verify the run printed: the never-remove one,
+ * or, for `foreign` (D-40, DI-18), the one that says the file was not written by install and to leave it if it is yours.
  */
 export function markerDefectText(defect: MarkerDefect): string {
   return MARKER_DEFECT_TEXT[defect];
@@ -1554,7 +1568,10 @@ export function readKitHomeRecord(home: string): KitHomeRecordRead {
 // object the user put at `.grugops/install.json` does not carry these fields, and reading it as install's
 // marker would make it an install made before every ledger: uninstall deleted it by its name, and the
 // kit-file fallback removed the verbatim skills. So readInstallMarker asks this before it answers `ok`
-// (for both binaries); a marker with a problem is not install's, and nothing is done on it.
+// (for both binaries); a marker with a problem is not used, and nothing is done on it. Since D-40 (DI-18)
+// readInstallMarker asks this only of an object holding at least one of INSTALL_RECORD_FIELDS: one holding
+// none is `foreign` (not written by install) before this runs, so a problem reported here is a field of
+// install's record to fix by hand (defect `field`).
 //
 // VALUES, NOT ONLY TYPES (red-team B2 of plan 33.1-33). Strings were enough before, so empty strings and
 // an installMode of "banana" passed. install writes grugopsHome and kitRoot as absolute paths

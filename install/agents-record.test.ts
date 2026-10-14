@@ -118,6 +118,7 @@ import {
   ASK_RULES_REL,
   agentsToRecord,
   entryHolds,
+  INSTALL_RECORD_FIELDS,
   MARKER_DEFECTS,
   markerDefectText,
   markerFixText,
@@ -4617,6 +4618,84 @@ describe("DI-18 (D-40): the owner decides the next step", () => {
       expect(markerFixText({ defect, fix: ["a problem"] }, null), `${defect}: a null step adds nothing`).not.toContain("; then");
     }
   });
+});
+
+// ── DI-18 (D-40): the foreign state holds exactly when none of INSTALL_RECORD_FIELDS is present (plan 34.1-54) ─────
+//
+// The five-field rule, both ways, derived from the one constant (DOC-1: the README and the code comments say what this
+// holds). Pinned 2026-10-14 by plan 34.1-54 (D-40, DI-18; D-44 confirms the set is D-40's five exactly). The constant
+// equals D-40's five in order; each member is a key of the marker a fresh install writes (read from that marker, so a
+// renamed writer field turns this red); an object holding only one member, with the value install wrote, is never
+// `foreign`; and an object holding only `agents` and kitVersion (install's, but not in the five) is `foreign`. Each row
+// is a real file read through readInstallMarker, the one reader both binaries use.
+
+describe("DI-18 (D-40): the foreign state holds exactly when none of INSTALL_RECORD_FIELDS is present", () => {
+  /** D-40's five, as the decision names them (34.1-CONTEXT.md D-40 item 3, D-44 (i)). */
+  const D40_FIVE = ["grugopsHome", "kitRoot", "installMode", "target", "ledger"] as const;
+  /** One fresh install of Claude Code and Codex CLI, made on first use; every row reads its marker. */
+  let fresh: { w: World; written: Record<string, unknown>; original: Buffer } | null = null;
+  const installed = (): { w: World; written: Record<string, unknown>; original: Buffer } => {
+    if (fresh === null) {
+      const w = world("di18-fields");
+      install(w, [flag("claude"), flag("codex")]);
+      expect(readInstallMarker(w.target).state, "PREMISE: the fresh marker reads ok").toBe("ok");
+      fresh = { w, written: readMarkerObject(w.target), original: readFileSync(at(w.target, MARKER_REL)) };
+    }
+    return fresh;
+  };
+  /** Read `object` written at the fresh install's marker path through readInstallMarker, then put the marker back. */
+  const readAs = (object: Record<string, unknown>): InstallMarkerRead => {
+    const { w, original } = installed();
+    const markerFile = at(w.target, MARKER_REL);
+    try {
+      writeFileSync(markerFile, JSON.stringify(object, null, 2) + "\n");
+      return readInstallMarker(w.target);
+    } finally {
+      writeFileSync(markerFile, original);
+    }
+  };
+  const defectOf = (r: InstallMarkerRead): string => (r.state === "unreadable" ? r.defect : r.state);
+
+  it("INSTALL_RECORD_FIELDS equals D-40's five, in order", () => {
+    expect([...INSTALL_RECORD_FIELDS]).toEqual([...D40_FIVE]);
+  });
+
+  it(
+    "each member of INSTALL_RECORD_FIELDS (5) is a key of the marker a fresh install writes",
+    () => {
+      const { written } = installed();
+      let asked = 0;
+      for (const k of INSTALL_RECORD_FIELDS) {
+        asked++;
+        expect(Object.prototype.hasOwnProperty.call(written, k), `${k} is not a key of the marker a fresh install writes`).toBe(true);
+      }
+      expect(asked, "the loop over INSTALL_RECORD_FIELDS ran over five members").toBe(5);
+    },
+    300_000,
+  );
+
+  for (const k of D40_FIVE) {
+    it(
+      `an object holding only ${k}, with the value install wrote, is never foreign`,
+      () => {
+        const { written } = installed();
+        const read = readAs({ [k]: written[k] });
+        expect(["unreadable", "unbound"], `only ${k}: the read's state`).toContain(read.state);
+        expect(defectOf(read), `only ${k}: the read's defect`).not.toBe("foreign");
+      },
+      300_000,
+    );
+  }
+
+  it(
+    "an object holding only agents and kitVersion (install's, not in D-40's five) is foreign",
+    () => {
+      const { written } = installed();
+      expect(Object.prototype.hasOwnProperty.call(written, "kitVersion") && Object.prototype.hasOwnProperty.call(written, "agents"), "PREMISE: the fresh marker holds kitVersion and agents").toBe(true);
+      expect(defectOf(readAs({ kitVersion: written.kitVersion, agents: written.agents }))).toBe("foreign");
+    },
+    300_000,
+  );
 });
 
 // ── the uninstall re-run census (MSG-1, TypeScript parser) ───────────────────────────────────────────────────────

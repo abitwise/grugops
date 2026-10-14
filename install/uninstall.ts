@@ -1607,8 +1607,10 @@ function removeAskRules(): Outcome {
 // DRY_RUN branch, so the preview decides as the real run does.
 //
 // AND ONLY WHEN IT IS INSTALL'S OWN MARKER FOR THIS DIRECTORY (plan 33.1-33, brief DC-2, owns "marker";
-// red-team B2). A JSON object at this path whose fields do not hold install's values is a file the user
-// put there; it used to be deleted by its name alone, in a repository grugops was never installed into.
+// red-team B2). A JSON object at this path that holds none of install's fields (INSTALL_RECORD_FIELDS) is a file
+// the user put there, not written by install (`foreign`, D-40, DI-18); it used to be deleted by its name alone, in a
+// repository grugops was never installed into. One that holds some of them but whose fields do not hold install's
+// values is install's record with a field to fix by hand.
 // Install's marker for another directory (copied, moved, or written before markers were bound or before
 // the one ledger) is not this directory's record. Each is left, and the line says why.
 //
@@ -1640,6 +1642,8 @@ function removeMarker(): MarkerOutcome {
     // the by-hand fix and this run's command, so each line points at it. An unreadable read's line words the cause the
     // reader saw (install-marker.ts markerDefectText of its defect; 34.1 review IN-33): not JSON, not an object, a
     // blocked read, a duplicate key, bytes the strict reader refuses, a field install never writes, a retired record.
+    // The one exception is a foreign read (D-40, DI-18): a JSON object holding none of install's fields, which the owner's
+    // clause says was not written by install and, if it is yours, to leave it.
     if (MARKER_READ.state === "unreadable") {
       report("left", `${MARKER_REL} (left in place — ${markerDefectText(MARKER_READ.defect)}; see the verify line above)`);
       return { kind: "left" };
@@ -2501,9 +2505,12 @@ const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 // (install-marker.ts readInstallMarker) classifies it: `ok` only for a marker whose fields hold
 // install's values, whose `target` is this directory's real path, and which carries the one ledger.
 // owns(LEDGER, TARGET, MARKER_REL, "marker") answers owned only for that `ok` read with a well-formed ledger.
-//   - A JSON object whose fields do not hold install's values (a user's file, a hand-made marker with
-//     empty strings or an installMode of "banana"), or one that carries the ledger next to a retired
-//     record, is `unreadable` with jsonObject: it is not install's.
+//   - A JSON object that holds none of install's fields (INSTALL_RECORD_FIELDS: a user's own file, `{}`)
+//     was not written by install: `unreadable` with defect `foreign` (D-40, DI-18), and the verify below
+//     says so and, if it is yours, to leave it. A JSON object that holds some of them but whose fields do
+//     not hold install's values (a hand-made marker with empty strings or an installMode of "banana"), or
+//     one that carries the ledger next to a retired record, is `unreadable` with jsonObject too: install's
+//     record with a field to fix by hand.
 //   - Install's marker shape for ANOTHER directory, one written before markers carried `target`, or one
 //     written before the one ledger, is `unbound` (unboundBy says which). Its records describe the
 //     directory it was written in, or are in a shape this build does not read: a `.grugops/` copied from
@@ -2596,8 +2603,10 @@ if (MARKER_READ.state === "unbound") {
   // D-37 (34.1 review CR-05, plan 34.1-42): one reading for every unreadable read (not JSON, not an object, a blocked
   // read, a duplicate key, the strict reader, a field install never writes, a retired record). It names the cause the
   // reader saw, says to fix the file by hand and never delete the marker (install-marker.ts markerFixText, of the
-  // owner's answer, which supplies the read's problems as `fix`), and prints this run's own command. It never offers
-  // removing the marker or anything else by hand (D-37: the owner has no removal answer for any read).
+  // owner's answer, which supplies the read's problems as `fix`), and prints this run's own command as markerFixText's
+  // next step. A foreign read (D-40, DI-18: a JSON object holding none of install's fields) is worded by the owner as
+  // not written by install, to be left if it is yours, and the owner drops the command: there is nothing to fix. It
+  // never offers removing the marker or anything else by hand (D-37: the owner has no removal answer for any read).
   const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: unreadable marker");
   verify(
     `.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits ` +
