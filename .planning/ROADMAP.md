@@ -1748,7 +1748,7 @@ Plans:
 **Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
 **Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
 **Depends on:** Phase 34
-**Plans:** 53/57 plans executed; gap round 5 (past the cap by D-40, this round only), 34.1-53..34.1-57, planned 2026-10-14 under D-40, with D-42 (WR-37 narrowed), D-43 (WR-38 and its kitPreflight sibling) and D-44 (DI-18 defaults) decided at the planning checkpoint; gap round 4 of 4 (the last on the cap), 34.1-42..34.1-52, planned 2026-10-13 under D-37, D-38 and D-39, revised at the plan check the same day: 34.1-50 gains the parser-derived WR-24 census and the stale-adapter sibling it found, 34.1-47 and 34.1-48 land in two green commits with a stop rule, 34.1-52 surfaces the uninstall INSTALL_MODE reading and DRY_RUN and records a residual DI row; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
+**Plans:** 54/57 plans executed; gap round 5 (past the cap by D-40, this round only), 34.1-53..34.1-57, planned 2026-10-14 under D-40, with D-42 (WR-37 narrowed), D-43 (WR-38 and its kitPreflight sibling) and D-44 (DI-18 defaults) decided at the planning checkpoint; gap round 4 of 4 (the last on the cap), 34.1-42..34.1-52, planned 2026-10-13 under D-37, D-38 and D-39, revised at the plan check the same day: 34.1-50 gains the parser-derived WR-24 census and the stale-adapter sibling it found, 34.1-47 and 34.1-48 land in two green commits with a stop rule, 34.1-52 surfaces the uninstall INSTALL_MODE reading and DRY_RUN and records a residual DI row; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
 
 Plans:
 **Wave 1**
@@ -1919,7 +1919,7 @@ Plans:
 - [x] 34.1-53-PLAN.md — DI-19: the doctor's ask-rules check reads DOCTOR_MARKER_READ; the parser census of the doctor's reach holds one marker read (D-40)
 
 **Wave 41** *(blocked on Wave 40 completion)*
-- [ ] 34.1-54-PLAN.md — DI-18: the `foreign` reader state (none of D-40's five fields), "not written by install; if it is yours, leave it", the owner decides the next step, the matrix row, README and comments (D-40, D-44)
+- [x] 34.1-54-PLAN.md — DI-18: the `foreign` reader state (none of D-40's five fields), "not written by install; if it is yours, leave it", the owner decides the next step, the matrix row, README and comments (D-40, D-44)
 
 **Wave 42** *(blocked on Wave 41 completion)*
 - [ ] 34.1-55-PLAN.md — WR-38: removeMarker words every unusable read through markerDefectText; the kitPreflight sibling through the owner; the matrix asserts the marker's line for every shape; R53; the "not install's" census (D-40, D-43)
@@ -1973,7 +1973,7 @@ Plans:
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
 | 34. Model Effort Dial & Pi Support | v2.1 | 36/36 | Closed by human decision D-28 (verification human_needed 23/26 left standing; UAT 1 pass / 2 issues / 1 deferred; G-34-R3-2, G-34-R3-4 carried to 34.1; HOST-02 to backlog 999.5) | 2026-10-10 |
-| 34.1. Per-agent installer (INSERTED) | v2.1 | 53/57 | In Progress | - |
+| 34.1. Per-agent installer (INSERTED) | v2.1 | 54/57 | In Progress | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
