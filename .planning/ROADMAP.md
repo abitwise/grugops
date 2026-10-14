@@ -1748,7 +1748,7 @@ Plans:
 **Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
 **Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
 **Depends on:** Phase 34
-**Plans:** 57/57 plans executed; gap round 5 (past the cap by D-40, this round only), 34.1-53..34.1-57, planned 2026-10-14 under D-40, with D-42 (WR-37 narrowed), D-43 (WR-38 and its kitPreflight sibling) and D-44 (DI-18 defaults) decided at the planning checkpoint; gap round 4 of 4 (the last on the cap), 34.1-42..34.1-52, planned 2026-10-13 under D-37, D-38 and D-39, revised at the plan check the same day: 34.1-50 gains the parser-derived WR-24 census and the stale-adapter sibling it found, 34.1-47 and 34.1-48 land in two green commits with a stop rule, 34.1-52 surfaces the uninstall INSTALL_MODE reading and DRY_RUN and records a residual DI row; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
+**Plans:** 57/60 plans executed; fix round after gap round 5 (D-45, the human's use of D-40's flexibility clause at UAT, one round only), 34.1-58..34.1-60, planned 2026-10-14 for CR-08, WR-39 and DI-25 (UAT gaps G-34.1-15, G-34.1-15b, G-34.1-16), with one decision checkpoint in 34.1-59 on the malformed-ledger sibling (D-46); gap round 5 (past the cap by D-40, this round only), 34.1-53..34.1-57, planned 2026-10-14 under D-40, with D-42 (WR-37 narrowed), D-43 (WR-38 and its kitPreflight sibling) and D-44 (DI-18 defaults) decided at the planning checkpoint; gap round 4 of 4 (the last on the cap), 34.1-42..34.1-52, planned 2026-10-13 under D-37, D-38 and D-39, revised at the plan check the same day: 34.1-50 gains the parser-derived WR-24 census and the stale-adapter sibling it found, 34.1-47 and 34.1-48 land in two green commits with a stop rule, 34.1-52 surfaces the uninstall INSTALL_MODE reading and DRY_RUN and records a residual DI row; gap round 3 of 4, 34.1-33..34.1-41, planned 2026-10-12 under D-34, D-35 and D-36, revised at the plan check on 2026-10-13: 34.1-40 and 34.1-41 split out so each plan stays inside the 100k context budget, and 34.1-36 gained a blocking-human checkpoint on R34's outcome (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
 
 Plans:
 **Wave 1**
@@ -1929,6 +1929,17 @@ Plans:
 
 **Wave 44** *(blocked on Wave 43 completion)*
 - [x] 34.1-57-PLAN.md — round close: deferred items after round 5 (DI-18, DI-19 closed; D-44 residual rows), review dispositions (WR-37, WR-38 fixed; IN-35..IN-38 deferred), CHANGELOG lines, the one full regression (D-40, D-42, D-43, D-44)
+
+**Fix round after gap round 5 (D-45, the human's use of D-40's flexibility clause at UAT, 2026-10-14; one round only)**
+
+**Wave 45** *(fix round; blocked on Wave 44 completion)*
+- [ ] 34.1-58-PLAN.md — CR-08: the moved-kit FAIL only on a move the given kit home's own record proves and nothing at the recorded path; R54 controls, the 15-cell class, a linked parent. WR-39: removeMarker asks the unreadable read first; two blocked shapes in the reader-state matrix; CHANGELOG lines (D-45)
+
+**Wave 46** *(blocked on Wave 45 completion)*
+- [ ] 34.1-59-PLAN.md — DI-25: install refuses before any write over a marker it cannot record into (installRefusal, asked once before --migrate and the kit copy); a decision checkpoint on the malformed-ledger sibling (D-46); the matrix's install cells under four install runs (D-45)
+
+**Wave 47** *(blocked on Wave 46 completion)*
+- [ ] 34.1-60-PLAN.md — close: the refusal's printed remedy followed to a reversible install, DRY_RUN's same refusal, README and CHANGELOG; deferred items and review dispositions per D-45; the one full regression (D-45)
 
 ## Progress
 
