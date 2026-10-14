@@ -3331,6 +3331,15 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 // left line carries markerDefectText("foreign"). Every other cell also asserts the converse: no line says "not written by
 // install".
 //
+// THE MARKER'S OWN LINE (plan 34.1-55, 2026-10-14, D-40 item 2, D-43, 34.1 review WR-38). Every cell but --check also
+// asserts the marker's own line: an install run prints exactly one `skipped` line for .grugops/install.json holding
+// "(left unchanged — <markerDefectText of the defect>; see the verify line above)" (a malformed ledger has no skipped
+// line: it is written back unchanged under a verify), and an uninstall run prints exactly one `left` line for it holding
+// "(left in place — <markerDefectText of the defect>; see the verify line above)", or U4's malformed-ledger line. Until
+// plan 34.1-55 a link, a directory, a FIFO and `.grugops` a link got "not the marker install writes" there, right after
+// the verify said never to delete it. Every cell also asserts that no line says "not install's" or "not the marker
+// install writes".
+//
 // Each cell starts from a real .grugops directory holding the files install wrote (resetGrugops), applies one shape,
 // asserts the premise through the product's reader (the state and the defect the row is keyed by), runs, and undoes
 // what the shape made outside .grugops. The install runs may write other files in the target; only the marker and the
@@ -3340,6 +3349,10 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 const MATRIX_SIDE = ["marker-copy.json", "marker-second-name", "grugops-real"] as const;
 /** A line holds a C0 or C1 control character other than tab, or U+FFFD (the line split already took the newline). */
 const CONTROL_OR_REPLACEMENT = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f�]/;
+/** U4's `left` line over a malformed install ledger (uninstall.ts removeMarker), the matrix's `ledger` uninstall cells. */
+const MATRIX_U4_LEFT = "its install ledger is malformed, so the record of what install did could not be used";
+/** The two retired wordings D-43 names: no printed line calls the marker not install's (plan 34.1-55, WR-38). */
+const MATRIX_NOT_INSTALLS = /not install's|not the marker install writes/i;
 
 interface ReaderShape {
   readonly name: string;
@@ -3618,11 +3631,6 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
           if (l.includes("never delete the marker") || l.includes("one record install keeps")) bad(`a line calls a foreign file install's record: ${l}`);
           if (l.includes("if it is yours, leave it") && (l.includes("; then") || /\b(un)?install\.js\b/.test(l))) bad(`a line that says leave it carries a next step or a command: ${l}`);
         }
-        if (run.name !== "--check") {
-          const label = run.uninstall ? "left" : "skipped";
-          const line = linesWith(r.stdout, label).filter((l) => l.includes(MARKER_REL) && l.includes(markerDefectText("foreign")));
-          if (line.length === 0) bad(`no ${label} line for ${MARKER_REL} carries markerDefectText("foreign")\n${r.stdout}`);
-        }
       } else {
         const owner = allLines(r).filter(
           (l) => l.includes(MARKER_REL) && BY_HAND.test(l) && l.includes("never delete the marker") && fix.every((f) => l.includes(f)),
@@ -3631,6 +3639,26 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
         // The converse (D-40, DI-18): only a foreign read is worded as a file install never wrote.
         for (const l of allLines(r)) if (l.includes("not written by install")) bad(`a line over a ${defect} read says not written by install: ${l}`);
       }
+      // THE MARKER'S OWN LINE (plan 34.1-55, 2026-10-14, D-40 item 2, D-43, 34.1 review WR-38), for every defect and every
+      // shape, the seven blocked shapes included: each install run prints exactly one `skipped` line for the marker,
+      // worded through markerDefectText of the read's defect (a malformed ledger is written back unchanged under a verify,
+      // so it has none); each uninstall run prints exactly one `left` line for the marker, worded through markerDefectText,
+      // or U4's malformed-ledger line. No line of any cell says the marker is not install's.
+      if (run.name !== "--check") {
+        const label = run.uninstall ? "left" : "skipped";
+        const mine = linesWith(r.stdout, label).filter((l) => l.includes(`${MARKER_REL} (`));
+        const want =
+          defect === "ledger"
+            ? MATRIX_U4_LEFT
+            : run.uninstall
+              ? `(left in place — ${markerDefectText(defect)}; see the verify line above)`
+              : `(left unchanged — ${markerDefectText(defect)}; see the verify line above)`;
+        if (defect !== "ledger" || run.uninstall) {
+          if (mine.length !== 1) bad(`${mine.length} ${label} line(s) for ${MARKER_REL}, want exactly one\n${mine.join("\n")}\n${r.stdout}`);
+          else if (!mine[0].includes(want)) bad(`the ${label} line for ${MARKER_REL} is not the owner's: ${mine[0]}\n  want it to hold ${want}`);
+        }
+      }
+      for (const l of allLines(r)) if (MATRIX_NOT_INSTALLS.test(l)) bad(`a line says the marker is not install's: ${l}`);
       for (const l of removalOffers(r)) bad(`a line offers removing the marker: ${l}`);
       if (run.uninstall && linesWith(r.stdout, "removed").length > 0) bad(`something was removed\n${linesWith(r.stdout, "removed").join("\n")}`);
       if (after !== before) bad(`the marker path changed\n  before ${before.slice(0, 200)}\n  after  ${after.slice(0, 200)}`);
@@ -3641,7 +3669,7 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
   return { findings, cells, skipped, platformSkips };
 }
 
-describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every shape x every printing run", () => {
+describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every shape x every printing run, the marker's own line asserted (WR-38)", () => {
   // Re-pinned 2026-10-14 by plan 34.1-54 (D-40, DI-18): `foreign` joins MARKER_DEFECTS (8 -> 9) with two shapes, a
   // user's own JSON object and an object holding only install's agents and kitVersion (21 -> 23 shapes).
   it("the table is keyed by MARKER_DEFECTS (9), with at least one shape per defect; the runs are the five that print about the marker", () => {
@@ -3655,7 +3683,7 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
 
   for (const defect of MARKER_DEFECTS) {
     it(
-      `${defect}: every shape under every printing run ${defect === "foreign" ? "says not written by install and leave it, with no next step" : "names the cause and the by-hand fix"}, never offers removal, removes nothing and leaves the marker path as it was`,
+      `${defect}: every shape under every printing run ${defect === "foreign" ? "says not written by install and leave it, with no next step" : "names the cause and the by-hand fix"}, prints the marker's own skipped or left line through the owner, never says the marker is not install's, never offers removal, removes nothing and leaves the marker path as it was`,
       () => {
         const { findings, cells, skipped, platformSkips } = matrixRows(defect);
         const gated = READER_STATES[defect].filter((s) => s.chmodGated === true).length;
@@ -3713,7 +3741,14 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
  * One follow row: `shape` turns the marker install wrote into the reader state `defect`; `fix` is the by-hand fix the
  * verify line names (it gets the original bytes).
  */
-function followAsPrinted(tag: string, defect: MarkerDefect, shape: (w: World) => void, fix: (w: World, original: Buffer) => void, fixWords: RegExp): void {
+function followAsPrinted(
+  tag: string,
+  defect: MarkerDefect,
+  shape: (w: World) => void,
+  fix: (w: World, original: Buffer) => void,
+  fixWords: RegExp,
+  afterUninstall?: (r: Run) => void,
+): void {
   const w = world(tag);
   install(w, [flag("claude"), flag("codex")]);
   const recorded = recordedPaths(w);
@@ -3738,6 +3773,7 @@ function followAsPrinted(tag: string, defect: MarkerDefect, shape: (w: World) =>
   expect(markerPathState(w), `the marker path changed\n${r.stdout}`).toBe(before);
   expect(existsSync(at(w.target, AGENT_SKILL_REL)), r.stdout).toBe(true);
   expect(existsSync(at(w.target, ".claude/skills/grugops/SKILL.md")), r.stdout).toBe(true);
+  afterUninstall?.(r);
 
   // Follow it: apply the fix the verify named, by hand, then run the printed command as printed.
   fix(w, original);
@@ -3807,6 +3843,14 @@ describe("D-37: the remaining reader states, followed as printed (R48a-e)", () =
         renameSync(real, markerPath(w));
       },
       /putting the file a link points to in place of the link/,
+      // Plan 34.1-55 (2026-10-14, D-43, 34.1 review WR-38): the uninstall's `left` line for the marker is the owner's
+      // blocked line, never "not the marker install writes" (the file the link points to IS install's record).
+      (r) => {
+        const left = linesWith(r.stdout, "left").filter((l) => l.includes(`${MARKER_REL} (`));
+        expect(left.length, `the marker's left line\n${r.stdout}`).toBe(1);
+        expect(left[0]).toContain(`${MARKER_REL} (left in place — ${markerDefectText("blocked")}; see the verify line above)`);
+        expect(left[0]).not.toContain("not the marker install writes");
+      },
     );
   });
 });

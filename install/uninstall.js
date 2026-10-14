@@ -1424,14 +1424,33 @@ function removeMarker() {
         report("skipped", `${MARKER_REL} (marker not present)`);
         return { kind: "absent" };
     }
-    // DC-3 / D-18 (plan 33.1-27): install writes the marker as a regular file inside a real .grugops/
-    // directory. Anything else there (a FIFO, a directory, a link, or a link on the way) is not the
-    // marker install wrote, was never read (MARKER above says why), and is left in place.
+    // THE ORDER OF THE ARMS (plan 34.1-55, D-40 item 2, D-43, 34.1 review WR-38): the read decides the wording, and no line
+    // here says the marker is not install's. A read this run could not use is asked FIRST, before the path's shape: the
+    // module-top verify already named the cause, the by-hand fix and this run's command, and said never to delete the
+    // marker, so whatever is at the path now (a link, a directory, a FIFO, a link on the way, a hard link, a file too
+    // large), the line words the cause the reader saw through the owner (install-marker.ts markerDefectText of its defect;
+    // 34.1 review IN-33, CR-05) and points at that verify. Until plan 34.1-55 the shape arm came first and called a link, a
+    // directory or a FIFO "not the marker install writes", right after the verify said it is the one record install keeps.
+    // The one exception in the owner's clause is a foreign read (D-40, DI-18): a JSON object holding none of install's
+    // fields, which the clause says was not written by install and, if it is yours, to leave it.
+    if (MARKER_READ.state === "unreadable") {
+        report("left", `${MARKER_REL} (left in place — ${markerDefectText(MARKER_READ.defect)}; see the verify line above)`);
+        return { kind: "left" };
+    }
+    // DC-3 / D-18 (plan 33.1-27): install writes the marker as a regular file inside a real .grugops/ directory. This arm
+    // is reached only when the run read the marker as absent, unbound or ok when it started and the path is now something
+    // else (a FIFO, a directory, a link, or a link on the way): it changed after this run read it, so this run read none of
+    // what is there now and printed no verify about it (MSG-1). It is left in place, worded by the read's state at start,
+    // and the line names this run's own command, which reads the current path.
     const way = wayTo(TARGET, m);
     const kind = kindAt(m);
     if ((way !== null && way !== "absent") || kind !== "regular file") {
         const what = way !== null && way !== "absent" ? `${way.at} ${way.reason}` : `it is a ${kind ?? "path that could not be read"}`;
-        report("left", `${MARKER_REL} (${what}; not the marker install writes — left in place)`);
+        report("left", MARKER_READ.state === "absent"
+            ? `${MARKER_REL} (${what}; it was not present when this run started, so this run read none of its records; ` +
+                `left in place — run \`${rerunCommand()}\` again to read it)`
+            : `${MARKER_REL} (${what} now; it changed after this run read it, so this run read none of what is there now; ` +
+                `left in place — run \`${rerunCommand()}\` again to read it)`);
         return { kind: "left" };
     }
     // THE ONE AUTHORITY (plan 33.1-38): owns' pseudo-kind `marker` answers owned exactly when this run's ledger
@@ -1439,16 +1458,9 @@ function removeMarker() {
     const own = owns(LEDGER, TARGET, MARKER_REL, "marker");
     if (!own.owned && MARKER_READ.state !== "ok") {
         // D-37 (34.1 review CR-05, plan 34.1-42): a marker this run could not use is left in place, and no line here offers
-        // removing it or says it is not install's. For a read this run made, the module-top verify already named the cause,
-        // the by-hand fix and this run's command, so each line points at it. An unreadable read's line words the cause the
-        // reader saw (install-marker.ts markerDefectText of its defect; 34.1 review IN-33): not JSON, not an object, a
-        // blocked read, a duplicate key, bytes the strict reader refuses, a field install never writes, a retired record.
-        // The one exception is a foreign read (D-40, DI-18): a JSON object holding none of install's fields, which the owner's
-        // clause says was not written by install and, if it is yours, to leave it.
-        if (MARKER_READ.state === "unreadable") {
-            report("left", `${MARKER_REL} (left in place — ${markerDefectText(MARKER_READ.defect)}; see the verify line above)`);
-            return { kind: "left" };
-        }
+        // removing it or says it is not install's. An unreadable read was worded above, before the path's shape (plan
+        // 34.1-55); what is left here is an unbound read, whose module-top verify named why it is not a record this run can
+        // use, and a marker not present when this run started.
         if (MARKER_READ.state === "unbound") {
             report("left", `${MARKER_REL} (it is not a record this run can use: ${MARKER_READ.why}; left in place — see the verify line above)`);
             return { kind: "left" };
@@ -1586,8 +1598,9 @@ function markerOutcomeLine(o) {
 // regular file with the same bytes this run read at its start. When it cannot be written, that is a counted
 // verify naming each entry it still lists that this run removed, so the human can take them out by hand.
 // The DRY_RUN preview says what it would take out and writes nothing.
-// It returns what it did (plan 34-26): rewritten, unchanged (nothing to take out, or not install's marker),
-// would-rewrite (DRY_RUN) or not-rewritten (a counted verify says why).
+// It returns what it did (plan 34-26): rewritten, unchanged (nothing to take out, or a marker owns does not answer
+// owned, such as install's own marker holding a malformed ledger), would-rewrite (DRY_RUN) or not-rewritten (a counted
+// verify says why).
 /**
  * keptLedger (plan 34.1-14): the ledger a kept marker records, from LEDGER and OUTCOMES by the rules above. `kept` is the
  * entries the rewrite writes back (an after-record in place of a reversed gemini or ask-rules entry); `stale` names each
