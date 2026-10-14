@@ -4546,6 +4546,79 @@ describe("DI-19 (D-40): the doctor reads the marker once", () => {
   });
 });
 
+// ── DI-18 (D-40): the owner decides the next step (plan 34.1-54, TypeScript parser) ─────────────────────────────────
+//
+// Brief §2.2 (one place owns each rule). Over a foreign read the owner says "if it is yours, leave it", and nothing may
+// follow it: a "then run ..." after "leave it" is a step that does nothing (MSG-1). So install-marker.ts markerFixText
+// takes the caller's next step as its second argument and decides whether it is printed (never for `foreign`). This
+// census holds that no caller can print a step after the owner's remedy itself: every call of markerFixText in every
+// product module (productModules) is the expression of a template span, has exactly two arguments, and the text right
+// after it in its string expression is empty or exactly "." (a template tail of "" or ".", with no `+` operand after the
+// template). The calls are counted: 8 at plan 34.1-54 (2026-10-14, D-40, DI-18), install.ts 6 (markerUnreadable, the
+// doctor's malformed-ledger FAIL, writeMarker, writeAskRules twice, askRulesStep) and uninstall.ts 2 (the module-top
+// unreadable and malformed-ledger verifies); a later plan that adds a call re-pins the count with the reason.
+const MARKER_FIX_CALLS: Readonly<Record<string, number>> = { "install.ts": 6, "uninstall.ts": 2 };
+
+describe("DI-18 (D-40): the owner decides the next step", () => {
+  /** Every markerFixText call in every product module, with what breaks the rule (empty when it holds). */
+  function markerFixCalls(): { module: string; fn: string; line: number; breaks: string[] }[] {
+    const out: { module: string; fn: string; line: number; breaks: string[] }[] = [];
+    for (const module of productModules()) {
+      const sf = parse(`install/${module}`);
+      for (const c of callsOf(sf, "markerFixText")) {
+        const breaks: string[] = [];
+        if (c.arguments.length !== 2) breaks.push(`${c.arguments.length} argument(s), want 2 (the remedy and the caller's next step)`);
+        const span = c.parent;
+        if (!ts.isTemplateSpan(span) || span.expression !== c) {
+          breaks.push(`not the expression of a template span (${ts.SyntaxKind[c.parent.kind]})`);
+        } else {
+          const after = span.literal.text;
+          if (!ts.isTemplateTail(span.literal)) breaks.push(`text and a substitution follow it in its template: ${JSON.stringify(after)}`);
+          else if (after !== "" && after !== ".") breaks.push(`the text after it is ${JSON.stringify(after)}, want "" or "."`);
+          // Up the whole string expression (`+` chains, parentheses, an outer template): anything to the right of the
+          // template is text after the remedy. A left-associative chain `a + b + c` puts `b` as the RIGHT operand of
+          // `a + b`, so every level of the chain is asked, not only the template's own parent.
+          for (let cur: ts.Node = span.parent; ; ) {
+            const p = cur.parent;
+            if (ts.isParenthesizedExpression(p)) cur = p;
+            else if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+              if (p.left === cur) breaks.push(`text follows its template through +: ${p.right.getText(sf).slice(0, 80)}`);
+              cur = p;
+            } else if (ts.isTemplateSpan(p) && p.expression === cur) {
+              if (!ts.isTemplateTail(p.literal) || (p.literal.text !== "" && p.literal.text !== ".")) breaks.push(`text follows it in an outer template: ${JSON.stringify(p.literal.text)}`);
+              cur = p.parent;
+            } else break;
+          }
+        }
+        out.push({ module, fn: enclosing(c), line: sf.getLineAndCharacterOfPosition(c.getStart(sf)).line + 1, breaks });
+      }
+    }
+    return out;
+  }
+
+  it("every markerFixText call is a template substitution with two arguments, and nothing but \".\" follows it (the owner decides the next step)", () => {
+    expect(productModules(), "PREMISE: the walk reads the owner's module and both binaries").toEqual(expect.arrayContaining(["install-marker.ts", "install.ts", "uninstall.ts"]));
+    const calls = markerFixCalls();
+    expect(calls.length, "PREMISE: the walk found markerFixText calls").toBeGreaterThan(0);
+    expect(calls.filter((c) => c.breaks.length > 0).map((c) => `${c.module}:${c.line} [${c.fn}] ${c.breaks.join("; ")}`), "a caller prints a step after the owner's remedy").toEqual([]);
+    expect(countBy(calls, (c) => c.module), "the markerFixText call count per module moved").toEqual(MARKER_FIX_CALLS);
+    expect(calls.length, "the markerFixText call count moved").toBe(8);
+  });
+
+  it("the owner drops the next step for a foreign read and prints it for every other defect", () => {
+    for (const defect of MARKER_DEFECTS) {
+      const text = markerFixText({ defect, fix: ["a problem"] }, "run X again");
+      if (defect === "foreign") {
+        expect(text, defect).not.toContain("then run X again");
+        expect(text, defect).toMatch(/if it is yours, leave it$/);
+      } else {
+        expect(text, defect).toMatch(/; then run X again$/);
+      }
+      expect(markerFixText({ defect, fix: ["a problem"] }, null), `${defect}: a null step adds nothing`).not.toContain("; then");
+    }
+  });
+});
+
 // ── the uninstall re-run census (MSG-1, TypeScript parser) ───────────────────────────────────────────────────────
 
 /** A fragment that says to run uninstall (or the uninstaller) again. */

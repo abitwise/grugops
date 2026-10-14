@@ -40,6 +40,7 @@ import { tmpdir } from "node:os";
 import { ALL_AGENT_FLAGS, INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, lineNamesPath, makeFixture, nativeRealPath, pathText, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { dirList, fileRecords } from "./ledger.test-support.js";
 import { realTargetPath } from "./user-file.js";
+import { INSTALL_RECORD_FIELDS } from "./install-marker.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-binding-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -109,9 +110,44 @@ describe("install's marker is bound to its directory, and only install's own mar
         expect(lines(r.stdout, "verify").some((l) => l.includes(".grugops/install.json")), r.stdout).toBe(true);
         expect(r.stdout).not.toMatch(/^ {2}(created|would-add)\s+\.grugops\/install\.json/m);
         expect(r.stdout).not.toMatch(/kitVersion kept at/);
+        // D-40 (DI-18), plan 34.1-54, 2026-10-14: the wording follows what the reader saw. A body holding none of
+        // INSTALL_RECORD_FIELDS (computed from the body, not a list of row names) was not written by install: the verify
+        // about it says so and, if it is yours, to leave it, the skipped line carries the owner's foreign clause, and no
+        // line calls it install's record. A body holding any of the five is install's shape with a field to fix: a line
+        // about it says never delete the marker, and no line says it was not written by install.
+        const parsed = JSON.parse(body) as Record<string, unknown>;
+        const foreign = !INSTALL_RECORD_FIELDS.some((k) => Object.prototype.hasOwnProperty.call(parsed, k));
+        const out = r.stdout.split("\n");
+        const aboutMarker = out.filter((l) => l.includes(".grugops/install.json"));
+        if (foreign) {
+          const verify = lines(r.stdout, "verify").filter((l) => l.includes(".grugops/install.json"));
+          expect(verify.length, `${what}: a verify line about the marker\n${r.stdout}`).toBeGreaterThan(0);
+          for (const l of verify) {
+            expect(l, what).toContain("was not written by install");
+            expect(l, what).toContain("if it is yours, leave it");
+          }
+          for (const banned of ["never delete the marker", "one record install keeps"]) {
+            expect(out.filter((l) => l.includes(banned)), `${what}: a line says ${JSON.stringify(banned)}`).toEqual([]);
+          }
+          expect(
+            lines(r.stdout, "skipped").filter((l) => l.includes(".grugops/install.json") && l.includes("so it was not written by install")).length,
+            `${what}: the skipped line about the marker\n${r.stdout}`,
+          ).toBe(1);
+        } else {
+          expect(aboutMarker.some((l) => l.includes("never delete the marker")), `${what}: no line about the marker says never delete it\n${r.stdout}`).toBe(true);
+          expect(out.filter((l) => l.includes("not written by install")), `${what}: a line says not written by install`).toEqual([]);
+        }
       });
     }
   }
+
+  it("B3 premise (D-40, DI-18): exactly two FOREIGN bodies hold none of INSTALL_RECORD_FIELDS, and they are the user's object and the empty object", () => {
+    const none = FOREIGN.filter(([, body]) => {
+      const o = JSON.parse(body) as Record<string, unknown>;
+      return !INSTALL_RECORD_FIELDS.some((k) => Object.prototype.hasOwnProperty.call(o, k));
+    }).map(([what]) => what);
+    expect(none).toEqual(["a user's object", "an empty object"]);
+  });
 
   it("B2/B3: install over an install-shaped marker copied from another installed repository binds a new marker to this directory and carries none of the copied records, so uninstall keeps the user's own AGENTS.md and runnable", () => {
     const other = makeFixture(fresh("other"));
