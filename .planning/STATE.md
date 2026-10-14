@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-52-PLAN.md
-last_updated: "2026-10-14T07:57:05.452Z"
-state_head: b44f8ca8450045cc0a6ce13728f35334d66e00e5
+stopped_at: Completed 34.1-53-PLAN.md
+last_updated: "2026-10-14T08:09:49.324Z"
+state_head: 8e33111658d26f8691a8f6c636cbfb492db9b485
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 448
-  completed_plans: 443
+  completed_plans: 444
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 34.1 (Per-agent installer (INSERTED)) — READY TO EXECUTE (gap round 5, D-40: plans 34.1-53..57 planned 2026-10-14, checker passed)
-Plan: 52 of 52 (gap round 4 of 4, the last on the cap: 34.1-52 complete 2026-10-13, round close: deferred-items.md status after round 4 (DI-16/DI-17 closed by D-38; DI-05, DI-11..DI-15 residual by D-39; DI-18, DI-19 and new DI-22 open for the human; the uninstall INSTALL_MODE reading of D-38 and the DRY_RUN residual recorded for the human), review ledger 28 fixed / 4 deferred / open 0, seven CHANGELOG lines; full non-e2e regression 8211 passed, 1 failed (DI-03 openAsBlobSync only), 2 skipped; all 52 plans executed, phase NOT complete until re-verified; next: verification of 34.1)
+Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING (gap round 5, D-40: plans 34.1-53..57 planned 2026-10-14, checker passed)
+Plan: 53 of 57 (gap round 5, D-40: 34.1-53 complete 2026-10-14, DI-19 closed: the doctor's ask-rules check reads DOCTOR_MARKER_READ, the DI-19 reach census holds one marker read, mutation-proven; next: 34.1-54, DI-18)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -704,6 +704,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P50 | 59 min | 3 tasks | 6 files |
 | Phase 34.1 P51 | 40 min | 2 tasks | 6 files |
 | Phase 34.1 P52 | 32 min | 3 tasks | 3 files |
+| Phase 34.1 P53 | 7min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1934,6 +1935,7 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-50 (D-38, WR-24): --check reads one kit home, COMMAND_CONTEXT's (DOCTOR_KIT_HOME/DOCTOR_KIT_ROOT) for its header, kit-root cross-check, kit stat refs, VERSION read, stale-adapter wording and render; transformAdapter takes the kit root as a parameter; one given: header line names the run's own kit home as not used; held by R52/R52c and a parser-derived WR-24 census over the 43 functions the doctor reaches (mutation proofs M7-M9); DI-21 recorded
 - [Phase 34.1]: 34.1-51 (D-37, D-38, DOC-1): README and CHANGELOG offer no marker removal for any reader state and state the D-38 printed-command rule (GRUGOPS_HOME, INSTALL_MODE, GRUGOPS_SRC; no --symlink); IN-32's --check equality dropped rather than narrowed; DI-20 comments fixed here because the D-38 retired claims match them; RETIRED_PRINTED_CLAIMS 4 -> 14 with planted proofs
 - [Phase 34.1]: 34.1-52: gap round 4 closed on record; DI-22 (printed commands outside the builder name no kit home or mode) recorded residual by D-39; no derived-count pin moved; full regression red only on DI-03 openAsBlobSync
+- [Phase 34.1]: 34.1-53: DI-19 closed (D-40 item 4): the doctor's ask-rules check reads DOCTOR_MARKER_READ via markerRead/ledgerRead; the unreachable unreadable WARN deleted; a TS-parser reach census (size 51) fails on any second marker read in the doctor's reach, mutation-proven
 
 ### Pending Todos
 
@@ -2064,8 +2066,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-13T21:26:49.055Z
-Stopped at: Completed 34.1-52-PLAN.md
+Last session: 2026-10-14T08:09:48.672Z
+Stopped at: Completed 34.1-53-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
