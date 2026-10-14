@@ -1306,9 +1306,9 @@ function markerUnreadable(markerFile: string, read: Extract<InstallMarkerRead, {
   const remedy = markerRemedy(read) ?? noMarkerRemedy("markerUnreadable");
   docReport(
     "FAIL",
-    `the install marker ${markerFile} is present but ${markerUnusableText(read)} — the ` +
-      `install state of ${TARGET} is unknown, so nothing else was checked. ` +
-      `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``,
+    `${read.defect === "foreign" ? `the file at ${markerFile}` : `the install marker ${markerFile}`} is present but ` +
+      `${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. ` +
+      `${markerFixText(remedy, `run \`${doctorCheckCommand()}\``)}`,
   );
   console.log("\n1 FAILURE(S)");
 }
@@ -2021,7 +2021,7 @@ function doctor(): number {
       docFail(
         `the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it ` +
           `back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). ` +
-          `${markerFixText(remedy)}; then run \`${doctorCheckCommand()}\``,
+          `${markerFixText(remedy, `run \`${doctorCheckCommand()}\``)}`,
       );
     }
   }
@@ -5526,7 +5526,7 @@ function writeMarker(): void {
     verify(
       `${markerRel} — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and ` +
         `nothing this run did was recorded. Uninstall will remove and edit nothing on it; ` +
-        `${markerFixText(remedy)}; then re-run the installer.`,
+        `${markerFixText(remedy, "re-run the installer")}.`,
     );
   }
   // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3): the kit home and
@@ -6792,7 +6792,7 @@ function writeAskRules(): AskRulesOutcome {
     const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeAskRules");
     verify(
       `.grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — no ask rule ` +
-        `was added to ${rel} and the marker was left as it was. ${markerFixText(remedy)}; then re-run the installer.`,
+        `was added to ${rel} and the marker was left as it was. ${markerFixText(remedy, "re-run the installer")}.`,
     );
     return ASK_REFUSED;
   }
@@ -6802,8 +6802,7 @@ function writeAskRules(): AskRulesOutcome {
     const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeAskRules");
     verify(
       `${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was ` +
-        `added and the ledger is written back unchanged. ${markerFixText(remedy)}` +
-        `; then re-run the installer.`,
+        `added and the ledger is written back unchanged. ${markerFixText(remedy, "re-run the installer")}.`,
     );
     return ASK_REFUSED;
   }
@@ -7041,7 +7040,7 @@ function askRulesStep(): AskRulesOutcome {
     const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("askRulesStep");
     verify(
       `.grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — the marker ` +
-        `was left as it was. ${markerFixText(remedy)}; then re-run the installer.`,
+        `was left as it was. ${markerFixText(remedy, "re-run the installer")}.`,
     );
   }
   report("skipped", "Claude Code ask rules (Claude Code is not chosen in this run; .claude/settings.json is left as it is)");

@@ -2601,7 +2601,7 @@ if (MARKER_READ.state === "unbound") {
   const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: unreadable marker");
   verify(
     `.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits ` +
-      `nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`,
+      `nothing here. ${markerFixText(remedy, `run \`${rerunCommand()}\` again`)}.`,
   );
 } else if (LEDGER.state === "malformed") {
   // D-37 (34.1 review CR-06, plan 34.1-43): install's own marker with a malformed install ledger is the record of every
@@ -2612,7 +2612,7 @@ if (MARKER_READ.state === "unbound") {
   const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: malformed ledger");
   verify(
     `.grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and ` +
-      `removes and edits nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`,
+      `removes and edits nothing here. ${markerFixText(remedy, `run \`${rerunCommand()}\` again`)}.`,
   );
 }
 

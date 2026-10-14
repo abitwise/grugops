@@ -2351,7 +2351,7 @@ else if (MARKER.state === "unreadable") {
     // removing the marker or anything else by hand (D-37: the owner has no removal answer for any read).
     const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: unreadable marker");
     verify(`.grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits ` +
-        `nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`);
+        `nothing here. ${markerFixText(remedy, `run \`${rerunCommand()}\` again`)}.`);
 }
 else if (LEDGER.state === "malformed") {
     // D-37 (34.1 review CR-06, plan 34.1-43): install's own marker with a malformed install ledger is the record of every
@@ -2361,7 +2361,7 @@ else if (LEDGER.state === "malformed") {
     // It offers removing neither the marker nor any file by hand, on any run kind.
     const remedy = markerRemedy(MARKER_READ) ?? noMarkerRemedy("uninstall: malformed ledger");
     verify(`.grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and ` +
-        `removes and edits nothing here. ${markerFixText(remedy)}; then run \`${rerunCommand()}\` again.`);
+        `removes and edits nothing here. ${markerFixText(remedy, `run \`${rerunCommand()}\` again`)}.`);
 }
 // ── WHICH AGENTS THIS RUN REMOVES (phase 34.1, D-05, D-20, D-23) ─────────────────────────────────────────────────
 // INSTALLED is the one derivation of the installed set (install-marker.ts installedAgents: the marker's recorded

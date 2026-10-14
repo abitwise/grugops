@@ -170,6 +170,16 @@ export const MARKER_REL = ".grugops/install.json";
 export const LEDGER_FIELD = "ledger";
 
 /**
+ * INSTALL_RECORD_FIELDS (phase 34.1 gap round 5, D-40, DI-18): the five fields D-40 names as install's. A JSON object at
+ * the marker path that holds NONE of them was not written by install: every marker install wrote holds grugopsHome,
+ * kitRoot and installMode (installMarkerProblems), so such an object is a user's own file, and readInstallMarker reads it
+ * as `unreadable` with defect `foreign` (worded "not written by install; if it is yours, leave it"). kitVersion and
+ * `agents` are install's fields too, but they are not in the set, by D-40's wording: an object holding only those reads
+ * `foreign`. An object holding any one of the five reads exactly as it did before this set existed.
+ */
+export const INSTALL_RECORD_FIELDS = ["grugopsHome", "kitRoot", "installMode", "target", LEDGER_FIELD] as const;
+
+/**
  * The six records the one ledger replaced (D-33 (b)). Install never writes them and no code in either
  * binary reads them: a marker that has them and no `ledger` is `unbound` by `no-ledger`, and a marker
  * that has them next to `ledger` is `unreadable`.
@@ -188,14 +198,15 @@ const DUPLICATES_NAMED = 8;
  *   blocked         the path is not a readable regular file inside a real .grugops directory (readForWrite);
  *   not-json        JSON.parse refused the text;
  *   not-object      the JSON is not an object;
- *   bytes           the strict reader refused the bytes (not UTF-8, or nesting past its bound);
+ *   foreign         a JSON object that holds none of INSTALL_RECORD_FIELDS: not written by install (D-40, DI-18);
+ *   bytes          the strict reader refused the bytes (not UTF-8, or nesting past its bound);
  *   duplicate-key   a key appears more than once in one object (every such key is named, plan 34.1-45);
  *   field           a field holds a value install never writes (installMarkerProblems);
  *   retired-record  a retired record sits next to the install ledger;
  *   ledger          an `ok` marker whose install ledger is malformed.
  * Tests enumerate their rows from this list, so a new defect is a new row.
  */
-export const MARKER_DEFECTS = ["blocked", "not-json", "not-object", "bytes", "duplicate-key", "field", "retired-record", "ledger"] as const;
+export const MARKER_DEFECTS = ["blocked", "not-json", "not-object", "foreign", "bytes", "duplicate-key", "field", "retired-record", "ledger"] as const;
 export type MarkerDefect = (typeof MARKER_DEFECTS)[number];
 
 // `jsonObject` on `unreadable` is true when the file IS a JSON object, but not install's marker (its
@@ -212,8 +223,9 @@ export type MarkerDefect = (typeof MARKER_DEFECTS)[number];
 // only). On the three arms that end before a JSON object exists (a blocked read, not valid JSON, JSON that is not an
 // object) it is the one entry the reader words there. `object` (the parsed object) and `duplicateKeys` (every key
 // json-text.ts duplicateKeys named, one per object and key, in its order; plan 34.1-45, D-37, 34.1 review WR-26, in
-// place of the first duplicate only) are set only after JSON.parse returned a JSON object, on the four arms that can still refuse
-// it (the strict reader, a duplicate key, installMarkerProblems, the one ledger next to a retired record). They decide
+// place of the first duplicate only) are set only after JSON.parse returned a JSON object, on the five arms that can still refuse
+// it (an object holding none of INSTALL_RECORD_FIELDS, `foreign` (D-40, DI-18); the strict reader, a duplicate key,
+// installMarkerProblems, the one ledger next to a retired record). They decide
 // only the WORDING of a remedy (markerRemedy, markerFixText and markerDefectText below): no record is ever read from an
 // `unreadable` marker for a removal or an edit (brief DC-2).
 export type InstallMarkerRead =
@@ -356,6 +368,27 @@ export function readInstallMarker(target: string): InstallMarkerRead {
       ],
     };
   }
+  // A JSON OBJECT INSTALL NEVER WROTE (phase 34.1 gap round 5, D-40, DI-18). Every marker install wrote holds grugopsHome,
+  // kitRoot and installMode, so an object holding none of INSTALL_RECORD_FIELDS is not install's record: a user's own
+  // JSON (a repository grugops was never installed into), `{}`, or an object holding only `agents` and kitVersion. It is
+  // `foreign`, worded "not written by install; if it is yours, leave it" (markerFixText, markerDefectText); no remedy
+  // over it says to fix it by hand or calls it the record of the agents installed here. The arm runs before the strict
+  // reader and the duplicate-key arm, so a user's object with a duplicate key or a byte the strict reader refuses is
+  // `foreign` too; an object holding any one of the five reaches the arms below exactly as before. The why and the
+  // problem name only the constant's field names, never a key or a value of the file.
+  const object = parsed as Readonly<Record<string, unknown>>;
+  if (!INSTALL_RECORD_FIELDS.some((k) => Object.prototype.hasOwnProperty.call(object, k))) {
+    const names = INSTALL_RECORD_FIELDS.join(", ");
+    return {
+      state: "unreadable",
+      marker: null,
+      why: `it holds none of install's fields: ${names}`,
+      jsonObject: true,
+      defect: "foreign",
+      object,
+      problems: [`the file holds none of install's fields: ${names}`],
+    };
+  }
   // A DUPLICATE KEY IS REFUSED, NOT RESOLVED (red-team RT3 of plan 33.1-30). JSON.parse keeps the last
   // of two equal keys and says nothing, so `"ledger": [], "ledger": [...]` would read as the second
   // record. Install writes the marker with JSON.stringify, which never repeats a key, so a duplicate is
@@ -365,7 +398,6 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   // next run. So the whole marker is `unreadable` (fail closed): install leaves it unchanged and
   // uninstall uses none of it. The strict tokenizer (json-text.ts) also refuses bytes that are not UTF-8
   // and nesting past its bound, which JSON.parse of the decoded text would have accepted.
-  const object = parsed as Readonly<Record<string, unknown>>;
   const doc = readJsonText(read.bytes);
   if (!doc.ok) return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false, defect: "bytes", object, problems: [`the file ${doc.why}`] };
   // EVERY DUPLICATED KEY IS NAMED (plan 34.1-45, D-37, 34.1 review WR-26). The arm used to name the first duplicate
@@ -570,18 +602,28 @@ function ledgerFixEntry(why: string): string {
 }
 
 /**
- * markerFixText (D-35, D-37): THE ONE WORDING of the never-remove remedy, true for every reader state. It names every
- * entry of `remedy.fix` (the read's problems: each names a cause and its by-hand fix), says to fix the marker by hand
- * and never to delete it, because it is the one record install keeps of the agents installed here, so without it no
- * uninstall can undo what install made. It claims nothing about the install ledger being intact (a not-JSON or blocked
- * marker shows nothing of it) and offers no removal. A sentence without a final full stop, so a caller can go on with
- * "; then run ...". With an empty `fix` it names no entry.
+ * markerFixText (D-35, D-37; D-40, DI-18): THE ONE WORDING of the remedy over a marker a binary cannot use, AND the one
+ * place that decides whether a next step follows it. A caller passes its next step as `then` (for example "re-run the
+ * installer", or "run `<command>` again") and never appends one itself; it may close the sentence with ".".
+ *   foreign      (a JSON object holding none of INSTALL_RECORD_FIELDS): the file was not written by install. The text
+ *                says so, names every entry of `remedy.fix`, and ends "if it is yours, leave it". There is nothing to fix,
+ *                so `then` is ignored: no next step and no command follows "leave it", and nothing offers removal;
+ *   every other defect: the never-remove remedy, true for every other reader state. It names every entry of `remedy.fix`
+ *                (the read's problems: each names a cause and its by-hand fix), says to fix the marker by hand and never
+ *                to delete it, because it is the one record install keeps of the agents installed here, so without it no
+ *                uninstall can undo what install made, and then "; then " and `then` when `then` is not null. It claims
+ *                nothing about the install ledger being intact (a not-JSON or blocked marker shows nothing of it) and
+ *                offers no removal.
+ * A sentence without a final full stop. With an empty `fix` it names no entry.
  */
-export function markerFixText(remedy: MarkerRemedy): string {
+export function markerFixText(remedy: MarkerRemedy, then: string | null): string {
+  if (remedy.defect === "foreign") {
+    return `${MARKER_REL} was not written by install (${remedy.fix.join("; ")}); if it is yours, leave it`;
+  }
   const named = remedy.fix.length > 0 ? ` (${remedy.fix.join("; ")})` : "";
   return (
     `Fix ${MARKER_REL} by hand${named}; never delete the marker: it is the one record install keeps of the agents ` +
-    `installed here, so without it no uninstall can undo what install made`
+    `installed here, so without it no uninstall can undo what install made${then === null ? "" : `; then ${then}`}`
   );
 }
 
@@ -594,6 +636,8 @@ const MARKER_DEFECT_TEXT: Readonly<Record<MarkerDefect, string>> = {
   blocked: "it could not be read as a JSON object",
   "not-json": "it could not be read as a JSON object",
   "not-object": "it could not be read as a JSON object",
+  // D-40 (DI-18): the one cause clause that says the file is not install's; it offers no fix and no removal.
+  foreign: "it holds none of install's fields, so it was not written by install; if it is yours, leave it",
   bytes: "its bytes are not text install writes",
   "duplicate-key": "a key in it appears more than once",
   // installMarkerProblems reports a missing field ("no grugopsHome") as well as a wrong value, so both are named.

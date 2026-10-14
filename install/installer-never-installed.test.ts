@@ -164,6 +164,30 @@ function expectZeroBytes(o: Outcome, what: string): void {
   expect(o.kitHomeChanged, `${what}: the kit home changed`).toBe(false);
 }
 
+/**
+ * The wording over a user's own JSON object at the marker path (FD and FM). Re-pinned 2026-10-14 by plan 34.1-54 (D-40,
+ * DI-18): the object holds none of install's fields, so the reader answers `foreign`. The marker's `left` line and the
+ * module-top verify say the file was not written by install and, if it is yours, to leave it; no line says to never
+ * delete the marker or calls it the one record install keeps, and the verify about it names no uninstall command (there
+ * is nothing to fix, so no next step follows "leave it"). It replaces the D-37 re-pins of plans 34.1-42 and 34.1-44,
+ * which worded the same object as a field problem of install's record.
+ */
+function expectForeignWording(o: Outcome, what: string): void {
+  const out = o.run.stdout;
+  expect(out, `${what}: the left line`).toMatch(
+    /^ {2}left\s+\.grugops\/install\.json \(left in place — it holds none of install's fields, so it was not written by install; if it is yours, leave it; see the verify line above\)/m,
+  );
+  const verifies = out.split("\n").filter((l) => /^ {2}verify\s+\.grugops\/install\.json /.test(l));
+  expect(verifies.length, `${what}: one verify line about .grugops/install.json\n${out}`).toBe(1);
+  for (const want of ["it holds none of install's fields", "was not written by install", "if it is yours, leave it"]) {
+    expect(verifies[0], `${what}: the verify line says ${JSON.stringify(want)}`).toContain(want);
+  }
+  expect(verifies[0], `${what}: the verify line about the marker names an uninstall command`).not.toMatch(/uninstall\.js/);
+  for (const banned of ["never delete the marker", "one record install keeps"]) {
+    expect(out.split("\n").filter((l) => l.includes(banned)), `${what}: a line says ${JSON.stringify(banned)}`).toEqual([]);
+  }
+}
+
 describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan 33.1-33)", () => {
   it("WRITE_PATHS is the derived union of every install variant's writes, and its size is WRITE_PATH_COUNT", () => {
     for (const v of SET.variants) expect(v.run.status, `the ${v.name} install did not exit 0\n${v.run.stdout}`).toBe(0);
@@ -209,11 +233,7 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       plant(t, true);
       const o = uninstallAndDiff(t, dryRun);
       expectZeroBytes(o, `FD ${mode}`);
-      // Re-pinned by plan 34.1-42 (2026-10-13, D-37, 34.1 review CR-05): the marker's `left` line points at the module-top
-      // verify, which names why it could not be used, and never says it is not install's. Re-pinned by plan 34.1-44
-      // (2026-10-13, D-37, 34.1 review IN-33): the line words the read's defect (a user's JSON object is a field problem).
-      expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(left in place — a field in it holds a value install never writes, or a field install writes is missing; see the verify line above\)/m);
-      expect(o.run.stdout).toMatch(/^ {2}verify\s+\.grugops\/install\.json is a JSON object but could not be used as install's marker \(it does not read as a grugops install marker/m);
+      expectForeignWording(o, `FD ${mode}`);
     });
 
     it(`D (every directory path made empty), ${mode}: every directory is still there`, () => {
@@ -237,11 +257,7 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       copyInstalled(t, "default", userBody(MARKER_REL));
       const o = uninstallAndDiff(t, dryRun);
       expectZeroBytes(o, `FM ${mode}`);
-      // Re-pinned by plan 34.1-42 (2026-10-13, D-37, 34.1 review CR-05): the marker's `left` line points at the module-top
-      // verify, which names why it could not be used, and never says it is not install's. Re-pinned by plan 34.1-44
-      // (2026-10-13, D-37, 34.1 review IN-33): the line words the read's defect (a user's JSON object is a field problem).
-      expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(left in place — a field in it holds a value install never writes, or a field install writes is missing; see the verify line above\)/m);
-      expect(o.run.stdout).toMatch(/^ {2}verify\s+\.grugops\/install\.json is a JSON object but could not be used as install's marker \(it does not read as a grugops install marker/m);
+      expectForeignWording(o, `FM ${mode}`);
     });
   }
 
