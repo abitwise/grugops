@@ -508,6 +508,20 @@ CLI with Antigravity CLI.
 - `install.js --check` checks the kit home the install recorded, the same one its printed commands
   use, so a plain `--check` on an install with another kit home no longer reports a stale or moved
   install, nor stale Claude Code adapters (34.1 review WR-24).
+- When `.grugops/install.json` is a symbolic link, a directory or a FIFO (or `.grugops` is a symbolic
+  link), the uninstaller's line about it names the cause it saw, that it could not be read as a JSON
+  object, and points at the verify line, instead of saying it is not the marker install writes. Over a
+  marker it cannot use, the installer's line about an edited kit file names the same cause the marker's
+  verify gives (34.1 review WR-38).
+- `install.js --check` given, through `GRUGOPS_HOME`, a kit home you moved by hand reports the move,
+  naming both kit homes, and tells you to move the kit home back and run the check again, which writes
+  no kit. It no longer says the kit-root sources agree (34.1 review WR-37).
+- A JSON object at `.grugops/install.json` that holds none of install's fields is reported by
+  `install.js --check`, the installer and the uninstaller as not written by install, with "if it is
+  yours, leave it"; that line names no next step and offers no removal. It is no longer called the
+  record of the agents installed here, to fix by hand (34.1 deferred item DI-18).
+- `install.js --check` checks the Claude Code ask rules against the same read of
+  `.grugops/install.json` as its other checks (34.1 deferred item DI-19).
 
 ### Security
 
