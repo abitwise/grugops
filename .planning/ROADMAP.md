@@ -2030,3 +2030,35 @@ Plans:
 **Deferred at:** 2026-10-10 during /gsd-verify-work 34 session completion
 **Follow-ups:**
 - [ ] Test 3: skip, windows is not in current support, I have windows machine, but will test on it after completing all phases and new upcoming phases as well (which i have not yet described and planned) (deferred 2026-10-10)
+
+### Phase 999.6: Follow-up — Phase 34.1 deferred UAT follow-up: Test 14 (BACKLOG)
+
+**Goal:** Resolve the UAT checkpoint deferred during Phase 34.1 verification
+**Source phase:** 34.1
+**Deferred at:** 2026-10-14 during /gsd-verify-work 34.1 session completion
+**Follow-ups:**
+- [ ] Test 14: DI-11 fix option (a): apply the claims-nothing rule to every arm of removeAskRules (report left/skipped, return gone), so a partial uninstall over a claims-nothing ask-rules entry counts no verify and prints no no-op --<agent> finishing command; also stops a FULL run exiting 3 over it (deferred 2026-10-14)
+
+### Phase 999.7: Follow-up — Phase 34.1 deferred UAT follow-up: Test 15 (BACKLOG)
+
+**Goal:** Resolve the UAT checkpoint deferred during Phase 34.1 verification
+**Source phase:** 34.1
+**Deferred at:** 2026-10-14 during /gsd-verify-work 34.1 session completion
+**Follow-ups:**
+- [ ] Test 15: WR-40: reword install-marker.ts:454 'it does not read as a grugops install marker' for a field defect of install's own marker to name the field, and widen the NOT_INSTALLS / MATRIX_NOT_INSTALLS censuses to the class; bundle with the D-41 wording backlog item (DI-15/DI-22) (deferred 2026-10-14)
+
+### Phase 999.8: Follow-up — Phase 34.1 deferred UAT follow-up: Test 11 (BACKLOG)
+
+**Goal:** Resolve the UAT checkpoint deferred during Phase 34.1 verification
+**Source phase:** 34.1
+**Deferred at:** 2026-10-14 during /gsd-verify-work 34.1 session completion
+**Follow-ups:**
+- [ ] Test 11: D-41 backlog item (DI-15/DI-22) plus UAT note: root README.md quick start (line 18) and install/README.md examples (e.g. line 59) show a bare 'node install/install.js' that only works from the checkout; show the installer by absolute path (or path from the target repo) with --target and an agent flag, and update the main README install section (deferred 2026-10-14)
+
+### Phase 999.9: Follow-up — Phase 34.1 deferred UAT follow-up: Test 16 (BACKLOG)
+
+**Goal:** Resolve the UAT checkpoint deferred during Phase 34.1 verification
+**Source phase:** 34.1
+**Deferred at:** 2026-10-14 during /gsd-verify-work 34.1 session completion
+**Follow-ups:**
+- [ ] Test 16: DI-23 and DI-24 wording (bundle with WR-40): over a foreign read, three uninstall lines still call the file 'the install marker'; a directory or FIFO at the marker path gets a verify calling it 'the one record install keeps' (deferred 2026-10-14)
