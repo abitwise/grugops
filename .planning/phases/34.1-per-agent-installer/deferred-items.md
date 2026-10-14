@@ -316,7 +316,8 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-18: over a user's own JSON object at .grugops/install.json in a target grugops never installed into, the uninstaller's verify calls the file the record of the agents installed here
 
-- status: open (for the human; no round 5)
+- status: resolved 2026-10-14, closed by D-40 in gap round 5 (plan 34.1-54, commits cc2a57b5, dcfc7f9e, 9ff8142e; the
+  field set confirmed by D-44). See "Status after gap round 5" below.
 - **Found during:** plan 34.1-42, Task 1 (the install/ regression run: installer-never-installed.test.ts FD and FM pin
   the marker's `left` line over a user's JSON object at the marker path).
 - **What:** D-37 gives the uninstaller one reading for every `unreadable` marker read: markerUnusableText, then
@@ -335,7 +336,8 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-19: the doctor's ask-rules WARN over an unreadable marker names the wrong cause and calls the install ledger unknown
 
-- status: open (for the human; no round 5)
+- status: resolved 2026-10-14, closed by D-40 in gap round 5 (plan 34.1-53, commits 6aa1f4c9, b72058ca). See "Status
+  after gap round 5" below.
 - **Found during:** plan 34.1-45, Task 3 (the unusable-marker census, derived by search over every product module).
 - **What:** install.ts doctor, the ask-rules check, re-reads the marker (`askMarker`) and, when it is `unreadable`,
   prints the WARN ".grugops/install.json could not be read as a JSON object — the install ledger is unknown, so the ask
@@ -440,6 +442,39 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   markerUnusableText sites only) and no round 6 exists. Option for triage: word these pointer and closing lines
   through the owner (for example "the file at .grugops/install.json" when the read is `foreign`), or accept the noun
   as naming the path.
+
+## From plan 34.1-57 (gap round 5)
+
+### DI-24: a directory or a FIFO at the marker path gets a verify that calls it the one record install keeps
+
+- status: residual at phase close (D-44); open for the human; no round 6
+- **Found during:** review WR-38's last paragraph; recorded as residual by D-44 (ii) (human, 2026-10-14) and written
+  here by plan 34.1-57, Task 1.
+- **What:** plan 34.1-55 made removeMarker's `left` line the owner's for every blocked shape: a directory or a FIFO at
+  `.grugops/install.json` now gets "(left in place — it could not be read as a JSON object; see the verify line
+  above)". The uninstaller's module-top verify still words that read through markerFixText's non-foreign branch
+  (install/install-marker.ts), which says "never delete the marker: it is the one record install keeps of the agents
+  installed here". A directory or a FIFO is not a record install wrote, so that sentence is not true of it.
+- **Wording only:** no removal is offered, and the directory or FIFO is left in place.
+- **Not fixed:** D-44 (ii) keeps the current verify wording and records it as residual at phase close. Option for the
+  human: a reader state (or a clause in markerFixText) for a blocked read whose path is not a regular file, worded
+  without the record claim.
+
+### DI-25: install's INCOMPLETE banner names a re-run after a foreign verify
+
+- status: residual at phase close (D-44); open for the human; no round 6
+- **Found during:** round-5 planning (reproduced with `install --codex`), recorded as residual by D-44 (iii) (human,
+  2026-10-14) and written here by plan 34.1-57, Task 1, which ran it again in a scratch target (HOME and GRUGOPS_HOME
+  scratch, 2026-10-14).
+- **What:** install over a JSON object at `.grugops/install.json` that holds none of install's fields prints the
+  foreign verify (".grugops/install.json was not written by install (...)" with the skipped line's "if it is yours,
+  leave it") and exits 3. The INCOMPLETE banner then prints "Once each is fixed, `<install command>` installs for the
+  same agents again". There is nothing to fix in a file that is not install's, and following that command as printed
+  repeats the same verify and exits 3 again. The run also writes the chosen agents' files (for `--codex`,
+  `.agents/skills/grugops/`) and the seeds (AGENTS.md, memory-bank/, plans/, tools/) with no record, since the marker
+  is left byte for byte.
+- **Not fixed:** D-44 (iii) records it as residual at phase close. Options for the human: word the banner through the
+  owner for a foreign read (no re-run named), or have install stop before its writes over a foreign read.
 
 ## Status after gap round 2 (plans 34.1-19 to 34.1-32)
 
@@ -578,3 +613,79 @@ for prose); AGENTS.md, scripts/ and agent-factory/ are unchanged.
 - **(b) DRY_RUN is the user's chosen preview.** Plan 34.1-49 classes DRY_RUN in the env-read census as "preview": no
   printed command states it, so a DRY_RUN exported in the user's shell turns a followed command into a preview that
   writes nothing. Residual at phase close (D-39), not fixed.
+
+## Status after gap round 5 (plans 34.1-53 to 34.1-57)
+
+Scope of the round is D-40 (human, 2026-10-14; past the four-round cap for this one round only), with D-42 (WR-37
+narrowed), D-43 (WR-38 and its kitPreflight sibling) and D-44 (DI-18's defaults, and two residual rows). It closed
+DI-19 (plan 34.1-53), DI-18 (plan 34.1-54), WR-38 (plan 34.1-55) and WR-37 as narrowed by D-42 (plan 34.1-56). IN-35
+to IN-38 and everything D-39 lists are residual at phase close; there is no round 6. "Not changed in round 5" below was
+checked against `git diff 39b3039f..HEAD`: the round's code changes are in install/ only (CHANGELOG.md and
+install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchanged.
+
+- **DI-01:** decided (D-28): the by-name exclusion stays; scripts/check-banned-claims.ts is unchanged by this round.
+- **DI-02:** resolved in plan 34.1-02 (the gate reads `TEMPLATE_REL`); nothing left.
+- **DI-03:** a human item; whether CI on Node 22 shows the Node 26 reds is `UNKNOWN - verify`. Plan 34.1-57's full
+  regression reports them again (its SUMMARY lists each failing case against this baseline).
+- **DI-04:** closed by plan 34.1-13 (commit ac790deb).
+- **DI-05:** residual at phase close (D-39, D-40); not changed in round 5. install/uninstall.ts unmergeGemini is
+  untouched; plans 34.1-54 and 34.1-55 changed uninstall.ts elsewhere (removeMarker and its header comment, the
+  updateKeptMarker comment, the MARKER_READ module comment and the module-top unreadable verify).
+- **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
+- **DI-07:** fixed in round 2 by plan 34.1-21 under D-31 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); its remaining arm is
+  DI-11.
+- **DI-08:** fixed in round 2 by plan 34.1-27 under D-31 and D-33 (commits 5af55277, 0a72286c).
+- **DI-09:** fixed in round 2 by plan 34.1-28 under D-31 and D-33 (commits f65cfa0b, 2a055d1a).
+- **DI-10:** fixed in round 2 by plan 34.1-31 under D-31 (commit 8d730df2).
+- **DI-11:** residual at phase close (D-39, D-40); not changed in round 5. removeAskRules is untouched; plan 34.1-54
+  (commit 9ff8142e) reworded removeMarker's header comment just below it and did not change which arm counts a verify
+  or what the finishing command names.
+- **DI-12:** residual at phase close (D-39, D-40); not changed in round 5. Plan 34.1-53 (commit 6aa1f4c9) changed the
+  doctor's ask-rules check and plan 34.1-56 (commit 2a47f596) added the moved-kit FAIL to the kit-root cross-check,
+  both in doctor() beside the two lines; the two "re-run --check from a complete kit checkout" lines still print no
+  command.
+- **DI-13:** residual at phase close (D-39, D-40); not changed in round 5. rewriteLedger's "Re-run to finish it." is
+  unchanged; no round-5 hunk is in rewriteLedger or rewriteLedgerWithout.
+- **DI-14:** residual at phase close (D-39, D-40); not changed in round 5. Plan 34.1-54 (commit cc2a57b5) changed
+  writeMarker's step (it now passes its step to markerFixText); agentClosingLines and the route notes still read
+  AGENTS_AFTER.
+- **DI-15:** residual at phase close (D-39, D-40); D-41 decided its wording with DI-22 as one backlog item, not built
+  in this phase. AGENTS.md, scripts/kit-model.ts RESOLVER and install/install.ts TARGET_BANNER are unchanged in round
+  5, so the generated adapters still say `node install/install.js`.
+- **DI-16:** closed by D-38 (as after round 4; plans 34.1-44, 34.1-47 and 34.1-49, commits 30003a2c, fadff0bb,
+  c3d99e71).
+- **DI-17:** closed by D-38 (as after round 4; plan 34.1-49, commits fc4e57a4, c3d99e71).
+- **DI-18:** closed by plan 34.1-54 under D-40 and D-44 (commits cc2a57b5, dcfc7f9e, 9ff8142e): a JSON object holding
+  none of install's five fields reads `foreign` and is worded "not written by install; if it is yours, leave it",
+  with no next step and no removal offer (recorded by plan 34.1-42, commit 8a40b76d).
+- **DI-19:** closed by plan 34.1-53 under D-40 (commits 6aa1f4c9, b72058ca): the doctor's ask-rules check reads
+  DOCTOR_MARKER_READ, and the unreachable "install ledger is unknown" WARN is deleted (recorded by plan 34.1-45,
+  commit 6bdda559).
+- **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551), as after round 4.
+- **DI-21:** resolved by commit 4e0fa03a, as after round 4.
+- **DI-22:** a backlog item. D-41 decided its wording (point at `--check` and name the checkout), with DI-15; it is
+  not built in this phase (recorded by plan 34.1-52).
+- **DI-23:** open for the human; no round 6 (recorded by plan 34.1-54, commit 5e0629d6): over a foreign read, three
+  uninstall lines still call the file "the install marker". Wording only; none offers removal or claims the record.
+- **DI-24:** residual at phase close (D-44 (ii)); open for the human; no round 6 (recorded by plan 34.1-57, this
+  commit): a directory or a FIFO at the marker path gets a verify that calls it the one record install keeps.
+- **DI-25:** residual at phase close (D-44 (iii)); open for the human; no round 6 (recorded by plan 34.1-57, this
+  commit): install's INCOMPLETE banner names a re-run after a foreign verify, and the run writes the chosen agents'
+  files and the seeds with no record.
+
+### Recorded for the human at round close (no round 6)
+
+- **(a) The uninstall reading of D-38 stays open for the human (D-40).** Plan 34.1-48 read D-38 for uninstall as "a
+  printed uninstall.js command states GRUGOPS_HOME and GRUGOPS_SRC and no INSTALL_MODE", because uninstall.js reads no
+  INSTALL_MODE and refuses `--symlink` (round-close item (a) after round 4). The human confirms this reading or amends
+  D-38's wording.
+- **(b) DRY_RUN, review IN-37, is residual at phase close (D-40).** No printed command states DRY_RUN, so a DRY_RUN
+  exported in the user's shell turns a followed command into a preview that writes nothing.
+- **(c) WR-37 closed as narrowed by D-42.** A kit home moved by hand is reported only when `--check` is given the new
+  kit home through GRUGOPS_HOME; a plain `--check` FAILs on the absent kit, and the doctor's other install commands
+  copy a kit to the recorded kit home. A first-class moved kit home (the kit-home record following a move) is outside
+  this phase (plan 34.1-56, commits 2a47f596, 4ee3c6a2).
+- **(d) DI-22 and DI-15 are the D-41 backlog item:** one wording for the fixed instruction texts that print a bare
+  `node install/install.js` (point at `--check` and name the checkout), built later with an adapter regeneration
+  through the freshness gate.
+- **(e) New items for the human from this round:** DI-23 (open), DI-24 and DI-25 (residual by D-44).
