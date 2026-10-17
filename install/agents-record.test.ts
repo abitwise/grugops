@@ -3392,6 +3392,13 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 // the verify said never to delete it. Every cell also asserts that no line says "not install's" or "not the marker
 // install writes".
 //
+// THE RUN'S OWN READ (plan 34.1-58, 2026-10-14, D-45, 34.1 review WR-39). `blocked` gains two shapes that leave nothing
+// at the marker path for lstat, a regular file at `.grugops` and a `.grugops` symbolic link to nothing (9 blocked shapes,
+// 25 in all). Every cell also asserts that no line about .grugops/install.json says it is not present or that there was
+// nothing to remove, and, when lstat found nothing at the marker path before the run, that no line calls the marker
+// present. Until plan 34.1-58 the uninstaller asked whether anything was at the marker path before it asked how this run
+// read the marker, so over these two shapes one run said never to delete the marker and then that it was not present.
+//
 // Each cell starts from a real .grugops directory holding the files install wrote (resetGrugops), applies one shape,
 // asserts the premise through the product's reader (the state and the defect the row is keyed by), runs, and undoes
 // what the shape made outside .grugops. The install runs may write other files in the target; only the marker and the
@@ -3405,6 +3412,8 @@ const CONTROL_OR_REPLACEMENT = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f�]/;
 const MATRIX_U4_LEFT = "its install ledger is malformed, so the record of what install did could not be used";
 /** The two retired wordings D-43 names: no printed line calls the marker not install's (plan 34.1-55, WR-38). */
 const MATRIX_NOT_INSTALLS = /not install's|not the marker install writes/i;
+/** A line that says the marker is absent, over a marker the run read as unusable (plan 34.1-58, D-45, WR-39). */
+const MATRIX_NOT_PRESENT = /not present|nothing to remove/i;
 
 interface ReaderShape {
   readonly name: string;
@@ -3466,6 +3475,22 @@ const READER_STATES: Readonly<Record<MarkerDefect, readonly ReaderShape[]>> = {
     },
     { name: "a second hard-link name for the marker", apply: (w) => linkSync(markerPath(w), sideOf(w, "marker-second-name")) },
     { name: "a marker larger than USER_FILE_MAX_BYTES (sparse)", apply: (w) => truncateSync(markerPath(w), USER_FILE_MAX_BYTES + 1) },
+    // Plan 34.1-58 (2026-10-14, D-45, review WR-39): two shapes that leave nothing at the marker path for lstat. The
+    // reader stops at `.grugops` on the way, so the read is unreadable (blocked), while the marker path itself is absent.
+    {
+      name: "`.grugops` a regular file",
+      apply: (w) => {
+        rmSync(at(w.target, ".grugops"), { recursive: true, force: true });
+        writeFileSync(at(w.target, ".grugops"), "not a directory\n");
+      },
+    },
+    {
+      name: "`.grugops` a symbolic link to nothing",
+      apply: (w) => {
+        rmSync(at(w.target, ".grugops"), { recursive: true, force: true });
+        symlinkSync(sideOf(w, "grugops-real"), at(w.target, ".grugops"));
+      },
+    },
   ],
   "not-json": [
     { name: "one trailing comma inside `agents`", apply: (w) => void addTrailingComma(w) },
@@ -3711,6 +3736,12 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
         }
       }
       for (const l of allLines(r)) if (MATRIX_NOT_INSTALLS.test(l)) bad(`a line says the marker is not install's: ${l}`);
+      // THE RUN'S OWN READ (plan 34.1-58, 2026-10-14, D-45, review WR-39), every cell: (i) no line about the marker says
+      // it is not present or that there was nothing to remove (this run read it, as unusable, and its verify said to fix
+      // it by hand); (ii) when lstat found nothing at the marker path before the run (a reader that stopped on the way),
+      // no line calls the marker present.
+      for (const l of allLines(r)) if (l.includes(MARKER_REL) && MATRIX_NOT_PRESENT.test(l)) bad(`a line about ${MARKER_REL} says it is not present or there was nothing to remove: ${l}`);
+      if (before.startsWith("absent")) for (const l of allLines(r)) if (l.includes("install.json is present")) bad(`a line calls the marker present while nothing is at its path (${before}): ${l}`);
       for (const l of removalOffers(r)) bad(`a line offers removing the marker: ${l}`);
       if (run.uninstall && linesWith(r.stdout, "removed").length > 0) bad(`something was removed\n${linesWith(r.stdout, "removed").join("\n")}`);
       if (after !== before) bad(`the marker path changed\n  before ${before.slice(0, 200)}\n  after  ${after.slice(0, 200)}`);
@@ -3729,7 +3760,10 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
     expect(Object.keys(READER_STATES).sort(), "READER_STATES's keys are MARKER_DEFECTS").toEqual([...MARKER_DEFECTS].sort());
     for (const d of MARKER_DEFECTS) expect(READER_STATES[d].length, `the defect ${d} has no shape`).toBeGreaterThan(0);
     const shapes = MARKER_DEFECTS.reduce((n, d) => n + READER_STATES[d].length, 0);
-    expect(shapes, "the matrix has 23 shapes").toBe(23);
+    // Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review WR-39): `blocked` gains a regular file at `.grugops` and a
+    // `.grugops` symbolic link to nothing (7 -> 9 shapes; 23 -> 25).
+    expect(READER_STATES.blocked.length, "the blocked defect has 9 shapes").toBe(9);
+    expect(shapes, "the matrix has 25 shapes").toBe(25);
     expect(PRINTING_RUNS.map((p) => p.name), "the printing runs").toEqual(["--check", "install --claude", "install --codex", "uninstall (flag-less)", "uninstall --codex"]);
   });
 
@@ -4224,6 +4258,10 @@ function unusableCensus(): UnusableSite[] {
  * words it. Its old two branches ("the file at the install marker's path is not install's marker", which this matcher
  * never matched, and "the install marker could not be read") are one reading now. The count does not move: 33 readings,
  * install.ts 15, cause only 10.
+ * Re-derived 2026-10-14 by plan 34.1-58 (D-45, review WR-39) by running the walk: markerUnreadable's subject branches
+ * once more, on a read blocked on the way to the marker ("the install marker path ${markerFile}", with no "is present
+ * but", since lstat may find nothing at the marker path), a third reading of I1. 33 readings to 34: install.ts 15 to 16,
+ * owner wording 10 to 11.
  */
 const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install-marker.ts", "markerUnusableText", "is a JSON object but could not be used as install's marker (${read.why})", "cause only", "the owner module's cause clause, printed only as a substitution inside a reading that carries markerFixText (I1, I5, I6, the uninstaller's module-top verify) or as pruneRoots' cause"],
@@ -4234,6 +4272,7 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install-marker.ts", "<module>", "it could not be read as a JSON object", "cause only", "MARKER_DEFECT_TEXT, the one cause clause of a skipped or left line (markerDefectText); its readers point at the verify line"],
   ["install-marker.ts", "<module>", "its install ledger is malformed", "cause only", "MARKER_DEFECT_TEXT, the one cause clause of a skipped or left line (markerDefectText); its readers point at the verify line"],
   ["install.ts", "markerUnreadable", "the install marker ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. ${markerFixText(remedy, `run \\`${doctorCheckCommand()}\\``)}", "owner wording", "I1, the doctor's FAIL over an unreadable marker (R36 control)"],
+  ["install.ts", "markerUnreadable", "the install marker path ${markerFile} ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. ${markerFixText(remedy, `run \\`${doctorCheckCommand()}\\``)}", "owner wording", "I1 over a read blocked on the way to the marker (plan 34.1-58, D-45, WR-39): names the marker's path, never 'is present'"],
   ["install.ts", "markerUnreadable", "the file at ${markerFile} is present but ${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. ${markerFixText(remedy, `run \\`${doctorCheckCommand()}\\``)}", "owner wording", "I1 over a foreign read (plan 34.1-54, D-40, DI-18): the subject is the file, not the install marker; the owner drops the next step"],
   ["install.ts", "doctor", "the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). ${markerFixText(remedy, `run \\`${doctorCheckCommand()}\\``)}", "owner wording", "I2, the doctor's FAIL over a malformed ledger (R43c)"],
   ["install.ts", "doctor", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules were not checked, and neither the installer nor the uninstaller will change them until the field is fixed", "pointer", "the doctor's ask-rules info over a malformed ledger: points at the malformed-ledger FAIL (I2)"],
@@ -4260,7 +4299,7 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["uninstall.ts", "<module>", ".grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy, `run \\`${rerunCommand()}\\` again`)}.", "owner wording", "the module-top verify over an unreadable (or unbound-folded) marker (R41, R45)"],
   ["uninstall.ts", "<module>", ".grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy, `run \\`${rerunCommand()}\\` again`)}.", "owner wording", "the module-top verify over a malformed ledger (R43a)"],
 ];
-const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 10, pointer: 13, "cause only": 10 };
+const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 11, pointer: 13, "cause only": 10 };
 const unusableKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
 
 describe("D-37: every reading that says the marker cannot be used carries the owner's wording or points at it", () => {
@@ -4287,8 +4326,8 @@ describe("D-37: every reading that says the marker cannot be used carries the ow
     expect(unclassified, "a reading that says the marker cannot be used is not classed").toEqual([]);
     expect(stale, "a classed reading is gone or changed").toEqual([]);
     expect(counts, "a classed reading is printed a different number of times").toEqual([]);
-    expect(sites.length, "the census size moved").toBe(33);
-    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 15, "uninstall.ts": 11 });
+    expect(sites.length, "the census size moved").toBe(34); // 33 -> 34, plan 34.1-58 (2026-10-14, D-45, WR-39): see UNUSABLE_TABLE's header
+    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 16, "uninstall.ts": 11 });
     expect(countBy(UNUSABLE_TABLE, (r) => r[3]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(UNUSABLE_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );

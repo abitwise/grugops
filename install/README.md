@@ -1044,8 +1044,10 @@ record from another repository is believed. A marker that cannot be read (not JS
 FIFO, a directory, a link) or that holds a malformed install ledger is reported as a `verify` finding,
 is left in place byte for byte, and the run exits `3`: one malformed entry makes the whole ledger
 unusable, so nothing is removed or edited on it. `--check` fails on such a marker (a doctor FAIL,
-exit `1`): one that cannot be read is named as present but unreadable, not as "not installed", and a
-malformed install ledger is named in a `FAIL` line with the entry and the reason.
+exit `1`): one that cannot be read is named as unreadable, never as "not installed", and as present
+only when something is at its path (a `.grugops` that is a regular file or a symbolic link to nothing
+leaves nothing there, so the line names the marker's path and the cause), and a malformed install
+ledger is named in a `FAIL` line with the entry and the reason.
 
 A marker that `--check`, the installer or the uninstaller cannot use is still the record of the agents
 installed here, whatever the cause, with one exception: a JSON object that holds none of the five

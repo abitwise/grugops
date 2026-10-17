@@ -408,7 +408,14 @@ describe.skipIf(!canSymlink)("B3: a link at the marker, or on the way to it, mak
       const chk = spawnBin(INSTALL_JS, ["--check"], c, join(home, ".grugops"), { home, timeoutMs: 60_000 });
       expectFinished(chk, "--check");
       expect(chk.status, chk.stdout).toBe(1);
-      expect(chk.stdout, chk.stdout).toMatch(/FAIL\s+the install marker .*\.grugops\/install\.json is present but could not be read/);
+      // Plan 34.1-58 (2026-10-14, D-45, review WR-39): a reader that stopped on the way to the marker (`.grugops` a link)
+      // names the marker's path, not "is present but": lstat may find nothing at the marker path. A link at the marker
+      // itself is something at its path, so that read keeps "is present but".
+      expect(chk.stdout, chk.stdout).toMatch(
+        where === ".grugops"
+          ? /FAIL\s+the install marker path .*\.grugops\/install\.json could not be read/
+          : /FAIL\s+the install marker .*\.grugops\/install\.json is present but could not be read/,
+      );
       expect(chk.stdout, chk.stdout).not.toMatch(/grugops not installed/);
     });
   }

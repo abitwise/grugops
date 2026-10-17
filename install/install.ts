@@ -1336,10 +1336,10 @@ function notInstalled(): void {
   console.log("\n1 FAILURE(S)");
 }
 
-// markerUnreadable (red-team of plan 33.1-27): the marker is THERE but could not be read as this
-// target's JSON object (a FIFO, a directory, a symbolic link, a link on the way, garbage, too large).
-// "not installed" would claim it is absent, which is false and hides the one file the human must
-// look at. Still a FAIL with the same exit code, and still fail-closed: nothing else is checked.
+// markerUnreadable (red-team of plan 33.1-27): the marker could not be read as this target's JSON
+// object (a FIFO, a directory, a symbolic link, garbage, too large, or a link or a regular file on the
+// way to it, where nothing may be at the marker path itself). "not installed" would claim no install
+// was made here, which is false and hides the one file the human must look at. Still a FAIL with the same exit code, and still fail-closed: nothing else is checked.
 //
 // THE REMEDY NEVER REMOVES THE MARKER (phase 34.1 gap round 4, D-37, 34.1 review CR-05; amends D-35). Whatever the read
 // (not JSON, not an object, a blocked read, a duplicate key, a byte the strict reader refuses, a field install never
@@ -1351,11 +1351,15 @@ function notInstalled(): void {
 // read. A FOREIGN READ (D-40, DI-18) is the one exception: a JSON object holding none of install's fields was not written
 // by install, so the FAIL's subject is "the file at <path>", not "the install marker", and the owner's wording says it
 // was not written by install and, if it is yours, to leave it, with no check command after it.
+// A READ BLOCKED ON THE WAY (plan 34.1-58, D-45, 34.1 review WR-39): when the reader stopped at a component on the way to
+// the marker (read.onTheWay: `.grugops` a link, a regular file or a link to nothing), lstat may find nothing at the
+// marker path, so the subject is "the install marker path <path>", never "is present". Every other read keeps the
+// subject that says the marker is present: something is at its path.
 function markerUnreadable(markerFile: string, read: Extract<InstallMarkerRead, { readonly state: "unreadable" }>): void {
   const remedy = markerRemedy(read) ?? noMarkerRemedy("markerUnreadable");
   docReport(
     "FAIL",
-    `${read.defect === "foreign" ? `the file at ${markerFile}` : `the install marker ${markerFile}`} is present but ` +
+    `${read.defect === "foreign" ? `the file at ${markerFile} is present but ` : read.onTheWay === true ? `the install marker path ${markerFile} ` : `the install marker ${markerFile} is present but `}` +
       `${markerUnusableText(read)} — the install state of ${TARGET} is unknown, so nothing else was checked. ` +
       `${markerFixText(remedy, `run \`${doctorCheckCommand()}\``)}`,
   );

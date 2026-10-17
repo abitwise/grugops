@@ -510,8 +510,9 @@ CLI with Antigravity CLI.
   use, so a plain `--check` on an install with another kit home no longer reports a stale or moved
   install, nor stale Claude Code adapters (34.1 review WR-24).
 - When `.grugops/install.json` is a symbolic link, a directory or a FIFO (or `.grugops` is a symbolic
-  link), the uninstaller's line about it names the cause it saw, that it could not be read as a JSON
-  object, and points at the verify line, instead of saying it is not the marker install writes. Over a
+  link, one to nothing included, or a regular file), the uninstaller's line about it names the cause
+  it saw, that it could not be read as a JSON object, and points at the verify line, instead of saying
+  it is not the marker install writes. Over a
   marker it cannot use, the installer's line about an edited kit file names the same cause the marker's
   verify gives (34.1 review WR-38).
 - `install.js --check` given, through `GRUGOPS_HOME`, a kit home you moved by hand reports the move,
@@ -528,6 +529,11 @@ CLI with Antigravity CLI.
   path). When the recorded kit home was deleted, or only its `agent-factory` is missing, it reports
   the missing kit and no longer tells you to move the kit home it was given, which another repository
   may use (34.1 review CR-08).
+- When `.grugops` is a regular file or a symbolic link to nothing, the uninstaller no longer says the
+  marker is not present right after its verify line says to fix it by hand: its line about
+  `.grugops/install.json` names the cause it saw and points at that verify line, and
+  `install.js --check` no longer calls the marker present when nothing is at its path
+  (34.1 review WR-39).
 
 ### Security
 

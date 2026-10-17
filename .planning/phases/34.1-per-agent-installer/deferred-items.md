@@ -689,3 +689,13 @@ install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchang
   `node install/install.js` (point at `--check` and name the checkout), built later with an adapter regeneration
   through the freshness gate.
 - **(e) New items for the human from this round:** DI-23 (open), DI-24 and DI-25 (residual by D-44).
+
+## Found during the fix round after gap round 5 (D-45)
+
+- **DI-26:** open for the human, not in D-45's scope (recorded by plan 34.1-58 Task 3, this commit). With `.grugops` a
+  regular file or a symbolic link to nothing, the uninstaller's closing still says `.grugops/ (seeded state) is kept;
+  its install.json marker is reported on the next line.` Nothing at `.grugops` is a directory of seeded state then. The
+  next line, which says .grugops/install.json was left in place and points at the left or verify line above, is true,
+  and no line says the marker is not present (WR-39 holds). Reproduced in a scratch run with HOME
+  and GRUGOPS_HOME under the session scratchpad: install --codex, `.grugops` replaced by a file holding one line, then
+  a flag-less uninstall.

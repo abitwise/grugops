@@ -1420,22 +1420,26 @@ function removeAskRules() {
 // a compile error.
 function removeMarker() {
     const m = `${TARGET}/${MARKER_REL}`;
-    if (!pathExists(m)) {
-        report("skipped", `${MARKER_REL} (marker not present)`);
-        return { kind: "absent" };
-    }
-    // THE ORDER OF THE ARMS (plan 34.1-55, D-40 item 2, D-43, 34.1 review WR-38): the read decides the wording, and no line
-    // here says the marker is not install's. A read this run could not use is asked FIRST, before the path's shape: the
-    // module-top verify already named the cause, the by-hand fix and this run's command, and said never to delete the
-    // marker, so whatever is at the path now (a link, a directory, a FIFO, a link on the way, a hard link, a file too
-    // large), the line words the cause the reader saw through the owner (install-marker.ts markerDefectText of its defect;
-    // 34.1 review IN-33, CR-05) and points at that verify. Until plan 34.1-55 the shape arm came first and called a link, a
-    // directory or a FIFO "not the marker install writes", right after the verify said it is the one record install keeps.
-    // The one exception in the owner's clause is a foreign read (D-40, DI-18): a JSON object holding none of install's
-    // fields, which the clause says was not written by install and, if it is yours, to leave it.
+    // THE ORDER OF THE ARMS (plan 34.1-55, D-40 item 2, D-43, 34.1 review WR-38; plan 34.1-58, D-45, 34.1 review WR-39):
+    // the read decides the wording, and no line here says the marker is not install's or that it is not present. A read
+    // this run could not use is asked FIRST, before the path's presence and before its shape: the module-top verify
+    // already named the cause, the by-hand fix and this run's command, and said never to delete the marker, so whatever is
+    // at the path now (a link, a directory, a FIFO, a link on the way, a hard link, a file too large, or nothing at all),
+    // the line words the cause the reader saw through the owner (install-marker.ts markerDefectText of its defect; 34.1
+    // review IN-33, CR-05) and points at that verify. It comes before the presence test because a `.grugops` that is a
+    // regular file or a symbolic link to nothing leaves nothing at the marker path for lstat: until plan 34.1-58 the
+    // presence arm came first there and said "marker not present" right after the verify said to fix the marker by hand.
+    // Until plan 34.1-55 the shape arm came before it too and called a link, a directory or a FIFO "not the marker install
+    // writes". The one exception in the owner's clause is a foreign read (D-40, DI-18): a JSON object holding none of
+    // install's fields, which the clause says was not written by install and, if it is yours, to leave it.
     if (MARKER_READ.state === "unreadable") {
         report("left", `${MARKER_REL} (left in place — ${markerDefectText(MARKER_READ.defect)}; see the verify line above)`);
         return { kind: "left" };
+    }
+    // The absent arm: a marker this run read as absent (or as unbound or ok) that is not at the path now.
+    if (!pathExists(m)) {
+        report("skipped", `${MARKER_REL} (marker not present)`);
+        return { kind: "absent" };
     }
     // DC-3 / D-18 (plan 33.1-27): install writes the marker as a regular file inside a real .grugops/ directory. This arm
     // is reached only when the run read the marker as absent, unbound or ok when it started and the path is now something

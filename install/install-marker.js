@@ -219,6 +219,7 @@ export function readInstallMarker(target) {
             why: read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`,
             jsonObject: false,
             defect: "blocked",
+            onTheWay: read.at !== path,
             problems: [
                 `${read.at === path ? "the file" : read.at} ${read.reason}: make ${MARKER_REL} the readable regular file install ` +
                     `wrote, inside a real .grugops directory, for example by restoring its read permission or by putting the file ` +

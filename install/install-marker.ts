@@ -235,6 +235,11 @@ export type MarkerDefect = (typeof MARKER_DEFECTS)[number];
 // installMarkerProblems, the one ledger next to a retired record). They decide
 // only the WORDING of a remedy (markerRemedy, markerFixText and markerDefectText below): no record is ever read from an
 // `unreadable` marker for a removal or an edit (brief DC-2).
+// `onTheWay` (plan 34.1-58, D-45, 34.1 review WR-39) is set by the blocked arm alone: true when the reader stopped at a
+// component on the way to the marker (`.grugops` a link, a regular file, a link to nothing), false when it stopped at the
+// marker path itself. A caller words the marker's subject from it: on the way, lstat may find nothing at the marker
+// path, so the marker is not called present (install.ts markerUnreadable). It comes from this one read; no caller lstats
+// the marker path again to learn it.
 export type InstallMarkerRead =
   | { readonly state: "absent"; readonly marker: null }
   | {
@@ -246,6 +251,7 @@ export type InstallMarkerRead =
       readonly problems: readonly string[];
       readonly object?: Readonly<Record<string, unknown>>;
       readonly duplicateKeys?: readonly string[];
+      readonly onTheWay?: boolean;
     }
   | {
       readonly state: "unbound";
@@ -338,6 +344,7 @@ export function readInstallMarker(target: string): InstallMarkerRead {
       why: read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`,
       jsonObject: false,
       defect: "blocked",
+      onTheWay: read.at !== path,
       problems: [
         `${read.at === path ? "the file" : read.at} ${read.reason}: make ${MARKER_REL} the readable regular file install ` +
           `wrote, inside a real .grugops directory, for example by restoring its read permission or by putting the file ` +
