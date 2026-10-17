@@ -19,12 +19,13 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners, hostForFlag } from "./host-tools.js";
-import { contentRecord, readKitHomeRecord } from "./install-marker.js";
+import { KIT_HOME_RECORD_REL, contentRecord, readKitHomeRecord } from "./install-marker.js";
+import { realTargetPath } from "./user-file.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -3020,5 +3021,155 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     const after = spawnBin(INSTALL_JS, ["--check"], other.target, other.kitHome, { home });
     expect(after.status, after.stdout + after.stderr).toBe(0);
     expect(failLines(after.stdout), after.stdout).toEqual([]);
+  });
+
+  /** The real path of an existing directory, by user-file.ts realTargetPath (what install writes as a kit-home record's grugopsHome). */
+  const realText = (p: string): string => {
+    const real = realTargetPath(p);
+    expect(real, `premise: ${p} has a real path`).not.toBeNull();
+    return pathText(real as string);
+  };
+  /** Whatever is at `p` removed (a directory tree, a file, or a symbolic link, one to nothing included); nothing there is fine. */
+  const clearAt = (p: string): void => {
+    let isLink = false;
+    try {
+      isLink = lstatSync(p).isSymbolicLink();
+    } catch {
+      return;
+    }
+    if (isLink) unlinkSync(p);
+    else rmSync(p, { recursive: true, force: true });
+  };
+  /** What lstat finds at `p`: `nothing`, `directory`, `link` or `other`. */
+  const entryAt = (p: string): "nothing" | "directory" | "link" | "other" => {
+    try {
+      const st = lstatSync(p);
+      return st.isSymbolicLink() ? "link" : st.isDirectory() ? "directory" : "other";
+    } catch {
+      return "nothing";
+    }
+  };
+  /** The assertions of a run where the recorded kit home A is not shown to have moved to B: the observed FAIL on A's absent kit, and no move. */
+  const notMoved = (c: Run, kitHome: string, given: string, cell: string): void => {
+    expect(c.status, `${cell}\n${c.stdout}${c.stderr}`).toBe(1);
+    expect(movedLines(c.stdout), `${cell}: a 'kit home moved:' line:\n${c.stdout}`).toEqual([]);
+    expect(moveLines(c.stdout, given), `${cell}: a line tells the user to move the given kit home`).toEqual([]);
+    expect(failLines(c.stdout).some((l) => lineNamesPath(l, join(kitHome, "agent-factory"))), `${cell}: no FAIL names <A>/agent-factory:\n${c.stdout}`).toBe(true);
+  };
+
+  it("R54 control (recorded kit home present without its kit, D-45): install --codex with kit home A, B a recursive copy of A (its kit-home record written for A), A/agent-factory removed and A kept as a directory, --check with GRUGOPS_HOME=B: exit 1, no 'kit home moved:' line, no line telling the user to move B, a FAIL naming <A>/agent-factory", () => {
+    const { target, kitHome, home } = codexWithOwnKitHome();
+    const copy = join(dirname(target), "copied-kit");
+    cpSync(kitHome, copy, { recursive: true });
+    const rec = readKitHomeRecord(copy);
+    expect(rec.state, "premise: B's kit-home record is unbound (it was written for A)").toBe("unbound");
+    expect(pathText(rec.boundTo ?? ""), "premise: B's kit-home record names A's real path").toBe(realText(kitHome));
+    rmSync(join(kitHome, "agent-factory"), { recursive: true, force: true });
+    expect(entryAt(kitHome), "premise: A is still a directory").toBe("directory");
+    expect(holdsKit(kitHome) || !holdsKit(copy), "premise: A holds no kit and B holds one").toBe(false);
+
+    notMoved(spawnBin(INSTALL_JS, ["--check"], target, copy, { home }), kitHome, copy, "A present without its agent-factory");
+  });
+
+  it("R54 class (CR-08, D-45): A renamed to B; over B's kit-home record (the move's own, bound to B itself, written for a third kit home, absent, not JSON) x what is at A (nothing, an empty directory, a symbolic link to nothing), only the cell (the move's own record, nothing at A) prints the moved-kit FAIL; every other cell exits 1 with no move and the FAIL on <A>/agent-factory; 15 cells", () => {
+    const { target, kitHome, home } = codexWithOwnKitHome();
+    const realA = realText(kitHome);
+    const moved = join(dirname(target), "moved-kit");
+    renameSync(kitHome, moved);
+    const recordFile = join(moved, KIT_HOME_RECORD_REL);
+    const ownBytes = readFileSync(recordFile);
+    const own = readKitHomeRecord(moved);
+    expect(own.state, "premise: the moved kit home's own record is unbound").toBe("unbound");
+    expect(pathText(own.boundTo ?? ""), "premise: the moved kit home's own record names A's real path").toBe(realA);
+    const third = join(dirname(target), "third-kit");
+    const withHome = (grugopsHome: string): string => {
+      const doc = JSON.parse(ownBytes.toString("utf8")) as Record<string, unknown>;
+      return `${JSON.stringify({ ...doc, grugopsHome }, null, 2)}\n`;
+    };
+    const realB = realTargetPath(moved);
+    expect(realB, "premise: B has a real path").not.toBeNull();
+
+    const RECORDS: readonly { readonly name: string; readonly apply: () => void; readonly premise: () => void }[] = [
+      { name: "the move's own record", apply: () => writeFileSync(recordFile, ownBytes), premise: () => expect(pathText(readKitHomeRecord(moved).boundTo ?? "")).toBe(realA) },
+      { name: "bound to B itself", apply: () => writeFileSync(recordFile, withHome(realB as string)), premise: () => expect(readKitHomeRecord(moved).state).toBe("ok") },
+      {
+        name: "written for a third kit home",
+        apply: () => writeFileSync(recordFile, withHome(pathText(third))),
+        premise: () => {
+          const r = readKitHomeRecord(moved);
+          expect(r.state).toBe("unbound");
+          expect(pathText(r.boundTo ?? "")).toBe(pathText(third));
+        },
+      },
+      { name: "absent", apply: () => rmSync(recordFile), premise: () => expect(readKitHomeRecord(moved).state).toBe("absent") },
+      { name: "not JSON", apply: () => writeFileSync(recordFile, "{ not json\n"), premise: () => expect(readKitHomeRecord(moved).state).toBe("unreadable") },
+    ];
+    const AT_A: readonly { readonly name: string; readonly apply: () => void; readonly entry: "nothing" | "directory" | "link" }[] = [
+      { name: "nothing", apply: () => undefined, entry: "nothing" },
+      { name: "an empty directory", apply: () => mkdirSync(kitHome), entry: "directory" },
+      { name: "a symbolic link to nothing", apply: () => symlinkSync(join(dirname(target), "nowhere"), kitHome), entry: "link" },
+    ];
+
+    // Every cell runs, and the cells whose outcome differs from the expected one are listed together, so a broken clause
+    // names every cell it turns (the premises are asserted at once: a premise that fails is the harness's, not a cell's).
+    const wrong: string[] = [];
+    let cells = 0;
+    for (const record of RECORDS) {
+      for (const atA of AT_A) {
+        const cell = `B's record ${record.name}, at A ${atA.name}`;
+        record.apply();
+        atA.apply();
+        try {
+          record.premise();
+          expect(entryAt(kitHome), `premise (${cell}): what is at A`).toBe(atA.entry);
+          expect(holdsKit(moved), `premise (${cell}): B holds the kit`).toBe(true);
+          const c = spawnBin(INSTALL_JS, ["--check"], target, moved, { home });
+          const lines = movedLines(c.stdout);
+          const observed = {
+            status: c.status,
+            moved: lines.length,
+            namesBoth: lines.length === 1 && lineNamesPath(lines[0], kitHome) && lineNamesPath(lines[0], moved),
+            moveB: moveLines(c.stdout, moved).length,
+            failOnKit: failLines(c.stdout).some((l) => lineNamesPath(l, join(kitHome, "agent-factory"))),
+          };
+          const realMove = record.name === "the move's own record" && atA.name === "nothing";
+          const ok = realMove
+            ? observed.status === 1 && observed.moved === 1 && observed.namesBoth
+            : observed.status === 1 && observed.moved === 0 && observed.moveB === 0 && observed.failOnKit;
+          if (!ok) wrong.push(`${cell} (${realMove ? "a real move" : "not a move"}): ${JSON.stringify(observed)}`);
+        } finally {
+          writeFileSync(recordFile, ownBytes);
+          clearAt(kitHome);
+        }
+        cells++;
+      }
+    }
+    expect(cells, "the class matrix runs 5 record shapes x 3 shapes at A").toBe(15);
+    expect(wrong, "cells whose --check outcome is wrong (a real move must print one 'kit home moved:' FAIL naming A and B; every other cell exits 1 with no move and a FAIL on <A>/agent-factory)").toEqual([]);
+  });
+
+  it("R54 through a linked parent (CR-08, D-45): install --codex with kit home <via>/A, where `via` is a symbolic link to a directory `real`; the marker records <via>/A while the kit-home record names its real path through `real`; <via>/A renamed to <via>/B by hand, --check with GRUGOPS_HOME=<via>/B prints exactly one 'kit home moved:' FAIL naming <via>/A and <via>/B", () => {
+    const row = scratchRow();
+    const dir = dirname(row.target);
+    const home = join(dir, "home");
+    mkdirSync(home, { recursive: true });
+    const real = join(dir, "real");
+    mkdirSync(real);
+    const via = join(dir, "via");
+    symlinkSync(real, via);
+    const a = join(via, "A");
+    const r = runInstall(row.target, a, [agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(pathText(String(readMarkerObject(row.target).grugopsHome)), "premise: the marker records <via>/A as spelled").toBe(pathText(a));
+    const boundTo = readKitHomeRecord(a).boundTo ?? "";
+    expect(pathText(boundTo), "premise: the kit-home record names A's real path, through `real`").toBe(realText(join(real, "A")));
+    expect(pathText(boundTo), "premise: the record's spelling and the marker's differ").not.toBe(pathText(a));
+    const b = join(via, "B");
+    renameSync(a, b);
+    const c = spawnBin(INSTALL_JS, ["--check"], row.target, b, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    const lines = movedLines(c.stdout);
+    expect(lines.length, `one 'kit home moved:' FAIL:\n${c.stdout}`).toBe(1);
+    expect(lineNamesPath(lines[0], a) && lineNamesPath(lines[0], b), `the moved-kit FAIL does not name <via>/A and <via>/B: ${lines[0]}`).toBe(true);
   });
 });

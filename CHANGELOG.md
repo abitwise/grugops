@@ -442,7 +442,8 @@ CLI with Antigravity CLI.
   exported in your shell does not change what a printed command does. `install.js --check` takes the kit home and install mode from install's own
   marker for the repository it checks, so its printed commands put the kit where the install recorded
   it and leave the install where it was; with no marker it can use, it takes them from the `--check`
-  run. When the kit home was moved by hand and `--check` is given the new one through `GRUGOPS_HOME`,
+  run. When the kit home was moved by hand (its own kit-home record names the recorded kit home, and
+  nothing is left at the recorded path) and `--check` is given the new one through `GRUGOPS_HOME`,
   it fails naming both kit homes. Its remedy is to move the kit home back and run the check again,
   which writes no kit, and it says that the install commands it prints on its other lines copy a kit
   to the recorded kit home. A plain `--check`, given no `GRUGOPS_HOME`, does not detect a moved kit home: it fails on the
@@ -522,6 +523,11 @@ CLI with Antigravity CLI.
   record of the agents installed here, to fix by hand (34.1 deferred item DI-18).
 - `install.js --check` checks the Claude Code ask rules against the same read of
   `.grugops/install.json` as its other checks (34.1 deferred item DI-19).
+- `install.js --check` reports a moved kit home only when the kit home it was given was moved from
+  the recorded one (its own record names the recorded kit home, and nothing is left at the recorded
+  path). When the recorded kit home was deleted, or only its `agent-factory` is missing, it reports
+  the missing kit and no longer tells you to move the kit home it was given, which another repository
+  may use (34.1 review CR-08).
 
 ### Security
 

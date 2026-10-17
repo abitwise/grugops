@@ -591,11 +591,15 @@ reads every file first and reports afterwards, in this order:
   home does not report a stale or moved install for that reason alone. When the run's own kit home
   is a different one, a `given:` line in the header names it as not used.
   A kit home you moved by hand is reported when `--check` is given the new kit home through
-  `GRUGOPS_HOME`: if the recorded kit home holds no kit and the given one does, the kit-root
-  cross-check prints a `kit home moved` FAIL that names both. Its remedy writes no kit: move the kit
-  home back to the recorded one, then run the check command the line prints. The line also says that
-  the install commands `--check` prints on its other lines copy a kit to the recorded kit home, so
-  following one before the move back leaves a second kit. A plain `--check`, given no
+  `GRUGOPS_HOME` and three things show the move: the given kit home holds a kit, its kit-home
+  record (`.grugops-kit.json`) was written for the recorded kit home, and nothing is at the recorded
+  path. Then the kit-root cross-check prints a `kit home moved` FAIL that names both kit homes. A
+  recorded kit home that was deleted, or that is still there without its `agent-factory`, is
+  reported as the missing kit, never as moved to another kit home, which another repository may
+  use. The moved-kit FAIL's remedy writes no kit: move the kit home back to the recorded one, then
+  run the check command the line prints. The line also says that the install commands `--check`
+  prints on its other lines copy a kit to the recorded kit home, so following one before the move
+  back leaves a second kit. A plain `--check`, given no
   `GRUGOPS_HOME`, does not detect a moved kit home: it fails on the absent kit, and its install
   commands copy a kit to the recorded kit home.
 

@@ -226,7 +226,10 @@ const INSTALL_MODE = (() => {
 // the three reads of process.env.GRUGOPS_HOME this module makes (no other read of it exists). GRUGOPS_HOME is this value,
 // or the default `~/.grugops` when it is null. Under `--check` the doctor reads it in one place, to recognise a kit home
 // moved by hand (the moved-kit FAIL in doctor()'s kit-root cross-check); its `given:` header line reads GRUGOPS_HOME.
-// Null means no kit home was given, and then a moved kit home is not detected.
+// Null means no kit home was given, and then a moved kit home is not detected. A given kit home is reported as moved
+// only when its own kit-home record was written for the recorded kit home and nothing is at the recorded path (plan
+// 34.1-58, D-45, review CR-08): a deleted kit home, or one whose agent-factory alone is missing, gets the observed FAIL
+// on the absent kit, never "moved" to a kit home another repository may use.
 const GIVEN_KIT_HOME = process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim() ? canonicalPathSpelling(resolve(process.env.GRUGOPS_HOME)) : null;
 const GRUGOPS_HOME = GIVEN_KIT_HOME ?? canonicalPathSpelling(resolve(homedir(), ".grugops"));
 const KIT_ROOT = canonicalPathSpelling(resolve(GRUGOPS_HOME, "agent-factory"));
@@ -368,7 +371,9 @@ const DOCTOR_MARKER_READ = CHECK ? readInstallMarker(TARGET) : null;
 //     directory), the printed install commands carry the kit home and install mode it records, whatever kit home or
 //     mode the `--check` run was given, so following one writes the kit where the record says and does not move the
 //     install (WR-21). A kit home moved by hand is the exception: the record then names a kit home that holds no kit,
-//     and such a command copies a kit back there, so the doctor's moved-kit FAIL names that (plan 34.1-56, D-42, WR-37).
+//     and such a command copies a kit back there, so the doctor's moved-kit FAIL names that (plan 34.1-56, D-42, WR-37)
+//     when the given kit home's own kit-home record was written for the recorded kit home and nothing is at the
+//     recorded path (plan 34.1-58, D-45, review CR-08).
 //     When there is no usable marker (absent, unreadable, or `unbound`, another directory's record, never read for
 //     this), they carry this run's own GRUGOPS_HOME and INSTALL_MODE.
 //   install, --migrate, --update, --prune-old-kit: this run's own GRUGOPS_HOME and INSTALL_MODE (no record is passed).
@@ -408,8 +413,11 @@ const COMMAND_CONTEXT = commandContextFromRecord(DOCTOR_MARKER_READ, {
 // an install with a kit home other than the default FAILed "kit-root sources DISAGREE (stale/moved install)", and the
 // printed remedy could not clear it. A kit home moved by hand FAILs as "kit home moved" when `--check` is given the new
 // kit home (GRUGOPS_HOME, held in GIVEN_KIT_HOME), naming both, with a by-hand remedy that writes no kit (plan 34.1-56,
-// D-42, review WR-37). It is not detected when `--check` is given no GRUGOPS_HOME: then the kit stat line FAILs on the
-// absent kit and the printed install commands copy a kit to the recorded kit home. The DISAGREE FAILs fire when the
+// D-42, review WR-37), and only when the given kit home's own kit-home record was written for the recorded kit home and
+// nothing is at the recorded path (plan 34.1-58, D-45, review CR-08). A deleted kit home, or one whose agent-factory
+// alone is missing, is not reported as moved: the kit stat line FAILs on the absent kit. It is not detected when
+// `--check` is given no GRUGOPS_HOME: then the kit stat line FAILs on the absent kit and the printed install commands
+// copy a kit to the recorded kit home. The DISAGREE FAILs fire when the
 // marker's kitRoot or the adapter's KIT= line disagrees with the recorded kit home. The doctor names this run's own kit
 // home in two places: one header line, when it differs, as not used, and the moved-kit FAIL. Outside `--check`
 // COMMAND_CONTEXT is this run's, so both equal GRUGOPS_HOME and KIT_ROOT; only the doctor reads them. Held by the
@@ -1874,10 +1882,17 @@ function doctor() {
     // install with another kit home FAILed below although the install was neither stale nor moved. The DISAGREE FAILs now
     // fire when the marker's kitRoot, or the adapter's KIT= line, disagrees with the recorded kit home (or, with no usable
     // marker, with this run's).
-    // A KIT HOME MOVED BY HAND (plan 34.1-56, D-42, review WR-37). All three sources come from the record, so a kit home the
-    // user moved reads the same in each. When this `--check` run was given a kit home (GIVEN_KIT_HOME, its GRUGOPS_HOME)
-    // other than the recorded one, the recorded kit root holds no kit (kitReal) and the given kit home's agent-factory
-    // holds one, the comparison is skipped and one FAIL, "kit home moved", names both kit homes. Its remedy is by hand and
+    // A KIT HOME MOVED BY HAND (plan 34.1-56, D-42, review WR-37; narrowed by plan 34.1-58, D-45, review CR-08). All three
+    // sources come from the record, so a kit home the user moved reads the same in each. When this `--check` run was given
+    // a kit home (GIVEN_KIT_HOME, its GRUGOPS_HOME) other than the recorded one, the recorded kit root holds no kit
+    // (kitReal), the given kit home's agent-factory holds one, the given kit home's own kit-home record was written for
+    // the recorded kit home (readKitHomeRecord of it is `unbound` and names the recorded kit home's real path:
+    // recordNamesKitHome) and nothing is at the recorded kit home (lstat finds no entry: nothingAt), the comparison is
+    // skipped and one FAIL, "kit home moved", names both kit homes and that evidence. Each fact is needed: a recorded kit
+    // home that was deleted while GRUGOPS_HOME names another repository's kit home (bound to itself) has the first two,
+    // and following "move it back" would break that repository; so does a recorded kit home whose agent-factory alone was
+    // removed, beside a copy of it. Both get the observed FAIL on the absent kit below. The record is read only after the
+    // cheaper tests pass, so a `--check` given no GRUGOPS_HOME reads no kit-home record. Its remedy is by hand and
     // writes no kit: move the given kit home back to the recorded one, then run the printed check command
     // (doctorCheckCommand, the only command on the line). The line also says that the install commands the doctor prints
     // on its other lines copy a kit to the recorded kit home: they state the record's kit home (D-38), so following one
@@ -1897,8 +1912,9 @@ function doctor() {
         kitReal(canonicalPathSpelling(resolve(GIVEN_KIT_HOME, "agent-factory"))) &&
         recordNamesKitHome(readKitHomeRecord(GIVEN_KIT_HOME), DOCTOR_KIT_HOME) &&
         nothingAt(DOCTOR_KIT_HOME)) {
-        docFail(`kit home moved: install recorded the kit home ${DOCTOR_KIT_HOME}, whose agent-factory holds no kit, and this ` +
-            `--check run was given the kit home ${GIVEN_KIT_HOME} (GRUGOPS_HOME), whose agent-factory holds one. Move ` +
+        docFail(`kit home moved: install recorded the kit home ${DOCTOR_KIT_HOME}, at which nothing is now, and this --check run ` +
+            `was given the kit home ${GIVEN_KIT_HOME} (GRUGOPS_HOME), whose agent-factory holds a kit and whose kit-home ` +
+            `record (${KIT_HOME_RECORD_REL}) was written for ${DOCTOR_KIT_HOME}. Move ` +
             `${GIVEN_KIT_HOME} back to ${DOCTOR_KIT_HOME}, then run \`${doctorCheckCommand()}\`; that step writes no kit. The ` +
             `install commands this check prints on its other lines copy a kit to ${DOCTOR_KIT_HOME}.`);
     }
