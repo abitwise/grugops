@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-59-PLAN.md
-last_updated: "2026-10-17T12:33:14.718Z"
-state_head: ece8c401ad33937c72dca253b909896a0fdf3f1c
+stopped_at: Completed 34.1-60-PLAN.md
+last_updated: "2026-10-17T13:13:47.176Z"
+state_head: 08a9b46fc0384ddc65f4e0bd4f8fc08535ac8ce7
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 451
-  completed_plans: 450
+  completed_plans: 451
   percent: 100
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING
-Plan: 3 of 60
+Plan: 60 of 60
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -711,6 +711,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P57 | 32 min | 3 tasks | 3 files |
 | Phase 34.1 P58 | 39min | 3 tasks | 13 files |
 | Phase 34.1 P59 | 55min | 3 tasks | 10 files |
+| Phase 34.1 P60 | 40 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1952,6 +1953,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-58 (D-45, WR-39): removeMarker asks the unreadable read before the path's presence; the blocked read carries onTheWay so --check names the marker path, never 'is present', when the reader stopped on the way
 - [Phase 34.1]: D-46 (human, option-a): install refuses over an ok marker whose install ledger is malformed too; installRefusal is markerRemedy, nine refused defects
 - [Phase 34.1]: 34.1-59: DI-27 (writeKitHomeRecord over an unreadable kit-home record leaves a backup unrecorded) recorded for the human, not fixed
+- [Phase 34.1]: 34.1-60: D-46 option-a applied to docs — README malformed-ledger sentence now says install stops before it writes anything; CHANGELOG DI-25 line names the malformed ledger
+- [Phase 34.1]: 34.1-60: D-45 records closed — ledger open 0 (32 fixed, 13 deferred); DI-11->999.6, DI-15/DI-22->999.8, DI-23/DI-24->999.9, WR-40->999.7; DI-26/DI-27 open for the human
 
 ### Pending Todos
 
@@ -2082,8 +2085,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-17T12:33:14.042Z
-Stopped at: Completed 34.1-59-PLAN.md
+Last session: 2026-10-17T13:13:46.489Z
+Stopped at: Completed 34.1-60-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
