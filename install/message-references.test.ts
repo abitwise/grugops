@@ -997,7 +997,13 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     // The reference check first, so a reason that points at a line no run printed is named by it.
     expectReferences([["install", first], ["install over the malformed ledger", again], ["--check", doc], ["uninstall", u]]);
     expect(again.status, again.stdout + again.stderr).toBe(3);
-    expect(again.stdout, "premise: the OpenCode step points at the verify line about the marker").toContain("the verify line about .grugops/install.json");
+    // Reshaped 2026-10-17 by plan 34.1-59 Task 3 (D-45, D-46): install over a malformed install ledger refuses before
+    // any write, so the OpenCode step is not reached; the reference this run prints is the marker's own skipped line,
+    // which points at the refusal's verify line about .grugops/install.json.
+    expect(again.stdout, "premise: the marker's skipped line points at the verify line above").toContain(
+      ".grugops/install.json (left unchanged — its install ledger is malformed; see the verify line above)",
+    );
+    expect(again.stdout, "premise: the refusal's verify about .grugops/install.json").toContain(".grugops/install.json — the install ledger is malformed (");
     expect(doc.stdout, "premise: --check printed the malformed-ledger reason").toContain("this run reports why on its own line");
     expect(u.status, u.stdout + u.stderr).toBe(3);
   }, 240_000);

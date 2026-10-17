@@ -7494,7 +7494,11 @@ describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02,
   const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
   const verifyLines = (stdout: string): string[] => stdout.split("\n").filter((l) => /^ {2}verify\s/.test(l));
 
-  it("ask rules WR-05: a malformed ledger makes install report verify, add no rule, relabel none, and write the field back verbatim", () => {
+  // Reshaped 2026-10-17 by plan 34.1-59 Task 3 (D-45, D-46): over a malformed install ledger install now refuses before
+  // any write (installRefusal), so writeAskRules' verify (`.claude/settings.json — the install ledger ... malformed`) is
+  // not reached; the one verify is the refusal's about .grugops/install.json, in writeMarker's cause wording. WR-05's
+  // rule holds unchanged: no rule added, none relabelled, the settings file and the ledger byte for byte as before.
+  it("ask rules WR-05: a malformed ledger makes install refuse before any write with one verify about the marker, add no rule, relabel none, and leave the field verbatim", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -7508,7 +7512,8 @@ describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02,
 
     const r = runInstall(target, home);
     expect(r.status, r.stdout).toBe(3);
-    expect(verifyLines(r.stdout).filter((l) => /\.claude\/settings\.json — the install ledger/.test(l) && /malformed/.test(l)).length).toBe(1);
+    expect(verifyLines(r.stdout).filter((l) => /\.grugops\/install\.json — the install ledger is malformed \(/.test(l) && /so nothing was installed/.test(l)).length, r.stdout).toBe(1);
+    expect(verifyLines(r.stdout).filter((l) => /\.claude\/settings\.json/.test(l)).length, r.stdout).toBe(0);
     expect(r.stdout).not.toContain("kept as the user's own rule");
     expect(readFileSync(settingsFile(target)).equals(settingsPre)).toBe(true);
     expect(JSON.parse(readFileSync(markerPathOf(target), "utf8")).ledger).toEqual(malformed);
@@ -9622,15 +9627,16 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       const kit = kitState(target);
       const r = run(src, target, home);
       expect(r.status, r.stdout).toBe(3);
-      if (how === "marker unreadable") {
-        // Reshaped 2026-10-14 by plan 34.1-59 (D-45, DI-25): over a marker install cannot record into, install refuses
-        // before any write, so the kit check is never reached and no --backup-edited-kit verify is printed; the one
-        // verify is the marker's, in the owner's never-remove wording. The kit is still not written and nothing is
-        // backed up.
-        expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit")), r.stdout).toBe(false);
-        expect(verifyLines(r.stdout).filter((l) => l.includes(".grugops/install.json") && l.includes("never delete the marker")).length, r.stdout).toBe(1);
-      } else {
-        expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit") && l.includes(EDITED_REL)), r.stdout).toBe(true);
+      // Reshaped 2026-10-14 by plan 34.1-59 (D-45, DI-25) for "marker unreadable", and 2026-10-17 by plan 34.1-59 Task 3
+      // (D-45, D-46) for "install ledger malformed": over a marker install cannot record into (an unreadable marker, or
+      // an `ok` marker whose install ledger is malformed, D-46), install refuses before any write, so the kit check is
+      // never reached and no --backup-edited-kit verify is printed; the one verify is the marker's, in the owner's
+      // never-remove wording (for the malformed ledger, writeMarker's cause wording). The kit is still not written and
+      // nothing is backed up.
+      expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit")), r.stdout).toBe(false);
+      expect(verifyLines(r.stdout).filter((l) => l.includes(".grugops/install.json") && l.includes("never delete the marker")).length, r.stdout).toBe(1);
+      if (how === "install ledger malformed") {
+        expect(verifyLines(r.stdout).filter((l) => l.includes(".grugops/install.json — the install ledger is malformed (")).length, r.stdout).toBe(1);
       }
       expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
       expect(kitState(target)).toBe(kit);

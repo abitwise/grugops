@@ -699,3 +699,12 @@ install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchang
   and no line says the marker is not present (WR-39 holds). Reproduced in a scratch run with HOME
   and GRUGOPS_HOME under the session scratchpad: install --codex, `.grugops` replaced by a file holding one line, then
   a flag-less uninstall.
+- **DI-27:** open for the human, not in D-45's or D-46's scope (recorded by plan 34.1-59 Task 3, this commit; found
+  by the Task 1 executor's sibling search, read from the code, not reproduced in a run). The same class as DI-25 one
+  file over: the kit home's own record, `<GRUGOPS_HOME>/.grugops-kit.json`. When readKitHomeRecord answers
+  `unreadable`, install.ts writeKitHomeRecord prints a verify, leaves the record as it is and returns, but the run has
+  already copied the kit into the kit home (writeKitHomeRecord runs after copyKit), so a backup made in the kit home
+  that run stays unrecorded: prune never removes it, and the verify says to remove it by hand. installRefusal (plan
+  34.1-59) asks only the target's marker, so the kit-home record is not refused before the kit copy. Option for the
+  human: a pre-write refusal over an unreadable kit-home record, decided by one owner the way installRefusal decides
+  the marker's, or accept the unrecorded backup as named by the verify.

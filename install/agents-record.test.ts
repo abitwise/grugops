@@ -124,6 +124,7 @@ import {
   markerFixText,
   markerRemedy,
   markerUnusableText,
+  installRefusal,
   readInstallMarker,
   readLedger,
   type InstallMarkerRead,
@@ -2324,6 +2325,151 @@ function leftRecorded(stdout: string, recorded: readonly string[]): string[] {
   });
 }
 
+/**
+ * The owner's unit table's shapes (plan 34.1-40, D-35; rewritten by plan 34.1-44, D-37; lifted out of the markerRemedy
+ * row 2026-10-17 by plan 34.1-59, D-45, D-46, so installRefusal's unit row reads the very same shapes): every
+ * MarkerDefect keyed to its shapes (BY_DEFECT), the shapes the owner answers null for (NO_REMEDY), and readOf, which
+ * builds a shape as a real file in a scratch target and reads it through readInstallMarker. Called inside an `it`.
+ */
+function remedyShapes() {
+  type Shape = {
+    readonly name: string;
+    /** The marker file's bytes, from the scratch target's real path; null writes no file. */
+    readonly bytes: ((here: string) => Buffer) | null;
+    /**
+     * Plants something other than a file at the marker path (the row's bytes are then null). A plant that stages a
+     * platform shape returns the skip entry when this host cannot construct it (DI-21), and null when it did.
+     */
+    readonly plant?: (target: string) => SkipEntry | null | void;
+    readonly state: InstallMarkerRead["state"];
+    /** For an `unreadable` row: whether readInstallMarker parsed a JSON object. */
+    readonly object?: boolean;
+    /** For a duplicate-key row: every duplicated key the reader names (plan 34.1-45, D-37, WR-26). */
+    readonly duplicateKeys?: readonly string[];
+  };
+  const kit = join(SCRATCH, "unit-kit");
+  const fields = (here: string): string =>
+    `"grugopsHome": ${JSON.stringify(kit)}, "kitRoot": ${JSON.stringify(join(kit, "kit"))}, "installMode": "copy", "target": ${JSON.stringify(here)}`;
+  const text = (s: string): Buffer => Buffer.from(s, "utf8");
+  const elsewhere = realpathSync(mkdtempSync(join(SCRATCH, "unit-elsewhere-")));
+  const CANARY = "CANARY-d37";
+  // The CANARY rows (T-34.1-80): V8's JSON.parse message quotes the file's text (all of a text this short), so a
+  // problem built from it would carry the canary; the reader reads only the position digits.
+  const BY_DEFECT: Readonly<Record<MarkerDefect, readonly Shape[]>> = {
+    blocked: [
+      // A symbolic link at the marker path, to a well-formed marker elsewhere (plan 34.1-42).
+      {
+        name: "a symbolic link at the marker path",
+        bytes: null,
+        plant: (t) => {
+          const real = join(elsewhere, `linked-${CANARY}.json`);
+          writeFileSync(real, `{${fields(t)}, "agents": ["claude"], "ledger": []}\n`);
+          mkdirSync(join(t, ".grugops"));
+          symlinkSync(real, at(t, MARKER_REL));
+        },
+        state: "unreadable",
+        object: false,
+      },
+      // A FIFO at the marker path (plan 34.1-44): readForWrite refuses it without opening it, so nothing blocks. Staged
+      // through the corpus constructor (DI-21), so a host that cannot make a FIFO prints a counted skip.
+      {
+        name: "a FIFO at the marker path",
+        bytes: null,
+        plant: (t) => {
+          mkdirSync(join(t, ".grugops"));
+          return stageShapeOrSkip("FIFO", at(t, MARKER_REL), "markerRemedy unit table, a FIFO at the marker path");
+        },
+        state: "unreadable",
+        object: false,
+      },
+    ],
+    "not-json": [{ name: "not json", bytes: () => text(`${CANARY}\n`), state: "unreadable", object: false }],
+    "not-object": [
+      { name: "a JSON array", bytes: () => text(`["${CANARY}"]\n`), state: "unreadable", object: false },
+      { name: "an empty JSON array", bytes: () => text("[]\n"), state: "unreadable", object: false },
+    ],
+    // Plan 34.1-54 (2026-10-14, D-40, DI-18): a JSON object holding none of INSTALL_RECORD_FIELDS was not written by
+    // install. The duplicate-key and 0xff rows hold none of the five either, so the foreign arm (before the strict
+    // reader) answers for them; kitVersion and agents are install's but not in D-40's five.
+    foreign: [
+      { name: "a user's object", bytes: () => text(`{"${CANARY}-key": "${CANARY}-value"}\n`), state: "unreadable", object: true },
+      { name: "an empty object", bytes: () => text("{}\n"), state: "unreadable", object: true },
+      { name: "only install's agents and kitVersion", bytes: () => text(`{"kitVersion": "2.1.0", "agents": ["claude"]}\n`), state: "unreadable", object: true },
+      { name: "a user's object with a duplicate key", bytes: () => text(`{"owner": "${CANARY}", "owner": "me"}\n`), state: "unreadable", object: true },
+      {
+        name: "a user's object with a 0xff byte in a string value",
+        bytes: () => Buffer.concat([text(`{"note": "${CANARY}`), Buffer.from([0xff]), text(`"}\n`)]),
+        state: "unreadable",
+        object: true,
+      },
+    ],
+    // A byte that is not UTF-8 inside a string: JSON.parse of the decoded text accepts it, the strict reader does not.
+    bytes: [{ name: "a byte the strict reader refuses, ledger []", bytes: (h) => Buffer.concat([text(`{${fields(h)}, "note": "`), Buffer.from([0xff]), text(`", "ledger": []}\n`)]), state: "unreadable", object: true }],
+    "duplicate-key": [
+      { name: "a duplicate `agents` key, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": []}\n`), state: "unreadable", object: true, duplicateKeys: ["agents"] },
+      { name: "a duplicate `ledger` key", bytes: (h) => text(`{${fields(h)}, "ledger": [], "ledger": "x"}\n`), state: "unreadable", object: true, duplicateKeys: ["ledger"] },
+      // Plan 34.1-45 (2026-10-13, D-37, 34.1 review WR-26): the reviewer's two probes. Until plan 34.1-45 the reader named
+      // the first duplicate only, so the fix of the first row named `agents` and never `ledger`.
+      { name: "duplicate `agents` and `ledger` keys", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": [], "ledger": 7}\n`), state: "unreadable", object: true, duplicateKeys: ["agents", "ledger"] },
+      { name: "a duplicate `ledger` key whose two values are both garbage", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": 5, "ledger": "x"}\n`), state: "unreadable", object: true, duplicateKeys: ["ledger"] },
+    ],
+    field: [
+      { name: "`agents` malformed, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["Codex", "claude-code"], "ledger": []}\n`), state: "unreadable", object: true },
+      { name: "`agents` malformed, ledger \"x\"", bytes: (h) => text(`{${fields(h)}, "agents": ["Codex", "claude-code"], "ledger": "x"}\n`), state: "unreadable", object: true },
+    ],
+    "retired-record": [{ name: "a retired record next to ledger []", bytes: (h) => text(`{${fields(h)}, "createdFiles": [], "ledger": []}\n`), state: "unreadable", object: true }],
+    ledger: [
+      { name: "ok, ledger \"x\"", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": "x"}\n`), state: "ok" },
+      { name: "ok, one ledger entry's kind banana", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": [{"path": ".claude", "kind": "banana"}]}\n`), state: "ok" },
+    ],
+  };
+  /** The shapes the owner answers null for: no remedy is printed over them. */
+  const NO_REMEDY: readonly Shape[] = [
+    { name: "absent", bytes: null, state: "absent" },
+    { name: "ok, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": []}\n`), state: "ok" },
+    { name: "unbound (another directory's target), ledger []", bytes: () => text(`{${fields(elsewhere)}, "agents": ["claude"], "ledger": []}\n`), state: "unbound" },
+  ];
+
+  // The premise: the table's keys are exactly the reader's defects, and there are nine of them (eight until plan
+  // 34.1-54 added `foreign`, 2026-10-14, D-40, DI-18).
+  expect(MARKER_DEFECTS.length, "MARKER_DEFECTS has 9 members").toBe(9);
+  expect(Object.keys(BY_DEFECT).sort(), "the table's keys are MARKER_DEFECTS").toEqual([...MARKER_DEFECTS].sort());
+  for (const d of MARKER_DEFECTS) expect(BY_DEFECT[d].length, `the defect ${d} has no shape`).toBeGreaterThan(0);
+
+  // The shapes this host could not construct (DI-21): each printed as a counted skip, and only ever a FIFO.
+  const platformSkips: SkipEntry[] = [];
+  /** The shape's read, or null when its plant could not construct the shape on this host (printed, counted). */
+  const readOf = (s: Shape): InstallMarkerRead | null => {
+    const target = realpathSync(mkdtempSync(join(SCRATCH, "unit-remedy-")));
+    if (s.bytes !== null) {
+      mkdirSync(join(target, ".grugops"));
+      writeFileSync(at(target, MARKER_REL), s.bytes(target));
+    }
+    const skip = s.plant?.(target);
+    if (skip !== undefined && skip !== null) {
+      platformSkips.push(skip);
+      console.log(skipLine(skip, "the directory-at-the-marker-path row of the reader-state matrix (the same not-a-regular-file refusal)"));
+      return null;
+    }
+    const read = readInstallMarker(target);
+    // The premise: the file reads as the shape the row names, through the product's reader.
+    expect(read.state, `PREMISE: ${s.name} reads ${s.state}${read.state === "unreadable" ? ` (${read.why})` : ""}`).toBe(s.state);
+    if (read.state === "unreadable") {
+      expect(read.object !== undefined, `PREMISE: ${s.name}: a parsed object`).toBe(s.object === true);
+      expect(read.duplicateKeys, `PREMISE: ${s.name}: the duplicated keys`).toEqual(s.duplicateKeys);
+    }
+    if (read.state === "unbound") expect(read.unboundBy, `PREMISE: ${s.name}`).toBe("other-directory");
+    return read;
+  };
+  /** A shape with no platform plant: its read always exists. */
+  const mustRead = (s: Shape): InstallMarkerRead => {
+    const read = readOf(s);
+    if (read === null) throw new Error(`PREMISE: ${s.name} has no platform shape, yet its plant was skipped`);
+    return read;
+  };
+  return { BY_DEFECT, NO_REMEDY, CANARY, platformSkips, readOf, mustRead };
+}
+
 describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well-formed install ledger is present", () => {
   it("R36 (the doctor): `agents` set to [Codex, claude-code] over a well-formed ledger: --check names the field, says never delete the marker and offers no removal; fixed by hand and checked as printed from outside the checkout, no FAIL; a flag-less uninstall then removes grugops' files and the marker", () => {
     const w = world("r36");
@@ -2577,141 +2723,7 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
   // readLedger's why for an `ok` read with a malformed ledger. markerFixText of every non-null answer names each fix
   // entry, says by hand and never delete the marker, and offers no removal.
   it("markerRemedy over every reader defect: each of the 9 MARKER_DEFECTS has a shape, each shape a real marker file read through readInstallMarker; the answer is exactly { defect, fix } with fix the read's problems (or readLedger's why for a malformed ledger), null for absent, unbound and a well-formed ok read; markerFixText of every answer names its fix entries and offers no removal, and says by hand and never delete the marker then the caller's next step, or, for foreign, not written by install and leave it with no next step", () => {
-    type Shape = {
-      readonly name: string;
-      /** The marker file's bytes, from the scratch target's real path; null writes no file. */
-      readonly bytes: ((here: string) => Buffer) | null;
-      /**
-       * Plants something other than a file at the marker path (the row's bytes are then null). A plant that stages a
-       * platform shape returns the skip entry when this host cannot construct it (DI-21), and null when it did.
-       */
-      readonly plant?: (target: string) => SkipEntry | null | void;
-      readonly state: InstallMarkerRead["state"];
-      /** For an `unreadable` row: whether readInstallMarker parsed a JSON object. */
-      readonly object?: boolean;
-      /** For a duplicate-key row: every duplicated key the reader names (plan 34.1-45, D-37, WR-26). */
-      readonly duplicateKeys?: readonly string[];
-    };
-    const kit = join(SCRATCH, "unit-kit");
-    const fields = (here: string): string =>
-      `"grugopsHome": ${JSON.stringify(kit)}, "kitRoot": ${JSON.stringify(join(kit, "kit"))}, "installMode": "copy", "target": ${JSON.stringify(here)}`;
-    const text = (s: string): Buffer => Buffer.from(s, "utf8");
-    const elsewhere = realpathSync(mkdtempSync(join(SCRATCH, "unit-elsewhere-")));
-    const CANARY = "CANARY-d37";
-    // The CANARY rows (T-34.1-80): V8's JSON.parse message quotes the file's text (all of a text this short), so a
-    // problem built from it would carry the canary; the reader reads only the position digits.
-    const BY_DEFECT: Readonly<Record<MarkerDefect, readonly Shape[]>> = {
-      blocked: [
-        // A symbolic link at the marker path, to a well-formed marker elsewhere (plan 34.1-42).
-        {
-          name: "a symbolic link at the marker path",
-          bytes: null,
-          plant: (t) => {
-            const real = join(elsewhere, `linked-${CANARY}.json`);
-            writeFileSync(real, `{${fields(t)}, "agents": ["claude"], "ledger": []}\n`);
-            mkdirSync(join(t, ".grugops"));
-            symlinkSync(real, at(t, MARKER_REL));
-          },
-          state: "unreadable",
-          object: false,
-        },
-        // A FIFO at the marker path (plan 34.1-44): readForWrite refuses it without opening it, so nothing blocks. Staged
-        // through the corpus constructor (DI-21), so a host that cannot make a FIFO prints a counted skip.
-        {
-          name: "a FIFO at the marker path",
-          bytes: null,
-          plant: (t) => {
-            mkdirSync(join(t, ".grugops"));
-            return stageShapeOrSkip("FIFO", at(t, MARKER_REL), "markerRemedy unit table, a FIFO at the marker path");
-          },
-          state: "unreadable",
-          object: false,
-        },
-      ],
-      "not-json": [{ name: "not json", bytes: () => text(`${CANARY}\n`), state: "unreadable", object: false }],
-      "not-object": [
-        { name: "a JSON array", bytes: () => text(`["${CANARY}"]\n`), state: "unreadable", object: false },
-        { name: "an empty JSON array", bytes: () => text("[]\n"), state: "unreadable", object: false },
-      ],
-      // Plan 34.1-54 (2026-10-14, D-40, DI-18): a JSON object holding none of INSTALL_RECORD_FIELDS was not written by
-      // install. The duplicate-key and 0xff rows hold none of the five either, so the foreign arm (before the strict
-      // reader) answers for them; kitVersion and agents are install's but not in D-40's five.
-      foreign: [
-        { name: "a user's object", bytes: () => text(`{"${CANARY}-key": "${CANARY}-value"}\n`), state: "unreadable", object: true },
-        { name: "an empty object", bytes: () => text("{}\n"), state: "unreadable", object: true },
-        { name: "only install's agents and kitVersion", bytes: () => text(`{"kitVersion": "2.1.0", "agents": ["claude"]}\n`), state: "unreadable", object: true },
-        { name: "a user's object with a duplicate key", bytes: () => text(`{"owner": "${CANARY}", "owner": "me"}\n`), state: "unreadable", object: true },
-        {
-          name: "a user's object with a 0xff byte in a string value",
-          bytes: () => Buffer.concat([text(`{"note": "${CANARY}`), Buffer.from([0xff]), text(`"}\n`)]),
-          state: "unreadable",
-          object: true,
-        },
-      ],
-      // A byte that is not UTF-8 inside a string: JSON.parse of the decoded text accepts it, the strict reader does not.
-      bytes: [{ name: "a byte the strict reader refuses, ledger []", bytes: (h) => Buffer.concat([text(`{${fields(h)}, "note": "`), Buffer.from([0xff]), text(`", "ledger": []}\n`)]), state: "unreadable", object: true }],
-      "duplicate-key": [
-        { name: "a duplicate `agents` key, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": []}\n`), state: "unreadable", object: true, duplicateKeys: ["agents"] },
-        { name: "a duplicate `ledger` key", bytes: (h) => text(`{${fields(h)}, "ledger": [], "ledger": "x"}\n`), state: "unreadable", object: true, duplicateKeys: ["ledger"] },
-        // Plan 34.1-45 (2026-10-13, D-37, 34.1 review WR-26): the reviewer's two probes. Until plan 34.1-45 the reader named
-        // the first duplicate only, so the fix of the first row named `agents` and never `ledger`.
-        { name: "duplicate `agents` and `ledger` keys", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "agents": ["codex"], "ledger": [], "ledger": 7}\n`), state: "unreadable", object: true, duplicateKeys: ["agents", "ledger"] },
-        { name: "a duplicate `ledger` key whose two values are both garbage", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": 5, "ledger": "x"}\n`), state: "unreadable", object: true, duplicateKeys: ["ledger"] },
-      ],
-      field: [
-        { name: "`agents` malformed, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["Codex", "claude-code"], "ledger": []}\n`), state: "unreadable", object: true },
-        { name: "`agents` malformed, ledger \"x\"", bytes: (h) => text(`{${fields(h)}, "agents": ["Codex", "claude-code"], "ledger": "x"}\n`), state: "unreadable", object: true },
-      ],
-      "retired-record": [{ name: "a retired record next to ledger []", bytes: (h) => text(`{${fields(h)}, "createdFiles": [], "ledger": []}\n`), state: "unreadable", object: true }],
-      ledger: [
-        { name: "ok, ledger \"x\"", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": "x"}\n`), state: "ok" },
-        { name: "ok, one ledger entry's kind banana", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": [{"path": ".claude", "kind": "banana"}]}\n`), state: "ok" },
-      ],
-    };
-    /** The shapes the owner answers null for: no remedy is printed over them. */
-    const NO_REMEDY: readonly Shape[] = [
-      { name: "absent", bytes: null, state: "absent" },
-      { name: "ok, ledger []", bytes: (h) => text(`{${fields(h)}, "agents": ["claude"], "ledger": []}\n`), state: "ok" },
-      { name: "unbound (another directory's target), ledger []", bytes: () => text(`{${fields(elsewhere)}, "agents": ["claude"], "ledger": []}\n`), state: "unbound" },
-    ];
-
-    // The premise: the table's keys are exactly the reader's defects, and there are nine of them (eight until plan
-    // 34.1-54 added `foreign`, 2026-10-14, D-40, DI-18).
-    expect(MARKER_DEFECTS.length, "MARKER_DEFECTS has 9 members").toBe(9);
-    expect(Object.keys(BY_DEFECT).sort(), "the table's keys are MARKER_DEFECTS").toEqual([...MARKER_DEFECTS].sort());
-    for (const d of MARKER_DEFECTS) expect(BY_DEFECT[d].length, `the defect ${d} has no shape`).toBeGreaterThan(0);
-
-    // The shapes this host could not construct (DI-21): each printed as a counted skip, and only ever a FIFO.
-    const platformSkips: SkipEntry[] = [];
-    /** The shape's read, or null when its plant could not construct the shape on this host (printed, counted). */
-    const readOf = (s: Shape): InstallMarkerRead | null => {
-      const target = realpathSync(mkdtempSync(join(SCRATCH, "unit-remedy-")));
-      if (s.bytes !== null) {
-        mkdirSync(join(target, ".grugops"));
-        writeFileSync(at(target, MARKER_REL), s.bytes(target));
-      }
-      const skip = s.plant?.(target);
-      if (skip !== undefined && skip !== null) {
-        platformSkips.push(skip);
-        console.log(skipLine(skip, "the directory-at-the-marker-path row of the reader-state matrix (the same not-a-regular-file refusal)"));
-        return null;
-      }
-      const read = readInstallMarker(target);
-      // The premise: the file reads as the shape the row names, through the product's reader.
-      expect(read.state, `PREMISE: ${s.name} reads ${s.state}${read.state === "unreadable" ? ` (${read.why})` : ""}`).toBe(s.state);
-      if (read.state === "unreadable") {
-        expect(read.object !== undefined, `PREMISE: ${s.name}: a parsed object`).toBe(s.object === true);
-        expect(read.duplicateKeys, `PREMISE: ${s.name}: the duplicated keys`).toEqual(s.duplicateKeys);
-      }
-      if (read.state === "unbound") expect(read.unboundBy, `PREMISE: ${s.name}`).toBe("other-directory");
-      return read;
-    };
-    /** A shape with no platform plant: its read always exists. */
-    const mustRead = (s: Shape): InstallMarkerRead => {
-      const read = readOf(s);
-      if (read === null) throw new Error(`PREMISE: ${s.name} has no platform shape, yet its plant was skipped`);
-      return read;
-    };
+    const { BY_DEFECT, NO_REMEDY, CANARY, platformSkips, readOf, mustRead } = remedyShapes();
 
     const cells: string[] = [];
     const answers: { name: string; defect: MarkerDefect; fix: readonly string[]; text: string }[] = [];
@@ -2805,6 +2817,47 @@ describe("D-35 (34.1 review CR-04): no marker remedy offers removal while a well
       if (/\bledger is (still|intact|well[- ]formed)\b|\bstill the record of every agent\b/i.test(t)) dupBad.push(`${s.name}: markerFixText claims the install ledger is intact: ${t}`);
     }
     expect(dupBad, "the duplicate-key answers (WR-26)").toEqual([]);
+  });
+
+  // installRefusal over every reader defect (plan 34.1-59, 2026-10-17, D-45 item 3, DI-25, D-46): the one decision of
+  // when install must not write over the marker, read over the very shapes of markerRemedy's unit row (remedyShapes).
+  // D-46 (human, option-a): every read the owner owes a remedy for is refused, so installRefusal answers exactly
+  // markerRemedy's { defect, fix } for every defect shape (the eight `unreadable` defects, `foreign` included, and an
+  // `ok` read with a malformed install ledger) and null for absent, unbound and an `ok` read with a well-formed ledger.
+  // The count of refused defects is the D-46 pin: 9, every MARKER_DEFECTS member (8, the `unreadable` ones, under Task
+  // 1's rule, before the human answered).
+  it("installRefusal over every reader defect (D-45, D-46): over every shape of markerRemedy's unit row it answers exactly markerRemedy's { defect, fix }; it refuses all 9 defects, the malformed install ledger included; null for absent, unbound and a well-formed ok read", () => {
+    const { BY_DEFECT, NO_REMEDY, platformSkips, readOf, mustRead } = remedyShapes();
+    const bad: string[] = [];
+    const refused = new Set<MarkerDefect>();
+    let answered = 0;
+    for (const d of MARKER_DEFECTS) {
+      for (const s of BY_DEFECT[d]) {
+        const read = readOf(s);
+        if (read === null) continue;
+        const want = markerRemedy(read);
+        const got = installRefusal(read);
+        if (want === null) bad.push(`PREMISE: ${s.name}: markerRemedy owes no remedy for a ${d} shape`);
+        if (got === null) {
+          bad.push(`${s.name}: installRefusal does not refuse a ${d} read (D-46: every defect is refused)`);
+          continue;
+        }
+        if (JSON.stringify(got) !== JSON.stringify(want)) bad.push(`${s.name}: got ${JSON.stringify(got)}, want markerRemedy's ${JSON.stringify(want)}`);
+        if (got.defect !== d) bad.push(`${s.name}: refused as ${got.defect}, want ${d}`);
+        refused.add(got.defect);
+        answered++;
+      }
+    }
+    for (const s of NO_REMEDY) {
+      const got = installRefusal(mustRead(s));
+      if (got !== null) bad.push(`${s.name}: installRefusal refuses a read install records into: ${JSON.stringify(got)}`);
+    }
+    expect(bad, "installRefusal's answer breaks D-45 or D-46").toEqual([]);
+    expect(platformSkips.length, "at most the one FIFO row is skipped").toBeLessThanOrEqual(1);
+    expect(answered, "PREMISE: every constructed defect shape was asked").toBe(MARKER_DEFECTS.reduce((n, d) => n + BY_DEFECT[d].length, 0) - platformSkips.length);
+    // THE D-46 PIN: the refused defects, counted. 9 = every MARKER_DEFECTS member, `ledger` included (option-a).
+    expect([...refused].sort(), "the refused defects (D-46)").toEqual([...MARKER_DEFECTS].sort());
+    expect(refused.size, "installRefusal refuses 9 defects (D-46)").toBe(9);
   });
 });
 
@@ -3059,18 +3112,28 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     expect(again.status, again.stdout).toBe(0);
   });
 
-  it("R43c (install): over the banana ledger, install --claude exits 3; every verify line naming .grugops/install.json says fix by hand and never delete the marker, no line offers removing the marker, and the ledger is written back unchanged with the banana entry; with the entry restored by hand, install --claude exits 0", () => {
+  // Reshaped 2026-10-17 by plan 34.1-59 Task 3 (D-45, D-46): over a malformed install ledger install now refuses before
+  // any write (installRefusal, D-46), so writeAskRules' (I4) and writeMarker's (I3) verifies are not reached. The one
+  // verify naming the marker is the refusal's, in writeMarker's cause wording ("the install ledger is malformed (<why>)")
+  // with the owner's never-remove remedy; the marker is byte for byte as the hand edit left it (the ledger unchanged,
+  // the banana entry kept), and the target outside the marker is unchanged. The follow half is kept.
+  it("R43c (install): over the banana ledger, install --claude exits 3 before any write; the one verify line naming .grugops/install.json says the install ledger is malformed with its why, fix by hand and never delete the marker; no line offers removing the marker; the marker is byte for byte unchanged with the banana entry; with the entry restored by hand, install --claude exits 0", () => {
     const w = world("r43c-install");
     install(w, [flag("claude"), flag("codex")]);
     const { original, why } = setLedgerKindByHand(w);
     const banana = readMarkerObject(w.target).ledger;
+    const markerBytes = readFileSync(at(w.target, MARKER_REL));
+    const treeBefore = snapshotOutsideMarker(w.target);
 
     const r = runInstall(w.target, w.grugopsHome, [flag("claude")], { home: w.home, timeoutMs: 180_000 });
     finished(r, "install --claude over the banana ledger");
     expect(r.status, r.stdout).toBe(3);
     const about = linesWith(r.stdout, "verify").filter((l) => l.includes(MARKER_REL));
-    // writeAskRules' verify (I4) and writeMarker's verify (I3), each naming the ledger problem.
-    expect(about.length, `the verify lines naming the marker\n${r.stdout}`).toBe(2);
+    // The refusal's one verify (plan 34.1-59, D-46), naming the ledger problem in writeMarker's cause wording.
+    expect(about.length, `the verify lines naming the marker\n${r.stdout}`).toBe(1);
+    expect(about[0], r.stdout).toContain(`${MARKER_REL} — the install ledger is malformed (${why}), so nothing was installed`);
+    expect(snapshotOutsideMarker(w.target), `the target changed\n${r.stdout}`).toBe(treeBefore);
+    expect(readFileSync(at(w.target, MARKER_REL)).equals(markerBytes), `the marker changed\n${r.stdout}`).toBe(true);
     for (const l of about) {
       expect(l, r.stdout).toContain(why);
       expect(l, r.stdout).toContain("by hand");
@@ -3442,8 +3505,9 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 //
 // THE MARKER'S OWN LINE (plan 34.1-55, 2026-10-14, D-40 item 2, D-43, 34.1 review WR-38). Every cell but --check also
 // asserts the marker's own line: an install run prints exactly one `skipped` line for .grugops/install.json holding
-// "(left unchanged — <markerDefectText of the defect>; see the verify line above)" (a malformed ledger has no skipped
-// line: it is written back unchanged under a verify), and an uninstall run prints exactly one `left` line for it holding
+// "(left unchanged — <markerDefectText of the defect>; see the verify line above)" (until plan 34.1-59 Task 3 a malformed
+// ledger had no skipped line, being written back unchanged under a verify; since D-46, 2026-10-17, install refuses
+// before any write over it and prints the skipped line too), and an uninstall run prints exactly one `left` line for it holding
 // "(left in place — <markerDefectText of the defect>; see the verify line above)", or U4's malformed-ledger line. Until
 // plan 34.1-55 a link, a directory, a FIFO and `.grugops` a link got "not the marker install writes" there, right after
 // the verify said never to delete it. Every cell also asserts that no line says "not install's" or "not the marker
@@ -3455,6 +3519,18 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 // nothing to remove, and, when lstat found nothing at the marker path before the run, that no line calls the marker
 // present. Until plan 34.1-58 the uninstaller asked whether anything was at the marker path before it asked how this run
 // read the marker, so over these two shapes one run said never to delete the marker and then that it was not present.
+//
+// THE PRE-WRITE REFUSAL (plan 34.1-59, 2026-10-17, D-45 item 3, DI-25, D-46). The matrix asks the one owner,
+// installRefusal, of each cell's premise read; for every cell it answers, each install run (install --claude, install
+// --codex, and two printing runs this plan adds, "install --codex (DRY_RUN)" and "install --migrate --codex": 7 runs)
+// asserts the refusal: exit 3; the target (the marker path left out: markerPathState covers it) and HOME (the kit home
+// under it) each identical before and after; the owner's verify and the marker's own `skipped` line (for every defect,
+// a malformed ledger included, D-46); after a foreign read no install.js or uninstall.js command anywhere; after every
+// other read exactly one printed command, the install command for this run's agents (agentCommand with this world's
+// context); and under DRY_RUN the banner's DRY_RUN suffix. A world also holds a user's plans/handoffs/ file, which a
+// --migrate backs up on every path: a --migrate that got past the refusal would change the target. By D-46 every
+// defect is refused, so every install cell is a refusal cell, pinned by count; a cell installRefusal does not answer
+// keeps the install-cell assertions it had and, under the two new runs, is a counted skip.
 //
 // Each cell starts from a real .grugops directory holding the files install wrote (resetGrugops), applies one shape,
 // asserts the premise through the product's reader (the state and the defect the row is keyed by), runs, and undoes
@@ -3638,12 +3714,46 @@ interface PrintingRun {
   readonly name: string;
   readonly exit: number;
   readonly uninstall: boolean;
+  /**
+   * For an install run (plan 34.1-59, D-45, D-46): the agents it names, whose install command the refusal's closing
+   * prints; whether it is a DRY_RUN; and whether it is one of the two runs this plan added (a cell installRefusal does
+   * not answer is a counted skip under them).
+   */
+  readonly install?: { readonly agents: readonly string[]; readonly dryRun: boolean; readonly added: boolean };
   readonly go: (w: World) => Run;
 }
 const PRINTING_RUNS: readonly PrintingRun[] = [
   { name: "--check", exit: 1, uninstall: false, go: (w) => spawnBin(INSTALL_JS, ["--check"], w.target, w.grugopsHome, { home: w.home, timeoutMs: 120_000 }) },
-  { name: "install --claude", exit: 3, uninstall: false, go: (w) => runInstall(w.target, w.grugopsHome, [flag("claude")], { home: w.home, timeoutMs: 180_000 }) },
-  { name: "install --codex", exit: 3, uninstall: false, go: (w) => runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, timeoutMs: 180_000 }) },
+  {
+    name: "install --claude",
+    exit: 3,
+    uninstall: false,
+    install: { agents: ["claude"], dryRun: false, added: false },
+    go: (w) => runInstall(w.target, w.grugopsHome, [flag("claude")], { home: w.home, timeoutMs: 180_000 }),
+  },
+  {
+    name: "install --codex",
+    exit: 3,
+    uninstall: false,
+    install: { agents: ["codex"], dryRun: false, added: false },
+    go: (w) => runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, timeoutMs: 180_000 }),
+  },
+  // Added 2026-10-17 by plan 34.1-59 (D-45, DI-25, D-46): DRY_RUN reports the same refusal, and --migrate (whose
+  // pre-steps, the handoffs backup among them, are an install run's first change) refuses before them.
+  {
+    name: "install --codex (DRY_RUN)",
+    exit: 3,
+    uninstall: false,
+    install: { agents: ["codex"], dryRun: true, added: true },
+    go: (w) => runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, dryRun: true, timeoutMs: 180_000 }),
+  },
+  {
+    name: "install --migrate --codex",
+    exit: 3,
+    uninstall: false,
+    install: { agents: ["codex"], dryRun: false, added: true },
+    go: (w) => runInstall(w.target, w.grugopsHome, ["--migrate", flag("codex")], { home: w.home, timeoutMs: 180_000 }),
+  },
   { name: "uninstall (flag-less)", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, []) },
   { name: "uninstall --codex", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, [flag("codex")]) },
 ];
@@ -3691,6 +3801,31 @@ function markerPathState(w: World): string {
 }
 /** Every line of stdout and stderr. */
 const allLines = (r: Run): string[] => [...r.stdout.split("\n"), ...r.stderr.split("\n")];
+/** A user's own file under plans/handoffs/, which --migrate backs up on every path (plan 34.1-59, D-45, D-46). */
+const MATRIX_HANDOFF_REL = "plans/handoffs/a-users-handoff.md";
+/**
+ * The target's tree as snapshotTree rows (plan 34.1-59, 2026-10-17, D-45, D-46), with the marker path and everything
+ * under it left out: snapshotTree throws on a file it cannot read (a mode 000 marker), and markerPathState covers the
+ * marker path. Links are not followed.
+ */
+function snapshotOutsideMarker(root: string): string {
+  const rows: string[] = [];
+  const walk = (rel: string): void => {
+    for (const ent of readdirSync(rel === "" ? root : at(root, rel), { withFileTypes: true })) {
+      const childRel = rel === "" ? ent.name : `${rel}/${ent.name}`;
+      if (childRel === MARKER_REL) continue;
+      const abs = at(root, childRel);
+      if (ent.isSymbolicLink()) rows.push(`${childRel} LINK ${readlinkSync(abs)}`);
+      else if (ent.isDirectory()) {
+        rows.push(`${childRel}/ DIR`);
+        walk(childRel);
+      } else if (ent.isFile()) rows.push(`${childRel} ${createHash("sha256").update(readFileSync(abs)).digest("hex")}`);
+      else rows.push(`${childRel} OTHER`);
+    }
+  };
+  walk("");
+  return rows.sort().join("\n");
+}
 /** The lines of a run that offer deleting or removing the marker (D-37's zero). */
 const removalOffers = (r: Run): string[] => allLines(r).filter((l) => DELETE_MARKER.test(l) || MARKER_REMOVAL.test(l) || REMOVAL_OFFER.test(l));
 
@@ -3699,13 +3834,30 @@ const removalOffers = (r: Run): string[] => allLines(r).filter((l) => DELETE_MAR
  * check the premise (the read's state and defect, and markerRemedy's fix), run, undo, and collect every broken rule.
  * Returns the findings and the number of cells run.
  */
-function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; skipped: string[]; platformSkips: SkipEntry[] } {
+interface MatrixResult {
+  findings: string[];
+  cells: number;
+  skipped: string[];
+  platformSkips: SkipEntry[];
+  /** Install cells run, and how many of them installRefusal answered (plan 34.1-59, D-45, D-46). */
+  installCells: number;
+  refusedCells: number;
+  /** Cells of the two added runs over a read installRefusal does not answer: counted skips, never run. */
+  notRefusedSkips: string[];
+}
+function matrixRows(defect: MarkerDefect): MatrixResult {
   const w = world(`matrix-${defect}`);
   install(w, [flag("claude"), flag("codex")]);
   const files = grugopsFiles(w);
   expect(files.has("install.json"), "PREMISE: install wrote the marker").toBe(true);
+  // A user's handoff, which a --migrate that got past the refusal would back up (plan 34.1-59, D-45, D-46).
+  mkdirSync(dirname(at(w.target, MATRIX_HANDOFF_REL)), { recursive: true });
+  writeFileSync(at(w.target, MATRIX_HANDOFF_REL), "a user's handoff\n");
   const findings: string[] = [];
   const skipped: string[] = [];
+  let installCells = 0;
+  let refusedCells = 0;
+  const notRefusedSkips: string[] = [];
   // The shapes this host could not construct (DI-21): printed as a counted skip, never run.
   const platformSkips: SkipEntry[] = [];
   let cells = 0;
@@ -3723,6 +3875,11 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
       let before: string;
       let after: string;
       let fix: readonly string[];
+      let refusal: ReturnType<typeof installRefusal> = null;
+      let treeBefore = "";
+      let treeAfter = "";
+      let homeBefore = "";
+      let homeAfter = "";
       const staged = shape.apply(w);
       if (staged !== undefined && staged !== null) {
         platformSkips.push(staged);
@@ -3741,13 +3898,30 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
         expect(remedy?.defect, `PREMISE: ${cell}: markerRemedy names the defect`).toBe(defect);
         fix = remedy?.fix ?? [];
         expect(fix.length, `PREMISE: ${cell}: markerRemedy reports a problem`).toBeGreaterThan(0);
+        // The one owner decides which install cells expect the refusal (plan 34.1-59, D-45, D-46): derived, never listed.
+        if (run.install !== undefined) refusal = installRefusal(read);
+        if (run.install !== undefined && refusal === null && run.install.added) {
+          notRefusedSkips.push(cell);
+          console.log(`SKIP the matrix cell ${cell} — installRefusal does not answer this read, and the run was added for the refusal`);
+          continue;
+        }
         before = markerPathState(w);
+        if (refusal !== null) {
+          treeBefore = snapshotOutsideMarker(w.target);
+          homeBefore = snapshotTree(w.home);
+        }
         r = run.go(w);
         after = markerPathState(w);
+        if (refusal !== null) {
+          treeAfter = snapshotOutsideMarker(w.target);
+          homeAfter = snapshotTree(w.home);
+        }
       } finally {
         shape.undo?.(w);
       }
       cells++;
+      if (run.install !== undefined) installCells++;
+      if (refusal !== null) refusedCells++;
       const bad = (why: string): void => void findings.push(`${cell}: ${why}`);
       if (r.error !== undefined || r.signal !== null) bad(`did not finish (${r.error?.message ?? r.signal})`);
       if (NO_STACK.test(r.stderr)) bad(`uncaught throw\n${r.stderr}`);
@@ -3775,19 +3949,21 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
       }
       // THE MARKER'S OWN LINE (plan 34.1-55, 2026-10-14, D-40 item 2, D-43, 34.1 review WR-38), for every defect and every
       // shape, the seven blocked shapes included: each install run prints exactly one `skipped` line for the marker,
-      // worded through markerDefectText of the read's defect (a malformed ledger is written back unchanged under a verify,
-      // so it has none); each uninstall run prints exactly one `left` line for the marker, worded through markerDefectText,
+      // worded through markerDefectText of the read's defect (a malformed ledger too, since D-46: install refuses before
+      // any write over it); each uninstall run prints exactly one `left` line for the marker, worded through markerDefectText,
       // or U4's malformed-ledger line. No line of any cell says the marker is not install's.
       if (run.name !== "--check") {
         const label = run.uninstall ? "left" : "skipped";
         const mine = linesWith(r.stdout, label).filter((l) => l.includes(`${MARKER_REL} (`));
+        // Plan 34.1-59 (2026-10-17, D-45, D-46): an install run the owner refuses prints the marker's own skipped line
+        // for every defect, a malformed ledger included (it no longer writes the ledger back under a verify).
         const want =
-          defect === "ledger"
+          defect === "ledger" && run.uninstall
             ? MATRIX_U4_LEFT
             : run.uninstall
               ? `(left in place — ${markerDefectText(defect)}; see the verify line above)`
               : `(left unchanged — ${markerDefectText(defect)}; see the verify line above)`;
-        if (defect !== "ledger" || run.uninstall) {
+        if (defect !== "ledger" || run.uninstall || refusal !== null) {
           if (mine.length !== 1) bad(`${mine.length} ${label} line(s) for ${MARKER_REL}, want exactly one\n${mine.join("\n")}\n${r.stdout}`);
           else if (!mine[0].includes(want)) bad(`the ${label} line for ${MARKER_REL} is not the owner's: ${mine[0]}\n  want it to hold ${want}`);
         }
@@ -3803,10 +3979,26 @@ function matrixRows(defect: MarkerDefect): { findings: string[]; cells: number; 
       if (run.uninstall && linesWith(r.stdout, "removed").length > 0) bad(`something was removed\n${linesWith(r.stdout, "removed").join("\n")}`);
       if (after !== before) bad(`the marker path changed\n  before ${before.slice(0, 200)}\n  after  ${after.slice(0, 200)}`);
       for (const l of allLines(r)) if (CONTROL_OR_REPLACEMENT.test(l)) bad(`a line holds a control character or U+FFFD: ${JSON.stringify(l)}`);
+      // THE PRE-WRITE REFUSAL (plan 34.1-59, 2026-10-17, D-45 item 3, DI-25, D-46): nothing written, and the closing.
+      if (run.install !== undefined && refusal !== null) {
+        if (treeAfter !== treeBefore) bad(`the target changed (the marker path left out)\n${r.stdout}`);
+        if (homeAfter !== homeBefore) bad(`HOME (the kit home under it) changed\n${r.stdout}`);
+        const banner = r.stdout.split("\n").filter((l) => l.startsWith("== install INCOMPLETE — "));
+        if (banner.length !== 1) bad(`${banner.length} install INCOMPLETE banner(s), want one\n${r.stdout}`);
+        else if (run.install.dryRun !== banner[0].includes("(DRY_RUN — nothing changed)")) bad(`the banner's DRY_RUN suffix is wrong for this run: ${banner[0]}`);
+        const printed = printedCommands(`${r.stdout}\n${r.stderr}`);
+        if (refusal.defect === "foreign") {
+          if (printed.length > 0) bad(`a foreign read's output names a command: ${printed.join(" | ")}`);
+          for (const l of allLines(r)) if (/\b(un)?install\.js\b/.test(l)) bad(`a line names an installer script after a foreign read: ${l}`);
+        } else {
+          const want = agentCommand("install.js", w.target, run.install.agents.map(row), ctxOf(w));
+          if (JSON.stringify(printed) !== JSON.stringify([want])) bad(`the closing does not print exactly the install command for this run's agents\n  got  ${JSON.stringify(printed)}\n  want ${JSON.stringify([want])}`);
+        }
+      }
     }
   }
   resetGrugops(w, files);
-  return { findings, cells, skipped, platformSkips };
+  return { findings, cells, skipped, platformSkips, installCells, refusedCells, notRefusedSkips };
 }
 
 describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every shape x every printing run, the marker's own line asserted (WR-38)", () => {
@@ -3821,22 +4013,39 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
     // `.grugops` symbolic link to nothing (7 -> 9 shapes; 23 -> 25).
     expect(READER_STATES.blocked.length, "the blocked defect has 9 shapes").toBe(9);
     expect(shapes, "the matrix has 25 shapes").toBe(25);
-    expect(PRINTING_RUNS.map((p) => p.name), "the printing runs").toEqual(["--check", "install --claude", "install --codex", "uninstall (flag-less)", "uninstall --codex"]);
+    // Re-pinned 2026-10-17 by plan 34.1-59 (D-45, DI-25, D-46): two install runs added, a DRY_RUN and a --migrate (5 -> 7).
+    expect(PRINTING_RUNS.map((p) => p.name), "the printing runs").toEqual([
+      "--check",
+      "install --claude",
+      "install --codex",
+      "install --codex (DRY_RUN)",
+      "install --migrate --codex",
+      "uninstall (flag-less)",
+      "uninstall --codex",
+    ]);
   });
 
   for (const defect of MARKER_DEFECTS) {
     it(
       `${defect}: every shape under every printing run ${defect === "foreign" ? "says not written by install and leave it, with no next step" : "names the cause and the by-hand fix"}, prints the marker's own skipped or left line through the owner, never says the marker is not install's, never offers removal, removes nothing and leaves the marker path as it was`,
       () => {
-        const { findings, cells, skipped, platformSkips } = matrixRows(defect);
+        const { findings, cells, skipped, platformSkips, installCells, refusedCells, notRefusedSkips } = matrixRows(defect);
         const gated = READER_STATES[defect].filter((s) => s.chmodGated === true).length;
         expect(skipped.length, "only the gated mode 000 shape is ever skipped").toBe(CHMOD_SKIP === null ? 0 : gated);
         // DI-21: a shape this host could not construct is a counted, printed skip, and only the FIFO shape ever is one.
         expect(platformSkips.map((k) => k.shape), "only the FIFO shape is ever a platform skip").toEqual(platformSkips.map(() => "FIFO"));
         expect(platformSkips.length, "at most the one FIFO shape is a platform skip").toBeLessThanOrEqual(1);
-        expect(cells, `PREMISE: ${defect}: the cells run`).toBe(
-          (READER_STATES[defect].length - skipped.length - platformSkips.length) * PRINTING_RUNS.length,
-        );
+        // The per-defect cell premise counts the two runs plan 34.1-59 added (2026-10-17, D-45, D-46); a cell of an added
+        // run over a read installRefusal does not answer is a counted skip, never run.
+        const constructed = READER_STATES[defect].length - skipped.length - platformSkips.length;
+        expect(cells, `PREMISE: ${defect}: the cells run`).toBe(constructed * PRINTING_RUNS.length - notRefusedSkips.length);
+        const installRuns = PRINTING_RUNS.filter((p) => p.install !== undefined).length;
+        expect(installRuns, "PREMISE: four install runs").toBe(4);
+        expect(installCells, `PREMISE: ${defect}: the install cells run`).toBe(constructed * installRuns - notRefusedSkips.length);
+        // THE D-46 PIN (human, 2026-10-17, option-a): every defect is refused, so every install cell is a refusal cell
+        // and no cell of an added run is skipped.
+        expect(refusedCells, `${defect}: the install cells installRefusal answered (D-46: all of them)`).toBe(constructed * installRuns);
+        expect(notRefusedSkips, `${defect}: an added run's cell was skipped as not refused (D-46: none is)`).toEqual([]);
         expect(findings, `${defect}: a cell breaks D-37`).toEqual([]);
       },
       300_000,
@@ -4323,6 +4532,10 @@ function unusableCensus(): UnusableSite[] {
  * helper, reportMarkerUnchanged (same text over the helper's parameter, still a pointer), and install's pre-write refusal,
  * refuseOverMarker, words its verify through markerFixText (a new owner-wording reading). 34 readings to 35: install.ts
  * 16 to 17, owner wording 11 to 12.
+ * Re-derived 2026-10-17 by plan 34.1-59 Task 3 (D-45, D-46) by running the walk: refuseOverMarker also refuses an `ok`
+ * read whose install ledger is malformed (D-46), and its one verify branches on the read, so the walk reads it twice: the
+ * unreadable reading, unchanged, and a malformed-ledger reading in writeMarker's cause wording. 35 readings to 36:
+ * install.ts 17 to 18, owner wording 12 to 13.
  */
 const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install-marker.ts", "markerUnusableText", "is a JSON object but could not be used as install's marker (${read.why})", "cause only", "the owner module's cause clause, printed only as a substitution inside a reading that carries markerFixText (I1, I5, I6, the uninstaller's module-top verify) or as pruneRoots' cause"],
@@ -4343,6 +4556,7 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install.ts", "kitPreflight", "the install ledger is malformed", "cause only", "why a kit file is treated as edited (backed up before it is overwritten); no remedy"],
   ["install.ts", "reportMarkerUnchanged", ".grugops/install.json (left unchanged — ${markerDefectText(defect)}; see the verify line above)", "pointer", "the marker's skipped line (IN-33, R44), printed by writeMarker and by refuseOverMarker: points at the never-remove or leave-it verify (moved out of writeMarker into its one helper by plan 34.1-59, 2026-10-14, D-45, DI-25)"],
   ["install.ts", "refuseOverMarker", ".grugops/install.json ${markerUnusableText(read)}, so nothing was installed: install records every file it writes in .grugops/install.json and cannot record into this one, so it wrote nothing in the target or the kit home. ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "install's pre-write refusal over a marker it cannot record into (plan 34.1-59, 2026-10-14, D-45, DI-25, R56)"],
+  ["install.ts", "refuseOverMarker", ".grugops/install.json — the install ledger is malformed (${ledgerWhy}), so nothing was installed: install records every file it writes in .grugops/install.json and cannot record into this one, so it wrote nothing in the target or the kit home. ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "install's pre-write refusal over an `ok` marker whose install ledger is malformed (plan 34.1-59, 2026-10-17, D-46): writeMarker's cause wording"],
   ["install.ts", "writeMarker", ".grugops/install.json — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and nothing this run did was recorded. Uninstall will remove and edit nothing on it; ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "I3, writeMarker's verify over a malformed ledger (R43c)"],
   ["install.ts", "writeAskRules", ".grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — no ask rule was added to ${rel} and the marker was left as it was. ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "I5, writeAskRules' verify over an unreadable marker (R37d)"],
   ["install.ts", "writeAskRules", "${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was added and the ledger is written back unchanged. ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "I4, writeAskRules' verify over a malformed ledger (R43c)"],
@@ -4361,7 +4575,8 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["uninstall.ts", "<module>", ".grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy, `run \\`${rerunCommand()}\\` again`)}.", "owner wording", "the module-top verify over an unreadable (or unbound-folded) marker (R41, R45)"],
   ["uninstall.ts", "<module>", ".grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy, `run \\`${rerunCommand()}\\` again`)}.", "owner wording", "the module-top verify over a malformed ledger (R43a)"],
 ];
-const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 12, pointer: 13, "cause only": 10 };
+// owner wording 12 -> 13: plan 34.1-59 Task 3 (2026-10-17, D-46), refuseOverMarker's malformed-ledger reading.
+const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 13, pointer: 13, "cause only": 10 };
 const unusableKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
 
 describe("D-37: every reading that says the marker cannot be used carries the owner's wording or points at it", () => {
@@ -4388,9 +4603,10 @@ describe("D-37: every reading that says the marker cannot be used carries the ow
     expect(unclassified, "a reading that says the marker cannot be used is not classed").toEqual([]);
     expect(stale, "a classed reading is gone or changed").toEqual([]);
     expect(counts, "a classed reading is printed a different number of times").toEqual([]);
-    // 33 -> 34, plan 34.1-58 (2026-10-14, D-45, WR-39); 34 -> 35, plan 34.1-59 (2026-10-14, D-45, DI-25): see UNUSABLE_TABLE's header
-    expect(sites.length, "the census size moved").toBe(35);
-    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 17, "uninstall.ts": 11 });
+    // 33 -> 34, plan 34.1-58 (2026-10-14, D-45, WR-39); 34 -> 35, plan 34.1-59 (2026-10-14, D-45, DI-25); 35 -> 36, plan
+    // 34.1-59 Task 3 (2026-10-17, D-46): see UNUSABLE_TABLE's header
+    expect(sites.length, "the census size moved").toBe(36);
+    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 18, "uninstall.ts": 11 });
     expect(countBy(UNUSABLE_TABLE, (r) => r[3]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(UNUSABLE_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );

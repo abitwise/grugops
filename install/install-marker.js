@@ -454,19 +454,21 @@ export function markerRemedy(read) {
     }
 }
 /**
- * installRefusal (plan 34.1-59, D-45 item 3, DI-25): THE ONE DECISION of when install must not write over the marker
- * read it holds. THE RULE, stated once: install writes only what it can record in .grugops/install.json, so over a read
- * it cannot record into it writes nothing at all (no kit copy, no write in the target): every file install writes stays
- * recorded, and so reversible by uninstall. It answers markerRemedy(read) for an `unreadable` read (every MarkerDefect
- * but `ledger`, `foreign` included: a user's own file install never writes over, and a marker install cannot parse,
- * whose records it cannot carry), and null for absent (install records into a new marker), unbound (install replaces it
- * with a marker for this directory, and says so) and ok. An `ok` read whose install ledger is malformed is answered
- * null here: it is the human's question at plan 34.1-59 Task 2 (D-46). install.ts asks it once, after the agents are
- * chosen and before the first write of any install run (the --migrate pre-steps, the run banner, the kit copy). Pure:
- * no I/O.
+ * installRefusal (plan 34.1-59, D-45 item 3, DI-25; D-46): THE ONE DECISION of when install must not write over the
+ * marker read it holds. THE RULE, stated once: install writes only what it can record in .grugops/install.json, so over
+ * a read it cannot record into it writes nothing at all (no kit copy, no write in the target): every file install writes
+ * stays recorded, and so reversible by uninstall. A read install cannot record into is exactly a read the owner owes a
+ * remedy for, so installRefusal answers markerRemedy(read) for every read: { defect, fix } for an `unreadable` read
+ * (every MarkerDefect but `ledger`, `foreign` included: a user's own file install never writes over, and a marker
+ * install cannot parse, whose records it cannot carry) and for an `ok` read whose install ledger is malformed (defect
+ * `ledger`, D-46, human, 2026-10-17: install over it used to write the chosen agents' files with the ledger written back
+ * unchanged, so nothing it wrote was recorded); null for absent (install records into a new marker), unbound (install
+ * replaces it with a marker for this directory, and says so) and an `ok` read with a well-formed ledger. install.ts asks
+ * it once, after the agents are chosen and before the first write of any install run (the --migrate pre-steps, the run
+ * banner, the kit copy). Pure: no I/O.
  */
 export function installRefusal(read) {
-    return read.state === "unreadable" ? markerRemedy(read) : null;
+    return markerRemedy(read);
 }
 /**
  * noMarkerRemedy: the guard a site uses when it holds a read it already knows is unusable (`markerRemedy(read) ??

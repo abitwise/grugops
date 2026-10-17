@@ -162,9 +162,13 @@ const ROWS: readonly Row[] = [
     },
   },
   {
+    // Reshaped 2026-10-17 by plan 34.1-59 Task 3 (D-45, D-46): a malformed install ledger is one install cannot record
+    // into (D-46), so the run refuses before any write and prints no notes block; the row asserts that refusal (exit 3,
+    // the settings file unchanged, no added-rules claim anywhere, the marker's verify) instead of a notes sentence.
     id: "R2 malformed ask-rules ledger in an install's own marker",
     kind: "refused",
     status: 3,
+    refusedBeforeWrite: true,
     stage: (t, k, h) => {
       installFirst(t, k, h);
       const marker = JSON.parse(readFileSync(join(t, MARKER_REL), "utf8")) as { ledger: Array<Record<string, unknown>> };
@@ -301,7 +305,12 @@ describe("closing claims: the ask-rules outcome matrix against the settings-file
   it("the rows produced all five outcome sentence forms", () => {
     // Re-pinned 2026-10-14 by plan 34.1-59 (D-45, DI-25): a row refused before any write prints no notes block, so it
     // observes no sentence form (R1); every other row is observed, and R2, R3 and R4 still produce `refused`.
-    expect(ROWS.filter((r) => r.refusedBeforeWrite === true).map((r) => r.id), "the rows refused before any write").toEqual(["R1 marker that is not a JSON object"]);
+    // Re-pinned 2026-10-17 by plan 34.1-59 Task 3 (D-45, D-46): R2 (a malformed install ledger) is refused before any
+    // write too; R3 and R4 still produce `refused`.
+    expect(ROWS.filter((r) => r.refusedBeforeWrite === true).map((r) => r.id), "the rows refused before any write").toEqual([
+      "R1 marker that is not a JSON object",
+      "R2 malformed ask-rules ledger in an install's own marker",
+    ]);
     expect(observed.size, "run the whole file: this case reads the rows above").toBe(ROWS.filter((r) => r.refusedBeforeWrite !== true).length);
     expect(new Set(observed.values())).toEqual(new Set(ALL_KINDS));
   });

@@ -5105,7 +5105,8 @@ function kitPreflight(plan: KitPlanReady): KitPreflight {
   // install's own marker is still the record of the agents installed here, and askRulesStep's verify says never to
   // delete it (a foreign read's clause says the file holds none of install's fields; its verify says leave it).
   // Its unreadable arm is reached only when the marker changed after this run's first read: over a marker that read
-  // unusable then, install refused before any write (plan 34.1-59, D-45, DI-25, installRefusal).
+  // unusable then, install refused before any write (plan 34.1-59, D-45, DI-25, installRefusal); so is its
+  // malformed-ledger arm (plan 34.1-59, 2026-10-17, D-46).
   const noRecord =
     marker.state === "unreadable"
       ? `${MARKER_REL} ${markerUnusableText(marker)}`
@@ -5630,6 +5631,8 @@ function writeMarker(): void {
   }
   const previousLedger: LedgerRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
   if (previousLedger.state === "malformed") {
+    // Reached only when the marker changed after this run's first read: over a malformed install ledger then, install
+    // refused before any write (plan 34.1-59, 2026-10-17, D-45, D-46, installRefusal).
     // D-37 (34.1 review CR-06, plan 34.1-43): the marker is still the record of every agent installed here; the remedy is
     // the owner's never-remove wording (markerFixText), which names the ledger problem and the by-hand fix.
     const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeMarker");
@@ -6061,14 +6064,14 @@ const SELECTED_KINDS: ReadonlySet<HostAdapterKind> = new Set(SELECTION.map((h) =
 
 // THE PRE-WRITE REFUSAL (plan 34.1-59, 2026-10-14, D-45 item 3, DI-25, UAT G-34.1-16). Install writes only what it can
 // record in .grugops/install.json, so over a marker read it cannot record into it writes nothing at all. Until plan
-// 34.1-59 install over such a marker (a user's own JSON object, a trailing comma, a link, a directory) printed a verify,
-// left the marker byte for byte and then wrote the whole footprint (the kit home, AGENTS.md, memory-bank/, plans/,
+// 34.1-59 install over such a marker (a user's own JSON object, a trailing comma, a link, a directory, and, by D-46,
+// install's own marker whose install ledger is malformed) printed a verify, left the marker byte for byte and then wrote the whole footprint (the kit home, AGENTS.md, memory-bank/, plans/,
 // tools/grugops/, the chosen agents' entries) with no record, so no later uninstall could take any of it out.
 // install-marker.ts installRefusal is the one decision; it is asked ONCE, here: after the agents are chosen (so the
 // closing can name the install command for them) and before the --migrate branch (whose pre-steps are this run's first
 // change), the run banner, the kit copy and every write in the target. DRY_RUN reports the same refusal. The later
-// per-site arms for an unusable marker (writeAskRules, askRulesStep, writeMarker, writeOpenCodePermission, kitPreflight)
-// stay, for a marker that changes during the run; refuseOverMarker exits, so a run that reaches them read a usable
+// per-site arms for an unusable marker or a malformed install ledger (writeAskRules, askRulesStep, writeMarker,
+// writeOpenCodePermission, kitPreflight) stay, for a marker that changes during the run; refuseOverMarker exits, so a run that reaches them read a usable
 // marker here.
 //
 // refuseOverMarker prints the run header (target, and DRY_RUN's mode line), one verify in the owner's wording
@@ -6078,8 +6081,21 @@ const SELECTED_KINDS: ReadonlySet<HostAdapterKind> = new Set(SELECTION.map((h) =
 // with the install command for this run's agents after every read but a foreign one, whose closing names no command
 // (D-44, D-45: a user's own file has nothing to fix, so no step follows "leave it"). Then it halts, exit 3, as the
 // --update branch does after its report: a mid-script exit, because the run must not go on to its first write.
+//
+// D-46 (human, 2026-10-17, plan 34.1-59 Task 2, option-a): an `ok` marker whose install ledger is malformed is refused
+// too, because install over it wrote the chosen agents' files with the ledger written back unchanged, so nothing it
+// wrote was recorded. Its verify words the cause as writeMarker's malformed-ledger verify does ("the install ledger is
+// malformed (<readLedger's why>)"), with the same "nothing was installed" clause and the owner's remedy after it.
 function refuseOverMarker(read: InstallMarkerRead, remedy: MarkerRemedy): never {
-  if (read.state !== "unreadable") {
+  // readLedger's why, for an `ok` read (the one other read installRefusal answers, D-46).
+  let ledgerWhy = "";
+  if (read.state === "ok") {
+    const ledger = readLedger(read.marker);
+    if (ledger.state !== "malformed") {
+      throw new Error("refuseOverMarker: installRefusal answered for an ok marker read whose install ledger is not malformed");
+    }
+    ledgerWhy = ledger.why ?? "";
+  } else if (read.state !== "unreadable") {
     throw new Error(`refuseOverMarker: installRefusal answered for a ${read.state} marker read, which this site does not word`);
   }
   console.log("== grugops install ==");
@@ -6087,11 +6103,12 @@ function refuseOverMarker(read: InstallMarkerRead, remedy: MarkerRemedy): never 
   if (DRY_RUN) console.log("mode:   DRY_RUN (no filesystem changes)");
   console.log("\n-- install marker (read before any write) --");
   verify(
-    `${MARKER_REL} ${markerUnusableText(read)}, so nothing was installed: install records every file it writes in ` +
+    `${read.state === "unreadable" ? `${MARKER_REL} ${markerUnusableText(read)}` : `${MARKER_REL} — the install ledger is malformed (${ledgerWhy})`}, ` +
+      `so nothing was installed: install records every file it writes in ` +
       `${MARKER_REL} and cannot record into this one, so it wrote nothing in the target or the kit home. ` +
       `${markerFixText(remedy, "re-run the installer")}.`,
   );
-  reportMarkerUnchanged(read.defect);
+  reportMarkerUnchanged(remedy.defect);
   printInstallIncomplete(remedy.defect !== "foreign");
   // A MID-SCRIPT EXIT (plan 34.1-59, D-45, DI-25): nothing may run after the refusal. Its output is a few lines.
   process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
@@ -6953,6 +6970,8 @@ function writeAskRules(): AskRulesOutcome {
   }
   const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
   if (previousRead.state === "malformed") {
+    // Reached only when the marker changed after this run's first read: over a malformed install ledger then, install
+    // refused before any write (plan 34.1-59, 2026-10-17, D-45, D-46, installRefusal).
     // D-37 (34.1 review CR-06, plan 34.1-43): the owner's never-remove wording, as writeMarker's verify prints it.
     const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeAskRules");
     verify(
@@ -7333,6 +7352,7 @@ function writeOpenCodePermission(): OpenCodeOutcome {
   }
   const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
   if (previousRead.state === "malformed") {
+    // Reached only when the marker changed after this run's first read (plan 34.1-59, 2026-10-17, D-45, D-46).
     return openCodeNote("the install ledger is malformed (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitRulePattern());
   }
   const previous: OpenCodePermissionLedger | null = entryAt(previousRead, rel, "opencode-permission") ?? null;
