@@ -24,7 +24,7 @@ import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners, hostForFlag } from "./host-tools.js";
-import { contentRecord } from "./install-marker.js";
+import { contentRecord, readKitHomeRecord } from "./install-marker.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -2989,5 +2989,36 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     expect(given.length, c.stdout).toBe(1);
     expect(lineNamesPath(given[0], other.kitHome), `the given: header does not name K2: ${given[0]}`).toBe(true);
     expect(given[0], "the given: header does not say K2 is not used").toContain("not used");
+  });
+
+  // ── R54 under D-45 (plan 34.1-58; review CR-08, UAT gap G-34.1-15): A MOVE THE GIVEN KIT HOME'S OWN RECORD PROVES ─────
+  //
+  // CR-08: plan 34.1-56's predicate said "kit home moved" whenever the recorded kit root held no kit and the given one
+  // did. That is also true when the recorded kit home was deleted and GRUGOPS_HOME names another repository's kit home;
+  // following the printed "Move <K2> back to <A>" then broke the second repository. D-45: the doctor says "moved" only
+  // when the given kit home's own kit-home record is `unbound` and names the recorded kit home (by real path), and
+  // nothing is at the recorded kit home; otherwise the observed FAIL on the absent kit stands.
+  /** The lines of a run that tell the user to move `kitHome` (a `move` word on a line naming it). */
+  const moveLines = (stdout: string, kitHome: string): string[] => stdout.split(/\r?\n/).filter((l) => /\bmove\b/i.test(l) && lineNamesPath(l, kitHome));
+
+  it("R54 control (recorded kit home deleted, the given kit home another repository's, D-45): install --codex with kit home A, a second repository installed with kit home K2 (bound to itself), A deleted, --check on the first given GRUGOPS_HOME=K2: exit 1, no 'kit home moved:' line, no line telling the user to move K2, a FAIL naming <A>/agent-factory; the second repository's own --check still exits 0 with no FAIL", () => {
+    const { target, kitHome, home } = codexWithOwnKitHome();
+    const other = scratchRow();
+    const r = runInstall(other.target, other.kitHome, [agentFlag(codexHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(readKitHomeRecord(other.kitHome).state, "premise: K2's kit-home record is bound to K2 itself").toBe("ok");
+    expect(holdsKit(other.kitHome), "premise: K2 holds a kit").toBe(true);
+    rmSync(kitHome, { recursive: true, force: true });
+    expect(existsSync(kitHome), "premise: A was deleted").toBe(false);
+
+    const c = spawnBin(INSTALL_JS, ["--check"], target, other.kitHome, { home });
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    expect(movedLines(c.stdout), `a 'kit home moved:' line for a deleted kit home:\n${c.stdout}`).toEqual([]);
+    expect(moveLines(c.stdout, other.kitHome), "a line tells the user to move the second repository's kit home K2").toEqual([]);
+    expect(failLines(c.stdout).some((l) => lineNamesPath(l, join(kitHome, "agent-factory"))), `no FAIL names <A>/agent-factory:\n${c.stdout}`).toBe(true);
+
+    const after = spawnBin(INSTALL_JS, ["--check"], other.target, other.kitHome, { home });
+    expect(after.status, after.stdout + after.stderr).toBe(0);
+    expect(failLines(after.stdout), after.stdout).toEqual([]);
   });
 });

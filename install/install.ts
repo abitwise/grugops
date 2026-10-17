@@ -155,6 +155,7 @@ import {
   wholeFileEntryRels,
   type InstalledAgents,
   type InstallMarkerRead,
+  type KitHomeRecordRead,
 } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
@@ -220,6 +221,7 @@ import {
   writeAccessProblem,
   realTargetPath,
   realPathThroughExisting,
+  sameRecordedPath,
   treeRecord,
   canonicalPathSpelling,
   absoluteSpelling,
@@ -1284,6 +1286,32 @@ const docAbspath = (p: string): string => absoluteSpelling(p, process.cwd());
 // Used by the D-03 cross-check to distinguish a cosmetic diff (all real) from a true divergence.
 const kitReal = (p: string): boolean => p !== "" && existsSync(join(p, "roles", "orchestrator.md"));
 
+// recordNamesKitHome (plan 34.1-58, D-45, review CR-08): whether a kit home's own kit-home record (readKitHomeRecord of
+// it) was written for the kit home `recorded`: the record is `unbound` (install wrote it for another kit home, and the
+// kit home was then moved by hand, so the record no longer names where it now is) and its grugopsHome is `recorded`'s
+// real path. install writes that grugopsHome as realTargetPath of the kit home (writeKitHomeRecord), a real path,
+// while the marker records the kit home as GRUGOPS_HOME was spelled, so the two are compared through
+// realPathThroughExisting of `recorded` (its deepest existing ancestor's real path, the rest appended): on a path that
+// crosses a link (macOS's /tmp and /var/folders do) the spelled path would never match. A real path that cannot be read
+// answers no. One read of the given kit home's record; nothing else of it is read.
+const recordNamesKitHome = (read: KitHomeRecordRead, recorded: string): boolean => {
+  if (read.state !== "unbound" || read.boundTo === null) return false;
+  const real = realPathThroughExisting(recorded);
+  return real !== null && sameRecordedPath(read.boundTo, real);
+};
+
+// nothingAt (plan 34.1-58, D-45, review CR-08): lstat finds no entry at `p` (ENOENT). Anything there, an empty
+// directory or a symbolic link to nothing included, answers no, and so does any other error (the path could not be
+// looked at, so it is not shown to be empty).
+const nothingAt = (p: string): boolean => {
+  try {
+    lstatSync(p);
+    return false;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "ENOENT";
+  }
+};
+
 // isDangling: link present but its target is gone — mirror install.sh's [ -L ] && [ ! -e ]. lstat
 // tests the link itself; existsSync follows it (false for a dangling link).
 const isDangling = (p: string): boolean => {
@@ -2137,7 +2165,9 @@ function doctor(): number {
     GIVEN_KIT_HOME !== null &&
     GIVEN_KIT_HOME !== DOCTOR_KIT_HOME &&
     !kitReal(DOCTOR_KIT_ROOT) &&
-    kitReal(canonicalPathSpelling(resolve(GIVEN_KIT_HOME, "agent-factory")))
+    kitReal(canonicalPathSpelling(resolve(GIVEN_KIT_HOME, "agent-factory"))) &&
+    recordNamesKitHome(readKitHomeRecord(GIVEN_KIT_HOME), DOCTOR_KIT_HOME) &&
+    nothingAt(DOCTOR_KIT_HOME)
   ) {
     docFail(
       `kit home moved: install recorded the kit home ${DOCTOR_KIT_HOME}, whose agent-factory holds no kit, and this ` +

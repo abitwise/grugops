@@ -96,7 +96,7 @@ import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerm
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, kindAt, isRecordedAbsolute, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, kindAt, isRecordedAbsolute, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, sameRecordedPath, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -1127,6 +1127,32 @@ const docAbspath = (p) => absoluteSpelling(p, process.cwd());
 // kitReal: a path resolves to a REAL kit iff agent-factory/roles/orchestrator.md exists under it.
 // Used by the D-03 cross-check to distinguish a cosmetic diff (all real) from a true divergence.
 const kitReal = (p) => p !== "" && existsSync(join(p, "roles", "orchestrator.md"));
+// recordNamesKitHome (plan 34.1-58, D-45, review CR-08): whether a kit home's own kit-home record (readKitHomeRecord of
+// it) was written for the kit home `recorded`: the record is `unbound` (install wrote it for another kit home, and the
+// kit home was then moved by hand, so the record no longer names where it now is) and its grugopsHome is `recorded`'s
+// real path. install writes that grugopsHome as realTargetPath of the kit home (writeKitHomeRecord), a real path,
+// while the marker records the kit home as GRUGOPS_HOME was spelled, so the two are compared through
+// realPathThroughExisting of `recorded` (its deepest existing ancestor's real path, the rest appended): on a path that
+// crosses a link (macOS's /tmp and /var/folders do) the spelled path would never match. A real path that cannot be read
+// answers no. One read of the given kit home's record; nothing else of it is read.
+const recordNamesKitHome = (read, recorded) => {
+    if (read.state !== "unbound" || read.boundTo === null)
+        return false;
+    const real = realPathThroughExisting(recorded);
+    return real !== null && sameRecordedPath(read.boundTo, real);
+};
+// nothingAt (plan 34.1-58, D-45, review CR-08): lstat finds no entry at `p` (ENOENT). Anything there, an empty
+// directory or a symbolic link to nothing included, answers no, and so does any other error (the path could not be
+// looked at, so it is not shown to be empty).
+const nothingAt = (p) => {
+    try {
+        lstatSync(p);
+        return false;
+    }
+    catch (e) {
+        return e.code === "ENOENT";
+    }
+};
 // isDangling: link present but its target is gone — mirror install.sh's [ -L ] && [ ! -e ]. lstat
 // tests the link itself; existsSync follows it (false for a dangling link).
 const isDangling = (p) => {
@@ -1868,7 +1894,9 @@ function doctor() {
         GIVEN_KIT_HOME !== null &&
         GIVEN_KIT_HOME !== DOCTOR_KIT_HOME &&
         !kitReal(DOCTOR_KIT_ROOT) &&
-        kitReal(canonicalPathSpelling(resolve(GIVEN_KIT_HOME, "agent-factory")))) {
+        kitReal(canonicalPathSpelling(resolve(GIVEN_KIT_HOME, "agent-factory"))) &&
+        recordNamesKitHome(readKitHomeRecord(GIVEN_KIT_HOME), DOCTOR_KIT_HOME) &&
+        nothingAt(DOCTOR_KIT_HOME)) {
         docFail(`kit home moved: install recorded the kit home ${DOCTOR_KIT_HOME}, whose agent-factory holds no kit, and this ` +
             `--check run was given the kit home ${GIVEN_KIT_HOME} (GRUGOPS_HOME), whose agent-factory holds one. Move ` +
             `${GIVEN_KIT_HOME} back to ${DOCTOR_KIT_HOME}, then run \`${doctorCheckCommand()}\`; that step writes no kit. The ` +

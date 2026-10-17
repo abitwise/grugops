@@ -4629,7 +4629,10 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 //     readInstallMarker, and no product module imports uninstall.ts.
 // Pinned 2026-10-14 by plan 34.1-53 (D-40, DI-19): the doctor's reach is 51 functions (measured by this census). A
 // later plan that moves it re-pins it here with the reason.
-const DOCTOR_REACH_SIZE = 51;
+// Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review CR-08): 53. The moved-kit FAIL's condition gained two helpers,
+// recordNamesKitHome (the given kit home's kit-home record names the recorded kit home, by real path) and nothingAt
+// (lstat finds no entry at the recorded kit home). Neither reads the marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 53;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -5374,7 +5377,10 @@ describe("D-38: every environment variable a binary reads is stated in its print
 /** C1's premise: members the doctor reaches (pinned by plan 34.1-50, 2026-10-13, D-38). */
 const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "markerUnreadable", "adapterKitOnDisk", "readKitVersion", "renderAdaptersInMirror", "transformAdapter"] as const;
 /** C1's size (plan 34.1-50, 2026-10-13, D-38: 43 at HEAD 078a95a4, measured by this walk; the plan's revision-time count at 2b6b6624 was also 43). */
-const WR24_REACH_SIZE = 43;
+// Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review CR-08): 45. The two new functions the doctor reaches are the
+// moved-kit condition's helpers recordNamesKitHome and nothingAt; each reads only the path it is passed (the recorded
+// kit home, DOCTOR_KIT_HOME), never this run's kit home, so C3's table gains no row.
+const WR24_REACH_SIZE = 45;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run
@@ -5391,10 +5397,13 @@ const WR24_RUN_KIT_HOME_NAMES = ["GIVEN_KIT_HOME", "GRUGOPS_HOME", "KIT_ROOT"] a
  * given-at-all test, the comparison with DOCTOR_KIT_HOME, the kitReal test of its agent-factory, and the two places the
  * FAIL names it. No other reference to this run's kit home is exempt; a further read of it in the doctor is a stop for
  * the human (D-40 flexibility), not a new row.
+ * Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review CR-08): the moved-kit FAIL's row is 6, measured by this walk. The
+ * one added reference is readKitHomeRecord(GIVEN_KIT_HOME): the condition reads the given kit home's own kit-home record
+ * to learn whether it was written for the recorded kit home (a move the record proves). Still one row, no new one.
  */
 const WR24_EXEMPT: Readonly<Record<string, { readonly count: number; readonly why: string }>> = {
   "doctor :: GRUGOPS_HOME": { count: 2, why: "the `given:` header line: the comparison with DOCTOR_KIT_HOME and the printed path of this run's kit home, named as not used" },
-  "doctor :: GIVEN_KIT_HOME": { count: 5, why: "the moved-kit FAIL (D-42): compares the kit home this run was given with the recorded one and names it" },
+  "doctor :: GIVEN_KIT_HOME": { count: 6, why: "the moved-kit FAIL (D-42, D-45): compares the kit home this run was given with the recorded one, reads its kit-home record, and names it" },
 };
 
 /** Whether an identifier is a reference (not a property name, a declared name, or a type name). */

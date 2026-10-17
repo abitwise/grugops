@@ -375,11 +375,15 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
     expect(sites.map(where), "a second fold helper: call canonicalPathSpelling from install/user-file.ts").toEqual([]);
   });
 
-  it("(e) every derived comparison of a recorded path lies in a spelling function, is spelled on every path operand, or is classified; sameRecordedPath decides markerBinding, readKitHomeRecord and isOwnLink", () => {
+  it("(e) every derived comparison of a recorded path lies in a spelling function, is spelled on every path operand, or is classified; sameRecordedPath decides markerBinding, readKitHomeRecord, recordNamesKitHome and isOwnLink", () => {
     const calls = sitesWhere((n) => ts.isCallExpression(n) && calleeName(n) === "sameRecordedPath");
-    expect(calls.map((s) => `${s.file}:${s.scope}`).sort(), "sameRecordedPath must decide markerBinding, readKitHomeRecord and isOwnLink, once each").toEqual([
+    // Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review CR-08): install.ts recordNamesKitHome joins the three. The
+    // doctor's moved-kit condition compares a kit-home record's grugopsHome (a real path) with the real path of the
+    // recorded kit home (realPathThroughExisting), in the one recorded-path spelling.
+    expect(calls.map((s) => `${s.file}:${s.scope}`).sort(), "sameRecordedPath must decide markerBinding, readKitHomeRecord, recordNamesKitHome and isOwnLink, once each").toEqual([
       "install-marker.ts:markerBinding",
       "install-marker.ts:readKitHomeRecord",
+      "install.ts:recordNamesKitHome",
       "user-file.ts:isOwnLink",
     ]);
 
