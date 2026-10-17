@@ -462,7 +462,14 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-25: install's INCOMPLETE banner names a re-run after a foreign verify
 
-- status: residual at phase close (D-44); open for the human; no round 6
+- status: resolved 2026-10-17, closed by D-45 (plan 34.1-59, commits ab18b3aa, 78ba1aa8, 4f02696b)
+- **Resolution:** D-45 item 3 (human, 2026-10-14, at UAT test 16, G-34.1-16) chose the second option below: install
+  asks install-marker.ts installRefusal once, before any write, and over a foreign or unreadable marker exits 3 having
+  written nothing in the target or the kit home; a foreign read's closing names no command. D-46 (human, 2026-10-17)
+  extends the refusal to an `ok` marker whose install ledger is malformed. Plan 34.1-60 (R56b, R56c) follows the
+  refusal's printed remedy to an install that a flag-less uninstall fully reverses, shows DRY_RUN reports the same
+  refusal, and makes install/README.md and CHANGELOG.md say so. Before D-45 its status was "residual at phase close
+  (D-44); open for the human; no round 6".
 - **Found during:** round-5 planning (reproduced with `install --codex`), recorded as residual by D-44 (iii) (human,
   2026-10-14) and written here by plan 34.1-57, Task 1, which ran it again in a scratch target (HOME and GRUGOPS_HOME
   scratch, 2026-10-14).
@@ -692,19 +699,79 @@ install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchang
 
 ## Found during the fix round after gap round 5 (D-45)
 
-- **DI-26:** open for the human, not in D-45's scope (recorded by plan 34.1-58 Task 3, this commit). With `.grugops` a
-  regular file or a symbolic link to nothing, the uninstaller's closing still says `.grugops/ (seeded state) is kept;
-  its install.json marker is reported on the next line.` Nothing at `.grugops` is a directory of seeded state then. The
-  next line, which says .grugops/install.json was left in place and points at the left or verify line above, is true,
-  and no line says the marker is not present (WR-39 holds). Reproduced in a scratch run with HOME
-  and GRUGOPS_HOME under the session scratchpad: install --codex, `.grugops` replaced by a file holding one line, then
-  a flag-less uninstall.
-- **DI-27:** open for the human, not in D-45's or D-46's scope (recorded by plan 34.1-59 Task 3, this commit; found
-  by the Task 1 executor's sibling search, read from the code, not reproduced in a run). The same class as DI-25 one
-  file over: the kit home's own record, `<GRUGOPS_HOME>/.grugops-kit.json`. When readKitHomeRecord answers
-  `unreadable`, install.ts writeKitHomeRecord prints a verify, leaves the record as it is and returns, but the run has
-  already copied the kit into the kit home (writeKitHomeRecord runs after copyKit), so a backup made in the kit home
-  that run stays unrecorded: prune never removes it, and the verify says to remove it by hand. installRefusal (plan
-  34.1-59) asks only the target's marker, so the kit-home record is not refused before the kit copy. Option for the
-  human: a pre-write refusal over an unreadable kit-home record, decided by one owner the way installRefusal decides
-  the marker's, or accept the unrecorded backup as named by the verify.
+### DI-26: with `.grugops` a regular file or a link to nothing, the uninstaller's closing still calls `.grugops/` seeded state
+
+- status: open for the human; not in D-45's scope (recorded by plan 34.1-58 Task 3, commit e1a5b165)
+- **What:** with `.grugops` a regular file or a symbolic link to nothing, the uninstaller's closing still says
+  `.grugops/ (seeded state) is kept; its install.json marker is reported on the next line.` Nothing at `.grugops` is a
+  directory of seeded state then. The next line, which says .grugops/install.json was left in place and points at the
+  left or verify line above, is true, and no line says the marker is not present (WR-39 holds). Reproduced in a
+  scratch run with HOME and GRUGOPS_HOME under the session scratchpad: install --codex, `.grugops` replaced by a file
+  holding one line, then a flag-less uninstall.
+
+### DI-27: install over an unreadable kit-home record copies the kit and leaves that run's backup unrecorded
+
+- status: open for the human; not in D-45's or D-46's scope (recorded by plan 34.1-59 Task 3, commit 4f02696b)
+- **What:** found by the Task 1 executor's sibling search, read from the code, not reproduced in a run. The same
+  class as DI-25 one file over: the kit home's own record, `<GRUGOPS_HOME>/.grugops-kit.json`. When readKitHomeRecord
+  answers `unreadable`, install.ts writeKitHomeRecord prints a verify, leaves the record as it is and returns, but the
+  run has already copied the kit into the kit home (writeKitHomeRecord runs after copyKit), so a backup made in the kit
+  home that run stays unrecorded: prune never removes it, and the verify says to remove it by hand. installRefusal
+  (plan 34.1-59) asks only the target's marker, so the kit-home record is not refused before the kit copy. Option for
+  the human: a pre-write refusal over an unreadable kit-home record, decided by one owner the way installRefusal
+  decides the marker's, or accept the unrecorded backup as named by the verify.
+
+## Status after the D-45 fix round (plans 34.1-58 to 34.1-60)
+
+Scope of the round is D-45 (human, 2026-10-14, at UAT tests 15 and 16; D-40's flexibility clause, one short fix round
+of three items) and D-46 (human, 2026-10-17, option-a at plan 34.1-59 Task 2). It closed CR-08 and WR-39 (plan
+34.1-58, commits e59106b8, 28db9a98, e1a5b165) and DI-25 (plan 34.1-59, commits ab18b3aa, 78ba1aa8, 4f02696b; plan
+34.1-60 Task 1 for the user-side rows and the docs). D-45 sent the remaining open items to backlog phases 999.6 to
+999.9 in ROADMAP.md; they are not planned in this phase. Every other id is as after round 5.
+
+- **DI-01:** decided (D-28): the by-name exclusion stays, as after round 5.
+- **DI-02:** resolved in plan 34.1-02; nothing left.
+- **DI-03:** confirmed absent on Node 22 CI by UAT test 10 (2026-10-14, result pass); still the Node 26 local
+  baseline (install/installer-fs-census.test.ts, openAsBlobSync), which plan 34.1-60's full regression reports again.
+- **DI-04:** closed by plan 34.1-13 (commit ac790deb).
+- **DI-05:** residual at phase close (D-39, D-40), as after round 5; not in D-45's scope.
+- **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
+- **DI-07:** fixed in round 2 by plan 34.1-21 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); its remaining arm is DI-11.
+- **DI-08:** fixed in round 2 by plan 34.1-27 (commits 5af55277, 0a72286c).
+- **DI-09:** fixed in round 2 by plan 34.1-28 (commits f65cfa0b, 2a055d1a).
+- **DI-10:** fixed in round 2 by plan 34.1-31 (commit 8d730df2).
+- **DI-11:** to backlog 999.6 (option (a), D-45; UAT test 14); not built in this phase.
+- **DI-12:** residual at phase close (D-39, D-40), as after round 5.
+- **DI-13:** residual at phase close (D-39, D-40), as after round 5.
+- **DI-14:** residual at phase close (D-39, D-40), as after round 5.
+- **DI-15:** to backlog 999.8 with DI-22 as the D-41 wording item (D-45; UAT test 11), with the UAT note that root
+  README.md line 18 and the install/README.md examples show a bare `node install/install.js`.
+- **DI-16:** closed by D-38 (plans 34.1-44, 34.1-47 and 34.1-49, commits 30003a2c, fadff0bb, c3d99e71).
+- **DI-17:** closed by D-38 (plan 34.1-49, commits fc4e57a4, c3d99e71).
+- **DI-18:** closed by plan 34.1-54 under D-40 and D-44 (commits cc2a57b5, dcfc7f9e, 9ff8142e).
+- **DI-19:** closed by plan 34.1-53 under D-40 (commits 6aa1f4c9, b72058ca).
+- **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551).
+- **DI-21:** resolved by commit 4e0fa03a.
+- **DI-22:** to backlog 999.8 with DI-15 as the D-41 wording item (D-45; UAT test 11), the README bare-install note
+  included.
+- **DI-23:** to backlog 999.9 (D-45; UAT test 16); not built in this phase.
+- **DI-24:** to backlog 999.9 (D-45; UAT test 16); not built in this phase.
+- **DI-25:** closed by plan 34.1-59 under D-45 and D-46 (commits ab18b3aa, 78ba1aa8, 4f02696b); proven from the
+  user's side and documented by plan 34.1-60 Task 1.
+- **DI-26:** open for the human (recorded by plan 34.1-58 Task 3, commit e1a5b165); not in D-45's scope.
+- **DI-27:** open for the human (recorded by plan 34.1-59 Task 3, commit 4f02696b); not in D-45's or D-46's scope.
+
+### Recorded for the human at phase close
+
+- **(a) D-38's uninstall reading is confirmed by D-45.** A printed uninstall.js command states GRUGOPS_HOME and
+  GRUGOPS_SRC and no INSTALL_MODE, because uninstall.js reads no INSTALL_MODE and refuses `--symlink` (plan 34.1-48's
+  reading, round-close item (a) after rounds 4 and 5).
+- **(b) IN-35 to IN-42 are residual at phase close (D-45).** IN-39's `given: ... not used` header is left as it is:
+  it is not in the moved-kit predicate's lines that plan 34.1-58 changed, so D-45 item 1 does not reach it. DRY_RUN
+  (review IN-37) stays residual as recorded after round 5.
+- **(c) WR-40 goes to backlog 999.7 with the D-41 wording item (D-45; UAT test 15).**
+- **(d) D-46's answer on the malformed install ledger: option-a (human, 2026-10-17).** Install refuses before any
+  write over an `ok` marker whose install ledger is malformed, exactly as over a foreign or unreadable marker
+  (installRefusal answers markerRemedy for every read; plan 34.1-59 Task 3, commit 4f02696b). No DI row: option-b
+  would have recorded one.
+- **(e) New items for the human from this round:** DI-26 and DI-27 (open).
