@@ -14,9 +14,11 @@ grugops is a file-based agent factory for software delivery. It is a small kit o
 Each agent is grug-brained on purpose: one job, short words, hard limits. Lean by default, enterprise governance on a flag. File-based. No platform. No lock-in.
 
 ```bash
-# install (Node 22+)
-node install/install.js
-# then, in your coding agent:
+# install for Claude Code (Node 22+), from a grugops checkout (Quickstart step 1)
+node install/install.js --target /path/to/your-project --claude
+# then start Claude Code in that project, with the Orchestrator as the main thread (recommended)
+cd /path/to/your-project && claude --agent grugops-orchestrator
+# or, in a Claude Code session that is already open
 /grugops "bootstrap this repo and propose safe first tickets"
 ```
 
