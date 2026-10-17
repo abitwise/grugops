@@ -567,13 +567,17 @@ function doctorCheckCommand(): string {
 
 /**
  * THE --migrate SAME-RUN COMMAND (phase 34.1 gap round 2, D-31, DI-09; D-33): `agentCommand("install.js", TARGET,
- * SELECTION, COMMAND_CONTEXT, ["--migrate"])`, the command that runs --migrate again for the agents this run chose, with
- * this run's kit home and install mode. Every --migrate remedy that asks for a re-run prints it: both migrate
- * INCOMPLETE banners (MIGRATE_AGAIN_LINE) and the handoffs backup's never-clobber abort. Called only under MIGRATE,
- * after SELECTION is set.
+ * agents, COMMAND_CONTEXT, ["--migrate"])`, the command that runs --migrate again for `agents`, with this run's kit home
+ * and install mode. Every --migrate remedy that asks for a re-run prints it: the one migrate INCOMPLETE banner
+ * (printMigrateIncomplete) and the handoffs backup's never-clobber abort. Called only under MIGRATE.
+ *
+ * `agents` (plan 34.1-61, 2026-10-17, D-47, WR-43): the handoffs backup's abort and the migrate arms pass SELECTION; the
+ * pre-write refusal of a --migrate run passes only the agents the user named (by flag or at the agent list), and none
+ * otherwise, which gives the --migrate command with no agent flag. It takes them as a parameter and reads no selection
+ * const, so it may run from inside the selection (refuseSelection).
  */
-function migrateCommand(): string {
-  return agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT, ["--migrate"]);
+function migrateCommand(agents: readonly HostTool[]): string {
+  return agentCommand("install.js", TARGET, agents, COMMAND_CONTEXT, ["--migrate"]);
 }
 
 // DOCTOR_NO_FLAG_CLAUSE: what install does with no agent flag, printed after doctorInstallCommand() by the remedies
@@ -587,8 +591,9 @@ const DOCTOR_NO_FLAG_CLAUSE =
   "with no agent flag, install shows the agent list at a terminal; unattended, it chooses the agents a usable marker " +
   "records, else the agents detected here, else it refuses and names the agent flags";
 
-// NOTHING_WRITTEN_LINE (plan 34.1-61, 2026-10-17, D-47): the one line an INCOMPLETE banner prints in place of a command
-// when its only cause is a user's own file at the marker path (a foreign read, D-44, D-45: nothing to fix, so no step
+// NOTHING_WRITTEN_LINE (plan 34.1-61, 2026-10-17, D-47): the one line the install and the migrate INCOMPLETE banners
+// (printInstallIncomplete, printMigrateIncomplete) print in place of a command when the only cause is a user's own file
+// at the marker path (a foreign read, D-44, D-45: nothing to fix, so no step
 // follows "leave it"). Declared here, above the agent selection, because the pre-write refusal can now run from inside
 // it (refuseSelection), and a const declared later would still be in its temporal dead zone there.
 const NOTHING_WRITTEN_LINE = "  Nothing was written in the target or the kit home.";
@@ -2904,7 +2909,7 @@ function backupDir(target: string, label: string, origin: Exclude<BackupOrigin, 
     report(
       "aborted",
       `${label}: a backup named ${backup} already exists — leaving ${target} untouched to avoid overwriting it. ` +
-        `Move or remove the existing backup, then re-run --migrate: \`${migrateCommand()}\`.`,
+        `Move or remove the existing backup, then re-run --migrate: \`${migrateCommand(SELECTION)}\`.`,
     );
     return false;
   }
@@ -6118,10 +6123,12 @@ const SELECTED_KINDS: ReadonlySet<HostAdapterKind> = new Set(SELECTION.map((h) =
 // refuseOverMarker prints the run header (target, and DRY_RUN's mode line), one verify in the owner's wording
 // (`.grugops/install.json` plus markerUnusableText of the read, why nothing was written, then markerFixText's remedy:
 // fix by hand and never delete, or for a foreign read "not written by install; if it is yours, leave it" with no next
-// step), the marker's own skipped line (reportMarkerUnchanged), and the install INCOMPLETE banner (printInstallIncomplete):
-// after every read but a foreign one, the install command for the agents passed to it as `named` and nothing else (an
-// empty `named` gives the install command with no agent flag); a foreign read's closing names no command (D-44, D-45: a
-// user's own file has nothing to fix, so no step follows "leave it"). Then it halts, exit 3, as the --update branch does
+// step), the marker's own skipped line (reportMarkerUnchanged), and the INCOMPLETE banner of the run's kind: for a
+// `--migrate` run the migrate banner (printMigrateIncomplete) with the --migrate command, otherwise the install banner
+// (printInstallIncomplete) with the install command (plan 34.1-61, 2026-10-17, D-47, WR-43). After every read but a
+// foreign one the command names the agents passed as `named` and nothing else (an empty `named` gives the command with
+// no agent flag); a foreign read's closing names no command (D-44, D-45: a user's own file has nothing to fix, so no
+// step follows "leave it"). Then it halts, exit 3, as the --update branch does
 // after its report: a mid-script exit, because the run must not go on to its first write. It may run from inside the
 // selection (refuseSelection), so neither it nor anything it calls reads SELECTION, SELECTION_WHY, AGENTS_AFTER or
 // SELECTED_KINDS: the agents reach it only as `named` (plan 34.1-61, D-47).
@@ -6153,7 +6160,11 @@ function refuseOverMarker(read: InstallMarkerRead, remedy: MarkerRemedy, named: 
       `${markerFixText(remedy, "re-run the installer")}.`,
   );
   reportMarkerUnchanged(remedy.defect);
-  printInstallIncomplete(remedy.defect !== "foreign", named);
+  // The closing by run kind (plan 34.1-61, 2026-10-17, D-47, WR-43): a run the user started as a migration gets the
+  // migrate banner and the --migrate command, so the command run as printed migrates (an old layout's config carry and
+  // agent-factory/ backup, the handoffs backup) instead of running an ordinary install.
+  if (MIGRATE) printMigrateIncomplete(remedy.defect !== "foreign", named);
+  else printInstallIncomplete(remedy.defect !== "foreign", named);
   // A MID-SCRIPT EXIT (plan 34.1-59, D-45, DI-25): nothing may run after the refusal. Its output is a few lines.
   process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
 }
@@ -6166,17 +6177,16 @@ let MIGRATE_KIT_PLAN: KitPlan | null = null;
 // kit the human did not consent to refuses the whole migration, and so the prompt is asked once.
 let MIGRATE_KIT_WRITE: KitWrite | null = null;
 if (MIGRATE) {
-  // THE MIGRATE SAME-RUN COMMAND (phase 34.1 gap round 2, D-31, DI-09; D-33). Both migrate INCOMPLETE banners (the
-  // pre-check's and the already-migrated arm's) print this line, built once here: running --migrate again for the
-  // agents this run chose, by migrateCommand (agentCommand with this run's context: the absolute script path, and this
-  // run's kit home, install mode and kit checkout stated as GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC, D-38; no printed
-  // command carries `--symlink`). A pre-check refusal changes nothing, so the
-  // target is still the old layout and this command, run as printed once the cause is fixed, migrates it whole. Before,
-  // the banner said only "re-run --migrate", and a flag-less --migrate over an old layout with no marker chooses its
-  // agents by detection, which may not be the agents this run named. Printed under DRY_RUN too.
-  const MIGRATE_AGAIN_LINE =
-    `  Once each is fixed, \`${migrateCommand()}\` runs ` +
-    `--migrate again for the same agents (add any other option this run was given).`;
+  // THE MIGRATE SAME-RUN COMMAND (phase 34.1 gap round 2, D-31, DI-09; D-33). Both migrate arms that end INCOMPLETE (the
+  // pre-check's refusal and the already-migrated arm) print the one migrate INCOMPLETE banner, printMigrateIncomplete
+  // (plan 34.1-61, 2026-10-17, D-47, WR-43: it owns the banner and the line after it, which the pre-write refusal of a
+  // --migrate run prints too), with SELECTION: its line runs --migrate again for the agents this run chose, by
+  // migrateCommand (agentCommand with this run's context: the absolute script path, and this run's kit home, install
+  // mode and kit checkout stated as GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC, D-38; no printed command carries
+  // `--symlink`). A pre-check refusal changes nothing, so the target is still the old layout and this command, run as
+  // printed once the cause is fixed, migrates it whole. Before, the banner said only "re-run --migrate", and a flag-less
+  // --migrate over an old layout with no marker chooses its agents by detection, which may not be the agents this run
+  // named. Printed under DRY_RUN too.
   const layout = detectOldLayout();
   // A --MIGRATE IS WHOLE OR NOT AT ALL, TOO (red-team B1 of plan 33.1-31, D-32, D-18). Everything the
   // migration can refuse before it changes anything is asked first: the legacy config carry and the
@@ -6214,11 +6224,7 @@ if (MIGRATE) {
           `backed up, plans/handoffs/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
           `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`,
       );
-      console.log(
-        `\n== migrate INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
-          `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
-      );
-      console.log(MIGRATE_AGAIN_LINE);
+      printMigrateIncomplete(true, SELECTION);
       // A MID-SCRIPT EXIT, the seventh of the pinned count: the run must stop before the handoffs
       // backup and the install run below. Its output is a few kilobytes.
       process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
@@ -6240,11 +6246,7 @@ if (MIGRATE) {
     // backup, its record, DRY_RUN) and chosen on the same branch as the exit status from VERIFY_FINDINGS.
     // A no-change sentence is printed only when this run changed nothing.
     if (VERIFY_FINDINGS > 0) {
-      console.log(
-        `\n== migrate INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
-          `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
-      );
-      console.log(MIGRATE_AGAIN_LINE);
+      printMigrateIncomplete(true, SELECTION);
     } else {
       console.log(
         layout.leftoverKit
@@ -7714,6 +7716,34 @@ function printInstallIncomplete(nextCommand: boolean, agents: readonly HostTool[
       (agents.length > 0
         ? `installs for the same agents again (add any other option this run was given).`
         : `installs again; ${DOCTOR_NO_FLAG_CLAUSE} (add any other option this run was given).`),
+  );
+}
+
+/**
+ * printMigrateIncomplete (plan 34.1-61, 2026-10-17, D-47, WR-43): THE ONE migrate INCOMPLETE banner, in printInstallIncomplete's
+ * shape, printed by the --migrate pre-check's refusal, the already-migrated arm when it counted a verify, and the
+ * pre-write refusal of a --migrate run (refuseOverMarker). The banner line carries the count of verify lines and
+ * DRY_RUN's suffix. With `nextCommand` the next line prints the --migrate command for `agents` (migrateCommand); without
+ * it (only the pre-write refusal over a foreign read, D-44, D-45) it prints NOTHING_WRITTEN_LINE and names no command.
+ * With `agents` the line is the one the two migrate arms printed before (MIGRATE_AGAIN_LINE, retired by this plan); with
+ * none it names no agent and says what the flag-less command does (DOCTOR_NO_FLAG_CLAUSE), never "the same agents". Until
+ * plan 34.1-61 a refused --migrate run printed `== install INCOMPLETE` and an install command without --migrate (the
+ * DI-09 class), so following it ran an ordinary install over an old layout. It reads no selection const.
+ */
+function printMigrateIncomplete(nextCommand: boolean, agents: readonly HostTool[]): void {
+  console.log(
+    `\n== migrate INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
+      `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
+  );
+  if (!nextCommand) {
+    console.log(NOTHING_WRITTEN_LINE);
+    return;
+  }
+  console.log(
+    `  Once each is fixed, \`${migrateCommand(agents)}\` ` +
+      (agents.length > 0
+        ? `runs --migrate again for the same agents (add any other option this run was given).`
+        : `runs --migrate again; ${DOCTOR_NO_FLAG_CLAUSE} (add any other option this run was given).`),
   );
 }
 

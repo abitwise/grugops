@@ -231,7 +231,8 @@ function commandHelpers(modules: readonly string[]): string[] {
 const REMEDY_BUILDERS: ReadonlySet<string> = new Set([...BUILDERS, ...commandHelpers(productModules())]);
 /**
  * Whether the expression `e` prints a built command: it calls a builder or a helper, or it is the name of a const whose
- * initializer does (MIGRATE_AGAIN_LINE, built once and printed from two banners).
+ * initializer does. (MIGRATE_AGAIN_LINE, the one such const, was retired by plan 34.1-61, 2026-10-17, D-47, WR-43: its
+ * line moved into printMigrateIncomplete, which calls migrateCommand directly; the const arm stays for any later one.)
  */
 function printsBuiltCommand(e: ts.Expression, src: ts.SourceFile): boolean {
   if (builderCallsIn(e, src).length > 0) return true;
@@ -739,25 +740,36 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   // Plan 34.1-28 (D-31, DI-09): a "same-run command (a migrate banner)" row is printed by the --migrate pre-check, whose
   // verify loop over `refusals` is followed by its report, the migrate INCOMPLETE banner, and the line that prints
   // migrateCommand(). Held by the parser: the pre-check's statement order, the line's initializer, and each row's site.
+  // Re-pinned 2026-10-17 by plan 34.1-61 (D-47, WR-43): the banner and its line are printed by their one owner,
+  // printMigrateIncomplete (which the pre-write refusal of a --migrate run calls too), so after the report comes
+  // `printMigrateIncomplete(true, SELECTION);`, and printMigrateIncomplete's command line calls migrateCommand. This
+  // replaces the check of MIGRATE_AGAIN_LINE's initializer, a const the plan retired.
   it("(f) each \"same-run command (a migrate banner)\" row is printed by the --migrate pre-check, whose banner line prints migrateCommand()", () => {
     const src = sourceOf("install.ts");
     const loops: ts.ForOfStatement[] = [];
-    let againInit: ts.Expression | undefined;
+    const owners: ts.FunctionDeclaration[] = [];
     const visit = (n: ts.Node): void => {
       if (ts.isForOfStatement(n) && n.expression.getText(src) === "refusals" && /^verify\(why\);?$|^\{\s*verify\(why\);?\s*\}$/.test(n.statement.getText(src).trim())) loops.push(n);
-      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "MIGRATE_AGAIN_LINE") againInit = n.initializer;
+      if (ts.isFunctionDeclaration(n) && n.name?.text === "printMigrateIncomplete") owners.push(n);
       ts.forEachChild(n, visit);
     };
     visit(src);
     expect(loops.length, "premise: the --migrate pre-check's verify loop over refusals").toBe(1);
-    expect(againInit !== undefined && builderCallsIn(againInit, src).includes("migrateCommand"), "MIGRATE_AGAIN_LINE prints migrateCommand()").toBe(true);
+    expect(owners.length, "printMigrateIncomplete is declared once").toBe(1);
+    const ownerLines = (owners[0]?.body?.statements ?? ts.factory.createNodeArray<ts.Statement>([])).filter(
+      (st) =>
+        ts.isExpressionStatement(st) &&
+        ts.isCallExpression(st.expression) &&
+        st.expression.expression.getText(src) === "console.log" &&
+        st.expression.arguments.some((a) => builderCallsIn(a, src).includes("migrateCommand")),
+    );
+    expect(ownerLines.length, "printMigrateIncomplete's command line prints migrateCommand(agents)").toBe(1);
     const block = loops[0].parent as ts.Block;
     const stmts = block.statements;
     const i = stmts.indexOf(loops[0]);
-    const texts = stmts.slice(i + 1, i + 4).map((s) => s.getText(src));
+    const texts = stmts.slice(i + 1, i + 3).map((s) => s.getText(src));
     expect(texts[0], "the pre-check's report follows its verify loop").toMatch(/^report\(\s*"migrate"/);
-    expect(texts[1], "then the migrate INCOMPLETE banner").toContain("== migrate INCOMPLETE — ");
-    expect(texts[2], "then the line that prints migrateCommand()").toBe("console.log(MIGRATE_AGAIN_LINE);");
+    expect(texts[1], "then the migrate INCOMPLETE banner and its command line, by their one owner, for this run's agents").toBe("printMigrateIncomplete(true, SELECTION);");
     const rows = RERUN_TABLE.filter((r) => r[2] === "same-run command (a migrate banner)");
     expect(rows.length, "premise: the class has rows").toBe(3);
     const found = fragmentsOf(["install.ts"]).filter((f) => RERUN.test(f.text));
@@ -796,8 +808,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   });
 
   // The "Once each is fixed" lines that call agentCommand directly, with their arguments (the install banner's, and from
-  // plan 34.1-28 the prune banner's); the migrate banners print migrateCommand() through MIGRATE_AGAIN_LINE and the
-  // update banner scriptCommand, which the banner row below holds.
+  // plan 34.1-28 the prune banner's); the migrate banner prints migrateCommand(agents) (printMigrateIncomplete, plan
+  // 34.1-61) and the update banner scriptCommand, which the banner row below holds.
   it("(f) the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", () => {
     const src = sourceOf("install.ts");
     const hits: string[] = [];
@@ -820,7 +832,9 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   // THE BANNER ROW (plan 34.1-28, D-31, the DI-09 class): every INCOMPLETE banner of install.ts is followed, in the same
   // block, by a console.log whose argument prints a built command (a builder or command-helper call, or a const built
   // from one). The banners are found by the parser (a string fragment holding "INCOMPLETE — " inside a console.log),
-  // never listed by hand, and counted: install, update, prune, the migrate pre-check and the already-migrated migrate.
+  // never listed by hand, and counted: install, update, prune and migrate. Re-pinned 2026-10-17 by plan 34.1-61 (D-47,
+  // WR-43; 5 -> 4): the two migrate banners (the pre-check's and the already-migrated arm's) are now one function,
+  // printMigrateIncomplete, which the pre-write refusal of a --migrate run calls too.
   it("(f) every INCOMPLETE banner of install.ts is followed in its block by a line that prints a built command", () => {
     const src = sourceOf("install.ts");
     const banners: ts.ExpressionStatement[] = [];
@@ -830,7 +844,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
       expect(p !== undefined && /^console\.log\(/.test(p.getText(src)), `${where(f)}: an INCOMPLETE banner not printed by console.log`).toBe(true);
       if (p !== undefined && !banners.includes(p as ts.ExpressionStatement)) banners.push(p as ts.ExpressionStatement);
     }
-    expect(banners.length, "the INCOMPLETE banners of install.ts (install, update, prune, two migrate)").toBe(5);
+    expect(banners.length, "the INCOMPLETE banners of install.ts (install, update, prune, migrate)").toBe(4);
     const off: string[] = [];
     for (const b of banners) {
       const block = b.parent;
@@ -857,37 +871,46 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   // (refuseOverMarker). Between its banner line and the line that prints the built command there is exactly one
   // statement, `if (!nextCommand) { console.log(<no command>); return; }`: the branch that prints no command. It is
   // reached only for a foreign read (a user's own file at the marker path has nothing to fix, so no step follows "leave
-  // it"): every call of printInstallIncomplete passes `true` or `<remedy>.defect !== "foreign"`, and there are two.
-  it("(f) the install INCOMPLETE banner's one branch without a command is reached only for a foreign read", () => {
-    const src = sourceOf("install.ts");
-    const decls: ts.FunctionDeclaration[] = [];
-    const calls: ts.CallExpression[] = [];
-    const visit = (n: ts.Node): void => {
-      if (ts.isFunctionDeclaration(n) && n.name?.text === "printInstallIncomplete") decls.push(n);
-      if (ts.isCallExpression(n) && n.expression.getText(src) === "printInstallIncomplete") calls.push(n);
-      ts.forEachChild(n, visit);
-    };
-    visit(src);
-    expect(decls.length, "printInstallIncomplete is declared once").toBe(1);
-    const body = decls[0].body?.statements ?? ts.factory.createNodeArray<ts.Statement>([]);
-    const bannerAt = body.findIndex((st) => st.getText(src).includes("INCOMPLETE — "));
-    expect(bannerAt, "the banner is the function's first statement").toBe(0);
-    const commandAt = body.findIndex((st) => ts.isExpressionStatement(st) && ts.isCallExpression(st.expression) && st.expression.arguments.some((a) => printsBuiltCommand(a, src)));
-    expect(commandAt, "a later statement prints the built command").toBeGreaterThan(bannerAt);
-    const between = body.slice(bannerAt + 1, commandAt);
-    const branches = between.filter((st) => ts.isIfStatement(st));
-    expect(branches.length, "exactly one branch sits between the banner and the command").toBe(1);
-    const branch = branches[0] as ts.IfStatement;
-    expect(branch.expression.getText(src), "the branch is taken only without nextCommand").toBe("!nextCommand");
-    const thenText = branch.thenStatement.getText(src);
-    expect(/\breturn\b/.test(thenText), "the branch returns before the command").toBe(true);
-    expect(/install\.js|agentCommand|scriptCommand|Command\(/.test(thenText), "the branch prints no command").toBe(false);
-    expect(between.every((st) => ts.isIfStatement(st) || (ts.isExpressionStatement(st) && st.getText(src).startsWith("console.log("))), "only console.log lines and the branch sit between").toBe(true);
-    // Re-pinned 2026-10-17 by plan 34.1-61 (D-47, WR-42): each caller passes the agents its command names as a second
-    // argument, the run's closing SELECTION and the pre-write refusal `named`. The first argument is unchanged: `true` or
-    // the not-foreign test, so the no-command branch is still reached for a foreign read alone.
-    expect(calls.map((c) => c.arguments.map((a) => a.getText(src)).join(", ")).sort(), "every caller passes true or the not-foreign test").toEqual(['remedy.defect !== "foreign", named', "true, SELECTION"]);
-  });
+  // it"): every call of printInstallIncomplete passes `true` or `<remedy>.defect !== "foreign"` first.
+  // Generalized 2026-10-17 by plan 34.1-61 (D-47, WR-42, WR-43) over both banner functions: printMigrateIncomplete, the one
+  // migrate INCOMPLETE banner, has the same shape, called by the --migrate pre-check, the already-migrated arm and the
+  // pre-write refusal of a --migrate run. Each caller's second argument is the agents its command names: the run's own
+  // SELECTION, or the refusal's `named` (the agents the user named, plan 34.1-61, D-47, WR-41). Pinned per function.
+  const BANNER_OWNERS: Readonly<Record<string, readonly string[]>> = {
+    printInstallIncomplete: ['remedy.defect !== "foreign", named', "true, SELECTION"],
+    printMigrateIncomplete: ['remedy.defect !== "foreign", named', "true, SELECTION", "true, SELECTION"],
+  };
+  for (const [owner, callers] of Object.entries(BANNER_OWNERS)) {
+    it(`(f) ${owner}'s one branch without a command is reached only for a foreign read`, () => {
+      const src = sourceOf("install.ts");
+      const decls: ts.FunctionDeclaration[] = [];
+      const calls: ts.CallExpression[] = [];
+      const visit = (n: ts.Node): void => {
+        if (ts.isFunctionDeclaration(n) && n.name?.text === owner) decls.push(n);
+        if (ts.isCallExpression(n) && n.expression.getText(src) === owner) calls.push(n);
+        ts.forEachChild(n, visit);
+      };
+      visit(src);
+      expect(decls.length, `${owner} is declared once`).toBe(1);
+      const body = decls[0].body?.statements ?? ts.factory.createNodeArray<ts.Statement>([]);
+      const bannerAt = body.findIndex((st) => st.getText(src).includes("INCOMPLETE — "));
+      expect(bannerAt, "the banner is the function's first statement").toBe(0);
+      const commandAt = body.findIndex((st) => ts.isExpressionStatement(st) && ts.isCallExpression(st.expression) && st.expression.arguments.some((a) => printsBuiltCommand(a, src)));
+      expect(commandAt, "a later statement prints the built command").toBeGreaterThan(bannerAt);
+      const between = body.slice(bannerAt + 1, commandAt);
+      const branches = between.filter((st) => ts.isIfStatement(st));
+      expect(branches.length, "exactly one branch sits between the banner and the command").toBe(1);
+      const branch = branches[0] as ts.IfStatement;
+      expect(branch.expression.getText(src), "the branch is taken only without nextCommand").toBe("!nextCommand");
+      const thenText = branch.thenStatement.getText(src);
+      expect(/\breturn\b/.test(thenText), "the branch returns before the command").toBe(true);
+      expect(/install\.js|agentCommand|scriptCommand|Command\(/.test(thenText), "the branch prints no command").toBe(false);
+      expect(between.every((st) => ts.isIfStatement(st) || (ts.isExpressionStatement(st) && st.getText(src).startsWith("console.log("))), "only console.log lines and the branch sit between").toBe(true);
+      const firstArgs = calls.map((c) => c.arguments[0]?.getText(src) ?? "");
+      for (const a of firstArgs) expect(['true', 'remedy.defect !== "foreign"'], `a caller's first argument ${a} is neither true nor the not-foreign test`).toContain(a);
+      expect(calls.map((c) => c.arguments.map((a) => a.getText(src)).join(", ")).sort(), "the callers, pinned").toEqual([...callers].sort());
+    });
+  }
 });
 
 // ── (e) the scenario matrix ──────────────────────────────────────────────────────────────────────────────────────────

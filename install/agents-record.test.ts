@@ -3437,6 +3437,95 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     }
   });
 
+  /**
+   * The flag-less --migrate leg of R57 and R57b (plan 34.1-61, 2026-10-17, D-47, WR-43): over the same unusable marker, a
+   * flag-less `--yes --migrate` exits 3, changes neither the target nor HOME, prints one migrate INCOMPLETE banner and no
+   * install one, and prints exactly the --migrate command with no agent flag.
+   */
+  function expectFlaglessMigrateRefusal(w: World, before: string, homeBefore: string): void {
+    const m = installFlagless(w, ["--migrate"]);
+    expect(m.status, `a flag-less --migrate over a marker it cannot use\n${m.stdout}\n${m.stderr}`).toBe(3);
+    expect(snapshotTree(w.target), `--migrate: the target changed\n${m.stdout}`).toBe(before);
+    expect(snapshotTree(w.home), `--migrate: HOME changed\n${m.stdout}`).toBe(homeBefore);
+    const lines = m.stdout.split("\n");
+    expect(lines.filter((l) => l.startsWith("== migrate INCOMPLETE — ")).length, `--migrate: one migrate INCOMPLETE banner\n${m.stdout}`).toBe(1);
+    expect(lines.filter((l) => l.startsWith("== install INCOMPLETE — ")), `--migrate: an install INCOMPLETE banner\n${m.stdout}`).toEqual([]);
+    expect(printedCommands(`${m.stdout}\n${m.stderr}`), `--migrate: the closing prints exactly the --migrate command with no agent flag\n${m.stdout}`).toEqual([
+      agentCommand("install.js", w.target, [], ctxOf(w), ["--migrate"]),
+    ]);
+    for (const l of allLines(m)) expect(l, "--migrate: a line says the same agents for agents nobody named").not.toContain("the same agents");
+    expect(removalOffers(m), "--migrate: a line offers removing the marker").toEqual([]);
+  }
+
+  // R57c (plan 34.1-61, 2026-10-17, D-47, 34.1 review WR-43): a refused --migrate run prints the migrate INCOMPLETE banner
+  // and the --migrate command, and that command, followed as printed, migrates. Until plan 34.1-61 the pre-write refusal
+  // printed `== install INCOMPLETE` and an install command without --migrate (the DI-09 class), so following it over an
+  // old in-repo layout ran an ordinary install: no config carry and no agent-factory/ backup. Shape (i): an old in-repo
+  // layout whose `.grugops` is a user's regular file (a blocked read); the user moves the file aside and makes a real
+  // `.grugops` directory (the verify's fix), and the printed command migrates the old layout whole. Shape (ii): an
+  // install with a user's handoff and one trailing comma in the marker; with the comma fixed, the printed --migrate
+  // command backs up the handoff and records the backup.
+  it("R57c (WR-43, D-47): install --migrate --codex over (i) an old in-repo layout whose .grugops is a user's file and (ii) an install with a user's handoff and a trailing comma exits 3, changes nothing, prints one migrate INCOMPLETE banner, no install banner, and exactly the --migrate --codex command; followed as printed after the by-hand fix, (i) migrates the old layout (config carried, the legacy file renamed aside, agents ['codex']) and (ii) backs up and records the handoff", () => {
+    const want = (w: World): string => agentCommand("install.js", w.target, [row("codex")], ctxOf(w), ["--migrate"]);
+    const refusedMigrate = (w: World, what: string): Run => {
+      const before = snapshotTree(w.target);
+      const homeBefore = snapshotTree(w.home);
+      const r = runInstall(w.target, w.grugopsHome, ["--migrate", flag("codex")], { home: w.home, timeoutMs: 180_000 });
+      finished(r, `${what}: install --migrate --codex`);
+      expect(r.status, `${what}: exit\n${r.stdout}\n${r.stderr}`).toBe(3);
+      expect(snapshotTree(w.target), `${what}: the target changed\n${r.stdout}`).toBe(before);
+      expect(snapshotTree(w.home), `${what}: HOME changed\n${r.stdout}`).toBe(homeBefore);
+      const lines = r.stdout.split("\n");
+      expect(lines.filter((l) => l.startsWith("== migrate INCOMPLETE — ")).length, `${what}: one migrate INCOMPLETE banner\n${r.stdout}`).toBe(1);
+      expect(lines.filter((l) => l.startsWith("== install INCOMPLETE — ")), `${what}: an install INCOMPLETE banner\n${r.stdout}`).toEqual([]);
+      expect(printedCommands(`${r.stdout}\n${r.stderr}`), `${what}: the closing prints exactly the --migrate --codex command\n${r.stdout}`).toEqual([want(w)]);
+      const again = lines.filter((l) => l.includes(`\`${want(w)}\``));
+      expect(again.length, `${what}: one line holds the command\n${r.stdout}`).toBe(1);
+      expect(again[0], `${what}: the line names the mode it runs again`).toContain(" runs --migrate again for the same agents");
+      expect(removalOffers(r), `${what}: a line offers removing the marker`).toEqual([]);
+      return r;
+    };
+
+    // Shape (i): an old in-repo layout, `.grugops` a user's regular file.
+    const a = world("r57c-old-layout");
+    makeOldLayoutFixture(a.target);
+    writeFileSync(at(a.target, ".grugops"), "a user's own note, not install's\n");
+    const readA = readInstallMarker(a.target);
+    expect(readA.state === "unreadable" ? readA.defect : readA.state, "PREMISE: a regular file at .grugops reads blocked").toBe("blocked");
+    const ra = refusedMigrate(a, "(i) old layout");
+    // The by-hand fix the verify names: the user's file moved aside, a real .grugops directory in its place. The
+    // repository holds no install record, so nothing else is restored.
+    renameSync(at(a.target, ".grugops"), join(dirname(a.target), "users-grugops-note"));
+    mkdirSync(at(a.target, ".grugops"));
+    expect(readInstallMarker(a.target).state, "PREMISE: with the file moved aside the marker reads absent").toBe("absent");
+    const fa = runPrinted(a, ra.stdout);
+    expect(fa.premise.kitHomeBeforePrinted, "premise: the child's environment held the conflicting GRUGOPS_HOME").toBe(fa.premise.conflictingKitHome);
+    expect(fa.premise.installModeBeforePrinted, "premise: the child's environment held the conflicting INSTALL_MODE").toBe(fa.premise.conflictingInstallMode);
+    expect(pathText(fa.premise.grugopsHome), "premise: the printed GRUGOPS_HOME is the world's kit home").toBe(pathText(a.grugopsHome));
+    expect(fa.status, `(i): the printed --migrate command\n${fa.stdout}\n${fa.stderr}`).toBe(0);
+    expect(fa.stdout, "(i): the old-layout migration ran").toContain("== grugops migrate (old in-repo layout → two-root) ==");
+    expect(fa.stdout, "(i): the run took the already-migrated arm").not.toContain("already migrated");
+    expect(readFileSync(at(a.target, ".grugops/factory.config.json"), "utf8"), "(i): the legacy config was carried").toContain("OLD-USER-EDITED-CONFIG-KIT-LOCATION");
+    expect(existsSync(at(a.target, "agent-factory/config/factory.config.json")), "(i): the legacy config file is still in place (not renamed aside)").toBe(false);
+    expect(readInstallMarker(a.target).state, `(i): the marker after the migration\n${fa.stdout}`).toBe("ok");
+    expect(agentsOf(a), fa.stdout).toEqual(ids("codex"));
+
+    // Shape (ii): an install with a user's handoff and one trailing comma in the marker.
+    const b = world("r57c-handoff");
+    install(b, [flag("codex")]);
+    mkdirSync(dirname(at(b.target, MATRIX_HANDOFF_REL)), { recursive: true });
+    writeFileSync(at(b.target, MATRIX_HANDOFF_REL), "a user's handoff\n");
+    const backups = ledgerEntries(b).filter((e) => e.kind === "backup").length;
+    const original = addTrailingComma(b);
+    const rb = refusedMigrate(b, "(ii) handoff");
+    writeFileSync(markerPath(b), original);
+    const fb = runPrinted(b, rb.stdout);
+    expect(fb.status, `(ii): the printed --migrate command\n${fb.stdout}\n${fb.stderr}`).toBe(0);
+    expect(fb.stdout, "(ii): the already-migrated arm ran").toContain("already migrated to the two-root layout");
+    expect(ledgerEntries(b).filter((e) => e.kind === "backup").length, `(ii): the handoffs backup was not recorded\n${fb.stdout}`).toBe(backups + 1);
+    expect(agentsOf(b), fb.stdout).toEqual(ids("codex"));
+  });
+
   // R57 (plan 34.1-61, 2026-10-17, D-47, 34.1 review WR-42): the one decision, installRefusal, is asked before a selection
   // refusal can fire. Until plan 34.1-61 a flag-less unattended run over a marker install cannot use, with no agent
   // detected, exited 1 saying "no agent was named, none is recorded in .grugops/install.json and none was detected" (a
@@ -3473,6 +3562,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
       agentCommand("install.js", w.target, [], ctxOf(w)),
     ]);
     expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
+    expectFlaglessMigrateRefusal(w, before, homeBefore);
 
     // Follow it: the original bytes put back by hand (the fix the verify names), then the printed command run as printed.
     writeFileSync(markerPath(w), original);
@@ -3544,6 +3634,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     for (const c of printed) for (const f of HOST_TOOLS.map(agentFlag)) expect(shellWords(c), `a printed command names ${f}: ${c}`).not.toContain(f);
     for (const l of allLines(r)) expect(l, "a line says the same agents for agents chosen by detection").not.toContain("the same agents");
     expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
+    expectFlaglessMigrateRefusal(w, before, homeBefore);
 
     // Follow everything printed: the original bytes put back by hand (the verify's fix), then the command as printed.
     writeFileSync(markerPath(w), original);
@@ -3774,6 +3865,12 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 // with no agent flag (agentCommand with an empty agent list and this world's context). The controls run every printing
 // run, the flag-less one included, and assert the zero-offer rule only.
 //
+// THE CLOSING BY RUN KIND (plan 34.1-61, 2026-10-17, D-47, WR-43). A refused `--migrate` run prints the migrate
+// INCOMPLETE banner and the --migrate command, never the install banner and a plain install command (the DI-09 class).
+// "install --migrate --codex" expects one `== migrate INCOMPLETE — ` line, no install one, and the --migrate --codex
+// command; a ninth run, "install --migrate (flag-less)", expects the --migrate command with no agent flag (9 runs, 6 of
+// them install runs). An install run expects the reverse.
+//
 // Each cell starts from a real .grugops directory holding the files install wrote (resetGrugops), applies one shape,
 // asserts the premise through the product's reader (the state and the defect the row is keyed by), runs, and undoes
 // what the shape made outside .grugops. The install runs may write other files in the target; only the marker and the
@@ -3958,10 +4055,11 @@ interface PrintingRun {
   readonly uninstall: boolean;
   /**
    * For an install run (plan 34.1-59, D-45, D-46): the agents it names, whose install command the refusal's closing
-   * prints; whether it is a DRY_RUN; and whether it is one of the two runs this plan added (a cell installRefusal does
-   * not answer is a counted skip under them).
+   * prints; whether it is a DRY_RUN; and whether it is one of the runs added for the refusal (a cell installRefusal does
+   * not answer is a counted skip under them). `migrate` (plan 34.1-61, 2026-10-17, D-47, WR-43): whether the run is a
+   * `--migrate` run, whose refusal prints the migrate INCOMPLETE banner and the --migrate command.
    */
-  readonly install?: { readonly agents: readonly string[]; readonly dryRun: boolean; readonly added: boolean };
+  readonly install?: { readonly agents: readonly string[]; readonly dryRun: boolean; readonly added: boolean; readonly migrate: boolean };
   readonly go: (w: World) => Run;
 }
 const PRINTING_RUNS: readonly PrintingRun[] = [
@@ -3970,14 +4068,14 @@ const PRINTING_RUNS: readonly PrintingRun[] = [
     name: "install --claude",
     exit: 3,
     uninstall: false,
-    install: { agents: ["claude"], dryRun: false, added: false },
+    install: { agents: ["claude"], dryRun: false, added: false, migrate: false },
     go: (w) => runInstall(w.target, w.grugopsHome, [flag("claude")], { home: w.home, timeoutMs: 180_000 }),
   },
   {
     name: "install --codex",
     exit: 3,
     uninstall: false,
-    install: { agents: ["codex"], dryRun: false, added: false },
+    install: { agents: ["codex"], dryRun: false, added: false, migrate: false },
     go: (w) => runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, timeoutMs: 180_000 }),
   },
   // Added 2026-10-17 by plan 34.1-59 (D-45, DI-25, D-46): DRY_RUN reports the same refusal, and --migrate (whose
@@ -3986,14 +4084,14 @@ const PRINTING_RUNS: readonly PrintingRun[] = [
     name: "install --codex (DRY_RUN)",
     exit: 3,
     uninstall: false,
-    install: { agents: ["codex"], dryRun: true, added: true },
+    install: { agents: ["codex"], dryRun: true, added: true, migrate: false },
     go: (w) => runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, dryRun: true, timeoutMs: 180_000 }),
   },
   {
     name: "install --migrate --codex",
     exit: 3,
     uninstall: false,
-    install: { agents: ["codex"], dryRun: false, added: true },
+    install: { agents: ["codex"], dryRun: false, added: true, migrate: true },
     go: (w) => runInstall(w.target, w.grugopsHome, ["--migrate", flag("codex")], { home: w.home, timeoutMs: 180_000 }),
   },
   // Added 2026-10-17 by plan 34.1-61 (D-47, WR-41, WR-42): a flag-less install. No agent flag and no agent list named
@@ -4003,8 +4101,17 @@ const PRINTING_RUNS: readonly PrintingRun[] = [
     name: "install (flag-less)",
     exit: 3,
     uninstall: false,
-    install: { agents: [], dryRun: false, added: true },
+    install: { agents: [], dryRun: false, added: true, migrate: false },
     go: (w) => installFlagless(w, []),
+  },
+  // Added 2026-10-17 by plan 34.1-61 (D-47, WR-43): a flag-less --migrate. Its refusal prints the migrate banner and the
+  // --migrate command with no agent flag (no flag and no agent list named the agents).
+  {
+    name: "install --migrate (flag-less)",
+    exit: 3,
+    uninstall: false,
+    install: { agents: [], dryRun: false, added: true, migrate: true },
+    go: (w) => installFlagless(w, ["--migrate"]),
   },
   { name: "uninstall (flag-less)", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, []) },
   { name: "uninstall --codex", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, [flag("codex")]) },
@@ -4235,16 +4342,23 @@ function matrixRows(defect: MarkerDefect): MatrixResult {
       if (run.install !== undefined && refusal !== null) {
         if (treeAfter !== treeBefore) bad(`the target changed (the marker path left out)\n${r.stdout}`);
         if (homeAfter !== homeBefore) bad(`HOME (the kit home under it) changed\n${r.stdout}`);
-        const banner = r.stdout.split("\n").filter((l) => l.startsWith("== install INCOMPLETE — "));
-        if (banner.length !== 1) bad(`${banner.length} install INCOMPLETE banner(s), want one\n${r.stdout}`);
+        // The banner by run kind (plan 34.1-61, 2026-10-17, D-47, WR-43): a --migrate run prints exactly one migrate
+        // INCOMPLETE banner and no install one; an install run the reverse. DRY_RUN's suffix is checked on the banner of
+        // the run's kind.
+        const kind = run.install.migrate ? "migrate" : "install";
+        const other = run.install.migrate ? "install" : "migrate";
+        const banner = r.stdout.split("\n").filter((l) => l.startsWith(`== ${kind} INCOMPLETE — `));
+        if (banner.length !== 1) bad(`${banner.length} ${kind} INCOMPLETE banner(s), want one\n${r.stdout}`);
         else if (run.install.dryRun !== banner[0].includes("(DRY_RUN — nothing changed)")) bad(`the banner's DRY_RUN suffix is wrong for this run: ${banner[0]}`);
+        const wrongKind = r.stdout.split("\n").filter((l) => l.startsWith(`== ${other} INCOMPLETE — `));
+        if (wrongKind.length > 0) bad(`a ${other} INCOMPLETE banner on a ${kind} run: ${wrongKind.join(" | ")}`);
         const printed = printedCommands(`${r.stdout}\n${r.stderr}`);
         if (refusal.defect === "foreign") {
           if (printed.length > 0) bad(`a foreign read's output names a command: ${printed.join(" | ")}`);
           for (const l of allLines(r)) if (/\b(un)?install\.js\b/.test(l)) bad(`a line names an installer script after a foreign read: ${l}`);
         } else {
-          const want = agentCommand("install.js", w.target, run.install.agents.map(row), ctxOf(w));
-          if (JSON.stringify(printed) !== JSON.stringify([want])) bad(`the closing does not print exactly the install command for this run's agents\n  got  ${JSON.stringify(printed)}\n  want ${JSON.stringify([want])}`);
+          const want = agentCommand("install.js", w.target, run.install.agents.map(row), ctxOf(w), run.install.migrate ? ["--migrate"] : []);
+          if (JSON.stringify(printed) !== JSON.stringify([want])) bad(`the closing does not print exactly the ${kind} command for this run's agents\n  got  ${JSON.stringify(printed)}\n  want ${JSON.stringify([want])}`);
         }
       }
     }
@@ -4267,6 +4381,8 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
     expect(shapes, "the matrix has 25 shapes").toBe(25);
     // Re-pinned 2026-10-17 by plan 34.1-59 (D-45, DI-25, D-46): two install runs added, a DRY_RUN and a --migrate (5 -> 7).
     // Re-pinned by plan 34.1-61, 2026-10-17, D-47, WR-41: a flag-less install run, whose refusal names no agent (7 -> 8).
+    // Re-pinned by plan 34.1-61, 2026-10-17, D-47, WR-43: a refused --migrate run prints the migrate banner and the
+    // --migrate command; a flag-less --migrate run added (8 -> 9).
     expect(PRINTING_RUNS.map((p) => p.name), "the printing runs").toEqual([
       "--check",
       "install --claude",
@@ -4274,6 +4390,7 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
       "install --codex (DRY_RUN)",
       "install --migrate --codex",
       "install (flag-less)",
+      "install --migrate (flag-less)",
       "uninstall (flag-less)",
       "uninstall --codex",
     ]);
@@ -4295,7 +4412,9 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
         expect(cells, `PREMISE: ${defect}: the cells run`).toBe(constructed * PRINTING_RUNS.length - notRefusedSkips.length);
         const installRuns = PRINTING_RUNS.filter((p) => p.install !== undefined).length;
         // Re-pinned by plan 34.1-61, 2026-10-17, D-47, WR-41: a flag-less install run, whose refusal names no agent (4 -> 5).
-        expect(installRuns, "PREMISE: five install runs").toBe(5);
+        // Re-pinned by plan 34.1-61, 2026-10-17, D-47, WR-43: a refused --migrate run prints the migrate banner and the
+        // --migrate command; a flag-less --migrate run added (5 -> 6).
+        expect(installRuns, "PREMISE: six install runs").toBe(6);
         expect(installCells, `PREMISE: ${defect}: the install cells run`).toBe(constructed * installRuns - notRefusedSkips.length);
         // THE D-46 PIN (human, 2026-10-17, option-a): every defect is refused, so every install cell is a refusal cell
         // and no cell of an added run is skipped.
