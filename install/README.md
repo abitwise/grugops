@@ -178,6 +178,8 @@ these is a breaking change.
   terminal), the run is for the agents recorded in `.grugops/install.json`; else, for an install made
   before that record existed, Claude Code, Copilot and Pi; else the agents detected in the repository.
   With none of these it writes nothing and exits `1` ("Which agents an unattended install is for").
+  When `.grugops/install.json` is a file install cannot use, it exits `3` instead, with its `verify`
+  line about the file (see the exit codes below).
 - **Agent flags with a mode.** An agent flag combined with `--check`, `--update` or `--prune-old-kit`
   is bad usage: exit `2`, nothing read or written. `--check` reads the agents from the install record
   instead.
@@ -193,9 +195,9 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 | Code | Meaning |
 |------|---------|
 | `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the `plans/handoffs/` backup it made, named, and whether it was recorded in `.grugops/install.json`) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). An uninstall that removes some agents (`--codex`, …) adds which agents it removed and which stay installed to its closing line (see "Removing one agent" under Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
-| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below), refuses when no agent was named, none is recorded and none was detected (see "Which agents an unattended install is for"), and refuses when the agent list at a terminal is cancelled with Ctrl-C or confirmed with no agent checked (see "The agent list at a terminal"); each of these selection refusals names every agent flag. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
+| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below), refuses when no agent was named, none is recorded and none was detected (see "Which agents an unattended install is for"), and refuses when the agent list at a terminal is cancelled with Ctrl-C or confirmed with no agent checked (see "The agent list at a terminal"); each of these selection refusals names every agent flag. When `.grugops/install.json` is a file install cannot use, these selection refusals exit `3` instead, with the `verify` line about the file (row `3`). `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, `--target` with no value, or (`install.js` only) an agent flag (`--claude`, `--codex`, …) combined with `--check`, `--update` or `--prune-old-kit`. Nothing was read or written. |
-| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. `install.js` also exits `3`, and stops before it writes anything in the repository or the kit home, when `.grugops/install.json` is a file it cannot use: a file install never wrote, one it cannot read, or one whose install ledger is malformed (see the paragraph under Undo that opens "The marker is install's record for one directory"). |
+| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. `install.js` also exits `3`, and stops before it writes anything in the repository or the kit home, when `.grugops/install.json` is a file it cannot use, whether or not an agent was named or could be chosen: a file install never wrote, one it cannot read, or one whose install ledger is malformed (see the paragraph under Undo that opens "The marker is install's record for one directory"). |
 
 Code `3` is the important one: grug not lie about finish. A run that could not read a source
 directory, that refused an adapter (a `models` block the resolver refuses is one way), or that could
@@ -321,7 +323,8 @@ no all-agents flag. With one or more of them, the run chooses exactly the agents
    So a `.gemini` directory (for example one an earlier Gemini CLI setup left) chooses Antigravity
    CLI, and a `.pi` directory chooses Pi.
 4. **Nothing recorded and nothing detected:** the installer writes nothing, exits `1`, and its
-   stderr message names every agent flag to pass.
+   stderr message names every agent flag to pass. When `.grugops/install.json` is a file install
+   cannot use, it exits `3` instead, with its `verify` line about the file in place of that message.
 
 The run banner's `agents:` line names each chosen agent and why it was chosen (named by flag,
 recorded, installed before this release, or detected with its signal), so a choice made by detection
@@ -353,6 +356,8 @@ Choose the coding agents to install grugops for (arrows or j/k move, space toggl
   installs it and the command that takes it out of the record.
 - **Nothing checked, or Ctrl-C:** confirming with no agent checked, or pressing Ctrl-C at the list,
   exits `1` and writes nothing. The message names every agent flag, as the refusal in step 4 does.
+  When `.grugops/install.json` is a file install cannot use, it exits `3` instead, with its `verify`
+  line about the file.
 - **What skips the list:** any agent flag, `--yes`, or a standard input or output that is not a
   terminal (a pipe, a redirect, CI). The run then chooses in the order above.
 
@@ -1008,7 +1013,13 @@ and its `target` is this directory. A JSON object at `.grugops/install.json` who
 those values is not used as install's marker: the uninstaller uses none of the records in it, removes
 nothing on it, leaves it in place, and reports a `verify` finding (exit `3`); the installer stops
 before it writes anything, in the repository or the kit home, leaves the file byte for byte, and exits
-`3` too, with its `verify` line about the file. A `DRY_RUN` run shows the same stop. When the object holds none of
+`3` too, with its `verify` line about the file. A `DRY_RUN` run shows the same stop. The installer's
+closing line names the install command with the agents you named by agent flag or at the agent list. When you named
+none (the agents came from the record or from detection, or none could be chosen), it names the
+install command with no agent flag, which, once the file is fixed, shows the agent list at a terminal
+and otherwise chooses as "Which agents an unattended install is for" says. A `--migrate` run ends with
+`== migrate INCOMPLETE` and the `--migrate` command instead, naming agents the same way. Over a file install
+never wrote, the closing names no command. When the object holds none of
 install's fields (`grugopsHome`, `kitRoot`, `installMode`, `target`, `ledger`), install never wrote it:
 `--check`, the installer and the uninstaller say in their line about it that it was not written by
 install and, if it is yours, to leave it; that line names no next step and offers no removal.

@@ -98,7 +98,8 @@ CLI with Antigravity CLI.
 - The agent list at a terminal (34.1 D-02). With a terminal on standard input and output, no agent
   flag and no `--yes`, install shows a checkbox list of every supported agent, with the installed and
   detected agents checked and labelled. Ctrl-C, or confirming with no agent checked, exits `1` and
-  writes nothing. Any agent flag, `--yes`, or a standard input or output that is not a terminal skips
+  writes nothing. Over a `.grugops/install.json` install cannot use, it exits `3` instead, with that
+  file's `verify` line. Any agent flag, `--yes`, or a standard input or output that is not a terminal skips
   the list. The list turns raw mode off and shows the cursor again however it ends.
 - Entries for Codex CLI, Antigravity CLI and OpenCode (34.1 D-08, D-09, D-20). Codex CLI and
   Antigravity CLI share one agent skill, `.agents/skills/grugops/SKILL.md`, and OpenCode gets the
@@ -240,7 +241,8 @@ CLI with Antigravity CLI.
   of `.grugops/install.json`; else, for a marker with an install ledger and no `agents` field (an
   install by an earlier build of this release), Claude Code, Copilot and Pi, the agents those
   installs wrote files for; else the agents detected in the repository. With none of these it writes
-  nothing, exits `1`, and names every agent flag. For existing installs this means: an install with a
+  nothing, exits `1`, and names every agent flag. Over a `.grugops/install.json` install cannot use,
+  it exits `3` instead, with that file's `verify` line. For existing installs this means: an install with a
   ledger re-installs Claude Code, Copilot and Pi, and its Gemini settings record does not choose
   Antigravity CLI; a 2.1.0 install, which kept no ledger, falls to detection; Gemini settings are no
   longer written; and the Pi template is written only for Pi.
@@ -416,8 +418,8 @@ CLI with Antigravity CLI.
   finished (34.1 review CR-02).
 - Messages that ask you to fix something and run the installer or uninstaller again print the exact
   command, with the agent flags of the run, so a per-agent uninstall never points you at a command
-  that removes every agent. A failed install's closing banner prints the command that installs for
-  the same agents again.
+  that removes every agent. When an install that went ahead could not finish, its closing banner
+  prints the command that installs for the same agents again.
 - Install's note about an entry file of an agent not chosen in the run gives the command that writes
   it. It used to point at a line above that the run had not printed (34.1 review WR-17).
 - `install.js --check` names a recorded agent with nothing installed in a note with the install
@@ -538,9 +540,13 @@ CLI with Antigravity CLI.
   a JSON object holding none of install's fields, a file that is not valid JSON, a field holding a
   value install never writes, a malformed install ledger, or a link, a directory or a FIFO at that
   path. It exits `3` with its `verify` line about the file, and nothing changes in your repository or
-  the kit home, so every file install writes stays recorded and an uninstall can remove it. Before,
-  it wrote the whole install with no record of it, which no uninstall could remove. A `DRY_RUN` run
-  shows the same stop (34.1 deferred item DI-25).
+  the kit home, so every file install writes stays recorded and an uninstall can remove it. It
+  stops the same way when no agent flag was given and no agent could be chosen, or the agent list
+  was cancelled or confirmed with no agent checked. Its closing line names the install command with
+  the agents you named by agent flag or at the agent list; when you named none, it names the install
+  command with no agent flag. A `--migrate` run ends with the migrate banner and the `--migrate`
+  command. Before, it wrote the whole install with no record of it, which no uninstall could remove.
+  A `DRY_RUN` run shows the same stop (34.1 deferred item DI-25; 34.1 review WR-41, WR-42, WR-43).
 
 ### Security
 
