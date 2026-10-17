@@ -2,6 +2,49 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v2.1 — Autonomous Factory: Real Spawning, Controlled Language & Live Board
+
+**Shipped:** 2026-10-18 (gaps accepted)
+**Phases:** 13 (27–34.1, five inserted) | **Plans:** 453 | **Commits:** 2,912 (`v2.0..24d1df0b`)
+
+### What Was Built
+- Kit-set authority: every guard, validator and kit-ref scan set derived from the filesystem via `kit-model.ts`; 17 role adapters generated from one source behind a freshness gate (27, 28).
+- A grugops-authored controlled-language profile with three mechanical gates; caveman kept to the identity block after the token-economy claim was disproven by measurement (29).
+- Per-role `models` and `effort` dials resolved by `model-tiers.ts` and delivered into installed adapters (29.1, 29.2, 34).
+- A per-checkpoint autonomy matrix (30); the Bash command-parsing guard retired in favour of git-host protection plus installer-written ask rules (33.1).
+- Autonomous manual testing with evidence through verify-before-write (31); a read-only board projector and CLI dashboard (32, 32.1).
+- Pi as a sixth host behind a registry-derived host set, and a per-agent installer with Antigravity replacing Gemini (34, 34.1).
+
+### What Worked
+- "Derive the set, assert the count" landed first and paid off for the rest of the milestone: the integration audit found no hand-maintained host or role list in non-test code.
+- Canonical-form cutovers (one allow-list, refuse everything else) ended loops that heuristic widening never did: P27 frontmatter at round 12, P32.1 board grammar.
+- Retiring the guard instead of patching it a ninth time. Moving enforcement to the system that owns the action (the git host) removed a whole class of findings.
+- Honest negatives held: no capture was ever counted as a pass, and the audit recorded the headline as unproven rather than closing it on structure.
+
+### What Was Inefficient
+- Gap-closure loops dominated cost. Phase 31 ran nine verification rounds, Phase 27 twelve, and Phase 34.1 five plus two fix rounds. The created-by-previous-fix ratio rarely fell.
+- The live capture (CAP-01/03) was attempted three times across two phases and never passed. Each attempt surfaced KIT or SUITE findings that offline work could have caught first.
+- Scope grew by insertion (29.1, 29.2, 32.1, 33.1, 34.1). ROADMAP and REQUIREMENTS counts drifted (46 → 64) without being re-derived: the milestone's own founding defect, recurring.
+- Per-plan red-teams stalled delivery and were retired mid-milestone (2026-10-04).
+
+### Patterns Established
+- Four-round gap-closure cap, then a recorded human close (decision or override) with the verification report left standing.
+- Overrides are annotated in the verification frontmatter (`overridden_from`, `status_note`) and never rewrite the measured gaps.
+- One merged ledger (`WINDOWS.md`) plus backlog `999.x` phases for residuals accepted at close.
+- Scratch installs must set `GRUGOPS_HOME`. Even the integration checker at this close forgot it once (no content drift).
+
+### Key Lessons
+1. A live-evidence requirement needs its offline preconditions closed before the paid run, or the run just re-discovers them.
+2. When a parser keeps losing to new spellings, delete the parser and move enforcement to the system of record. Don't add an allow-list entry for the ninth time.
+3. Cap the loop and close by recorded decision. An uncapped gap-closure loop does not converge on safety-invariant work.
+4. Re-derive milestone counts at every insertion; a hand-typed total will drift.
+
+### Cost Observations
+- Model mix: mostly opus orchestration and planning, sonnet for checkers; exact split not measured.
+- Notable: three phases consumed most of the plan count (27: 66, 31: 44, 34.1: 62), all of it gap-closure.
+
+---
+
 ## Milestone: v2.0 — Decentralized Factory: Shared Verified Context
 
 **Shipped:** 2026-07-28
@@ -181,6 +224,7 @@
 | v1.1 | 92 | 3 | 14 | Forced build order + mechanical gates (C1 grep-to-zero, C3 fail-closed); sh/Node byte-parity contract |
 | v1.2 | 263 | 10 | 38 | Foundation-first guards + config-dial; token-economy persona overhaul; TypeScript tooling pivot (committed-`.js` + freshness); converged single-source §14 gate; honest Tier-1/2 auto-UAT |
 | v2.0 | 339 | 7 | 44 | Architecture pivot to a decentralized shared verified context; handoffs deleted grep-to-zero; parallel agents + lock-free queue; **adversarial closure doctrine** (structural fix + ≥2 independent red-teams + self-repro) after 13 green-suite-insufficient catches |
+| v2.1 | 2912 | 13 | 453 | Derived kit sets + generated adapters; controlled-language gates; dials; guard retired for git-host floor + ask rules; per-agent installer; **four-round gap-closure cap with recorded human closes** (7 of 13 phases) |
 
 ### Cumulative Quality
 
@@ -190,6 +234,7 @@
 | v1.1 | install.test.sh 18/18, validate.test.sh 18/18, two-root 12/12, check-kit-refs green | `tech_debt` (8/8 reqs, no blockers) | doctor (sh + Node), two-root validator |
 | v1.2 | Vitest suite 144+ green (install, validator, ASVS, guards, UAT oracles, catalog, freshness) + foundation-guards aggregator | `tech_debt` (34/35 reqs, 7/7 integration seams, no blockers) | TS tooling → committed-`.js` + freshness (zero host runtime deps); test-integrity checker; catalog generator + freshness gate; Tier-1 UAT oracles |
 | v2.0 | Vitest 794 passed / 1 skipped (30 files) + foundation-guards, kit-refs, uat-oracles, freshness ×3, typecheck — all exit 0; `windows-latest` leg red on 3 files (harness/fixture, **zero in the v2.0 substrate**) | `tech_debt` (28/28 reqs, 8/8 integration boundaries, 7/7 Nyquist, no blockers) — closed `override_closeout` | `context-io` / `claim` / `compactor` substrate; admission guard + stdio MCP server; dual-path equivalence oracle; `freshness:context` + `freshness:traceability` gates — all zero host runtime deps |
+| v2.1 | Vitest (e2e excluded) + foundation guards, freshness, kit-refs, banned-claims, claim-anchors, catalog, uat-oracles — all exit 0 at close; windows-latest red (out of scope, D-25); live e2e capture lane `fail` | `gaps_found` (52/64 reqs, 6/6 integration, 0 broken) — closed `override_closeout`, gaps accepted | board projector + dashboard, model/effort resolver, host registry, per-agent installer, checkpoint ask-rule writer — zero host runtime deps |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -199,3 +244,4 @@
 4. **Make tooling drift impossible, not just unlikely** — the committed-`.js` + freshness check (v1.2) is the same move as the v1.1 sh/Node byte-parity contract: pick one source of truth and gate mechanically on a byte diff so the artifact provably can't drift. v2.0 generalized this to *logic*: one authority per predicate, because two code paths deciding the same question will diverge and the divergence is the exploit.
 5. **A green suite is a precondition, never proof, for a safety invariant** (v2.0, learned 13 times) — closure requires a structural fix, ≥2 *independent* red-teams, and reproduction of the bypass. Corollary: price those rounds into the phase estimate, or the phase will look like a 4× overrun when it was correctly-costed work all along.
 6. **Prefer the honest negative** — v2.0's best result was an evidence gate refusing to retire a waiver, and its headline cost claim staying `UNKNOWN - verify`. A mechanism that declines to do the convenient thing is the one worth trusting; a number borrowed from someone else's benchmark is the fabrication the trace exists to prevent.
+7. **Move enforcement to the system of record** (v2.1) — the shell-command guard could not be closed by parsing; the git host sees every merge and deploy. Cap gap-closure at four rounds and close by recorded human decision rather than looping.

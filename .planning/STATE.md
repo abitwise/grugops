@@ -2,39 +2,38 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: "34.1"
-current_phase_name: per-agent-installer
-status: "Phase 34.1 CLOSED 2026-10-17 by human decision D-48 under D-47 (verification gaps_found 10/12 left standing; truth 12 WR-44 arm accepted by override; WR-44, IN-43..IN-49, DI-26, DI-27 carried to backlog 999.10; live per-host runs stay human items, D-19). All v2.1 roadmap phases are closed. Next: /gsd-audit-milestone v2.1. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Phase 34.1 CLOSED 2026-10-17 by human decision D-48 (under D-47)"
-last_updated: "2026-10-17T21:00:00.000Z"
-state_head: 426c9ef60a5514b06b5d1123b95aabb1550a5af8
+status: Awaiting next milestone
+stopped_at: Phase 34.1 CLOSED 2026-10-17 by human decision D-48 (under D-47)
+last_updated: "2026-10-17T21:11:39.828Z"
+last_activity: 2026-10-18
+last_activity_desc: Milestone v2.1 completed and archived
+state_head: 24d1df0be65189c08af35073a98bff369068a14c
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 453
   completed_plans: 453
   percent: 100
-last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-last_activity_desc: "Phase 33 CLOSED by human override D-33-R4-08 after round-4 verification gaps_found 0/3 (aba4f1d3). The human decided the four 33-R4-DIAGNOSIS section 5 questions as D-33-R4-04..07 (coordinator-as-subagent route allowed; capture pins --permission-mode default after a zero-token check; guard unreadable-word refusal redesigned; D-04 row keyed on the probe). Round-4 review ledgered: WINDOWS.md rows 301-309 appended (CR-01/CR-02 live guard bypasses first), rows 257/269/274/297-299 annotated; open 259 -> 268 of 309. GAP-D1 open; CAP-01/02/03 not met; all carried to the next phase."
+current_phase: "34.1"
+current_phase_name: per-agent-installer
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
+See: .planning/PROJECT.md (updated 2026-10-18 — after the v2.1 milestone)
 
-**Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 34.1 — per-agent-installer
+**Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
+**Current focus:** Planning the next milestone (`/gsd-new-milestone`; phases continue from 35)
 
 ## Current Position
 
-Phase: 34.1 (per-agent-installer) — CLOSED 2026-10-17 by human decision D-48 (verification gaps_found 10/12, WR-44 accepted by override; WR-44, IN-43..IN-49, DI-26, DI-27 to backlog 999.10). All v2.1 phases closed; next: /gsd-audit-milestone or /gsd-complete-milestone.
-Plan: 62 of 62
-Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
-Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
-Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
+Phase: Milestone v2.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-10-18 — Milestone v2.1 completed and archived
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2030,14 +2029,207 @@ None yet.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 260606-0my | Harden grugops role-switch protocol + auto-commit to working branch (DOG-02 dogfood fixes) | 2026-06-06 | 6a66994 | [260606-0my-harden-grugops-role-switch-protocol-auto](./quick/260606-0my-harden-grugops-role-switch-protocol-auto/) |
-| 260616-faw | Feasibility plan — automate the activities in the remaining human UATs (analysis only; 3-tier verdict) | 2026-06-16 | 5dcc5ef | [260616-faw-automate-remaining-human-uats-feasibilit](./quick/260616-faw-automate-remaining-human-uats-feasibilit/) |
-| 260721-hjm | Audit user-facing docs for freshness + concision (agent-factory/README.md brought to v2.0 reality) | 2026-07-21 | 56d46ed | [260721-hjm-go-over-user-facing-documentation-audit-](./quick/260721-hjm-go-over-user-facing-documentation-audit-/) |
-| 260721-iyt | Add root CHANGELOG.md (Keep a Changelog 1.1.0, from real tags + milestone docs) and link it from README.md | 2026-07-21 | 1c30907 | [260721-iyt-add-missing-changelog-md-populated-from-](./quick/260721-iyt-add-missing-changelog-md-populated-from-/) |
-| 260919-007 | Add example Claude Code commands for each grugops skill to README.md Quickstart | 2026-09-18 | 52377a7a | [260919-007-add-example-claude-code-commands-for-eac](./quick/260919-007-add-example-claude-code-commands-for-eac/) |
-| 260919-07m | Replace the <owner> placeholder in the installer plugin-install notes with abitwise | 2026-09-18 | 26c3d8cc | [260919-07m-replace-the-owner-placeholder-in-the-ins](./quick/260919-07m-replace-the-owner-placeholder-in-the-ins/) |
 
 ## Deferred Items
+
+### v2.1 milestone close (2026-10-18)
+
+Items acknowledged and deferred at the **v2.1 milestone close on 2026-10-18** through the `audit-open acknowledge` writer (192 items; closeout `override_closeout`, gaps accepted by the human). **699 further deferred items could not be acknowledged** — the writer cannot anchor entries that embed GFM table rows or that it cannot match by text (27: 545, 33.1: 61, 30: 30, 32: 20, 34.1: 18, 29.2: 17, 29.1: 8). They remain open in their `deferred-items.md` files (now under `milestones/v2.1-phases/`) and will resurface in later audits.
+
+| Category | Item | Status | Deferred At | Milestone |
+|----------|------|--------|-------------|-----------|
+| debug_sessions | ask-rules-banner-fabrication | diagnosed | 2026-10-18 | v2.1 |
+| debug_sessions | pi-grugops-kit-not-found | diagnosed | 2026-10-18 | v2.1 |
+| uat_gaps | 34/34-UAT-ROUND2.md | diagnosed | 2026-10-18 | v2.1 |
+| uat_gaps | 20/20-HUMAN-UAT.md (v2.0) | partial | 2026-10-18 | v2.1 |
+| uat_gaps | 10/10-HUMAN-UAT.md (v1.2) | passed | 2026-10-18 | v2.1 |
+| uat_gaps | 11/11-HUMAN-UAT.md (v1.2) | partial | 2026-10-18 | v2.1 |
+| uat_gaps | 05/05-HUMAN-UAT.md (v1.0) | passed | 2026-10-18 | v2.1 |
+| uat_gaps | 06/06-HUMAN-UAT.md (v1.0) | partial | 2026-10-18 | v2.1 |
+| uat_gaps | 06/06-UAT.md (v1.0) | partial | 2026-10-18 | v2.1 |
+| verification_gaps | 31/31-VERIFICATION.md | gaps_found | 2026-10-18 | v2.1 |
+| verification_gaps | 33/33-VERIFICATION.md | gaps_found | 2026-10-18 | v2.1 |
+| verification_gaps | 33.1/33.1-VERIFICATION-GAP-ROUND-2.md | gaps_found | 2026-10-18 | v2.1 |
+| verification_gaps | 34/34-VERIFICATION.md | human_needed | 2026-10-18 | v2.1 |
+| verification_gaps | 34.1/34.1-VERIFICATION.md | gaps_found | 2026-10-18 | v2.1 |
+| verification_gaps | 20/20-VERIFICATION.md (v2.0) | human_needed | 2026-10-18 | v2.1 |
+| verification_gaps | 11/11-VERIFICATION.md (v1.2) | human_needed | 2026-10-18 | v2.1 |
+| verification_gaps | 19/19-VERIFICATION.md (v1.2) | human_needed | 2026-10-18 | v2.1 |
+| verification_gaps | 05/05-VERIFICATION.md (v1.0) | human_needed | 2026-10-18 | v2.1 |
+| verification_gaps | 06/06-VERIFICATION.md (v1.0) | human_needed | 2026-10-18 | v2.1 |
+| context_questions | 27/27-CONTEXT.md | 7 questions | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: D1 — install/install.ts carries a literal NUL byte, so grep classifies it as binary - **… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: D2 — the coordinator announces its tier AFTER dispatching, not before - **Found during:*… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: D3 — brownfield mapping chosen for a repository grugops itself created - **Found during:… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: From gap-closure round 4 planning (2026-07-31) - **No shared test-helper module between … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: From 27-22 (WR-02) - scripts/kit-model.ts walkFilesRelative() follows symlinks (delibera… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: From 27-30 (IN-02 / D-34) — found by adversarial probe, NOT by the plan - **A UTF-8 BOM … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: From 27-47 (D-54 / CR-01, round 9) — found by running the suite, NOT by the plan - **The… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: From 27-48 — an ACCOUNTED, NON-DEFECT divergence the repository-wide value map surfaced … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: R1 — the leading clause calls an INDENTATION run "residue", and names a code point insid… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: R3 — the red team's OWN oracle was defeated by not modelling its input, one round after … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: The two adversarial passes this plan ran, recorded whether or not they found anything - … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: R1 — the red team's OWN oracle was defeated by not modelling its input, for the SECOND r… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: **What 27-52 touched.** scripts/frontmatter.ts (a new BLOCK_MAP_EXPLICIT production besi… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: R1 — the red team's OWN harness was defeated by not modelling its input, for the THIRD r… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: Still OPEN, carried forward with its owner - **The 27-49 WR-04 residual** — the deleted … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: IN-01 — the dead local, and the compiler measurement - **Pre-enable measurement, verbati… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: Residual this plan's own dispositions create - **The fence classifier's floor** (above) … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: Completeness, asserted by count so a reader can check it - Round-9 code-review findings … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: Mutation control — the pin is PROVEN able to fail The region-scoping decision reverted *… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: 7. The one refusal whose MESSAGE moved, stated rather than hidden K9 ( "a\x41b": >-) ref… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: 8. The derived axis (task 2) AXIS_NESTED_KEY_SPELLING (8) × AXIS_BLOCK_INDICATOR_FORM (2… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: 9. The harness premise produced a FALSE result TWICE MORE, and both were caught This is … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: Part two — completeness, asserted by count so a reader can check it - Round-10 code-revi… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: The disposition classes used below, DEFINED BEFORE THE TABLE USES THEM This round needs … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 27/deferred-items.md: Part two — completeness, asserted by count so a reader can check it - Round-11 code-revi… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 30/deferred-items.md: V-30-10-04 — three reviewer observations recorded, none of them a lowering **Found durin… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 30/deferred-items.md: V-30-10-05 — round-3 reviewer observations not closed in round 3 **Found during:** plan … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 30/deferred-items.md: V-30-10-06 — round-4 reviewer observations, recorded rather than fixed Surface B, round … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 30/deferred-items.md: Corrections the round-4 reviewers made to the EARLIER residuals These amend entries alre… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 30/deferred-items.md: Further observations from round 4's reviews 1. **R7 obs. 1** — carriageReturnLines is as… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 30/deferred-items.md: Corrections applied to the round-4 draft entries (no code was changed) - **V-30-11-03** … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 31/deferred-items.md: npm run check:diff-disposition is a **pre-existing FAIL** on this tree, unrelated to pla… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 31/deferred-items.md: **frameworkSurface's inner catches are a silent-subtree shape** (found by plan 31-35's o… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 31/deferred-items.md: **A framework member behind an INDEX SIGNATURE is accepted** (plan 31-35's probe; measur… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 32/deferred-items.md: Out of scope, found during plan 32-08 - **npm run check:diff-disposition is RED and was … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 32/deferred-items.md: Out of scope, found during plan 32-35 - **WR-07's CI-TOPOLOGY HALF: the three platform-d… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 32/deferred-items.md: Carried items re-measured during plan 32-37 (gap-closure round 3, adversarial self-revie… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 32/deferred-items.md: Carried items RE-MEASURED during plan 32-41 (gap-closure round 4, the last round the cap… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 32/deferred-items.md: The three items the fix pass could not decide — each given a row here (plan 32-41) 32-RE… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 32/deferred-items.md: New residual PRODUCED by this round (plan 32-41, Task 2) - **32-40-ADVERSARIAL-REVIEW.md… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 33/deferred-items.md: Ten windows reds in scripts/context-io.test.ts are NOT ADDRESSED by any plan in this pha… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 33/deferred-items.md: GAP-D1 HELD at plan 33-11 (2026-09-20): the flip waits for a parity-proven capture, and … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: No derived class test installs over a user file planted at every write path - **Found by… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: .planning/research/STACK.md carries no per-host table, so the CLAUDE.md § 6 table has no… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: A host count implied in caveman prose in agent-factory/packaging/adapters.md - Line 7 re… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: Six watched-corpus clauses changed by plans 34-06 and 34-08 carry no disposition row - *… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: The caveman lines that implied a host count are fixed by hand, not by the scan - agent-f… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: The minimal path is stated as working on every supported tool, with no run on the newer … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: WR-01: host detection reads grugops's own writes as proof that a host is in use - **Find… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: WR-02: a non-directory .pi entry makes every install exit 3 - **Finding:** the Pi templa… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: WR-04: raw control bytes from config keys reach printed refusal text - **Finding:** effo… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: WR-05: the installer's closing safety line derives "documentation only" from dispatch - … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: IN-01: three implementations of "a per-host table row" disagree - **Finding:** three sep… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: IN-02: the validator only warns on an unrecognisable dispatch table - **Finding:** scrip… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: IN-03: the Pi template is create-only - **Finding:** a later change to PI_PROMPT_TEXT (i… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: IN-04: a blank effortRationale also refuses the model tiered preset - **Finding:** the e… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: IN-05: the structure validator does not validate the models / models.effort block - **Fi… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: WR-08 (gap round 2): a dropped effort: line passes when the level set does not change - … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: WR-09 (gap round 2): isAbsoluteMarkerPath sits outside the WIN-1 census - **Finding:** i… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: WR-10 (gap round 2): no end-to-end test reaches the uninstall pointer-file mode check - … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: Out of scope, found during 34-19 (2026-10-09): the fs census does not classify openAsBlo… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (1) Case (B) of the effort cross-check: CLOSED (D-24) - **Finding:** the verifier's repr… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (2) The POSIX consequence of WR-09's one absoluteness rule - **Finding:** the install ma… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (3) IN-06 and IN-08 stay deferred - **IN-06:** the per-adapter install line names the mo… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (4) UNKNOWN - verify until the human's windows-latest run (D-21) - **The Windows readbac… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (1) IN-03: CLOSED by plan 34-28 - **Finding:** the Pi template was create-only, so a lat… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (2) writeMarker reports created for .grugops/install.json on every write - **Finding:** … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (3) WR-11: deferred with Windows support - **Finding:** on a POSIX checkout, a marker wr… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (4) The live Pi re-run (34-UAT.md test 2): the human's act - **Finding:** 34-UAT.md test… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (5) Live runs on Copilot, Codex, OpenCode and Gemini after a scripted install - **Findin… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (1) Closed rows, with plans and commits - **CR-01** (--check said Gemini CLI reaches thr… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (2) WR-04: block-carrier facts typed in several places - **Finding:** ROUTE_BLOCKS (inst… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (3) WR-05: the read-gate-write window in refreshOwnFile - **Finding:** refreshOwnFile de… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (4) IN-02: whether to commit .grugops/install.json - **Finding:** the marker route sends… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (5) IN-03: the INCOMPLETE closings drop facts - **Finding:** the --update INCOMPLETE ban… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (6) IN-04: a dead updateKeptMarker call in uninstall - **Finding:** the uninstall malfor… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (7) IN-05: the "preserved (never touched)" heading - **Finding:** the uninstall closing … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34/deferred-items.md: (8) Sibling-search findings for human triage, not fixed - **Fallback context files are n… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-01: the three generated host entries are excluded from the banned-claims gate by na… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-02: plan 34.1-02 names the template path host-entry.template.md; the file is host-e… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-03: five suite reds that predate plan 34.1-01 (Node 26 on this machine) - **Found d… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-04: CLAUDE.md's per-tool table names only .opencode/commands/grugops.md as OpenCode… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Status after plan 34.1-13 (2026-10-12) - **DI-01:** still open. It awaits a human deci… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-07: a partial uninstall kept only for a verify on a directory entry has no per-agen… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-08: the doctor's stale-adapter remedy hand-builds an install command with an unquot… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-09: kit-plan verifies printed by the --migrate pre-check end in the migrate banner,… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-05: the legacy Gemini entry-gone arm leaves the context object or the file install … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-10: five test comments still say a whole-file host entry is written "on every insta… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Status after gap round 1 (plans 34.1-14 to 34.1-18) - **DI-01:** decided (D-28): the b… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-11: a partial uninstall's verify on an ask-rules entry that claims nothing leaves a… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-12: two doctor lines ask for "re-run --check from a complete kit checkout" and prin… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-13: rewriteLedger's verify says "Re-run to finish it.", and a re-run does not finis… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-14: an agent install records again from the ledger is named by no closing note and … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-15: agent instruction text tells the reader to run node install/install.js, a path … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-16: the doctor's FAIL over a marker that is not JSON (or has no usable ledger) prin… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-17: no follow-as-printed row runs an --update or --prune-old-kit command printed un… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-18: over a user's own JSON object at .grugops/install.json in a target grugops neve… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-19: the doctor's ask-rules WARN over an unreadable marker names the wrong cause and… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-20: three install.ts comments and one test comment still say a printed command carr… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-21: two agents-record.test.ts rows spawn mkfifo directly, which the mkfifo census i… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-22: printed commands outside the installer's builder name no kit home or install mo… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-23: over a foreign read, three uninstall lines still call the file "the install mar… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-24: a directory or a FIFO at the marker path gets a verify that calls it the one re… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-25: install's INCOMPLETE banner names a re-run after a foreign verify - status: res… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Status after gap round 2 (plans 34.1-19 to 34.1-32) - **DI-01:** decided (D-28): the b… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Status after gap round 3 (plans 34.1-33 to 34.1-41) Scope of the round is D-34 (human,… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-03:** a human item; whether CI on Node 22 shows the Node 26 reds is UNKNOWN - ver… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-05:** deferred as residual at phase close by D-39; not changed in round 4. instal… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-11:** deferred as residual at phase close by D-39; not changed in round 4. remove… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-12:** deferred as residual at phase close by D-39; not changed in round 4. Plan 3… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-13:** deferred as residual at phase close by D-39; not changed in round 4. rewrit… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-14:** deferred as residual at phase close by D-39; not changed in round 4. Plan 3… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-15:** deferred as residual at phase close by D-39; not changed in round 4. AGENTS… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-16:** closed by D-38: plan 34.1-44 removed the install command from the doctor's … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-17:** closed by D-38: plan 34.1-49's --update row (commit fc4e57a4) and --prune-o… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-18:** open for the human; no round 5 (recorded by plan 34.1-42, commit 8a40b76d):… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-19:** open for the human; no round 5 (recorded by plan 34.1-45, commit 6bdda559):… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551; recorded by plan 34.1-49,… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-21:** resolved by commit 4e0fa03a (recorded by plan 34.1-50, commit 73770fbf): bo… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-22:** residual at phase close by D-39; open for the human; no round 5 (recorded b… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Recorded for the human at round close (no round 5) - **(a) The uninstall half of D-38,… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-03:** a human item; whether CI on Node 22 shows the Node 26 reds is UNKNOWN - ver… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-05:** residual at phase close (D-39, D-40); not changed in round 5. install/unins… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-11:** residual at phase close (D-39, D-40); not changed in round 5. removeAskRule… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-12:** residual at phase close (D-39, D-40); not changed in round 5. Plan 34.1-53 … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-13:** residual at phase close (D-39, D-40); not changed in round 5. rewriteLedger… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-14:** residual at phase close (D-39, D-40); not changed in round 5. Plan 34.1-54 … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-15:** residual at phase close (D-39, D-40); D-41 decided its wording with DI-22 a… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-16:** closed by D-38 (as after round 4; plans 34.1-44, 34.1-47 and 34.1-49, commi… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-17:** closed by D-38 (as after round 4; plan 34.1-49, commits fc4e57a4, c3d99e71)… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-18:** closed by plan 34.1-54 under D-40 and D-44 (commits cc2a57b5, dcfc7f9e, 9ff… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-19:** closed by plan 34.1-53 under D-40 (commits 6aa1f4c9, b72058ca): the doctor'… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551), as after round 4. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-21:** resolved by commit 4e0fa03a, as after round 4. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-22:** a backlog item. D-41 decided its wording (point at --check and name the che… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-23:** open for the human; no round 6 (recorded by plan 34.1-54, commit 5e0629d6):… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-24:** residual at phase close (D-44 (ii)); open for the human; no round 6 (record… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-25:** residual at phase close (D-44 (iii)); open for the human; no round 6 (recor… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Recorded for the human at round close (no round 6) - **(a) The uninstall reading of D-… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-26: with .grugops a regular file or a link to nothing, the uninstaller's closing st… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: DI-27: install over an unreadable kit-home record copies the kit and leaves that run's… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-01:** decided (D-28): the by-name exclusion stays, as after round 5. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-02:** resolved in plan 34.1-02; nothing left. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-03:** confirmed absent on Node 22 CI by UAT test 10 (2026-10-14, result pass); st… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-05:** residual at phase close (D-39, D-40), as after round 5; not in D-45's scope… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-07:** fixed in round 2 by plan 34.1-21 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); it… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-08:** fixed in round 2 by plan 34.1-27 (commits 5af55277, 0a72286c). | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-09:** fixed in round 2 by plan 34.1-28 (commits f65cfa0b, 2a055d1a). | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-10:** fixed in round 2 by plan 34.1-31 (commit 8d730df2). | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-11:** to backlog 999.6 (option (a), D-45; UAT test 14); not built in this phase. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-12:** residual at phase close (D-39, D-40), as after round 5. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-13:** residual at phase close (D-39, D-40), as after round 5. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-14:** residual at phase close (D-39, D-40), as after round 5. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-15:** to backlog 999.8 with DI-22 as the D-41 wording item (D-45; UAT test 11), w… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-16:** closed by D-38 (plans 34.1-44, 34.1-47 and 34.1-49, commits 30003a2c, fadff… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-17:** closed by D-38 (plan 34.1-49, commits fc4e57a4, c3d99e71). | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-18:** closed by plan 34.1-54 under D-40 and D-44 (commits cc2a57b5, dcfc7f9e, 9ff… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-19:** closed by plan 34.1-53 under D-40 (commits 6aa1f4c9, b72058ca). | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551). | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-21:** resolved by commit 4e0fa03a. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-22:** to backlog 999.8 with DI-15 as the D-41 wording item (D-45; UAT test 11), t… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-23:** to backlog 999.9 (D-45; UAT test 16); not built in this phase. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-24:** to backlog 999.9 (D-45; UAT test 16); not built in this phase. | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-25:** closed by plan 34.1-59 under D-45 and D-46 (commits ab18b3aa, 78ba1aa8, 4f0… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-26:** open for the human (recorded by plan 34.1-58 Task 3, commit e1a5b165); not … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-27:** open for the human (recorded by plan 34.1-59 Task 3, commit 4f02696b); not … | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Recorded for the human at phase close - **(a) D-38's uninstall reading is confirmed by… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-26:** open; not in the last fix round (D-47); accepted at phase close and carried… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-27:** open; not in the last fix round (D-47); accepted at phase close and carried… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: **DI-01 to DI-25:** as after the D-45 fix round (section above). | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 34.1/deferred-items.md: Recorded for the human at phase close - **(a) WR-41, WR-42 and WR-43 are fixed by plan… | acknowledged | 2026-10-18 | v2.1 |
+| deferred_items | 25/deferred-items.md: 25-09 — floor-invariance.test.ts spawn-heavy fuzz timeouts (environmental, pre-existing)… | acknowledged | 2026-10-18 | v2.1 |
 
 ### v1.2 milestone close (2026-06-16)
 
@@ -2095,6 +2287,4 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Review `.planning/ROADMAP.md` (phases 27–33) and `.planning/REQUIREMENTS.md` (traceability, 46/46)
-- Plan the first phase with `/gsd-plan-phase 27 --research-phase`
-- Phase 27 internal ordering is load-bearing: kit-set authority + RED referential-integrity oracle FIRST, then the `orchestrator.md` trim, and only then generate the 17 adapters
+- Start the next milestone with /gsd-new-milestone

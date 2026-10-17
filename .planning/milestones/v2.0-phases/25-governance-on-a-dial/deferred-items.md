@@ -20,3 +20,4 @@ Out-of-scope discoveries logged during execution (GSD scope-boundary rule). Not 
 - **Suggested future fix (separate, owner of 25-07 fuzz suite):** pin an explicit larger
   `testTimeout` on the spawn-heavy fuzz cases (or reduce per-case spawn count), so the
   suite is robust on slower CI/dev hardware.
+  status: acknowledged

@@ -331,6 +331,10 @@ human_verification:
   - test: "Both browser-absence probe stages, and the whole spec-integrity runnable, on a Windows host."
     expected: "Exit 2 with the browser-absent marker when browsers are missing; parser-absent marker when typescript cannot be resolved; every darwin-only construct in this report (the rename bypass, the retention fail-open, the FIFO/depth-adjacency classes) established on darwin/Node v24.12.0 only."
     why_human: "UNKNOWN - verify per the standing Windows posture (WINDOWS.md); not testable on darwin. A real windows-latest reading has not been taken. Carried forward, unchanged (R-03)."
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: gaps_found
 ---
 
 # Phase 31: Autonomous Manual Testing Verification Report

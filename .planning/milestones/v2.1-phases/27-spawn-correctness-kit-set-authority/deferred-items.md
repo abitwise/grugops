@@ -27,6 +27,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   27-02 explicitly instructs not to redesign, and the change is unrelated to KIT-02.
 - **Suggested fix:** replace the embedded NUL with an ordinary impossible-path sentinel (for
   example `"\0"` written as an escape, or a plain marker such as `"<<differs>>"`), then rebuild.
+  status: acknowledged
 
 ## D2 — the coordinator announces its tier AFTER dispatching, not before
 
@@ -49,6 +50,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
 - **Suggested fix:** make the ordering explicit in the generated body (e.g. "Announce your tier as
   the first output of your first turn, before any tool call"), and consider whether it can be pinned
   mechanically the way the tier labels and the command name already are.
+  status: acknowledged
 
 ## D3 — brownfield mapping chosen for a repository grugops itself created
 
@@ -68,6 +70,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   between greenfield scaffolding and brownfield survey: **re-map from own state**, falling back to
   brownfield only where the state plane is absent, stale or contradicted by the tree. The detection
   must be a real check, not an inference from a filename, and the fallback must stay loud.
+  status: acknowledged
 
 ## From gap-closure round 4 planning (2026-07-31)
 
@@ -86,6 +89,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   - **Not a reason to skip the round-4 cases:** two copies of a FIXTURE builder are a maintenance
     smell; two copies of a PREDICATE were the CR-02/CR-03 defect. The distinction is recorded here so
     a later reader does not conflate them.
+  status: acknowledged
 
 ## From 27-22 (WR-02)
 
@@ -96,6 +100,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   Not fixed in 27-22: the plan scoped `files_modified` to the installer surface, and editing the
   shared authority mid-phase would put 27-18 / 27-19 / 27-20 / 27-23 at risk.
   Reproduction: `ln -s .. .claude/agents/loop` then call `listAgentAdapters(root)`.
+  status: acknowledged
 
 ## From 27-30 (IN-02 / D-34) — found by adversarial probe, NOT by the plan
 
@@ -126,6 +131,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
     structural answer (normalize the input once, at the same place CRLF is already normalized) rather
     than a fourth refusal arm. Note that `text.replace(/\r\n/g, "\n")` already establishes the
     precedent of input normalization at exactly that point.
+  status: acknowledged
 
 ## From 27-47 (D-54 / CR-01, round 9) — found by running the suite, NOT by the plan
 
@@ -167,6 +173,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   pre-edit build ALREADY reached and every one moves in the SHORTEN direction — deleting text at a
   `#`, which is this module's founding failure. The measurement is recorded in the constant's own doc
   block. A later round that wants the narrowing must first close the shorten direction it opens.
+  status: acknowledged
 
 ## From 27-47 — OPEN LIVE BYPASS found by the executor's own red team, on the POST-FIX build
 
@@ -271,6 +278,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
     this module's declared scope". Deciding that scope is a planning decision.
   - **Suggested direction:** settle the scope question ONCE, with the `27-47` flattener-nesting entry,
     rather than twice from two different symptoms.
+  status: acknowledged
 
 ## From 27-49 (D-56 / WR-01, round 9) — the family G/G2 bypass RE-MEASURED on this build, STILL OPEN, and now with its harness scope named
 
@@ -499,6 +507,7 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
   it does not begin where the line begins"* on the indentation arm and keep the residue wording on
   the residue arm — and re-take the corpus comparison with the changed-reason count stated for BOTH
   shapes, so the two moves stay separable.
+  status: acknowledged
 
 ### R2 — a MEASURED CORRECTION to the round-8 IN-04 finding's stated mechanism
 
@@ -539,6 +548,7 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
 - **Suggested direction:** any future corpus-wide oracle over this module should drive its expected
   value through the same normalization chain the parser applies (the BOM strip and the CRLF
   normalization at `frontmatter.ts:2229`), derived from the source rather than remembered.
+  status: acknowledged
 
 ## From 27-51 (round 10, 27-REVIEW § CR-01 + WR-01 + IN-02) — the CR-01 escape family CLOSED, family G/G2 RE-MEASURED and STILL OPEN
 
@@ -639,6 +649,7 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
   loader-ACCEPTED with the grant in the value and all eight now return the grant arm; three of them
   were planted at the gate on both distribution twins and each took it from exit 0 to exit 1. They
   ship as a committed case (`CR-01 round 10 UNION`).
+  status: acknowledged
 
 ### R1 — the red team's OWN oracle was defeated by not modelling its input, for the SECOND round running
 
@@ -655,6 +666,7 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
 - **Suggested direction:** the delegation is written down in three places now (the D-52 differential,
   its named-region arm, and this plan's throwaway probe). A red team's oracle is a predicate like any
   other and should be built from the module's declared consumers rather than re-derived per session.
+  status: acknowledged
 
 ## From 27-52 (round 10, 27-REVIEW § family G/G2) — the nested block-scalar family CLOSED, and TWO further positions found by this plan's own red team
 
@@ -664,6 +676,7 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
   three header positions), the rebuilt `scripts/frontmatter.js`, `scripts/frontmatter.test.ts`, this
   ledger and `27-CONTEXT.md` (D-57). No other production source file; no dependency; `package.json`
   byte-unchanged.
+  status: acknowledged
 
 ### FAMILY G / G2 — **CLOSED**, with the gate transcripts that are the closure evidence
 
@@ -856,6 +869,7 @@ twins (exit 0 -> exit 1). Its loader column is
 - **Suggested direction:** a gate-plant harness should assert its own premise the way the module's
   own cases do — the `IN-03`/`IN-04` "assert the slice is the thing before inspecting it" discipline
   applies to throwaway probes, and three rounds of the same near-miss say it should be written once.
+  status: acknowledged
 
 ### Still OPEN, carried forward with its owner
 
@@ -874,6 +888,7 @@ twins (exit 0 -> exit 1). Its loader column is
   loader's value byte for byte); the residual is the flattener's declared token-presence contract
   meeting deeply nested metadata, which is IN scope for this module and explicitly NOT a defect,
   because a value map is not a YAML tree. It is not to be re-opened from a third symptom.
+  status: acknowledged
 
 ## From 27-53 (round 10, 27-REVIEW § WR-02 + WR-03 + IN-01) — three harness-integrity findings, all three instances of the SET-LITERAL-DRIFT class
 
@@ -971,6 +986,7 @@ measurement is not written down is a claim again.
   harness. An unused local in a `.test.ts` still passes `npx tsc --noEmit` today.
 - `node scripts/validate-agent-factory.js` output is **byte-identical** before and after the
   deletion — one line, `ALL CHECKS PASSED`, sha256 `6852d6da8a2e1b3d2ca426438cb3473548fe1d9670ce0f64537e4a7d23d4ef9c`, exit 0 on both sides.
+  status: acknowledged
 
 ### Residual this plan's own dispositions create
 
@@ -984,6 +1000,7 @@ measurement is not written down is a claim again.
   enters the answer through its own `depth += 1` at an unrelated paren-balance loop — measured, not
   supposed).
 - **The two compiler flags do not cover the harness** (above). Nothing in this plan claims they do.
+  status: acknowledged
 
 ## Round 10 disposition register (written 2026-08-10 by plan `27-54`) — every round-9 item accounted for
 
@@ -1016,6 +1033,7 @@ scroll out of view. **There is no silent drop.**
 If those two numbers ever differ, **the register is wrong, not the count** — this is the same
 non-vacuity posture the harness applies to its own corpora, turned on the record itself. Dispositions
 partition as **8 CLOSED + 1 DEFERRED + 0 OPEN**, and `8 + 1 + 0 == 9`.
+  status: acknowledged
 
 ### The two closures RE-MEASURED on this build, because `27-53` edited the file they live in
 
@@ -1232,6 +1250,7 @@ AssertionError: NEVER EXEMPTIBLE — the silent no-grant arm: the module reports
 + [
 +   "[double-quoted region] [non-allowlisted double-quote escape \\x41] [nested mapping sibling of a block scalar]	module=no-grant	loader=grant	flat=\"a: Agent(grugops-orchestrator), b: x\"",
 + ]
+
 ```
 
 **A note worth carrying:** the first attempt at this mutation control PASSED, and it passed for a
@@ -1448,6 +1467,7 @@ content:
 
 Refusal → refusal, same named escape. This is the *only* verdict-adjacent string this plan moves, and
 the repository-wide map above confirms no tracked document is affected.
+  status: acknowledged
 
 ### 8. The derived axis (task 2)
 
@@ -1473,6 +1493,7 @@ D-60 axis differential [corpus 4c50004dedcc7e81, ruby=2.6.10 psych=3.1.0 libyaml
 - **The union cells are 28** = 7 spellings × 2 escape kinds × 2 orderings, count asserted as that
   arithmetic. They cross D-59 at exactly the point the two fixes meet: a block region introduced by a
   key spelling that could not produce one before, adjacent to a quoted sibling carrying an escape.
+  status: acknowledged
 
 ### 9. NON-CIRCULARITY, measured against a hermetic pre-`27-56` mirror
 
@@ -1879,6 +1900,7 @@ the case naming its own assertion:
 ```
 AssertionError: A implicit nested key + anchor: expected { ok: false, …(1) } to deeply equal { ok: true, value: true }
 +   "reason": "`nested: &a >-` uses a YAML anchor or alias, or an unresolved YAML tag standing in front of one; …"
+
 ```
 
 Control 2's two: `D-61 CONTROL R` and `D-61 the strip honours YAML's OWN BOUND`. One quoted failure:
@@ -1915,6 +1937,7 @@ because that is the whole point of the mechanism. With ledger entry thirteen lan
 AssertionError: a failure family named in the module's ledger with NO axis-member combination that
 builds it — the corpus cannot express a defect the module has already shipped:
 +   "G4  `tools:` / `  nested: &a >-` / `    Read,` / `    # x, Agent(o)`   a node property",
+
 ```
 
 **The exemption list is UNCHANGED: 2 → 2**, membership asserted, in a case of this plan's own.
@@ -2447,6 +2470,7 @@ never asked: expected [ …(3) ] to deeply equal []
 +   "continuation, carried FALSE / line answers TRUE: mayBegin=false nodeStart=true lineStart=true",
 +   "continuation, carried TRUE / line answers false: mayBegin=true nodeStart=false lineStart=false",
 + ]
+
 ```
 
 And re-coupling the two **differential loops** (while the fixture carries all 48 states) reds both
@@ -2523,6 +2547,7 @@ the exit-code assertions the record already demands.
 shell FUNCTION in this environment (`git diff --no-index --color-words`), so `diff a b | grep -c '^>'`
 counted **0** for a mutation that had plainly applied — git's diff marks lines with `+`/`-`. Every
 later comparison uses `cmp -s` or `/usr/bin/diff`.
+  status: acknowledged
 
 ### 10. A harness-premise fact about the gate itself
 
@@ -2682,6 +2707,7 @@ FAIL  scripts/frontmatter.test.ts > 27-60 IN-02 — every member of the derived 
 AssertionError: every member of the derived fence set must be accounted for by at least one
 MECHANICAL class; a member with [] is excused by nothing but a comment
 + [ "scripts/generate-role-adapters.test.ts" ]
+
 ```
 
 Plant removed (`git checkout --`, verified by grep) → mirror back to **270 passed**. The temp-dir
@@ -3063,6 +3089,7 @@ measurement and are recorded in their rows rather than as rows of their own, bec
 closed either way: the review's `blockParts: Set<number>` storage shape (row 1) and its LAST-colon
 key-end rule (row 3). A third, D-59's individual-region resolution, was implemented, measured and
 rejected inside row 1's own work.
+  status: acknowledged
 
 ### Part three — the re-measurement
 
@@ -3288,6 +3315,7 @@ carries its round in the same way where a collision is possible. The corpus ids 
 WR-04, IN-01, IN-02, IN-03 — **2 + 4 + 3 = 9**. The two agree, so **no disagreement row is owed**.
 This was re-derived from disk rather than taken from the plan's prose, because three separate plans in
 this round had their own stated counts falsified by measurement.
+  status: acknowledged
 
 ### Part one — the nine review items
 
@@ -3357,6 +3385,7 @@ section proves it was not, in any non-comment line.
 **No item is REJECTED.** Three *prescribed remedies* were declined (rows V1, V2, V3) and each has its
 own row saying so with the decision that declined it, rather than being recorded as a rejected item —
 because the ITEM in each case was dissolved or discharged by another means, not dismissed.
+  status: acknowledged
 
 ### Part three — the re-measurement, and exactly which claims are NOT re-measured
 

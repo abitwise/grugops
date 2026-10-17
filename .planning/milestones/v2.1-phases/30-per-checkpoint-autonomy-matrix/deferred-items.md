@@ -232,6 +232,7 @@ different repository's configuration.
    message. Not removed here because deleting an assertion inside a red-team round is the one edit
    that cannot be distinguished from narrowing the check.
 **Suggested owner:** (1) and (3) — Phase 30 verification or a follow-up; (2) — plan 30-11.
+  status: acknowledged
 
 ## V-30-10-05 — round-3 reviewer observations not closed in round 3
 
@@ -269,6 +270,7 @@ different repository's configuration.
 **Suggested owner:** (1) and (2) — a follow-up task on the heading/fence authority, or Phase 30
 verification. (3) — whoever next touches `check-public-docs-vocabulary.ts`. (4)–(7) — recorded as
 residual freedoms, no owner required unless a later round finds a live path through one.
+  status: acknowledged
 
 ## V-30-10-06 — round-4 reviewer observations, recorded rather than fixed
 
@@ -316,6 +318,7 @@ a thing somebody will rediscover.
 **Suggested owner:** (4) is a bounded, closable task on the heading authority — the best candidate for
 actual work. (1), (2), (6) need no owner. (3), (5), (7), (8) belong to whoever next touches the set
 they name, and (7) should be checked whenever `.gitignore` changes.
+  status: acknowledged
 
 ## SURFACE B IS FENCED AT THE ROUND CAP — V-30-10-11 .. V-30-10-20
 
@@ -368,6 +371,7 @@ than rewritten, because a residual whose reasoning was wrong is itself worth kee
   renderer; the residual is visual identity without refusal, not divergent truncation.
 - **`V-30-10-10` — remedy confirmed.** Reviewer 8 ran every `package.json` script except the live e2e
   lane: all green, both `typecheck` projects included. The class does not recur.
+  status: acknowledged
 
 ### Further observations from round 4's reviews
 
@@ -380,6 +384,7 @@ than rewritten, because a residual whose reasoning was wrong is itself worth kee
    variables that R6-1 had just reduced to one. Noisy, not permissive.
 4. **R8 obs. 4** — `audit:prepass` mutates a tracked file, so a gate sweep leaves the tree dirty.
 5. **R8 obs. 2** — `resolveCheckpoint` accepts a whitespace-only grant; surface A owns it.
+  status: acknowledged
 
 ### Owners
 
@@ -541,6 +546,7 @@ the timeout is input-reachable (measured 10 047 ms → SIGTERM → fail-closed D
   `V-30-11-28`.
 - **The timing sentence** in the round log and in `hooks/hook-entry.ts:259` is annotated as FALSE and
   carried as `V-30-11-31`. Annotated, not rewritten: the log records what was believed each round.
+  status: acknowledged
 
 ## Owners
 

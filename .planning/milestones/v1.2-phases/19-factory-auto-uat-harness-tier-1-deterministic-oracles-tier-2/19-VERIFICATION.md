@@ -25,6 +25,10 @@ human_verification:
   - test: "A3 (DOG-02) — CC sub-agent dispatch dual-path parity"
     expected: "Drive the same ticket (ABC-001) through the CC sub-agent dispatch path headlessly. Produced handoff filenames (implementation-handoff.md, qe-handoff.md) and gate verdict (READY_FOR_HUMAN_REVIEW) must match the sequential path. Fill 9 pending cells in examples/03-ticket-to-pr.md and flip 06-HUMAN-UAT.md test 3 to [passed] with evidence note."
     why_human: "Both agentic claude -p calls for the 'take it to a PR' round-trip timed out at 120s. Resolving requires a longer-budget run, manual observation of the harness markers, or a human running the CC sub-agent path in a real Claude Code session and capturing the output."
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: human_needed
 ---
 
 # Phase 19: Factory Auto-UAT Harness Verification Report

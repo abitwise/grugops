@@ -170,6 +170,10 @@ gaps:
 artifacts_ok: true
 key_links_ok: true
 human_override: "2026-09-25: Olger Oeselg closed Phase 33 by human override D-33-R4-08 under D-20 (33-CONTEXT.md). This report's status gaps_found 0/3 and every finding stand as written; CAP-01/CAP-02/CAP-03 are NOT met, GAP-D1 stays open, and review CR-01/CR-02 are accepted open as WINDOWS.md rows 301-302. See the Human Override section at the end."
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: gaps_found
 ---
 
 # Phase 33: Live Capture & Windows Portability Verification Report
@@ -234,12 +238,15 @@ Not applicable — this is an initial verification pass, not a re-verification r
 | Foundation guards / build hygiene | `node scripts/check-foundation-guards.js`, `npm run check:nul-bytes`, `npm run freshness`, `npm run freshness:hook-manifest`, `npm run check:build-parity` | All five report `ALL CHECKS PASSED` / fresh | ✓ PASS |
 
 **`gh run view` quoted (independent re-confirmation):**
+
 ```
 {"conclusion":"failure","headSha":"e45202a196abf0908e50118a667ef09ab57376c5","jobs":[{"conclusion":"failure","name":"test (windows-latest)"},{"conclusion":"success","name":"test (ubuntu-latest)"}]}
 ```
+
 This matches `33-CI-MEASUREMENT.md` Part 5 §5.2 and the `REQUIREMENTS.md` CAP-02 coverage row verbatim.
 
 **CR-01 reproduction, quoted (independent, this verification session):**
+
 ```
 payload: {"tool_input":{"command":"bash -c '{git,push,origin,main}'"}}
 --- hooks/guard.js ---
@@ -247,11 +254,14 @@ status: 0 stdout: "" stderr: all checkpoints at default
 --- hooks/hook-entry.js guard.js ---
 status: 0 stdout: "" stderr: all checkpoints at default
 ```
+
 Sanity check that this exact command text is a live `git push origin main` in the nested shell, with **zero literal whitespace characters** anywhere in the quoted body (confirmed by `grep -c ' '` returning 0 on `{git,push,origin,main}`):
+
 ```
 $ bash -c '{git,push,origin,main}'   # stub git on PATH, no network, no real repo touched
 STUB git received: push origin main
 ```
+
 `scripts/checkpoints.ts`/`.js` at HEAD (`f20f1af5`) already contains the round-4 recursive-projection fix (`governedToolsNamedBy`/`projectNames`, 10 occurrences via `grep -c`, last touched by commit `a9c1331b`, plan 33-38) — this is not a stale-build artifact. The bypass is present on the exact commit this phase asks to be verified.
 
 ### Requirements Coverage

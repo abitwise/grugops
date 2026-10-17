@@ -5,6 +5,10 @@ created: 2026-10-09T19:31:11Z
 updated: 2026-10-09T19:45:00Z
 goal: find_root_cause_only
 gap: G-34-2
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: diagnosed
 ---
 
 ## Current Focus
@@ -123,6 +127,7 @@ why_not_caught: |
   - Tests: install.test.ts "Pi prompt template (plan 34-04)" pins the template bytes to the Copilot pointer line (parity), not reachability. No test asks whether the path a pointer names exists under the target after an install whose kit goes to a separate home.
   - Doctor: `--check` validates the kit under KIT_ROOT and the Claude adapters' KIT= agreement only.
   - Design: 34-RESEARCH Q7 deliberately deferred the question to backlog 999.4 as `UNKNOWN - verify`. No live run on a non-Claude host after a scripted install happened before this UAT.
+
 fix:
 verification:
 files_changed: []

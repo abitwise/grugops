@@ -232,6 +232,18 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   disposition and a reason in `deferred-items.md` and the review disposition ledger; no plan in this
   round edits for them. D-25 (1) still holds: no Windows work, no windows-latest measurement, HOST-02
   stays open. The live Pi and other-host runs remain human UAT items; no plan claims them.
+- **D-28:** Phase 34 closes by human decision at the round-3 UAT (2026-10-10, /gsd-verify-work 34), with
+  the four-round gap cap spent; the open items are carried forward to inserted Phase 34.1 (per-agent
+  installer), not fixed here. Verification stays `human_needed` 23/26 as written; the UAT stands at 1 pass
+  (live Pi re-run, G-34-2 closed live), 2 issues, 1 deferred. Carried: (1) G-34-R3-2: the live per-host runs
+  found no discoverable grugops entry on Codex (`.agents/skills/grugops/`), Antigravity CLI (which replaces
+  the discontinued Gemini CLI) and OpenCode (`.opencode/commands/`, plus the `external_directory` prompt on
+  every read of the out-of-repo kit); Copilot untested (no subscription). Human direction: do not install for
+  every coding agent; ask during installation which agent(s), or take them as a parameter. (2) G-34-R3-4:
+  round-4 review WR-13..WR-16 and IN-14..IN-17 are carried, with the human's notes: WR-14, Antigravity CLI
+  reads AGENTS.md (and GEMINI.md); WR-15, correctness unsure, re-check; WR-16, folds into the per-agent
+  choice. WR-13 and IN-14..IN-17 carry with no note. (3) HOST-02 (windows-latest) is deferred to backlog
+  999.5 until all planned phases are complete. Backlog 999.4 is absorbed into Phase 34.1.
 
 ### Claude's Discretion
 - Exact TypeScript module/location of the host-tool registry, and how docs prose is checked against it.

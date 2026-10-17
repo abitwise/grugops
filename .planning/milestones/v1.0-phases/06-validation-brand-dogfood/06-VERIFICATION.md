@@ -8,6 +8,10 @@ human_verification:
   - test: "Run the human runbook in docs/dogfood-human-runbook.md against the dogfood sample repo in a live Claude Code session"
     expected: "All three checks PASS: (1) /grugops:plan resolves after plugin marketplace install (no path error — D-31); (2) a matched kubectl apply is DENIED by the PreToolUse hook absent GRUGOPS_PROD_DEPLOY_APPROVED (SAFE-02); (3) the same ABC-001 ticket driven via CC sub-agent spawn produces the same handoff filenames + READY_FOR_HUMAN_REVIEW verdict"
     why_human: "Plugin marketplace install, plugin-cache pointer resolution, live PreToolUse hook firing, and CC sub-agent spawn all require an interactive Claude Code session that an executor agent cannot honestly self-perform (D-38, T-06-FAB2). The runbook's parity table in examples/03-ticket-to-pr.md has 9 CC-native cells still marked 'pending human' pending this run."
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: human_needed
 ---
 
 # Phase 6: Validation, Brand & Dogfood — Verification Report

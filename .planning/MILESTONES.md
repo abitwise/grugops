@@ -1,5 +1,35 @@
 # Milestones
 
+## v2.1 Autonomous Factory — Real Spawning, Controlled Language & Live Board (Shipped: 2026-10-18)
+
+**Phases completed:** 13 phases (27, 28, 29, 29.1, 29.2, 30, 31, 32, 32.1, 33, 33.1, 34, 34.1), 453 plans, 1,024 tasks
+**Git:** `v2.0..24d1df0b` — 2,912 commits, 682 files changed outside `.planning/` (+366,450 / −7,725, largely committed `.js` twins and test corpora) · 2026-07-28 → 2026-10-18
+**Audit:** `gaps_found` — 52/64 requirements satisfied (3 partial, 9 unsatisfied), 6/6 cross-phase integration items wired (0 broken), 3/4 E2E flows; Nyquist 4 compliant / 8 not validated / 1 missing. Archived: `milestones/v2.1-MILESTONE-AUDIT.md`
+**Closeout type:** `override_closeout` — gaps accepted by the human at close (2026-10-18). 7 of 13 phases closed by human decision or override with their verification left standing (27, 29, 29.1, 31, 33, 34, 34.1)
+**Known verification overrides:** 191 newly acknowledged, 0 carried forward from a prior close (see STATE.md Deferred Items). A further **699 deferred items** could not be acknowledged by the CLI writer (table-row or code-heavy entries it cannot anchor: 27: 545, 33.1: 61, 30: 30, 32: 20, 34.1: 18, 29.2: 17, 29.1: 8); they stay open and will resurface in later audits.
+
+**Delivered:** The milestone that made the decentralized factory runnable — derived kit sets and generated role adapters, a controlled-language profile with mechanical gates, per-role model and effort dials that reach installed repos, a per-checkpoint autonomy matrix over a git-host safety floor, autonomous manual testing, a read-only live board, Pi as a sixth host, and a per-agent installer. Its headline proof — a captured run of role agents working in their own sessions — was attempted three times and never passed.
+
+**Key accomplishments:**
+
+- **Kit-set authority (Phase 27–28)** — `kit-model.ts` became the sole filesystem-derived answer to which roles and workflows exist; every guard, validator and kit-ref scan set was unfrozen to follow it, immediately surfacing 14 never-validated section gaps; 17 role adapters are generated from one source behind a freshness gate; a 36-row consistency audit and a 38-anchor claim registry hold the kit's public claims.
+- **Controlled language (Phase 29)** — a grugops-authored writing profile with `guard_imperative_lexicon`, `guard_sentence_form` and `guard_banned_claims`, each watched failing on the real tree first; the caveman token-economy claim was disproven by measurement and removed.
+- **Model and effort dials (29.1, 29.2, 34)** — `models` and `effort` presets resolved by `model-tiers.ts` and delivered into a target's Claude Code adapters by mirror-spawning the committed generator; illegal presets refused before any write.
+- **Autonomy matrix and guard retirement (30, 33.1)** — every human stop enumerated and dialable per checkpoint; the Bash command-parsing merge/deploy guard was retired (D-17) because no shell-text parser could be closed — the git host is the hard floor and the installer writes Claude Code ask rules.
+- **Live board (32, 32.1)** — one board-grammar authority emitting a typed snapshot, rendered by a read-only terminal dashboard proven to make zero mutating calls.
+- **Six hosts, per-agent install (34, 34.1)** — `HOST_TOOLS` is the single host set; Pi joined; the installer installs only for the agents named (`--claude`, `--codex`, `--antigravity`, `--opencode`, `--copilot`, `--pi`), with Antigravity CLI replacing Gemini CLI.
+
+### Known Gaps
+
+- **CAP-01 / CAP-03 / SPAWN-03** — own-session spawn proof and GAP-D1: every live capture read `OUTCOME: fail` (closed by override D-33-R4-08; 33.1 capture also `fail`).
+- **CAP-02 / HOST-02** — windows-latest CI red; Windows out of scope during active development (D-25).
+- **KIT-03 / SPAWN-04** — dissolved by the D-64 canonical-form cutover, never promoted by a verification round.
+- **UATX-01 / UATX-06** — accepted open by D-44 (CR-28..CR-31).
+- **Partial:** LANG-04 (held as content per D-59), LANG-08 (standing override), PI-02 (live Pi run pending, backlog 999.5).
+- **Ledger:** 247 open rows in `.planning/WINDOWS.md`; backlog 999.1–999.10.
+
+---
+
 ## v2.0 Decentralized Factory — Shared Verified Context (Shipped: 2026-07-28)
 
 **Phases completed:** 7 phases (20–26), 44 plans, 75 tasks

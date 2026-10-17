@@ -1,9 +1,17 @@
+---
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  questions_digest: aaf6fe5b95158dfd3edf557d775b32a84913624e8e054758bbf6e39ee21b134f
+---
+
 # Phase 27: Spawn Correctness & Kit-Set Authority - Context
 
 **Gathered:** 2026-07-28
 **Status:** Ready for planning
 
 <domain>
+
 ## Phase Boundary
 
 Role agents actually execute in their own sessions on Claude Code — and every guard and validator scan set is derived from the filesystem **before** the 17 new adapter files exist, so they land inside the guards rather than outside them.
@@ -28,6 +36,7 @@ Requirements: KIT-01, KIT-02, KIT-03, SPAWN-01..07 (10 total).
 </domain>
 
 <decisions>
+
 ## Implementation Decisions
 
 ### Coordinator Entry & Main-Thread Wiring (SPAWN-03, SPAWN-04)
@@ -392,21 +401,25 @@ The count defends against **vacuity**, not against additions. Two distinct failu
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Milestone scope & requirements
+
 - `.planning/REQUIREMENTS.md` — v2.1 requirements; KIT-01..03 and SPAWN-01..07 are this phase. Also the ratified milestone decisions (Claude Code floor v2.1.219+, scope 46 requirements, honesty floor).
 - `.planning/ROADMAP.md` § "Phase 27: Spawn Correctness & Kit-Set Authority" — goal, 5 success criteria, the load-bearing intra-phase ordering, and the standing-obligations table (obligation #3 = the `orchestrator.md` trim).
 
 ### Research (this phase carries a `--research-phase` flag)
+
 - `.planning/research/SUMMARY.md` — the cross-cutting "hand-maintained set literals drift silently green" finding; the derive-the-set doctrine; Phase-27 deliverable list.
 - `.planning/research/STACK.md` §"Findings that bear directly on the v2.1 spawn defect" — finding ① (`Agent(...)` allowlists ignored inside a subagent definition, and what that means for `guard_wr05`), ② (the depth table: v2.1.172–216 = 5, **217–218 = 1 / silently off**, 219+ = 3; `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), ③ (`coordinator: true` is not a supported CC field — grugops-internal marker only), ④ (background subagents strip most built-ins since v2.1.198; every tool the roles need survives), ⑤ (`AskUserQuestion` removed from every subagent), ⑥ (plugin subagents ignore `hooks`/`mcpServers`/`permissionMode`). Also the v2.1.208 "tools resolve to nothing → refuses to launch" fact.
 - `.planning/research/ARCHITECTURE.md` — the `kit-model.ts` / `generate-role-adapters.ts` / `adapters-freshness.ts` seam map and line-precise consumer list. **`:515` is explicitly overridden by D-06 — read D-06 before following its "plain copies" recommendation.**
 - `.planning/research/PITFALLS.md` — P-01 (a spawn guard sharing the bug's blind spot); "every new gate reports what it checked, not just PASS."
 
 ### Kit substrate this phase edits
+
 - `AGENTS.md` § "Kit vs state" (`:27-36`) — the kit-root resolution rule and the STOP-do-not-hunt requirement that forces D-06.
 - `agent-factory/packaging/subagent.frontmatter.md` — the adapter template the generator must be built from; already documents the main-thread-vs-subagent allowlist behavior and the coordinator shape.
 - `agent-factory/roles/orchestrator.md` — 7562B; Responsibility 4 (`:44`) holds the existing spawn/degrade sentence to be made capability-keyed; `### Routing matrix` (`:53-64`) is 1188B.
@@ -415,6 +428,7 @@ The count defends against **vacuity**, not against additions. Two distinct failu
 - `.claude/skills/grugops/SKILL.md` — `allowed-tools` lacks `Agent` (the third stacked cause).
 
 ### Tooling this phase re-points
+
 - `scripts/check-foundation-guards.ts` — `WR05_SCAN` `:135`, `ADAPTERS` `:244`, `ROLE_FILES` `:282`, `roleCeiling()` `:486` (leave alone — D-17), `guardRoleSize()` `:530`, `CTX_WORKFLOWS` `:593`. Root convention: `CHECK_ROOT` `:70`.
 - `scripts/validate-agent-factory.ts` — frozen `WORKFLOWS` `:118` (14, should be 19) and `ROLES` `:144` (16, missing `frontend-ui`). Two-root convention: `VALIDATE_ROOT` `:59` / `VALIDATE_KIT_ROOT` `:68`.
 - `scripts/check-kit-refs.ts` — `SCAN` `:45`, `GH_SCAN` `:61`, Assertion 2 (`agent-factory/handoffs/` → zero) `:155-168`, Assertion 3 (`$GRUGOPS_HOME` sites) `:178-189`.
@@ -423,14 +437,17 @@ The count defends against **vacuity**, not against additions. Two distinct failu
 - `scripts/catalog-freshness.ts`, `scripts/context-freshness.ts` — the byte-freshness pattern `adapters-freshness.ts` mirrors (SPAWN-02). Per the D-07 precedent, a domain freshness check is **standalone**, never folded into the aggregator.
 
 ### Project constraints
+
 - `CLAUDE.md` § Constraints — single-source (adapters are thin pointers, never copies); installers idempotent/additive/dry-run/reversible; no fabrication; zero runtime dependencies on host machines. **Note: `CLAUDE.md` still describes handoff packets and a routing Orchestrator — that drift is AUDIT-02 in Phase 28, not this phase.**
 
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
+
 - **`generate-catalog.ts:110-112,154-156`** — the exact readdir + `_`-prefix-drop + `/^\d{2}-.+\.md$/` rules `kit-model.ts` generalizes. Do not re-derive them; lift them.
 - **`catalog-freshness.ts` / `context-freshness.ts` / `trace-freshness.ts` / `now-running-freshness.ts`** — four existing regenerate-to-temp + byte-compare gates. `adapters-freshness.ts` (SPAWN-02) is a fifth instance of a proven pattern, kept standalone per the D-07 precedent.
 - **`agent-factory/packaging/subagent.frontmatter.md`** — a copy-ready adapter template that already carries the correct v2.0 memory wording, the coordinator shape, and the main-thread caveat. The generator should be built from this, not from the drifted live adapter.
@@ -440,6 +457,7 @@ The count defends against **vacuity**, not against additions. Two distinct failu
 - **`stripFencedBlocks()` / `matchesOutsideFences()` (`check-foundation-guards.ts:~155-180`)** — fence-aware scanning so documentation examples are never read as live frontmatter. Reuse for `guard_adapter_body`; do not write a second fence parser.
 
 ### Established Patterns
+
 - **Fail-closed everywhere.** `CR-01 missing-file fail-red` recurs across the guards (a deleted adapter/AGENTS.md fails red rather than vacuously passing). D-21's two-tier count enforcement follows it.
 - **One authority per predicate.** The v2.0 closure doctrine. It drives D-24 (one dead-vocabulary source), D-22 (no fourth root convention), and D-19's rejection of a second detector.
 - **Byte ceilings are locked from a measured baseline and never raised** — trim or split instead (`guard_role_size` comment at `:479-484`; milestone Out-of-Scope).
@@ -447,6 +465,7 @@ The count defends against **vacuity**, not against additions. Two distinct failu
 - **Guards report what they checked**, not just PASS (`PITFALLS.md:591`) — `compared 17 adapters, 0 drift`, so a count of zero is visible as the anomaly it is.
 
 ### Integration Points
+
 - `kit-model.ts` → `check-foundation-guards.ts`, `validate-agent-factory.ts`, `check-kit-refs.ts`, `generate-catalog.ts`, `generate-role-adapters.ts` (new). Each passes its own already-resolved root (D-22).
 - `generate-role-adapters.ts` → `.claude/agents/grugops-<role>.md` × 17, gated by `adapters-freshness.ts`.
 - `install.ts` / `uninstall.ts` → self-derive by readdir of the source adapter/skill dirs (D-18); `materializeAdapter()` now runs over all 17 (D-06).
@@ -456,6 +475,7 @@ The count defends against **vacuity**, not against additions. Two distinct failu
 </code_context>
 
 <specifics>
+
 ## Specific Ideas
 
 - The user pushed back on the guard-vocabulary framing mid-discussion — *"Didn't we steer away from handoffs and have unified memory?"* — which surfaced the conflation in SPAWN-05's "handoff/single-window prose" wording and produced D-23's both-directions shape. **Handoffs are gone and the shared verified context is the sole memory; nothing in this phase reopens that.** The guard exists only to keep a v2.0 deletion deleted.
@@ -465,6 +485,7 @@ The count defends against **vacuity**, not against additions. Two distinct failu
 </specifics>
 
 <deferred>
+
 ## Deferred Ideas
 
 - **Plugin-form adapters** — whether the 17 adapters also ship in the `.claude-plugin/` form. Plugin agents ignore `hooks`/`mcpServers`/`permissionMode` (research finding ⑥) and the plugin cache does not copy files outside the plugin dir, so kit resolution differs there. Raised, not selected for discussion. Candidate for Phase 28's audit or a later packaging pass.

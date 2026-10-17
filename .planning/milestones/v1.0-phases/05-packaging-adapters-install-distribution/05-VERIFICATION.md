@@ -20,6 +20,10 @@ human_verification:
   - test: "Confirm that in a live Claude Code session with the plugin installed, a matched deploy command (e.g. kubectl apply -f x) is intercepted by the PreToolUse hook and produces the permissionDecision deny message visible to the agent"
     expected: "Claude Code presents the deny message 'Production deploy blocked. Set GRUGOPS_PROD_DEPLOY_APPROVED...' and refuses the Bash tool call"
     why_human: "The guard behavioral tests prove the Node logic in isolation. Confirming the full PreToolUse hook wiring (hooks.json -> guard.mjs via ${CLAUDE_PLUGIN_ROOT}) fires in an actual Claude Code session requires a live install. Phase-6 DOG-01 is the formal gate."
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: human_needed
 ---
 
 # Phase 5: Packaging, Adapters, Install & Distribution Verification Report

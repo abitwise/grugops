@@ -140,6 +140,10 @@ human_verification:
   - test: "Decide the four open round-4 review warnings WR-13..WR-16 (and info IN-14..IN-17), all reproduced, none in a plan's must-have; the gap-closure cap (four rounds) is spent"
     expected: "Record them as deferred with a reason (deferred-items.md plus the disposition ledger), or accept a round 5 beyond the cap, or apply an override"
     why_human: "WR-13 is the same class (VERDICT-1/AUTH-1) as the round-4 work, on a state the class matrix does not build. Whether that is acceptable to ship is a scope decision, not something code can settle. See 'Weighing the round-4 review'."
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: human_needed
 ---
 
 # Phase 34: Model Effort Dial and Pi Support Verification Report (re-verification, gap round 4)
@@ -305,3 +309,12 @@ No gaps in the plans' stated must-haves. The phase goal holds on POSIX at the me
 
 _Verified: 2026-10-10T21:10:00Z_
 _Verifier: Claude (gsd-verifier)_
+
+## Acknowledged Gaps
+
+Recorded 2026-10-10 at the round-3 UAT (34-UAT.md), by human decision D-28 (34-CONTEXT.md). The status
+above is left as the verifier wrote it. Phase 34 closes with these items carried to Phase 34.1:
+
+- G-34-R3-2 (UAT test 2): no discoverable grugops entry on Codex, Antigravity CLI or OpenCode after a scripted install; Copilot untested. Carried to 34.1.
+- G-34-R3-4 (UAT test 4): round-4 review WR-13..WR-16 and IN-14..IN-17. Carried to 34.1 with the human's notes.
+- HOST-02 (UAT test 3): windows-latest measurement deferred to backlog 999.5.

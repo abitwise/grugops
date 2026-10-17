@@ -14,6 +14,10 @@ human_verification:
   - test: "Confirm WR-05 closure wording in all four tracking docs reads as factual (not fabricated)"
     expected: "PROJECT.md, STATE.md, v1.2-SDLC-COVERAGE-AUDIT.md, RETROSPECTIVE.md each say the grant was dropped Phase 8, guarded Phase 10, re-verified Phase 11; GAP-2 row in the audit correctly describes in-place senior deepening / no new section / terse caveman = token economy"
     why_human: "Wording quality and factual accuracy of the narrative closure is a judgment call, not a boolean check"
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: human_needed
 ---
 
 # Phase 11: Senior Persona Overhaul — Verification Report

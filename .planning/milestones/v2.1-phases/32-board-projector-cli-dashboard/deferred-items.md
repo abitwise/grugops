@@ -9,7 +9,7 @@
   `.github/workflows/ci.yml:473`. Remedy per the gate's own message: add disposition rows under
   `docs/audit/29-style-dispositions/`, including a `companion` cell for the three findings frozen by
   `structuralSections`. Not touched here — no file this plan changed appears in the findings.
-  status: open
+  status: acknowledged
   **Re-measured in gap-closure round 2 (plan 32-23, 2026-09-15):** still RED, exit 1,
   `1 CHECK(S) FAILED`, and **still the same finding set** — 78 findings naming exactly the same five
   Phase-31 workflow documents (38 / 25 / 10 / 2 / 3), derived by counting the gate's own finding
@@ -41,7 +41,7 @@
   (`scripts/board-watch-live.test.ts`), widening the band from `[250 ms, 600 ms)` to
   `[250 ms, 750 ms)` so a failure arrives as a printed latency rather than as a timeout. That half
   is a measurement-quality fix and is true on every platform.
-  status: open
+  status: acknowledged
   **What is NOT being done here:** moving the platform-dependent live cases out of the shared vitest
   step into their own `check:watch-live` npm script, invoked from a separate, named CI step that is
   non-blocking on the Windows leg.
@@ -130,7 +130,7 @@
   `git diff --name-only f407355d^..HEAD`); a grep of the full finding text for every one of them
   returns **0**. Pre-existing and carried, therefore neither a regression of this round nor quietly
   absorbed into it. Ledger row 176.
-  status: open
+  status: acknowledged
 - **The live claude-CLI end-to-end lane was NOT run in this round, and its state is
   `UNKNOWN - verify`.** `npm test` triggers `scripts/e2e`, which spends tokens on an authenticated
   box and can hang; every prior round of this phase carried it the same way. The regression lane
@@ -197,7 +197,7 @@ overlap numbers below are computed against the WIDE base, which is the more cons
   also returns zero. Every finding is in an `agent-factory/roles/` or `agent-factory/workflows/`
   document that no commit of this round touched. Pre-existing, unmoved, therefore neither a
   regression of this round nor quietly absorbed into it. Ledger row 176.
-  status: open
+  status: acknowledged
 - **The live claude-CLI end-to-end lane was NOT run by plan 32-41, and its state stays
   `UNKNOWN - verify`.** `npm test` is `vitest run` with no exclusion, so it triggers `scripts/e2e`,
   which spends tokens on an authenticated box and can hang. Every prior round of this phase carried
@@ -287,7 +287,7 @@ row is not a closure; it is the difference between an item being OPEN and an ite
   **Owner:** unassigned. Closing it needs a different instrument — a runtime capability probe or a
   policy that refuses `node_modules` entirely — not another resolution arm on the existing scanner.
   Ledger row 208.
-  status: open
+  status: acknowledged
 - **`UNKNOWN - verify`: `scripts/board-watch-live.test.ts`'s delivery band on `windows-latest`.**
   Not measurable from this host, unchanged from every prior round of this phase. The three
   platform-dependent live cases depend on the platform delivering directory events; the band was
@@ -337,7 +337,7 @@ row is not a closure; it is the difference between an item being OPEN and an ite
   is the same handling round 3 gave the 77-versus-78 counting-instrument correction: state it where
   the next reader will find it, leave the original document byte-unchanged.
   **Owner:** the verifier's next pass, or whoever cites F-15's provenance next. Ledger row 209.
-  status: open
+  status: acknowledged
 
 ## `.planning/WINDOWS.md` reconciliation after plan 32-41's appends
 

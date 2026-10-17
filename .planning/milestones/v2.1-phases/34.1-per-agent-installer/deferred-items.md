@@ -24,6 +24,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   it was not done inside plan 34.1-01.
 - Decided (D-28, human, 2026-10-12): the three generated host entries keep their by-name exclusion from the
   banned-claims gate; 0 occurrences measured 2026-10-11; no plan admits them as a derived part.
+  status: acknowledged
 
 ### DI-02: plan 34.1-02 names the template path `host-entry.template.md`; the file is `host-entry.pointer.md`
 
@@ -36,6 +37,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **Action for plan 34.1-02:** read the path from `TEMPLATE_REL`, exported by
   `scripts/generate-host-entries.ts`, instead of typing `host-entry.template.md` in
   `scripts/host-entries-freshness.ts`.
+  status: acknowledged
 
 ### DI-03: five suite reds that predate plan 34.1-01 (Node 26 on this machine)
 
@@ -47,6 +49,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   warning). Both causes come from Node 26, not from repository code.
 - **Not fixed:** out of scope for plan 34.1-01. Whether CI on Node 22 shows them is
   `UNKNOWN - verify`.
+  status: acknowledged
 
 ## From plan 34.1-09 (2026-10-12)
 
@@ -58,6 +61,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   the project `opencode.json` (D-14). The row is not false about the command file, but it omits the second write.
 - **Not fixed:** `CLAUDE.md` is a project instruction file outside this plan's files; plan 34.1-13 owns the sweep of
   shipped docs. Proposed remedy: add "plus the `opencode.json` kit-read permission (D-14)" to that row's adapter cell.
+  status: acknowledged
 
 ## Status after plan 34.1-13 (2026-10-12)
 
@@ -67,6 +71,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **DI-03:** still open. The five Node 26 reds are reported by plan 34.1-13's final regression; whether CI on Node 22
   shows them is `UNKNOWN - verify`.
 - **DI-04:** closed by plan 34.1-13 (commit ac790deb): CLAUDE.md's OpenCode row names the `opencode.json` kit-read rule.
+  status: acknowledged
 
 ## From plan 34.1-14 (2026-10-12)
 
@@ -84,6 +89,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   changing what keeps an agent recorded is D-29's rule). Not reproduced by a run; read from the code. Options for
   triage: count a recorded verify on any entry an agent owns as keeping that agent, or word the `left` line for this
   case without a per-agent command.
+  status: acknowledged
 
 ## From plan 34.1-15 (2026-10-12)
 
@@ -97,6 +103,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   quotes such a target.
 - **Not fixed:** outside this plan's sites (the plan's agentCommand list is five sites and the banner). Proposed
   remedy: `agentCommand("install.js", TARGET, [])` in backticks. Read from the code, not reproduced.
+  status: acknowledged
 
 ### DI-09: kit-plan verifies printed by the --migrate pre-check end in the migrate banner, which prints no same-run command
 
@@ -109,6 +116,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **Not fixed:** the plan classes the migrate banners as agent-independent and leaves them unchanged. Options for
   triage: print agentCommand with `--migrate` in the migrate banner, or class the pre-check's verifies separately.
   Read from the code, not reproduced.
+  status: acknowledged
 
 ## From plan 34.1-16 (gap round 1)
 
@@ -130,6 +138,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   file with the recorded mode) through the same oracle path as the main arm; otherwise name the file on a `left` line
   with a by-hand remedy. Read from the code, not reproduced.
 - **Not fixed:** kept deferred by D-30; human triage.
+  status: acknowledged
 
 ## From plan 34.1-18 (gap round 1)
 
@@ -148,6 +157,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **Closed by plan 34.1-31 (D-31, commit 8d730df2):** the five notes, plus two wrapped siblings the new scan found
   (install/install.test.ts, install/record-truth.test.ts), now name the entries of the chosen agents; the DI-10 scan in
   install/host-tools-prose.test.ts reads comments and holds the claim at zero.
+  status: acknowledged
 
 ## Status after gap round 1 (plans 34.1-14 to 34.1-18)
 
@@ -162,6 +172,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **DI-08:** open for human triage (recorded by plan 34.1-15).
 - **DI-09:** open for human triage (recorded by plan 34.1-15).
 - **DI-10:** open for human triage (recorded by plan 34.1-18, found by plan 34.1-17).
+  status: acknowledged
 
 ## From plan 34.1-21 (gap round 2)
 
@@ -189,6 +200,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   whose reversal counted a verify (an agentsToRecord change, D-29's rule). The legacy `gemini` kind has the same shape
   (a claims-nothing entry can still verify in unmergeGemini), but it has no owner, so it is reversed only by a FULL run,
   whose finishing command is the flag-less one; it is listed here for completeness.
+  status: acknowledged
 
 ## From plan 34.1-27 (gap round 2)
 
@@ -206,6 +218,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **Not fixed:** a command that runs another checkout's install.js is not something agentCommand builds. Options for
   triage: leave the text (the user names the checkout), or print the --check command with a placeholder for the
   checkout's install.js path. Read from the code, not reproduced.
+  status: acknowledged
 
 ## From plan 34.1-28 (gap round 2)
 
@@ -232,12 +245,13 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
   against 33.1-40's "kept in the record"); (b) the verify says plainly what a re-run does and does not do (for prune, a
   gone backup's entry stays and removes nothing on a later prune); (c) the migrate caller records
   the earlier run's backup when the backup path exists and matches.
+  status: acknowledged
 
 ## From plan 34.1-30 (gap round 2)
 
 ### DI-14: an agent install records again from the ledger is named by no closing note and asked about by no route note
 
-- status: open
+- status: acknowledged
 - **Found during:** plan 34.1-30, Task 1 (sibling search after the writeMarker change).
 - **What:** plan 34.1-30 (D-31, IN-26) makes writeMarker record every owner of a holding entry of the ledger it
   writes. The rest of the run still reads AGENTS_AFTER (the agents recorded before the run plus the agents chosen in
@@ -255,7 +269,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-15: agent instruction text tells the reader to run `node install/install.js`, a path relative to the grugops checkout
 
-- status: open
+- status: acknowledged
 - **Id note:** the round-2 plan texts (34.1-28-PLAN.md, 34.1-32-PLAN.md) and the 34.1-28 SUMMARY call this finding
   "DI-11". Plan 34.1-21 had already recorded a different finding as DI-11 (above), so this one is recorded as DI-15.
   Read "DI-11" in those plan texts as this entry.
@@ -278,7 +292,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-16: the doctor's FAIL over a marker that is not JSON (or has no usable ledger) prints an install command without naming its kit home
 
-- status: resolved 2026-10-13, closed by D-38 in gap round 4 (plans 34.1-44, 34.1-47 and 34.1-49; commits 30003a2c,
+- status: acknowledged
   fadff0bb, c3d99e71). See "Status after gap round 4" below.
 - **Found during:** plan 34.1-41, Task 1 (sibling search for the MSG-1 shape "a printed install step over an unusable
   marker whose kit home the line does not name").
@@ -299,7 +313,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-17: no follow-as-printed row runs an `--update` or `--prune-old-kit` command printed under a non-default kit home
 
-- status: resolved 2026-10-13, closed by D-38 in gap round 4 (plan 34.1-49; commits fc4e57a4, c3d99e71). See "Status
+- status: acknowledged
   after gap round 4" below.
 - **Found during:** plan 34.1-38, Task 2 (the claim table for install/README.md's printed-command paragraph).
 - **What:** the README sentence "An install, `--migrate`, `--update` or `--prune-old-kit` run prints commands with the
@@ -316,7 +330,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-18: over a user's own JSON object at .grugops/install.json in a target grugops never installed into, the uninstaller's verify calls the file the record of the agents installed here
 
-- status: resolved 2026-10-14, closed by D-40 in gap round 5 (plan 34.1-54, commits cc2a57b5, dcfc7f9e, 9ff8142e; the
+- status: acknowledged
   field set confirmed by D-44). See "Status after gap round 5" below.
 - **Found during:** plan 34.1-42, Task 1 (the install/ regression run: installer-never-installed.test.ts FD and FM pin
   the marker's `left` line over a user's JSON object at the marker path).
@@ -336,7 +350,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-19: the doctor's ask-rules WARN over an unreadable marker names the wrong cause and calls the install ledger unknown
 
-- status: resolved 2026-10-14, closed by D-40 in gap round 5 (plan 34.1-53, commits 6aa1f4c9, b72058ca). See "Status
+- status: acknowledged
   after gap round 5" below.
 - **Found during:** plan 34.1-45, Task 3 (the unusable-marker census, derived by search over every product module).
 - **What:** install.ts doctor, the ask-rules check, re-reads the marker (`askMarker`) and, when it is `unreadable`,
@@ -355,7 +369,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-20: three install.ts comments and one test comment still say a printed command carries GRUGOPS_HOME only for another kit home, and `--symlink` for a symlink install
 
-- status: resolved 2026-10-13 by plan 34.1-51 Task 2 (the commit "docs(34.1-51): ... (D-38)"): the three install.ts
+- status: acknowledged
   comments (the --update header, the migrate same-run comment, the install same-run comment) and both closing-claims
   comments (U1, and the migrate row's at about line 493) state the D-38 rule; a fourth install.ts sibling found by
   search (the doctor's ONE CHECKOUT comment, "`GRUGOPS_SRC=<dir>` when it is not this script's own checkout") was
@@ -378,7 +392,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-21: two agents-record.test.ts rows spawn mkfifo directly, which the mkfifo census in scripts/uat-gate-exit-contract.test.ts refuses
 
-- status: resolved 2026-10-13 by the commit "fix(34.1): stage the reader-state FIFO shapes through stageShapeOrSkip
+- status: acknowledged
   (DI-21)" (a commit cannot carry its own sha): both rows now stage the FIFO through stageShapeOrSkip, which returns a
   printed, counted skip on a host that cannot make one; the census stays unedited and green.
 - **Found during:** plan 34.1-50, a full `npx vitest run --exclude '**/scripts/e2e/**'` started after Task 3 (it was
@@ -398,7 +412,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-22: printed commands outside the installer's builder name no kit home or install mode, so D-38's rule does not reach them
 
-- status: residual at phase close (D-39); open for the human; no round 5
+- status: acknowledged
 - **Found during:** the gap round 4 plan check, recorded by plan 34.1-52, Task 1 (2026-10-13).
 - **What:** D-38 makes every command the installer's builder prints (host-tools.ts scriptCommand) state
   `GRUGOPS_HOME`, `INSTALL_MODE` (install.js) and `GRUGOPS_SRC`. Three texts outside that builder still print an
@@ -424,7 +438,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-23: over a foreign read, three uninstall lines still call the file "the install marker"
 
-- status: open (for the human; no round 6)
+- status: acknowledged
 - **Found during:** plan 34.1-54, Task 1 (a scratch uninstall over a user's own JSON object at the marker path, with
   GRUGOPS_HOME and HOME set to scratch directories, after the `foreign` state landed).
 - **What:** the verify and the marker's `left` line now say the file was not written by install and, if it is yours,
@@ -447,7 +461,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-24: a directory or a FIFO at the marker path gets a verify that calls it the one record install keeps
 
-- status: residual at phase close (D-44); open for the human; no round 6
+- status: acknowledged
 - **Found during:** review WR-38's last paragraph; recorded as residual by D-44 (ii) (human, 2026-10-14) and written
   here by plan 34.1-57, Task 1.
 - **What:** plan 34.1-55 made removeMarker's `left` line the owner's for every blocked shape: a directory or a FIFO at
@@ -462,7 +476,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 
 ### DI-25: install's INCOMPLETE banner names a re-run after a foreign verify
 
-- status: resolved 2026-10-17, closed by D-45 (plan 34.1-59, commits ab18b3aa, 78ba1aa8, 4f02696b)
+- status: acknowledged
 - **Resolution:** D-45 item 3 (human, 2026-10-14, at UAT test 16, G-34.1-16) chose the second option below: install
   asks install-marker.ts installRefusal once, before any write, and over a foreign or unreadable marker exits 3 having
   written nothing in the target or the kit home; a foreign read's closing names no command. D-46 (human, 2026-10-17)
@@ -512,6 +526,7 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **DI-14:** recorded for human triage by plan 34.1-30 (commit 585ba921): an agent install records again from the
   ledger is named by no closing note and asked about by no route note in the same run.
 - **DI-15:** deferred for human triage (recorded above by plan 34.1-32; the round-2 plan texts call it "DI-11").
+  status: acknowledged
 
 ## Status after gap round 3 (plans 34.1-33 to 34.1-41)
 
@@ -549,6 +564,7 @@ IN-28 to IN-31, DI-05 and DI-11 to DI-15 to triage. "Not changed in round 3" bel
   `mayRemove` arm and notInstalled print an install command without naming its kit home.
 - **DI-17:** open for human triage, recorded by plan 34.1-38 (commit 4ab7e9b8): no follow-as-printed row runs an
   `--update` or `--prune-old-kit` command printed under a non-default kit home.
+  status: acknowledged
 
 ## Status after gap round 4 (plans 34.1-42 to 34.1-52)
 
@@ -562,11 +578,13 @@ for prose); AGENTS.md, scripts/ and agent-factory/ are unchanged.
 - **DI-02:** resolved in plan 34.1-02 (the gate reads `TEMPLATE_REL`); nothing left.
 - **DI-03:** a human item; whether CI on Node 22 shows the Node 26 reds is `UNKNOWN - verify`. Plan 34.1-52's full
   regression reports them again (its SUMMARY lists each failing case against this baseline).
+  status: acknowledged
 - **DI-04:** closed by plan 34.1-13 (commit ac790deb).
 - **DI-05:** deferred as residual at phase close by D-39; not changed in round 4. install/uninstall.ts unmergeGemini is
   untouched; plans 34.1-42 to 34.1-45 and 34.1-47 to 34.1-48 changed uninstall.ts elsewhere (noBlockRecordReason,
   removeMarker, reportUnrecordedSettings, the module-top marker verifies, COMMAND_CONTEXT, finishCommand and
   keepWithoutRecord).
+  status: acknowledged
 - **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
 - **DI-07:** fixed in round 2 by plan 34.1-21 under D-31 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); its remaining arm is
   DI-11.
@@ -577,36 +595,48 @@ for prose); AGENTS.md, scripts/ and agent-factory/ are unchanged.
   34.1-45 (commit 7f407082) changed reportUnrecordedSettings's ask-rules arm beside it (IN-34: over an unusable marker
   the report is a `left` line pointing at the marker's verify) and did not change which arm counts a verify or what
   the finishing command names.
+  status: acknowledged
 - **DI-12:** deferred as residual at phase close by D-39; not changed in round 4. Plan 34.1-50 (commit 0c210f4d)
   changed the doctor's stale-adapter render and wording beside the two lines (DOCTOR_KIT_ROOT); the two "re-run
   --check from a complete kit checkout" lines still print no command.
+  status: acknowledged
 - **DI-13:** deferred as residual at phase close by D-39; not changed in round 4. rewriteLedger's "Re-run to finish
   it." is unchanged; plan 34.1-49's `--prune-old-kit` row (commit c3d99e71) asserts which kit home the printed
   command acts on, not that entries leave the record.
+  status: acknowledged
 - **DI-14:** deferred as residual at phase close by D-39; not changed in round 4. Plan 34.1-44 (commit 87eead65)
   changed writeMarker's skipped line (it now words the cause through markerDefectText); agentClosingLines
   and the route notes still read AGENTS_AFTER.
+  status: acknowledged
 - **DI-15:** deferred as residual at phase close by D-39; not changed in round 4. AGENTS.md and scripts/kit-model.ts
   RESOLVER are unchanged, so the generated adapters still say `node install/install.js`; DI-22 names the kit-home
   half of the same texts.
+  status: acknowledged
 - **DI-16:** closed by D-38: plan 34.1-44 removed the install command from the doctor's unreadable-marker FAIL (commit
   30003a2c; the FAIL now prints only the check command), plan 34.1-47 made every printed command state its kit home
   (commits fadff0bb, 335a98e3), and plan 34.1-49's R51 follows the doctor's not-installed FAIL, its install command
   and its check command as printed under conflicting values (commit c3d99e71).
+  status: acknowledged
 - **DI-17:** closed by D-38: plan 34.1-49's `--update` row (commit fc4e57a4) and `--prune-old-kit` row (commit
   c3d99e71) run each INCOMPLETE banner's command as printed under a non-default kit home with a conflicting
   GRUGOPS_HOME in the child.
+  status: acknowledged
 - **DI-18:** open for the human; no round 5 (recorded by plan 34.1-42, commit 8a40b76d): over a user's own JSON object
   at the marker path in a target grugops never installed into, the uninstaller's verify calls the file the record of
   the agents installed here. Wording only; uninstall changes zero bytes there.
+  status: acknowledged
 - **DI-19:** open for the human; no round 5 (recorded by plan 34.1-45, commit 6bdda559): the doctor's ask-rules WARN
   over an unreadable marker names the wrong cause, reached only if the marker changes between two reads.
+  status: acknowledged
 - **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551; recorded by plan 34.1-49, commit c60277ce).
+  status: acknowledged
 - **DI-21:** resolved by commit 4e0fa03a (recorded by plan 34.1-50, commit 73770fbf): both FIFO shapes are staged
   through stageShapeOrSkip; the mkfifo census is unedited.
+  status: acknowledged
 - **DI-22:** residual at phase close by D-39; open for the human; no round 5 (recorded by plan 34.1-52, this
   commit): printed commands outside the installer's builder (subagent.frontmatter.md, scripts/kit-model.ts RESOLVER,
   install/install.ts TARGET_BANNER) name no kit home or install mode.
+  status: acknowledged
 
 ### Recorded for the human at round close (no round 5)
 
@@ -620,6 +650,7 @@ for prose); AGENTS.md, scripts/ and agent-factory/ are unchanged.
 - **(b) DRY_RUN is the user's chosen preview.** Plan 34.1-49 classes DRY_RUN in the env-read census as "preview": no
   printed command states it, so a DRY_RUN exported in the user's shell turns a followed command into a preview that
   writes nothing. Residual at phase close (D-39), not fixed.
+  status: acknowledged
 
 ## Status after gap round 5 (plans 34.1-53 to 34.1-57)
 
@@ -634,10 +665,12 @@ install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchang
 - **DI-02:** resolved in plan 34.1-02 (the gate reads `TEMPLATE_REL`); nothing left.
 - **DI-03:** a human item; whether CI on Node 22 shows the Node 26 reds is `UNKNOWN - verify`. Plan 34.1-57's full
   regression reports them again (its SUMMARY lists each failing case against this baseline).
+  status: acknowledged
 - **DI-04:** closed by plan 34.1-13 (commit ac790deb).
 - **DI-05:** residual at phase close (D-39, D-40); not changed in round 5. install/uninstall.ts unmergeGemini is
   untouched; plans 34.1-54 and 34.1-55 changed uninstall.ts elsewhere (removeMarker and its header comment, the
   updateKeptMarker comment, the MARKER_READ module comment and the module-top unreadable verify).
+  status: acknowledged
 - **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
 - **DI-07:** fixed in round 2 by plan 34.1-21 under D-31 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); its remaining arm is
   DI-11.
@@ -647,38 +680,53 @@ install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchang
 - **DI-11:** residual at phase close (D-39, D-40); not changed in round 5. removeAskRules is untouched; plan 34.1-54
   (commit 9ff8142e) reworded removeMarker's header comment just below it and did not change which arm counts a verify
   or what the finishing command names.
+  status: acknowledged
 - **DI-12:** residual at phase close (D-39, D-40); not changed in round 5. Plan 34.1-53 (commit 6aa1f4c9) changed the
   doctor's ask-rules check and plan 34.1-56 (commit 2a47f596) added the moved-kit FAIL to the kit-root cross-check,
   both in doctor() beside the two lines; the two "re-run --check from a complete kit checkout" lines still print no
   command.
+  status: acknowledged
 - **DI-13:** residual at phase close (D-39, D-40); not changed in round 5. rewriteLedger's "Re-run to finish it." is
   unchanged; no round-5 hunk is in rewriteLedger or rewriteLedgerWithout.
+  status: acknowledged
 - **DI-14:** residual at phase close (D-39, D-40); not changed in round 5. Plan 34.1-54 (commit cc2a57b5) changed
   writeMarker's step (it now passes its step to markerFixText); agentClosingLines and the route notes still read
   AGENTS_AFTER.
+  status: acknowledged
 - **DI-15:** residual at phase close (D-39, D-40); D-41 decided its wording with DI-22 as one backlog item, not built
   in this phase. AGENTS.md, scripts/kit-model.ts RESOLVER and install/install.ts TARGET_BANNER are unchanged in round
   5, so the generated adapters still say `node install/install.js`.
+  status: acknowledged
 - **DI-16:** closed by D-38 (as after round 4; plans 34.1-44, 34.1-47 and 34.1-49, commits 30003a2c, fadff0bb,
   c3d99e71).
+  status: acknowledged
 - **DI-17:** closed by D-38 (as after round 4; plan 34.1-49, commits fc4e57a4, c3d99e71).
+  status: acknowledged
 - **DI-18:** closed by plan 34.1-54 under D-40 and D-44 (commits cc2a57b5, dcfc7f9e, 9ff8142e): a JSON object holding
   none of install's five fields reads `foreign` and is worded "not written by install; if it is yours, leave it",
   with no next step and no removal offer (recorded by plan 34.1-42, commit 8a40b76d).
+  status: acknowledged
 - **DI-19:** closed by plan 34.1-53 under D-40 (commits 6aa1f4c9, b72058ca): the doctor's ask-rules check reads
   DOCTOR_MARKER_READ, and the unreachable "install ledger is unknown" WARN is deleted (recorded by plan 34.1-45,
   commit 6bdda559).
+  status: acknowledged
 - **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551), as after round 4.
+  status: acknowledged
 - **DI-21:** resolved by commit 4e0fa03a, as after round 4.
+  status: acknowledged
 - **DI-22:** a backlog item. D-41 decided its wording (point at `--check` and name the checkout), with DI-15; it is
   not built in this phase (recorded by plan 34.1-52).
+  status: acknowledged
 - **DI-23:** open for the human; no round 6 (recorded by plan 34.1-54, commit 5e0629d6): over a foreign read, three
   uninstall lines still call the file "the install marker". Wording only; none offers removal or claims the record.
+  status: acknowledged
 - **DI-24:** residual at phase close (D-44 (ii)); open for the human; no round 6 (recorded by plan 34.1-57, this
   commit): a directory or a FIFO at the marker path gets a verify that calls it the one record install keeps.
+  status: acknowledged
 - **DI-25:** residual at phase close (D-44 (iii)); open for the human; no round 6 (recorded by plan 34.1-57, this
   commit): install's INCOMPLETE banner names a re-run after a foreign verify, and the run writes the chosen agents'
   files and the seeds with no record.
+  status: acknowledged
 
 ### Recorded for the human at round close (no round 6)
 
@@ -696,12 +744,13 @@ install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchang
   `node install/install.js` (point at `--check` and name the checkout), built later with an adapter regeneration
   through the freshness gate.
 - **(e) New items for the human from this round:** DI-23 (open), DI-24 and DI-25 (residual by D-44).
+  status: acknowledged
 
 ## Found during the fix round after gap round 5 (D-45)
 
 ### DI-26: with `.grugops` a regular file or a link to nothing, the uninstaller's closing still calls `.grugops/` seeded state
 
-- status: open for the human; not in D-45's scope (recorded by plan 34.1-58 Task 3, commit e1a5b165)
+- status: acknowledged
 - **What:** with `.grugops` a regular file or a symbolic link to nothing, the uninstaller's closing still says
   `.grugops/ (seeded state) is kept; its install.json marker is reported on the next line.` Nothing at `.grugops` is a
   directory of seeded state then. The next line, which says .grugops/install.json was left in place and points at the
@@ -711,7 +760,7 @@ install/README.md for prose); AGENTS.md, scripts/ and agent-factory/ are unchang
 
 ### DI-27: install over an unreadable kit-home record copies the kit and leaves that run's backup unrecorded
 
-- status: open for the human; not in D-45's or D-46's scope (recorded by plan 34.1-59 Task 3, commit 4f02696b)
+- status: acknowledged
 - **What:** found by the Task 1 executor's sibling search, read from the code, not reproduced in a run. The same
   class as DI-25 one file over: the kit home's own record, `<GRUGOPS_HOME>/.grugops-kit.json`. When readKitHomeRecord
   answers `unreadable`, install.ts writeKitHomeRecord prints a verify, leaves the record as it is and returns, but the
@@ -730,36 +779,61 @@ of three items) and D-46 (human, 2026-10-17, option-a at plan 34.1-59 Task 2). I
 999.9 in ROADMAP.md; they are not planned in this phase. Every other id is as after round 5.
 
 - **DI-01:** decided (D-28): the by-name exclusion stays, as after round 5.
+  status: acknowledged
 - **DI-02:** resolved in plan 34.1-02; nothing left.
+  status: acknowledged
 - **DI-03:** confirmed absent on Node 22 CI by UAT test 10 (2026-10-14, result pass); still the Node 26 local
   baseline (install/installer-fs-census.test.ts, openAsBlobSync), which plan 34.1-60's full regression reports again.
+  status: acknowledged
 - **DI-04:** closed by plan 34.1-13 (commit ac790deb).
 - **DI-05:** residual at phase close (D-39, D-40), as after round 5; not in D-45's scope.
+  status: acknowledged
 - **DI-06:** fixed by plan 34.1-16 under D-30 (commit fc17b822).
 - **DI-07:** fixed in round 2 by plan 34.1-21 (commits c4e2c43d, 2e6e9b96, 03ed2a0c); its remaining arm is DI-11.
+  status: acknowledged
 - **DI-08:** fixed in round 2 by plan 34.1-27 (commits 5af55277, 0a72286c).
+  status: acknowledged
 - **DI-09:** fixed in round 2 by plan 34.1-28 (commits f65cfa0b, 2a055d1a).
+  status: acknowledged
 - **DI-10:** fixed in round 2 by plan 34.1-31 (commit 8d730df2).
+  status: acknowledged
 - **DI-11:** to backlog 999.6 (option (a), D-45; UAT test 14); not built in this phase.
+  status: acknowledged
 - **DI-12:** residual at phase close (D-39, D-40), as after round 5.
+  status: acknowledged
 - **DI-13:** residual at phase close (D-39, D-40), as after round 5.
+  status: acknowledged
 - **DI-14:** residual at phase close (D-39, D-40), as after round 5.
+  status: acknowledged
 - **DI-15:** to backlog 999.8 with DI-22 as the D-41 wording item (D-45; UAT test 11), with the UAT note that root
   README.md line 18 and the install/README.md examples show a bare `node install/install.js`.
+  status: acknowledged
 - **DI-16:** closed by D-38 (plans 34.1-44, 34.1-47 and 34.1-49, commits 30003a2c, fadff0bb, c3d99e71).
+  status: acknowledged
 - **DI-17:** closed by D-38 (plan 34.1-49, commits fc4e57a4, c3d99e71).
+  status: acknowledged
 - **DI-18:** closed by plan 34.1-54 under D-40 and D-44 (commits cc2a57b5, dcfc7f9e, 9ff8142e).
+  status: acknowledged
 - **DI-19:** closed by plan 34.1-53 under D-40 (commits 6aa1f4c9, b72058ca).
+  status: acknowledged
 - **DI-20:** resolved by plan 34.1-51 Task 2 (commit 69523551).
+  status: acknowledged
 - **DI-21:** resolved by commit 4e0fa03a.
+  status: acknowledged
 - **DI-22:** to backlog 999.8 with DI-15 as the D-41 wording item (D-45; UAT test 11), the README bare-install note
   included.
+  status: acknowledged
 - **DI-23:** to backlog 999.9 (D-45; UAT test 16); not built in this phase.
+  status: acknowledged
 - **DI-24:** to backlog 999.9 (D-45; UAT test 16); not built in this phase.
+  status: acknowledged
 - **DI-25:** closed by plan 34.1-59 under D-45 and D-46 (commits ab18b3aa, 78ba1aa8, 4f02696b); proven from the
   user's side and documented by plan 34.1-60 Task 1.
+  status: acknowledged
 - **DI-26:** open for the human (recorded by plan 34.1-58 Task 3, commit e1a5b165); not in D-45's scope.
+  status: acknowledged
 - **DI-27:** open for the human (recorded by plan 34.1-59 Task 3, commit 4f02696b); not in D-45's or D-46's scope.
+  status: acknowledged
 
 ### Recorded for the human at phase close
 
@@ -775,6 +849,7 @@ of three items) and D-46 (human, 2026-10-17, option-a at plan 34.1-59 Task 2). I
   (installRefusal answers markerRemedy for every read; plan 34.1-59 Task 3, commit 4f02696b). No DI row: option-b
   would have recorded one.
 - **(e) New items for the human from this round:** DI-26 and DI-27 (open).
+  status: acknowledged
 
 ## Status after the D-47 fix round (plans 34.1-61 and 34.1-62)
 
@@ -785,8 +860,11 @@ brought install/README.md and CHANGELOG.md in line (commit 048ccf08). Plan 34.1-
 Every other id is as after the D-45 fix round.
 
 - **DI-26:** open; not in the last fix round (D-47); accepted at phase close and carried to the backlog.
+  status: acknowledged
 - **DI-27:** open; not in the last fix round (D-47); accepted at phase close and carried to the backlog.
+  status: acknowledged
 - **DI-01 to DI-25:** as after the D-45 fix round (section above).
+  status: acknowledged
 
 ### Recorded for the human at phase close
 
@@ -801,6 +879,7 @@ Every other id is as after the D-45 fix round.
 - **(d) The clean-repository `--migrate` fall-through** (a `--migrate` over a repository with no old layout and no
   install) was checked by plan 34.1-61's sibling search and left as it is: it is an ordinary install by D-11, and its
   handoffs backup already ran in that run, so a plain re-run finishes it.
+  status: acknowledged
 
 ## Phase close (D-48, human, 2026-10-17)
 

@@ -27,6 +27,7 @@ the finding and why it was not fixed there.
 - **Suggested owner:** a later gap or backlog item. Its scope would be "install never overwrites a
   regular user file at any derived write path except through a declared, recorded merge", derived from
   `deriveWritePaths`.
+  status: acknowledged
 
 ## From plan 34-06
 
@@ -45,6 +46,7 @@ the finding and why it was not fixed there.
   written there later is checked automatically.
 - **Suggested owner:** the next `/gsd-new-milestone` or a docs task that decides whether CLAUDE.md's
   stack block is regenerated or hand-maintained.
+  status: acknowledged
 
 ### A host count implied in caveman prose in `agent-factory/packaging/adapters.md`
 
@@ -52,6 +54,7 @@ the finding and why it was not fixed there.
   count. It is caveman voice and does not match the host-noun count-word pattern, so plan 34-06 left
   it. Suggested owner: plan 34-09's derived prose scan (decide whether "N times" next to the per-host
   build sentence is in scope), or a one-word edit with the voice guards run.
+  status: acknowledged
 
 ## From plan 34-09
 
@@ -70,6 +73,7 @@ the finding and why it was not fixed there.
   `34-06.md` and a `34-08.md` written from those plans' summaries, not in this plan's file.
 - **Suggested owner:** plan 34-10 or the phase 34 verification gap round. Add `34-06.md` and
   `34-08.md` with one row per finding (rule `34 D-11`), then re-run the gate.
+  status: acknowledged
 
 ### The caveman lines that implied a host count are fixed by hand, not by the scan
 
@@ -78,6 +82,7 @@ the finding and why it was not fixed there.
   tool". The derived scan's Rule A does not match "N times" or "N … ways", and was not widened to:
   those nouns are not host nouns, and widening would add false positives across the tree. A future
   caveman line of that shape is not caught by the scan.
+  status: acknowledged
 
 ## From plan 34-16
 
@@ -96,6 +101,7 @@ the finding and why it was not fixed there.
   (WR-06, D-20). Both sentences are about the minimal path, and `C-28-034` is a registered claim
   whose text change needs a registry companion edit and a human judgement on what backs it.
 - **Suggested owner:** human triage, with backlog 999.4 (a per-host run would answer both).
+  status: acknowledged
 
 ## From gap round 1 (D-20)
 
@@ -114,6 +120,7 @@ findings are quoted from `34-REVIEW.md`.
   detection contract for three hosts at once, and D-20 keeps it out of this round. The docstring is a
   DOC-1 member left for the same fix.
 - **Suggested owner:** a later gap round or backlog triage, together with the detection contract.
+  status: acknowledged
 
 ### WR-02: a non-directory `.pi` entry makes every install exit 3
 
@@ -123,6 +130,7 @@ findings are quoted from `34-REVIEW.md`.
   `skipped` changes the installer's exit-code contract and needs a human decision. Nothing is
   overwritten, so the install stays additive (threat T-34-47, accepted).
 - **Suggested owner:** human decision on the D-17 exit contract, then a later gap round.
+  status: acknowledged
 
 ### WR-04: raw control bytes from config keys reach printed refusal text
 
@@ -133,6 +141,7 @@ findings are quoted from `34-REVIEW.md`.
   `quoteValue` in `scripts/model-tiers.ts`. Accepted for this round as threat T-34-46; the config file
   is in the user's own repository.
 - **Suggested owner:** a later gap round, fixing the `models` and `models.effort` refusals in one change.
+  status: acknowledged
 
 ### WR-05: the installer's closing safety line derives "documentation only" from `dispatch`
 
@@ -141,6 +150,7 @@ findings are quoted from `34-REVIEW.md`.
 - **Why not fixed in round 1:** the line is correct today, because the hosts with no ask rules are
   exactly the sequential ones. An `askRules` registry field is a HOST-01 contract change.
 - **Suggested owner:** backlog triage, with the next host-registry change.
+  status: acknowledged
 
 ### IN-01: three implementations of "a per-host table row" disagree
 
@@ -148,6 +158,7 @@ findings are quoted from `34-REVIEW.md`.
 - **Why not fixed in round 1:** all three fail closed today. They should be unified in one module,
   together with IN-02.
 - **Suggested owner:** backlog triage.
+  status: acknowledged
 
 ### IN-02: the validator only warns on an unrecognisable dispatch table
 
@@ -157,6 +168,7 @@ findings are quoted from `34-REVIEW.md`.
 - **Why not fixed in round 1:** it belongs with IN-01's unification. The comment is a DOC-1 member left
   for the same change.
 - **Suggested owner:** backlog triage, with IN-01.
+  status: acknowledged
 
 ### IN-03: the Pi template is create-only
 
@@ -165,6 +177,7 @@ findings are quoted from `34-REVIEW.md`.
 - **Why not fixed in round 1:** this round changes documentation, not `PI_PROMPT_TEXT`, so no installed
   template is stale. A refresh rule belongs with the next template change.
 - **Suggested owner:** the plan that next changes `PI_PROMPT_TEXT`.
+  status: acknowledged
 
 ### IN-04: a blank `effortRationale` also refuses the model `tiered` preset
 
@@ -173,6 +186,7 @@ findings are quoted from `34-REVIEW.md`.
 - **Why not fixed in round 1:** every effort row is complete today, so nothing is refused. The fix is to
   split the check or to document the shared floor.
 - **Suggested owner:** backlog triage.
+  status: acknowledged
 
 ### IN-05: the structure validator does not validate the `models` / `models.effort` block
 
@@ -182,6 +196,7 @@ findings are quoted from `34-REVIEW.md`.
   the foundation guards (`scripts/check-foundation-guards.ts`), so it is checked there; the
   structure validator does not read it.
 - **Suggested owner:** backlog triage.
+  status: acknowledged
 
 ## From the gap round 1 code review (34-REVIEW.md, 2026-10-09)
 
@@ -196,6 +211,7 @@ round 2 notes live here.
   at session effort with no refusal; three comments say such a drop is refused.
 - **Round 2 direction:** compare `readRenderedDials` on the rendered and the transformed text member by
   member; fold IN-07 in, so both dials go through one shape check.
+  status: acknowledged
 
 ### WR-09 (gap round 2): `isAbsoluteMarkerPath` sits outside the WIN-1 census
 
@@ -204,6 +220,7 @@ round 2 notes live here.
   and misses it, although `install/user-file.ts:298-299` says the census holds the rule.
 - **Round 2 direction:** bring it under the census (derive the comparison sites rather than list them),
   together with WINDOWS.md row 319.
+  status: acknowledged
 
 ### WR-10 (gap round 2): no end-to-end test reaches the uninstall pointer-file mode check
 
@@ -211,6 +228,7 @@ round 2 notes live here.
   rows of `install/record-truth.test.ts` pass through the write-failure path, not the mode check at
   `install/uninstall.ts:899-901`.
 - **Round 2 direction:** add one row with a writable, mode-changed pointer file.
+  status: acknowledged
 
 ### IN-06, IN-07, IN-08: deferred
 
@@ -225,6 +243,7 @@ Reasons are recorded in the ledger rows. IN-06 is the same item as R15 and waits
   this plan.
 - **Direction:** read what `openAsBlobSync` does and classify it in `CONTENT_READER` or
   `NOT_CONTENT_READER` (DC-3); not fixed in 34-19 (scope boundary).
+  status: acknowledged
 
 ## From gap round 2 (D-21, D-22, D-23, D-24)
 
@@ -248,7 +267,7 @@ windows-latest measurement in this round, so nothing below is a Windows result (
   change, the pre-plan `install.js` ran row (f) to `status=0` (34-20-SUMMARY.md, Task 1).
 - **Model dial:** the model dial got the same per-member check and the same rows (RC-1; 34-20-SUMMARY.md
   deviation 3, rows (3) and (5) run on both dials).
-- **Status:** closed by plans 34-19 and 34-20 (D-24); nothing of case (B) stays open.
+- **Status:** acknowledged
 - **Suggested owner:** none.
 
 ### (2) The POSIX consequence of WR-09's one absoluteness rule
@@ -263,6 +282,7 @@ windows-latest measurement in this round, so nothing below is a Windows result (
   is not a path a POSIX install writes, so no install on POSIX produces it.
 - **Suggested owner:** none needed; recorded so that a later reader does not take the changed refusal
   sentence for a regression.
+  status: acknowledged
 
 ### (3) IN-06 and IN-08 stay deferred
 
@@ -271,6 +291,7 @@ windows-latest measurement in this round, so nothing below is a Windows result (
 - **IN-08:** `canonicalPathSpelling` does not fold the `\\.\` device-namespace prefix. Such a path fails
   closed (no false match), and no current write path records that spelling (reason in the ledger row).
 - **Suggested owner:** backlog triage.
+  status: acknowledged
 
 ### (4) `UNKNOWN - verify` until the human's windows-latest run (D-21)
 
@@ -292,6 +313,7 @@ windows-latest measurement in this round, so nothing below is a Windows result (
   20,001-file walk's time bound).
 - **Suggested owner:** the human's deferred windows-latest run (D-21), read against the 34-VALIDATION.md
   prediction; HOST-02 stays unchecked until then.
+  status: acknowledged
 
 ## From gap round 3 (D-25, D-26)
 
@@ -309,7 +331,7 @@ no live host run was made by an agent.
   `AGENTS.md` copy (commit `2fe47e93`), and install's own unedited CLAUDE.md and Copilot blocks through one
   shared span finder (commit `f25fecb3`). A user's carrier that lacks the route gets a note naming the
   hosts it leaves out (commit `513aced4`). The ledger row reads `fixed`.
-- **Status:** closed; D-26 point 2.
+- **Status:** acknowledged
 - **Suggested owner:** none.
 
 ### (2) writeMarker reports `created` for `.grugops/install.json` on every write
@@ -324,6 +346,7 @@ no live host run was made by an agent.
   user-visible report line, which needs a human decision on the label (for example `updated` or
   `replaced` when a marker was already there).
 - **Suggested owner:** human backlog triage.
+  status: acknowledged
 
 ### (3) WR-11: deferred with Windows support
 
@@ -335,6 +358,7 @@ no live host run was made by an agent.
   test 4 decision). IN-13 (the `isRecordedAbsolute` docstring and table omit the win32 rooted, drive-less
   spelling) is deferred with it for the same reason.
 - **Suggested owner:** the Windows support work, when the human brings Windows back into scope.
+  status: acknowledged
 
 ### (4) The live Pi re-run (34-UAT.md test 2): the human's act
 
@@ -345,7 +369,7 @@ no live host run was made by an agent.
   the kit's `AGENTS.md` the route to the kit through the `kitRoot` field of `.grugops/install.json`
   (`KIT_ROUTE`), made install refresh its own stale carriers, and made `--check` print one reach line per
   host. An offline follower test reads the same route (34-27, `install/kit-route.test.ts`).
-- **Status:** `UNKNOWN - verify` until the human re-runs test 2 on a real Pi. No agent ran Pi, and no
+- **Status:** acknowledged
   record claims a result. The steps are in 34-VALIDATION.md, "Gap round 3 (D-25, D-26)".
 - **Suggested owner:** the human, at `/gsd-verify-work 34`.
 
@@ -354,7 +378,7 @@ no live host run was made by an agent.
 - **Finding:** the route is carried by `AGENTS.md` and the installer-written pointers on every host, and
   `--check` prints a reach line per host, but no live session on any of these four hosts has been run
   after a scripted install.
-- **Status:** each is `UNKNOWN - verify`: Copilot `UNKNOWN - verify`, Codex `UNKNOWN - verify`, OpenCode
+- **Status:** acknowledged
   `UNKNOWN - verify`, Gemini `UNKNOWN - verify`.
 - **Suggested owner:** backlog 999.4 (ROADMAP.md), re-scoped by plan 34-30 to these live per-host runs.
 
@@ -389,6 +413,7 @@ an agent.
   (commits `e7492436`, `2305ff21`).
 - Plan 34-35 added the brief §4 class matrix over the three owners (commits `0c4bb92e`, `d7b4e8ff`); it
   closes no row by itself.
+  status: acknowledged
 
 ### (2) WR-04: block-carrier facts typed in several places
 
@@ -399,6 +424,7 @@ an agent.
   install-and-doctor agreement assertion (assertion 5 of the class matrix) turns red if install and the
   doctor classify a carrier differently.
 - **Suggested owner:** backlog triage.
+  status: acknowledged
 
 ### (3) WR-05: the read-gate-write window in refreshOwnFile
 
@@ -408,6 +434,7 @@ an agent.
   residual, and plan 34-34 kept refreshOwnFile's read order (owns, then readForWrite) without widening it;
   ensureBlock decides and splices on one read.
 - **Suggested owner:** an installer write-path hardening backlog item.
+  status: acknowledged
 
 ### (4) IN-02: whether to commit `.grugops/install.json`
 
@@ -417,6 +444,7 @@ an agent.
   machine's kit, an uncommitted one sending the agent to the repository's own `agent-factory/`) fail
   closed into STOP, and the policy is a human decision about shared state.
 - **Suggested owner:** human triage.
+  status: acknowledged
 
 ### (5) IN-03: the INCOMPLETE closings drop facts
 
@@ -426,6 +454,7 @@ an agent.
 - **Why not fixed:** deferred (D-27 point 5). No false claim is printed, and adding the facts changes
   user-visible output.
 - **Suggested owner:** backlog.
+  status: acknowledged
 
 ### (6) IN-04: a dead updateKeptMarker call in uninstall
 
@@ -434,6 +463,7 @@ an agent.
 - **Why not fixed:** deferred (D-27 point 5). Harmless, and in uninstall.ts, which this round does not
   touch.
 - **Suggested owner:** backlog.
+  status: acknowledged
 
 ### (7) IN-05: the "preserved (never touched)" heading
 
@@ -441,6 +471,7 @@ an agent.
   the marker was removed by this run (34-REVIEW.md IN-05).
 - **Why not fixed:** deferred (D-27 point 5). Cosmetic; the marker line under the heading is accurate.
 - **Suggested owner:** backlog.
+  status: acknowledged
 
 ### (8) Sibling-search findings for human triage, not fixed
 
@@ -454,6 +485,7 @@ an agent.
 - **The no-`kitRoot` FAIL in kitRouteFindings is not reached** by a marker without `kitRoot`: the marker
   shape check (markerUnreadable) stops such a marker earlier (the planner's probe for 34-36).
 - **Suggested owner:** human triage.
+  status: acknowledged
 
 ### (9) Live runs: the human's
 

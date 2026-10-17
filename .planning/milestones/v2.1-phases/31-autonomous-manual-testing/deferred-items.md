@@ -541,6 +541,7 @@ assertion rather than its output believed.
 ## Deferred Items
 
 - `npm run check:diff-disposition` is a **pre-existing FAIL** on this tree, unrelated to plan 31-33.
+  status: acknowledged
   It compares against the recorded base `4d2b8f0` and reports 78 findings over 39 elements after this
   plan (80 at the round-7 base `78a9d16`, and the count 31-31 recorded and 31-32 re-measured). Every
   remaining finding names a clause in a file this plan did not touch — `05-pr-quality-gate.md`,
@@ -551,6 +552,7 @@ assertion rather than its output believed.
   the recorded base). status: open
 
 - **`frameworkSurface`'s inner catches are a silent-subtree shape** (found by plan `31-35`'s own
+  status: acknowledged
   adversarial probe of its own fix, by reading rather than by reproduction). `D-36` made every arm
   that STOPS the walk report itself — both bounds, and the seeding failure — but two `catch` blocks
   inside the walk still swallow a subtree with no signal: the one around `getPropertiesOfType` /
@@ -562,6 +564,7 @@ assertion rather than its output believed.
   for `31-35`, whose finding is the BOUNDS. status: open
 
 - **A framework member behind an INDEX SIGNATURE is accepted** (plan `31-35`'s probe; measured at
+  status: acknowledged
   exit 0 at HEAD *and* at the plan's base `140fbf4`, so pre-existing). It is DISCLOSED as a member of
   `UNRESOLVABLE_CALLEE_RESIDUALS` with a closure criterion and driven by the corpus row
   `CR25-INDEX-SIGNATURE-open`, which is why it is a remainder rather than an undisclosed defect.

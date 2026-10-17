@@ -8,6 +8,10 @@ human_verification:
   - test: "Run the CI workflow on a real windows-latest GitHub Actions runner (push or PR to the main branch)"
     expected: "The vitest suite passes on windows-latest — specifically the SC-2 `8 concurrent appendNote writers` test and the atomicWrite EPERM/EEXIST/EACCES branch execute on the real Windows MoveFileEx code path; the job exits 0"
     why_human: "The Windows unlink-then-rename branch of atomicWrite/atomicRename can only be proven on a real Windows runner. CI YAML is correctly wired and all unit tests pass locally (ubuntu), but the cross-platform CI has not been observed to actually pass on windows-latest — that runner only runs when the code is pushed/PR'd to GitHub Actions."
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-10-18
+  status: human_needed
 ---
 
 # Phase 20: Shared Context Substrate & Concurrency Foundation — Verification Report
