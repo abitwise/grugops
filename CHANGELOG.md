@@ -534,6 +534,13 @@ CLI with Antigravity CLI.
   `.grugops/install.json` names the cause it saw and points at that verify line, and
   `install.js --check` no longer calls the marker present when nothing is at its path
   (34.1 review WR-39).
+- `install.js` stops before it writes anything when `.grugops/install.json` is a file it cannot use:
+  a JSON object holding none of install's fields, a file that is not valid JSON, a field holding a
+  value install never writes, a malformed install ledger, or a link, a directory or a FIFO at that
+  path. It exits `3` with its `verify` line about the file, and nothing changes in your repository or
+  the kit home, so every file install writes stays recorded and an uninstall can remove it. Before,
+  it wrote the whole install with no record of it, which no uninstall could remove. A `DRY_RUN` run
+  shows the same stop (34.1 deferred item DI-25).
 
 ### Security
 

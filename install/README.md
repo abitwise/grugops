@@ -195,7 +195,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 | `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the `plans/handoffs/` backup it made, named, and whether it was recorded in `.grugops/install.json`) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). An uninstall that removes some agents (`--codex`, …) adds which agents it removed and which stay installed to its closing line (see "Removing one agent" under Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
 | `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below), refuses when no agent was named, none is recorded and none was detected (see "Which agents an unattended install is for"), and refuses when the agent list at a terminal is cancelled with Ctrl-C or confirmed with no agent checked (see "The agent list at a terminal"); each of these selection refusals names every agent flag. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, `--target` with no value, or (`install.js` only) an agent flag (`--claude`, `--codex`, …) combined with `--check`, `--update` or `--prune-old-kit`. Nothing was read or written. |
-| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
+| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. `install.js` also exits `3`, and stops before it writes anything in the repository or the kit home, when `.grugops/install.json` is a file it cannot use: a file install never wrote, one it cannot read, or one whose install ledger is malformed (see the paragraph under Undo that opens "The marker is install's record for one directory"). |
 
 Code `3` is the important one: grug not lie about finish. A run that could not read a source
 directory, that refused an adapter (a `models` block the resolver refuses is one way), or that could
@@ -982,8 +982,8 @@ entry by hand if grugops added it), a file that already listed `AGENTS.md` when 
 and a file install could not read or merge when it ran (both reported `skipped`). A re-install
 carries an earlier record unchanged and never reads the file (34.1 D-12), so what decides is the
 uninstaller's own check that `context.fileName` is still exactly the recorded list. A malformed
-install ledger is a `verify` finding on both sides (exit `3`): install writes it back as found, and
-the uninstaller leaves the file.
+install ledger is a `verify` finding on both sides (exit `3`): install stops before it writes anything,
+this file included, and the uninstaller leaves the file.
 
 A symbolic link at one of those paths is removed only when it is exactly the link install's record
 names: a `--symlink` install records the target of each link it made, and the link is removed while
@@ -1006,8 +1006,9 @@ uninstaller use a marker only when its fields hold install's values (`grugopsHom
 non-empty absolute paths, `installMode` `copy` or `symlink`, `kitVersion` a string when it is there)
 and its `target` is this directory. A JSON object at `.grugops/install.json` whose fields do not hold
 those values is not used as install's marker: the uninstaller uses none of the records in it, removes
-nothing on it, leaves it in place, and reports a `verify` finding (exit `3`); the installer leaves it
-byte for byte, writes no marker, adds no ask rule, and exits `3` too. When the object holds none of
+nothing on it, leaves it in place, and reports a `verify` finding (exit `3`); the installer stops
+before it writes anything, in the repository or the kit home, leaves the file byte for byte, and exits
+`3` too, with its `verify` line about the file. A `DRY_RUN` run shows the same stop. When the object holds none of
 install's fields (`grugopsHome`, `kitRoot`, `installMode`, `target`, `ledger`), install never wrote it:
 `--check`, the installer and the uninstaller say in their line about it that it was not written by
 install and, if it is yours, to leave it; that line names no next step and offers no removal.
@@ -1043,7 +1044,9 @@ well-formed, and nothing it records is left (see the next paragraph). It is neve
 record from another repository is believed. A marker that cannot be read (not JSON, too large, a
 FIFO, a directory, a link) or that holds a malformed install ledger is reported as a `verify` finding,
 is left in place byte for byte, and the run exits `3`: one malformed entry makes the whole ledger
-unusable, so nothing is removed or edited on it. `--check` fails on such a marker (a doctor FAIL,
+unusable, so nothing is removed or edited on it. The installer stops before it writes anything over
+such a marker, in the repository or the kit home, so it never writes a file it cannot record; a
+`DRY_RUN` run shows the same stop. `--check` fails on such a marker (a doctor FAIL,
 exit `1`): one that cannot be read is named as unreadable, never as "not installed", and as present
 only when something is at its path (a `.grugops` that is a regular file or a symbolic link to nothing
 leaves nothing there, so the line names the marker's path and the cause), and a malformed install
@@ -1632,7 +1635,8 @@ wrote your own, every rule already in it is treated as yours, reported so, and l
 key you add beside the list does not change this. If `.claude/settings.json` cannot be parsed, the
 installer leaves it untouched, records no rule as its own, and exits `3`. If `.grugops/install.json` cannot be
 read, or its ask-rule ledger is malformed, that is a `verify` finding (exit `3`) on both sides:
-install then adds no rule and leaves the ledger as it found it, and uninstall removes no rule. When
+install then stops before it writes anything, so it adds no rule and leaves the ledger as it found
+it, and uninstall removes no rule. When
 the installer adds rules to an existing `.claude/settings.json`, it inserts them into the file's
 text in place: every other byte (numbers as written, key order, spacing, line ends) is kept, and
 uninstall removes exactly what install inserted, so install followed by uninstall gives back the

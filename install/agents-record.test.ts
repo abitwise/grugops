@@ -3324,6 +3324,107 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     expect(removalOffers(cr), "control: a line offers removing the marker").toEqual([]);
   });
 
+  // R56b (plan 34.1-60, 2026-10-17, D-45 item 3, DI-25, brief MSG-1: a remedy is tested by running it as printed): the
+  // refusal R56's control prints is followed to its end. The user fixes the comma by hand (the fix the verify names),
+  // runs the closing's install command exactly as printed, from outside the checkout, in a shell that exports a
+  // conflicting GRUGOPS_HOME and INSTALL_MODE; the install finishes and records Codex CLI, and a flag-less uninstall
+  // then takes out every path the ledger recorded and the marker, so the refused-then-finished install stays reversible.
+  it("R56b (DI-25, D-45, MSG-1): install --codex, one trailing comma in the marker; install --codex exits 3 and changes nothing; with the comma taken out by hand, the closing's install command run as printed (outside the checkout, a conflicting GRUGOPS_HOME and INSTALL_MODE exported) exits 0 and records Codex CLI; a flag-less uninstall then exits 0 and leaves no recorded path and no marker", () => {
+    const w = world("r56b");
+    install(w, [flag("codex")]);
+    const recorded = recordedPaths(w);
+    expect(recorded, "PREMISE: the ledger records the Codex CLI skill install wrote").toContain(AGENT_SKILL_REL);
+    const original = addTrailingComma(w);
+    const before = snapshotTree(w.target);
+    const homeBefore = snapshotTree(w.home);
+
+    const r = runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, timeoutMs: 180_000 });
+    finished(r, "install --codex over install's own marker with a trailing comma");
+    expect(r.status, `install exit\n${r.stdout}\n${r.stderr}`).toBe(3);
+    expect(snapshotTree(w.target), `the target changed (the marker included)\n${r.stdout}`).toBe(before);
+    expect(snapshotTree(w.home), `HOME (the kit home under it) changed\n${r.stdout}`).toBe(homeBefore);
+    expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
+    const want = agentCommand("install.js", w.target, [row("codex")], ctxOf(w));
+    expect(printedCommands(`${r.stdout}\n${r.stderr}`), `the closing prints exactly the --codex install command\n${r.stdout}`).toEqual([want]);
+
+    // Follow it: put the marker's original bytes back by hand (the fix the verify names), then run the printed command
+    // as printed. runPrinted asserts the cwd is outside the checkout and the child's kit home is the printed one.
+    writeFileSync(markerPath(w), original);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.premise.kitHomeBeforePrinted, "premise: the child's environment held the conflicting GRUGOPS_HOME before the printed assignments").toBe(fin.premise.conflictingKitHome);
+    expect(pathText(fin.premise.conflictingKitHome), "premise: the conflicting kit home is the printed one").not.toBe(pathText(w.grugopsHome));
+    expect(fin.premise.installModeBeforePrinted, "premise: the child's environment held the conflicting INSTALL_MODE before the printed assignments").toBe(fin.premise.conflictingInstallMode);
+    expect(fin.premise.conflictingInstallMode, "premise: the conflicting INSTALL_MODE differs from the printed copy mode").toBe("symlink");
+    expect(pathText(fin.premise.grugopsHome), "premise: the printed GRUGOPS_HOME is the world's kit home").toBe(pathText(w.grugopsHome));
+    expect(fin.status, `the printed install command\n${fin.stdout}\n${fin.stderr}`).toBe(0);
+    expect(fin.premise.conflictingKitHomeCreated, `the conflicting kit home was created\n${fin.stdout}`).toBe(false);
+    expect(fin.premise.conflictingTargetEmpty, `the child wrote into the conflicting TARGET\n${fin.stdout}`).toBe(true);
+    const read = readInstallMarker(w.target);
+    expect(read.state, `the marker after the printed install\n${fin.stdout}`).toBe("ok");
+    expect(agentsOf(w), fin.stdout).toEqual(ids("codex"));
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), fin.stdout).toBe(true);
+    const recordedAfter = [...new Set([...recorded, ...recordedPaths(w)])];
+
+    // The install is reversible end to end: a flag-less uninstall removes every recorded path and the marker.
+    const u = uninstall(w, []);
+    expect(u.status, `the flag-less uninstall\n${u.stdout}`).toBe(0);
+    expect(markerGone(w), u.stdout).toBe(true);
+    expect(existsSync(at(w.target, AGENT_SKILL_REL)), `the Codex CLI skill is still there\n${u.stdout}`).toBe(false);
+    expect(leftRecorded(u.stdout, recordedAfter), `a path the ledger recorded was left\n${u.stdout}`).toEqual([]);
+  });
+
+  // R56c (plan 34.1-60, 2026-10-17, D-45 item 3, DI-25): DRY_RUN reports the same refusal. Over a user's own JSON object
+  // and over install's own marker with one trailing comma, a DRY_RUN install --codex and a real one, each from the same
+  // starting tree, exit 3 with the same verify line about the marker, byte for byte; only the DRY_RUN banner carries the
+  // DRY_RUN suffix; neither changes the target or HOME (the kit home under it).
+  it("R56c (DI-25, D-45): over a user's own JSON object and over a trailing comma, a DRY_RUN install --codex and a real one each exit 3, print the same verify line about .grugops/install.json, byte for byte, show the DRY_RUN suffix on the DRY_RUN banner only, and change nothing", () => {
+    const shapes: { readonly name: string; readonly make: () => World }[] = [
+      {
+        name: "a user's own JSON object",
+        make: () => {
+          const w = world("r56c-foreign");
+          mkdirSync(at(w.target, ".grugops"));
+          writeFileSync(markerPath(w), '{"mine":1}\n');
+          const read = readInstallMarker(w.target);
+          expect(read.state === "unreadable" ? read.defect : read.state, "PREMISE: a user's own JSON object reads foreign").toBe("foreign");
+          return w;
+        },
+      },
+      {
+        name: "install's own marker with a trailing comma",
+        make: () => {
+          const w = world("r56c-comma");
+          install(w, [flag("codex")]);
+          addTrailingComma(w);
+          return w;
+        },
+      },
+    ];
+    for (const shape of shapes) {
+      const w = shape.make();
+      const before = snapshotTree(w.target);
+      const homeBefore = snapshotTree(w.home);
+      const verifyOf = (dryRun: boolean): { line: string; banner: string } => {
+        const what = `${shape.name}: install --codex${dryRun ? " (DRY_RUN)" : ""}`;
+        const r = runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, dryRun, timeoutMs: 180_000 });
+        finished(r, what);
+        expect(r.status, `${what}: exit\n${r.stdout}`).toBe(3);
+        expect(snapshotTree(w.target), `${what}: the target changed\n${r.stdout}`).toBe(before);
+        expect(snapshotTree(w.home), `${what}: HOME (the kit home under it) changed\n${r.stdout}`).toBe(homeBefore);
+        const about = linesWith(r.stdout, "verify").filter((l) => l.includes(MARKER_REL));
+        expect(about.length, `${what}: one verify line about the marker\n${r.stdout}`).toBe(1);
+        const banner = r.stdout.split("\n").filter((l) => l.startsWith("== install INCOMPLETE — "));
+        expect(banner.length, `${what}: one install INCOMPLETE banner\n${r.stdout}`).toBe(1);
+        expect(banner[0].includes("(DRY_RUN — nothing changed)"), `${what}: the banner's DRY_RUN suffix: ${banner[0]}`).toBe(dryRun);
+        expect(removalOffers(r), `${what}: a line offers removing the marker`).toEqual([]);
+        return { line: about[0], banner: banner[0] };
+      };
+      const dry = verifyOf(true);
+      const real = verifyOf(false);
+      expect(dry.line, `${shape.name}: the DRY_RUN verify line differs from the real run's`).toBe(real.line);
+    }
+  });
+
   // R45 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): over a marker this run cannot use, the ask-rules report and
   // the unrecorded-block report point at the marker's verify line. Neither is a second verify for the one cause, and
   // neither sends the user to remove the grugops ask rules or block lines by hand: fixing the marker gives the record
