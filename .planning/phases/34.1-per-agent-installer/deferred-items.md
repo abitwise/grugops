@@ -775,3 +775,29 @@ of three items) and D-46 (human, 2026-10-17, option-a at plan 34.1-59 Task 2). I
   (installRefusal answers markerRemedy for every read; plan 34.1-59 Task 3, commit 4f02696b). No DI row: option-b
   would have recorded one.
 - **(e) New items for the human from this round:** DI-26 and DI-27 (open).
+
+## Status after the D-47 fix round (plans 34.1-61 and 34.1-62)
+
+Scope of the round is D-47 (human, 2026-10-17, after the D-45 fix round's re-verification, gaps_found 10/12): one
+last fix round for WR-41, WR-42 and WR-43, the pre-write refusal's printed text, then the phase closes whatever the
+re-verification says. Plan 34.1-61 fixed the three (commits e24e40a9, 82941bc9, fc4eed54) and plan 34.1-62 Task 1
+brought install/README.md and CHANGELOG.md in line (commit 048ccf08). Plan 34.1-61 recorded no new DI (no DI-28).
+Every other id is as after the D-45 fix round.
+
+- **DI-26:** open; not in the last fix round (D-47); accepted at phase close and carried to the backlog.
+- **DI-27:** open; not in the last fix round (D-47); accepted at phase close and carried to the backlog.
+- **DI-01 to DI-25:** as after the D-45 fix round (section above).
+
+### Recorded for the human at phase close
+
+- **(a) WR-41, WR-42 and WR-43 are fixed by plan 34.1-61 (D-47).** The pre-write refusal is decided before the agents
+  are chosen, so a flag-less run over a marker install cannot use exits 3 with the marker's verify (WR-42, commit
+  e24e40a9); its closing names agents only when an agent flag or the agent list named them, else the install command
+  with no agent flag (WR-41, commit 82941bc9); a refused `--migrate` run prints the migrate banner and the --migrate
+  command (WR-43, commit fc4eed54). The docs say the same (plan 34.1-62 Task 1, commit 048ccf08).
+- **(b) IN-43 to IN-46 are deferred by D-47:** not in the last fix round; accepted at phase close and carried to the
+  backlog. IN-45: the agent list still comes before the refusal.
+- **(c) The live per-host runs stay human items (D-19).**
+- **(d) The clean-repository `--migrate` fall-through** (a `--migrate` over a repository with no old layout and no
+  install) was checked by plan 34.1-61's sibling search and left as it is: it is an ordinary install by D-11, and its
+  handoffs backup already ran in that run, so a plain re-run finishes it.
