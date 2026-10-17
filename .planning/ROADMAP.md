@@ -102,7 +102,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 32.1: Board Dashboard Deferred Residuals** (INSERTED) — the 16 residuals Phase 32 deferred at its four-round cap (F-14..F-21 + carried ledger rows) closed by canonical form, plus triage of round-4 review WR-01..WR-04 *(completed 2026-09-18 by human override: verification 16/17 with the row-212 prod-deploy safety item routed to human; UAT 1 pass / 3 skipped, the WINDOWS-anchored tests deferred by the human; rows 211-213 and 222-224 ACCEPTED OPEN)*
 - [x] **Phase 33: Live Capture & Windows Portability** *(CLOSED 2026-09-25 by human override D-33-R4-08; round-4 verification stands at `gaps_found` 0/3, GAP-D1 OPEN, CAP-01/CAP-02/CAP-03 unchecked and NOT met, round-4 review CR-01/CR-02 guard bypasses ACCEPTED OPEN as WINDOWS.md rows 301-302; all open items carried to the next phase)* — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
 - [x] **Phase 33.1: Phase 33 Leftovers: Guard Retirement First** (INSERTED) — retire the Bash command-parsing guard (D-17, 2026-09-26): git-host protection is the hard floor, installer-written Claude Code ask rules a speed bump; CR-01/CR-02 and the deferred ALLOW forms close as dissolved; then the D-33-R4-04/05 follow-ups, rows 303-305/307/309 and one GAP-D1 capture go without the prod-deploy probe; row 274 and windows reds out (CAP-02 not met here) (completed 2026-10-05)
-- [ ] **Phase 34.1: Per-agent installer** (INSERTED) — install for the coding agent(s) the person names (asked or by parameter), each host's own discoverable entry; carries Phase 34 UAT gaps G-34-R3-2/G-34-R3-4 and absorbs backlog 999.4
+- [x] **Phase 34.1: Per-agent installer** (INSERTED) *(CLOSED 2026-10-17 by human decision D-48 under D-47; verification gaps_found 10/12 with truth 12's WR-44 arm accepted by override; WR-44, IN-43..IN-49, DI-26, DI-27 carried to backlog 999.10; live per-host runs stay human items, D-19)* — install for the coding agent(s) the person names (asked or by parameter), each host's own discoverable entry; carries Phase 34 UAT gaps G-34-R3-2/G-34-R3-4 and absorbs backlog 999.4
 
 **Standing obligations from v2.0, and where each lands:**
 
@@ -1992,7 +1992,7 @@ Plans:
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
 | 34. Model Effort Dial & Pi Support | v2.1 | 36/36 | Closed by human decision D-28 (verification human_needed 23/26 left standing; UAT 1 pass / 2 issues / 1 deferred; G-34-R3-2, G-34-R3-4 carried to 34.1; HOST-02 to backlog 999.5) | 2026-10-10 |
-| 34.1. Per-agent installer (INSERTED) | v2.1 | 62/62 | In Progress | - |
+| 34.1. Per-agent installer (INSERTED) | v2.1 | 62/62 | Closed by human decision D-48 (verification gaps_found 10/12, WR-44 accepted by override; WR-44, IN-43..IN-49, DI-26, DI-27 to backlog 999.10) | 2026-10-17 |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
@@ -2081,3 +2081,20 @@ Plans:
 **Deferred at:** 2026-10-14 during /gsd-verify-work 34.1 session completion
 **Follow-ups:**
 - [ ] Test 16: DI-23 and DI-24 wording (bundle with WR-40): over a foreign read, three uninstall lines still call the file 'the install marker'; a directory or FIFO at the marker path gets a verify calling it 'the one record install keeps' (deferred 2026-10-14)
+
+### Phase 999.10: Follow-up — Phase 34.1 residuals accepted at close (D-48) (BACKLOG)
+
+**Goal:** [Captured for future planning] Resolve the review findings and deferred items phase 34.1 accepted open at close (D-47, D-48). Sources: `34.1-per-agent-installer/34.1-REVIEW-DISPOSITION.md`, `34.1-REVIEW.md`, `deferred-items.md`, `34.1-VERIFICATION.md` (truth 12 override).
+**Source phase:** 34.1
+**Deferred at:** 2026-10-17 at phase close (D-48)
+**Follow-ups:**
+- [ ] WR-44: at a terminal over an unreadable marker, Enter on the detection-only agent list makes detected agents "named by the user", and the refusal prints them as "the same agents again"; the verifier's suggested fix is to refuse before drawing the list when INSTALL_REFUSAL is set, with one terminal row (bundle with IN-45)
+- [ ] IN-45: at a terminal the agent list is asked before the refusal, and over a foreign read the answer is thrown away
+- [ ] IN-43: the per-site arms kept "for a marker that changes during the run" have no run that exercises them
+- [ ] IN-44: the refusal's decision and its malformed-ledger wording have more than one authority
+- [ ] IN-46: an `unbound` marker of this directory (no `target`, or no ledger) is still replaced, and its earlier records are dropped (class boundary for the human)
+- [ ] IN-47: a message-references test title still pins the retired `SELECTION` argument
+- [ ] IN-48: over a blocked marker with nothing detected, the flag-less command the refusal prints leads to a third step, an exit 1
+- [ ] IN-49: a refused `--migrate` run prints the install run header above the migrate banner
+- [ ] DI-26: with `.grugops` a regular file or a link to nothing, the uninstaller's closing still calls `.grugops/` seeded state
+- [ ] DI-27: install over an unreadable kit-home record copies the kit and leaves that run's backup unrecorded

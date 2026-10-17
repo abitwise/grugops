@@ -801,3 +801,8 @@ Every other id is as after the D-45 fix round.
 - **(d) The clean-repository `--migrate` fall-through** (a `--migrate` over a repository with no old layout and no
   install) was checked by plan 34.1-61's sibling search and left as it is: it is an ordinary install by D-11, and its
   handoffs backup already ran in that run, so a plain re-run finishes it.
+
+## Phase close (D-48, human, 2026-10-17)
+
+Phase 34.1 is closed as D-47 decided; no further round. DI-26 and DI-27 stay open and are carried to backlog Phase
+999.10, together with the review's WR-44, IN-43..IN-49 (34.1-REVIEW-DISPOSITION.md, all `deferred`, open 0).
