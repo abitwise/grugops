@@ -22,6 +22,8 @@ cd /path/to/your-project && claude --agent grugops-orchestrator
 /grugops "bootstrap this repo and propose safe first tickets"
 ```
 
+On another coding agent, see **Start a session** in Quickstart step 2.
+
 ## Quickstart
 
 <!-- claim: C-28-004 -->
@@ -40,13 +42,30 @@ grugops version `2.1.0`.
 <!-- claim: C-28-006 -->
    The installer never overwrites or deletes your content; re-running it is safe, and `node ~/grugops/install/uninstall.js --target /path/to/your-project` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
 
-2. **Drive it** — in your coding agent, invoke the dash-standalone command:
+2. **Drive it** — start a session in your coding agent. On Claude Code, the recommended start makes the Orchestrator the session's main thread. Run it from your project:
 
-   ```text
-   /grugops "bootstrap this repo and propose safe first tickets"
+   ```bash
+   claude --agent grugops-orchestrator
    ```
 
-   The installer writes the entries of the coding agents you choose: one flag per agent (`--claude`, `--codex`, `--antigravity`, `--opencode`, `--copilot`, `--pi`), or, at a terminal with no flag, a checkbox list. Following each agent's documentation, the command is `/grugops` on Claude Code, Antigravity CLI, OpenCode and Pi, and on Codex CLI you type `$grugops` (or pick it from `/skills`); GitHub Copilot CLI gets a pointer in `.github/copilot-instructions.md` and no command. Each agent's invocation and its source are in `install/README.md`, in the "Using grugops on" sections. After this scripted install the kit sits in the shared kit root, and the pointers the installer writes and `AGENTS.md` name where it is: the `kitRoot` field of `.grugops/install.json`. Whether a live run on a host CLI other than Claude Code follows that route is `UNKNOWN - verify`; see `install/README.md`, section "How a host finds the kit after a scripted install".
+   Then type your request, for example: bootstrap this repo and propose safe first tickets. Claude Code shows `@grugops-orchestrator` in the session's startup header, which confirms the Orchestrator is the main thread. In a session that is already open, use the command instead: `/grugops "bootstrap this repo and propose safe first tickets"`.
+
+   Why `--agent`: the Orchestrator is the main thread, and Claude Code enforces the list of role agents the Orchestrator may spawn. With plain `/grugops` the session is a default one, so that list is held by instruction only. `install/README.md` §6 calls these the Full and Reduced tiers.
+
+   `claude --agent grugops-orchestrator` needs an install that chose Claude Code (`--claude`, or Claude Code ticked in the checkbox list), because that install writes `.claude/agents/grugops-orchestrator.md`. The Claude Code plugin form ships no agents, so it gives the commands only. To start every session in a project this way, you can set `"agent": "grugops-orchestrator"` in your own `.claude/settings.json`. The installer never writes that key, and whether it enforces the same list is `UNKNOWN - verify` (`install/README.md` §6).
+
+   **Start a session** — what to type on each coding agent the installer can set up:
+
+| Host | How to start | Talks to the Orchestrator directly? |
+|---|---|---|
+| **Claude Code** | `claude --agent grugops-orchestrator` from your project, then type the request. In an open session: `/grugops "<request>"`. | Yes with `--agent`: the Orchestrator is the main thread. With `/grugops`, a default session acts as the Orchestrator. |
+| **Codex CLI** | Type `$grugops <request>`, or pick `grugops` from `/skills`. | Through the skill, which points the session at the Orchestrator role. Roles load one at a time. |
+| **Antigravity CLI** | Start it at the repository root and type `/grugops <request>`. | Through the skill, which points the session at the Orchestrator role. Roles load one at a time. |
+| **OpenCode** | Start it at the repository root and type `/grugops <request>`. | Through the command, which points the session at the Orchestrator role. Roles load one at a time. |
+| **GitHub Copilot CLI** | No command. Ask for the work you want done. | Through its instructions, which point the session at the Orchestrator role. Roles load one at a time. |
+| **Pi** | Start Pi at the repository root and type `/grugops <request>`. | Through the prompt template, which points the session at the Orchestrator role. Roles load one at a time. |
+
+   The installer writes the entries of the coding agents you choose: one flag per agent (`--claude`, `--codex`, `--antigravity`, `--opencode`, `--copilot`, `--pi`), or, at a terminal with no flag, a checkbox list. Each agent's invocation and its source are in `install/README.md`, in the "Using grugops on" sections. After this scripted install the kit sits in the shared kit root, and the pointers the installer writes and `AGENTS.md` name where it is: the `kitRoot` field of `.grugops/install.json`. Whether a live run on a host CLI other than Claude Code follows that route is `UNKNOWN - verify`; see `install/README.md`, section "How a host finds the kit after a scripted install".
 
 <!-- claim: C-28-007 -->
    In the versioned Claude Code plugin form the same operations are namespaced with a colon — `/grugops:<op>` (for example `/grugops:plan`, `/grugops:ticket`, `/grugops:release`). Both forms coexist; only the dispatch differs, never the content.
