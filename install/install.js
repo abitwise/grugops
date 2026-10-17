@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, markerDefectText, noMarkerRemedy, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, markerDefectText, noMarkerRemedy, installRefusal, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -4447,6 +4447,8 @@ function kitPreflight(plan) {
     // of the read, as pruneRoots words the same read. It never says the marker is not install's: a field defect of
     // install's own marker is still the record of the agents installed here, and askRulesStep's verify says never to
     // delete it (a foreign read's clause says the file holds none of install's fields; its verify says leave it).
+    // Its unreadable arm is reached only when the marker changed after this run's first read: over a marker that read
+    // unusable then, install refused before any write (plan 34.1-59, D-45, DI-25, installRefusal).
     const noRecord = marker.state === "unreadable"
         ? `${MARKER_REL} ${markerUnusableText(marker)}`
         : marker.state === "unbound"
@@ -4931,6 +4933,14 @@ function materializeRunnable() {
 //               retired record). It is never written over. It is left byte for byte, and
 //               writeAskRules() has counted a verify for it (exit 3). It used to be replaced, every
 //               key lost, and reported `created`.
+/**
+ * reportMarkerUnchanged (plan 34.1-59, D-45, DI-25): THE ONE `skipped` line for the marker over a read install cannot
+ * use, printed by writeMarker and by the pre-write refusal (refuseOverMarker). It words the cause the reader saw
+ * (install-marker.ts markerDefectText of the read's defect) and points at the verify the run printed before it.
+ */
+function reportMarkerUnchanged(defect) {
+    report("skipped", `${MARKER_REL} (left unchanged — ${markerDefectText(defect)}; see the verify line above)`);
+}
 function writeMarker() {
     const markerRel = ".grugops/install.json";
     const previousMarker = readInstallMarker(TARGET);
@@ -4941,8 +4951,10 @@ function writeMarker() {
     // read's defect) and points at the never-remove verify askRulesStep printed. The one exception is a foreign read (D-40,
     // DI-18): a JSON object holding none of install's fields, whose owner clause says it was not written by install and, if
     // it is yours, to leave it, and whose verify says the same.
+    // Reached only when the marker changed after this run's first read (PREVIOUS_MARKER_READ): over a marker that read
+    // unusable then, install refused before any write (plan 34.1-59, D-45, DI-25, installRefusal) and never gets here.
     if (previousMarker.state === "unreadable") {
-        report("skipped", `${markerRel} (left unchanged — ${markerDefectText(previousMarker.defect)}; see the verify line above)`);
+        reportMarkerUnchanged(previousMarker.defect);
         return;
     }
     const here = realTargetPath(TARGET);
@@ -5373,6 +5385,45 @@ const AGENTS_AFTER = [
 // in this run is never written to and never removed from (D-04): its files are left as they are, and its ledger
 // entries are carried by nextLedgerEntries' rules.
 const SELECTED_KINDS = new Set(SELECTION.map((h) => h.adapter));
+// THE PRE-WRITE REFUSAL (plan 34.1-59, 2026-10-14, D-45 item 3, DI-25, UAT G-34.1-16). Install writes only what it can
+// record in .grugops/install.json, so over a marker read it cannot record into it writes nothing at all. Until plan
+// 34.1-59 install over such a marker (a user's own JSON object, a trailing comma, a link, a directory) printed a verify,
+// left the marker byte for byte and then wrote the whole footprint (the kit home, AGENTS.md, memory-bank/, plans/,
+// tools/grugops/, the chosen agents' entries) with no record, so no later uninstall could take any of it out.
+// install-marker.ts installRefusal is the one decision; it is asked ONCE, here: after the agents are chosen (so the
+// closing can name the install command for them) and before the --migrate branch (whose pre-steps are this run's first
+// change), the run banner, the kit copy and every write in the target. DRY_RUN reports the same refusal. The later
+// per-site arms for an unusable marker (writeAskRules, askRulesStep, writeMarker, writeOpenCodePermission, kitPreflight)
+// stay, for a marker that changes during the run; refuseOverMarker exits, so a run that reaches them read a usable
+// marker here.
+//
+// refuseOverMarker prints the run header (target, and DRY_RUN's mode line), one verify in the owner's wording
+// (`.grugops/install.json` plus markerUnusableText of the read, why nothing was written, then markerFixText's remedy:
+// fix by hand and never delete, or for a foreign read "not written by install; if it is yours, leave it" with no next
+// step), the marker's own skipped line (reportMarkerUnchanged), and the install INCOMPLETE banner (printInstallIncomplete):
+// with the install command for this run's agents after every read but a foreign one, whose closing names no command
+// (D-44, D-45: a user's own file has nothing to fix, so no step follows "leave it"). Then it halts, exit 3, as the
+// --update branch does after its report: a mid-script exit, because the run must not go on to its first write.
+function refuseOverMarker(read, remedy) {
+    if (read.state !== "unreadable") {
+        throw new Error(`refuseOverMarker: installRefusal answered for a ${read.state} marker read, which this site does not word`);
+    }
+    console.log("== grugops install ==");
+    console.log(`target: ${TARGET}`);
+    if (DRY_RUN)
+        console.log("mode:   DRY_RUN (no filesystem changes)");
+    console.log("\n-- install marker (read before any write) --");
+    verify(`${MARKER_REL} ${markerUnusableText(read)}, so nothing was installed: install records every file it writes in ` +
+        `${MARKER_REL} and cannot record into this one, so it wrote nothing in the target or the kit home. ` +
+        `${markerFixText(remedy, "re-run the installer")}.`);
+    reportMarkerUnchanged(read.defect);
+    printInstallIncomplete(remedy.defect !== "foreign");
+    // A MID-SCRIPT EXIT (plan 34.1-59, D-45, DI-25): nothing may run after the refusal. Its output is a few lines.
+    process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
+}
+const INSTALL_REFUSAL = installRefusal(PREVIOUS_MARKER_READ);
+if (INSTALL_REFUSAL !== null)
+    refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL);
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
 // install run below executes it instead of building a second one (there is one render per run).
 let MIGRATE_KIT_PLAN = null;
@@ -6116,6 +6167,8 @@ function writeAskRules() {
     // this site passes its next step ("re-run the installer") and never appends one. "this run uses none of its
     // records" is the uninstaller's wording (34.1 review IN-33): the sentence claims nothing about the ledger that
     // markerFixText contradicts.
+    // Reached only when the marker changed after this run's first read: over a marker that read unusable then, install
+    // refused before any write (plan 34.1-59, D-45, DI-25, installRefusal).
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
         const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("writeAskRules");
@@ -6337,6 +6390,8 @@ function askRulesStep() {
         return writeAskRules();
     }
     // The same never-remove remedy as writeAskRules' (D-37, 34.1 review CR-05, IN-33).
+    // Reached only when the marker changed after this run's first read: over a marker that read unusable then, install
+    // refused before any write (plan 34.1-59, D-45, DI-25, installRefusal).
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
         const remedy = markerRemedy(previousMarker) ?? noMarkerRemedy("askRulesStep");
@@ -6451,6 +6506,8 @@ function writeOpenCodePermission() {
     const file = join(TARGET, rel);
     // THE MARKER AND THE LEDGER FIRST (writeAskRules' rule). The verify for an unreadable marker is counted by
     // askRulesStep, and the one for a malformed ledger by writeMarker; this pass names them and writes nothing.
+    // Reached only when the marker changed after this run's first read: over a marker that read unusable then, install
+    // refused before any write (plan 34.1-59, D-45, DI-25, installRefusal).
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
         return openCodeNote("the install marker could not be used (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitRulePattern());
@@ -6724,13 +6781,21 @@ console.log("  Only a human merges to a protected branch or approves a productio
 // then the agents left installed (plan 34.1-08, D-04, D-21).
 for (const line of agentClosingLines())
     console.log(line);
-// THE CLOSING CLAIM IS CONDITIONAL (27-13, T-27-59). A run that could not read a source directory,
-// or that refused a nested adapter, has NOT completed — it installed nothing for that class. Saying
-// "complete" over that is the repudiation failure this plan closes, so the banner reports the real
-// outcome and points at the `verify` lines that name what was left undone.
-if (VERIFY_FINDINGS > 0) {
+/**
+ * printInstallIncomplete (plan 34.1-59, D-45, DI-25): THE ONE install INCOMPLETE banner, printed by the run's closing
+ * and by the pre-write refusal (refuseOverMarker). The banner line carries the count of verify lines and DRY_RUN's
+ * suffix. With `nextCommand` it then says each verify line names what was not installed and prints the same-run
+ * install command for this run's agents; without it (only the refusal over a foreign read, D-44, D-45: a user's own
+ * file at the marker path has nothing to fix, so no step follows "leave it") it says nothing was written and names no
+ * command.
+ */
+function printInstallIncomplete(nextCommand) {
     console.log(`\n== install INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    if (!nextCommand) {
+        console.log("  Nothing was written in the target or the kit home.");
+        return;
+    }
     console.log("  Each `verify` line above names what was NOT installed and the remedy for it.");
     // THE SAME-RUN COMMAND (D-26, brief MSG-1): every counted verify of the install mode is finished by running install
     // again for the agents this run chose, built by agentCommand with this run's context (D-33): the absolute script
@@ -6740,6 +6805,13 @@ if (VERIFY_FINDINGS > 0) {
     // Printed under DRY_RUN too.
     console.log(`  Once each is fixed, \`${agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT)}\` installs for the same agents again ` +
         `(add any other option this run was given).`);
+}
+// THE CLOSING CLAIM IS CONDITIONAL (27-13, T-27-59). A run that could not read a source directory,
+// or that refused a nested adapter, has NOT completed — it installed nothing for that class. Saying
+// "complete" over that is the repudiation failure this plan closes, so the banner reports the real
+// outcome and points at the `verify` lines that name what was left undone.
+if (VERIFY_FINDINGS > 0) {
+    printInstallIncomplete(true);
     // THE MACHINE-READABLE HALF OF THE CONDITIONAL CLAIM (27-21, WR-01). Exit codes: 0 complete,
     // 1 refused or aborted, 2 bad usage, 3 incomplete. Set on the SAME branch that prints the banner
     // so the human-readable and machine-readable signals cannot diverge — a chained `install.js &&

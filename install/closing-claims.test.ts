@@ -133,6 +133,11 @@ interface Row {
   readonly kind: Kind;
   readonly status: number;
   readonly dryRun?: boolean;
+  /**
+   * The run refuses before any write (plan 34.1-59, 2026-10-14, D-45, DI-25: install over a marker it cannot record
+   * into writes nothing), so it prints no notes block: the row asserts the refusal instead of an outcome sentence.
+   */
+  readonly refusedBeforeWrite?: boolean;
   /** Stage the target before the measured run (an earlier install, when a row needs one, runs here). */
   readonly stage: (target: string, kitHome: string, home: string) => void;
 }
@@ -144,9 +149,13 @@ const installFirst = (target: string, kitHome: string, home: string): void => {
 
 const ROWS: readonly Row[] = [
   {
+    // Reshaped 2026-10-14 by plan 34.1-59 (D-45, DI-25): a marker that is not JSON is one install cannot record into,
+    // so the run refuses before any write and prints no notes block; the row asserts that refusal (exit 3, the settings
+    // file unchanged, no added-rules claim anywhere, the marker's verify) instead of a notes sentence.
     id: "R1 marker that is not a JSON object",
     kind: "refused",
     status: 3,
+    refusedBeforeWrite: true,
     stage: (t) => {
       mkdirSync(join(t, ".grugops"), { recursive: true });
       writeFileSync(join(t, MARKER_REL), "{not json");
@@ -257,6 +266,16 @@ describe("closing claims: the ask-rules outcome matrix against the settings-file
       const r = runInstall(target, kitHome, [], { home, dryRun: row.dryRun === true });
       const after = readSettings(target);
       expect(r.status, r.stdout).toBe(row.status);
+      if (row.refusedBeforeWrite === true) {
+        // The refusal before any write (plan 34.1-59, D-45, DI-25): the settings file is byte for byte what it was, no
+        // line of the run claims an added rule, no notes block is printed, and one verify names the marker.
+        expect(after, `${row.id}: the settings file changed`).toEqual(before);
+        expect(grewDuring(before, after), `${row.id}: grew`).toBe(false);
+        expect(r.stdout.split("\n").filter((l) => WRITE_CLAIM.test(l)), r.stdout).toEqual([]);
+        expect(notesBlock(r.stdout), `${row.id}: a notes block was printed\n${r.stdout}`).toEqual([]);
+        expect(r.stdout.split("\n").filter((l) => /^ {2}verify\s/.test(l) && l.includes(MARKER_REL)).length, r.stdout).toBe(1);
+        return;
+      }
       const lines = notesBlock(r.stdout);
       expect(lines.length, `${row.id}: no notes block\n${r.stdout}`).toBeGreaterThan(1);
       const notes = lines.join("\n");
@@ -280,7 +299,10 @@ describe("closing claims: the ask-rules outcome matrix against the settings-file
   }
 
   it("the rows produced all five outcome sentence forms", () => {
-    expect(observed.size, "run the whole file: this case reads the rows above").toBe(ROWS.length);
+    // Re-pinned 2026-10-14 by plan 34.1-59 (D-45, DI-25): a row refused before any write prints no notes block, so it
+    // observes no sentence form (R1); every other row is observed, and R2, R3 and R4 still produce `refused`.
+    expect(ROWS.filter((r) => r.refusedBeforeWrite === true).map((r) => r.id), "the rows refused before any write").toEqual(["R1 marker that is not a JSON object"]);
+    expect(observed.size, "run the whole file: this case reads the rows above").toBe(ROWS.filter((r) => r.refusedBeforeWrite !== true).length);
     expect(new Set(observed.values())).toEqual(new Set(ALL_KINDS));
   });
 });

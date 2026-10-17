@@ -3160,7 +3160,13 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
   // that says never to delete the marker. Three shapes of the marker install wrote, each restored before the next: a
   // field defect, not valid JSON, and a user's own JSON object (foreign, plan 34.1-54). kitPreflight decides wording
   // only: the edited skill's bytes are not changed by the run.
-  it("R53 (D-43): install --claude over an edited Claude Code skill and a field, a not-JSON or a foreign marker exits 3 with one edited-kit line for the skill holding .grugops/install.json and markerUnusableText of the read; no line says the marker is not install's; the verify about the marker keeps its never-delete or leave-it wording; the skill is unchanged", () => {
+  // Reshaped 2026-10-14 by plan 34.1-59 (D-45, DI-25): over each of the three shapes install now refuses before any
+  // write (installRefusal, asked before the kit plan), so the kit check never runs and no edited-kit line is printed.
+  // The row keeps its shapes and asserts the refusal in their place: exit 3, no edited-kit line, the verify about the
+  // marker carrying its shape's words (markerUnusableText of the read, and never-delete or leave-it), no line saying the
+  // marker is not install's, and the edited skill's bytes unchanged. kitPreflight's unreadable arm (the owner's wording,
+  // D-43) is now reached only by a marker that changes during the run.
+  it("R53 (D-43, D-45): install --claude over an edited Claude Code skill and a field, a not-JSON or a foreign marker exits 3 before the kit check (no edited-kit line); the verify about the marker holds .grugops/install.json, markerUnusableText of the read and its never-delete or leave-it wording; no line says the marker is not install's; the skill is unchanged", () => {
     const SKILL_REL = ".claude/skills/grugops/SKILL.md";
     const w = world("r53");
     install(w, [flag("claude"), flag("codex")]);
@@ -3191,17 +3197,68 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
       const a = runInstall(w.target, w.grugopsHome, [flag("claude")], { home: w.home, timeoutMs: 180_000 });
       finished(a, `install --claude over ${shape.name}`);
       expect(a.status, `${shape.name}: install exit\n${a.stdout}`).toBe(3);
-      const kit = linesWith(a.stdout, "edited-kit").filter((l) => l.includes(SKILL_REL));
-      expect(kit.length, `${shape.name}: one edited-kit line for ${SKILL_REL}\n${a.stdout}`).toBe(1);
-      expect(kit[0], `${shape.name}: the edited-kit reason is the owner's`).toContain(`(${reason}, and it differs from the kit source)`);
+      const kit = linesWith(a.stdout, "edited-kit");
+      expect(kit, `${shape.name}: the refusal comes before the kit check, so no edited-kit line\n${a.stdout}`).toEqual([]);
       for (const l of [...a.stdout.split("\n"), ...a.stderr.split("\n")]) {
         expect(l, `${shape.name}: a line says the marker is not install's`).not.toMatch(/not install's|not the marker install writes/);
       }
-      const about = linesWith(a.stdout, "verify").filter((l) => l.includes(MARKER_REL) && l.includes(shape.verifyWords));
-      expect(about.length, `${shape.name}: a verify about the marker says ${shape.verifyWords}\n${a.stdout}`).toBeGreaterThan(0);
+      const about = linesWith(a.stdout, "verify").filter((l) => l.includes(reason) && l.includes(shape.verifyWords));
+      expect(about.length, `${shape.name}: one verify about the marker holds ${reason} and says ${shape.verifyWords}\n${a.stdout}`).toBe(1);
       expect(readFileSync(skill).equals(edited), `${shape.name}: the edited skill's bytes changed`).toBe(true);
     }
     writeFileSync(markerPath(w), original);
+  });
+
+  // R56 (plan 34.1-59, 2026-10-14, D-45 item 3, DI-25, UAT G-34.1-16): install writes only what it can record in
+  // .grugops/install.json, so over a marker it cannot record into it writes nothing. Until plan 34.1-59 install over a
+  // user's own JSON object at the marker path printed a verify, left the file byte for byte and then wrote the whole
+  // footprint (the kit home, AGENTS.md, memory-bank/, plans/, tools/grugops/, the chosen agents' entries) with no record,
+  // so no uninstall could take any of it out. A foreign read's output names no next step and no command (D-44, D-45) and
+  // nothing offers removing the marker (D-37). The control is install's own marker with one trailing comma: the same
+  // refusal, and the closing names the install command for this run's agents (fix by hand, then run it).
+  it("R56 (DI-25, D-45): install --codex over a user's own JSON object at .grugops/install.json in a target grugops never installed into exits 3 and writes nothing (the target byte-identical, no kit home); one verify says not written by install and if it is yours, leave it; one skipped line for the marker; no printed command, no removal offer. Control: over install's own marker with a trailing comma, install --codex exits 3, writes nothing in the target or the kit home, and the closing prints the install command for --codex", () => {
+    const w = world("r56");
+    mkdirSync(at(w.target, ".grugops"));
+    writeFileSync(markerPath(w), '{"mine":1}\n');
+    const read = readInstallMarker(w.target);
+    expect(read.state === "unreadable" ? read.defect : read.state, "PREMISE: a user's own JSON object reads foreign").toBe("foreign");
+    expect(existsSync(w.grugopsHome), "PREMISE: no kit home before the run").toBe(false);
+    const before = snapshotTree(w.target);
+    const homeBefore = snapshotTree(w.home);
+
+    const r = runInstall(w.target, w.grugopsHome, [flag("codex")], { home: w.home, timeoutMs: 180_000 });
+    finished(r, "install --codex over a user's own JSON object at the marker path");
+    expect(r.status, `install exit\n${r.stdout}\n${r.stderr}`).toBe(3);
+    expect(snapshotTree(w.target), `the target changed\n${r.stdout}`).toBe(before);
+    expect(existsSync(w.grugopsHome), `a kit home was created\n${r.stdout}`).toBe(false);
+    expect(snapshotTree(w.home), `HOME changed\n${r.stdout}`).toBe(homeBefore);
+    const owner = linesWith(r.stdout, "verify").filter((l) => l.includes(MARKER_REL) && l.includes("not written by install") && l.includes("if it is yours, leave it"));
+    expect(owner.length, `one verify over the marker in the foreign wording\n${r.stdout}`).toBe(1);
+    const skipped = linesWith(r.stdout, "skipped").filter((l) => l.includes(`${MARKER_REL} (left unchanged — `));
+    expect(skipped.length, `one skipped line for the marker\n${r.stdout}`).toBe(1);
+    expect(skipped[0]).toContain(`${MARKER_REL} (left unchanged — ${markerDefectText("foreign")}; see the verify line above)`);
+    expect(printedCommands(`${r.stdout}\n${r.stderr}`), `a foreign read's output names a command\n${r.stdout}`).toEqual([]);
+    for (const l of allLines(r)) expect(l, "a line names an installer script after a foreign read").not.toMatch(/\b(un)?install\.js\b/);
+    expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
+
+    // The control: install's own marker with one trailing comma (not-json). The same refusal, and the closing names the
+    // install command for this run's agents, built by agentCommand with this run's context.
+    const c = world("r56-control");
+    install(c, [flag("codex")]);
+    addTrailingComma(c);
+    const cBefore = snapshotTree(c.target);
+    const cKitBefore = snapshotTree(c.grugopsHome);
+    const cr = runInstall(c.target, c.grugopsHome, [flag("codex")], { home: c.home, timeoutMs: 180_000 });
+    finished(cr, "install --codex over install's own marker with a trailing comma");
+    expect(cr.status, `control: install exit\n${cr.stdout}`).toBe(3);
+    expect(snapshotTree(c.target), `control: the target changed\n${cr.stdout}`).toBe(cBefore);
+    expect(snapshotTree(c.grugopsHome), `control: the kit home changed\n${cr.stdout}`).toBe(cKitBefore);
+    const cOwner = linesWith(cr.stdout, "verify").filter((l) => l.includes(MARKER_REL) && BY_HAND.test(l) && l.includes("never delete the marker"));
+    expect(cOwner.length, `control: one never-remove verify over the marker\n${cr.stdout}`).toBe(1);
+    expect(printedCommands(`${cr.stdout}\n${cr.stderr}`), `control: the closing's install command\n${cr.stdout}`).toEqual([
+      agentCommand("install.js", c.target, [row("codex")], ctxOf(c)),
+    ]);
+    expect(removalOffers(cr), "control: a line offers removing the marker").toEqual([]);
   });
 
   // R45 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): over a marker this run cannot use, the ask-rules report and
@@ -4262,6 +4319,10 @@ function unusableCensus(): UnusableSite[] {
  * once more, on a read blocked on the way to the marker ("the install marker path ${markerFile}", with no "is present
  * but", since lstat may find nothing at the marker path), a third reading of I1. 33 readings to 34: install.ts 15 to 16,
  * owner wording 10 to 11.
+ * Re-derived 2026-10-14 by plan 34.1-59 (D-45, DI-25) by running the walk: writeMarker's skipped line moved into its one
+ * helper, reportMarkerUnchanged (same text over the helper's parameter, still a pointer), and install's pre-write refusal,
+ * refuseOverMarker, words its verify through markerFixText (a new owner-wording reading). 34 readings to 35: install.ts
+ * 16 to 17, owner wording 11 to 12.
  */
 const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install-marker.ts", "markerUnusableText", "is a JSON object but could not be used as install's marker (${read.why})", "cause only", "the owner module's cause clause, printed only as a substitution inside a reading that carries markerFixText (I1, I5, I6, the uninstaller's module-top verify) or as pruneRoots' cause"],
@@ -4280,7 +4341,8 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["install.ts", "pruneRoots", "the install ledger in .grugops/install.json is malformed (${targetLedger.why})", "cause only", "--prune-old-kit's note: why there is no record to prune by; no remedy"],
   ["install.ts", "kitPreflight", ".grugops/install.json ${markerUnusableText(marker)}", "cause only", "why a kit file is treated as edited; the owner's cause clause, no remedy (D-43, plan 34.1-55: it replaced \"the install marker could not be read\" and \"... is not install's marker\")"],
   ["install.ts", "kitPreflight", "the install ledger is malformed", "cause only", "why a kit file is treated as edited (backed up before it is overwritten); no remedy"],
-  ["install.ts", "writeMarker", ".grugops/install.json (left unchanged — ${markerDefectText(previousMarker.defect)}; see the verify line above)", "pointer", "writeMarker's skipped line (IN-33, R44): points at the never-remove verify"],
+  ["install.ts", "reportMarkerUnchanged", ".grugops/install.json (left unchanged — ${markerDefectText(defect)}; see the verify line above)", "pointer", "the marker's skipped line (IN-33, R44), printed by writeMarker and by refuseOverMarker: points at the never-remove or leave-it verify (moved out of writeMarker into its one helper by plan 34.1-59, 2026-10-14, D-45, DI-25)"],
+  ["install.ts", "refuseOverMarker", ".grugops/install.json ${markerUnusableText(read)}, so nothing was installed: install records every file it writes in .grugops/install.json and cannot record into this one, so it wrote nothing in the target or the kit home. ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "install's pre-write refusal over a marker it cannot record into (plan 34.1-59, 2026-10-14, D-45, DI-25, R56)"],
   ["install.ts", "writeMarker", ".grugops/install.json — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and nothing this run did was recorded. Uninstall will remove and edit nothing on it; ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "I3, writeMarker's verify over a malformed ledger (R43c)"],
   ["install.ts", "writeAskRules", ".grugops/install.json ${markerUnusableText(previousMarker)}, so this run uses none of its records — no ask rule was added to ${rel} and the marker was left as it was. ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "I5, writeAskRules' verify over an unreadable marker (R37d)"],
   ["install.ts", "writeAskRules", "${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was added and the ledger is written back unchanged. ${markerFixText(remedy, \"re-run the installer\")}.", "owner wording", "I4, writeAskRules' verify over a malformed ledger (R43c)"],
@@ -4299,7 +4361,7 @@ const UNUSABLE_TABLE: readonly UnusableRow[] = [
   ["uninstall.ts", "<module>", ".grugops/install.json ${markerUnusableText(MARKER)}, so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy, `run \\`${rerunCommand()}\\` again`)}.", "owner wording", "the module-top verify over an unreadable (or unbound-folded) marker (R41, R45)"],
   ["uninstall.ts", "<module>", ".grugops/install.json holds a malformed install ledger (${LEDGER.why}), so this run uses none of its records and removes and edits nothing here. ${markerFixText(remedy, `run \\`${rerunCommand()}\\` again`)}.", "owner wording", "the module-top verify over a malformed ledger (R43a)"],
 ];
-const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 11, pointer: 13, "cause only": 10 };
+const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner wording": 12, pointer: 13, "cause only": 10 };
 const unusableKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
 
 describe("D-37: every reading that says the marker cannot be used carries the owner's wording or points at it", () => {
@@ -4326,8 +4388,9 @@ describe("D-37: every reading that says the marker cannot be used carries the ow
     expect(unclassified, "a reading that says the marker cannot be used is not classed").toEqual([]);
     expect(stale, "a classed reading is gone or changed").toEqual([]);
     expect(counts, "a classed reading is printed a different number of times").toEqual([]);
-    expect(sites.length, "the census size moved").toBe(34); // 33 -> 34, plan 34.1-58 (2026-10-14, D-45, WR-39): see UNUSABLE_TABLE's header
-    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 16, "uninstall.ts": 11 });
+    // 33 -> 34, plan 34.1-58 (2026-10-14, D-45, WR-39); 34 -> 35, plan 34.1-59 (2026-10-14, D-45, DI-25): see UNUSABLE_TABLE's header
+    expect(sites.length, "the census size moved").toBe(35);
+    expect(countBy(sites, (s) => s.module), "per-module counts").toEqual({ "install-marker.ts": 7, "install.ts": 17, "uninstall.ts": 11 });
     expect(countBy(UNUSABLE_TABLE, (r) => r[3]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(UNUSABLE_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
@@ -4809,7 +4872,10 @@ describe("DI-19 (D-40): the doctor reads the marker once", () => {
 // template). The calls are counted: 8 at plan 34.1-54 (2026-10-14, D-40, DI-18), install.ts 6 (markerUnreadable, the
 // doctor's malformed-ledger FAIL, writeMarker, writeAskRules twice, askRulesStep) and uninstall.ts 2 (the module-top
 // unreadable and malformed-ledger verifies); a later plan that adds a call re-pins the count with the reason.
-const MARKER_FIX_CALLS: Readonly<Record<string, number>> = { "install.ts": 6, "uninstall.ts": 2 };
+// Re-pinned 2026-10-14 by plan 34.1-59 (D-45, DI-25): install.ts 6 -> 7, 9 in all: refuseOverMarker, install's pre-write
+// refusal over a marker it cannot record into, words its verify through the owner with "re-run the installer" as the
+// next step (dropped by the owner for a foreign read).
+const MARKER_FIX_CALLS: Readonly<Record<string, number>> = { "install.ts": 7, "uninstall.ts": 2 };
 
 describe("DI-18 (D-40): the owner decides the next step", () => {
   /** Every markerFixText call in every product module, with what breaks the rule (empty when it holds). */
@@ -4854,7 +4920,7 @@ describe("DI-18 (D-40): the owner decides the next step", () => {
     expect(calls.length, "PREMISE: the walk found markerFixText calls").toBeGreaterThan(0);
     expect(calls.filter((c) => c.breaks.length > 0).map((c) => `${c.module}:${c.line} [${c.fn}] ${c.breaks.join("; ")}`), "a caller prints a step after the owner's remedy").toEqual([]);
     expect(countBy(calls, (c) => c.module), "the markerFixText call count per module moved").toEqual(MARKER_FIX_CALLS);
-    expect(calls.length, "the markerFixText call count moved").toBe(8);
+    expect(calls.length, "the markerFixText call count moved").toBe(9);
   });
 
   it("the owner drops the next step for a foreign read and prints it for every other defect", () => {
@@ -5611,8 +5677,12 @@ describe("D-38: the doctor reads one kit home (WR-24 census)", () => {
  * Re-pinned by plan 34.1-44 Task 2 (2026-10-13, D-37): every call takes the read alone (the run-kind argument is
  * deleted) and is guarded by noMarkerRemedy; the functions and counts are unchanged (install.ts 6, uninstall.ts 2).
  * install-marker.ts declares markerRemedy and calls it nowhere; no other product module calls it.
+ * Re-pinned 2026-10-14 by plan 34.1-59 (D-45, DI-25): install-marker.ts calls it once, in installRefusal (the one decision
+ * of when install must not write over the marker answers the owner's remedy, so the refusal's verify words exactly what
+ * markerRemedy names); install.ts asks installRefusal, not markerRemedy, for the refusal, so its counts are unchanged.
  */
 const MARKER_REMEDY_CALLS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  "install-marker.ts": { installRefusal: 1 },
   "install.ts": { askRulesStep: 1, doctor: 1, markerUnreadable: 1, writeAskRules: 2, writeMarker: 1 },
   "uninstall.ts": { "<module>": 2 },
 };
@@ -5657,7 +5727,8 @@ describe("D-35: the markerRemedy call sites (34.1 review CR-04)", () => {
     // malformed-ledger verify.
     // install.ts 4 -> 7 (plan 34.1-43 Task 2, 2026-10-13, D-37): I2, I3 and I4 ask the owner. 7 -> 6 (plan 34.1-44,
     // 2026-10-13, D-37): writeMarker's skipped line no longer asks it.
-    expect(perModule, "the per-module markerRemedy call counts moved").toEqual({ "install.ts": 6, "uninstall.ts": 2 });
+    // install-marker.ts 0 -> 1 (plan 34.1-59, 2026-10-14, D-45, DI-25): installRefusal answers the owner's remedy.
+    expect(perModule, "the per-module markerRemedy call counts moved").toEqual({ "install-marker.ts": 1, "install.ts": 6, "uninstall.ts": 2 });
     expect(other, "markerRemedy is named somewhere other than its declaration, a plain import or a call").toEqual([]);
   });
 

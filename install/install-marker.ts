@@ -600,6 +600,22 @@ export function markerRemedy(read: InstallMarkerRead): MarkerRemedy | null {
 }
 
 /**
+ * installRefusal (plan 34.1-59, D-45 item 3, DI-25): THE ONE DECISION of when install must not write over the marker
+ * read it holds. THE RULE, stated once: install writes only what it can record in .grugops/install.json, so over a read
+ * it cannot record into it writes nothing at all (no kit copy, no write in the target): every file install writes stays
+ * recorded, and so reversible by uninstall. It answers markerRemedy(read) for an `unreadable` read (every MarkerDefect
+ * but `ledger`, `foreign` included: a user's own file install never writes over, and a marker install cannot parse,
+ * whose records it cannot carry), and null for absent (install records into a new marker), unbound (install replaces it
+ * with a marker for this directory, and says so) and ok. An `ok` read whose install ledger is malformed is answered
+ * null here: it is the human's question at plan 34.1-59 Task 2 (D-46). install.ts asks it once, after the agents are
+ * chosen and before the first write of any install run (the --migrate pre-steps, the run banner, the kit copy). Pure:
+ * no I/O.
+ */
+export function installRefusal(read: InstallMarkerRead): MarkerRemedy | null {
+  return read.state === "unreadable" ? markerRemedy(read) : null;
+}
+
+/**
  * noMarkerRemedy: the guard a site uses when it holds a read it already knows is unusable (`markerRemedy(read) ??
  * noMarkerRemedy("<site>")`). markerRemedy answers null only for a read with nothing to fix, so reaching this is a bug
  * in the site's own check; it throws, naming the site, rather than print a remedy with nothing in it.
