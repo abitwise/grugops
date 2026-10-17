@@ -3514,6 +3514,50 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
     expect(removalOffers(rb), "arm (b): a line offers removing the marker").toEqual([]);
   });
 
+  // R57b (plan 34.1-61, 2026-10-17, D-47, 34.1 review WR-41): the refusal's closing names agents only when agent flags
+  // or the agent list named them. Until plan 34.1-61 a flag-less unattended run over a marker install cannot use chose
+  // its agents by detection (installedAgents answers none for a read that is not `ok`), and the refusal printed "<the
+  // install command for the detected agents> installs for the same agents again": followed, it installed an agent this
+  // repository never had and left out the recorded one, while the verify's "re-run the installer" picks the record. Now
+  // the closing prints the install command with no agent flag, so everything printed, followed, installs exactly the
+  // recorded agents.
+  it("R57b (WR-41, D-47): install --codex, then an empty `.claude/` (detected) and one trailing comma in the marker; a flag-less `--yes` exits 3, writes nothing and prints only the install command with no agent flag; followed as printed after the comma is fixed by hand, it exits 0 with agents still ['codex'], recorded, and nothing under .claude/", () => {
+    const w = world("r57b");
+    install(w, [flag("codex")]);
+    const claudeDir = at(w.target, row("claude").detect);
+    expect(existsSync(claudeDir), "PREMISE: install --codex made no Claude Code directory").toBe(false);
+    mkdirSync(claudeDir, { recursive: true });
+    expect(readdirSync(claudeDir), "PREMISE: the detected Claude Code directory is empty").toEqual([]);
+    const original = addTrailingComma(w);
+    const before = snapshotTree(w.target);
+    const homeBefore = snapshotTree(w.home);
+
+    const r = installFlagless(w, []);
+    expect(r.status, `a flag-less install over a marker it cannot use, Claude Code detected\n${r.stdout}\n${r.stderr}`).toBe(3);
+    expect(snapshotTree(w.target), `the target changed\n${r.stdout}`).toBe(before);
+    expect(snapshotTree(w.home), `HOME (the kit home under it) changed\n${r.stdout}`).toBe(homeBefore);
+    const printed = printedCommands(`${r.stdout}\n${r.stderr}`);
+    expect(printed, `the closing prints exactly the install command with no agent flag\n${r.stdout}\n${r.stderr}`).toEqual([
+      agentCommand("install.js", w.target, [], ctxOf(w)),
+    ]);
+    // Builder-independent: no printed command holds any agent flag (the registry's, spelled by agentFlag).
+    for (const c of printed) for (const f of HOST_TOOLS.map(agentFlag)) expect(shellWords(c), `a printed command names ${f}: ${c}`).not.toContain(f);
+    for (const l of allLines(r)) expect(l, "a line says the same agents for agents chosen by detection").not.toContain("the same agents");
+    expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
+
+    // Follow everything printed: the original bytes put back by hand (the verify's fix), then the command as printed.
+    writeFileSync(markerPath(w), original);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.premise.kitHomeBeforePrinted, "premise: the child's environment held the conflicting GRUGOPS_HOME before the printed assignments").toBe(fin.premise.conflictingKitHome);
+    expect(fin.premise.installModeBeforePrinted, "premise: the child's environment held the conflicting INSTALL_MODE before the printed assignments").toBe(fin.premise.conflictingInstallMode);
+    expect(pathText(fin.premise.grugopsHome), "premise: the printed GRUGOPS_HOME is the world's kit home").toBe(pathText(w.grugopsHome));
+    expect(fin.status, `the printed install command\n${fin.stdout}\n${fin.stderr}`).toBe(0);
+    expect(agentsOf(w), fin.stdout).toEqual(ids("codex"));
+    expect(readdirSync(claudeDir), `something was written under the Claude Code directory\n${fin.stdout}`).toEqual([]);
+    const banner = fin.stdout.split("\n").find((l) => l.startsWith("agents: "));
+    expect(banner, fin.stdout).toBe(`agents: ${row("codex").name} (recorded in ${MARKER_REL})`);
+  });
+
   // R45 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): over a marker this run cannot use, the ask-rules report and
   // the unrecorded-block report point at the marker's verify line. Neither is a second verify for the one cause, and
   // neither sends the user to remove the grugops ask rules or block lines by hand: fixing the marker gives the record
@@ -3683,7 +3727,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 // anything; the marker path is left as it was (its lstat kind and name count, its bytes when it is a regular file, its
 // link text when it is a link, its entries when it is a directory); and no line holds a C0 or C1 control character other than
 // tab, or U+FFFD (T-34.1-87: the marker's bytes never reach the terminal). The controls (absent, unbound to another
-// directory, unbound with no ledger) run the same five runs and assert the zero-offer rule only.
+// directory, unbound with no ledger) run every printing run and assert the zero-offer rule only.
 //
 // THE FOREIGN ROWS (plan 34.1-54, 2026-10-14, D-40, DI-18). MARKER_DEFECTS has 9 members and the matrix 23 shapes (8 and
 // 21 until this plan). A `foreign` cell (a JSON object holding none of INSTALL_RECORD_FIELDS) asserts the foreign wording
@@ -3721,6 +3765,14 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 // --migrate backs up on every path: a --migrate that got past the refusal would change the target. By D-46 every
 // defect is refused, so every install cell is a refusal cell, pinned by count; a cell installRefusal does not answer
 // keeps the install-cell assertions it had and, under the two new runs, is a counted skip.
+//
+// THE CLOSING NAMES ONLY THE AGENTS THE USER NAMED (plan 34.1-61, 2026-10-17, D-47, WR-41, WR-42). A flag-less install
+// run, "install (flag-less)", joins the printing runs (8 runs, 5 of them install runs). In the matrix world Claude Code
+// and Codex CLI are installed and `.claude` exists, so its agents come from the record (an `ok` marker with a malformed
+// ledger, D-46) or from detection (every unreadable read), never from a flag or the agent list; every one of its cells
+// asserts the refusal like the other install cells, and after every read but a foreign one exactly the install command
+// with no agent flag (agentCommand with an empty agent list and this world's context). The controls run every printing
+// run, the flag-less one included, and assert the zero-offer rule only.
 //
 // Each cell starts from a real .grugops directory holding the files install wrote (resetGrugops), applies one shape,
 // asserts the premise through the product's reader (the state and the defect the row is keyed by), runs, and undoes
@@ -3943,6 +3995,16 @@ const PRINTING_RUNS: readonly PrintingRun[] = [
     uninstall: false,
     install: { agents: ["codex"], dryRun: false, added: true },
     go: (w) => runInstall(w.target, w.grugopsHome, ["--migrate", flag("codex")], { home: w.home, timeoutMs: 180_000 }),
+  },
+  // Added 2026-10-17 by plan 34.1-61 (D-47, WR-41, WR-42): a flag-less install. No agent flag and no agent list named
+  // the agents (the matrix world's record and its detected `.claude` are this run's own choice), so the refusal's
+  // closing names no agent: the expected command is the install command with no agent flag.
+  {
+    name: "install (flag-less)",
+    exit: 3,
+    uninstall: false,
+    install: { agents: [], dryRun: false, added: true },
+    go: (w) => installFlagless(w, []),
   },
   { name: "uninstall (flag-less)", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, []) },
   { name: "uninstall --codex", exit: 3, uninstall: true, go: (w) => runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun: false, timeoutMs: 120_000 }, [flag("codex")]) },
@@ -4204,12 +4266,14 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
     expect(READER_STATES.blocked.length, "the blocked defect has 9 shapes").toBe(9);
     expect(shapes, "the matrix has 25 shapes").toBe(25);
     // Re-pinned 2026-10-17 by plan 34.1-59 (D-45, DI-25, D-46): two install runs added, a DRY_RUN and a --migrate (5 -> 7).
+    // Re-pinned by plan 34.1-61, 2026-10-17, D-47, WR-41: a flag-less install run, whose refusal names no agent (7 -> 8).
     expect(PRINTING_RUNS.map((p) => p.name), "the printing runs").toEqual([
       "--check",
       "install --claude",
       "install --codex",
       "install --codex (DRY_RUN)",
       "install --migrate --codex",
+      "install (flag-less)",
       "uninstall (flag-less)",
       "uninstall --codex",
     ]);
@@ -4230,7 +4294,8 @@ describe("D-37 (brief §6): the reader-state matrix, every MarkerDefect x every 
         const constructed = READER_STATES[defect].length - skipped.length - platformSkips.length;
         expect(cells, `PREMISE: ${defect}: the cells run`).toBe(constructed * PRINTING_RUNS.length - notRefusedSkips.length);
         const installRuns = PRINTING_RUNS.filter((p) => p.install !== undefined).length;
-        expect(installRuns, "PREMISE: four install runs").toBe(4);
+        // Re-pinned by plan 34.1-61, 2026-10-17, D-47, WR-41: a flag-less install run, whose refusal names no agent (4 -> 5).
+        expect(installRuns, "PREMISE: five install runs").toBe(5);
         expect(installCells, `PREMISE: ${defect}: the install cells run`).toBe(constructed * installRuns - notRefusedSkips.length);
         // THE D-46 PIN (human, 2026-10-17, option-a): every defect is refused, so every install cell is a refusal cell
         // and no cell of an added run is skipped.

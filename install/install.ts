@@ -5988,7 +5988,7 @@ const START_HELD_DIRS: ReadonlySet<string> = (() => {
 // Computed HERE, after the read-only guards and before the --migrate branch, whose pre-steps are this run's first
 // change.
 // AT A TERMINAL (D-02, plan 34.1-12): with standard input and standard output both terminals, no agent flag and no
-// `--yes`, steps 2 to 4 are replaced by the checkbox list (pickAgents over agent-picker.ts
+// `--yes` (AGENT_LIST_AT_TERMINAL), steps 2 to 4 are replaced by the checkbox list (pickAgents over agent-picker.ts
 // pickerRows): every registry agent, the installed (step 2) and detected (step 3) ones pre-checked and labelled why. The
 // checked agents are chosen "chosen at the prompt". A cancelled list (Ctrl-C or end of input) and an empty confirmed list
 // both refuse through refuseSelection, before anything is written: exit 1, or, over a marker install cannot use, exit 3
@@ -6020,13 +6020,18 @@ function refuseSelection(why: string): never {
   process.exit(1);
 }
 
+// AGENT_LIST_AT_TERMINAL (plan 34.1-61, 2026-10-17, D-47, WR-41): the agent-list gate, the one copy of its condition. True
+// when no agent flag was given, `--yes` was not given, and standard input and standard output are both terminals; then
+// SELECTION_WHY's initializer shows the agent list (pickAgents) instead of steps 2 to 4 of the chain.
+const AGENT_LIST_AT_TERMINAL: boolean = SELECTED_BY_FLAG.size === 0 && !YES && process.stdin.isTTY === true && process.stdout.isTTY === true;
+
 const SELECTION_WHY: ReadonlyMap<string, string> = (() => {
   const why = new Map<string, string>();
   if (SELECTED_BY_FLAG.size > 0) {
     for (const h of HOST_TOOLS) if (SELECTED_BY_FLAG.has(h.id)) why.set(h.id, "named by flag");
     return why;
   }
-  if (!YES && process.stdin.isTTY && process.stdout.isTTY) {
+  if (AGENT_LIST_AT_TERMINAL) {
     const detectedIds = new Set(detectedHosts().map((h) => h.id));
     const list = pickerRows(HOST_TOOLS, new Set(INSTALLED_IDS_BEFORE), detectedIds);
     const answer = pickAgents(list.rows, list.checked);
@@ -6059,6 +6064,13 @@ const SELECTION_WHY: ReadonlyMap<string, string> = (() => {
 
 /** The agents this run installs for, in registry order (D-03). */
 const SELECTION: readonly HostTool[] = HOST_TOOLS.filter((h) => SELECTION_WHY.has(h.id));
+
+// SELECTION_NAMED_BY_USER (plan 34.1-61, 2026-10-17, D-47, WR-41): whether the user named this run's agents, by agent flag
+// or at the agent list. A run that got past the list has agents chosen at the prompt, because a cancelled or empty list
+// already refused. Otherwise the agents came from the record or from detection, which are this run's own choice, and
+// over a marker install cannot use the record was not read; so the pre-write refusal's closing names the agents only
+// when this is true, and otherwise prints the install command with no agent flag.
+const SELECTION_NAMED_BY_USER: boolean = SELECTED_BY_FLAG.size > 0 || AGENT_LIST_AT_TERMINAL;
 
 // AGENTS_AFTER (D-04): install's `keep` input to install-marker.ts agentsToRecord, which gives the `agents` field
 // writeMarker records (D-26, plan 34.1-14). The registry-ordered union of the agents installed before this run and the
@@ -6094,7 +6106,11 @@ const SELECTED_KINDS: ReadonlySet<HostAdapterKind> = new Set(SELECTION.map((h) =
 //     or confirmed empty): no agent was chosen, so the closing names none. Until plan 34.1-61 such a run exited 1 with
 //     the selection refusal's sentence, which claimed "none is recorded" in a marker the run could not read, and printed
 //     no verify about the marker;
-//   - otherwise right after the selection, below.
+//   - otherwise right after the selection, below, naming this run's agents only when the user named them
+//     (SELECTION_NAMED_BY_USER: by agent flag or at the agent list, plan 34.1-61, D-47, WR-41). Agents chosen from the
+//     record or by detection are not named: over a marker install cannot use the record was not read, so a command for
+//     the detected agents installed an agent the repository never had, while the verify's "re-run the installer" picks
+//     the record. The agent list stays where it is, before the refusal.
 // DRY_RUN reports the same refusal. The later per-site arms for an unusable marker or a malformed install ledger
 // (writeAskRules, askRulesStep, writeMarker, writeOpenCodePermission, kitPreflight) stay, for a marker that changes
 // during the run; refuseOverMarker exits, so a run that reaches them read a usable marker here.
@@ -6141,7 +6157,7 @@ function refuseOverMarker(read: InstallMarkerRead, remedy: MarkerRemedy, named: 
   // A MID-SCRIPT EXIT (plan 34.1-59, D-45, DI-25): nothing may run after the refusal. Its output is a few lines.
   process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
 }
-if (INSTALL_REFUSAL !== null) refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL, SELECTION);
+if (INSTALL_REFUSAL !== null) refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL, SELECTION_NAMED_BY_USER ? SELECTION : []);
 
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
 // install run below executes it instead of building a second one (there is one render per run).

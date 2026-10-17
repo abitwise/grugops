@@ -136,7 +136,7 @@ import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "
 // The installer's one spelling of a real path (plan 34-12): canonicalPath below delegates to it.
 import { realTargetPath } from "./user-file.js";
 // Plan 34.1-06 (D-23): the adapter kinds every install before this phase wrote, the one statement of the legacy rule.
-import { LEGACY_ADAPTER_KINDS } from "./install-marker.js";
+import { LEGACY_ADAPTER_KINDS, readInstallMarker } from "./install-marker.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
 import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, pathText, printedCommand, printedInvocation, runPrintedCommand, spawnBin, statedModeWords, statedSpelling, statedWords, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
@@ -11153,6 +11153,73 @@ describe("agent picker at a terminal (D-02)", () => {
     expect(existsSync(home), "a kit home that did not exist was created").toBe(false);
     expectRestored(r);
   }, 180_000);
+
+  // THE AGENT LIST OVER A MARKER INSTALL CANNOT USE (plan 34.1-61, 2026-10-17, D-47, 34.1 review WR-41, WR-42). The list
+  // stays where it is, before the pre-write refusal. Its cancel and empty-confirm arms used to exit 1 through the selection
+  // refusal's sentence and print no verify about the marker; now they refuse through the pre-write refusal (exit 3, the
+  // never-remove verify) with the install command naming no agent. An agent checked at the list is named by the user, so
+  // the refusal's closing names it ("installs for the same agents again").
+  ptyIt("the agent list over a marker install cannot use (D-47, WR-41, WR-42): an empty confirm and Ctrl-C exit 3 with the never-remove verify and the install command with no agent flag; the second agent checked exits 3 and names it; each writes nothing and restores the terminal", async () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const second = HOST_TOOLS[1];
+    const first = runInstall(target, home, agentFlag(second));
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const markerAt = join(target, ...MARKER_REL.split("/"));
+    const text = readFileSync(markerAt, "utf8");
+    const key = text.indexOf('"agents"');
+    const close = text.indexOf("]", text.indexOf("[", key));
+    expect(key > 0 && close > key, `PREMISE: the marker install wrote has an agents array\n${text}`).toBe(true);
+    let last = close - 1;
+    while (/\s/.test(text[last])) last--;
+    expect(text[last], `PREMISE: the agents array ends with a string element\n${text}`).toBe('"');
+    writeFileSync(markerAt, text.slice(0, last + 1) + "," + text.slice(last + 1));
+    const read = readInstallMarker(target);
+    expect(read.state === "unreadable" ? read.defect : read.state, "PREMISE: one trailing comma inside agents reads unreadable, not-json").toBe("not-json");
+    for (const h of HOST_TOOLS) expect(existsSync(join(target, ...h.detect.split("/"))), `PREMISE: ${h.name} is detected, so the list would pre-check it`).toBe(false);
+    const markerBytes = readFileSync(markerAt);
+    const before = snapshot(target);
+    const kitBefore = snapshot(home);
+    const ctx = commandContextFor({ grugopsHome: home });
+    const arms: readonly { readonly name: string; readonly keys: string; readonly check: (out: string) => void }[] = [
+      {
+        name: "an empty confirm",
+        keys: "\r",
+        check: (out) => {
+          expect(out, "PREMISE: nothing is pre-checked on the list").not.toContain("[x]");
+          expect(out).toContain(`\`${agentCommand("install.js", target, [], ctx)}\` installs again; `);
+          expect(out).not.toContain("no agent was checked");
+          expect(out).not.toContain("the same agents");
+        },
+      },
+      {
+        name: "Ctrl-C",
+        keys: "\x03",
+        check: (out) => {
+          expect(out).toContain(`\`${agentCommand("install.js", target, [], ctx)}\` installs again; `);
+          expect(out).not.toContain("the agent list was cancelled");
+          expect(out).not.toContain("the same agents");
+        },
+      },
+      {
+        name: "the second agent checked",
+        keys: "\x1b[B \r",
+        check: (out) => {
+          expect(out).toContain(`\`${agentCommand("install.js", target, [second], ctx)}\` installs for the same agents again`);
+        },
+      },
+    ];
+    for (const arm of arms) {
+      const r = await runAtTerminal(target, home, [[LIST_ON_SCREEN, arm.keys]]);
+      expect(`${arm.name}: exit ${r.exit}`, r.out).toBe(`${arm.name}: exit 3`);
+      expect(r.out, `${arm.name}: no never-remove verify about the marker`).toContain("never delete the marker");
+      arm.check(r.out);
+      expect(readFileSync(markerAt).equals(markerBytes), `${arm.name}: the marker's bytes changed`).toBe(true);
+      expect(snapshot(target), `${arm.name}: the target changed`).toBe(before);
+      expect(snapshot(home), `${arm.name}: the kit home changed`).toBe(kitBefore);
+      expectRestored(r);
+    }
+  }, 600_000);
 
   // RAW MODE IS OFF AGAIN WHILE THE RUN GOES ON. Node resets the terminal when the process exits, so the restore at the
   // end of the run (expectRestored) cannot tell whether pickAgents turned raw mode off; this case can. After the list,
