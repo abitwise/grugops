@@ -578,12 +578,20 @@ function migrateCommand(): string {
 
 // DOCTOR_NO_FLAG_CLAUSE: what install does with no agent flag, printed after doctorInstallCommand() by the remedies
 // whose marker is absent or not this directory's record (notInstalled, the unbound-marker WARN; markerUnreadable prints
-// no install command, D-37). It states SELECTION_WHY's chain in order: at a terminal the agent list (pickAgents);
-// unattended, the agents a usable marker records (INSTALLED_BEFORE), else the agents detected here (detectedHosts), else
-// refuseSelection, which names every agent flag.
+// no install command, D-37), and (plan 34.1-61, 2026-10-17, D-47, WR-41, WR-42) after the flag-less install command of
+// the pre-write refusal's closing when no agent flag and no agent list named the agents (printInstallIncomplete). It
+// states SELECTION_WHY's chain in order: at a terminal the agent list (pickAgents); unattended, the agents a usable
+// marker records (INSTALLED_BEFORE), else the agents detected here (detectedHosts), else refuseSelection, which names
+// every agent flag.
 const DOCTOR_NO_FLAG_CLAUSE =
   "with no agent flag, install shows the agent list at a terminal; unattended, it chooses the agents a usable marker " +
   "records, else the agents detected here, else it refuses and names the agent flags";
+
+// NOTHING_WRITTEN_LINE (plan 34.1-61, 2026-10-17, D-47): the one line an INCOMPLETE banner prints in place of a command
+// when its only cause is a user's own file at the marker path (a foreign read, D-44, D-45: nothing to fix, so no step
+// follows "leave it"). Declared here, above the agent selection, because the pre-write refusal can now run from inside
+// it (refuseSelection), and a const declared later would still be in its temporal dead zone there.
+const NOTHING_WRITTEN_LINE = "  Nothing was written in the target or the kit home.";
 
 // Materialization sentinels — byte-identical to uninstall.ts. Declared HERE (before the doctor) so
 // the doctor's adapter KIT= parser can reference them under --check; materializeAdapter on the
@@ -5975,22 +5983,33 @@ const START_HELD_DIRS: ReadonlySet<string> = (() => {
 //   3. the agents detected in the target (detectedHosts: each registry row's `detect` path is present);
 //   4. none of these: refuseSelection, which exits 1 before the run banner and before any write in the target or the
 //      kit home, naming every per-agent flag. An empty repository is never installed for every agent by default.
+//      Over a marker install cannot use (INSTALL_REFUSAL below, plan 34.1-61, 2026-10-17, D-47, WR-42) refuseSelection
+//      refuses through the pre-write refusal instead: exit 3, the marker's verify, and a closing that names no agent.
 // Computed HERE, after the read-only guards and before the --migrate branch, whose pre-steps are this run's first
 // change.
 // AT A TERMINAL (D-02, plan 34.1-12): with standard input and standard output both terminals, no agent flag and no
-// `--yes`, steps 2 to 4 are replaced by the checkbox list (pickAgents over agent-picker.ts pickerRows): every registry
-// agent, the installed (step 2) and detected (step 3) ones pre-checked and labelled why. The checked agents are chosen
-// "chosen at the prompt". A cancelled list (Ctrl-C or end of input) and an empty confirmed list both refuse through
-// refuseSelection, exit 1, before anything is written.
+// `--yes`, steps 2 to 4 are replaced by the checkbox list (pickAgents over agent-picker.ts
+// pickerRows): every registry agent, the installed (step 2) and detected (step 3) ones pre-checked and labelled why. The
+// checked agents are chosen "chosen at the prompt". A cancelled list (Ctrl-C or end of input) and an empty confirmed list
+// both refuse through refuseSelection, before anything is written: exit 1, or, over a marker install cannot use, exit 3
+// through the pre-write refusal (plan 34.1-61, D-47, WR-42).
 // Each chosen agent carries the reason it was chosen; the run banner prints both (research Pitfall 7), so a
 // detection-driven choice is visible.
 const INSTALLED_BEFORE: InstalledAgents = installedAgents(PREVIOUS_MARKER_READ, PREVIOUS_LEDGER);
 const INSTALLED_IDS_BEFORE: readonly string[] = INSTALLED_BEFORE.ids;
 
-// refuseSelection: THE ONE EXIT for every selection refusal (D-03; the checkbox list of plan 34.1-12 reuses it). One
-// stderr sentence, `why` followed by every per-agent flag, derived from the registry, then exit 1. Nothing has been
-// written when it runs.
+// INSTALL_REFUSAL: the one decision of the pre-write refusal (install-marker.ts installRefusal, plan 34.1-59, D-45 item 3,
+// D-46), asked ONCE, here, before the agents are chosen (plan 34.1-61, 2026-10-17, D-47, WR-42), so that a run whose
+// agents cannot be chosen refuses through it too. See THE PRE-WRITE REFUSAL below for where it is printed.
+const INSTALL_REFUSAL: MarkerRemedy | null = installRefusal(PREVIOUS_MARKER_READ);
+
+// refuseSelection: THE ONE EXIT for every selection refusal (D-03; the checkbox list of plan 34.1-12 reuses it). It
+// first asks INSTALL_REFUSAL (plan 34.1-61, 2026-10-17, D-47, WR-42): over a marker install cannot use it refuses
+// through refuseOverMarker (exit 3, the marker's verify), naming no agent, because none was chosen; the run could not
+// read the record, so it says nothing about what the record holds. Otherwise one stderr sentence, `why` followed by
+// every per-agent flag, derived from the registry, then exit 1. Nothing has been written when it runs.
 function refuseSelection(why: string): never {
+  if (INSTALL_REFUSAL !== null) refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL, []);
   const flags = HOST_TOOLS.map(agentFlag);
   // The example is built by agentCommand (host-tools.ts), the one builder of a printed command that names agents (D-26,
   // brief MSG-1), for the first registry row, with this run's target.
@@ -6065,28 +6084,37 @@ const SELECTED_KINDS: ReadonlySet<HostAdapterKind> = new Set(SELECTION.map((h) =
 // THE PRE-WRITE REFUSAL (plan 34.1-59, 2026-10-14, D-45 item 3, DI-25, UAT G-34.1-16). Install writes only what it can
 // record in .grugops/install.json, so over a marker read it cannot record into it writes nothing at all. Until plan
 // 34.1-59 install over such a marker (a user's own JSON object, a trailing comma, a link, a directory, and, by D-46,
-// install's own marker whose install ledger is malformed) printed a verify, left the marker byte for byte and then wrote the whole footprint (the kit home, AGENTS.md, memory-bank/, plans/,
-// tools/grugops/, the chosen agents' entries) with no record, so no later uninstall could take any of it out.
-// install-marker.ts installRefusal is the one decision; it is asked ONCE, here: after the agents are chosen (so the
-// closing can name the install command for them) and before the --migrate branch (whose pre-steps are this run's first
-// change), the run banner, the kit copy and every write in the target. DRY_RUN reports the same refusal. The later
-// per-site arms for an unusable marker or a malformed install ledger (writeAskRules, askRulesStep, writeMarker,
-// writeOpenCodePermission, kitPreflight) stay, for a marker that changes during the run; refuseOverMarker exits, so a run that reaches them read a usable
-// marker here.
+// install's own marker whose install ledger is malformed) printed a verify, left the marker byte for byte and then wrote
+// the whole footprint (the kit home, AGENTS.md, memory-bank/, plans/, tools/grugops/, the chosen agents' entries) with
+// no record, so no later uninstall could take any of it out.
+// install-marker.ts installRefusal is the one decision; it is decided ONCE, as INSTALL_REFUSAL, before the agents are
+// chosen (plan 34.1-61, 2026-10-17, D-47, WR-42). It is printed in one of two places, both before the --migrate branch
+// (whose pre-steps are this run's first change), the run banner, the kit copy and every write in the target:
+//   - by refuseSelection, when no agent can be chosen (nothing recorded or detected unattended, the agent list cancelled
+//     or confirmed empty): no agent was chosen, so the closing names none. Until plan 34.1-61 such a run exited 1 with
+//     the selection refusal's sentence, which claimed "none is recorded" in a marker the run could not read, and printed
+//     no verify about the marker;
+//   - otherwise right after the selection, below.
+// DRY_RUN reports the same refusal. The later per-site arms for an unusable marker or a malformed install ledger
+// (writeAskRules, askRulesStep, writeMarker, writeOpenCodePermission, kitPreflight) stay, for a marker that changes
+// during the run; refuseOverMarker exits, so a run that reaches them read a usable marker here.
 //
 // refuseOverMarker prints the run header (target, and DRY_RUN's mode line), one verify in the owner's wording
 // (`.grugops/install.json` plus markerUnusableText of the read, why nothing was written, then markerFixText's remedy:
 // fix by hand and never delete, or for a foreign read "not written by install; if it is yours, leave it" with no next
 // step), the marker's own skipped line (reportMarkerUnchanged), and the install INCOMPLETE banner (printInstallIncomplete):
-// with the install command for this run's agents after every read but a foreign one, whose closing names no command
-// (D-44, D-45: a user's own file has nothing to fix, so no step follows "leave it"). Then it halts, exit 3, as the
-// --update branch does after its report: a mid-script exit, because the run must not go on to its first write.
+// after every read but a foreign one, the install command for the agents passed to it as `named` and nothing else (an
+// empty `named` gives the install command with no agent flag); a foreign read's closing names no command (D-44, D-45: a
+// user's own file has nothing to fix, so no step follows "leave it"). Then it halts, exit 3, as the --update branch does
+// after its report: a mid-script exit, because the run must not go on to its first write. It may run from inside the
+// selection (refuseSelection), so neither it nor anything it calls reads SELECTION, SELECTION_WHY, AGENTS_AFTER or
+// SELECTED_KINDS: the agents reach it only as `named` (plan 34.1-61, D-47).
 //
 // D-46 (human, 2026-10-17, plan 34.1-59 Task 2, option-a): an `ok` marker whose install ledger is malformed is refused
 // too, because install over it wrote the chosen agents' files with the ledger written back unchanged, so nothing it
 // wrote was recorded. Its verify words the cause as writeMarker's malformed-ledger verify does ("the install ledger is
 // malformed (<readLedger's why>)"), with the same "nothing was installed" clause and the owner's remedy after it.
-function refuseOverMarker(read: InstallMarkerRead, remedy: MarkerRemedy): never {
+function refuseOverMarker(read: InstallMarkerRead, remedy: MarkerRemedy, named: readonly HostTool[]): never {
   // readLedger's why, for an `ok` read (the one other read installRefusal answers, D-46).
   let ledgerWhy = "";
   if (read.state === "ok") {
@@ -6109,12 +6137,11 @@ function refuseOverMarker(read: InstallMarkerRead, remedy: MarkerRemedy): never 
       `${markerFixText(remedy, "re-run the installer")}.`,
   );
   reportMarkerUnchanged(remedy.defect);
-  printInstallIncomplete(remedy.defect !== "foreign");
+  printInstallIncomplete(remedy.defect !== "foreign", named);
   // A MID-SCRIPT EXIT (plan 34.1-59, D-45, DI-25): nothing may run after the refusal. Its output is a few lines.
   process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
 }
-const INSTALL_REFUSAL: MarkerRemedy | null = installRefusal(PREVIOUS_MARKER_READ);
-if (INSTALL_REFUSAL !== null) refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL);
+if (INSTALL_REFUSAL !== null) refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL, SELECTION);
 
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
 // install run below executes it instead of building a second one (there is one render per run).
@@ -7639,30 +7666,38 @@ for (const line of agentClosingLines()) console.log(line);
 /**
  * printInstallIncomplete (plan 34.1-59, D-45, DI-25): THE ONE install INCOMPLETE banner, printed by the run's closing
  * and by the pre-write refusal (refuseOverMarker). The banner line carries the count of verify lines and DRY_RUN's
- * suffix. With `nextCommand` it then says each verify line names what was not installed and prints the same-run
- * install command for this run's agents; without it (only the refusal over a foreign read, D-44, D-45: a user's own
- * file at the marker path has nothing to fix, so no step follows "leave it") it says nothing was written and names no
- * command.
+ * suffix. With `nextCommand` it then says each verify line names what was not installed and prints the same-run install
+ * command for `agents`; without it (only the refusal over a foreign read, D-44, D-45: a user's own file at the marker
+ * path has nothing to fix, so no step follows "leave it") it prints NOTHING_WRITTEN_LINE and names no command.
+ *
+ * `agents` (plan 34.1-61, 2026-10-17, D-47, WR-41, WR-42) are the agents the command names: the run's closing passes
+ * SELECTION; the refusal passes only the agents the user named (by flag or at the agent list), and none when the
+ * selection could not be made or came from the record or detection, because a run that could not read the record has
+ * no "same agents". With none, the command is the install command with no agent flag, and the line says what that
+ * command does (DOCTOR_NO_FLAG_CLAUSE): once the marker is fixed by hand, it chooses the agents the marker records. It
+ * never says "the same agents" then. It reads no selection const, so it may run from inside the selection.
  */
-function printInstallIncomplete(nextCommand: boolean): void {
+function printInstallIncomplete(nextCommand: boolean, agents: readonly HostTool[]): void {
   console.log(
     `\n== install INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
       `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
   );
   if (!nextCommand) {
-    console.log("  Nothing was written in the target or the kit home.");
+    console.log(NOTHING_WRITTEN_LINE);
     return;
   }
   console.log("  Each `verify` line above names what was NOT installed and the remedy for it.");
   // THE SAME-RUN COMMAND (D-26, brief MSG-1): every counted verify of the install mode is finished by running install
-  // again for the agents this run chose, built by agentCommand with this run's context (D-33): the absolute script
-  // path, and this run's kit home, install mode and kit checkout stated as GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC
-  // (D-38; no printed command carries `--symlink`), so the command run as printed, from any directory and whatever the
-  // shell exports, finishes this install and not a copy install or a second kit.
-  // Printed under DRY_RUN too.
+  // again for `agents`, built by agentCommand with this run's context (D-33): the absolute script path, and this run's
+  // kit home, install mode and kit checkout stated as GRUGOPS_HOME, INSTALL_MODE and GRUGOPS_SRC (D-38; no printed
+  // command carries `--symlink`), so the command run as printed, from any directory and whatever the shell exports,
+  // finishes this install and not a copy install or a second kit. With no agents it is the flag-less install command
+  // and the line words what that does (plan 34.1-61, D-47). Printed under DRY_RUN too.
   console.log(
-    `  Once each is fixed, \`${agentCommand("install.js", TARGET, SELECTION, COMMAND_CONTEXT)}\` installs for the same agents again ` +
-      `(add any other option this run was given).`,
+    `  Once each is fixed, \`${agentCommand("install.js", TARGET, agents, COMMAND_CONTEXT)}\` ` +
+      (agents.length > 0
+        ? `installs for the same agents again (add any other option this run was given).`
+        : `installs again; ${DOCTOR_NO_FLAG_CLAUSE} (add any other option this run was given).`),
   );
 }
 
@@ -7671,7 +7706,7 @@ function printInstallIncomplete(nextCommand: boolean): void {
 // "complete" over that is the repudiation failure this plan closes, so the banner reports the real
 // outcome and points at the `verify` lines that name what was left undone.
 if (VERIFY_FINDINGS > 0) {
-  printInstallIncomplete(true);
+  printInstallIncomplete(true, SELECTION);
   // THE MACHINE-READABLE HALF OF THE CONDITIONAL CLAIM (27-21, WR-01). Exit codes: 0 complete,
   // 1 refused or aborted, 2 bad usage, 3 incomplete. Set on the SAME branch that prints the banner
   // so the human-readable and machine-readable signals cannot diverge — a chained `install.js &&

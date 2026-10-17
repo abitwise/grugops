@@ -464,8 +464,10 @@ export function markerRemedy(read) {
  * `ledger`, D-46, human, 2026-10-17: install over it used to write the chosen agents' files with the ledger written back
  * unchanged, so nothing it wrote was recorded); null for absent (install records into a new marker), unbound (install
  * replaces it with a marker for this directory, and says so) and an `ok` read with a well-formed ledger. install.ts asks
- * it once, after the agents are chosen and before the first write of any install run (the --migrate pre-steps, the run
- * banner, the kit copy). Pure: no I/O.
+ * it once, before the agents are chosen (plan 34.1-61, 2026-10-17, D-47, WR-42: so a run whose agents cannot be chosen,
+ * with nothing recorded or detected or an agent list cancelled or confirmed empty, refuses through it too, with the
+ * marker's verify) and before the first write of any install run (the --migrate pre-steps, the run banner, the kit
+ * copy). Pure: no I/O.
  */
 export function installRefusal(read) {
     return markerRemedy(read);

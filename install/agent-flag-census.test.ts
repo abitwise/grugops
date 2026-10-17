@@ -69,8 +69,11 @@ const SITE_FLOOR = 64;
  * whose every write was refused is chosen again by an unattended install with no agent flag (D-04's retry).
  * Two more since plan 34.1-15 (D-26, MSG-1): install/install.test.ts T1 (the selection refusal, whose printed example
  * command is what it tests) and T6 (the legacy unattended selection, whose printed reason is what it tests).
+ * One more since plan 34.1-61 (2026-10-17, D-47, WR-41, WR-42, WR-43; 8 -> 9): install/agents-record.test.ts
+ * installFlagless, the one flag-less install spawn of that file, because the pre-write refusal's closing for a selection
+ * no agent flag named (exit 3, the install or --migrate command with no agent flag) is what its rows test.
  */
-const EXEMPT_COUNT = 8;
+const EXEMPT_COUNT = 9;
 
 /** Every tracked TypeScript module directly under install/ or scripts/ (no declaration files), from git. */
 function modules(): string[] {

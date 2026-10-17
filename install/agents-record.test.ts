@@ -201,6 +201,18 @@ function install(w: World, args: readonly string[]): Run {
   expect(r.status, `install ${args.join(" ")}: exit ${r.status}\n${r.stdout}`).toBe(0);
   return r;
 }
+/**
+ * installFlagless (plan 34.1-61, 2026-10-17, D-47): THE ONE flag-less install spawn of this file, `--yes` and `extra`
+ * with no agent flag (runInstall adds every agent flag when none is given, so it cannot run this). A direct spawnBin with
+ * the world's HOME and kit home. Returns the run after `finished` (no uncaught throw: a temporal-dead-zone
+ * ReferenceError would show here).
+ */
+function installFlagless(w: World, extra: readonly string[], dryRun = false): Run {
+  // agent-flag-census: flag-less installs over a marker install cannot use (plan 34.1-61, D-47): the refusal's closing for a selection no agent flag named is what they test
+  const r = spawnBin(INSTALL_JS, ["--yes", ...extra], w.target, w.grugopsHome, { home: w.home, dryRun, timeoutMs: 180_000 });
+  finished(r, `install --yes ${extra.join(" ")} (no agent flag)`);
+  return r;
+}
 function uninstall(w: World, args: readonly string[], dryRun = false): Run {
   const r = runUninstall(w.target, w.grugopsHome, { home: w.home, dryRun, timeoutMs: 120_000 }, args);
   finished(r, `uninstall ${args.join(" ")}`);
@@ -3423,6 +3435,83 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
       const real = verifyOf(false);
       expect(dry.line, `${shape.name}: the DRY_RUN verify line differs from the real run's`).toBe(real.line);
     }
+  });
+
+  // R57 (plan 34.1-61, 2026-10-17, D-47, 34.1 review WR-42): the one decision, installRefusal, is asked before a selection
+  // refusal can fire. Until plan 34.1-61 a flag-less unattended run over a marker install cannot use, with no agent
+  // detected, exited 1 saying "no agent was named, none is recorded in .grugops/install.json and none was detected" (a
+  // claim about a record the run could not read, or about a user's own file as if it were install's record) and printed
+  // no verify about the marker. Now every selection refusal over such a marker refuses through refuseOverMarker: exit 3,
+  // the owner's verify, the marker's own skipped line, and nothing written. No agent was named by flag or at the agent
+  // list, so the closing names no agent: it prints the install command with no agent flag (agentCommand with this run's
+  // context), which, once the marker is fixed by hand, chooses the agents the marker records. Arm (a) follows it as
+  // printed; arm (b), a user's own JSON object, prints no command at all (D-44, D-45).
+  it("R57 (WR-42, D-47): install --codex, one trailing comma in the marker, no agent detected; a flag-less `--yes` exits 3 and writes nothing, prints the never-remove verify and the marker's skipped line, no selection-refusal sentence, and exactly the install command with no agent flag, which run as printed after the comma is fixed by hand exits 0 with agents ['codex']. Arm (b): a user's own JSON object in a fresh repository: exit 3, the foreign verify, no printed command, no kit home", () => {
+    const w = world("r57");
+    install(w, [flag("codex")]);
+    for (const h of HOST_TOOLS) {
+      expect(existsSync(at(w.target, h.detect)), `PREMISE: ${h.name}'s detect path ${h.detect} exists, so the run would choose by detection`).toBe(false);
+    }
+    const original = addTrailingComma(w);
+    const before = snapshotTree(w.target);
+    const homeBefore = snapshotTree(w.home);
+
+    const r = installFlagless(w, []);
+    expect(r.status, `a flag-less install over a marker it cannot use\n${r.stdout}\n${r.stderr}`).toBe(3);
+    expect(snapshotTree(w.target), `the target changed\n${r.stdout}`).toBe(before);
+    expect(snapshotTree(w.home), `HOME (the kit home under it) changed\n${r.stdout}`).toBe(homeBefore);
+    const owner = linesWith(r.stdout, "verify").filter((l) => l.includes(MARKER_REL) && BY_HAND.test(l) && l.includes("never delete the marker"));
+    expect(owner.length, `one never-remove verify over the marker\n${r.stdout}\n${r.stderr}`).toBe(1);
+    const skipped = linesWith(r.stdout, "skipped").filter((l) => l.includes(`${MARKER_REL} (left unchanged — `));
+    expect(skipped.length, `one skipped line for the marker\n${r.stdout}`).toBe(1);
+    for (const l of allLines(r)) {
+      expect(l, "a line says no agent was named (the selection refusal's sentence)").not.toContain("no agent was named");
+      expect(l, "a line claims what the unreadable marker records").not.toContain(`none is recorded in ${MARKER_REL}`);
+      expect(l, "a line says the same agents for agents no flag and no agent list named").not.toContain("the same agents");
+    }
+    expect(printedCommands(`${r.stdout}\n${r.stderr}`), `the closing prints exactly the install command with no agent flag\n${r.stdout}\n${r.stderr}`).toEqual([
+      agentCommand("install.js", w.target, [], ctxOf(w)),
+    ]);
+    expect(removalOffers(r), "a line offers removing the marker").toEqual([]);
+
+    // Follow it: the original bytes put back by hand (the fix the verify names), then the printed command run as printed.
+    writeFileSync(markerPath(w), original);
+    const fin = runPrinted(w, r.stdout);
+    expect(fin.premise.kitHomeBeforePrinted, "premise: the child's environment held the conflicting GRUGOPS_HOME before the printed assignments").toBe(fin.premise.conflictingKitHome);
+    expect(pathText(fin.premise.conflictingKitHome), "premise: the conflicting kit home is the printed one").not.toBe(pathText(w.grugopsHome));
+    expect(fin.premise.installModeBeforePrinted, "premise: the child's environment held the conflicting INSTALL_MODE before the printed assignments").toBe(fin.premise.conflictingInstallMode);
+    expect(fin.premise.conflictingInstallMode, "premise: the conflicting INSTALL_MODE differs from the printed copy mode").toBe("symlink");
+    expect(pathText(fin.premise.grugopsHome), "premise: the printed GRUGOPS_HOME is the world's kit home").toBe(pathText(w.grugopsHome));
+    expect(fin.status, `the printed install command\n${fin.stdout}\n${fin.stderr}`).toBe(0);
+    expect(fin.premise.conflictingKitHomeCreated, `the conflicting kit home was created\n${fin.stdout}`).toBe(false);
+    expect(readInstallMarker(w.target).state, `the marker after the printed install\n${fin.stdout}`).toBe("ok");
+    expect(agentsOf(w), fin.stdout).toEqual(ids("codex"));
+    const banner = fin.stdout.split("\n").find((l) => l.startsWith("agents: "));
+    expect(banner, fin.stdout).toBe(`agents: ${row("codex").name} (recorded in ${MARKER_REL})`);
+
+    // Arm (b): a user's own JSON object at the marker path of a fresh repository, nothing detected, no kit home.
+    const b = world("r57-foreign");
+    mkdirSync(at(b.target, ".grugops"));
+    writeFileSync(markerPath(b), '{"mine":1}\n');
+    const read = readInstallMarker(b.target);
+    expect(read.state === "unreadable" ? read.defect : read.state, "PREMISE: a user's own JSON object reads foreign").toBe("foreign");
+    expect(existsSync(b.grugopsHome), "PREMISE: no kit home before the run").toBe(false);
+    const bBefore = snapshotTree(b.target);
+    const bHomeBefore = snapshotTree(b.home);
+    const rb = installFlagless(b, []);
+    expect(rb.status, `arm (b): a flag-less install over a user's own JSON object\n${rb.stdout}\n${rb.stderr}`).toBe(3);
+    expect(snapshotTree(b.target), `arm (b): the target changed\n${rb.stdout}`).toBe(bBefore);
+    expect(snapshotTree(b.home), `arm (b): HOME changed\n${rb.stdout}`).toBe(bHomeBefore);
+    expect(existsSync(b.grugopsHome), `arm (b): a kit home was created\n${rb.stdout}`).toBe(false);
+    const bOwner = linesWith(rb.stdout, "verify").filter((l) => l.includes(MARKER_REL) && l.includes("not written by install") && l.includes("if it is yours, leave it"));
+    expect(bOwner.length, `arm (b): one verify in the foreign wording\n${rb.stdout}\n${rb.stderr}`).toBe(1);
+    expect(linesWith(rb.stdout, "skipped").filter((l) => l.includes(`${MARKER_REL} (left unchanged — `)).length, `arm (b): one skipped line\n${rb.stdout}`).toBe(1);
+    expect(printedCommands(`${rb.stdout}\n${rb.stderr}`), `arm (b): a foreign read's output names a command\n${rb.stdout}`).toEqual([]);
+    for (const l of allLines(rb)) {
+      expect(l, "arm (b): a line names an installer script after a foreign read").not.toMatch(/\b(un)?install\.js\b/);
+      expect(l, "arm (b): a line claims nothing is recorded in a user's own file").not.toContain("none is recorded");
+    }
+    expect(removalOffers(rb), "arm (b): a line offers removing the marker").toEqual([]);
   });
 
   // R45 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): over a marker this run cannot use, the ask-rules report and

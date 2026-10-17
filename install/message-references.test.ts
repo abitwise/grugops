@@ -811,7 +811,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
       ts.forEachChild(n, visit);
     };
     visit(src);
-    expect(hits).toEqual(['"install.js", TARGET, [], COMMAND_CONTEXT, ["--prune-old-kit"]', '"install.js", TARGET, SELECTION, COMMAND_CONTEXT']);
+    // Re-pinned 2026-10-17 by plan 34.1-61 (D-47, WR-42): printInstallIncomplete's command names its `agents` parameter
+    // (the run's closing passes SELECTION, the pre-write refusal only the agents the user named), so the refusal's closing
+    // can print the install command with no agent flag when no agent was named.
+    expect(hits).toEqual(['"install.js", TARGET, [], COMMAND_CONTEXT, ["--prune-old-kit"]', '"install.js", TARGET, agents, COMMAND_CONTEXT']);
   });
 
   // THE BANNER ROW (plan 34.1-28, D-31, the DI-09 class): every INCOMPLETE banner of install.ts is followed, in the same
@@ -880,7 +883,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     expect(/\breturn\b/.test(thenText), "the branch returns before the command").toBe(true);
     expect(/install\.js|agentCommand|scriptCommand|Command\(/.test(thenText), "the branch prints no command").toBe(false);
     expect(between.every((st) => ts.isIfStatement(st) || (ts.isExpressionStatement(st) && st.getText(src).startsWith("console.log("))), "only console.log lines and the branch sit between").toBe(true);
-    expect(calls.map((c) => c.arguments.map((a) => a.getText(src)).join(", ")).sort(), "every caller passes true or the not-foreign test").toEqual(['remedy.defect !== "foreign"', "true"]);
+    // Re-pinned 2026-10-17 by plan 34.1-61 (D-47, WR-42): each caller passes the agents its command names as a second
+    // argument, the run's closing SELECTION and the pre-write refusal `named`. The first argument is unchanged: `true` or
+    // the not-foreign test, so the no-command branch is still reached for a foreign read alone.
+    expect(calls.map((c) => c.arguments.map((a) => a.getText(src)).join(", ")).sort(), "every caller passes true or the not-foreign test").toEqual(['remedy.defect !== "foreign", named', "true, SELECTION"]);
   });
 });
 
