@@ -33,7 +33,7 @@ See: .planning/PROJECT.md (updated 2026-10-18 — after the v2.1 milestone)
 Phase: Milestone v2.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-18 - Completed quick task 261018-hs8: launch agents for OpenCode, Copilot CLI, Antigravity CLI and Pi + MIT LICENSE/NOTICE in the kit; backlog 999.11 (test suite layers) filed
+Last activity: 2026-10-19 - Completed quick task 261018-vfm: launch-agent live-run results (OpenCode via /agents panel; Antigravity CLI, OpenCode, Pi verified live)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2031,6 +2031,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 261018-0o7 | README launch section: claude --agent grugops-orchestrator + per-host start table | 2026-10-18 | 00833be8 | [261018-0o7-readme-launch-section-claude-agent-grugo](./quick/261018-0o7-readme-launch-section-claude-agent-grugo/) |
 | 261018-hs8 | Launch agents for OpenCode, Copilot CLI, Antigravity CLI and Pi; ship MIT LICENSE+NOTICE; D-06 fix pass (verified: Needs Review, live host runs UNKNOWN - verify) | 2026-10-18 | 8add25a0 | [261018-hs8-launch-agent-adapters-for-opencode-copil](./quick/261018-hs8-launch-agent-adapters-for-opencode-copil/) |
+| 261018-vfm | Launch-agent live-run results: launch form typed command/panel; OpenCode via /agents panel (no --agent); Antigravity CLI, OpenCode, Pi verified live 2026-10-18; Copilot CLI UNKNOWN - verify | 2026-10-19 | 498000fc | [261018-vfm-launch-agent-live-run-results](./quick/261018-vfm-launch-agent-live-run-results/) |
 
 ## Deferred Items
 
