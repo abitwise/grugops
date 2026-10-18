@@ -336,6 +336,7 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "is there now, so run install.js --check again: `", "builder in the same expression", "absentRemedy: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)"],
   ["install.ts", "Re-run install.js: it replaces install's own unedited copy with the current one: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)"],
   ["install.ts", "Re-run install.js: it appends install's start-here block, which carries the route: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)"],
+  ["install.ts", "To start grugops that way, move that file elsewhere and re-run install.js, which writes its launch file where nothing is: `", "builder in the same expression", "the launch-file WARN's by-hand remedy for a file install will not write: doctorInstallCommand() (quick task 261018-hs8, D-06)"],
   ["install.ts", "; otherwise re-run install.js here, `", "builder in the same expression", "the doctor's unbound other-directory WARN: doctorInstallCommand() and the no-agent-flag clause (plan 34.1-27, D-33)"],
   ["install.ts", "its records here and changes nothing. Re-run install.js here, `", "builder in the same expression", "the doctor's unbound no-target or no-ledger WARN: doctorInstallCommand() and the clause, then the uninstall agentCommand (plan 34.1-27, D-33)"],
   ["install.ts", "uninstall.js", "builder argument", "the doctor's unbound-marker remedy (D-26)"],
@@ -391,6 +392,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "is there now, so run install.js --check again: `", "builder in the same expression", "absentRemedy: doctorCheckCommand(); --check takes no agent flag (plan 34.1-27, D-25, D-33)", null],
   ["install.ts", "Re-run install.js: it replaces install's own unedited copy with the current one: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)", null],
   ["install.ts", "Re-run install.js: it appends install's start-here block, which carries the route: `", "builder in the same expression", "the carrier remedy: doctorInstallCommand() (plan 34.1-27, D-33)", null],
+  ["install.ts", "To start grugops that way, move that file elsewhere and re-run install.js, which writes its launch file where nothing is: `", "builder in the same expression", "the launch-file WARN's by-hand remedy for a file install will not write: doctorInstallCommand() (quick task 261018-hs8, D-06)", null],
   ["install.ts", "; otherwise re-run install.js here, `", "builder in the same expression", "the doctor's unbound other-directory WARN: doctorInstallCommand() and the no-agent-flag clause (plan 34.1-27, D-33)", null],
   ["install.ts", "its records here and changes nothing. Re-run install.js here, `", "builder in the same expression", "the doctor's unbound no-target or no-ledger WARN: doctorInstallCommand() and the clause, then the uninstall agentCommand (plan 34.1-27, D-33)", null],
   ["install.ts", ", so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the", "builder in the same expression", "no agent recorded or detected: doctorInstallCommand(), then an agentCommand example with one agent's flag (plan 34.1-27, D-33)", null],
@@ -495,17 +497,21 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // So install.ts 39 + 2 = 41.
     // Plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): markerUnreadable prints no install command over a marker it
     // could not read (only the check command), so its "re-run install.js `" fragment is gone: install.ts 41 - 1 = 40.
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 40, "kit-source.ts": 1, "uninstall.ts": 8 });
+    // Quick task 261018-hs8 fix pass (2026-10-18, D-06): the launch-file WARN's by-hand remedy (move the file and re-run
+    // install.js, doctorInstallCommand() in the same expression) is new: install.ts 40 + 1 = 41. Its stale-copy FAIL
+    // reuses the carrier lines' remedy (one const, ownStaleRemedy), so it adds no fragment.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 41, "kit-source.ts": 1, "uninstall.ts": 8 });
     // THE CLASSES (plan 34.1-28, D-33, brief §4): a fragment that names a binary is a builder argument (or the builder's
     // own signature), sits in an expression that prints a built command, or is one of the non-command classes, each
     // held by its own rule below. Plan 34.1-28 split the former "names no agent flag" (12, of which the --update hint
     // was the one hand-built command and is gone) into those non-command classes, and renamed "agentCommand" to
     // "builder argument" (25 + 3 = 28: the three scriptCommand and agentCommand arguments above). Plan 34.1-29: 28 + 2
     // = 30, the Recorded-as-chosen line's two agentCommand arguments. Plan 34.1-44 (2026-10-13, D-37): markerUnreadable's
-    // install command is gone, "builder in the same expression" 14 -> 13.
+    // install command is gone, "builder in the same expression" 14 -> 13. Quick task 261018-hs8 fix pass (2026-10-18,
+    // D-06): the launch-file WARN's remedy, 13 -> 14.
     expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({
       "builder argument": 30,
-      "builder in the same expression": 13,
+      "builder in the same expression": 14,
       "file text": 1,
       "message prefix": 6,
       "note naming a mode": 1,
@@ -639,7 +645,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // step follows (none for a foreign read). Same four rows, same class: 63.
     // Plan 34.1-59 (2026-10-14, D-45, DI-25): refuseOverMarker's "re-run the installer" argument to markerFixText,
     // 63 + 1 = 64.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 64, "user-file.ts": 2 });
+    // Quick task 261018-hs8 fix pass (2026-10-18, D-06): the launch-file WARN's by-hand remedy, 64 + 1 = 65.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 65, "user-file.ts": 2 });
     // Plan 34.1-27 (DI-08): the stale-adapter WARN's re-run fragment moves from "agent-independent: doctor, recorded
     // agents" (12 -> 11) to "builder in the same expression" (1): the WARN prints doctorInstallCommand().
     // Plan 34.1-27 task 2 (D-33): every other doctor remedy (D1-D14, D16, D17) prints its command in the same expression,
@@ -660,7 +667,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // "no command: a re-run does not finish it (DI-13)" (1).
     expect(countBy(RERUN_TABLE, (r) => r[2])).toEqual({
       // Plan 34.1-44 (2026-10-13, D-37): 19 - 1 = 18, markerUnreadable prints no install command.
-      "builder in the same expression": 18,
+      // Quick task 261018-hs8 fix pass (2026-10-18, D-06): 18 + 1 = 19, the launch-file WARN's by-hand remedy.
+      "builder in the same expression": 19,
       // Plan 34.1-33 (D-35): 9 - 2 + 4 = 11, the two marker remedies' may-remove and never-remove fragments.
       // Plan 34.1-43 (2026-10-13, D-37): 11 + 1 = 12, writeMarker's malformed-ledger re-run (I3).
       // Plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05): 12 - 2 = 10, the two may-remove fragments (I5, I6) deleted.
@@ -1042,11 +1050,6 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     writeFileSync(at(w, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
     mkdirSync(at(w, ".pi"), { recursive: true });
     writeFileSync(at(w, ".pi/prompts"), "not a directory\n");
-    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its carriers: its write is refused too
-    // (a directory planted at its path), so Pi is still left without a route and the note still points at a line.
-    const piLaunch = hostOf("pi-prompt-template").launchAgent;
-    expect(piLaunch, "premise: Pi has a launch file").not.toBeNull();
-    mkdirSync(at(w, piLaunch!), { recursive: true });
     const r = install(w, [agentFlag(hostOf("pi-prompt-template"))]);
     expect(r.status, r.stdout + r.stderr).toBe(3);
     expect(r.stdout, "premise: the route note points at the line above").toContain(`the line above about ${PI_PROMPT_REL}`);
@@ -1059,10 +1062,6 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const pi = install(w, [agentFlag(hostOf("pi-prompt-template"))]);
     expect(pi.status, pi.stdout + pi.stderr).toBe(0);
     rmSync(at(w, PI_PROMPT_REL));
-    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its carriers: deleted too.
-    const piLaunch = hostOf("pi-prompt-template").launchAgent;
-    expect(piLaunch, "premise: Pi has a launch file").not.toBeNull();
-    rmSync(at(w, piLaunch!));
     const oc = install(w, [agentFlag(hostOf("opencode-command"))]);
     expect(oc.status, oc.stdout + oc.stderr).toBe(0);
     expect(oc.stdout).toContain(`\`${agentCommand("install.js", w.target, [hostOf("pi-prompt-template")], commandContextFor({ grugopsHome: w.kitHome }))}\` writes it`);

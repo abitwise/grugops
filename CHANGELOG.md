@@ -139,7 +139,8 @@ CLI with Antigravity CLI.
   pointer with no role text, rendered by `scripts/generate-host-entries.ts` and written under the
   whole-file entry rule: a file you wrote or edited at that path is left untouched. Each belongs to
   its own agent, so `uninstall --codex` keeps Antigravity CLI's file and `uninstall --antigravity`
-  removes it. `--check` counts each as one of its host's route carriers. Nothing makes a launch agent
+  removes it. `--check` reports each on a line of its own, for a session started with it; it is not
+  counted as a route carrier, because a default session never reads it. Nothing makes a launch agent
   the default: no `default_agent` in `opencode.json`, no `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`.
   Codex CLI is unchanged, because it documents no way to start a session as a custom agent. A
   session started this way still loads roles one at a time, and every live run is `UNKNOWN - verify`.

@@ -559,8 +559,12 @@ and its entry file is not present, as when an earlier run refused its every writ
 left installed: the closing notes name it on its own line, with the install command that installs it
 and the uninstall command that takes it out of the record. For each agent the
 run was for, the closing notes also name what the install record holds for it and how that host's
-documentation says to start grugops. grugops has not run those invocations on a live host, and the
-notes say `UNKNOWN - verify`.
+documentation says to start grugops. They give a host's launch form (for example
+`opencode --agent grugops-orchestrator`) only when install wrote its launch file in this run or
+already owns the file there. When that file is your own, or install could not write it, the notes say
+so and give no launch form, because the form would start that file and not the grugops
+Orchestrator. grugops has not run those invocations on a live host, and the notes say
+`UNKNOWN - verify`.
 
 On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, each
 whole-file host entry above (the Pi template, the agent skill, the OpenCode command and the launch
@@ -653,22 +657,26 @@ reads every file first and reports afterwards, in this order:
 
 - **The route target.** It reads `kitRoot` and reports a FAIL when
   `<kitRoot>/roles/orchestrator.md` is not a readable file.
-- **The files each host reads here.** The files that can give a host the route are `AGENTS.md`,
-  `CLAUDE.md`, `.agents/skills/grugops/SKILL.md`, `.agents/agents/grugops-orchestrator.md`,
-  `.opencode/commands/grugops.md`, `.opencode/agents/grugops-orchestrator.md`,
-  `.github/copilot-instructions.md`, `.github/agents/grugops-orchestrator.agent.md`,
-  `.pi/prompts/grugops.md` and `.pi/grugops-orchestrator.md`. A host counts a file only when it
-  reads that file in this repository. A launch agent (`.agents/agents/grugops-orchestrator.md`,
-  `.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md` or
-  `.pi/grugops-orchestrator.md`, each one host's own; Codex CLI has none) is read only by a session
-  started with it. `--check` counts it as one of its host's route carriers, so that host's `reach`
-  line can name it. Antigravity CLI reads `AGENTS.md` natively, with
+- **The files each host reads here.** The files that can give a host's default session the route
+  are `AGENTS.md`, `CLAUDE.md`, `.agents/skills/grugops/SKILL.md`, `.opencode/commands/grugops.md`,
+  `.github/copilot-instructions.md` and `.pi/prompts/grugops.md`. A host counts a file only when it
+  reads that file in this repository. Antigravity CLI reads `AGENTS.md` natively, with
   no settings entry (antigravity.google/docs/rules/ and antigravity.google/docs/cli/gcli-migration/,
   retrieved 2026-10-11), and the agent skill it shares with Codex CLI. Install detects Antigravity
   CLI by a `.gemini` entry in the target root, the signal the Gemini CLI row used; whether Antigravity
   CLI itself uses a project-level `.gemini/` is `UNKNOWN - verify`, and its documented project
   directory, `.agents/`, is not a detect signal because Codex CLI, GitHub Copilot CLI, OpenCode and Pi
   read it too and install creates it.
+- **The launch files.** A launch file (`.agents/agents/grugops-orchestrator.md`,
+  `.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md` or
+  `.pi/grugops-orchestrator.md`, each one host's own) is read only by a session started with it,
+  never by a default session or a typed `/grugops`. Codex CLI has none. So it is not a route carrier:
+  no `reach` line names it, and a file a default session reads that lacks the route is counted
+  whatever the launch file holds. `--check` gives each launch file of an installed agent a line of
+  its own, worded "a session started with" that host's launch form: `ok` when it carries the route;
+  a FAIL when it is install's own copy from an earlier install without the route, whose remedy is to
+  re-run `install.js`; a WARN when install will not write the route into it (your own file, or a
+  link) or it could not be read; and an uncounted `note` when it is not present.
 - **The files without the route.** Such a file is counted only when it leaves some host without a
   route: a host that reads it reads no other file holding the route and, for Claude Code, has no
   adapter route. `--check` names re-running `install.js` exactly when an install run on the same

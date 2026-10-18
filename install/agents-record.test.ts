@@ -911,12 +911,13 @@ describe("REC-1: the `agents` field means chosen and not yet removed (D-26, IN-2
   // removed (install-marker.ts THE `agents` FIELD), not "the agents owning a holding entry": a chosen agent whose every
   // write was refused owns no entry and stays recorded, so a later unattended install chooses it again (D-04). The
   // invariant (every agent owning a holding entry is recorded) still holds over this row.
-  it("R18: a Pi install whose template write is refused records [pi] with no entry of Pi's; a later `--yes` with no agent flag chooses Pi again, \"recorded in .grugops/install.json\"", () => {
+  it("R18: a Pi install whose template and launch-file writes are refused records [pi] with no entry of Pi's; a later `--yes` with no agent flag chooses Pi again, \"recorded in .grugops/install.json\"", () => {
     const w = world("r18");
     mkdirSync(at(w.target, ".pi"), { recursive: true });
     writeFileSync(at(w.target, ".pi/prompts"), "not a directory\n");
-    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its entry paths: its write is refused
-    // too (a directory planted at its path), so every write of Pi's is refused.
+    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is a file install writes and records for Pi: its
+    // write is refused too (a directory planted at its path), so every write of Pi's is refused and Pi owns no entry.
+    // This is an ownership premise, not a route one (D-06 took launch files out of the route verdicts only).
     expect(row("pi").launchAgent, "premise: Pi has a launch file").not.toBeNull();
     mkdirSync(at(w.target, row("pi").launchAgent!), { recursive: true });
     const first = runInstall(w.target, w.grugopsHome, [flag("pi")], { home: w.home, timeoutMs: 180_000 });
@@ -1048,15 +1049,16 @@ describe("D-31 (IN-26): install's derivation reads the ledger it writes", () => 
     expectInvariant(w, ALL_IDS, u.stdout);
   });
 
-  // R35: a directory entry never records its owner again. Pi's template is deleted (its file entry is no longer
-  // carried) while `.pi/prompts/` holds a user file (its directory entries are carried); with Pi edited out of
-  // `agents`, the next install leaves Pi out. Directory entries do not hold (install-marker.ts entryHolds).
-  it("R35 (IN-26, a directory entry): install --claude --pi, Pi's template deleted and a user file in .pi/prompts/, `agents` edited to [claude], install --claude: [claude], and the ledger still records Pi's directories", () => {
+  // R35: a directory entry never records its owner again. Pi's file entries are deleted (the template and the launch
+  // file, quick task 261018-hs8, so neither is carried) while `.pi/prompts/` holds a user file (its directory entries
+  // are carried); with Pi edited out of `agents`, the next install leaves Pi out. Directory entries do not hold
+  // (install-marker.ts entryHolds).
+  it("R35 (IN-26, a directory entry): install --claude --pi, Pi's template and launch file deleted and a user file in .pi/prompts/, `agents` edited to [claude], install --claude: [claude], and the ledger still records Pi's directories", () => {
     const w = world("r35");
     install(w, [flag("claude"), flag("pi")]);
     rmSync(at(w.target, PI_PROMPT_REL));
     // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its file entries: deleted too, so Pi
-    // owns no holding entry.
+    // owns no holding entry (an ownership premise; D-06 changed the route verdicts only).
     expect(row("pi").launchAgent, "premise: Pi has a launch file").not.toBeNull();
     rmSync(at(w.target, row("pi").launchAgent!));
     writeFileSync(at(w.target, ".pi/prompts/mine.md"), "a prompt the user made\n");

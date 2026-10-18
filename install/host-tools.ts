@@ -63,9 +63,11 @@ export interface HostTool {
   readonly adapter: HostAdapterKind;
   readonly dispatch: HostDispatch;
   /**
-   * How a user starts grugops on this host, as the host's own documentation gives it (phase 34.1, D-21). Each row
-   * names its source in a comment beside the value. Install's closing notes print it for every chosen agent
-   * (install.ts agentClosingLines); grugops has not run it on a live host, and the notes say so (UNKNOWN - verify).
+   * How a user starts grugops on this host in a default session, as the host's own documentation gives it (phase 34.1,
+   * D-21). Each row names its source in a comment beside the value. Install's closing notes print it for every chosen
+   * agent (install.ts agentClosingLines); grugops has not run it on a live host, and the notes say so (UNKNOWN - verify).
+   * It never names the launch form: that is launchForm below, which the closing notes add only when install wrote or
+   * owns the row's launch file (quick task 261018-hs8, review WR-03).
    */
   readonly invoke: string;
   /**
@@ -79,6 +81,14 @@ export interface HostTool {
    * scripts/generate-host-entries.ts. Required on every row, so a new row is a compile error until it states one.
    */
   readonly launchAgent: string | null;
+  /**
+   * The launch form (quick task 261018-hs8, D-05, D-06): how a user starts a session on this host with its launch file,
+   * as the host's own documentation gives it, in backticks; null exactly when launchAgent is null. THE ONE SPELLING of
+   * it: `--check`'s launch-file findings word it "a session started with <launchForm>" (install.ts launchFileFindings),
+   * install's closing notes offer it through launchInvoke below, and install/README.md's usage sections are checked
+   * to name each of its backticked tokens. Each row names its source in a comment beside the value.
+   */
+  readonly launchForm: string | null;
 }
 
 /**
@@ -231,6 +241,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     invoke: "type `/grugops <request>`",
     // Null: its launch agent is the `.claude/` kit adapter `claude --agent grugops-orchestrator` starts.
     launchAgent: null,
+    launchForm: null,
   },
   {
     id: "codex",
@@ -247,6 +258,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     invoke: "type `$grugops <request>`, or pick it from `/skills`",
     // Codex CLI documents no way to start the main session as a custom agent; unchanged.
     launchAgent: null,
+    launchForm: null,
   },
   {
     // Antigravity CLI (phase 34.1, D-12; it replaces the discontinued Gemini CLI row). It reads AGENTS.md and GEMINI.md
@@ -266,13 +278,15 @@ export const HOST_TOOLS: readonly HostTool[] = [
     adapter: "agent-skill",
     dispatch: "sequential",
     // A workspace skill is invoked as a slash command by its name (antigravity.google/docs/skills/, retrieved
-    // 2026-10-11). A workspace custom agent is picked as the primary agent in the `/agents` panel
-    // (antigravity.google/docs/subagents/, retrieved 2026-10-18; quick task 261018-hs8, D-05). agy 1.3.5 `--help` also
-    // lists `--agent`, but whether it resolves a workspace agent file is UNKNOWN - verify, so the text gives the panel.
-    invoke: `type \`/grugops <request>\`, or pick \`${LAUNCH_AGENT_NAME}\` as the primary agent in the \`/agents\` panel`,
+    // 2026-10-11).
+    invoke: "type `/grugops <request>`",
     // The workspace custom agent at `.agents/agents/<name>.md`, picked in the `/agents` panel
     // (antigravity.google/docs/subagents/, retrieved 2026-10-18). Antigravity CLI's alone (D-05).
     launchAgent: ANTIGRAVITY_AGENT_REL,
+    // A workspace custom agent is picked as the primary agent in the `/agents` panel (antigravity.google/docs/subagents/,
+    // retrieved 2026-10-18; quick task 261018-hs8, D-05). agy 1.3.5 `--help` also lists `--agent`, but whether it
+    // resolves a workspace agent file is UNKNOWN - verify, so the form gives the panel.
+    launchForm: `\`${LAUNCH_AGENT_NAME}\` picked as the primary agent in the \`/agents\` panel`,
   },
   {
     id: "opencode",
@@ -283,13 +297,15 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // OpenCode reads the command at OPENCODE_COMMAND_REL (phase 34.1, D-08): `/grugops <request>`.
     adapter: "opencode-command",
     dispatch: "sequential",
-    // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11). The launch
-    // form `--agent` is listed for the default command by opencode.ai/docs/cli/ (retrieved 2026-10-18; quick task
-    // 261018-hs8, D-05); v2.0.28's `opencode --help` does not list it, so install/README.md gives Tab as the fallback.
-    invoke: `type \`/grugops <request>\`, or start the session as the Orchestrator with \`opencode --agent ${LAUNCH_AGENT_NAME}\``,
+    // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
+    invoke: "type `/grugops <request>`",
     // The primary agent at `.opencode/agents/<name>.md` (opencode.ai/docs/agents/, retrieved 2026-10-18), started
     // with `--agent` (opencode.ai/docs/cli/, retrieved 2026-10-18). OpenCode's alone (D-05).
     launchAgent: OPENCODE_AGENT_REL,
+    // The launch form `--agent` is listed for the default command by opencode.ai/docs/cli/ (retrieved 2026-10-18; quick
+    // task 261018-hs8, D-05); v2.0.28's `opencode --help` does not list it, so install/README.md gives Tab as the
+    // fallback.
+    launchForm: `\`opencode --agent ${LAUNCH_AGENT_NAME}\``,
   },
   {
     id: "copilot",
@@ -302,16 +318,17 @@ export const HOST_TOOLS: readonly HostTool[] = [
     entryFiles: ["AGENTS.md", ".github/copilot-instructions.md"],
     adapter: "copilot-pointer",
     dispatch: "sequential",
-    // The launch agent COPILOT_AGENT_REL is started with `copilot --agent <id>` or picked with `/agent` in a session
-    // (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli, retrieved
-    // 2026-10-18; quick task 261018-hs8, D-05). Copilot CLI also reads `.github/copilot-instructions.md` together with
-    // its other instruction files (docs.github.com, "Adding repository custom instructions for GitHub Copilot"). No
-    // live run was made (D-19), so the text says `UNKNOWN - verify`.
-    invoke: `start the session as the Orchestrator with \`copilot --agent ${LAUNCH_AGENT_NAME}\`, or pick it with \`/agent\`; Copilot CLI also reads \`.github/copilot-instructions.md\` with its other instructions, and a live run is \`UNKNOWN - verify\``,
+    // Copilot CLI reads `.github/copilot-instructions.md` together with its other instruction files (docs.github.com,
+    // "Adding repository custom instructions for GitHub Copilot"); no command is written. No live run was made (D-19),
+    // so the text says `UNKNOWN - verify`.
+    invoke: "ask for the work you want done: Copilot CLI reads `.github/copilot-instructions.md` with its other instructions, and a live run is `UNKNOWN - verify`",
     // The project custom agent at `.github/agents/<name>.agent.md`, started with `copilot --agent <id>` or picked
     // with `/agent` (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli,
     // retrieved 2026-10-18). An agent file is not a command. Copilot CLI's alone (D-05).
     launchAgent: COPILOT_AGENT_REL,
+    // `copilot --agent <id>` (the same source, retrieved 2026-10-18; quick task 261018-hs8, D-05). Picking it with
+    // `/agent` in a session is the other documented form; install/README.md gives both.
+    launchForm: `\`copilot --agent ${LAUNCH_AGENT_NAME}\``,
   },
   // Pi (34-RESEARCH.md §B): reads one context file per directory and prefers AGENTS.md over
   // CLAUDE.md; loads project prompt templates from <cwd>/.pi/prompts/; ships no sub-agents, so it
@@ -325,14 +342,16 @@ export const HOST_TOOLS: readonly HostTool[] = [
     adapter: "pi-prompt-template",
     dispatch: "sequential",
     // A project prompt template `.pi/prompts/<name>.md` is the slash command `/<name>`, loaded from the directory Pi
-    // starts in (34-RESEARCH.md § B, github.com/earendil-works/pi prompt-templates.md, retrieved 2026-10-06). The launch
-    // form passes PI_LAUNCH_REL to `--append-system-prompt` (pi 1.1.0 `--help`; resource-loader.ts @ 482c1381,
-    // retrieved 2026-10-18; quick task 261018-hs8, D-05), from the repository root, since the path is read against the
-    // working directory.
-    invoke: `start Pi at the repository root and type \`/grugops <request>\`, or start it as the Orchestrator with \`pi --append-system-prompt ${PI_LAUNCH_REL}\``,
+    // starts in (34-RESEARCH.md § B, github.com/earendil-works/pi prompt-templates.md, retrieved 2026-10-06).
+    invoke: "start Pi at the repository root and type `/grugops <request>`",
     // The file `pi --append-system-prompt` appends (pi 1.1.0 `--help`; resource-loader.ts @ 482c1381, retrieved
     // 2026-10-18). Never `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`, which Pi loads on its own (D-02). Pi's alone (D-05).
     launchAgent: PI_LAUNCH_REL,
+    // The launch form passes PI_LAUNCH_REL to `--append-system-prompt` (pi 1.1.0 `--help`; resource-loader.ts @
+    // 482c1381, retrieved 2026-10-18; quick task 261018-hs8, D-05), from the repository root, since the path is read
+    // against the working directory. The flag's file is read without Pi's project-trust check (review WR-02), which
+    // install/README.md's Pi section warns about.
+    launchForm: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`,
   },
 ];
 
@@ -596,8 +615,10 @@ export const ADAPTER_FOOTPRINT: Readonly<Record<HostAdapterKind, readonly string
 /**
  * hostPointers (quick task 261018-hs8, D-05): THE ONE ANSWER to "which pointer files does install write for host `h`":
  * ROUTE_POINTERS of its adapter kind, then its launchAgent when it has one, without duplicates, in that order. Every
- * per-host consumer (routeCarriers, install-marker.ts wholeFileEntryRels, install.ts entryLabel and installedSplit,
- * the doctor's nothing-installed note) reads it, so a launch file is written, reported and counted with no second list.
+ * per-host consumer of what install WRITES (install-marker.ts wholeFileEntryRels, install.ts entryLabel and
+ * installedSplit, the doctor's nothing-installed note) reads it, so a launch file is written and reported with no second
+ * list. It is not the set a host READS in a default session: that is routeCarriers, which leaves the launch file out
+ * (D-06).
  */
 export function hostPointers(h: HostTool): readonly string[] {
   const kind = ROUTE_POINTERS[h.adapter];
@@ -632,17 +653,38 @@ export function entryOwners(entry: { readonly path: string; readonly kind: strin
 }
 
 /**
- * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which `host` can reach
- * the kit route: its entryFiles, then hostPointers(host) (its adapter kind's ROUTE_POINTERS, then its launchAgent,
- * quick task 261018-hs8), without duplicates, in that order. A launch file is read only by a session started with it,
- * and `--check` counts it as one of its host's carriers (planner decision PD-1).
+ * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which a DEFAULT session of `host`
+ * can reach the kit route: its entryFiles, then its adapter kind's ROUTE_POINTERS, without duplicates, in that order.
+ * A launch file (HostTool.launchAgent) is NOT one of them (D-06, human 2026-10-18 after review CR-01, which reverses
+ * planner decision PD-1): it is read only by a session the user starts with it, never by a plain session or a typed
+ * `/grugops`, so counting it made `--check --strict` pass, and install skip its route note, while a default session
+ * had no route. Launch files have their own set (launchCarriers below) and their own `--check` findings.
  * Install's notes for a user's carrier without the route and `--check`'s per-host route findings both
  * derive from it, so the two cannot disagree about which hosts a carrier serves. A host reads every one of these
  * carriers that is present (phase 34.1, D-12 deleted the one entry gate); install.ts hostReadsCarrier is the one
  * owner of that answer, and every verdict site asks it.
  */
 export function routeCarriers(host: HostTool): readonly string[] {
-  return [...new Set([...host.entryFiles, ...hostPointers(host)])];
+  return [...new Set([...host.entryFiles, ...ROUTE_POINTERS[host.adapter]])];
+}
+
+/**
+ * launchCarriers (quick task 261018-hs8, D-06): THE ONE DERIVATION of the launch files of `host`: its launchAgent, or
+ * none. Disjoint from routeCarriers (install/host-tools.test.ts asserts it), so a launch file never enters the reach or
+ * strand verdicts; `--check` gives each one its own finding, worded "a session started with <launchForm>"
+ * (install.ts launchFileFindings), and install's closing notes offer launchInvoke only for one install owns.
+ */
+export function launchCarriers(host: HostTool): readonly string[] {
+  return host.launchAgent === null ? [] : [host.launchAgent];
+}
+
+/**
+ * launchInvoke (quick task 261018-hs8, review WR-03): the clause install's closing notes add after a row's invoke text
+ * when install wrote or owns the row's launch file: "start the session as the Orchestrator with <launchForm>". Null
+ * for a row with no launch form.
+ */
+export function launchInvoke(host: HostTool): string | null {
+  return host.launchForm === null ? null : `start the session as the Orchestrator with ${host.launchForm}`;
 }
 
 /**

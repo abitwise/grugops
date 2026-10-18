@@ -41,6 +41,8 @@ import {
   entryOwners,
   hostFootprint,
   hostPointers,
+  launchCarriers,
+  launchInvoke,
   routeCarriers,
   reachVia,
   strandedBy,
@@ -309,7 +311,10 @@ describe("HOST_TOOLS integrity (plan 34-02)", () => {
     for (const t of HOST_TOOLS) {
       const mine = notes.filter((l) => l.startsWith(`  ${t.name}: `));
       expect(mine, `closing lines for ${t.name}\n${r.stdout}`).toHaveLength(1);
-      expect(mine[0].endsWith(` — ${t.invoke}`), mine[0]).toBe(true);
+      // Review WR-03: a fresh install writes every launch file, so each launch row's line offers its launch form after
+      // the invoke text; a row with none ends with the invoke text.
+      const launch = launchInvoke(t);
+      expect(mine[0].endsWith(` — ${t.invoke}${launch === null ? "" : `; or ${launch}`}`), mine[0]).toBe(true);
       // Every hostPointers path of the row (its kind's pointers, then its launch agent; quick task 261018-hs8).
       for (const rel of hostPointers(t)) expect(mine[0], `${t.name}'s line names ${rel}`).toContain(rel);
       seen++;
@@ -690,18 +695,30 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
   // entry gate this case also asked the section to state (the settings path and `context.fileName`); plan 34.1-04
   // replaced those two expectations with the case below (every route carrier derived from HOST_TOOLS and
   // ROUTE_POINTERS, and no `context.fileName` instruction).
-  it("the kit-route section names every route carrier HOST_TOOLS and ROUTE_POINTERS derive (each row's launchAgent included), and gives no `context.fileName` instruction (plan 34.1-04, D-12)", () => {
+  it("the kit-route section names every route carrier HOST_TOOLS and ROUTE_POINTERS derive, and gives no `context.fileName` instruction (plan 34.1-04, D-12)", () => {
     const sec = guideSection(ROUTE_SECTION);
     const fromEntries = HOST_TOOLS.flatMap((h) => [...h.entryFiles]);
     const fromPointers = Object.values(ROUTE_POINTERS).flatMap((rels) => [...rels]);
-    // Each row's launch agent (quick task 261018-hs8), read from the registry data, never from hostPointers.
-    const fromLaunch = HOST_TOOLS.flatMap((h) => (h.launchAgent === null ? [] : [h.launchAgent]));
-    const carriers = [...new Set([...fromEntries, ...fromPointers, ...fromLaunch])];
+    const carriers = [...new Set([...fromEntries, ...fromPointers])];
     // Two-sided against the one derivation install.ts asks (routeCarriers), so neither list can drift from the other.
     expect([...carriers].sort()).toEqual([...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))].sort());
     expect(carriers.length, "premise: more than one route carrier").toBeGreaterThan(1);
     for (const rel of carriers) expect(sec, `the kit-route section does not name \`${rel}\``).toContain(`\`${rel}\``);
     expect(sec, "the kit-route section still tells a reader about `context.fileName` (D-12 deleted that route)").not.toContain("context.fileName");
+  });
+
+  // D-06 (quick task 261018-hs8, human 2026-10-18, review CR-01; reverses planner decision PD-1): the section names every
+  // launch file (each row's launchAgent, read from the registry data), says a default session does not read it and
+  // that it is not counted as a route carrier, and words its `--check` line "a session started with". The PD-1
+  // sentence (a launch file counted as one of its host's route carriers) is gone.
+  it("the kit-route section names every launch file, says it is not a route carrier, and no longer says --check counts it as one (D-06)", () => {
+    const sec = guideSection(ROUTE_SECTION);
+    const launches = HOST_TOOLS.flatMap((h) => (h.launchAgent === null ? [] : [h.launchAgent]));
+    expect(launches.length, "premise: some row has a launch file").toBeGreaterThan(0);
+    for (const rel of launches) expect(sec, `the kit-route section does not name \`${rel}\``).toContain(`\`${rel}\``);
+    expect(sec, "the PD-1 sentence is still there").not.toContain("counts it as one of its host's route carriers");
+    expect(sec).toContain("not a route carrier");
+    expect(sec).toContain("a session started with");
   });
 
   it("the kit-route section names the uncounted `note` and --strict (plan 34-36, D-27)", () => {
@@ -783,13 +800,12 @@ describe("the kit route in AGENTS.md (plan 34-27, D-26)", () => {
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 /**
  * This file's own derivation, from the registry DATA only (never hostPointers or routeCarriers): a host's entry files,
- * then its adapter kind's pointers, then its row's launchAgent field when it has one (quick task 261018-hs8), first
- * occurrence kept.
+ * then its adapter kind's pointers, first occurrence kept. A row's launchAgent is not one of them (D-06, quick task
+ * 261018-hs8, human 2026-10-18; it reverses planner decision PD-1): a default session never reads it.
  */
-const expectedCarriers = (h: Pick<HostTool, "adapter" | "entryFiles" | "launchAgent">): string[] => {
+const expectedCarriers = (h: Pick<HostTool, "adapter" | "entryFiles">): string[] => {
   const out: string[] = [];
-  const launch = h.launchAgent === null ? [] : [h.launchAgent];
-  for (const f of [...h.entryFiles, ...(ROUTE_POINTERS as Record<string, readonly string[]>)[h.adapter], ...launch]) if (!out.includes(f)) out.push(f);
+  for (const f of [...h.entryFiles, ...(ROUTE_POINTERS as Record<string, readonly string[]>)[h.adapter]]) if (!out.includes(f)) out.push(f);
   return out;
 };
 const AGENTS_ONLY_COUNT = 0;
@@ -811,10 +827,10 @@ describe("route carriers are derived from the registry (plan 34-28, D-26 point 3
   });
 
   for (const h of HOST_TOOLS) {
-    it(`routeCarriers(${h.id}) is its entryFiles together with ROUTE_POINTERS[${h.adapter}]${h.launchAgent === null ? "" : " and its launch agent"}, without duplicates`, () => {
+    it(`routeCarriers(${h.id}) is its entryFiles together with ROUTE_POINTERS[${h.adapter}], without duplicates`, () => {
       const got = [...routeCarriers(h)];
       expect(got).toEqual(expectedCarriers(h));
-      if (h.launchAgent !== null) expect(got[got.length - 1], `routeCarriers(${h.id}) does not end with its launch agent`).toBe(h.launchAgent);
+      if (h.launchAgent !== null) expect(got, `routeCarriers(${h.id}) holds its launch file (D-06)`).not.toContain(h.launchAgent);
       expect(new Set(got).size).toBe(got.length);
     });
   }
@@ -1026,7 +1042,10 @@ describe("census: install.ts asks one owner of what install would write into a c
 // Pi (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
 // `.pi/grugops-orchestrator.md`, each its row's launchAgent) joined the derived carrier set, so the table has
 // 2^(10+1) = 2048 combinations.
-const TABLE_CARRIERS = 10;
+// TABLE_CARRIERS 10 -> 6 on 2026-10-18 (quick task 261018-hs8 fix pass, D-06, human after review CR-01; it reverses
+// planner decision PD-1): the four launch files left the derived carrier set, because a default session never reads
+// one, so the table is back to 2^(6+1) = 128 combinations.
+const TABLE_CARRIERS = 6;
 const TABLE_ADAPTER_HOSTS = 1;
 // THE HOST-SET AXIS (plan 34.1-10, D-07): strandedBy takes the installed host set as a required argument, so the table
 // also quantifies over every subset of HOST_TOOLS (2^HOST_TOOL_COUNT, asserted) and the oracle is restricted to it.
@@ -1300,33 +1319,57 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
     expect(entryOwners({ path: ".pi/SYSTEM.md", kind: "file" }), "a user's Pi system prompt").toEqual([]);
   });
 
-  it("routeCarriers of every launch-bearing row is its entryFiles, its kind's ROUTE_POINTERS, then its launch agent last", () => {
-    for (const h of LAUNCH_ROWS) {
+  // D-06 (human 2026-10-18, review CR-01; it reverses planner decision PD-1, which made routeCarriers end with the
+  // launch file): a launch file is read only by a session started with it, so it is in no row's routeCarriers, and in
+  // no other row's either; launchCarriers is the row's launch file alone. Checked against the registry data.
+  it("routeCarriers of every row is its entryFiles, then its kind's ROUTE_POINTERS, and holds no row's launch file (D-06)", () => {
+    const launches = LAUNCH_ROWS.map((h) => h.launchAgent!);
+    for (const h of HOST_TOOLS) {
       const carriers = [...routeCarriers(h)];
-      expect(carriers, h.id).toEqual([...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter], h.launchAgent!])]);
-      expect(carriers[carriers.length - 1], h.id).toBe(h.launchAgent);
+      expect(carriers, h.id).toEqual([...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter]])]);
+      for (const rel of launches) expect(carriers, `${h.id}'s routeCarriers hold the launch file ${rel}`).not.toContain(rel);
     }
   });
 
-  it("routeCarriers of every row without a launch agent is unchanged: its entryFiles, then its kind's ROUTE_POINTERS", () => {
-    for (const h of HOST_TOOLS.filter((x) => x.launchAgent === null)) {
-      expect([...routeCarriers(h)], h.id).toEqual([...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter]])]);
+  it("launchCarriers of every row is its launchAgent alone, or nothing (D-06)", () => {
+    for (const h of HOST_TOOLS) expect([...launchCarriers(h)], h.id).toEqual(h.launchAgent === null ? [] : [h.launchAgent]);
+  });
+
+  // Review WR-03: invoke is the default session's text and never names the launch form; launchInvoke carries it and is
+  // offered by install's closing notes only for a launch file install owns.
+  it("every launch row's launchForm is backticked, names LAUNCH_AGENT_NAME or the launch path, is absent from invoke, and is what launchInvoke offers (WR-03)", () => {
+    for (const h of HOST_TOOLS) {
+      if (h.launchAgent === null) {
+        expect(h.launchForm, h.id).toBeNull();
+        expect(launchInvoke(h), h.id).toBeNull();
+        continue;
+      }
+      const form = h.launchForm!;
+      expect(form, h.id).toMatch(/`[^`]+`/);
+      expect(form.includes(LAUNCH_AGENT_NAME) || form.includes(h.launchAgent), `${h.id}: ${form}`).toBe(true);
+      expect(h.invoke, `${h.id}'s invoke names its launch form`).not.toContain(form);
+      for (const tok of form.match(/`[^`]+`/g) ?? []) if (tok.includes(LAUNCH_AGENT_NAME) || tok.includes(h.launchAgent)) expect(h.invoke, `${h.id}'s invoke names ${tok}`).not.toContain(tok);
+      expect(launchInvoke(h), h.id).toBe(`start the session as the Orchestrator with ${form}`);
     }
   });
 });
 
-// ── CENSUS: THE PER-KIND TABLES ARE INDEXED ONLY BY THE TWO HELPERS AND THE GENERATOR'S outputRel (261018-hs8) ──────
+// ── CENSUS: THE PER-KIND TABLES ARE INDEXED ONLY BY THE HELPERS AND THE GENERATOR'S outputRel (261018-hs8) ──────────
 // A consumer that reads ROUTE_POINTERS[h.adapter] or ADAPTER_FOOTPRINT[h.adapter] itself would miss the row's launch
 // agent (per-kind ownership, the class D-05 rules out). Every tracked non-test `.ts` under install/ and scripts/ is
 // parsed, and every element access whose object is the identifier ROUTE_POINTERS or ADAPTER_FOOTPRINT is counted by
-// file and enclosing function. Only outputRel stays per kind, because it places a kind's own entry.
+// file and enclosing function. Only outputRel stays per kind, because it places a kind's own entry, and routeCarriers
+// (D-06), because it is the default-session set that leaves the launch agent out.
+// 3 -> 4 on 2026-10-18 (quick task 261018-hs8 fix pass, D-06): routeCarriers reads ROUTE_POINTERS by kind again, on
+// purpose: it is the set a DEFAULT session reads, which leaves the row's launch file out (launchCarriers holds it).
 const PER_KIND_ACCESSES: Readonly<Record<string, number>> = {
   "host-tools.ts@hostPointers": 1,
   "host-tools.ts@hostFootprint": 1,
+  "host-tools.ts@routeCarriers": 1,
   "generate-host-entries.ts@outputRel": 1,
 };
 
-describe("census: ROUTE_POINTERS and ADAPTER_FOOTPRINT are indexed only by hostPointers, hostFootprint and outputRel (quick task 261018-hs8)", () => {
+describe("census: ROUTE_POINTERS and ADAPTER_FOOTPRINT are indexed only by hostPointers, hostFootprint, routeCarriers and outputRel (quick task 261018-hs8)", () => {
   it(`exactly ${Object.values(PER_KIND_ACCESSES).reduce((a, b) => a + b, 0)} element accesses in product code: ${Object.keys(PER_KIND_ACCESSES).join(", ")}`, () => {
     const repo = join(import.meta.dirname, "..");
     const ls = spawnSync("git", ["-C", repo, "ls-files", "--", "install/*.ts", "scripts/*.ts"], { encoding: "utf8" });

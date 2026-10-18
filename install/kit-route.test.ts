@@ -23,7 +23,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, re
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners, hostForFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners, hostForFlag, launchInvoke } from "./host-tools.js";
 import { KIT_HOME_RECORD_REL, contentRecord, readKitHomeRecord } from "./install-marker.js";
 import { realTargetPath } from "./user-file.js";
 import {
@@ -94,10 +94,12 @@ function copilotHost(): (typeof HOST_TOOLS)[number] {
   expect(c.length, "premise: exactly one registry host has the copilot-pointer adapter").toBe(1);
   return c[0];
 }
-// THE LAUNCH FILE OF A ROW (quick task 261018-hs8, Task 2). Pi and GitHub Copilot CLI each read a launch file of their
-// own beside their kind's entry (the row's launchAgent field, read from the registry data, never hostPointers), and
-// `--check` counts it as one of the row's carriers (PD-1). A case whose premise is "this row has no route" or "nothing
-// of install's for this row" acts on every path the registry data gives the row, the launch file included.
+// THE LAUNCH FILE OF A ROW (quick task 261018-hs8). Pi and GitHub Copilot CLI each get a launch file of their own beside
+// their kind's entry (the row's launchAgent field, read from the registry data, never hostPointers). It is NOT a route
+// carrier (D-06, human 2026-10-18, review CR-01; this reverses planner decision PD-1): a default session never reads
+// it, so a case whose premise is "this row has no route" leaves it as install wrote it. A case whose premise is
+// "nothing of install's for this row" (an ownership premise, not a route one) still acts on it, because install writes
+// and records it.
 /** The launch file of row `h`: its launchAgent, asserted present. */
 function launchRelOf(h: (typeof HOST_TOOLS)[number]): string {
   expect(h.launchAgent, `premise: ${h.id} has a launch agent`).not.toBeNull();
@@ -213,8 +215,6 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     const { target, kitHome } = installedWithOwnAgents();
     const before = readFileSync(piFile(target), "utf8");
     writeFileSync(piFile(target), before.replace(` ${KIT_ROUTE}`, ""));
-    // Pi's launch file is one of its carriers (quick task 261018-hs8): the same edit there, so Pi has no route at all.
-    dropRouteFromLaunch(target, piHost());
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const warns = routeLines(c.stdout).filter((l) => l.startsWith("  WARN") && l.includes(PI_PROMPT_REL));
@@ -261,8 +261,6 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     const { target, kitHome } = installed();
     stageOldTemplate(target);
     stageEarlierFile(target, "AGENTS.md", staleOf(readFileSync(join(target, "AGENTS.md"), "utf8")));
-    // Pi's launch file is one of its carriers (quick task 261018-hs8): staged as an earlier install's copy too.
-    stageEarlierFile(target, launchRelOf(piHost()), staleOf(readFileSync(launchPath(target, piHost()), "utf8")));
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(1);
     const fails = routeLines(c.stdout).filter((l) => l.startsWith("  FAIL") && l.includes(PI_PROMPT_REL));
@@ -273,7 +271,7 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     expect(again.status, again.stdout + again.stderr).toBe(0);
     const after = check(target, kitHome);
     expect(after.status, after.stdout + after.stderr).toBe(0);
-    for (const rel of [PI_PROMPT_REL, "AGENTS.md", launchRelOf(piHost())]) {
+    for (const rel of [PI_PROMPT_REL, "AGENTS.md"]) {
       expect(routeLines(after.stdout).filter((l) => l.startsWith("  ok") && l.slice(17).startsWith(`kit route carried by ${rel} (read by `)).length, after.stdout).toBe(1);
     }
   });
@@ -316,8 +314,6 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
   it("variant: an absent template while the user's own AGENTS.md has no route: --check WARNs that Pi has no /grugops template", () => {
     const { target, kitHome } = installedWithOwnAgents();
     rmSync(piFile(target));
-    // Pi's launch file is one of its carriers (quick task 261018-hs8): absent too, so Pi has no route at all.
-    rmSync(launchPath(target, piHost()));
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const warns = routeLines(c.stdout).filter((l) => l.startsWith("  WARN") && l.includes(PI_PROMPT_REL));
@@ -625,12 +621,12 @@ describe("kit route: a re-install refreshes install's own unedited CLAUDE.md and
 // leaves (under DRY_RUN, the state the real run would leave), and names a carrier only when it leaves some host
 // without a route: the same strandedBy the doctor asks. The hosts are checked against the follower's own stranded
 // derivation (strandedOf, below), computed from the files the real install left, which shares no code with
-// strandedBy. A host's carriers are derived here from HOST_TOOLS and ROUTE_POINTERS (its entry files, its
-// adapter kind's pointers, then its row's launchAgent field when it has one, quick task 261018-hs8), never typed and
-// never taken from host-tools.ts routeCarriers or hostPointers.
+// strandedBy. A host's carriers are derived here from HOST_TOOLS and ROUTE_POINTERS (its entry files and its
+// adapter kind's pointers), never typed and never taken from host-tools.ts routeCarriers. A row's launch file is not
+// one of them (D-06, quick task 261018-hs8): a default session never reads it.
 /** The launch agent of row `h`, read from the registry data (quick task 261018-hs8): [] when it has none. */
 const launchOf = (h: (typeof HOST_TOOLS)[number]): string[] => (h.launchAgent === null ? [] : [h.launchAgent]);
-const carriersOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter], ...launchOf(h)])];
+const carriersOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter]])];
 /** The hosts a note for `rel` must name after an install into `target`: the follower's own stranded hosts. */
 const notedHosts = (target: string, rel: string): string[] => strandedOf(target, rel);
 /** The note lines naming `rel` as their subject. */
@@ -716,18 +712,14 @@ const NOTE_ROWS: readonly NoteRow[] = [
     notes: [],
     also: (stdout) => expect(reports(stdout, "skipped", COPILOT_REL), stdout).toBe(true),
   },
-  // n4, n6 and n10 (quick task 261018-hs8, Task 2): Pi and GitHub Copilot CLI read a launch file of their own (the
-  // row's launchAgent), so the row is stranded only when that file lacks the route too; each stages it so, and its
-  // note joins the row's, in registry carrier order.
   {
     id: "n4",
-    what: "the user's own Pi template and Pi launch file without the route and the user's own AGENTS.md without it, before install",
+    what: "the user's own Pi template without the route and the user's own AGENTS.md without it, before install",
     stage: (row) => {
       ownAgents(row);
       ownPiTemplate(row);
-      ownLaunchWithoutRoute(row.target, piHost());
     },
-    notes: ["AGENTS.md", PI_PROMPT_REL, launchRelOf(piHost())],
+    notes: ["AGENTS.md", PI_PROMPT_REL],
   },
   {
     id: "n5",
@@ -737,13 +729,12 @@ const NOTE_ROWS: readonly NoteRow[] = [
   },
   {
     id: "n6",
-    what: "the user's own AGENTS.md without the route, and a Copilot block and Copilot launch file the user edited to drop it, then re-install",
+    what: "the user's own AGENTS.md without the route, and a Copilot block the user edited to drop it, then re-install",
     stage: (row) => {
       ownAgents(row);
       dropRouteFromBlock(row, COPILOT_REL);
-      dropRouteFromLaunch(row.target, copilotHost());
     },
-    notes: ["AGENTS.md", COPILOT_REL, launchRelOf(copilotHost())],
+    notes: ["AGENTS.md", COPILOT_REL],
   },
   {
     id: "n7",
@@ -768,14 +759,13 @@ const NOTE_ROWS: readonly NoteRow[] = [
   },
   {
     id: "n10",
-    what: "(edge: empty, PI-02) a 0-byte Pi template that is not install's own, with the user's own AGENTS.md and Pi launch file without the route, before install",
+    what: "(edge: empty, PI-02) a 0-byte Pi template that is not install's own, with the user's own AGENTS.md without the route, before install",
     stage: (row) => {
       ownAgents(row);
       mkdirSync(join(row.target, ".pi", "prompts"), { recursive: true });
       writeFileSync(piFile(row.target), "");
-      ownLaunchWithoutRoute(row.target, piHost());
     },
-    notes: ["AGENTS.md", PI_PROMPT_REL, launchRelOf(piHost())],
+    notes: ["AGENTS.md", PI_PROMPT_REL],
     also: (stdout, target) => expect(readFileSync(piFile(target)).length, stdout).toBe(0),
   },
   {
@@ -900,41 +890,26 @@ describe("kit route: --check prints, for every registry host, whether it reaches
     expect(strict.status, strict.stdout + strict.stderr).toBe(stranded.length > 0 ? 1 : 0);
   });
 
-  // Quick task 261018-hs8 (PD-1): a row's launch agent is one of its carriers, so a row that has one is stranded only
-  // when that file lacks the route too. The premise "the agent-skill rows hold nothing but AGENTS.md and the skill" is
-  // therefore made true on every path the registry data gives those rows: each one's launch agent (its launchAgent
-  // field) is also the user's own file without the route, planted before the install, which leaves it untouched.
-  it("the user's own AGENTS.md, shared agent skill and the agent-skill rows' launch agents without the route: the agent-skill rows cannot reach, the others can; each of those files gives one WARN naming KIT_ROUTE and the hosts it strands; exit 0, and 1 with --strict", () => {
+  it("the user's own AGENTS.md and shared agent skill without the route: the agent-skill rows cannot reach, the others can; AGENTS.md and the skill each give one WARN naming KIT_ROUTE; exit 0, and 1 with --strict", () => {
     const { target, kitHome } = scratchRow();
     writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
     ownSkillWithoutRoute({ target });
-    const skillHosts = HOST_TOOLS.filter((h) => carriersOf(h).includes(SHARED_SKILL_REL));
-    const launchRels = skillHosts.flatMap(launchOf);
-    expect(launchRels.length, "premise: some agent-skill row has a launch agent (Antigravity CLI)").toBeGreaterThan(0);
-    for (const rel of launchRels) {
-      mkdirSync(dirname(join(target, ...rel.split("/"))), { recursive: true });
-      writeFileSync(join(target, ...rel.split("/")), "# My own agent\n\nMy own instructions.\n");
-    }
     const r = runInstall(target, kitHome);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const stranded = notedHosts(target, "AGENTS.md");
-    const skillRows = skillHosts.map((h) => h.name);
+    const skillRows = HOST_TOOLS.filter((h) => carriersOf(h).includes(SHARED_SKILL_REL)).map((h) => h.name);
     expect(stranded, "the hosts AGENTS.md strands are the agent-skill rows (derived)").toEqual(skillRows);
     expect(stranded.length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
     for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(!stranded.includes(h.name));
-    const counted = ["AGENTS.md", SHARED_SKILL_REL, ...launchRels];
     const warns = countedRouteLines(c.stdout);
-    expect(warns.length, c.stdout).toBe(counted.length);
-    for (const rel of counted) {
-      // The hosts this file strands: the stranded rows that read it (registry data, carriersOf), in registry order.
-      const leaves = skillHosts.filter((h) => carriersOf(h).includes(rel)).map((h) => h.name);
-      expect(leaves, `premise: ${rel} strands some host`).not.toEqual([]);
+    expect(warns.length, c.stdout).toBe(2);
+    for (const rel of ["AGENTS.md", SHARED_SKILL_REL]) {
       const mine = warns.filter((l) => messageOf(l).startsWith(`kit route missing from ${rel} `));
       expect(mine.length, `${rel}\n${c.stdout}`).toBe(1);
       expect(mine[0].startsWith("  WARN"), mine[0]).toBe(true);
-      expect(mine[0]).toContain(`(it leaves ${leaves.join(", ")} without a route to the Orchestrator)`);
+      expect(mine[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
       expect(mine[0]).toContain(KIT_ROUTE);
     }
     const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
@@ -1143,17 +1118,12 @@ interface Scenario {
   readonly uncounted: readonly string[];
 }
 
-/**
- * Stage every route carrier as an earlier install's copy, without the route (S3). Quick task 261018-hs8, Task 2: the
- * launch files of Pi and GitHub Copilot CLI (each row's launchAgent) are staged with their row's pointer, so the rows
- * the staging strands are still stranded.
- */
+/** Stage every route carrier as an earlier install's copy, without the route (S3). */
 function stageAllEarlier(target: string): void {
   stageEarlierFile(target, "AGENTS.md", staleOf(readFileSync(join(target, "AGENTS.md"), "utf8")));
   stageEarlierFile(target, PI_PROMPT_REL, staleOf(readFileSync(piFile(target), "utf8")));
   stageEarlierBlock(target, "CLAUDE.md", CLAUDE_OPEN, CLAUDE_CLOSE);
   stageEarlierBlock(target, COPILOT_REL, COPILOT_OPEN, COPILOT_CLOSE);
-  for (const h of [piHost(), copilotHost()]) stageEarlierFile(target, launchRelOf(h), staleOf(readFileSync(launchPath(target, h), "utf8")));
 }
 
 const SCENARIOS: readonly Scenario[] = [
@@ -1560,9 +1530,6 @@ describe("kit route: one refreshable predicate decides refresh for install and t
   it("Copilot link, counted: install's own earlier block linked from outside the target, with the user's own AGENTS.md without the route: a counted WARN for the Copilot file (not a FAIL) and one for AGENTS.md; the re-install verifies and refreshes nothing", () => {
     const row = installedWithOwnAgents();
     stageEarlierBlock(row.target, COPILOT_REL, COPILOT_OPEN, COPILOT_CLOSE);
-    // Copilot CLI's launch file is one of its carriers (quick task 261018-hs8): the user's edit drops the route there,
-    // so the Copilot file strands Copilot CLI as before, and the re-install leaves the edited file.
-    dropRouteFromLaunch(row.target, copilotHost());
     const out = moveOutAndLink(row.target, COPILOT_REL);
     const bytes = readFileSync(out);
     const stranded = strandedOf(row.target, COPILOT_REL);
@@ -1654,8 +1621,6 @@ describe("kit route: one owner answers what install would write into a route car
   it("WR-13, counted: the Copilot pointer without install's block while the user's own AGENTS.md has no route: a counted WARN naming the stranded hosts and the append remedy (not the by-hand one); the re-install appends, and every host reaches", () => {
     const row = installedWithOwnAgents();
     writeFileSync(join(row.target, ...COPILOT_REL.split("/")), "# Copilot notes\nUse tabs.\n");
-    // Copilot CLI's launch file is one of its carriers (quick task 261018-hs8): the user's edit drops the route there.
-    dropRouteFromLaunch(row.target, copilotHost());
     const stranded = strandedOf(row.target, COPILOT_REL);
     expect(stranded.length, "premise: the Copilot file strands some host").toBeGreaterThan(0);
     const { before, again, after } = doctorInstallDoctor(row, COPILOT_REL);
@@ -2295,8 +2260,6 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
     const first = runInstall(row.target, row.kitHome, [agentFlag(piHost())], { home });
     expect(first.status, first.stdout + first.stderr).toBe(0);
     rmSync(piFile(row.target));
-    // Pi's launch file is one of its carriers (quick task 261018-hs8): deleted too, so Pi is left without a route.
-    rmSync(launchPath(row.target, piHost()));
     const second = runInstall(row.target, row.kitHome, [agentFlag(opencodeHost())], { home });
     expect(second.status, second.stdout + second.stderr).toBe(0);
     const notes = notesFor(second.stdout, PI_PROMPT_REL);
@@ -2312,7 +2275,6 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
     expect(pathText(ran.premise.grugopsHome ?? ""), "premise: the printed text set the run's kit home").toBe(pathText(row.kitHome));
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
     expect(lstatSync(piFile(row.target)).isFile(), "the printed command did not write the Pi template").toBe(true);
-    expect(lstatSync(launchPath(row.target, piHost())).isFile(), "the printed command did not write Pi's launch file").toBe(true);
     const third = runInstall(row.target, row.kitHome, [agentFlag(opencodeHost())], { home });
     expect(third.status, third.stdout + third.stderr).toBe(0);
     expect(notesFor(third.stdout, PI_PROMPT_REL), third.stdout).toEqual([]);
@@ -2323,8 +2285,6 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
     ownAgents(row);
     mkdirSync(join(row.target, ".pi"), { recursive: true });
     writeFileSync(join(row.target, ".pi", "prompts"), "not a directory\n");
-    // Pi's launch file is one of its carriers (quick task 261018-hs8): its write is refused too (a directory there).
-    blockLaunch(row.target, piHost());
     const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
     const lines = r.stdout.split("\n");
     const at = lines.findIndex((l) => notesFor(l, PI_PROMPT_REL).length === 1);
@@ -2355,13 +2315,15 @@ function claudeHost(): (typeof HOST_TOOLS)[number] {
 }
 
 describe("IN-21: --check and a recorded agent with nothing installed (D-26)", () => {
-  it("a Pi install whose template write is refused records Pi; --check gives Pi no reach line and no counted finding, and one note with the command; that command, run once the cause is gone, gives Pi a reach line", () => {
+  it("a Pi install whose template and launch-file writes are refused records Pi; --check gives Pi no reach line and no counted finding, and one note with the command; that command, run once the cause is gone, gives Pi a reach line", () => {
     const row = scratchRow();
     const home = join(dirname(row.target), "home");
     mkdirSync(home, { recursive: true });
-    // Pi's launch file is one of its entry paths (quick task 261018-hs8), directly under `.pi/`: the blocker is `.pi`
-    // itself as a file, so both of Pi's writes (the template and the launch file) are refused and neither entry path is
-    // present (a directory planted at the launch path would be a present entry path).
+    // Pi's launch file is one of the entry paths install writes for Pi (quick task 261018-hs8), directly under `.pi/`:
+    // the blocker is `.pi` itself as a file, so both of Pi's writes (the template and the launch file) are refused and
+    // neither entry path is present (a directory planted at the launch path would be a present entry path). This is
+    // the "nothing installed" premise (install-side ownership), which D-06 left as it was: D-06 took launch files out
+    // of the route verdicts only.
     const blocker = join(row.target, ".pi");
     writeFileSync(blocker, "not a directory\n");
     expect(existsSync(piFile(row.target)) || existsSync(launchPath(row.target, piHost())), "premise: no Pi entry path is present").toBe(false);
@@ -2391,19 +2353,18 @@ describe("IN-21: --check and a recorded agent with nothing installed (D-26)", ()
     const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     rmSync(piFile(row.target));
-    // Pi's launch file is one of its carriers (quick task 261018-hs8): deleted too, so Pi CANNOT reach.
-    rmSync(launchPath(row.target, piHost()));
     const c = check(row.target, row.kitHome);
     const v = reachVerdict(c.stdout, piHost());
     expect(v.reaches, v.line).toBe(false);
     expect(nothingNotes(c.stdout, piHost().name), c.stdout).toEqual([]);
   });
 
-  it("the user's own Pi template at the entry path with nothing of install's for Pi: Pi keeps its reach line", () => {
+  it("the user's own Pi template and launch file at Pi's entry paths, with nothing of install's for Pi: Pi keeps its reach line", () => {
     const row = scratchRow();
     ownAgents(row);
     ownPiTemplate(row);
-    // Pi's launch file is one of its entry paths (quick task 261018-hs8): the user's own too, so nothing is install's.
+    // Pi's launch file is one of the entry paths install writes for Pi (quick task 261018-hs8): the user's own too, so
+    // nothing is install's (an ownership premise; D-06 changed the route verdicts only).
     ownLaunchWithoutRoute(row.target, piHost());
     const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
     expect(r.status, r.stdout + r.stderr).toBe(0);
@@ -2480,8 +2441,9 @@ describe("WR-19 (D-33): a printed command carries the kit home the run used and 
     const kitHome = row.kitHome;
     const defaultKit = join(home, ".grugops");
     expect(pathText(kitHome), "premise: the kit home is not the default under HOME").not.toBe(pathText(defaultKit));
-    // Pi's launch file is one of its entry paths (quick task 261018-hs8), directly under `.pi/`: the blocker is `.pi`
-    // itself as a file, so both of Pi's writes are refused and neither entry path is present.
+    // Pi's launch file is one of the entry paths install writes for Pi (quick task 261018-hs8), directly under `.pi/`:
+    // the blocker is `.pi` itself as a file, so both of Pi's writes are refused and neither entry path is present (the
+    // "nothing installed" premise, which D-06 left as it was).
     const blocker = join(row.target, ".pi");
     writeFileSync(blocker, "not a directory\n");
     const r = runInstall(row.target, kitHome, [agentFlag(piHost())], { home });
@@ -3261,5 +3223,216 @@ describe("WR-25 (D-38): a printed command states its kit home and install mode",
     const lines = movedLines(c.stdout);
     expect(lines.length, `one 'kit home moved:' FAIL:\n${c.stdout}`).toBe(1);
     expect(lineNamesPath(lines[0], a) && lineNamesPath(lines[0], b), `the moved-kit FAIL does not name <via>/A and <via>/B: ${lines[0]}`).toBe(true);
+  });
+});
+
+// ── D-06 (quick task 261018-hs8, human 2026-10-18, review CR-01; reverses planner decision PD-1) ──────────────────────
+//
+// A launch file (a row's launchAgent) is read only by a session the user starts with it: a default session (plain
+// `pi`, plain `copilot`, a typed `/grugops`) never reads it. So it is not a route carrier: a default session's entry
+// that lacks the route is reported as it was before the launch files existed, whatever the launch file holds. These
+// cases are the property PD-1 lost; under PD-1 each printed an uncounted note and `--strict` passed.
+describe("D-06: a launch file is not a route carrier, so a default session's missing route is counted", () => {
+  it("Pi: the template absent, Pi's launch file present with the route, the user's own AGENTS.md without it: a counted WARN for the template naming Pi; Pi CANNOT reach; exit 0, and 1 with --strict", () => {
+    const { target, kitHome } = installedWithOwnAgents();
+    const launch = piHost().launchAgent;
+    expect(launch, "premise: Pi has a launch file").not.toBeNull();
+    rmSync(piFile(target));
+    expect(readFileSync(join(target, ...launch!.split("/")), "utf8").includes(KIT_ROUTE), "premise: Pi's launch file holds the route").toBe(true);
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const warns = countedRouteLines(c.stdout).filter((l) => l.includes(PI_PROMPT_REL));
+    expect(warns.length, c.stdout).toBe(1);
+    expect(warns[0].startsWith("  WARN"), warns[0]).toBe(true);
+    expect(warns[0]).toContain(`(it leaves ${piHost().name} without a route to the Orchestrator)`);
+    const v = reachVerdict(c.stdout, piHost());
+    expect(v.reaches, v.line).toBe(false);
+    expect(v.line, "the reach line names the launch file").not.toContain(launch!);
+    const strict = strictCheck(target, kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
+  });
+
+  it("GitHub Copilot CLI: the Copilot instructions without install's block, Copilot CLI's launch file present with the route, the user's own AGENTS.md without it: a counted WARN for the instructions naming Copilot CLI; Copilot CLI CANNOT reach; exit 0, and 1 with --strict", () => {
+    const { target, kitHome } = installedWithOwnAgents();
+    const launch = copilotHost().launchAgent;
+    expect(launch, "premise: Copilot CLI has a launch file").not.toBeNull();
+    writeFileSync(join(target, ...COPILOT_REL.split("/")), "# Copilot notes\nUse tabs.\n");
+    expect(readFileSync(join(target, ...launch!.split("/")), "utf8").includes(KIT_ROUTE), "premise: Copilot CLI's launch file holds the route").toBe(true);
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const warns = countedRouteLines(c.stdout).filter((l) => l.includes(COPILOT_REL));
+    expect(warns.length, c.stdout).toBe(1);
+    expect(warns[0].startsWith("  WARN"), warns[0]).toBe(true);
+    expect(warns[0]).toContain(`(it leaves ${copilotHost().name} without a route to the Orchestrator)`);
+    const v = reachVerdict(c.stdout, copilotHost());
+    expect(v.reaches, v.line).toBe(false);
+    expect(v.line, "the reach line names the launch file").not.toContain(launch!);
+    const strict = strictCheck(target, kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
+  });
+});
+
+// ── D-06: each launch file has its own `--check` finding ──────────────────────────────────────────────────────────────
+// One line per launch file of an installed agent, worded "a session started with <launchForm>" (the registry's
+// launchForm, never typed here): install's file with the route → ok; install's own earlier copy without it → FAIL;
+// a file install will not write the route into → WARN; absent → an uncounted note; not readable → WARN. None of them
+// is a kit-route carrier line or a reach-line carrier.
+/** The doctor's lines (any label) whose message starts with `launch file <rel> `. */
+const launchLines = (stdout: string, rel: string): string[] =>
+  stdout.split(/\r?\n/).filter((l) => /^ {2}\S+\s/.test(l) && messageOf(l).startsWith(`launch file ${rel} `));
+const LAUNCH_HOSTS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+/** The one launch line for row `h`, asserted, with the registry's launch form in it. */
+function launchLineOf(stdout: string, h: (typeof HOST_TOOLS)[number]): string {
+  const mine = launchLines(stdout, launchRelOf(h));
+  expect(mine.length, `exactly one launch line for ${h.name}:\n${stdout}`).toBe(1);
+  expect(h.launchForm, `premise: ${h.id} has a launch form`).not.toBeNull();
+  expect(mine[0], "the launch line does not name the registry's launch form").toContain(`a session started with ${h.launchForm}`);
+  return mine[0];
+}
+
+describe("D-06: --check reports each launch file on its own line, never as a route carrier", () => {
+  it("premise: some rows have a launch file, and each has a launch form exactly when it has a launch file", () => {
+    expect(LAUNCH_HOSTS.length).toBeGreaterThan(0);
+    for (const h of HOST_TOOLS) expect(h.launchForm === null, h.id).toBe(h.launchAgent === null);
+  });
+
+  it("a fresh install for every agent: one ok launch line per launch file; no kit-route line and no reach line names a launch file; --strict exit 0", () => {
+    const { target, kitHome } = installed();
+    const c = strictCheck(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) {
+      expect(launchLineOf(c.stdout, h).startsWith("  ok"), c.stdout).toBe(true);
+      const rel = launchRelOf(h);
+      expect(routeLines(c.stdout).filter((l) => l.includes(rel)), `a kit-route line names ${rel}`).toEqual([]);
+      expect(reachLines(c.stdout).filter((l) => l.includes(rel)), `a reach line names ${rel}`).toEqual([]);
+    }
+  });
+
+  it("install's own launch file from an earlier install, without the route: a counted FAIL naming `Re-run install.js`; Pi still reaches; the re-run makes it ok", () => {
+    const { target, kitHome } = installed();
+    const rel = launchRelOf(piHost());
+    stageEarlierFile(target, rel, staleOf(readFileSync(launchPath(target, piHost()), "utf8")));
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    const line = launchLineOf(c.stdout, piHost());
+    expect(line.startsWith("  FAIL"), line).toBe(true);
+    expect(line).toContain("Re-run install.js");
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+    expect(reachVerdict(c.stdout, piHost()).reaches, c.stdout).toBe(true);
+    const again = runInstall(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    const after = strictCheck(target, kitHome);
+    expect(after.status, after.stdout + after.stderr).toBe(0);
+    expect(launchLineOf(after.stdout, piHost()).startsWith("  ok"), after.stdout).toBe(true);
+  });
+
+  it("a user's edit drops the route from Copilot CLI's launch file: a counted WARN quoting KIT_ROUTE; Copilot CLI still reaches; exit 0, and 1 with --strict", () => {
+    const { target, kitHome } = installed();
+    dropRouteFromLaunch(target, copilotHost());
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const line = launchLineOf(c.stdout, copilotHost());
+    expect(line.startsWith("  WARN"), line).toBe(true);
+    expect(line).toContain(KIT_ROUTE);
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+    expect(reachVerdict(c.stdout, copilotHost()).reaches, c.stdout).toBe(true);
+    const strict = strictCheck(target, kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
+  });
+
+  it("the user's own file at Pi's launch path before install: install leaves it; a counted WARN; Pi still reaches through its template", () => {
+    const row = scratchRow();
+    ownLaunchWithoutRoute(row.target, piHost());
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const c = check(row.target, row.kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const line = launchLineOf(c.stdout, piHost());
+    expect(line.startsWith("  WARN"), line).toBe(true);
+    expect(reachVerdict(c.stdout, piHost()).reaches, c.stdout).toBe(true);
+    expect(strictCheck(row.target, row.kitHome).status).toBe(1);
+  });
+
+  it("OpenCode's launch file deleted: an uncounted note with the re-install remedy; OpenCode still reaches; --strict exit 0", () => {
+    const { target, kitHome } = installed();
+    const oc = HOST_TOOLS.filter((h) => h.adapter === "opencode-command");
+    expect(oc.length, "premise: one opencode-command row").toBe(1);
+    rmSync(launchPath(target, oc[0]));
+    const c = strictCheck(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const line = launchLineOf(c.stdout, oc[0]);
+    expect(line.startsWith("  note"), line).toBe(true);
+    expect(line).toContain("Re-run install.js");
+    expect(reachVerdict(c.stdout, oc[0]).reaches, c.stdout).toBe(true);
+  });
+
+  it("a directory at Pi's launch path: install refuses the write; --check gives a counted WARN with no verdict; Pi still reaches", () => {
+    const row = scratchRow();
+    blockLaunch(row.target, piHost());
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    expect([0, 3], r.stdout + r.stderr).toContain(r.status);
+    const c = check(row.target, row.kitHome);
+    const line = launchLineOf(c.stdout, piHost());
+    expect(line.startsWith("  WARN"), line).toBe(true);
+    expect(line).toContain("NO VERDICT");
+    expect(reachVerdict(c.stdout, piHost()).reaches, c.stdout).toBe(true);
+  });
+});
+
+// ── WR-03 (quick task 261018-hs8): the closing line offers a launch form only for a launch file install owns ─────────
+// The closing line ends with the row's invoke text, then `; or <launchInvoke>` when install wrote or owns the launch
+// file this run leaves, else the reason the form is not offered. A user's own file at the launch path and a refused
+// write are the two arms that must not be offered: the printed form would start the user's file (or, on Pi, append the
+// literal path text), not the Orchestrator.
+/** The closing line of row `h` in an install's output. */
+function closingLineOf(stdout: string, h: (typeof HOST_TOOLS)[number]): string {
+  const mine = stdout.split(/\r?\n/).filter((l) => l.startsWith(`  ${h.name}: `) && l.includes(` — ${h.invoke}`));
+  expect(mine.length, `exactly one closing line for ${h.name}:\n${stdout}`).toBe(1);
+  return mine[0];
+}
+const NOT_OFFERED = "no launch form is offered, because install neither wrote nor owns";
+
+describe("WR-03: install's closing line names a launch form only when install wrote or owns the launch file", () => {
+  it("a fresh install for every agent: each launch row's closing line ends with its invoke text and `; or <launchInvoke>`", () => {
+    const row = scratchRow();
+    const r = runInstall(row.target, row.kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) {
+      const line = closingLineOf(r.stdout, h);
+      expect(line.endsWith(` — ${h.invoke}; or ${launchInvoke(h)}`), line).toBe(true);
+      expect(line).toContain(h.launchForm!);
+    }
+  });
+
+  it("under DRY_RUN, a fresh target: the form is offered for every launch row (the real run would write each file)", () => {
+    const row = scratchRow();
+    const r = runInstall(row.target, row.kitHome, [], { dryRun: true });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) expect(closingLineOf(r.stdout, h).endsWith(`; or ${launchInvoke(h)}`), r.stdout).toBe(true);
+  });
+
+  it("the user's own file at every launch path: no closing line names a launch form; each gives the reason; DRY_RUN says the same", () => {
+    const row = scratchRow();
+    for (const h of LAUNCH_HOSTS) ownLaunchWithoutRoute(row.target, h);
+    const dry = runInstall(row.target, row.kitHome, [], { dryRun: true });
+    expect(dry.status, dry.stdout + dry.stderr).toBe(0);
+    const r = runInstall(row.target, row.kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const out of [dry.stdout, r.stdout]) {
+      for (const h of LAUNCH_HOSTS) {
+        const line = closingLineOf(out, h);
+        expect(line, `${h.name}: the form is offered for the user's own file`).not.toContain(h.launchForm!);
+        expect(line.endsWith(` — ${h.invoke}; ${NOT_OFFERED} ${launchRelOf(h)} here`), line).toBe(true);
+      }
+    }
+  });
+
+  it("Pi's launch write refused (a directory there): the closing line names no launch form and gives the reason", () => {
+    const row = scratchRow();
+    blockLaunch(row.target, piHost());
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    const line = closingLineOf(r.stdout, piHost());
+    expect(line).not.toContain(piHost().launchForm!);
+    expect(line.endsWith(`; ${NOT_OFFERED} ${launchRelOf(piHost())} here`), line).toBe(true);
   });
 });

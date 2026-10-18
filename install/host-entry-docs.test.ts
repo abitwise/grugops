@@ -312,7 +312,7 @@ describe("the install guide has one usage section per sequential agent (plan 34.
   });
 
   for (const t of SEQUENTIAL_ROWS) {
-    it(`"${USAGE_PREFIX}${t.name}" names its entry, every backticked token of its invoke, a dated source, and an \`UNKNOWN - verify\``, () => {
+    it(`"${USAGE_PREFIX}${t.name}" names its entry, every backticked token of its invoke and launch form, a dated source, and an \`UNKNOWN - verify\``, () => {
       const sec = guideSection(USAGE_PREFIX + t.name);
       // hostPointers (quick task 261018-hs8): the kind's entries, then the row's launch agent, so each section must name
       // its launch file too.
@@ -320,6 +320,10 @@ describe("the install guide has one usage section per sequential agent (plan 34.
       const tokens = [...t.invoke.matchAll(/`[^`]+`/g)].map((m) => m[0]);
       expect(tokens.length, `${t.id}: invoke has no backticked token`).toBeGreaterThan(0);
       for (const tok of tokens) expect(sec, `${t.name}: invoke token ${tok} not named`).toContain(tok);
+      // The launch form (quick task 261018-hs8, review WR-03 split it out of invoke): every backticked token of it.
+      for (const tok of [...(t.launchForm ?? "").matchAll(/`[^`]+`/g)].map((m) => m[0])) {
+        expect(sec, `${t.name}: launch-form token ${tok} not named`).toContain(tok);
+      }
       expect(sec, `${t.name}: no dated source`).toMatch(/retrieved 20\d\d-\d\d-\d\d/);
       expect(sec, `${t.name}: nothing marked unknown`).toContain("`UNKNOWN - verify`");
     });

@@ -4,7 +4,8 @@
 // WHAT IS UNDER TEST. A scripted install copies each non-Claude whole-file entry (the agent skill Codex CLI reads,
 // `.agents/skills/grugops/SKILL.md`; the OpenCode command; the Pi prompt template) from the committed generated file
 // in the kit source (GRUGOPS_SRC), records it in the install ledger as a kit-false `file` entry, and uninstall
-// removes it through the ledger walk. `--check` names each entry as a route carrier.
+// removes it through the ledger walk. `--check` names each kind's entry as a route carrier, and gives each launch
+// agent its own line (D-06).
 //
 // THE ENTRY SET IS DERIVED, NEVER TYPED. ENTRY_RELS is the generator's own renderedEntryRels()
 // (scripts/generate-host-entries.ts): the ROUTE_POINTERS path of every adapter kind it renders, then each registry
@@ -52,8 +53,11 @@ const ENTRY_RELS: readonly string[] = renderedEntryRels();
  *  agent, `.agents/agents/grugops-orchestrator.md` (Antigravity CLI's). 4 -> 7 on 2026-10-18 (quick task 261018-hs8,
  *  Task 2): the launch agents of OpenCode, Copilot CLI and Pi. */
 const ENTRY_COUNT = 7;
-/** The carriers registry row `h` reads, from the registry data: entry files, its kind's pointers, its launch agent. */
-const readsOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...h.entryFiles, ...ROUTE_POINTERS[h.adapter], ...(h.launchAgent === null ? [] : [h.launchAgent])];
+/** The carriers a default session of registry row `h` reads, from the registry data: entry files, then its kind's
+ *  pointers. Its launch agent is not one (D-06, quick task 261018-hs8): only a session started with it reads it. */
+const readsOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...h.entryFiles, ...ROUTE_POINTERS[h.adapter]];
+/** The doctor's own line for a launch file (D-06): `launch file <rel> …`, whatever its label. */
+const launchLinesFor = (stdout: string, rel: string): string[] => lines(stdout).filter((l) => /^ {2}\S+\s+launch file /.test(l) && l.includes(`launch file ${rel} `));
 
 describe("host entries: a scripted install gives Codex CLI its skill entry (plan 34.1-01, D-08, D-20)", () => {
   it(`the derived entry set has ${ENTRY_COUNT} path(s) and includes AGENT_SKILL_REL`, () => {
@@ -144,16 +148,21 @@ describe("host entries: a single-agent install writes the shared files and that 
     const codexReads = new Set(readsOf(codex!));
     const others = [...new Set(HOST_TOOLS.flatMap(readsOf))].filter((rel) => !codexReads.has(rel));
     expect(others.length, "premise: some route carrier is not Codex CLI's").toBeGreaterThan(0);
-    for (const rel of ["CLAUDE.md", ".github/copilot-instructions.md", ANTIGRAVITY_AGENT_REL]) expect(others, `premise: ${rel} is a carrier Codex CLI does not read`).toContain(rel);
+    for (const rel of ["CLAUDE.md", ".github/copilot-instructions.md"]) expect(others, `premise: ${rel} is a carrier Codex CLI does not read`).toContain(rel);
     for (const rel of others) {
       const named = lines(c.stdout).filter((l) => /^ {2}\S+\s+kit route/.test(l) && (l.includes(`kit route: ${rel} `) || l.includes(`kit route missing from ${rel} `) || l.includes(`kit route carried by ${rel} `)));
       expect(named, `${rel} is reported by --check after a Codex-only install\n${c.stdout}`).toEqual([]);
+    }
+    // No launch file is Codex CLI's, so a Codex-only install gives none a line (D-06: the doctor's launch lines are
+    // for the installed agents' launch files only).
+    for (const h of HOST_TOOLS.filter((x) => x.launchAgent !== null)) {
+      expect(launchLinesFor(c.stdout, h.launchAgent!), `${h.launchAgent} is reported after a Codex-only install\n${c.stdout}`).toEqual([]);
     }
   });
 
   // Quick task 261018-hs8 (the tracer, D-03, D-05): Antigravity CLI's launch agent through install, `--check` and
   // uninstall, beside the skill it shares with Codex CLI.
-  it("tracer: --codex --antigravity writes the launch agent's committed bytes as a kit-false file entry, --check names it as a carrier read by Antigravity CLI, and a flag-less uninstall removes it", () => {
+  it("tracer: --codex --antigravity writes the launch agent's committed bytes as a kit-false file entry, --check gives it its own ok line for a session started with Antigravity CLI's launch form (not a route carrier, D-06), and a flag-less uninstall removes it", () => {
     const { target, kitHome } = scratchRow();
     const rows = ["codex", "antigravity"].map((id) => HOST_TOOLS.find((h) => h.id === id));
     expect(rows.every((h) => h !== undefined), "premise: the registry has codex and antigravity rows").toBe(true);
@@ -174,12 +183,14 @@ describe("host entries: a single-agent install writes the shared files and that 
 
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
-    const carrier = lines(c.stdout).filter((l) => /^ {2}ok\s/.test(l) && l.includes(`kit route carried by ${ANTIGRAVITY_AGENT_REL} (read by `));
-    expect(carrier.length, c.stdout).toBe(1);
-    expect(carrier[0], c.stdout).toContain(`(read by ${agy.name})`);
+    const launch = launchLinesFor(c.stdout, ANTIGRAVITY_AGENT_REL);
+    expect(launch.length, c.stdout).toBe(1);
+    expect(launch[0].startsWith("  ok"), c.stdout).toBe(true);
+    expect(launch[0], c.stdout).toContain(`a session started with ${agy.launchForm}`);
+    expect(lines(c.stdout).filter((l) => l.includes(`kit route carried by ${ANTIGRAVITY_AGENT_REL} `)), "the launch file is a route carrier line (D-06)").toEqual([]);
     const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l) && l.includes(`${agy.name}: `));
     expect(reach.length, c.stdout).toBe(1);
-    expect(reach[0], c.stdout).toContain(ANTIGRAVITY_AGENT_REL);
+    expect(reach[0], c.stdout).not.toContain(ANTIGRAVITY_AGENT_REL);
 
     const u = runUninstall(target, kitHome);
     expect(u.status, u.stdout + u.stderr).toBe(0);
@@ -190,8 +201,9 @@ describe("host entries: a single-agent install writes the shared files and that 
 
 // ── EACH LAUNCH AGENT, ALONE (quick task 261018-hs8, Task 2; D-03, D-05) ─────────────────────────────────────────────
 // Derived over the launch-bearing registry rows: an install with only that agent's flag writes its launch file with
-// the committed bytes as a kit-false file entry, and `--check` prints the carrier `ok` line for it, read by that agent
-// alone, and counts it in that agent's reach line.
+// the committed bytes as a kit-false file entry, and `--check` prints its own launch-file `ok` line, worded with the
+// row's launchForm. It is not a route carrier (D-06, human 2026-10-18; reverses planner decision PD-1), so the agent's
+// reach line does not name it.
 const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
 describe(`host entries: each launch agent after a single-agent install (${LAUNCH_ROWS.map((h) => h.id).join(", ")})`, () => {
   it("premise: the launch-bearing rows are the four the registry names", () => {
@@ -199,7 +211,7 @@ describe(`host entries: each launch agent after a single-agent install (${LAUNCH
   });
 
   for (const h of LAUNCH_ROWS) {
-    it(`${agentFlag(h)} only, then --check: ${h.launchAgent} is written and recorded, and is a carrier \`ok\` line read by ${h.name}`, () => {
+    it(`${agentFlag(h)} only, then --check: ${h.launchAgent} is written and recorded, and has its own launch \`ok\` line for ${h.name}, outside the reach line`, () => {
       const { target, kitHome } = scratchRow();
       const rel = h.launchAgent!;
       const r = runInstall(target, kitHome, [agentFlag(h)]);
@@ -212,13 +224,16 @@ describe(`host entries: each launch agent after a single-agent install (${LAUNCH
       expect(fileRecords(marker, false)[rel], r.stdout).toBe(fileRecord(committed, lstatSync(file).mode));
       const c = check(target, kitHome);
       expect(c.status, c.stdout + c.stderr).toBe(0);
-      const carrier = lines(c.stdout).filter((l) => /^ {2}ok\s/.test(l) && l.includes(`kit route carried by ${rel} (read by `));
-      expect(carrier.length, c.stdout).toBe(1);
-      expect(carrier[0], c.stdout).toContain(`(read by ${h.name})`);
+      const launch = launchLinesFor(c.stdout, rel);
+      expect(launch.length, c.stdout).toBe(1);
+      expect(launch[0].startsWith("  ok"), c.stdout).toBe(true);
+      expect(launch[0], c.stdout).toContain(`a session started with ${h.launchForm}`);
+      expect(launch[0], c.stdout).toContain(`(${h.name})`);
+      expect(lines(c.stdout).filter((l) => l.includes(`kit route carried by ${rel} `)), "the launch file is a route carrier line (D-06)").toEqual([]);
       const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l));
       expect(reach.length, c.stdout).toBe(1);
       expect(reach[0], c.stdout).toContain(`${h.name}: `);
-      expect(reach[0], c.stdout).toContain(rel);
+      expect(reach[0], c.stdout).not.toContain(rel);
     }, 120_000);
   }
 });
