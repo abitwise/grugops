@@ -6008,27 +6008,41 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     return parseMapping(file, constName).map(([source]) => source).sort();
   }
   const RUNNABLE_RELS = mappingDests("install.ts", "RUNNABLES");
+  // PROGRAM_RELS: the rows that are grugops programs (a `.js` destination). Since quick task 261018-hs8
+  // (Task 4, 2026-10-18) one row of the mapping is not a program: `tools/grugops/LICENSE`, the MIT license
+  // text for the programs copied there. The cases below that inspect a destination AS A PROGRAM (its
+  // "grugops runnable" removal label, a planted `.js` body) take their row from PROGRAM_RELS, so the
+  // license row neither stands in for a program nor drops out of the whole-mapping cases.
+  const PROGRAM_RELS = RUNNABLE_RELS.filter((rel) => rel.endsWith(".js"));
+  const LICENSE_REL = "tools/grugops/LICENSE";
 
   it("runnable removal: the installer's RUNNABLES and the uninstaller's RUNNABLES_MIRROR are the same mapping", () => {
     const mirror = mappingDests("uninstall.ts", "RUNNABLES_MIRROR");
     expect(mirror).toEqual(RUNNABLE_RELS);
     // The integer, so a pair that shrinks together still fails. Four kit-shipped runnables:
     // reference-check, test-skip-integrity, uat-spec-integrity (Phase 31, D-13) and
-    // host-protection, the read-only git-host check (Phase 33.1, D-19).
-    expect(RUNNABLE_RELS.length).toBe(4);
-    expect(mirror.length).toBe(4);
+    // host-protection, the read-only git-host check (Phase 33.1, D-19), plus, since quick task
+    // 261018-hs8 (Task 4, 2026-10-18), the MIT license for them: 4 -> 5.
+    expect(RUNNABLE_RELS.length).toBe(5);
+    expect(mirror.length).toBe(5);
+    expect(PROGRAM_RELS.length).toBe(4);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
     // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
     // this half can no longer come back short while its own integer still passes.
     const srcSideInstall = mappingSources("install.ts", "RUNNABLES");
     const srcSideUninstall = mappingSources("uninstall.ts", "RUNNABLES_MIRROR");
     expect(srcSideUninstall).toEqual(srcSideInstall);
-    expect(srcSideInstall.length).toBe(4);
+    expect(srcSideInstall.length).toBe(5);
     // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
     // explicit assertions so routing both halves through one parser lost none of what it checked:
-    // every source lives under the runnable reference directory and every dest under the one
-    // directory grugops owns inside the user's repo.
-    for (const s of srcSideInstall) expect(s.startsWith("scripts/runnable-ref/")).toBe(true);
+    // every program source lives under the runnable reference directory and every dest under the one
+    // directory grugops owns inside the user's repo. The one non-program row is pinned exactly: the
+    // root LICENSE, copied to tools/grugops/LICENSE (quick task 261018-hs8, Task 4).
+    const rows = parseMapping("install.ts", "RUNNABLES");
+    const programRows = rows.filter(([, d]) => d.endsWith(".js"));
+    expect(programRows.length).toBe(4);
+    for (const [s] of programRows) expect(s.startsWith("scripts/runnable-ref/")).toBe(true);
+    expect(rows.filter(([, d]) => !d.endsWith(".js"))).toEqual([["LICENSE", LICENSE_REL]]);
     for (const d of RUNNABLE_RELS) expect(d.startsWith("tools/grugops/")).toBe(true);
   });
 
@@ -6085,10 +6099,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const r = runUninstall(target, home);
     expect(r.status).toBe(0);
-    for (const rel of RUNNABLE_RELS) {
-      expect(existsSync(join(target, rel))).toBe(false);
-      expect(r.stdout).toContain(`${rel} (grugops runnable, recorded in the install ledger)`);
-    }
+    for (const rel of RUNNABLE_RELS) expect(existsSync(join(target, rel))).toBe(false);
+    // The removal label names a program as a "grugops runnable" (uninstall.ts keys it on the `.js`
+    // destination); the license row is removed on the same record with the plain label.
+    for (const rel of PROGRAM_RELS) expect(r.stdout).toContain(`${rel} (grugops runnable, recorded in the install ledger)`);
+    expect(r.stdout).toContain(`${LICENSE_REL} (recorded in the install ledger)`);
     // Asserted by LISTING the destination directory, not only by per-file existence: the directory
     // is gone because it is empty, and tools/ itself (the user's directory) is left alone.
     expect(existsSync(join(target, "tools", "grugops"))).toBe(false);
@@ -6104,7 +6119,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(runInstall(target, home).status).toBe(0);
 
     // Edit one helper after install; leave the other untouched as the in-case control.
-    const edited = join(target, RUNNABLE_RELS[0]);
+    // A program row (PROGRAM_RELS): the case is about a user-edited helper program.
+    const edited = join(target, PROGRAM_RELS[0]);
     const editedBody = "// USER-EDITED RUNNABLE — an uninstall must never destroy this.\n";
     writeFileSync(edited, editedBody);
 
@@ -6115,9 +6131,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(readFileSync(edited, "utf8")).toBe(editedBody);
     // Red-team L3 of plan 33.1-34: the line says what the record shows (install recorded other bytes
     // there), not "user-modified", which nothing proved.
-    expect(r.stdout).toContain(`${RUNNABLE_RELS[0]} (it does not hold what the install ledger records install wrote there`);
+    expect(r.stdout).toContain(`${PROGRAM_RELS[0]} (it does not hold what the install ledger records install wrote there`);
     // The untouched one is still removed, so the guard is per-file and not a blanket bail-out.
-    expect(existsSync(join(target, RUNNABLE_RELS[1]))).toBe(false);
+    expect(existsSync(join(target, PROGRAM_RELS[1]))).toBe(false);
     // The directory survives because it still holds the user's file (rmdirIfEmpty never forces).
     expect(existsSync(join(target, "tools", "grugops"))).toBe(true);
   });
@@ -6164,7 +6180,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // then uninstalled against an incomplete one. It used to be left with a verify (byte identity with
     // the source could not be established); since plan 33.1-36 the install ledger's file entry decides.
     mkdirSync(join(target, "tools", "grugops"), { recursive: true });
-    const planted = join(target, RUNNABLE_RELS[0]);
+    // A program row (PROGRAM_RELS): the planted body is a `.js` program.
+    const planted = join(target, PROGRAM_RELS[0]);
     writeFileSync(planted, "// installed earlier from a complete kit\n");
     // Red-team B2 of plan 33.1-34: a runnable with no install record is left without a verify, so the
     // earlier complete-kit install is represented by its record for the planted file.
@@ -6172,7 +6189,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const plantedMarker = JSON.parse(readFileSync(plantedMarkerPath, "utf8"));
     const plantedRecord = `sha256:${createHash("sha256").update(readFileSync(planted)).digest("hex")};mode=${(statSync(planted).mode & 0o7777).toString(8).padStart(4, "0")}`;
     const rebound = withLedger(plantedMarker, (l) => {
-      l.push({ path: RUNNABLE_RELS[0], kind: "file", content: plantedRecord, kit: false });
+      l.push({ path: PROGRAM_RELS[0], kind: "file", content: plantedRecord, kit: false });
     });
     writeFileSync(plantedMarkerPath, JSON.stringify(rebound, null, 2) + "\n");
 
@@ -6181,7 +6198,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const r = runUninstallFrom(src, target, home);
     expect(existsSync(planted), r.stdout).toBe(false);
     expect(r.stdout).not.toContain("cannot read the source it was installed from");
-    expect(r.stdout.split("\n").some((l) => /^ {2}removed\s/.test(l) && l.includes(RUNNABLE_RELS[0])), r.stdout).toBe(true);
+    expect(r.stdout.split("\n").some((l) => /^ {2}removed\s/.test(l) && l.includes(PROGRAM_RELS[0])), r.stdout).toBe(true);
   });
 
   it("runnable removal: DRY_RUN narrates the removal and deletes nothing", () => {
@@ -6196,8 +6213,89 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     });
     expect(r.status).toBe(0);
     expect(r.stdout ?? "").toContain("would-remove");
-    expect(r.stdout ?? "").toContain(`${RUNNABLE_RELS[0]} (grugops runnable, recorded in the install ledger)`);
+    // A program row: its dry-run line carries the "grugops runnable" label (PROGRAM_RELS).
+    expect(r.stdout ?? "").toContain(`${PROGRAM_RELS[0]} (grugops runnable, recorded in the install ledger)`);
     expect(snapshot(target)).toBe(before);
+  });
+
+  // ── tools/grugops/LICENSE (quick task 261018-hs8, Task 4, LICENSE-SHIP-01) ──────────────────────────
+  // Install copies grugops program files into the user's repository (the runnables above), and MIT asks
+  // that its notice go with every copy. So the RUNNABLES mapping carries one more row, the root LICENSE
+  // to tools/grugops/LICENSE, under the same rule: written only where nothing is, recorded, removed only
+  // while it holds what install wrote, never written over a user's file. NOTICE is not copied into the
+  // repository, and no other license file is. These runs set HOME as well as GRUGOPS_HOME to scratch
+  // directories.
+  const licenseInstall = (target: string, home: string, scratchHome: string) =>
+    spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags([])], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, HOME: scratchHome, TARGET: target, DRY_RUN: "" },
+    });
+  const licenseUninstall = (target: string, home: string, scratchHome: string) =>
+    spawnSync("node", [UNINSTALL_JS], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, HOME: scratchHome, TARGET: target, DRY_RUN: "" },
+    });
+  /** Every path under `dir` whose name is a license or notice file, repo-relative, sorted. */
+  function licenseLikeFiles(dir: string): string[] {
+    const out: string[] = [];
+    const walk = (d: string): void => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (/^(licen[cs]e|notice|copying)(\.[^/]*)?$/i.test(e.name)) out.push(pathText(relative(dir, p)));
+      }
+    };
+    walk(dir);
+    return out.sort();
+  }
+
+  it("tools/grugops/LICENSE: install writes the root LICENSE there byte for byte, records it kit-false, and a flag-less uninstall removes it", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const scratchHome = mkTmp();
+    const r = licenseInstall(target, home, scratchHome);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    const at = join(target, LICENSE_REL);
+    expect(existsSync(at), r.stdout).toBe(true);
+    expect(readFileSync(at).equals(readFileSync(join(REPO_ROOT, "LICENSE")))).toBe(true);
+    const entries = markerLedger(target).filter((e) => e.path === LICENSE_REL);
+    expect(entries.length, JSON.stringify(entries)).toBe(1);
+    expect(entries[0]).toMatchObject({ kind: "file", kit: false });
+    expect(String(entries[0].content)).toMatch(/^sha256:[0-9a-f]{64};mode=/);
+    const u = licenseUninstall(target, home, scratchHome);
+    expect(u.status, `${u.stdout}\n${u.stderr}`).toBe(0);
+    expect(existsSync(at)).toBe(false);
+    expect(u.stdout).toContain(`${LICENSE_REL} (recorded in the install ledger)`);
+  });
+
+  it("tools/grugops/LICENSE: a user's own file at that path is left byte for byte, gets no ledger entry, and survives uninstall", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const scratchHome = mkTmp();
+    mkdirSync(join(target, "tools", "grugops"), { recursive: true });
+    const mine = "The user's own license text for their own tools.\n";
+    writeFileSync(join(target, LICENSE_REL), mine);
+    const r = licenseInstall(target, home, scratchHome);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(readFileSync(join(target, LICENSE_REL), "utf8")).toBe(mine);
+    expect(r.stdout).toContain(`${LICENSE_REL} (target has a different copy`);
+    expect(markerLedger(target).filter((e) => e.path === LICENSE_REL)).toEqual([]);
+    const u = licenseUninstall(target, home, scratchHome);
+    expect(u.status, `${u.stdout}\n${u.stderr}`).toBe(0);
+    expect(readFileSync(join(target, LICENSE_REL), "utf8")).toBe(mine);
+  });
+
+  it("tools/grugops/LICENSE: after an install the target holds no NOTICE, no root LICENSE and no other license file it did not hold before", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const scratchHome = mkTmp();
+    const before = licenseLikeFiles(target);
+    expect(before, "premise: the fixture holds no license file").toEqual([]);
+    const r = licenseInstall(target, home, scratchHome);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(licenseLikeFiles(target)).toEqual([LICENSE_REL]);
+    expect(existsSync(join(target, "NOTICE"))).toBe(false);
+    expect(existsSync(join(target, "LICENSE"))).toBe(false);
   });
 
   it("source derivation: an UNREADABLE source skill directory is reported and no completion is claimed", () => {
@@ -7132,7 +7230,9 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // 11 -> 14 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi
     // (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
     // `.pi/grugops-orchestrator.md`) entered the derived list; Antigravity CLI's joined in Task 1, and Codex CLI has none. The plant takes their bytes too.
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(14);
+    // 14 -> 15 on 2026-10-18 (quick task 261018-hs8, Task 4): install copies the root LICENSE to `tools/grugops/LICENSE`
+    // beside the runnables (a fifth RUNNABLES row), so it entered the derived list; the plant takes its exact bytes too.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(15);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {

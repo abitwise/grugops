@@ -105,7 +105,10 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
 // `.pi/grugops-orchestrator.md`) entered (65 files and links written, plus the two read-only inputs), for the same
 // reason; a FIFO and a directory are planted at each by derivation. Antigravity CLI's joined in Task 1, and Codex CLI has none. 64 -> 67.
-const READ_PATH_COUNT = 67;
+// 68 on 2026-10-18 (quick task 261018-hs8, Task 4): `tools/grugops/LICENSE` entered (66 files and links written, plus
+// the two read-only inputs), because install copies the root LICENSE beside the runnables (a fifth RUNNABLES row) and
+// asks its destination through readForWrite; a FIFO and a directory are planted at it by derivation. 67 -> 68.
+const READ_PATH_COUNT = 68;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

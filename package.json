@@ -1,6 +1,7 @@
 {
   "name": "grugops-tooling",
   "version": "2.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "engines": {

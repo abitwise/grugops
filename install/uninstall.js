@@ -2540,6 +2540,8 @@ const RUNNABLES_MIRROR = [
     ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
     ["scripts/runnable-ref/uat-spec-integrity.js", "tools/grugops/uat-spec-integrity.js"],
     ["scripts/runnable-ref/host-protection.js", "tools/grugops/host-protection.js"],
+    // The MIT license for the programs above, copied beside them (quick task 261018-hs8, Task 4).
+    ["LICENSE", "tools/grugops/LICENSE"],
 ];
 // reportUnrecordedRunnables (report only): a runnable path with no ledger file entry is left, and the line
 // says only what this run saw (red-team B2 of plan 33.1-34: a user's link there, or a `tools` that is a

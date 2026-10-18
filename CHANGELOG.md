@@ -561,6 +561,16 @@ CLI with Antigravity CLI.
   command with no agent flag. A `--migrate` run ends with the migrate banner and the `--migrate`
   command. Before, it wrote the whole install with no record of it, which no uninstall could remove.
   A `DRY_RUN` run shows the same stop (34.1 deferred item DI-25; 34.1 review WR-41, WR-42, WR-43).
+- grugops now ships its MIT license with every copy of the kit (quick task 261018-hs8). Before, the
+  kit in the kit home and the `agent-factory/` folder of the minimal path had no `LICENSE` and no
+  `NOTICE`, although the MIT license asks that its notice go with every copy. The Claude Code plugin
+  already carried both, because it holds the repository root. `agent-factory/LICENSE` and
+  `agent-factory/NOTICE` are now byte copies of the root files, held equal by a test, so the kit
+  carries both wherever it is copied. A per-repo install also writes
+  `tools/grugops/LICENSE` next to the grugops programs it copies there; it is recorded in the install
+  ledger, removed by uninstall, and never written over a file you already have at that path. Install
+  writes no `NOTICE` and no other license file into your repository. `package.json` now declares
+  `"license": "MIT"`.
 
 ### Security
 

@@ -352,8 +352,10 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * 37 -> 40 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi
  * (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
  * `.pi/grugops-orchestrator.md`) entered, for the same reason; Antigravity CLI's joined in Task 1, and Codex CLI has none.
+ * 40 -> 41 on 2026-10-18 (quick task 261018-hs8, Task 4): `tools/grugops/LICENSE` entered, because install copies the root
+ * LICENSE beside the runnables (a fifth RUNNABLES row) and records it; the derived listing names it before the runnables.
  */
-const REMOVABLE_COUNT = 40;
+const REMOVABLE_COUNT = 41;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a

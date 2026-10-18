@@ -4811,8 +4811,8 @@ function seedState() {
 // write). It writes ONLY under tools/grugops/ — it never touches a protected dir (T-15-05-EoP).
 // Report strings are CLEAR PROFESSIONAL VOICE.
 //
-// RUNNABLES: each entry is [source-relative-to-GRUGOPS_SRC, dest-relative-to-TARGET]. The
-// reference routine is the only kit-shipped runnable today; Phase 16's checker appends here.
+// RUNNABLES: each entry is [source-relative-to-GRUGOPS_SRC, dest-relative-to-TARGET]. Every row but one
+// is a kit-shipped runnable program; the one other row is the license text for those programs.
 //
 // REVERSAL COUNTERPART (WR-04, plan 27-13): this mapping is MIRRORED by RUNNABLES_MIRROR in
 // install/uninstall.ts, in the "removing grugops runnables" pass. Every file this loop writes into
@@ -4825,6 +4825,11 @@ const RUNNABLES = [
     ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
     ["scripts/runnable-ref/uat-spec-integrity.js", "tools/grugops/uat-spec-integrity.js"],
     ["scripts/runnable-ref/host-protection.js", "tools/grugops/host-protection.js"],
+    // The MIT license asks that its notice go with every copy of the software. The programs above are
+    // copies that stay in the user's repository, and a license in the kit home does not travel with it.
+    // So the license goes next to them, by the same rule (quick task 261018-hs8, Task 4). NOTICE is not
+    // copied here: MIT does not ask for it, and it travels with the kit.
+    ["LICENSE", "tools/grugops/LICENSE"],
 ];
 function materializeRunnable() {
     for (const [srcRel, destRel] of RUNNABLES) {

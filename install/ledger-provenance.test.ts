@@ -113,8 +113,11 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
   // CREATED (11 -> 14; derived list adds `.opencode/agents/grugops-orchestrator.md`,
   // `.github/agents/grugops-orchestrator.agent.md` and `.pi/grugops-orchestrator.md`), and `.opencode/agents` and
   // `.github/agents` entered REMOVED_DIRS (20 -> 22; `.github` and `.pi` were already there). Antigravity CLI's joined in Task 1, and Codex CLI has none.
-  it("install creates 14 files in an empty target (2 pointer files, 3 whole-file host entries, 4 launch agents, AGENTS.md, 4 runnables), and the round trip removes 22 directories", () => {
-    expect(CREATED.length, CREATED.join(", ")).toBe(14);
+  // Re-pinned 2026-10-18 (quick task 261018-hs8, Task 4): install copies the root LICENSE to `tools/grugops/LICENSE`
+  // beside the runnables (a fifth RUNNABLES row), so it entered CREATED (14 -> 15; derived list adds it). REMOVED_DIRS is
+  // unchanged: `tools/grugops` was already there.
+  it("install creates 15 files in an empty target (2 pointer files, 3 whole-file host entries, 4 launch agents, AGENTS.md, 4 runnables, tools/grugops/LICENSE), and the round trip removes 22 directories", () => {
+    expect(CREATED.length, CREATED.join(", ")).toBe(15);
     expect(CREATED.filter((r) => POINTER.has(r)).length).toBe(2);
     expect(CREATED, "the Pi prompt template is not among the files install created").toContain(PI_PROMPT_REL);
     expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(22);

@@ -148,8 +148,11 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * 65 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi
  * (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
  * `.pi/grugops-orchestrator.md`) entered as files, for the same reason. Antigravity CLI's joined in Task 1, and Codex CLI has none. 62 -> 65.
+ * 66 on 2026-10-18 (quick task 261018-hs8, Task 4): `tools/grugops/LICENSE` entered as a file, because install copies the
+ * root LICENSE beside the runnables (a fifth RUNNABLES row); an edit to it is left byte for byte by uninstall, as for
+ * every runnable. 65 -> 66.
  */
-const INSTALLED_FILE_COUNT = 65;
+const INSTALLED_FILE_COUNT = 66;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

@@ -370,3 +370,71 @@ describe("KIT_HOME_VARIANTS (review IN-06, plan 33.1-37): the user's bytes at th
     });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE KIT CARRIES ITS LICENSE (quick task 261018-hs8, Task 4, LICENSE-SHIP-01). grugops is MIT, and MIT
+// asks that its copyright and permission notice go with every copy. The kit is `agent-factory/`, copied
+// whole by copyKit, by `--update` and by the minimal path (install/README.md §1); the root LICENSE and
+// NOTICE sat outside it, so no kit copy carried them. `agent-factory/LICENSE` and `agent-factory/NOTICE`
+// are committed byte copies of the root files, which stay the one source. THE RULE: change the root
+// file, then re-copy it (`cp LICENSE agent-factory/LICENSE`, `cp NOTICE agent-factory/NOTICE`); never
+// edit a copy by hand. Only the byte-equality case names the two files; the install and `--update`
+// cases read the kit root from the marker and compare against the root files.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const REPO = join(import.meta.dirname, "..");
+const LICENSE_FILES = ["LICENSE", "NOTICE"] as const;
+/** The kit root the target's marker records (`kitRoot` in `.grugops/install.json`), never typed here. */
+const markerKitRoot = (c: KitHomeCase): string => {
+  const marker = JSON.parse(readFileSync(join(c.target, ".grugops", "install.json"), "utf8")) as { kitRoot?: unknown };
+  if (typeof marker.kitRoot !== "string" || marker.kitRoot === "") throw new Error(`the marker has no kitRoot: ${JSON.stringify(marker)}`);
+  return marker.kitRoot;
+};
+
+describe("the kit carries the MIT license and NOTICE (quick task 261018-hs8, Task 4)", () => {
+  for (const name of LICENSE_FILES) {
+    it(`agent-factory/${name} is a byte copy of the root ${name}`, () => {
+      const root = readFileSync(join(REPO, name));
+      expect(root.length, `the root ${name} is empty`).toBeGreaterThan(0);
+      const copy = join(REPO, "agent-factory", name);
+      expect(existsSync(copy), `agent-factory/${name} is missing; run: cp ${name} agent-factory/${name}`).toBe(true);
+      expect(readFileSync(copy).equals(root), `agent-factory/${name} differs from the root ${name}; run: cp ${name} agent-factory/${name}`).toBe(true);
+    });
+  }
+
+  it("an install leaves LICENSE and NOTICE at the marker's kitRoot, byte-identical to the root files", () => {
+    const c = kitHomeCase("license-install");
+    const r = install(c);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    const at = markerKitRoot(c);
+    for (const name of LICENSE_FILES) {
+      expect(existsSync(join(at, name)), `${at}/${name} is missing`).toBe(true);
+      expect(readFileSync(join(at, name)).equals(readFileSync(join(REPO, name))), `${at}/${name} differs from the root ${name}`).toBe(true);
+    }
+  });
+
+  it("--update over a recorded kit whose LICENSE and NOTICE were deleted leaves both present again", () => {
+    const c = kitHomeCase("license-update");
+    expect(install(c).status).toBe(0);
+    const at = markerKitRoot(c);
+    for (const name of LICENSE_FILES) rmSync(join(at, name));
+    for (const name of LICENSE_FILES) expect(existsSync(join(at, name)), `premise: ${name} was not deleted`).toBe(false);
+    const r = update(c);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    for (const name of LICENSE_FILES) {
+      expect(existsSync(join(at, name)), `--update did not restore ${name}\n${r.stdout}`).toBe(true);
+      expect(readFileSync(join(at, name)).equals(readFileSync(join(REPO, name)))).toBe(true);
+    }
+  });
+
+  it("install/README.md §1, the minimal path, says the agent-factory/ folder carries LICENSE and NOTICE and that they stay with the copy", () => {
+    const readme = readFileSync(join(REPO, "install", "README.md"), "utf8");
+    const start = readme.indexOf("## 1. The minimal path");
+    expect(start, "§1 heading not found").toBeGreaterThanOrEqual(0);
+    const end = readme.indexOf("\n## 2.", start);
+    expect(end, "§2 heading not found after §1").toBeGreaterThan(start);
+    const section = readme.slice(start, end);
+    for (const name of LICENSE_FILES) expect(section, `§1 does not name \`${name}\``).toContain(`\`${name}\``);
+    expect(section).toMatch(/stay with the copy/);
+  });
+});

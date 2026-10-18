@@ -19,7 +19,9 @@ actually do.** The three entry tiers, and what each one really enforces, are §6
 
 The floor works for every supported tool and needs no script:
 
-1. Copy the portable `AGENTS.md` and the `agent-factory/` folder into your repo.
+1. Copy the portable `AGENTS.md` and the `agent-factory/` folder into your repo. The folder carries
+   `LICENSE` (the MIT license) and `NOTICE` (the attribution and non-affiliation statements). They
+   stay with the copy: the MIT license asks that its notice go with every copy of grugops.
 2. Tell your agent: **"start at `agent-factory/roles/orchestrator.md`."**
 
 That is it. The intelligence lives in the host coding agent; grugops only supplies the role,
@@ -403,7 +405,9 @@ are written only when that agent is chosen.
   kit route (see "How a host finds the kit after a scripted install" below). An `AGENTS.md` you
   wrote, or install's copy that you edited, is never written
 - `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
-  `tools/grugops/host-protection.js` (§5)
+  `tools/grugops/host-protection.js` (§5), and `tools/grugops/LICENSE`, the MIT license for the
+  programs copied there. The license is recorded and removed like them, and a file you already have
+  at that path is never written. Install writes no `NOTICE` and no other license file into your repo
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
 - `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is

@@ -109,8 +109,11 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * Copilot CLI and Pi (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
  * `.pi/grugops-orchestrator.md`) entered as files, and `.opencode/agents` and `.github/agents` as directories (`.pi`
  * was already one), in every variant, for the same reason. Antigravity CLI's joined in Task 1, and Codex CLI has none. 96 -> 101.
+ * 66 files and links + 36 directories on 2026-10-18 (quick task 261018-hs8, Task 4): `tools/grugops/LICENSE` entered as
+ * a file, in every variant, because install copies the root LICENSE beside the runnables (a fifth RUNNABLES row);
+ * `tools/grugops` was already a directory. 101 -> 102.
  */
-const WRITE_PATH_COUNT = 101;
+const WRITE_PATH_COUNT = 102;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

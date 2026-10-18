@@ -40,11 +40,13 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // agent of each chosen agent that has one (HostTool.launchAgent), so `.agents/agents/grugops-orchestrator.md` is
 // recorded too. 35 -> 38 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and
 // Pi (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
-// `.pi/grugops-orchestrator.md`) are recorded too; Antigravity CLI's joined in Task 1, and Codex CLI has none. The test DERIVES the set from the ledger and
+// `.pi/grugops-orchestrator.md`) are recorded too; Antigravity CLI's joined in Task 1, and Codex CLI has none. 38 -> 39 on
+// 2026-10-18 (quick task 261018-hs8, Task 4, LICENSE-SHIP-01): install copies the root LICENSE to `tools/grugops/LICENSE`
+// beside the runnables (a fifth RUNNABLES row), so it is recorded too. The test DERIVES the set from the ledger and
 // asserts its size equals this pin, so a change to what install records shows here by name.
-const RECORDED_FILE_COUNT = 38;
+const RECORDED_FILE_COUNT = 39;
 const RECORDED_FILE_COUNT_WHY =
-  "17 adapters + 7 skills + AGENTS.md + 4 runnables + the 6 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch agents .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
+  "17 adapters + 7 skills + AGENTS.md + 4 runnables + tools/grugops/LICENSE + the 6 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch agents .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
 
 let SCRATCH = "";
 beforeAll(() => {
