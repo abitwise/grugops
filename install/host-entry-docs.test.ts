@@ -321,7 +321,8 @@ describe("the install guide has one usage section per sequential agent (plan 34.
       expect(tokens.length, `${t.id}: invoke has no backticked token`).toBeGreaterThan(0);
       for (const tok of tokens) expect(sec, `${t.name}: invoke token ${tok} not named`).toContain(tok);
       // The launch form (quick task 261018-hs8, review WR-03 split it out of invoke): every backticked token of it.
-      for (const tok of [...(t.launchForm ?? "").matchAll(/`[^`]+`/g)].map((m) => m[0])) {
+      // Its text since quick task 261018-vfm typed the form (LaunchForm), never the object itself.
+      for (const tok of [...(t.launchForm?.text ?? "").matchAll(/`[^`]+`/g)].map((m) => m[0])) {
         expect(sec, `${t.name}: launch-form token ${tok} not named`).toContain(tok);
       }
       expect(sec, `${t.name}: no dated source`).toMatch(/retrieved 20\d\d-\d\d-\d\d/);

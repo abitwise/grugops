@@ -44,6 +44,24 @@ export type HostAdapterKind = (typeof HOST_ADAPTER_KINDS)[number];
  */
 export type HostDispatch = "spawn" | "sequential";
 
+/**
+ * LaunchForm (quick task 261018-vfm, human 2026-10-18): how a user starts a session on a host with its launch file.
+ * The shape is explicit because a host takes its launch file in one of two ways: on the command line (`command`:
+ * `text` is the backticked command as the host gives it, plus any condition such as "from the repository root"), or as
+ * a pick in a panel inside a running session (`panel`: `text` is the backticked agent name in the backticked panel).
+ * The kind, not the text, decides the verb of every message that offers the form (launchSession, launchInvoke).
+ *
+ * verifiedLive is the date a human started a session that way on the live host and saw the launch file load, or null
+ * when no live run was made (then the form is UNKNOWN - verify, as the host's documentation gives it). It never covers
+ * the kit route: whether a session started that way then follows the route to the role files is UNKNOWN - verify on
+ * every host.
+ */
+export interface LaunchForm {
+  readonly kind: "command" | "panel";
+  readonly text: string;
+  readonly verifiedLive: string | null;
+}
+
 export interface HostTool {
   /** The token installer output uses (`tools detected: <id> ...`). */
   readonly id: string;
@@ -82,13 +100,14 @@ export interface HostTool {
    */
   readonly launchAgent: string | null;
   /**
-   * The launch form (quick task 261018-hs8, D-05, D-06): how a user starts a session on this host with its launch file,
-   * as the host's own documentation gives it, in backticks; null exactly when launchAgent is null. THE ONE SPELLING of
-   * it: `--check`'s launch-file findings word it "a session started with <launchForm>" (install.ts launchFileFindings),
-   * install's closing notes offer it through launchInvoke below, and install/README.md's usage sections are checked
-   * to name each of its backticked tokens. Each row names its source in a comment beside the value.
+   * The launch form (quick task 261018-hs8, D-05, D-06; typed by quick task 261018-vfm): how a user starts a session on
+   * this host with its launch file, a LaunchForm (a `command` or a `panel` pick, its backticked text, and the date a
+   * human verified it live, if any); null exactly when launchAgent is null. THE ONE SPELLING of it: launchSession below
+   * words `--check`'s launch-file findings (hs8 D-06, with the panel wording the human gave on 2026-10-18), launchInvoke
+   * below words install's closing clause (hs8 WR-03), and install/README.md's usage sections are checked to name each
+   * backticked token of its text. Each row names its source in a comment beside the value.
    */
-  readonly launchForm: string | null;
+  readonly launchForm: LaunchForm | null;
 }
 
 /**
@@ -284,9 +303,10 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // (antigravity.google/docs/subagents/, retrieved 2026-10-18). Antigravity CLI's alone (D-05).
     launchAgent: ANTIGRAVITY_AGENT_REL,
     // A workspace custom agent is picked as the primary agent in the `/agents` panel (antigravity.google/docs/subagents/,
-    // retrieved 2026-10-18; quick task 261018-hs8, D-05). agy 1.3.5 `--help` also lists `--agent`, but whether it
-    // resolves a workspace agent file is UNKNOWN - verify, so the form gives the panel.
-    launchForm: `\`${LAUNCH_AGENT_NAME}\` picked as the primary agent in the \`/agents\` panel`,
+    // retrieved 2026-10-18; quick task 261018-hs8, D-05). A human verified the pick live on 2026-10-18 (quick task
+    // 261018-vfm). agy 1.3.5 `--help` also lists `--agent`, but whether it resolves a workspace agent file is
+    // UNKNOWN - verify, so the form gives the panel.
+    launchForm: { kind: "panel", text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`, verifiedLive: "2026-10-18" },
   },
   {
     id: "opencode",
@@ -299,13 +319,16 @@ export const HOST_TOOLS: readonly HostTool[] = [
     dispatch: "sequential",
     // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
     invoke: "type `/grugops <request>`",
-    // The primary agent at `.opencode/agents/<name>.md` (opencode.ai/docs/agents/, retrieved 2026-10-18), started
-    // with `--agent` (opencode.ai/docs/cli/, retrieved 2026-10-18). OpenCode's alone (D-05).
+    // The primary agent at `.opencode/agents/<name>.md` (opencode.ai/docs/agents/, retrieved 2026-10-18), picked in
+    // the `/agents` panel: the panel lists the agent and picking it works (verified live by a human on 2026-10-18,
+    // quick task 261018-vfm). opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an `--agent` flag for the default
+    // command, but the same human found that OpenCode does not support starting a session with it, so no command form
+    // is given. OpenCode's alone (D-05).
     launchAgent: OPENCODE_AGENT_REL,
-    // The launch form `--agent` is listed for the default command by opencode.ai/docs/cli/ (retrieved 2026-10-18; quick
-    // task 261018-hs8, D-05); v2.0.28's `opencode --help` does not list it, so install/README.md gives Tab as the
-    // fallback.
-    launchForm: `\`opencode --agent ${LAUNCH_AGENT_NAME}\``,
+    // A pick in the `/agents` panel (verified live by a human on 2026-10-18; it supersedes the hs8 D-05 OpenCode
+    // command form). Tab cycles primary agents in a session (opencode.ai/docs/agents/, retrieved 2026-10-18), and
+    // install/README.md names Tab as the other in-session way.
+    launchForm: { kind: "panel", text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`, verifiedLive: "2026-10-18" },
   },
   {
     id: "copilot",
@@ -327,8 +350,9 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // retrieved 2026-10-18). An agent file is not a command. Copilot CLI's alone (D-05).
     launchAgent: COPILOT_AGENT_REL,
     // `copilot --agent <id>` (the same source, retrieved 2026-10-18; quick task 261018-hs8, D-05). Picking it with
-    // `/agent` in a session is the other documented form; install/README.md gives both.
-    launchForm: `\`copilot --agent ${LAUNCH_AGENT_NAME}\``,
+    // `/agent` in a session is the other documented form; install/README.md gives both. No live run: the human skipped
+    // it on 2026-10-18 (quick task 261018-vfm), so it is UNKNOWN - verify.
+    launchForm: { kind: "command", text: `\`copilot --agent ${LAUNCH_AGENT_NAME}\``, verifiedLive: null },
   },
   // Pi (34-RESEARCH.md §B): reads one context file per directory and prefers AGENTS.md over
   // CLAUDE.md; loads project prompt templates from <cwd>/.pi/prompts/; ships no sub-agents, so it
@@ -350,8 +374,10 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // The launch form passes PI_LAUNCH_REL to `--append-system-prompt` (pi 1.1.0 `--help`; resource-loader.ts @
     // 482c1381, retrieved 2026-10-18; quick task 261018-hs8, D-05), from the repository root, since the path is read
     // against the working directory. The flag's file is read without Pi's project-trust check (review WR-02), which
-    // install/README.md's Pi section warns about.
-    launchForm: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`,
+    // install/README.md's Pi section warns about. A human verified on 2026-10-18 (quick task 261018-vfm) that Pi loads
+    // the file: Pi's `[Context]` listed `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows the
+    // file loaded, not that the session follows the kit route (UNKNOWN - verify).
+    launchForm: { kind: "command", text: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`, verifiedLive: "2026-10-18" },
   },
 ];
 
@@ -671,20 +697,49 @@ export function routeCarriers(host: HostTool): readonly string[] {
 /**
  * launchCarriers (quick task 261018-hs8, D-06): THE ONE DERIVATION of the launch files of `host`: its launchAgent, or
  * none. Disjoint from routeCarriers (install/host-tools.test.ts asserts it), so a launch file never enters the reach or
- * strand verdicts; `--check` gives each one its own finding, worded "a session started with <launchForm>"
- * (install.ts launchFileFindings), and install's closing notes offer launchInvoke only for one install owns.
+ * strand verdicts; `--check` gives each one its own finding, worded by launchSession below (install.ts
+ * kitRouteFindings step (f)), and install's closing notes offer launchInvoke only for one install owns.
  */
 export function launchCarriers(host: HostTool): readonly string[] {
   return host.launchAgent === null ? [] : [host.launchAgent];
 }
 
 /**
- * launchInvoke (quick task 261018-hs8, review WR-03): the clause install's closing notes add after a row's invoke text
- * when install wrote or owns the row's launch file: "start the session as the Orchestrator with <launchForm>". Null
- * for a row with no launch form.
+ * launchLiveNote (quick task 261018-vfm): "verified live by a human on <date>" for a launch form a human ran on the
+ * live host (LaunchForm.verifiedLive), or null. It says the launch file loaded, never that the session then followed
+ * the kit route (UNKNOWN - verify on every host).
+ */
+export function launchLiveNote(host: HostTool): string | null {
+  const form = host.launchForm;
+  return form === null || form.verifiedLive === null ? null : `verified live by a human on ${form.verifiedLive}`;
+}
+
+/**
+ * launchSession (quick task 261018-hs8, D-06; per kind since quick task 261018-vfm): the session phrase of `--check`'s
+ * launch-file findings (install.ts kitRouteFindings step (f)). A `command` form reads "a session started with <text>",
+ * a `panel` form "a session where you pick <text>" (the human's wording, 2026-10-18). Null exactly when the row has no
+ * launch form.
+ */
+export function launchSession(host: HostTool): string | null {
+  const form = host.launchForm;
+  if (form === null) return null;
+  return form.kind === "panel" ? `a session where you pick ${form.text}` : `a session started with ${form.text}`;
+}
+
+/**
+ * launchInvoke (quick task 261018-hs8, review WR-03; per kind since quick task 261018-vfm): the clause install's
+ * closing notes add after a row's invoke text when install wrote or owns the row's launch file. A `command` form reads
+ * "start the session as the Orchestrator with <text>", a `panel` form "pick <text> to run the session as the
+ * Orchestrator"; either is followed by " (<launchLiveNote>)" when the form was verified live. The kind decides the
+ * verb, as it does for launchSession (the `--check` wording). Null for a row with no launch form.
  */
 export function launchInvoke(host: HostTool): string | null {
-  return host.launchForm === null ? null : `start the session as the Orchestrator with ${host.launchForm}`;
+  const form = host.launchForm;
+  if (form === null) return null;
+  const clause =
+    form.kind === "panel" ? `pick ${form.text} to run the session as the Orchestrator` : `start the session as the Orchestrator with ${form.text}`;
+  const note = launchLiveNote(host);
+  return note === null ? clause : `${clause} (${note})`;
 }
 
 /**

@@ -43,6 +43,8 @@ import {
   hostPointers,
   launchCarriers,
   launchInvoke,
+  launchLiveNote,
+  launchSession,
   routeCarriers,
   reachVia,
   strandedBy,
@@ -320,8 +322,13 @@ describe("HOST_TOOLS integrity (plan 34-02)", () => {
       seen++;
     }
     expect(seen).toBe(HOST_TOOL_COUNT);
-    const unknown = notes.filter((l) => l.includes("grugops has not run them on a live host (UNKNOWN - verify)"));
+    // Moved 2026-10-18 (quick task 261018-vfm): a human's live run verified launch forms on 2026-10-18, and the OpenCode
+    // panel form comes from that run, not from documentation, so the generic line now names forms marked verified live
+    // and keeps every other form, and the kit route of every launched session, UNKNOWN - verify.
+    const unknown = notes.filter((l) => l.includes("grugops has not run the others on a live host (UNKNOWN - verify)"));
     expect(unknown, r.stdout).toHaveLength(1);
+    expect(unknown[0], "the generic line names the forms marked verified live").toContain("verified live");
+    expect(unknown[0], "the generic line keeps the kit route of a launched session UNKNOWN - verify").toContain("follows the kit route is UNKNOWN - verify");
     expect(r.stdout, "the retired documentation-only line is gone").not.toContain("get documentation only.");
   });
 
@@ -709,8 +716,9 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
 
   // D-06 (quick task 261018-hs8, human 2026-10-18, review CR-01; reverses planner decision PD-1): the section names every
   // launch file (each row's launchAgent, read from the registry data), says a default session does not read it and
-  // that it is not counted as a route carrier, and words its `--check` line "a session started with". The PD-1
-  // sentence (a launch file counted as one of its host's route carriers) is gone.
+  // that it is not counted as a route carrier, and words its `--check` line "a session started with" for a command
+  // form, or "a session where you pick" for a panel form (quick task 261018-vfm, human 2026-10-18). The PD-1 sentence
+  // (a launch file counted as one of its host's route carriers) is gone.
   it("the kit-route section names every launch file, says it is not a route carrier, and no longer says --check counts it as one (D-06)", () => {
     const sec = guideSection(ROUTE_SECTION);
     const launches = HOST_TOOLS.flatMap((h) => (h.launchAgent === null ? [] : [h.launchAgent]));
@@ -1336,21 +1344,58 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
   });
 
   // Review WR-03: invoke is the default session's text and never names the launch form; launchInvoke carries it and is
-  // offered by install's closing notes only for a launch file install owns.
-  it("every launch row's launchForm is backticked, names LAUNCH_AGENT_NAME or the launch path, is absent from invoke, and is what launchInvoke offers (WR-03)", () => {
+  // offered by install's closing notes only for a launch file install owns. Quick task 261018-vfm (2026-10-18): the
+  // launch form's shape is typed (LaunchForm.kind, a `command` or a `panel` pick), and every wording below is built
+  // here from the row's own kind, text and verifiedLive with literal prefixes and suffixes, never by calling the helper
+  // under test, so a helper that words a panel pick as a command (or drops the dated note) goes red.
+  it("every launch row's launch form is typed, its text is backticked, names LAUNCH_AGENT_NAME or the launch path, is absent from invoke, and launchSession, launchInvoke and launchLiveNote word it by its kind (WR-03, D-06, 261018-vfm)", () => {
+    const PANEL_TEXT = "`" + LAUNCH_AGENT_NAME + "` in the `/agents` panel";
     for (const h of HOST_TOOLS) {
       if (h.launchAgent === null) {
         expect(h.launchForm, h.id).toBeNull();
         expect(launchInvoke(h), h.id).toBeNull();
+        expect(launchSession(h), h.id).toBeNull();
+        expect(launchLiveNote(h), h.id).toBeNull();
         continue;
       }
-      const form = h.launchForm!;
+      const lf = h.launchForm;
+      expect(lf, `${h.id}: a launch row has a launch form`).not.toBeNull();
+      if (lf === null) continue;
+      const form = lf.text;
+      expect(["command", "panel"], `${h.id}: kind`).toContain(lf.kind);
       expect(form, h.id).toMatch(/`[^`]+`/);
       expect(form.includes(LAUNCH_AGENT_NAME) || form.includes(h.launchAgent), `${h.id}: ${form}`).toBe(true);
       expect(h.invoke, `${h.id}'s invoke names its launch form`).not.toContain(form);
       for (const tok of form.match(/`[^`]+`/g) ?? []) if (tok.includes(LAUNCH_AGENT_NAME) || tok.includes(h.launchAgent)) expect(h.invoke, `${h.id}'s invoke names ${tok}`).not.toContain(tok);
-      expect(launchInvoke(h), h.id).toBe(`start the session as the Orchestrator with ${form}`);
+      if (lf.kind === "panel") {
+        expect(form, `${h.id}: a panel pick's text`).toBe(PANEL_TEXT);
+        for (const tok of form.match(/`[^`]+`/g) ?? []) expect(tok.slice(1).startsWith("--"), `${h.id}: a panel pick names the flag ${tok}`).toBe(false);
+        expect(form.split(/\s+/).some((w) => w.replace(/^`/, "").startsWith("--")), `${h.id}: a panel pick names a command-line flag`).toBe(false);
+      } else {
+        expect(form.startsWith("`"), `${h.id}: a command form starts with its backticked command`).toBe(true);
+      }
+      if (lf.verifiedLive !== null) expect(lf.verifiedLive, `${h.id}: verifiedLive is a date`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      const note = lf.verifiedLive === null ? null : "verified live by a human on " + lf.verifiedLive;
+      expect(launchLiveNote(h), h.id).toBe(note);
+      expect(launchSession(h), h.id).toBe((lf.kind === "panel" ? "a session where you pick " : "a session started with ") + form);
+      const clause = lf.kind === "panel" ? "pick " + form + " to run the session as the Orchestrator" : "start the session as the Orchestrator with " + form;
+      expect(launchInvoke(h), h.id).toBe(clause + (note === null ? "" : " (" + note + ")"));
     }
+  });
+
+  // The human's live-run report of 2026-10-18 (quick task 261018-vfm), pinned literally: Antigravity CLI and OpenCode
+  // are picked in the `/agents` panel, and picking it works (verified live); OpenCode does not support starting a
+  // session with `--agent`; Pi loads the file passed with `--append-system-prompt` (verified live; Pi's [Context]
+  // listed it); GitHub Copilot CLI was skipped, so it stays UNKNOWN - verify. Codex CLI has no launch agent. A row
+  // moves here only with a new dated report from a human's live run.
+  it("each launch row's kind and verifiedLive are the human's live-run report of 2026-10-18 (261018-vfm)", () => {
+    const got = Object.fromEntries(LAUNCH_ROWS.map((h) => [h.id, h.launchForm === null ? null : [h.launchForm.kind, h.launchForm.verifiedLive]]));
+    expect(got).toEqual({
+      antigravity: ["panel", "2026-10-18"],
+      opencode: ["panel", "2026-10-18"],
+      copilot: ["command", null],
+      pi: ["command", "2026-10-18"],
+    });
   });
 });
 

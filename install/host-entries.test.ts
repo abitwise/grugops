@@ -22,7 +22,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rm
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, ANTIGRAVITY_AGENT_REL, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, ANTIGRAVITY_AGENT_REL, agentFlag, launchSession } from "./host-tools.js";
 import { renderedEntryRels } from "../scripts/generate-host-entries.js";
 import { LEGACY_ADAPTER_KINDS, contentRecord, fileRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, pathText, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
@@ -186,7 +186,9 @@ describe("host entries: a single-agent install writes the shared files and that 
     const launch = launchLinesFor(c.stdout, ANTIGRAVITY_AGENT_REL);
     expect(launch.length, c.stdout).toBe(1);
     expect(launch[0].startsWith("  ok"), c.stdout).toBe(true);
-    expect(launch[0], c.stdout).toContain(`a session started with ${agy.launchForm}`);
+    const agySession = launchSession(agy);
+    expect(agySession, "premise: Antigravity CLI has a launch form").not.toBeNull();
+    expect(launch[0], c.stdout).toContain(agySession ?? "");
     expect(lines(c.stdout).filter((l) => l.includes(`kit route carried by ${ANTIGRAVITY_AGENT_REL} `)), "the launch file is a route carrier line (D-06)").toEqual([]);
     const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l) && l.includes(`${agy.name}: `));
     expect(reach.length, c.stdout).toBe(1);
@@ -201,8 +203,9 @@ describe("host entries: a single-agent install writes the shared files and that 
 
 // ── EACH LAUNCH AGENT, ALONE (quick task 261018-hs8, Task 2; D-03, D-05) ─────────────────────────────────────────────
 // Derived over the launch-bearing registry rows: an install with only that agent's flag writes its launch file with
-// the committed bytes as a kit-false file entry, and `--check` prints its own launch-file `ok` line, worded with the
-// row's launchForm. It is not a route carrier (D-06, human 2026-10-18; reverses planner decision PD-1), so the agent's
+// the committed bytes as a kit-false file entry, and `--check` prints its own launch-file `ok` line, worded by the
+// row's launchSession ("a session started with" a command form, "a session where you pick" a panel form; quick task
+// 261018-vfm). It is not a route carrier (D-06, human 2026-10-18; reverses planner decision PD-1), so the agent's
 // reach line does not name it.
 const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
 describe(`host entries: each launch agent after a single-agent install (${LAUNCH_ROWS.map((h) => h.id).join(", ")})`, () => {
@@ -227,7 +230,9 @@ describe(`host entries: each launch agent after a single-agent install (${LAUNCH
       const launch = launchLinesFor(c.stdout, rel);
       expect(launch.length, c.stdout).toBe(1);
       expect(launch[0].startsWith("  ok"), c.stdout).toBe(true);
-      expect(launch[0], c.stdout).toContain(`a session started with ${h.launchForm}`);
+      const session = launchSession(h);
+      expect(session, `premise: ${h.id} has a launch form`).not.toBeNull();
+      expect(launch[0], c.stdout).toContain(session ?? "");
       expect(launch[0], c.stdout).toContain(`(${h.name})`);
       expect(lines(c.stdout).filter((l) => l.includes(`kit route carried by ${rel} `)), "the launch file is a route carrier line (D-06)").toEqual([]);
       const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l));

@@ -804,12 +804,14 @@ pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
 `.opencode/agents/grugops-orchestrator.md`, a primary agent: its frontmatter is a `description` and
 `mode: primary`, and its body is the same pointer, with no role text. OpenCode reads per-project
 agents from `.opencode/agents/` and names each after its file (opencode.ai/docs/agents/, retrieved
-2026-10-18). Start it from the repository root with `opencode --agent grugops-orchestrator`, which
-opencode.ai/docs/cli/ (retrieved 2026-10-18) lists for the default command. OpenCode v2.0.28's
-`opencode --help` does not list `--agent` on the default command, so whether the terminal interface
-takes the flag is `UNKNOWN - verify`. In a running session, Tab switches between primary agents
-(opencode.ai/docs/agents/), so you can Tab to `grugops-orchestrator` instead. Install leaves
-OpenCode's default agent as it is: it writes no `default_agent` into `opencode.json`. The session still loads roles one at a time (the
+2026-10-18). Start OpenCode at the repository root and pick `grugops-orchestrator` in the `/agents`
+panel. This was verified live by a human on 2026-10-18: the panel lists `grugops-orchestrator`, and
+picking it works. opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an `--agent` flag for the
+default command, but the same human found that OpenCode does not support starting a session with
+it, so this guide gives no command-line form. In a running session, Tab also cycles through primary
+agents (opencode.ai/docs/agents/, retrieved 2026-10-18), so you can Tab to `grugops-orchestrator`
+too. Whether a session started that way then follows the kit route to the role files is
+`UNKNOWN - verify`. Install leaves OpenCode's default agent as it is: it writes no `default_agent` into `opencode.json`. The session still loads roles one at a time (the
 sequential role-load model, §6 "Degraded"): a launch agent does not give it the spawning of Claude
 Code's Full tier.
 
@@ -826,8 +828,8 @@ Code's Full tier.
   is `UNKNOWN - verify`. The full rule is under "What the installer touches (per-repo), and only
   this".
 - **What is not known.** How this project rule combines with an `external_directory` rule in your
-  global OpenCode config is `UNKNOWN - verify`, and so is whether it applies to a session started as
-  the `grugops-orchestrator` agent. OpenCode also reads skills from `.claude/skills/` and
+  global OpenCode config is `UNKNOWN - verify`, and so is whether it applies to a session where you
+  pick the `grugops-orchestrator` agent. OpenCode also reads skills from `.claude/skills/` and
   `.agents/skills/` (opencode.ai/docs/skills/, retrieved 2026-10-11); which `grugops` it offers when
   more than one is present is `UNKNOWN - verify` (see "How a host finds the kit after a scripted
   install"). Whether OpenCode follows the route to the Orchestrator on a live run is

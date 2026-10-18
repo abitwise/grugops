@@ -23,7 +23,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, re
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners, hostForFlag, launchInvoke } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners, hostForFlag, launchInvoke, launchSession } from "./host-tools.js";
 import { KIT_HOME_RECORD_REL, contentRecord, readKitHomeRecord } from "./install-marker.js";
 import { realTargetPath } from "./user-file.js";
 import {
@@ -3273,8 +3273,9 @@ describe("D-06: a launch file is not a route carrier, so a default session's mis
 });
 
 // ── D-06: each launch file has its own `--check` finding ──────────────────────────────────────────────────────────────
-// One line per launch file of an installed agent, worded "a session started with <launchForm>" (the registry's
-// launchForm, never typed here): install's file with the route → ok; install's own earlier copy without it → FAIL;
+// One line per launch file of an installed agent, worded by the registry's launchSession, never typed here: "a session
+// started with <command>" for a command form, "a session where you pick <agent> in the panel" for a panel form (quick
+// task 261018-vfm, human 2026-10-18): install's file with the route → ok; install's own earlier copy without it → FAIL;
 // a file install will not write the route into → WARN; absent → an uncounted note; not readable → WARN. None of them
 // is a kit-route carrier line or a reach-line carrier.
 /** The doctor's lines (any label) whose message starts with `launch file <rel> `. */
@@ -3285,13 +3286,20 @@ const LAUNCH_HOSTS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
 function launchLineOf(stdout: string, h: (typeof HOST_TOOLS)[number]): string {
   const mine = launchLines(stdout, launchRelOf(h));
   expect(mine.length, `exactly one launch line for ${h.name}:\n${stdout}`).toBe(1);
-  expect(h.launchForm, `premise: ${h.id} has a launch form`).not.toBeNull();
-  expect(mine[0], "the launch line does not name the registry's launch form").toContain(`a session started with ${h.launchForm}`);
+  const session = launchSession(h);
+  expect(session, `premise: ${h.id} has a launch form`).not.toBeNull();
+  expect(mine[0], "the launch line does not word the registry's launch form by its kind").toContain(session ?? "");
   return mine[0];
+}
+/** The text of row `h`'s launch form, asserted present (never the LaunchForm object itself, which would coerce). */
+function formText(h: (typeof HOST_TOOLS)[number]): string {
+  const form = h.launchForm;
+  expect(form, `premise: ${h.id} has a launch form`).not.toBeNull();
+  return form === null ? "" : form.text;
 }
 
 describe("D-06: --check reports each launch file on its own line, never as a route carrier", () => {
-  it("premise: some rows have a launch file, and each has a launch form exactly when it has a launch file", () => {
+  it("premise: some rows have a launch file, and each has a launch form (a command or a panel pick) exactly when it has a launch file", () => {
     expect(LAUNCH_HOSTS.length).toBeGreaterThan(0);
     for (const h of HOST_TOOLS) expect(h.launchForm === null, h.id).toBe(h.launchAgent === null);
   });
@@ -3400,7 +3408,7 @@ describe("WR-03: install's closing line names a launch form only when install wr
     for (const h of LAUNCH_HOSTS) {
       const line = closingLineOf(r.stdout, h);
       expect(line.endsWith(` — ${h.invoke}; or ${launchInvoke(h)}`), line).toBe(true);
-      expect(line).toContain(h.launchForm!);
+      expect(line).toContain(formText(h));
     }
   });
 
@@ -3421,7 +3429,8 @@ describe("WR-03: install's closing line names a launch form only when install wr
     for (const out of [dry.stdout, r.stdout]) {
       for (const h of LAUNCH_HOSTS) {
         const line = closingLineOf(out, h);
-        expect(line, `${h.name}: the form is offered for the user's own file`).not.toContain(h.launchForm!);
+        expect(line, `${h.name}: the form is offered for the user's own file`).not.toContain(formText(h));
+        expect(line, `${h.name}: the launch clause is offered for the user's own file`).not.toContain(launchInvoke(h) ?? "");
         expect(line.endsWith(` — ${h.invoke}; ${NOT_OFFERED} ${launchRelOf(h)} here`), line).toBe(true);
       }
     }
@@ -3432,7 +3441,8 @@ describe("WR-03: install's closing line names a launch form only when install wr
     blockLaunch(row.target, piHost());
     const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
     const line = closingLineOf(r.stdout, piHost());
-    expect(line).not.toContain(piHost().launchForm!);
+    expect(line).not.toContain(formText(piHost()));
+    expect(line).not.toContain(launchInvoke(piHost()) ?? "");
     expect(line.endsWith(`; ${NOT_OFFERED} ${launchRelOf(piHost())} here`), line).toBe(true);
   });
 });

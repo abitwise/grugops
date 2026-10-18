@@ -191,6 +191,7 @@ import {
   hostPointers,
   launchCarriers,
   launchInvoke,
+  launchSession,
   routeCarriers,
   reachVia,
   scriptCommand,
@@ -1866,8 +1867,10 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 // (f) ONE LINE PER LAUNCH FILE (quick task 261018-hs8, D-06, human 2026-10-18 after review CR-01; it reverses planner
 //     decision PD-1, which made each launch file a route carrier). A launch file (host-tools.ts launchCarriers, the
 //     row's launchAgent) is read only by a session the user starts with it, never by a default session, so it is in
-//     no step above: it neither gives a host its reach line nor saves a carrier from being counted. Its own line,
-//     worded "a session started with <launchForm>", is asked through the same classifyCarrier and installWouldWrite:
+//     no step above: it neither gives a host its reach line nor saves a carrier from being counted. Its own line is
+//     worded by host-tools.ts launchSession (quick task 261018-vfm): "a session started with" the launch command for
+//     a `command` form, "a session where you pick" the agent in the panel for a `panel` form. It is asked through the
+//     same classifyCarrier and installWouldWrite:
 //     `route` → ok; install's own stale copy → FAIL with `Re-run install.js`; a file install will not write the route
 //     into (the user's own, a link) → WARN; absent → an uncounted `note` with absentRemedy; unread → WARN, no verdict.
 // THE AGENTS IT SPEAKS FOR (phase 34.1, D-07; VERDICT-1; D-26, IN-21): `hosts` is the doctor's doctorHosts answer, the
@@ -2032,7 +2035,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
   for (const host of hosts) {
     for (const rel of launchCarriers(host)) {
       const cls = classifyCarrier(rel, ledger, readAt);
-      const session = `a session started with ${host.launchForm ?? `\`${rel}\``}`;
+      const session = launchSession(host) ?? `a session started with \`${rel}\``;
       const aside = `A default ${host.name} session does not read it, so no reach line counts it`;
       if (cls.state === "route") {
         docReport("ok", `launch file ${rel} carries the kit route: ${session} reads it (${host.name}). ${aside}`);
@@ -7634,8 +7637,10 @@ function askRulesNotes(outcome: AskRulesOutcome): string[] {
 //     install owns, review WR-03). Under DRY_RUN nothing was recorded, and the line says so. A chosen
 //     agent with nothing recorded (a user's own file at its entry path, a refusal) says that, and points at the lines
 //     above, which name why.
-//   - One line saying the invocation forms come from each host's documentation and were not run on a live host
-//     (UNKNOWN - verify): no line here claims a live host result.
+//   - One line saying the invocation forms come from each host's documentation or, for a launch form marked verified
+//     live (host-tools.ts launchLiveNote, quick task 261018-vfm), from a human's run on the live host; grugops has not
+//     run the others on a live host (UNKNOWN - verify), and whether a session started with a launch form then follows
+//     the kit route is UNKNOWN - verify on every host. No line here claims a live host result beyond those dated notes.
 //   - The agents recorded before this run and not chosen in it are split by installedSplit (the one answer to "is
 //     anything installed for this agent here", which the doctor asks too; phase 34.1 gap round 2, D-31, IN-23), over
 //     the install record this run left (the record the run started from under DRY_RUN; when the record cannot be read,
@@ -7685,7 +7690,7 @@ function agentClosingLines(): string[] {
     }
     out.push(`${at}${h.name}: ${what} — ${h.invoke}${launchClosingClause(h, ledgerAfter)}`);
   }
-  out.push(`${at}These invocation forms come from each host's documentation; grugops has not run them on a live host (UNKNOWN - verify).`);
+  out.push(`${at}These invocation forms come from each host's documentation or, for a form marked verified live, from a human's run on the live host; grugops has not run the others on a live host (UNKNOWN - verify), and whether a session started with a launch form then follows the kit route is UNKNOWN - verify on every host.`);
   const before = HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) && !SELECTION.includes(h));
   // The record this run left (the run's start under DRY_RUN, when nothing was written); null when it cannot be read.
   const ledgerRead: LedgerRead | null = DRY_RUN ? PREVIOUS_LEDGER : ledgerAfter;
