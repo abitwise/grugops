@@ -25,7 +25,10 @@ import {
   PI_PROMPT_REL,
   AGENT_SKILL_REL,
   ANTIGRAVITY_AGENT_REL,
+  COPILOT_AGENT_REL,
   LAUNCH_AGENT_NAME,
+  OPENCODE_AGENT_REL,
+  PI_LAUNCH_REL,
   OPENCODE_COMMAND_REL,
   KIT_ROUTE,
   POINTER_LINE,
@@ -307,7 +310,8 @@ describe("HOST_TOOLS integrity (plan 34-02)", () => {
       const mine = notes.filter((l) => l.startsWith(`  ${t.name}: `));
       expect(mine, `closing lines for ${t.name}\n${r.stdout}`).toHaveLength(1);
       expect(mine[0].endsWith(` — ${t.invoke}`), mine[0]).toBe(true);
-      for (const rel of ROUTE_POINTERS[t.adapter]) expect(mine[0], `${t.name}'s line names ${rel}`).toContain(rel);
+      // Every hostPointers path of the row (its kind's pointers, then its launch agent; quick task 261018-hs8).
+      for (const rel of hostPointers(t)) expect(mine[0], `${t.name}'s line names ${rel}`).toContain(rel);
       seen++;
     }
     expect(seen).toBe(HOST_TOOL_COUNT);
@@ -999,7 +1003,11 @@ describe("census: install.ts asks one owner of what install would write into a c
 // TABLE_CARRIERS 6 -> 7 on 2026-10-18 (quick task 261018-hs8): Antigravity CLI's launch agent
 // `.agents/agents/grugops-orchestrator.md` (its row's launchAgent) joined the derived carrier set, so the table has
 // 2^(7+1) = 256 combinations.
-const TABLE_CARRIERS = 7;
+// TABLE_CARRIERS 7 -> 10 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and
+// Pi (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
+// `.pi/grugops-orchestrator.md`, each its row's launchAgent) joined the derived carrier set, so the table has
+// 2^(10+1) = 2048 combinations.
+const TABLE_CARRIERS = 10;
 const TABLE_ADAPTER_HOSTS = 1;
 // THE HOST-SET AXIS (plan 34.1-10, D-07): strandedBy takes the installed host set as a required argument, so the table
 // also quantifies over every subset of HOST_TOOLS (2^HOST_TOOL_COUNT, asserted) and the oracle is restricted to it.
@@ -1183,7 +1191,9 @@ describe("entryOwners: the one answer to which agents own a ledger entry (phase 
 // registry data and pinned (LAUNCH_AGENT_COUNT), and every owner expectation below is read from the registry rows.
 // LAUNCH_AGENT_COUNT = 1 on 2026-10-18 (quick task 261018-hs8, Task 1, the tracer): Antigravity CLI only. It moves with
 // a reason when another row gains a launch agent.
-const LAUNCH_AGENT_COUNT = 1;
+// LAUNCH_AGENT_COUNT 1 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 2): the OpenCode, Copilot CLI and Pi rows gained
+// their launch agents. Codex CLI and Claude Code stay null.
+const LAUNCH_AGENT_COUNT = 4;
 const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
 
 describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8, D-01, D-05)", () => {
@@ -1196,10 +1206,34 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
 
   it(`the launch-bearing rows, derived (${LAUNCH_AGENT_COUNT}): ${LAUNCH_ROWS.map((h) => h.id).join(", ")}`, () => {
     expect(LAUNCH_ROWS.length, "the derived count of launch-bearing rows moved; re-derive and re-pin LAUNCH_AGENT_COUNT").toBe(LAUNCH_AGENT_COUNT);
-    expect(LAUNCH_ROWS.map((h) => h.id)).toEqual(["antigravity"]);
+    expect(LAUNCH_ROWS.map((h) => h.id)).toEqual(["antigravity", "opencode", "copilot", "pi"]);
+    expect(HOST_TOOLS.filter((h) => h.launchAgent === null).map((h) => h.id), "no launch agent").toEqual(["claude", "codex"]);
     expect(HOST_TOOLS.find((h) => h.id === "antigravity")?.launchAgent).toBe(ANTIGRAVITY_AGENT_REL);
+    expect(HOST_TOOLS.find((h) => h.id === "opencode")?.launchAgent).toBe(OPENCODE_AGENT_REL);
+    expect(HOST_TOOLS.find((h) => h.id === "copilot")?.launchAgent).toBe(COPILOT_AGENT_REL);
+    expect(HOST_TOOLS.find((h) => h.id === "pi")?.launchAgent).toBe(PI_LAUNCH_REL);
     expect(ANTIGRAVITY_AGENT_REL).toBe(`.agents/agents/${LAUNCH_AGENT_NAME}.md`);
+    expect(OPENCODE_AGENT_REL).toBe(`.opencode/agents/${LAUNCH_AGENT_NAME}.md`);
+    expect(COPILOT_AGENT_REL).toBe(`.github/agents/${LAUNCH_AGENT_NAME}.agent.md`);
+    expect(PI_LAUNCH_REL).toBe(`.pi/${LAUNCH_AGENT_NAME}.md`);
     expect(LAUNCH_AGENT_NAME).toBe("grugops-orchestrator");
+  });
+
+  it("D-01: the basename of every launch path, with `.agent.md` or `.md` stripped, is LAUNCH_AGENT_NAME", () => {
+    for (const h of LAUNCH_ROWS) {
+      const base = h.launchAgent!.split("/").pop()!;
+      const id = base.endsWith(".agent.md") ? base.slice(0, -".agent.md".length) : base.endsWith(".md") ? base.slice(0, -".md".length) : base;
+      expect(id, `${h.id}: ${h.launchAgent}`).toBe(LAUNCH_AGENT_NAME);
+    }
+  });
+
+  it("D-02: no launch path is a file Pi loads on its own (`.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`) or Pi's settings, and Pi's lies under `.pi/`", () => {
+    const refused = [".pi/SYSTEM.md", ".pi/APPEND_SYSTEM.md", ".pi/settings.json"];
+    for (const h of HOST_TOOLS) {
+      for (const rel of [...hostPointers(h), ...hostFootprint(h)]) expect(refused.includes(rel), `${h.id}: ${rel}`).toBe(false);
+    }
+    expect(PI_LAUNCH_REL.startsWith(".pi/")).toBe(true);
+    expect(PI_LAUNCH_REL.split("/"), "directly under .pi/, outside .pi/prompts/ (not a prompt template)").toHaveLength(2);
   });
 
   it("each launch path is a target-relative POSIX path, unique across rows, and in no kind's ROUTE_POINTERS or ADAPTER_FOOTPRINT (ownership is per agent, D-05)", () => {
@@ -1233,6 +1267,26 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
     expect(entryOwners({ path: ".agents/agents", kind: "file" }), "a file named like the launch directory").toEqual([]);
     expect(entryOwners({ path: ".agents/agents/other.md", kind: "file" }), "another file in the launch directory").toEqual([]);
     for (const h of LAUNCH_ROWS) expect(entryOwners({ path: h.launchAgent!, kind: "file" }), h.launchAgent!).toEqual([h.id]);
+    // Task 2 (2026-10-18): each new launch file's directory belongs to its one row, and so does the parent directory
+    // install makes for it, including `.github`, which Copilot CLI's block file already gave it.
+    expect(entryOwners({ path: OPENCODE_AGENT_REL, kind: "file" })).toEqual(["opencode"]);
+    expect(entryOwners({ path: ".opencode/agents", kind: "dir" })).toEqual(["opencode"]);
+    expect(entryOwners({ path: ".opencode", kind: "dir" })).toEqual(["opencode"]);
+    expect(entryOwners({ path: COPILOT_AGENT_REL, kind: "file" })).toEqual(["copilot"]);
+    expect(entryOwners({ path: ".github/agents", kind: "dir" })).toEqual(["copilot"]);
+    expect(entryOwners({ path: ".github", kind: "dir" })).toEqual(["copilot"]);
+    expect(entryOwners({ path: ".github/workflows/ci.yml", kind: "file" }), "a user's workflow under .github").toEqual([]);
+    expect(entryOwners({ path: PI_LAUNCH_REL, kind: "file" })).toEqual(["pi"]);
+    expect(entryOwners({ path: ".pi", kind: "dir" })).toEqual(["pi"]);
+    expect(entryOwners({ path: ".pi/SYSTEM.md", kind: "file" }), "a user's Pi system prompt").toEqual([]);
+  });
+
+  it("routeCarriers of every launch-bearing row is its entryFiles, its kind's ROUTE_POINTERS, then its launch agent last", () => {
+    for (const h of LAUNCH_ROWS) {
+      const carriers = [...routeCarriers(h)];
+      expect(carriers, h.id).toEqual([...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter], h.launchAgent!])]);
+      expect(carriers[carriers.length - 1], h.id).toBe(h.launchAgent);
+    }
   });
 
   it("routeCarriers of every row without a launch agent is unchanged: its entryFiles, then its kind's ROUTE_POINTERS", () => {

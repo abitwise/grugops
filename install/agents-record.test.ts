@@ -915,6 +915,10 @@ describe("REC-1: the `agents` field means chosen and not yet removed (D-26, IN-2
     const w = world("r18");
     mkdirSync(at(w.target, ".pi"), { recursive: true });
     writeFileSync(at(w.target, ".pi/prompts"), "not a directory\n");
+    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its entry paths: its write is refused
+    // too (a directory planted at its path), so every write of Pi's is refused.
+    expect(row("pi").launchAgent, "premise: Pi has a launch file").not.toBeNull();
+    mkdirSync(at(w.target, row("pi").launchAgent!), { recursive: true });
     const first = runInstall(w.target, w.grugopsHome, [flag("pi")], { home: w.home, timeoutMs: 180_000 });
     finished(first, "install --pi");
     expect(first.status, first.stdout).toBe(3);
@@ -1051,6 +1055,10 @@ describe("D-31 (IN-26): install's derivation reads the ledger it writes", () => 
     const w = world("r35");
     install(w, [flag("claude"), flag("pi")]);
     rmSync(at(w.target, PI_PROMPT_REL));
+    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its file entries: deleted too, so Pi
+    // owns no holding entry.
+    expect(row("pi").launchAgent, "premise: Pi has a launch file").not.toBeNull();
+    rmSync(at(w.target, row("pi").launchAgent!));
     writeFileSync(at(w.target, ".pi/prompts/mine.md"), "a prompt the user made\n");
     handEditAgents(w, ids("claude"));
 

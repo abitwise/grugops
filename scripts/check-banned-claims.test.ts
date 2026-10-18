@@ -3308,7 +3308,9 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     // with the cost of not admitting them stated there (deferred-items.md DI-01 of phase 34.1).
     // 11 -> 12 on 2026-10-18 (quick task 261018-hs8, PD-2): the generated entries are now spread from the generator's
     // renderedEntryRels(), which adds Antigravity CLI's launch agent `.agents/agents/grugops-orchestrator.md`.
-    expect(exact.length).toBe(12);
+    // 12 -> 15 on 2026-10-18 (quick task 261018-hs8, Task 2): renderedEntryRels() gained the OpenCode, Copilot CLI and
+    // Pi launch agents (residue measured 0 with countBannedClaimOccurrences on each; Codex CLI has none).
+    expect(exact.length).toBe(15);
     expect(seg.length + root.length + exact.length).toBe(
       BANNED_CLAIM_EXCLUDED_LOCATIONS.length,
     );

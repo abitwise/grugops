@@ -105,10 +105,22 @@ export const ENTRY_SHAPES = {
  * renderAll refuses (launchShapeProblem) unless its keys are exactly the ids of the HOST_TOOLS rows with a launchAgent,
  * in both directions. A launch agent gets no ARGUMENTS_LINE: an agent definition is not given the typed request as
  * `$ARGUMENTS`.
+ * Codex CLI and Claude Code have no row here: their launchAgent is null.
  *   antigravity: Antigravity CLI reads a workspace custom agent from `.agents/agents/<name>.md`; `name` and
  *                `description` are required; `mainAgent: true` (the documented default, kept for intent) allows its
  *                selection as the primary agent in the `/agents` panel; `subagent: false` keeps it out of
  *                `invoke_subagent` delegation (antigravity.google/docs/subagents/, retrieved 2026-10-18).
+ *   opencode:    OpenCode reads a per-project agent from `.opencode/agents/<name>.md`; `description` is required;
+ *                `mode` is `primary`, `subagent` or `all` and defaults to `all`, so `primary` makes it an agent a
+ *                session starts as (opencode.ai/docs/agents/, retrieved 2026-10-18).
+ *   copilot:     Copilot CLI reads a project custom agent from `.github/agents/<name>.agent.md`; only `description` is
+ *                required, `name` is optional and `tools` unset means all tools (docs.github.com/en/copilot/reference/
+ *                custom-agents-configuration, retrieved 2026-10-18). `tools`, `target` and `disable-model-invocation`
+ *                are left unset, because their effect on the CLI is `UNKNOWN - verify`.
+ *   pi:          no frontmatter at all. Pi appends the named file to its system prompt verbatim (resolvePromptInput,
+ *                github.com/earendil-works/pi packages/coding-agent/src/core/resource-loader.ts @ 482c1381, retrieved
+ *                2026-10-18), so a frontmatter block would enter the prompt as text (D-05); the render is POINTER_LINE
+ *                and its newline.
  */
 export const LAUNCH_SHAPES = {
     antigravity: {
@@ -118,6 +130,24 @@ export const LAUNCH_SHAPES = {
             ["mainAgent", "true"],
             ["subagent", "false"],
         ],
+        argumentsLine: false,
+    },
+    opencode: {
+        frontmatter: [
+            ["description", ENTRY_DESCRIPTION],
+            ["mode", "primary"],
+        ],
+        argumentsLine: false,
+    },
+    copilot: {
+        frontmatter: [
+            ["name", LAUNCH_AGENT_NAME],
+            ["description", ENTRY_DESCRIPTION],
+        ],
+        argumentsLine: false,
+    },
+    pi: {
+        frontmatter: [],
         argumentsLine: false,
     },
 };

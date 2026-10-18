@@ -145,8 +145,11 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * 62 on 2026-10-18 (quick task 261018-hs8, Task 1): `.agents/agents/grugops-orchestrator.md` entered as a file, because
  * install writes the launch agent of each chosen agent that has one (HostTool.launchAgent) and this test chooses every
  * agent; an edit to it is left byte for byte by uninstall, as for every other whole-file entry. 61 -> 62.
+ * 65 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi
+ * (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
+ * `.pi/grugops-orchestrator.md`) entered as files, for the same reason. Antigravity CLI's joined in Task 1, and Codex CLI has none. 62 -> 65.
  */
-const INSTALLED_FILE_COUNT = 62;
+const INSTALLED_FILE_COUNT = 65;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

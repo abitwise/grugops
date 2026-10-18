@@ -818,7 +818,10 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 //                                     the exact paths below), so no entry name is typed here: the kind
 //                                     entries (`.agents/skills/grugops/SKILL.md`,
 //                                     `.opencode/commands/grugops.md`, `.pi/prompts/grugops.md`) and
-//                                     each host's launch agent (`.agents/agents/grugops-orchestrator.md`).
+//                                     each host's launch agent (`.agents/agents/grugops-orchestrator.md`,
+//                                     `.opencode/agents/grugops-orchestrator.md`,
+//                                     `.github/agents/grugops-orchestrator.agent.md`,
+//                                     `.pi/grugops-orchestrator.md`).
 //                                     The generator renders each from
 //                                     agent-factory/packaging/host-entry.pointer.md (a `kit` member,
 //                                     so the pointer sentence IS read here) under a frontmatter block
@@ -826,12 +829,14 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 //                                     grugops`, the one `description` sentence, `argument-hint:
 //                                     "<request>"`, `Request: $ARGUMENTS`, and the launch frontmatter
 //                                     `name: grugops-orchestrator`, `mainAgent: true`, `subagent:
-//                                     false`) is NOT read by this gate, which is the same
+//                                     false`, `mode: primary`) is NOT read by this gate, which is the same
 //                                     transitive-coverage gap the `.claude/` paragraph refutes.
 //                                     Measured with this gate's own matcher on 2026-10-11 before the
 //                                     exclusion was written: 0 occurrences in each of the three kind
 //                                     entries; and on 2026-10-18 (quick task 261018-hs8) on the
-//                                     launch agent: 0 occurrences. The remedy, admission as a DERIVED
+//                                     Antigravity CLI launch agent, then on the OpenCode, Copilot CLI and
+//                                     Pi launch agents (the Codex CLI row has none): 0 occurrences in
+//                                     each. The remedy, admission as a DERIVED
 //                                     PART (34.1 DI-01, deferred-items.md of phase 34.1, for human
 //                                     triage), is still open; never a widened exclusion.
 //

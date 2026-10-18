@@ -55,8 +55,10 @@ const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
 /** Every rendered path: the generator's own list (renderedEntryRels), checked below against KIND_RELS and LAUNCH_ROWS. */
 const ENTRY_RELS: readonly string[] = renderedEntryRels();
 /** The pinned count (plan 34.1-01: the agent skill, the OpenCode command, the Pi prompt template).
- *  3 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 1): Antigravity CLI's launch agent `.agents/agents/grugops-orchestrator.md`. */
-const ENTRY_COUNT = 4;
+ *  3 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 1): Antigravity CLI's launch agent `.agents/agents/grugops-orchestrator.md`.
+ *  4 -> 7 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi (Codex CLI
+ *  has none). */
+const ENTRY_COUNT = 7;
 
 let n = 0;
 /** A hermetic mirror: the closure, the template, and (unless `entries` is false) the committed entries. */
@@ -295,6 +297,50 @@ describe("generate-host-entries: launch agents (quick task 261018-hs8)", () => {
     );
     expect(committed).not.toContain("$ARGUMENTS");
     expect(committed).toContain(KIT_ROUTE);
+  });
+
+  /** The committed launch file of registry row `id`, read through the registry (never a typed path). */
+  const launchText = (id: string): { readonly rel: string; readonly text: string } => {
+    const h = HOST_TOOLS.find((x) => x.id === id);
+    expect(h?.launchAgent, `premise: ${id} has a launch agent`).toBeTruthy();
+    return { rel: h!.launchAgent!, text: readFileSync(join(ROOT, h!.launchAgent!), "utf8") };
+  };
+
+  it("D-01: every launch shape that writes `name` writes LAUNCH_AGENT_NAME, and no launch shape writes another name", () => {
+    let named = 0;
+    for (const [id, s] of Object.entries(LAUNCH_SHAPES)) {
+      for (const [k, v] of s.frontmatter) {
+        if (k !== "name") continue;
+        expect(v, id).toBe(LAUNCH_AGENT_NAME);
+        named += 1;
+      }
+      expect(s.argumentsLine, `${id}: a launch agent gets no arguments line`).toBe(false);
+    }
+    expect(named, "antigravity and copilot write `name`").toBe(2);
+  });
+
+  it("the OpenCode launch agent renders description, then mode: primary, then POINTER_LINE and no arguments line", () => {
+    const { rel, text } = launchText("opencode");
+    expect(rel.startsWith(".opencode/agents/"), rel).toBe(true);
+    expect(text).toBe(["---", `description: ${ENTRY_DESCRIPTION}`, "mode: primary", "---", POINTER_LINE, ""].join("\n"));
+    expect(text).not.toContain("$ARGUMENTS");
+  });
+
+  it("the Copilot CLI launch agent renders name, then description, at a path under .github/agents/ ending .agent.md", () => {
+    const { rel, text } = launchText("copilot");
+    expect(rel.startsWith(".github/agents/"), rel).toBe(true);
+    expect(rel.endsWith(".agent.md"), rel).toBe(true);
+    expect(text).toBe(["---", `name: ${LAUNCH_AGENT_NAME}`, `description: ${ENTRY_DESCRIPTION}`, "---", POINTER_LINE, ""].join("\n"));
+    // Left unset because their effect on the CLI is UNKNOWN - verify (RESEARCH Host Formats).
+    for (const k of ["tools", "target", "disable-model-invocation"]) expect(text).not.toMatch(new RegExp(`^${k}:`, "m"));
+  });
+
+  it("the Pi launch file is exactly POINTER_LINE and one newline, with no `---` line (Pi appends it verbatim, D-05)", () => {
+    const { rel, text } = launchText("pi");
+    expect(rel.startsWith(".pi/"), rel).toBe(true);
+    expect(text).toBe(`${POINTER_LINE}\n`);
+    expect(text.split("\n")).not.toContain("---");
+    expect(LAUNCH_SHAPES["pi"].frontmatter).toHaveLength(0);
   });
 
   it("a mirror whose committed launch agent was removed halts naming its owner (`antigravity launch agent`)", () => {

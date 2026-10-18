@@ -774,6 +774,87 @@ describe("per-agent uninstall (D-05)", () => {
     return m;
   };
 
+  // Each launch agent, removed while Claude Code stays (quick task 261018-hs8, Task 2; D-05, CLEAN-1). Derived over the
+  // launch-bearing registry rows, flags from flag(): `uninstall --<id>` removes that row's launch file and every directory
+  // install created for it alone, removes only paths that row alone owns, and leaves every other path byte-unchanged.
+  const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+  it("premise: the launch-bearing rows are antigravity, opencode, copilot and pi", () => {
+    expect(LAUNCH_ROWS.map((h) => h.id)).toEqual(["antigravity", "opencode", "copilot", "pi"]);
+  });
+  for (const h of LAUNCH_ROWS) {
+    it(`uninstall ${agentFlag(h)} while Claude Code stays: ${h.launchAgent} and the directories install made for it go; every other path stays byte for byte`, () => {
+      const t = installedTree(`per-agent-launch-${h.id}`, [flag("claude"), flag(h.id)]);
+      expect(agentsOf(t.target), "premise: the install recorded the two agents").toEqual(["claude", h.id]);
+      const rel = h.launchAgent!;
+      expect(existsSync(at(t.target, rel)), `premise: the install wrote ${rel}`).toBe(true);
+      const ledgerBefore = ledgerOf(readMarkerObject(t.target));
+      const launchDir = dirname(rel);
+      expect(
+        ledgerBefore.some((e) => e.kind === "dir" && e.path === launchDir),
+        `premise: install recorded ${launchDir}, the directory it made for the launch file`,
+      ).toBe(true);
+      const before = rowsOf(t.target);
+      const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag(h.id)]);
+      expectFinished(r, `uninstall ${agentFlag(h)}`);
+      expect(r.status, `uninstall ${agentFlag(h)}: exit ${r.status}\n${r.stdout}`).toBe(0);
+      // Removed: the launch file, and every directory install recorded that this row alone owns.
+      expect(existsSync(at(t.target, rel)), `${rel} is still there after ${h.name} was removed\n${r.stdout}`).toBe(false);
+      for (const e of ledgerBefore.filter((x) => x.kind === "dir" && entryOwners(x).includes(h.id) && !entryOwners(x).includes("claude"))) {
+        expect(existsSync(at(t.target, e.path)), `${e.path} (made by install for ${h.name}) is still there\n${r.stdout}`).toBe(false);
+      }
+      const after = rowsOf(t.target);
+      // Every removed path is this row's, and no agent that stays (Claude Code) owns it. A path this row shares with an
+      // agent this install never chose (`.agents` with Codex CLI) is this row's alone here.
+      for (const p of [...before.keys()].filter((x) => !after.has(x))) {
+        const owners = entryOwners({ path: p, kind: before.get(p)?.endsWith("/ DIR") ? "dir" : "file" });
+        expect(owners, `${agentFlag(h)} removed ${p}, which ${h.name} does not own`).toContain(h.id);
+        expect(owners.filter((o) => o === "claude"), `${agentFlag(h)} removed ${p}, which Claude Code (staying) owns`).toEqual([]);
+      }
+      for (const [p, row] of after) {
+        if (p === MARKER_REL) continue;
+        expect(row, `${agentFlag(h)} changed ${p}`).toBe(before.get(p));
+      }
+      expect(agentsOf(t.target), r.stdout).toEqual(["claude"]);
+      const left = ledgerOf(readMarkerObject(t.target)).filter((e) => entryOwners(e).includes(h.id));
+      expect(left.map((e) => e.path), `entries ${h.name} owns are still in the ledger`).toEqual([]);
+    }, 240_000);
+  }
+
+  // CLEAN-1 (delete by record): a user's own `.github/workflows/ci.yml` was there before install, so install recorded
+  // no `.github` directory; `uninstall --copilot` removes `.github/agents` (which install made) and the launch file,
+  // and keeps the user's workflow and `.github`.
+  it("uninstall --copilot with a user's pre-existing .github/workflows/ci.yml: the workflow and .github stay byte for byte; .github/agents and the launch file go", () => {
+    const copilot = HOST_TOOLS.find((h) => h.id === "copilot");
+    expect(copilot?.launchAgent, "premise: Copilot CLI has a launch agent").toBeTruthy();
+    const rel = copilot!.launchAgent!;
+    const launchDir = dirname(rel);
+    expect(launchDir.split("/")[0], "premise: the launch file is under .github").toBe(".github");
+    const root = fresh("per-agent-copilot-user-github");
+    const target = join(root, "target");
+    const home = join(root, "home");
+    mkdirSync(join(target, ".github", "workflows"), { recursive: true });
+    mkdirSync(home);
+    const ci = join(target, ".github", "workflows", "ci.yml");
+    const ciBytes = "name: ci\non: [push]\njobs: {}\n";
+    writeFileSync(ci, ciBytes);
+    const grugopsHome = join(home, ".grugops");
+    const inst = runInstall(target, grugopsHome, [flag("claude"), flag("copilot")], { home, timeoutMs: 120_000 });
+    expect(inst.status, `the install failed\n${inst.stdout}\n${inst.stderr}`).toBe(0);
+    expect(existsSync(at(target, rel)), `premise: the install wrote ${rel}`).toBe(true);
+    const ledger = ledgerOf(readMarkerObject(target));
+    expect(ledger.some((e) => e.kind === "dir" && e.path === ".github"), "install claimed the user's .github").toBe(false);
+    expect(ledger.some((e) => e.kind === "dir" && e.path === launchDir), `premise: install recorded ${launchDir}`).toBe(true);
+    const r = runUninstall(target, grugopsHome, { home, timeoutMs: 60_000 }, [flag("copilot")]);
+    expectFinished(r, "uninstall --copilot");
+    expect(r.status, `uninstall --copilot: exit ${r.status}\n${r.stdout}`).toBe(0);
+    expect(readFileSync(ci, "utf8"), "the user's workflow changed").toBe(ciBytes);
+    expect(existsSync(join(target, ".github")), "the user's .github went").toBe(true);
+    expect(existsSync(at(target, launchDir)), `${launchDir} is still there\n${r.stdout}`).toBe(false);
+    expect(existsSync(at(target, rel)), `${rel} is still there\n${r.stdout}`).toBe(false);
+    expect(agentsOf(target), r.stdout).toEqual(["claude"]);
+    expect(ledgerOf(readMarkerObject(target)).filter((e) => e.path.startsWith(".github/")).map((e) => e.path), "a .github entry is still recorded").toEqual([]);
+  }, 240_000);
+
   it("(a) removing the last installed agent gives the same tree as a flag-less uninstall of the same install; the shared files go", () => {
     const named = installedTree("per-agent-last", [flag("claude")]);
     const flagless = installedTree("per-agent-flagless", [flag("claude")]);

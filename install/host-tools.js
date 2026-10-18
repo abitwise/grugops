@@ -77,6 +77,29 @@ export const LAUNCH_AGENT_NAME = "grugops-orchestrator";
  */
 export const ANTIGRAVITY_AGENT_REL = `.agents/agents/${LAUNCH_AGENT_NAME}.md`;
 /**
+ * OPENCODE_AGENT_REL (quick task 261018-hs8): OpenCode's launch agent. OpenCode reads per-project agents from
+ * `.opencode/agents/`, and "the markdown file name becomes the agent name" (opencode.ai/docs/agents/, retrieved
+ * 2026-10-18), so this file is the agent `grugops-orchestrator`. The OpenCode row's launchAgent (D-05).
+ */
+export const OPENCODE_AGENT_REL = `.opencode/agents/${LAUNCH_AGENT_NAME}.md`;
+/**
+ * COPILOT_AGENT_REL (quick task 261018-hs8): GitHub Copilot CLI's launch agent. Copilot CLI reads project custom agents
+ * from `.github/agents/`, each a Markdown file with an `.agent.md` extension, and "the ID is the file name without the
+ * `.agent.md` or `.md` extension" (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/
+ * create-custom-agents-for-cli, retrieved 2026-10-18), so this file is the agent `grugops-orchestrator`. The Copilot
+ * row's launchAgent (D-05).
+ */
+export const COPILOT_AGENT_REL = `.github/agents/${LAUNCH_AGENT_NAME}.agent.md`;
+/**
+ * PI_LAUNCH_REL (quick task 261018-hs8, D-02): Pi's launch file, passed as `pi --append-system-prompt <path>`. Pi 1.1.0
+ * `--help` documents that the flag takes text or a file's contents, and Pi's resource loader auto-discovers only
+ * `.pi/SYSTEM.md` and `.pi/APPEND_SYSTEM.md` under the working directory (github.com/earendil-works/pi
+ * packages/coding-agent/src/core/resource-loader.ts @ 482c1381, retrieved 2026-10-18). So this name is read only when
+ * the flag names it, and install never writes either auto-discovered file, which would make every Pi session the
+ * Orchestrator. The Pi row's launchAgent (D-05).
+ */
+export const PI_LAUNCH_REL = `.pi/${LAUNCH_AGENT_NAME}.md`;
+/**
  * OPENCODE_RULE_SCOPE (phase 34.1, D-27): THE ONE SENTENCE for what the OpenCode `external_directory` rule install
  * writes allows. install.ts prints it beside every line that writes, finds or proposes the rule, and install/README.md
  * carries it word for word (opencode-permission.test.ts compares the two with whitespace collapsed).
@@ -195,7 +218,9 @@ export const HOST_TOOLS = [
         dispatch: "sequential",
         // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
         invoke: "type `/grugops <request>`",
-        launchAgent: null,
+        // The primary agent at `.opencode/agents/<name>.md` (opencode.ai/docs/agents/, retrieved 2026-10-18), started
+        // with `--agent` (opencode.ai/docs/cli/, retrieved 2026-10-18). OpenCode's alone (D-05).
+        launchAgent: OPENCODE_AGENT_REL,
     },
     {
         id: "copilot",
@@ -212,7 +237,10 @@ export const HOST_TOOLS = [
         // instruction files (docs.github.com, "Adding repository custom instructions for GitHub Copilot"). No live run
         // was made (D-19), so the text says `UNKNOWN - verify`.
         invoke: "no command is written; Copilot CLI reads `.github/copilot-instructions.md` with its other instructions, and a live run is `UNKNOWN - verify`",
-        launchAgent: null,
+        // The project custom agent at `.github/agents/<name>.agent.md`, started with `copilot --agent <id>` or picked
+        // with `/agent` (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli,
+        // retrieved 2026-10-18). An agent file is not a command. Copilot CLI's alone (D-05).
+        launchAgent: COPILOT_AGENT_REL,
     },
     // Pi (34-RESEARCH.md §B): reads one context file per directory and prefers AGENTS.md over
     // CLAUDE.md; loads project prompt templates from <cwd>/.pi/prompts/; ships no sub-agents, so it
@@ -228,7 +256,9 @@ export const HOST_TOOLS = [
         // A project prompt template `.pi/prompts/<name>.md` is the slash command `/<name>`, loaded from the directory Pi
         // starts in (34-RESEARCH.md § B, github.com/earendil-works/pi prompt-templates.md, retrieved 2026-10-06).
         invoke: "start Pi at the repository root and type `/grugops <request>`",
-        launchAgent: null,
+        // The file `pi --append-system-prompt` appends (pi 1.1.0 `--help`; resource-loader.ts @ 482c1381, retrieved
+        // 2026-10-18). Never `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`, which Pi loads on its own (D-02). Pi's alone (D-05).
+        launchAgent: PI_LAUNCH_REL,
     },
 ];
 /**

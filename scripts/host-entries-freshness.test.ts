@@ -48,7 +48,9 @@ const KIND_RELS: readonly string[] = HOST_ADAPTER_KINDS.filter((k) => ENTRY_SHAP
 });
 const LAUNCH_RELS: readonly string[] = HOST_TOOLS.flatMap((h) => (h.launchAgent === null ? [] : [h.launchAgent]));
 // 3 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 1): Antigravity CLI's launch agent joined the rendered set.
-const ENTRY_COUNT = 4;
+// 4 -> 7 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi joined it
+// (Codex CLI has none).
+const ENTRY_COUNT = 7;
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -87,6 +89,8 @@ describe("host-entries-freshness.js — the derived entry set", () => {
     expect([...ENTRY_RELS]).toEqual([...KIND_RELS, ...LAUNCH_RELS]);
     expect(ENTRY_RELS).toContain(AGENT_SKILL_REL);
     expect(ENTRY_RELS).toContain(ANTIGRAVITY_AGENT_REL);
+    expect(LAUNCH_RELS, "the launch agents, in registry order").toHaveLength(4);
+    for (const rel of LAUNCH_RELS) expect(ENTRY_RELS, rel).toContain(rel);
   });
 });
 

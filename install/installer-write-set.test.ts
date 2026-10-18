@@ -57,7 +57,7 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { ISO_PLACEHOLDER, MARKER_REL, deriveAgentWriteSets, deriveWritePaths, lineNamesPath, pathText, runInstall, runUninstall } from "./installer-paths.test-support.js";
-import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, ROUTE_POINTERS, entryOwners } from "./host-tools.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, entryOwners, hostPointers } from "./host-tools.js";
 import { dirList, fileRecords, plantLegacyGemini } from "./ledger.test-support.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
@@ -380,8 +380,9 @@ describe("every agent writes only its own footprint and the shared files (D-06)"
         return owners.length > 0 && !owners.includes(a.host.id);
       });
       expect(foreign.map((e) => `${e.path} (owned by ${entryOwners(e).join(", ")})`), `${a.name} wrote another agent's path`).toEqual([]);
-      // Its own entries are there: every route pointer of its adapter kind.
-      for (const rel of ROUTE_POINTERS[a.host.adapter]) expect(a.files, `${a.name} did not write ${rel}`).toContain(rel);
+      // Its own entries are there: every hostPointers path of the row (its kind's route pointers, then its launch
+      // agent, quick task 261018-hs8).
+      for (const rel of hostPointers(a.host)) expect(a.files, `${a.name} did not write ${rel}`).toContain(rel);
     });
   }
 
@@ -391,7 +392,7 @@ describe("every agent writes only its own footprint and the shared files (D-06)"
     expect([...union].sort()).toEqual(all);
     // Footprints overlap where two rows share an entry (D-20): such a path is written by each of its owners.
     const shared = AGENT_SETS.filter((a) => a.files.includes(AGENT_SKILL_REL)).map((a) => a.host.id);
-    expect(shared).toEqual(HOST_TOOLS.filter((h) => ROUTE_POINTERS[h.adapter].includes(AGENT_SKILL_REL)).map((h) => h.id));
+    expect(shared).toEqual(HOST_TOOLS.filter((h) => hostPointers(h).includes(AGENT_SKILL_REL)).map((h) => h.id));
   });
 });
 

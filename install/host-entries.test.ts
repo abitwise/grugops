@@ -49,8 +49,9 @@ const lines = (out: string): string[] => out.split("\n");
 const ENTRY_RELS: readonly string[] = renderedEntryRels();
 /** The pinned count of ENTRY_RELS: it moves only with a reason. Plan 34.1-01: the agent skill (Codex CLI), the Pi
  *  prompt template and the OpenCode command. 3 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 1): the first launch
- *  agent, `.agents/agents/grugops-orchestrator.md`. */
-const ENTRY_COUNT = 4;
+ *  agent, `.agents/agents/grugops-orchestrator.md` (Antigravity CLI's). 4 -> 7 on 2026-10-18 (quick task 261018-hs8,
+ *  Task 2): the launch agents of OpenCode, Copilot CLI and Pi. */
+const ENTRY_COUNT = 7;
 /** The carriers registry row `h` reads, from the registry data: entry files, its kind's pointers, its launch agent. */
 const readsOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...h.entryFiles, ...ROUTE_POINTERS[h.adapter], ...(h.launchAgent === null ? [] : [h.launchAgent])];
 
@@ -185,6 +186,41 @@ describe("host entries: a single-agent install writes the shared files and that 
     expect(existsSync(file), u.stdout).toBe(false);
     for (const d of [".agents/agents", ".agents"]) expect(existsSync(at(target, d)), `${d} left after uninstall`).toBe(false);
   });
+});
+
+// ── EACH LAUNCH AGENT, ALONE (quick task 261018-hs8, Task 2; D-03, D-05) ─────────────────────────────────────────────
+// Derived over the launch-bearing registry rows: an install with only that agent's flag writes its launch file with
+// the committed bytes as a kit-false file entry, and `--check` prints the carrier `ok` line for it, read by that agent
+// alone, and counts it in that agent's reach line.
+const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+describe(`host entries: each launch agent after a single-agent install (${LAUNCH_ROWS.map((h) => h.id).join(", ")})`, () => {
+  it("premise: the launch-bearing rows are the four the registry names", () => {
+    expect(LAUNCH_ROWS.map((h) => h.id)).toEqual(["antigravity", "opencode", "copilot", "pi"]);
+  });
+
+  for (const h of LAUNCH_ROWS) {
+    it(`${agentFlag(h)} only, then --check: ${h.launchAgent} is written and recorded, and is a carrier \`ok\` line read by ${h.name}`, () => {
+      const { target, kitHome } = scratchRow();
+      const rel = h.launchAgent!;
+      const r = runInstall(target, kitHome, [agentFlag(h)]);
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      const file = at(target, rel);
+      const committed = readFileSync(at(REPO_ROOT, rel));
+      expect(readFileSync(file).equals(committed), "the installed bytes equal the committed generated file").toBe(true);
+      expect(r.stdout, "the created line names it the agent's launch agent").toContain(`${rel} (${h.name} launch agent)`);
+      const marker = readMarkerObject(target);
+      expect(fileRecords(marker, false)[rel], r.stdout).toBe(fileRecord(committed, lstatSync(file).mode));
+      const c = check(target, kitHome);
+      expect(c.status, c.stdout + c.stderr).toBe(0);
+      const carrier = lines(c.stdout).filter((l) => /^ {2}ok\s/.test(l) && l.includes(`kit route carried by ${rel} (read by `));
+      expect(carrier.length, c.stdout).toBe(1);
+      expect(carrier[0], c.stdout).toContain(`(read by ${h.name})`);
+      const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l));
+      expect(reach.length, c.stdout).toBe(1);
+      expect(reach[0], c.stdout).toContain(`${h.name}: `);
+      expect(reach[0], c.stdout).toContain(rel);
+    }, 120_000);
+  }
 });
 
 // ── --check SPEAKS FOR THE INSTALLED AGENTS ONLY (plan 34.1-10, D-07; VERDICT-1) ────────────────────────────────────

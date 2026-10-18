@@ -155,7 +155,7 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
 import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, withoutAgentsField, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
-import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners, scriptCommand } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners, hostPointers, scriptCommand } from "./host-tools.js";
 /** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"];
 
@@ -7129,7 +7129,10 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // 10 -> 11 on 2026-10-18 (quick task 261018-hs8, Task 1): install writes the launch agent of each chosen agent
     // that has one (HostTool.launchAgent), so `.agents/agents/grugops-orchestrator.md` entered the derived list; the
     // plant takes its exact bytes too.
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(11);
+    // 11 -> 14 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi
+    // (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
+    // `.pi/grugops-orchestrator.md`) entered the derived list; Antigravity CLI's joined in Task 1, and Codex CLI has none. The plant takes their bytes too.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(14);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {
@@ -10540,6 +10543,13 @@ describe("IN-02: writeAskRules decides its splice oracle before its DRY_RUN retu
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe("Pi prompt template (plan 34-04)", () => {
   const piFile = (target: string): string => join(target, ...PI_PROMPT_REL.split("/"));
+  // PI_RELS — the files install writes under `.pi/` for Pi: the Pi row's hostPointers (its prompt template, then its
+  // launch file, quick task 261018-hs8), with the `.pi/` prefix stripped, sorted. Derived, never typed.
+  const PI_ROW = HOST_TOOLS.find((h) => h.id === "pi")!;
+  const PI_RELS: readonly string[] = hostPointers(PI_ROW)
+    .filter((rel) => rel.startsWith(".pi/"))
+    .map((rel) => rel.slice(".pi/".length))
+    .sort();
 
   // filesUnder — every regular file below `dir`, as POSIX paths relative to it, sorted.
   const filesUnder = (dir: string): string[] => {
@@ -10589,8 +10599,14 @@ describe("Pi prompt template (plan 34-04)", () => {
 
     expect(existsSync(piFile(target))).toBe(true);
     expect(readFileSync(piFile(target), "utf8")).toBe(expectedTemplate(target));
-    // Exactly one file under .pi/: no SYSTEM.md, APPEND_SYSTEM.md, settings.json, mcp.json, skill or extension (D-10).
-    expect(filesUnder(join(target, ".pi"))).toEqual([PI_PROMPT_REL.slice(".pi/".length)]);
+    // Exactly the Pi row's hostPointers files under .pi/ (the prompt template and, since quick task 261018-hs8, the
+    // launch file): no SYSTEM.md, APPEND_SYSTEM.md, settings.json, mcp.json, skill or extension (D-10; 261018-hs8 D-02).
+    expect(PI_RELS, "premise: the Pi row's pointers are the template and the launch file").toHaveLength(2);
+    expect(PI_RELS).toContain(PI_PROMPT_REL.slice(".pi/".length));
+    expect(filesUnder(join(target, ".pi"))).toEqual([...PI_RELS]);
+    for (const name of ["SYSTEM.md", "APPEND_SYSTEM.md", "settings.json"]) {
+      expect(existsSync(join(target, ".pi", name)), `.pi/${name} was written (D-02)`).toBe(false);
+    }
 
     const ledger = markerLedger(target);
     const fileEntry = ledger.filter((e) => e.kind === "file" && e.path === PI_PROMPT_REL);
@@ -10711,7 +10727,7 @@ describe("Pi prompt template (plan 34-04)", () => {
     expect(bytesOf(piFile(target))).toBe(edited);
   });
 
-  it("a user's own `.pi/` gets only the template added; uninstall removes the template and `.pi/prompts` and leaves `.pi/` and its settings byte-identical", () => {
+  it("a user's own `.pi/` gets only the Pi row's pointer files added; uninstall removes them and `.pi/prompts` and leaves `.pi/` and its settings byte-identical", () => {
     const target = emptyTarget();
     const home = mkTmp();
     mkdirSync(join(target, ".pi"));
@@ -10720,7 +10736,8 @@ describe("Pi prompt template (plan 34-04)", () => {
 
     const r = runInstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
-    expect(filesUnder(join(target, ".pi"))).toEqual(["prompts/grugops.md", "settings.json"]);
+    // The Pi row's hostPointers files (the template and the launch file, quick task 261018-hs8) beside the user's own.
+    expect(filesUnder(join(target, ".pi"))).toEqual([...PI_RELS, "settings.json"].sort());
     expect(readFileSync(join(target, ".pi", "settings.json"), "utf8")).toBe(settings);
     expect(piDirEntries(target), "the user's .pi was claimed, or .pi/prompts was not recorded").toEqual([".pi/prompts"]);
     expect(piFileEntries(target).length).toBe(1);
@@ -10730,6 +10747,36 @@ describe("Pi prompt template (plan 34-04)", () => {
     expect(existsSync(join(target, ".pi", "prompts"))).toBe(false);
     expect(filesUnder(join(target, ".pi"))).toEqual(["settings.json"]);
     expect(readFileSync(join(target, ".pi", "settings.json"), "utf8")).toBe(settings);
+  });
+});
+
+// ── LAUNCH AGENTS SET NO DEFAULT (quick task 261018-hs8, D-02) ──────────────────────────────────────────────────────
+// A launch agent takes effect only when the user starts or picks it. An install for every agent writes no file Pi
+// loads on its own and no OpenCode setting that makes an agent the session default.
+describe("launch agents: install sets no default agent on any host (quick task 261018-hs8, D-02)", () => {
+  it("an install for every agent writes no `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, and opencode.json has no `default_agent` or `agent` key", () => {
+    const target = mkTmp();
+    spawnSync("git", ["init", "-q", target], { encoding: "utf8" });
+    // A scratch HOME with the kit home under it: install writes opencode.json (the OpenCode external_directory rule)
+    // only when the kit home is under HOME, so this is the install that writes it.
+    const home = mkTmp();
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, HOME: home, GRUGOPS_HOME: join(home, ".grugops"), TARGET: target },
+    });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const name of ["SYSTEM.md", "APPEND_SYSTEM.md", "settings.json"]) {
+      expect(existsSync(join(target, ".pi", name)), `.pi/${name} was written`).toBe(false);
+    }
+    const configPath = join(target, ...OPENCODE_CONFIG_REL.split("/"));
+    expect(existsSync(configPath), `premise: the OpenCode install wrote ${OPENCODE_CONFIG_REL}\n${r.stdout}`).toBe(true);
+    const config = JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
+    expect(Object.prototype.hasOwnProperty.call(config, "default_agent"), JSON.stringify(config)).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(config, "agent"), JSON.stringify(config)).toBe(false);
+    // Every launch file is written, so the absences above are not the absence of the launch install itself.
+    for (const h of HOST_TOOLS.filter((x) => x.launchAgent !== null)) {
+      expect(existsSync(join(target, ...h.launchAgent!.split("/"))), `${h.id}: ${h.launchAgent}`).toBe(true);
+    }
   });
 });
 

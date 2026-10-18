@@ -34,7 +34,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { dirList, ledgerOf, plantLegacyGemini, type RawEntry } from "./ledger.test-support.js";
-import { PI_PROMPT_REL } from "./host-tools.js";
+import { HOST_TOOLS, PI_PROMPT_REL, hostPointers } from "./host-tools.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -109,7 +109,10 @@ const subject = (msg: string): string => msg.split(" ")[0];
 // 34-04 (D-17), the Pi prompt template (a kit-false file entry; PI_PROMPT_REL imported from the
 // host-tool registry, never retyped). `.gemini/settings.json` (the gemini entry) left on 2026-10-11 (plan
 // 34.1-03, D-12): install no longer creates it; the subset case below plants the legacy entry instead.
-const FLOW10_CREATED = ["CLAUDE.md", ".github/copilot-instructions.md", PI_PROMPT_REL] as const;
+// Quick task 261018-hs8 (2026-10-18): plus the launch file of every host the flow chooses (it installs for every
+// agent), taken from each row's hostPointers, never retyped.
+const FLOW10_LAUNCH: readonly string[] = HOST_TOOLS.flatMap((h) => hostPointers(h).filter((rel) => rel === h.launchAgent));
+const FLOW10_CREATED: readonly string[] = ["CLAUDE.md", ".github/copilot-instructions.md", PI_PROMPT_REL, ...FLOW10_LAUNCH];
 
 describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
   it("DRY_RUN uninstall of a never-installed target over empty user directories leaves every directory in place", () => {
@@ -313,6 +316,9 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
     expect(runInstall(target, home, false).status).toBe(0);
     const r = expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, UNINSTALL_BANNER);
     const whole = reported(r.stdout, "would-remove").map(subject);
+    // FLOOR: the derived launch list is not silently short (every launch-bearing row gives one path).
+    expect(FLOW10_LAUNCH.length, "premise: the launch files of the hosts flow 10 chooses").toBe(HOST_TOOLS.filter((h) => h.launchAgent !== null).length);
+    expect(FLOW10_LAUNCH.length).toBeGreaterThan(0);
     for (const f of FLOW10_CREATED) expect(whole, `the preview does not name the removal of ${f}\n${r.stdout}`).toContain(f);
   });
 });
@@ -416,7 +422,16 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home, false).status).toBe(0);
-    rmSync(join(target, ".github", "copilot-instructions.md"));
+    // The user empties `.github`: every file install put there for Copilot CLI (its row's hostPointers under
+    // `.github/`: the instructions file and, since quick task 261018-hs8, its launch file) and the directory install made
+    // for the launch file. Derived from the registry row, never typed.
+    const copilot = HOST_TOOLS.find((h) => h.id === "copilot")!;
+    const underGithub = hostPointers(copilot).filter((rel) => rel.startsWith(".github/"));
+    expect(underGithub.length, "premise: Copilot CLI's files under .github").toBe(2);
+    for (const rel of underGithub) {
+      const parts = rel.split("/");
+      rmSync(join(target, ...(parts.length > 2 ? parts.slice(0, 2) : parts)), { recursive: true, force: true });
+    }
     expect(readdirSync(join(target, ".github")).length).toBe(0);
     const { would, done } = expectPreviewSubsetOfRealRun(target, home);
     expect(would.length).toBeGreaterThan(0);

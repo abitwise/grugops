@@ -109,11 +109,15 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
   // Re-pinned 2026-10-18 (quick task 261018-hs8, Task 1): install writes the launch agent of each chosen agent that has
   // one (HostTool.launchAgent), so `.agents/agents/grugops-orchestrator.md` entered CREATED (10 -> 11; derived list adds
   // it) and `.agents/agents` entered REMOVED_DIRS (19 -> 20).
-  it("install creates 11 files in an empty target (2 pointer files, 3 whole-file host entries, 1 launch agent, AGENTS.md, 4 runnables), and the round trip removes 20 directories", () => {
-    expect(CREATED.length, CREATED.join(", ")).toBe(11);
+  // Re-pinned 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi entered
+  // CREATED (11 -> 14; derived list adds `.opencode/agents/grugops-orchestrator.md`,
+  // `.github/agents/grugops-orchestrator.agent.md` and `.pi/grugops-orchestrator.md`), and `.opencode/agents` and
+  // `.github/agents` entered REMOVED_DIRS (20 -> 22; `.github` and `.pi` were already there). Antigravity CLI's joined in Task 1, and Codex CLI has none.
+  it("install creates 14 files in an empty target (2 pointer files, 3 whole-file host entries, 4 launch agents, AGENTS.md, 4 runnables), and the round trip removes 22 directories", () => {
+    expect(CREATED.length, CREATED.join(", ")).toBe(14);
     expect(CREATED.filter((r) => POINTER.has(r)).length).toBe(2);
     expect(CREATED, "the Pi prompt template is not among the files install created").toContain(PI_PROMPT_REL);
-    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(20);
+    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(22);
     expect(REMOVED_DIRS, "the round trip removed a .gemini/ install no longer creates (D-12)").not.toContain(".gemini");
     for (const rel of CREATED) expect(existsSync(abs(DERIVE.target, rel)), `${rel} survived the round trip`).toBe(false);
   });

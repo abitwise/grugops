@@ -1042,6 +1042,11 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     writeFileSync(at(w, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
     mkdirSync(at(w, ".pi"), { recursive: true });
     writeFileSync(at(w, ".pi/prompts"), "not a directory\n");
+    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its carriers: its write is refused too
+    // (a directory planted at its path), so Pi is still left without a route and the note still points at a line.
+    const piLaunch = hostOf("pi-prompt-template").launchAgent;
+    expect(piLaunch, "premise: Pi has a launch file").not.toBeNull();
+    mkdirSync(at(w, piLaunch!), { recursive: true });
     const r = install(w, [agentFlag(hostOf("pi-prompt-template"))]);
     expect(r.status, r.stdout + r.stderr).toBe(3);
     expect(r.stdout, "premise: the route note points at the line above").toContain(`the line above about ${PI_PROMPT_REL}`);
@@ -1054,6 +1059,10 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     const pi = install(w, [agentFlag(hostOf("pi-prompt-template"))]);
     expect(pi.status, pi.stdout + pi.stderr).toBe(0);
     rmSync(at(w, PI_PROMPT_REL));
+    // Pi's launch file (its row's launchAgent, quick task 261018-hs8) is one of its carriers: deleted too.
+    const piLaunch = hostOf("pi-prompt-template").launchAgent;
+    expect(piLaunch, "premise: Pi has a launch file").not.toBeNull();
+    rmSync(at(w, piLaunch!));
     const oc = install(w, [agentFlag(hostOf("opencode-command"))]);
     expect(oc.status, oc.stdout + oc.stderr).toBe(0);
     expect(oc.stdout).toContain(`\`${agentCommand("install.js", w.target, [hostOf("pi-prompt-template")], commandContextFor({ grugopsHome: w.kitHome }))}\` writes it`);

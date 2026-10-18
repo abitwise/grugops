@@ -349,8 +349,11 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * 36 -> 37 on 2026-10-18 (quick task 261018-hs8, Task 1): `.agents/agents/grugops-orchestrator.md` entered, because
  * install writes the launch agent of each chosen agent that has one (HostTool.launchAgent) and this test chooses every
  * agent; the derived listing names it first.
+ * 37 -> 40 on 2026-10-18 (quick task 261018-hs8, Task 2): the launch agents of OpenCode, Copilot CLI and Pi
+ * (`.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md`,
+ * `.pi/grugops-orchestrator.md`) entered, for the same reason; Antigravity CLI's joined in Task 1, and Codex CLI has none.
  */
-const REMOVABLE_COUNT = 37;
+const REMOVABLE_COUNT = 40;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a
