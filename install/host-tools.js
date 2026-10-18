@@ -201,8 +201,10 @@ export const HOST_TOOLS = [
         adapter: "agent-skill",
         dispatch: "sequential",
         // A workspace skill is invoked as a slash command by its name (antigravity.google/docs/skills/, retrieved
-        // 2026-10-11).
-        invoke: "type `/grugops <request>`",
+        // 2026-10-11). A workspace custom agent is picked as the primary agent in the `/agents` panel
+        // (antigravity.google/docs/subagents/, retrieved 2026-10-18; quick task 261018-hs8, D-05). agy 1.3.5 `--help` also
+        // lists `--agent`, but whether it resolves a workspace agent file is UNKNOWN - verify, so the text gives the panel.
+        invoke: `type \`/grugops <request>\`, or pick \`${LAUNCH_AGENT_NAME}\` as the primary agent in the \`/agents\` panel`,
         // The workspace custom agent at `.agents/agents/<name>.md`, picked in the `/agents` panel
         // (antigravity.google/docs/subagents/, retrieved 2026-10-18). Antigravity CLI's alone (D-05).
         launchAgent: ANTIGRAVITY_AGENT_REL,
@@ -216,8 +218,10 @@ export const HOST_TOOLS = [
         // OpenCode reads the command at OPENCODE_COMMAND_REL (phase 34.1, D-08): `/grugops <request>`.
         adapter: "opencode-command",
         dispatch: "sequential",
-        // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
-        invoke: "type `/grugops <request>`",
+        // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11). The launch
+        // form `--agent` is listed for the default command by opencode.ai/docs/cli/ (retrieved 2026-10-18; quick task
+        // 261018-hs8, D-05); v2.0.28's `opencode --help` does not list it, so install/README.md gives Tab as the fallback.
+        invoke: `type \`/grugops <request>\`, or start the session as the Orchestrator with \`opencode --agent ${LAUNCH_AGENT_NAME}\``,
         // The primary agent at `.opencode/agents/<name>.md` (opencode.ai/docs/agents/, retrieved 2026-10-18), started
         // with `--agent` (opencode.ai/docs/cli/, retrieved 2026-10-18). OpenCode's alone (D-05).
         launchAgent: OPENCODE_AGENT_REL,
@@ -233,10 +237,12 @@ export const HOST_TOOLS = [
         entryFiles: ["AGENTS.md", ".github/copilot-instructions.md"],
         adapter: "copilot-pointer",
         dispatch: "sequential",
-        // No command is written for this host: it reads `.github/copilot-instructions.md` together with its other
-        // instruction files (docs.github.com, "Adding repository custom instructions for GitHub Copilot"). No live run
-        // was made (D-19), so the text says `UNKNOWN - verify`.
-        invoke: "no command is written; Copilot CLI reads `.github/copilot-instructions.md` with its other instructions, and a live run is `UNKNOWN - verify`",
+        // The launch agent COPILOT_AGENT_REL is started with `copilot --agent <id>` or picked with `/agent` in a session
+        // (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli, retrieved
+        // 2026-10-18; quick task 261018-hs8, D-05). Copilot CLI also reads `.github/copilot-instructions.md` together with
+        // its other instruction files (docs.github.com, "Adding repository custom instructions for GitHub Copilot"). No
+        // live run was made (D-19), so the text says `UNKNOWN - verify`.
+        invoke: `start the session as the Orchestrator with \`copilot --agent ${LAUNCH_AGENT_NAME}\`, or pick it with \`/agent\`; Copilot CLI also reads \`.github/copilot-instructions.md\` with its other instructions, and a live run is \`UNKNOWN - verify\``,
         // The project custom agent at `.github/agents/<name>.agent.md`, started with `copilot --agent <id>` or picked
         // with `/agent` (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli,
         // retrieved 2026-10-18). An agent file is not a command. Copilot CLI's alone (D-05).
@@ -254,8 +260,11 @@ export const HOST_TOOLS = [
         adapter: "pi-prompt-template",
         dispatch: "sequential",
         // A project prompt template `.pi/prompts/<name>.md` is the slash command `/<name>`, loaded from the directory Pi
-        // starts in (34-RESEARCH.md § B, github.com/earendil-works/pi prompt-templates.md, retrieved 2026-10-06).
-        invoke: "start Pi at the repository root and type `/grugops <request>`",
+        // starts in (34-RESEARCH.md § B, github.com/earendil-works/pi prompt-templates.md, retrieved 2026-10-06). The launch
+        // form passes PI_LAUNCH_REL to `--append-system-prompt` (pi 1.1.0 `--help`; resource-loader.ts @ 482c1381,
+        // retrieved 2026-10-18; quick task 261018-hs8, D-05), from the repository root, since the path is read against the
+        // working directory.
+        invoke: `start Pi at the repository root and type \`/grugops <request>\`, or start it as the Orchestrator with \`pi --append-system-prompt ${PI_LAUNCH_REL}\``,
         // The file `pi --append-system-prompt` appends (pi 1.1.0 `--help`; resource-loader.ts @ 482c1381, retrieved
         // 2026-10-18). Never `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`, which Pi loads on its own (D-02). Pi's alone (D-05).
         launchAgent: PI_LAUNCH_REL,

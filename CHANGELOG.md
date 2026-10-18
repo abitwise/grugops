@@ -129,6 +129,20 @@ CLI with Antigravity CLI.
   Codex CLI and Antigravity CLI) stays while either is installed. The shared files go only with a
   flag-less uninstall or with the removal of the last installed agent, and the closing line names the
   agents removed and the agents still installed.
+- Launch agents, so a session can start as the Orchestrator on more hosts than Claude Code (quick
+  task 261018-hs8). Install writes `.agents/agents/grugops-orchestrator.md` for Antigravity CLI
+  (picked in the `/agents` panel), `.opencode/agents/grugops-orchestrator.md` for OpenCode
+  (`opencode --agent grugops-orchestrator`, or Tab in a session),
+  `.github/agents/grugops-orchestrator.agent.md` for GitHub Copilot CLI
+  (`copilot --agent grugops-orchestrator`, or `/agent`) and `.pi/grugops-orchestrator.md` for Pi
+  (`pi --append-system-prompt .pi/grugops-orchestrator.md`, from the repository root). Each is a
+  pointer with no role text, rendered by `scripts/generate-host-entries.ts` and written under the
+  whole-file entry rule: a file you wrote or edited at that path is left untouched. Each belongs to
+  its own agent, so `uninstall --codex` keeps Antigravity CLI's file and `uninstall --antigravity`
+  removes it. `--check` counts each as one of its host's route carriers. Nothing makes a launch agent
+  the default: no `default_agent` in `opencode.json`, no `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`.
+  Codex CLI is unchanged, because it documents no way to start a session as a custom agent. A
+  session started this way still loads roles one at a time, and every live run is `UNKNOWN - verify`.
 
 ### Changed
 

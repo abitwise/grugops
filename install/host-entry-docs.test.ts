@@ -23,8 +23,8 @@
 // about another agent are not findings.
 //
 // THE PER-AGENT USAGE SECTIONS (plan 34.1-13, task 2). install/README.md has exactly one "Using grugops on <name>"
-// heading per sequential registry row (derived, count asserted), and each section names that agent's entry and every
-// backticked token of its `invoke`.
+// heading per sequential registry row (derived, count asserted), and each section names that agent's entries (hostPointers:
+// the kind's entry and the row's launch agent, quick task 261018-hs8) and every backticked token of its `invoke`.
 //
 // Windows-safe: files are listed with `git ls-files -z` through spawnSync and split on NUL, paths are joined per
 // segment, and lines are split on `\r?\n`.
@@ -35,7 +35,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, ROUTE_POINTERS, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, ROUTE_POINTERS, agentFlag, hostPointers } from "./host-tools.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GUIDE_REL = "install/README.md";
@@ -299,7 +299,7 @@ describe("the install guide has one usage section per sequential agent (plan 34.
   it("premise: the registry has sequential rows, and every one has a route pointer and an invoke", () => {
     expect(SEQUENTIAL_ROWS.length).toBeGreaterThanOrEqual(2);
     for (const t of SEQUENTIAL_ROWS) {
-      expect(ROUTE_POINTERS[t.adapter].length, `${t.id}: no route pointer`).toBeGreaterThan(0);
+      expect(hostPointers(t).length, `${t.id}: no route pointer`).toBeGreaterThan(0);
       expect(t.invoke.length, `${t.id}: empty invoke`).toBeGreaterThan(0);
     }
   });
@@ -314,7 +314,9 @@ describe("the install guide has one usage section per sequential agent (plan 34.
   for (const t of SEQUENTIAL_ROWS) {
     it(`"${USAGE_PREFIX}${t.name}" names its entry, every backticked token of its invoke, a dated source, and an \`UNKNOWN - verify\``, () => {
       const sec = guideSection(USAGE_PREFIX + t.name);
-      for (const rel of ROUTE_POINTERS[t.adapter]) expect(sec, `${t.name}: entry \`${rel}\` not named`).toContain(`\`${rel}\``);
+      // hostPointers (quick task 261018-hs8): the kind's entries, then the row's launch agent, so each section must name
+      // its launch file too.
+      for (const rel of hostPointers(t)) expect(sec, `${t.name}: entry \`${rel}\` not named`).toContain(`\`${rel}\``);
       const tokens = [...t.invoke.matchAll(/`[^`]+`/g)].map((m) => m[0]);
       expect(tokens.length, `${t.id}: invoke has no backticked token`).toBeGreaterThan(0);
       for (const tok of tokens) expect(sec, `${t.name}: invoke token ${tok} not named`).toContain(tok);

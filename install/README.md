@@ -457,11 +457,29 @@ writes no path under `.claude/` and no `CLAUDE.md`:
   created; a file already at the path that is not install's own unedited copy is left untouched and
   not recorded; `DRY_RUN=1` lists it as `would-add`. Uninstalling one of the two leaves the file while
   the other is still installed (see "Removing one agent" below)
+- `.agents/agents/grugops-orchestrator.md` — Antigravity CLI's launch agent, picked as the primary
+  agent in the `/agents` panel (see "Using grugops on Antigravity CLI"). It is Antigravity CLI's
+  only: an install for Codex CLI alone does not write it, and uninstalling Codex CLI keeps it. It is
+  a pointer with no role text, under the frontmatter Antigravity CLI reads, and
+  install writes it by the same rules as the skill: created where nothing is, install's own unedited
+  copy refreshed, and anything else (a file you wrote, or install's copy that you edited) left
+  untouched and not recorded, so the uninstaller leaves it too. Install records it in the install
+  ledger in `.grugops/install.json`, with only the directories this install created, and
+  `DRY_RUN=1` lists it as `would-add`. Nothing makes it the session default
 
 **OpenCode** (`--opencode`), only when OpenCode is chosen:
 
 - `.opencode/commands/grugops.md` — a command OpenCode reads from `.opencode/commands/`
   (`/grugops <request>`), written by the same rules as the skill above
+- `.opencode/agents/grugops-orchestrator.md` — OpenCode's launch agent, a primary agent started
+  with `opencode --agent grugops-orchestrator` (see "Using grugops on OpenCode"). It is a pointer with
+  no role text, under the frontmatter OpenCode reads, and
+  install writes it by the same rules as the skill: created where nothing is, install's own unedited
+  copy refreshed, and anything else (a file you wrote, or install's copy that you edited) left
+  untouched and not recorded, so the uninstaller leaves it too. Install records it in the install
+  ledger in `.grugops/install.json`, with only the directories this install created, and
+  `DRY_RUN=1` lists it as `would-add`. Nothing makes it the session default: install writes no
+  `default_agent` into `opencode.json`
 - `opencode.json` — the OpenCode `external_directory` rule, so OpenCode does not ask its
   `external_directory` question before a tool call on the kit path. OpenCode asks before a tool call
   touches a path outside the working directory unless a `permission.external_directory` rule allows
@@ -491,6 +509,14 @@ writes no path under `.claude/` and no `CLAUDE.md`:
 - a `.github/copilot-instructions.md` pointer block for GitHub Copilot CLI, by the same rules as `CLAUDE.md` and naming
   the same kit route: when the file does not exist, install creates it and records that, and the
   block, in the install ledger in `.grugops/install.json`
+- `.github/agents/grugops-orchestrator.agent.md` — GitHub Copilot CLI's launch agent, a custom agent
+  started with `copilot --agent grugops-orchestrator` or picked with `/agent` (see "Using grugops on
+  GitHub Copilot CLI"). It is a pointer with no role text, under the frontmatter Copilot CLI reads,
+  and install writes it by the same rules as the skill: created where nothing is, install's own unedited
+  copy refreshed, and anything else (a file you wrote, or install's copy that you edited) left
+  untouched and not recorded, so the uninstaller leaves it too. Install records it in the install
+  ledger in `.grugops/install.json`, with only the directories this install created, and
+  `DRY_RUN=1` lists it as `would-add`. Nothing makes it the session default
 
 **Pi** (`--pi`), only when Pi is chosen:
 
@@ -504,11 +530,21 @@ writes no path under `.claude/` and no `CLAUDE.md`:
   untouched and not recorded, so the uninstaller leaves it too. `DRY_RUN=1` lists the template as
   `would-add` and writes nothing. How to use it, and what Pi asks first, is in "Using grugops on Pi"
   below
+- `.pi/grugops-orchestrator.md` — Pi's launch file, passed as
+  `pi --append-system-prompt .pi/grugops-orchestrator.md` (see "Using grugops on Pi"). It is a
+  pointer with no role text and no frontmatter, and
+  install writes it by the same rules as the skill: created where nothing is, install's own unedited
+  copy refreshed, and anything else (a file you wrote, or install's copy that you edited) left
+  untouched and not recorded, so the uninstaller leaves it too. Install records it in the install
+  ledger in `.grugops/install.json`, with only the directories this install created, and
+  `DRY_RUN=1` lists it as `would-add`. Nothing makes it the session default: Pi reads it only when
+  the flag names it, and install never writes `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`
 
 Whether Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI or Pi loads its entry in a live
-session is `UNKNOWN - verify` until a live run shows it. The Pi template, the skill and the command are copied from committed files
-in the kit, which `scripts/generate-host-entries.ts` renders from one pointer file,
-`agent-factory/packaging/host-entry.pointer.md`.
+session is `UNKNOWN - verify` until a live run shows it. The Pi template, the skill, the command and
+the launch agents (the Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi files above; Codex CLI
+has none) are copied from committed files in the kit, which `scripts/generate-host-entries.ts`
+renders from one pointer file, `agent-factory/packaging/host-entry.pointer.md`.
 
 **Install only adds.** Naming fewer agents than are installed in a repository keeps every other
 agent's files byte for byte and keeps their records in `.grugops/install.json`; install never removes
@@ -523,7 +559,8 @@ documentation says to start grugops. grugops has not run those invocations on a 
 notes say `UNKNOWN - verify`.
 
 On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, each
-whole-file host entry above (the Pi template, the agent skill and the OpenCode command) and an
+whole-file host entry above (the Pi template, the agent skill, the OpenCode command and the launch
+agents) and an
 `AGENTS.md` it created when the install ledger record for it still holds (nobody edited it since) and its text is not the current text, and records the new bytes, so uninstall
 still removes exactly what install wrote; `DRY_RUN=1` lists such a file as `would-refresh`. A file
 you wrote or edited is never written: when it lacks the kit route, install prints a `note` that
@@ -716,6 +753,20 @@ The skill is a pointer, with no role text: it sends Antigravity to `AGENTS.md` a
 `agent-factory/roles/orchestrator.md`, and it names the kit route, the `kitRoot` field of
 `.grugops/install.json`. The kit is outside the repository after a scripted install.
 
+**Starting the session as the Orchestrator.** The same install also writes the launch agent
+`.agents/agents/grugops-orchestrator.md`, a workspace custom agent. Its frontmatter has four fields:
+`name: grugops-orchestrator`, a `description`, `mainAgent: true` and `subagent: false`. Its body is
+the same pointer, with no role text. Antigravity CLI reads workspace custom agents from
+`.agents/agents/<name>.md`, and you pick one as the primary agent in the `/agents` panel: pick
+`grugops-orchestrator` there. (Source: antigravity.google/docs/subagents/, retrieved 2026-10-18.)
+`subagent: false` keeps it from being called through the `invoke_subagent` tool. agy 1.3.5 `--help` also
+lists `agy --agent grugops-orchestrator` ("Agent for the current CLI session"), but whether that flag
+resolves a workspace agent file is `UNKNOWN - verify`, so this guide leads with the panel. The
+session still loads roles one at a time (the sequential role-load model, §6 "Degraded"): a launch
+agent does not give it the spawning of Claude Code's Full tier. The launch agent is Antigravity
+CLI's only: an install for Codex CLI alone does not write it, and uninstalling Codex CLI keeps it
+(see "Removing one agent" under Undo).
+
 - **What is not known.** Whether Antigravity CLI reads the kit outside the workspace, and whether it
   asks permission before each such read, is `UNKNOWN - verify`. The detect signal install uses for
   Antigravity CLI, a `.gemini` entry in the repository root, is `UNKNOWN - verify` (see "Which agents
@@ -735,6 +786,19 @@ pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
 `agent-factory/roles/orchestrator.md`, and it names the kit route, the `kitRoot` field of
 `.grugops/install.json`.
 
+**Starting the session as the Orchestrator.** The same install also writes the launch agent
+`.opencode/agents/grugops-orchestrator.md`, a primary agent: its frontmatter is a `description` and
+`mode: primary`, and its body is the same pointer, with no role text. OpenCode reads per-project
+agents from `.opencode/agents/` and names each after its file (opencode.ai/docs/agents/, retrieved
+2026-10-18). Start it from the repository root with `opencode --agent grugops-orchestrator`, which
+opencode.ai/docs/cli/ (retrieved 2026-10-18) lists for the default command. OpenCode v2.0.28's
+`opencode --help` does not list `--agent` on the default command, so whether the terminal interface
+takes the flag is `UNKNOWN - verify`. In a running session, Tab switches between primary agents
+(opencode.ai/docs/agents/), so you can Tab to `grugops-orchestrator` instead. Install leaves
+OpenCode's default agent as it is: it writes no `default_agent` into `opencode.json`. The session still loads roles one at a time (the
+sequential role-load model, §6 "Degraded"): a launch agent does not give it the spawning of Claude
+Code's Full tier.
+
 - **The OpenCode `external_directory` rule.** The kit is outside the repository, and OpenCode asks before a tool call
   touches a path outside its working directory. So install also adds one rule to the project
   `opencode.json`, a `permission.external_directory` allow rule for the kit root, written
@@ -748,7 +812,8 @@ pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
   is `UNKNOWN - verify`. The full rule is under "What the installer touches (per-repo), and only
   this".
 - **What is not known.** How this project rule combines with an `external_directory` rule in your
-  global OpenCode config is `UNKNOWN - verify`. OpenCode also reads skills from `.claude/skills/` and
+  global OpenCode config is `UNKNOWN - verify`, and so is whether it applies to a session started as
+  the `grugops-orchestrator` agent. OpenCode also reads skills from `.claude/skills/` and
   `.agents/skills/` (opencode.ai/docs/skills/, retrieved 2026-10-11); which `grugops` it offers when
   more than one is present is `UNKNOWN - verify` (see "How a host finds the kit after a scripted
   install"). Whether OpenCode follows the route to the Orchestrator on a live run is
@@ -760,21 +825,34 @@ pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
 ### Using grugops on GitHub Copilot CLI
 
 Install GitHub Copilot CLI itself; grugops does not install it. An install that chooses Copilot
-(`--copilot`) writes no command: it appends a start-here pointer block to
+(`--copilot`) writes two files and no command. It appends a start-here pointer block to
 `.github/copilot-instructions.md`, creating the file when there is none. Copilot CLI reads that file
 together with `AGENTS.md` and its other instruction files
 (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions, retrieved
-2026-10-11), so its instructions point it at `AGENTS.md`, then `agent-factory/roles/orchestrator.md`
-and the kit route, with no command to type. Ask it for the work you want done.
+2026-10-11), so in a default session its instructions point it at `AGENTS.md`, then
+`agent-factory/roles/orchestrator.md` and the kit route. Ask it for the work you want done.
+
+**Starting the session as the Orchestrator.** The same install writes the custom agent
+`.github/agents/grugops-orchestrator.agent.md`: its frontmatter is `name: grugops-orchestrator` and a
+`description`, and its body is the same pointer, with no role text. Copilot CLI reads project custom
+agents from `.github/agents/`, one Markdown file with an `.agent.md` extension each, and the agent's
+ID is the file name without that extension. Start a session as it with
+`copilot --agent grugops-orchestrator`, or pick it with `/agent` in an interactive session. (Source:
+docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli,
+retrieved 2026-10-18.) The file sets no `tools`, and an agent with `tools` unset gets all tools; it
+sets no `target` either, so Copilot's cloud agent and VS Code see the same file (Source:
+docs.github.com/en/copilot/reference/custom-agents-configuration, retrieved 2026-10-18). An agent
+file is not a command. The session still loads roles one at a time (the sequential role-load model,
+§6 "Degraded"): a launch agent does not give it the spawning of Claude Code's Full tier.
 
 - **A skill when the shared skill is installed.** Copilot CLI also reads project skills from
   `.agents/skills/`, and a skill is used by its name preceded by a forward slash
   (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills, retrieved
   2026-10-11). So an install for `--codex` or `--antigravity`, which writes
   `.agents/skills/grugops/SKILL.md`, would give Copilot CLI `/grugops` as well.
-- **What is not known.** grugops has made no live run on Copilot CLI: whether it follows the pointer
-  or the skill to the Orchestrator is `UNKNOWN - verify`, and so is which `grugops` skill it offers
-  when Claude Code's `.claude/skills/grugops/` is also present.
+- **What is not known.** grugops has made no live run on Copilot CLI: whether it follows the pointer,
+  the skill or the launch agent to the Orchestrator is `UNKNOWN - verify`, and so is which `grugops`
+  skill it offers when Claude Code's `.claude/skills/grugops/` is also present.
 - **Safety on GitHub Copilot CLI** is in §5, "Other tools": the git host is the hard floor.
 
 ### Using grugops on Pi
@@ -804,9 +882,28 @@ follows the route on a live run is `UNKNOWN - verify` until the re-run recorded 
   project templates, and `/grugops` is not available there. (Source:
   `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md` and
   `prompt-templates.md`; retrieved 2026-10-06.)
+- **Starting Pi as the Orchestrator.** The same install writes the launch file
+  `.pi/grugops-orchestrator.md`: the same pointer, with no role text and no frontmatter, because Pi
+  appends the whole file to its system prompt. Start Pi at the repository root with
+  `pi --append-system-prompt .pi/grugops-orchestrator.md`. Pi 1.1.0 `--help` says the flag appends
+  "text or file contents" to the system prompt. Four facts from Pi's resource loader
+  (`github.com/earendil-works/pi` `packages/coding-agent/src/core/resource-loader.ts` @ 482c1381,
+  retrieved 2026-10-18) matter here. First, Pi reads the file only when the flag names it; it never
+  loads `.pi/grugops-orchestrator.md` on its own. Second, the path is read against the directory Pi
+  starts in, and a path that does not name an existing file is appended silently as the literal
+  text `.pi/grugops-orchestrator.md`, so started from a subdirectory Pi gets no pointer and gives no
+  error. Third, passing the flag skips your own `.pi/APPEND_SYSTEM.md`, and the global one, for that
+  session. Fourth, the flag's file is read whether or not you granted project trust; only the files
+  Pi finds on its own wait for trust. The session still loads roles one at a time (the sequential
+  role-load model, §6 "Degraded"): a launch file does not give Pi the spawning of Claude Code's
+  Full tier. Whether a live Pi session started this way reaches the Orchestrator is
+  `UNKNOWN - verify`.
 - **What grugops does not write for Pi.** grugops never writes `.pi/SYSTEM.md`,
   `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, and writes no Pi-specific skill and no Pi
-  extension. The template is the only file it adds under `.pi/`. When the same install also chooses
+  extension. It adds two files under `.pi/`: the template `.pi/prompts/grugops.md` and the launch
+  file `.pi/grugops-orchestrator.md`, which Pi reads only when `--append-system-prompt` names it, so
+  no Pi session becomes the Orchestrator unless you start it that way. When the same install also
+  chooses
   `--codex` or `--antigravity`, the shared `.agents/skills/grugops/SKILL.md` is in the repository,
   and Pi loads skills from `.agents/skills/` too and offers that one as `/skill:grugops`
   (`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md`, retrieved
@@ -864,6 +961,10 @@ record first, as described below.
   both read `.agents/skills/grugops/SKILL.md`, so `--codex` leaves it while Antigravity CLI is
   installed. Removing the last of the two removes it, and the `.agents` directories install created
   with it.
+- **A launch agent belongs to its host alone.** `--antigravity` removes
+  `.agents/agents/grugops-orchestrator.md`, and the `.agents/agents` directory when install created
+  it, even while Codex CLI stays installed; `--codex` leaves it. `--opencode`, `--copilot` and `--pi`
+  each remove only their own launch file.
 - **The shared files go only with a flag-less uninstall, or when you remove the last installed
   agent.** These are the kit's `AGENTS.md` copy, the runnables under `tools/grugops/`, the install
   marker, and the Gemini settings change an install made before 34.1 D-12.
@@ -1777,7 +1878,9 @@ full tier, and it is stated plainly rather than softened — you should know whi
 ### Degraded — no `Agent` tool at all
 
 Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi have no host spawn mechanism that
-this kit uses (it writes agent definitions to `.claude/agents/` alone), and a
+this kit uses. The launch agents install writes for Antigravity CLI, OpenCode, GitHub Copilot CLI
+and Pi make the Orchestrator pointer the session's main agent when you start the session with one,
+but they give that session no `Agent` tool this kit uses, and Codex CLI gets no launch agent. A
 Claude Code sub-agent already at the nesting limit has `Agent` withheld from it rather than
 erroring. In either case the coordinator drains the same queue at concurrency one, activating
 each role in a single window through `agent-factory/roles/_role-switch-protocol.md` — and says
@@ -1791,6 +1894,12 @@ The installer writes **no main-thread wiring into your repository** — no `.cla
 - Such an entry would make **every** session in that repository run as the grugops coordinator,
   including a session you opened only to fix a typo in a readme.
 - Settings files are **your** content, and grugops is additive: it never overwrites what you own.
+
+For the same reason no other host gets a setting that makes a launch agent its default: install
+writes no `default_agent` (and no `agent` key) into `opencode.json`, and never writes `.pi/SYSTEM.md`
+or `.pi/APPEND_SYSTEM.md`, which Pi finds and loads on its own. A launch agent on Antigravity
+CLI, OpenCode, GitHub Copilot CLI or Pi takes effect only in a session you start or pick it in, and
+Codex CLI has none.
 
 The one thing the installer does add to `.claude/settings.json` is the ask rules of §5, in
 `permissions.ask`. That write is additive (your own rules and keys stay), recorded in

@@ -560,6 +560,25 @@ describe("install guide covers Pi (plan 34-08)", () => {
     }
   });
 
+  // Quick task 261018-hs8 (D-03, D-05): every launch file the registry gives a row has its own touch-list bullet,
+  // held to the Pi template bullet's rule. The launch paths are read from the registry rows (launchAgent), never typed
+  // here, so a new launch agent needs a bullet before this case is green.
+  it("the per-repo touch list has a bullet for each row's launchAgent that names its host, the ledger and the dry-run line", () => {
+    const touches = section(GUIDE, "What the installer touches (per-repo), and only this");
+    const bullets = touches.split(/\n(?=- )/);
+    const launching = HOST_TOOLS.filter((t) => t.launchAgent !== null);
+    expect(launching.length, "premise: some registry row has a launch agent").toBeGreaterThan(0);
+    for (const t of launching) {
+      const rel = t.launchAgent!;
+      const mine = bullets.filter((b) => b.startsWith(`- \`${rel}\``));
+      expect(mine.length, `the touch list must carry exactly one bullet starting with \`${rel}\``).toBe(1);
+      const text = flat(mine[0]);
+      for (const token of [t.name, "`.grugops/install.json`", "`would-add`", "left untouched", "no role text"]) {
+        expect(text, `the ${t.name} launch-agent bullet does not carry ${token}`).toContain(token);
+      }
+    }
+  });
+
   it("the Pi usage section names the path, the command, the repository root, project trust, and points at the dial scope section", () => {
     const use = flat(section(GUIDE, "Using grugops on Pi"));
     for (const token of [PI_PROMPT_REL, "`/grugops <request>`", "repository root", "project trust", "pi.dev", "retrieved 2026-10-06", SCOPE_HEADING]) {

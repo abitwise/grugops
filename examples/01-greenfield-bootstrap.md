@@ -39,7 +39,12 @@ discontinued, and its registry row is now Antigravity CLI). An install today wri
 agent it is for (one flag per agent; see `install/README.md`): the Pi pointer `.pi/prompts/grugops.md`
 (see `install/README.md`, "Using grugops on Pi"), the agent skill `.agents/skills/grugops/SKILL.md`
 that Codex CLI and Antigravity CLI read, and the OpenCode command `.opencode/commands/grugops.md`.
-GitHub Copilot CLI's entry is the Copilot pointer block in the list above.
+GitHub Copilot CLI's entry is the Copilot pointer block in the list above. It also writes a launch
+agent, which starts a session as the Orchestrator, for each of Antigravity CLI
+(`.agents/agents/grugops-orchestrator.md`), OpenCode (`.opencode/agents/grugops-orchestrator.md`),
+GitHub Copilot CLI (`.github/agents/grugops-orchestrator.agent.md`) and Pi
+(`.pi/grugops-orchestrator.md`); Codex CLI gets none. The start forms are in the "Using grugops on"
+sections of `install/README.md`.
 
 ## Orchestrator decision
 
