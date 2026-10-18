@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.1
 status: Awaiting next milestone
 stopped_at: Phase 34.1 CLOSED 2026-10-17 by human decision D-48 (under D-47)
-last_updated: "2026-10-17T22:29:55.812Z"
+last_updated: "2026-10-18T19:06:39.531Z"
 last_activity: 2026-10-18
 last_activity_desc: Milestone v2.1 completed and archived
-state_head: 00833be8ee19683f568802c28b8187e56bbc159a
+state_head: 8add25a081716f35693a008762dfd99df17c3d3e
 progress:
   total_phases: 13
   completed_phases: 33
@@ -33,7 +33,7 @@ See: .planning/PROJECT.md (updated 2026-10-18 — after the v2.1 milestone)
 Phase: Milestone v2.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-18 - Completed quick task 261018-0o7: README launch section: claude --agent grugops-orchestrator + per-host start table
+Last activity: 2026-10-18 - Completed quick task 261018-hs8: launch agents for OpenCode, Copilot CLI, Antigravity CLI and Pi + MIT LICENSE/NOTICE in the kit; backlog 999.11 (test suite layers) filed
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2030,6 +2030,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 261018-0o7 | README launch section: claude --agent grugops-orchestrator + per-host start table | 2026-10-18 | 00833be8 | [261018-0o7-readme-launch-section-claude-agent-grugo](./quick/261018-0o7-readme-launch-section-claude-agent-grugo/) |
+| 261018-hs8 | Launch agents for OpenCode, Copilot CLI, Antigravity CLI and Pi; ship MIT LICENSE+NOTICE; D-06 fix pass (verified: Needs Review, live host runs UNKNOWN - verify) | 2026-10-18 | 8add25a0 | [261018-hs8-launch-agent-adapters-for-opencode-copil](./quick/261018-hs8-launch-agent-adapters-for-opencode-copil/) |
 
 ## Deferred Items
 

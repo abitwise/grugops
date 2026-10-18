@@ -204,3 +204,16 @@ Plans:
 - [ ] IN-49: a refused `--migrate` run prints the install run header above the migrate banner
 - [ ] DI-26: with `.grugops` a regular file or a link to nothing, the uninstaller's closing still calls `.grugops/` seeded state
 - [ ] DI-27: install over an unreadable kit-home record copies the kit and leaves that run's backup unrecorded
+
+### Phase 999.11: Test suite layers, speed and value (BACKLOG)
+
+**Goal:** [Captured for future planning] Make the vitest suite stop gating progress. Today a full run is 31 min, with 8395 tests over 114 files, run one file at a time. Split the suite into separately runnable unit, integration and e2e layers, consolidate duplicate tests, audit whether each guardrail and gate family still gives grugops value, and set the executor testing approach. That approach: run the related subset while coding, then each layer in turn (unit, then integration, then e2e), with e2e run once at the end. Planned as a `/gsd-quick` (human, 2026-10-18). See `999.11-test-suite-layers-and-speed/999.11-IDEA.md`.
+**Source phase:** quick 261018-hs8
+**Deferred at:** 2026-10-18 during /gsd-quick 261018-hs8
+**Follow-ups:**
+- [ ] Speed: parallelize files outside a sequential tree-mutating project; share scratch installs; move 10 s+ corpus sweeps out of the default lane
+- [ ] Find duplicate or overlapping tests and consolidate them
+- [ ] Value audit of each guard or gate family against the grugops failure it prevents; record each retirement as a decision
+- [ ] Three layers (unit, integration, e2e), each with its own npm script; e2e only once after the other layers pass; plain `npm test` never starts the live lane
+- [ ] Executor testing approach: related subset while coding, then unit, then integration, then e2e; write it into the executor brief or a project skill
+- [ ] Fix or quarantine the flaky `scripts/board-watch-live.test.ts`, and clear the 20-21 stale base failures
