@@ -35,7 +35,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, ROUTE_POINTERS, agentFlag, hostPointers } from "./host-tools.js";
+import { HOST_TOOLS, ROUTE_POINTERS, agentFlag, hostPointers, launchLiveNote } from "./host-tools.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GUIDE_REL = "install/README.md";
@@ -325,6 +325,11 @@ describe("the install guide has one usage section per sequential agent (plan 34.
       for (const tok of [...(t.launchForm?.text ?? "").matchAll(/`[^`]+`/g)].map((m) => m[0])) {
         expect(sec, `${t.name}: launch-form token ${tok} not named`).toContain(tok);
       }
+      // Two-sided (quick task 261018-vfm, the human's live-run report of 2026-10-18): a section carries its row's dated
+      // note exactly when the row's launch form was verified live, and a section whose row has none says nothing was.
+      const note = launchLiveNote(t);
+      if (note !== null) expect(sec, `${t.name}: the verified-live note is missing`).toContain(note);
+      else expect(sec, `${t.name}: a verified-live note for a form nobody ran live`).not.toContain("verified live by a human");
       expect(sec, `${t.name}: no dated source`).toMatch(/retrieved 20\d\d-\d\d-\d\d/);
       expect(sec, `${t.name}: nothing marked unknown`).toContain("`UNKNOWN - verify`");
     });

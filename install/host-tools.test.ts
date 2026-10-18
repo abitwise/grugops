@@ -727,6 +727,7 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
     expect(sec, "the PD-1 sentence is still there").not.toContain("counts it as one of its host's route carriers");
     expect(sec).toContain("not a route carrier");
     expect(sec).toContain("a session started with");
+    expect(sec, "the panel wording of a launch line (quick task 261018-vfm)").toContain("a session where you pick");
   });
 
   it("the kit-route section names the uncounted `note` and --strict (plan 34-36, D-27)", () => {

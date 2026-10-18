@@ -132,7 +132,7 @@ CLI with Antigravity CLI.
 - Launch agents, so a session can start as the Orchestrator on more hosts than Claude Code (quick
   task 261018-hs8). Install writes `.agents/agents/grugops-orchestrator.md` for Antigravity CLI
   (picked in the `/agents` panel), `.opencode/agents/grugops-orchestrator.md` for OpenCode
-  (`opencode --agent grugops-orchestrator`, or Tab in a session),
+  (picked in the `/agents` panel, or with Tab in a session),
   `.github/agents/grugops-orchestrator.agent.md` for GitHub Copilot CLI
   (`copilot --agent grugops-orchestrator`, or `/agent`) and `.pi/grugops-orchestrator.md` for Pi
   (`pi --append-system-prompt .pi/grugops-orchestrator.md`, from the repository root; the flag reads
@@ -145,7 +145,12 @@ CLI with Antigravity CLI.
   counted as a route carrier, because a default session never reads it. Nothing makes a launch agent
   the default: no `default_agent` in `opencode.json`, no `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`.
   Codex CLI is unchanged, because it documents no way to start a session as a custom agent. A
-  session started this way still loads roles one at a time, and every live run is `UNKNOWN - verify`.
+  session started this way still loads roles one at a time. A human verified live on 2026-10-18 that
+  the launch agent loads on Antigravity CLI and OpenCode (picked in the `/agents` panel) and on Pi
+  (with the flag), and install's closing notes mark those forms "verified live by a human on
+  2026-10-18". GitHub Copilot CLI and the `agy --agent` flag are `UNKNOWN - verify`, and so is
+  whether a session started with a launch file follows the kit route. OpenCode does not support
+  starting a session with `--agent`, so no command-line form is given for it.
 
 ### Changed
 

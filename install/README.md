@@ -475,8 +475,8 @@ writes no path under `.claude/` and no `CLAUDE.md`:
 
 - `.opencode/commands/grugops.md` — a command OpenCode reads from `.opencode/commands/`
   (`/grugops <request>`), written by the same rules as the skill above
-- `.opencode/agents/grugops-orchestrator.md` — OpenCode's launch agent, a primary agent started
-  with `opencode --agent grugops-orchestrator` (see "Using grugops on OpenCode"). It is a pointer with
+- `.opencode/agents/grugops-orchestrator.md` — OpenCode's launch agent, a primary agent you pick in
+  the `/agents` panel (see "Using grugops on OpenCode"). It is a pointer with
   no role text, under the frontmatter OpenCode reads, and
   install writes it by the same rules as the skill: created where nothing is, install's own unedited
   copy refreshed, and anything else (a file you wrote, or install's copy that you edited) left
@@ -547,7 +547,11 @@ writes no path under `.claude/` and no `CLAUDE.md`:
   the flag names it, and install never writes `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`
 
 Whether Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI or Pi loads its entry in a live
-session is `UNKNOWN - verify` until a live run shows it. The Pi template, the skill, the command and
+session is `UNKNOWN - verify` until a live run shows it. The launch agents of Antigravity CLI and
+OpenCode, picked in the `/agents` panel, and Pi's launch file, passed with `--append-system-prompt`,
+load in a live session: verified live by a human on 2026-10-18. GitHub Copilot CLI's launch agent is
+still `UNKNOWN - verify`, and whether a session started with any launch file then follows the kit
+route is `UNKNOWN - verify`. The Pi template, the skill, the command and
 the launch agents (the Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi files above; Codex CLI
 has none) are copied from committed files in the kit, which `scripts/generate-host-entries.ts`
 renders from one pointer file, `agent-factory/packaging/host-entry.pointer.md`.
@@ -562,11 +566,14 @@ left installed: the closing notes name it on its own line, with the install comm
 and the uninstall command that takes it out of the record. For each agent the
 run was for, the closing notes also name what the install record holds for it and how that host's
 documentation says to start grugops. They give a host's launch form (for example
-`opencode --agent grugops-orchestrator`) only when install wrote its launch file in this run or
+`copilot --agent grugops-orchestrator`, or picking `grugops-orchestrator` in the `/agents` panel)
+only when install wrote its launch file in this run or
 already owns the file there. When that file is your own, or install could not write it, the notes say
 so and give no launch form, because the form would start that file and not the grugops
-Orchestrator. grugops has not run those invocations on a live host, and the notes say
-`UNKNOWN - verify`.
+Orchestrator. A launch form a human ran on the live host is marked "verified live by a human on
+2026-10-18" in the notes; grugops has not run the other invocations on a live host, and the notes
+say `UNKNOWN - verify`, as they do for whether a session started with a launch form follows the kit
+route.
 
 On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, each
 whole-file host entry above (the Pi template, the agent skill, the OpenCode command and the launch
@@ -675,7 +682,9 @@ reads every file first and reports afterwards, in this order:
   never by a default session or a typed `/grugops`. Codex CLI has none. So it is not a route carrier:
   no `reach` line names it, and a file a default session reads that lacks the route is counted
   whatever the launch file holds. `--check` gives each launch file of an installed agent a line of
-  its own, worded "a session started with" that host's launch form: `ok` when it carries the route;
+  its own, worded "a session started with" that host's launch command, or "a session where you
+  pick" the agent in the `/agents` panel, for a host whose launch form is a pick in that panel: `ok`
+  when it carries the route;
   a FAIL when it is install's own copy from an earlier install without the route, whose remedy is to
   re-run `install.js`; a WARN when install will not write the route into it (your own file, or a
   link) or it could not be read; and an uncounted `note` when it is not present.
@@ -773,6 +782,9 @@ The skill is a pointer, with no role text: it sends Antigravity to `AGENTS.md` a
 the same pointer, with no role text. Antigravity CLI reads workspace custom agents from
 `.agents/agents/<name>.md`, and you pick one as the primary agent in the `/agents` panel: pick
 `grugops-orchestrator` there. (Source: antigravity.google/docs/subagents/, retrieved 2026-10-18.)
+Picking `grugops-orchestrator` in the `/agents` panel was verified live by a human on 2026-10-18;
+whether a session started that way then follows the kit route to the role files is
+`UNKNOWN - verify`.
 `subagent: false` keeps it from being called through the `invoke_subagent` tool. agy 1.3.5 `--help` also
 lists `agy --agent grugops-orchestrator` ("Agent for the current CLI session"), but whether that flag
 resolves a workspace agent file is `UNKNOWN - verify`, so this guide leads with the panel. The
@@ -915,8 +927,9 @@ follows the route on a live run is `UNKNOWN - verify` until the re-run recorded 
   project-trust check, so only use this command in a repository you trust.** In a repository someone
   else can change, read `.pi/grugops-orchestrator.md` before you start Pi this way. The session still loads roles one at a time (the sequential
   role-load model, §6 "Degraded"): a launch file does not give Pi the spawning of Claude Code's
-  Full tier. Whether a live Pi session started this way reaches the Orchestrator is
-  `UNKNOWN - verify`.
+  Full tier. Starting Pi this way was verified live by a human on 2026-10-18: Pi's `[Context]` list
+  named `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows Pi loaded the file;
+  whether the session then follows the kit route to the Orchestrator is `UNKNOWN - verify`.
 - **What grugops does not write for Pi.** grugops never writes `.pi/SYSTEM.md`,
   `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, and writes no Pi-specific skill and no Pi
   extension. It adds two files under `.pi/`: the template `.pi/prompts/grugops.md` and the launch
