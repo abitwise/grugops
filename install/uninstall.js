@@ -56,7 +56,8 @@
 //
 // ONE AGENT AT A TIME (phase 34.1, D-05, D-20, D-23). `uninstall.js --codex` (the same per-agent flags as install.js)
 // walks only the entries inScope answers yes for: an agent it removes owns the entry and no agent that stays installed
-// owns it (host-tools.ts entryOwners, over the registry's ADAPTER_FOOTPRINT). The installed set is the one derivation
+// owns it (host-tools.ts entryOwners, over each row's hostFootprint: its kind's ADAPTER_FOOTPRINT, then its launch
+// agent, so a launch file is owned per agent). The installed set is the one derivation
 // install-marker.ts installedAgents answers, never what is on disk. The shared footprint (no owner: AGENTS.md,
 // tools/grugops/, a pre-34.1 gemini entry) is reversed only by a flag-less run or by the removal of the last installed
 // agent, and a partial run keeps the marker for the agents that stay, rewritten (updateKeptMarker, `agents`).
@@ -132,8 +133,9 @@ import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItem
 import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPathSpelling } from "./user-file.js";
 // Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
 // per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry";
-// ADAPTER_FOOTPRINT gives the report pass its directory candidates (reportDirCandidates).
-import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand, commandContextFromRecord } from "./host-tools.js";
+// hostFootprint (each row's kind footprint, then its launch agent) gives the report pass its directory candidates
+// (reportDirCandidates).
+import { HOST_TOOLS, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, hostFootprint, entryOwners, agentCommand, commandContextFromRecord } from "./host-tools.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -2496,7 +2498,7 @@ if (REMOVE.size > 0) {
     }
 }
 /**
- * The directories on the way to a footprint path (host-tools.ts ADAPTER_FOOTPRINT): for `a/b/c.md`, `a/b` and `a`;
+ * The directories on the way to a footprint path (host-tools.ts hostFootprint): for `a/b/c.md`, `a/b` and `a`;
  * for a prefix `a/`, `a`.
  */
 function footprintDirs(p) {
@@ -2511,7 +2513,8 @@ function footprintDirs(p) {
  * reportDirCandidates (phase 34.1, D-05): the directories the report pass names when empty and unrecorded, deepest
  * first. The grugops skill directories and the fixed list this pass has always had (the Claude Code kit's directories,
  * `.gemini` for a pre-34.1 install, `.github` and `tools/grugops`), joined by the directories on the way to every
- * ADAPTER_FOOTPRINT path, derived. A partial run keeps only the directories it could reverse were they recorded
+ * hostFootprint path of every registry row (its kind's ADAPTER_FOOTPRINT, then its launch agent, quick task
+ * 261018-hs8), derived. A partial run keeps only the directories it could reverse were they recorded
  * (inScope): those of the agents it removes and no agent that stays.
  */
 function reportDirCandidates() {
@@ -2523,7 +2526,7 @@ function reportDirCandidates() {
         ".gemini",
         ".github",
         "tools/grugops",
-        ...HOST_ADAPTER_KINDS.flatMap((k) => ADAPTER_FOOTPRINT[k].flatMap(footprintDirs)),
+        ...HOST_TOOLS.flatMap((h) => hostFootprint(h).flatMap(footprintDirs)),
     ];
     return [...new Set(all)].filter((d) => inScope({ path: d, kind: "dir" })).sort((a, b) => depthOf(b) - depthOf(a));
 }
@@ -2553,8 +2556,8 @@ function reportUnrecordedRunnables() {
         report("left", TOOLS_LEFT);
 }
 // reportUnrecordedHostEntries (plan 34.1-25, D-33, review WR-20; report only): a whole-file host entry (the agent
-// skill, the OpenCode command, the Pi prompt template: install-marker.ts wholeFileEntryRels, the list install writes
-// from) present in the target with no ledger `file` entry is left, with the reason. Only an entry this run may reverse
+// skill, the OpenCode command, the Pi prompt template, each host's launch agent: install-marker.ts wholeFileEntryRels,
+// the list install writes from) present in the target with no ledger `file` entry is left, with the reason. Only an entry this run may reverse
 // is asked about (inScope: every entry on a FULL run; on a partial run, an entry an agent this run removes owns and no
 // staying agent owns), so a partial run names only its own agents' entries. The kit source carries each entry at the
 // same relative path, and it is read only to word the line. It removes nothing: what install has no record of
@@ -2577,7 +2580,9 @@ walkLedger();
 //    A PARTIAL RUN (phase 34.1, D-05) reports only within the footprint of the agents it removes: the Claude Code kit,
 //    its backups, the CLAUDE.md block and the ask rules only when it removes Claude Code; the Copilot block only when it
 //    removes Copilot; AGENTS.md, the runnables and the Gemini settings (the shared footprint, D-06, D-23) only on a
-//    FULL run. adapterRemoved answers by adapter kind, from the registry, so no host is named here.
+//    FULL run. adapterRemoved answers by adapter kind, from the registry, so no host is named here. It stays per kind
+//    because it gates only the Claude Code kit and the Copilot block, which no two agents share; the whole-file entries
+//    and launch agents are reported per agent through inScope (reportUnrecordedHostEntries).
 const adapterRemoved = (kind) => FULL ||
     (HOST_TOOLS.some((h) => h.adapter === kind && NAMED.includes(h.id)) && !HOST_TOOLS.some((h) => h.adapter === kind && REMAINING.includes(h.id)));
 console.log("\n-- grugops-shaped paths the install ledger does not record (reported, never removed) --");

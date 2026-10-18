@@ -3,11 +3,12 @@
 //
 // WHAT THIS RENDERS. Every whole-file entry install writes for a host with no Claude Code adapter: the
 // agent skill Codex CLI reads (`.agents/skills/grugops/SKILL.md`), the OpenCode command
-// (`.opencode/commands/grugops.md`) and the Pi prompt template (`.pi/prompts/grugops.md`). Each entry is ONE kit
-// template,
-// `agent-factory/packaging/host-entry.pointer.md`, under a per-kind frontmatter block. Install never builds
-// entry text: it copies these committed files from the kit source (install.ts writeWholeFileEntry), so the
-// entry text exists once, in the kit (the single-source rule, D-11).
+// (`.opencode/commands/grugops.md`) and the Pi prompt template (`.pi/prompts/grugops.md`), one per adapter kind
+// (ENTRY_SHAPES); then each host's launch agent, one per registry row with a launchAgent (LAUNCH_SHAPES, quick task
+// 261018-hs8), such as `.agents/agents/grugops-orchestrator.md`. Each entry is ONE kit template,
+// `agent-factory/packaging/host-entry.pointer.md`, under a frontmatter block (none at all for an empty one). Install
+// never builds entry text: it copies these committed files from the kit source (install.ts writeWholeFileEntry), so
+// the entry text exists once, in the kit (the single-source rule, D-11).
 //
 // THE TEMPLATE IS ASSERTED, NOT TRUSTED. Its body (one trailing newline stripped) must equal POINTER_LINE
 // (install/host-tools.ts, the one authority for the start-here sentence followed by KIT_ROUTE) and must carry
@@ -18,8 +19,11 @@
 // character (file inclusion) (opencode.ai/docs/commands/, retrieved 2026-10-11; 34.1-RESEARCH.md Pitfall 8).
 //
 // OUTPUT PATHS COME FROM THE REGISTRY ONLY (ASVS V12). Each kind's output path is the single entry of
-// ROUTE_POINTERS[kind] (install/host-tools.ts); this file types no output path, and it accepts no output
-// argument. A kind with a frontmatter shape whose ROUTE_POINTERS list is not exactly one path is refused.
+// ROUTE_POINTERS[kind], and each launch agent's is its row's launchAgent (install/host-tools.ts); this file types no
+// output path, and it accepts no output argument. A kind with a frontmatter shape whose ROUTE_POINTERS list is not
+// exactly one path is refused, and every output path, kind or launch, passes the one relative-path check (pathProblem).
+// LAUNCH_SHAPES is checked two-sided against the launch-bearing registry rows (launchShapeProblem), and every
+// frontmatter line against the sequences that would change its meaning (frontmatterProblem); a refusal writes nothing.
 //
 // THE COMMITTED ENTRIES ARE BYTE-PINNED BY THIS GENERATOR'S OWN HALT. Everything is rendered in memory
 // first. A committed entry that differs from its render, or is absent, HALTS the run with the path, both
@@ -39,7 +43,7 @@
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
-import { HOST_ADAPTER_KINDS, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute } from "../install/host-tools.js";
+import { HOST_ADAPTER_KINDS, HOST_TOOLS, LAUNCH_AGENT_NAME, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute } from "../install/host-tools.js";
 // ── Fixed literal paths (never argv, env or content derived; ASVS V12) ──────────────────────────────
 const ROOT = join(import.meta.dirname, "..");
 /**
@@ -70,6 +74,8 @@ export const ARGUMENTS_LINE = "Request: $ARGUMENTS";
  *   pi-prompt-template: Pi reads `description` and `argument-hint` from a project prompt template and expands
  *                       `$ARGUMENTS` (Phase 34 34-RESEARCH.md § B). The render is byte-identical to the template
  *                       install wrote before phase 34.1, so an earlier install's unedited copy still reads as current.
+ * These are the per-kind entries. A host's own launch agent is shaped by LAUNCH_SHAPES below, keyed by host id,
+ * because a launch file belongs to one registry row and not to a kind (quick task 261018-hs8, D-05).
  */
 export const ENTRY_SHAPES = {
     "claude-kit": null,
@@ -93,9 +99,81 @@ export const ENTRY_SHAPES = {
         argumentsLine: true,
     },
 };
-/** The entry text for `shape` around the pointer line `body`. Pure. */
+/**
+ * LAUNCH_SHAPES (quick task 261018-hs8, D-01, D-04): the frontmatter shape of each host's launch agent, keyed by
+ * HostTool id, so the file a row's launchAgent names is rendered from the same pointer template as the kind entries.
+ * renderAll refuses (launchShapeProblem) unless its keys are exactly the ids of the HOST_TOOLS rows with a launchAgent,
+ * in both directions. A launch agent gets no ARGUMENTS_LINE: an agent definition is not given the typed request as
+ * `$ARGUMENTS`.
+ *   antigravity: Antigravity CLI reads a workspace custom agent from `.agents/agents/<name>.md`; `name` and
+ *                `description` are required; `mainAgent: true` (the documented default, kept for intent) allows its
+ *                selection as the primary agent in the `/agents` panel; `subagent: false` keeps it out of
+ *                `invoke_subagent` delegation (antigravity.google/docs/subagents/, retrieved 2026-10-18).
+ */
+export const LAUNCH_SHAPES = {
+    antigravity: {
+        frontmatter: [
+            ["name", LAUNCH_AGENT_NAME],
+            ["description", ENTRY_DESCRIPTION],
+            ["mainAgent", "true"],
+            ["subagent", "false"],
+        ],
+        argumentsLine: false,
+    },
+};
+/**
+ * Why LAUNCH_SHAPES (`shapes`) does not match the registry (`hosts`), or null when its keys are exactly the ids of the
+ * rows with a non-null launchAgent: a key no such row has is named as extra, and such a row with no key as missing.
+ * Pure.
+ */
+export function launchShapeProblem(shapes, hosts) {
+    const want = hosts.filter((h) => h.launchAgent !== null).map((h) => h.id);
+    const have = Object.keys(shapes);
+    const extra = have.filter((k) => !want.includes(k));
+    const missing = want.filter((id) => !have.includes(id));
+    if (extra.length === 0 && missing.length === 0)
+        return null;
+    const parts = [];
+    if (extra.length > 0)
+        parts.push(`LAUNCH_SHAPES has a shape for ${extra.join(", ")}, which no registry row with a launchAgent is (extra)`);
+    if (missing.length > 0)
+        parts.push(`the registry row(s) ${missing.join(", ")} have a launchAgent but LAUNCH_SHAPES has no shape for them (missing)`);
+    return parts.join("; ");
+}
+/** A frontmatter key this generator writes: a letter, then letters, digits, `-` or `_`. */
+const PLAIN_KEY = /^[A-Za-z][A-Za-z0-9_-]*$/;
+/**
+ * Why a frontmatter shape is refused, or null when it is accepted (quick task 261018-hs8, T-hs8-04). The frontmatter is
+ * generator-typed data that templateProblem never sees, so each line is held to the same rules here: every key is a
+ * plain key, and no value holds a line break (it would end the line), a colon followed by a space or a space followed
+ * by `#` (YAML would read a mapping or a comment), an exclamation mark followed by a backtick, or an at-sign followed by
+ * a non-space character (the sequences OpenCode expands, 34.1-RESEARCH.md Pitfall 8). Pure.
+ */
+export function frontmatterProblem(shape) {
+    for (const [k, v] of shape.frontmatter) {
+        if (!PLAIN_KEY.test(k))
+            return `the frontmatter key "${k}" is not a plain key (a letter, then letters, digits, - or _)`;
+        if (/[\r\n]/.test(v))
+            return `the frontmatter value of ${k} holds a line break, which would end its line`;
+        if (v.includes(": "))
+            return `the frontmatter value of ${k} holds a colon followed by a space, which YAML reads as a mapping`;
+        if (v.includes(" #"))
+            return `the frontmatter value of ${k} holds a space followed by #, which YAML reads as a comment`;
+        if (v.includes("!`"))
+            return `the frontmatter value of ${k} holds an exclamation mark followed by a backtick, which OpenCode runs as a shell command (Pitfall 8)`;
+        if (/@\S/.test(v))
+            return `the frontmatter value of ${k} holds an at-sign followed by a non-space character, which OpenCode reads as a file inclusion (Pitfall 8)`;
+    }
+    return null;
+}
+/**
+ * The entry text for `shape` around the pointer line `body`: the frontmatter between `---` fence lines, then `body`,
+ * then ARGUMENTS_LINE when the shape asks for it. An empty frontmatter list gets no fence lines at all, so the entry is
+ * `body` and its newline (a file a host appends verbatim takes no frontmatter into its prompt). Pure.
+ */
 export function renderEntry(shape, body) {
-    const lines = ["---", ...shape.frontmatter.map(([k, v]) => `${k}: ${v}`), "---", body];
+    const fence = shape.frontmatter.length === 0 ? [] : ["---", ...shape.frontmatter.map(([k, v]) => `${k}: ${v}`), "---"];
+    const lines = [...fence, body];
     if (shape.argumentsLine)
         lines.push(ARGUMENTS_LINE);
     return lines.join("\n") + "\n";
@@ -120,8 +198,19 @@ export function templateProblem(body) {
     return null;
 }
 /**
- * The output path of `kind`: the single entry of ROUTE_POINTERS[kind], or a refusal when it is not exactly one
- * relative POSIX path with no `..` segment.
+ * Why output path `rel` of `owner` is refused, or null: THE ONE PATH CHECK every output path passes, a kind entry's and
+ * a launch agent's alike. It must be a non-empty relative POSIX path inside the repository: no leading `/` or `~`, no
+ * drive letter, no backslash, and no empty, `.` or `..` segment (ASVS V12).
+ */
+function pathProblem(owner, rel) {
+    if (rel.length === 0 || /^[/~]|^[A-Za-z]:|\\/.test(rel) || rel.split("/").some((s) => s === "" || s === "." || s === "..")) {
+        return `${owner}'s path "${rel}" is not a relative POSIX path inside the repository`;
+    }
+    return null;
+}
+/**
+ * The output path of `kind`: the single entry of ROUTE_POINTERS[kind], or a refusal when it is not exactly one path,
+ * or when that path fails pathProblem.
  */
 export function outputRel(kind) {
     const rels = ROUTE_POINTERS[kind];
@@ -129,16 +218,33 @@ export function outputRel(kind) {
         return { problem: `adapter kind ${kind} has a frontmatter shape but ROUTE_POINTERS lists ${rels.length} path(s) for it, not exactly one` };
     }
     const rel = rels[0];
-    if (rel.length === 0 || /^[/~]|^[A-Za-z]:|\\/.test(rel) || rel.split("/").some((s) => s === "" || s === "." || s === "..")) {
-        return { problem: `adapter kind ${kind}'s path "${rel}" is not a relative POSIX path inside the repository` };
-    }
-    return { rel };
+    const why = pathProblem(`adapter kind ${kind}`, rel);
+    return why === null ? { rel } : { problem: why };
 }
-/** Every entry this generator renders from `body`, in HOST_ADAPTER_KINDS order, or the first refusal. */
+/**
+ * Every entry this generator renders from `body`, or the first refusal: the kind entries in HOST_ADAPTER_KINDS order,
+ * then one launch agent per HOST_TOOLS row with a launchAgent, in registry order. Before anything is rendered, the
+ * template (templateProblem), every ENTRY_SHAPES and LAUNCH_SHAPES shape (frontmatterProblem) and the LAUNCH_SHAPES keys
+ * against the registry (launchShapeProblem) are checked. Pure.
+ */
 export function renderAll(body) {
     const why = templateProblem(body);
     if (why !== null)
         return { problem: `${TEMPLATE_REL}: ${why}` };
+    for (const kind of HOST_ADAPTER_KINDS) {
+        const shape = ENTRY_SHAPES[kind];
+        const fm = shape === null ? null : frontmatterProblem(shape);
+        if (fm !== null)
+            return { problem: `ENTRY_SHAPES ${kind}: ${fm}` };
+    }
+    for (const [id, shape] of Object.entries(LAUNCH_SHAPES)) {
+        const fm = frontmatterProblem(shape);
+        if (fm !== null)
+            return { problem: `LAUNCH_SHAPES ${id}: ${fm}` };
+    }
+    const keys = launchShapeProblem(LAUNCH_SHAPES, HOST_TOOLS);
+    if (keys !== null)
+        return { problem: keys };
     const entries = [];
     for (const kind of HOST_ADAPTER_KINDS) {
         const shape = ENTRY_SHAPES[kind];
@@ -147,11 +253,35 @@ export function renderAll(body) {
         const out = outputRel(kind);
         if ("problem" in out)
             return { problem: out.problem };
-        entries.push({ kind, rel: out.rel, text: renderEntry(shape, body) });
+        entries.push({ owner: kind, rel: out.rel, text: renderEntry(shape, body) });
+    }
+    for (const h of HOST_TOOLS) {
+        if (h.launchAgent === null)
+            continue;
+        const owner = `${h.id} launch agent`;
+        const bad = pathProblem(owner, h.launchAgent);
+        if (bad !== null)
+            return { problem: bad };
+        if (entries.some((e) => e.rel === h.launchAgent))
+            return { problem: `${owner}'s path "${h.launchAgent}" is already another rendered entry's path` };
+        entries.push({ owner, rel: h.launchAgent, text: renderEntry(LAUNCH_SHAPES[h.id], body) });
     }
     if (entries.length === 0)
         return { problem: `no entry was rendered from ${TEMPLATE_REL}; refusing to report an empty generation as success` };
     return { entries };
+}
+/**
+ * renderedEntryRels (quick task 261018-hs8): THE ONE LIST of the paths this generator renders, kind entries then
+ * launch agents, in renderAll's order. The paths do not depend on the template, so it renders from POINTER_LINE (the
+ * text the template must equal) and reads no file. It throws an Error naming the refusal when renderAll refuses, so a
+ * caller never gets a short list. scripts/check-banned-claims.ts derives its generated-entry exclusions from it, and
+ * the tests derive their entry sets from it. Pure.
+ */
+export function renderedEntryRels() {
+    const r = renderAll(POINTER_LINE);
+    if ("problem" in r)
+        throw new Error(`generate-host-entries: ${r.problem}`);
+    return r.entries.map((e) => e.rel);
 }
 // ── The run ─────────────────────────────────────────────────────────────────────────────────────────
 const fail = (m) => {
@@ -209,7 +339,7 @@ function main() {
             overwrite = true;
             continue;
         }
-        fail(`unrecognised argument "${a}": this generator accepts only ${OVERWRITE_FLAG}, and deliberately accepts no output path (output paths come only from ROUTE_POINTERS, ASVS V12)`);
+        fail(`unrecognised argument "${a}": this generator accepts only ${OVERWRITE_FLAG}, and deliberately accepts no output path (output paths come only from ROUTE_POINTERS and each row's launchAgent, ASVS V12)`);
     }
     const templatePath = join(ROOT, ...TEMPLATE_REL.split("/"));
     let raw;
@@ -239,8 +369,8 @@ function main() {
         }
         divergence +=
             cur.state === "absent"
-                ? `\n  ${e.rel} (${e.kind}) is absent; generated ${Buffer.byteLength(e.text, "utf8")}B\n`
-                : `\n  ${e.rel} (${e.kind}): committed ${Buffer.byteLength(cur.text, "utf8")}B, generated ${Buffer.byteLength(e.text, "utf8")}B\n` +
+                ? `\n  ${e.rel} (${e.owner}) is absent; generated ${Buffer.byteLength(e.text, "utf8")}B\n`
+                : `\n  ${e.rel} (${e.owner}): committed ${Buffer.byteLength(cur.text, "utf8")}B, generated ${Buffer.byteLength(e.text, "utf8")}B\n` +
                     boundedDifference(cur.text, e.text) +
                     "\n";
     }

@@ -101,8 +101,12 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * install that chooses OpenCode with the kit home under HOME creates it holding the OpenCode external_directory rule.
  * Planted as a user's file in a never-installed target, uninstall changes none of its bytes (no marker, so no
  * opencode-permission entry). 93 -> 94.
+ * 62 files and links + 34 directories on 2026-10-18 (quick task 261018-hs8, Task 1):
+ * `.agents/agents/grugops-orchestrator.md` entered as a file and `.agents/agents` as a directory, in every variant,
+ * because install writes the launch agent of each chosen agent that has one (HostTool.launchAgent, through
+ * wholeFileEntryRels) and this test chooses every agent. 94 -> 96.
  */
-const WRITE_PATH_COUNT = 94;
+const WRITE_PATH_COUNT = 96;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

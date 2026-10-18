@@ -6,10 +6,10 @@
 // in the kit source (GRUGOPS_SRC), records it in the install ledger as a kit-false `file` entry, and uninstall
 // removes it through the ledger walk. `--check` names each entry as a route carrier.
 //
-// THE ENTRY SET IS DERIVED, NEVER TYPED. ENTRY_RELS is ROUTE_POINTERS[h.adapter] over HOST_TOOLS for every adapter
-// kind the generator renders (ENTRY_SHAPES non-null in scripts/generate-host-entries.ts), first-seen registry
-// order, with its count asserted; every other ROUTE_POINTERS path is checked to be a sentinel-block carrier on disk
-// after an install, so the two sides cannot drift apart silently.
+// THE ENTRY SET IS DERIVED, NEVER TYPED. ENTRY_RELS is the generator's own renderedEntryRels()
+// (scripts/generate-host-entries.ts): the ROUTE_POINTERS path of every adapter kind it renders, then each registry
+// row's launch agent (quick task 261018-hs8), with its count asserted; every other ROUTE_POINTERS path is checked to be
+// a sentinel-block carrier on disk after an install, so the two sides cannot drift apart silently.
 //
 // Drives the COMMITTED install/install.js and uninstall.js (npm run build first). Every target and kit home
 // (GRUGOPS_HOME) is a scratch directory under one per-file root, removed in afterAll.
@@ -21,8 +21,8 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rm
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, agentFlag } from "./host-tools.js";
-import { ENTRY_SHAPES } from "../scripts/generate-host-entries.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, ANTIGRAVITY_AGENT_REL, agentFlag } from "./host-tools.js";
+import { renderedEntryRels } from "../scripts/generate-host-entries.js";
 import { LEGACY_ADAPTER_KINDS, contentRecord, fileRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, pathText, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { fileRecords, markerLedger, readMarkerObject, withLedger, withoutAgentsField } from "./ledger.test-support.js";
@@ -45,13 +45,14 @@ const at = (root: string, rel: string): string => join(root, ...rel.split("/"));
 const check = (target: string, kitHome: string): Run => spawnBin(INSTALL_JS, ["--check"], target, kitHome);
 const lines = (out: string): string[] => out.split("\n");
 
-/** Every whole-file entry the generator renders, as the registry places it: derived, first-seen registry order. */
-const ENTRY_RELS: readonly string[] = [
-  ...new Set(HOST_TOOLS.flatMap((h) => (ENTRY_SHAPES[h.adapter] === null ? [] : [...ROUTE_POINTERS[h.adapter]]))),
-];
+/** Every whole-file entry the generator renders, as the registry places it: the generator's own list. */
+const ENTRY_RELS: readonly string[] = renderedEntryRels();
 /** The pinned count of ENTRY_RELS: it moves only with a reason. Plan 34.1-01: the agent skill (Codex CLI), the Pi
- *  prompt template and the OpenCode command. */
-const ENTRY_COUNT = 3;
+ *  prompt template and the OpenCode command. 3 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 1): the first launch
+ *  agent, `.agents/agents/grugops-orchestrator.md`. */
+const ENTRY_COUNT = 4;
+/** The carriers registry row `h` reads, from the registry data: entry files, its kind's pointers, its launch agent. */
+const readsOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...h.entryFiles, ...ROUTE_POINTERS[h.adapter], ...(h.launchAgent === null ? [] : [h.launchAgent])];
 
 describe("host entries: a scripted install gives Codex CLI its skill entry (plan 34.1-01, D-08, D-20)", () => {
   it(`the derived entry set has ${ENTRY_COUNT} path(s) and includes AGENT_SKILL_REL`, () => {
@@ -139,14 +140,50 @@ describe("host entries: a single-agent install writes the shared files and that 
     const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l));
     expect(reach.length, c.stdout).toBe(1);
     expect(reach[0], c.stdout).toContain(`${codex!.name}: reaches the Orchestrator through AGENTS.md, ${AGENT_SKILL_REL}`);
-    const codexReads = new Set([...codex!.entryFiles, ...ROUTE_POINTERS[codex!.adapter]]);
-    const others = [...new Set(HOST_TOOLS.flatMap((h) => [...h.entryFiles, ...ROUTE_POINTERS[h.adapter]]))].filter((rel) => !codexReads.has(rel));
+    const codexReads = new Set(readsOf(codex!));
+    const others = [...new Set(HOST_TOOLS.flatMap(readsOf))].filter((rel) => !codexReads.has(rel));
     expect(others.length, "premise: some route carrier is not Codex CLI's").toBeGreaterThan(0);
-    for (const rel of ["CLAUDE.md", ".github/copilot-instructions.md"]) expect(others, `premise: ${rel} is a carrier Codex CLI does not read`).toContain(rel);
+    for (const rel of ["CLAUDE.md", ".github/copilot-instructions.md", ANTIGRAVITY_AGENT_REL]) expect(others, `premise: ${rel} is a carrier Codex CLI does not read`).toContain(rel);
     for (const rel of others) {
       const named = lines(c.stdout).filter((l) => /^ {2}\S+\s+kit route/.test(l) && (l.includes(`kit route: ${rel} `) || l.includes(`kit route missing from ${rel} `) || l.includes(`kit route carried by ${rel} `)));
       expect(named, `${rel} is reported by --check after a Codex-only install\n${c.stdout}`).toEqual([]);
     }
+  });
+
+  // Quick task 261018-hs8 (the tracer, D-03, D-05): Antigravity CLI's launch agent through install, `--check` and
+  // uninstall, beside the skill it shares with Codex CLI.
+  it("tracer: --codex --antigravity writes the launch agent's committed bytes as a kit-false file entry, --check names it as a carrier read by Antigravity CLI, and a flag-less uninstall removes it", () => {
+    const { target, kitHome } = scratchRow();
+    const rows = ["codex", "antigravity"].map((id) => HOST_TOOLS.find((h) => h.id === id));
+    expect(rows.every((h) => h !== undefined), "premise: the registry has codex and antigravity rows").toBe(true);
+    const agy = rows[1]!;
+    expect(agy.launchAgent, "premise: Antigravity CLI's launch agent").toBe(ANTIGRAVITY_AGENT_REL);
+    const r = runInstall(target, kitHome, rows.map((h) => agentFlag(h!)));
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const file = at(target, ANTIGRAVITY_AGENT_REL);
+    const committed = readFileSync(at(REPO_ROOT, ANTIGRAVITY_AGENT_REL));
+    expect(lstatSync(file).isFile(), "the launch agent is a regular file").toBe(true);
+    expect(readFileSync(file).equals(committed), "the installed bytes equal the committed generated file").toBe(true);
+    expect(reports(r.stdout, "created", ANTIGRAVITY_AGENT_REL), r.stdout).toBe(true);
+    expect(r.stdout, "the created line names it Antigravity CLI's launch agent").toContain(`${ANTIGRAVITY_AGENT_REL} (${agy.name} launch agent)`);
+    const marker = readMarkerObject(target);
+    expect(fileRecords(marker, false)[ANTIGRAVITY_AGENT_REL], r.stdout).toBe(fileRecord(committed, lstatSync(file).mode));
+    expect(fileRecords(marker, true)[ANTIGRAVITY_AGENT_REL], "the entry is not recorded as a kit file").toBeUndefined();
+    expect(ledgerEntriesFor(target, ".agents/agents").map((e) => (e as Record<string, unknown>).kind), "the directory install made").toEqual(["dir"]);
+
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const carrier = lines(c.stdout).filter((l) => /^ {2}ok\s/.test(l) && l.includes(`kit route carried by ${ANTIGRAVITY_AGENT_REL} (read by `));
+    expect(carrier.length, c.stdout).toBe(1);
+    expect(carrier[0], c.stdout).toContain(`(read by ${agy.name})`);
+    const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l) && l.includes(`${agy.name}: `));
+    expect(reach.length, c.stdout).toBe(1);
+    expect(reach[0], c.stdout).toContain(ANTIGRAVITY_AGENT_REL);
+
+    const u = runUninstall(target, kitHome);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(file), u.stdout).toBe(false);
+    for (const d of [".agents/agents", ".agents"]) expect(existsSync(at(target, d)), `${d} left after uninstall`).toBe(false);
   });
 });
 

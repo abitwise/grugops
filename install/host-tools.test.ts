@@ -24,6 +24,8 @@ import {
   HOST_ADAPTER_KINDS,
   PI_PROMPT_REL,
   AGENT_SKILL_REL,
+  ANTIGRAVITY_AGENT_REL,
+  LAUNCH_AGENT_NAME,
   OPENCODE_COMMAND_REL,
   KIT_ROUTE,
   POINTER_LINE,
@@ -34,6 +36,8 @@ import {
   ROUTE_POINTERS,
   ADAPTER_FOOTPRINT,
   entryOwners,
+  hostFootprint,
+  hostPointers,
   routeCarriers,
   reachVia,
   strandedBy,
@@ -663,11 +667,13 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
   // entry gate this case also asked the section to state (the settings path and `context.fileName`); plan 34.1-04
   // replaced those two expectations with the case below (every route carrier derived from HOST_TOOLS and
   // ROUTE_POINTERS, and no `context.fileName` instruction).
-  it("the kit-route section names every route carrier HOST_TOOLS and ROUTE_POINTERS derive, and gives no `context.fileName` instruction (plan 34.1-04, D-12)", () => {
+  it("the kit-route section names every route carrier HOST_TOOLS and ROUTE_POINTERS derive (each row's launchAgent included), and gives no `context.fileName` instruction (plan 34.1-04, D-12)", () => {
     const sec = guideSection(ROUTE_SECTION);
     const fromEntries = HOST_TOOLS.flatMap((h) => [...h.entryFiles]);
     const fromPointers = Object.values(ROUTE_POINTERS).flatMap((rels) => [...rels]);
-    const carriers = [...new Set([...fromEntries, ...fromPointers])];
+    // Each row's launch agent (quick task 261018-hs8), read from the registry data, never from hostPointers.
+    const fromLaunch = HOST_TOOLS.flatMap((h) => (h.launchAgent === null ? [] : [h.launchAgent]));
+    const carriers = [...new Set([...fromEntries, ...fromPointers, ...fromLaunch])];
     // Two-sided against the one derivation install.ts asks (routeCarriers), so neither list can drift from the other.
     expect([...carriers].sort()).toEqual([...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))].sort());
     expect(carriers.length, "premise: more than one route carrier").toBeGreaterThan(1);
@@ -752,15 +758,20 @@ describe("the kit route in AGENTS.md (plan 34-27, D-26)", () => {
 // values here are computed by this file from HOST_TOOLS and ROUTE_POINTERS, never typed, so a registry
 // change moves them with it.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-/** This file's own derivation: a host's entry files, then its adapter kind's pointers, first occurrence kept. */
-const expectedCarriers = (adapter: string, entryFiles: readonly string[]): string[] => {
+/**
+ * This file's own derivation, from the registry DATA only (never hostPointers or routeCarriers): a host's entry files,
+ * then its adapter kind's pointers, then its row's launchAgent field when it has one (quick task 261018-hs8), first
+ * occurrence kept.
+ */
+const expectedCarriers = (h: Pick<HostTool, "adapter" | "entryFiles" | "launchAgent">): string[] => {
   const out: string[] = [];
-  for (const f of [...entryFiles, ...(ROUTE_POINTERS as Record<string, readonly string[]>)[adapter]]) if (!out.includes(f)) out.push(f);
+  const launch = h.launchAgent === null ? [] : [h.launchAgent];
+  for (const f of [...h.entryFiles, ...(ROUTE_POINTERS as Record<string, readonly string[]>)[h.adapter], ...launch]) if (!out.includes(f)) out.push(f);
   return out;
 };
 const AGENTS_ONLY_COUNT = 0;
 const AGENTS_ONLY = HOST_TOOLS.filter((h) => {
-  const c = expectedCarriers(h.adapter, h.entryFiles);
+  const c = expectedCarriers(h);
   return c.length === 1 && c[0] === "AGENTS.md";
 }).map((h) => h.name);
 
@@ -777,9 +788,10 @@ describe("route carriers are derived from the registry (plan 34-28, D-26 point 3
   });
 
   for (const h of HOST_TOOLS) {
-    it(`routeCarriers(${h.id}) is its entryFiles together with ROUTE_POINTERS[${h.adapter}], without duplicates`, () => {
+    it(`routeCarriers(${h.id}) is its entryFiles together with ROUTE_POINTERS[${h.adapter}]${h.launchAgent === null ? "" : " and its launch agent"}, without duplicates`, () => {
       const got = [...routeCarriers(h)];
-      expect(got).toEqual(expectedCarriers(h.adapter, h.entryFiles));
+      expect(got).toEqual(expectedCarriers(h));
+      if (h.launchAgent !== null) expect(got[got.length - 1], `routeCarriers(${h.id}) does not end with its launch agent`).toBe(h.launchAgent);
       expect(new Set(got).size).toBe(got.length);
     });
   }
@@ -984,7 +996,10 @@ describe("census: install.ts asks one owner of what install would write into a c
 // entryGates field are gone, so no (host, file) pair is read only sometimes and the gate dimension left the table:
 // 2^(6+1) = 128 combinations. TABLE_CARRIERS stays 6: the `.gemini`-detected row moved to `agent-skill`, whose pointer
 // AGENT_SKILL_REL was already in the set through Codex CLI (D-20).
-const TABLE_CARRIERS = 6;
+// TABLE_CARRIERS 6 -> 7 on 2026-10-18 (quick task 261018-hs8): Antigravity CLI's launch agent
+// `.agents/agents/grugops-orchestrator.md` (its row's launchAgent) joined the derived carrier set, so the table has
+// 2^(7+1) = 256 combinations.
+const TABLE_CARRIERS = 7;
 const TABLE_ADAPTER_HOSTS = 1;
 // THE HOST-SET AXIS (plan 34.1-10, D-07): strandedBy takes the installed host set as a required argument, so the table
 // also quantifies over every subset of HOST_TOOLS (2^HOST_TOOL_COUNT, asserted) and the oracle is restricted to it.
@@ -998,7 +1013,7 @@ function hostSubsets(): HostTool[][] {
 }
 
 describe("reachVia and strandedBy over every combination of the facts (plan 34-33, D-27 point 2)", () => {
-  const carriers = [...new Set(HOST_TOOLS.flatMap((h) => expectedCarriers(h.adapter, h.entryFiles)))];
+  const carriers = [...new Set(HOST_TOOLS.flatMap((h) => expectedCarriers(h)))];
   const adapterHosts = HOST_TOOLS.filter((h) => h.adapter === "claude-kit");
 
   it(`the table's dimensions: ${TABLE_CARRIERS} carriers, ${TABLE_ADAPTER_HOSTS} claude-kit host(s), ${2 ** (TABLE_CARRIERS + TABLE_ADAPTER_HOSTS)} combinations`, () => {
@@ -1027,12 +1042,12 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
       const holdsSet = new Set(carriers.filter((_, i) => bit(i)));
       const adapterSet = new Set(adapterHosts.filter((_, i) => bit(n + i)).map((h) => h.id));
       const facts: RouteFacts = {
-        reads: (h, rel) => expectedCarriers(h.adapter, h.entryFiles).includes(rel),
+        reads: (h, rel) => expectedCarriers(h).includes(rel),
         holds: (rel) => holdsSet.has(rel),
         adapterReaches: (h) => adapterSet.has(h.id),
       };
       // THE ORACLE: written from the definitions, sharing nothing with host-tools.ts but the registry rows.
-      const oracleVia = (h: HostTool): string[] => expectedCarriers(h.adapter, h.entryFiles).filter((rel) => holdsSet.has(rel));
+      const oracleVia = (h: HostTool): string[] => expectedCarriers(h).filter((rel) => holdsSet.has(rel));
       const label = `holds=[${[...holdsSet].join(",")}] adapters=[${[...adapterSet].join(",")}]`;
       for (const h of HOST_TOOLS) {
         const v = reachVia(h, facts);
@@ -1043,7 +1058,7 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
         const all = holdsSet.has(rel)
           ? []
           : HOST_TOOLS.filter(
-              (h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && oracleVia(h).length === 0 && !adapterSet.has(h.id),
+              (h) => expectedCarriers(h).includes(rel) && oracleVia(h).length === 0 && !adapterSet.has(h.id),
             ).map((h) => h.id);
         for (const subset of subsets) {
           subsetRuns += 1;
@@ -1160,5 +1175,107 @@ describe("entryOwners: the one answer to which agents own a ledger entry (phase 
       for (const p of ADAPTER_FOOTPRINT[kind]) expect(p, `${kind}: ${p}`).toMatch(/^[^/\\][^\\]*$/);
     }
     expect(Object.keys(ADAPTER_FOOTPRINT).sort()).toEqual([...HOST_ADAPTER_KINDS].sort());
+  });
+});
+
+// ── THE LAUNCH AGENT FIELD (quick task 261018-hs8, D-01, D-05) ───────────────────────────────────────────────────────
+// HostTool.launchAgent is the one authority for a host's launch file. The launch-bearing rows are derived from the
+// registry data and pinned (LAUNCH_AGENT_COUNT), and every owner expectation below is read from the registry rows.
+// LAUNCH_AGENT_COUNT = 1 on 2026-10-18 (quick task 261018-hs8, Task 1, the tracer): Antigravity CLI only. It moves with
+// a reason when another row gains a launch agent.
+const LAUNCH_AGENT_COUNT = 1;
+const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+
+describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8, D-01, D-05)", () => {
+  it("every registry row states launchAgent (a string or null), so no row leaves it out", () => {
+    for (const h of HOST_TOOLS) {
+      expect(Object.prototype.hasOwnProperty.call(h, "launchAgent"), `${h.id} has no launchAgent field`).toBe(true);
+      expect(h.launchAgent === null || typeof h.launchAgent === "string", `${h.id}.launchAgent`).toBe(true);
+    }
+  });
+
+  it(`the launch-bearing rows, derived (${LAUNCH_AGENT_COUNT}): ${LAUNCH_ROWS.map((h) => h.id).join(", ")}`, () => {
+    expect(LAUNCH_ROWS.length, "the derived count of launch-bearing rows moved; re-derive and re-pin LAUNCH_AGENT_COUNT").toBe(LAUNCH_AGENT_COUNT);
+    expect(LAUNCH_ROWS.map((h) => h.id)).toEqual(["antigravity"]);
+    expect(HOST_TOOLS.find((h) => h.id === "antigravity")?.launchAgent).toBe(ANTIGRAVITY_AGENT_REL);
+    expect(ANTIGRAVITY_AGENT_REL).toBe(`.agents/agents/${LAUNCH_AGENT_NAME}.md`);
+    expect(LAUNCH_AGENT_NAME).toBe("grugops-orchestrator");
+  });
+
+  it("each launch path is a target-relative POSIX path, unique across rows, and in no kind's ROUTE_POINTERS or ADAPTER_FOOTPRINT (ownership is per agent, D-05)", () => {
+    const kindPaths = new Set([...Object.values(ROUTE_POINTERS).flat(), ...Object.values(ADAPTER_FOOTPRINT).flat()]);
+    const seen = new Set<string>();
+    for (const h of LAUNCH_ROWS) {
+      const rel = h.launchAgent!;
+      expect(rel, `${h.id}: ${rel}`).not.toMatch(/^[/~]|^[A-Za-z]:|\\|(^|\/)\.\.(\/|$)|(^|\/)\.(\/|$)|\/\/|\/$/);
+      expect(rel.length, h.id).toBeGreaterThan(0);
+      expect(seen.has(rel), `${rel} is two rows' launch agent`).toBe(false);
+      seen.add(rel);
+      expect(kindPaths.has(rel), `${rel} (${h.id}) is listed in a per-kind table`).toBe(false);
+      for (const p of Object.values(ADAPTER_FOOTPRINT).flat()) expect(p.endsWith("/") && rel.startsWith(p), `${rel} is under the kind prefix ${p}`).toBe(false);
+    }
+  });
+
+  it("hostPointers and hostFootprint are the kind's table, then the row's launchAgent, for every row (checked against the data, not themselves)", () => {
+    for (const h of HOST_TOOLS) {
+      const launch = h.launchAgent === null ? [] : [h.launchAgent];
+      expect([...hostPointers(h)], h.id).toEqual([...new Set([...ROUTE_POINTERS[h.adapter], ...launch])]);
+      expect([...hostFootprint(h)], h.id).toEqual([...new Set([...ADAPTER_FOOTPRINT[h.adapter], ...launch])]);
+    }
+  });
+
+  it("the launch file and the directory install makes for it belong to their one row; the shared directory and the shared skill keep both owners", () => {
+    const ids = (...want: string[]): string[] => HOST_TOOLS.filter((h) => want.includes(h.id)).map((h) => h.id);
+    expect(entryOwners({ path: ANTIGRAVITY_AGENT_REL, kind: "file" })).toEqual(["antigravity"]);
+    expect(entryOwners({ path: ".agents/agents", kind: "dir" })).toEqual(["antigravity"]);
+    expect(entryOwners({ path: ".agents", kind: "dir" })).toEqual(ids("codex", "antigravity"));
+    expect(entryOwners({ path: AGENT_SKILL_REL, kind: "file" })).toEqual(ids("codex", "antigravity"));
+    expect(entryOwners({ path: ".agents/agents", kind: "file" }), "a file named like the launch directory").toEqual([]);
+    expect(entryOwners({ path: ".agents/agents/other.md", kind: "file" }), "another file in the launch directory").toEqual([]);
+    for (const h of LAUNCH_ROWS) expect(entryOwners({ path: h.launchAgent!, kind: "file" }), h.launchAgent!).toEqual([h.id]);
+  });
+
+  it("routeCarriers of every row without a launch agent is unchanged: its entryFiles, then its kind's ROUTE_POINTERS", () => {
+    for (const h of HOST_TOOLS.filter((x) => x.launchAgent === null)) {
+      expect([...routeCarriers(h)], h.id).toEqual([...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter]])]);
+    }
+  });
+});
+
+// ── CENSUS: THE PER-KIND TABLES ARE INDEXED ONLY BY THE TWO HELPERS AND THE GENERATOR'S outputRel (261018-hs8) ──────
+// A consumer that reads ROUTE_POINTERS[h.adapter] or ADAPTER_FOOTPRINT[h.adapter] itself would miss the row's launch
+// agent (per-kind ownership, the class D-05 rules out). Every tracked non-test `.ts` under install/ and scripts/ is
+// parsed, and every element access whose object is the identifier ROUTE_POINTERS or ADAPTER_FOOTPRINT is counted by
+// file and enclosing function. Only outputRel stays per kind, because it places a kind's own entry.
+const PER_KIND_ACCESSES: Readonly<Record<string, number>> = {
+  "host-tools.ts@hostPointers": 1,
+  "host-tools.ts@hostFootprint": 1,
+  "generate-host-entries.ts@outputRel": 1,
+};
+
+describe("census: ROUTE_POINTERS and ADAPTER_FOOTPRINT are indexed only by hostPointers, hostFootprint and outputRel (quick task 261018-hs8)", () => {
+  it(`exactly ${Object.values(PER_KIND_ACCESSES).reduce((a, b) => a + b, 0)} element accesses in product code: ${Object.keys(PER_KIND_ACCESSES).join(", ")}`, () => {
+    const repo = join(import.meta.dirname, "..");
+    const ls = spawnSync("git", ["-C", repo, "ls-files", "--", "install/*.ts", "scripts/*.ts"], { encoding: "utf8" });
+    expect(ls.status, ls.stderr).toBe(0);
+    const files = ls.stdout
+      .split("\n")
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !/\.test(-support)?\.ts$|\.testkit\.ts$/.test(f));
+    expect(files, "premise: the census reads host-tools.ts").toContain("install/host-tools.ts");
+    expect(files, "premise: the census reads the generator").toContain("scripts/generate-host-entries.ts");
+    expect(files, "premise: the census reads install.ts").toContain("install/install.ts");
+    expect(files, "premise: the census reads uninstall.ts").toContain("install/uninstall.ts");
+    const found: Record<string, number> = {};
+    for (const f of files) {
+      const sf = ts.createSourceFile(f, readFileSync(join(repo, ...f.split("/")), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      for (const n of allNodes(sf)) {
+        if (!ts.isElementAccessExpression(n) || !ts.isIdentifier(n.expression)) continue;
+        if (n.expression.text !== "ROUTE_POINTERS" && n.expression.text !== "ADAPTER_FOOTPRINT") continue;
+        const key = `${f.split("/").pop()}@${enclosingFunction(n)}`;
+        found[key] = (found[key] ?? 0) + 1;
+      }
+    }
+    console.log(`per-kind table access census: ${JSON.stringify(found)} over ${files.length} file(s)`);
+    expect(found).toEqual(PER_KIND_ACCESSES);
   });
 });

@@ -8,8 +8,9 @@
 // runs the mirrored copy. The mirror root gets a `{"type":"module"}` package.json so Node reads the copied `.js` as
 // ES modules without a typeless-package warning on stderr.
 //
-// THE ENTRY SET IS DERIVED: the kinds with a non-null ENTRY_SHAPES value, each placed at its single ROUTE_POINTERS
-// path, with the count asserted.
+// THE ENTRY SET IS DERIVED: the generator's own renderedEntryRels(), which is the kinds with a non-null ENTRY_SHAPES
+// value, each placed at its single ROUTE_POINTERS path, then each registry row's launchAgent (quick task 261018-hs8),
+// with the count asserted and checked against both registry sources.
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
@@ -18,8 +19,20 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { HOST_ADAPTER_KINDS, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, START_HERE_SENTENCE, type HostAdapterKind } from "../install/host-tools.js";
-import { ENTRY_SHAPES, OVERWRITE_FLAG, TEMPLATE_REL, templateProblem } from "./generate-host-entries.js";
+import { HOST_ADAPTER_KINDS, HOST_TOOLS, KIT_ROUTE, LAUNCH_AGENT_NAME, POINTER_LINE, ROUTE_POINTERS, START_HERE_SENTENCE, type HostAdapterKind } from "../install/host-tools.js";
+import {
+  ENTRY_DESCRIPTION,
+  ENTRY_SHAPES,
+  LAUNCH_SHAPES,
+  OVERWRITE_FLAG,
+  TEMPLATE_REL,
+  frontmatterProblem,
+  launchShapeProblem,
+  renderEntry,
+  renderedEntryRels,
+  templateProblem,
+  type EntryShape,
+} from "./generate-host-entries.js";
 import { parseFrontmatter } from "./frontmatter.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -33,12 +46,17 @@ const CLOSURE = ["scripts/generate-host-entries.js", "scripts/is-entry.js", "ins
 /** The kinds the generator renders, derived from ENTRY_SHAPES in HOST_ADAPTER_KINDS order. */
 const RENDERED_KINDS: readonly HostAdapterKind[] = HOST_ADAPTER_KINDS.filter((k) => ENTRY_SHAPES[k] !== null);
 /** Each rendered kind's output path: the single ROUTE_POINTERS entry of the kind. */
-const ENTRY_RELS: readonly string[] = RENDERED_KINDS.map((k) => {
+const KIND_RELS: readonly string[] = RENDERED_KINDS.map((k) => {
   expect(ROUTE_POINTERS[k].length, `premise: ${k} has exactly one ROUTE_POINTERS path`).toBe(1);
   return ROUTE_POINTERS[k][0];
 });
-/** The pinned count (plan 34.1-01: the agent skill, the OpenCode command, the Pi prompt template). */
-const ENTRY_COUNT = 3;
+/** The registry rows with a launch agent (quick task 261018-hs8), read from the registry data. */
+const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+/** Every rendered path: the generator's own list (renderedEntryRels), checked below against KIND_RELS and LAUNCH_ROWS. */
+const ENTRY_RELS: readonly string[] = renderedEntryRels();
+/** The pinned count (plan 34.1-01: the agent skill, the OpenCode command, the Pi prompt template).
+ *  3 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 1): Antigravity CLI's launch agent `.agents/agents/grugops-orchestrator.md`. */
+const ENTRY_COUNT = 4;
 
 let n = 0;
 /** A hermetic mirror: the closure, the template, and (unless `entries` is false) the committed entries. */
@@ -71,14 +89,18 @@ const entryBytes = (m: string): Map<string, string | null> =>
   new Map(ENTRY_RELS.map((rel) => [rel, existsSync(join(m, rel)) ? readFileSync(join(m, rel), "utf8") : null]));
 
 describe("generate-host-entries (plan 34.1-01, D-11)", () => {
-  it(`the generator renders ${ENTRY_COUNT} entries, each at a ROUTE_POINTERS path, none under .gemini/ (D-20)`, () => {
-    expect(RENDERED_KINDS.length).toBe(ENTRY_COUNT);
+  it(`the generator renders ${ENTRY_COUNT} entries: the kind entries at their ROUTE_POINTERS paths, then each row's launch agent; none under .gemini/ (D-20)`, () => {
+    expect(ENTRY_RELS.length).toBe(ENTRY_COUNT);
+    expect(RENDERED_KINDS.length + LAUNCH_ROWS.length, "kind entries plus launch agents").toBe(ENTRY_COUNT);
     expect(new Set(ENTRY_RELS).size).toBe(ENTRY_COUNT);
+    expect([...ENTRY_RELS], "renderedEntryRels is the kind entries, then the launch agents in registry order").toEqual([
+      ...KIND_RELS,
+      ...LAUNCH_ROWS.map((h) => h.launchAgent!),
+    ]);
     const pointers = new Set(Object.values(ROUTE_POINTERS).flat());
-    for (const rel of ENTRY_RELS) {
-      expect(pointers.has(rel), `${rel} is not a ROUTE_POINTERS value`).toBe(true);
-      expect(rel.startsWith(".gemini/"), rel).toBe(false);
-    }
+    for (const rel of KIND_RELS) expect(pointers.has(rel), `${rel} is not a ROUTE_POINTERS value`).toBe(true);
+    for (const h of LAUNCH_ROWS) expect(pointers.has(h.launchAgent!), `${h.launchAgent} is a ROUTE_POINTERS value (it must be per row)`).toBe(false);
+    for (const rel of ENTRY_RELS) expect(rel.startsWith(".gemini/"), rel).toBe(false);
   });
 
   it("a clean mirror exits 0, names every entry already identical, and changes nothing", () => {
@@ -163,11 +185,21 @@ describe("generate-host-entries (plan 34.1-01, D-11)", () => {
 
   it("every committed entry's frontmatter keys, parsed by scripts/frontmatter.ts, are its shape's keys in order", () => {
     let seen = 0;
-    for (const kind of RENDERED_KINDS) {
-      const shape = ENTRY_SHAPES[kind];
-      if (shape === null) continue;
-      const rel = ROUTE_POINTERS[kind][0];
+    const shaped: Array<readonly [string, EntryShape]> = [
+      ...RENDERED_KINDS.flatMap((kind): Array<readonly [string, EntryShape]> => {
+        const shape = ENTRY_SHAPES[kind];
+        return shape === null ? [] : [[ROUTE_POINTERS[kind][0], shape] as const];
+      }),
+      ...LAUNCH_ROWS.map((h) => [h.launchAgent!, LAUNCH_SHAPES[h.id]] as const),
+    ];
+    for (const [rel, shape] of shaped) {
+      expect(shape, `premise: ${rel} has a shape`).toBeDefined();
       const text = readFileSync(join(ROOT, rel), "utf8");
+      if (shape.frontmatter.length === 0) {
+        expect(text, `${rel}: an empty frontmatter renders as the pointer line alone`).toBe(`${POINTER_LINE}\n`);
+        seen += 1;
+        continue;
+      }
       const parsed = parseFrontmatter(text);
       expect(parsed.ok, `${rel}: ${parsed.ok ? "" : parsed.reason}`).toBe(true);
       if (!parsed.ok) continue;
@@ -187,5 +219,90 @@ describe("generate-host-entries (plan 34.1-01, D-11)", () => {
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.value.get("name")).toEqual(["grugops"]);
     expect(text).not.toContain("$ARGUMENTS");
+  });
+});
+
+// ── THE LAUNCH AGENTS (quick task 261018-hs8, D-01, D-04, D-05) ──────────────────────────────────────────────────────
+describe("generate-host-entries: launch agents (quick task 261018-hs8)", () => {
+  const shape = (frontmatter: ReadonlyArray<readonly [string, string]>): EntryShape => ({ frontmatter, argumentsLine: false });
+
+  it("LAUNCH_SHAPES is keyed by exactly the registry rows with a launchAgent (two-sided), and the committed shapes pass", () => {
+    expect(Object.keys(LAUNCH_SHAPES).sort()).toEqual(LAUNCH_ROWS.map((h) => h.id).sort());
+    expect(launchShapeProblem(LAUNCH_SHAPES, HOST_TOOLS)).toBeNull();
+  });
+
+  it("launchShapeProblem names a planted extra key and a planted missing key", () => {
+    const extra = { ...LAUNCH_SHAPES, codex: shape([["name", LAUNCH_AGENT_NAME]]) };
+    const extraWhy = launchShapeProblem(extra, HOST_TOOLS);
+    expect(extraWhy, "an extra key is accepted").not.toBeNull();
+    expect(extraWhy!).toContain("codex");
+    expect(extraWhy!).toContain("extra");
+    const missingId = LAUNCH_ROWS[0].id;
+    const missing: Record<string, EntryShape> = { ...LAUNCH_SHAPES };
+    delete missing[missingId];
+    const missingWhy = launchShapeProblem(missing, HOST_TOOLS);
+    expect(missingWhy, "a missing key is accepted").not.toBeNull();
+    expect(missingWhy!).toContain(missingId);
+    expect(missingWhy!).toContain("missing");
+    // Both at once: both are named.
+    const both = launchShapeProblem({ ...missing, codex: shape([]) }, HOST_TOOLS);
+    expect(both!).toContain("extra");
+    expect(both!).toContain("missing");
+  });
+
+  const FM_REFUSALS: ReadonlyArray<{ readonly name: string; readonly value: string; readonly says: string }> = [
+    { name: "a newline", value: "one\ntwo", says: "line break" },
+    { name: "a carriage return", value: "one\rtwo", says: "line break" },
+    { name: "a colon followed by a space", value: "key: value", says: "colon followed by a space" },
+    { name: "a space followed by #", value: "text #comment", says: "space followed by #" },
+    { name: "an exclamation mark followed by a backtick", value: "run !`ls`", says: "exclamation mark followed by a backtick" },
+    { name: "an at-sign followed by a non-space character", value: "see @notes.md", says: "at-sign followed by a non-space character" },
+  ];
+  it(`the frontmatter refusal table has ${FM_REFUSALS.length} rows`, () => expect(FM_REFUSALS.length).toBe(6));
+  for (const c of FM_REFUSALS) {
+    it(`frontmatterProblem refuses a value holding ${c.name}`, () => {
+      const why = frontmatterProblem(shape([["description", c.value]]));
+      expect(why, `${JSON.stringify(c.value)} is accepted`).not.toBeNull();
+      expect(why!).toContain(c.says);
+    });
+  }
+  it("frontmatterProblem refuses a key that is not a plain key, and accepts every committed shape and the plain values", () => {
+    expect(frontmatterProblem(shape([["bad key", "x"]]))).toContain("not a plain key");
+    expect(frontmatterProblem(shape([["a:b", "x"]]))).toContain("not a plain key");
+    expect(frontmatterProblem(shape([["description", "a colon:without a space, an at-sign alone @ here"]]))).toBeNull();
+    expect(frontmatterProblem(shape([]))).toBeNull();
+    for (const k of HOST_ADAPTER_KINDS) {
+      const s = ENTRY_SHAPES[k];
+      if (s !== null) expect(frontmatterProblem(s), k).toBeNull();
+    }
+    for (const [id, s] of Object.entries(LAUNCH_SHAPES)) expect(frontmatterProblem(s), id).toBeNull();
+  });
+
+  it("renderEntry with an empty frontmatter emits no `---` line: the pointer line and its newline only", () => {
+    const text = renderEntry(shape([]), POINTER_LINE);
+    expect(text).toBe(`${POINTER_LINE}\n`);
+    expect(text.split("\n")).not.toContain("---");
+    // A non-empty frontmatter still gets both fences.
+    expect(renderEntry(shape([["name", "x"]]), POINTER_LINE)).toBe(`---\nname: x\n---\n${POINTER_LINE}\n`);
+  });
+
+  it("the Antigravity CLI launch agent renders name, description, mainAgent: true, subagent: false, in that order, then POINTER_LINE and no arguments line", () => {
+    const agy = HOST_TOOLS.find((h) => h.id === "antigravity");
+    expect(agy?.launchAgent, "premise: Antigravity CLI has a launch agent").toBe(`.agents/agents/${LAUNCH_AGENT_NAME}.md`);
+    const committed = readFileSync(join(ROOT, agy!.launchAgent!), "utf8");
+    expect(committed).toBe(
+      ["---", `name: ${LAUNCH_AGENT_NAME}`, `description: ${ENTRY_DESCRIPTION}`, "mainAgent: true", "subagent: false", "---", POINTER_LINE, ""].join("\n"),
+    );
+    expect(committed).not.toContain("$ARGUMENTS");
+    expect(committed).toContain(KIT_ROUTE);
+  });
+
+  it("a mirror whose committed launch agent was removed halts naming its owner (`antigravity launch agent`)", () => {
+    const m = mirror();
+    const rel = LAUNCH_ROWS[0].launchAgent!;
+    rmSync(join(m, rel));
+    const r = runGen(m);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stderr).toContain(`${rel} (${LAUNCH_ROWS[0].id} launch agent) is absent`);
   });
 });

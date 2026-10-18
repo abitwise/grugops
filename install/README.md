@@ -560,8 +560,9 @@ install writes the kit root into the `kitRoot` field of `.grugops/install.json`.
 kit route (`KIT_ROUTE` in `install/host-tools.ts`), says that the kit root is that directory and
 that each `agent-factory/…` path is read under it. The kit's `AGENTS.md` carries the route in its
 "Kit vs state" rule, for the hosts that read only `AGENTS.md`, and the `CLAUDE.md` block, the
-Copilot pointer and each whole-file host entry (the Pi template, the agent skill and the OpenCode
-command) carry it after their start-here sentence. The route is the same
+Copilot pointer and each whole-file host entry (the Pi template, the agent skill, the OpenCode
+command and the launch agent `.agents/agents/grugops-orchestrator.md`) carry it after their
+start-here sentence. The route is the same
 text on every machine: it names the field, never a path. Inside a Claude Code session the adapters
 still name the kit root on their `KIT=` line. With no `.grugops/install.json` (the minimal copy
 install, §1), the kit is the repository's own `agent-factory/`.
@@ -611,9 +612,12 @@ reads every file first and reports afterwards, in this order:
 - **The route target.** It reads `kitRoot` and reports a FAIL when
   `<kitRoot>/roles/orchestrator.md` is not a readable file.
 - **The files each host reads here.** The files that can give a host the route are `AGENTS.md`,
-  `CLAUDE.md`, `.agents/skills/grugops/SKILL.md`, `.opencode/commands/grugops.md`,
-  `.github/copilot-instructions.md` and `.pi/prompts/grugops.md`. A host counts a file
-  only when it reads that file in this repository. Antigravity CLI reads `AGENTS.md` natively, with
+  `CLAUDE.md`, `.agents/skills/grugops/SKILL.md`, `.agents/agents/grugops-orchestrator.md`,
+  `.opencode/commands/grugops.md`, `.github/copilot-instructions.md` and `.pi/prompts/grugops.md`. A
+  host counts a file only when it reads that file in this repository. A launch agent
+  (`.agents/agents/grugops-orchestrator.md`, Antigravity CLI's) is read only by a session started
+  with it. `--check` counts it as one of its host's route carriers, so that host's `reach` line can
+  name it. Antigravity CLI reads `AGENTS.md` natively, with
   no settings entry (antigravity.google/docs/rules/ and antigravity.google/docs/cli/gcli-migration/,
   retrieved 2026-10-11), and the agent skill it shares with Codex CLI. Install detects Antigravity
   CLI by a `.gemini` entry in the target root, the signal the Gemini CLI row used; whether Antigravity

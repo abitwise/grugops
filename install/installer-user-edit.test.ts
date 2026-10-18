@@ -142,8 +142,11 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * `opencode-permission` entry).
  * Its edit (a new top-level key) leaves `external_directory` as install left it, so uninstall takes out only the rule
  * and the containers install created, keeps the user's key, and says every other byte was preserved. 60 -> 61.
+ * 62 on 2026-10-18 (quick task 261018-hs8, Task 1): `.agents/agents/grugops-orchestrator.md` entered as a file, because
+ * install writes the launch agent of each chosen agent that has one (HostTool.launchAgent) and this test chooses every
+ * agent; an edit to it is left byte for byte by uninstall, as for every other whole-file entry. 61 -> 62.
  */
-const INSTALLED_FILE_COUNT = 61;
+const INSTALLED_FILE_COUNT = 62;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

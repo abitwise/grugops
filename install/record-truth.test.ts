@@ -346,8 +346,11 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * 35 -> 36 on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered, because a default install chooses OpenCode
  * and, with the kit home under this file's scratch HOME, creates opencode.json holding the OpenCode external_directory
  * rule (an opencode-permission entry with createdFile true); the derived listing names it after CLAUDE.md.
+ * 36 -> 37 on 2026-10-18 (quick task 261018-hs8, Task 1): `.agents/agents/grugops-orchestrator.md` entered, because
+ * install writes the launch agent of each chosen agent that has one (HostTool.launchAgent) and this test chooses every
+ * agent; the derived listing names it first.
  */
-const REMOVABLE_COUNT = 36;
+const REMOVABLE_COUNT = 37;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a

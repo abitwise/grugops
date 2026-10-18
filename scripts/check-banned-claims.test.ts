@@ -2307,11 +2307,7 @@ const TWO_ARRAY_EXPRESSION = "const scanLines = lines;";
  * exactly nothing while reporting a clean pass.
  */
 function scratchBuildWithTwoTraversals(): string {
-  const dir = freshTmp("gops-banned-two-traversals-");
-  const src = join(ROOT, "scripts");
-  for (const n of readdirSync(src)) {
-    if (n.endsWith(".js")) copyFileSync(join(src, n), join(dir, n));
-  }
+  const dir = copyOfCommittedBuild("gops-banned-two-traversals-");
   const target = join(dir, "check-banned-claims.js");
   const before = readFileSync(target, "utf8");
   if (!before.includes(ONE_ARRAY_EXPRESSION)) {
@@ -2328,6 +2324,26 @@ function scratchBuildWithTwoTraversals(): string {
     );
   }
   writeFileSync(target, after, "utf8");
+  return dir;
+}
+
+/**
+ * A copy of the committed build in the repository's own layout, returning its `scripts/` directory: every
+ * `scripts/*.js`, and `install/host-tools.js` beside it, because the gate imports scripts/generate-host-entries.js
+ * (quick task 261018-hs8: its generated-entry exclusions are the generator's renderedEntryRels()), which imports
+ * `../install/host-tools.js`. host-tools.js imports nothing, so the copy is complete; one file short and the probe's
+ * import fails to resolve, which the "printed no REGION line" refusal below names.
+ */
+function copyOfCommittedBuild(prefix: string): string {
+  const root = freshTmp(prefix);
+  const dir = join(root, "scripts");
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(join(root, "install"), { recursive: true });
+  const src = join(ROOT, "scripts");
+  for (const n of readdirSync(src)) {
+    if (n.endsWith(".js")) copyFileSync(join(src, n), join(dir, n));
+  }
+  copyFileSync(join(ROOT, "install", "host-tools.js"), join(root, "install", "host-tools.js"));
   return dir;
 }
 
@@ -2441,11 +2457,7 @@ describe("check-banned-claims — one array under both traversals, and a refused
     // The other side of the probe. Without it, "the reverted build refuses" is satisfied by a gate
     // that refuses everything. The shipped build refuses too — but for the structural reason, which
     // is the whole point of deleting the route rather than guarding it.
-    const dir = freshTmp("gops-banned-shipped-copy-");
-    const src = join(ROOT, "scripts");
-    for (const n of readdirSync(src)) {
-      if (n.endsWith(".js")) copyFileSync(join(src, n), join(dir, n));
-    }
+    const dir = copyOfCommittedBuild("gops-banned-shipped-copy-");
     const { out, region } = locateUnderBuild(dir);
     expect(region).toBe("null");
     expect(out).toContain("assembled on a different newline rule");
@@ -3294,7 +3306,9 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     // 8 -> 11 (plan 34.1-01): the three generated host entries (.agents/skills/grugops/SKILL.md,
     // .opencode/commands/grugops.md, .pi/prompts/grugops.md), dispositioned by name in the block above
     // with the cost of not admitting them stated there (deferred-items.md DI-01 of phase 34.1).
-    expect(exact.length).toBe(11);
+    // 11 -> 12 on 2026-10-18 (quick task 261018-hs8, PD-2): the generated entries are now spread from the generator's
+    // renderedEntryRels(), which adds Antigravity CLI's launch agent `.agents/agents/grugops-orchestrator.md`.
+    expect(exact.length).toBe(12);
     expect(seg.length + root.length + exact.length).toBe(
       BANNED_CLAIM_EXCLUDED_LOCATIONS.length,
     );

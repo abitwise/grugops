@@ -10,7 +10,8 @@
 // EVERY PLANT LANDS IN A HERMETIC MIRROR, never in the committed tree. The gate honours CHECK_ROOT for the
 // judged tree, so each case builds its own realpath'd temp mirror of the kit inputs (the pointer file and the
 // committed entries), mutates that, and points the gate at it. The mirror's entry paths are DERIVED from the
-// generator's own exports (ENTRY_SHAPES, outputRel), never typed here, and their count is asserted.
+// generator's own exports (renderedEntryRels, which is the ENTRY_SHAPES kinds at outputRel, then each registry row's
+// launch agent, quick task 261018-hs8), never typed here, and their count is asserted.
 // Vitest globals:false, so everything is imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
@@ -18,8 +19,8 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { ENTRY_SHAPES, TEMPLATE_REL, outputRel } from "./generate-host-entries.js";
-import { AGENT_SKILL_REL, HOST_ADAPTER_KINDS, OPENCODE_COMMAND_REL, PI_PROMPT_REL } from "../install/host-tools.js";
+import { ENTRY_SHAPES, TEMPLATE_REL, outputRel, renderedEntryRels } from "./generate-host-entries.js";
+import { AGENT_SKILL_REL, ANTIGRAVITY_AGENT_REL, HOST_ADAPTER_KINDS, HOST_TOOLS, OPENCODE_COMMAND_REL, PI_PROMPT_REL } from "../install/host-tools.js";
 // The one authority over "where is the ubuntu gate block and what does it run" (plan 29.1-24).
 import { ciWorkflow, ubuntuBlockCommands } from "./ci-workflow.testkit.js";
 
@@ -36,14 +37,18 @@ const GATE_TMP_PREFIX = ((): string => {
 })();
 const gateTempEntries = (): string[] => readdirSync(tmpdir()).filter((n) => n.startsWith(GATE_TMP_PREFIX));
 
-// The rendered entry paths, derived from the generator: every adapter kind with a frontmatter shape, at the one
-// ROUTE_POINTERS path outputRel answers for it.
-const ENTRY_RELS: readonly string[] = HOST_ADAPTER_KINDS.filter((k) => ENTRY_SHAPES[k] !== null).map((k) => {
+// The rendered entry paths, derived from the generator: its renderedEntryRels(), checked in the PREMISE case against
+// the kinds with a frontmatter shape (at the one ROUTE_POINTERS path outputRel answers for each), then each registry
+// row's launchAgent, read from the registry data.
+const ENTRY_RELS: readonly string[] = renderedEntryRels();
+const KIND_RELS: readonly string[] = HOST_ADAPTER_KINDS.filter((k) => ENTRY_SHAPES[k] !== null).map((k) => {
   const o = outputRel(k);
   if ("problem" in o) throw new Error(o.problem);
   return o.rel;
 });
-const ENTRY_COUNT = 3;
+const LAUNCH_RELS: readonly string[] = HOST_TOOLS.flatMap((h) => (h.launchAgent === null ? [] : [h.launchAgent]));
+// 3 -> 4 on 2026-10-18 (quick task 261018-hs8, Task 1): Antigravity CLI's launch agent joined the rendered set.
+const ENTRY_COUNT = 4;
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -77,9 +82,11 @@ function runGate(kitRoot?: string, gateJs: string = GATE_JS) {
 const FRESH_MARKER = "Host entries fresh:";
 
 describe("host-entries-freshness.js — the derived entry set", () => {
-  it("PREMISE: the generator renders exactly the three whole-file entries, Codex CLI's skill among them", () => {
+  it(`PREMISE: the generator renders exactly the ${ENTRY_COUNT} whole-file entries (the kind entries, then each launch agent), Codex CLI's skill and Antigravity CLI's launch agent among them`, () => {
     expect(ENTRY_RELS.length).toBe(ENTRY_COUNT);
+    expect([...ENTRY_RELS]).toEqual([...KIND_RELS, ...LAUNCH_RELS]);
     expect(ENTRY_RELS).toContain(AGENT_SKILL_REL);
+    expect(ENTRY_RELS).toContain(ANTIGRAVITY_AGENT_REL);
   });
 });
 
@@ -91,7 +98,7 @@ describe("host-entries-freshness.js — fail-proofs (the byte gate goes red, and
   const victim = at(m, AGENT_SKILL_REL);
   let controlStatus: number | null = null;
 
-  it("P0 (premise control, recorded first): the unmutated mirror exits 0 with three compared and zero differences", () => {
+  it(`P0 (premise control, recorded first): the unmutated mirror exits 0 with ${ENTRY_COUNT} compared and zero differences`, () => {
     const r = runGate(m);
     controlStatus = r.status;
     expect(r.status, r.stdout + r.stderr).toBe(0);

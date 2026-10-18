@@ -106,11 +106,14 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
   // Re-pinned 2026-10-11 (plan 34.1-03, D-12): install no longer creates `.gemini/` (it made it for the Gemini settings
   // file it no longer writes), so `.gemini` left REMOVED_DIRS (20 -> 19). CREATED is unchanged: the settings file was
   // recorded by a gemini entry, never by a kit-false file entry.
-  it("install creates 10 files in an empty target (2 pointer files, 3 whole-file host entries, AGENTS.md, 4 runnables), and the round trip removes 19 directories", () => {
-    expect(CREATED.length, CREATED.join(", ")).toBe(10);
+  // Re-pinned 2026-10-18 (quick task 261018-hs8, Task 1): install writes the launch agent of each chosen agent that has
+  // one (HostTool.launchAgent), so `.agents/agents/grugops-orchestrator.md` entered CREATED (10 -> 11; derived list adds
+  // it) and `.agents/agents` entered REMOVED_DIRS (19 -> 20).
+  it("install creates 11 files in an empty target (2 pointer files, 3 whole-file host entries, 1 launch agent, AGENTS.md, 4 runnables), and the round trip removes 20 directories", () => {
+    expect(CREATED.length, CREATED.join(", ")).toBe(11);
     expect(CREATED.filter((r) => POINTER.has(r)).length).toBe(2);
     expect(CREATED, "the Pi prompt template is not among the files install created").toContain(PI_PROMPT_REL);
-    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(19);
+    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(20);
     expect(REMOVED_DIRS, "the round trip removed a .gemini/ install no longer creates (D-12)").not.toContain(".gemini");
     for (const rel of CREATED) expect(existsSync(abs(DERIVE.target, rel)), `${rel} survived the round trip`).toBe(false);
   });

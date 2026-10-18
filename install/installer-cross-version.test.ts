@@ -36,11 +36,13 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // writes the whole-file host entry of each chosen agent, and this test chooses every agent (runInstall adds every
 // agent flag through withAgentFlags), so `.agents/skills/grugops/SKILL.md` (Codex CLI's skill)
 // and `.opencode/commands/grugops.md` (OpenCode's command) are recorded too; derived line "empty-source: 34 file
-// entr(ies) recorded, 34 holding". The test DERIVES the set from the ledger and asserts its size equals this pin, so a
+// entr(ies) recorded, 34 holding". 34 -> 35 on 2026-10-18 (quick task 261018-hs8, Task 1): install writes the launch
+// agent of each chosen agent that has one (HostTool.launchAgent), so `.agents/agents/grugops-orchestrator.md` is
+// recorded too. The test DERIVES the set from the ledger and asserts its size equals this pin, so a
 // change to what install records shows here by name.
-const RECORDED_FILE_COUNT = 34;
+const RECORDED_FILE_COUNT = 35;
 const RECORDED_FILE_COUNT_WHY =
-  "17 adapters + 7 skills + AGENTS.md + 4 runnables + the 5 files install created (CLAUDE.md, .github/copilot-instructions.md, and the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md)";
+  "17 adapters + 7 skills + AGENTS.md + 4 runnables + the 6 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the launch agent .agents/agents/grugops-orchestrator.md)";
 
 let SCRATCH = "";
 beforeAll(() => {

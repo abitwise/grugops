@@ -164,7 +164,7 @@
 
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { HOST_TOOLS, OPENCODE_CONFIG_REL, ROUTE_POINTERS, entryOwners, type HostAdapterKind, type HostTool } from "./host-tools.js";
+import { HOST_TOOLS, OPENCODE_CONFIG_REL, entryOwners, hostPointers, type HostAdapterKind, type HostTool } from "./host-tools.js";
 import { duplicateKeys, firstDuplicateKey, readJsonText } from "./json-text.js";
 import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo, type PathFlavor } from "./user-file.js";
 
@@ -950,15 +950,16 @@ export const BLOCK_RELS: readonly string[] = ["CLAUDE.md", ".github/copilot-inst
 
 /**
  * wholeFileEntryRels (phase 34.1, plan 34.1-01, D-08, D-11; moved here by plan 34.1-25, D-33): THE ONE DERIVATION of
- * the whole-file host entries for `hosts` (the agent skill, the OpenCode command, the Pi prompt template): the
- * ROUTE_POINTERS paths of the hosts' adapter kinds (host-tools.ts) that are not in BLOCK_RELS, without duplicates, in
- * registry order. Each is a committed generated file in the kit source (scripts/generate-host-entries.ts renders it
+ * the whole-file host entries for `hosts` (the agent skill, the OpenCode command, the Pi prompt template, and each
+ * host's launch agent, quick task 261018-hs8): the hostPointers paths of the hosts (host-tools.ts: the ROUTE_POINTERS
+ * of each adapter kind, then the row's launchAgent) that are not in BLOCK_RELS, without duplicates, in registry
+ * order. Each is a committed generated file in the kit source (scripts/generate-host-entries.ts renders it
  * from the one pointer template) at the same relative path. install.ts writes them (writeWholeFileEntry), and
  * uninstall.ts reports an unrecorded one (reportUnrecordedHostEntries), both from this list, so the two binaries
  * cannot disagree about which files they are.
  */
 export function wholeFileEntryRels(hosts: readonly HostTool[]): readonly string[] {
-  return [...new Set(hosts.flatMap((h) => ROUTE_POINTERS[h.adapter].filter((rel) => !BLOCK_RELS.includes(rel))))];
+  return [...new Set(hosts.flatMap((h) => hostPointers(h).filter((rel) => !BLOCK_RELS.includes(rel))))];
 }
 
 export type BlockSeparator = "blank-line" | "line-end";

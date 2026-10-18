@@ -97,7 +97,11 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // external_directory rule, and a re-install reads it (readForWrite) before it splices; a FIFO and a directory are
 // planted at it by derivation.
 // (`opencode.jsonc` is asked by lstat only, kindAt, never opened, so it is not a read path.) 62 -> 63.
-const READ_PATH_COUNT = 63;
+// 64 on 2026-10-18 (quick task 261018-hs8, Task 1): `.agents/agents/grugops-orchestrator.md` entered (62 files and
+// links written, plus the two read-only inputs), because install writes the launch agent of each chosen agent that has
+// one (HostTool.launchAgent) and this test chooses every agent, so a FIFO and a directory are planted at it by
+// derivation. 63 -> 64.
+const READ_PATH_COUNT = 64;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

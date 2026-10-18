@@ -584,9 +584,12 @@ describe("kit route: a re-install refreshes install's own unedited CLAUDE.md and
 // leaves (under DRY_RUN, the state the real run would leave), and names a carrier only when it leaves some host
 // without a route: the same strandedBy the doctor asks. The hosts are checked against the follower's own stranded
 // derivation (strandedOf, below), computed from the files the real install left, which shares no code with
-// strandedBy. A host's carriers are derived here from HOST_TOOLS and ROUTE_POINTERS (its entry files and its
-// adapter kind's pointers), never typed and never taken from host-tools.ts routeCarriers.
-const carriersOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter]])];
+// strandedBy. A host's carriers are derived here from HOST_TOOLS and ROUTE_POINTERS (its entry files, its
+// adapter kind's pointers, then its row's launchAgent field when it has one, quick task 261018-hs8), never typed and
+// never taken from host-tools.ts routeCarriers or hostPointers.
+/** The launch agent of row `h`, read from the registry data (quick task 261018-hs8): [] when it has none. */
+const launchOf = (h: (typeof HOST_TOOLS)[number]): string[] => (h.launchAgent === null ? [] : [h.launchAgent]);
+const carriersOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter], ...launchOf(h)])];
 /** The hosts a note for `rel` must name after an install into `target`: the follower's own stranded hosts. */
 const notedHosts = (target: string, rel: string): string[] => strandedOf(target, rel);
 /** The note lines naming `rel` as their subject. */
@@ -850,26 +853,41 @@ describe("kit route: --check prints, for every registry host, whether it reaches
     expect(strict.status, strict.stdout + strict.stderr).toBe(stranded.length > 0 ? 1 : 0);
   });
 
-  it("the user's own AGENTS.md and shared agent skill without the route: the agent-skill rows cannot reach, the others can; AGENTS.md and the skill each give one WARN naming KIT_ROUTE; exit 0, and 1 with --strict", () => {
+  // Quick task 261018-hs8 (PD-1): a row's launch agent is one of its carriers, so a row that has one is stranded only
+  // when that file lacks the route too. The premise "the agent-skill rows hold nothing but AGENTS.md and the skill" is
+  // therefore made true on every path the registry data gives those rows: each one's launch agent (its launchAgent
+  // field) is also the user's own file without the route, planted before the install, which leaves it untouched.
+  it("the user's own AGENTS.md, shared agent skill and the agent-skill rows' launch agents without the route: the agent-skill rows cannot reach, the others can; each of those files gives one WARN naming KIT_ROUTE and the hosts it strands; exit 0, and 1 with --strict", () => {
     const { target, kitHome } = scratchRow();
     writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
     ownSkillWithoutRoute({ target });
+    const skillHosts = HOST_TOOLS.filter((h) => carriersOf(h).includes(SHARED_SKILL_REL));
+    const launchRels = skillHosts.flatMap(launchOf);
+    expect(launchRels.length, "premise: some agent-skill row has a launch agent (Antigravity CLI)").toBeGreaterThan(0);
+    for (const rel of launchRels) {
+      mkdirSync(dirname(join(target, ...rel.split("/"))), { recursive: true });
+      writeFileSync(join(target, ...rel.split("/")), "# My own agent\n\nMy own instructions.\n");
+    }
     const r = runInstall(target, kitHome);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const stranded = notedHosts(target, "AGENTS.md");
-    const skillRows = HOST_TOOLS.filter((h) => carriersOf(h).includes(SHARED_SKILL_REL)).map((h) => h.name);
+    const skillRows = skillHosts.map((h) => h.name);
     expect(stranded, "the hosts AGENTS.md strands are the agent-skill rows (derived)").toEqual(skillRows);
     expect(stranded.length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
     for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(!stranded.includes(h.name));
+    const counted = ["AGENTS.md", SHARED_SKILL_REL, ...launchRels];
     const warns = countedRouteLines(c.stdout);
-    expect(warns.length, c.stdout).toBe(2);
-    for (const rel of ["AGENTS.md", SHARED_SKILL_REL]) {
+    expect(warns.length, c.stdout).toBe(counted.length);
+    for (const rel of counted) {
+      // The hosts this file strands: the stranded rows that read it (registry data, carriersOf), in registry order.
+      const leaves = skillHosts.filter((h) => carriersOf(h).includes(rel)).map((h) => h.name);
+      expect(leaves, `premise: ${rel} strands some host`).not.toEqual([]);
       const mine = warns.filter((l) => messageOf(l).startsWith(`kit route missing from ${rel} `));
       expect(mine.length, `${rel}\n${c.stdout}`).toBe(1);
       expect(mine[0].startsWith("  WARN"), mine[0]).toBe(true);
-      expect(mine[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+      expect(mine[0]).toContain(`(it leaves ${leaves.join(", ")} without a route to the Orchestrator)`);
       expect(mine[0]).toContain(KIT_ROUTE);
     }
     const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
@@ -982,7 +1000,8 @@ const lstatPresent = (path: string): boolean => {
 };
 /**
  * Whether the follower counts registry row `h` as having something installed in `target`: it owns (entryOwners) a
- * ledger entry that followerHolds, or one of its ROUTE_POINTERS entry paths is present. A marker whose `ledger` is not a
+ * ledger entry that followerHolds, or one of its entry paths (its kind's ROUTE_POINTERS, then its row's launchAgent)
+ * is present. A marker whose `ledger` is not a
  * list contributes no entry.
  */
 function hasSomethingInstalled(target: string, marker: Record<string, unknown>, h: (typeof HOST_TOOLS)[number]): boolean {
@@ -992,7 +1011,7 @@ function hasSomethingInstalled(target: string, marker: Record<string, unknown>, 
       e !== null && typeof e === "object" && typeof (e as Record<string, unknown>).path === "string" && typeof (e as Record<string, unknown>).kind === "string" &&
       followerHolds(e as Record<string, unknown>) && entryOwners(e as { path: string; kind: string }).includes(h.id),
   );
-  return owns || ROUTE_POINTERS[h.adapter].some((rel) => lstatPresent(join(target, ...rel.split("/"))));
+  return owns || [...ROUTE_POINTERS[h.adapter], ...launchOf(h)].some((rel) => lstatPresent(join(target, ...rel.split("/"))));
 }
 
 /** THE INDEPENDENT FOLLOWER: per host, from the files alone. */
@@ -1039,12 +1058,12 @@ function follow(target: string): Followed {
   return { installed, installedCarriers, routeResolves, ownStale, reaches, carries, adapterReaches };
 }
 
-/** Every path the pointer carriers install writes name (ROUTE_POINTERS; a block's own lines) and KIT_ROUTE names. */
+/** Every path the pointer carriers install writes name (ROUTE_POINTERS and each row's launchAgent; a block's own lines) and KIT_ROUTE names. */
 function expectNamedPathsExist(target: string): void {
   const { kitRoot, orchestrator } = followRoute(target);
   expect(lstatSync(orchestrator).isFile(), `${orchestrator} is not a regular file`).toBe(true);
   const texts: Array<[string, string]> = [["KIT_ROUTE", KIT_ROUTE]];
-  for (const rel of new Set(Object.values(ROUTE_POINTERS).flat())) {
+  for (const rel of new Set([...Object.values(ROUTE_POINTERS).flat(), ...HOST_TOOLS.flatMap(launchOf)])) {
     const text = readFileSync(join(target, ...rel.split("/")), "utf8");
     const s = BLOCK_SENTINELS.get(rel);
     texts.push([rel, s === undefined ? text : blockLines(text, s.open, s.close).lines]);

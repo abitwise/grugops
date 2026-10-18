@@ -141,6 +141,9 @@
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
+// The generator's rendered list: the generated host entries this gate excludes are derived from it (quick task
+// 261018-hs8), never typed here.
+import { renderedEntryRels } from "./generate-host-entries.js";
 import { join, sep } from "node:path";
 // Phase 33 (CAP-02 / D-15): the one published-path normalizer. Every value that becomes a scan-set
 // KEY passes through it once, at the point the key is formed (`scanKey` below).
@@ -699,20 +702,29 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 //   agent-factory/config/factory.config.json          KIT CONFIGURATION DATA. The dial. Keys and
 //   agent-factory/seed/.grugops/factory.config.json   enum values, not prose a reader meets.
 //   .planning/**, scripts/**          Already covered by the segment classes above.
-//   .agents/skills/grugops/SKILL.md   GENERATED HOST ENTRIES (plan 34.1-01, D-11). Markdown that
-//   .opencode/commands/grugops.md     ships, EXCLUDED BY NAME for now and not admitted, with the
-//   .pi/prompts/grugops.md            cost stated: scripts/generate-host-entries.ts renders each
-//                                     from agent-factory/packaging/host-entry.pointer.md (a `kit`
-//                                     member, so the pointer sentence IS read here) under a
-//                                     frontmatter block typed in the generator. The generator-typed
-//                                     residue (`name: grugops`, the one `description` sentence,
-//                                     `argument-hint: "<request>"`, `Request: $ARGUMENTS`) is NOT
-//                                     read by this gate, which is the same transitive-coverage gap
-//                                     the `.claude/` paragraph refutes. Measured with this gate's own
-//                                     matcher on 2026-10-11 before the exclusion was written: 0
-//                                     occurrences in each of the three files. The remedy is
-//                                     admission as a DERIVED PART (deferred-items.md of phase 34.1
-//                                     records it for human triage), never a widened exclusion.
+//   renderedEntryRels()               GENERATED HOST ENTRIES (plan 34.1-01, D-11; quick task
+//   (scripts/generate-host-entries.ts)  261018-hs8). Markdown that ships, EXCLUDED for now and not
+//                                     admitted, with the cost stated. The class is DERIVED from the
+//                                     generator's own rendered list (renderedEntryRels(), spread into
+//                                     the exact paths below), so no entry name is typed here: the kind
+//                                     entries (`.agents/skills/grugops/SKILL.md`,
+//                                     `.opencode/commands/grugops.md`, `.pi/prompts/grugops.md`) and
+//                                     each host's launch agent (`.agents/agents/grugops-orchestrator.md`).
+//                                     The generator renders each from
+//                                     agent-factory/packaging/host-entry.pointer.md (a `kit` member,
+//                                     so the pointer sentence IS read here) under a frontmatter block
+//                                     typed in the generator. The generator-typed residue (`name:
+//                                     grugops`, the one `description` sentence, `argument-hint:
+//                                     "<request>"`, `Request: $ARGUMENTS`, and the launch frontmatter
+//                                     `name: grugops-orchestrator`, `mainAgent: true`, `subagent:
+//                                     false`) is NOT read by this gate, which is the same
+//                                     transitive-coverage gap the `.claude/` paragraph refutes.
+//                                     Measured with this gate's own matcher on 2026-10-11 before the
+//                                     exclusion was written: 0 occurrences in each of the three kind
+//                                     entries; and on 2026-10-18 (quick task 261018-hs8) on the
+//                                     launch agent: 0 occurrences. The remedy, admission as a DERIVED
+//                                     PART (34.1 DI-01, deferred-items.md of phase 34.1, for human
+//                                     triage), is still open; never a widened exclusion.
 //
 // (.claude/settings.local.json is UNTRACKED and therefore outside the denominator entirely; the
 // paragraph at `claudeAdapterMarkdown` explains the ASD-STE100 string a grep finds inside it.)
@@ -792,9 +804,8 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS = [
     // EXACT PATHS — the tracked non-markdown surfaces dispositioned by name above.
     "agent-factory/config/factory.config.json",
     "agent-factory/seed/.grugops/factory.config.json",
-    ".agents/skills/grugops/SKILL.md",
-    ".opencode/commands/grugops.md",
-    ".pi/prompts/grugops.md",
+    // The generated host entries, derived from the generator's rendered list (quick task 261018-hs8, PD-2).
+    ...renderedEntryRels(),
     "hooks/hooks.json",
     "package-lock.json",
     "package.json",

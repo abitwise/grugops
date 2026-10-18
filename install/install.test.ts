@@ -7126,7 +7126,10 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // agent, and this record's install chooses every agent (runInstall's withAgentFlags), so
     // `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md` entered the derived list;
     // the plant takes their exact bytes too.
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(10);
+    // 10 -> 11 on 2026-10-18 (quick task 261018-hs8, Task 1): install writes the launch agent of each chosen agent
+    // that has one (HostTool.launchAgent), so `.agents/agents/grugops-orchestrator.md` entered the derived list; the
+    // plant takes its exact bytes too.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(11);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {

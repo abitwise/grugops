@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, ROUTE_POINTERS, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostForFlag, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
+import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -1252,7 +1252,9 @@ const ROUTE_BLOCKS = new Map([
 // unrecorded one (reportUnrecordedHostEntries) from the same list.
 // ENTRY_NOUN (phase 34.1, plan 34.1-01): what a whole-file entry of each adapter kind is called in install's lines,
 // keyed by HostAdapterKind so a new kind is a compile error until it is named here; null for a kind that writes no
-// whole-file entry. entryLabel puts the names of the hosts that read the entry before it ("Pi prompt template").
+// whole-file entry. entryLabel puts the names of the hosts that read the entry before it ("Pi prompt template"). A
+// host's launch file (HostTool.launchAgent, quick task 261018-hs8) is called its "launch agent" by entryLabel, not by
+// a kind's noun, because it belongs to one row and not to a kind (D-05).
 const ENTRY_NOUN = {
     "claude-kit": null,
     "copilot-pointer": null,
@@ -1260,11 +1262,14 @@ const ENTRY_NOUN = {
     "agent-skill": "skill",
     "opencode-command": "command",
 };
-// entryLabel (phase 34.1, plan 34.1-01): the label install's lines give the whole-file entry `rel`: the names of the
-// HOST_TOOLS rows whose ROUTE_POINTERS include it, in registry order, joined with " and ", then the noun of the first
-// such row's adapter kind (ENTRY_NOUN).
+// entryLabel (phase 34.1, plan 34.1-01; quick task 261018-hs8): the label install's lines give the whole-file entry
+// `rel`: the names of the HOST_TOOLS rows whose hostPointers include it, in registry order, joined with " and ", then
+// "launch agent" when `rel` is the launchAgent of such a row ("Antigravity CLI launch agent"), else the noun of the
+// first such row's adapter kind (ENTRY_NOUN).
 function entryLabel(rel) {
-    const rows = HOST_TOOLS.filter((h) => ROUTE_POINTERS[h.adapter].includes(rel));
+    const rows = HOST_TOOLS.filter((h) => hostPointers(h).includes(rel));
+    if (rows.some((h) => h.launchAgent === rel))
+        return `${rows.map((h) => h.name).join(" and ")} launch agent`;
     const noun = rows.length > 0 ? ENTRY_NOUN[rows[0].adapter] : null;
     return `${rows.map((h) => h.name).join(" and ")} ${noun ?? "entry"}`;
 }
@@ -1461,9 +1466,10 @@ function hostsOf(ids) {
 // yet removed (install-marker.ts, THE `agents` FIELD), so it can name an agent none of whose writes landed (D-04's
 // retry). Of the recorded and legacy rows, the doctor speaks (`hosts`) for a row installedSplit (below, the one answer
 // install's closing notes also ask) counts as installed: one that owns a holding ledger entry (agentsToRecord with
-// keep [], the one ownership derivation, over the ledger read when it is ok) OR whose entry path
-// (ROUTE_POINTERS of its adapter kind) holds something: kindAt, an lstat only, no content read (DC-3). The entry-path
-// clause keeps the reach line and its WARN for an agent whose entry is the user's own file: that file can strand the
+// keep [], the one ownership derivation, over the ledger read when it is ok) OR one of whose entry paths (hostPointers:
+// its adapter kind's ROUTE_POINTERS, then its launch agent) holds something: kindAt, an lstat only, no content read
+// (DC-3). The entry-path clause keeps the reach line and its WARN for an agent whose entry is the user's own file: that
+// file can strand the
 // agent, and the warning is what tells the user so. The other rows go to `nothingInstalled`: the doctor gives each one
 // note with the command that writes its entry, and no reach line. This is NOT a presence-based installed set: it only
 // decides whether the doctor speaks for a recorded agent; nothing is recorded, removed or chosen on it.
@@ -1488,8 +1494,9 @@ function doctorHosts(markerRead, ledgerRead) {
 // installedSplit (phase 34.1 gap round 2, D-31, brief REC-1, review IN-23): THE ONE ANSWER to "is anything installed
 // for this agent here", asked by the doctor (doctorHosts) and by install's closing notes (agentClosingLines). A row is
 // installed when it owns a holding ledger entry (install-marker.ts agentsToRecord with keep [], the one ownership
-// derivation, over `entries`), or when an entry path of its adapter kind (ROUTE_POINTERS) holds something: kindAt, an
-// lstat only, never a content read (DC-3). The entry-path clause keeps a user's own file at the entry path on the
+// derivation, over `entries`), or when one of its entry paths (host-tools.ts hostPointers: its adapter kind's
+// ROUTE_POINTERS, then its launch agent, quick task 261018-hs8) holds something: kindAt, an lstat only, never a content
+// read (DC-3). The entry-path clause keeps a user's own file at the entry path on the
 // installed side, where the doctor's reach line and its WARN tell the user it can strand the agent. `entries` null
 // means the ledger could not be read: the reader cannot tell what install wrote, so every row counts as installed and
 // none is called "nothing installed". It decides only what is said about an agent, never what is written, recorded or
@@ -1498,7 +1505,7 @@ function installedSplit(rows, entries) {
     if (entries === null)
         return { installed: [...rows], nothingInstalled: [] };
     const withEntry = agentsToRecord({ known: rows.map((h) => h.id), keep: [], unknown: [], entries });
-    const has = (h) => withEntry.includes(h.id) || ROUTE_POINTERS[h.adapter].some((rel) => kindAt(join(TARGET, ...rel.split("/"))) !== null);
+    const has = (h) => withEntry.includes(h.id) || hostPointers(h).some((rel) => kindAt(join(TARGET, ...rel.split("/"))) !== null);
     return { installed: rows.filter(has), nothingInstalled: rows.filter((h) => !has(h)) };
 }
 const CARRIER_STATE_TEXT = {
@@ -1856,7 +1863,7 @@ function doctor() {
     // a `legacy` one is counted from a marker with no `agents` list (LEGACY_ADAPTER_KINDS), so nothing records it as
     // chosen. doctorHosts puts no agent here when the ledger is malformed, so "records nothing" is always a read.
     for (const h of installed.nothingInstalled) {
-        const entries = ROUTE_POINTERS[h.adapter];
+        const entries = hostPointers(h);
         const from = installed.source === "legacy"
             ? `${h.name} is counted as installed by an install made before this release (its marker has no \`agents\` list)`
             : `${h.name} is recorded in .grugops/install.json as chosen`;
@@ -3170,8 +3177,9 @@ function ensureBlock(ledger, rel, body, label) {
 //             CREATED_DIRS only when this run made it, so a user's own directory is never claimed. Only a create
 //             that succeeded is recorded, as a kit-false `file` entry; uninstall removes it through the ledger walk
 //             (owns(path)) only while it still holds these bytes.
-// grugops writes nothing else under a host's directory for these hosts (no settings, skills other than this one, or
-// extensions; Phase 34 D-10).
+// grugops writes nothing else under a host's directory for these hosts beyond these entries and each host's launch
+// agent (HostTool.launchAgent, quick task 261018-hs8): no settings, skills other than this one, or extensions (Phase
+// 34 D-10), and no setting that makes a launch agent the session default (D-02).
 function writeWholeFileEntry(ledger, rel) {
     const label = entryLabel(rel);
     const src = carrierSource(rel);
@@ -5415,8 +5423,8 @@ const AGENTS_AFTER = [
 ];
 // SELECTED_KINDS (plan 34.1-08, D-06, D-10): the adapter kinds of the agents this run is for. THE ONE GATE of every
 // per-agent write below: the Claude Code kit (skills and adapters), the CLAUDE.md start-here block and the Claude Code
-// ask rules only for `claude-kit`; the Copilot pointer block only for `copilot-pointer`; each whole-file entry only for
-// the kinds whose ROUTE_POINTERS name it (wholeFileEntryRels(SELECTION)). The shared footprint (the kit home, AGENTS.md
+// ask rules only for `claude-kit`; the Copilot pointer block only for `copilot-pointer`; each whole-file entry, a launch
+// agent included, only for the chosen agents whose hostPointers name it (wholeFileEntryRels(SELECTION)). The shared footprint (the kit home, AGENTS.md
 // by its own rules, the seeded state, tools/grugops/ and the marker) is written whatever is chosen. An agent not chosen
 // in this run is never written to and never removed from (D-04): its files are left as they are, and its ledger
 // entries are carried by nextLedgerEntries' rules.
@@ -6779,7 +6787,7 @@ function agentClosingLines() {
             what = "the install record could not be read after this run (see the lines above)";
         }
         else {
-            const prefixes = ADAPTER_FOOTPRINT[h.adapter].filter((p) => p.endsWith("/"));
+            const prefixes = hostFootprint(h).filter((p) => p.endsWith("/"));
             const groups = new Map();
             for (const e of ledgerAfter.entries) {
                 if (e.kind === "dir" || !entryOwners(e).includes(h.id))

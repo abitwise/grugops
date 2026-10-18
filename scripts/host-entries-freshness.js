@@ -1,8 +1,9 @@
 // host-entries-freshness.ts — the byte freshness gate for the generated non-Claude host entries (phase 34.1,
 // plan 34.1-02; D-11).
 //
-// The whole-file host entries (the agent skill Codex CLI reads, the OpenCode command and the Pi prompt template)
-// are generated, never hand-maintained: they are committed solely as the product of
+// The whole-file host entries (the agent skill Codex CLI reads, the OpenCode command, the Pi prompt template, and
+// each host's launch agent, such as `.agents/agents/grugops-orchestrator.md`, quick task 261018-hs8) are
+// generated, never hand-maintained: they are committed solely as the product of
 // scripts/generate-host-entries.js over the kit's one pointer file. The generator halts on committed drift, but
 // only when someone runs it. This gate runs in continuous integration: it regenerates every entry into a
 // throwaway temp mirror from the COMMITTED generator and the judged tree's pointer file, then compares the judged
@@ -19,8 +20,8 @@
 //
 // THE RENDERED SET IS WHAT THE MIRRORED RUN WROTE. This file types no entry path. After the mirrored generator
 // exits 0, every non-directory entry in the temp mirror that this gate did not itself place there is a rendered
-// entry; the generator takes its output paths only from ROUTE_POINTERS (install/host-tools.ts), so the set
-// follows the registry with no second list here. A regeneration that wrote nothing is refused, never "nothing
+// entry; the generator takes its output paths only from ROUTE_POINTERS and each row's launchAgent
+// (install/host-tools.ts), so the set follows the registry, launch agents included, with no second list here. A regeneration that wrote nothing is refused, never "nothing
 // to compare, therefore fine".
 //
 // TWO HALVES, the set before the bytes. SET: the committed set is every file under the judged tree in each

@@ -68,6 +68,17 @@ export interface HostTool {
    * (install.ts agentClosingLines); grugops has not run it on a live host, and the notes say so (UNKNOWN - verify).
    */
   readonly invoke: string;
+  /**
+   * The per-host launch file (quick task 261018-hs8): the agent definition or prompt file, named for
+   * LAUNCH_AGENT_NAME, through which a user starts a session on this host as the Orchestrator; null for a host that has
+   * none. A POSIX path relative to the target root. Ownership is per agent, never per adapter kind (D-05): Antigravity
+   * CLI shares the `agent-skill` kind with Codex CLI, so a launch path in that kind's ADAPTER_FOOTPRINT would make
+   * `uninstall --codex` remove Antigravity CLI's file. The path joins the kind's paths only through hostPointers and
+   * hostFootprint below. Install writes it under its existing whole-file rule (install.ts writeWholeFileEntry, D-03 as
+   * corrected; never the `.claude/` D-32 backup), and its body is the thin pointer POINTER_LINE (D-04), rendered by
+   * scripts/generate-host-entries.ts. Required on every row, so a new row is a compile error until it states one.
+   */
+  readonly launchAgent: string | null;
 }
 
 /**
@@ -104,6 +115,21 @@ export const OPENCODE_COMMAND_REL = ".opencode/commands/grugops.md";
  * install-marker.ts); ADAPTER_FOOTPRINT gives it to the `opencode-command` kind.
  */
 export const OPENCODE_CONFIG_REL = "opencode.json";
+
+/**
+ * LAUNCH_AGENT_NAME (quick task 261018-hs8, D-01): the one name of the launch agent on every host, the same as the
+ * Claude Code adapter `claude --agent grugops-orchestrator` starts. Every launch path below is built from it, so a host
+ * whose agent ID comes from the file name gets this name.
+ */
+export const LAUNCH_AGENT_NAME = "grugops-orchestrator";
+
+/**
+ * ANTIGRAVITY_AGENT_REL (quick task 261018-hs8): Antigravity CLI's launch agent. Antigravity CLI reads workspace custom
+ * agents from `.agents/agents/<name>.md`, and a user picks one as the primary agent in the `/agents` panel
+ * (antigravity.google/docs/subagents/, retrieved 2026-10-18). It is Antigravity CLI's alone: the registry row's
+ * launchAgent, never the shared `agent-skill` kind's footprint (D-05).
+ */
+export const ANTIGRAVITY_AGENT_REL = `.agents/agents/${LAUNCH_AGENT_NAME}.md`;
 
 /**
  * OPENCODE_RULE_SCOPE (phase 34.1, D-27): THE ONE SENTENCE for what the OpenCode `external_directory` rule install
@@ -177,6 +203,8 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // The standalone skill `.claude/skills/grugops/SKILL.md` gives the slash command `/grugops`
     // (code.claude.com/docs/en/skills).
     invoke: "type `/grugops <request>`",
+    // Null: its launch agent is the `.claude/` kit adapter `claude --agent grugops-orchestrator` starts.
+    launchAgent: null,
   },
   {
     id: "codex",
@@ -191,6 +219,8 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // Codex does not turn skills into slash commands: a skill is invoked by its name with `$`, or picked from the
     // `/skills` list (learn.chatgpt.com/docs/build-skills, retrieved 2026-10-11; D-21).
     invoke: "type `$grugops <request>`, or pick it from `/skills`",
+    // Codex CLI documents no way to start the main session as a custom agent; unchanged.
+    launchAgent: null,
   },
   {
     // Antigravity CLI (phase 34.1, D-12; it replaces the discontinued Gemini CLI row). It reads AGENTS.md and GEMINI.md
@@ -212,6 +242,9 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // A workspace skill is invoked as a slash command by its name (antigravity.google/docs/skills/, retrieved
     // 2026-10-11).
     invoke: "type `/grugops <request>`",
+    // The workspace custom agent at `.agents/agents/<name>.md`, picked in the `/agents` panel
+    // (antigravity.google/docs/subagents/, retrieved 2026-10-18). Antigravity CLI's alone (D-05).
+    launchAgent: ANTIGRAVITY_AGENT_REL,
   },
   {
     id: "opencode",
@@ -224,6 +257,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     dispatch: "sequential",
     // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
     invoke: "type `/grugops <request>`",
+    launchAgent: null,
   },
   {
     id: "copilot",
@@ -240,6 +274,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // instruction files (docs.github.com, "Adding repository custom instructions for GitHub Copilot"). No live run
     // was made (D-19), so the text says `UNKNOWN - verify`.
     invoke: "no command is written; Copilot CLI reads `.github/copilot-instructions.md` with its other instructions, and a live run is `UNKNOWN - verify`",
+    launchAgent: null,
   },
   // Pi (34-RESEARCH.md §B): reads one context file per directory and prefers AGENTS.md over
   // CLAUDE.md; loads project prompt templates from <cwd>/.pi/prompts/; ships no sub-agents, so it
@@ -255,6 +290,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // A project prompt template `.pi/prompts/<name>.md` is the slash command `/<name>`, loaded from the directory Pi
     // starts in (34-RESEARCH.md § B, github.com/earendil-works/pi prompt-templates.md, retrieved 2026-10-06).
     invoke: "start Pi at the repository root and type `/grugops <request>`",
+    launchAgent: null,
   },
 ];
 
@@ -477,6 +513,10 @@ export function agentCommand(
  * HostAdapterKind, so a new kind is a compile error until it is classified here. Two kinds may name the same
  * pointer: two rows on `agent-skill` share AGENT_SKILL_REL (D-20). (Phase 34.1 deleted the kind `none`, once Codex
  * CLI and OpenCode got entries of their own, and the kind `gemini-settings`, with the Gemini merge, D-12.)
+ *
+ * A host's own launch file (HostTool.launchAgent, quick task 261018-hs8) is never listed here, because it belongs to
+ * one row and not to a kind (D-05). It joins a row's pointers only through hostPointers below, and every consumer that
+ * asks for a host's pointers asks hostPointers, never this table by the row's kind.
  */
 export const ROUTE_POINTERS: Readonly<Record<HostAdapterKind, readonly string[]>> = {
   "claude-kit": ["CLAUDE.md"],
@@ -499,6 +539,9 @@ export const ROUTE_POINTERS: Readonly<Record<HostAdapterKind, readonly string[]>
  *
  * This answers which agent a path belongs to, never whether install wrote it or whether it still holds what install
  * wrote: the install ledger and install-marker.ts owns answer those, and uninstall asks them before every reversal.
+ *
+ * A host's launch file (HostTool.launchAgent, quick task 261018-hs8) is not in any kind's footprint: it joins that
+ * host's footprint only through hostFootprint below, so it is owned by its one row (D-05).
  */
 export const ADAPTER_FOOTPRINT: Readonly<Record<HostAdapterKind, readonly string[]>> = {
   "claude-kit": [".claude/", "CLAUDE.md"],
@@ -509,29 +552,55 @@ export const ADAPTER_FOOTPRINT: Readonly<Record<HostAdapterKind, readonly string
 };
 
 /**
+ * hostPointers (quick task 261018-hs8, D-05): THE ONE ANSWER to "which pointer files does install write for host `h`":
+ * ROUTE_POINTERS of its adapter kind, then its launchAgent when it has one, without duplicates, in that order. Every
+ * per-host consumer (routeCarriers, install-marker.ts wholeFileEntryRels, install.ts entryLabel and installedSplit,
+ * the doctor's nothing-installed note) reads it, so a launch file is written, reported and counted with no second list.
+ */
+export function hostPointers(h: HostTool): readonly string[] {
+  const kind = ROUTE_POINTERS[h.adapter];
+  return h.launchAgent === null ? kind : [...new Set([...kind, h.launchAgent])];
+}
+
+/**
+ * hostFootprint (quick task 261018-hs8, D-05): THE ONE ANSWER to "which target paths belong to host `h`":
+ * ADAPTER_FOOTPRINT of its adapter kind, then its launchAgent when it has one, without duplicates, in that order.
+ * entryOwners reads it, so ownership of a launch file is per agent: `uninstall --codex` while Antigravity CLI stays
+ * keeps `.agents/agents/grugops-orchestrator.md`, and `uninstall --antigravity` while Codex CLI stays removes it.
+ */
+export function hostFootprint(h: HostTool): readonly string[] {
+  const kind = ADAPTER_FOOTPRINT[h.adapter];
+  return h.launchAgent === null ? kind : [...new Set([...kind, h.launchAgent])];
+}
+
+/**
  * entryOwners (phase 34.1, D-05, D-20): THE ONE ANSWER to "which agents own this install-ledger entry". The ids, in
- * registry order, of the HOST_TOOLS rows whose adapter kind's ADAPTER_FOOTPRINT holds a path p such that p equals
+ * registry order, of the HOST_TOOLS rows whose hostFootprint (its adapter kind's ADAPTER_FOOTPRINT, then its own
+ * launchAgent, quick task 261018-hs8) holds a path p such that p equals
  * entry.path, or p ends in "/" and entry.path starts with p, or entry.kind is "dir" and p starts with entry.path + "/"
  * (a directory on the way to the agent's file). Two rows on one kind both own its paths (Codex CLI and Antigravity CLI
- * share AGENT_SKILL_REL), so a file two agents share stays while either is installed. `[]` for a shared path.
+ * share AGENT_SKILL_REL), so a file two agents share stays while either is installed, and a launch file belongs to its
+ * one row (`.agents/agents/grugops-orchestrator.md` to Antigravity CLI alone). `[]` for a shared path.
  * Pure: it reads the entry's path and kind only, never the disk.
  */
 export function entryOwners(entry: { readonly path: string; readonly kind: string }): readonly string[] {
   const owned = (p: string): boolean =>
     p === entry.path || (p.endsWith("/") && entry.path.startsWith(p)) || (entry.kind === "dir" && p.startsWith(entry.path + "/"));
-  return HOST_TOOLS.filter((h) => ADAPTER_FOOTPRINT[h.adapter].some(owned)).map((h) => h.id);
+  return HOST_TOOLS.filter((h) => hostFootprint(h).some(owned)).map((h) => h.id);
 }
 
 /**
  * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which `host` can reach
- * the kit route: its entryFiles, then ROUTE_POINTERS[host.adapter], without duplicates, in that order.
+ * the kit route: its entryFiles, then hostPointers(host) (its adapter kind's ROUTE_POINTERS, then its launchAgent,
+ * quick task 261018-hs8), without duplicates, in that order. A launch file is read only by a session started with it,
+ * and `--check` counts it as one of its host's carriers (planner decision PD-1).
  * Install's notes for a user's carrier without the route and `--check`'s per-host route findings both
  * derive from it, so the two cannot disagree about which hosts a carrier serves. A host reads every one of these
  * carriers that is present (phase 34.1, D-12 deleted the one entry gate); install.ts hostReadsCarrier is the one
  * owner of that answer, and every verdict site asks it.
  */
 export function routeCarriers(host: HostTool): readonly string[] {
-  return [...new Set([...host.entryFiles, ...ROUTE_POINTERS[host.adapter]])];
+  return [...new Set([...host.entryFiles, ...hostPointers(host)])];
 }
 
 /**

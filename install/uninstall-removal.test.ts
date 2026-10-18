@@ -705,11 +705,16 @@ describe("per-agent uninstall (D-05)", () => {
   const agentsOf = (target: string): unknown => readMarkerObject(target).agents;
   const at = (target: string, rel: string): string => join(target, ...rel.split("/"));
 
-  it("uninstall Codex while Antigravity stays: the shared skill stays; then uninstall Antigravity: it goes, with the .agents directories install created", () => {
+  it("uninstall Codex while Antigravity stays: the shared skill and Antigravity's launch agent stay; then uninstall Antigravity: both go, with the .agents directories install created", () => {
     const t = installedTree("per-agent-tracer", [flag("claude"), flag("codex"), flag("antigravity")]);
     expect(agentsOf(t.target), "the install did not record the three agents").toEqual(["claude", "codex", "antigravity"]);
     const skill = at(t.target, AGENT_SKILL_REL);
     const skillBytes = readFileSync(skill);
+    // Antigravity CLI's launch agent (quick task 261018-hs8, D-05), read from its registry row.
+    const launchRel = HOST_TOOLS.find((h) => h.id === "antigravity")?.launchAgent ?? null;
+    expect(launchRel, "premise: Antigravity CLI has a launch agent").not.toBeNull();
+    const launch = at(t.target, launchRel!);
+    const launchBytes = readFileSync(launch);
     const claudeBefore = snapshotTree(at(t.target, ".claude"));
     const claudeMdBefore = readFileSync(at(t.target, "CLAUDE.md"));
 
@@ -717,6 +722,7 @@ describe("per-agent uninstall (D-05)", () => {
     expectFinished(codex, "uninstall --codex");
     expect(codex.status, `uninstall --codex: exit ${codex.status}\n${codex.stdout}`).toBe(0);
     expect(readFileSync(skill).equals(skillBytes), `the shared skill changed while Antigravity stays\n${codex.stdout}`).toBe(true);
+    expect(existsSync(launch) && readFileSync(launch).equals(launchBytes), `Antigravity CLI's launch agent changed or went while Antigravity stays\n${codex.stdout}`).toBe(true);
     expect(snapshotTree(at(t.target, ".claude")), `a .claude/ file changed\n${codex.stdout}`).toBe(claudeBefore);
     expect(readFileSync(at(t.target, "CLAUDE.md")).equals(claudeMdBefore), "CLAUDE.md changed").toBe(true);
     expect(existsSync(at(t.target, MARKER_REL)), "the marker is gone after a partial uninstall").toBe(true);
@@ -726,13 +732,36 @@ describe("per-agent uninstall (D-05)", () => {
     const agy = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("antigravity")]);
     expectFinished(agy, "uninstall --antigravity");
     expect(agy.status, `uninstall --antigravity: exit ${agy.status}\n${agy.stdout}`).toBe(0);
-    for (const rel of [AGENT_SKILL_REL, ".agents/skills/grugops", ".agents/skills", ".agents"]) {
+    for (const rel of [AGENT_SKILL_REL, ".agents/skills/grugops", ".agents/skills", launchRel!, ".agents/agents", ".agents"]) {
       expect(existsSync(at(t.target, rel)), `${rel} is still there once no agent that reads it is installed\n${agy.stdout}`).toBe(false);
     }
     expect(snapshotTree(at(t.target, ".claude")), `a .claude/ file changed\n${agy.stdout}`).toBe(claudeBefore);
     expect(agentsOf(t.target), agy.stdout).toEqual(["claude"]);
     const ledger = ledgerOf(readMarkerObject(t.target));
     expect(ledger.filter((e) => e.path === ".agents" || e.path.startsWith(".agents/")), "the removed entries are still in the ledger").toEqual([]);
+  });
+
+  // The converse (quick task 261018-hs8, D-05; the ownership rule is mutation-proven in the SUMMARY): the launch agent is
+  // Antigravity CLI's alone, so removing Antigravity while Codex stays removes it and the directory install made for it,
+  // and keeps the skill the two share byte for byte.
+  it("uninstall Antigravity while Codex stays: Antigravity's launch agent and .agents/agents go; the shared skill stays byte for byte", () => {
+    const t = installedTree("per-agent-converse", [flag("codex"), flag("antigravity")]);
+    expect(agentsOf(t.target), "the install did not record the two agents").toEqual(["codex", "antigravity"]);
+    const launchRel = HOST_TOOLS.find((h) => h.id === "antigravity")?.launchAgent ?? null;
+    expect(launchRel, "premise: Antigravity CLI has a launch agent").not.toBeNull();
+    expect(existsSync(at(t.target, launchRel!)), "premise: the install wrote the launch agent").toBe(true);
+    const skill = at(t.target, AGENT_SKILL_REL);
+    const skillBytes = readFileSync(skill);
+    const agy = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("antigravity")]);
+    expectFinished(agy, "uninstall --antigravity");
+    expect(agy.status, `uninstall --antigravity: exit ${agy.status}\n${agy.stdout}`).toBe(0);
+    for (const rel of [launchRel!, ".agents/agents"]) {
+      expect(existsSync(at(t.target, rel)), `${rel} is still there after Antigravity CLI was removed\n${agy.stdout}`).toBe(false);
+    }
+    expect(existsSync(skill) && readFileSync(skill).equals(skillBytes), `the shared skill changed or went while Codex stays\n${agy.stdout}`).toBe(true);
+    expect(agentsOf(t.target), agy.stdout).toEqual(["codex"]);
+    const ledger = ledgerOf(readMarkerObject(t.target));
+    expect(ledger.filter((e) => e.path === ".agents/agents" || e.path.startsWith(".agents/agents/")), "the removed entries are still in the ledger").toEqual([]);
   });
 
   // The tree of `target` as path → snapshot row (a directory row ends in "/ DIR"), from the shared snapshotTree.
