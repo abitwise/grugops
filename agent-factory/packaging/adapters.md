@@ -139,7 +139,8 @@ verify against current Pi docs before you rely on one.
 is the launch file: the same pointer with no frontmatter, which Pi appends to its system prompt only
 when a session is started with `pi --append-system-prompt .pi/grugops-orchestrator.md` from the
 repository root (Pi's resource loader, `packages/coding-agent/src/core/resource-loader.ts` @ 482c1381,
-retrieved 2026-10-18). Neither is a resolver adapter (no kit-home variable, no
+retrieved 2026-10-18). The flag reads the file into Pi's system prompt without Pi's project-trust
+check, so only use it in a repository you trust. Neither is a resolver adapter (no kit-home variable, no
 self-heal block), and neither holds role text. grugops never writes `.pi/SYSTEM.md`,
 `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, writes no Pi-specific skill or extension, and ships no
 Pi skill package. When the same install also chooses `--codex` or `--antigravity`, the shared

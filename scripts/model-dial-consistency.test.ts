@@ -293,12 +293,22 @@ const CLAUDE_ROW_KEY = "**`model:` other than `inherit` in role wrappers without
  * one sentence, not the absence of a competing one. The compensating control is the negative grep
  * recorded in `.planning/phases/29.1-per-role-model-assignment/29.1-10-SUMMARY.md`, run over the
  * whole shipped tree at plan close, and phase verification re-runs it.
+ *
+ * THE SENTENCE CHANGED AGAIN ON 2026-10-18 (quick task 261018-hs8 fix pass, review WR-01). That task made install write
+ * one launch agent (an agent definition) for OpenCode, GitHub Copilot CLI and Antigravity CLI, so the stated reason,
+ * that the kit wrote no agent definition at all for those hosts, became false while the conclusion (neither dial
+ * reaches them) still held. The reason now says what is true: no per-role agent definition is emitted, and the one
+ * launch agent carries no `model` or effort field. As above, the superseded wording is not quoted here; it is
+ * recorded verbatim in the task's SUMMARY
+ * (`.planning/quick/261018-hs8-launch-agent-adapters-for-opencode-copil/261018-hs8-SUMMARY.md`, "Fix pass (D-06)").
+ * The unknown clause below changed in the same edit, for the same reason.
  */
 const SCOPE_SENTENCE =
   "The model and effort dials reach Claude Code only, and that is a fact about this kit rather than " +
   "about the other host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so " +
   "although Codex CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` " +
-  "field in their own agent-definition formats, this kit emits no agent definition for any of them, " +
+  "field in their own agent-definition formats, this kit emits no per-role agent definition for any of them, " +
+  "the one launch agent it writes for OpenCode and for GitHub Copilot CLI carries no `model` or effort field, " +
   "and neither dial has anywhere to write there.";
 
 /**
@@ -326,8 +336,8 @@ const NO_SUB_AGENTS_PREDICATE = " ships no sub-agents";
  * clause's grammar by `namedUnknownClauseHost()` below, never off the registry.
  */
 const UNKNOWN_CLAUSE =
-  "Whether Antigravity CLI accepts a per-agent `model` field is `UNKNOWN - verify`, and this kit emits no agent " +
-  "definition for it either.";
+  "Whether Antigravity CLI accepts a per-agent `model` field is `UNKNOWN - verify`; this kit emits no per-role agent " +
+  "definition for it either, and the one launch agent it writes for it carries no `model` field.";
 
 /** The words that open the unknown clause, before the host name, and the predicate that follows the host name. */
 const UNKNOWN_CLAUSE_OPEN = "Whether ";

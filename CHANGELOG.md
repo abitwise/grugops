@@ -135,7 +135,9 @@ CLI with Antigravity CLI.
   (`opencode --agent grugops-orchestrator`, or Tab in a session),
   `.github/agents/grugops-orchestrator.agent.md` for GitHub Copilot CLI
   (`copilot --agent grugops-orchestrator`, or `/agent`) and `.pi/grugops-orchestrator.md` for Pi
-  (`pi --append-system-prompt .pi/grugops-orchestrator.md`, from the repository root). Each is a
+  (`pi --append-system-prompt .pi/grugops-orchestrator.md`, from the repository root; the flag reads
+  the file into the system prompt without Pi's project-trust check, so only use it in a repository you
+  trust). Each is a
   pointer with no role text, rendered by `scripts/generate-host-entries.ts` and written under the
   whole-file entry rule: a file you wrote or edited at that path is left untouched. Each belongs to
   its own agent, so `uninstall --codex` keeps Antigravity CLI's file and `uninstall --antigravity`

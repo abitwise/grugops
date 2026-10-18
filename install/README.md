@@ -535,7 +535,9 @@ writes no path under `.claude/` and no `CLAUDE.md`:
   `would-add` and writes nothing. How to use it, and what Pi asks first, is in "Using grugops on Pi"
   below
 - `.pi/grugops-orchestrator.md` — Pi's launch file, passed as
-  `pi --append-system-prompt .pi/grugops-orchestrator.md` (see "Using grugops on Pi"). It is a
+  `pi --append-system-prompt .pi/grugops-orchestrator.md` (see "Using grugops on Pi"). The flag reads
+  the file into Pi's system prompt without Pi's project-trust check, so only use it in a repository
+  you trust. It is a
   pointer with no role text and no frontmatter, and
   install writes it by the same rules as the skill: created where nothing is, install's own unedited
   copy refreshed, and anything else (a file you wrote, or install's copy that you edited) left
@@ -906,7 +908,10 @@ follows the route on a live run is `UNKNOWN - verify` until the re-run recorded 
   text `.pi/grugops-orchestrator.md`, so started from a subdirectory Pi gets no pointer and gives no
   error. Third, passing the flag skips your own `.pi/APPEND_SYSTEM.md`, and the global one, for that
   session. Fourth, the flag's file is read whether or not you granted project trust; only the files
-  Pi finds on its own wait for trust. The session still loads roles one at a time (the sequential
+  Pi finds on its own wait for trust.
+  **Warning: `--append-system-prompt` reads the repository file into Pi's system prompt without Pi's
+  project-trust check, so only use this command in a repository you trust.** In a repository someone
+  else can change, read `.pi/grugops-orchestrator.md` before you start Pi this way. The session still loads roles one at a time (the sequential
   role-load model, §6 "Degraded"): a launch file does not give Pi the spawning of Claude Code's
   Full tier. Whether a live Pi session started this way reaches the Orchestrator is
   `UNKNOWN - verify`.

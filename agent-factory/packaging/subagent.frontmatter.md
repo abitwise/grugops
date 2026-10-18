@@ -265,7 +265,7 @@ This section is the kit's single authority for the model dial's host-CLI scope. 
 field reference points here rather than restating it, so the two documents cannot come to say
 different things about the same capability.
 
-The model and effort dials reach Claude Code only, and that is a fact about this kit rather than about the other host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so although Codex CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` field in their own agent-definition formats, this kit emits no agent definition for any of them, and neither dial has anywhere to write there. Pi ships no sub-agents, this kit emits no per-agent definition for Pi either, and grugops does not configure Pi's own thinking level. Whether Antigravity CLI accepts a per-agent `model` field is `UNKNOWN - verify`, and this kit emits no agent definition for it either.
+The model and effort dials reach Claude Code only, and that is a fact about this kit rather than about the other host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so although Codex CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` field in their own agent-definition formats, this kit emits no per-role agent definition for any of them, the one launch agent it writes for OpenCode and for GitHub Copilot CLI carries no `model` or effort field, and neither dial has anywhere to write there. Pi ships no sub-agents, this kit emits no per-agent definition for Pi either, and grugops does not configure Pi's own thinking level. Whether Antigravity CLI accepts a per-agent `model` field is `UNKNOWN - verify`; this kit emits no per-role agent definition for it either, and the one launch agent it writes for it carries no `model` field.
 
 References for each host CLI named above (retrieved 2026-08-20; Pi retrieved 2026-10-06; Antigravity retrieved 2026-10-11):
 Codex CLI — `learn.chatgpt.com/docs/agent-configuration/subagents` (`model` in a `.codex/agents/*.toml` file);
@@ -298,7 +298,7 @@ per-agent `model` field in their own agent-definition formats, which the referen
 directly, and the same point is carried independently by Codex CLI and OpenCode.
 
 **`UNKNOWN - verify` — R3, whether grugops should emit for the other host CLIs.** Whether this kit
-should generate agent definitions for Codex CLI, Antigravity CLI, OpenCode and GitHub Copilot CLI —
+should generate per-role agent definitions for Codex CLI, Antigravity CLI, OpenCode and GitHub Copilot CLI —
 which would give either dial somewhere to write on those hosts — was deliberately not researched. It
 is a scope question for a later phase, not a fact this section establishes. Direction of the
 unknown: the scope sentence above describes what this kit emits today and is not a decision that it
