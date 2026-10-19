@@ -1030,6 +1030,50 @@ describe("census: install.ts asks one owner of what install would write into a c
   });
 });
 
+// ── ONE OWNER OF WHETHER A LAUNCH FILE IS INSTALL'S OWN (quick task 261019-faq, 261018-vfm review WR-08; AUTH-1) ──────
+//
+// Before this fix `--check` step (f) said ok for any file at a launch path holding the route sentence, while install's
+// closing line offered the launch form only for a file install owns: two rules for one question. launchOwned is now the
+// one answer. The census pins its call sites by enclosing function declaration (doctor step (f) in kitRouteFindings,
+// and launchClosingClause), refuses any reference that is not a direct call, and refuses a direct owns call in either
+// caller, so neither can answer the question a second way beside it. Measured 2026-10-19 by this census.
+const LAUNCH_OWNER_CALLS: Readonly<Record<string, number>> = {
+  "launchOwned@kitRouteFindings": 1,
+  "launchOwned@launchClosingClause": 1,
+};
+
+describe("census: install.ts asks one owner of whether a launch file is install's own (quick task 261019-faq, review WR-08)", () => {
+  it(`launchOwned is one function declaration called only at the pinned sites (${Object.entries(LAUNCH_OWNER_CALLS).map(([k, v]) => `${k} ×${v}`).join(", ")}), and neither caller calls owns`, () => {
+    const found: Record<string, number> = {};
+    const notCalls: string[] = [];
+    const declared: string[] = [];
+    const ownsInCallers: string[] = [];
+    const callers = new Set(Object.keys(LAUNCH_OWNER_CALLS).map((k) => k.slice(k.indexOf("@") + 1)));
+    for (const n of allNodes(installSource())) {
+      if (!ts.isIdentifier(n)) continue;
+      if (n.text === "owns" && ts.isCallExpression(n.parent) && n.parent.expression === n && callers.has(enclosingFunction(n))) {
+        ownsInCallers.push(`owns@${enclosingFunction(n)}`);
+      }
+      if (n.text !== "launchOwned") continue;
+      if (ts.isFunctionDeclaration(n.parent) && n.parent.name === n) {
+        declared.push(n.text);
+        continue;
+      }
+      if (ts.isCallExpression(n.parent) && n.parent.expression === n) {
+        const key = `${n.text}@${enclosingFunction(n)}`;
+        found[key] = (found[key] ?? 0) + 1;
+      } else {
+        notCalls.push(`${n.text} used as a value in ${enclosingFunction(n)}`);
+      }
+    }
+    console.log(`install.ts launch-owner census: ${JSON.stringify(found)}`);
+    expect(declared, "launchOwned is one function declaration").toEqual(["launchOwned"]);
+    expect(notCalls, "a reference that is not a direct call escapes the census").toEqual([]);
+    expect(ownsInCallers, "a launchOwned caller asks owns itself").toEqual([]);
+    expect(found).toEqual(LAUNCH_OWNER_CALLS);
+  });
+});
+
 // ── THE ONE DERIVATION OF THE HOSTS A CARRIER STRANDS (plan 34-33, D-27 point 2; VERDICT-1, AUTH-1) ──────────────
 //
 // reachVia and strandedBy (host-tools.ts) are pure over RouteFacts. They are checked here over EVERY combination of

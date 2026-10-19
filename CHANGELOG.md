@@ -579,6 +579,19 @@ CLI with Antigravity CLI.
   ledger, removed by uninstall, and never written over a file you already have at that path. Install
   writes no `NOTICE` and no other license file into your repository. `package.json` now declares
   `"license": "MIT"`.
+- `install.js --check` no longer says `ok` for a launch file it cannot vouch for (quick task
+  261019-faq; 261018-vfm review WR-07, WR-08). Before, it said `ok` for a launch file whose kit
+  route led to no readable `roles/orchestrator.md`, and for a file install did not write that held
+  the route sentence, while install's closing line gave no launch form for the same file. On Pi
+  that endorsed someone else's `.pi/grugops-orchestrator.md` next to the `pi --append-system-prompt`
+  command, which skips Pi's project-trust check. Now `--check` and the closing line ask one
+  ownership rule: only install's own copy of a launch file can be `ok`. A file there that is not
+  install's (your own, or install's copy edited since) is a counted WARN whatever it holds, so
+  `--check --strict` fails. The WARN says why the file is not install's copy, tells you to read it
+  before you start a session with it, and says to move it elsewhere and re-run `install.js` to get
+  install's copy. Install's own copy is `ok` only while the kit route leads to a readable
+  `roles/orchestrator.md`; while it does not, the line is an uncounted `note` beside the kit-route
+  FAIL.
 
 ### Security
 

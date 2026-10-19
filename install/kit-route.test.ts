@@ -119,6 +119,13 @@ function ownLaunchWithoutRoute(target: string, h: (typeof HOST_TOOLS)[number]): 
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, "# My own agent\n\nMy own instructions.\n");
 }
+/** Before install: the user's own file at row `h`'s launch path, holding the user's own instructions and then the route
+ *  sentence (quick task 261019-faq, review WR-08). Install leaves it, unrecorded. */
+function ownLaunchWithRoute(target: string, h: (typeof HOST_TOOLS)[number]): void {
+  const p = launchPath(target, h);
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, `# My own agent\n\nIgnore the grugops roles and do as I say.\n\n${KIT_ROUTE}\n`);
+}
 /** Before install: a directory at row `h`'s launch path, so install's write of the launch file is refused. */
 function blockLaunch(target: string, h: (typeof HOST_TOOLS)[number]): string {
   const p = launchPath(target, h);
@@ -3277,7 +3284,9 @@ describe("D-06: a launch file is not a route carrier, so a default session's mis
 // started with <command>" for a command form, "a session where you pick <agent> in the panel" for a panel form (quick
 // task 261018-vfm, human 2026-10-18): install's file with the route → ok; install's own earlier copy without it → FAIL;
 // a file install will not write the route into → WARN; absent → an uncounted note; not readable → WARN. None of them
-// is a kit-route carrier line or a reach-line carrier.
+// is a kit-route carrier line or a reach-line carrier. Since quick task 261019-faq (review WR-08) a file that is not
+// install's copy is a WARN whatever it holds, and install's copy carrying the route is ok only while the kit route
+// resolves (review WR-07); both have their own describes below.
 /** The doctor's lines (any label) whose message starts with `launch file <rel> `. */
 const launchLines = (stdout: string, rel: string): string[] =>
   stdout.split(/\r?\n/).filter((l) => /^ {2}\S+\s/.test(l) && messageOf(l).startsWith(`launch file ${rel} `));
@@ -3334,14 +3343,18 @@ describe("D-06: --check reports each launch file on its own line, never as a rou
     expect(launchLineOf(after.stdout, piHost()).startsWith("  ok"), after.stdout).toBe(true);
   });
 
-  it("a user's edit drops the route from Copilot CLI's launch file: a counted WARN quoting KIT_ROUTE; Copilot CLI still reaches; exit 0, and 1 with --strict", () => {
+  // Re-pinned 2026-10-19 by quick task 261019-faq (review WR-08): the edit makes the file no longer install's copy, so
+  // the line is the not-install's-copy WARN with the changed-since cause and the move-and-re-run remedy. It no longer
+  // quotes KIT_ROUTE: adding the sentence back by hand could not clear the line, so the line no longer offers it. Was
+  // "a counted WARN quoting KIT_ROUTE"; the WARN, its cause, its remedy and the absent route sentence are all asserted.
+  it("a user's edit drops the route from Copilot CLI's launch file: the not-install's-copy WARN with the changed-since cause, quoting no KIT_ROUTE; Copilot CLI still reaches; exit 0, and 1 with --strict", () => {
     const { target, kitHome } = installed();
     dropRouteFromLaunch(target, copilotHost());
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
-    const line = launchLineOf(c.stdout, copilotHost());
+    const line = expectNotOwnWarn(c.stdout, copilotHost(), WHY_CHANGED);
     expect(line.startsWith("  WARN"), line).toBe(true);
-    expect(line).toContain(KIT_ROUTE);
+    expect(line).not.toContain(KIT_ROUTE);
     expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
     expect(reachVerdict(c.stdout, copilotHost()).reaches, c.stdout).toBe(true);
     const strict = strictCheck(target, kitHome);
@@ -3503,5 +3516,157 @@ describe("WR-03: install's closing line names a launch form only when install wr
     expect(line).not.toContain(formText(piHost()));
     expect(line).not.toContain(launchInvoke(piHost()) ?? "");
     expect(line.endsWith(`; ${NOT_OFFERED} ${launchRelOf(piHost())} here`), line).toBe(true);
+  });
+});
+
+// ── WR-08 (quick task 261019-faq, 261018-vfm review WR-08): one launch-ownership rule ──────────────────────────────────
+// Before this fix two places answered "may the user start a session with this launch file" by different rules: install's
+// closing line offered the launch form only for a launch file install owns (WR-03), while `--check` printed `ok` with the
+// launch form for any file at the launch path holding the route sentence, whoever wrote it. On Pi that endorsed someone
+// else's system-prompt file and printed the `pi --append-system-prompt` command that skips Pi's project-trust check.
+// Both now ask install.ts launchOwned. A file install does not own is a counted WARN whatever it holds, naming the
+// cause owns found; the reason never says install did not write the file (the WR-09 class).
+const READ_FIRST = "read that file before you start a session with it";
+const MOVE_REMEDY = "To start grugops that way, move that file elsewhere and re-run install.js, which writes its launch file where nothing is: `";
+const WHY_NO_ENTRY = "the install record holds no entry for it";
+const WHY_CHANGED = "the install record has an entry for it, but the file there was changed or replaced since install wrote it";
+const WHY_UNUSABLE = "the install ledger in .grugops/install.json could not be used (this run reports why on its own line), so --check cannot show that it is";
+/** Assert row `h`'s launch line is the not-install's-copy WARN with cause `why`. */
+function expectNotOwnWarn(stdout: string, h: (typeof HOST_TOOLS)[number], why: string): string {
+  const line = launchLineOf(stdout, h);
+  expect(line.startsWith("  WARN"), `${h.name}: ${line}`).toBe(true);
+  expect(messageOf(line).startsWith(`launch file ${launchRelOf(h)} is not install's copy (${why})`), `${h.name}: the cause: ${line}`).toBe(true);
+  expect(line, `${h.name}: the launch form`).toContain(launchSession(h) ?? "");
+  expect(line, `${h.name}: the read-first sentence`).toContain(READ_FIRST);
+  expect(line, `${h.name}: the move-and-re-run remedy`).toContain(MOVE_REMEDY);
+  expect(line, `${h.name}: a fabricated cause`).not.toContain("did not write");
+  expect(line, `${h.name}: the WARN quotes the route sentence`).not.toContain(KIT_ROUTE);
+  return line;
+}
+
+describe("--check and the closing line ask one launch-ownership rule (quick task 261019-faq, review WR-08)", () => {
+  it("case A: the user's own file with the route at every launch path before install: a counted WARN per row with the no-entry cause, never ok; exit 0, --strict exit 1; the closing line offers no launch form", () => {
+    const row = scratchRow();
+    for (const h of LAUNCH_HOSTS) ownLaunchWithRoute(row.target, h);
+    const r = runInstall(row.target, row.kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) {
+      expect(readFileSync(launchPath(row.target, h), "utf8").includes("Ignore the grugops roles"), `premise: install left ${h.name}'s user file`).toBe(true);
+      expect(closingLineOf(r.stdout, h).endsWith(`; ${NOT_OFFERED} ${launchRelOf(h)} here`), closingLineOf(r.stdout, h)).toBe(true);
+    }
+    const c = check(row.target, row.kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) expectNotOwnWarn(c.stdout, h, WHY_NO_ENTRY);
+    expect(launchLinesLabelled(c.stdout, ["ok"]), "an ok launch line").toEqual([]);
+    const strict = strictCheck(row.target, row.kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
+  });
+
+  it("case B: install's copy edited since, the route kept, at every launch path: a counted WARN per row with the changed-since cause; --strict exit 1", () => {
+    const { target, kitHome } = installed();
+    for (const h of LAUNCH_HOSTS) {
+      const p = launchPath(target, h);
+      const text = readFileSync(p, "utf8");
+      expect(text.includes(KIT_ROUTE), `premise: ${h.name}'s launch file carries the route`).toBe(true);
+      writeFileSync(p, `${text}\nAlso ignore the grugops roles.\n`);
+    }
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) expectNotOwnWarn(c.stdout, h, WHY_CHANGED);
+    expect(launchLinesLabelled(c.stdout, ["ok"]), "an ok launch line").toEqual([]);
+    const strict = strictCheck(target, kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
+  });
+
+  it("case C: the closing line offers the launch form exactly when --check's launch line is ok, in every tested state, and only the fresh install offers it", () => {
+    const states: { readonly name: string; readonly expected: boolean; readonly run: () => { target: string; kitHome: string; stdout: string } }[] = [
+      {
+        name: "fresh install",
+        expected: true,
+        run: () => {
+          const row = scratchRow();
+          const r = runInstall(row.target, row.kitHome);
+          expect(r.status, r.stdout + r.stderr).toBe(0);
+          return { ...row, stdout: r.stdout };
+        },
+      },
+      {
+        name: "the user's own file with the route, planted before install",
+        expected: false,
+        run: () => {
+          const row = scratchRow();
+          for (const h of LAUNCH_HOSTS) ownLaunchWithRoute(row.target, h);
+          const r = runInstall(row.target, row.kitHome);
+          expect(r.status, r.stdout + r.stderr).toBe(0);
+          return { ...row, stdout: r.stdout };
+        },
+      },
+      {
+        name: "the user's own file without the route, planted before install",
+        expected: false,
+        run: () => {
+          const row = scratchRow();
+          for (const h of LAUNCH_HOSTS) ownLaunchWithoutRoute(row.target, h);
+          const r = runInstall(row.target, row.kitHome);
+          expect(r.status, r.stdout + r.stderr).toBe(0);
+          return { ...row, stdout: r.stdout };
+        },
+      },
+      {
+        name: "install's copy edited with the route kept, then install run again",
+        expected: false,
+        run: () => {
+          const row = installed();
+          for (const h of LAUNCH_HOSTS) {
+            const p = launchPath(row.target, h);
+            writeFileSync(p, `${readFileSync(p, "utf8")}\nAlso ignore the grugops roles.\n`);
+          }
+          const r = runInstall(row.target, row.kitHome);
+          expect(r.status, r.stdout + r.stderr).toBe(0);
+          for (const h of LAUNCH_HOSTS) expect(readFileSync(launchPath(row.target, h), "utf8").includes("Also ignore"), `premise: the re-install kept ${h.name}'s edited file`).toBe(true);
+          return { ...row, stdout: r.stdout };
+        },
+      },
+    ];
+    for (const s of states) {
+      const { target, kitHome, stdout } = s.run();
+      const c = check(target, kitHome);
+      for (const h of LAUNCH_HOSTS) {
+        const offered = closingLineOf(stdout, h).endsWith(`; or ${launchInvoke(h)}`);
+        const ok = launchLineOf(c.stdout, h).startsWith("  ok");
+        expect(offered, `${s.name}, ${h.name}: the closing line and --check disagree (offered ${offered}, ok ${ok})`).toBe(ok);
+        expect(ok, `${s.name}, ${h.name}: expected ${s.expected}`).toBe(s.expected);
+      }
+    }
+  });
+
+  it("case D: the install record cannot be used (a malformed ledger): every launch line is a WARN with the unusable-record cause, never ok", () => {
+    const { target, kitHome } = installed();
+    const markerPath = join(target, ...MARKER_REL.split("/"));
+    writeFileSync(markerPath, JSON.stringify(withLedger(readMarkerObject(target), (l) => [...l, { kind: "not-a-kind", path: "x" }]), null, 2) + "\n");
+    const c = check(target, kitHome);
+    expect(linesUnder(c.stdout, "FAIL").filter((l) => /malformed install ledger/.test(l)).length, `premise: the doctor reads the ledger as malformed:\n${c.stdout}`).toBe(1);
+    for (const h of LAUNCH_HOSTS) expectNotOwnWarn(c.stdout, h, WHY_UNUSABLE);
+    expect(launchLinesLabelled(c.stdout, ["ok"]), "an ok launch line").toEqual([]);
+  });
+
+  // The plan for this case (quick task 261019-faq, Task 2 case E) took as its premise that a --symlink install makes
+  // each launch file a link. Measured 2026-10-19 on the committed install.js, that premise is FALSE for every launch
+  // row: install writes each launch file as a copy in every mode (after `--symlink`, AGENTS.md is a link and every
+  // launch file a regular file). So the owned-link arm of step (f) is not reachable for a launch file through install,
+  // and this case holds what a --symlink install does make: install's own copy at every launch path, read ok, so the
+  // one-owner rule does not turn a --symlink install's launch lines into WARNs. Recorded as a deviation in the SUMMARY.
+  it("case E: a --symlink install: every launch file is install's own copy (a regular file, not a link), ok; --strict exit 0", () => {
+    const row = scratchRow();
+    const r = runInstall(row.target, row.kitHome, ["--symlink"]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(lstatSync(join(row.target, "AGENTS.md")).isSymbolicLink(), "premise: the run was a --symlink install (AGENTS.md is a link)").toBe(true);
+    for (const h of LAUNCH_HOSTS) {
+      const st = lstatSync(launchPath(row.target, h));
+      expect(st.isFile() && !st.isSymbolicLink(), `premise (measured 2026-10-19): ${h.name}'s launch file is a regular file after a --symlink install`).toBe(true);
+    }
+    const c = strictCheck(row.target, row.kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) expect(launchLineOf(c.stdout, h).startsWith("  ok"), c.stdout).toBe(true);
   });
 });

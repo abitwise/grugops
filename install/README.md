@@ -570,7 +570,8 @@ documentation says to start grugops. They give a host's launch form (for example
 only when install wrote its launch file in this run or
 already owns the file there. When that file is your own, or install could not write it, the notes say
 so and give no launch form, because the form would start that file and not the grugops
-Orchestrator. A launch form a human ran on the live host is marked "verified live by a human on
+Orchestrator. `install.js --check` asks the same ownership rule, so it gives a launch file `ok` only
+when the closing notes would offer its launch form. A launch form a human ran on the live host is marked "verified live by a human on
 2026-10-18" in the notes; grugops has not run the other invocations on a live host, and the notes
 say `UNKNOWN - verify`, as they do for whether a session started with a launch form follows the kit
 route.
@@ -683,11 +684,23 @@ reads every file first and reports afterwards, in this order:
   no `reach` line names it, and a file a default session reads that lacks the route is counted
   whatever the launch file holds. `--check` gives each launch file of an installed agent a line of
   its own, worded "a session started with" that host's launch command, or "a session where you
-  pick" the agent in the `/agents` panel, for a host whose launch form is a pick in that panel: `ok`
-  when it carries the route;
-  a FAIL when it is install's own copy from an earlier install without the route, whose remedy is to
-  re-run `install.js`; a WARN when install will not write the route into it (your own file, or a
-  link) or it could not be read; and an uncounted `note` when it is not present.
+  pick" the agent in the `/agents` panel, for a host whose launch form is a pick in that panel.
+  Only install's own copy of a launch file can be `ok` (install writes each launch file as a copy, also
+  in a `--symlink` install); the install record decides that, the same rule the closing notes use.
+  The line is:
+  - a WARN for a file there that is not install's (your own file, or install's copy edited since),
+    whatever it holds, even the route sentence. It names why: the install record has no entry for the
+    file, the file changed since install wrote it, or the record could not be used. Read that file
+    before you start a session with it; to get install's copy, move the file elsewhere and re-run
+    `install.js`, which writes its launch file where nothing is;
+  - `ok` for install's own copy carrying the route, when the route leads to a readable
+    `roles/orchestrator.md`; while it does not, an uncounted `note` beside the kit-route FAIL, which
+    is the counted finding for that cause;
+  - a FAIL for install's own copy from an earlier install without the route, whose remedy is to
+    re-run `install.js`;
+  - a WARN for install's own copy without the route that install cannot refresh, or a file that
+    could not be read;
+  - an uncounted `note` when it is not present.
 - **The files without the route.** Such a file is counted only when it leaves some host without a
   route: a host that reads it reads no other file holding the route and, for Claude Code, has no
   adapter route. `--check` names re-running `install.js` exactly when an install run on the same
@@ -925,7 +938,8 @@ follows the route on a live run is `UNKNOWN - verify` until the re-run recorded 
   Pi finds on its own wait for trust.
   **Warning: `--append-system-prompt` reads the repository file into Pi's system prompt without Pi's
   project-trust check, so only use this command in a repository you trust.** In a repository someone
-  else can change, read `.pi/grugops-orchestrator.md` before you start Pi this way. The session still loads roles one at a time (the sequential
+  else can change, read `.pi/grugops-orchestrator.md` before you start Pi this way. `install.js --check`
+  gives that file `ok` only while it is install's own copy; any other file there gets a WARN. The session still loads roles one at a time (the sequential
   role-load model, §6 "Degraded"): a launch file does not give Pi the spawning of Claude Code's
   Full tier. Starting Pi this way was verified live by a human on 2026-10-18: Pi's `[Context]` list
   named `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows Pi loaded the file;

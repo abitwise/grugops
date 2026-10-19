@@ -1330,6 +1330,37 @@ function linkOwnership(ledger, rel) {
         remedy: `Remove the link at ${rel} and re-run install.js, which links or copies the current kit ${rel}: \`${doctorInstallCommand()}\``,
     };
 }
+// launchOwned (quick task 261019-faq, 261018-vfm review WR-08; class AUTH-1): THE ONE ANSWER to "is the launch file at
+// `rel` (a POSIX path under TARGET) install's own here", so "may the user start a session with this launch file" has
+// one owner. Install's own exactly when the install record can be used and owns(ledger, TARGET, rel, "file") answers
+// owned: the path still holds what the record says install wrote there (install's unedited copy; owns would also
+// answer owned for a link a --symlink install made, but install writes each launch file as a copy in every mode,
+// measured 2026-10-19). Its two callers are the doctor's launch-file lines (kitRouteFindings step (f)) and install's closing
+// line (launchClosingClause). Before this fix the doctor said ok for any file at the launch path that held the route
+// sentence, whoever wrote it, while the closing line offered the launch form only for a file install owns: two rules
+// for one question, and on Pi the doctor endorsed someone else's system-prompt file.
+// THE REASON IS ONLY WHAT owns FOUND, in three arms: the record could not be used (a malformed ledger, worded as
+// notRecordedReason words it; or no ledger this run can use); the record has an entry for the path but the path no longer holds it (owns answers `recorded`: changed or
+// replaced since); or the record holds no entry for the path. It never says install did not write the file: a record
+// with no entry does not show that (an earlier install's record can be lost), and saying it would state a cause the
+// run did not establish. owns' own reasons end in uninstall's wording ("left in place"), so they are not printed here.
+// Reads the ledger and lstat/readlink only; writes nothing. A function declaration over imports and TARGET, declared
+// above the doctor, so the doctor can ask it.
+function launchOwned(ledger, rel) {
+    // A malformed ledger is worded as notRecordedReason (install-marker.ts) words it, without uninstall's "left in place":
+    // the doctor prints its own FAIL about the ledger, so the line names no position (install.test.ts MSG-1 T7).
+    if (ledger !== null && ledger.state === "malformed") {
+        return { own: false, why: "the install ledger in .grugops/install.json could not be used (this run reports why on its own line), so --check cannot show that it is" };
+    }
+    if (ledger === null || ledger.state !== "ok")
+        return { own: false, why: "there is no install ledger this run can use, so --check cannot show that it is" };
+    const o = owns(ledger, TARGET, rel, "file");
+    if (o.owned)
+        return { own: true };
+    if (o.recorded)
+        return { own: false, why: "the install record has an entry for it, but the file there was changed or replaced since install wrote it" };
+    return { own: false, why: "the install record holds no entry for it" };
+}
 // refreshable (plan 34-34, D-27 point 3, WR-01; classes AUTH-1 and VERDICT-1): THE ONE OWNER of "would install refresh
 // route carrier `rel` here". Install refreshes only when it answers ok (refreshOwnFile for a whole file, ensureBlock's
 // refresh arm for a block), and the doctor calls a carrier install's own, stale, and names `Re-run install.js`, only
@@ -1616,15 +1647,23 @@ function adapterKitOnDisk() {
 //     row's launchAgent) is read only by a session the user starts with it, never by a default session, so it is in
 //     no step above: it neither gives a host its reach line nor saves a carrier from being counted. Its own line is
 //     worded by host-tools.ts launchSession (quick task 261018-vfm): "a session started with" the launch command for
-//     a `command` form, "a session where you pick" the agent in the panel for a `panel` form. It is asked through the
-//     same classifyCarrier and installWouldWrite:
-//     `route` → ok, but only when step (a)'s route resolved: while the kit route leads to no readable
-//     roles/orchestrator.md, a launch file carrying the route is an uncounted `note` saying so (quick task 261019-faq,
-//     review WR-07; before it, step (f) printed ok for a session that cannot reach the role files, the rule step (e)
-//     applies fixed in one arm only), because step (a)'s FAIL is the one counted finding for that cause, as it is for
-//     step (e)'s reach lines. Install's own stale copy → FAIL with `Re-run install.js`; a file install will not write
-//     the route into (the user's own, a link) → WARN; absent → an uncounted `note` with absentRemedy; unread → WARN, no
-//     verdict.
+//     a `command` form, "a session where you pick" the agent in the panel for a `panel` form. It is read through the
+//     same classifyCarrier, and THE ORDER IS READ STATE, THEN OWNERSHIP, THEN THE ROUTE (quick task 261019-faq):
+//       absent → an uncounted `note` with absentRemedy;
+//       unread → WARN, no verdict (whose file it is cannot be judged for a file that was not read);
+//       not install's own (launchOwned, THE ONE OWNER install's closing line asks too, review WR-08) → a counted WARN
+//         whatever the file holds, with the cause launchOwned found, telling the user to read the file before starting
+//         a session with it, and the move-it-away remedy. Before this fix a file holding the route sentence was ok
+//         whoever wrote it, while the closing line offered no launch form for the same file;
+//       install's own, carrying the route, and step (a)'s route resolved → ok;
+//       install's own, carrying the route, step (a)'s route not resolved → an uncounted `note` saying the session cannot
+//         reach the Orchestrator (review WR-07: before it, step (f) printed ok for a session that cannot reach the role
+//         files, the rule step (e) applies fixed in one arm only). Step (a)'s FAIL is the one counted finding for that
+//         cause, as it is for step (e)'s reach lines;
+//       install's own stale copy → FAIL with `Re-run install.js`;
+//       any other state of install's own file (a copy without the route that install cannot refresh; install's own
+//         link would land here too, though install writes launch files as copies in every mode) → WARN, with
+//         userRemedy (linkOwnership's remedy for such a link, else the move-it-away remedy).
 // THE AGENTS IT SPEAKS FOR (phase 34.1, D-07; VERDICT-1; D-26, IN-21): `hosts` is the doctor's doctorHosts answer, the
 // agents recorded in this target as chosen (or by the legacy rule; the detected agents, announced in a note, when
 // nothing is recorded) that have something installed here: a holding ledger entry they own, or a file at their entry
@@ -1721,6 +1760,11 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
     };
     // Install's own stale copy: the remedy the carrier lines (d) and the launch-file lines (f) both print.
     const ownStaleRemedy = `Re-run install.js: it replaces install's own unedited copy with the current one: \`${doctorInstallCommand()}\``;
+    // A launch file's one by-hand remedy (quick task 261019-faq, review WR-08): move the file away and let install write
+    // its own. The launch-file lines (f) print it for a file that is not install's copy, and pass it as userRemedy's
+    // `otherwise` for install's own file that lacks the route. The old second sentence (add KIT_ROUTE to the file you keep)
+    // is gone: an edited launch file is no longer install's copy, so adding the sentence can never clear the line.
+    const launchMoveRemedy = `To start grugops that way, move that file elsewhere and re-run install.js, which writes its launch file where nothing is: \`${doctorInstallCommand()}\``;
     // (d) One line per carrier.
     for (const rel of rels) {
         const cls = classes.get(rel);
@@ -1790,7 +1834,20 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
             const cls = classifyCarrier(rel, ledger, readAt);
             const session = launchSession(host) ?? `a session started with \`${rel}\``;
             const aside = `A default ${host.name} session does not read it, so no reach line counts it`;
-            if (cls.state === "route" && routeResolves) {
+            if (cls.state === "absent") {
+                docReport("note", `launch file ${rel} is not present, so ${session} has no grugops launch file here. ${aside}. ${absentRemedy(rel)}`);
+                continue;
+            }
+            if (cls.state === "unread") {
+                docWarn(`launch file ${rel} ${readStateText(cls.read)} — it was not read, so NO VERDICT was reached on whether ${session} gets the kit route. ${aside}`);
+                continue;
+            }
+            const own = launchOwned(ledger, rel);
+            if (!own.own) {
+                docWarn(`launch file ${rel} is not install's copy (${own.why}). --check cannot vouch for what ${session} reads (${host.name}), ` +
+                    `so read that file before you start a session with it. ${aside}. ${launchMoveRemedy}`);
+            }
+            else if (cls.state === "route" && routeResolves) {
                 docReport("ok", `launch file ${rel} carries the kit route: ${session} reads it (${host.name}). ${aside}`);
             }
             else if (cls.state === "route") {
@@ -1801,15 +1858,8 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
                 docFail(`launch file ${rel} is install's own copy from an earlier install, without the kit route, so ${session} gets ` +
                     `no route to the kit, which a scripted install puts outside this repository. ${aside}. ${ownStaleRemedy}`);
             }
-            else if (cls.state === "absent") {
-                docReport("note", `launch file ${rel} is not present, so ${session} has no grugops launch file here. ${aside}. ${absentRemedy(rel)}`);
-            }
-            else if (cls.state === "unread") {
-                docWarn(`launch file ${rel} ${readStateText(cls.read)} — it was not read, so NO VERDICT was reached on whether ${session} gets the kit route. ${aside}`);
-            }
             else {
-                const remedy = userRemedy(rel, `To start grugops that way, move that file elsewhere and re-run install.js, which writes its launch file where nothing is: \`${doctorInstallCommand()}\`. ` +
-                    `To keep the file, add this sentence (after the start-here sentence, if the file has one): ${KIT_ROUTE}`);
+                const remedy = userRemedy(rel, launchMoveRemedy);
                 docWarn(`launch file ${rel} has no kit route, and install will not write it (${cls.why ?? "a re-install appends nothing to it"}), ` +
                     `so ${session} reads that file and gets no route to the Orchestrator. ${aside}. ${remedy}`);
             }
@@ -6817,7 +6867,7 @@ function askRulesNotes(outcome) {
 //   - One line per chosen agent, in registry order: its name, the entries of the install record after this run that
 //     it owns (host-tools.ts entryOwners, the one owner of that answer; a footprint prefix such as `.claude/` is shown
 //     once with its count), and its `invoke` text, then launchClosingClause's (the launch form only for a launch file
-//     install owns, review WR-03). Under DRY_RUN nothing was recorded, and the line says so. A chosen
+//     install owns, review WR-03; launchOwned answers that, for the doctor too). Under DRY_RUN nothing was recorded, and the line says so. A chosen
 //     agent with nothing recorded (a user's own file at its entry path, a refusal) says that, and points at the lines
 //     above, which name why.
 //   - One line saying the invocation forms come from each host's documentation or, for a launch form marked verified
@@ -6834,9 +6884,12 @@ function askRulesNotes(outcome) {
 //     installs one and the uninstall command that takes one out of the record, both from agentCommand.
 // launchClosingClause (quick task 261018-hs8, review WR-03): what the closing line adds after a row's invoke text about
 // its launch file. The launch form (host-tools.ts launchInvoke) is offered only when install wrote or owns the file
-// this run leaves there: owns over the install record after the run (install's own unedited copy, created, refreshed
-// or kept; a link a --symlink install made). Under DRY_RUN, nothing was written: it is offered when the run would
-// write the file (PLANNED_BYTES has it: would-add, would-refresh) or the record the run started from owns it. A user's
+// this run leaves there: launchOwned over the install record after the run (install's own unedited copy, created,
+// refreshed or kept; a link a --symlink install made). launchOwned is the one owner the doctor's launch-file lines ask
+// too (quick task 261019-faq, review WR-08), so `--check` says ok for a launch file exactly when this clause offers its
+// form. Under DRY_RUN, nothing was written: it is offered when the run would write the file (PLANNED_BYTES has it:
+// would-add, would-refresh; a planned write is install-run state the doctor never has) or launchOwned over the record
+// the run started from answers own. A user's
 // own file at the launch path, or a write that was refused, gets the reason instead: the printed form would start that
 // user's file, or (on Pi) append the literal path text, not the grugops Orchestrator. "" for a row with no launch file.
 function launchClosingClause(h, ledgerAfter) {
@@ -6844,9 +6897,7 @@ function launchClosingClause(h, ledgerAfter) {
     if (clause === null || h.launchAgent === null)
         return "";
     const rel = h.launchAgent;
-    const owned = DRY_RUN
-        ? PLANNED_BYTES.has(rel) || owns(PREVIOUS_LEDGER, TARGET, rel, "file").owned
-        : ledgerAfter !== null && ledgerAfter.state === "ok" && owns(ledgerAfter, TARGET, rel, "file").owned;
+    const owned = (DRY_RUN && PLANNED_BYTES.has(rel)) || launchOwned(DRY_RUN ? PREVIOUS_LEDGER : ledgerAfter, rel).own;
     return owned ? `; or ${clause}` : `; no launch form is offered, because install neither wrote nor owns ${rel} here`;
 }
 function agentClosingLines() {

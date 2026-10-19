@@ -5029,6 +5029,10 @@ describe("D-37: every reading that says the marker cannot be used carries the ow
 // Pinned 2026-10-14 by plan 34.1-55 (D-40, D-43, WR-38), derived by running the walk: 3 readings, all about the kit-home
 // record (<kit home>/.grugops-kit.json), not the marker: install-marker.ts readKitHomeRecord's why (1) and install.ts
 // writeKitHomeRecord's verify (2: its backup clause is a ternary, so the template has two readings).
+// Re-pinned 2026-10-19 by quick task 261019-faq (261018-vfm review WR-08), derived by running the walk: 4 readings, 4
+// rows. The new reading is the doctor's launch-file WARN (install.ts kitRouteFindings step (f)): "launch file <rel> is
+// not install's copy", about a launch file, never the marker. Its cause comes from launchOwned; for a malformed ledger
+// that cause says the install ledger could not be used, which is not a claim that the marker is not install's.
 
 /** The two retired wordings D-43 names. */
 const NOT_INSTALLS = /not install's|not the marker install writes/i;
@@ -5050,6 +5054,13 @@ const NOT_INSTALLS_EXEMPT: readonly NotInstallsRow[] = [
     "${path}: ${previous.why}. It is not install's kit-home record, so it was left as it is and this run was not recorded there (the backup ${join(GRUGOPS_HOME, made.path)} is unrecorded; remove it by hand when you no longer need it).",
     "the kit-home record",
     "writeKitHomeRecord's verify over an unreadable kit-home record, with this run's backup",
+  ],
+  [
+    "install.ts",
+    "kitRouteFindings",
+    "launch file ${rel} is not install's copy (${own.why}). --check cannot vouch for what ${session} reads (${host.name}), so read that file before you start a session with it. ${aside}. ${launchMoveRemedy}",
+    "the launch file",
+    "the doctor's launch-file WARN for a file at a launch path that launchOwned does not answer own (quick task 261019-faq, review WR-08)",
   ],
 ];
 interface NotInstallsSite {
@@ -5093,7 +5104,7 @@ describe("D-43: no printed reading says the marker is not install's", () => {
     }
   });
 
-  it("every reading that says NOT_INSTALLS equals NOT_INSTALLS_EXEMPT both ways, with counts; 3 readings, 3 rows", () => {
+  it("every reading that says NOT_INSTALLS equals NOT_INSTALLS_EXEMPT both ways, with counts; 4 readings, 4 rows", () => {
     const sites = notInstallsCensus();
     const found = new Map<string, number>();
     for (const s of sites) found.set(notInstallsKey(s.module, s.fn, s.text), (found.get(notInstallsKey(s.module, s.fn, s.text)) ?? 0) + 1);
@@ -5105,8 +5116,8 @@ describe("D-43: no printed reading says the marker is not install's", () => {
     expect(unclassified, "a reading says not install's and is not an exempt row (about the marker, it is a WR-38 sibling for the human)").toEqual([]);
     expect(stale, "an exempt row is gone or changed").toEqual([]);
     expect(counts, "an exempt reading is printed a different number of times").toEqual([]);
-    expect(sites.length, "the census size moved").toBe(3);
-    expect(NOT_INSTALLS_EXEMPT.length, "the exempt table's size moved").toBe(3);
+    expect(sites.length, "the census size moved").toBe(4);
+    expect(NOT_INSTALLS_EXEMPT.length, "the exempt table's size moved").toBe(4);
   });
 
   it("every exempt row names the object it is about, the reading names it too, and no row or reading is about the marker", () => {
@@ -5334,7 +5345,11 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review CR-08): 53. The moved-kit FAIL's condition gained two helpers,
 // recordNamesKitHome (the given kit home's kit-home record names the recorded kit home, by real path) and nothingAt
 // (lstat finds no entry at the recorded kit home). Neither reads the marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 53;
+// Re-pinned 2026-10-19 by quick task 261019-faq (review WR-08): 54, measured by this census. The one new function the
+// doctor reaches is launchOwned, the one owner of "is this launch file install's own" that kitRouteFindings step (f)
+// and install's closing line both ask. It reads the ledger it is passed through owns and never reads the marker; the
+// DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 54;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -6085,7 +6100,10 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review CR-08): 45. The two new functions the doctor reaches are the
 // moved-kit condition's helpers recordNamesKitHome and nothingAt; each reads only the path it is passed (the recorded
 // kit home, DOCTOR_KIT_HOME), never this run's kit home, so C3's table gains no row.
-const WR24_REACH_SIZE = 45;
+// Re-pinned 2026-10-19 by quick task 261019-faq (review WR-08): 46, measured by this walk. The new function the doctor
+// reaches is launchOwned; it reads only the ledger it is passed, TARGET and owns, never GRUGOPS_HOME, GIVEN_KIT_HOME or
+// KIT_ROOT, so C3's table gains no row.
+const WR24_REACH_SIZE = 46;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run
