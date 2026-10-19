@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.1
 status: Awaiting next milestone
 stopped_at: Phase 34.1 CLOSED 2026-10-17 by human decision D-48 (under D-47)
-last_updated: "2026-10-19T13:21:39.615Z"
+last_updated: "2026-10-19T18:02:02.002Z"
 last_activity: 2026-10-19
 last_activity_desc: Milestone v2.1 completed and archived
-state_head: "0b5d90669cc551d812545d592ebce20f26e9d9ef"
+state_head: 598da0bebf36f9b2b88a201aaaf8b5d4cd06e39e
 progress:
   total_phases: 13
   completed_phases: 33
@@ -33,7 +33,7 @@ See: .planning/PROJECT.md (updated 2026-10-18 — after the v2.1 milestone)
 Phase: Milestone v2.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-19 - Completed quick task 261019-ktd: review WR-05, WR-06, WR-10, IN-14 (live-run claims derived from the registry; host versions recorded)
+Last activity: 2026-10-19 - Completed quick task 261019-mq1: hs8 review leftovers (WR-02 remainder, WR-04, IN-01..IN-09, IN-11); every hs8 and vfm review finding now closed
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2035,6 +2035,7 @@ None yet.
 | 261019-faq | Fix review WR-07 and WR-08: --check launch-file lines check route resolution and share one ownership rule with install's closing line | 2026-10-19 | b40ef825 | [261019-faq-fix-review-wr-07-and-wr-08-check-launch-](./quick/261019-faq-fix-review-wr-07-and-wr-08-check-launch-/) |
 | 261019-i3g | Review WR-09 IN-12 IN-13: closing line gives launchOwned's cause; provenance line names only forms given; launch pair held by the type | 2026-10-19 | 33de910e | [261019-i3g-review-wr-09-in-12-in-13-closing-line-ow](./quick/261019-i3g-review-wr-09-in-12-in-13-closing-line-ow/) |
 | 261019-ktd | Review WR-05 WR-06 WR-10 IN-14: live-run state on every --check launch line; host versions recorded; verified-live claims checked against the registry | 2026-10-19 | 0b5d9066 | [261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-](./quick/261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-/) |
+| 261019-mq1 | Review hs8 leftovers: Pi trust warning, case-insensitive Pi guard, canonical YAML values, doc lists checked against the registry, CLAUDE.md launch files | 2026-10-19 | 598da0be | [261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-](./quick/261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-/) |
 
 ## Deferred Items
 
