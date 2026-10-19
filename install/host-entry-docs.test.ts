@@ -38,8 +38,9 @@
 //           `UNKNOWN - verify`.
 //   LIVE-3: in each per-host table that names a launch form (derived, count asserted), a host's row holds its
 //           launchLiveNote exactly when the registry has one, and an unverified launch row holds `UNKNOWN - verify`.
-//           CLAUDE.md and agent-factory/README.md also carry one bold row per host, but their rows name no launch form
-//           or launch file, so they are not per-host launch tables.
+//           agent-factory/README.md also carries one bold row per host, but its rows name no launch form or launch
+//           file, so it is not a per-host launch table. CLAUDE.md's per-tool table names each host's launch file
+//           since quick task 261019-mq1 (261018-hs8 review IN-09), so it is one.
 // Each rule has a mutation proof built from registry values, run through the same scanner function.
 //
 // PATH LISTS, START FORMS AND THE LAUNCH CAUTION (quick task 261019-mq1, 261018-hs8 review WR-04, WR-02). Four more
@@ -574,12 +575,14 @@ describe("verified-live claims and launch forms are bound to the registry (quick
     expect(examined, "LIVE-2 examined no unit").toBeGreaterThanOrEqual(1);
   });
 
-  it("LIVE-3: the per-host launch tables are derived (README.md and adapters.md, count 2), and each has zero findings", () => {
+  it("LIVE-3: the per-host launch tables are derived (CLAUDE.md, README.md and adapters.md, count 3), and each has zero findings", () => {
     const tables = trackedMarkdown(REPO).filter((f) => isLaunchTable(readRel(f)));
-    // Measured 2026-10-19: CLAUDE.md and agent-factory/README.md carry one bold row per host, and none of their
-    // launch hosts' rows names a launch form or file.
-    expect([...tables].sort(), "the per-host launch tables").toEqual(["README.md", "agent-factory/packaging/adapters.md"]);
-    expect(tables.length).toBe(2);
+    // Measured 2026-10-19: agent-factory/README.md carries one bold row per host, and none of its launch hosts' rows
+    // names a launch form or file.
+    // Re-pinned 2026-10-19 by quick task 261019-mq1 (261018-hs8 review IN-09): CLAUDE.md's per-tool table now names
+    // each host's launch file, so it is a per-host launch table and its rows are held to the registry.
+    expect([...tables].sort(), "the per-host launch tables").toEqual(["CLAUDE.md", "README.md", "agent-factory/packaging/adapters.md"]);
+    expect(tables.length).toBe(3);
     let examined = 0;
     const findings = tables.flatMap((f) => {
       const r = scanHostTable(f, readRel(f));
