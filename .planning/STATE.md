@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.1
 status: Awaiting next milestone
 stopped_at: Phase 34.1 CLOSED 2026-10-17 by human decision D-48 (under D-47)
-last_updated: "2026-10-19T09:40:27.204Z"
+last_updated: "2026-10-19T11:59:03.415Z"
 last_activity: 2026-10-19
 last_activity_desc: Milestone v2.1 completed and archived
-state_head: b40ef82557088bc0e323806ca35cc2847919cf30
+state_head: 33de910ee7f16a68b515ec260dffaaafb493ee78
 progress:
   total_phases: 13
   completed_phases: 33
@@ -33,7 +33,7 @@ See: .planning/PROJECT.md (updated 2026-10-18 — after the v2.1 milestone)
 Phase: Milestone v2.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-19 - Completed quick task 261019-faq: review WR-07 + WR-08 (--check launch lines gated on the kit route; launchOwned is the one launch-ownership rule)
+Last activity: 2026-10-19 - Completed quick task 261019-i3g: review WR-09, IN-12, IN-13 (launchOwned builds the reason; provenance line per run; LaunchPair type)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2033,6 +2033,7 @@ None yet.
 | 261018-hs8 | Launch agents for OpenCode, Copilot CLI, Antigravity CLI and Pi; ship MIT LICENSE+NOTICE; D-06 fix pass (verified: Needs Review, live host runs UNKNOWN - verify) | 2026-10-18 | 8add25a0 | [261018-hs8-launch-agent-adapters-for-opencode-copil](./quick/261018-hs8-launch-agent-adapters-for-opencode-copil/) |
 | 261018-vfm | Launch-agent live-run results: launch form typed command/panel; OpenCode via /agents panel (no --agent); Antigravity CLI, OpenCode, Pi verified live 2026-10-18; Copilot CLI UNKNOWN - verify | 2026-10-19 | 498000fc | [261018-vfm-launch-agent-live-run-results](./quick/261018-vfm-launch-agent-live-run-results/) |
 | 261019-faq | Fix review WR-07 and WR-08: --check launch-file lines check route resolution and share one ownership rule with install's closing line | 2026-10-19 | b40ef825 | [261019-faq-fix-review-wr-07-and-wr-08-check-launch-](./quick/261019-faq-fix-review-wr-07-and-wr-08-check-launch-/) |
+| 261019-i3g | Review WR-09 IN-12 IN-13: closing line gives launchOwned's cause; provenance line names only forms given; launch pair held by the type | 2026-10-19 | 33de910e | [261019-i3g-review-wr-09-in-12-in-13-closing-line-ow](./quick/261019-i3g-review-wr-09-in-12-in-13-closing-line-ow/) |
 
 ## Deferred Items
 
