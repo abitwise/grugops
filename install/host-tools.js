@@ -211,8 +211,13 @@ export const HOST_TOOLS = [
         // A workspace custom agent is picked as the primary agent in the `/agents` panel (antigravity.google/docs/subagents/,
         // retrieved 2026-10-18; quick task 261018-hs8, D-05). A human verified the pick live on 2026-10-18 (quick task
         // 261018-vfm). agy 1.3.5 `--help` also lists `--agent`, but whether it resolves a workspace agent file is
-        // UNKNOWN - verify, so the form gives the panel.
-        launchForm: { kind: "panel", text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`, verifiedLive: "2026-10-18" },
+        // UNKNOWN - verify, so the form gives the panel. The host version is the one the human gave on 2026-10-19 for that
+        // run, reported as `agy 1.4.2` (quick task 261019-ktd, review WR-10); the `--help` read above is not the live run.
+        launchForm: {
+            kind: "panel",
+            text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
+            verifiedLive: { date: "2026-10-18", hostVersion: "1.4.2" },
+        },
     },
     {
         id: "opencode",
@@ -226,15 +231,20 @@ export const HOST_TOOLS = [
         // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
         invoke: "type `/grugops <request>`",
         // The primary agent at `.opencode/agents/<name>.md` (opencode.ai/docs/agents/, retrieved 2026-10-18), picked in
-        // the `/agents` panel: the panel lists the agent and picking it works (verified live by a human on 2026-10-18,
-        // quick task 261018-vfm). opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an `--agent` flag for the default
-        // command, but the same human found that OpenCode does not support starting a session with it, so no command form
-        // is given. OpenCode's alone (D-05).
+        // the `/agents` panel: a human saw on 2026-10-18 that the panel lists the agent and that picking it works (quick
+        // task 261018-vfm). opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an `--agent` flag for the default command.
+        // On the same run, on OpenCode 2.0.26 (the version the human gave on 2026-10-19), the human found that OpenCode did
+        // not start a session with it, so no command form is given (quick task 261019-ktd, review WR-10). OpenCode's alone
+        // (D-05).
         launchAgent: OPENCODE_AGENT_REL,
-        // A pick in the `/agents` panel (verified live by a human on 2026-10-18; it supersedes the hs8 D-05 OpenCode
-        // command form). Tab cycles primary agents in a session (opencode.ai/docs/agents/, retrieved 2026-10-18), and
-        // install/README.md names Tab as the other in-session way.
-        launchForm: { kind: "panel", text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`, verifiedLive: "2026-10-18" },
+        // A pick in the `/agents` panel (it supersedes the hs8 D-05 OpenCode command form). Tab cycles primary agents in a
+        // session (opencode.ai/docs/agents/, retrieved 2026-10-18), and install/README.md names Tab as the other in-session
+        // way. The host version is the one the human gave on 2026-10-19 for the run of 2026-10-18 (quick task 261019-ktd).
+        launchForm: {
+            kind: "panel",
+            text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
+            verifiedLive: { date: "2026-10-18", hostVersion: "2.0.26" },
+        },
     },
     {
         id: "copilot",
@@ -282,8 +292,13 @@ export const HOST_TOOLS = [
         // against the working directory. The flag's file is read without Pi's project-trust check (review WR-02), which
         // install/README.md's Pi section warns about. A human verified on 2026-10-18 (quick task 261018-vfm) that Pi loads
         // the file: Pi's `[Context]` listed `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows the
-        // file loaded, not that the session follows the kit route (UNKNOWN - verify).
-        launchForm: { kind: "command", text: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`, verifiedLive: "2026-10-18" },
+        // file loaded, not that the session follows the kit route (UNKNOWN - verify). The host version is the one the human
+        // gave on 2026-10-19 for that run (quick task 261019-ktd, review WR-10).
+        launchForm: {
+            kind: "command",
+            text: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`,
+            verifiedLive: { date: "2026-10-18", hostVersion: "1.1.0" },
+        },
     },
 ];
 /**
@@ -537,19 +552,32 @@ export function launchCarriers(host) {
     return host.launchAgent === null ? [] : [host.launchAgent];
 }
 /**
- * launchLiveNote (quick task 261018-vfm): "verified live by a human on <date>" for a launch form a human ran on the
- * live host (LaunchForm.verifiedLive), or null. It says the launch file loaded, never that the session then followed
- * the kit route (UNKNOWN - verify on every host).
+ * LAUNCH_NOT_LIVE (quick task 261019-ktd, 261018-vfm review WR-05): the live-run state `--check` gives a launch form
+ * nobody ran live (its LaunchForm.verifiedLive is null).
+ */
+export const LAUNCH_NOT_LIVE = "UNKNOWN - verify: no live run";
+/**
+ * launchLiveNote (quick task 261018-vfm; with the host version since quick task 261019-ktd, review WR-10): the launch
+ * run a human made of the form (LaunchForm.verifiedLive), or null when nobody ran it live. It reads "verified live by
+ * a human on <date> on <host name> <host version>", or "verified live by a human on <date>, host version not recorded"
+ * when the run recorded none. What the human saw depends on the kind (LiveRun). It never says that the session then
+ * followed the kit route (UNKNOWN - verify on every host).
  */
 export function launchLiveNote(host) {
     const form = host.launchForm;
-    return form === null || form.verifiedLive === null ? null : `verified live by a human on ${form.verifiedLive}`;
+    if (form === null || form.verifiedLive === null)
+        return null;
+    const run = form.verifiedLive;
+    const version = run.hostVersion === null ? ", host version not recorded" : ` on ${host.name} ${run.hostVersion}`;
+    return `verified live by a human on ${run.date}${version}`;
 }
 export function launchSession(host) {
     const form = host.launchForm;
     if (form === null)
         return null;
-    return form.kind === "panel" ? `a session where you pick ${form.text}` : `a session started with ${form.text}`;
+    const phrase = form.kind === "panel" ? `a session where you pick ${form.text}` : `a session started with ${form.text}`;
+    const note = launchLiveNote(host);
+    return `${phrase} (${note === null ? LAUNCH_NOT_LIVE : note})`;
 }
 export function launchInvoke(host) {
     const form = host.launchForm;

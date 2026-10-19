@@ -692,6 +692,9 @@ reads every file first and reports afterwards, in this order:
   whatever the launch file holds. `--check` gives each launch file of an installed agent a line of
   its own, worded "a session started with" that host's launch command, or "a session where you
   pick" the agent in the `/agents` panel, for a host whose launch form is a pick in that panel.
+  The session phrase also gives the form's live-run state: the note install's closing notes give for
+  a form a human ran live ("verified live by a human on" its date, then the host it ran on and its
+  version, or "host version not recorded"), or `UNKNOWN - verify: no live run`.
   Only install's own copy of a launch file can be `ok` (install writes each launch file as a copy, also
   in a `--symlink` install); the install record decides that, the same rule the closing notes use.
   The line is:
@@ -804,9 +807,9 @@ The skill is a pointer, with no role text: it sends Antigravity to `AGENTS.md` a
 the same pointer, with no role text. Antigravity CLI reads workspace custom agents from
 `.agents/agents/<name>.md`, and you pick one as the primary agent in the `/agents` panel: pick
 `grugops-orchestrator` there. (Source: antigravity.google/docs/subagents/, retrieved 2026-10-18.)
-Picking `grugops-orchestrator` in the `/agents` panel was verified live by a human on 2026-10-18;
-whether a session started that way then follows the kit route to the role files is
-`UNKNOWN - verify`.
+Picking `grugops-orchestrator` in the `/agents` panel was verified live by a human on 2026-10-18 on
+Antigravity CLI 1.4.2: the panel listed the agent, and picking it worked. Whether a session started
+that way then follows the kit route to the role files is `UNKNOWN - verify`.
 `subagent: false` keeps it from being called through the `invoke_subagent` tool. agy 1.3.5 `--help` also
 lists `agy --agent grugops-orchestrator` ("Agent for the current CLI session"), but whether that flag
 resolves a workspace agent file is `UNKNOWN - verify`, so this guide leads with the panel. The
@@ -839,10 +842,10 @@ pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
 `mode: primary`, and its body is the same pointer, with no role text. OpenCode reads per-project
 agents from `.opencode/agents/` and names each after its file (opencode.ai/docs/agents/, retrieved
 2026-10-18). Start OpenCode at the repository root and pick `grugops-orchestrator` in the `/agents`
-panel. This was verified live by a human on 2026-10-18: the panel lists `grugops-orchestrator`, and
-picking it works. opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an `--agent` flag for the
-default command, but the same human found that OpenCode does not support starting a session with
-it, so this guide gives no command-line form. In a running session, Tab also cycles through primary
+panel. This was verified live by a human on 2026-10-18 on OpenCode 2.0.26: the panel lists
+`grugops-orchestrator`, and picking it works. opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an
+`--agent` flag for the default command. On the same run, on OpenCode 2.0.26, the human found that
+OpenCode did not start a session with it, so this guide gives no command-line form. In a running session, Tab also cycles through primary
 agents (opencode.ai/docs/agents/, retrieved 2026-10-18), so you can Tab to `grugops-orchestrator`
 too. Whether a session started that way then follows the kit route to the role files is
 `UNKNOWN - verify`. Install leaves OpenCode's default agent as it is: it writes no `default_agent` into `opencode.json`. The session still loads roles one at a time (the
@@ -950,8 +953,8 @@ follows the route on a live run is `UNKNOWN - verify` until the re-run recorded 
   else can change, read `.pi/grugops-orchestrator.md` before you start Pi this way. `install.js --check`
   gives that file `ok` only while it is install's own copy; any other file there gets a WARN. The session still loads roles one at a time (the sequential
   role-load model, §6 "Degraded"): a launch file does not give Pi the spawning of Claude Code's
-  Full tier. Starting Pi this way was verified live by a human on 2026-10-18: Pi's `[Context]` list
-  named `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows Pi loaded the file;
+  Full tier. Starting Pi this way was verified live by a human on 2026-10-18 on Pi 1.1.0: Pi's
+  `[Context]` list named `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows Pi loaded the file;
   whether the session then follows the kit route to the Orchestrator is `UNKNOWN - verify`.
 - **What grugops does not write for Pi.** grugops never writes `.pi/SYSTEM.md`,
   `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, and writes no Pi-specific skill and no Pi

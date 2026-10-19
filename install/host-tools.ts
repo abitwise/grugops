@@ -45,21 +45,35 @@ export type HostAdapterKind = (typeof HOST_ADAPTER_KINDS)[number];
 export type HostDispatch = "spawn" | "sequential";
 
 /**
+ * LiveRun (quick task 261019-ktd, 261018-vfm review WR-10, IN-14): a live run a human made of a launch form. What the
+ * human saw depends on the form's kind. For a `panel` form, the human saw the panel list the launch agent, picked it,
+ * and the pick worked: that shows the host read the agent file, not that its pointer body entered the session. For a
+ * `command` form, the human started the host with the command and saw it load the launch file.
+ *
+ * date is the day of the run. hostVersion is the host version recorded with the run, or null when the run recorded
+ * none; it is never filled from a `--help` read made while planning.
+ */
+export interface LiveRun {
+  readonly date: string;
+  readonly hostVersion: string | null;
+}
+
+/**
  * LaunchForm (quick task 261018-vfm, human 2026-10-18): how a user starts a session on a host with its launch file.
  * The shape is explicit because a host takes its launch file in one of two ways: on the command line (`command`:
  * `text` is the backticked command as the host gives it, plus any condition such as "from the repository root"), or as
  * a pick in a panel inside a running session (`panel`: `text` is the backticked agent name in the backticked panel).
  * The kind, not the text, decides the verb of every message that offers the form (launchSession, launchInvoke).
  *
- * verifiedLive is the date a human started a session that way on the live host and saw the launch file load, or null
- * when no live run was made (then the form is UNKNOWN - verify, as the host's documentation gives it). It never covers
+ * verifiedLive is the live run a human made of the form (LiveRun), or null when nobody ran it live (then the form is
+ * UNKNOWN - verify, as the host's documentation gives it; quick task 261019-ktd, review WR-10). It never covers
  * the kit route: whether a session started that way then follows the route to the role files is UNKNOWN - verify on
  * every host.
  */
 export interface LaunchForm {
   readonly kind: "command" | "panel";
   readonly text: string;
-  readonly verifiedLive: string | null;
+  readonly verifiedLive: LiveRun | null;
 }
 
 /** Every field of a registry row except its launch pair (LaunchPair, below). Not exported: HostTool is the row type. */
@@ -113,8 +127,8 @@ type LaunchPair =
       readonly launchAgent: string;
       /**
        * The launch form (quick task 261018-hs8, D-05, D-06; typed by quick task 261018-vfm): how a user starts a session on
-       * this host with its launch file, a LaunchForm (a `command` or a `panel` pick, its backticked text, and the date a
-       * human verified it live, if any); null exactly when launchAgent is null (the other LaunchPair member): the pair is
+       * this host with its launch file, a LaunchForm (a `command` or a `panel` pick, its backticked text, and the live run a
+       * human made of it, if any, as a LiveRun); null exactly when launchAgent is null (the other LaunchPair member): the pair is
        * one type, so a row cannot hold one without the other (quick task 261019-i3g, review IN-13). THE ONE SPELLING of it: launchSession below
        * words `--check`'s launch-file findings (hs8 D-06, with the panel wording the human gave on 2026-10-18), launchInvoke
        * below words install's closing clause (hs8 WR-03), and install/README.md's usage sections are checked to name each
@@ -324,8 +338,13 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // A workspace custom agent is picked as the primary agent in the `/agents` panel (antigravity.google/docs/subagents/,
     // retrieved 2026-10-18; quick task 261018-hs8, D-05). A human verified the pick live on 2026-10-18 (quick task
     // 261018-vfm). agy 1.3.5 `--help` also lists `--agent`, but whether it resolves a workspace agent file is
-    // UNKNOWN - verify, so the form gives the panel.
-    launchForm: { kind: "panel", text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`, verifiedLive: "2026-10-18" },
+    // UNKNOWN - verify, so the form gives the panel. The host version is the one the human gave on 2026-10-19 for that
+    // run, reported as `agy 1.4.2` (quick task 261019-ktd, review WR-10); the `--help` read above is not the live run.
+    launchForm: {
+      kind: "panel",
+      text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
+      verifiedLive: { date: "2026-10-18", hostVersion: "1.4.2" },
+    },
   },
   {
     id: "opencode",
@@ -339,15 +358,20 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
     invoke: "type `/grugops <request>`",
     // The primary agent at `.opencode/agents/<name>.md` (opencode.ai/docs/agents/, retrieved 2026-10-18), picked in
-    // the `/agents` panel: the panel lists the agent and picking it works (verified live by a human on 2026-10-18,
-    // quick task 261018-vfm). opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an `--agent` flag for the default
-    // command, but the same human found that OpenCode does not support starting a session with it, so no command form
-    // is given. OpenCode's alone (D-05).
+    // the `/agents` panel: a human saw on 2026-10-18 that the panel lists the agent and that picking it works (quick
+    // task 261018-vfm). opencode.ai/docs/cli/ (retrieved 2026-10-18) lists an `--agent` flag for the default command.
+    // On the same run, on OpenCode 2.0.26 (the version the human gave on 2026-10-19), the human found that OpenCode did
+    // not start a session with it, so no command form is given (quick task 261019-ktd, review WR-10). OpenCode's alone
+    // (D-05).
     launchAgent: OPENCODE_AGENT_REL,
-    // A pick in the `/agents` panel (verified live by a human on 2026-10-18; it supersedes the hs8 D-05 OpenCode
-    // command form). Tab cycles primary agents in a session (opencode.ai/docs/agents/, retrieved 2026-10-18), and
-    // install/README.md names Tab as the other in-session way.
-    launchForm: { kind: "panel", text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`, verifiedLive: "2026-10-18" },
+    // A pick in the `/agents` panel (it supersedes the hs8 D-05 OpenCode command form). Tab cycles primary agents in a
+    // session (opencode.ai/docs/agents/, retrieved 2026-10-18), and install/README.md names Tab as the other in-session
+    // way. The host version is the one the human gave on 2026-10-19 for the run of 2026-10-18 (quick task 261019-ktd).
+    launchForm: {
+      kind: "panel",
+      text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
+      verifiedLive: { date: "2026-10-18", hostVersion: "2.0.26" },
+    },
   },
   {
     id: "copilot",
@@ -395,8 +419,13 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // against the working directory. The flag's file is read without Pi's project-trust check (review WR-02), which
     // install/README.md's Pi section warns about. A human verified on 2026-10-18 (quick task 261018-vfm) that Pi loads
     // the file: Pi's `[Context]` listed `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows the
-    // file loaded, not that the session follows the kit route (UNKNOWN - verify).
-    launchForm: { kind: "command", text: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`, verifiedLive: "2026-10-18" },
+    // file loaded, not that the session follows the kit route (UNKNOWN - verify). The host version is the one the human
+    // gave on 2026-10-19 for that run (quick task 261019-ktd, review WR-10).
+    launchForm: {
+      kind: "command",
+      text: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`,
+      verifiedLive: { date: "2026-10-18", hostVersion: "1.1.0" },
+    },
   },
 ];
 
@@ -726,13 +755,24 @@ export function launchCarriers(host: HostTool): readonly string[] {
 }
 
 /**
- * launchLiveNote (quick task 261018-vfm): "verified live by a human on <date>" for a launch form a human ran on the
- * live host (LaunchForm.verifiedLive), or null. It says the launch file loaded, never that the session then followed
- * the kit route (UNKNOWN - verify on every host).
+ * LAUNCH_NOT_LIVE (quick task 261019-ktd, 261018-vfm review WR-05): the live-run state `--check` gives a launch form
+ * nobody ran live (its LaunchForm.verifiedLive is null).
+ */
+export const LAUNCH_NOT_LIVE = "UNKNOWN - verify: no live run";
+
+/**
+ * launchLiveNote (quick task 261018-vfm; with the host version since quick task 261019-ktd, review WR-10): the launch
+ * run a human made of the form (LaunchForm.verifiedLive), or null when nobody ran it live. It reads "verified live by
+ * a human on <date> on <host name> <host version>", or "verified live by a human on <date>, host version not recorded"
+ * when the run recorded none. What the human saw depends on the kind (LiveRun). It never says that the session then
+ * followed the kit route (UNKNOWN - verify on every host).
  */
 export function launchLiveNote(host: HostTool): string | null {
   const form = host.launchForm;
-  return form === null || form.verifiedLive === null ? null : `verified live by a human on ${form.verifiedLive}`;
+  if (form === null || form.verifiedLive === null) return null;
+  const run = form.verifiedLive;
+  const version = run.hostVersion === null ? ", host version not recorded" : ` on ${host.name} ${run.hostVersion}`;
+  return `verified live by a human on ${run.date}${version}`;
 }
 
 /**
@@ -741,13 +781,20 @@ export function launchLiveNote(host: HostTool): string | null {
  * a `panel` form "a session where you pick <text>" (the human's wording, 2026-10-18). Null exactly when the row has no
  * launch form. The LaunchHost overload (a row narrowed on `launchAgent !== null`) returns a string, so a caller that
  * narrowed needs no default (quick task 261019-i3g, review IN-13); a caller that did not keeps the null.
+ *
+ * The phrase ends with the form's live-run state in parentheses: launchLiveNote for a form a human ran live, or
+ * LAUNCH_NOT_LIVE. So every `--check` launch-file line carries it, and `--check` never states an unverified launch as
+ * fact (quick task 261019-ktd, review WR-05). The phrase is the one owner of that state, so every step (f) arm
+ * carries it and none can drop it.
  */
 export function launchSession(host: LaunchHost): string;
 export function launchSession(host: HostTool): string | null;
 export function launchSession(host: HostTool): string | null {
   const form = host.launchForm;
   if (form === null) return null;
-  return form.kind === "panel" ? `a session where you pick ${form.text}` : `a session started with ${form.text}`;
+  const phrase = form.kind === "panel" ? `a session where you pick ${form.text}` : `a session started with ${form.text}`;
+  const note = launchLiveNote(host);
+  return `${phrase} (${note === null ? LAUNCH_NOT_LIVE : note})`;
 }
 
 /**
@@ -756,7 +803,9 @@ export function launchSession(host: HostTool): string | null {
  * "start the session as the Orchestrator with <text>", a `panel` form "pick <text> to run the session as the
  * Orchestrator"; either is followed by " (<launchLiveNote>)" when the form was verified live. The kind decides the
  * verb, as it does for launchSession (the `--check` wording). Null for a row with no launch form; the LaunchHost
- * overload returns a string, as launchSession's does (quick task 261019-i3g, review IN-13).
+ * overload returns a string, as launchSession's does (quick task 261019-i3g, review IN-13). A form nobody ran live
+ * gets no inline mark here, because install's closing provenance line marks it (install.ts invocationNotesLine; quick
+ * task 261019-ktd, review WR-05).
  */
 export function launchInvoke(host: LaunchHost): string;
 export function launchInvoke(host: HostTool): string | null;

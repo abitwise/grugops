@@ -22,7 +22,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rm
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, ANTIGRAVITY_AGENT_REL, agentFlag, launchSession } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, ANTIGRAVITY_AGENT_REL, agentFlag, launchSession, type HostTool } from "./host-tools.js";
 import { renderedEntryRels } from "../scripts/generate-host-entries.js";
 import { LEGACY_ADAPTER_KINDS, contentRecord, fileRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, pathText, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
@@ -189,6 +189,8 @@ describe("host entries: a single-agent install writes the shared files and that 
     const agySession = launchSession(agy);
     expect(agySession, "premise: Antigravity CLI has a launch form").not.toBeNull();
     expect(launch[0], c.stdout).toContain(agySession ?? "");
+    // Quick task 261019-ktd (review WR-05): the launch line must carry the form's live-run state.
+    expect(launch[0], c.stdout).toContain(` (${liveRunState(agy)}) reads it (${agy.name})`);
     expect(lines(c.stdout).filter((l) => l.includes(`kit route carried by ${ANTIGRAVITY_AGENT_REL} `)), "the launch file is a route carrier line (D-06)").toEqual([]);
     const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l) && l.includes(`${agy.name}: `));
     expect(reach.length, c.stdout).toBe(1);
@@ -208,6 +210,20 @@ describe("host entries: a single-agent install writes the shared files and that 
 // 261018-vfm). It is not a route carrier (D-06, human 2026-10-18; reverses planner decision PD-1), so the agent's
 // reach line does not name it.
 const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+/**
+ * The live-run note of a row's launch form, built here from verifiedLive with literals, never by the helper under test
+ * (quick task 261019-ktd, review WR-05, WR-10): null when nobody ran the form live.
+ */
+function liveRunNote(h: HostTool): string | null {
+  const run = h.launchForm === null ? null : h.launchForm.verifiedLive;
+  if (run === null) return null;
+  return "verified live by a human on " + run.date + (run.hostVersion === null ? ", host version not recorded" : " on " + h.name + " " + run.hostVersion);
+}
+/** The live-run state a `--check` launch line carries: the note, or the literal of LAUNCH_NOT_LIVE. */
+function liveRunState(h: HostTool): string {
+  const note = liveRunNote(h);
+  return note === null ? "UNKNOWN - verify: no live run" : note;
+}
 describe(`host entries: each launch agent after a single-agent install (${LAUNCH_ROWS.map((h) => h.id).join(", ")})`, () => {
   it("premise: the launch-bearing rows are the four the registry names", () => {
     expect(LAUNCH_ROWS.map((h) => h.id)).toEqual(["antigravity", "opencode", "copilot", "pi"]);
@@ -234,6 +250,12 @@ describe(`host entries: each launch agent after a single-agent install (${LAUNCH
       expect(session, `premise: ${h.id} has a launch form`).not.toBeNull();
       expect(launch[0], c.stdout).toContain(session ?? "");
       expect(launch[0], c.stdout).toContain(`(${h.name})`);
+      // Quick task 261019-ktd (review WR-05): the launch line must carry the form's live-run state, and install's
+      // closing line gives the verified-live note exactly when the row has one.
+      expect(launch[0], c.stdout).toContain(` (${liveRunState(h)}) reads it (${h.name})`);
+      const note = liveRunNote(h);
+      if (note !== null) expect(r.stdout, `${h.id}: install's closing line gives the verified-live note`).toContain(note);
+      else expect(r.stdout, `${h.id}: a verified-live note for a form nobody ran live`).not.toContain("verified live by a human");
       expect(lines(c.stdout).filter((l) => l.includes(`kit route carried by ${rel} `)), "the launch file is a route carrier line (D-06)").toEqual([]);
       const reach = lines(c.stdout).filter((l) => /^ {2}reach\s/.test(l));
       expect(reach.length, c.stdout).toBe(1);

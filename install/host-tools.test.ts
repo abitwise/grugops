@@ -31,6 +31,7 @@ import {
   PI_LAUNCH_REL,
   OPENCODE_COMMAND_REL,
   KIT_ROUTE,
+  LAUNCH_NOT_LIVE,
   POINTER_LINE,
   START_HERE_SENTENCE,
   carriesKitRoute,
@@ -809,6 +810,10 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
     expect(sec).toContain("not a route carrier");
     expect(sec).toContain("a session started with");
     expect(sec, "the panel wording of a launch line (quick task 261018-vfm)").toContain("a session where you pick");
+    // Quick task 261019-ktd (review WR-05, WR-10): the section says a launch line also gives the form's live-run state,
+    // the verified-live note with its host version or "host version not recorded", or LAUNCH_NOT_LIVE.
+    expect(sec, "the live-run state of a form nobody ran live").toContain("UNKNOWN - verify: no live run");
+    expect(sec, "the note's arm for a run that recorded no host version").toContain("host version not recorded");
   });
 
   it("the kit-route section names the uncounted `note` and --strict (plan 34-36, D-27)", () => {
@@ -1463,6 +1468,26 @@ describe("entryOwners: the one answer to which agents own a ledger entry (phase 
 // their launch agents. Codex CLI and Claude Code stay null.
 const LAUNCH_AGENT_COUNT = 4;
 const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+/**
+ * The launch-wording oracle (quick task 261018-vfm; with the live-run state since quick task 261019-ktd, review WR-05,
+ * WR-10). Every expected string is built here from the row's own kind, text, date and hostVersion with literal
+ * prefixes and suffixes, never by calling the helper under test, so a helper that words a panel pick as a command,
+ * drops the live-run state or drops the host version goes red.
+ */
+function expectLaunchWording(h: HostTool): void {
+  const lf = h.launchForm;
+  expect(lf, `${h.id}: a launch row has a launch form`).not.toBeNull();
+  if (lf === null) return;
+  const form = lf.text;
+  const run = lf.verifiedLive;
+  const note =
+    run === null ? null : "verified live by a human on " + run.date + (run.hostVersion === null ? ", host version not recorded" : " on " + h.name + " " + run.hostVersion);
+  expect(launchLiveNote(h), h.id).toBe(note);
+  const phrase = (lf.kind === "panel" ? "a session where you pick " : "a session started with ") + form;
+  expect(launchSession(h), h.id).toBe(phrase + " (" + (note === null ? "UNKNOWN - verify: no live run" : note) + ")");
+  const clause = lf.kind === "panel" ? "pick " + form + " to run the session as the Orchestrator" : "start the session as the Orchestrator with " + form;
+  expect(launchInvoke(h), h.id).toBe(clause + (note === null ? "" : " (" + note + ")"));
+}
 
 describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8, D-01, D-05)", () => {
   it("every registry row states launchAgent (a string or null), so no row leaves it out", () => {
@@ -1596,27 +1621,45 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
       } else {
         expect(form.startsWith("`"), `${h.id}: a command form starts with its backticked command`).toBe(true);
       }
-      if (lf.verifiedLive !== null) expect(lf.verifiedLive, `${h.id}: verifiedLive is a date`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      const note = lf.verifiedLive === null ? null : "verified live by a human on " + lf.verifiedLive;
-      expect(launchLiveNote(h), h.id).toBe(note);
-      expect(launchSession(h), h.id).toBe((lf.kind === "panel" ? "a session where you pick " : "a session started with ") + form);
-      const clause = lf.kind === "panel" ? "pick " + form + " to run the session as the Orchestrator" : "start the session as the Orchestrator with " + form;
-      expect(launchInvoke(h), h.id).toBe(clause + (note === null ? "" : " (" + note + ")"));
+      const run = lf.verifiedLive;
+      if (run !== null) {
+        expect(run.date, `${h.id}: the live run's date`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(run.hostVersion === null || (typeof run.hostVersion === "string" && run.hostVersion.length > 0), `${h.id}: hostVersion is null or a non-empty string`).toBe(true);
+      }
+      expectLaunchWording(h);
+    }
+    expect(LAUNCH_NOT_LIVE, "the live-run state of a form nobody ran live").toBe("UNKNOWN - verify: no live run");
+  });
+
+  // Quick task 261019-ktd (review WR-10): the note's arm for a live run that recorded no host version. Every row in
+  // the registry today carries the host version the human gave, so this arm is proved on a synthetic row: a verified
+  // launch row spread, with its hostVersion set to null. It is a test fixture, not a run anyone made.
+  it("a live run with no recorded host version reads \"host version not recorded\" in the note, the session phrase and the clause (261019-ktd)", () => {
+    const verified = LAUNCH_ROWS.filter((h) => h.launchForm !== null && h.launchForm.verifiedLive !== null);
+    expect(verified.length, "premise: some launch row was verified live").toBeGreaterThan(0);
+    for (const h of verified) {
+      const lf = h.launchForm!;
+      const unrecorded = { ...h, launchForm: { ...lf, verifiedLive: { date: lf.verifiedLive!.date, hostVersion: null } } } as HostTool;
+      expect(launchLiveNote(unrecorded), h.id).toBe("verified live by a human on " + lf.verifiedLive!.date + ", host version not recorded");
+      expectLaunchWording(unrecorded);
     }
   });
 
   // The human's live-run report of 2026-10-18 (quick task 261018-vfm), pinned literally: Antigravity CLI and OpenCode
-  // are picked in the `/agents` panel, and picking it works (verified live); OpenCode does not support starting a
-  // session with `--agent`; Pi loads the file passed with `--append-system-prompt` (verified live; Pi's [Context]
-  // listed it); GitHub Copilot CLI was skipped, so it stays UNKNOWN - verify. Codex CLI has no launch agent. A row
-  // moves here only with a new dated report from a human's live run.
-  it("each launch row's kind and verifiedLive are the human's live-run report of 2026-10-18 (261018-vfm)", () => {
+  // are picked in the `/agents` panel, and picking it works (verified live); on the same run a human found that
+  // OpenCode 2.0.26 did not start a session with `--agent`; Pi loads the file passed with `--append-system-prompt`
+  // (verified live; Pi's [Context] listed it); GitHub Copilot CLI was skipped, so it stays UNKNOWN - verify. Codex CLI
+  // has no launch agent. A row moves here only with a new dated report from a human's live run.
+  // Re-pinned 2026-10-19 by quick task 261019-ktd (review WR-10): verifiedLive records the live run as
+  // {date, hostVersion}. The host versions are the ones the human gave on 2026-10-19 for the runs of 2026-10-18
+  // (Antigravity CLI as `agy 1.4.2`, recorded as the version 1.4.2); none is taken from a `--help` read.
+  it("each launch row's kind and verifiedLive are the human's live-run report of 2026-10-18, with the host versions given on 2026-10-19 (261018-vfm, 261019-ktd)", () => {
     const got = Object.fromEntries(LAUNCH_ROWS.map((h) => [h.id, h.launchForm === null ? null : [h.launchForm.kind, h.launchForm.verifiedLive]]));
     expect(got).toEqual({
-      antigravity: ["panel", "2026-10-18"],
-      opencode: ["panel", "2026-10-18"],
+      antigravity: ["panel", { date: "2026-10-18", hostVersion: "1.4.2" }],
+      opencode: ["panel", { date: "2026-10-18", hostVersion: "2.0.26" }],
       copilot: ["command", null],
-      pi: ["command", "2026-10-18"],
+      pi: ["command", { date: "2026-10-18", hostVersion: "1.1.0" }],
     });
   });
 });
