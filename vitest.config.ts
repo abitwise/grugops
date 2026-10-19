@@ -40,11 +40,13 @@ export default defineConfig({
     // Resource cap, set by the human on 2026-10-19: a run uses at most 2 CPU cores and about 2 GB.
     // `maxWorkers` bounds the worker pool at 2 (`fileParallelism: false` already runs one file at a
     // time; this keeps the bound if that line ever changes). `execArgv` caps each worker's V8 heap at
-    // 1536 MB, which with the main vitest process (a few hundred MB) keeps a run near 2 GB. This is a
+    // 1024 MB, so 2 workers stay within 2 GB. Measured 2026-10-19 with --logHeapUsage over the non-e2e suite
+    // (114 files, under the earlier 1536 MB cap, no out-of-memory): the reporter printed a heap figure for 6
+    // files only, the largest 181 MB (scripts/context-io-writer-set.test.ts); the other 108 are unmeasured. This is a
     // heap bound, not an OS limit: it does not cover the node processes a test spawns (install.js
     // runs, for example), and macOS cannot enforce a resident-memory limit on a process tree.
     maxWorkers: 2,
-    execArgv: ["--max-old-space-size=1536"],
+    execArgv: ["--max-old-space-size=1024"],
     // Three bounds, each MEASURED from CI run 35394268365 (2026-09-18, both matrix legs), landed
     // by plan 33-02 for D-14 ("add warning, don't prevent test run").
     //
