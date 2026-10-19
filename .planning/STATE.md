@@ -1,39 +1,33 @@
 ---
 gsd_state_version: "1.0"
-milestone: v2.1
-status: Awaiting next milestone
-stopped_at: Phase 34.1 CLOSED 2026-10-17 by human decision D-48 (under D-47)
-last_updated: "2026-10-19T18:02:02.002Z"
-last_activity: 2026-10-19
-last_activity_desc: Milestone v2.1 completed and archived
-state_head: 598da0bebf36f9b2b88a201aaaf8b5d4cd06e39e
+milestone: v3.0
+milestone_name: Specialist agents. Shared context. Coordinated work.
+status: planning
+last_updated: "2026-10-19T21:38:24.916Z"
+last_activity: 2026-10-20
 progress:
-  total_phases: 13
-  completed_phases: 33
-  total_plans: 453
-  completed_plans: 453
-  percent: 100
-milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-current_phase: "34.1"
-current_phase_name: per-agent-installer
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-18 — after the v2.1 milestone)
+See: .planning/PROJECT.md (updated 2026-10-20 — milestone v3.0 started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Planning the next milestone (`/gsd-new-milestone`; phases continue from 35)
+**Current focus:** Milestone v3.0 — defining requirements (phases continue from 35)
 
 ## Current Position
 
-Phase: Milestone v2.1 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-10-19 - Completed quick task 261019-mq1: hs8 review leftovers (WR-02 remainder, WR-04, IN-01..IN-09, IN-11); every hs8 and vfm review finding now closed
+Status: Defining requirements
+Last activity: 2026-10-20 — Milestone v3.0 started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
