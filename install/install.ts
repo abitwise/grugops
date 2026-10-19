@@ -1871,8 +1871,13 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 //     worded by host-tools.ts launchSession (quick task 261018-vfm): "a session started with" the launch command for
 //     a `command` form, "a session where you pick" the agent in the panel for a `panel` form. It is asked through the
 //     same classifyCarrier and installWouldWrite:
-//     `route` → ok; install's own stale copy → FAIL with `Re-run install.js`; a file install will not write the route
-//     into (the user's own, a link) → WARN; absent → an uncounted `note` with absentRemedy; unread → WARN, no verdict.
+//     `route` → ok, but only when step (a)'s route resolved: while the kit route leads to no readable
+//     roles/orchestrator.md, a launch file carrying the route is an uncounted `note` saying so (quick task 261019-faq,
+//     review WR-07; before it, step (f) printed ok for a session that cannot reach the role files, the rule step (e)
+//     applies fixed in one arm only), because step (a)'s FAIL is the one counted finding for that cause, as it is for
+//     step (e)'s reach lines. Install's own stale copy → FAIL with `Re-run install.js`; a file install will not write
+//     the route into (the user's own, a link) → WARN; absent → an uncounted `note` with absentRemedy; unread → WARN, no
+//     verdict.
 // THE AGENTS IT SPEAKS FOR (phase 34.1, D-07; VERDICT-1; D-26, IN-21): `hosts` is the doctor's doctorHosts answer, the
 // agents recorded in this target as chosen (or by the legacy rule; the detected agents, announced in a note, when
 // nothing is recorded) that have something installed here: a holding ledger entry they own, or a file at their entry
@@ -1890,6 +1895,9 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
   // here (WIN-1, path-spelling census); it is only joined and read.
   const kitRoot = typeof marker.kitRoot === "string" ? marker.kitRoot : "";
   let routeResolves = false;
+  // The one wording of "step (a) did not reach a readable Orchestrator file": step (e)'s reach line and step (f)'s
+  // launch note both print it (quick task 261019-faq, review WR-07), so one condition has one sentence.
+  const routeUnresolved = "the kit route does not lead to a readable roles/orchestrator.md";
   if (!kitRoot) {
     docFail(
       `kit route: ${markerFile} records no \`kitRoot\`, so a host with no Claude Code adapter that follows the ` +
@@ -2026,7 +2034,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       continue;
     }
     const why = read.map((rel) => `${rel} ${CARRIER_STATE_TEXT[classes.get(rel)?.state ?? "unread"]}`);
-    if (!routeResolves) why.push("the kit route does not lead to a readable roles/orchestrator.md");
+    if (!routeResolves) why.push(routeUnresolved);
     if (host.adapter === "claude-kit") why.push("its adapters' KIT= line names no kit");
     if (why.length === 0) why.push("no file it reads here carries the kit route");
     docReport("reach", `${host.name}: CANNOT reach the Orchestrator: ${why.join("; ")}`);
@@ -2037,8 +2045,14 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       const cls = classifyCarrier(rel, ledger, readAt);
       const session = launchSession(host) ?? `a session started with \`${rel}\``;
       const aside = `A default ${host.name} session does not read it, so no reach line counts it`;
-      if (cls.state === "route") {
+      if (cls.state === "route" && routeResolves) {
         docReport("ok", `launch file ${rel} carries the kit route: ${session} reads it (${host.name}). ${aside}`);
+      } else if (cls.state === "route") {
+        docReport(
+          "note",
+          `launch file ${rel} carries the kit route, but ${routeUnresolved} (the kit-route FAIL says why), so ` +
+            `${session} cannot reach the Orchestrator (${host.name}). ${aside}`,
+        );
       } else if (cls.state === "own-stale") {
         docFail(
           `launch file ${rel} is install's own copy from an earlier install, without the kit route, so ${session} gets ` +

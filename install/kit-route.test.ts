@@ -3387,6 +3387,65 @@ describe("D-06: --check reports each launch file on its own line, never as a rou
   });
 });
 
+// ── WR-07 (quick task 261019-faq, 261018-vfm review WR-07): a launch line follows the kit-route gate ─────────────────
+// Step (e) of the doctor says no host reaches through a carrier while the kit route leads to no readable
+// roles/orchestrator.md; before this fix step (f) still printed `ok launch file <rel> carries the kit route` for the
+// same run, a green line for a session that cannot reach the role files. Install's own launch file carrying the route
+// is now an uncounted note while the route does not resolve: step (a)'s route FAIL is the one counted finding.
+/** The run's lines whose message starts `launch file ` and whose label is in `labels`. */
+const launchLinesLabelled = (stdout: string, labels: readonly string[]): string[] =>
+  stdout.split(/\r?\n/).filter((l) => labels.some((lab) => l.startsWith(`  ${lab}`)) && /^ {2}\S+\s/.test(l) && messageOf(l).startsWith("launch file "));
+const UNRESOLVED_ROUTE = "the kit route does not lead to a readable roles/orchestrator.md";
+
+describe("launch lines follow the kit-route gate (quick task 261019-faq, review WR-07)", () => {
+  /** Assert the WR-07 shape of a run whose route does not resolve: the route FAIL, a note per launch row, no ok. */
+  function expectGated(c: Run, orchestrator: string): void {
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    expect(routeLines(c.stdout).filter((l) => l.startsWith("  FAIL") && l.includes(orchestrator)).length, c.stdout).toBe(1);
+    for (const h of LAUNCH_HOSTS) {
+      const line = launchLineOf(c.stdout, h);
+      expect(line.startsWith("  ok"), `${h.name}: an ok launch line while the route leads nowhere: ${line}`).toBe(false);
+      expect(line.startsWith("  note"), line).toBe(true);
+      expect(line, `${h.name}: the note does not name the unresolved route`).toContain(UNRESOLVED_ROUTE);
+    }
+    expect(launchLinesLabelled(c.stdout, ["ok"]), "an ok launch line").toEqual([]);
+    expect(launchLinesLabelled(c.stdout, ["FAIL", "WARN"]), "a counted launch line").toEqual([]);
+  }
+
+  /** A fresh install for every agent, its Orchestrator path, and that file's bytes; every launch file carries the route. */
+  function routedInstall(): { target: string; kitHome: string; orchestrator: string; saved: Buffer } {
+    const { target, kitHome } = installed();
+    const { orchestrator } = followRoute(target);
+    expect(LAUNCH_HOSTS.length, "premise: some rows have a launch file").toBeGreaterThan(0);
+    for (const h of LAUNCH_HOSTS) expect(readFileSync(launchPath(target, h), "utf8").includes(KIT_ROUTE), `premise: ${h.name}'s launch file carries the route`).toBe(true);
+    return { target, kitHome, orchestrator, saved: readFileSync(orchestrator) };
+  }
+
+  it("row 1, the Orchestrator file absent: no ok launch line; a note per launch row naming the unresolved route; exit 1 on the route FAIL alone", () => {
+    const { target, kitHome, orchestrator } = routedInstall();
+    rmSync(orchestrator);
+    expectGated(check(target, kitHome), orchestrator);
+  });
+
+  it("row 2, a directory at the Orchestrator path (not a readable regular file): the same as row 1", () => {
+    const { target, kitHome, orchestrator } = routedInstall();
+    rmSync(orchestrator);
+    mkdirSync(orchestrator);
+    expect(lstatSync(orchestrator).isDirectory(), "premise: a directory at the Orchestrator path").toBe(true);
+    expectGated(check(target, kitHome), orchestrator);
+  });
+
+  it("row 3, the file restored: every launch line is ok again and --strict exits 0 (the gate is the route, nothing broader)", () => {
+    const { target, kitHome, orchestrator, saved } = routedInstall();
+    rmSync(orchestrator);
+    expect(check(target, kitHome).status, "premise: the run FAILs while the file is gone").toBe(1);
+    writeFileSync(orchestrator, saved);
+    const after = strictCheck(target, kitHome);
+    expect(after.status, after.stdout + after.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) expect(launchLineOf(after.stdout, h).startsWith("  ok"), after.stdout).toBe(true);
+  });
+});
+
 // ── WR-03 (quick task 261018-hs8): the closing line offers a launch form only for a launch file install owns ─────────
 // The closing line ends with the row's invoke text, then `; or <launchInvoke>` when install wrote or owns the launch
 // file this run leaves, else the reason the form is not offered. A user's own file at the launch path and a refused
