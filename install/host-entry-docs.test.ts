@@ -26,6 +26,22 @@
 // heading per sequential registry row (derived, count asserted), and each section names that agent's entries (hostPointers:
 // the kind's entry and the row's launch agent, quick task 261018-hs8) and every backticked token of its `invoke`.
 //
+// VERIFIED-LIVE CLAIMS AND LAUNCH FORMS (quick task 261019-ktd, 261018-vfm review WR-06, WR-05). Which launch forms
+// a human ran live is held once, in each registry row's launchForm.verifiedLive, and every doc that repeats it is
+// read against the registry, two-sided. For these rules a table-row line is one unit, whole, and every other unit is
+// split into sentences. A unit's context host is the launch host whose "Using grugops on <name>" heading opens the
+// section it sits in. Three rules hold the scan set:
+//   LIVE-1: a unit that says "verified live" speaks of at most one launch host (the hosts it names, plus its context
+//           host). With one host, that host has a live run and the unit holds its exact launchLiveNote; with none, it
+//           gives no date. So no doc lists the verified host set, or its date, by hand.
+//   LIVE-2: a unit that gives a backticked token of the launch form of a row nobody ran live also says
+//           `UNKNOWN - verify`.
+//   LIVE-3: in each per-host table that names a launch form (derived, count asserted), a host's row holds its
+//           launchLiveNote exactly when the registry has one, and an unverified launch row holds `UNKNOWN - verify`.
+//           CLAUDE.md and agent-factory/README.md also carry one bold row per host, but their rows name no launch form
+//           or launch file, so they are not per-host launch tables.
+// Each rule has a mutation proof built from registry values, run through the same scanner function.
+//
 // Windows-safe: files are listed with `git ls-files -z` through spawnSync and split on NUL, paths are joined per
 // segment, and lines are split on `\r?\n`.
 //
@@ -35,7 +51,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, ROUTE_POINTERS, agentFlag, hostPointers, launchLiveNote } from "./host-tools.js";
+import { HOST_TOOLS, LAUNCH_AGENT_NAME, ROUTE_POINTERS, agentFlag, hostPointers, launchLiveNote, type LaunchHost } from "./host-tools.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GUIDE_REL = "install/README.md";
@@ -65,6 +81,8 @@ const DOLLAR_RE = /\$grugops(?![\w])/;
 interface Unit {
   /** Each part's text and its 1-based source line. */
   readonly parts: readonly { readonly text: string; readonly line: number }[];
+  /** True for a whole table-row line (markdownUnits with wholeRows; quick task 261019-ktd). */
+  readonly row?: boolean;
 }
 
 const HEADING = /^\s*#{1,6}\s/;
@@ -72,8 +90,11 @@ const TABLE_ROW = /^\s*\|/;
 const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
 const FENCE = /^\s*(?:```|~~~)/;
 
-/** Split a markdown body into units: headings, table cells, list items, fenced lines and paragraphs. */
-function markdownUnits(body: string): Unit[] {
+/**
+ * Split a markdown body into units: headings, table cells, list items, fenced lines and paragraphs. With wholeRows
+ * (the verified-live rules, quick task 261019-ktd), a table row is one unit, whole, instead of one unit per cell.
+ */
+function markdownUnits(body: string, wholeRows = false): Unit[] {
   const lines = body.split(/\r?\n/);
   const out: Unit[] = [];
   let cur: { text: string; line: number }[] | null = null;
@@ -105,6 +126,10 @@ function markdownUnits(body: string): Unit[] {
     }
     if (TABLE_ROW.test(t)) {
       close();
+      if (wholeRows) {
+        out.push({ parts: [{ text: t, line }], row: true });
+        return;
+      }
       // Each cell of a row is its own unit; `\|` inside a cell is an escaped bar, not a separator.
       for (const cell of t.split(/(?<!\\)\|/)) {
         const c = cell.trim();
@@ -354,6 +379,267 @@ describe("the install guide states the command-line contract (plan 34.1-13, D-25
     for (const t of HOST_TOOLS) expect(sec, `the contract does not name ${agentFlag(t)}`).toContain(`\`${agentFlag(t)}\``);
     for (const token of ["no all-agents flag", "`--check`", "`--update`", "`--prune-old-kit`", "exit `2`", "exits `1`", "uninstall.js", "`.grugops/install.json`", "checkbox list"]) {
       expect(sec, `the contract does not carry ${token}`).toContain(token);
+    }
+  });
+});
+
+// ── VERIFIED-LIVE CLAIMS AND LAUNCH FORMS (quick task 261019-ktd, 261018-vfm review WR-06, WR-05) ───────────────────
+//
+// The rules LIVE-1..3 of the header. Every expectation is derived from HOST_TOOLS and launchLiveNote; no host name,
+// note or launch command is spelled here.
+const LAUNCH_HOSTS: readonly LaunchHost[] = HOST_TOOLS.filter((t): t is LaunchHost => t.launchAgent !== null);
+const LAUNCH_HOST_RES = LAUNCH_HOSTS.map((host) => ({
+  host,
+  res: [...new Set([host.name, host.shortName])].map((n) => new RegExp(`(?<![\\w])${escapeRe(n)}(?![\\w])`)),
+}));
+const VERIFIED_LIVE_RE = /verified live/i;
+const DATE_RE = /\b20\d\d-\d\d-\d\d\b/;
+const UNKNOWN_MARK = "UNKNOWN - verify";
+
+/** The backticked tokens of a launch form's text that name LAUNCH_AGENT_NAME or the row's launch path. */
+function launchTokens(h: LaunchHost): string[] {
+  return [...h.launchForm.text.matchAll(/`[^`]+`/g)].map((m) => m[0]).filter((tok) => tok.includes(LAUNCH_AGENT_NAME) || tok.includes(h.launchAgent));
+}
+
+interface LiveUnit {
+  readonly text: string;
+  readonly line: number;
+  /** The launch host whose "Using grugops on <name>" section holds the unit, or null. */
+  readonly context: LaunchHost | null;
+}
+
+interface LiveFinding extends Finding {
+  readonly why: string;
+}
+const showLive = (f: LiveFinding): string => `${f.file}:${f.line}: ${f.why}`;
+
+/** The context host of each 0-based line: the launch host whose usage section the line sits in, or null. */
+function contextHosts(lines: readonly string[]): (LaunchHost | null)[] {
+  const heads = guideHeadings(lines);
+  const out: (LaunchHost | null)[] = [];
+  let cur: { level: number; host: LaunchHost | null } | null = null;
+  let k = 0;
+  for (let i = 0; i < lines.length; i++) {
+    while (k < heads.length && heads[k].index === i) {
+      const head = heads[k];
+      if (cur !== null && head.level <= cur.level) cur = null;
+      const host = LAUNCH_HOSTS.find((t) => head.text === USAGE_PREFIX + t.name);
+      if (host !== undefined) cur = { level: head.level, host };
+      k++;
+    }
+    out.push(cur === null ? null : cur.host);
+  }
+  return out;
+}
+
+/** The units of the verified-live rules: each table-row line whole, every other unit split into sentences. */
+function liveUnits(body: string): LiveUnit[] {
+  const ctx = contextHosts(body.split(/\r?\n/));
+  return markdownUnits(body, true)
+    .flatMap((u) => (u.row === true ? [{ text: u.parts[0].text, line: u.parts[0].line }] : sentences(u)))
+    .map((s) => ({ text: s.text, line: s.line, context: ctx[s.line - 1] ?? null }));
+}
+
+/** LIVE-1: a "verified live" unit speaks of at most one launch host and holds its exact note, or names none and gives no date. */
+function scanLiveClaims(file: string, body: string): { findings: LiveFinding[]; examined: number } {
+  const findings: LiveFinding[] = [];
+  let examined = 0;
+  for (const u of liveUnits(body)) {
+    if (!VERIFIED_LIVE_RE.test(u.text)) continue;
+    examined++;
+    const hosts = new Set(LAUNCH_HOST_RES.filter((x) => x.res.some((re) => re.test(u.text))).map((x) => x.host));
+    if (u.context !== null) hosts.add(u.context);
+    const named = [...hosts];
+    const at = { file, line: u.line, sentence: u.text };
+    if (named.length > 1) {
+      findings.push({ ...at, why: `a "verified live" unit speaks of more than one host (${named.map((t) => t.name).join(", ")})` });
+    } else if (named.length === 1) {
+      const note = launchLiveNote(named[0]);
+      if (note === null) findings.push({ ...at, why: `"verified live" for ${named[0].name}, whose launch form nobody ran live` });
+      else if (!u.text.includes(note)) findings.push({ ...at, why: `"verified live" for ${named[0].name} without its note "${note}"` });
+    } else if (DATE_RE.test(u.text)) {
+      findings.push({ ...at, why: `a dated "verified live" unit that names no host` });
+    }
+  }
+  return { findings, examined };
+}
+
+/** LIVE-2: a unit that gives a token of an unverified launch form also says `UNKNOWN - verify`. */
+function scanUnverifiedForms(file: string, body: string): { findings: LiveFinding[]; examined: number } {
+  const findings: LiveFinding[] = [];
+  let examined = 0;
+  const unverified = LAUNCH_HOSTS.filter((h) => h.launchForm.verifiedLive === null);
+  for (const u of liveUnits(body)) {
+    for (const h of unverified) {
+      for (const tok of launchTokens(h)) {
+        if (!u.text.includes(tok)) continue;
+        examined++;
+        if (!u.text.includes(UNKNOWN_MARK)) {
+          findings.push({ file, line: u.line, sentence: u.text, why: `${h.name}'s launch form ${tok}, which nobody ran live, without ${UNKNOWN_MARK}` });
+        }
+      }
+    }
+  }
+  return { findings, examined };
+}
+
+/** The lines of a per-host table row for `name`: `| **<name>** |` at the start of a line. */
+function hostRowLines(body: string, name: string): { line: number; text: string }[] {
+  const re = new RegExp(`^\\|\\s*\\*\\*${escapeRe(name)}\\*\\*\\s*\\|`);
+  return body
+    .split(/\r?\n/)
+    .map((text, i) => ({ line: i + 1, text }))
+    .filter((l) => re.test(l.text));
+}
+
+/** Whether `body` is a per-host launch table: one row per registry host, and some launch host's row names its launch form or file. */
+function isLaunchTable(body: string): boolean {
+  if (!HOST_TOOLS.every((h) => hostRowLines(body, h.name).length === 1)) return false;
+  return LAUNCH_HOSTS.some((h) => {
+    const row = hostRowLines(body, h.name)[0].text;
+    return row.includes(h.launchAgent) || launchTokens(h).some((tok) => row.includes(tok));
+  });
+}
+
+/** LIVE-3: each host's row holds its note exactly when it has one, and an unverified launch row says `UNKNOWN - verify`. */
+function scanHostTable(file: string, body: string): { findings: LiveFinding[]; examined: number } {
+  const findings: LiveFinding[] = [];
+  let examined = 0;
+  for (const h of HOST_TOOLS) {
+    const rows = hostRowLines(body, h.name);
+    if (rows.length !== 1) {
+      findings.push({ file, line: rows[0]?.line ?? 0, sentence: "", why: `${h.name} has ${rows.length} rows, not one` });
+      continue;
+    }
+    examined++;
+    const { line, text } = rows[0];
+    const note = launchLiveNote(h);
+    if (note !== null && !text.includes(note)) findings.push({ file, line, sentence: text, why: `${h.name}'s row lacks its note "${note}"` });
+    if (note === null && VERIFIED_LIVE_RE.test(text)) findings.push({ file, line, sentence: text, why: `${h.name}'s row says "verified live", and nobody ran its launch form live` });
+    if (h.launchForm !== null && h.launchForm.verifiedLive === null && !text.includes("`" + UNKNOWN_MARK + "`")) {
+      findings.push({ file, line, sentence: text, why: `${h.name}'s row gives a launch form nobody ran live without \`${UNKNOWN_MARK}\`` });
+    }
+  }
+  return { findings, examined };
+}
+
+describe("verified-live claims and launch forms are bound to the registry (quick task 261019-ktd, review WR-06, WR-05)", () => {
+  const VERIFIED = LAUNCH_HOSTS.filter((h) => h.launchForm.verifiedLive !== null);
+  const UNVERIFIED = LAUNCH_HOSTS.filter((h) => h.launchForm.verifiedLive === null);
+
+  it("premises: the launch hosts are derived, some were run live and some were not, and each has a launch token", () => {
+    expect(LAUNCH_HOSTS.length, "premise: the registry has launch hosts").toBeGreaterThan(0);
+    expect(VERIFIED.length, "premise: at least two launch forms were run live (the LIVE-1 mutation that pairs them needs it)").toBeGreaterThanOrEqual(2);
+    expect(UNVERIFIED.length, "premise: a launch form nobody ran live").toBeGreaterThanOrEqual(1);
+    for (const h of LAUNCH_HOSTS) expect(launchTokens(h).length, `${h.id}: no launch token`).toBeGreaterThan(0);
+  });
+
+  it("LIVE-1: the tracked markdown scan set has zero findings, and the scan examined some unit", () => {
+    let examined = 0;
+    const findings = trackedMarkdown(REPO).flatMap((f) => {
+      const r = scanLiveClaims(f, readRel(f));
+      examined += r.examined;
+      return r.findings;
+    });
+    expect(findings.map(showLive)).toEqual([]);
+    expect(examined, "LIVE-1 examined no unit").toBeGreaterThanOrEqual(1);
+  });
+
+  it("LIVE-2: the tracked markdown scan set has zero findings, and the scan examined some unit", () => {
+    let examined = 0;
+    const findings = trackedMarkdown(REPO).flatMap((f) => {
+      const r = scanUnverifiedForms(f, readRel(f));
+      examined += r.examined;
+      return r.findings;
+    });
+    expect(findings.map(showLive)).toEqual([]);
+    expect(examined, "LIVE-2 examined no unit").toBeGreaterThanOrEqual(1);
+  });
+
+  it("LIVE-3: the per-host launch tables are derived (README.md and adapters.md, count 2), and each has zero findings", () => {
+    const tables = trackedMarkdown(REPO).filter((f) => isLaunchTable(readRel(f)));
+    // Measured 2026-10-19: CLAUDE.md and agent-factory/README.md carry one bold row per host, and none of their
+    // launch hosts' rows names a launch form or file.
+    expect([...tables].sort(), "the per-host launch tables").toEqual(["README.md", "agent-factory/packaging/adapters.md"]);
+    expect(tables.length).toBe(2);
+    let examined = 0;
+    const findings = tables.flatMap((f) => {
+      const r = scanHostTable(f, readRel(f));
+      examined += r.examined;
+      return r.findings;
+    });
+    expect(findings.map(showLive)).toEqual([]);
+    expect(examined, "LIVE-3 examined no row").toBeGreaterThanOrEqual(1);
+  });
+
+  it("LIVE-1 by mutation: two verified hosts in one unit, an unverified host, and a dated unit with no host are findings; an undated one is not", () => {
+    const [a, b] = VERIFIED;
+    const u = UNVERIFIED[0];
+    const date = a.launchForm.verifiedLive!.date;
+    const two = `# T\n\n${a.name} and ${b.name} were verified live by a human on ${date}.\n`;
+    expect(scanLiveClaims("t.md", two).findings.map((f) => f.line)).toEqual([3]);
+    expect(scanLiveClaims("t.md", two).findings[0].why).toContain("more than one host");
+    const unv = `# T\n\n${u.name}'s launch form was verified live.\n`;
+    expect(scanLiveClaims("t.md", unv).findings.map(showLive)).toEqual([`t.md:3: "verified live" for ${u.name}, whose launch form nobody ran live`]);
+    const dated = `# T\n\nEvery launch form here was verified live by a human on ${date}.\n`;
+    expect(scanLiveClaims("t.md", dated).findings.map(showLive)).toEqual([`t.md:3: a dated "verified live" unit that names no host`]);
+    const undated = `# T\n\nA launch form marked verified live was run by a human on the live host.\n`;
+    const r = scanLiveClaims("t.md", undated);
+    expect(r.findings).toEqual([]);
+    expect(r.examined).toBe(1);
+  });
+
+  it("LIVE-1 by mutation, inside a usage section: the exact note is not a finding; the old dated-only note is, and the section ends at the next heading", () => {
+    const h = VERIFIED[0];
+    const note = launchLiveNote(h)!;
+    const date = h.launchForm.verifiedLive!.date;
+    const head = `### ${USAGE_PREFIX}${h.name}\n\n`;
+    const exact = `# G\n\n${head}Picking it was ${note}.\n`;
+    const r = scanLiveClaims("g.md", exact);
+    expect(r.findings).toEqual([]);
+    expect(r.examined).toBe(1);
+    const old = `# G\n\n${head}Picking it was verified live by a human on ${date}.\n`;
+    expect(scanLiveClaims("g.md", old).findings.map(showLive)).toEqual([`g.md:5: "verified live" for ${h.name} without its note "${note}"`]);
+    const after = `# G\n\n${head}Picking it was ${note}.\n\n### Next\n\nIt was verified live by a human on ${date}.\n`;
+    expect(scanLiveClaims("g.md", after).findings.map(showLive)).toEqual([`g.md:9: a dated "verified live" unit that names no host`]);
+  });
+
+  it("LIVE-2 by mutation: an unverified launch token without `UNKNOWN - verify` is a finding; with it, or a verified host's token, it is not", () => {
+    const u = UNVERIFIED[0];
+    const tok = launchTokens(u)[0];
+    expect(scanUnverifiedForms("t.md", `# T\n\nStart it with ${tok}.\n`).findings.map((f) => f.line)).toEqual([3]);
+    const marked = scanUnverifiedForms("t.md", `# T\n\nStart it with ${tok} (\`${UNKNOWN_MARK}\`).\n`);
+    expect(marked.findings).toEqual([]);
+    expect(marked.examined).toBe(1);
+    const vtok = launchTokens(VERIFIED[0]).find((t) => !launchTokens(u).some((x) => x.includes(t) || t.includes(x)));
+    expect(vtok, "premise: a verified host's launch token that is not the unverified one").toBeDefined();
+    expect(scanUnverifiedForms("t.md", `# T\n\nStart it with ${vtok}.\n`).findings).toEqual([]);
+  });
+
+  it("LIVE-3 by mutation: a scratch README copy with a note removed, \"verified live\" planted, or `UNKNOWN - verify` removed gives a finding naming the file and the host", () => {
+    const body = readRel("README.md");
+    expect(scanHostTable("README.md", body).findings, "premise: the real README has no LIVE-3 finding").toEqual([]);
+    const v = VERIFIED[0];
+    const u = UNVERIFIED[0];
+    const mutate = (h: LaunchHost, edit: (row: string) => string): { text: string; line: number } => {
+      const row = hostRowLines(body, h.name)[0];
+      const edited = edit(row.text);
+      expect(edited, `premise: the mutation changed ${h.name}'s row`).not.toBe(row.text);
+      const lines = body.split(/\r?\n/);
+      lines[row.line - 1] = edited;
+      return { text: lines.join("\n"), line: row.line };
+    };
+    const cases: { host: LaunchHost; edit: (row: string) => string }[] = [
+      { host: v, edit: (row) => row.split(launchLiveNote(v)!).join("") },
+      { host: u, edit: (row) => row.replace(/\|\s*$/, " verified live |") },
+      { host: u, edit: (row) => row.split("`" + UNKNOWN_MARK + "`").join("") },
+    ];
+    for (const c of cases) {
+      const m = mutate(c.host, c.edit);
+      const got = scanHostTable("README.md", m.text).findings;
+      expect(got.map((f) => f.line), showLive(got[0] ?? { file: "", line: 0, sentence: "", why: "no finding" })).toEqual([m.line]);
+      expect(got[0].file).toBe("README.md");
+      expect(got[0].why).toContain(c.host.name);
     }
   });
 });

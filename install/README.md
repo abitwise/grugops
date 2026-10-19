@@ -514,8 +514,8 @@ writes no path under `.claude/` and no `CLAUDE.md`:
   the same kit route: when the file does not exist, install creates it and records that, and the
   block, in the install ledger in `.grugops/install.json`
 - `.github/agents/grugops-orchestrator.agent.md` — GitHub Copilot CLI's launch agent, a custom agent
-  started with `copilot --agent grugops-orchestrator` or picked with `/agent` (see "Using grugops on
-  GitHub Copilot CLI"). It is a pointer with no role text, under the frontmatter Copilot CLI reads,
+  started with `copilot --agent grugops-orchestrator` or picked with `/agent`, neither of which
+  grugops has run live (`UNKNOWN - verify`; see "Using grugops on GitHub Copilot CLI"). It is a pointer with no role text, under the frontmatter Copilot CLI reads,
   and install writes it by the same rules as the skill: created where nothing is, install's own unedited
   copy refreshed, and anything else (a file you wrote, or install's copy that you edited) left
   untouched and not recorded, so the uninstaller leaves it too. Install records it in the install
@@ -547,11 +547,11 @@ writes no path under `.claude/` and no `CLAUDE.md`:
   the flag names it, and install never writes `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`
 
 Whether Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI or Pi loads its entry in a live
-session is `UNKNOWN - verify` until a live run shows it. The launch agents of Antigravity CLI and
-OpenCode, picked in the `/agents` panel, and Pi's launch file, passed with `--append-system-prompt`,
-load in a live session: verified live by a human on 2026-10-18. GitHub Copilot CLI's launch agent is
-still `UNKNOWN - verify`, and whether a session started with any launch file then follows the kit
-route is `UNKNOWN - verify`. The Pi template, the skill, the command and
+session is `UNKNOWN - verify` until a live run shows it. A launch form a human ran on the live host
+is marked verified live in that host's "Using grugops on" section below, with the date and the host
+version, or "host version not recorded", and with what the human saw. A launch form not marked so is
+`UNKNOWN - verify`. Whether a session started with any launch file then follows the kit route is
+`UNKNOWN - verify`. The Pi template, the skill, the command and
 the launch agents (the Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi files above; Codex CLI
 has none) are copied from committed files in the kit, which `scripts/generate-host-entries.ts`
 renders from one pointer file, `agent-factory/packaging/host-entry.pointer.md`.
@@ -566,8 +566,8 @@ left installed: the closing notes name it on its own line, with the install comm
 and the uninstall command that takes it out of the record. For each agent the
 run was for, the closing notes also name what the install record holds for it and how that host's
 documentation says to start grugops. They give a host's launch form (for example
-`copilot --agent grugops-orchestrator`, or picking `grugops-orchestrator` in the `/agents` panel)
-only when the install record shows its launch file to be install's own copy (a dry run also gives it
+`copilot --agent grugops-orchestrator`, which grugops has not run live (`UNKNOWN - verify`), or
+picking `grugops-orchestrator` in the `/agents` panel) only when the install record shows its launch file to be install's own copy (a dry run also gives it
 when the real run would write the file). When the record does not show that, the notes give no
 launch form, because the form could start a file that is not install's and not the grugops
 Orchestrator, and they name the cause the record shows: it holds no entry for the file (your own
@@ -576,7 +576,8 @@ file changed since install wrote it; the record could not be used; or there is n
 can use, as when the install marker could not be written. `install.js --check` asks the same
 ownership rule and names the same cause, so it gives a launch file `ok` only when the closing notes
 would offer its launch form. A launch form a human ran on the live host is marked "verified live by
-a human on 2026-10-18" where the notes give it. The notes end with a line saying the invocation
+a human on" its date where the notes give it, followed by the host it ran on and its version, or by
+"host version not recorded". The notes end with a line saying the invocation
 forms come from each host's documentation and grugops has not run them on a live host
 (`UNKNOWN - verify`). Only when the notes give a launch form does that line also speak of launch
 forms: that a form marked verified live was run by a human on the live host (said only when a given
@@ -890,7 +891,8 @@ together with `AGENTS.md` and its other instruction files
 `description`, and its body is the same pointer, with no role text. Copilot CLI reads project custom
 agents from `.github/agents/`, one Markdown file with an `.agent.md` extension each, and the agent's
 ID is the file name without that extension. Start a session as it with
-`copilot --agent grugops-orchestrator`, or pick it with `/agent` in an interactive session. (Source:
+`copilot --agent grugops-orchestrator`, or pick it with `/agent` in an interactive session; grugops
+has made no live run of either (`UNKNOWN - verify`). (Source:
 docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli,
 retrieved 2026-10-18.) The file sets no `tools`, and an agent with `tools` unset gets all tools; it
 sets no `target` either, so Copilot's cloud agent and VS Code see the same file (Source:
