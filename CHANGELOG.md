@@ -145,12 +145,15 @@ CLI with Antigravity CLI.
   counted as a route carrier, because a default session never reads it. Nothing makes a launch agent
   the default: no `default_agent` in `opencode.json`, no `.pi/SYSTEM.md` or `.pi/APPEND_SYSTEM.md`.
   Codex CLI is unchanged, because it documents no way to start a session as a custom agent. A
-  session started this way still loads roles one at a time. A human verified live on 2026-10-18 that
-  the launch agent loads on Antigravity CLI and OpenCode (picked in the `/agents` panel) and on Pi
-  (with the flag), and install's closing notes mark those forms "verified live by a human on
-  2026-10-18". GitHub Copilot CLI and the `agy --agent` flag are `UNKNOWN - verify`, and so is
-  whether a session started with a launch file follows the kit route. OpenCode does not support
-  starting a session with `--agent`, so no command-line form is given for it.
+  session started this way still loads roles one at a time. On 2026-10-18 a human verified live that
+  the `/agents` panel of Antigravity CLI and of OpenCode lists the launch agent and that picking it
+  works, and that Pi loads the launch file passed with the flag. On 2026-10-19 the human gave the
+  host versions of that run: Antigravity CLI 1.4.2 (`agy 1.4.2`), OpenCode 2.0.26 and Pi 1.1.0.
+  Install's closing notes mark those forms "verified live by a human on 2026-10-18 on" the host and
+  its version. GitHub Copilot CLI and the `agy --agent` flag are `UNKNOWN - verify`, and so is
+  whether a session started with a launch file follows the kit route. On the same run, on OpenCode
+  2.0.26, the human found that OpenCode did not start a session with `--agent`, so no command-line
+  form is given for it.
 
 ### Changed
 
@@ -603,6 +606,18 @@ CLI with Antigravity CLI.
   marked verified live, only when the run gave one; a run that gave none, such as a `--codex`
   install, says only that the invocation forms come from each host's documentation and grugops has
   not run them on a live host (`UNKNOWN - verify`).
+- `install.js --check` now gives each launch-file line the form's live-run state (quick task
+  261019-ktd; 261018-vfm review WR-05, WR-06, WR-10, IN-14): the verified-live note, or
+  `UNKNOWN - verify: no live run`. Before, it stated the GitHub Copilot CLI launch, which nobody has
+  run live, as fact. The verified-live note now names the host and the host version the run was made on, as
+  the human gave them on 2026-10-19 (for example "verified live by a human on 2026-10-18 on OpenCode
+  2.0.26"), and says "host version not recorded" for a run that recorded none. The README and the
+  install guide no longer say the GitHub Copilot CLI launch agent starts the session as the
+  Orchestrator, or that every launch file makes the pointer the session's main agent. On Antigravity
+  CLI and OpenCode a human saw the panel list the agent and the pick work. On Pi a human saw the
+  file loaded, and Pi appends the file to its system prompt. Which hosts were verified is now stated
+  in each host's own row and section, and checked against the install registry. Codex CLI has no
+  launch agent.
 
 ### Security
 

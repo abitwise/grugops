@@ -1938,9 +1938,11 @@ full tier, and it is stated plainly rather than softened — you should know whi
 ### Degraded — no `Agent` tool at all
 
 Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi have no host spawn mechanism that
-this kit uses. The launch agents install writes for Antigravity CLI, OpenCode, GitHub Copilot CLI
-and Pi make the Orchestrator pointer the session's main agent when you start the session with one,
-but they give that session no `Agent` tool this kit uses, and Codex CLI gets no launch agent. A
+this kit uses. The launch agents install writes for Antigravity CLI, OpenCode and GitHub Copilot CLI
+are meant to start the session with the Orchestrator pointer as its main agent, and Pi's launch file
+is appended to Pi's system prompt; none of them gives the session an `Agent` tool this kit uses, and
+Codex CLI gets no launch agent. Which launch forms a human verified live is stated in the "Using
+grugops on" sections. A
 Claude Code sub-agent already at the nesting limit has `Agent` withheld from it rather than
 erroring. In either case the coordinator drains the same queue at concurrency one, activating
 each role in a single window through `agent-factory/roles/_role-switch-protocol.md` — and says

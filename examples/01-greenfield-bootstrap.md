@@ -40,11 +40,12 @@ agent it is for (one flag per agent; see `install/README.md`): the Pi pointer `.
 (see `install/README.md`, "Using grugops on Pi"), the agent skill `.agents/skills/grugops/SKILL.md`
 that Codex CLI and Antigravity CLI read, and the OpenCode command `.opencode/commands/grugops.md`.
 GitHub Copilot CLI's entry is the Copilot pointer block in the list above. It also writes a launch
-agent, which starts a session as the Orchestrator, for each of Antigravity CLI
-(`.agents/agents/grugops-orchestrator.md`), OpenCode (`.opencode/agents/grugops-orchestrator.md`),
-GitHub Copilot CLI (`.github/agents/grugops-orchestrator.agent.md`) and Pi
-(`.pi/grugops-orchestrator.md`); Codex CLI gets none. The start forms are in the "Using grugops on"
-sections of `install/README.md`.
+agent for each of Antigravity CLI (`.agents/agents/grugops-orchestrator.md`), OpenCode
+(`.opencode/agents/grugops-orchestrator.md`) and GitHub Copilot CLI
+(`.github/agents/grugops-orchestrator.agent.md`), each meant to start a session as the Orchestrator,
+and a launch file for Pi (`.pi/grugops-orchestrator.md`), which Pi appends to its system prompt when
+started with `--append-system-prompt`; Codex CLI gets none. The start forms, and which of them a
+human verified live, are in the "Using grugops on" sections of `install/README.md`.
 
 ## Orchestrator decision
 

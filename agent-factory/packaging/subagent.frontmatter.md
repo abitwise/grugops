@@ -253,11 +253,13 @@ failure lands in CI rather than on a user's machine.
   spawned role's further spawns. grugops writes no `.claude/settings.json` agent entry into a
   user's repository, so the flag is the full-capability path this kit documents.
 - **The other host CLIs** — Codex, Antigravity, OpenCode, Copilot and Pi have no host spawn mechanism
-  that this kit uses (the launch agents install writes for Antigravity, OpenCode, Copilot and Pi make the
-  Orchestrator pointer the session's main agent but give it no `Agent` tool this kit uses, and Codex gets
+  that this kit uses (the launch agents install writes for Antigravity, OpenCode and Copilot are meant to
+  start the session with the Orchestrator pointer as its main agent, and Pi's launch file is appended to
+  Pi's system prompt; none of them gives the session an `Agent` tool this kit uses, and Codex gets
   none), so the coordinator there is always in the degraded tier: it drains the same queue at
   concurrency one via `agent-factory/roles/_role-switch-protocol.md`. The grant is a
-  Claude-Code-only capability, and the on-disk result is the same either way.
+  Claude-Code-only capability, and the on-disk result is the same either way. Which launch forms a
+  human verified live is stated in the "Using grugops on" sections of `install/README.md`.
 
 ## Host-CLI scope of the model and effort dials
 
