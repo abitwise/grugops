@@ -316,7 +316,9 @@ function absolutenessKind(node: ts.Node): string | null {
 const ABSOLUTENESS_OWNERS = ["canonicalPathSpelling", "isRecordedAbsolute"];
 
 /** The derived absoluteness sites when plan 34-21 wrote rule (f). */
-const DERIVED_ABSOLUTENESS_COUNT = 7;
+// 7 -> 8 on 2026-10-19 (quick task 261019-mq1, 261018-hs8 review IN-01): host-tools.ts isPiRefusedRel's ASCII case
+// fold `/[A-Z]/g` matches the `C` of `C:/`, so the probe derives it as a drive-letter pattern. It is classified below.
+const DERIVED_ABSOLUTENESS_COUNT = 8;
 
 /** An absoluteness site outside the owners, with its reason. Keyed by file, scope and kind. */
 const CLASSIFIED_ABSOLUTENESS = new Map<string, string>([
@@ -327,6 +329,10 @@ const CLASSIFIED_ABSOLUTENESS = new Map<string, string>([
   [
     'install-marker.ts:isLedgerPath:startsWith("/")',
     "the ledger entry grammar (P9): a POSIX path relative to the target on every platform, refused when it starts with `/`; a relativity rule of the record format, not a host absoluteness test",
+  ],
+  [
+    "host-tools.ts:fold:drive-letter pattern",
+    "isPiRefusedRel's ASCII case fold (quick task 261019-mq1, review IN-01): `/[A-Z]/g` lower-cases a registry path's letters before comparing it with PI_REFUSED_RELS; it decides no absoluteness and reads no recorded value",
   ],
 ]);
 
@@ -436,7 +442,8 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
       sites.map((s) => `${where(s)} ${s.kind}`),
       "the derived absoluteness sites changed: read each new site, decide it, then update DERIVED_ABSOLUTENESS_COUNT",
     ).toHaveLength(DERIVED_ABSOLUTENESS_COUNT);
-    expect(CLASSIFIED_ABSOLUTENESS.size, "the classified absoluteness map changed size").toBe(5);
+    // 5 -> 6 on 2026-10-19 (quick task 261019-mq1): host-tools.ts isPiRefusedRel's case fold, classified above.
+    expect(CLASSIFIED_ABSOLUTENESS.size, "the classified absoluteness map changed size").toBe(6);
     expect([...CLASSIFIED_ABSOLUTENESS.keys()].filter((k) => !used.has(k)), "a stale exemption: a classified absoluteness key that no derived site matched").toEqual([]);
   });
 

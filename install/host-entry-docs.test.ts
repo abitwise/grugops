@@ -692,6 +692,12 @@ function scanPathList(file: string, body: string, opener: string, expected: read
   return { findings, examined: 1 };
 }
 
+/**
+ * A command token of an invoke: a backticked token that starts with `/` or `$` (a slash command or Codex's `$` mention).
+ * A pattern, not `.startsWith("/")`: this asks for a command sigil, never whether a path is absolute (the WIN-1
+ * path-spelling census, install/path-spelling-census.test.ts, rule t4, reads a leading-`/` test as an absoluteness rule).
+ */
+const COMMAND_SIGIL = /^[/$]/;
 /** The flag words of the `command` launch forms: whitespace-separated words starting with `--` inside a backticked token. */
 const COMMAND_FLAGS = [...new Set(LAUNCH_HOSTS.filter((h) => h.launchForm.kind === "command").flatMap((h) => backticked(h.launchForm.text).flatMap((t) => t.split(/\s+/).filter((w) => w.startsWith("--")))))];
 
@@ -721,7 +727,7 @@ function scanStartTable(file: string, body: string): { findings: LiveFinding[]; 
       }
     }
     if (h.dispatch === "sequential") {
-      for (const tok of backticked(h.invoke).filter((t) => t.startsWith("/") || t.startsWith("$"))) {
+      for (const tok of backticked(h.invoke).filter((t) => COMMAND_SIGIL.test(t))) {
         if (!text.includes("`" + tok + "`")) findings.push({ ...at, why: `${h.name}'s row does not give \`${tok}\` of its invoke` });
       }
     }
@@ -793,7 +799,7 @@ describe("doc path lists, start forms and the launch caution are bound to the re
     const body = readRel("README.md");
     const cmd = LAUNCH_HOSTS.find((h) => h.launchForm.kind === "command" && h.launchForm.caution !== null)!;
     const otherCmd = LAUNCH_HOSTS.find((h) => h.launchForm.kind === "command" && h !== cmd)!;
-    const panel = LAUNCH_HOSTS.find((h) => h.launchForm.kind === "panel" && backticked(h.invoke).some((t) => t.startsWith("/")))!;
+    const panel = LAUNCH_HOSTS.find((h) => h.launchForm.kind === "panel" && backticked(h.invoke).some((t) => COMMAND_SIGIL.test(t)))!;
     expect([cmd, otherCmd, panel].every((h) => h !== undefined), "premise: a cautioned command row, another command row and a panel row").toBe(true);
     const mutate = (h: LaunchHost, edit: (row: string) => string): string => {
       const row = hostRowLines(body, h.name)[0];
@@ -803,7 +809,7 @@ describe("doc path lists, start forms and the launch caution are bound to the re
       ls[row.line - 1] = edited;
       return ls.join("\n");
     };
-    const invokeTok = "`" + backticked(panel.invoke).find((t) => t.startsWith("/"))! + "`";
+    const invokeTok = "`" + backticked(panel.invoke).find((t) => COMMAND_SIGIL.test(t))! + "`";
     const cases: { host: LaunchHost; edit: (row: string) => string }[] = [
       { host: cmd, edit: (row) => row.split("`" + backticked(cmd.launchForm.text)[0] + "`").join("the flag") },
       { host: cmd, edit: (row) => row.replace(/\|\s*$/, ` ${otherCmd.launchAgent} |`) },

@@ -245,6 +245,8 @@ export const PI_REFUSED_RELS: readonly string[] = [".pi/SYSTEM.md", ".pi/APPEND_
  * `.pi/SYSTEM.md`.
  */
 export function isPiRefusedRel(rel: string): boolean {
+  // ASCII A-Z to a-z only. The WIN-1 path-spelling census reads this pattern as a drive-letter rule (it matches the
+  // `C` of `C:/`), and classifies it there as a case fold, not an absoluteness decision.
   const fold = (t: string): string => t.replace(/[A-Z]/g, (c) => c.toLowerCase());
   return PI_REFUSED_RELS.some((r) => fold(r) === fold(rel));
 }
