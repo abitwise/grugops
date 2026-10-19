@@ -6885,7 +6885,7 @@ function askRulesNotes(outcome) {
 // launchClosingClause (quick task 261018-hs8, review WR-03): what the closing line adds after a row's invoke text about
 // its launch file. The launch form (host-tools.ts launchInvoke) is offered only when install wrote or owns the file
 // this run leaves there: launchOwned over the install record after the run (install's own unedited copy, created,
-// refreshed or kept; a link a --symlink install made). launchOwned is the one owner the doctor's launch-file lines ask
+// refreshed or kept; install writes each launch file as a copy, never a link, in every mode). launchOwned is the one owner the doctor's launch-file lines ask
 // too (quick task 261019-faq, review WR-08), so `--check` says ok for a launch file exactly when this clause offers its
 // form. Under DRY_RUN, nothing was written: it is offered when the run would write the file (PLANNED_BYTES has it:
 // would-add, would-refresh; a planned write is install-run state the doctor never has) or launchOwned over the record
