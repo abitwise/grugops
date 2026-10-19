@@ -8,7 +8,7 @@ deletes a file you own.
 **Version: `2.1.0`.** This is the canonical value in `agent-factory/VERSION`; the Claude Code
 plugin mirrors it in `.claude-plugin/plugin.json` and the tooling `package.json` carries the same
 string. The three bump together, once per release, and the release tag is `v<MAJOR>.<MINOR>`
-(`v2.1` for this version). From 2.1.0 on, grugops follows SemVer: a breaking change bumps MAJOR.
+(`v2.2` for this version). Version 2.2.0 was cut ahead of strict SemVer on purpose: the project is not yet promoted, so the break-contract is relaxed for it. From 2.2.0 on, grugops follows SemVer again: a breaking change bumps MAJOR.
 
 Once grugops is installed, **how you start the session decides what the Orchestrator can
 actually do.** The three entry tiers, and what each one really enforces, are §6.

@@ -5,18 +5,26 @@ All notable changes to grugops are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-> **A note on versions.** `2.1.0` (tag `v2.1`, 2026-09-18) is the first published SemVer release;
+> **A note on versions.** `2.1.0` (tag `v2.1`, 2026-09-18) was the first published SemVer release;
 > the artifact version in `agent-factory/VERSION`, `.claude-plugin/plugin.json` and `package.json`
 > agree on it, and the break-contract applies from here. Before it, the artifact version was the
 > pre-release seed `0.1.0`, and the `v1.0`, `v1.1`, `v1.2` and `v2.0` entries below are the
 > project's internal milestone tags (they match `git tag`), not published SemVer releases.
+>
+> `2.2.0` (tag `v2.2`, 2026-10-19) is cut ahead of strict SemVer on purpose. grugops is not yet
+> promoted, so the break-contract is relaxed for this one release: it carries the Phase 33 to 34.1
+> changes, which include removals (the Bash command guard, 33.1 D-17) that a strict SemVer read would
+> call MAJOR. SemVer applies again from the release after it.
 
 ## [Unreleased]
 
-Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands in the next
-release, together with Phase 33.1, which retires the Bash command guard, Phase 34, which adds a
-per-role effort setting and Pi support, and Phase 34.1, which installs per agent and replaces Gemini
-CLI with Antigravity CLI.
+## [2.2.0] - 2026-10-19
+
+Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands in this release,
+together with Phase 33.1, which retires the Bash command guard, Phase 34, which adds a per-role
+effort setting and Pi support, and Phase 34.1, which installs per agent and replaces Gemini CLI with
+Antigravity CLI. The quick tasks after 2.1.0 (launch agents for Antigravity, OpenCode, Copilot CLI and
+Pi; the MIT license; and their review fixes) are included too.
 
 ### Removed
 

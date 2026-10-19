@@ -125,7 +125,7 @@ Each agent is grug-brained on purpose: one job, short words, hard limits. Lean b
 - mechanism: `.claude-plugin/plugin.json` `version` is `2.1.0`, `agent-factory/VERSION` is `2.1.0` and `package.json` `version` is `2.1.0` — the three version artifacts agree. `CHANGELOG.md:8-13` is the mechanism that reconciles the apparent conflict with `git tag`: it states that the artifact version is `0.1.0`, that no public release has been cut, and that `v1.0`/`v1.1`/`v1.2`/`v2.0` are internal milestone tags rather than published SemVer releases. RECORDED RESIDUAL, adjacent but not this claim's defect: `CLAUDE.md`'s stack table names a root `VERSION` file that does not exist on disk.
 
 ```
-grugops version `2.1.0`.
+grugops version `2.2.0`.
 ```
 
 ### C-28-005
