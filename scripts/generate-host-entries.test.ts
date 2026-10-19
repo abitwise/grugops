@@ -19,7 +19,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { HOST_ADAPTER_KINDS, HOST_TOOLS, KIT_ROUTE, LAUNCH_AGENT_NAME, POINTER_LINE, ROUTE_POINTERS, START_HERE_SENTENCE, type HostAdapterKind } from "../install/host-tools.js";
+import { HOST_ADAPTER_KINDS, HOST_TOOLS, KIT_ROUTE, LAUNCH_AGENT_NAME, PI_REFUSED_RELS, POINTER_LINE, ROUTE_POINTERS, START_HERE_SENTENCE, type HostAdapterKind } from "../install/host-tools.js";
 import {
   ENTRY_DESCRIPTION,
   ENTRY_SHAPES,
@@ -28,6 +28,8 @@ import {
   TEMPLATE_REL,
   frontmatterProblem,
   launchShapeProblem,
+  pathProblem,
+  renderAll,
   renderEntry,
   renderedEntryRels,
   templateProblem,
@@ -259,8 +261,28 @@ describe("generate-host-entries: launch agents (quick task 261018-hs8)", () => {
     { name: "a space followed by #", value: "text #comment", says: "space followed by #" },
     { name: "an exclamation mark followed by a backtick", value: "run !`ls`", says: "exclamation mark followed by a backtick" },
     { name: "an at-sign followed by a non-space character", value: "see @notes.md", says: "at-sign followed by a non-space character" },
+    // Quick task 261019-mq1 (261018-hs8 review IN-11): the canonical form. A value that starts with anything but a
+    // letter or a digit, and is not a well-formed double-quoted string, is refused; so are a malformed quoted string,
+    // a plain value ending with a colon or with whitespace, and a colon or `#` next to whitespace other than a space.
+    ...["-", "?", ":", ",", "[", "]", "{", "}", "#", "&", "*", "!", "|", ">", "'", "%", "@", "`"].map((c) => ({
+      name: `a leading ${c}`,
+      value: `${c}value`,
+      says: "does not start with a letter or a digit",
+    })),
+    { name: "a leading space", value: " value", says: "does not start with a letter or a digit" },
+    { name: "the empty value", value: "", says: "does not start with a letter or a digit" },
+    { name: "an unterminated double quote", value: '"unterminated', says: "double-quoted string that is not well formed" },
+    { name: "a quote inside a double-quoted string", value: '"a"b"', says: "double-quoted string that is not well formed" },
+    { name: "a backslash inside a double-quoted string", value: '"a\\b"', says: "double-quoted string that is not well formed" },
+    { name: "a trailing colon", value: "value:", says: "ends with a colon" },
+    { name: "a trailing space", value: "value ", says: "ends with whitespace" },
+    { name: "a colon followed by a tab", value: "key:\tvalue", says: "colon followed by a space or other whitespace" },
+    { name: "a tab followed by #", value: "text\t#comment", says: "whitespace followed by #" },
   ];
-  it(`the frontmatter refusal table has ${FM_REFUSALS.length} rows`, () => expect(FM_REFUSALS.length).toBe(6));
+  // Re-pinned 2026-10-19 by quick task 261019-mq1 (261018-hs8 review IN-11): 6 -> 33, the canonical-form rows (18
+  // leading characters, a leading space, the empty value, 3 malformed quoted strings, a trailing colon, a trailing
+  // space, a colon then a tab, a tab then #). No row was removed.
+  it(`the frontmatter refusal table has ${FM_REFUSALS.length} rows`, () => expect(FM_REFUSALS.length).toBe(33));
   for (const c of FM_REFUSALS) {
     it(`frontmatterProblem refuses a value holding ${c.name}`, () => {
       const why = frontmatterProblem(shape([["description", c.value]]));
@@ -272,6 +294,10 @@ describe("generate-host-entries: launch agents (quick task 261018-hs8)", () => {
     expect(frontmatterProblem(shape([["bad key", "x"]]))).toContain("not a plain key");
     expect(frontmatterProblem(shape([["a:b", "x"]]))).toContain("not a plain key");
     expect(frontmatterProblem(shape([["description", "a colon:without a space, an at-sign alone @ here"]]))).toBeNull();
+    // Quick task 261019-mq1 (review IN-11): the accept controls of the canonical form, the committed value shapes.
+    for (const v of ['"<request>"', ENTRY_DESCRIPTION, "true", "primary", LAUNCH_AGENT_NAME, "grugops-orchestrator", "2.0"]) {
+      expect(frontmatterProblem(shape([["description", v]])), JSON.stringify(v)).toBeNull();
+    }
     expect(frontmatterProblem(shape([]))).toBeNull();
     for (const k of HOST_ADAPTER_KINDS) {
       const s = ENTRY_SHAPES[k];
@@ -341,6 +367,33 @@ describe("generate-host-entries: launch agents (quick task 261018-hs8)", () => {
     expect(text).toBe(`${POINTER_LINE}\n`);
     expect(text.split("\n")).not.toContain("---");
     expect(LAUNCH_SHAPES["pi"].frontmatter).toHaveLength(0);
+  });
+
+  // Quick task 261019-mq1 (261018-hs8 review IN-05): the drift owner of a launch file is `<id> <noun>`, the noun the
+  // row's LaunchForm gives; Pi's file is a launch file. The expected owners are literals.
+  it("renderAll names each launch file's owner with its row's noun: `pi launch file`, the other launch rows `launch agent`", () => {
+    const r = renderAll(POINTER_LINE);
+    expect("entries" in r, JSON.stringify(r)).toBe(true);
+    if (!("entries" in r)) return;
+    const owners = Object.fromEntries(r.entries.filter((e) => LAUNCH_ROWS.some((h) => h.launchAgent === e.rel)).map((e) => [e.rel, e.owner]));
+    expect(owners).toEqual({
+      [`.agents/agents/${LAUNCH_AGENT_NAME}.md`]: "antigravity launch agent",
+      [`.opencode/agents/${LAUNCH_AGENT_NAME}.md`]: "opencode launch agent",
+      [`.github/agents/${LAUNCH_AGENT_NAME}.agent.md`]: "copilot launch agent",
+      [`.pi/${LAUNCH_AGENT_NAME}.md`]: "pi launch file",
+    });
+  });
+
+  // Quick task 261019-mq1 (261018-hs8 review IN-01): the one path check refuses Pi's own files in any letter case,
+  // naming the list, and accepts every committed path.
+  it("pathProblem refuses `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md` and `.pi/settings.json` in any letter case, naming them, and accepts every rendered path (261019-mq1, review IN-01)", () => {
+    for (const rel of [".pi/SYSTEM.md", ".pi/system.md", ".PI/APPEND_SYSTEM.MD", ".pi/Settings.JSON"]) {
+      const why = pathProblem("a planted owner", rel);
+      expect(why, `${rel} is accepted`).not.toBeNull();
+      for (const r of PI_REFUSED_RELS) expect(why!, rel).toContain(r);
+    }
+    for (const rel of [`.pi/${LAUNCH_AGENT_NAME}.md`, ".pi/prompts/grugops.md", ".pi/SYSTEM.md.bak"]) expect(pathProblem("a control", rel), rel).toBeNull();
+    for (const rel of renderedEntryRels()) expect(pathProblem("a committed entry", rel), rel).toBeNull();
   });
 
   it("a mirror whose committed launch agent was removed halts naming its owner (`antigravity launch agent`)", () => {

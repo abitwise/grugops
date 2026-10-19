@@ -225,9 +225,29 @@ export const COPILOT_AGENT_REL = `.github/agents/${LAUNCH_AGENT_NAME}.agent.md`;
  * `.pi/SYSTEM.md` and `.pi/APPEND_SYSTEM.md` under the working directory (github.com/earendil-works/pi
  * packages/coding-agent/src/core/resource-loader.ts @ 482c1381, retrieved 2026-10-18). So this name is read only when
  * the flag names it, and install never writes either auto-discovered file, which would make every Pi session the
- * Orchestrator. The Pi row's launchAgent (D-05).
+ * Orchestrator: PI_REFUSED_RELS below lists them, and isPiRefusedRel is the one check, in any case (quick task
+ * 261019-mq1, 261018-hs8 review IN-01). The Pi row's launchAgent (D-05).
  */
 export const PI_LAUNCH_REL = `.pi/${LAUNCH_AGENT_NAME}.md`;
+
+/**
+ * PI_REFUSED_RELS (quick task 261019-mq1, 261018-hs8 review IN-01; D-02 of quick task 261018-hs8): the files under
+ * `.pi/` that install never writes. Pi loads the first two into every session's system prompt on its own, and the third
+ * is Pi's settings. isPiRefusedRel below is the one check of a path against them; the generator's path check asks it
+ * for every rendered entry (scripts/generate-host-entries.ts pathProblem).
+ */
+export const PI_REFUSED_RELS: readonly string[] = [".pi/SYSTEM.md", ".pi/APPEND_SYSTEM.md", ".pi/settings.json"];
+
+/**
+ * isPiRefusedRel (quick task 261019-mq1, 261018-hs8 review IN-01): whether `rel`, a POSIX path relative to the target
+ * root, names one of PI_REFUSED_RELS in any letter case. The comparison folds ASCII letters only, and ignores case
+ * because the default filesystems on macOS and Windows do: `.pi/system.md` there is the file Pi loads as
+ * `.pi/SYSTEM.md`.
+ */
+export function isPiRefusedRel(rel: string): boolean {
+  const fold = (t: string): string => t.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  return PI_REFUSED_RELS.some((r) => fold(r) === fold(rel));
+}
 
 /**
  * OPENCODE_RULE_SCOPE (phase 34.1, D-27): THE ONE SENTENCE for what the OpenCode `external_directory` rule install

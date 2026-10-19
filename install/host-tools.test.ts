@@ -29,6 +29,8 @@ import {
   LAUNCH_AGENT_NAME,
   OPENCODE_AGENT_REL,
   PI_LAUNCH_REL,
+  PI_REFUSED_RELS,
+  isPiRefusedRel,
   OPENCODE_COMMAND_REL,
   KIT_ROUTE,
   LAUNCH_NOT_LIVE,
@@ -1522,11 +1524,21 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
     }
   });
 
-  it("D-02: no launch path is a file Pi loads on its own (`.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`) or Pi's settings, and Pi's lies under `.pi/`", () => {
+  // Re-titled 2026-10-19 by quick task 261019-mq1 (261018-hs8 review IN-01): the check compares in lower case, since the
+  // default filesystems on macOS and Windows ignore case, so `.pi/system.md` is the file Pi loads. The list is this
+  // test's own literal, asserted equal to the product's PI_REFUSED_RELS, and isPiRefusedRel is proved on case rows.
+  it("D-02: no written path is, in any letter case, a file Pi loads on its own (`.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`) or Pi's settings, and Pi's launch file lies under `.pi/` (261019-mq1, review IN-01)", () => {
     const refused = [".pi/SYSTEM.md", ".pi/APPEND_SYSTEM.md", ".pi/settings.json"];
+    const lower = refused.map((r) => r.toLowerCase());
+    expect([...PI_REFUSED_RELS], "the product's list is this test's").toEqual(refused);
     for (const h of HOST_TOOLS) {
-      for (const rel of [...hostPointers(h), ...hostFootprint(h)]) expect(refused.includes(rel), `${h.id}: ${rel}`).toBe(false);
+      for (const rel of [...hostPointers(h), ...hostFootprint(h)]) {
+        expect(lower.includes(rel.toLowerCase()), `${h.id}: ${rel}`).toBe(false);
+        expect(isPiRefusedRel(rel), `${h.id}: ${rel} (isPiRefusedRel)`).toBe(false);
+      }
     }
+    for (const rel of [".pi/SYSTEM.md", ".pi/system.md", ".PI/APPEND_SYSTEM.MD", ".pi/Settings.JSON"]) expect(isPiRefusedRel(rel), rel).toBe(true);
+    for (const rel of [PI_LAUNCH_REL, PI_PROMPT_REL, ".pi/SYSTEM.md.bak"]) expect(isPiRefusedRel(rel), rel).toBe(false);
     expect(PI_LAUNCH_REL.startsWith(".pi/")).toBe(true);
     expect(PI_LAUNCH_REL.split("/"), "directly under .pi/, outside .pi/prompts/ (not a prompt template)").toHaveLength(2);
   });
@@ -1689,15 +1701,89 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
 // (D-06), because it is the default-session set that leaves the launch agent out.
 // 3 -> 4 on 2026-10-18 (quick task 261018-hs8 fix pass, D-06): routeCarriers reads ROUTE_POINTERS by kind again, on
 // purpose: it is the set a DEFAULT session reads, which leaves the row's launch file out (launchCarriers holds it).
+//
+// Quick task 261019-mq1 (261018-hs8 review IN-07): an element access is not the only way to read a table. The same
+// `it` now also takes an IDENTIFIER census and an IMPORT-FORM census over the same files.
+//   - Identifier census (tableReferences): every identifier ROUTE_POINTERS or ADAPTER_FOOTPRINT is classified by its
+//     parent: `declaration` (the name of a variable declaration), `import` (the name of a named import with no `as`),
+//     `element` (the object of an element access, counted above), or `other` (anything else: a call argument such as
+//     `Object.values(ROUTE_POINTERS)`, an alias `const t = ADAPTER_FOOTPRINT`, a renamed import, a spread, an export).
+//     `other` must be empty, the declarations and imports equal REFERENCE_KINDS, and the element total equals
+//     PER_KIND_ACCESSES' total.
+//   - Import-form census (hostToolsLoads): every string literal ending in `host-tools.js` at a load position (the
+//     module specifier of an import or export declaration, an `import x = require(...)`, or a call argument such as
+//     `require(...)`, `import(...)` or a createRequire result's call) must be a named-only import (type-only allowed):
+//     a default import, a namespace import, a side-effect import, an `export ... from` and a call argument are
+//     violations, since each hands the whole module, tables included, to code the identifier census cannot follow. A
+//     literal anywhere else is data, not a load, and is pinned by file as HOST_TOOLS_DATA_LITERALS.
+//   - Premise: no tracked `.ts` outside install/ and scripts/ names host-tools, so these files are every reader.
+// Both classifiers are pure functions of a parsed source, proved on planted sources below.
+// RESIDUAL (not seen): a module loaded through a computed or variable specifier (`require(name)`, `import(path)`), and
+// code built at run time (`eval`, `new Function`). Neither appears in product code today; neither census can see it.
 const PER_KIND_ACCESSES: Readonly<Record<string, number>> = {
   "host-tools.ts@hostPointers": 1,
   "host-tools.ts@hostFootprint": 1,
   "host-tools.ts@routeCarriers": 1,
   "generate-host-entries.ts@outputRel": 1,
 };
+// Measured 2026-10-19 (quick task 261019-mq1, review IN-07): the two table declarations in host-tools.ts and the one
+// named import, in the generator. A new declaration, import or importer moves this pin with a stated reason.
+const REFERENCE_KINDS: Readonly<Record<string, number>> = {
+  "host-tools.ts@<module>:declaration": 2,
+  "generate-host-entries.ts@<module>:import": 1,
+};
+// Measured 2026-10-19 (quick task 261019-mq1, review IN-07): the one `host-tools.js` literal in product code that is
+// not a load, host-entries-freshness.ts MIRRORED_SCRIPTS' "install/host-tools.js" (a file it copies into a mirror).
+const HOST_TOOLS_DATA_LITERALS: Readonly<Record<string, number>> = {
+  "host-entries-freshness.ts@<module>": 1,
+};
+
+/** The identifier census of one source (quick task 261019-mq1, review IN-07). Pure. */
+function tableReferences(sf: ts.SourceFile, label: string): { readonly kinds: Record<string, number>; readonly element: number; readonly other: string[] } {
+  const kinds: Record<string, number> = {};
+  const other: string[] = [];
+  let element = 0;
+  for (const n of allNodes(sf)) {
+    if (!ts.isIdentifier(n) || (n.text !== "ROUTE_POINTERS" && n.text !== "ADAPTER_FOOTPRINT")) continue;
+    const p = n.parent;
+    const at = `${label}@${enclosingFunction(n)}`;
+    if (ts.isVariableDeclaration(p) && p.name === n) kinds[`${at}:declaration`] = (kinds[`${at}:declaration`] ?? 0) + 1;
+    else if (ts.isImportSpecifier(p) && p.name === n && p.propertyName === undefined) kinds[`${at}:import`] = (kinds[`${at}:import`] ?? 0) + 1;
+    else if (ts.isElementAccessExpression(p) && p.expression === n) element++;
+    else other.push(`${at}: ${n.text} in ${ts.SyntaxKind[p.kind]} (line ${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1})`);
+  }
+  return { kinds, element, other };
+}
+
+/** The import-form census of one source (quick task 261019-mq1, review IN-07). Pure. */
+function hostToolsLoads(sf: ts.SourceFile, label: string): { readonly violations: string[]; readonly data: Record<string, number> } {
+  const violations: string[] = [];
+  const data: Record<string, number> = {};
+  for (const n of allNodes(sf)) {
+    if (!(ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) || !n.text.endsWith("host-tools.js")) continue;
+    const p = n.parent;
+    const at = `${label}@${enclosingFunction(n)}`;
+    const line = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+    if (ts.isImportDeclaration(p) && p.moduleSpecifier === n) {
+      const c = p.importClause;
+      if (c === undefined || c.name !== undefined || c.namedBindings === undefined || !ts.isNamedImports(c.namedBindings)) {
+        violations.push(`${at} (line ${line}): an import of ${n.text} that is not a named-only import`);
+      }
+    } else if (ts.isExportDeclaration(p) && p.moduleSpecifier === n) {
+      violations.push(`${at} (line ${line}): an export ... from ${n.text}`);
+    } else if (ts.isExternalModuleReference(p)) {
+      violations.push(`${at} (line ${line}): an import = require(${n.text})`);
+    } else if (ts.isCallExpression(p) && p.arguments.some((a) => a === n)) {
+      violations.push(`${at} (line ${line}): ${n.text} passed to a call (a load the identifier census cannot follow)`);
+    } else {
+      data[at] = (data[at] ?? 0) + 1;
+    }
+  }
+  return { violations, data };
+}
 
 describe("census: ROUTE_POINTERS and ADAPTER_FOOTPRINT are indexed only by hostPointers, hostFootprint, routeCarriers and outputRel (quick task 261018-hs8)", () => {
-  it(`exactly ${Object.values(PER_KIND_ACCESSES).reduce((a, b) => a + b, 0)} element accesses in product code: ${Object.keys(PER_KIND_ACCESSES).join(", ")}`, () => {
+  it(`exactly ${Object.values(PER_KIND_ACCESSES).reduce((a, b) => a + b, 0)} element accesses in product code: ${Object.keys(PER_KIND_ACCESSES).join(", ")}; every other reference is a declaration or a named import, and host-tools.js is loaded only by named imports (261019-mq1, review IN-07)`, () => {
     const repo = join(import.meta.dirname, "..");
     const ls = spawnSync("git", ["-C", repo, "ls-files", "--", "install/*.ts", "scripts/*.ts"], { encoding: "utf8" });
     expect(ls.status, ls.stderr).toBe(0);
@@ -1709,6 +1795,11 @@ describe("census: ROUTE_POINTERS and ADAPTER_FOOTPRINT are indexed only by hostP
     expect(files, "premise: the census reads install.ts").toContain("install/install.ts");
     expect(files, "premise: the census reads uninstall.ts").toContain("install/uninstall.ts");
     const found: Record<string, number> = {};
+    const kinds: Record<string, number> = {};
+    const other: string[] = [];
+    const violations: string[] = [];
+    const data: Record<string, number> = {};
+    let element = 0;
     for (const f of files) {
       const sf = ts.createSourceFile(f, readFileSync(join(repo, ...f.split("/")), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
       for (const n of allNodes(sf)) {
@@ -1717,8 +1808,46 @@ describe("census: ROUTE_POINTERS and ADAPTER_FOOTPRINT are indexed only by hostP
         const key = `${f.split("/").pop()}@${enclosingFunction(n)}`;
         found[key] = (found[key] ?? 0) + 1;
       }
+      const label = f.split("/").pop()!;
+      const refs = tableReferences(sf, label);
+      for (const [k, v] of Object.entries(refs.kinds)) kinds[k] = (kinds[k] ?? 0) + v;
+      other.push(...refs.other);
+      element += refs.element;
+      const loads = hostToolsLoads(sf, label);
+      violations.push(...loads.violations);
+      for (const [k, v] of Object.entries(loads.data)) data[k] = (data[k] ?? 0) + v;
     }
     console.log(`per-kind table access census: ${JSON.stringify(found)} over ${files.length} file(s)`);
+    console.log(`per-kind table reference census: ${JSON.stringify(kinds)}, element ${element}, other ${JSON.stringify(other)}`);
+    console.log(`host-tools.js load census: violations ${JSON.stringify(violations)}, data ${JSON.stringify(data)}`);
     expect(found).toEqual(PER_KIND_ACCESSES);
+    expect(other, "a table reference that is not a declaration, a named import or a counted element access").toEqual([]);
+    expect(kinds).toEqual(REFERENCE_KINDS);
+    expect(element, "the identifier census's element accesses are the counted ones").toBe(Object.values(PER_KIND_ACCESSES).reduce((a, b) => a + b, 0));
+    expect(violations, "a load of host-tools.js that is not a named-only import").toEqual([]);
+    expect(data).toEqual(HOST_TOOLS_DATA_LITERALS);
+    // Premise: these files are every reader. No tracked `.ts` outside install/ and scripts/ names host-tools.
+    const all = spawnSync("git", ["-C", repo, "ls-files", "--", "*.ts"], { encoding: "utf8" });
+    expect(all.status, all.stderr).toBe(0);
+    const outside = all.stdout.split("\n").filter((f) => f.endsWith(".ts") && !f.startsWith("install/") && !f.startsWith("scripts/"));
+    for (const f of outside) expect(readFileSync(join(repo, ...f.split("/")), "utf8").includes("host-tools"), `${f} names host-tools`).toBe(false);
+  });
+
+  it("the classifiers catch every planted reference or load the element census cannot see, and pass a named import plus an element access (261019-mq1, review IN-07)", () => {
+    const parse = (src: string): ts.SourceFile => ts.createSourceFile("planted.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const imp = 'import { ROUTE_POINTERS, ADAPTER_FOOTPRINT } from "./host-tools.js";\n';
+    for (const src of [imp + "export const all = Object.values(ROUTE_POINTERS);", imp + "const t = ADAPTER_FOOTPRINT;\nexport const n = t;", 'import { ROUTE_POINTERS as R } from "./host-tools.js";\nexport const x = R;']) {
+      expect(tableReferences(parse(src), "planted.ts").other.length, src).toBeGreaterThan(0);
+    }
+    for (const src of ['import * as H from "./host-tools.js";\nexport const h = H;', 'const H = require("./host-tools.js");\nexport const h = H;', 'export * from "./host-tools.js";', 'import H from "./host-tools.js";\nexport const h = H;', 'export const p = import("./host-tools.js");']) {
+      expect(hostToolsLoads(parse(src), "planted.ts").violations.length, src).toBeGreaterThan(0);
+    }
+    const clean = parse('import { ROUTE_POINTERS, type HostTool } from "./host-tools.js";\nexport const f = (h: HostTool) => ROUTE_POINTERS[h.adapter];');
+    const refs = tableReferences(clean, "planted.ts");
+    expect(refs.other).toEqual([]);
+    expect(refs.element).toBe(1);
+    expect(refs.kinds).toEqual({ "planted.ts@<module>:import": 1 });
+    expect(hostToolsLoads(clean, "planted.ts").violations).toEqual([]);
+    expect(hostToolsLoads(parse('export const MIRRORED = ["install/host-tools.js"];'), "planted.ts")).toEqual({ violations: [], data: { "planted.ts@<module>": 1 } });
   });
 });

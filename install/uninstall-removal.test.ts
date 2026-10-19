@@ -49,7 +49,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { LEGACY_MERGED_BEFORE, LEGACY_MERGED_TEXT, askRecord, dirList, ledgerOf, plantLegacyGemini, readMarkerObject, withLedger } from "./ledger.test-support.js";
-import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners } from "./host-tools.js";
+import { ADAPTER_FOOTPRINT, AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners, type HostTool } from "./host-tools.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -778,6 +778,15 @@ describe("per-agent uninstall (D-05)", () => {
   // launch-bearing registry rows, flags from flag(): `uninstall --<id>` removes that row's launch file and every directory
   // install created for it alone, removes only paths that row alone owns, and leaves every other path byte-unchanged.
   const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
+  // The oracle of this loop is the registry DATA, read here (quick task 261019-mq1, 261018-hs8 review IN-08). Before,
+  // it asked entryOwners, which reads hostFootprint, the very code uninstall asks, so an error there was its own oracle
+  // and the loop passed by construction. rowData reads the row's ADAPTER_FOOTPRINT entry directly from the table and adds
+  // its launchAgent; it never calls hostFootprint or entryOwners. heldBy is the path rule spelled here: p is one of the
+  // paths, or is under one that ends in "/", or is a directory on the way to one.
+  const rowData = (h: HostTool): readonly string[] => [...ADAPTER_FOOTPRINT[h.adapter], ...(h.launchAgent === null ? [] : [h.launchAgent])];
+  const heldBy = (paths: readonly string[], p: string, isDir: boolean): boolean =>
+    paths.some((x) => x === p || (x.endsWith("/") && p.startsWith(x)) || (isDir && x.startsWith(p + "/")));
+  const claudeRow = HOST_TOOLS.find((h) => h.id === "claude");
   it("premise: the launch-bearing rows are antigravity, opencode, copilot and pi", () => {
     expect(LAUNCH_ROWS.map((h) => h.id)).toEqual(["antigravity", "opencode", "copilot", "pi"]);
   });
@@ -797,26 +806,30 @@ describe("per-agent uninstall (D-05)", () => {
       const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag(h.id)]);
       expectFinished(r, `uninstall ${agentFlag(h)}`);
       expect(r.status, `uninstall ${agentFlag(h)}: exit ${r.status}\n${r.stdout}`).toBe(0);
-      // Removed: the launch file, and every directory install recorded that this row alone owns.
+      // Removed: the launch file, and every directory install recorded that this row's data holds and Claude Code's
+      // does not (rowData, heldBy; review IN-08).
+      expect(claudeRow, "premise: the registry has a claude row").toBeDefined();
+      const mine = rowData(h);
+      const staying = rowData(claudeRow!);
       expect(existsSync(at(t.target, rel)), `${rel} is still there after ${h.name} was removed\n${r.stdout}`).toBe(false);
-      for (const e of ledgerBefore.filter((x) => x.kind === "dir" && entryOwners(x).includes(h.id) && !entryOwners(x).includes("claude"))) {
+      for (const e of ledgerBefore.filter((x) => x.kind === "dir" && heldBy(mine, x.path, true) && !heldBy(staying, x.path, true))) {
         expect(existsSync(at(t.target, e.path)), `${e.path} (made by install for ${h.name}) is still there\n${r.stdout}`).toBe(false);
       }
       const after = rowsOf(t.target);
       // Every removed path is this row's, and no agent that stays (Claude Code) owns it. A path this row shares with an
       // agent this install never chose (`.agents` with Codex CLI) is this row's alone here.
       for (const p of [...before.keys()].filter((x) => !after.has(x))) {
-        const owners = entryOwners({ path: p, kind: before.get(p)?.endsWith("/ DIR") ? "dir" : "file" });
-        expect(owners, `${agentFlag(h)} removed ${p}, which ${h.name} does not own`).toContain(h.id);
-        expect(owners.filter((o) => o === "claude"), `${agentFlag(h)} removed ${p}, which Claude Code (staying) owns`).toEqual([]);
+        const isDir = before.get(p)?.endsWith("/ DIR") === true;
+        expect(heldBy(mine, p, isDir), `${agentFlag(h)} removed ${p}, which ${h.name}'s registry data does not hold`).toBe(true);
+        expect(heldBy(staying, p, isDir), `${agentFlag(h)} removed ${p}, which Claude Code's registry data (staying) holds`).toBe(false);
       }
       for (const [p, row] of after) {
         if (p === MARKER_REL) continue;
         expect(row, `${agentFlag(h)} changed ${p}`).toBe(before.get(p));
       }
       expect(agentsOf(t.target), r.stdout).toEqual(["claude"]);
-      const left = ledgerOf(readMarkerObject(t.target)).filter((e) => entryOwners(e).includes(h.id));
-      expect(left.map((e) => e.path), `entries ${h.name} owns are still in the ledger`).toEqual([]);
+      const left = ledgerOf(readMarkerObject(t.target)).filter((e) => heldBy(mine, e.path, e.kind === "dir"));
+      expect(left.map((e) => e.path), `entries ${h.name}'s registry data holds are still in the ledger`).toEqual([]);
     }, 240_000);
   }
 

@@ -44,7 +44,7 @@
 import { lstatSync, mkdirSync, readFileSync, writeFileSync, type Stats } from "node:fs";
 import { dirname, join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
-import { HOST_ADAPTER_KINDS, HOST_TOOLS, LAUNCH_AGENT_NAME, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, type HostAdapterKind, type HostTool } from "../install/host-tools.js";
+import { HOST_ADAPTER_KINDS, HOST_TOOLS, LAUNCH_AGENT_NAME, PI_REFUSED_RELS, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, isPiRefusedRel, type HostAdapterKind, type HostTool } from "../install/host-tools.js";
 
 // ── Fixed literal paths (never argv, env or content derived; ASVS V12) ──────────────────────────────
 const ROOT = join(import.meta.dirname, "..");
@@ -186,19 +186,44 @@ export function launchShapeProblem(shapes: Readonly<Record<string, EntryShape>>,
 /** A frontmatter key this generator writes: a letter, then letters, digits, `-` or `_`. */
 const PLAIN_KEY = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
+/** A well-formed double-quoted frontmatter value: `"`, then no `"`, backslash or line break, then `"`. */
+const QUOTED_VALUE = /^"[^"\\\r\n]*"$/;
+
 /**
  * Why a frontmatter shape is refused, or null when it is accepted (quick task 261018-hs8, T-hs8-04). The frontmatter is
  * generator-typed data that templateProblem never sees, so each line is held to the same rules here: every key is a
- * plain key, and no value holds a line break (it would end the line), a colon followed by a space or a space followed
- * by `#` (YAML would read a mapping or a comment), an exclamation mark followed by a backtick, or an at-sign followed by
- * a non-space character (the sequences OpenCode expands, 34.1-RESEARCH.md Pitfall 8). Pure.
+ * plain key, and no value holds a line break (it would end the line).
+ *
+ * A value is accepted only in a CANONICAL FORM (quick task 261019-mq1, 261018-hs8 review IN-11), an allow-list rather
+ * than a list of YAML indicators: either a plain value that starts with an ASCII letter or digit and ends with neither
+ * a colon (YAML would read a mapping key) nor whitespace (YAML drops it), or a double-quoted value (QUOTED_VALUE) with
+ * no quote, backslash or line break inside, so no escape is read. Every other first character (`-`, `?`, `:`, `,`,
+ * brackets, braces, `#`, `&`, `*`, `!`, `|`, `>`, a quote, `%`, `@`, a backtick, a space) and the empty value are
+ * refused. The committed `argument-hint` value `"<request>"` is the quoted form. Quoting every value at render time was
+ * not chosen: it would change every rendered entry's bytes, so every installed copy would read as an earlier version's.
+ *
+ * The rules that held before still run on every value: no colon followed by whitespace, no whitespace followed by `#`
+ * (YAML would read a mapping or a comment; widened from a space alone to any whitespace by quick task 261019-mq1), no
+ * exclamation mark followed by a backtick, and no at-sign followed by a non-space character (the sequences OpenCode
+ * expands, 34.1-RESEARCH.md Pitfall 8). Pure.
  */
 export function frontmatterProblem(shape: EntryShape): string | null {
   for (const [k, v] of shape.frontmatter) {
     if (!PLAIN_KEY.test(k)) return `the frontmatter key "${k}" is not a plain key (a letter, then letters, digits, - or _)`;
     if (/[\r\n]/.test(v)) return `the frontmatter value of ${k} holds a line break, which would end its line`;
-    if (v.includes(": ")) return `the frontmatter value of ${k} holds a colon followed by a space, which YAML reads as a mapping`;
-    if (v.includes(" #")) return `the frontmatter value of ${k} holds a space followed by #, which YAML reads as a comment`;
+    if (v.startsWith('"')) {
+      if (!QUOTED_VALUE.test(v)) {
+        return `the frontmatter value of ${k} is a double-quoted string that is not well formed (it must end with its quote and hold no quote, backslash or line break inside)`;
+      }
+    } else {
+      if (!/^[A-Za-z0-9]/.test(v)) {
+        return `the frontmatter value of ${k} does not start with a letter or a digit and is not a well-formed double-quoted string, so YAML may read its first character as an indicator`;
+      }
+      if (v.endsWith(":")) return `the frontmatter value of ${k} is a plain value that ends with a colon, which YAML reads as a mapping key`;
+      if (/\s$/.test(v)) return `the frontmatter value of ${k} is a plain value that ends with whitespace, which YAML drops`;
+    }
+    if (/:\s/.test(v)) return `the frontmatter value of ${k} holds a colon followed by a space or other whitespace, which YAML reads as a mapping`;
+    if (/\s#/.test(v)) return `the frontmatter value of ${k} holds a space or other whitespace followed by #, which YAML reads as a comment`;
     if (v.includes("!`")) return `the frontmatter value of ${k} holds an exclamation mark followed by a backtick, which OpenCode runs as a shell command (Pitfall 8)`;
     if (/@\S/.test(v)) return `the frontmatter value of ${k} holds an at-sign followed by a non-space character, which OpenCode reads as a file inclusion (Pitfall 8)`;
   }
@@ -239,7 +264,8 @@ export function templateProblem(body: string): string | null {
 
 /**
  * One rendered entry. `owner` names what the entry is for, in drift lines: the adapter kind for a kind entry
- * (`agent-skill`), `<host id> launch agent` for a launch agent (`antigravity launch agent`).
+ * (`agent-skill`), `<host id> <launch noun>` for a launch file, the noun read from the row's LaunchForm.noun
+ * (`antigravity launch agent`, `pi launch file`; quick task 261019-mq1, 261018-hs8 review IN-05).
  */
 export interface RenderedEntry {
   readonly owner: string;
@@ -250,11 +276,17 @@ export interface RenderedEntry {
 /**
  * Why output path `rel` of `owner` is refused, or null: THE ONE PATH CHECK every output path passes, a kind entry's and
  * a launch agent's alike. It must be a non-empty relative POSIX path inside the repository: no leading `/` or `~`, no
- * drive letter, no backslash, and no empty, `.` or `..` segment (ASVS V12).
+ * drive letter, no backslash, and no empty, `.` or `..` segment (ASVS V12). It must not name a file under `.pi/` that
+ * install never writes (install/host-tools.ts PI_REFUSED_RELS), in any letter case, as isPiRefusedRel answers: Pi loads
+ * two of them into every session's system prompt on its own, and the third is Pi's settings (quick task 261019-mq1,
+ * 261018-hs8 review IN-01). Exported for its tests. Pure.
  */
-function pathProblem(owner: string, rel: string): string | null {
+export function pathProblem(owner: string, rel: string): string | null {
   if (rel.length === 0 || /^[/~]|^[A-Za-z]:|\\/.test(rel) || rel.split("/").some((s) => s === "" || s === "." || s === "..")) {
     return `${owner}'s path "${rel}" is not a relative POSIX path inside the repository`;
+  }
+  if (isPiRefusedRel(rel)) {
+    return `${owner}'s path "${rel}" names one of ${PI_REFUSED_RELS.join(", ")} (in any letter case), which install never writes: Pi loads the first two into every session's system prompt on its own, and the third is Pi's settings`;
   }
   return null;
 }
@@ -303,7 +335,8 @@ export function renderAll(body: string): { readonly entries: readonly RenderedEn
   }
   for (const h of HOST_TOOLS) {
     if (h.launchAgent === null) continue;
-    const owner = `${h.id} launch agent`;
+    // Narrowed on the launch pair, so launchForm is not null; the noun is the row's (review IN-05).
+    const owner = `${h.id} ${h.launchForm.noun}`;
     const bad = pathProblem(owner, h.launchAgent);
     if (bad !== null) return { problem: bad };
     if (entries.some((e) => e.rel === h.launchAgent)) return { problem: `${owner}'s path "${h.launchAgent}" is already another rendered entry's path` };

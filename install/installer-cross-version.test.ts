@@ -44,9 +44,12 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // 2026-10-18 (quick task 261018-hs8, Task 4, LICENSE-SHIP-01): install copies the root LICENSE to `tools/grugops/LICENSE`
 // beside the runnables (a fifth RUNNABLES row), so it is recorded too. The test DERIVES the set from the ledger and
 // asserts its size equals this pin, so a change to what install records shows here by name.
+// The WHY corrected 2026-10-19 by quick task 261019-mq1 (261018-hs8 review IN-02): it said "the 6 files install
+// created" and listed 9 (2 pointer files, 3 whole-file host entries, 4 launch files). It now states 9, calls the four
+// "launch files" (Pi's is not an agent, review IN-05), and a test below checks that its stated parts sum to the pin.
 const RECORDED_FILE_COUNT = 39;
 const RECORDED_FILE_COUNT_WHY =
-  "17 adapters + 7 skills + AGENTS.md + 4 runnables + tools/grugops/LICENSE + the 6 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch agents .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
+  "17 adapters + 7 skills + AGENTS.md + 4 runnables + tools/grugops/LICENSE + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
 
 let SCRATCH = "";
 beforeAll(() => {
@@ -108,6 +111,26 @@ function installed(name: string, args: readonly string[]): Installed {
   const files = markerLedger(target).filter((e) => e.kind === "file");
   return { target, grugopsHome, home, files };
 }
+
+// Quick task 261019-mq1 (261018-hs8 review IN-02): the WHY's stated parts sum to the pin. Each ` + ` part counts as
+// its leading integer (after an optional "the "), or 1 when it has none; the part that lists the files install created
+// names, inside its parentheses, as many `.md` paths as its integer says. Pure: no install runs.
+describe("RECORDED_FILE_COUNT_WHY states the pin's derivation (261019-mq1, review IN-02)", () => {
+  it("its parts sum to RECORDED_FILE_COUNT, and the created-files part lists as many .md paths as it says", () => {
+    const parts = RECORDED_FILE_COUNT_WHY.split(" + ");
+    expect(parts.length, "premise: the WHY has parts").toBeGreaterThan(1);
+    const countOf = (part: string): number => {
+      const m = /^(?:the )?(\d+) /.exec(part);
+      return m === null ? 1 : Number(m[1]);
+    };
+    expect(parts.reduce((a, p) => a + countOf(p), 0), RECORDED_FILE_COUNT_WHY).toBe(RECORDED_FILE_COUNT);
+    const created = parts.filter((p) => p.includes("files install created ("));
+    expect(created.length, "premise: one part lists the files install created").toBe(1);
+    const inside = created[0].slice(created[0].indexOf("(") + 1, created[0].lastIndexOf(")"));
+    const md = inside.match(/[^\s,()]+\.md(?=[\s,)]|$)/g) ?? [];
+    expect(md.length, `the .md paths listed: ${md.join(" ")}`).toBe(countOf(created[0]));
+  });
+});
 
 describe("uninstall walks the install ledger, whatever kit source runs it (plan 33.1-38, WR-01, IN-06)", () => {
   it("the uninstall-source variants are the three named, each with a reason", () => {
