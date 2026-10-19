@@ -48,7 +48,7 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { BLOCK_RELS, KINDS_BY_SCOPE, fileRecord, modeMatches, modeText, readLedger, recordedModeOf, recordMatches } from "./install-marker.js";
-import { HOST_TOOLS, agentCommand, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, PI_LAUNCH_REL, agentCommand, agentFlag } from "./host-tools.js";
 import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { askRecord, blockRecords, fileRecords, plantLegacyGemini, withLedger } from "./ledger.test-support.js";
 import {
@@ -576,6 +576,26 @@ describe("L3: uninstall's wording asserts only what the run proved", () => {
     const agents = namingLines(u.stdout, "AGENTS.md").filter((l) => !pathText(l).includes("tools/")).join("\n");
     expect(agents, u.stdout).not.toMatch(/user-owned or modified/);
     expect(agents, u.stdout).toMatch(/differs from this kit version's/);
+  });
+
+  // Quick task 261019-mq1 (261018-hs8 review IN-06): a file at a path no earlier grugops version wrote (Pi's launch
+  // file) that the record does not list and that differs from the kit's. The left line states what the run saw (it
+  // differs) and that the run cannot tell who wrote it; it guesses neither an earlier grugops version nor the user.
+  it("an unrecorded launch file that differs from the kit's: the left line says the run cannot tell who wrote it, and guesses neither grugops nor the user", () => {
+    const t = installedCopy("l3-launch");
+    writeMarker(t, withLedger(markerOf(t), (l) => l.filter((e) => e.path !== PI_LAUNCH_REL)));
+    const mine = "the user's own Pi notes\n";
+    writeFileSync(at(t, PI_LAUNCH_REL), mine);
+    const u = uninstall(t);
+    expect(u.status, u.stdout).toBe(0);
+    const left = namingLines(u.stdout, PI_LAUNCH_REL).filter((l) => /^ {2}left\s/.test(l));
+    expect(left.length, u.stdout).toBeGreaterThan(0);
+    const said = left.join("\n");
+    expect(said, u.stdout).toMatch(/differs from this kit version's file/);
+    expect(said, u.stdout).toContain("nothing this run read shows who wrote it");
+    expect(said, u.stdout).not.toMatch(/earlier grugops version/);
+    expect(said, u.stdout).not.toMatch(/user-modified|user-owned/);
+    expect(readFileSync(at(t, PI_LAUNCH_REL), "utf8")).toBe(mine);
   });
 });
 

@@ -2198,10 +2198,13 @@ function unrecordedFileReason(): string {
   return "install has no record of writing it — it is not in the install ledger; left in place";
 }
 
-// KIT_VERSION_DIFFERS (red-team L3 of plan 33.1-34): the one wording of a file that differs from this
-// kit version's copy with no record showing who wrote it. It may be from an earlier grugops version or
-// edited; nothing this run read says which, so neither is claimed.
-const KIT_VERSION_DIFFERS = "it differs from this kit version's file (it may be from an earlier grugops version, or edited)";
+// KIT_VERSION_DIFFERS (red-team L3 of plan 33.1-34; reworded by quick task 261019-mq1, 261018-hs8 review
+// IN-06): the one wording of a file that differs from this kit version's copy with no record showing who
+// wrote it. It states that the file differs and that the run cannot tell who wrote it. It guesses neither
+// grugops nor the user (red-team L3 forbids the user claim): several of these paths, a launch file and
+// tools/grugops/LICENSE among them, were never written by an earlier grugops version, so that guess is not
+// made either. reportUnrecordedFile joins it to the reason with "; ".
+const KIT_VERSION_DIFFERS = "it differs from this kit version's file, and nothing this run read shows who wrote it";
 
 /**
  * The left line of an unrecorded grugops-shaped file at `rel`, compared with its kit source `src` only to
@@ -2220,7 +2223,7 @@ function reportUnrecordedFile(rel: string, src: string | null, reason: string, n
   } else if (isFile(src) && sameFileBytes(src, f)) {
     report("left", `${rel} (it is byte-identical to its source, but ${reason})`);
   } else {
-    report("left", `${rel} (${KIT_VERSION_DIFFERS}, and ${reason})`);
+    report("left", `${rel} (${KIT_VERSION_DIFFERS}; ${reason})`);
   }
 }
 

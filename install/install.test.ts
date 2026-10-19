@@ -6278,7 +6278,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const r = licenseInstall(target, home, scratchHome);
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(readFileSync(join(target, LICENSE_REL), "utf8")).toBe(mine);
-    expect(r.stdout).toContain(`${LICENSE_REL} (target has a different copy`);
+    // Re-pinned 2026-10-19 by quick task 261019-mq1 (261018-hs8 review IN-06): the report states only what the run saw
+    // (the bytes differ), never that a different copy of grugops's file is there.
+    expect(r.stdout).toContain(`${LICENSE_REL} (a file that differs from this kit version's is already there — left untouched, never-overwrite)`);
+    expect(r.stdout).not.toContain("copy (");
     expect(markerLedger(target).filter((e) => e.path === LICENSE_REL)).toEqual([]);
     const u = licenseUninstall(target, home, scratchHome);
     expect(u.status, `${u.stdout}\n${u.stderr}`).toBe(0);

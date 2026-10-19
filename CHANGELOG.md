@@ -618,9 +618,20 @@ CLI with Antigravity CLI.
   file loaded, and Pi appends the file to its system prompt. Which hosts were verified is now stated
   in each host's own row and section, and checked against the install registry. Codex CLI has no
   launch agent.
+- Install's created line now calls Pi's `.pi/grugops-orchestrator.md` a launch file, not a launch
+  agent: Pi reads it as text and has no agents (quick task 261019-mq1; 261018-hs8 review IN-05).
+  Install's report for a file already at a runnable path or at `tools/grugops/LICENSE`, and
+  uninstall's report for an unrecorded file that differs from the kit's, now state only what the
+  run saw: the file differs from this kit version's, and nothing the run read shows who wrote it.
+  Before, they said the target had a different copy, or that the file may be from an earlier
+  grugops version, which suggested that grugops wrote it (review IN-06).
 
 ### Security
 
+- Install's closing line now warns, beside Pi's launch command, that the flag reads the file into
+  Pi's system prompt without Pi's project-trust check, so only use it in a repository you trust
+  (quick task 261019-mq1; 261018-hs8 review WR-02). The warning is printed only where install
+  offers the command.
 - Where each safety rule is enforced, stated plainly. The git host is the hard floor: branch
   protection or rulesets on protected branches and a production deployment environment with a
   required reviewer are what stop an unapproved merge or deploy, whatever the agent types. The

@@ -217,6 +217,8 @@ export const HOST_TOOLS = [
             kind: "panel",
             text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
             verifiedLive: { date: "2026-10-18", hostVersion: "1.4.2" },
+            caution: null,
+            noun: "launch agent",
         },
     },
     {
@@ -244,6 +246,8 @@ export const HOST_TOOLS = [
             kind: "panel",
             text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
             verifiedLive: { date: "2026-10-18", hostVersion: "2.0.26" },
+            caution: null,
+            noun: "launch agent",
         },
     },
     {
@@ -268,7 +272,7 @@ export const HOST_TOOLS = [
         // `copilot --agent <id>` (the same source, retrieved 2026-10-18; quick task 261018-hs8, D-05). Picking it with
         // `/agent` in a session is the other documented form; install/README.md gives both. No live run: the human skipped
         // it on 2026-10-18 (quick task 261018-vfm), so it is UNKNOWN - verify.
-        launchForm: { kind: "command", text: `\`copilot --agent ${LAUNCH_AGENT_NAME}\``, verifiedLive: null },
+        launchForm: { kind: "command", text: `\`copilot --agent ${LAUNCH_AGENT_NAME}\``, verifiedLive: null, caution: null, noun: "launch agent" },
     },
     // Pi (34-RESEARCH.md §B): reads one context file per directory and prefers AGENTS.md over
     // CLAUDE.md; loads project prompt templates from <cwd>/.pi/prompts/; ships no sub-agents, so it
@@ -289,8 +293,10 @@ export const HOST_TOOLS = [
         launchAgent: PI_LAUNCH_REL,
         // The launch form passes PI_LAUNCH_REL to `--append-system-prompt` (pi 1.1.0 `--help`; resource-loader.ts @
         // 482c1381, retrieved 2026-10-18; quick task 261018-hs8, D-05), from the repository root, since the path is read
-        // against the working directory. The flag's file is read without Pi's project-trust check (review WR-02), which
-        // install/README.md's Pi section warns about. A human verified on 2026-10-18 (quick task 261018-vfm) that Pi loads
+        // against the working directory. The flag reads the file without Pi's project-trust check (review WR-02), so the
+        // form carries a caution that install's closing line prints after it and the docs repeat beside every Pi launch
+        // command (quick task 261019-mq1). Pi reads the file as text and has no agents, so it is a launch file, not a launch
+        // agent (review IN-05). A human verified on 2026-10-18 (quick task 261018-vfm) that Pi loads
         // the file: Pi's `[Context]` listed `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows the
         // file loaded, not that the session follows the kit route (UNKNOWN - verify). The host version is the one the human
         // gave on 2026-10-19 for that run (quick task 261019-ktd, review WR-10).
@@ -298,6 +304,8 @@ export const HOST_TOOLS = [
             kind: "command",
             text: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`,
             verifiedLive: { date: "2026-10-18", hostVersion: "1.1.0" },
+            caution: "the flag reads the file into Pi's system prompt without Pi's project-trust check, so only use it in a repository you trust",
+            noun: "launch file",
         },
     },
 ];
@@ -585,7 +593,8 @@ export function launchInvoke(host) {
         return null;
     const clause = form.kind === "panel" ? `pick ${form.text} to run the session as the Orchestrator` : `start the session as the Orchestrator with ${form.text}`;
     const note = launchLiveNote(host);
-    return note === null ? clause : `${clause} (${note})`;
+    const noted = note === null ? clause : `${clause} (${note})`;
+    return form.caution === null ? noted : `${noted}. Warning: ${form.caution}`;
 }
 /**
  * reachVia (plan 34-33, D-27 point 2): how `host` has the kit route here: the routeCarriers(host) entries it reads

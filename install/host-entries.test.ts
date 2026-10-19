@@ -175,7 +175,8 @@ describe("host entries: a single-agent install writes the shared files and that 
     expect(lstatSync(file).isFile(), "the launch agent is a regular file").toBe(true);
     expect(readFileSync(file).equals(committed), "the installed bytes equal the committed generated file").toBe(true);
     expect(reports(r.stdout, "created", ANTIGRAVITY_AGENT_REL), r.stdout).toBe(true);
-    expect(r.stdout, "the created line names it Antigravity CLI's launch agent").toContain(`${ANTIGRAVITY_AGENT_REL} (${agy.name} launch agent)`);
+    // Quick task 261019-mq1 (261018-hs8 review IN-05): the noun comes from the test's literal map, never the registry.
+    expect(r.stdout, "the created line names it Antigravity CLI's launch agent").toContain(`${ANTIGRAVITY_AGENT_REL} (${agy.name} ${LAUNCH_NOUN_CAUTION[agy.id][0]})`);
     const marker = readMarkerObject(target);
     expect(fileRecords(marker, false)[ANTIGRAVITY_AGENT_REL], r.stdout).toBe(fileRecord(committed, lstatSync(file).mode));
     expect(fileRecords(marker, true)[ANTIGRAVITY_AGENT_REL], "the entry is not recorded as a kit file").toBeUndefined();
@@ -211,6 +212,17 @@ describe("host entries: a single-agent install writes the shared files and that 
 // reach line does not name it.
 const LAUNCH_ROWS = HOST_TOOLS.filter((h) => h.launchAgent !== null);
 /**
+ * What install's lines call each launch file, and the warning its closing line prints after the launch form, as
+ * literals (quick task 261019-mq1, 261018-hs8 review WR-02, IN-05): Pi reads its launch file as text, so it is a
+ * launch file, and its form carries the trust warning; the other three are agent definitions the host lists.
+ */
+const LAUNCH_NOUN_CAUTION: Readonly<Record<string, readonly [string, string | null]>> = {
+  antigravity: ["launch agent", null],
+  opencode: ["launch agent", null],
+  copilot: ["launch agent", null],
+  pi: ["launch file", "the flag reads the file into Pi's system prompt without Pi's project-trust check, so only use it in a repository you trust"],
+};
+/**
  * The live-run note of a row's launch form, built here from verifiedLive with literals, never by the helper under test
  * (quick task 261019-ktd, review WR-05, WR-10): null when nobody ran the form live.
  */
@@ -238,7 +250,16 @@ describe(`host entries: each launch agent after a single-agent install (${LAUNCH
       const file = at(target, rel);
       const committed = readFileSync(at(REPO_ROOT, rel));
       expect(readFileSync(file).equals(committed), "the installed bytes equal the committed generated file").toBe(true);
-      expect(r.stdout, "the created line names it the agent's launch agent").toContain(`${rel} (${h.name} launch agent)`);
+      // Re-pinned 2026-10-19 by quick task 261019-mq1 (261018-hs8 review WR-02, IN-05): the created line names the file
+      // with the literal noun of LAUNCH_NOUN_CAUTION (Pi's file is never a "launch agent"), and the row's closing line
+      // holds `. Warning: <caution>` exactly when the map gives the row one.
+      const [noun, caution] = LAUNCH_NOUN_CAUTION[h.id] ?? ["(no noun in the test's map)", null];
+      expect(r.stdout, "the created line names the launch file with its noun").toContain(`${rel} (${h.name} ${noun})`);
+      if (h.id === "pi") expect(r.stdout, "Pi's file is not a launch agent").not.toContain(`(${h.name} launch agent)`);
+      const closing = lines(r.stdout).filter((l) => l.startsWith(`  ${h.name}: `));
+      expect(closing.length, `${h.id}: one closing line\n${r.stdout}`).toBe(1);
+      if (caution !== null) expect(closing[0], `${h.id}: the closing line warns`).toContain(". Warning: " + caution);
+      else expect(closing[0], `${h.id}: a warning on a form with no caution`).not.toContain(". Warning: ");
       const marker = readMarkerObject(target);
       expect(fileRecords(marker, false)[rel], r.stdout).toBe(fileRecord(committed, lstatSync(file).mode));
       const c = check(target, kitHome);

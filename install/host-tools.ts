@@ -69,11 +69,21 @@ export interface LiveRun {
  * UNKNOWN - verify, as the host's documentation gives it; quick task 261019-ktd, review WR-10). It never covers
  * the kit route: whether a session started that way then follows the route to the role files is UNKNOWN - verify on
  * every host.
+ *
+ * caution is a clear-voice warning that install's closing notes print right after the form (launchInvoke), when using
+ * the form carries a risk the host does not ask about; else null (quick task 261019-mq1, 261018-hs8 review WR-02).
+ *
+ * noun is what install's lines call the launch file (install.ts entryLabel; the generator's drift owner). An agent
+ * definition the host lists as an agent is a launch agent. A file the host reads as text is a launch file: Pi appends
+ * it to its system prompt and has no agents. It is a field, not derived from kind, because two `command` forms differ
+ * here (quick task 261019-mq1, 261018-hs8 review IN-05).
  */
 export interface LaunchForm {
   readonly kind: "command" | "panel";
   readonly text: string;
   readonly verifiedLive: LiveRun | null;
+  readonly caution: string | null;
+  readonly noun: "launch agent" | "launch file";
 }
 
 /** Every field of a registry row except its launch pair (LaunchPair, below). Not exported: HostTool is the row type. */
@@ -344,6 +354,8 @@ export const HOST_TOOLS: readonly HostTool[] = [
       kind: "panel",
       text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
       verifiedLive: { date: "2026-10-18", hostVersion: "1.4.2" },
+      caution: null,
+      noun: "launch agent",
     },
   },
   {
@@ -371,6 +383,8 @@ export const HOST_TOOLS: readonly HostTool[] = [
       kind: "panel",
       text: `\`${LAUNCH_AGENT_NAME}\` in the \`/agents\` panel`,
       verifiedLive: { date: "2026-10-18", hostVersion: "2.0.26" },
+      caution: null,
+      noun: "launch agent",
     },
   },
   {
@@ -395,7 +409,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     // `copilot --agent <id>` (the same source, retrieved 2026-10-18; quick task 261018-hs8, D-05). Picking it with
     // `/agent` in a session is the other documented form; install/README.md gives both. No live run: the human skipped
     // it on 2026-10-18 (quick task 261018-vfm), so it is UNKNOWN - verify.
-    launchForm: { kind: "command", text: `\`copilot --agent ${LAUNCH_AGENT_NAME}\``, verifiedLive: null },
+    launchForm: { kind: "command", text: `\`copilot --agent ${LAUNCH_AGENT_NAME}\``, verifiedLive: null, caution: null, noun: "launch agent" },
   },
   // Pi (34-RESEARCH.md §B): reads one context file per directory and prefers AGENTS.md over
   // CLAUDE.md; loads project prompt templates from <cwd>/.pi/prompts/; ships no sub-agents, so it
@@ -416,8 +430,10 @@ export const HOST_TOOLS: readonly HostTool[] = [
     launchAgent: PI_LAUNCH_REL,
     // The launch form passes PI_LAUNCH_REL to `--append-system-prompt` (pi 1.1.0 `--help`; resource-loader.ts @
     // 482c1381, retrieved 2026-10-18; quick task 261018-hs8, D-05), from the repository root, since the path is read
-    // against the working directory. The flag's file is read without Pi's project-trust check (review WR-02), which
-    // install/README.md's Pi section warns about. A human verified on 2026-10-18 (quick task 261018-vfm) that Pi loads
+    // against the working directory. The flag reads the file without Pi's project-trust check (review WR-02), so the
+    // form carries a caution that install's closing line prints after it and the docs repeat beside every Pi launch
+    // command (quick task 261019-mq1). Pi reads the file as text and has no agents, so it is a launch file, not a launch
+    // agent (review IN-05). A human verified on 2026-10-18 (quick task 261018-vfm) that Pi loads
     // the file: Pi's `[Context]` listed `.pi/grugops-orchestrator.md`, `~/AGENTS.md` and `AGENTS.md`. That shows the
     // file loaded, not that the session follows the kit route (UNKNOWN - verify). The host version is the one the human
     // gave on 2026-10-19 for that run (quick task 261019-ktd, review WR-10).
@@ -425,6 +441,8 @@ export const HOST_TOOLS: readonly HostTool[] = [
       kind: "command",
       text: `\`pi --append-system-prompt ${PI_LAUNCH_REL}\` from the repository root`,
       verifiedLive: { date: "2026-10-18", hostVersion: "1.1.0" },
+      caution: "the flag reads the file into Pi's system prompt without Pi's project-trust check, so only use it in a repository you trust",
+      noun: "launch file",
     },
   },
 ];
@@ -806,6 +824,11 @@ export function launchSession(host: HostTool): string | null {
  * overload returns a string, as launchSession's does (quick task 261019-i3g, review IN-13). A form nobody ran live
  * gets no inline mark here, because install's closing provenance line marks it (install.ts invocationNotesLine; quick
  * task 261019-ktd, review WR-05).
+ *
+ * When the form has a caution (LaunchForm.caution), the clause ends with ". Warning: <caution>", after the note. So the
+ * warning is printed exactly where install offers the form, and never when it offers none (quick task 261019-mq1,
+ * 261018-hs8 review WR-02). launchSession (`--check`) carries no caution: its `ok` line vouches only for install's
+ * unedited copy, and its WARN for any other file already says to read the file first.
  */
 export function launchInvoke(host: LaunchHost): string;
 export function launchInvoke(host: HostTool): string | null;
@@ -815,7 +838,8 @@ export function launchInvoke(host: HostTool): string | null {
   const clause =
     form.kind === "panel" ? `pick ${form.text} to run the session as the Orchestrator` : `start the session as the Orchestrator with ${form.text}`;
   const note = launchLiveNote(host);
-  return note === null ? clause : `${clause} (${note})`;
+  const noted = note === null ? clause : `${clause} (${note})`;
+  return form.caution === null ? noted : `${noted}. Warning: ${form.caution}`;
 }
 
 /**

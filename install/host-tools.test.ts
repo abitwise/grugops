@@ -1191,11 +1191,11 @@ describe("census: install.ts asks one owner of whether a launch file is install'
 describe("the launch pair is one type (quick task 261019-i3g, review IN-13)", () => {
   it("a row with a launch file and no form, or a form and no file, does not compile; both null and both set do", () => {
     const base: HostTool = HOST_TOOLS[0];
-    const form: LaunchForm = { kind: "command", text: "`x`", verifiedLive: null };
+    const form: LaunchForm = { kind: "command", text: "`x`", verifiedLive: null, caution: null, noun: "launch file" };
     // @ts-expect-error a launch file with no launch form
     const fileOnly: HostTool = { ...base, launchAgent: "x.md", launchForm: null };
     // @ts-expect-error a launch form with no launch file
-    const formOnly: HostTool = { ...base, launchAgent: null, launchForm: { kind: "command", text: "`x`", verifiedLive: null } };
+    const formOnly: HostTool = { ...base, launchAgent: null, launchForm: { kind: "command", text: "`x`", verifiedLive: null, caution: null, noun: "launch file" } };
     const neither: HostTool = { ...base, launchAgent: null, launchForm: null };
     const both: HostTool = { ...base, launchAgent: "x.md", launchForm: form };
     expect([fileOnly.launchAgent, fileOnly.launchForm]).toEqual(["x.md", null]);
@@ -1486,7 +1486,9 @@ function expectLaunchWording(h: HostTool): void {
   const phrase = (lf.kind === "panel" ? "a session where you pick " : "a session started with ") + form;
   expect(launchSession(h), h.id).toBe(phrase + " (" + (note === null ? "UNKNOWN - verify: no live run" : note) + ")");
   const clause = lf.kind === "panel" ? "pick " + form + " to run the session as the Orchestrator" : "start the session as the Orchestrator with " + form;
-  expect(launchInvoke(h), h.id).toBe(clause + (note === null ? "" : " (" + note + ")"));
+  // Quick task 261019-mq1 (261018-hs8 review WR-02): the clause ends with the row's caution, after its note, when the
+  // row has one.
+  expect(launchInvoke(h), h.id).toBe(clause + (note === null ? "" : " (" + note + ")") + (lf.caution === null ? "" : ". Warning: " + lf.caution));
 }
 
 describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8, D-01, D-05)", () => {
@@ -1661,6 +1663,21 @@ describe("HostTool.launchAgent: the per-host launch file (quick task 261018-hs8,
       copilot: ["command", null],
       pi: ["command", { date: "2026-10-18", hostVersion: "1.1.0" }],
     });
+  });
+
+  // Pinned 2026-10-19 by quick task 261019-mq1 (261018-hs8 review WR-02, IN-05), literally: what install's lines call
+  // each launch file (a file Pi reads as text is a launch file; an agent definition the host lists is a launch agent),
+  // and the warning install prints after a launch form. Only Pi's form carries one: the flag reads the file into Pi's
+  // system prompt without Pi's project-trust check. A row moves here only with a stated reason.
+  it("each launch row's noun and caution are pinned literally; only Pi's form carries a caution (261019-mq1, review WR-02, IN-05)", () => {
+    const got = Object.fromEntries(LAUNCH_ROWS.map((h) => [h.id, h.launchForm === null ? null : [h.launchForm.noun, h.launchForm.caution]]));
+    expect(got).toEqual({
+      antigravity: ["launch agent", null],
+      opencode: ["launch agent", null],
+      copilot: ["launch agent", null],
+      pi: ["launch file", "the flag reads the file into Pi's system prompt without Pi's project-trust check, so only use it in a repository you trust"],
+    });
+    expect(LAUNCH_ROWS.filter((h) => h.launchForm !== null && h.launchForm.caution !== null).map((h) => h.id)).toEqual(["pi"]);
   });
 });
 

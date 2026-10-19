@@ -3539,6 +3539,10 @@ describe("WR-03: install's closing line names a launch form only when install wr
     expect(line).not.toContain(launchInvoke(piHost()) ?? "");
     // Re-pinned 2026-10-19 by quick task 261019-i3g (review WR-09): the refused write leaves no entry, so the cause.
     expect(line.endsWith(notOffered(piHost(), WHY_NO_ENTRY)), line).toBe(true);
+    // Quick task 261019-mq1 (261018-hs8 review WR-02): the trust warning goes with the form, so a line that offers no
+    // form holds none of it (a literal, not the registry's caution).
+    expect(line, "the warning without the form").not.toContain("without Pi's project-trust check");
+    expect(line, "the warning without the form").not.toContain(". Warning: ");
     expectNoFabricatedCause(r.stdout, "Pi's refused launch write");
   });
 });

@@ -199,6 +199,7 @@ import {
   strandedBy,
   type HostAdapterKind,
   type HostTool,
+  type LaunchHost,
   type RouteFacts,
 } from "./host-tools.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
@@ -1431,8 +1432,9 @@ const ROUTE_BLOCKS: ReadonlyMap<string, { readonly open: string; readonly close:
 // ENTRY_NOUN (phase 34.1, plan 34.1-01): what a whole-file entry of each adapter kind is called in install's lines,
 // keyed by HostAdapterKind so a new kind is a compile error until it is named here; null for a kind that writes no
 // whole-file entry. entryLabel puts the names of the hosts that read the entry before it ("Pi prompt template"). A
-// host's launch file (HostTool.launchAgent, quick task 261018-hs8) is called its "launch agent" by entryLabel, not by
-// a kind's noun, because it belongs to one row and not to a kind (D-05).
+// host's launch file (HostTool.launchAgent, quick task 261018-hs8) is called by its row's LaunchForm.noun ("launch
+// agent", or "launch file" for a file the host reads as text, Pi's; quick task 261019-mq1, 261018-hs8 review IN-05),
+// not by a kind's noun, because it belongs to one row and not to a kind (D-05).
 const ENTRY_NOUN: Readonly<Record<HostAdapterKind, string | null>> = {
   "claude-kit": null,
   "copilot-pointer": null,
@@ -1443,11 +1445,13 @@ const ENTRY_NOUN: Readonly<Record<HostAdapterKind, string | null>> = {
 
 // entryLabel (phase 34.1, plan 34.1-01; quick task 261018-hs8): the label install's lines give the whole-file entry
 // `rel`: the names of the HOST_TOOLS rows whose hostPointers include it, in registry order, joined with " and ", then
-// "launch agent" when `rel` is the launchAgent of such a row ("Antigravity CLI launch agent"), else the noun of the
-// first such row's adapter kind (ENTRY_NOUN).
+// that row's launchForm.noun when `rel` is the launchAgent of such a row ("Antigravity CLI launch agent", "Pi launch
+// file"), else the noun of the first such row's adapter kind (ENTRY_NOUN).
 function entryLabel(rel: string): string {
   const rows = HOST_TOOLS.filter((h) => hostPointers(h).includes(rel));
-  if (rows.some((h) => h.launchAgent === rel)) return `${rows.map((h) => h.name).join(" and ")} launch agent`;
+  // Narrowed on the launch pair, so the row's launchForm is not null (host-tools.ts LaunchPair).
+  const launch = rows.find((h): h is LaunchHost => h.launchAgent === rel);
+  if (launch !== undefined) return `${rows.map((h) => h.name).join(" and ")} ${launch.launchForm.noun}`;
   const noun = rows.length > 0 ? ENTRY_NOUN[rows[0].adapter] : null;
   return `${rows.map((h) => h.name).join(" and ")} ${noun ?? "entry"}`;
 }
@@ -5643,13 +5647,16 @@ function materializeRunnable(): void {
       continue;
     }
     // never-overwrite (T-15-05-Tamper): an existing host file is left untouched. If it is
-    // byte-identical the re-run is a clean no-op; if a user edited it, it is preserved verbatim.
+    // byte-identical the re-run is a clean no-op; if it differs, it is preserved verbatim. The run
+    // cannot tell who wrote a file that is already there, so the report states only that its bytes
+    // differ from this kit version's, never that it is a copy of grugops's file (quick task
+    // 261019-mq1, 261018-hs8 review IN-06; tools/grugops/LICENSE may be the user's own).
     if (destRead.state === "ok") {
       report(
         "skipped",
         destRead.text === srcRead.text
           ? `${destRel} (target already has it)`
-          : `${destRel} (target has a different copy — left untouched, never-overwrite)`,
+          : `${destRel} (a file that differs from this kit version's is already there — left untouched, never-overwrite)`,
       );
       continue;
     }
