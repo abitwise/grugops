@@ -192,6 +192,7 @@ import {
   hostPointers,
   launchCarriers,
   launchInvoke,
+  launchLiveNote,
   launchSession,
   routeCarriers,
   reachVia,
@@ -7720,10 +7721,14 @@ function askRulesNotes(outcome: AskRulesOutcome): string[] {
 //     nothing was recorded, and the line says so. A chosen
 //     agent with nothing recorded (a user's own file at its entry path, a refusal) says that, and points at the lines
 //     above, which name why.
-//   - One line saying the invocation forms come from each host's documentation or, for a launch form marked verified
-//     live (host-tools.ts launchLiveNote, quick task 261018-vfm), from a human's run on the live host; grugops has not
-//     run the others on a live host (UNKNOWN - verify), and whether a session started with a launch form then follows
-//     the kit route is UNKNOWN - verify on every host. No line here claims a live host result beyond those dated notes.
+//   - One provenance line, invocationNotesLine's, BUILT FROM THE LAUNCH FORMS THIS RUN GAVE (quick task 261019-i3g,
+//     review IN-12; the DOC-1 class rule in closing-claims.test.ts: each sentence states only what this run
+//     established). It always says the invocation forms come from each host's documentation and grugops has not run
+//     them on a live host (UNKNOWN - verify): every printed invoke text needs that mark (HostTool.invoke). Only when
+//     the run gave a launch form does it add the launch part, and in it a clause about forms marked verified live only
+//     when a given form has a verifiedLive date (host-tools.ts launchLiveNote), and one about the others only when a
+//     given form has none. Before it, the line was a constant that spoke of verified-live and launch forms on a run
+//     that gave neither. No line here claims a live host result beyond those dated notes.
 //   - The agents recorded before this run and not chosen in it are split by installedSplit (the one answer to "is
 //     anything installed for this agent here", which the doctor asks too; phase 34.1 gap round 2, D-31, IN-23), over
 //     the install record this run left (the record the run started from under DRY_RUN; when the record cannot be read,
@@ -7743,14 +7748,35 @@ function askRulesNotes(outcome: AskRulesOutcome): string[] {
 // on Pi, append the literal path text, not the grugops Orchestrator), and the clause prints launchOwned's reason as it
 // is (quick task 261019-i3g, review WR-09): the cause the record shows, never a claim that install did not write the
 // file. This function holds no reason text of its own (install/host-tools.test.ts holds that by a census), so the
-// closing line and the doctor's WARN give the same cause for the same state. "" for a row with no launch file.
-function launchClosingClause(h: HostTool, ledgerAfter: LedgerRead | null): string {
+// closing line and the doctor's WARN give the same cause for the same state. It returns the clause (`text`, "" for a
+// row with no launch file) and whether it offered the launch form (`offered`), which agentClosingLines hands to
+// invocationNotesLine (quick task 261019-i3g, review IN-12).
+function launchClosingClause(h: HostTool, ledgerAfter: LedgerRead | null): { readonly text: string; readonly offered: boolean } {
   const clause = launchInvoke(h);
-  if (clause === null || h.launchAgent === null) return "";
+  if (clause === null || h.launchAgent === null) return { text: "", offered: false };
   const rel = h.launchAgent;
-  if (DRY_RUN && PLANNED_BYTES.has(rel)) return `; or ${clause}`;
+  if (DRY_RUN && PLANNED_BYTES.has(rel)) return { text: `; or ${clause}`, offered: true };
   const own = launchOwned(DRY_RUN ? PREVIOUS_LEDGER : ledgerAfter, rel);
-  return own.own ? `; or ${clause}` : `; no launch form is offered, because ${own.reason}`;
+  return own.own ? { text: `; or ${clause}`, offered: true } : { text: `; no launch form is offered, because ${own.reason}`, offered: false };
+}
+
+// invocationNotesLine (quick task 261019-i3g, 261018-vfm review IN-12): the closing notes' provenance line, built from
+// `offered`, the rows whose launch form this run gave (in SELECTION order). The first sentence is printed on every run:
+// every invoke text the notes print needs its UNKNOWN - verify mark (HostTool.invoke's contract), so a run that gave
+// no launch form still says where its invocation forms come from. The launch part is printed only when `offered` is
+// not empty, and in it each clause only when a given form has that property, decided per row by host-tools.ts
+// launchLiveNote (non-null: verified live), so the registry decides; the kit-route clause holds for every launch form.
+// Below the `--check` exit, as agentClosingLines is; the doctor never reaches it.
+function invocationNotesLine(offered: readonly HostTool[]): string {
+  const base = "These invocation forms come from each host's documentation, and grugops has not run them on a live host (UNKNOWN - verify).";
+  if (offered.length === 0) return `  ${base}`;
+  const clauses: string[] = [];
+  if (offered.some((h) => launchLiveNote(h) !== null)) clauses.push("a form marked verified live was run by a human on the live host on the date shown");
+  if (offered.some((h) => launchLiveNote(h) === null)) {
+    clauses.push("a form not marked verified live comes from its host's documentation, and grugops has not run it on a live host (UNKNOWN - verify)");
+  }
+  clauses.push("whether a session started with a launch form then follows the kit route is UNKNOWN - verify on every host");
+  return `  ${base} Of the launch forms given here, ${clauses.join("; ")}.`;
 }
 
 function agentClosingLines(): string[] {
@@ -7758,6 +7784,7 @@ function agentClosingLines(): string[] {
   const markerAfter = DRY_RUN ? null : readInstallMarker(TARGET);
   const ledgerAfter: LedgerRead | null = markerAfter !== null && markerAfter.state === "ok" ? readLedger(markerAfter.marker) : null;
   const out: string[] = [];
+  const offered: HostTool[] = [];
   for (const h of SELECTION) {
     let what: string;
     if (DRY_RUN) {
@@ -7775,9 +7802,11 @@ function agentClosingLines(): string[] {
       const shown = [...groups].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([key, n]) => (key.endsWith("/") ? `${key} (${n} recorded)` : key));
       what = shown.length > 0 ? shown.join(", ") : "nothing of install's is recorded for it (the lines above say why)";
     }
-    out.push(`${at}${h.name}: ${what} — ${h.invoke}${launchClosingClause(h, ledgerAfter)}`);
+    const launch = launchClosingClause(h, ledgerAfter);
+    if (launch.offered) offered.push(h);
+    out.push(`${at}${h.name}: ${what} — ${h.invoke}${launch.text}`);
   }
-  out.push(`${at}These invocation forms come from each host's documentation or, for a form marked verified live, from a human's run on the live host; grugops has not run the others on a live host (UNKNOWN - verify), and whether a session started with a launch form then follows the kit route is UNKNOWN - verify on every host.`);
+  out.push(invocationNotesLine(offered));
   const before = HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) && !SELECTION.includes(h));
   // The record this run left (the run's start under DRY_RUN, when nothing was written); null when it cannot be read.
   const ledgerRead: LedgerRead | null = DRY_RUN ? PREVIOUS_LEDGER : ledgerAfter;

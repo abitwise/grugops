@@ -325,10 +325,10 @@ describe("HOST_TOOLS integrity (plan 34-02)", () => {
     // Moved 2026-10-18 (quick task 261018-vfm): a human's live run verified launch forms on 2026-10-18, and the OpenCode
     // panel form comes from that run, not from documentation, so the generic line now names forms marked verified live
     // and keeps every other form, and the kit route of every launched session, UNKNOWN - verify.
-    const unknown = notes.filter((l) => l.includes("grugops has not run the others on a live host (UNKNOWN - verify)"));
-    expect(unknown, r.stdout).toHaveLength(1);
-    expect(unknown[0], "the generic line names the forms marked verified live").toContain("verified live");
-    expect(unknown[0], "the generic line keeps the kit route of a launched session UNKNOWN - verify").toContain("follows the kit route is UNKNOWN - verify");
+    // Re-pinned 2026-10-19 by quick task 261019-i3g (review IN-12): the line is built from the forms this run gave, so
+    // the two `toContain` pins (which passed whatever the registry said) are now the exact oracle line over the rows
+    // with a launch file, every one of which a fresh install offers (asserted per row above).
+    expectProvenance(r.stdout, HOST_TOOLS.filter((t) => t.launchAgent !== null), "every agent");
     expect(r.stdout, "the retired documentation-only line is gone").not.toContain("get documentation only.");
   });
 
@@ -345,6 +345,86 @@ describe("HOST_TOOLS integrity (plan 34-02)", () => {
     const line = notes.filter((l) => l.startsWith(`  ${codex.name}: `))[0];
     expect(line).toBe(`  ${codex.name}: ${AGENT_SKILL_REL} — ${codex.invoke}`);
     expect(line).toContain("$grugops");
+  });
+});
+
+// ── THE PROVENANCE LINE NAMES ONLY THE FORMS THIS RUN GAVE (quick task 261019-i3g, 261018-vfm review IN-12) ────────────
+//
+// Before this fix the closing notes ended with one constant line that spoke of forms marked verified live and of
+// launch forms on every run, even a `--codex` run that gave neither, and its pin (toContain "verified live") could not
+// fail when the registry changed. The line is now built from the launch forms the run gave. THE ORACLE IS WRITTEN HERE,
+// independently of the product: it reads each given row's launchForm.verifiedLive directly and types each sentence as
+// a literal. The given set is derived from the registry AND read back from the output (a row gave its form exactly
+// when its closing line ends with `; or <launchInvoke>`), and the two must agree.
+const PROVENANCE_HEAD = "  These invocation forms come from";
+const PROVENANCE_BASE = "These invocation forms come from each host's documentation, and grugops has not run them on a live host (UNKNOWN - verify).";
+/** The oracle's provenance line for the rows whose launch form the run gave. */
+function provenanceOracle(given: readonly HostTool[]): string {
+  if (given.length === 0) return `  ${PROVENANCE_BASE}`;
+  const clauses: string[] = [];
+  if (given.some((h) => h.launchForm !== null && h.launchForm.verifiedLive !== null)) {
+    clauses.push("a form marked verified live was run by a human on the live host on the date shown");
+  }
+  if (given.some((h) => h.launchForm !== null && h.launchForm.verifiedLive === null)) {
+    clauses.push("a form not marked verified live comes from its host's documentation, and grugops has not run it on a live host (UNKNOWN - verify)");
+  }
+  clauses.push("whether a session started with a launch form then follows the kit route is UNKNOWN - verify on every host");
+  return `  ${PROVENANCE_BASE} Of the launch forms given here, ${clauses.join("; ")}.`;
+}
+/** Assert the run's one provenance line is the oracle's for `given`, with both sides of each condition. */
+function expectProvenance(stdout: string, given: readonly HostTool[], what: string): void {
+  const lines = stdout.split(/\r?\n/).filter((l) => l.startsWith(PROVENANCE_HEAD));
+  expect(lines, `${what}: exactly one provenance line\n${stdout}`).toHaveLength(1);
+  const line = lines[0];
+  expect(line, `${what}: the provenance line`).toBe(provenanceOracle(given));
+  // Both sides of each condition. The not-verified clause itself says "not marked verified live", so the verified-live
+  // side is asked of its own clause ("a form marked verified live"), never of the bare words (measured 2026-10-19: a
+  // GitHub Copilot CLI-alone run gives only the not-verified clause, which holds the words "verified live").
+  const anyLive = given.some((h) => h.launchForm !== null && h.launchForm.verifiedLive !== null);
+  const anyUndated = given.some((h) => h.launchForm !== null && h.launchForm.verifiedLive === null);
+  expect(line.includes("a form marked verified live"), `${what}: the verified-live clause exactly when a given form has a date`).toBe(anyLive);
+  expect(line.includes("not marked verified live"), `${what}: the not-verified clause exactly when a given form has none`).toBe(anyUndated);
+  expect(line.includes("verified live"), `${what}: "verified live" only when a form was given`).toBe(anyLive || anyUndated);
+  expect(line.includes("launch form"), `${what}: "launch form" exactly when a form was given`).toBe(given.length > 0);
+}
+/** The rows whose closing line in `stdout` ends with their launch form (the set the output says it gave). */
+function givenInOutput(stdout: string, rows: readonly HostTool[]): HostTool[] {
+  const notes = stdout.split(/\r?\n/);
+  return rows.filter((h) => {
+    const launch = launchInvoke(h);
+    return launch !== null && notes.some((l) => l.startsWith(`  ${h.name}: `) && l.endsWith(`; or ${launch}`));
+  });
+}
+
+describe("the closing notes' provenance line names only the forms this run gave (quick task 261019-i3g, review IN-12)", () => {
+  for (const h of HOST_TOOLS) {
+    it(`${h.name} installed alone: the provenance line is the oracle's for ${h.launchAgent === null ? "no launch form" : "its launch form"}`, () => {
+      const c = freshCase(`provenance-${h.id}`);
+      const r = runInstall(c.target, c.kitHome, [agentFlag(h)], { home: c.home, timeoutMs: 120_000 });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      const expected = h.launchAgent === null ? [] : [h];
+      expect(givenInOutput(r.stdout, HOST_TOOLS).map((t) => t.id), `premise: the forms the output gave`).toEqual(expected.map((t) => t.id));
+      expectProvenance(r.stdout, expected, `${h.name} alone`);
+    });
+  }
+
+  it("every agent, with the user's own file at every launch path: no form is given, and the provenance line is the base sentence alone", () => {
+    const c = freshCase("provenance-own-files");
+    for (const h of HOST_TOOLS) {
+      if (h.launchAgent === null) continue;
+      const p = join(c.target, ...h.launchAgent.split("/"));
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, "my own agent file\n");
+    }
+    const r = runInstall(c.target, c.kitHome, [], { home: c.home, timeoutMs: 120_000 });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const h of HOST_TOOLS) {
+      const mine = r.stdout.split(/\r?\n/).filter((l) => l.startsWith(`  ${h.name}: `));
+      expect(mine, `premise: one closing line for ${h.name}`).toHaveLength(1);
+      expect(mine[0], `premise: ${h.name}'s closing line gives no launch form`).not.toContain("; or ");
+    }
+    expectProvenance(r.stdout, [], "own files");
+    expect(r.stdout.split(/\r?\n/).filter((l) => l.startsWith(PROVENANCE_HEAD))).toEqual([`  ${PROVENANCE_BASE}`]);
   });
 });
 

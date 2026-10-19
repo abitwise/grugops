@@ -575,10 +575,13 @@ file, a write install could not make, or install's copy that you edited before a
 file changed since install wrote it; the record could not be used; or there is no record the run
 can use, as when the install marker could not be written. `install.js --check` asks the same
 ownership rule and names the same cause, so it gives a launch file `ok` only when the closing notes
-would offer its launch form. A launch form a human ran on the live host is marked "verified live by a human on
-2026-10-18" in the notes; grugops has not run the other invocations on a live host, and the notes
-say `UNKNOWN - verify`, as they do for whether a session started with a launch form follows the kit
-route.
+would offer its launch form. A launch form a human ran on the live host is marked "verified live by
+a human on 2026-10-18" where the notes give it. The notes end with a line saying the invocation
+forms come from each host's documentation and grugops has not run them on a live host
+(`UNKNOWN - verify`). Only when the notes give a launch form does that line also speak of launch
+forms: that a form marked verified live was run by a human on the live host (said only when a given
+form is so marked), that any other form given is `UNKNOWN - verify` (said only when one is given),
+and that whether a session started with a launch form follows the kit route is `UNKNOWN - verify`.
 
 On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, each
 whole-file host entry above (the Pi template, the agent skill, the OpenCode command and the launch
