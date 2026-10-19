@@ -42,6 +42,24 @@
 //           or launch file, so they are not per-host launch tables.
 // Each rule has a mutation proof built from registry values, run through the same scanner function.
 //
+// PATH LISTS, START FORMS AND THE LAUNCH CAUTION (quick task 261019-mq1, 261018-hs8 review WR-04, WR-02). Four more
+// rules bind hand-typed doc text to the registry, each with a mutation proof through the same scanner function:
+//   ROUTE-DOC-1: install/README.md's one list item that opens with "**The files each host reads here.**" names, in its
+//                first sentence, exactly the backticked paths of routeCarriers over HOST_TOOLS (two-sided, count
+//                asserted).
+//   ROUTE-DOC-2: its one list item that opens with "**The launch files.**" names, in its first sentence, exactly the
+//                paths of launchCarriers over HOST_TOOLS (two-sided, count asserted).
+//   START-1:     README.md's "Start a session" table: a launch row holds every backticked token of its launch form, no
+//                row holds another row's launch file, a row with no launch file (other than Claude Code's kit) names
+//                no launch agent, a `panel` row names no flag of a `command` form, and a sequential row holds each
+//                backticked token of its invoke that starts with `/` or `$`.
+//   CAUTION-1:   over the scan set, a unit (a table row whole, or a paragraph, list item, heading or fenced line,
+//                with its whitespace collapsed; never split into sentences) that gives a launch token of a form with
+//                a caution (LaunchForm.caution) holds that caution; only its first letter is compared without case.
+//                It is one-sided: a unit that gives the caution with no command is not asked about.
+// Residuals: Claude Code's row is held only by LIVE-3, and the repository-root condition in free prose has no
+// mechanical check.
+//
 // Windows-safe: files are listed with `git ls-files -z` through spawnSync and split on NUL, paths are joined per
 // segment, and lines are split on `\r?\n`.
 //
@@ -51,7 +69,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, LAUNCH_AGENT_NAME, ROUTE_POINTERS, agentFlag, hostPointers, launchLiveNote, type LaunchHost } from "./host-tools.js";
+import { HOST_TOOLS, LAUNCH_AGENT_NAME, ROUTE_POINTERS, agentFlag, hostPointers, launchCarriers, launchLiveNote, routeCarriers, type LaunchHost } from "./host-tools.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GUIDE_REL = "install/README.md";
@@ -641,5 +659,190 @@ describe("verified-live claims and launch forms are bound to the registry (quick
       expect(got[0].file).toBe("README.md");
       expect(got[0].why).toContain(c.host.name);
     }
+  });
+});
+
+// ── PATH LISTS, START FORMS AND THE LAUNCH CAUTION (quick task 261019-mq1, 261018-hs8 review WR-04, WR-02) ──────────
+//
+// The rules ROUTE-DOC-1, ROUTE-DOC-2, START-1 and CAUTION-1 of the header. Every expectation is derived from
+// HOST_TOOLS, routeCarriers, launchCarriers, launchTokens and LaunchForm.caution; no host name, path or command is
+// spelled in the rules.
+const backticked = (text: string): string[] => [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+const ROUTE_LIST_OPENER = "**The files each host reads here.**";
+const LAUNCH_LIST_OPENER = "**The launch files.**";
+// Measured 2026-10-19 (quick task 261019-mq1): 6 distinct route carriers and 4 launch files over HOST_TOOLS; the
+// launch count is host-tools.test.ts LAUNCH_AGENT_COUNT.
+const ROUTE_CARRIER_COUNT = 6;
+const LAUNCH_FILE_COUNT = 4;
+const ROUTE_SET = [...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))];
+const LAUNCH_SET = [...new Set(HOST_TOOLS.flatMap((h) => [...launchCarriers(h)]))];
+
+/** ROUTE-DOC-1/2: the one list item opening with `opener` names, in its first sentence, exactly the paths in `expected`. */
+function scanPathList(file: string, body: string, opener: string, expected: readonly string[]): { findings: LiveFinding[]; examined: number } {
+  const items = markdownUnits(body).filter((u) => LIST_ITEM.test(u.parts[0].text) && u.parts[0].text.replace(LIST_ITEM, "").startsWith(opener));
+  if (items.length !== 1) return { findings: [{ file, line: items[0]?.parts[0].line ?? 0, sentence: "", why: `${items.length} list items open with ${opener}, not one` }], examined: 0 };
+  const first = sentences(items[0])[0];
+  const named = new Set(backticked(first.text));
+  const findings: LiveFinding[] = [];
+  for (const p of expected) if (!named.has(p)) findings.push({ file, line: first.line, sentence: first.text, why: `${opener} does not name ${p} (missing)` });
+  for (const p of named) if (!expected.includes(p)) findings.push({ file, line: first.line, sentence: first.text, why: `${opener} names ${p}, which the registry set does not hold (extra)` });
+  return { findings, examined: 1 };
+}
+
+/** The flag words of the `command` launch forms: whitespace-separated words starting with `--` inside a backticked token. */
+const COMMAND_FLAGS = [...new Set(LAUNCH_HOSTS.filter((h) => h.launchForm.kind === "command").flatMap((h) => backticked(h.launchForm.text).flatMap((t) => t.split(/\s+/).filter((w) => w.startsWith("--")))))];
+
+/** START-1: README.md's start-a-session rows against the registry rows. */
+function scanStartTable(file: string, body: string): { findings: LiveFinding[]; examined: number } {
+  const findings: LiveFinding[] = [];
+  let examined = 0;
+  for (const h of HOST_TOOLS) {
+    const rows = hostRowLines(body, h.name);
+    if (rows.length !== 1) {
+      findings.push({ file, line: rows[0]?.line ?? 0, sentence: "", why: `${h.name} has ${rows.length} rows, not one` });
+      continue;
+    }
+    examined++;
+    const { line, text } = rows[0];
+    const at = { file, line, sentence: text };
+    if (h.launchForm !== null) {
+      for (const tok of backticked(h.launchForm.text)) if (!text.includes("`" + tok + "`")) findings.push({ ...at, why: `${h.name}'s row does not give \`${tok}\` of its launch form` });
+    }
+    for (const o of HOST_TOOLS) {
+      if (o !== h && o.launchAgent !== null && text.includes(o.launchAgent)) findings.push({ ...at, why: `${h.name}'s row names ${o.name}'s launch file ${o.launchAgent}` });
+    }
+    if (h.launchAgent === null && h.adapter !== "claude-kit" && text.includes(LAUNCH_AGENT_NAME)) findings.push({ ...at, why: `${h.name}'s row names ${LAUNCH_AGENT_NAME}, and ${h.name} has no launch file` });
+    if (h.launchForm !== null && h.launchForm.kind === "panel") {
+      for (const flag of COMMAND_FLAGS) {
+        if (new RegExp(`(?<![\\w-])${escapeRe(flag)}(?![\\w-])`).test(text)) findings.push({ ...at, why: `${h.name}'s row, a panel pick, names the command-line flag ${flag}` });
+      }
+    }
+    if (h.dispatch === "sequential") {
+      for (const tok of backticked(h.invoke).filter((t) => t.startsWith("/") || t.startsWith("$"))) {
+        if (!text.includes("`" + tok + "`")) findings.push({ ...at, why: `${h.name}'s row does not give \`${tok}\` of its invoke` });
+      }
+    }
+  }
+  return { findings, examined };
+}
+
+/** CAUTION-1: a unit that gives a launch token of a form with a caution holds the caution (first letter in any case). */
+function scanCautions(file: string, body: string): { findings: LiveFinding[]; examined: number } {
+  const findings: LiveFinding[] = [];
+  let examined = 0;
+  const cautioned = LAUNCH_HOSTS.filter((h) => h.launchForm.caution !== null);
+  for (const u of markdownUnits(body, true)) {
+    const text = u.parts.map((p) => p.text).join(" ").replace(/\s+/g, " ");
+    for (const h of cautioned) {
+      const c = h.launchForm.caution!;
+      if (!launchTokens(h).some((tok) => text.includes(tok))) continue;
+      examined++;
+      const variants = [c, c.charAt(0).toUpperCase() + c.slice(1), c.charAt(0).toLowerCase() + c.slice(1)];
+      if (!variants.some((v) => text.includes(v))) findings.push({ file, line: u.parts[0].line, sentence: text, why: `${h.name}'s launch command without its caution "${c}"` });
+    }
+  }
+  return { findings, examined };
+}
+
+describe("doc path lists, start forms and the launch caution are bound to the registry (quick task 261019-mq1, review WR-04, WR-02)", () => {
+  it(`ROUTE-DOC-1: the "files each host reads here" item names exactly the route carriers (derived, ${ROUTE_CARRIER_COUNT})`, () => {
+    expect(ROUTE_SET.length, `the route carriers over HOST_TOOLS: ${ROUTE_SET.join(", ")}`).toBe(ROUTE_CARRIER_COUNT);
+    const r = scanPathList(GUIDE_REL, readRel(GUIDE_REL), ROUTE_LIST_OPENER, ROUTE_SET);
+    expect(r.findings.map(showLive)).toEqual([]);
+    expect(r.examined).toBe(1);
+  });
+
+  it(`ROUTE-DOC-2: the "launch files" item names exactly the launch files (derived, ${LAUNCH_FILE_COUNT})`, () => {
+    expect(LAUNCH_SET.length, `the launch files over HOST_TOOLS: ${LAUNCH_SET.join(", ")}`).toBe(LAUNCH_FILE_COUNT);
+    const r = scanPathList(GUIDE_REL, readRel(GUIDE_REL), LAUNCH_LIST_OPENER, LAUNCH_SET);
+    expect(r.findings.map(showLive)).toEqual([]);
+    expect(r.examined).toBe(1);
+  });
+
+  it("ROUTE-DOC-1/2 by mutation: a scratch guide copy with one path removed names the missing path; one with a foreign path added names the extra path", () => {
+    const body = readRel(GUIDE_REL);
+    const lines = body.split(/\r?\n/);
+    for (const [opener, set] of [[ROUTE_LIST_OPENER, ROUTE_SET], [LAUNCH_LIST_OPENER, LAUNCH_SET]] as const) {
+      expect(scanPathList(GUIDE_REL, body, opener, set).findings, `premise: the real guide's ${opener} item is clean`).toEqual([]);
+      const item = markdownUnits(body).find((u) => u.parts[0].text.replace(LIST_ITEM, "").startsWith(opener))!;
+      const gone = set[set.length - 1];
+      const removed = [...lines];
+      const k = item.parts.findIndex((p) => p.text.includes("`" + gone + "`"));
+      expect(k, `premise: the item names ${gone}`).toBeGreaterThanOrEqual(0);
+      removed[item.parts[k].line - 1] = removed[item.parts[k].line - 1].replace("`" + gone + "`", "a file");
+      const miss = scanPathList(GUIDE_REL, removed.join("\n"), opener, set).findings;
+      expect(miss.map((f) => f.why), opener).toEqual([`${opener} does not name ${gone} (missing)`]);
+      const added = [...lines];
+      added[item.parts[0].line - 1] = added[item.parts[0].line - 1] + " (and `foreign/planted.md`)";
+      const extra = scanPathList(GUIDE_REL, added.join("\n"), opener, set).findings;
+      expect(extra.map((f) => f.why), opener).toEqual([`${opener} names foreign/planted.md, which the registry set does not hold (extra)`]);
+    }
+  });
+
+  it("START-1: README.md's start-a-session table has zero findings, and every registry host's row was examined", () => {
+    const r = scanStartTable("README.md", readRel("README.md"));
+    expect(r.findings.map(showLive)).toEqual([]);
+    expect(r.examined).toBe(HOST_TOOLS.length);
+    expect(COMMAND_FLAGS.length, "premise: the command forms give flags").toBeGreaterThan(0);
+  });
+
+  it("START-1 by mutation: a launch command removed, another host's launch file planted, a command flag planted into a panel row, and an invoke token removed each give a finding naming README.md and the host", () => {
+    const body = readRel("README.md");
+    const cmd = LAUNCH_HOSTS.find((h) => h.launchForm.kind === "command" && h.launchForm.caution !== null)!;
+    const otherCmd = LAUNCH_HOSTS.find((h) => h.launchForm.kind === "command" && h !== cmd)!;
+    const panel = LAUNCH_HOSTS.find((h) => h.launchForm.kind === "panel" && backticked(h.invoke).some((t) => t.startsWith("/")))!;
+    expect([cmd, otherCmd, panel].every((h) => h !== undefined), "premise: a cautioned command row, another command row and a panel row").toBe(true);
+    const mutate = (h: LaunchHost, edit: (row: string) => string): string => {
+      const row = hostRowLines(body, h.name)[0];
+      const edited = edit(row.text);
+      expect(edited, `premise: the mutation changed ${h.name}'s row`).not.toBe(row.text);
+      const ls = body.split(/\r?\n/);
+      ls[row.line - 1] = edited;
+      return ls.join("\n");
+    };
+    const invokeTok = "`" + backticked(panel.invoke).find((t) => t.startsWith("/"))! + "`";
+    const cases: { host: LaunchHost; edit: (row: string) => string }[] = [
+      { host: cmd, edit: (row) => row.split("`" + backticked(cmd.launchForm.text)[0] + "`").join("the flag") },
+      { host: cmd, edit: (row) => row.replace(/\|\s*$/, ` ${otherCmd.launchAgent} |`) },
+      { host: panel, edit: (row) => row.replace(/\|\s*$/, ` ${COMMAND_FLAGS[0]} |`) },
+      { host: panel, edit: (row) => row.split(invokeTok).join("the command") },
+    ];
+    for (const c of cases) {
+      const got = scanStartTable("README.md", mutate(c.host, c.edit)).findings;
+      expect(got.length, `no finding for a mutation of ${c.host.name}'s row`).toBeGreaterThan(0);
+      for (const f of got) {
+        expect(f.file).toBe("README.md");
+        expect(f.why).toContain(c.host.name);
+      }
+    }
+  });
+
+  it("CAUTION-1: every scanned unit that gives a cautioned launch command holds the caution, and the scan examined some unit", () => {
+    expect(LAUNCH_HOSTS.filter((h) => h.launchForm.caution !== null).length, "premise: a launch form carries a caution").toBeGreaterThan(0);
+    let examined = 0;
+    const findings = trackedMarkdown(REPO).flatMap((f) => {
+      const r = scanCautions(f, readRel(f));
+      examined += r.examined;
+      return r.findings;
+    });
+    console.log(`CAUTION-1: ${examined} unit(s) give a cautioned launch command`);
+    expect(findings.map(showLive)).toEqual([]);
+    expect(examined, "CAUTION-1 examined no unit").toBeGreaterThanOrEqual(1);
+  });
+
+  it("CAUTION-1 by mutation: README.md with the cautioned row's caution removed gives a finding naming README.md and the host", () => {
+    const body = readRel("README.md");
+    expect(scanCautions("README.md", body).findings, "premise: the real README has no CAUTION-1 finding").toEqual([]);
+    const h = LAUNCH_HOSTS.find((x) => x.launchForm.caution !== null)!;
+    const c = h.launchForm.caution!;
+    const row = hostRowLines(body, h.name)[0];
+    const ls = body.split(/\r?\n/);
+    const cut = ls[row.line - 1].split(c.charAt(0).toUpperCase() + c.slice(1)).join("").split(c).join("");
+    expect(cut, "premise: the mutation removed the caution").not.toBe(ls[row.line - 1]);
+    ls[row.line - 1] = cut;
+    const got = scanCautions("README.md", ls.join("\n")).findings;
+    expect(got.map((f) => f.line)).toEqual([row.line]);
+    expect(got[0].file).toBe("README.md");
+    expect(got[0].why).toContain(h.name);
   });
 });

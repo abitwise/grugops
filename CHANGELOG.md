@@ -625,6 +625,14 @@ CLI with Antigravity CLI.
   run saw: the file differs from this kit version's, and nothing the run read shows who wrote it.
   Before, they said the target had a different copy, or that the file may be from an earlier
   grugops version, which suggested that grugops wrote it (review IN-06).
+- The start forms in the README's "Start a session" table, and the two path lists in the install
+  guide's kit-route section (the files a default session reads, and the launch files), are now
+  checked against the install registry (quick task 261019-mq1; 261018-hs8 review WR-04). The
+  README's OpenCode and Pi cells now put both start forms at the repository root (review IN-04). The
+  install guide's uninstall lists now name `tools/grugops/LICENSE`, and the files install records
+  as created now include each whole-file host entry and launch file (review IN-03). Every shipped
+  doc that gives Pi's launch command now gives its trust warning beside it, and a test holds that
+  (review WR-02).
 
 ### Security
 

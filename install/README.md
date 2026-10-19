@@ -577,7 +577,8 @@ can use, as when the install marker could not be written. `install.js --check` a
 ownership rule and names the same cause, so it gives a launch file `ok` only when the closing notes
 would offer its launch form. A launch form a human ran on the live host is marked "verified live by
 a human on" its date where the notes give it, followed by the host it ran on and its version, or by
-"host version not recorded". The notes end with a line saying the invocation
+"host version not recorded". When the notes give Pi's launch form, they follow it with the warning
+that the flag reads the file into Pi's system prompt without Pi's project-trust check. The notes end with a line saying the invocation
 forms come from each host's documentation and grugops has not run them on a live host
 (`UNKNOWN - verify`). Only when the notes give a launch form does that line also speak of launch
 forms: that a form marked verified live was run by a human on the live host (said only when a given
@@ -685,10 +686,10 @@ reads every file first and reports afterwards, in this order:
   CLI itself uses a project-level `.gemini/` is `UNKNOWN - verify`, and its documented project
   directory, `.agents/`, is not a detect signal because Codex CLI, GitHub Copilot CLI, OpenCode and Pi
   read it too and install creates it.
-- **The launch files.** A launch file (`.agents/agents/grugops-orchestrator.md`,
-  `.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md` or
-  `.pi/grugops-orchestrator.md`, each one host's own) is read only by a session started with it,
-  never by a default session or a typed `/grugops`. Codex CLI has none. So it is not a route carrier:
+- **The launch files.** The launch files are `.agents/agents/grugops-orchestrator.md`,
+  `.opencode/agents/grugops-orchestrator.md`, `.github/agents/grugops-orchestrator.agent.md` and
+  `.pi/grugops-orchestrator.md`, each one host's own. A launch file is read only by a session
+  started with it, never by a default session or a typed `/grugops`. Codex CLI has none. So it is not a route carrier:
   no `reach` line names it, and a file a default session reads that lacks the route is counted
   whatever the launch file holds. `--check` gives each launch file of an installed agent a line of
   its own, worded "a session started with" that host's launch command, or "a session where you
@@ -950,8 +951,8 @@ follows the route on a live run is `UNKNOWN - verify` until the re-run recorded 
   error. Third, passing the flag skips your own `.pi/APPEND_SYSTEM.md`, and the global one, for that
   session. Fourth, the flag's file is read whether or not you granted project trust; only the files
   Pi finds on its own wait for trust.
-  **Warning: `--append-system-prompt` reads the repository file into Pi's system prompt without Pi's
-  project-trust check, so only use this command in a repository you trust.** In a repository someone
+  **Warning: the flag reads the file into Pi's system prompt without Pi's project-trust check, so
+  only use it in a repository you trust.** In a repository someone
   else can change, read `.pi/grugops-orchestrator.md` before you start Pi this way. `install.js --check`
   gives that file `ok` only while it is install's own copy; any other file there gets a WARN. The session still loads roles one at a time (the sequential
   role-load model, §6 "Degraded"): a launch file does not give Pi the spawning of Claude Code's
@@ -1026,8 +1027,9 @@ record first, as described below.
   it, even while Codex CLI stays installed; `--codex` leaves it. `--opencode`, `--copilot` and `--pi`
   each remove only their own launch file.
 - **The shared files go only with a flag-less uninstall, or when you remove the last installed
-  agent.** These are the kit's `AGENTS.md` copy, the runnables under `tools/grugops/`, the install
-  marker, and the Gemini settings change an install made before 34.1 D-12.
+  agent.** These are the kit's `AGENTS.md` copy, the runnables under `tools/grugops/` and
+  `tools/grugops/LICENSE`, the install marker, and the Gemini settings change an install made
+  before 34.1 D-12.
 - **The marker is kept and lists the agents that stay.** The entries this run removed leave the
   install ledger in `.grugops/install.json`, and its `agents` list drops the agents you removed. The
   closing line names both sets, for example `== uninstall complete — agents removed: Codex CLI; still
@@ -1068,10 +1070,13 @@ install is reversed from any checkout: the record keeps each link's own target.
 A file is deleted only on install's own record. Install records in the install ledger in
 `.grugops/install.json` each file it created where nothing was before: `CLAUDE.md` and
 `.github/copilot-instructions.md` when it created them to hold its pointer block, the `AGENTS.md`
-it copied or linked in, and the runnables under `tools/grugops/`. The uninstaller deletes `CLAUDE.md`
+it copied or linked in, the runnables under `tools/grugops/` and `tools/grugops/LICENSE`, and each
+whole-file host entry and launch file it wrote. The uninstaller deletes `CLAUDE.md`
 or the Copilot file only when that record lists it, it removed the grugops block from it in this
 run, and the file is blank afterwards. It deletes `AGENTS.md` or a runnable only when the record
-lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. The record decides
+lists it and it is still the copy (or, for `AGENTS.md`, the link) install made, and
+`tools/grugops/LICENSE`, a whole-file host entry or a launch file only when the record lists it and
+it still holds what install wrote. The record decides
 every file alone: one that still holds what install wrote is removed even when the checkout you run the
 uninstaller from no longer ships it or ships other bytes, and one that does not is left. The record keeps
 what install wrote to each file (a sha256 of the bytes and the file's mode as install left it, or the
