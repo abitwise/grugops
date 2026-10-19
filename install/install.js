@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchCarriers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
+import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -1656,8 +1656,10 @@ function adapterKitOnDisk() {
 //     The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
 //     host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
 // (f) ONE LINE PER LAUNCH FILE (quick task 261018-hs8, D-06, human 2026-10-18 after review CR-01; it reverses planner
-//     decision PD-1, which made each launch file a route carrier). A launch file (host-tools.ts launchCarriers, the
-//     row's launchAgent) is read only by a session the user starts with it, never by a default session, so it is in
+//     decision PD-1, which made each launch file a route carrier). A launch file (the row's launchAgent; host-tools.ts
+//     launchCarriers derives the same set, and step (f) narrows the row on its launch pair instead, so its session
+//     phrase has no default, quick task 261019-i3g, review IN-13) is read only by a session the user starts with it,
+//     never by a default session, so it is in
 //     no step above: it neither gives a host its reach line nor saves a carrier from being counted. Its own line is
 //     worded by host-tools.ts launchSession (quick task 261018-vfm): "a session started with" the launch command for
 //     a `command` form, "a session where you pick" the agent in the panel for a `panel` form. It is read through the
@@ -1675,9 +1677,14 @@ function adapterKitOnDisk() {
 //         files, the rule step (e) applies fixed in one arm only). Step (a)'s FAIL is the one counted finding for that
 //         cause, as it is for step (e)'s reach lines;
 //       install's own stale copy → FAIL with `Re-run install.js`;
-//       any other state of install's own file (a copy without the route that install cannot refresh; install's own
-//         link would land here too, though install writes launch files as copies in every mode) → WARN, with
-//         userRemedy (linkOwnership's remedy for such a link, else the move-it-away remedy).
+//       install's own file in the `user` state (a copy without the route that install cannot refresh; install's own
+//         link would land here too, though install writes launch files as copies in every mode) → WARN, with its
+//         reason (CarrierClass carries one for `user`, so there is no default) and userRemedy (linkOwnership's remedy
+//         for such a link, else the move-it-away remedy);
+//       `appendable` → a thrown Error (quick task 261019-i3g, review IN-13): installWouldWrite answers append only for a
+//         ROUTE_BLOCKS carrier and no launch file is one, so reaching it is a bug in that check, and step (f) fails
+//         loudly rather than word an append as "install will not write it". An exhaustiveness check over the state
+//         stops a new state from compiling until step (f) gives it an arm.
 // THE AGENTS IT SPEAKS FOR (phase 34.1, D-07; VERDICT-1; D-26, IN-21): `hosts` is the doctor's doctorHosts answer, the
 // agents recorded in this target as chosen (or by the legacy rule; the detected agents, announced in a note, when
 // nothing is recorded) that have something installed here: a holding ledger entry they own, or a file at their entry
@@ -1842,41 +1849,53 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
             why.push("no file it reads here carries the kit route");
         docReport("reach", `${host.name}: CANNOT reach the Orchestrator: ${why.join("; ")}`);
     }
-    // (f): one line per launch file of an installed host (D-06).
+    // (f): one line per launch file of an installed host (D-06). The row is narrowed on its launch pair, so the session
+    // phrase is a string with no default (quick task 261019-i3g, review IN-13).
     for (const host of hosts) {
-        for (const rel of launchCarriers(host)) {
-            const cls = classifyCarrier(rel, ledger, readAt);
-            const session = launchSession(host) ?? `a session started with \`${rel}\``;
-            const aside = `A default ${host.name} session does not read it, so no reach line counts it`;
-            if (cls.state === "absent") {
-                docReport("note", `launch file ${rel} is not present, so ${session} has no grugops launch file here. ${aside}. ${absentRemedy(rel)}`);
-                continue;
-            }
-            if (cls.state === "unread") {
-                docWarn(`launch file ${rel} ${readStateText(cls.read)} — it was not read, so NO VERDICT was reached on whether ${session} gets the kit route. ${aside}`);
-                continue;
-            }
-            const own = launchOwned(ledger, rel);
-            if (!own.own) {
-                docWarn(`launch file ${own.reason}. --check cannot vouch for what ${session} reads (${host.name}), ` +
-                    `so read that file before you start a session with it. ${aside}. ${launchMoveRemedy}`);
-            }
-            else if (cls.state === "route" && routeResolves) {
-                docReport("ok", `launch file ${rel} carries the kit route: ${session} reads it (${host.name}). ${aside}`);
-            }
-            else if (cls.state === "route") {
-                docReport("note", `launch file ${rel} carries the kit route, but ${routeUnresolved} (the kit-route FAIL says why), so ` +
-                    `${session} cannot reach the Orchestrator (${host.name}). ${aside}`);
-            }
-            else if (cls.state === "own-stale") {
-                docFail(`launch file ${rel} is install's own copy from an earlier install, without the kit route, so ${session} gets ` +
-                    `no route to the kit, which a scripted install puts outside this repository. ${aside}. ${ownStaleRemedy}`);
-            }
-            else {
-                const remedy = userRemedy(rel, launchMoveRemedy);
-                docWarn(`launch file ${rel} has no kit route, and install will not write it (${cls.why ?? "a re-install appends nothing to it"}), ` +
-                    `so ${session} reads that file and gets no route to the Orchestrator. ${aside}. ${remedy}`);
-            }
+        if (host.launchAgent === null)
+            continue;
+        const rel = host.launchAgent;
+        const cls = classifyCarrier(rel, ledger, readAt);
+        const session = launchSession(host);
+        const aside = `A default ${host.name} session does not read it, so no reach line counts it`;
+        if (cls.state === "absent") {
+            docReport("note", `launch file ${rel} is not present, so ${session} has no grugops launch file here. ${aside}. ${absentRemedy(rel)}`);
+            continue;
+        }
+        if (cls.state === "unread") {
+            docWarn(`launch file ${rel} ${readStateText(cls.read)} — it was not read, so NO VERDICT was reached on whether ${session} gets the kit route. ${aside}`);
+            continue;
+        }
+        const own = launchOwned(ledger, rel);
+        if (!own.own) {
+            docWarn(`launch file ${own.reason}. --check cannot vouch for what ${session} reads (${host.name}), ` +
+                `so read that file before you start a session with it. ${aside}. ${launchMoveRemedy}`);
+        }
+        else if (cls.state === "route" && routeResolves) {
+            docReport("ok", `launch file ${rel} carries the kit route: ${session} reads it (${host.name}). ${aside}`);
+        }
+        else if (cls.state === "route") {
+            docReport("note", `launch file ${rel} carries the kit route, but ${routeUnresolved} (the kit-route FAIL says why), so ` +
+                `${session} cannot reach the Orchestrator (${host.name}). ${aside}`);
+        }
+        else if (cls.state === "own-stale") {
+            docFail(`launch file ${rel} is install's own copy from an earlier install, without the kit route, so ${session} gets ` +
+                `no route to the kit, which a scripted install puts outside this repository. ${aside}. ${ownStaleRemedy}`);
+        }
+        else if (cls.state === "user") {
+            const remedy = userRemedy(rel, launchMoveRemedy);
+            docWarn(`launch file ${rel} has no kit route, and install will not write it (${cls.why}), ` +
+                `so ${session} reads that file and gets no route to the Orchestrator. ${aside}. ${remedy}`);
+        }
+        else if (cls.state === "appendable") {
+            // Unreachable: installWouldWrite answers append only for a ROUTE_BLOCKS carrier, and no launch file is one. A
+            // launch file reaching it is a bug in that check, so step (f) fails loudly rather than word an append it has
+            // no words for (the old default called it "install will not write it"; review IN-13).
+            throw new Error(`kitRouteFindings: launch file ${rel} is in the appendable state, but only a ROUTE_BLOCKS carrier can answer append and no launch file is one`);
+        }
+        else {
+            const unhandled = cls;
+            throw new Error(`kitRouteFindings: launch file ${rel} has a carrier state step (f) does not handle: ${JSON.stringify(unhandled)}`);
         }
     }
 }
@@ -6917,9 +6936,10 @@ function askRulesNotes(outcome) {
 // row with no launch file) and whether it offered the launch form (`offered`), which agentClosingLines hands to
 // invocationNotesLine (quick task 261019-i3g, review IN-12).
 function launchClosingClause(h, ledgerAfter) {
-    const clause = launchInvoke(h);
-    if (clause === null || h.launchAgent === null)
+    if (h.launchAgent === null)
         return { text: "", offered: false };
+    // Narrowed on the launch pair, so launchInvoke gives a string (quick task 261019-i3g, review IN-13).
+    const clause = launchInvoke(h);
     const rel = h.launchAgent;
     if (DRY_RUN && PLANNED_BYTES.has(rel))
         return { text: `; or ${clause}`, offered: true };

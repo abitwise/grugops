@@ -62,7 +62,8 @@ export interface LaunchForm {
   readonly verifiedLive: string | null;
 }
 
-export interface HostTool {
+/** Every field of a registry row except its launch pair (LaunchPair, below). Not exported: HostTool is the row type. */
+interface HostToolFields {
   /** The token installer output uses (`tools detected: <id> ...`). */
   readonly id: string;
   /** The display name: the bold first cell of every per-host table row. */
@@ -88,27 +89,45 @@ export interface HostTool {
    * owns the row's launch file (quick task 261018-hs8, review WR-03).
    */
   readonly invoke: string;
-  /**
-   * The per-host launch file (quick task 261018-hs8): the agent definition or prompt file, named for
-   * LAUNCH_AGENT_NAME, through which a user starts a session on this host as the Orchestrator; null for a host that has
-   * none. A POSIX path relative to the target root. Ownership is per agent, never per adapter kind (D-05): Antigravity
-   * CLI shares the `agent-skill` kind with Codex CLI, so a launch path in that kind's ADAPTER_FOOTPRINT would make
-   * `uninstall --codex` remove Antigravity CLI's file. The path joins the kind's paths only through hostPointers and
-   * hostFootprint below. Install writes it under its existing whole-file rule (install.ts writeWholeFileEntry, D-03 as
-   * corrected; never the `.claude/` D-32 backup), and its body is the thin pointer POINTER_LINE (D-04), rendered by
-   * scripts/generate-host-entries.ts. Required on every row, so a new row is a compile error until it states one.
-   */
-  readonly launchAgent: string | null;
-  /**
-   * The launch form (quick task 261018-hs8, D-05, D-06; typed by quick task 261018-vfm): how a user starts a session on
-   * this host with its launch file, a LaunchForm (a `command` or a `panel` pick, its backticked text, and the date a
-   * human verified it live, if any); null exactly when launchAgent is null. THE ONE SPELLING of it: launchSession below
-   * words `--check`'s launch-file findings (hs8 D-06, with the panel wording the human gave on 2026-10-18), launchInvoke
-   * below words install's closing clause (hs8 WR-03), and install/README.md's usage sections are checked to name each
-   * backticked token of its text. Each row names its source in a comment beside the value.
-   */
-  readonly launchForm: LaunchForm | null;
 }
+
+/**
+ * LaunchPair (quick task 261019-i3g, 261018-vfm review IN-13): a row's launch file and its launch form, as one type. A
+ * row has both or neither, so a row that holds one and not the other does not compile, and a check
+ * `h.launchAgent === null` narrows `h.launchForm` to a LaunchForm (LaunchHost below). Before it the two were
+ * independent fields, held together only by a registry test, and install.ts step (f) carried a silent default for the
+ * split case. install/host-tools.test.ts pins both split rows with @ts-expect-error.
+ */
+type LaunchPair =
+  | {
+      /**
+       * The per-host launch file (quick task 261018-hs8): the agent definition or prompt file, named for
+       * LAUNCH_AGENT_NAME, through which a user starts a session on this host as the Orchestrator; null for a host that has
+       * none. A POSIX path relative to the target root. Ownership is per agent, never per adapter kind (D-05): Antigravity
+       * CLI shares the `agent-skill` kind with Codex CLI, so a launch path in that kind's ADAPTER_FOOTPRINT would make
+       * `uninstall --codex` remove Antigravity CLI's file. The path joins the kind's paths only through hostPointers and
+       * hostFootprint below. Install writes it under its existing whole-file rule (install.ts writeWholeFileEntry, D-03 as
+       * corrected; never the `.claude/` D-32 backup), and its body is the thin pointer POINTER_LINE (D-04), rendered by
+       * scripts/generate-host-entries.ts. Required on every row, so a new row is a compile error until it states one.
+       */
+      readonly launchAgent: string;
+      /**
+       * The launch form (quick task 261018-hs8, D-05, D-06; typed by quick task 261018-vfm): how a user starts a session on
+       * this host with its launch file, a LaunchForm (a `command` or a `panel` pick, its backticked text, and the date a
+       * human verified it live, if any); null exactly when launchAgent is null (the other LaunchPair member): the pair is
+       * one type, so a row cannot hold one without the other (quick task 261019-i3g, review IN-13). THE ONE SPELLING of it: launchSession below
+       * words `--check`'s launch-file findings (hs8 D-06, with the panel wording the human gave on 2026-10-18), launchInvoke
+       * below words install's closing clause (hs8 WR-03), and install/README.md's usage sections are checked to name each
+       * backticked token of its text. Each row names its source in a comment beside the value.
+       */
+      readonly launchForm: LaunchForm;
+    }
+  | { readonly launchAgent: null; readonly launchForm: null };
+
+/** A registry row: its fields and its launch pair. */
+export type HostTool = HostToolFields & LaunchPair;
+/** A registry row that has a launch file, and so a launch form (narrowed on `launchAgent !== null`). */
+export type LaunchHost = Extract<HostTool, { readonly launchAgent: string }>;
 
 /**
  * The Pi prompt template the installer writes (D-16): Pi turns `.pi/prompts/<name>.md` into the
@@ -698,7 +717,9 @@ export function routeCarriers(host: HostTool): readonly string[] {
  * launchCarriers (quick task 261018-hs8, D-06): THE ONE DERIVATION of the launch files of `host`: its launchAgent, or
  * none. Disjoint from routeCarriers (install/host-tools.test.ts asserts it), so a launch file never enters the reach or
  * strand verdicts; `--check` gives each one its own finding, worded by launchSession below (install.ts
- * kitRouteFindings step (f)), and install's closing notes offer launchInvoke only for one install owns.
+ * kitRouteFindings step (f)), and install's closing notes offer launchInvoke only for one install owns. Step (f) does
+ * not call it: it narrows the row on its launch pair (`launchAgent === null`), which gives it the path and, through
+ * the LaunchHost overload of launchSession, a non-null session phrase (quick task 261019-i3g, review IN-13).
  */
 export function launchCarriers(host: HostTool): readonly string[] {
   return host.launchAgent === null ? [] : [host.launchAgent];
@@ -718,8 +739,11 @@ export function launchLiveNote(host: HostTool): string | null {
  * launchSession (quick task 261018-hs8, D-06; per kind since quick task 261018-vfm): the session phrase of `--check`'s
  * launch-file findings (install.ts kitRouteFindings step (f)). A `command` form reads "a session started with <text>",
  * a `panel` form "a session where you pick <text>" (the human's wording, 2026-10-18). Null exactly when the row has no
- * launch form.
+ * launch form. The LaunchHost overload (a row narrowed on `launchAgent !== null`) returns a string, so a caller that
+ * narrowed needs no default (quick task 261019-i3g, review IN-13); a caller that did not keeps the null.
  */
+export function launchSession(host: LaunchHost): string;
+export function launchSession(host: HostTool): string | null;
 export function launchSession(host: HostTool): string | null {
   const form = host.launchForm;
   if (form === null) return null;
@@ -731,8 +755,11 @@ export function launchSession(host: HostTool): string | null {
  * closing notes add after a row's invoke text when install wrote or owns the row's launch file. A `command` form reads
  * "start the session as the Orchestrator with <text>", a `panel` form "pick <text> to run the session as the
  * Orchestrator"; either is followed by " (<launchLiveNote>)" when the form was verified live. The kind decides the
- * verb, as it does for launchSession (the `--check` wording). Null for a row with no launch form.
+ * verb, as it does for launchSession (the `--check` wording). Null for a row with no launch form; the LaunchHost
+ * overload returns a string, as launchSession's does (quick task 261019-i3g, review IN-13).
  */
+export function launchInvoke(host: LaunchHost): string;
+export function launchInvoke(host: HostTool): string | null;
 export function launchInvoke(host: HostTool): string | null {
   const form = host.launchForm;
   if (form === null) return null;

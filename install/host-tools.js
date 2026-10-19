@@ -529,7 +529,9 @@ export function routeCarriers(host) {
  * launchCarriers (quick task 261018-hs8, D-06): THE ONE DERIVATION of the launch files of `host`: its launchAgent, or
  * none. Disjoint from routeCarriers (install/host-tools.test.ts asserts it), so a launch file never enters the reach or
  * strand verdicts; `--check` gives each one its own finding, worded by launchSession below (install.ts
- * kitRouteFindings step (f)), and install's closing notes offer launchInvoke only for one install owns.
+ * kitRouteFindings step (f)), and install's closing notes offer launchInvoke only for one install owns. Step (f) does
+ * not call it: it narrows the row on its launch pair (`launchAgent === null`), which gives it the path and, through
+ * the LaunchHost overload of launchSession, a non-null session phrase (quick task 261019-i3g, review IN-13).
  */
 export function launchCarriers(host) {
     return host.launchAgent === null ? [] : [host.launchAgent];
@@ -543,25 +545,12 @@ export function launchLiveNote(host) {
     const form = host.launchForm;
     return form === null || form.verifiedLive === null ? null : `verified live by a human on ${form.verifiedLive}`;
 }
-/**
- * launchSession (quick task 261018-hs8, D-06; per kind since quick task 261018-vfm): the session phrase of `--check`'s
- * launch-file findings (install.ts kitRouteFindings step (f)). A `command` form reads "a session started with <text>",
- * a `panel` form "a session where you pick <text>" (the human's wording, 2026-10-18). Null exactly when the row has no
- * launch form.
- */
 export function launchSession(host) {
     const form = host.launchForm;
     if (form === null)
         return null;
     return form.kind === "panel" ? `a session where you pick ${form.text}` : `a session started with ${form.text}`;
 }
-/**
- * launchInvoke (quick task 261018-hs8, review WR-03; per kind since quick task 261018-vfm): the clause install's
- * closing notes add after a row's invoke text when install wrote or owns the row's launch file. A `command` form reads
- * "start the session as the Orchestrator with <text>", a `panel` form "pick <text> to run the session as the
- * Orchestrator"; either is followed by " (<launchLiveNote>)" when the form was verified live. The kind decides the
- * verb, as it does for launchSession (the `--check` wording). Null for a row with no launch form.
- */
 export function launchInvoke(host) {
     const form = host.launchForm;
     if (form === null)

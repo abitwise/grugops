@@ -50,6 +50,7 @@ import {
   strandedBy,
   type HostTool,
   type HostAdapterKind,
+  type LaunchForm,
   type RouteFacts,
 } from "./host-tools.js";
 import { BLOCK_RELS } from "./install-marker.js";
@@ -1170,6 +1171,83 @@ describe("census: install.ts asks one owner of whether a launch file is install'
     expect(pieces.length, "premise: the walk found the clause's literals").toBeGreaterThan(0);
     const reasonWords = pieces.filter((t) => /wrote|owns|record|ledger|install's/.test(t));
     expect(reasonWords, "a reason literal in launchClosingClause (the reason comes only from launchOwned)").toEqual([]);
+  });
+});
+
+// ── THE LAUNCH PAIR IS ONE TYPE (quick task 261019-i3g, 261018-vfm review IN-13) ───────────────────────────────────────
+//
+// Before this fix launchAgent and launchForm were two independent fields, and only a registry test held "both set or
+// both null". So kitRouteFindings step (f) carried a `launchSession(host) ?? <a backticked path>` fallback that would
+// print a file path as a launch command if a row held one and not the other. The pair is now one discriminated union
+// (host-tools.ts LaunchPair), so a row with one and not the other does not compile, and narrowing on launchAgent
+// gives a non-null launchForm. The two @ts-expect-error rows are checked by `npm run typecheck` (tsconfig.tests.json);
+// vitest runs only the controls. Every variable is read in an expect: under noUnusedLocals an unused variable would
+// itself satisfy a directive, and the pin would pass whatever the type says.
+describe("the launch pair is one type (quick task 261019-i3g, review IN-13)", () => {
+  it("a row with a launch file and no form, or a form and no file, does not compile; both null and both set do", () => {
+    const base: HostTool = HOST_TOOLS[0];
+    const form: LaunchForm = { kind: "command", text: "`x`", verifiedLive: null };
+    // @ts-expect-error a launch file with no launch form
+    const fileOnly: HostTool = { ...base, launchAgent: "x.md", launchForm: null };
+    // @ts-expect-error a launch form with no launch file
+    const formOnly: HostTool = { ...base, launchAgent: null, launchForm: { kind: "command", text: "`x`", verifiedLive: null } };
+    const neither: HostTool = { ...base, launchAgent: null, launchForm: null };
+    const both: HostTool = { ...base, launchAgent: "x.md", launchForm: form };
+    expect([fileOnly.launchAgent, fileOnly.launchForm]).toEqual(["x.md", null]);
+    expect([formOnly.launchAgent, formOnly.launchForm]).toEqual([null, form]);
+    expect([neither.launchAgent, neither.launchForm]).toEqual([null, null]);
+    expect([both.launchAgent, both.launchForm]).toEqual(["x.md", form]);
+  });
+
+  it("narrowed on launchAgent, every launch row's launchSession and launchInvoke are strings, with no null to default", () => {
+    let seen = 0;
+    for (const h of HOST_TOOLS) {
+      if (h.launchAgent === null) continue;
+      const session: string = launchSession(h);
+      const invoke: string = launchInvoke(h);
+      expect(session.length, `${h.id}: launchSession`).toBeGreaterThan(0);
+      expect(invoke.length, `${h.id}: launchInvoke`).toBeGreaterThan(0);
+      seen++;
+    }
+    expect(seen, "premise: the registry has launch rows").toBe(HOST_TOOLS.filter((h) => h.launchAgent !== null).length);
+    expect(seen).toBeGreaterThan(0);
+  });
+});
+
+// ── NO SILENT LAUNCH FALLBACK IN install.ts (quick task 261019-i3g, 261018-vfm review IN-13) ───────────────────────────
+//
+// The type above holds the pair; this census holds the code that reads it. (a) No `??` whose left operand is a call of
+// launchSession or launchInvoke: the narrowed type gives a string, and a default would print an invented form.
+// (b) In kitRouteFindings, no `??` whose left operand is a property access named `why`: the `user` carrier state
+// always carries its reason (CarrierClass), and the old default worded an append as "install will not write it".
+// (c) kitRouteFindings holds a throw whose argument names `appendable`: that state cannot reach step (f) (no launch
+// file is a ROUTE_BLOCKS carrier), so reaching it fails loudly instead of printing a verdict with no words for it.
+describe("census: no silent launch fallback in install.ts (review IN-13)", () => {
+  it("no `??` defaults launchSession, launchInvoke or kitRouteFindings' `why`, and step (f) throws on `appendable`", () => {
+    const launchDefaults: string[] = [];
+    const whyDefaults: string[] = [];
+    const appendableThrows: string[] = [];
+    let kitRouteFindings = 0;
+    const sf = installSource();
+    for (const n of allNodes(sf)) {
+      if (ts.isFunctionDeclaration(n) && n.name?.text === "kitRouteFindings" && n.body !== undefined) kitRouteFindings++;
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+        const left = n.left;
+        if (ts.isCallExpression(left) && ts.isIdentifier(left.expression) && ["launchSession", "launchInvoke"].includes(left.expression.text)) {
+          launchDefaults.push(`${n.getText(sf)} in ${enclosingFunction(n)}`);
+        }
+        if (ts.isPropertyAccessExpression(left) && left.name.text === "why" && enclosingFunction(n) === "kitRouteFindings") {
+          whyDefaults.push(n.getText(sf));
+        }
+      }
+      if (ts.isThrowStatement(n) && enclosingFunction(n) === "kitRouteFindings" && n.expression.getText(sf).includes("appendable")) {
+        appendableThrows.push(n.expression.getText(sf));
+      }
+    }
+    expect(kitRouteFindings, "premise: kitRouteFindings is one function declaration with a body").toBe(1);
+    expect(launchDefaults, "(a) a `??` default on launchSession or launchInvoke").toEqual([]);
+    expect(whyDefaults, "(b) a `??` default on a `why` in kitRouteFindings").toEqual([]);
+    expect(appendableThrows.length, "(c) kitRouteFindings throws on the `appendable` state").toBe(1);
   });
 });
 

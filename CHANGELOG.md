@@ -592,6 +592,17 @@ CLI with Antigravity CLI.
   install's copy. Install's own copy is `ok` only while the kit route leads to a readable
   `roles/orchestrator.md`; while it does not, the line is an uncounted `note` beside the kit-route
   FAIL.
+- Install's closing notes now state only what the run established about launch forms (quick task
+  261019-i3g; 261018-vfm review WR-09, IN-12). When the closing line gives no launch form, it now
+  names the cause the install record shows: the record holds no entry for the file, the file
+  changed since install wrote it, the record could not be used, or there is no record the run can
+  use. Before, it said install neither wrote nor owned the file, even when this run had just written
+  it and could not write its record, and when you had edited install's copy. The `--check` WARN for
+  a launch file gives the same cause for the same state, and now says the file is not shown to be
+  install's copy. The provenance line at the end of the notes speaks of launch forms, and of forms
+  marked verified live, only when the run gave one; a run that gave none, such as a `--codex`
+  install, says only that the invocation forms come from each host's documentation and grugops has
+  not run them on a live host (`UNKNOWN - verify`).
 
 ### Security
 
