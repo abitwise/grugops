@@ -567,11 +567,15 @@ and the uninstall command that takes it out of the record. For each agent the
 run was for, the closing notes also name what the install record holds for it and how that host's
 documentation says to start grugops. They give a host's launch form (for example
 `copilot --agent grugops-orchestrator`, or picking `grugops-orchestrator` in the `/agents` panel)
-only when install wrote its launch file in this run or
-already owns the file there. When that file is your own, or install could not write it, the notes say
-so and give no launch form, because the form would start that file and not the grugops
-Orchestrator. `install.js --check` asks the same ownership rule, so it gives a launch file `ok` only
-when the closing notes would offer its launch form. A launch form a human ran on the live host is marked "verified live by a human on
+only when the install record shows its launch file to be install's own copy (a dry run also gives it
+when the real run would write the file). When the record does not show that, the notes give no
+launch form, because the form could start a file that is not install's and not the grugops
+Orchestrator, and they name the cause the record shows: it holds no entry for the file (your own
+file, a write install could not make, or install's copy that you edited before a re-install); the
+file changed since install wrote it; the record could not be used; or there is no record the run
+can use, as when the install marker could not be written. `install.js --check` asks the same
+ownership rule and names the same cause, so it gives a launch file `ok` only when the closing notes
+would offer its launch form. A launch form a human ran on the live host is marked "verified live by a human on
 2026-10-18" in the notes; grugops has not run the other invocations on a live host, and the notes
 say `UNKNOWN - verify`, as they do for whether a session started with a launch form follows the kit
 route.
@@ -688,9 +692,11 @@ reads every file first and reports afterwards, in this order:
   Only install's own copy of a launch file can be `ok` (install writes each launch file as a copy, also
   in a `--symlink` install); the install record decides that, the same rule the closing notes use.
   The line is:
-  - a WARN for a file there that is not install's (your own file, or install's copy edited since),
-    whatever it holds, even the route sentence. It names why: the install record has no entry for the
-    file, the file changed since install wrote it, or the record could not be used. Read that file
+  - a WARN for a file there that the install record does not show to be install's copy (your own
+    file, or install's copy edited since), whatever it holds, even the route sentence. It names the
+    cause, the same one the closing notes give: the install record has no entry for the file, the
+    file changed since install wrote it, the record could not be used, or there is no record this
+    run can use. Read that file
     before you start a session with it; to get install's copy, move the file elsewhere and re-run
     `install.js`, which writes its launch file where nothing is;
   - `ok` for install's own copy carrying the route, when the route leads to a readable

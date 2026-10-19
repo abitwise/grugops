@@ -1072,6 +1072,25 @@ describe("census: install.ts asks one owner of whether a launch file is install'
     expect(ownsInCallers, "a launchOwned caller asks owns itself").toEqual([]);
     expect(found).toEqual(LAUNCH_OWNER_CALLS);
   });
+
+  // Quick task 261019-i3g (review WR-09): the closing clause holds no reason text of its own. Before the fix it printed
+  // one fixed reason ("install neither wrote nor owns"), whatever launchOwned found. Now launchOwned builds the whole
+  // reason and the clause prints it verbatim, so no string literal or template piece inside launchClosingClause may
+  // word a cause about the record or the writer.
+  it("launchClosingClause holds no reason text of its own: no literal in it says wrote, owns, record, ledger or install's", () => {
+    const pieces: string[] = [];
+    let declarations = 0;
+    for (const n of allNodes(installSource())) {
+      if (ts.isFunctionDeclaration(n) && n.name?.text === "launchClosingClause" && n.body !== undefined) declarations++;
+      if (enclosingFunction(n) !== "launchClosingClause") continue;
+      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) pieces.push(n.text);
+      else if (ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) pieces.push(n.text);
+    }
+    expect(declarations, "premise: launchClosingClause is one function declaration with a body").toBe(1);
+    expect(pieces.length, "premise: the walk found the clause's literals").toBeGreaterThan(0);
+    const reasonWords = pieces.filter((t) => /wrote|owns|record|ledger|install's/.test(t));
+    expect(reasonWords, "a reason literal in launchClosingClause (the reason comes only from launchOwned)").toEqual([]);
+  });
 });
 
 // ── THE ONE DERIVATION OF THE HOSTS A CARRIER STRANDS (plan 34-33, D-27 point 2; VERDICT-1, AUTH-1) ──────────────

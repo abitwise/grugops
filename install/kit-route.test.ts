@@ -19,7 +19,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -3470,7 +3470,25 @@ function closingLineOf(stdout: string, h: (typeof HOST_TOOLS)[number]): string {
   expect(mine.length, `exactly one closing line for ${h.name}:\n${stdout}`).toBe(1);
   return mine[0];
 }
-const NOT_OFFERED = "no launch form is offered, because install neither wrote nor owns";
+// THE NOT-OFFERED CLAUSE NAMES THE CAUSE launchOwned FOUND (quick task 261019-i3g, 261018-vfm review WR-09). Re-pinned
+// 2026-10-19 by quick task 261019-i3g (review WR-09): the clause used to be one fixed reason, "install neither wrote nor
+// owns <rel> here", whatever launchOwned found, which is false when this run wrote the file and could not record it, or
+// when the user edited install's copy. It now prints launchOwned's whole reason, `<rel> is not shown to be install's
+// copy (<cause>)`, and the `--check` WARN prints the same reason, so one state gives one bracketed cause in both. The
+// causes are typed here as literals, never read from the product.
+const WHY_NO_ENTRY = "the install record holds no entry for it";
+const WHY_CHANGED = "the install record has an entry for it, but the file there was changed or replaced since install wrote it";
+const WHY_UNUSABLE = "the install ledger in .grugops/install.json could not be used (this run reports why on its own line)";
+const WHY_NO_LEDGER = "there is no install ledger this run can use";
+/** The not-offered clause of row `h`'s closing line, with cause `why`. */
+const notOffered = (h: (typeof HOST_TOOLS)[number], why: string): string =>
+  `; no launch form is offered, because ${launchRelOf(h)} is not shown to be install's copy (${why})`;
+/** A cause the run did not establish: install's stdout never says install did not write a launch file (review WR-09). */
+function expectNoFabricatedCause(stdout: string, what: string): void {
+  for (const l of stdout.split(/\r?\n/)) {
+    for (const bad of ["neither wrote", "nor owns", "did not write"]) expect(l, `${what}: a cause the run did not establish`).not.toContain(bad);
+  }
+}
 
 describe("WR-03: install's closing line names a launch form only when install wrote or owns the launch file", () => {
   it("a fresh install for every agent: each launch row's closing line ends with its invoke text and `; or <launchInvoke>`", () => {
@@ -3491,19 +3509,23 @@ describe("WR-03: install's closing line names a launch form only when install wr
     for (const h of LAUNCH_HOSTS) expect(closingLineOf(r.stdout, h).endsWith(`; or ${launchInvoke(h)}`), r.stdout).toBe(true);
   });
 
-  it("the user's own file at every launch path: no closing line names a launch form; each gives the reason; DRY_RUN says the same", () => {
+  // Re-pinned 2026-10-19 by quick task 261019-i3g (review WR-09): the two runs no longer give the same reason. The real
+  // run's record holds no entry for the user's file (the no-entry cause); DRY_RUN on this fresh target has no install
+  // ledger it can use (the no-ledger cause). Each is asserted as the whole clause, as before.
+  it("the user's own file at every launch path: no closing line names a launch form; the real run gives the no-entry cause, DRY_RUN on the fresh target the no-ledger cause", () => {
     const row = scratchRow();
     for (const h of LAUNCH_HOSTS) ownLaunchWithoutRoute(row.target, h);
     const dry = runInstall(row.target, row.kitHome, [], { dryRun: true });
     expect(dry.status, dry.stdout + dry.stderr).toBe(0);
     const r = runInstall(row.target, row.kitHome);
     expect(r.status, r.stdout + r.stderr).toBe(0);
-    for (const out of [dry.stdout, r.stdout]) {
+    for (const [out, why] of [[dry.stdout, WHY_NO_LEDGER], [r.stdout, WHY_NO_ENTRY]] as const) {
+      expectNoFabricatedCause(out, "the user's own file");
       for (const h of LAUNCH_HOSTS) {
         const line = closingLineOf(out, h);
         expect(line, `${h.name}: the form is offered for the user's own file`).not.toContain(formText(h));
         expect(line, `${h.name}: the launch clause is offered for the user's own file`).not.toContain(launchInvoke(h) ?? "");
-        expect(line.endsWith(` — ${h.invoke}; ${NOT_OFFERED} ${launchRelOf(h)} here`), line).toBe(true);
+        expect(line.endsWith(` — ${h.invoke}${notOffered(h, why)}`), line).toBe(true);
       }
     }
   });
@@ -3515,7 +3537,9 @@ describe("WR-03: install's closing line names a launch form only when install wr
     const line = closingLineOf(r.stdout, piHost());
     expect(line).not.toContain(formText(piHost()));
     expect(line).not.toContain(launchInvoke(piHost()) ?? "");
-    expect(line.endsWith(`; ${NOT_OFFERED} ${launchRelOf(piHost())} here`), line).toBe(true);
+    // Re-pinned 2026-10-19 by quick task 261019-i3g (review WR-09): the refused write leaves no entry, so the cause.
+    expect(line.endsWith(notOffered(piHost(), WHY_NO_ENTRY)), line).toBe(true);
+    expectNoFabricatedCause(r.stdout, "Pi's refused launch write");
   });
 });
 
@@ -3528,14 +3552,14 @@ describe("WR-03: install's closing line names a launch form only when install wr
 // cause owns found; the reason never says install did not write the file (the WR-09 class).
 const READ_FIRST = "read that file before you start a session with it";
 const MOVE_REMEDY = "To start grugops that way, move that file elsewhere and re-run install.js, which writes its launch file where nothing is: `";
-const WHY_NO_ENTRY = "the install record holds no entry for it";
-const WHY_CHANGED = "the install record has an entry for it, but the file there was changed or replaced since install wrote it";
-const WHY_UNUSABLE = "the install ledger in .grugops/install.json could not be used (this run reports why on its own line), so --check cannot show that it is";
-/** Assert row `h`'s launch line is the not-install's-copy WARN with cause `why`. */
+// The cause consts (WHY_NO_ENTRY, WHY_CHANGED, WHY_UNUSABLE, WHY_NO_LEDGER) sit beside notOffered, in the WR-03 section.
+/** Assert row `h`'s launch line is the not-shown-to-be-install's-copy WARN with cause `why`. Re-pinned 2026-10-19 by
+ *  quick task 261019-i3g (review WR-09): the head was `launch file <rel> is not install's copy (<why>)`, which states
+ *  what an unusable record cannot show; it is now launchOwned's reason, the one the closing line prints too. */
 function expectNotOwnWarn(stdout: string, h: (typeof HOST_TOOLS)[number], why: string): string {
   const line = launchLineOf(stdout, h);
   expect(line.startsWith("  WARN"), `${h.name}: ${line}`).toBe(true);
-  expect(messageOf(line).startsWith(`launch file ${launchRelOf(h)} is not install's copy (${why})`), `${h.name}: the cause: ${line}`).toBe(true);
+  expect(messageOf(line).startsWith(`launch file ${launchRelOf(h)} is not shown to be install's copy (${why}). `), `${h.name}: the cause: ${line}`).toBe(true);
   expect(line, `${h.name}: the launch form`).toContain(launchSession(h) ?? "");
   expect(line, `${h.name}: the read-first sentence`).toContain(READ_FIRST);
   expect(line, `${h.name}: the move-and-re-run remedy`).toContain(MOVE_REMEDY);
@@ -3552,8 +3576,10 @@ describe("--check and the closing line ask one launch-ownership rule (quick task
     expect(r.status, r.stdout + r.stderr).toBe(0);
     for (const h of LAUNCH_HOSTS) {
       expect(readFileSync(launchPath(row.target, h), "utf8").includes("Ignore the grugops roles"), `premise: install left ${h.name}'s user file`).toBe(true);
-      expect(closingLineOf(r.stdout, h).endsWith(`; ${NOT_OFFERED} ${launchRelOf(h)} here`), closingLineOf(r.stdout, h)).toBe(true);
+      // Re-pinned 2026-10-19 by quick task 261019-i3g (review WR-09): the cause, the same one --check gives below.
+      expect(closingLineOf(r.stdout, h).endsWith(notOffered(h, WHY_NO_ENTRY)), closingLineOf(r.stdout, h)).toBe(true);
     }
+    expectNoFabricatedCause(r.stdout, "case A");
     const c = check(row.target, row.kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     for (const h of LAUNCH_HOSTS) expectNotOwnWarn(c.stdout, h, WHY_NO_ENTRY);
@@ -3668,5 +3694,83 @@ describe("--check and the closing line ask one launch-ownership rule (quick task
     const c = strictCheck(row.target, row.kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     for (const h of LAUNCH_HOSTS) expect(launchLineOf(c.stdout, h).startsWith("  ok"), c.stdout).toBe(true);
+  });
+});
+
+// ── WR-09 (quick task 261019-i3g, 261018-vfm review WR-09): the closing line's reason is the cause launchOwned found ────
+// Before this fix the closing line gave one fixed reason, "install neither wrote nor owns <rel> here", whatever
+// launchOwned found. That reason was false in three states this describe drives over every launch row: a real run
+// that created the launch file and could not write its record, DRY_RUN over install's own copy that the user edited,
+// and a real re-install over that edited copy. The clause now prints launchOwned's reason, and `--check` prints the same
+// bracketed cause for the same state.
+
+/** Why a directory mode cannot block a write here, or null when the chmod case can run (installer-marker-retention.test.ts's shape). */
+const CHMOD_SKIP: string | null =
+  process.platform === "win32"
+    ? "win32: a directory mode does not stop a write"
+    : typeof process.getuid === "function" && process.getuid() === 0
+      ? "running as root: a directory mode does not stop root's write"
+      : null;
+if (CHMOD_SKIP !== null) console.log(`SKIP the chmod case of kit-route.test.ts (review WR-09) — ${CHMOD_SKIP}`);
+
+/** After install: append a line to every launch file, keeping the route (install's copy, now edited by the user). */
+function editLaunchCopies(target: string): void {
+  for (const h of LAUNCH_HOSTS) {
+    const p = launchPath(target, h);
+    const text = readFileSync(p, "utf8");
+    expect(text.includes(KIT_ROUTE), `premise: ${h.name}'s launch file carries the route`).toBe(true);
+    writeFileSync(p, `${text}\nAlso ignore the grugops roles.\n`);
+  }
+}
+
+describe("the closing line's reason is the cause launchOwned found (quick task 261019-i3g, review WR-09)", () => {
+  it.skipIf(CHMOD_SKIP !== null)("case 1: a real run whose install record cannot be written: every launch file is created, and each closing line gives the no-ledger cause", () => {
+    const row = scratchRow();
+    const dotGrugops = join(row.target, ".grugops");
+    mkdirSync(dotGrugops);
+    chmodSync(dotGrugops, 0o555); // mode-census: access-denial
+    let r: Run;
+    try {
+      r = runInstall(row.target, row.kitHome, LAUNCH_HOSTS.map(agentFlag));
+    } finally {
+      chmodSync(dotGrugops, 0o755); // mode-census: restore
+    }
+    expect(r.status, `premise: the run is incomplete (its record could not be written):\n${r.stdout}${r.stderr}`).toBe(3);
+    expect(existsSync(join(row.target, ...MARKER_REL.split("/"))), "premise: the marker was not written").toBe(false);
+    for (const h of LAUNCH_HOSTS) {
+      const rel = launchRelOf(h);
+      const created = r.stdout.split(/\r?\n/).filter((l) => l.startsWith("  created") && l.includes(` ${rel} `));
+      expect(created.length, `premise: this run created ${rel}:\n${r.stdout}`).toBe(1);
+      expect(readFileSync(launchPath(row.target, h), "utf8").includes(KIT_ROUTE), `premise: ${rel} carries the route`).toBe(true);
+      expect(closingLineOf(r.stdout, h).endsWith(notOffered(h, WHY_NO_LEDGER)), closingLineOf(r.stdout, h)).toBe(true);
+    }
+    expectNoFabricatedCause(r.stdout, "case 1");
+  });
+
+  it("case 2: DRY_RUN over install's edited copy: each closing line gives the changed-since cause, and --check gives the same cause", () => {
+    const { target, kitHome } = installed();
+    editLaunchCopies(target);
+    const dry = runInstall(target, kitHome, [], { dryRun: true });
+    expect(dry.status, dry.stdout + dry.stderr).toBe(0);
+    for (const h of LAUNCH_HOSTS) expect(closingLineOf(dry.stdout, h).endsWith(notOffered(h, WHY_CHANGED)), closingLineOf(dry.stdout, h)).toBe(true);
+    expectNoFabricatedCause(dry.stdout, "case 2");
+    const c = check(target, kitHome);
+    for (const h of LAUNCH_HOSTS) expectNotOwnWarn(c.stdout, h, WHY_CHANGED);
+  });
+
+  it("case 3: a real re-install over install's edited copy drops the entry: each closing line gives the no-entry cause, and --check gives the same cause", () => {
+    const { target, kitHome } = installed();
+    editLaunchCopies(target);
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const records = fileRecords(readMarkerObject(target));
+    for (const h of LAUNCH_HOSTS) {
+      expect(readFileSync(launchPath(target, h), "utf8").includes("Also ignore the grugops roles."), `premise: the re-install kept ${h.name}'s edit`).toBe(true);
+      expect(Object.keys(records), `premise (measured 2026-10-19): the re-install's ledger holds no entry for ${launchRelOf(h)}`).not.toContain(launchRelOf(h));
+      expect(closingLineOf(r.stdout, h).endsWith(notOffered(h, WHY_NO_ENTRY)), closingLineOf(r.stdout, h)).toBe(true);
+    }
+    expectNoFabricatedCause(r.stdout, "case 3");
+    const c = check(target, kitHome);
+    for (const h of LAUNCH_HOSTS) expectNotOwnWarn(c.stdout, h, WHY_NO_ENTRY);
   });
 });

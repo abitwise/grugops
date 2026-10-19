@@ -132,6 +132,7 @@ import {
   readOwnedContent,
   jsonValueRecord,
   owns,
+  LEDGER_UNUSABLE_CAUSE,
   carriedKitRecord,
   readKitHomeRecord,
   KIT_ENTRY_PATH,
@@ -1533,8 +1534,9 @@ function linkOwnership(ledger: LedgerRead, rel: string): LinkOwnership {
   };
 }
 
-/** What launchOwned answers: the launch file is install's own here, or it is not, with the cause owns found. */
-type LaunchOwnership = { readonly own: true } | { readonly own: false; readonly why: string };
+/** What launchOwned answers: the launch file is install's own here, or it is not shown to be, with the whole reason
+ *  (the path, then the cause owns found) that both callers print as it is. */
+type LaunchOwnership = { readonly own: true } | { readonly own: false; readonly reason: string };
 
 // launchOwned (quick task 261019-faq, 261018-vfm review WR-08; class AUTH-1): THE ONE ANSWER to "is the launch file at
 // `rel` (a POSIX path under TARGET) install's own here", so "may the user start a session with this launch file" has
@@ -1545,24 +1547,37 @@ type LaunchOwnership = { readonly own: true } | { readonly own: false; readonly 
 // line (launchClosingClause). Before this fix the doctor said ok for any file at the launch path that held the route
 // sentence, whoever wrote it, while the closing line offered the launch form only for a file install owns: two rules
 // for one question, and on Pi the doctor endorsed someone else's system-prompt file.
-// THE REASON IS ONLY WHAT owns FOUND, in three arms: the record could not be used (a malformed ledger, worded as
-// notRecordedReason words it; or no ledger this run can use); the record has an entry for the path but the path no longer holds it (owns answers `recorded`: changed or
-// replaced since); or the record holds no entry for the path. It never says install did not write the file: a record
-// with no entry does not show that (an earlier install's record can be lost), and saying it would state a cause the
-// run did not establish. owns' own reasons end in uninstall's wording ("left in place"), so they are not printed here.
+// IT IS ALSO THE ONE PLACE FOR THE REASON (quick task 261019-i3g, review WR-09). The not-own answer carries the whole
+// clause, `<rel> is not shown to be install's copy (<cause>)`, and both callers print it verbatim: the doctor as
+// `launch file <reason>. --check cannot vouch ...`, the closing line as `; no launch form is offered, because <reason>`.
+// So one state gives one bracketed cause in both. Before it, the closing line printed a fixed reason of its own
+// ("install neither wrote nor owns"), false when this run wrote the file and could not record it or when the user
+// edited install's copy; the doctor's head said the file "is not install's copy", which an unusable record cannot show;
+// and two causes ended "so --check cannot show that it is", which is wrong in install's output.
+// THE CAUSE IS ONLY WHAT owns FOUND, in four arms: the record could not be used (a malformed ledger,
+// LEDGER_UNUSABLE_CAUSE, the sentence notRecordedReason words it with); no ledger this run can use (none, or an absent
+// or unreadable marker); the record has an entry for the path but the path no longer holds it (owns answers
+// `recorded`: changed or replaced since); or the record holds no entry for the path. It never says install did not
+// write the file: a record with no entry does not show that (an earlier install's record can be lost, and a run whose
+// record could not be written created the file), and saying it would state a cause the run did not establish. owns' own
+// reasons end in uninstall's wording ("left in place"), so they are not printed here.
 // Reads the ledger and lstat/readlink only; writes nothing. A function declaration over imports and TARGET, declared
 // above the doctor, so the doctor can ask it.
 function launchOwned(ledger: LedgerRead | null, rel: string): LaunchOwnership {
-  // A malformed ledger is worded as notRecordedReason (install-marker.ts) words it, without uninstall's "left in place":
-  // the doctor prints its own FAIL about the ledger, so the line names no position (install.test.ts MSG-1 T7).
+  let cause: string;
   if (ledger !== null && ledger.state === "malformed") {
-    return { own: false, why: "the install ledger in .grugops/install.json could not be used (this run reports why on its own line), so --check cannot show that it is" };
+    cause = LEDGER_UNUSABLE_CAUSE;
+  } else if (ledger === null || ledger.state !== "ok") {
+    cause = "there is no install ledger this run can use";
+  } else {
+    const o = owns(ledger, TARGET, rel, "file");
+    if (o.owned) return { own: true };
+    cause = o.recorded
+      ? "the install record has an entry for it, but the file there was changed or replaced since install wrote it"
+      : "the install record holds no entry for it";
   }
-  if (ledger === null || ledger.state !== "ok") return { own: false, why: "there is no install ledger this run can use, so --check cannot show that it is" };
-  const o = owns(ledger, TARGET, rel, "file");
-  if (o.owned) return { own: true };
-  if (o.recorded) return { own: false, why: "the install record has an entry for it, but the file there was changed or replaced since install wrote it" };
-  return { own: false, why: "the install record holds no entry for it" };
+  // The one template of the reason; both callers print it verbatim.
+  return { own: false, reason: `${rel} is not shown to be install's copy (${cause})` };
 }
 
 /** What refreshable answers: install would refresh the carrier (with the read and the bytes the refresh acts on), or
@@ -1906,7 +1921,8 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 //       absent → an uncounted `note` with absentRemedy;
 //       unread → WARN, no verdict (whose file it is cannot be judged for a file that was not read);
 //       not install's own (launchOwned, THE ONE OWNER install's closing line asks too, review WR-08) → a counted WARN
-//         whatever the file holds, with the cause launchOwned found, telling the user to read the file before starting
+//         whatever the file holds, printing launchOwned's reason ("<rel> is not shown to be install's copy (<cause>)",
+//         the one the closing line prints too, review WR-09), telling the user to read the file before starting
 //         a session with it, and the move-it-away remedy. Before this fix a file holding the route sentence was ok
 //         whoever wrote it, while the closing line offered no launch form for the same file;
 //       install's own, carrying the route, and step (a)'s route resolved → ok;
@@ -2016,7 +2032,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
   // Install's own stale copy: the remedy the carrier lines (d) and the launch-file lines (f) both print.
   const ownStaleRemedy = `Re-run install.js: it replaces install's own unedited copy with the current one: \`${doctorInstallCommand()}\``;
   // A launch file's one by-hand remedy (quick task 261019-faq, review WR-08): move the file away and let install write
-  // its own. The launch-file lines (f) print it for a file that is not install's copy, and pass it as userRemedy's
+  // its own. The launch-file lines (f) print it for a file not shown to be install's copy, and pass it as userRemedy's
   // `otherwise` for install's own file that lacks the route. The old second sentence (add KIT_ROUTE to the file you keep)
   // is gone: an edited launch file is no longer install's copy, so adding the sentence can never clear the line.
   const launchMoveRemedy = `To start grugops that way, move that file elsewhere and re-run install.js, which writes its launch file where nothing is: \`${doctorInstallCommand()}\``;
@@ -2101,7 +2117,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       const own = launchOwned(ledger, rel);
       if (!own.own) {
         docWarn(
-          `launch file ${rel} is not install's copy (${own.why}). --check cannot vouch for what ${session} reads (${host.name}), ` +
+          `launch file ${own.reason}. --check cannot vouch for what ${session} reads (${host.name}), ` +
             `so read that file before you start a session with it. ${aside}. ${launchMoveRemedy}`,
         );
       } else if (cls.state === "route" && routeResolves) {
@@ -7699,7 +7715,9 @@ function askRulesNotes(outcome: AskRulesOutcome): string[] {
 //   - One line per chosen agent, in registry order: its name, the entries of the install record after this run that
 //     it owns (host-tools.ts entryOwners, the one owner of that answer; a footprint prefix such as `.claude/` is shown
 //     once with its count), and its `invoke` text, then launchClosingClause's (the launch form only for a launch file
-//     install owns, review WR-03; launchOwned answers that, for the doctor too). Under DRY_RUN nothing was recorded, and the line says so. A chosen
+//     install owns, review WR-03; launchOwned answers that, for the doctor too; when no form is offered the clause
+//     names the cause launchOwned found, review WR-09, and never says install did not write the file). Under DRY_RUN
+//     nothing was recorded, and the line says so. A chosen
 //     agent with nothing recorded (a user's own file at its entry path, a refusal) says that, and points at the lines
 //     above, which name why.
 //   - One line saying the invocation forms come from each host's documentation or, for a launch form marked verified
@@ -7721,15 +7739,18 @@ function askRulesNotes(outcome: AskRulesOutcome): string[] {
 // too (quick task 261019-faq, review WR-08), so `--check` says ok for a launch file exactly when this clause offers its
 // form. Under DRY_RUN, nothing was written: it is offered when the run would write the file (PLANNED_BYTES has it:
 // would-add, would-refresh; a planned write is install-run state the doctor never has) or launchOwned over the record
-// the run started from answers own. A user's
-// own file at the launch path, or a write that was refused, gets the reason instead: the printed form would start that
-// user's file, or (on Pi) append the literal path text, not the grugops Orchestrator. "" for a row with no launch file.
+// the run started from answers own. Otherwise no form is offered (the printed form could start a user's own file, or,
+// on Pi, append the literal path text, not the grugops Orchestrator), and the clause prints launchOwned's reason as it
+// is (quick task 261019-i3g, review WR-09): the cause the record shows, never a claim that install did not write the
+// file. This function holds no reason text of its own (install/host-tools.test.ts holds that by a census), so the
+// closing line and the doctor's WARN give the same cause for the same state. "" for a row with no launch file.
 function launchClosingClause(h: HostTool, ledgerAfter: LedgerRead | null): string {
   const clause = launchInvoke(h);
   if (clause === null || h.launchAgent === null) return "";
   const rel = h.launchAgent;
-  const owned = (DRY_RUN && PLANNED_BYTES.has(rel)) || launchOwned(DRY_RUN ? PREVIOUS_LEDGER : ledgerAfter, rel).own;
-  return owned ? `; or ${clause}` : `; no launch form is offered, because install neither wrote nor owns ${rel} here`;
+  if (DRY_RUN && PLANNED_BYTES.has(rel)) return `; or ${clause}`;
+  const own = launchOwned(DRY_RUN ? PREVIOUS_LEDGER : ledgerAfter, rel);
+  return own.own ? `; or ${clause}` : `; no launch form is offered, because ${own.reason}`;
 }
 
 function agentClosingLines(): string[] {

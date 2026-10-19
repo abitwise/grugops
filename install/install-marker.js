@@ -1125,6 +1125,12 @@ export const opencodePermissionEntry = (fields) => ({
     path: OPENCODE_CONFIG_REL,
     kind: "opencode-permission",
 });
+// LEDGER_UNUSABLE_CAUSE (quick task 261019-i3g, 261018-vfm review WR-09): the one spelling of "the install ledger
+// could not be used" as a cause. Its two users are notRecordedReason's malformed arm (below) and install.ts launchOwned,
+// which words why a launch file is not shown to be install's copy. Before it, launchOwned held a second literal of this
+// sentence (quick task 261019-faq, deviation 2). It names no position: install prints its verify about a malformed
+// ledger and the doctor prints a FAIL, so "this run reports why on its own line" holds in both binaries.
+export const LEDGER_UNUSABLE_CAUSE = "the install ledger in .grugops/install.json could not be used (this run reports why on its own line)";
 // notRecordedReason (re-review IN-01, plan 33.1-28; moved here with owns, plan 33.1-36): the ONE wording
 // of "there is no install record for this path", chosen from the ledger's state. It says what the record
 // shows, never more: a path missing from a readable ledger has no record that install created it, which
@@ -1136,7 +1142,7 @@ export function notRecordedReason(ledger, what) {
     if (ledger.state === "malformed") {
         // No position is named (D-26, brief MSG-1): install prints its verify about the ledger after the passes that use
         // this reason, and the doctor prints a FAIL, not a verify.
-        return "the install ledger in .grugops/install.json could not be used (this run reports why on its own line), so there is no record that install created it; left in place";
+        return `${LEDGER_UNUSABLE_CAUSE}, so there is no record that install created it; left in place`;
     }
     return "there is no install marker this run can use, so there is no record that install created it; left in place";
 }

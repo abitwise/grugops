@@ -5033,6 +5033,11 @@ describe("D-37: every reading that says the marker cannot be used carries the ow
 // rows. The new reading is the doctor's launch-file WARN (install.ts kitRouteFindings step (f)): "launch file <rel> is
 // not install's copy", about a launch file, never the marker. Its cause comes from launchOwned; for a malformed ledger
 // that cause says the install ledger could not be used, which is not a claim that the marker is not install's.
+// Re-pinned 2026-10-19 by quick task 261019-i3g (261018-vfm review WR-09), derived by running the walk: 3 readings, 3
+// rows. The launch-file row is gone because the WARN no longer says "not install's": launchOwned now builds the whole
+// reason, "<rel> is not shown to be install's copy (<cause>)", which the WARN prints as `launch file ${own.reason}`, so
+// no reading of it matches NOT_INSTALLS. "Is not install's copy" stated what an unusable record cannot show. Every
+// check of the census is kept; the walk found no new reading.
 
 /** The two retired wordings D-43 names. */
 const NOT_INSTALLS = /not install's|not the marker install writes/i;
@@ -5054,13 +5059,6 @@ const NOT_INSTALLS_EXEMPT: readonly NotInstallsRow[] = [
     "${path}: ${previous.why}. It is not install's kit-home record, so it was left as it is and this run was not recorded there (the backup ${join(GRUGOPS_HOME, made.path)} is unrecorded; remove it by hand when you no longer need it).",
     "the kit-home record",
     "writeKitHomeRecord's verify over an unreadable kit-home record, with this run's backup",
-  ],
-  [
-    "install.ts",
-    "kitRouteFindings",
-    "launch file ${rel} is not install's copy (${own.why}). --check cannot vouch for what ${session} reads (${host.name}), so read that file before you start a session with it. ${aside}. ${launchMoveRemedy}",
-    "the launch file",
-    "the doctor's launch-file WARN for a file at a launch path that launchOwned does not answer own (quick task 261019-faq, review WR-08)",
   ],
 ];
 interface NotInstallsSite {
@@ -5104,7 +5102,7 @@ describe("D-43: no printed reading says the marker is not install's", () => {
     }
   });
 
-  it("every reading that says NOT_INSTALLS equals NOT_INSTALLS_EXEMPT both ways, with counts; 4 readings, 4 rows", () => {
+  it("every reading that says NOT_INSTALLS equals NOT_INSTALLS_EXEMPT both ways, with counts; 3 readings, 3 rows", () => {
     const sites = notInstallsCensus();
     const found = new Map<string, number>();
     for (const s of sites) found.set(notInstallsKey(s.module, s.fn, s.text), (found.get(notInstallsKey(s.module, s.fn, s.text)) ?? 0) + 1);
@@ -5116,8 +5114,8 @@ describe("D-43: no printed reading says the marker is not install's", () => {
     expect(unclassified, "a reading says not install's and is not an exempt row (about the marker, it is a WR-38 sibling for the human)").toEqual([]);
     expect(stale, "an exempt row is gone or changed").toEqual([]);
     expect(counts, "an exempt reading is printed a different number of times").toEqual([]);
-    expect(sites.length, "the census size moved").toBe(4);
-    expect(NOT_INSTALLS_EXEMPT.length, "the exempt table's size moved").toBe(4);
+    expect(sites.length, "the census size moved").toBe(3);
+    expect(NOT_INSTALLS_EXEMPT.length, "the exempt table's size moved").toBe(3);
   });
 
   it("every exempt row names the object it is about, the reading names it too, and no row or reading is about the marker", () => {

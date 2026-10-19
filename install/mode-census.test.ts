@@ -59,7 +59,8 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
 
 /** Sizes of the scanned sets, counted when this census was written (plan 34-14). INSTALL_TEST_FILE_COUNT is 29
  * since plan 34-25 added closing-claims.test.ts, which has no chmod call and no mode expectation; 30 since plan
- * 34-27 added kit-route.test.ts, which has neither either (its ledger edit uses contentRecord, a record with no mode).
+ * 34-27 added kit-route.test.ts, which had neither either (its ledger edit uses contentRecord, a record with no mode;
+ * since 2026-10-19, quick task 261019-i3g, it has one tagged access-denial chmod and its restore, counted under rule (a)).
  * 31 since plan 34.1-01 added host-entries.test.ts, which has no chmod call and no literal expected mode (its expected
  * record takes the mode read back from the installed file, as writtenFileRecord does). SCRIPTS_TEST_FILE_COUNT is 72
  * since plan 34.1-01 added scripts/generate-host-entries.test.ts, which has no chmod call and reads no `.mode`; 73
@@ -101,10 +102,14 @@ const SOURCE_FILE_COUNT = 9;
  * root). row-315 5 -> 7 and restore 22 -> 24 on 2026-10-13 (plan 34.1-49, D-38, DI-17): installer-prune.test.ts's DI-17
  * prune row makes the marker and the kit-home record read-only so the prune's record rewrite fails under a non-default
  * kit home (the failed-rewrite case's setup, in a file WINDOWS.md row 315 names), and restores both in a `finally`
- * before following the printed command; the case is skipped with a printed reason on win32 and as root. */
+ * before following the printed command; the case is skipped with a printed reason on win32 and as root.
+ * access-denial 15 -> 16 and restore 24 -> 25 on 2026-10-19 (quick task 261019-i3g, 261018-vfm review WR-09):
+ * kit-route.test.ts case 1 makes an empty `.grugops/` read-only before a fresh install so the install record cannot be
+ * written, and gives the write bit back in a `finally`; the case is skipped with a printed reason on win32 and as root.
+ * Measured per file and kind by this census's own failure message. */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 15,
-  restore: 24,
+  "access-denial": 16,
+  restore: 25,
   "row-315": 7,
   "posix-bits": 2,
 };
