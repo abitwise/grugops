@@ -80,6 +80,23 @@ Role edits here are mechanical path substitutions only.
   (4) the grep-to-zero gate turns on last, once sites outside the allow-list reach zero. The suite stays
   green across waves.
 
+### Plan-time amendments (human, 2026-10-20, after research)
+- **D-14:** Amends D-03. The fallback rule is one exported constant (`LEGACY_FALLBACK_CLAUSE` in
+  `install/state-layout.ts`) placed verbatim in INVARIANT, AGENTS.md § Kit vs state, the packaging copies,
+  the skill sources, and also on `agent-factory/roles/orchestrator.md` line 8 (the kit-home invariant copy).
+  Reason: `--update` refreshes only the kit home and D-05 refuses a plain install on the old layout, so an
+  unmigrated repo never receives the per-repo copies; the kit-home Orchestrator is the copy it reads. A test
+  asserts every carrier holds the clause verbatim. — **Reversibility:** reversible
+- **D-15:** Refines D-10. The old-spelling gate subtracts exact occurrences of `LEGACY_FALLBACK_CLAUSE` from
+  each file's text before counting; it does not allow-list the files that carry the clause. Any other old
+  spelling in those files still counts.
+- **D-16:** Refines D-09. `docs/initial/**` (the original spec) is allow-listed as history.
+  `docs/design/shared-install.md` is rewritten to the new paths. `docs/audit/28-claim-registry.md` stays
+  allow-listed but is a live consumer of `check-claim-anchors`: its verbatim claim blocks are edited in the
+  same commit as their anchors in AGENTS.md and `agent-factory/README.md`. That edit is not a D-09 rewrite.
+- **D-17:** LAYOUT-01's UAT is satisfied by a `uat` subpath constant in `state-layout.ts` and a seeded
+  `memory-bank/plans/uat/.gitkeep`. No role behavior changes.
+
 ### Claude's Discretion
 - Exact file location and export names inside `install/state-layout.ts` (research proposes
   `STATE_ROOT_REL = "memory-bank/plans"` plus fixed subpaths); budget constants may be placeholders
