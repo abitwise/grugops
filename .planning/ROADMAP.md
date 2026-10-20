@@ -144,7 +144,12 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
   2. The decision states what a user may do with such a tool themselves and names the concrete trigger for revisiting the decision (GRAPH-01)
   3. The decision states that no graph-tool output enters the shared context without a verification stamp, and it repeats no vendor token-saving number as a grugops result (GRAPH-02)
   4. No file outside `.planning/` changes in this phase
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+**Wave 1**
+
+- [ ] 35-01-PLAN.md — TRACER: the `[v3.0, D-10]` Key Decisions row leads to `35-DECISION.md` (not adopted, nothing built); then the tools table, reasons, posture, stamp rule, no-figure vendor statement and both-conditions trigger; then four phase-local checks prove no figure, no change outside `.planning/`, and green PROJECT.md readers [GRAPH-01, GRAPH-02]
 **Notes**: Standard pattern (decision record); no research phase needed.
 
 ### Phase 36: State-layout authority, path move and protection
