@@ -149,7 +149,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
 Plans:
 **Wave 1**
 
-- [ ] 35-01-PLAN.md — TRACER: the `[v3.0, D-10]` Key Decisions row leads to `35-DECISION.md` (not adopted, nothing built); then the tools table, reasons, posture, stamp rule, no-figure vendor statement and both-conditions trigger; then four phase-local checks prove no figure, no change outside `.planning/`, and green PROJECT.md readers [GRAPH-01, GRAPH-02]
+- [ ] 35-01-PLAN.md — TRACER: the `[v3.0, D-10]` Key Decisions row leads to `35-DECISION.md` (not adopted, nothing built); then the tools table, reasons, posture, stamp rule, no-figure vendor statement and both-conditions trigger; then a reader review confirms no figure, and git checks confirm no change outside `.planning/` and green PROJECT.md readers [GRAPH-01, GRAPH-02]
 **Notes**: Standard pattern (decision record); no research phase needed.
 
 ### Phase 36: State-layout authority, path move and protection
