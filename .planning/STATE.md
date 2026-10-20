@@ -5,11 +5,11 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: planning
-stopped_at: Phase 35 complete, ready to plan Phase 36
-last_updated: "2026-10-20T18:38:27.964Z"
+stopped_at: Phase 36 context gathered
+last_updated: "2026-10-20T19:17:13.297Z"
 last_activity: 2026-10-20
 last_activity_desc: Phase 35 complete, transitioned to Phase 36
-state_head: 02108c02fff116a17b58e410c95b4acba2ba3fa9
+state_head: 6ba2d551125675151334f7bf32291a4b2bbfb1c3
 progress:
   total_phases: 9
   completed_phases: 1
@@ -2292,9 +2292,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-20T13:54:52.801Z
-Stopped at: Phase 35 complete, ready to plan Phase 36
-Resume file: None
+Last session: 2026-10-20T19:17:13.241Z
+Stopped at: Phase 36 context gathered
+Resume file: .planning/phases/36-state-layout-authority-path-move-and-protection/36-CONTEXT.md
 
 ## Operator Next Steps
 
