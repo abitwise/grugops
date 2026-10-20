@@ -2,11 +2,16 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
+current_phase: 35
+current_phase_name: Graph-memory decision record
 status: planning
-last_updated: "2026-10-19T21:38:24.916Z"
+stopped_at: v3.0 roadmap created (Phases 35–43); awaiting human approval
+last_updated: "2026-10-19T22:20:41.553Z"
 last_activity: 2026-10-20
+last_activity_desc: v3.0 roadmap created (9 phases, 51/51 requirements mapped)
+state_head: d2d526a94aac569c2be8dc19942c533b6918363e
 progress:
-  total_phases: 0
+  total_phases: 9
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-20 — milestone v3.0 started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Milestone v3.0 — defining requirements (phases continue from 35)
+**Current focus:** Milestone v3.0 — roadmap created (Phases 35–43); next: plan Phase 35 (may run in parallel with Phase 36)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 35 of 43 (Graph-memory decision record)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-10-20 — Milestone v3.0 started
+Status: Ready to plan
+Last activity: 2026-10-20 — v3.0 roadmap created (9 phases, 51/51 requirements mapped)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2282,10 +2287,10 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-17T19:09:27.788Z
-Stopped at: Completed 34.1-62-PLAN.md
+Last session: 2026-10-19T22:20:41.502Z
+Stopped at: v3.0 roadmap created (Phases 35–43); awaiting human approval
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan Phase 35 with /gsd-plan-phase 35 (Phase 36 may start in parallel)

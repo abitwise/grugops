@@ -115,12 +115,63 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| GRAPH-01 | Phase 35 | Pending |
+| GRAPH-02 | Phase 35 | Pending |
+| LAYOUT-01 | Phase 36 | Pending |
+| LAYOUT-02 | Phase 36 | Pending |
+| LAYOUT-03 | Phase 36 | Pending |
+| LAYOUT-04 | Phase 36 | Pending |
+| LAYOUT-05 | Phase 36 | Pending |
+| SPLIT-01 | Phase 37 | Pending |
+| SPLIT-02 | Phase 37 | Pending |
+| SPLIT-03 | Phase 37 | Pending |
+| SPLIT-04 | Phase 37 | Pending |
+| SPLIT-05 | Phase 37 | Pending |
+| SPLIT-06 | Phase 37 | Pending |
+| SPLIT-07 | Phase 37 | Pending |
+| MIGRATE-01 | Phase 38 | Pending |
+| MIGRATE-02 | Phase 38 | Pending |
+| MIGRATE-03 | Phase 38 | Pending |
+| MIGRATE-04 | Phase 38 | Pending |
+| MIGRATE-05 | Phase 38 | Pending |
+| MIGRATE-06 | Phase 38 | Pending |
+| MIGRATE-07 | Phase 38 | Pending |
+| TIER-01 | Phase 39 | Pending |
+| TIER-02 | Phase 39 | Pending |
+| TIER-03 | Phase 39 | Pending |
+| TIER-04 | Phase 39 | Pending |
+| TIER-05 | Phase 39 | Pending |
+| TIER-06 | Phase 39 | Pending |
+| TIER-07 | Phase 39 | Pending |
+| PLAIN-01 | Phase 40 | Pending |
+| PLAIN-02 | Phase 40 | Pending |
+| PLAIN-03 | Phase 40 | Pending |
+| PLAIN-04 | Phase 40 | Pending |
+| PLAIN-05 | Phase 40 | Pending |
+| PLAIN-06 | Phase 40 | Pending |
+| PLAIN-07 | Phase 40 | Pending |
+| RUN-01 | Phase 41 | Pending |
+| RUN-02 | Phase 41 | Pending |
+| RUN-03 | Phase 41 | Pending |
+| RUN-04 | Phase 41 | Pending |
+| RUN-05 | Phase 41 | Pending |
+| RUN-06 | Phase 41 | Pending |
+| SKILL-01 | Phase 42 | Pending |
+| SKILL-02 | Phase 42 | Pending |
+| SKILL-03 | Phase 42 | Pending |
+| SKILL-04 | Phase 42 | Pending |
+| SKILL-05 | Phase 42 | Pending |
+| STORY-01 | Phase 43 | Pending |
+| STORY-02 | Phase 43 | Pending |
+| STORY-03 | Phase 43 | Pending |
+| STORY-04 | Phase 43 | Pending |
+| STORY-05 | Phase 43 | Pending |
 
 **Coverage:**
 - v3.0 requirements: 51 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 51
+- Mapped to phases: 51 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-10-20*
-*Last updated: 2026-10-20 after initial definition*
+*Last updated: 2026-10-20 after roadmap creation (Phases 35–43)*

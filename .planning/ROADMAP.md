@@ -7,6 +7,7 @@
 - ✅ **v1.2 SDLC Depth, Quality Discipline & Browsable Docs** — Phases 10–19 (shipped 2026-06-16)
 - ✅ **v2.0 Decentralized Factory — Shared Verified Context** — Phases 20–26 (shipped 2026-07-28)
 - ✅ **v2.1 Autonomous Factory — Real Spawning, Controlled Language & Live Board** — Phases 27–34.1 (shipped 2026-10-18, gaps accepted)
+- 🚧 **v3.0 Specialist agents. Shared context. Coordinated work.** — Phases 35–43 (in progress, started 2026-10-20)
 
 ## Overview
 
@@ -18,6 +19,8 @@ grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the sha
 
 **The expensive lesson, twice over:** a green suite is a precondition, never proof, for a safety invariant (v2.0: 13 catches). v2.1 added the remedy for loops that will not converge — a canonical form that refuses everything outside one allow-list, or moving enforcement to the system of record — and a four-round cap after which a human closes the phase by decision.
 
+**v3.0 makes the kit easier to read and keeps its state files small.** The measured problem is state bloat on the dogfood repo (board 718 KB, traceability 1.9 MB, NFR catalog 369 KB), caused by agents using the board as their in-flight log and hand-appending to generated files. v3.0 moves planning state under `memory-bank/plans/` behind one path authority, splits it into one file per record with small indexes and byte budgets, migrates existing repos without deleting anything, adds a Tech Lead that sizes work for three engineer levels and a Designer, rewrites every role in plain English, keeps the Orchestrator's capacity full, lets roles pick skills, and retells the story with layered docs. Graph memory is decided against, not built.
+
 ## Phases
 
 **Phase Numbering:**
@@ -25,7 +28,7 @@ grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the sha
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-Phase numbering is continuous across milestones — it never resets. v2.1 ran Phases 27–34.1; the next milestone continues from Phase 35.
+Phase numbering is continuous across milestones — it never resets. v2.1 ran Phases 27–34.1; v3.0 runs Phases 35–43.
 
 <details>
 <summary>✅ v1.0 MVP — Full Agent Factory v2 (Phases 1–6) — SHIPPED 2026-06-04</summary>
@@ -105,6 +108,168 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirements: `milestones/v2.1-REQUIREMENTS.md` · audit: `milestones/v2.1-MILESTONE-AUDIT.md` · phase artifacts: `milestones/v2.1-phases/` · quick tasks: `milestones/v2.1-quick/`
 
 </details>
+
+### 🚧 v3.0 Specialist agents. Shared context. Coordinated work. (Phases 35–43) — ACTIVE
+
+**Milestone goal:** Make grugops easier to understand, cheaper to run and better at keeping parallel work moving: plain-language roles, a state layout whose files stay small, a Tech Lead that sizes work for three engineer levels, an Orchestrator that keeps capacity full, roles that pick skills, and a new storyline with layered docs.
+
+- [ ] **Phase 35: Graph-memory decision record** - one recorded decision: graph memory is not adopted, nothing is built, what a user may do with such a tool themselves, and when to revisit
+- [ ] **Phase 36: State-layout authority, path move and protection** - planning state moves under `memory-bank/plans/` behind one constants-only path authority, protected from prune and uninstall, with old-layout repos still working
+- [ ] **Phase 37: Overview board, per-file records and budgets** - the board becomes a one-line-per-ticket overview, NFRs and traceability become one file per record with indexes, and byte budgets are checked in grugops and in host repos
+- [ ] **Phase 38: install --migrate v3** - an old-layout repo moves to the v3 layout with one command that keeps every original, proves line conservation and re-runs as a no-op (the data-loss surface, in its own phase)
+- [ ] **Phase 39: Role machinery: engineer levels, Tech Lead and Designer roles, skills key** - a Tech Lead scores and pre-plans, one engineer role yields junior/mid/senior adapters on Claude Code, a Designer role exists, roles can declare skills, and every role and adapter set stays derived
+- [ ] **Phase 40: Plain-language role rewrite** - caveman retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English within 67,383 bytes, every load-bearing rule kept, "do less" rules added
+- [ ] **Phase 41: Orchestrator flow guidance** - the Orchestrator reads running work from disk, refills free capacity on each completion, knows when to start a fresh session, and the same guidance works on all six hosts
+- [ ] **Phase 42: Skills per role and evaluation** - each role names the skills it may use with a fallback, third-party skills are evaluated and recommended only as optional pinned installs, and the doctor warns on a missing skill
+- [ ] **Phase 43: Story and layered docs** - the README tells the new story, the main docs explain how grugops works with worked examples, and every agent and skill has a generated, freshness-gated reference page
+
+**Dependencies:** 35 is independent and may run in parallel with 36. 36 → 37 → 38. 37 → 39, so 39 may run in parallel with 38. 39 → 40 → 41. 42 needs both 39 and 40. 43 needs every other phase.
+
+**Gap-closure cap:** every phase gets at most four gap-closure rounds; after that a human closes it by decision or override, with the residuals recorded. Budget the extra rounds for Phase 38 (the data-conserving splitter) and Phase 39 (count-and-membership guards); this repo has needed several rounds to close both classes before.
+
+**Research flags:** plan Phases 38, 39, 41 and 42 with `/gsd-plan-phase <N> --research-phase`. Phases 35, 36, 37, 40 and 43 follow patterns already in the repo.
+
+**Decisions this milestone rests on:** PROJECT.md Key Decisions tagged `[v3.0]` (D-1..D-9). Research: `research/SUMMARY.md` (detail in `research/STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md`).
+
+**Carried from v2.1 and not scheduled here:** GAP-D1 own-session spawn capture, KIT-03/SPAWN-04 promotion, UATX-01/06, Windows (CAP-02, HOST-02), live per-host runs, backlog 999.1–999.11 (see REQUIREMENTS.md Future Requirements). The `CLAUDE.md` `/grug` drift lands in Phase 43 (STORY-05).
+
+## Phase Details
+
+### Phase 35: Graph-memory decision record
+**Goal**: A maintainer can read one recorded decision that settles graph memory for v3.0: not adopted and nothing built, so no later phase builds or reserves anything for it
+**Depends on**: Nothing (independent; may run in parallel with Phase 36)
+**Requirements**: GRAPH-01, GRAPH-02
+**Success Criteria** (what must be TRUE):
+  1. A maintainer can open one recorded decision that names graphify and the comparable tools evaluated and states that graph memory is not adopted and nothing is built (GRAPH-01)
+  2. The decision states what a user may do with such a tool themselves and names the concrete trigger for revisiting the decision (GRAPH-01)
+  3. The decision states that no graph-tool output enters the shared context without a verification stamp, and it repeats no vendor token-saving number as a grugops result (GRAPH-02)
+  4. No file outside `.planning/` changes in this phase
+**Plans**: TBD
+**Notes**: Standard pattern (decision record); no research phase needed.
+
+### Phase 36: State-layout authority, path move and protection
+**Goal**: Every part of grugops names planning state under `memory-bank/plans/` through one path authority, state is never pruned or uninstalled, and a repo still on the old layout keeps working after a kit update
+**Depends on**: Nothing (first phase of the layout chain; builds on shipped v2.1)
+**Requirements**: LAYOUT-01, LAYOUT-02, LAYOUT-03, LAYOUT-04, LAYOUT-05
+**Success Criteria** (what must be TRUE):
+  1. A fresh install seeds the board, tickets, epics, features, sprints, releases, NFRs, traceability, metrics and UAT under `memory-bank/plans/`, and seed files, roles, workflows, tooling and docs all name the new paths (LAYOUT-01)
+  2. One constants-only layout module is the only place a state path or budget is spelled: readers, writers, the validator, the installer and the uninstaller import it, and a gate fails on any old `plans/` spelling (slash, `join(...)` or backslash form) outside a named allow-list whose count is derived, not typed (LAYOUT-02)
+  3. Install pruning and uninstall both leave every state root, including `memory-bank/`, untouched, and both read that set from one exported list (LAYOUT-03)
+  4. A user whose repo is still on the old layout keeps working after a kit update: roles fall back to `plans/` and print a one-line "run `install --migrate`" notice, and a plain install refuses to seed new state there and names the command (LAYOUT-04)
+  5. grugops's own repo state lives in the new layout and its validator and gates pass on it (LAYOUT-05)
+**Plans**: TBD
+**Notes**: D-4 sets the old-layout behavior. The gate derives its own count of old spellings (research counts disagree: 1,293 occurrences vs 1,187 lines in 336 files). Every scratch install sets `GRUGOPS_HOME`. Full role prose waits for Phase 40; path edits here are mechanical.
+
+### Phase 37: Overview board, per-file records and budgets
+**Goal**: State files stay small: the board is a one-line-per-ticket overview, NFRs and traceability are one file per record with one-line indexes, and byte budgets are checked both in grugops and in every host repo
+**Depends on**: Phase 36
+**Requirements**: SPLIT-01, SPLIT-02, SPLIT-03, SPLIT-04, SPLIT-05, SPLIT-06, SPLIT-07
+**Success Criteria** (what must be TRUE):
+  1. The board contract changes first; the board then shows one short line per ticket per column and at most one `_Updated:` line, blocked reasons and other detail live in the ticket body, and the ticket frontmatter key set is unchanged unless a recorded decision adds a key (SPLIT-01, SPLIT-07)
+  2. Each NFR is its own file and each ticket has its own trace file rendered from published note refs, with `nfr-catalog.md` and `traceability.md` as one-line-per-entry indexes, and no role tells an agent to append to traceability by hand (SPLIT-02, SPLIT-03)
+  3. The validator enforces per-file byte budgets for the board, index entries, tickets, NFR files, trace files and `60-progress.md`, warning on an unmigrated repo and failing on a migrated one (SPLIT-04)
+  4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
+  5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
+**Plans**: TBD
+**Notes**: D-6 (trace per ticket, rendered) and D-7 (archive-only surfaces). New ticket detail goes in ticket bodies, not new keys.
+
+### Phase 38: install --migrate v3
+**Goal**: A user with an old-layout repo moves it to the v3 layout with one command that deletes nothing, proves nothing was lost, and is safe to run twice
+**Depends on**: Phase 37
+**Requirements**: MIGRATE-01, MIGRATE-02, MIGRATE-03, MIGRATE-04, MIGRATE-05, MIGRATE-06, MIGRATE-07
+**Success Criteria** (what must be TRUE):
+  1. `install --migrate --dry-run` prints every planned move and split with per-file byte counts and leaves the repo unchanged; `install --migrate` then moves the repo to the v3 layout (MIGRATE-01)
+  2. After migration the original monolith files sit unchanged in `memory-bank/plans/archive/pre-v3/`, outside every budget, the split files are new files, board row trailers (blocked reasons, notes) appear verbatim in ticket bodies, and nothing was deleted or rewritten in place (MIGRATE-02, MIGRATE-05)
+  3. Migration proves that every original line appears in the split output or the archive, and when the proof fails it rolls the split back and says why (MIGRATE-03)
+  4. Migration detects old, new, both and neither layouts, refuses the "both" state and a non-empty `queue/claimed/`, writes a layout marker, and a second run is a byte-identical no-op (MIGRATE-04)
+  5. With the opt-in flag, finished-ticket `.grugops/context/` folders are moved, not changed, into a separate archive folder and trace rendering still reads them; the whole migration has been run on a copy of `cli-chess-example` under a scratch `GRUGOPS_HOME` with before/after sizes recorded (MIGRATE-06, MIGRATE-07)
+**Plans**: TBD
+**Research flag**: plan with `--research-phase` (migrate state machine, trace-render over two roots, the shapes found in real hand-written boards for the conservation proof).
+**Notes**: The first operation that rewrites user state (D-8). A frozen pre-v3 fixture comes first. Budget extra gap rounds under the four-round cap.
+
+### Phase 39: Role machinery: engineer levels, Tech Lead and Designer roles, skills key
+**Goal**: The kit can match each ticket to the right engineer level: a Tech Lead scores and pre-plans, one engineer role yields three level adapters on Claude Code, a Designer role exists, and roles can declare skills, while every role and adapter set still follows the filesystem
+**Depends on**: Phase 37
+**Requirements**: TIER-01, TIER-02, TIER-03, TIER-04, TIER-05, TIER-06, TIER-07
+**Success Criteria** (what must be TRUE):
+  1. A Tech Lead role scores a ticket's complexity on a written per-factor rubric, records the score and the chosen engineer level in a note and in the ticket body, and pre-plans the dev tasks (TIER-01)
+  2. A Claude Code install gets three engineer adapters generated from one `software-engineer.md`: junior (haiku, effort medium), mid (sonnet) and senior (opus), each with its own effort; on the other five hosts the level is guidance; the MODEL-01 baseline is re-pinned by recorded decision, not by loosening the test (TIER-02, TIER-06)
+  3. The junior level takes only tasks whose plan already fixes what to write and never security, migration, concurrency or test-integrity work, with the D-09 amendment and the Claude Code v2.1.293 floor recorded; a stuck or twice-failed engineer escalates one level once through a `failed-attempt` note and a queue re-enqueue, never a relayed prompt (TIER-03, TIER-04)
+  4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
+  5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
+**Plans**: TBD
+**Research flag**: plan with `--research-phase` (kit-model variant mechanism, config namespace for level stems, `CANONICAL_SCHEMA` list grammar for `skills:`, per-host model-field semantics, `effort` on haiku).
+**Notes**: D-2, D-3, D-5 and D-9 (no `level` ticket key). Counts move once here so Phase 40 writes under a stable ceiling table; research expects roles 17 → 19 and adapters 17 → 21, which the guards must derive, not type. Tier rationales are quality arguments only. Budget extra gap rounds under the four-round cap.
+
+### Phase 40: Plain-language role rewrite
+**Goal**: Every role reads as clear, compact English that says more about the role than today, within today's byte budget, and keeps every rule that holds the factory safe
+**Depends on**: Phase 39
+**Requirements**: PLAIN-01, PLAIN-02, PLAIN-03, PLAIN-04, PLAIN-05, PLAIN-06, PLAIN-07
+**Success Criteria** (what must be TRUE):
+  1. No role carries a caveman block; the voice constraint, the section list, the voice guards, the writing profile, claim C-28-003 and `CLAUDE.md` changed together in one atomic change, and the inverted guard was seen failing before it passed (PLAIN-01)
+  2. All 19 roles and the role-switch protocol state each role's goal, inputs, outputs, board moves, hard limits and stop conditions in more detail than before, and the role-rule inventory generated before the rewrite (no-fabrication, `UNKNOWN - verify`, WF16/WF18 pointers, absent-config fallback, board-move ownership as a partition) still holds after it (PLAIN-02, PLAIN-03)
+  3. All role files together stay within 67,383 bytes, a guard fails when they go over, and each role has a recorded per-file ceiling (PLAIN-04)
+  4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
+  5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
+**Plans**: TBD
+**Notes**: D-1 (one corpus total that includes Tech Lead and Designer). The caveman flip is the first plan. `scripts/voice-model.ts` is hash-pinned in the admission hook's frozen manifest: change its consumers, not the file.
+
+### Phase 41: Orchestrator flow guidance
+**Goal**: The Orchestrator keeps parallel work moving: it reads what is running from disk, refills free capacity as each task finishes, knows when to start a fresh session, and the same guidance works on all six hosts
+**Depends on**: Phase 40
+**Requirements**: RUN-01, RUN-02, RUN-03, RUN-04, RUN-05, RUN-06
+**Success Criteria** (what must be TRUE):
+  1. `now-running.md`, rendered from the queue's `claimed/` set, is the Orchestrator's only in-flight log; it holds only running work and empties as tasks finish (RUN-01)
+  2. When a task completes, the Orchestrator closes the finished agent and refills free capacity (`wip_limit` minus the `claimed/` count read from disk) with ready work, using no timers and no polling, and agents claim and complete tasks with the shipped `claim.js` runnable instead of by hand (RUN-02, RUN-05)
+  3. Workflow 17 holds "session compaction" guidance, named apart from WF18 note compaction, that uses signals the Orchestrator can observe, with a fresh session that re-reads the in-flight log as the fallback on every host; `orchestrator.md` carries a one-line pointer and stays under its size ceiling (RUN-03, RUN-04)
+  4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
+  5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
+**Plans**: TBD
+**Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
+**Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
+
+### Phase 42: Skills per role and evaluation
+**Goal**: Each role knows which skills it may use and what to do without them, third-party skills are recommended only as optional pinned installs after a written evaluation, and the doctor warns when a declared skill is missing
+**Depends on**: Phase 39, Phase 40
+**Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05
+**Success Criteria** (what must be TRUE):
+  1. Each role lists the skills it may use with a built-in fallback checklist for when a skill is absent, and the role-switch protocol tells non-Claude hosts where to find skills (SKILL-01)
+  2. A maintainer can read a written evaluation of superpowers, code-simplifier, feature-dev, commit-commands, frontend-design and ui-ux-pro-max against grugops's floors (merge, branching, planning authority, telemetry, network, runtime deps) that decides which are recommended (SKILL-02)
+  3. Recommended skills are documented as optional, pinned installs that grugops never vendors or installs, and one rule, stated once, says grugops rules outrank any skill text (SKILL-03)
+  4. Frontend/UI uses ui-ux-pro-max when it is installed and treats the design-system files it creates as user artifacts that grugops reads but never writes (SKILL-04)
+  5. `install --check` warns, and never fails or installs anything, when a role declares a skill that is not found (SKILL-05)
+**Plans**: TBD
+**Research flag**: plan with `--research-phase` (`allowed-tools` vs `permissions.ask` evaluation order, per-host skill discovery).
+**Notes**: No third-party skill is preloaded or made process-defining.
+
+### Phase 43: Story and layered docs
+**Goal**: A newcomer understands what grugops is and how to use it from the README and main docs, reaches a generated reference page for every agent and skill, and finds every claim honest
+**Depends on**: Phases 35–42
+**Requirements**: STORY-01, STORY-02, STORY-03, STORY-04, STORY-05
+**Success Criteria** (what must be TRUE):
+  1. The README opens with "grugops — Specialist agents. Shared context. Coordinated work." in the lowercase brand and no longer calls grugops "the simple software factory" (STORY-01)
+  2. The main docs explain how grugops works and its core concept, walk through usage flows with worked examples, and link to every agent and skill page (STORY-02)
+  3. Every agent and skill has a reference page generated from its role or skill file, and a gate fails when a page is missing or stale (STORY-03)
+  4. Every new public page was inside the claim registry's checked file set before it was written, and every claim that moved was re-dispositioned by id, never deleted (STORY-04)
+  5. The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug` (STORY-05)
+**Plans**: TBD
+**Notes**: Reference pages come from the existing catalog generator; claim anchors keep their ids.
+
+## Progress
+
+**Execution order:** numeric, 35 → 43. Allowed overlaps: 35 with 36; 38 with 39; 41 with 42.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 35. Graph-memory decision record | v3.0 | 0/TBD | Not started | - |
+| 36. State-layout authority, path move and protection | v3.0 | 0/TBD | Not started | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 0/TBD | Not started | - |
+| 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
+| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
+| 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
+| 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
+| 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
+| 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
 ## Backlog
 
