@@ -10,8 +10,8 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 
 ### Graph memory (GRAPH)
 
-- [ ] **GRAPH-01**: A maintainer can read a recorded decision on graph memory (graphify and comparable tools evaluated) that states: not adopted, nothing built, what a user may do with such a tool themselves, and the trigger for revisiting it
-- [ ] **GRAPH-02**: The decision states that no graph-tool output enters the shared context without a verification stamp, and repeats no vendor token-saving number as a grugops result
+- [x] **GRAPH-01**: A maintainer can read a recorded decision on graph memory (graphify and comparable tools evaluated) that states: not adopted, nothing built, what a user may do with such a tool themselves, and the trigger for revisiting it
+- [x] **GRAPH-02**: The decision states that no graph-tool output enters the shared context without a verification stamp, and repeats no vendor token-saving number as a grugops result
 
 ### State layout (LAYOUT)
 
@@ -115,8 +115,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GRAPH-01 | Phase 35 | Pending |
-| GRAPH-02 | Phase 35 | Pending |
+| GRAPH-01 | Phase 35 | Complete |
+| GRAPH-02 | Phase 35 | Complete |
 | LAYOUT-01 | Phase 36 | Pending |
 | LAYOUT-02 | Phase 36 | Pending |
 | LAYOUT-03 | Phase 36 | Pending |

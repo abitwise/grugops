@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 35
 current_phase_name: Graph-memory decision record
-status: executing
-stopped_at: Phase 35 context gathered
-last_updated: "2026-10-20T12:25:48.988Z"
+status: verifying
+stopped_at: Completed 35-01-PLAN.md
+last_updated: "2026-10-20T13:54:52.848Z"
 last_activity: 2026-10-20
-last_activity_desc: v3.0 roadmap created (9 phases, 51/51 requirements mapped)
-state_head: 73d31247eec6d0b6935abfe40808703d9c0e5e75
+last_activity_desc: Phase 35 execution started
+state_head: c178b799f48a5e57eda930ac8c52d946457a4bbe
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 1
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-20 — milestone v3.0 started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Milestone v3.0 — roadmap created (Phases 35–43); next: plan Phase 35 (may run in parallel with Phase 36)
+**Current focus:** Phase 35 — Graph-memory decision record
 
 ## Current Position
 
-Phase: 35 (Graph-memory decision record) — READY TO EXECUTE
-Plan: —
-Status: Ready to execute
-Last activity: 2026-10-20 — v3.0 roadmap created (9 phases, 51/51 requirements mapped)
+Phase: 35 (Graph-memory decision record) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-10-20 — Phase 35 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -712,6 +712,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P60 | 40 min | 3 tasks | 5 files |
 | Phase 34.1 P61 | 58min | 3 tasks | 8 files |
 | Phase 34.1 P62 | 35min | 3 tasks | 4 files |
+| Phase 35 P01 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -1957,6 +1958,7 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-60: D-45 records closed — ledger open 0 (32 fixed, 13 deferred); DI-11->999.6, DI-15/DI-22->999.8, DI-23/DI-24->999.9, WR-40->999.7; DI-26/DI-27 open for the human
 - [Phase 34.1]: Plan 34.1-61 (D-47, WR-41/WR-42): with no agent named by flag or at the agent list, the pre-write refusal's closing prints the install or --migrate command with no agent flag plus DOCTOR_NO_FLAG_CLAUSE; INSTALL_REFUSAL is decided before the agents are chosen and refuseSelection asks it first
 - [Phase 34.1]: Plan 34.1-62 (D-47): the refusal's closing (agents named, flag-less command, --migrate command) is stated once, in install/README.md's unusable-marker paragraph; row 3 only gains 'whether or not an agent was named or could be chosen' (DOC-1)
+- [Phase 35]: [v3.0, D-10] Graph memory not adopted, nothing built or reserved; posture, verified_by stamp rule and both-conditions trigger live only in 35-DECISION.md
 
 ### Pending Todos
 
@@ -2287,9 +2289,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-20T11:05:27.817Z
-Stopped at: Phase 35 context gathered
-Resume file: .planning/phases/35-graph-memory-decision-record/35-CONTEXT.md
+Last session: 2026-10-20T13:54:52.801Z
+Stopped at: Completed 35-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
