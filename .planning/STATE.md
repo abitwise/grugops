@@ -5,11 +5,11 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 35
 current_phase_name: Graph-memory decision record
 status: planning
-stopped_at: v3.0 roadmap created (Phases 35–43); awaiting human approval
-last_updated: "2026-10-19T22:20:41.553Z"
+stopped_at: Phase 35 context gathered
+last_updated: "2026-10-20T11:05:27.867Z"
 last_activity: 2026-10-20
 last_activity_desc: v3.0 roadmap created (9 phases, 51/51 requirements mapped)
-state_head: d2d526a94aac569c2be8dc19942c533b6918363e
+state_head: 92012e126f30a61d1a1f7746d6aa81aaa5b0ab11
 progress:
   total_phases: 9
   completed_phases: 0
@@ -2287,9 +2287,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-19T22:20:41.502Z
-Stopped at: v3.0 roadmap created (Phases 35–43); awaiting human approval
-Resume file: None
+Last session: 2026-10-20T11:05:27.817Z
+Stopped at: Phase 35 context gathered
+Resume file: .planning/phases/35-graph-memory-decision-record/35-CONTEXT.md
 
 ## Operator Next Steps
 
