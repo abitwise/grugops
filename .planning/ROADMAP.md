@@ -167,7 +167,7 @@ Plans:
   4. A user whose repo is still on the old layout keeps working after a kit update: roles fall back to `plans/` and print a one-line "run `install --migrate`" notice, and a plain install refuses to seed new state there and names the command (LAYOUT-04)
   5. grugops's own repo state lives in the new layout and its validator and gates pass on it (LAYOUT-05)
 
-**Plans**: 8 plans
+**Plans**: 14 plans
 
 Plans:
 **Wave 1**
@@ -176,31 +176,55 @@ Plans:
 
 **Wave 2**
 
-- [ ] 36-02-PLAN.md — TRACER: the seed moves to `agent-factory/seed/memory-bank/plans/` (plus `uat/`) and the doctor checks the board there; then install.ts names the legacy handoffs directory through the authority; then every installer test does [LAYOUT-01, LAYOUT-02]
+- [ ] 36-02-PLAN.md — TRACER: the seed moves to `agent-factory/seed/memory-bank/plans/` (plus `uat/`), the doctor checks the board there and every seed-board reader follows, in one green commit [LAYOUT-01, LAYOUT-02]
 
 **Wave 3**
 
-- [ ] 36-03-PLAN.md — TRACER: the board tracer reads the repository board through `FIXED_SUBPATHS`; then the read-seam, watch, dashboard and model tests derive every state path from that table, and path-agnostic examples take the new spelling (no behavior change) [LAYOUT-02]
+- [ ] 36-03-PLAN.md — TRACER: install.ts names the legacy handoffs directory through the authority with unchanged output; then every remaining installer test does, the backup-listing helper reading ENOENT and ENOTDIR as absent [LAYOUT-02]
 
 **Wave 4**
 
-- [ ] 36-04-PLAN.md — TRACER: `git mv plans memory-bank/plans` and the 12 fixture trees, with the reader table, model messages, validator, corpus and banned-claims entry flipped in one green commit; then the trace tools; then prose, fixture content and re-sealed notes [LAYOUT-02, LAYOUT-05]
+- [ ] 36-04-PLAN.md — TRACER: the board tracer reads the repository board through `FIXED_SUBPATHS`; then the read-seam and watch tests derive every state path from that table (no behavior change) [LAYOUT-02]
 
 **Wave 5**
 
-- [ ] 36-05-PLAN.md — TRACER: one role, its workflow and the board contract name `memory-bank/plans/`; then every role, workflow and kit doc, with the fallback clause on `orchestrator.md` line 8; then examples, install docs and the new `docs/pre-v3-state-layout.md` [LAYOUT-01, LAYOUT-04]
+- [ ] 36-05-PLAN.md — TRACER: the dashboard and model tests follow `FIXED_SUBPATHS`; then path-agnostic examples take the new spelling (no behavior change) [LAYOUT-02]
 
 **Wave 6**
 
-- [ ] 36-06-PLAN.md — TRACER: the new INVARIANT reaches every adapter and skill twin in one regeneration, with a third stated baseline transform; then AGENTS.md, the packaging copies and the claim registry, held by an every-carrier test [LAYOUT-01, LAYOUT-04]
+- [ ] 36-06-PLAN.md — TRACER: `git mv plans memory-bank/plans` and the 12 fixture trees, with the reader table, model messages, validator, corpus and banned-claims entry flipped in one green commit [LAYOUT-02, LAYOUT-05]
 
 **Wave 7**
 
-- [ ] 36-07-PLAN.md — TRACER: a plain install on a pre-v3 repository refuses, names `--migrate` and writes nothing; then `--migrate`, a both repository and the doctor handle the pre-v3 layout without forking state; then the v4.0 end is recorded (`[v3.0, D-11]`) and published [LAYOUT-04]
+- [ ] 36-07-PLAN.md — TRACER: the trace tools root the traceability file at the authority; then prose, fixture content and re-sealed notes [LAYOUT-02]
 
 **Wave 8**
 
-- [ ] 36-08-PLAN.md — TRACER: `scripts/check-state-paths.ts` proves zero sites outside a per-file allow-list, then is wired in CI and package.json; then converse, boundary and LAYOUT-02 ownership cases and the phase-close full regression [LAYOUT-02, LAYOUT-01]
+- [ ] 36-08-PLAN.md — TRACER: one role, its workflow and the board contract name `memory-bank/plans/`; then every role, workflow and kit doc, with the fallback clause on `orchestrator.md` line 8 [LAYOUT-01, LAYOUT-04]
+
+**Wave 9**
+
+- [ ] 36-09-PLAN.md — TRACER: the new `docs/pre-v3-state-layout.md` is the one home install/README.md links to; then examples, the runbook and the design record name the v3 paths [LAYOUT-01]
+
+**Wave 10**
+
+- [ ] 36-10-PLAN.md — TRACER: the new INVARIANT reaches every adapter and skill twin in one regeneration, with a third stated baseline transform [LAYOUT-01, LAYOUT-04]
+
+**Wave 11**
+
+- [ ] 36-11-PLAN.md — TRACER: AGENTS.md, the packaging copies and the claim registry carry the clause, held by an every-carrier test [LAYOUT-04, LAYOUT-01]
+
+**Wave 12**
+
+- [ ] 36-12-PLAN.md — TRACER: a plain install on a pre-v3 repository refuses, names `--migrate` and writes nothing [LAYOUT-04]
+
+**Wave 13**
+
+- [ ] 36-13-PLAN.md — TRACER: `--migrate`, a both repository and the doctor handle the pre-v3 layout without forking state; then the v4.0 end is recorded (`[v3.0, D-11]`) and published [LAYOUT-04]
+
+**Wave 14**
+
+- [ ] 36-14-PLAN.md — TRACER: `scripts/check-state-paths.ts` proves zero sites outside a per-file allow-list, then is wired in CI and package.json; then converse, boundary and LAYOUT-02 ownership cases and the phase-close full regression [LAYOUT-02, LAYOUT-01]
 
 **Notes**: D-4 sets the old-layout behavior. The gate derives its own count of old spellings (research counts disagree: 1,293 occurrences vs 1,187 lines in 336 files). Every scratch install sets `GRUGOPS_HOME`. Full role prose waits for Phase 40; path edits here are mechanical.
 
