@@ -113,7 +113,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
 
 **Milestone goal:** Make grugops easier to understand, cheaper to run and better at keeping parallel work moving: plain-language roles, a state layout whose files stay small, a Tech Lead that sizes work for three engineer levels, an Orchestrator that keeps capacity full, roles that pick skills, and a new storyline with layered docs.
 
-- [ ] **Phase 35: Graph-memory decision record** - one recorded decision: graph memory is not adopted, nothing is built, what a user may do with such a tool themselves, and when to revisit
+- [x] **Phase 35: Graph-memory decision record** - one recorded decision: graph memory is not adopted, nothing is built, what a user may do with such a tool themselves, and when to revisit (completed 2026-10-20)
 - [ ] **Phase 36: State-layout authority, path move and protection** - planning state moves under `memory-bank/plans/` behind one constants-only path authority, protected from prune and uninstall, with old-layout repos still working
 - [ ] **Phase 37: Overview board, per-file records and budgets** - the board becomes a one-line-per-ticket overview, NFRs and traceability become one file per record with indexes, and byte budgets are checked in grugops and in host repos
 - [ ] **Phase 38: install --migrate v3** - an old-layout repo moves to the v3 layout with one command that keeps every original, proves line conservation and re-runs as a no-op (the data-loss surface, in its own phase)
@@ -146,7 +146,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
   3. The decision states that no graph-tool output enters the shared context without a verification stamp, and it repeats no vendor token-saving number as a grugops result (GRAPH-02)
   4. No file outside `.planning/` changes in this phase
 
-**Plans**: 1/1 plans executed
+**Plans**: 1/1 plans complete
 
 Plans:
 **Wave 1**
@@ -285,7 +285,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 35. Graph-memory decision record | v3.0 | 1/1 | In Progress | - |
+| 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 0/TBD | Not started | - |
 | 37. Overview board, per-file records and budgets | v3.0 | 0/TBD | Not started | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |

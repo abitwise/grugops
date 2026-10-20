@@ -182,6 +182,10 @@ This is a largely **introspective** milestone: most work improves grugops's own 
 - ✓ Board projector + CLI dashboard — one board-grammar authority, typed snapshot, read-only terminal dashboard — v2.1 (DASH-01..08)
 - ✓ Host registry, Pi support and per-agent installer — `HOST_TOOLS` as the single host set; Pi via `.pi/prompts/grugops.md`; per-agent flags and a shared `.agents/skills/grugops/SKILL.md` — v2.1 (HOST-01, PI-01..04; HOST-02 open)
 
+**v3.0 — Specialist agents. Shared context. Coordinated work. (in progress):**
+
+- ✓ Graph-memory decision — not adopted, nothing built; user/role posture, `verified_by` stamp rule and an event-based revisit trigger recorded in `35-DECISION.md` — v3.0 Phase 35 (GRAPH-01, GRAPH-02)
+
 ### Active
 
 <!-- Next-milestone requirements will be defined via /gsd-new-milestone (fresh REQUIREMENTS.md). -->
@@ -263,7 +267,7 @@ _Milestone v3.0 active (started 2026-10-20) — see Current Milestone above and 
 | **[v3.0, D-7]** `.grugops/queue/done/` and `memory-bank/50-decisions/` may only be moved to an archive folder; `60-progress.md` gets a byte budget with older entries rolled into an archive file. | Same keep-everything rule as context folders; progress is a single growing file like the board. | — Pending |
 | **[v3.0, D-8]** `--migrate` keeps the original monolith files unchanged in `memory-bank/plans/archive/pre-v3/`, outside every budget; split files are new files. | Never delete or rewrite user content in place. | — Pending |
 | **[v3.0, D-9]** Ship `claim.js` (queue) as a materialized runnable to host repos; role text joins the governed writing-profile surfaces; no new `level` ticket key (the level lives in the Tech Lead note and ticket body). | Dogfood agents ran the claim protocol by hand; the ticket key set is a closed grammar. | — Pending |
-| **[v3.0, D-10]** Graph memory is not adopted and nothing is built. Graphify and comparable tools were evaluated; a user may run such a tool themselves, a role may read its output only as an exploration aid, and nothing from it enters the shared context without a verification stamp. Reopened only by the trigger in the record: `.planning/phases/35-graph-memory-decision-record/35-DECISION.md`. | Every candidate adds a host runtime (Python or Node packages, or a database) or lets an agent write memory with no verification stamp; the size problem is in state files, which Phase 37 addresses. | — Pending |
+| **[v3.0, D-10]** Graph memory is not adopted and nothing is built. Graphify and comparable tools were evaluated; a user may run such a tool themselves, a role may read its output only as an exploration aid, and nothing from it enters the shared context without a verification stamp. Reopened only by the trigger in the record: `.planning/phases/35-graph-memory-decision-record/35-DECISION.md`. | Every candidate adds a host runtime (Python or Node packages, or a database) or lets an agent write memory with no verification stamp; the size problem is in state files, which Phase 37 addresses. | ✓ Recorded (Phase 35, 2026-10-20; UAT 2/2, security 7/7 closed) |
 | **[v3.0, 2026-10-20]** Retire the caveman voice constraint for role prompts; roles are rewritten in clear, compact English within a byte budget no larger than today's. | Caveman applied only to role prompts, so it never cut input tokens (v2.1 had already disproven the token claim by measurement), and it lowered role clarity. | — Pending |
 | **[v3.0, 2026-10-20]** Engineer levels are one role with three generated adapters (junior/haiku, mid/sonnet, senior/opus); the Tech Lead assigns the level by complexity score. Hosts that cannot switch model in-session treat the level as guidance. | Role goal is the same, so role text stays single-source; the adapter generator already writes per-role `model:` from the models dial. | — Pending |
 | **[v3.0, 2026-10-20]** Orchestrator flow rules (in-flight log, refill to WIP limit, compact near 400k tokens) are guidance on every host, with no host-only hook. | The user wants grugops to behave nearly the same on all six hosts. | — Pending |
@@ -323,6 +327,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-10-20 after Phase 35 — **Phase 35 (Graph-memory decision record) complete** (1/1 plan; verification 12/12, human_needed → passed after UAT 2/2; security 7/7 closed). [v3.0, D-10] recorded: graph memory not adopted, nothing built. GRAPH-01 and GRAPH-02 validated. Next: Phase 36.*
+
 *Last updated: 2026-10-20 — milestone v3.0 "Specialist agents. Shared context. Coordinated work." started (plain-language roles, state contract repair, Tech Lead + engineer levels, orchestrator flow, skills per role, graph-memory spike, story and layered docs); voice constraint revised.*
 
 *Last updated: 2026-10-18 after the v2.1 milestone — **v2.1 Autonomous Factory shipped with gaps accepted** (13 phases 27–34.1, 453 plans; audit `gaps_found` 52/64, 7 of 13 phases closed by human decision). Carried: GAP-D1 own-session spawn capture, KIT-03/SPAWN-04 promotion, UATX-01/06, Windows, live per-host runs, 247 open ledger rows. Next: `/gsd-new-milestone` (phases continue from 35).*

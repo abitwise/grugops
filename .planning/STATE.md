@@ -2,37 +2,37 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: 35
-current_phase_name: Graph-memory decision record
-status: verifying
-stopped_at: Completed 35-01-PLAN.md
-last_updated: "2026-10-20T13:54:52.848Z"
+current_phase: 36
+current_phase_name: State-layout authority, path move and protection
+status: planning
+stopped_at: Phase 35 complete, ready to plan Phase 36
+last_updated: "2026-10-20T18:38:27.964Z"
 last_activity: 2026-10-20
-last_activity_desc: Phase 35 execution started
-state_head: c178b799f48a5e57eda930ac8c52d946457a4bbe
+last_activity_desc: Phase 35 complete, transitioned to Phase 36
+state_head: 02108c02fff116a17b58e410c95b4acba2ba3fa9
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
   completed_plans: 1
-  percent: 0
+  percent: 11
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-20 — milestone v3.0 started)
+See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 35 — Graph-memory decision record
+**Current focus:** Phase 36 — State-layout authority, path move and protection
 
 ## Current Position
 
-Phase: 35 (Graph-memory decision record) — EXECUTING
-Plan: 1 of 1
-Status: Phase complete — ready for verification
-Last activity: 2026-10-20 — Phase 35 execution started
+Phase: 36 — State-layout authority, path move and protection
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-20 — Phase 35 complete, transitioned to Phase 36
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 395
+- Total plans completed: 396
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -141,6 +141,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 32.1 | 15 | - | - |
 | 33 | 43 | - | - |
 | 33.1 | 43 | - | - |
+| 35 | 1 | - | - |
 
 **Recent Trend:**
 
@@ -737,6 +738,8 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 - Phase 34.1 inserted after Phase 34: Per-agent installer: install for the coding agent(s) named (asked or by parameter); carries Phase 34 UAT gaps G-34-R3-2/G-34-R3-4; absorbs backlog 999.4
 
 ### Decisions
+
+- **[Phase 35, 2026-10-20]** [v3.0, D-10] recorded: graph memory not adopted, nothing built (`35-DECISION.md`). Closed via UAT 2/2; REQUIREMENTS.md line 103 left as is by the human.
 
 - [v2.1 release]: 2026-09-18 — D-28 (artifact SemVer stays 0.1.0) REVERSED by the human at the v2.1 release: `agent-factory/VERSION`, `.claude-plugin/plugin.json` and the new `package.json` `version` field all read `2.1.0`, aligned with the `v2.1` tag. The SemVer break-contract applies from here. `factory.config.json` `version` (config-schema version) and `admission-server.ts` `SERVER_VERSION` (MCP server protocol version) are separate strings and were left at `0.1.0` on purpose. Phase 33 was still open when v2.1 was tagged; it rolls into the next milestone.
 
@@ -2290,7 +2293,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-10-20T13:54:52.801Z
-Stopped at: Completed 35-01-PLAN.md
+Stopped at: Phase 35 complete, ready to plan Phase 36
 Resume file: None
 
 ## Operator Next Steps
