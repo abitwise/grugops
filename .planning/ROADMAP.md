@@ -240,7 +240,21 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: TBD
+**Plans**: 12 plans
+
+Plans:
+- [ ] 37-01-PLAN.md — Marker and archived-Done decisions (checkpoints), board contract first, budget and path constants
+- [ ] 37-02-PLAN.md — scripts/state-rules.ts and the validator budget pass (WARN unmigrated, FAIL migrated)
+- [ ] 37-03-PLAN.md — Embed generator, its freshness gate, and the host state-check runnable (budgets)
+- [ ] 37-04-PLAN.md — state-check NFR index integrity, rollable report and move-only report
+- [ ] 37-05-PLAN.md — scripts/trace-model.ts and the host trace-render runnable (per-ticket files, two roots)
+- [ ] 37-06-PLAN.md — Own-tree trace render and directory-compare freshness gate in CI; state-check trace freshness
+- [ ] 37-07-PLAN.md — state-roll runnable: Done rows and dated progress entries with a conservation proof
+- [ ] 37-08-PLAN.md — Board reader seventh source boardArchive, snapshot version 3
+- [ ] 37-09-PLAN.md — Installer materializes the three runnables; v3 seed; marker on fresh layouts only
+- [ ] 37-10-PLAN.md — Roles and kit docs: trace rendered, NFR one file each, board overview rule
+- [ ] 37-11-PLAN.md — Workflows: WF05 render and state-check (D-12), WF09 roll and move-only; hand-trace scan test
+- [ ] 37-12-PLAN.md — grugops's own state on v3 forms with its marker (D-06); phase gate
 **Notes**: D-6 (trace per ticket, rendered) and D-7 (archive-only surfaces). New ticket detail goes in ticket bodies, not new keys.
 
 ### Phase 38: install --migrate v3

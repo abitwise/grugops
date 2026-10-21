@@ -40,20 +40,30 @@ created: "2026-10-21"
 
 Filled by the planner per task. Requirement → test map from 37-RESEARCH.md § Validation Architecture:
 
-| Requirement | Behavior | Test Type | Automated Command | File Exists | Status |
-|-------------|----------|-----------|-------------------|-------------|--------|
-| SPLIT-01 | Board budget, row length, single `_Updated:` line; WARN without marker, ERROR with it | unit + spawn | `npx vitest run scripts/state-rules.test.ts scripts/validate.test.ts` | ❌ W0 | ⬜ pending |
-| SPLIT-01 | Archived Done row keeps its ticket placed; duplicate and unreadable-archive cases | unit | `npx vitest run scripts/board-model.test.ts scripts/board-read.test.ts scripts/board-tracer.test.ts` | ✅ extend | ⬜ pending |
-| SPLIT-02 | NFR index↔file integrity both directions | spawn | `npx vitest run scripts/runnable-ref/state-check.test.ts` | ❌ W0 | ⬜ pending |
-| SPLIT-03 | Per-ticket trace render, skip counts, collision refusal, reproducible bytes | spawn | `npx vitest run scripts/runnable-ref/trace-render.test.ts scripts/trace-render.test.ts` | ❌ W0 / ✅ rewrite | ⬜ pending |
-| SPLIT-03 | Trace directory freshness compare | spawn | `npx vitest run scripts/trace-freshness.test.ts` | ✅ rewrite | ⬜ pending |
-| SPLIT-03 | No role/workflow/checklist/AGENTS.md append-to-traceability instruction; derived scan set counted | unit | `npx vitest run scripts/trace-instructions.test.ts` | ❌ W0 | ⬜ pending |
-| SPLIT-04 | Every budget in `BUDGETS` checked by the validator; count asserted | unit | `npx vitest run scripts/validate.test.ts install/state-layout.test.ts` | ✅ extend | ⬜ pending |
-| SPLIT-05 | Embedded regions equal fresh derivation; drift and non-builtin closure refused | unit + spawn | `npx vitest run scripts/generate-runnable-embeds.test.ts` | ❌ W0 | ⬜ pending |
-| SPLIT-05 | `state-check.js` runs in a bare temp dir; exit codes 0/1/2 | spawn | `npx vitest run scripts/runnable-ref/state-check.test.ts` | ❌ W0 | ⬜ pending |
-| SPLIT-05 | Install materializes runnables; uninstall removes them; marker only on `fresh` (GRUGOPS_HOME temp) | spawn | `npx vitest run install/install.test.ts install/record-truth.test.ts` | ✅ extend | ⬜ pending |
-| SPLIT-06 | Roll moves rows/entries, conservation proven, forced mismatch restores bytes | spawn | `npx vitest run scripts/runnable-ref/state-roll.test.ts` | ❌ W0 | ⬜ pending |
-| SPLIT-07 | Ticket key set stays eight; contract names body sections | unit | `npx vitest run scripts/board-model.test.ts` | ✅ existing pin | ⬜ pending |
+| Plan/Task | Requirement | Behavior | Test Type | Automated Command | File Exists | Status |
+|-----------|-------------|----------|-----------|-------------------|-------------|--------|
+| 37-01 T3 | SPLIT-01, SPLIT-04, SPLIT-07 | Contract budget table equals BUDGETS both ways; BUDGET_COUNT pinned; parent-plus-one-segment rule | unit | `npx vitest run install/state-layout.test.ts scripts/board-model.test.ts scripts/board-tracer.test.ts` | ✅ extend | ⬜ pending |
+| 37-02 T1 | SPLIT-04, SPLIT-01 | Board bytes WARN without marker, ERROR with it, invalid marker named; own tree green bare and strict | unit + spawn | `npx vitest run scripts/state-rules.test.ts scripts/validate.test.ts` | ❌ W0 (state-rules.test.ts) | ⬜ pending |
+| 37-02 T2 | SPLIT-04 | Every BUDGETS key has a planter (Record over keys, count = BUDGET_COUNT); boundary values; FIFO named | unit + spawn | `npx vitest run scripts/state-rules.test.ts scripts/validate.test.ts scripts/board-model.test.ts` | ✅ extend | ⬜ pending |
+| 37-03 T1 | SPLIT-05 | Embedded regions equal fresh derivation; non-builtin closure, name collision and legacy root refused; state-check alone in a bare dir exits 0/1/2 | unit + spawn | `npx vitest run scripts/generate-runnable-embeds.test.ts scripts/runnable-ref/state-check.test.ts scripts/check-state-paths.test.ts scripts/nonblocking-reader-parity.test.ts` | ❌ W0 | ⬜ pending |
+| 37-03 T2 | SPLIT-05, SPLIT-04 | state-check checks every budget; --json; sanitized output; read-only syntax tree | spawn | `npx vitest run scripts/runnable-ref/state-check.test.ts scripts/state-rules.test.ts` | ❌ W0 | ⬜ pending |
+| 37-04 T1 | SPLIT-02, SPLIT-05 | NFR index↔file integrity both directions; link derived from the identifier | unit + spawn | `npx vitest run scripts/state-rules.test.ts scripts/runnable-ref/state-check.test.ts` | ✅ extend | ⬜ pending |
+| 37-04 T2 | SPLIT-06, SPLIT-02 | Dated progress entries; ROLLABLE report; move-only copy finding; NFR edge cases | unit + spawn | `npx vitest run scripts/state-rules.test.ts scripts/runnable-ref/state-check.test.ts` | ✅ extend | ⬜ pending |
+| 37-05 T1 | SPLIT-03 | Per-ticket render from two roots on a bare host; byte-reproducible | unit + spawn | `npx vitest run scripts/trace-model.test.ts scripts/runnable-ref/trace-render.test.ts scripts/trace-render.test.ts` | ❌ W0 | ⬜ pending |
+| 37-05 T2 | SPLIT-03 | --check compare; hand-written refusal; case-fold collision; skip counts | spawn | `npx vitest run scripts/trace-model.test.ts scripts/runnable-ref/trace-render.test.ts scripts/context-io-writer-set.test.ts scripts/nonblocking-reader-parity.test.ts` | ❌ W0 | ⬜ pending |
+| 37-06 T1 | SPLIT-03 | Directory-compare freshness gate, no vacuous pass, CI wiring; own index is the render | spawn | `npx vitest run scripts/trace-freshness.test.ts scripts/trace-render.test.ts` | ✅ rewrite | ⬜ pending |
+| 37-06 T2 | SPLIT-05, SPLIT-03 | state-check trace freshness from both roots, read-only | spawn | `npx vitest run scripts/runnable-ref/state-check.test.ts` | ✅ extend | ⬜ pending |
+| 37-07 T1 | SPLIT-06, SPLIT-01 | Done roll with conservation proof; faulty-io rollback restores bytes | unit + spawn | `npx vitest run scripts/state-rules.test.ts scripts/runnable-ref/state-roll.test.ts` | ❌ W0 | ⬜ pending |
+| 37-07 T2 | SPLIT-06 | Progress roll oldest first; refusals; dry run; re-run after interruption refuses | unit + spawn | `npx vitest run scripts/state-rules.test.ts scripts/runnable-ref/state-roll.test.ts` | ❌ W0 | ⬜ pending |
+| 37-08 T1 | SPLIT-01 | Archived Done row keeps its ticket placed; SCHEMA_VERSION 3; golden regenerated | unit | `npx vitest run scripts/board-model.test.ts scripts/board-tracer.test.ts scripts/board-read.test.ts` | ✅ extend | ⬜ pending |
+| 37-08 T2 | SPLIT-01, SPLIT-07 | Duplicate and unreadable-archive cases; WIP immunity; key set stays eight; body edges | unit | `npx vitest run scripts/board-model.test.ts scripts/board-read.test.ts scripts/board-dashboard.test.ts scripts/board-watch.test.ts` | ✅ extend | ⬜ pending |
+| 37-09 T1 | SPLIT-05 | Install materializes three runnables; uninstall removes them (GRUGOPS_HOME temp) | spawn | `npx vitest run install/install.test.ts install/record-truth.test.ts install/uninstall-removal.test.ts` | ✅ extend | ⬜ pending |
+| 37-09 T2 | SPLIT-01, SPLIT-02, SPLIT-06 | v3 seed; marker only on `fresh`; fresh install passes state-check in FAIL mode | spawn | `npx vitest run install/install.test.ts install/installer-never-installed.test.ts` | ✅ extend | ⬜ pending |
+| 37-10 T1-T3 | SPLIT-03, SPLIT-02 | Roles and kit docs carry no hand-trace instruction; generators fresh | gates | `npm run freshness:adapters && npm run freshness:catalog && VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js --strict` | ✅ existing gates | ⬜ pending |
+| 37-11 T1-T2 | SPLIT-05, SPLIT-06 | WF05 render then state-check with D-12 mapping; WF09 roll, dated progress, move-only | gates | `npm run freshness:catalog && VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js --strict` | ✅ existing gates | ⬜ pending |
+| 37-11 T3 | SPLIT-03 | Zero append-to-traceability instructions over a derived, counted kit file set | unit | `npx vitest run scripts/trace-instructions.test.ts` | ❌ W0 | ⬜ pending |
+| 37-12 T1 | SPLIT-04, SPLIT-05 | Own marker (D-06); FAIL-mode control on a copy of the own state; own-tree state-check in CI | unit + spawn | `npx vitest run scripts/validate.test.ts scripts/runnable-ref/state-check.test.ts` | ✅ extend | ⬜ pending |
+| 37-12 T2 | all | Full non-e2e regression against 37-BASELINE.md; every gate | suite | `npx vitest run --exclude '**/scripts/e2e/**'` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
