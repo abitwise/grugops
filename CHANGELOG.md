@@ -18,6 +18,25 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 
 ## [Unreleased]
 
+### Changed
+
+- Per-repository planning state (the board, the ticket, epic, feature, sprint, release and UAT trees,
+  the NFR catalog, the traceability matrix and the metrics file) now lives under `memory-bank/plans/`
+  instead of the top-level `plans/` directory.
+- A plain install on a repository whose planning state is still in the pre-v3 `plans/` layout refuses
+  before it writes anything, exits `1` and names the `install --migrate` command to run. `--migrate`
+  on such a repository seeds nothing under `memory-bank/plans/` beside the existing board. A repository
+  that holds a board in both layouts installs on `memory-bank/plans/` with one note that `plans/` is
+  stale; nothing is merged or deleted.
+- `install --check` prints one `state layout:` line: `ok` for the v3 layout, and a warning (never a
+  failure) for the pre-v3 layout, which names `install --migrate`, or for a repository with both
+  boards. See [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
+
+### Deprecated
+
+- The pre-v3 `plans/` state layout. Agents fall back to it with a one-line notice to run
+  `install --migrate`; the fallback is supported through v3.x and removed in v4.0.
+
 ## [2.2.0] - 2026-10-19
 
 Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands in this release,
