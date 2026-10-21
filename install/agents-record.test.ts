@@ -4724,6 +4724,7 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
   ["install.ts", "askRulesNotes", "remove them", 1, "the user's own ask rules, negated (uninstall will not remove them)"],
   ["install.ts", "agentClosingLines", "removes an agent's files", 1, "an agent's files, negated (install never removes them)"],
   ["install.ts", "agentClosingLines", "remove one", 1, "an agent left installed (by its printed uninstall command)"],
+  ["install.ts", "seedState", "deletes nothing", 1, "nothing, negated: a repository holding both boards is installed on the v3 layout and this run merges or deletes nothing (plan 36-13, 2026-10-21, D-02)"],
   ["uninstall.ts", "unlinkPath", "remove it by hand if it is grugops's", 2, "a path still present after its removal"],
   ["uninstall.ts", "<module>", "remove", 3, "the agents this run removes (the `agents to remove` heading)"],
   ["uninstall.ts", "removalDecision", "remove it by hand if it is grugops's", 3, "a path the uninstaller left (a link that is not install's, or a path it could not examine)"],
@@ -4813,9 +4814,11 @@ describe("D-37: the widened removal-matcher census, by search over every printed
     expect(REMOVAL_EXEMPT.every((r) => r[4].trim() !== ""), "every row names the object it removes").toBe(true);
     // 131 -> 132 (plan 34.1-54, 2026-10-14, D-40, DI-18): markerFixText decides the next step, so its never-remove
     // wording has two readings (with and without "; then <step>"), each negated.
-    expect(hits.length, "the hit count moved").toBe(132);
-    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(85);
-    expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({ "checkpoint-ask-rules.ts": 1, "install-marker.ts": 2, "install.ts": 47, "uninstall.ts": 82 });
+    // 132 -> 133, table 85 -> 86, install.ts 47 -> 48 (plan 36-13, 2026-10-21, D-02): seedState's stale note on a
+    // repository holding both boards says this run "merges or deletes nothing", negated.
+    expect(hits.length, "the hit count moved").toBe(133);
+    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(86);
+    expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({ "checkpoint-ask-rules.ts": 1, "install-marker.ts": 2, "install.ts": 48, "uninstall.ts": 82 });
   });
 });
 
@@ -5356,7 +5359,10 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // doctor reaches is launchOwned, the one owner of "is this launch file install's own" that kitRouteFindings step (f)
 // and install's closing line both ask. It reads the ledger it is passed through owns and never reads the marker; the
 // DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 54;
+// Re-pinned 2026-10-21 by plan 36-13 (D-07, LAYOUT-04): 57, measured by this census. The doctor's state-layout line
+// reaches stateLayout, its nested boardAt (lstat of one board path under TARGET) and migrateCommand (the --migrate
+// command the pre-v3 WARN prints). None reads the marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 57;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -6110,7 +6116,11 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // Re-pinned 2026-10-19 by quick task 261019-faq (review WR-08): 46, measured by this walk. The new function the doctor
 // reaches is launchOwned; it reads only the ledger it is passed, TARGET and owns, never GRUGOPS_HOME, GIVEN_KIT_HOME or
 // KIT_ROOT, so C3's table gains no row.
-const WR24_REACH_SIZE = 46;
+// Re-pinned 2026-10-21 by plan 36-13 (D-07, LAYOUT-04): 48, measured by this walk. The doctor's state-layout line
+// reaches stateLayout (one lstat of each board path under TARGET, through errCode) and migrateCommand (agentCommand
+// over COMMAND_CONTEXT, the record owner C2 excludes, and TARGET); neither reads GRUGOPS_HOME, GIVEN_KIT_HOME or
+// KIT_ROOT, so C3's table gains no row.
+const WR24_REACH_SIZE = 48;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run
