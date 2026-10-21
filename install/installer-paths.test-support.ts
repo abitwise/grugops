@@ -64,7 +64,7 @@ import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readd
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
-import { BOARD_REL } from "./state-layout.js";
+import { BOARD_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL } from "./state-layout.js";
 import { HOST_TOOLS, agentFlag, commandContextFromRecord, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -140,6 +140,29 @@ export function makeFixture(d: string): string {
   writeFileSync(join(d, "CLAUDE.md"), "# User Project\n\nMy own dev instructions — must be preserved.\n");
   writeFileSync(join(d, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE — uninstall must never delete this.\n");
   writeFileSync(join(d, BOARD_REL), "user board\n");
+  return d;
+}
+
+/** The pre-v3 ticket makePreV3StateFixture plants, relative to the target (joined from LEGACY_STATE_ROOT_REL). */
+export const PRE_V3_TICKET_REL = join(LEGACY_STATE_ROOT_REL, "tickets", "T-001-user-ticket.md");
+/** The pre-v3 board's bytes makePreV3StateFixture plants: recognizably the user's. */
+export const PRE_V3_BOARD_TEXT = "# Board\n\nUSER PRE-V3 BOARD: install must never write beside or over this.\n";
+/** The pre-v3 ticket's bytes makePreV3StateFixture plants: recognizably the user's. */
+export const PRE_V3_TICKET_TEXT = "# T-001\n\nUSER PRE-V3 TICKET: install must never move, merge or delete this.\n";
+
+/**
+ * THE NAMED PRE-V3 STATE FIXTURE (phase 36, plan 36-12, 2026-10-21, D-08): a repository still keeping its planning
+ * state in the pre-v3 layout, in `d`. A user board at LEGACY_BOARD_REL and one user ticket under the pre-v3 tickets
+ * directory (PRE_V3_TICKET_REL), parents created recursively, and nothing at BOARD_REL. Built at run time from the
+ * state-layout constants, so no tracked file holds a pre-v3 path for it. The refusal, doctor and fallback tests
+ * (install/pre-v3-layout.test.ts, plan 36-13) use it. Not to be confused with makeOldLayoutFixture below, the v1.0
+ * vendored-kit layout (research Pitfall 7).
+ */
+export function makePreV3StateFixture(d: string): string {
+  mkdirSync(dirname(join(d, LEGACY_BOARD_REL)), { recursive: true });
+  mkdirSync(dirname(join(d, PRE_V3_TICKET_REL)), { recursive: true });
+  writeFileSync(join(d, LEGACY_BOARD_REL), PRE_V3_BOARD_TEXT);
+  writeFileSync(join(d, PRE_V3_TICKET_REL), PRE_V3_TICKET_TEXT);
   return d;
 }
 

@@ -5948,7 +5948,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // THE COUNT IS TAKEN OVER COMMENT-FILTERED LINES, DELIBERATELY. A raw count returns SEVEN, because
   // the residual note's own prose must spell the call once to describe what it is describing. The
   // filtered count is the one that means "call sites", and it is the one asserted.
-  it("the eleven MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
+  it("the twelve MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
     const codeLines = src.split("\n").filter((l) => !/^\s*\/\//.test(l));
     const callSites = codeLines.filter((l) => l.includes("process.exit(")).length;
@@ -5961,13 +5961,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // and before anything reaches stdout or anything is written. TEN since plan 34.1-06 (D-03): refuseSelection, the one
     // exit for every agent-selection refusal, exits 1 before the run banner and before any write. ELEVEN since plan
     // 34.1-59 (2026-10-14, D-45, DI-25): install refuses before any write over a marker it cannot record into
-    // (refuseOverMarker, exit 3 after its report, before the --migrate branch and the run banner).
-    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 11");
+    // (refuseOverMarker, exit 3 after its report, before the --migrate branch and the run banner). TWELVE since plan 36-12
+    // (2026-10-21, D-05): a pre-v3 state layout is refused with exit 1 before any write (and an unreadable layout through
+    // the same call site), after the kit-home overlap guard and before the --migrate branch and the agent list.
+    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 12");
     // ...and the raw count is one more, which is the fact that makes the filter necessary rather than
     // cosmetic. Pinned so a future author who deletes the filter sees why it was there.
     const raw = src.split("\n").filter((l) => l.includes("process.exit(")).length;
     // Re-pinned 2026-10-14 by plan 34.1-59 (D-45, DI-25): 11 -> 12, refuseOverMarker's exit (the prose line is unchanged).
-    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 12");
+    // Re-pinned 2026-10-21 by plan 36-12 (D-05): 12 -> 13, the pre-v3 state-layout refusal's exit (the prose line is unchanged).
+    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 13");
     // THE ROTTED LIST IS GONE, NOT SOFTENED — and not quoted back as evidence either. A note that
     // reprints the stale numbers to explain why it deleted them still puts numbers in front of a
     // reader who may trust them. The measurement lives in 27-35-SUMMARY.md; this asserts that no

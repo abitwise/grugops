@@ -85,7 +85,7 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, LEGACY_HANDOFFS_REL, STATE_ROOTS } from "./state-layout.js";
+import { BOARD_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, STATE_ROOT_REL, STATE_ROOTS } from "./state-layout.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -450,7 +450,9 @@ function doctorCheckCommand() {
  * THE --migrate SAME-RUN COMMAND (phase 34.1 gap round 2, D-31, DI-09; D-33): `agentCommand("install.js", TARGET,
  * agents, COMMAND_CONTEXT, ["--migrate"])`, the command that runs --migrate again for `agents`, with this run's kit home
  * and install mode. Every --migrate remedy that asks for a re-run prints it: the one migrate INCOMPLETE banner
- * (printMigrateIncomplete) and the handoffs backup's never-clobber abort. Called only under MIGRATE.
+ * (printMigrateIncomplete) and the handoffs backup's never-clobber abort. Called under MIGRATE, and by the pre-v3
+ * state-layout refusal of a plain install (plan 36-12, 2026-10-21, D-05), which prints it as the remedy with the agents
+ * named by flag.
  *
  * `agents` (plan 34.1-61, 2026-10-17, D-47, WR-43): the handoffs backup's abort and the migrate arms pass SELECTION; the
  * pre-write refusal of a --migrate run passes only the agents the user named (by flag or at the agent list), and none
@@ -696,6 +698,28 @@ const errCode = (e) => {
     const code = e.code;
     return typeof code === "string" && code !== "" ? code : "UNKNOWN";
 };
+function stateLayout() {
+    const boardAt = (rel) => {
+        const p = join(TARGET, rel);
+        try {
+            lstatSync(p);
+            return "present";
+        }
+        catch (e) {
+            const code = errCode(e);
+            return code === "ENOENT" || code === "ENOTDIR" ? "absent" : { unreadable: p, code };
+        }
+    };
+    const current = boardAt(BOARD_REL);
+    if (typeof current === "object")
+        return current;
+    const legacy = boardAt(LEGACY_BOARD_REL);
+    if (typeof legacy === "object")
+        return legacy;
+    if (current === "present")
+        return legacy === "present" ? "both" : "current";
+    return legacy === "present" ? "pre-v3" : "fresh";
+}
 // CREATED_DIRS (CR-02, D-18): every directory under TARGET that mkdirp itself created in this run,
 // as a POSIX path relative to TARGET. writeMarker() records each as a `dir` entry of the install ledger, and
 // uninstall removes an empty shared-name directory (.claude/, .gemini/, .github/, ...) only when it
@@ -2614,6 +2638,40 @@ if (!ALLOW_SELF) {
     }
     if (overlap !== null) {
         process.stderr.write(`${overlap}\n`);
+        process.exit(1);
+    }
+}
+// --- THE PRE-V3 STATE LAYOUT IS REFUSED ON A PLAIN INSTALL (phase 36, plan 36-12, 2026-10-21, D-01, D-05, D-06,
+// LAYOUT-04). This kit keeps the per-repo state under STATE_ROOT_REL. A repository whose board is still at
+// LEGACY_BOARD_REL, with none at BOARD_REL, keeps its state in the pre-v3 layout; a plain install there used to seed
+// a second, empty board beside the user's. It is refused here, right after the kit-home overlap guard and before the
+// --migrate branch, the agent list, the run banner and every write: one stderr sentence naming the pre-v3 board, the
+// v3 state root and the --migrate command (migrateCommand over the agents named by flag, so a flag-less run prints
+// the flag-less command), nothing on stdout, exit 1, the self-checkout and kit-home guards' convention. A layout that
+// cannot be read (stateLayout answers `unreadable`) is refused the same way, naming the path and the error code,
+// because it cannot be shown not to be pre-v3. DRY_RUN does not exempt it: a preview of a run that would seed a
+// second board is the same wrong answer.
+//
+// --migrate skips it (the migrate arm is the remedy; plan 36-13 makes its seed skip a pre-v3 board). --check,
+// --update and --prune-old-kit branch off above and never reach it. A `both` layout (D-02) is the v3 layout and is
+// not refused. The wording is final now although the state-moving migrate arm lands in Phase 38 (D-06).
+if (!MIGRATE) {
+    const layout = stateLayout();
+    let refusal = null;
+    if (layout === "pre-v3") {
+        const named = HOST_TOOLS.filter((h) => SELECTED_BY_FLAG.has(h.id));
+        refusal =
+            `install.js: this repository keeps its planning state in the pre-v3 layout (${LEGACY_BOARD_REL} exists and ` +
+                `${BOARD_REL} does not); this kit keeps it under ${STATE_ROOT_REL}/. Run \`${migrateCommand(named)}\` to migrate ` +
+                `it. Nothing was written.`;
+    }
+    else if (typeof layout === "object") {
+        refusal =
+            `install.js: the state layout could not be read (${layout.unreadable}: ${layout.code}), so it cannot be shown ` +
+                `that this repository is not on the pre-v3 layout. Nothing was written.`;
+    }
+    if (refusal !== null) {
+        process.stderr.write(`${refusal}\n`);
         process.exit(1);
     }
 }

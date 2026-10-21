@@ -84,8 +84,12 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * SOURCE_FILE_COUNT 9 -> 10 for install/state-layout.ts, which is constants only and renders or compares no mode.
  * SCRIPTS_TEST_FILE_COUNT 73 -> 74 (2026-10-21, plan 36-01, re-derived by listing scripts/, not incremented) for
  * scripts/state-path-scan.test.ts, which has no chmod call and reads no `.mode` (it writes text into scratch git
- * repositories and reads the scan's stdout). */
-const INSTALL_TEST_FILE_COUNT = 38;
+ * repositories and reads the scan's stdout).
+ * 2026-10-21, plan 36-12 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 38 -> 39 for
+ * pre-v3-layout.test.ts, which has no expected mode and two tagged chmod calls, counted under rule (a): case (d) takes
+ * every permission from the pre-v3 state root (access-denial, gated on win32 and root) and gives it back in a `finally`
+ * (restore). */
+const INSTALL_TEST_FILE_COUNT = 39;
 const SCRIPTS_TEST_FILE_COUNT = 74;
 const SOURCE_FILE_COUNT = 10;
 
@@ -112,10 +116,13 @@ const SOURCE_FILE_COUNT = 10;
  * access-denial 15 -> 16 and restore 24 -> 25 on 2026-10-19 (quick task 261019-i3g, 261018-vfm review WR-09):
  * kit-route.test.ts case 1 makes an empty `.grugops/` read-only before a fresh install so the install record cannot be
  * written, and gives the write bit back in a `finally`; the case is skipped with a printed reason on win32 and as root.
+ * access-denial 16 -> 17 and restore 25 -> 26 on 2026-10-21 (plan 36-12, D-05, LAYOUT-04): pre-v3-layout.test.ts case
+ * (d) makes the pre-v3 state root mode 000 so the layout probe's lstat answers EACCES (an unreadable layout, refused),
+ * and gives the permissions back in a `finally`; the case is skipped with a printed reason on win32 and as root.
  * Measured per file and kind by this census's own failure message. */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 16,
-  restore: 25,
+  "access-denial": 17,
+  restore: 26,
   "row-315": 7,
   "posix-bits": 2,
 };
