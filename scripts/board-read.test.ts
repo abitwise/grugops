@@ -42,10 +42,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, relative, sep } from "node:path";
+import { basename, dirname, join, posix, relative, sep } from "node:path";
 
 import {
   BoardReadError,
+  FIXED_SUBPATHS,
   PRESENCE_DEPENDENT_CONFLICT_KINDS,
   READ_RETRY_BOUND,
   SOURCE_NAMES,
@@ -73,6 +74,13 @@ import type { SnapshotResult, SourceState } from "./board-read.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
+/**
+ * The state directory, derived from the read seam's own table (D-13 step 2): the POSIX dirname of
+ * `FIXED_SUBPATHS.board`. It may hold more than one segment, so a plant creates it with
+ * `recursive: true`, and a plant of a link AT it creates its parent first.
+ */
+const STATE_DIR_REL = posix.dirname(FIXED_SUBPATHS.board);
+
 /** A scratch tree that is always removed, whatever the case does with it. */
 function withTempTree(run: (dir: string) => void): void {
   const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-board-read-"));
@@ -81,7 +89,7 @@ function withTempTree(run: (dir: string) => void): void {
   } finally {
     // The EACCES case chmods a file to 0; restore the mode so the removal cannot fail on it.
     try {
-      chmodSync(join(dir, "plans", "board.md"), 0o644);
+      chmodSync(join(dir, FIXED_SUBPATHS.board), 0o644);
     } catch {
       /* the file may not exist in this case — removal below is force:true either way */
     }
@@ -89,10 +97,10 @@ function withTempTree(run: (dir: string) => void): void {
   }
 }
 
-/** Write `plans/board.md` under `dir` and return its absolute path. */
+/** Write the board (`FIXED_SUBPATHS.board`) under `dir` and return its absolute path. */
 function plantBoard(dir: string, body: string): string {
-  mkdirSync(join(dir, "plans"), { recursive: true });
-  const path = join(dir, "plans", "board.md");
+  mkdirSync(join(dir, STATE_DIR_REL), { recursive: true });
+  const path = join(dir, FIXED_SUBPATHS.board);
   writeFileSync(path, body, "utf8");
   return path;
 }
@@ -222,7 +230,7 @@ describe("readVerifyReread — stat, read, stat (D-11, DASH-05)", () => {
   it("reports `enoent` for a path that is not there, without retrying", () => {
     withTempTree((dir) => {
       let attempts = 0;
-      const read = readVerifyReread(join(dir, "plans", "board.md"), READ_RETRY_BOUND, {
+      const read = readVerifyReread(join(dir, FIXED_SUBPATHS.board), READ_RETRY_BOUND, {
         betweenReadAndStat: () => {
           attempts += 1;
         },
@@ -290,7 +298,7 @@ describe("settleSource — the last-good carry-forward, per source (D-11, D-12, 
   it("reports `ok` and the new value when the read succeeded", () => {
     const settled = settleSource<string>(
       "board",
-      "/x/plans/board.md",
+      `/x/${FIXED_SUBPATHS.board}`,
       { kind: "value", value: "fresh" },
       good,
       AT_NOW,
@@ -304,7 +312,7 @@ describe("settleSource — the last-good carry-forward, per source (D-11, D-12, 
     for (const reason of ["torn", "eacces", "unreadable"] as const) {
       const settled = settleSource<string>(
         "board",
-        "/x/plans/board.md",
+        `/x/${FIXED_SUBPATHS.board}`,
         { kind: "failed", reason, code: "TEST", message: "driven" },
         good,
         AT_NOW,
@@ -330,7 +338,7 @@ describe("settleSource — the last-good carry-forward, per source (D-11, D-12, 
   });
 
   it("reports a source that WAS seen and is now absent as stale with reason `enoent` (D-13)", () => {
-    const settled = settleSource<string>("board", "/x/plans/board.md", { kind: "absent" }, good, AT_NOW);
+    const settled = settleSource<string>("board", `/x/${FIXED_SUBPATHS.board}`, { kind: "absent" }, good, AT_NOW);
     expect(settled.state.source).toBe("stale");
     expect(settled.state.source === "stale" ? settled.state.stale.reason : "").toBe("enoent");
     expect(settled.state.source === "stale" ? settled.state.value : "").toBe("the last good value");
@@ -339,7 +347,7 @@ describe("settleSource — the last-good carry-forward, per source (D-11, D-12, 
   it("carries the value gathered so far and marks it `bounded` when the walk hit its bound", () => {
     const settled = settleSource<string>(
       "tickets",
-      "/x/plans/tickets",
+      `/x/${FIXED_SUBPATHS.tickets}`,
       { kind: "bounded", value: "the entries gathered so far" },
       undefined,
       AT_NOW,
@@ -360,7 +368,7 @@ describe("settleSource — the last-good carry-forward, per source (D-11, D-12, 
     };
     const settled = settleSource<string>(
       "board",
-      "/x/plans/board.md",
+      `/x/${FIXED_SUBPATHS.board}`,
       { kind: "failed", reason: "torn", code: "TEST", message: "driven" },
       alreadyStale,
       AT_NOW,
@@ -371,7 +379,7 @@ describe("settleSource — the last-good carry-forward, per source (D-11, D-12, 
   it("reports `unavailable` when the read failed and there is NOTHING to carry forward", () => {
     const settled = settleSource<string>(
       "board",
-      "/x/plans/board.md",
+      `/x/${FIXED_SUBPATHS.board}`,
       { kind: "failed", reason: "torn", code: "TEST", message: "driven" },
       undefined,
       AT_NOW,
@@ -548,10 +556,10 @@ describe("readSnapshot — the carry-forward is threaded, not module state (D-11
 // the traceability comment hazard is answered by the SAME `stripHtmlComments` the board uses.
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-/** Plant a ticket under `plans/tickets/` and return its path. */
+/** Plant a ticket under the ticket tree (`FIXED_SUBPATHS.tickets`) and return its path. */
 function plantTicket(dir: string, name: string, text: string): string {
-  mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
-  const path = join(dir, "plans", "tickets", name);
+  mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
+  const path = join(dir, FIXED_SUBPATHS.tickets, name);
   writeFileSync(path, text, "utf8");
   return path;
 }
@@ -630,11 +638,11 @@ describe("board-read — tickets, through the ONE ticket-document authority (D-0
     });
   });
 
-  it("reads an EMPTY `plans/tickets/` as `ok` with no tickets — empty is not stale (D-13)", () => {
+  it(`reads an EMPTY \`${FIXED_SUBPATHS.tickets}/\` as \`ok\` with no tickets — empty is not stale (D-13)`, () => {
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
-      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
-      writeFileSync(join(dir, "plans", "tickets", ".gitkeep"), "", "utf8");
+      mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
+      writeFileSync(join(dir, FIXED_SUBPATHS.tickets, ".gitkeep"), "", "utf8");
 
       const tickets = readSnapshot(dir).snapshot.sources.tickets;
       expect(tickets.source).toBe("ok");
@@ -658,11 +666,11 @@ describe("board-read — tickets, through the ONE ticket-document authority (D-0
   it("marks tickets `bounded` above MAX_WALK_ENTRIES rather than throwing (T-32-07)", () => {
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
-      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
       // NON-`.md` names on purpose: the case is about the WALK bound, and admitting ten thousand
       // documents to prove a listing was truncated would measure the admission loop instead.
       for (let i = 0; i <= MAX_WALK_ENTRIES; i += 1) {
-        writeFileSync(join(dir, "plans", "tickets", `note-${i}.txt`), "", "utf8");
+        writeFileSync(join(dir, FIXED_SUBPATHS.tickets, `note-${i}.txt`), "", "utf8");
       }
 
       const result = readSnapshot(dir);
@@ -714,7 +722,7 @@ describe("board-read — a REFUSED ticket is never reported as an ABSENT one (pl
       // PREMISE ONE: the file is on disk and readable. A case that measured a missing fixture would
       // pass for the wrong reason.
       expect(
-        readFileSync(join(dir, "plans", "tickets", "ABC-900.md"), "utf8"),
+        readFileSync(join(dir, FIXED_SUBPATHS.tickets, "ABC-900.md"), "utf8"),
         "PREMISE: the refused document was not planted, so this case measures nothing",
       ).toBe(REFUSED_TICKET);
       // PREMISE TWO: the refusal was recorded on the channel the contract names.
@@ -737,7 +745,7 @@ describe("board-read — a REFUSED ticket is never reported as an ABSENT one (pl
       const raised = forRefused.filter((c) => c.kind === "row-without-file");
       expect(raised.length).toBe(1);
       expect(raised[0]?.actual).toContain("unknown-key");
-      expect(raised[0]?.actual).toContain("plans/tickets/ABC-900.md");
+      expect(raised[0]?.actual).toContain(`${FIXED_SUBPATHS.tickets}/ABC-900.md`);
     });
   });
 });
@@ -836,12 +844,12 @@ describe("board-read — the tickets walk is a TOTAL partition over its own list
       // Neither of these is in the denominator: the walk skips a non-`.md` name, and the listing
       // itself filters a half-written atomic sibling. Planting both is what makes the count a claim
       // about the PARTITION rather than about the directory's size.
-      writeFileSync(join(dir, "plans", "tickets", "notes.txt"), "not a ticket\n", "utf8");
+      writeFileSync(join(dir, FIXED_SUBPATHS.tickets, "notes.txt"), "not a ticket\n", "utf8");
       plantTicket(dir, "ABC-014.md.tmp-4242-1-abcdef01", "---\nname: HALF\n");
 
       // THE DENOMINATOR IS DERIVED ON THE OTHER SIDE OF THE LOOP. A hand-typed number would rot the
       // day a row is added; a number taken from the record set would be vacuously equal to itself.
-      const listing = listDirectoryBounded(join(dir, "plans", "tickets"));
+      const listing = listDirectoryBounded(join(dir, FIXED_SUBPATHS.tickets));
       const mdEntries =
         listing.kind === "listed" ? listing.names.filter((n) => n.endsWith(".md")) : [];
       expect(
@@ -1042,7 +1050,7 @@ describe("board-read — every arm consuming the ticket record set, over one tre
 
       const refused = rows.find((c) => c.ticketId === "ABC-900");
       expect(refused?.actual).toContain("unknown-key");
-      expect(refused?.actual).toContain("plans/tickets/ABC-900.md");
+      expect(refused?.actual).toContain(`${FIXED_SUBPATHS.tickets}/ABC-900.md`);
       expect(refused?.actual).not.toContain(ABSENCE_SENTENCE);
 
       const absent = rows.find((c) => c.ticketId === "ABC-777");
@@ -1088,14 +1096,14 @@ describe("board-read — the verifier's gap-1 reproduction, against the committe
     withFixtureCopy((dir) => {
       // The verifier's shape, planted on the copy: a row, and a readable document the grammar
       // refuses by name. `tools` is outside the closed ticket key set.
-      const board = join(dir, "plans", "board.md");
+      const board = join(dir, FIXED_SUBPATHS.board);
       appendFileSync(
         board,
         "\n## Ready (WIP 1/5)\n\n- [ABC-900] A row whose ticket document is refused\n",
         "utf8",
       );
       writeFileSync(
-        join(dir, "plans", "tickets", "ABC-900.md"),
+        join(dir, FIXED_SUBPATHS.tickets, "ABC-900.md"),
         "---\nid: ABC-900\ntools: Bash\n---\n\nBody.\n",
         "utf8",
       );
@@ -1447,7 +1455,7 @@ describe("board-read — membership under the walk bound is by NAME (plan 32-17,
 
   it("hands a REAL directory's listing back sorted, so no caller needs a sort of its own", () => {
     withTempTree((dir) => {
-      const ticketsDir = join(dir, "plans", "tickets");
+      const ticketsDir = join(dir, FIXED_SUBPATHS.tickets);
       mkdirSync(ticketsDir, { recursive: true });
       // Written in an order that is not their sorted order; the filesystem is free to return either.
       for (const name of ["ZZZ-001.md", "ABC-014.md", "MNO-007.md", "ABC-002.md"]) {
@@ -1706,8 +1714,8 @@ describe("board-read — traceability, through the SAME comment pre-pass as the 
     "|--------|-------|------|---------|------|-----------------|-------|-----|---------|--------|\n";
 
   function plantTrace(dir: string, text: string): string {
-    mkdirSync(join(dir, "plans"), { recursive: true });
-    const path = join(dir, "plans", "traceability.md");
+    mkdirSync(join(dir, STATE_DIR_REL), { recursive: true });
+    const path = join(dir, FIXED_SUBPATHS.traceability);
     writeFileSync(path, text, "utf8");
     return path;
   }
@@ -1749,7 +1757,7 @@ describe("board-read — traceability, through the SAME comment pre-pass as the 
     });
   });
 
-  it("reads ZERO rows from the REAL `plans/traceability.md`, whose only row shape is commented out", () => {
+  it(`reads ZERO rows from the REAL \`${FIXED_SUBPATHS.traceability}\`, whose only row shape is commented out`, () => {
     // The live artifact, not a transcription. It ships EMPTY — header and separator only — with an
     // example row at `:15` inside its own 31-line comment. A reader that counted that row would
     // report a ticket nobody filed, which is the same hazard the board's own comment carries.
@@ -1766,7 +1774,7 @@ describe("board-read — traceability, through the SAME comment pre-pass as the 
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 // PLAN 32-09 — AN UNREADABLE DIRECTORY REACHES THE BADGE, AND NO CONFLICT IS FABRICATED (CR-02).
 //
-// The end-to-end slice the verifier reproduced by hand: a mode-000 `plans/tickets/` used to render a
+// The end-to-end slice the verifier reproduced by hand: a mode-000 ticket directory used to render a
 // clean `[ok]` header, no `readErrors` entry at all, and one `row-without-file` finding per board row
 // — positive assertions that files which exist do not. Three assertions, because any one of them is
 // satisfiable on its own by a reader that is broken a different way.
@@ -1788,7 +1796,7 @@ function plantTicketDoc(dir: string, id: string, column: string, status: string)
 }
 
 /**
- * Build a tree whose board rows all have ticket files, then run `run` with `plans/tickets` at 000.
+ * Build a tree whose board rows all have ticket files, then run `run` with the ticket tree at 000.
  * The mode is MEASURED first (plan 33-05, D-16): where this host does not deny the listing, the
  * remainder row is printed and `run` is not called — every case in the block below would otherwise
  * measure a directory that read cleanly.
@@ -1798,8 +1806,8 @@ function withDeniedTicketsDir(run: (dir: string, ticketsDir: string) => void): v
     plantBoard(dir, TICKETED_BOARD);
     plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
     plantTicketDoc(dir, "ABC-102", "Done", "done");
-    const ticketsDir = join(dir, "plans", "tickets");
-    const skipped = denyModeOrSkip(ticketsDir, 0o000, 0o755, () => readdirSync(ticketsDir), "a denied plans/tickets/ listing (32-09 CR-02)");
+    const ticketsDir = join(dir, FIXED_SUBPATHS.tickets);
+    const skipped = denyModeOrSkip(ticketsDir, 0o000, 0o755, () => readdirSync(ticketsDir), `a denied ${FIXED_SUBPATHS.tickets}/ listing (32-09 CR-02)`);
     if (skipped !== null) {
       console.warn(skipLine(skipped, MODE_PINNED_BY));
       return;
@@ -1813,7 +1821,7 @@ function withDeniedTicketsDir(run: (dir: string, ticketsDir: string) => void): v
   });
 }
 
-describe("board-read — a denied `plans/tickets/` is stale, not absent (plan 32-09, CR-02)", () => {
+describe(`board-read — a denied \`${FIXED_SUBPATHS.tickets}/\` is stale, not absent (plan 32-09, CR-02)`, () => {
   it.skipIf(IS_ROOT)("PREMISE: the mode actually denies the listing", () => {
     // `withDeniedTicketsDir` measures the mode and prints the skip where it is not honoured; where
     // it IS, the listing is denied by construction, re-measured here so the block's premise is a
@@ -2258,10 +2266,10 @@ describe("board-read — the legitimate inputs the fix must not turn into faults
     });
   });
 
-  it("reports an EMPTY `plans/tickets/` as `ok` with no badge and no error", () => {
+  it(`reports an EMPTY \`${FIXED_SUBPATHS.tickets}/\` as \`ok\` with no badge and no error`, () => {
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
-      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
       const result = readSnapshot(dir);
       expect(result.snapshot.sources.tickets.source).toBe("ok");
       expect(
@@ -2276,7 +2284,7 @@ describe("board-read — the legitimate inputs the fix must not turn into faults
   it("still marks tickets `bounded` above MAX_WALK_ENTRIES, carrying what it gathered", () => {
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
-      const ticketsDir = join(dir, "plans", "tickets");
+      const ticketsDir = join(dir, FIXED_SUBPATHS.tickets);
       mkdirSync(ticketsDir, { recursive: true });
       for (let i = 0; i <= MAX_WALK_ENTRIES; i += 1) {
         writeFileSync(join(ticketsDir, `ABC-${String(i).padStart(5, "0")}.md`), "x", "utf8");
@@ -2489,7 +2497,7 @@ describe("board-read — a per-ENTRY read failure degrades the whole source (pla
         // PREMISE: the DIRECTORY still lists cleanly, so this case is about the file and not about
         // the listing the earlier block already covers.
         expect(
-          readdirSync(join(dir, "plans", "tickets")).sort(),
+          readdirSync(join(dir, FIXED_SUBPATHS.tickets)).sort(),
           "PREMISE: the directory listing failed, so this case is measuring the CR-02 path again " +
             "rather than the one register below it",
         ).toEqual(["ABC-101.md", "ABC-102.md"]);
@@ -2598,13 +2606,13 @@ describe("board-read — a per-ENTRY read failure degrades the whole source (pla
 //
 // WHAT THE VERIFIER MEASURED. `repoSubpath` and `childPath` asked `relative(root, target)` about a
 // path `resolve()` had normalised LEXICALLY. `resolve()` does not follow symlinks and `readFileSync`
-// does, so a link planted at `plans/tickets/ZZZ-999.md` pointing at a file outside the tree passed
+// does, so a link planted at the ticket tree's `ZZZ-999.md` pointing at a file outside the tree passed
 // the containment test by spelling and was then opened by its target — and the first forty
 // characters of that target came back out in `readErrors[].message`, which is printed to stderr on
 // every frame and embedded in the published `--json` document (32-VERIFICATION.md:94-103).
 //
 // THE SHAPE OF THE FIX THESE CASES DRIVE. One authority, `insideRoot`, deciding on `realpathSync` —
-// which resolves every ANCESTOR link as well as the leaf, so a symlinked `plans/` directory and a
+// which resolves every ANCESTOR link as well as the leaf, so a symlinked state directory and a
 // symlinked ticket file are the same question asked once. The cases below drive all four arms that
 // matter, because a rule nobody has watched REFUSE and nobody has watched ADMIT is not yet a control:
 // an out-of-root leaf, an out-of-root ancestor, an in-root link (admitted), and a dangling link
@@ -2669,7 +2677,7 @@ describe("board-read — a path that resolves outside the root is refused (plan 
     withEscapeTree(({ dir, outsideFile }) => {
       plantBoard(dir, TICKETED_BOARD);
       plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
-      const link = join(dir, "plans", "tickets", "ZZZ-999.md");
+      const link = join(dir, FIXED_SUBPATHS.tickets, "ZZZ-999.md");
       symlinkSync(outsideFile, link);
 
       const result = readSnapshot(dir);
@@ -2706,17 +2714,20 @@ describe("board-read — a path that resolves outside the root is refused (plan 
     });
   });
 
-  it("refuses an out-of-root symlinked ANCESTOR (`plans` itself) without throwing", () => {
+  it(`refuses an out-of-root symlinked ANCESTOR (\`${STATE_DIR_REL}\` itself) without throwing`, () => {
     withEscapeTree(({ dir, outsideDir }) => {
       // An entire board, outside the tree, reachable only through the linked ancestor. Pre-fix this
       // rendered as `ok` with the outside board's own column headings on screen (T-32-10-02).
-      mkdirSync(join(outsideDir, "plans", "tickets"), { recursive: true });
+      mkdirSync(join(outsideDir, FIXED_SUBPATHS.tickets), { recursive: true });
       writeFileSync(
-        join(outsideDir, "plans", "board.md"),
+        join(outsideDir, FIXED_SUBPATHS.board),
         `## ${ESCAPE_MARKER} (WIP unlimited)\n- [ZZZ-001] a board nobody in this tree wrote\n`,
         "utf8",
       );
-      symlinkSync(join(outsideDir, "plans"), join(dir, "plans"));
+      // The link sits AT the state directory, so its parent is created first: the case means the
+      // same thing when the state directory has more than one segment.
+      mkdirSync(dirname(join(dir, STATE_DIR_REL)), { recursive: true });
+      symlinkSync(join(outsideDir, STATE_DIR_REL), join(dir, STATE_DIR_REL));
 
       let result: SnapshotResult | null = null;
       expect(() => {
@@ -2743,7 +2754,7 @@ describe("board-read — a path that resolves outside the root is refused (plan 
     // symlink" is satisfied by a reader that refuses every link, including the ones a real tree has.
     withEscapeTree(({ dir }) => {
       plantBoard(dir, TICKETED_BOARD);
-      const realDir = join(dir, "plans", "tickets-real");
+      const realDir = join(dir, STATE_DIR_REL, "tickets-real");
       mkdirSync(realDir, { recursive: true });
       const realTicket = join(realDir, "ABC-101.md");
       writeFileSync(
@@ -2751,8 +2762,8 @@ describe("board-read — a path that resolves outside the root is refused (plan 
         "---\nid: ABC-101\ntitle: ABC-101 title\nstatus: backlog\ncolumn: Backlog\n---\n\n# ABC-101\n",
         "utf8",
       );
-      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
-      symlinkSync(realTicket, join(dir, "plans", "tickets", "ABC-101.md"));
+      mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
+      symlinkSync(realTicket, join(dir, FIXED_SUBPATHS.tickets, "ABC-101.md"));
 
       const result = readSnapshot(dir);
       expect(
@@ -2779,8 +2790,8 @@ describe("board-read — a path that resolves outside the root is refused (plan 
       // Two dangling links: one whose target would have been inside the root, one whose target would
       // have been outside it. Neither exists, so neither is an escape — a path that is not there is
       // the caller's own ENOENT arm to answer (D-13).
-      symlinkSync(join(dir, "plans", "tickets", "no-such-target.md"), join(dir, "plans", "tickets", "DANG-1.md"));
-      symlinkSync(join(outsideDir, "never-written.txt"), join(dir, "plans", "tickets", "DANG-2.md"));
+      symlinkSync(join(dir, FIXED_SUBPATHS.tickets, "no-such-target.md"), join(dir, FIXED_SUBPATHS.tickets, "DANG-1.md"));
+      symlinkSync(join(outsideDir, "never-written.txt"), join(dir, FIXED_SUBPATHS.tickets, "DANG-2.md"));
 
       const result = readSnapshot(dir);
       expect(
@@ -2819,10 +2830,10 @@ describe("board-read — a path that resolves outside the root is refused (plan 
 
     withEscapeTree(({ dir }) => {
       const root = realpathSync(dir);
-      const refused = childPath(root, join(root, "plans", "tickets"), "..");
+      const refused = childPath(root, join(root, FIXED_SUBPATHS.tickets), "..");
       expect(refused.ok).toBe(false);
       expect(refused.ok ? "" : refused.code).toBe("unsafe-name");
-      const admitted = childPath(root, join(root, "plans", "tickets"), "ABC-101.md");
+      const admitted = childPath(root, join(root, FIXED_SUBPATHS.tickets), "ABC-101.md");
       expect(
         admitted.ok,
         "PREMISE: the authority refuses every name, so the refusal above says nothing about `..`",
@@ -3268,11 +3279,11 @@ describe("board-read — every read target comes from a path authority (plan 32-
           "  return realpathSync(join(root, rel));\n" +
           "}\n" +
           "export function good(root: string): void {\n" +
-          '  const p = repoSubpath(root, "plans/board.md");\n' +
+          `  const p = repoSubpath(root, ${JSON.stringify(FIXED_SUBPATHS.board)});\n` +
           "  statSync(p);\n" +
           "}\n" +
           "export function bad(root: string): void {\n" +
-          '  const taskDir = repoSubpath(root, "plans");\n' +
+          `  const taskDir = repoSubpath(root, ${JSON.stringify(STATE_DIR_REL)});\n` +
           '  const raw = join(taskDir, "claim.md");\n' +
           "  statSync(raw);\n" +
           "}\n",
@@ -3306,7 +3317,7 @@ describe("board-read — every read target comes from a path authority (plan 32-
         probe,
         AUTHORITY_PRELUDE +
           "export const readRaw = (root: string): void => {\n" +
-          '  const taskDir = repoSubpath(root, "plans");\n' +
+          `  const taskDir = repoSubpath(root, ${JSON.stringify(STATE_DIR_REL)});\n` +
           '  const raw = join(taskDir, "claim.md");\n' +
           "  statSync(raw);\n" +
           "};\n",
@@ -3488,7 +3499,7 @@ describe("board-read — every read target comes from a path authority (plan 32-
         probe,
         AUTHORITY_PRELUDE +
           "export function outer(root: string): void {\n" +
-          '  const safe = repoSubpath(root, "plans");\n' +
+          `  const safe = repoSubpath(root, ${JSON.stringify(STATE_DIR_REL)});\n` +
           "  const once = (): void => {\n" +
           "    statSync(safe);\n" +
           "  };\n" +
@@ -3593,7 +3604,7 @@ describe("board-read — a containment refusal is ONE source's finding (plan 32-
       plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
       plantTicketDoc(dir, "ABC-102", "Done", "done");
       writeFileSync(join(outsideDir, "traceability.md"), `| ${ESCAPE_MARKER} | x |\n`, "utf8");
-      symlinkSync(join(outsideDir, "traceability.md"), join(dir, "plans", "traceability.md"));
+      symlinkSync(join(outsideDir, "traceability.md"), join(dir, FIXED_SUBPATHS.traceability));
 
       const result = readSnapshot(dir);
 
@@ -3798,10 +3809,10 @@ describe("board-read — the legitimate shapes containment must not turn into fa
     });
   });
 
-  it("2. an EMPTY `plans/tickets/`: tickets `ok`, empty list, no badge", () => {
+  it(`2. an EMPTY \`${FIXED_SUBPATHS.tickets}/\`: tickets \`ok\`, empty list, no badge`, () => {
     withEscapeTree(({ dir }) => {
       plantBoard(dir, ONE_COLUMN);
-      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
 
       const result = readSnapshot(dir);
       expect(result.snapshot.sources.tickets.source).toBe("ok");
@@ -3854,10 +3865,10 @@ describe("board-read — the legitimate shapes containment must not turn into fa
     });
   });
 
-  it("5. an IN-ROOT symlinked DIRECTORY (`plans/tickets` → `plans/tickets-real/`) still reads", () => {
+  it(`5. an IN-ROOT symlinked DIRECTORY (\`${FIXED_SUBPATHS.tickets}\` → \`${STATE_DIR_REL}/tickets-real/\`) still reads`, () => {
     withEscapeTree(({ dir }) => {
       plantBoard(dir, TICKETED_BOARD);
-      const real = join(dir, "plans", "tickets-real");
+      const real = join(dir, STATE_DIR_REL, "tickets-real");
       mkdirSync(real, { recursive: true });
       for (const [id, column, status] of [
         ["ABC-101", "Backlog", "backlog"],
@@ -3869,7 +3880,7 @@ describe("board-read — the legitimate shapes containment must not turn into fa
           "utf8",
         );
       }
-      symlinkSync(real, join(dir, "plans", "tickets"));
+      symlinkSync(real, join(dir, FIXED_SUBPATHS.tickets));
 
       const result = readSnapshot(dir);
       expect(
@@ -3987,11 +3998,13 @@ describe("board-read — the adversarial shapes, probed rather than assumed (pla
     withEscapeTree(({ dir, outsideFile }) => {
       plantBoard(dir, TICKETED_BOARD);
       plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
-      // `../../elsewhere/outside-secret.txt` from `plans/tickets/` — a spelling that never mentions
-      // an absolute path, which is the shape a lexical check is most likely to be written against.
+      // A `../../../elsewhere/outside-secret.txt`-shaped spelling relative to the ticket directory —
+      // one that never mentions an absolute path, which is the shape a lexical check is most likely
+      // to be written against. The climb is derived from the ticket directory itself, so it counts
+      // every segment of the state directory rather than assuming one.
       symlinkSync(
-        join("..", "..", relative(dir, outsideFile)),
-        join(dir, "plans", "tickets", "REL-1.md"),
+        relative(join(dir, FIXED_SUBPATHS.tickets), outsideFile),
+        join(dir, FIXED_SUBPATHS.tickets, "REL-1.md"),
       );
       const result = readSnapshot(dir);
       expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
@@ -4008,7 +4021,7 @@ describe("board-read — the adversarial shapes, probed rather than assumed (pla
       plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
       const hop = join(outsideDir, "hop.md");
       symlinkSync(outsideFile, hop);
-      symlinkSync(hop, join(dir, "plans", "tickets", "CHAIN-1.md"));
+      symlinkSync(hop, join(dir, FIXED_SUBPATHS.tickets, "CHAIN-1.md"));
       const result = readSnapshot(dir);
       expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
       expect(result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT").length).toBe(1);
@@ -4022,7 +4035,7 @@ describe("board-read — the adversarial shapes, probed rather than assumed (pla
       const outDir = join(outsideDir, "a-whole-directory");
       mkdirSync(outDir, { recursive: true });
       writeFileSync(join(outDir, "inside.md"), `${ESCAPE_MARKER}\n`, "utf8");
-      symlinkSync(outDir, join(dir, "plans", "tickets", "DIR-1.md"));
+      symlinkSync(outDir, join(dir, FIXED_SUBPATHS.tickets, "DIR-1.md"));
       const result = readSnapshot(dir);
       expect(JSON.stringify(result)).not.toContain(ESCAPE_MARKER);
       expect(result.readErrors.filter((e) => e.code === "OUTSIDE-ROOT").length).toBe(1);
@@ -4035,7 +4048,7 @@ describe("board-read — the adversarial shapes, probed rather than assumed (pla
     withEscapeTree(({ dir }) => {
       plantBoard(dir, TICKETED_BOARD);
       plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
-      const loop = join(dir, "plans", "tickets", "LOOP-1.md");
+      const loop = join(dir, FIXED_SUBPATHS.tickets, "LOOP-1.md");
       symlinkSync(loop, loop);
       const result = readSnapshot(dir);
       const codes = result.readErrors.filter((e) => e.source === "tickets").map((e) => e.code);
@@ -4051,8 +4064,8 @@ describe("board-read — the adversarial shapes, probed rather than assumed (pla
   it("RECORDS the hard-link residual: a path-based rule cannot see it, and that is measured", () => {
     withEscapeTree(({ dir, outsideFile }) => {
       plantBoard(dir, TICKETED_BOARD);
-      const hard = join(dir, "plans", "tickets", "HARD-1.md");
-      mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+      const hard = join(dir, FIXED_SUBPATHS.tickets, "HARD-1.md");
+      mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
       linkSync(outsideFile, hard);
 
       // THE MECHANISM, PINNED. This is why no path rule can refuse it: the second name IS the file,
@@ -4169,8 +4182,8 @@ describe("board-read — every non-grammar document class has a recorded byte-or
   }
 
   function plantTraceFile(dir: string, text: string): void {
-    mkdirSync(join(dir, "plans"), { recursive: true });
-    writeFileSync(join(dir, "plans", "traceability.md"), text, "utf8");
+    mkdirSync(join(dir, STATE_DIR_REL), { recursive: true });
+    writeFileSync(join(dir, FIXED_SUBPATHS.traceability), text, "utf8");
   }
 
   function plantDial(dir: string, text: string): void {
@@ -4299,7 +4312,7 @@ describe("board-read — every non-grammar document class has a recorded byte-or
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 // PLAN 32-33 — THE IDENTITY PAIR, THE NAMED EMPTY-STEM REFUSAL, AND THE DUPLICATE CHECK AS A MAP.
 //
-// THE READER'S HALF OF CR-03. A `plans/tickets/*.md` entry always has TWO identities: the name the
+// THE READER'S HALF OF CR-03. A ticket-tree `*.md` entry always has TWO identities: the name the
 // directory gave it, and the identifier the document declares. They agree for every well-formed
 // ticket, and the reader used to hand the join only the second — so a document admitted under a
 // declared identifier that is not its file stem was, from the join's point of view, a file that did
@@ -4433,7 +4446,7 @@ describe("board-read — an entry named exactly `.md` is REFUSED by name (plan 3
 
       // THE DENOMINATOR IS TAKEN FROM THE LISTING, on the other side of the walk — the same
       // instrument plan 32-15 used, which is what makes a silent fourth exit a failing number.
-      const listing = listDirectoryBounded(join(dir, "plans", "tickets"));
+      const listing = listDirectoryBounded(join(dir, FIXED_SUBPATHS.tickets));
       const mdEntries =
         listing.kind === "listed" ? listing.names.filter((n) => n.endsWith(".md")) : [];
       expect(
@@ -4781,14 +4794,14 @@ function measureClaimSentence32112(
     // its own. A refusal prints the platform-shape remainder row — the gate's own probe of the same
     // capability is where a reader sees the absence counted — and the case returns.
     const refused = stageNameOrSkip(
-      () => mkdirSync(join(root, "plans"), { recursive: true }),
+      () => mkdirSync(join(root, STATE_DIR_REL), { recursive: true }),
       `scripts/board-read.test.ts: 32.1-12 planted entry repo<U+${point.codePointAt(0)?.toString(16).toUpperCase().padStart(4, "0") ?? "?"}>x`,
     );
     if (refused !== null) {
       console.warn(skipLine(refused, "the C1 points of this same block, which every host stages, and the renderer's own spelling cases"));
       return;
     }
-    writeFileSync(join(root, "plans", "board.md"), ONE_COLUMN, "utf8");
+    writeFileSync(join(root, FIXED_SUBPATHS.board), ONE_COLUMN, "utf8");
 
     const task = kind === "no-at" ? "task-no-at" : "task-tampered";
     const taskDir = join(root, ".grugops", "queue", "claimed", task);
@@ -4970,14 +4983,14 @@ function measureComposedSentence32113(
     const root = join(parent, plantedEntry);
     // As in 32.1-12 above: a refused name is a printed, counted platform shape (plan 33-05).
     const refused = stageNameOrSkip(
-      () => mkdirSync(join(root, "plans"), { recursive: true }),
+      () => mkdirSync(join(root, STATE_DIR_REL), { recursive: true }),
       `scripts/board-read.test.ts: 32.1-13 planted entry repo<U+${point.codePointAt(0)?.toString(16).toUpperCase().padStart(4, "0") ?? "?"}>x (${arm})`,
     );
     if (refused !== null) {
       console.warn(skipLine(refused, "the C1 points of this same block, which every host stages"));
       return;
     }
-    writeFileSync(join(root, "plans", "board.md"), ONE_COLUMN, "utf8");
+    writeFileSync(join(root, FIXED_SUBPATHS.board), ONE_COLUMN, "utf8");
     plant(root);
 
     const parentListing = readdirSync(parent);
@@ -5066,7 +5079,7 @@ describe("32.1-13 — every composed path a published sentence quotes SPELLS a d
       "\u0001",
       "tickets/ENCODING",
       (root) => {
-        const ticketsDir = join(root, "plans", "tickets");
+        const ticketsDir = join(root, FIXED_SUBPATHS.tickets);
         mkdirSync(ticketsDir, { recursive: true });
         // AN INVALID UTF-8 SEQUENCE, WRITTEN AS BYTES. `0xC3` opens a two-byte sequence and `0x28`
         // cannot continue it, so `TextDecoder(..., { fatal: true })` throws and the read leaves by

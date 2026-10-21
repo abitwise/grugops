@@ -35,7 +35,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, posix, relative } from "node:path";
 // THE ONE published-path normalizer (plan 33-03), applied here to a TEST-INTERNAL comparison:
 // `armedRel` is `relative()` over real directories, compared against POSIX literals, and never
 // published by the dashboard. The measured carrier of six windows reds (33-RESEARCH § Windows
@@ -65,9 +65,9 @@ import type { SnapshotResult } from "./board-read.js";
  * Is `dir` on the root-to-leaf path of `subpath` — equal to it, its parent, or inside it?
  *
  * THE RELATIONSHIP THE CASES BELOW ASSERT, spelled once. Two of the three shapes are real: a
- * file-shaped source (`plans/board.md`) is covered by its parent directory, and a directory-shaped
- * source with stages (`.grugops/queue`) is covered by the stage directories INSIDE it. A predicate
- * that only looked one way would call the queue unwatched.
+ * file-shaped source (the board, `FIXED_SUBPATHS.board`) is covered by its parent directory, and a
+ * directory-shaped source with stages (`.grugops/queue`) is covered by the stage directories INSIDE
+ * it. A predicate that only looked one way would call the queue unwatched.
  */
 function onSamePath(dir: string, subpath: string): boolean {
   return dir === subpath || subpath.startsWith(`${dir}/`) || dir.startsWith(`${subpath}/`);
@@ -76,6 +76,14 @@ function onSamePath(dir: string, subpath: string): boolean {
 const ROOT = join(import.meta.dirname, "..");
 const DASHBOARD_JS = join(ROOT, "scripts", "board-dashboard.js");
 const FIXTURE = join(ROOT, "scripts", "fixtures", "board-snapshot");
+
+/**
+ * The state directory, derived from the read seam's own table (D-13 step 2): the POSIX dirname of
+ * `FIXED_SUBPATHS.board`, which is also the directory the board's watch is armed on. It may hold more
+ * than one segment, so a plant creates parents recursively, and a link planted AT it has its parent
+ * created first.
+ */
+const STATE_DIR_REL = posix.dirname(FIXED_SUBPATHS.board);
 
 /**
  * The root as the USER TYPES IT, which is the value `arm` used to join against.
@@ -420,9 +428,9 @@ describe("board-dashboard — the watched directory set (D-14)", () => {
     // THE DISCRIMINATION. Without it, `deriveWatchDirs` returning a frozen constant would satisfy
     // every case above — the relationship would hold, the count would hold, and the derivation would
     // be a literal with a function around it.
-    const renamed = deriveWatchDirs({ ...FIXED_SUBPATHS, tickets: "plans/cards" });
-    expect(renamed.map((d) => d.rel)).toContain("plans/cards");
-    expect(renamed.map((d) => d.rel)).not.toContain("plans/tickets");
+    const renamed = deriveWatchDirs({ ...FIXED_SUBPATHS, tickets: `${STATE_DIR_REL}/cards` });
+    expect(renamed.map((d) => d.rel)).toContain(`${STATE_DIR_REL}/cards`);
+    expect(renamed.map((d) => d.rel)).not.toContain(FIXED_SUBPATHS.tickets);
     expect(renamed.length).toBe(WATCH_DIRS.length);
 
     const fourStages = deriveWatchDirs(FIXED_SUBPATHS, [...QUEUE_STAGES, "abandoned"]);
@@ -436,11 +444,12 @@ describe("board-dashboard — the watched directory set (D-14)", () => {
 
   it("drops the dial, and folds traceability into the directory the board already supplies", () => {
     // The two facts a reader counting six directories against six sources needs, asserted rather
-    // than only written down: `config` is watched by nobody, and `traceability` shares `plans/`.
+    // than only written down: `config` is watched by nobody, and `traceability` shares the state
+    // directory.
     expect(WATCH_DIRS.map((d) => d.rel)).not.toContain("agent-factory/config");
-    expect(WATCH_DIRS.filter((d) => d.rel === "plans").length).toBe(1);
+    expect(WATCH_DIRS.filter((d) => d.rel === STATE_DIR_REL).length).toBe(1);
     expect(
-      onSamePath("plans", FIXED_SUBPATHS.traceability),
+      onSamePath(STATE_DIR_REL, FIXED_SUBPATHS.traceability),
       "traceability lives beside the board, so the board's watched directory covers it and no " +
         "seventh entry is derived for it",
     ).toBe(true);
@@ -459,34 +468,34 @@ describe("board-dashboard — the watched directory set (D-14)", () => {
 
 describe("board-dashboard — arming (D-14)", () => {
   it("arms one watcher per EXISTING directory and silently skips one that is not there", () => {
-    const h = harness({}, ["plans", "plans/tickets"]);
+    const h = harness({}, [STATE_DIR_REL, FIXED_SUBPATHS.tickets]);
     h.loop.armAll();
-    expect(h.loop.watchedDirs()).toEqual(["plans", "plans/tickets"]);
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL, FIXED_SUBPATHS.tickets]);
     expect(h.loop.watchErrors()).toEqual([]);
   });
 
   it("arms a directory that APPEARS later, on a poll tick", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
     expect(
       h.loop.watchedDirs(),
       "PREMISE: the loop armed something other than the one directory that existed, so the case " +
         "below cannot tell an appearance from a re-arm",
-    ).toEqual(["plans"]);
+    ).toEqual([STATE_DIR_REL]);
 
     // The queue appears — an agent claimed the first task on a tree that had never run one.
     h.present.add(join(REPO, ".grugops/queue/claimed"));
     vi.advanceTimersByTime(POLL_FLOOR_MS);
 
-    expect(h.loop.watchedDirs()).toEqual(["plans", ".grugops/queue/claimed"]);
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL, ".grugops/queue/claimed"]);
     h.loop.stop();
   });
 
   it("arms each directory ONCE, however many poll ticks pass", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
     vi.advanceTimersByTime(POLL_FLOOR_MS * 3);
@@ -498,10 +507,10 @@ describe("board-dashboard — arming (D-14)", () => {
 describe("board-dashboard — the debounce (D-14, T-32-13)", () => {
   it("coalesces FIVE events inside the window into exactly ONE re-read", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
-    const w = liveWatcher(h, "plans");
-    expect(w, "PREMISE: no watcher was armed on plans/, so no event below was delivered").toBeDefined();
+    const w = liveWatcher(h, STATE_DIR_REL);
+    expect(w, `PREMISE: no watcher was armed on ${STATE_DIR_REL}/, so no event below was delivered`).toBeDefined();
 
     for (let i = 0; i < 5; i += 1) {
       w?.fire("change", "board.md");
@@ -520,9 +529,9 @@ describe("board-dashboard — the debounce (D-14, T-32-13)", () => {
 
   it("re-reads AGAIN for a burst that arrives after the window closed", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
-    const w = liveWatcher(h, "plans");
+    const w = liveWatcher(h, STATE_DIR_REL);
     w?.fire("change", "board.md");
     vi.advanceTimersByTime(DEBOUNCE_MS);
     w?.fire("change", "board.md");
@@ -533,9 +542,9 @@ describe("board-dashboard — the debounce (D-14, T-32-13)", () => {
 
   it("re-reads for a listener invoked with a NULL filename (Node reports none on some Linux)", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
-    const w = liveWatcher(h, "plans");
+    const w = liveWatcher(h, STATE_DIR_REL);
     // The listener ignores both arguments. A re-read that depended on `filename` would be a re-read
     // that silently stops happening on a platform Node documents as reporting none.
     w?.fire("rename", null);
@@ -548,7 +557,7 @@ describe("board-dashboard — the debounce (D-14, T-32-13)", () => {
 describe("board-dashboard — the mandatory poll floor (D-14)", () => {
   it("re-reads on the poll tick with EVERY watcher closed and none re-armed", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans", ".grugops/context"]);
+    const h = harness({}, [STATE_DIR_REL, ".grugops/context"]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
     expect(
@@ -589,7 +598,7 @@ describe("board-dashboard — the mandatory poll floor (D-14)", () => {
 
   it("stops both timers and closes every watcher on stop", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
     h.loop.stop();
@@ -604,11 +613,11 @@ describe("board-dashboard — the mandatory poll floor (D-14)", () => {
 describe("board-dashboard — a watcher that errors is closed, noted and re-armed (D-14)", () => {
   it("closes the watcher, names the directory in readErrors, and re-arms it on the next poll", () => {
     vi.useFakeTimers();
-    process.env[FORCE_WATCH_ERROR_ENV] = "plans";
-    const h = harness({}, ["plans"]);
+    process.env[FORCE_WATCH_ERROR_ENV] = STATE_DIR_REL;
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
-    const armed = liveWatcher(h, "plans");
+    const armed = liveWatcher(h, STATE_DIR_REL);
     expect(
       armed,
       "PREMISE: the seam prevented the watcher from being armed at all, so nothing below measured " +
@@ -621,7 +630,7 @@ describe("board-dashboard — a watcher that errors is closed, noted and re-arme
     expect(h.loop.watchedDirs()).toEqual([]);
     const noted = h.loop.watchErrors();
     expect(noted.length).toBe(1);
-    expect(noted[0]?.path).toBe("plans");
+    expect(noted[0]?.path).toBe(STATE_DIR_REL);
     expect(noted[0]?.source).toBe("board");
     expect(noted[0]?.code).toBe("watch");
 
@@ -629,16 +638,16 @@ describe("board-dashboard — a watcher that errors is closed, noted and re-arme
     expect(
       h.loop.watchedDirs(),
       "the re-arm is what makes a transient watch failure transient rather than permanent",
-    ).toEqual(["plans"]);
+    ).toEqual([STATE_DIR_REL]);
     h.loop.stop();
   });
 
   it("carries the watch failure into the emitted document, not only into the loop's own list", () => {
     vi.useFakeTimers();
-    process.env[FORCE_WATCH_ERROR_ENV] = "plans";
-    const h = harness({ json: true }, ["plans"]);
+    process.env[FORCE_WATCH_ERROR_ENV] = STATE_DIR_REL;
+    const h = harness({ json: true }, [STATE_DIR_REL]);
     h.loop.armAll();
-    liveWatcher(h, "plans")?.fire("change", null);
+    liveWatcher(h, STATE_DIR_REL)?.fire("change", null);
     h.loop.refresh();
 
     const line = h.writes()[h.writes().length - 1] ?? "";
@@ -656,13 +665,13 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
 
   it("reports exactly ONE record for a directory whose watch fails on ten consecutive ticks", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
 
     const TICKS = 10;
     for (let i = 0; i < TICKS; i += 1) {
-      const w = liveWatcher(h, "plans");
+      const w = liveWatcher(h, STATE_DIR_REL);
       expect(w, `PREMISE: no live watcher on tick ${i}, so nothing below measured a failure`).toBeDefined();
       w?.error?.(new Error(`inotify watch limit reached (attempt ${i})`));
       // The last failure is NOT followed by a tick: the point of the case is the record a
@@ -681,16 +690,16 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
         "8,640 a day at the floor, every one of them printed on every frame and embedded in every " +
         "published document as a current read error (WR-06)",
     ).toBe(1);
-    expect(h.loop.watchErrors()[0]?.path).toBe("plans");
+    expect(h.loop.watchErrors()[0]?.path).toBe(STATE_DIR_REL);
     h.loop.stop();
   });
 
   it("reports ZERO records once the watch is re-armed successfully", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
-    liveWatcher(h, "plans")?.error?.(new Error("transient"));
+    liveWatcher(h, STATE_DIR_REL)?.error?.(new Error("transient"));
     expect(
       h.loop.watchErrors().length,
       "PREMISE: the failure was never recorded, so 'cleared on re-arm' is true of a loop that " +
@@ -699,7 +708,7 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
 
     vi.advanceTimersByTime(POLL_FLOOR_MS);
 
-    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL]);
     expect(
       h.loop.watchErrors(),
       "the record says the watch is down and will be re-armed on the next poll tick. Once that " +
@@ -711,16 +720,16 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
 
   it("replaces the reason when the same directory fails again for a different reason", () => {
     vi.useFakeTimers();
-    const h = harness({}, ["plans"]);
-    h.armFailures.set(join(REPO, "plans"), "ENOSPC: inotify watch limit reached");
+    const h = harness({}, [STATE_DIR_REL]);
+    h.armFailures.set(join(REPO, STATE_DIR_REL), "ENOSPC: inotify watch limit reached");
     h.loop.armAll();
     expect(
       h.loop.watchErrors().map((e) => e.path),
       "PREMISE: a throwing watch() call was not recorded at all",
-    ).toEqual(["plans"]);
+    ).toEqual([STATE_DIR_REL]);
     expect(h.loop.watchErrors()[0]?.message).toContain("ENOSPC");
 
-    h.armFailures.set(join(REPO, "plans"), "EMFILE: too many open files");
+    h.armFailures.set(join(REPO, STATE_DIR_REL), "EMFILE: too many open files");
     h.loop.start(POLL_FLOOR_MS);
     vi.advanceTimersByTime(POLL_FLOOR_MS);
 
@@ -740,15 +749,20 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
 
   it("orders two failing directories by name, so two frames of one state are the same bytes", () => {
     vi.useFakeTimers();
-    const h = harness({ json: true }, ["plans", ".grugops/context"]);
+    expect(
+      STATE_DIR_REL > ".grugops/context",
+      "PREMISE: the state directory no longer sorts after `.grugops/context`, so arming order and " +
+        "name order agree below and the case cannot tell a sorted list from an insertion-ordered one",
+    ).toBe(true);
+    const h = harness({ json: true }, [STATE_DIR_REL, ".grugops/context"]);
     h.loop.armAll();
     // Failed in ARMING order, which is WATCH_DIRS order and is not name order. A list that came
-    // out in insertion order would read `plans` first, and a consumer diffing two documents would
-    // see a reshuffle whenever the two failures happened in the other sequence.
-    liveWatcher(h, "plans")?.error?.(new Error("first"));
+    // out in insertion order would read the state directory first, and a consumer diffing two
+    // documents would see a reshuffle whenever the two failures happened in the other sequence.
+    liveWatcher(h, STATE_DIR_REL)?.error?.(new Error("first"));
     liveWatcher(h, ".grugops/context")?.error?.(new Error("second"));
 
-    expect(h.loop.watchErrors().map((e) => e.path)).toEqual([".grugops/context", "plans"]);
+    expect(h.loop.watchErrors().map((e) => e.path)).toEqual([".grugops/context", STATE_DIR_REL]);
 
     // THE ORDER IS ASSERTED WHERE A CONSUMER READS IT. The accessor above is the loop's own view;
     // the document below is the artefact somebody diffs, and `emit` is the function that could put
@@ -758,17 +772,17 @@ describe("board-dashboard — one CURRENT watch record per directory (WR-06)", (
     const parsed = JSON.parse(line) as { readErrors: { path: string; code: string }[] };
     expect(parsed.readErrors.filter((e) => e.code === "watch").map((e) => e.path)).toEqual([
       ".grugops/context",
-      "plans",
+      STATE_DIR_REL,
     ]);
     h.loop.stop();
   });
 
   it("holds no record after `stop`, so a later emit prints nothing about a watch that is gone", () => {
     vi.useFakeTimers();
-    const h = harness({ json: true }, ["plans"]);
+    const h = harness({ json: true }, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
-    liveWatcher(h, "plans")?.error?.(new Error("driven"));
+    liveWatcher(h, STATE_DIR_REL)?.error?.(new Error("driven"));
     expect(
       h.loop.watchErrors().length,
       "PREMISE: nothing was recorded before stop, so the emptiness below is not stop's doing",
@@ -799,7 +813,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
   it("arms against the root the READ resolved, not the value the caller typed", () => {
     const RESOLVED = "/private/repo";
     const h = harness({}, []);
-    h.present.add(join(RESOLVED, "plans"));
+    h.present.add(join(RESOLVED, STATE_DIR_REL));
     h.readRoot.current = RESOLVED;
     h.loop.seed(stubResult(1, RESOLVED));
 
@@ -809,21 +823,21 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
       h.watchers.map((w) => w.dir),
       "the handle is open on the ARGV path. `options.repoRoot` is the string the user typed; the " +
         "snapshot's repoRoot is what the containment authority resolved it to",
-    ).toEqual([join(RESOLVED, "plans")]);
-    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    ).toEqual([join(RESOLVED, STATE_DIR_REL)]);
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL]);
   });
 
   it("follows a later read that resolves to a DIFFERENT root", () => {
-    const h = harness({}, ["plans"]);
+    const h = harness({}, [STATE_DIR_REL]);
     h.loop.seed(stubResult(1, REPO));
     h.loop.armAll();
     expect(
       h.watchers.map((w) => w.dir),
       "PREMISE: nothing was armed under the first root, so the move below is a move from nowhere",
-    ).toEqual([join(REPO, "plans")]);
+    ).toEqual([join(REPO, STATE_DIR_REL)]);
 
     const MOVED = "/private/repo";
-    h.present.add(join(MOVED, "plans"));
+    h.present.add(join(MOVED, STATE_DIR_REL));
     h.readRoot.current = MOVED;
     h.loop.refresh();
     h.loop.armAll();
@@ -832,14 +846,14 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
       h.watchers.filter((w) => !w.closed).map((w) => w.dir),
       "a resolved root that MOVED leaves every open handle on a tree that is no longer the one " +
         "being projected: the handles go with the root",
-    ).toEqual([join(MOVED, "plans")]);
+    ).toEqual([join(MOVED, STATE_DIR_REL)]);
   });
 
   it("arms NOTHING before a read has resolved a root, and says so once per directory", () => {
     // THE STATED ANSWER TO AN UNSTATED ORDER DEPENDENCE. `run` seeds before it arms, so production
     // never reaches this; `createLoop` is a public function a caller can drive in any order, and an
     // unstated assumption in a loop that opens filesystem handles is what the next round measures.
-    const h = harness({}, ["plans"], { seeded: false });
+    const h = harness({}, [STATE_DIR_REL], { seeded: false });
 
     h.loop.armAll();
 
@@ -854,7 +868,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
     // And the records do not outlive the condition: a seed, a re-arm, and the loop says nothing.
     h.loop.seed(stubResult(1, REPO));
     h.loop.armAll();
-    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL]);
     expect(
       h.loop.watchErrors(),
       "the five directories that do not exist on this tree kept a record about a condition that " +
@@ -868,13 +882,15 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
     // loop ASKED to watch.
     withLinkedTree(
       (tree, outside) => {
-        cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
-        rmSync(join(tree, "plans"), { recursive: true, force: true });
-        symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
+        mkdirSync(dirname(join(outside, STATE_DIR_REL)), { recursive: true });
+        cpSync(join(tree, STATE_DIR_REL), join(outside, STATE_DIR_REL), { recursive: true });
+        rmSync(join(tree, STATE_DIR_REL), { recursive: true, force: true });
+        mkdirSync(dirname(join(tree, STATE_DIR_REL)), { recursive: true });
+        symlinkSync(join(outside, STATE_DIR_REL), join(tree, STATE_DIR_REL), "dir");
       },
       ({ refused, armed }) => {
-        // THREE sources, not two: `plans/` carries the board, the ticket directory AND the
-        // traceability file, so one symlink refuses all three — and `plans` is the watched
+        // THREE sources, not two: the state directory carries the board, the ticket directory AND
+        // the traceability file, so one symlink refuses all three — and it is the watched
         // directory for the first and the third.
         expect(
           refused.map((e) => e.source).sort(),
@@ -883,7 +899,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
         ).toEqual(["board", "tickets", "traceability"]);
 
         expect(
-          armed.filter((d) => d.includes("plans")),
+          armed.filter((d) => toPosix(d).includes(STATE_DIR_REL)),
           "a handle is open on a directory every READ of which is refused. No content crosses — a " +
             "watcher yields names — but the rule is one rule, and it is asked in one module",
         ).toEqual([]);
@@ -903,14 +919,15 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
 
   it("refuses PER SOURCE: a linked tickets directory leaves the board's own watch armed", () => {
     // THE SIBLING ARM, which is where this repository's findings keep reappearing. The case above
-    // proves the loop refuses; this one proves it does not OVER-refuse. `plans/` is inside the root
-    // and the board is readable through it, so unwatching it because one child leaves the tree
-    // would turn a containment rule into an outage of the live path for an unrelated source.
+    // proves the loop refuses; this one proves it does not OVER-refuse. The state directory is
+    // inside the root and the board is readable through it, so unwatching it because one child
+    // leaves the tree would turn a containment rule into an outage of the live path for an
+    // unrelated source.
     withLinkedTree(
       (tree, outside) => {
-        cpSync(join(tree, "plans", "tickets"), join(outside, "tickets"), { recursive: true });
-        rmSync(join(tree, "plans", "tickets"), { recursive: true, force: true });
-        symlinkSync(join(outside, "tickets"), join(tree, "plans", "tickets"), "dir");
+        cpSync(join(tree, FIXED_SUBPATHS.tickets), join(outside, "tickets"), { recursive: true });
+        rmSync(join(tree, FIXED_SUBPATHS.tickets), { recursive: true, force: true });
+        symlinkSync(join(outside, "tickets"), join(tree, FIXED_SUBPATHS.tickets), "dir");
       },
       ({ refused, armed }) => {
         expect(
@@ -919,7 +936,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
         ).toEqual(["tickets"]);
         expect(armed.filter((d) => d.endsWith("tickets"))).toEqual([]);
         expect(
-          armed.some((d) => d.endsWith("plans")),
+          armed.some((d) => toPosix(d).endsWith(STATE_DIR_REL)),
           "the board's directory is inside the root and the board reads fine; the refusal belongs " +
             "to the one source whose path left the tree",
         ).toBe(true);
@@ -928,10 +945,10 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
   });
 
   it("leaves the armed set unchanged on an ordinary tree", () => {
-    const h = harness({}, ["plans", "plans/tickets", ".grugops/context"]);
+    const h = harness({}, [STATE_DIR_REL, FIXED_SUBPATHS.tickets, ".grugops/context"]);
     h.loop.seed(stubResult(1, REPO));
     h.loop.armAll();
-    expect(h.loop.watchedDirs()).toEqual(["plans", "plans/tickets", ".grugops/context"]);
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL, FIXED_SUBPATHS.tickets, ".grugops/context"]);
     expect(h.loop.watchErrors()).toEqual([]);
   });
 });
@@ -944,7 +961,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
 // it must not. They stop one level short of the shape that was actually shipped: the containment
 // authority raises its refusal PER ENTRY — one ticket file, one claimed task directory, one context
 // task — and the loop consumed that refusal's `source` LABEL. `deriveWatchDirs` hands several
-// directories one label, so one planted symlink took `plans/tickets` off the low-latency path, and
+// directories one label, so one planted symlink took the ticket directory off the low-latency path, and
 // one inside `claimed` took all three queue stages off it, while `loop.watchErrors()` stayed empty
 // and the header printed its ordinary state. `32-34-RED-baseline.txt` probes A, B and C are those
 // three, measured through this same harness before the fix.
@@ -957,14 +974,16 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
 
 describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan 32-34, DASH-04)", () => {
   /** The healthy armed set for a `withLinkedTree` run: every watched directory exists on it. */
+  // Sorted, because `armedRel` is sorted: the two state-directory entries come from the reader's
+  // table, so their place in name order is computed rather than typed.
   const ALL_SIX = [
     ".grugops/context",
     ".grugops/queue/claimed",
     ".grugops/queue/done",
     ".grugops/queue/pending",
-    "plans",
-    "plans/tickets",
-  ];
+    STATE_DIR_REL,
+    FIXED_SUBPATHS.tickets,
+  ].sort();
 
   it("PREMISE: an unmutated tree arms every one of the six watched directories", () => {
     // Without this the shortened lists below are indistinguishable from a tree that never had the
@@ -980,11 +999,11 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
     );
   });
 
-  it("keeps `plans/tickets` armed when ONE ticket FILE inside it links out of the tree", () => {
+  it(`keeps \`${FIXED_SUBPATHS.tickets}\` armed when ONE ticket FILE inside it links out of the tree`, () => {
     withLinkedTree(
       (tree, outside) => {
         writeFileSync(join(outside, "ESCAPE-001.md"), "# outside\n", "utf8");
-        symlinkSync(join(outside, "ESCAPE-001.md"), join(tree, "plans", "tickets", "ESCAPE-001.md"));
+        symlinkSync(join(outside, "ESCAPE-001.md"), join(tree, FIXED_SUBPATHS.tickets, "ESCAPE-001.md"));
       },
       ({ armedRel, refused }) => {
         expect(
@@ -994,7 +1013,7 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
         ).toEqual(["tickets:true"]);
         expect(
           armedRel,
-          "one entry that left the tree un-armed the directory holding it. `plans/tickets` is " +
+          `one entry that left the tree un-armed the directory holding it. \`${FIXED_SUBPATHS.tickets}\` is ` +
             "inside the root, readable, and holds seven legitimate tickets; taking it off the " +
             "low-latency path turns a live view into a ten-second-granular one under a confident " +
             "header (32-REVIEW.md CR-01)",
@@ -1057,42 +1076,44 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
     // set, so "it did not over-refuse" is a measurement rather than two spot checks.
     withLinkedTree(
       (tree, outside) => {
-        cpSync(join(tree, "plans", "tickets"), join(outside, "tickets"), { recursive: true });
-        rmSync(join(tree, "plans", "tickets"), { recursive: true, force: true });
-        symlinkSync(join(outside, "tickets"), join(tree, "plans", "tickets"), "dir");
+        cpSync(join(tree, FIXED_SUBPATHS.tickets), join(outside, "tickets"), { recursive: true });
+        rmSync(join(tree, FIXED_SUBPATHS.tickets), { recursive: true, force: true });
+        symlinkSync(join(outside, "tickets"), join(tree, FIXED_SUBPATHS.tickets), "dir");
       },
       ({ armedRel, refused }) => {
         expect(refused.map((e) => e.source)).toEqual(["tickets"]);
-        expect(armedRel).toEqual(ALL_SIX.filter((d) => d !== "plans/tickets"));
+        expect(armedRel).toEqual(ALL_SIX.filter((d) => d !== FIXED_SUBPATHS.tickets));
       },
     );
   });
 
-  it("un-arms a DESCENDANT of a refused ancestor: `plans` links out, `plans/tickets` goes with it", () => {
+  it(`un-arms a DESCENDANT of a refused ancestor: \`${STATE_DIR_REL}\` links out, \`${FIXED_SUBPATHS.tickets}\` goes with it`, () => {
     // THE ARM NEXT TO THE FIX, and the one neither review asked about. `32-34-RED-baseline.txt`
-    // probe E records that this depth was covered BY ACCIDENT before the fix — `plans` carries
-    // three sources, all three labels landed in the refused set, and both directories fell out
-    // together. Narrowing the consumed signal to the refused PATHS would have LOST it: the paths
-    // this read refuses are `plans/board.md`, `plans/tickets` and `plans/traceability.md`, and none
-    // of them is `plans` or an ancestor of it. Asking the authority about the directory keeps it,
+    // probe E records that this depth was covered BY ACCIDENT before the fix — the state directory
+    // carries three sources, all three labels landed in the refused set, and both directories fell
+    // out together. Narrowing the consumed signal to the refused PATHS would have LOST it: the paths
+    // this read refuses are the board, ticket and traceability subpaths, and none of them is the
+    // state directory or an ancestor of it. Asking the authority about the directory keeps it,
     // because `insideRoot` resolves the whole chain in one pass.
     withLinkedTree(
       (tree, outside) => {
-        cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
-        rmSync(join(tree, "plans"), { recursive: true, force: true });
-        symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
+        mkdirSync(dirname(join(outside, STATE_DIR_REL)), { recursive: true });
+        cpSync(join(tree, STATE_DIR_REL), join(outside, STATE_DIR_REL), { recursive: true });
+        rmSync(join(tree, STATE_DIR_REL), { recursive: true, force: true });
+        mkdirSync(dirname(join(tree, STATE_DIR_REL)), { recursive: true });
+        symlinkSync(join(outside, STATE_DIR_REL), join(tree, STATE_DIR_REL), "dir");
       },
       ({ armedRel, refused }) => {
         expect(
           refused.map((e) => e.source).sort(),
-          "PREMISE: the three sources under `plans/` were not all refused",
+          `PREMISE: the three sources under ${STATE_DIR_REL}/ were not all refused`,
         ).toEqual(["board", "tickets", "traceability"]);
         expect(
           // `e.path` is an absolute host LOCATION (plan 33-03 leaves those in the host spelling);
           // the suffix is compared in one spelling so this premise decides the same thing on
           // every host rather than passing vacuously wherever the separator differs.
-          refused.some((e) => toPosix(e.path).endsWith("/plans")),
-          "PREMISE FOR THE PREVIOUS PARAGRAPH: if the authority DID spell `plans` itself, a path " +
+          refused.some((e) => toPosix(e.path).endsWith(`/${STATE_DIR_REL}`)),
+          `PREMISE FOR THE PREVIOUS PARAGRAPH: if the authority DID spell \`${STATE_DIR_REL}\` itself, a path ` +
             "set with an ancestor walk would also pass this case, and the comment above would be " +
             "describing a mechanism this tree never exercises",
         ).toBe(false);
@@ -1107,17 +1128,19 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
   });
 
   it("produces ONE armed set for two refusals in one read, ancestor and descendant together", () => {
-    // DASH-04's concurrency probe, answered as a case. `plans` links out AND the `tickets`
+    // DASH-04's concurrency probe, answered as a case. The state directory links out AND the `tickets`
     // directory behind it links out again, so two refusals — one an ancestor of the other — arrive
     // in a single read.
     withLinkedTree(
       (tree, outside) => {
-        cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
-        rmSync(join(tree, "plans"), { recursive: true, force: true });
-        symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
-        cpSync(join(outside, "plans", "tickets"), join(outside, "tickets2"), { recursive: true });
-        rmSync(join(outside, "plans", "tickets"), { recursive: true, force: true });
-        symlinkSync(join(outside, "tickets2"), join(outside, "plans", "tickets"), "dir");
+        mkdirSync(dirname(join(outside, STATE_DIR_REL)), { recursive: true });
+        cpSync(join(tree, STATE_DIR_REL), join(outside, STATE_DIR_REL), { recursive: true });
+        rmSync(join(tree, STATE_DIR_REL), { recursive: true, force: true });
+        mkdirSync(dirname(join(tree, STATE_DIR_REL)), { recursive: true });
+        symlinkSync(join(outside, STATE_DIR_REL), join(tree, STATE_DIR_REL), "dir");
+        cpSync(join(outside, FIXED_SUBPATHS.tickets), join(outside, "tickets2"), { recursive: true });
+        rmSync(join(outside, FIXED_SUBPATHS.tickets), { recursive: true, force: true });
+        symlinkSync(join(outside, "tickets2"), join(outside, FIXED_SUBPATHS.tickets), "dir");
       },
       ({ armedRel }) => {
         expect(armedRel).toEqual([
@@ -1139,21 +1162,21 @@ describe("board-dashboard — a refusal is not a failed watch, and leaves no rec
     // refused for containment, which makes that promise impossible for as long as the refusal
     // stands. Before the fix the record survived and every stderr frame and every `--json` document
     // kept publishing it.
-    const h = harness({}, ["plans", "plans/tickets"]);
-    h.armFailures.set(join(REPO, "plans/tickets"), "ENOSPC: no space left on device");
+    const h = harness({}, [STATE_DIR_REL, FIXED_SUBPATHS.tickets]);
+    h.armFailures.set(join(REPO, FIXED_SUBPATHS.tickets), "ENOSPC: no space left on device");
     h.loop.seed(stubResult(1, REPO));
     h.loop.armAll();
     expect(
       h.loop.watchErrors().map((e) => e.path),
       "PREMISE: no genuine watch failure was recorded, so 'the record went' is true of a loop " +
         "that never had one",
-    ).toEqual(["plans/tickets"]);
+    ).toEqual([FIXED_SUBPATHS.tickets]);
     expect(h.loop.watchErrors()[0]?.message).toContain("re-armed on the next poll tick");
 
     // The throw stops; the containment refusal starts. Only the refusal is now keeping the
     // directory un-armed.
     h.armFailures.clear();
-    h.refused.add(join(REPO, "plans/tickets"));
+    h.refused.add(join(REPO, FIXED_SUBPATHS.tickets));
     h.loop.armAll();
     expect(
       h.loop.watchErrors(),
@@ -1161,15 +1184,15 @@ describe("board-dashboard — a refusal is not a failed watch, and leaves no rec
         "promising a re-arm this early return makes impossible is a false statement on a channel " +
         "a human reads (CLAUDE.md, no fabrication)",
     ).toEqual([]);
-    expect(h.loop.watchedDirs(), "and the refused directory is not armed").toEqual(["plans"]);
+    expect(h.loop.watchedDirs(), "and the refused directory is not armed").toEqual([STATE_DIR_REL]);
   });
 
   it("re-arms with NO record left once the containment condition clears", () => {
-    const h = harness({}, ["plans", "plans/tickets"]);
-    h.refused.add(join(REPO, "plans/tickets"));
+    const h = harness({}, [STATE_DIR_REL, FIXED_SUBPATHS.tickets]);
+    h.refused.add(join(REPO, FIXED_SUBPATHS.tickets));
     h.loop.seed(stubResult(1, REPO));
     h.loop.armAll();
-    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL]);
     expect(h.loop.watchErrors()).toEqual([]);
 
     h.refused.clear();
@@ -1178,7 +1201,7 @@ describe("board-dashboard — a refusal is not a failed watch, and leaves no rec
       h.loop.watchedDirs(),
       "the condition cleared and the directory did not come back — the poll tick is the re-arm, " +
         "and a refusal that is over must leave nothing behind it",
-    ).toEqual(["plans", "plans/tickets"]);
+    ).toEqual([STATE_DIR_REL, FIXED_SUBPATHS.tickets]);
     expect(h.loop.watchErrors()).toEqual([]);
   });
 
@@ -1186,18 +1209,18 @@ describe("board-dashboard — a refusal is not a failed watch, and leaves no rec
     // The refusal check runs BEFORE the already-armed early return for exactly this reason: a tree
     // can acquire a symlink under a running loop, and the handle opened a tick ago is the one now
     // pointing out of the tree.
-    const h = harness({}, ["plans", "plans/tickets"]);
+    const h = harness({}, [STATE_DIR_REL, FIXED_SUBPATHS.tickets]);
     h.loop.seed(stubResult(1, REPO));
     h.loop.armAll();
-    const handle = liveWatcher(h, "plans/tickets");
+    const handle = liveWatcher(h, FIXED_SUBPATHS.tickets);
     expect(handle, "PREMISE: nothing was armed, so there is no handle for the refusal to close")
       .toBeDefined();
 
-    h.refused.add(join(REPO, "plans/tickets"));
+    h.refused.add(join(REPO, FIXED_SUBPATHS.tickets));
     h.loop.armAll();
     expect(handle?.closed, "the handle opened before the refusal was left open").toBe(true);
-    expect(h.loop.watchedDirs()).toEqual(["plans"]);
-    expect(liveWatcher(h, "plans"), "and the sibling's handle was not closed with it").toBeDefined();
+    expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL]);
+    expect(liveWatcher(h, STATE_DIR_REL), "and the sibling's handle was not closed with it").toBeDefined();
   });
 
   it("reaches ONE armed set whichever order two refusals arrive in", () => {
@@ -1205,12 +1228,12 @@ describe("board-dashboard — a refusal is not a failed watch, and leaves no rec
     // three end on the same armed set — and they must, because nothing about a refusal is
     // accumulated between reads: `arm` asks the authority about each directory every tick.
     const orders = [
-      ["plans/tickets", ".grugops/context"],
-      [".grugops/context", "plans/tickets"],
+      [FIXED_SUBPATHS.tickets, ".grugops/context"],
+      [".grugops/context", FIXED_SUBPATHS.tickets],
     ] as const;
     const ends: string[][] = [];
     for (const order of orders) {
-      const h = harness({}, ["plans", "plans/tickets", ".grugops/context"]);
+      const h = harness({}, [STATE_DIR_REL, FIXED_SUBPATHS.tickets, ".grugops/context"]);
       h.loop.seed(stubResult(1, REPO));
       h.loop.armAll();
       h.refused.add(join(REPO, order[0]));
@@ -1219,13 +1242,13 @@ describe("board-dashboard — a refusal is not a failed watch, and leaves no rec
       h.loop.armAll();
       ends.push([...h.loop.watchedDirs()].sort());
     }
-    const both = harness({}, ["plans", "plans/tickets", ".grugops/context"]);
-    both.refused.add(join(REPO, "plans/tickets"));
+    const both = harness({}, [STATE_DIR_REL, FIXED_SUBPATHS.tickets, ".grugops/context"]);
+    both.refused.add(join(REPO, FIXED_SUBPATHS.tickets));
     both.refused.add(join(REPO, ".grugops/context"));
     both.loop.seed(stubResult(1, REPO));
     both.loop.armAll();
 
-    expect(ends[0]).toEqual(["plans"]);
+    expect(ends[0]).toEqual([STATE_DIR_REL]);
     expect(
       ends[1],
       "the armed set depends on the order two refusals arrived in, which makes the live path a " +
@@ -1282,7 +1305,7 @@ describe("board-dashboard — refresh is single-flight (edge: concurrency)", () 
 describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
   it("writes one COMPLETE JSON document per line per re-read, and nothing else on stdout", () => {
     vi.useFakeTimers();
-    const h = harness({ json: true }, ["plans"]);
+    const h = harness({ json: true }, [STATE_DIR_REL]);
     h.loop.armAll();
     h.loop.start(POLL_FLOOR_MS);
     vi.advanceTimersByTime(POLL_FLOOR_MS * 3);

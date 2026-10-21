@@ -75,6 +75,8 @@ import {
 } from "./board-dashboard.js";
 // The PUBLISHED version, read from the module rather than retyped here (plan 32-33).
 import { SCHEMA_VERSION } from "./board-model.js";
+// The board's subpath, read from the reader's own table rather than retyped here (D-13 step 2).
+import { FIXED_SUBPATHS } from "./board-read.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const FIXTURE = join(ROOT, "scripts", "fixtures", "board-snapshot");
@@ -223,7 +225,7 @@ let tempSequence = 0;
 function startLive(forcedDirs: readonly string[] = []): Live {
   const dir = mkdtempSync(join(realpathSync(tmpdir()), "grugops-watch-live-"));
   cpSync(FIXTURE, dir, { recursive: true });
-  const originalBoard = readFileSync(join(dir, "plans", "board.md"), "utf8");
+  const originalBoard = readFileSync(join(dir, FIXED_SUBPATHS.board), "utf8");
 
   const env: NodeJS.ProcessEnv = { ...process.env };
   if (forcedDirs.length > 0) env[FORCE_WATCH_ERROR_ENV] = forcedDirs.join(",");
@@ -354,7 +356,7 @@ function startLive(forcedDirs: readonly string[] = []): Live {
  * let a debounce started by the creation look faster than the debounce window.
  */
 function atomicEdit(live: Live, marker: string): number {
-  const board = join(live.dir, "plans", "board.md");
+  const board = join(live.dir, FIXED_SUBPATHS.board);
   const body = live.originalBoard.replace(BOARD_ANCHOR, `${BOARD_ANCHOR} ${marker}`);
   const temp = `${board}.tmp-${process.pid}-${Date.now()}-${(tempSequence += 1)}`;
   const at = Date.now();
@@ -592,8 +594,9 @@ describe("board-dashboard live — a watch failure is a DIAGNOSABLE state in the
       // that the next tick repairs is never carried by a document the poll itself emits — measured
       // in the case above, where every watch is forced and no document carries a record. To OBSERVE
       // the record a document has to be emitted between the failure and the re-arm, and the thing
-      // that emits it is a still-living sibling watch: `.grugops/context` is forced dead, `plans`
-      // is not, and the edit to `plans` is what publishes the context directory's record.
+      // that emits it is a still-living sibling watch: `.grugops/context` is forced dead, the state
+      // directory is not, and the edit to the board in it is what publishes the context
+      // directory's record.
       const forcedDir = ".grugops/context";
       const live = startLive([forcedDir]);
       try {
