@@ -5,11 +5,11 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: planning
-stopped_at: Phase 36 complete, ready to plan Phase 37
-last_updated: "2026-10-21T12:45:38.411Z"
+stopped_at: Phase 37 context gathered
+last_updated: "2026-10-21T13:47:53.734Z"
 last_activity: 2026-10-21
 last_activity_desc: Phase 36 complete, transitioned to Phase 37
-state_head: 4c212477a98fb2a8aee21c11d8aa962f89ba004c
+state_head: 2aed913f44a30207d4455d9a0b837b71c2741334
 progress:
   total_phases: 9
   completed_phases: 2
@@ -2331,9 +2331,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T12:05:38.123Z
-Stopped at: Phase 36 complete, ready to plan Phase 37
-Resume file: None
+Last session: 2026-10-21T13:47:53.655Z
+Stopped at: Phase 37 context gathered
+Resume file: .planning/phases/37-overview-board-per-file-records-and-budgets/37-CONTEXT.md
 
 ## Operator Next Steps
 
