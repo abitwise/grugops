@@ -2252,8 +2252,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 99 with this module tracked (2026-10-21).
+ *
+ * 99 -> 100 (plan 36-01, task 3, phase 36 D-10/D-11/D-15), ONE SCAN MODULE:
+ *   - `scripts/state-path-scan.ts` — the counting core of the old-spelling gate: three spellings of
+ *     the pre-v3 state root built from install/state-layout.ts, exact fallback-clause subtraction,
+ *     the named `.planning/` exclusion, and a scoped CLI (exit 0 / 1 / 2). Not named check-*: the
+ *     wired gate is plan 36-14's.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser,
+ *     builds no section bound (its `new RegExp` calls build the three spelling patterns, not a
+ *     section bound), reads no grant and renders no spawn verdict. Its committed `.js` twin landed
+ *     in the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 100 with this module tracked (2026-10-21).
  */
-const NON_TEST_MODULE_COUNT = 99;
+const NON_TEST_MODULE_COUNT = 100;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2813,7 +2825,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // three specs compared below, so it contributes three empty comparisons and cannot make the
     // agreement above vacuous on its own. Re-derived: the scoped walk over `scripts/` minus tests
     // reports 63 with the module tracked.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(63);
+    // 63 → 64 (plan 36-01, task 3, D-10/D-11/D-15): `scripts/state-path-scan.ts`, the counting core of
+    // the old-spelling gate. It imports `node:child_process`, `node:fs`, `node:path`, `./is-entry.js`
+    // and `../install/state-layout.js` and none of the three specs compared below, so it contributes
+    // three empty comparisons and cannot make the agreement above vacuous on its own. Re-derived: the
+    // scoped walk over `scripts/` minus tests reports 64 with the module tracked (2026-10-21).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(64);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2845,7 +2862,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // module as ever.
     // 61 → 62 (plan 34.1-01, task 1): `generate-host-entries.ts`, three specs per module as ever.
     // 62 → 63 (plan 34.1-02): `host-entries-freshness.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(63 * 3);
+    // 63 → 64 (plan 36-01, task 3): `state-path-scan.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(64 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3057,7 +3075,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // gained; both pins move in one commit for the same reason.
       // 62 → 63 (plan 34.1-02): `host-entries-freshness.ts`, the same module the flat reader gained;
       // both pins move in one commit for the same reason.
-    ).toBe(63);
+      // 63 → 64 (plan 36-01, task 3): `state-path-scan.ts`, the same module the flat reader gained;
+      // both pins move in one commit for the same reason.
+    ).toBe(64);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9763,7 +9783,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // and both-ends wiring cases, every plant in a hermetic mirror. The pin moved because a module landed,
 // not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
 // 73 on this tree.
-const TRIPWIRE_MODULES = 73;
+//
+// 73 -> 74 (plan 36-01, task 3): ONE test module, `scripts/state-path-scan.test.ts` — the old-spelling
+// counting core's per-spelling plants, new-root plants, exact-clause subtraction, named exclusion and
+// exit-2 cases, every plant assembled from install/state-layout.ts in scratch git repositories. The pin
+// moved because a module landed, not to make a red go away. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 74 on this tree (2026-10-21).
+const TRIPWIRE_MODULES = 74;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

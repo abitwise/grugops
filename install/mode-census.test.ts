@@ -81,9 +81,12 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * compares none (it is the checkbox list's pure state machine).
  * 2026-10-21, plan 36-01 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 37 -> 38 for
  * state-layout.test.ts, which has no chmod call and no expected mode (it compares constants and parses source), and
- * SOURCE_FILE_COUNT 9 -> 10 for install/state-layout.ts, which is constants only and renders or compares no mode. */
+ * SOURCE_FILE_COUNT 9 -> 10 for install/state-layout.ts, which is constants only and renders or compares no mode.
+ * SCRIPTS_TEST_FILE_COUNT 73 -> 74 (2026-10-21, plan 36-01, re-derived by listing scripts/, not incremented) for
+ * scripts/state-path-scan.test.ts, which has no chmod call and reads no `.mode` (it writes text into scratch git
+ * repositories and reads the scan's stdout). */
 const INSTALL_TEST_FILE_COUNT = 38;
-const SCRIPTS_TEST_FILE_COUNT = 73;
+const SCRIPTS_TEST_FILE_COUNT = 74;
 const SOURCE_FILE_COUNT = 10;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
