@@ -1846,6 +1846,12 @@ function productModules(): string[] {
     .map((f) => f.slice("install/".length))
     .sort();
 }
+/**
+ * The number of product modules the census premises below read (plan 34.1). 9 -> 10 on 2026-10-21, plan 36-01:
+ * install/state-layout.ts, constants only. It prints nothing, reads no environment variable and names no marker, so no
+ * census below gains a site from it. Re-derived from `git ls-files -- install`, not incremented.
+ */
+const PRODUCT_MODULE_COUNT = 10;
 /** The census: every variant of every maximal string expression that touches the marker, its ledger or `agents`. */
 function remedyCensus(): CensusSite[] {
   const out: CensusSite[] = [];
@@ -2294,10 +2300,10 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
 
   // D-37 (plan 34.1-44, 2026-10-13, 34.1 review CR-05; replaces D-35's "every offer sits under markerRemedy's yes"): no
   // printed reading in any product module offers removing the marker, under any condition. The premise: the walk read
-  // all nine product modules and found census sites in both binaries.
+  // every product module and found census sites in both binaries.
   it("D-37: no reading in any product module offers removing the marker", () => {
     const sites = remedyCensus();
-    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+    expect(productModules().length, "PREMISE: the walk reads every product module").toBe(PRODUCT_MODULE_COUNT);
     expect(sites.some((s) => s.module === "install.ts"), "PREMISE: the census found a site in install.ts").toBe(true);
     expect(sites.some((s) => s.module === "uninstall.ts"), "PREMISE: the census found a site in uninstall.ts").toBe(true);
     const offers = sites.filter((s) => offersRemoval(s.text)).map((s) => `${s.module}:${s.line} [${s.fn}] {${s.guard}} ${s.text}`);
@@ -4765,8 +4771,8 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
 const removalKey = (module: string, fn: string, clause: string): string => `${module} :: ${fn} :: ${clause}`;
 
 describe("D-37: the widened removal-matcher census, by search over every printed reading", () => {
-  it("the walk reads all nine product modules, finds hits in both binaries and the owner's module, finds the known non-marker hits in the exempt table, and sees the negated marker objects as the marker (premise)", () => {
-    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+  it("the walk reads every product module, finds hits in both binaries and the owner's module, finds the known non-marker hits in the exempt table, and sees the negated marker objects as the marker (premise)", () => {
+    expect(productModules().length, "PREMISE: the walk reads every product module").toBe(PRODUCT_MODULE_COUNT);
     const hits = removalHits();
     for (const m of ["install.ts", "uninstall.ts", "install-marker.ts"]) expect(hits.some((h) => h.module === m), `PREMISE: a hit in ${m}`).toBe(true);
     const keys = new Set(REMOVAL_EXEMPT.map((r) => removalKey(r[0], r[1], r[2])));
@@ -4964,8 +4970,8 @@ const UNUSABLE_CLASS_COUNTS: Readonly<Record<UnusableClass, number>> = { "owner 
 const unusableKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
 
 describe("D-37: every reading that says the marker cannot be used carries the owner's wording or points at it", () => {
-  it("the walk reads all nine product modules and finds readings in both binaries and the owner's module (premise)", () => {
-    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+  it("the walk reads every product module and finds readings in both binaries and the owner's module (premise)", () => {
+    expect(productModules().length, "PREMISE: the walk reads every product module").toBe(PRODUCT_MODULE_COUNT);
     const sites = unusableCensus();
     for (const m of ["install.ts", "uninstall.ts", "install-marker.ts"]) {
       expect(sites.some((s) => s.module === m), `PREMISE: the walk found a reading in ${m}`).toBe(true);
@@ -5091,8 +5097,8 @@ function notInstallsCensus(): NotInstallsSite[] {
 const notInstallsKey = (module: string, fn: string, text: string): string => `${module} :: ${fn} :: ${text}`;
 
 describe("D-43: no printed reading says the marker is not install's", () => {
-  it("the walk reads all nine product modules and finds both kit-home record readings (premise)", () => {
-    expect(productModules().length, "PREMISE: the walk reads the nine product modules").toBe(9);
+  it("the walk reads every product module and finds both kit-home record readings (premise)", () => {
+    expect(productModules().length, "PREMISE: the walk reads every product module").toBe(PRODUCT_MODULE_COUNT);
     const sites = notInstallsCensus();
     for (const [module, fn] of [
       ["install-marker.ts", "readKitHomeRecord"],
@@ -5975,8 +5981,8 @@ function importClosure(entry: string): string[] {
 describe("D-38: every environment variable a binary reads is stated in its printed commands, overridden, or classed", () => {
   const census = envReadCensus();
 
-  it("the walk sees the nine product modules and both binaries", () => {
-    expect(productModules(), "premise: the product module walk").toHaveLength(9);
+  it("the walk sees every product module and both binaries", () => {
+    expect(productModules(), "premise: the product module walk").toHaveLength(PRODUCT_MODULE_COUNT);
     expect(productModules()).toEqual(expect.arrayContaining(Object.keys(ENV_BINARY)));
   });
 
