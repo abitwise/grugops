@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
-status: executing
-stopped_at: Completed 36-13-PLAN.md
-last_updated: "2026-10-21T11:19:08.990Z"
+status: verifying
+stopped_at: Completed 36-14-PLAN.md
+last_updated: "2026-10-21T12:05:38.186Z"
 last_activity: 2026-10-21
-last_activity_desc: Completed 36-13 (pre-v3 entry points and the fallback's v4.0 end)
-state_head: a39254d86f9149c76c1e32947c94a445be6b99ec
+last_activity_desc: Completed 36-14 (wired old-spelling gate; phase-close regression)
+state_head: 3c672dfdc89919c9b1950c6d359c792c7c1135f8
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
   percent: 11
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 
 ## Current Position
 
-Phase: 36 (State-layout authority, path move and protection) — EXECUTING
+Phase: 36 (State-layout authority, path move and protection) — In Progress, 14/14 executed, awaiting verification
 Plan: 14 of 14
-Status: Ready to execute
-Last activity: 2026-10-21 — Completed 36-13 (pre-v3 entry points and the fallback's v4.0 end)
+Status: 14/14 plans executed, awaiting verification (phase not complete until the verifier passes)
+Last activity: 2026-10-21 — Completed 36-14 (wired old-spelling gate; phase-close regression)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -727,6 +727,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P11 | 9min | 1 tasks | 5 files |
 | Phase 36 P12 | 20min | 1 tasks | 8 files |
 | Phase 36 P13 | 20min | 2 tasks | 10 files |
+| Phase 36 P14 | 42 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -1997,6 +1998,7 @@ Recent decisions affecting current work:
 - [Phase 36]: 36-12: stateLayout() treats an unreadable board path (EACCES, ELOOP) as unreadable, never absent; a plain install refuses on pre-v3 or unreadable layout before any write, exit 1, printing migrateCommand() over the agents named by flag
 - [Phase 36]: 36-13: the doctor prints no state-layout line on a fresh layout; the board stat FAILs on the absent board, and an ok line would call an empty repository healthy
 - [Phase 36]: 36-13: LAYOUT-04 left unchecked until the live fallback check (Task 2 human-check: an agent on a pre-v3 repo after --update reads plans/ and says once to run install --migrate) passes
+- [Phase 36]: 36-14: check-state-paths gate exits only on outside sites/legacy paths; dead allow-list entries are red in the test via deadEntries, never by pinning the list length
 
 ### Pending Todos
 
@@ -2327,8 +2329,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T11:19:08.932Z
-Stopped at: Completed 36-13-PLAN.md
+Last session: 2026-10-21T12:05:38.123Z
+Stopped at: Completed 36-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

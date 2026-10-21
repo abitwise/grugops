@@ -281,3 +281,8 @@ None.
 ---
 *Phase: 36-state-layout-authority-path-move-and-protection*
 *Completed: 2026-10-21*
+
+## Self-Check: PASSED
+
+- FOUND: scripts/check-state-paths.ts, scripts/check-state-paths.js, scripts/check-state-paths.test.ts
+- FOUND commits: 6b327fed, 5fc4f807

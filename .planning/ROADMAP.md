@@ -167,7 +167,7 @@ Plans:
   4. A user whose repo is still on the old layout keeps working after a kit update: roles fall back to `plans/` and print a one-line "run `install --migrate`" notice, and a plain install refuses to seed new state there and names the command (LAYOUT-04)
   5. grugops's own repo state lives in the new layout and its validator and gates pass on it (LAYOUT-05)
 
-**Plans**: 13/14 plans executed
+**Plans**: 14/14 plans executed
 
 Plans:
 **Wave 1**
@@ -224,7 +224,7 @@ Plans:
 
 **Wave 14**
 
-- [ ] 36-14-PLAN.md — TRACER: `scripts/check-state-paths.ts` proves zero sites outside a per-file allow-list, then is wired in CI and package.json; then converse, boundary and LAYOUT-02 ownership cases and the phase-close full regression [LAYOUT-02, LAYOUT-01]
+- [x] 36-14-PLAN.md — TRACER: `scripts/check-state-paths.ts` proves zero sites outside a per-file allow-list, then is wired in CI and package.json; then converse, boundary and LAYOUT-02 ownership cases and the phase-close full regression [LAYOUT-02, LAYOUT-01]
 
 **Notes**: D-4 sets the old-layout behavior. The gate derives its own count of old spellings (research counts disagree: 1,293 occurrences vs 1,187 lines in 336 files). Every scratch install sets `GRUGOPS_HOME`. Full role prose waits for Phase 40; path edits here are mechanical.
 
@@ -344,7 +344,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
-| 36. State-layout authority, path move and protection | v3.0 | 13/14 | In Progress | - |
+| 36. State-layout authority, path move and protection | v3.0 | 14/14 | In Progress | - |
 | 37. Overview board, per-file records and budgets | v3.0 | 0/TBD | Not started | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
