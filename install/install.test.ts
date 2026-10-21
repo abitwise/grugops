@@ -163,6 +163,7 @@ import {
   BOARD_REL,
   EPICS_REL,
   FEATURES_REL,
+  LEGACY_HANDOFFS_REL,
   LEGACY_STATE_ROOT_REL,
   METRICS_REL,
   NFR_CATALOG_REL,
@@ -1026,8 +1027,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // exit-code table publishes for BOTH binaries. Before this guard existed, uninstall.js had no
   // exit-1 path at all (only 2 for bad usage and 3 for incomplete), and pointing it at a grugops
   // checkout removed the kit's own 17 committed adapters and 7 committed skills under
-  // `== uninstall complete ==` and exit 0 — isProtected() covers agent-factory/, plans/,
-  // .planning/, .grugops/, docs/ and src/, but not .claude/, which is where they live.
+  // `== uninstall complete ==` and exit 0 — isProtected() covers agent-factory/, the pre-v3 state
+  // root, .planning/, .grugops/, docs/ and src/, but not .claude/, which is where they live.
   it("CR-04 self-checkout guard: uninstall.js refuses a source-shaped target (exit 1, nothing removed); --allow-self overrides", () => {
     // A THROWAWAY source-shaped stub — NEVER REPO_ROOT. Carries the source markers (derived from
     // the imported set, D-37) so it reads as a checkout, and is passed as BOTH src and target so
@@ -4444,52 +4445,54 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     ]);
   });
 
-  // ── MIGR-04 (Phase 24, D-18/D-20) — the 4 plans/handoffs/ backup cases ───────────────────────
-  // --migrate backs up a user's runtime-accumulated plans/handoffs/ (the old relay's dir) to a
-  // timestamped plans/handoffs.bak.<ISO> via the never-delete-first backupDir primitive: rename,
+  // ── MIGR-04 (Phase 24, D-18/D-20) — the 4 legacy handoffs directory backup cases ─────────────
+  // --migrate backs up a user's runtime-accumulated legacy handoffs directory (LEGACY_HANDOFFS_REL,
+  // the old relay's dir, which keeps its pre-v3 location) to a timestamped
+  // LEGACY_HANDOFFS_REL.bak.<ISO> via the never-delete-first backupDir primitive: rename,
   // never delete-first; abort on a backup-name collision without clobbering (D-18); no content
   // conversion (D-19 — the dir is only relocated); DRY_RUN mutates nothing + a second run with no
   // dir is a clean no-op (D-20). The backup name matches the anchored GRUGOPS_BACKUP_SUFFIX shape.
 
-  // Helper: glob the timestamped handoffs backups under a target's plans/ dir.
+  // Helper: glob the timestamped handoffs backups under a target's pre-v3 state root
+  // (LEGACY_STATE_ROOT_REL, the directory that holds LEGACY_HANDOFFS_REL).
   const handoffsBackupGlob = (target: string): string[] => {
-    const plans = join(target, "plans");
-    if (!existsSync(plans)) return [];
-    return readdirSync(plans).filter((n) => /^handoffs\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/.test(n));
+    const legacyRoot = join(target, LEGACY_STATE_ROOT_REL);
+    if (!existsSync(legacyRoot)) return [];
+    return readdirSync(legacyRoot).filter((n) => /^handoffs\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/.test(n));
   };
 
-  // (1) BACKUP — a target with plans/handoffs/ present: --migrate renames it to
-  // plans/handoffs.bak.<ISO>; the original is gone, the backup is present + correctly shaped, and a
+  // (1) BACKUP — a target with LEGACY_HANDOFFS_REL present: --migrate renames it to
+  // LEGACY_HANDOFFS_REL.bak.<ISO>; the original is gone, the backup is present + correctly shaped, and a
   // backed-up report line is printed (D-18 never-delete-first rename).
-  it("migrate: plans/handoffs/ is backed up to a timestamped .bak (MIGR-04, never-delete-first)", () => {
+  it(`migrate: ${LEGACY_HANDOFFS_REL}/ is backed up to a timestamped .bak (MIGR-04, never-delete-first)`, () => {
     const target = makeFixture();
     const home = mkTmp();
     // Seed a runtime-accumulated handoffs dir with a user file (the old relay's leftover state).
-    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
-    writeFileSync(join(target, "plans", "handoffs", "T-001-implementation.md"), "user handoff — must be preserved\n");
+    mkdirSync(join(target, LEGACY_HANDOFFS_REL), { recursive: true });
+    writeFileSync(join(target, LEGACY_HANDOFFS_REL, "T-001-implementation.md"), "user handoff — must be preserved\n");
 
     const r = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r.status).toBe(0);
     // The original is RENAMED aside, not deleted — the dir is gone but the backup exists.
-    expect(existsSync(join(target, "plans", "handoffs"))).toBe(false);
+    expect(existsSync(join(target, LEGACY_HANDOFFS_REL))).toBe(false);
     const baks = handoffsBackupGlob(target);
     expect(baks.length).toBe(1);
     // The user's content survives verbatim inside the backup (no conversion — D-19).
-    expect(readFileSync(join(target, "plans", baks[0], "T-001-implementation.md"), "utf8")).toContain("must be preserved");
+    expect(readFileSync(join(target, LEGACY_STATE_ROOT_REL, baks[0], "T-001-implementation.md"), "utf8")).toContain("must be preserved");
     expect(r.stdout).toMatch(/backed-up/); // a backed-up report line is printed
   });
 
-  // (2) IDEMPOTENT — a second --migrate with no plans/handoffs/ is a clean no-op: exit 0, a
+  // (2) IDEMPOTENT — a second --migrate with no LEGACY_HANDOFFS_REL is a clean no-op: exit 0, a
   // "nothing to migrate" line, and NO new backup artifact (D-20 idempotent).
-  it("migrate: a second --migrate with no plans/handoffs/ is a nothing-to-migrate no-op (MIGR-04, D-20)", () => {
+  it(`migrate: a second --migrate with no ${LEGACY_HANDOFFS_REL}/ is a nothing-to-migrate no-op (MIGR-04, D-20)`, () => {
     const target = makeFixture();
     const home = mkTmp();
-    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
-    writeFileSync(join(target, "plans", "handoffs", "T-002-qe.md"), "handoff\n");
+    mkdirSync(join(target, LEGACY_HANDOFFS_REL), { recursive: true });
+    writeFileSync(join(target, LEGACY_HANDOFFS_REL, "T-002-qe.md"), "handoff\n");
     expect(runInstall(target, home, "--migrate", "--backup-edited-kit").status).toBe(0);
     expect(handoffsBackupGlob(target).length).toBe(1); // first migrate made exactly one backup
 
-    // Second migrate: plans/handoffs/ is gone now → nothing to migrate, no new backup.
+    // Second migrate: LEGACY_HANDOFFS_REL is gone now → nothing to migrate, no new backup.
     const r2 = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r2.status).toBe(0);
     expect(r2.stdout).toMatch(/nothing to migrate/);
@@ -4497,12 +4500,12 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // (3) DRY_RUN — DRY_RUN=1 --migrate prints a would-backup line and the filesystem is UNCHANGED:
-  // plans/handoffs/ is still present and NO .bak is created (D-20 dry-run never mutates).
+  // LEGACY_HANDOFFS_REL is still present and NO .bak is created (D-20 dry-run never mutates).
   it("migrate: DRY_RUN --migrate narrates a would-backup and creates no .bak (MIGR-04, D-20)", () => {
     const target = makeFixture();
     const home = mkTmp();
-    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
-    writeFileSync(join(target, "plans", "handoffs", "T-003-uat.md"), "handoff\n");
+    mkdirSync(join(target, LEGACY_HANDOFFS_REL), { recursive: true });
+    writeFileSync(join(target, LEGACY_HANDOFFS_REL, "T-003-uat.md"), "handoff\n");
 
     const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
@@ -4511,13 +4514,13 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/would-backup/); // the backup is narrated, not executed
     // The filesystem is byte-for-byte unchanged: original present, no backup made.
-    expect(existsSync(join(target, "plans", "handoffs"))).toBe(true);
-    expect(existsSync(join(target, "plans", "handoffs", "T-003-uat.md"))).toBe(true);
+    expect(existsSync(join(target, LEGACY_HANDOFFS_REL))).toBe(true);
+    expect(existsSync(join(target, LEGACY_HANDOFFS_REL, "T-003-uat.md"))).toBe(true);
     expect(handoffsBackupGlob(target).length).toBe(0);
   });
 
-  // (4) NEVER-CLOBBER — a pre-existing plans/handoffs.bak.<that exact ISO> collision makes --migrate
-  // ABORT the handoffs-backup step with a clear message, leaving BOTH the original plans/handoffs/
+  // (4) NEVER-CLOBBER — a pre-existing LEGACY_HANDOFFS_REL.bak.<that exact ISO> collision makes --migrate
+  // ABORT the handoffs-backup step with a clear message, leaving BOTH the original LEGACY_HANDOFFS_REL
   // AND the existing backup untouched (D-18 never-clobber). To force the EXACT-name collision
   // deterministically we drive the committed installer through a tiny ESM wrapper that pins
   // Date.prototype.toISOString to a fixed instant, so isoStamp() resolves to a known stamp and we
@@ -4525,12 +4528,12 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   it("migrate: a backup-name collision aborts without clobbering (MIGR-04, D-18 never-clobber)", () => {
     const target = makeFixture();
     const home = mkTmp();
-    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
-    writeFileSync(join(target, "plans", "handoffs", "T-004.md"), "original handoff\n");
+    mkdirSync(join(target, LEGACY_HANDOFFS_REL), { recursive: true });
+    writeFileSync(join(target, LEGACY_HANDOFFS_REL, "T-004.md"), "original handoff\n");
 
     // isoStamp() replaces ':' with '-', so the fixed instant 2026-06-22T12:00:00.000Z becomes the
     // backup-name stamp 2026-06-22T12-00-00.000Z. Pre-create that EXACT colliding backup.
-    const collidingBak = join(target, "plans", "handoffs.bak.2026-06-22T12-00-00.000Z");
+    const collidingBak = join(target, `${LEGACY_HANDOFFS_REL}.bak.2026-06-22T12-00-00.000Z`);
     mkdirSync(collidingBak, { recursive: true });
     writeFileSync(join(collidingBak, "SENTINEL.md"), "PRE-EXISTING BACKUP — MUST NOT BE CLOBBERED\n");
 
@@ -4557,7 +4560,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // The handoffs-backup step aborts in clear voice; the original is preserved untouched and the
     // pre-existing backup is never overwritten (D-18 never-clobber).
     expect(r.stdout).toMatch(/aborted/);
-    expect(existsSync(join(target, "plans", "handoffs", "T-004.md"))).toBe(true); // original untouched
+    expect(existsSync(join(target, LEGACY_HANDOFFS_REL, "T-004.md"))).toBe(true); // original untouched
     expect(readFileSync(join(collidingBak, "SENTINEL.md"), "utf8")).toContain("MUST NOT BE CLOBBERED");
   });
 
@@ -4722,7 +4725,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   };
 
   // D-05: --update refreshes the kit at $GRUGOPS_HOME and leaves the per-repo state UNTOUCHED.
-  // Install a target (seeds .grugops/, plans/, adapters), snapshot the whole target, run --update,
+  // Install a target (seeds .grugops/, the state under STATE_ROOT_REL, adapters), snapshot the whole target, run --update,
   // and assert the target snapshot is byte-identical (kit-home-only — no target write) while the
   // shared kit at home is still present and real (refreshed in place).
   it("update: refreshes kit, leaves per-repo state untouched", () => {
@@ -4805,8 +4808,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // --prune-old-kit removes ONLY backups install RECORDED making (plan 33.1-40, review CR-02: by record,
   // never by name), unchanged since, and NEVER runs on the default path (never-delete-first). A
   // backup-shaped name install did not record (here, a kit-home backup planted by hand) is named and left.
-  // An isProtected()-style guard keeps plans/, .planning/, .grugops/ seeded state, docs/, src/, and the
-  // live agent-factory/ out of reach. install/installer-prune.test.ts holds the class test.
+  // An isProtected()-style guard keeps every STATE_ROOTS root (the pre-v3 state root, memory-bank/,
+  // .planning/, .grugops/ seeded state, docs/, src/, and the live agent-factory/) out of reach. install/installer-prune.test.ts holds the class test.
   it("prune: removes only grugops backups, default preserves", () => {
     const target = makeOldLayoutFixture();
     const home = mkTmp();

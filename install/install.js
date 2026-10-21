@@ -23,7 +23,7 @@
 //   - DRY_RUN=1   — prints the plan and changes NOTHING on the filesystem
 //   - reversible  — install/uninstall.ts removes exactly what this added (and only that)
 //   - D-30 symlink-with-copy-fallback (symlinkSync → copyFileSync on failure)
-//   - NEVER touches agent-factory/, plans/, or user data
+//   - NEVER touches agent-factory/, the per-repo state roots (STATE_ROOTS in state-layout.ts), or user data
 //   - writes Claude Code ask rules for the governed command spellings (D-18) — a speed bump that is
 //     not a security boundary; the git host (branch protection, deployment environments) is the
 //     hard floor, and only a human merges to a protected branch or approves a production deploy
@@ -85,7 +85,7 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, STATE_ROOTS } from "./state-layout.js";
+import { BOARD_REL, LEGACY_HANDOFFS_REL, STATE_ROOTS } from "./state-layout.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -796,8 +796,8 @@ const recordKitFile = (path, record) => {
 // place (install-marker.ts backupContentRecord: a file record, a link record or a tree record, or null
 // when it could not be read in full, which prune never removes). writeMarker() records each one. The
 // origins: the in-repo agent-factory/ --migrate moves aside (in-repo-kit), a legacy config it renames
-// (legacy-config), plans/handoffs/ (handoffs) and a kit file the user edited, backed up before the kit is
-// refreshed (edited-kit-file, D-32). Kit-home backups are recorded in the kit-home record (copyKit,
+// (legacy-config), the legacy handoffs directory LEGACY_HANDOFFS_REL (handoffs) and a kit file the user
+// edited, backed up before the kit is refreshed (edited-kit-file, D-32). Kit-home backups are recorded in the kit-home record (copyKit,
 // plan 33.1-37), not here.
 //
 // ONLY THE OUTERMOST. A backup made of a path that holds an earlier backup of this run carries that one
@@ -2125,8 +2125,8 @@ function doctor() {
         [join(DOCTOR_KIT_ROOT, "workflows"), statRef, "dir"],
         [join(TARGET, ".grugops", "factory.config.json"), statRef, "file"],
         [join(TARGET, BOARD_REL), statRef, "file"],
-        // MIGR-02 (Phase 24): plans/handoffs/ is no longer seeded (the note-native trace replaced the
-        // handoff relay), so the doctor must NOT require it — checking it here would FAIL every clean
+        // MIGR-02 (Phase 24): the legacy handoffs directory is no longer seeded (the note-native trace replaced
+        // the handoff relay), so the doctor must NOT require it — checking it here would FAIL every clean
         // install. Removed deliberately in lockstep with the seedState mkdir removal.
     ];
     if (DOC_FAILS === 0) {
@@ -2741,8 +2741,8 @@ function backupIfDiffers(target, replacement, label, origin) {
 // Plan 33.1-40: the backup is recorded (recordBackup, `origin` as the caller names it) once it has its name.
 function backupDir(target, label, origin) {
     // Red-team of plan 33.1-26 (D-18): the rename happens INSIDE the target or not at all. A symbolic
-    // link or a non-directory on the way to `target` (plans/ linked elsewhere, say) would carry the
-    // rename out of the target, so it is refused and reported; the leaf itself is renamed as a name
+    // link or a non-directory on the way to `target` (the pre-v3 state root linked elsewhere, say) would
+    // carry the rename out of the target, so it is refused and reported; the leaf itself is renamed as a name
     // (a link is renamed, never followed).
     const way = wayTo(TARGET, target);
     if (way !== null && way !== "absent") {
@@ -2772,15 +2772,17 @@ function backupDir(target, label, origin) {
     return true;
 }
 // migrateHandoffs: the Phase-24 MIGR-04 step folded INTO the existing --migrate orchestration (D-17:
-// EXTEND, never a colliding new flag). Backs up a user's runtime-accumulated plans/handoffs/ — the
-// old relay's directory — to plans/handoffs.bak.<ISO> via backupDir (never-delete-first, abort on
-// collision, no content conversion, DRY_RUN/idempotent). Called on EVERY --migrate path (both the
-// already-two-root isMigrated arm AND the old-layout path) because a user can have accumulated
-// plans/handoffs/ regardless of layout state (D-17 reconcile).
+// EXTEND, never a colliding new flag). Backs up a user's runtime-accumulated legacy handoffs directory
+// (LEGACY_HANDOFFS_REL, the old relay's directory, which keeps its pre-v3 location) to
+// LEGACY_HANDOFFS_REL.bak.<ISO> via backupDir (never-delete-first, abort on collision, no content
+// conversion, DRY_RUN/idempotent). Called on EVERY --migrate path (both the already-two-root isMigrated
+// arm AND the old-layout path) because a user can have accumulated the legacy handoffs directory
+// regardless of layout state (D-17 reconcile). The label and every message about it are built from
+// LEGACY_HANDOFFS_REL, so each printed line is byte-identical to the one printed before plan 36-03.
 // Returns backupDir's answer (plan 34-26, D-25): true when the backup was made, or under DRY_RUN would
-// be, so the already-migrated arm's closing says what this run did to plans/handoffs/.
+// be, so the already-migrated arm's closing says what this run did to the legacy handoffs directory.
 function migrateHandoffs() {
-    return backupDir(join(TARGET, "plans", "handoffs"), "plans/handoffs/", "handoffs");
+    return backupDir(join(TARGET, LEGACY_HANDOFFS_REL), `${LEGACY_HANDOFFS_REL}/`, "handoffs");
 }
 // recordBackupsInMarker (plan 33.1-40): an already-migrated --migrate stops before the install run, so
 // writeMarker() never runs and the handoffs backup it made would have no record. It is added to the
@@ -4864,8 +4866,8 @@ function discardIncompleteBackup(path) {
 //
 // Red-team of plan 33.1-26 (D-18, DC-3): "exists" used to be existsSync, which is false for a
 // dangling link, so the copy went through the link and wrote OUTSIDE the target; and a FIFO where
-// plans/ should be crashed the copy. The destination is now asked through readForWrite: a regular
-// file is the user's and is skipped as before; nothing there is created with an exclusive create
+// a state directory should be crashed the copy. The destination is now asked through readForWrite: a
+// regular file is the user's and is skipped as before; nothing there is created with an exclusive create
 // from the seed's readUserFile bytes; anything else (a link, a special file, a non-directory on the
 // way) is left untouched and reported.
 function seedFile(src, dest, label) {
@@ -4905,9 +4907,9 @@ function listSeedFiles(root, base = "") {
 }
 // seedState: seed the full per-repo state plane from seedRoot()/** into $TARGET, per-file
 // skip-if-exists (INSTALL-04, D-01/D-04). DRY_RUN mutates nothing. MIGR-02 (Phase 24): the old
-// relay's plans/handoffs/ runtime dir is NO LONGER created — the note-native trace replaces the
-// handoff relay, so fresh installs leave plans/handoffs/ absent (a user's accumulated dir is
-// backed up by --migrate, never recreated here).
+// relay's runtime dir (the legacy handoffs directory, LEGACY_HANDOFFS_REL) is NO LONGER created — the
+// note-native trace replaces the handoff relay, so fresh installs leave it absent (a user's accumulated
+// dir is backed up by --migrate, never recreated here).
 // seedRoot (red-team L2 of plan 33.1-34): the ONE answer to "where does this run's seed come from", for
 // the real run and the DRY_RUN preview alike. The real run seeds from the kit it has just copied
 // (copyKit runs first, unconditionally, and copies KIT_COPY_SOURCE to KIT_ROOT), so its seed is
@@ -4927,10 +4929,10 @@ function seedState() {
     for (const rel of listSeedFiles(seed)) {
         seedFile(join(seed, rel), join(TARGET, rel), rel);
     }
-    // MIGR-02 (Phase 24): the old relay's runtime plans/handoffs/ dir is no longer seeded. The
-    // clean note-native trace replaces the handoff relay, so a fresh install must NOT recreate the
-    // dir — the former handoffs-mkdir block is removed deliberately (not an omission). Existing
-    // users who accumulated plans/handoffs/ under the old relay back it up via `--migrate` (D-17).
+    // MIGR-02 (Phase 24): the old relay's runtime dir (the legacy handoffs directory) is no longer
+    // seeded. The clean note-native trace replaces the handoff relay, so a fresh install must NOT
+    // recreate the dir — the former handoffs-mkdir block is removed deliberately (not an omission).
+    // Existing users who accumulated it under the old relay back it up via `--migrate` (D-17).
 }
 // materializeRunnable (D-11 — the kit-shipped-runnable convention): copy the compiled
 // reference routine .js from the running kit checkout into the host's COMMITTED, namespaced
@@ -5580,8 +5582,8 @@ const SELECTED_KINDS = new Set(SELECTION.map((h) => h.adapter));
 // record in .grugops/install.json, so over a marker read it cannot record into it writes nothing at all. Until plan
 // 34.1-59 install over such a marker (a user's own JSON object, a trailing comma, a link, a directory, and, by D-46,
 // install's own marker whose install ledger is malformed) printed a verify, left the marker byte for byte and then wrote
-// the whole footprint (the kit home, AGENTS.md, memory-bank/, plans/, tools/grugops/, the chosen agents' entries) with
-// no record, so no later uninstall could take any of it out.
+// the whole footprint (the kit home, AGENTS.md, memory-bank/, the pre-v3 state root, tools/grugops/, the chosen agents'
+// entries) with no record, so no later uninstall could take any of it out.
 // install-marker.ts installRefusal is the one decision; it is decided ONCE, as INSTALL_REFUSAL, before the agents are
 // chosen (plan 34.1-61, 2026-10-17, D-47, WR-42). It is printed in one of two places, both before the --migrate branch
 // (whose pre-steps are this run's first change), the run banner, the kit copy and every write in the target:
@@ -5703,7 +5705,7 @@ if (MIGRATE) {
                 verify(why);
             report("migrate", `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
                 `--migrate changes a target whole or not at all. No configuration was moved, agent-factory/ was not ` +
-                `backed up, plans/handoffs/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
+                `backed up, ${LEGACY_HANDOFFS_REL}/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
                 `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`);
             printMigrateIncomplete(true, SELECTION);
             // A MID-SCRIPT EXIT, the seventh of the pinned count: the run must stop before the handoffs
@@ -5711,13 +5713,13 @@ if (MIGRATE) {
             process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
         }
     }
-    // MIGR-04 (Phase 24, D-17 reconcile): back up a user's runtime-accumulated plans/handoffs/ on
-    // EVERY --migrate path — the already-two-root isMigrated arm, the old-layout path, AND the clean
-    // fall-through — because a user can have accumulated handoffs under the old relay regardless of
-    // layout state. Folded into the existing orchestration here (never a colliding new flag); the
-    // step is a clean no-op when plans/handoffs/ is absent (D-20 idempotent) and aborts without
-    // clobbering on a backup-name collision (D-18). It runs BEFORE the isMigrated early-exit so an
-    // already-migrated repo still gets its handoffs backed up.
+    // MIGR-04 (Phase 24, D-17 reconcile): back up a user's runtime-accumulated legacy handoffs
+    // directory (LEGACY_HANDOFFS_REL) on EVERY --migrate path — the already-two-root isMigrated arm,
+    // the old-layout path, AND the clean fall-through — because a user can have accumulated handoffs
+    // under the old relay regardless of layout state. Folded into the existing orchestration here
+    // (never a colliding new flag); the step is a clean no-op when that directory is absent (D-20
+    // idempotent) and aborts without clobbering on a backup-name collision (D-18). It runs BEFORE the
+    // isMigrated early-exit so an already-migrated repo still gets its handoffs backed up.
     console.log("\n-- handoffs backup (MIGR-04) --");
     const handoffsBackedUp = migrateHandoffs();
     if (layout.isMigrated) {
@@ -5734,12 +5736,12 @@ if (MIGRATE) {
                 ? "This repo is already migrated to the two-root layout, but a leftover LIVE in-repo agent-factory/ remains."
                 : "This repo is already migrated to the two-root layout.");
             if (handoffsBackedUp && DRY_RUN) {
-                console.log("DRY_RUN: this run would back up plans/handoffs/ (see the would-backup line above). Nothing was changed.");
+                console.log(`DRY_RUN: this run would back up ${LEGACY_HANDOFFS_REL}/ (see the would-backup line above). Nothing was changed.`);
             }
             else if (handoffsBackedUp) {
                 const made = [...BACKUPS.values()].find((e) => e.origin === "handoffs");
                 const where = made === undefined ? "(see the backed-up line above)" : `to ${made.path}`;
-                console.log(`This run backed up plans/handoffs/ ${where} and ` +
+                console.log(`This run backed up ${LEGACY_HANDOFFS_REL}/ ${where} and ` +
                     (handoffsRecorded
                         ? `recorded the backup in ${MARKER_REL}.`
                         : `did not record the backup in ${MARKER_REL} (see the note above); uninstall and --prune-old-kit leave it.`));
