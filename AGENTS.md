@@ -15,7 +15,7 @@ Read in this order:
 <!-- claim: C-28-012 -->
 1. `.grugops/factory.config.json` — the dial (mode, cadence, checkpoints, WIP limits). Runs lean with documented defaults when absent.
 2. `agent-factory/roles/orchestrator.md` — the routing contract; act as the Orchestrator.
-3. `plans/board.md` — the visible state; respect every column's WIP limit before pulling new work.
+3. `memory-bank/plans/board.md` — the visible state; respect every column's WIP limit before pulling new work.
 
 <!-- claim: C-28-013 -->
 The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board and traceability, and produces the next action.
@@ -35,12 +35,12 @@ Clear voice — this is a resolution and safety rule, not a joke.
 
 <!-- claim: C-28-015 -->
 - `agent-factory/…` = **KIT** — read-only, resolved from the kit root; NEVER written.
-- `plans/`, `memory-bank/`, `.grugops/` = **STATE** — read/write in THIS repo.
+- `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = **STATE** — read/write in THIS repo.
 - Roles read and write the shared verified context only via Workflow 16 (`agent-factory/workflows/16-context-read-write.md`) — referenced, never restated.
 - A Claude Code adapter names the kit root on its `KIT=` line. After a scripted install the grugops kit is not in this repository: its root is the directory named by the `kitRoot` field of `.grugops/install.json`, and each `agent-factory/…` path is read under it, so `agent-factory/roles/orchestrator.md` is `<kitRoot>/roles/orchestrator.md`. With no `.grugops/install.json` (the minimal copy install), the kit is this repository's own `agent-factory/`. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`node install/install.js` or `node install/install.js --check`).
 
 <!-- claim: C-28-016 -->
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt.
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = STATE in this repo. If `memory-bank/plans/board.md` is absent and `plans/board.md` exists, use `plans/` and say once: run `install --migrate`. If both exist, use `memory-bank/plans/` and say once that `plans/` is stale. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt.
 
 ## Commands
 
@@ -90,9 +90,9 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 
 ## Delivery
 
-- Board: `plans/board.md`
+- Board: `memory-bank/plans/board.md`
 - Cadence + WIP: `.grugops/factory.config.json`
-- Traceability: `plans/traceability.md`
+- Traceability: `memory-bank/plans/traceability.md`
 
 ## Safety rules
 
@@ -152,7 +152,7 @@ Andrej Karpathy's coding-agent rules — 12 rules grouped under four principles.
 
 <!-- claim: C-28-020 -->
 - `memory-bank/*` — the agent-maintained working memory: read on start; `60-progress.md` is the running plan-of-record, `50-decisions/` holds ADRs, plus project brief, product, architecture, contributing, runbook, glossary.
-- `plans/*` — the delivery state: `board.md` (status), `traceability.md` (requirement→ticket→code→test→UAT→release), `nfr-catalog.md`, plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
+- `memory-bank/plans/*` — the delivery state: `board.md` (status), `traceability.md` (requirement→ticket→code→test→UAT→release), `nfr-catalog.md`, plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
 
 ## When uncertain
 

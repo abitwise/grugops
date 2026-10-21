@@ -271,7 +271,7 @@ Roles pull the shared verified context they need and publish their work output a
 
 ```
 - `agent-factory/…` = **KIT** — read-only, resolved from the kit root; NEVER written.
-- `plans/`, `memory-bank/`, `.grugops/` = **STATE** — read/write in THIS repo.
+- `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = **STATE** — read/write in THIS repo.
 - Roles read and write the shared verified context only via Workflow 16 (`agent-factory/workflows/16-context-read-write.md`) — referenced, never restated.
 - A Claude Code adapter names the kit root on its `KIT=` line. After a scripted install the grugops kit is not in this repository: its root is the directory named by the `kitRoot` field of `.grugops/install.json`, and each `agent-factory/…` path is read under it, so `agent-factory/roles/orchestrator.md` is `<kitRoot>/roles/orchestrator.md`. With no `.grugops/install.json` (the minimal copy install), the kit is this repository's own `agent-factory/`. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`node install/install.js` or `node install/install.js --check`).
 ```
@@ -286,7 +286,7 @@ Roles pull the shared verified context they need and publish their work output a
 - mechanism: A one-line restatement of C-28-015's block, measured against the same mechanisms. It is registered separately rather than folded in because it is a distinct anchorable location: a Phase 29 rewrite that updated one and not the other would leave this document asserting the invariant twice in two different ways, and only a per-location row makes that visible.
 
 ```
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt.
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = STATE in this repo. If `memory-bank/plans/board.md` is absent and `plans/board.md` exists, use `plans/` and say once: run `install --migrate`. If both exist, use `memory-bank/plans/` and say once that `plans/` is stale. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt.
 ```
 
 ### C-28-017
@@ -336,7 +336,7 @@ Andrej Karpathy's coding-agent rules — 12 rules grouped under four principles.
 ### C-28-020
 
 - file: AGENTS.md
-- line: 150-151
+- line: 154-155
 - kind: architecture
 - depends_on: —
 - status: true
@@ -344,7 +344,7 @@ Andrej Karpathy's coding-agent rules — 12 rules grouped under four principles.
 
 ```
 - `memory-bank/*` — the agent-maintained working memory: read on start; `60-progress.md` is the running plan-of-record, `50-decisions/` holds ADRs, plus project brief, product, architecture, contributing, runbook, glossary.
-- `plans/*` — the delivery state: `board.md` (status), `traceability.md` (requirement→ticket→code→test→UAT→release), `nfr-catalog.md`, plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
+- `memory-bank/plans/*` — the delivery state: `board.md` (status), `traceability.md` (requirement→ticket→code→test→UAT→release), `nfr-catalog.md`, plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
 ```
 
 ### C-28-021

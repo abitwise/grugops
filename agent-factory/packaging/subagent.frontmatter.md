@@ -45,7 +45,7 @@ Body — this is the whole of it, and it is identical for all sixteen specialist
 the one role path:
 
 ```markdown
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = STATE in this repo. If `memory-bank/plans/board.md` is absent and `plans/board.md` exists, use `plans/` and say once: run `install --migrate`. If both exist, use `memory-bank/plans/` and say once that `plans/` is stale. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
 
 Resolve the kit root (this adapter is the sole resolver):
 
@@ -70,7 +70,7 @@ deploy.
 That is the complete list: the invariant blockquote, the resolver block, "read one named role
 file and act as that role", the memory sentence, and the echoed hard limit. **Nothing
 role-specific** — no read order, no routing, no responsibilities. The factory read order
-(`.grugops/factory.config.json`, `AGENTS.md`, `plans/board.md`) belongs to the coordinator
+(`.grugops/factory.config.json`, `AGENTS.md`, `memory-bank/plans/board.md`) belongs to the coordinator
 alone and is deliberately not duplicated into sixteen adapters.
 
 ## The coordinator adapter
@@ -94,7 +94,7 @@ Body — everything the specialist body carries, plus the factory read order, pl
 announcement:
 
 ```markdown
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = STATE in this repo. If `memory-bank/plans/board.md` is absent and `plans/board.md` exists, use `plans/` and say once: run `install --migrate`. If both exist, use `memory-bank/plans/` and say once that `plans/` is stale. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
 
 Resolve the kit root (this adapter is the sole resolver):
 
@@ -108,7 +108,7 @@ KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"
 ```
 
 Read `agent-factory/roles/orchestrator.md` now, then `.grugops/factory.config.json`, the root
-`AGENTS.md` and `plans/board.md` (respect every WIP limit), and act as that role.
+`AGENTS.md` and `memory-bank/plans/board.md` (respect every WIP limit), and act as that role.
 
 Require typed notes per Workflow 16. The shared verified context is the only memory — never relay data between agents.
 
