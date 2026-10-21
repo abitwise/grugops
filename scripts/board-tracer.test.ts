@@ -8,10 +8,11 @@
 // the seven-kind conflict closure (plan 32-05), the import-graph guard (plan 32-06) and the full
 // D-17 frame (plan 32-07) — lands later and is NOT asserted here.
 //
-// THE CORPUS IS THE REAL FILE, NOT A TRANSCRIPTION. `plans/board.md` is read from the repository
-// root. A transcription would drift from the artifact it claims to measure, and the single
-// highest-value case in this phase (D-03: the board's own 48-line HTML comment contributes zero
-// columns and zero rows) is only meaningful against the bytes that actually ship.
+// THE CORPUS IS THE REAL FILE, NOT A TRANSCRIPTION. The board at the read seam's own
+// `FIXED_SUBPATHS.board` is read from the repository root. A transcription would drift from the
+// artifact it claims to measure, and the single highest-value case in this phase (D-03: the board's
+// own 48-line HTML comment contributes zero columns and zero rows) is only meaningful against the
+// bytes that actually ship.
 //
 // EVERY PREMISE THIS FILE RESTS ON IS A FAILING ASSERTION, NOT AN ASSUMPTION. This repository has
 // recorded a FALSE verification-harness premise six times across four rounds (project memory,
@@ -22,7 +23,7 @@
 
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import {
   HEADING_SUFFIXES,
@@ -37,7 +38,6 @@ import {
 } from "./board-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
-const BOARD_REL = "plans/board.md";
 
 /** The 13 column names of the kit board, in on-disk heading order (D-05 flow order). */
 const KIT_COLUMNS = [
@@ -57,31 +57,31 @@ const KIT_COLUMNS = [
 ] as const;
 
 function readBoard(): string {
-  return readFileSync(join(ROOT, BOARD_REL), "utf8");
+  return readFileSync(join(ROOT, FIXED_SUBPATHS.board), "utf8");
 }
 
 describe("board tracer — the harness premise", () => {
   it("reads the REAL kit board from the repository root", () => {
     expect(
-      existsSync(join(ROOT, BOARD_REL)),
-      `PREMISE: ${BOARD_REL} does not exist under ${ROOT}, so every finding below measured a file ` +
-        "that was never read",
+      existsSync(join(ROOT, FIXED_SUBPATHS.board)),
+      `PREMISE: ${FIXED_SUBPATHS.board} does not exist under ${ROOT}, so every finding below ` +
+        "measured a file that was never read",
     ).toBe(true);
     const text = readBoard();
     expect(
       text.length,
-      `PREMISE: ${BOARD_REL} read as ZERO bytes, so the parse findings below say nothing about the ` +
-        "artifact that ships",
+      `PREMISE: ${FIXED_SUBPATHS.board} read as ZERO bytes, so the parse findings below say nothing ` +
+        "about the artifact that ships",
     ).toBeGreaterThan(0);
     expect(
       text.includes("<!--"),
-      `PREMISE: ${BOARD_REL} carries no HTML comment at all, so the D-03 comment-blanking case ` +
-        "below is vacuous",
+      `PREMISE: ${FIXED_SUBPATHS.board} carries no HTML comment at all, so the D-03 ` +
+        "comment-blanking case below is vacuous",
     ).toBe(true);
     expect(
       text.includes("## In Development (WIP 1/3)"),
       "PREMISE: the four-space-indented mini-board inside the HTML comment is gone from " +
-        `${BOARD_REL}, so the highest-value case in this phase has no subject`,
+        `${FIXED_SUBPATHS.board}, so the highest-value case in this phase has no subject`,
     ).toBe(true);
   });
 });
@@ -479,6 +479,14 @@ import {
   repoSubpath,
   resolveRepoRoot,
 } from "./board-read.js";
+import { LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL } from "../install/state-layout.js";
+
+/**
+ * The state directory a plant creates, derived from the read seam's own table (D-13 step 2). It is the
+ * POSIX dirname of the board subpath and may hold more than one segment, so every plant creates it with
+ * `recursive: true` and never assumes one path segment.
+ */
+const STATE_DIR_REL = posix.dirname(FIXED_SUBPATHS.board);
 
 /** A scratch tree that is always removed, whatever the case does with it. */
 function withTempTree(run: (dir: string) => void): void {
@@ -516,12 +524,15 @@ describe("board-read — the source set (D-12)", () => {
   });
 
   it("joins only FIXED LITERAL subpaths — no path is derived from any file's content (ASVS V12)", () => {
-    expect(FIXED_SUBPATHS.board).toBe("plans/board.md");
+    // The table is compared with an INDEPENDENT authority (install/state-layout.js), so this case
+    // cannot pass by reading the table against itself. Plan 36-06 flips both sides to BOARD_REL,
+    // TICKETS_REL and TRACEABILITY_REL when the repository's state moves.
+    expect(FIXED_SUBPATHS.board).toBe(LEGACY_BOARD_REL);
     expect(FIXED_SUBPATHS.config).toBe("agent-factory/config/factory.config.json");
-    expect(FIXED_SUBPATHS.tickets).toBe("plans/tickets");
+    expect(FIXED_SUBPATHS.tickets).toBe(`${LEGACY_STATE_ROOT_REL}/tickets`);
     expect(FIXED_SUBPATHS.queue).toBe(".grugops/queue");
     expect(FIXED_SUBPATHS.context).toBe(".grugops/context");
-    expect(FIXED_SUBPATHS.traceability).toBe("plans/traceability.md");
+    expect(FIXED_SUBPATHS.traceability).toBe(`${LEGACY_STATE_ROOT_REL}/traceability.md`);
     expect(Object.keys(FIXED_SUBPATHS).length).toBe(SOURCE_COUNT);
   });
 });
@@ -557,7 +568,7 @@ describe("board-read — root resolution (T-32-03)", () => {
       const root = resolveRepoRoot(dir);
       expect(() => repoSubpath(root, "../escape")).toThrow(BoardReadError);
       expect(() => repoSubpath(root, "..")).toThrow(BoardReadError);
-      expect(repoSubpath(root, "plans/board.md")).toBe(join(root, "plans/board.md"));
+      expect(repoSubpath(root, FIXED_SUBPATHS.board)).toBe(join(root, FIXED_SUBPATHS.board));
     });
   });
 });
@@ -610,9 +621,9 @@ describe("board-read — a tree with no board (D-11)", () => {
 
   it("reads a board that IS present under a tree with no config", () => {
     withTempTree((dir) => {
-      mkdirSync(join(dir, "plans"), { recursive: true });
+      mkdirSync(join(dir, STATE_DIR_REL), { recursive: true });
       writeFileSync(
-        join(dir, "plans", "board.md"),
+        join(dir, FIXED_SUBPATHS.board),
         "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
         "utf8",
       );
@@ -626,8 +637,8 @@ describe("board-read — a tree with no board (D-11)", () => {
 
   it("marks a MALFORMED config stale and keeps going, rather than throwing (T-32-09)", () => {
     withTempTree((dir) => {
-      mkdirSync(join(dir, "plans"), { recursive: true });
-      writeFileSync(join(dir, "plans", "board.md"), "## Done (WIP unlimited)\n", "utf8");
+      mkdirSync(join(dir, STATE_DIR_REL), { recursive: true });
+      writeFileSync(join(dir, FIXED_SUBPATHS.board), "## Done (WIP unlimited)\n", "utf8");
       mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
       writeFileSync(join(dir, "agent-factory", "config", "factory.config.json"), "{ not json", "utf8");
 
@@ -852,9 +863,9 @@ describe("board-dashboard — the render branch, through an injected io (D-17, D
 
   it("SANITIZES board content on its way to the terminal, not merely its own chrome", () => {
     withTempTree((dir) => {
-      mkdirSync(join(dir, "plans"), { recursive: true });
+      mkdirSync(join(dir, STATE_DIR_REL), { recursive: true });
       writeFileSync(
-        join(dir, "plans", "board.md"),
+        join(dir, FIXED_SUBPATHS.board),
         `## Backlog (WIP unlimited)\n- [ABC-001] title${ESC}[31m with an escape\n`,
         "utf8",
       );
@@ -961,15 +972,15 @@ type PlantedDoc = { readonly stem: string; readonly declaredId: string };
 
 /** A real tree — a board row plus ticket documents — of the shape the verifier's reproduction used. */
 function plantContestTree(dir: string, rowId: string, docs: readonly PlantedDoc[]): void {
-  mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+  mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
   writeFileSync(
-    join(dir, "plans", "board.md"),
+    join(dir, FIXED_SUBPATHS.board),
     `## Backlog (WIP unlimited)\n\n- [${rowId}] a row naming the identifier under audit\n`,
     "utf8",
   );
   for (const d of docs) {
     writeFileSync(
-      join(dir, "plans", "tickets", `${d.stem}.md`),
+      join(dir, FIXED_SUBPATHS.tickets, `${d.stem}.md`),
       `---\nid: ${d.declaredId}\ntitle: planted by the duplicate-identifier end-to-end case\n` +
         `status: ready\ncolumn: Backlog\n---\n`,
       "utf8",
@@ -1003,6 +1014,15 @@ const NO_DOCUMENT_IS_JOINED = "<no document is joined>";
 const UNRECOGNISED_SENTENCE = "<unrecognised sentence>";
 
 /**
+ * The claimed-first sentence's shape, with the ticket tree spelled from the read seam's own table
+ * (escaped for a RegExp), so the reader below matches the path the seam publishes.
+ */
+const CLAIMED_FIRST = new RegExp(
+  `which ${FIXED_SUBPATHS.tickets.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/(\\S+?)\\.md claimed first, ` +
+    "so it is joined under no identifier",
+);
+
+/**
  * WHICH DOCUMENT THE CONFLICT SENTENCE CLAIMS IS JOINED under the contested identifier.
  *
  * TOTAL BY CONSTRUCTION: every arm `presenceActual` can state about a file that exists is named
@@ -1013,10 +1033,7 @@ function joinedDocumentTheConflictClaims(actual: string, rowId: string): string 
   if (actual.includes("so it is joined under that identifier and not this one")) {
     return `${rowId}.md`;
   }
-  const claimedFirst =
-    /which plans\/tickets\/(\S+?)\.md claimed first, so it is joined under no identifier/.exec(
-      actual,
-    );
+  const claimedFirst = CLAIMED_FIRST.exec(actual);
   if (claimedFirst !== null) return `${claimedFirst[1] ?? ""}.md`;
   if (actual.includes("which no admitted document is joined under, so it is joined under no identifier")) {
     return NO_DOCUMENT_IS_JOINED;

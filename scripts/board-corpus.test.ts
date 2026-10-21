@@ -30,6 +30,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { BOARD_REL } from "../install/state-layout.js";
+import { FIXED_SUBPATHS } from "./board-read.js";
 
 import { parseBoard } from "./board-model.js";
 import type { BoardModel } from "./board-model.js";
@@ -408,7 +409,7 @@ describe("board-corpus — provenance", () => {
 
 // `carriesBoardShape` is MEASURED, not assumed, and it is `false` for one of the three.
 //
-// `plans/traceability.md`'s documentation block illustrates a PIPE TABLE, not a board. Nothing
+// The traceability matrix's documentation block illustrates a PIPE TABLE, not a board. Nothing
 // inside it is board-shaped, so "this block yields zero columns" is true of it for a reason that has
 // nothing to do with the comment pre-pass — an empty document yields zero columns too. Recording
 // that as a field, and asserting the field two-sided, is what stops the third block from reading as
@@ -416,17 +417,17 @@ describe("board-corpus — provenance", () => {
 // the un-indented mutation replayed in the discrimination proof below.
 //
 // THE SPAN IS DERIVED, NOT TYPED (plan 32-08). These three pairs of line numbers used to be
-// literals — `plans/board.md` was `from: 4, to: 51`. Plan 32-08 rewrote that comment to state the
-// canonical heading and row forms, the block grew by five lines, and the PREMISE case below failed
+// literals — the repository board was `from: 4, to: 51`. Plan 32-08 rewrote that comment to state
+// the canonical heading and row forms, the block grew by five lines, and the PREMISE case below failed
 // on `:51 should close it` for a reason that had nothing to do with what it measures. A hand-typed
 // span over a file another plan is expected to edit is the set-literal drift class in miniature:
 // it goes stale on the first legitimate edit and reports the staleness as a defect. The span is now
 // read off the file, and the PREMISE case still asserts both ends independently, so a file that
 // carries no comment at all is a failure rather than an empty slice nobody notices.
 const DOC_BLOCK_FILES = [
-  { rel: "plans/board.md", carriesBoardShape: true },
+  { rel: FIXED_SUBPATHS.board, carriesBoardShape: true },
   { rel: `agent-factory/seed/${BOARD_REL}`, carriesBoardShape: true },
-  { rel: "plans/traceability.md", carriesBoardShape: false },
+  { rel: FIXED_SUBPATHS.traceability, carriesBoardShape: false },
 ] as const;
 
 /** The first `<!--` … `-->` span of a file, as 1-based inclusive line numbers. */
