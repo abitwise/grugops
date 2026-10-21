@@ -171,6 +171,8 @@ export interface ScanResult {
   readonly listed: number;
   /** Paths read and counted. */
   readonly scanned: number;
+  /** The paths read and counted, sorted (what an allow-list entry can match). */
+  readonly scannedPaths: string[];
   /** Paths under a SCAN_EXCLUSIONS prefix, never read. */
   readonly excluded: number;
   /** Excluded paths per exclusion prefix, in SCAN_EXCLUSIONS order. */
@@ -213,7 +215,7 @@ export function scanTracked(root: string, pathspecs: readonly string[]): ScanRes
   const sites: Array<Site & { path: string }> = [];
   const legacyPaths: string[] = [];
   const totals: Record<SpellingName, number> = { slash: 0, segment: 0, backslash: 0 };
-  let scanned = 0;
+  const scannedPaths: string[] = [];
   let clauseOccurrences = 0;
   for (const path of listed) {
     const hit = excludedBy.find((e) => path.startsWith(e.exclusion.prefix));
@@ -232,7 +234,7 @@ export function scanTracked(root: string, pathspecs: readonly string[]): ScanRes
       }
       throw new ScanError(`${path} could not be read: ${(err as Error).message}`);
     }
-    scanned += 1;
+    scannedPaths.push(path);
     const c = countSpellings(text);
     clauseOccurrences += c.clauseOccurrences;
     if (c.sites.length === 0) continue;
@@ -244,7 +246,8 @@ export function scanTracked(root: string, pathspecs: readonly string[]): ScanRes
   }
   return {
     listed: listed.length,
-    scanned,
+    scanned: scannedPaths.length,
+    scannedPaths,
     excluded: excludedBy.reduce((n, e) => n + e.count, 0),
     excludedBy,
     notOnDisk,

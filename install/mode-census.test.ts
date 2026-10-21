@@ -88,9 +88,12 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * 2026-10-21, plan 36-12 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 38 -> 39 for
  * pre-v3-layout.test.ts, which has no expected mode and two tagged chmod calls, counted under rule (a): case (d) takes
  * every permission from the pre-v3 state root (access-denial, gated on win32 and root) and gives it back in a `finally`
- * (restore). */
+ * (restore).
+ * SCRIPTS_TEST_FILE_COUNT 74 -> 75 (2026-10-21, plan 36-14, re-derived by listing scripts/, not incremented) for
+ * scripts/check-state-paths.test.ts, which has no chmod call and reads no `.mode` (it writes text into scratch git
+ * repositories, reads the gate's stdout and parses tracked sources). */
 const INSTALL_TEST_FILE_COUNT = 39;
-const SCRIPTS_TEST_FILE_COUNT = 74;
+const SCRIPTS_TEST_FILE_COUNT = 75;
 const SOURCE_FILE_COUNT = 10;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial

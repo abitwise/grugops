@@ -537,6 +537,26 @@ jobs:
           # side effect of a test spawning it.
           node scripts/check-nul-bytes.js
 
+          # ── The old-spelling gate (phase 36, plan 36-14; D-13 step 4, LAYOUT-01, LAYOUT-02) ─────
+          # WHAT IT HOLDS. No file outside a per-file allow-list and the named .planning/ exclusion
+          # spells the pre-v3 state root (its slash, quoted-segment and backslash forms, all built
+          # from install/state-layout.ts), and no listed path lies under a directory named for it.
+          # It subtracts exact occurrences of the one fallback clause and nothing else, so the files
+          # carrying that clause still count every other old spelling. The allow-list is per file,
+          # each entry with its reason: the authority, the historical records (docs/audit/**,
+          # CHANGELOG.md, docs/initial/**) and the one pre-v3 user doc. Every count it prints,
+          # inside and outside the allow-list, is read from its own run.
+          #
+          # WIRED HERE **AND** IN package.json (`check:state-paths`), at both ends, for the reason
+          # recorded above the gates before it: a gate reached by nothing passes by never running.
+          #
+          # WHAT A RED MEANS. Exit 1 lists each outside site as path:line: spelling, or a legacy
+          # path. Fix it at its source with the constants in install/state-layout.ts. Never widen
+          # the allow-list to clear it: an entry needs a recorded D-09, D-10 or D-16 reason, and the
+          # test refuses a dead one. Exit 2 means it could not run (git failed or the scan set was
+          # empty) and reports no count; that is not a pass.
+          node scripts/check-state-paths.js
+
           # ── The published-residual citation gate (plan 30-11 round 4, `RA6-1`) ─────────────────
           # WIRED HERE **AND** derived-asserted by scripts/check-foundation-guards.test.ts, which
           # enumerates every scripts/check-*.js and every `check:*` npm script and refuses one that
