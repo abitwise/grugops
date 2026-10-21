@@ -167,7 +167,7 @@ Plans:
   4. A user whose repo is still on the old layout keeps working after a kit update: roles fall back to `plans/` and print a one-line "run `install --migrate`" notice, and a plain install refuses to seed new state there and names the command (LAYOUT-04)
   5. grugops's own repo state lives in the new layout and its validator and gates pass on it (LAYOUT-05)
 
-**Plans**: 4/14 plans executed
+**Plans**: 5/14 plans executed
 
 Plans:
 **Wave 1**
@@ -188,7 +188,7 @@ Plans:
 
 **Wave 5**
 
-- [ ] 36-05-PLAN.md — TRACER: the dashboard and model tests follow `FIXED_SUBPATHS`; then path-agnostic examples take the new spelling (no behavior change) [LAYOUT-02]
+- [x] 36-05-PLAN.md — TRACER: the dashboard and model tests follow `FIXED_SUBPATHS`; then path-agnostic examples take the new spelling (no behavior change) [LAYOUT-02]
 
 **Wave 6**
 
@@ -344,7 +344,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
-| 36. State-layout authority, path move and protection | v3.0 | 4/14 | In Progress | - |
+| 36. State-layout authority, path move and protection | v3.0 | 5/14 | In Progress | - |
 | 37. Overview board, per-file records and budgets | v3.0 | 0/TBD | Not started | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |

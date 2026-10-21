@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: executing
-stopped_at: Completed 36-04-PLAN.md
-last_updated: "2026-10-21T07:53:49.726Z"
+stopped_at: Completed 36-05-PLAN.md
+last_updated: "2026-10-21T08:07:33.490Z"
 last_activity: 2026-10-21
 last_activity_desc: Phase 36 execution started
-state_head: 5504b1e2768f40708a1082f879a4a49cb953c52d
+state_head: e131ce7d37e8d5085823d0153cfddf5a0c4f70be
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 5
+  completed_plans: 6
   percent: 11
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 ## Current Position
 
 Phase: 36 (State-layout authority, path move and protection) — EXECUTING
-Plan: 5 of 14
+Plan: 6 of 14
 Status: Ready to execute
 Last activity: 2026-10-21 — Phase 36 execution started
 
@@ -718,6 +718,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P02 | 30 min | 1 tasks | 28 files |
 | Phase 36 P03 | 18 min | 2 tasks | 7 files |
 | Phase 36 P04 | 13 min | 2 tasks | 5 files |
+| Phase 36 P05 | 11 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -1974,6 +1975,8 @@ Recent decisions affecting current work:
 - [Phase 36]: 36-03: the closing-claims handoffsBackups helper reads only ENOENT and ENOTDIR as no backups and rethrows any other error
 - [Phase 36]: 36-04: board tests name the state directory as STATE_DIR_REL = posix.dirname(FIXED_SUBPATHS.board); the board-tracer table case compares FIXED_SUBPATHS with LEGACY_BOARD_REL and LEGACY_STATE_ROOT_REL tickets/traceability spellings, which plan 36-06 flips to BOARD_REL, TICKETS_REL and TRACEABILITY_REL
 - [Phase 36]: 36-04: plan 36-06 must also move scripts/fixtures/board-snapshot and route the hard-coded plans/tickets/ sentences in scripts/board-model.ts through the table: a probe with the v3 table values left 28 board-test failures, all in those owners, and every scratch-tree plant passed
+- [Phase 36]: 36-05: board-model conflict-message expectations are template literals starting with ${FIXED_SUBPATHS.tickets}/, so plan 36-06 must move the model's plans/tickets/ message prefix (board-model.ts 1467-1478, 1750) together with the table
+- [Phase 36]: 36-05: a mixed-separator sample spells the whole state root with backslashes (memory-bank\plans\tickets/ABC.md); memory-bank\plans/ABC.md reads to state-path-scan as a pre-v3 plans/ site
 
 ### Pending Todos
 
@@ -2304,8 +2307,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T07:53:42.118Z
-Stopped at: Completed 36-04-PLAN.md
+Last session: 2026-10-21T08:07:33.434Z
+Stopped at: Completed 36-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
