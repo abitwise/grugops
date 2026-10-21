@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: executing
-stopped_at: Completed 36-01-PLAN.md
-last_updated: "2026-10-21T06:45:10.885Z"
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-10-21T07:18:09.775Z"
 last_activity: 2026-10-21
 last_activity_desc: Phase 36 execution started
-state_head: c12c989675b960e1a4af6166d3e57c80d370530b
+state_head: 333bee768ba1d245706103e6166d4b18c2efb9e1
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 2
+  completed_plans: 3
   percent: 11
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 ## Current Position
 
 Phase: 36 (State-layout authority, path move and protection) — EXECUTING
-Plan: 2 of 14
+Plan: 3 of 14
 Status: Ready to execute
 Last activity: 2026-10-21 — Phase 36 execution started
 
@@ -715,6 +715,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P62 | 35min | 3 tasks | 4 files |
 | Phase 35 P01 | 2min | 2 tasks | 2 files |
 | Phase 36 P01 | 56 min | 3 tasks | 20 files |
+| Phase 36 P02 | 30 min | 1 tasks | 28 files |
 
 ## Accumulated Context
 
@@ -1965,6 +1966,8 @@ Recent decisions affecting current work:
 - [Phase 35]: [v3.0, D-10] Graph memory not adopted, nothing built or reserved; posture, verified_by stamp rule and both-conditions trigger live only in 35-DECISION.md
 - [Phase 36]: 36-01: install/state-layout.ts is the constants-only state path authority; one exported STATE_ROOTS (agent-factory, the pre-v3 root, .planning, .grugops, docs, src, memory-bank; STATE_ROOT_COUNT 7, two-sided) is read by isPruneProtected and isProtected, and isSeededState is deleted
 - [Phase 36]: 36-01: scripts/state-path-scan.js is the counting core of the old-spelling gate: three spellings built from the constants (segment = matching quotes), exact LEGACY_FALLBACK_CLAUSE pieces counted separately (D-15), named .planning/ exclusion (D-11), exit 2 on git failure, unreadable file or empty set; every later plan proves its slice with it
+- [Phase 36]: 36-02: board-corpus.ts KIT keeps the repository's pre-v3 board value but is spelled LEGACY_BOARD_REL so the scoped scan exits 0; plan 36-06 moves it to BOARD_REL
+- [Phase 36]: 36-02: a test that copies scripts/*.js into a scratch build keeps scripts/ beside install/state-layout.js once the module imports the authority
 
 ### Pending Todos
 
@@ -2295,8 +2298,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T06:45:10.828Z
-Stopped at: Completed 36-01-PLAN.md
+Last session: 2026-10-21T07:18:09.722Z
+Stopped at: Completed 36-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
