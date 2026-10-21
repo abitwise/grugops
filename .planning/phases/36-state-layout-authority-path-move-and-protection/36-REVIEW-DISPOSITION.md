@@ -17,7 +17,7 @@ findings:
     title: "The uninstall \"preserved (never touched)\" banner now lists `.grugops/`, then reports removing the marker inside it"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: deferred
     title: "The refusal's printed remedy is a no-op on a two-root (v2.x) pre-v3 repository, and no test pins the gap"
   - id: IN-01
     severity: info
@@ -35,7 +35,7 @@ findings:
     severity: info
     disposition: open
     title: "The scan counts a tracked dangling symlink as \"not on disk\" and never scans the link text"
-open: 8
+open: 7
 total: 8
 recorded: 2026-10-21T12:16:13.493Z
 ---
@@ -47,7 +47,7 @@ recorded: 2026-10-21T12:16:13.493Z
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
+| WR-04 | warning | deferred | Phase 38 owns it: ROADMAP Phase 38 SC 6 and MIGRATE-04 name the v2.x two-root case (UAT decision 2026-10-21) |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |

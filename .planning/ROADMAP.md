@@ -254,6 +254,7 @@ Plans:
   3. Migration proves that every original line appears in the split output or the archive, and when the proof fails it rolls the split back and says why (MIGRATE-03)
   4. Migration detects old, new, both and neither layouts, refuses the "both" state and a non-empty `queue/claimed/`, writes a layout marker, and a second run is a byte-identical no-op (MIGRATE-04)
   5. With the opt-in flag, finished-ticket `.grugops/context/` folders are moved, not changed, into a separate archive folder and trace rendering still reads them; the whole migration has been run on a copy of `cli-chess-example` under a scratch `GRUGOPS_HOME` with before/after sizes recorded (MIGRATE-06, MIGRATE-07)
+  6. On an installed v2.x two-root repo that still holds the pre-v3 board (`plans/board.md`, no `memory-bank/plans/board.md`), `install --migrate` moves it to the v3 layout; the v2.x arm's "already migrated to the two-root layout ... Nothing to do." short-circuit no longer answers that layout, and a test pins it (MIGRATE-04; carried from Phase 36 WR-04 by UAT decision 2026-10-21)
 
 **Plans**: TBD
 **Research flag**: plan with `--research-phase` (migrate state machine, trace-render over two roots, the shapes found in real hand-written boards for the conservation proof).
