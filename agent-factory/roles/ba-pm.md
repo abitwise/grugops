@@ -18,10 +18,10 @@ Vague acceptance? Grug brain hurt later.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product idea / business request, plus any greenfield/brownfield map in `memory-bank/`.
 - `agent-factory/checklists/definition-of-ready.md` — the bar each ticket meets before it exits `Ready`.
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 Need product clarity.
@@ -35,13 +35,13 @@ Need product clarity.
 
 ## Output (file + format)
 - Publish the product output as typed notes per Workflow 16 — value, scope, testable+measurable acceptance, measurable NFR triggers, size, and priority as `decision`/`observation`/`artifact-ref` notes, each carrying the trace ids on its `refs` field; cite the header `## Scope` / `## Risks` as authoritative.
-- Tickets written to `plans/tickets/`, parents in `plans/epics/` and `plans/features/`.
+- Tickets written to `memory-bank/plans/tickets/`, parents in `memory-bank/plans/epics/` and `memory-bank/plans/features/`.
 
 ## Board moves (which column transitions this role causes)
-On `plans/board.md`, BA/PM owns the `Backlog → Ready` exit: ideas advance only once Definition of Ready is met. The Orchestrator pulls from `Ready` forward.
+On `memory-bank/plans/board.md`, BA/PM owns the `Backlog → Ready` exit: ideas advance only once Definition of Ready is met. The Orchestrator pulls from `Ready` forward.
 
-## Trace updates (what it must record in plans/traceability.md)
-For each new ticket, append the requirement→epic→feature→ticket linkage and status to `plans/traceability.md`, so every downstream code/test/UAT/release row traces back to a ticket.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+For each new ticket, append the requirement→epic→feature→ticket linkage and status to `memory-bank/plans/traceability.md`, so every downstream code/test/UAT/release row traces back to a ticket.
 
 ## Hard limits
 Cut scope. Protect the MVP. Say no to bloat — the feature you talk yourself out of is the one you never maintain. A vague criterion is a defect the gate cannot catch and the engineer guesses at; do not let one exit `Ready`. Do not design the system or choose tech; mark anything unverified `UNKNOWN - verify` and never fabricate.

@@ -6,7 +6,7 @@ requirement: DASH-01
 
 # Contract: the board grammar (DASH-01)
 
-This document is the authoritative schema for `plans/board.md` — the single source of WIP truth
+This document is the authoritative schema for `memory-bank/plans/board.md` — the single source of WIP truth
 in a grugops repository. The schema is written in clear professional voice because it is a trace
 and safety surface: the board is what a human reads to learn where work stands, and a parser that
 quietly reinterprets it reports a state nobody wrote.
@@ -52,7 +52,7 @@ Rules that bound the three forms:
 - A heading at level three or deeper never opens a column, and never closes one.
 - The heading scan is anchored at the start of the line. An indented heading opens no column,
   because indented example boards appear inside documentation blocks in this very file's sibling,
-  `plans/board.md`.
+  `memory-bank/plans/board.md`.
 - A comment-blanking pre-pass runs before the heading scan, so a heading inside an HTML comment is
   invisible to this grammar. See the Comments section below.
 
@@ -86,7 +86,7 @@ match is refused: the column `In` does not match the heading `## In Development 
 
 ### Ticket documents
 
-A ticket lives at `plans/tickets/<ID>.md` and opens with a frontmatter region between two `---`
+A ticket lives at `memory-bank/plans/tickets/<ID>.md` and opens with a frontmatter region between two `---`
 lines. The region admits exactly eight keys, and the set is closed. A ninth key is a decision
 recorded here first.
 
@@ -183,7 +183,7 @@ nothing to compare against and every conforming identifier is admitted. Epic and
 identifiers are exempt, because they carry their own fixed prefixes.
 
 Identifiers prefixed `EPIC` or `FEAT` are a **second class**. They record epics and features rather
-than tickets, they are collected separately, and they are never joined against `plans/tickets/`.
+than tickets, they are collected separately, and they are never joined against `memory-bank/plans/tickets/`.
 Epic rows do not count toward a column's WIP number.
 
 ## Comments
@@ -193,7 +193,7 @@ character of the span with a space, so every line number survives into the repor
 comment that opens without closing blanks the remainder of the file, which is the fail-closed
 direction: a board renders visibly empty rather than partially and confidently.
 
-The rule exists because `plans/board.md` ships a documentation block carrying a structurally valid
+The rule exists because `memory-bank/plans/board.md` ships a documentation block carrying a structurally valid
 example board, indented by four spaces. Indentation alone is not the defence. One stray left-trim
 in a parser would promote that example into live state.
 
@@ -270,7 +270,7 @@ A duplicated row renders under both headings, and the conflict names both. A row
 file still renders. The projector never hides a line in order to report a conflict about it.
 
 **A conflict that depends on a complete listing is not raised while that listing is not `ok`.**
-`row-without-file` and `ticket-unplaced` both assert something about every file in `plans/tickets/`,
+`row-without-file` and `ticket-unplaced` both assert something about every file in `memory-bank/plans/tickets/`,
 so neither is derived unless the tickets source read cleanly. A conflict derived from a listing that
 failed is an assertion about a filesystem nobody read. The badge reports the one thing that is true:
 the listing failed. The other five kinds are unaffected — each is a claim about a document that was
@@ -369,7 +369,7 @@ The header shows one badge naming every stale source and the age of its last goo
 sees.
 
 **Absent is a legitimate state, and unreadable is stale.** A repository with no `.grugops/`
-directory has no queue, which renders as "no queue" with no badge. An empty `plans/tickets/`
+directory has no queue, which renders as "no queue" with no badge. An empty `memory-bank/plans/tickets/`
 directory is an empty ticket list. A file that existed at the previous read and is now missing is
 stale, as is a permission error and a torn read. In each of those cases the previous good value is
 carried, and the badge says so. A directory the projector cannot list is stale for the same reason:
