@@ -62,8 +62,9 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
+import { BOARD_REL } from "./state-layout.js";
 import { HOST_TOOLS, agentFlag, commandContextFromRecord, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -128,13 +129,17 @@ function treeEntries(snapshot: string): Map<string, { kind: EntryKind; row: stri
 
 // ── fixtures ────────────────────────────────────────────────────────────────────────────────────
 
-/** A user repository: a user-owned CLAUDE.md, a stand-in frozen core, and a user-owned board. */
+/**
+ * A user repository: a user-owned CLAUDE.md, a stand-in frozen core, and a user-owned board at BOARD_REL.
+ * 2026-10-21, plan 36-02: the board moved to the v3 state root ahead of plan 36-12's old-layout install
+ * refusal, so every install that uses this fixture keeps running once the refusal lands.
+ */
 export function makeFixture(d: string): string {
   mkdirSync(join(d, "agent-factory", "roles"), { recursive: true });
-  mkdirSync(join(d, "plans"), { recursive: true });
+  mkdirSync(dirname(join(d, BOARD_REL)), { recursive: true });
   writeFileSync(join(d, "CLAUDE.md"), "# User Project\n\nMy own dev instructions — must be preserved.\n");
   writeFileSync(join(d, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE — uninstall must never delete this.\n");
-  writeFileSync(join(d, "plans", "board.md"), "user board\n");
+  writeFileSync(join(d, BOARD_REL), "user board\n");
   return d;
 }
 

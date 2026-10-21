@@ -27,6 +27,7 @@ import { renderedEntryRels } from "../scripts/generate-host-entries.js";
 import { LEGACY_ADAPTER_KINDS, contentRecord, fileRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, pathText, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { fileRecords, markerLedger, readMarkerObject, withLedger, withoutAgentsField } from "./ledger.test-support.js";
+import { BOARD_REL } from "./state-layout.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "ghentries-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -120,7 +121,7 @@ describe("host entries: a single-agent install writes the shared files and that 
     const r = runInstall(target, kitHome, [agentFlag(codex!)]);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     // The shared footprint (D-06).
-    for (const rel of ["AGENTS.md", MARKER_REL, ".grugops/factory.config.json", "plans/board.md", "memory-bank/00-index.md"]) {
+    for (const rel of ["AGENTS.md", MARKER_REL, ".grugops/factory.config.json", BOARD_REL, "memory-bank/00-index.md"]) {
       expect(lstatSync(at(target, rel)).isFile(), `${rel} was not written`).toBe(true);
     }
     expect(lstatSync(at(target, "tools/grugops")).isDirectory(), "tools/grugops/ was not written").toBe(true);

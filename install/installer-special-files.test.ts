@@ -108,7 +108,11 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // 68 on 2026-10-18 (quick task 261018-hs8, Task 4): `tools/grugops/LICENSE` entered (66 files and links written, plus
 // the two read-only inputs), because install copies the root LICENSE beside the runnables (a fifth RUNNABLES row) and
 // asks its destination through readForWrite; a FIFO and a directory are planted at it by derivation. 67 -> 68.
-const READ_PATH_COUNT = 68;
+// 69 on 2026-10-21 (plan 36-02, LAYOUT-01, D-17): the seeded state moved under memory-bank/plans/ (the nine seed files
+// keep their count) and `memory-bank/plans/uat/.gitkeep` entered (67 files and links written, plus the two read-only
+// inputs), because seedState walks the seed tree and asks each destination through readForWrite; a FIFO and a
+// directory are planted at it by derivation. Measured by this test's printed READ_PATHS. 68 -> 69.
+const READ_PATH_COUNT = 69;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

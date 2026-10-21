@@ -44,6 +44,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BOARD_REL, STATE_ROOT_REL } from "../install/state-layout.js";
 import { BANNED_CONSTRUCTIONS } from "./voice-model.js";
 import { fencedLineFlags } from "./frontmatter.js";
 import {
@@ -146,7 +147,8 @@ const CONFORMING_CONTRACT = (n: number): string =>
   [`# Fixture contract ${n}`, "", "Contract text stays short.", ""].join("\n");
 
 const BOARD_TABLE_HEADER = "| Column | Entry means | Exit owner | WIP (default) |";
-const BOARD = "agent-factory/seed/plans/board.md";
+// The seed board, through the state path authority (plan 36-02: the seed moved under memory-bank/plans/).
+const BOARD = `agent-factory/seed/${BOARD_REL}`;
 const NOTE_CONTRACT = "agent-factory/contracts/context-note.md";
 const CONFIG_JSON = "agent-factory/config/factory.config.json";
 
@@ -233,7 +235,7 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   for (const d of [
     "agent-factory/workflows",
     "agent-factory/checklists",
-    "agent-factory/seed/plans",
+    `agent-factory/seed/${STATE_ROOT_REL}`,
     "agent-factory/contracts",
     "agent-factory/roles",
   ]) {
@@ -1829,7 +1831,13 @@ function runScratchGate(
   from: string,
   to: string,
 ): { status: number; stdout: string } {
-  const dir = freshTmp("gops-lex-scratchbuild-");
+  // The scratch build keeps the repository's layout (scripts/ beside install/), because the gate imports
+  // ../install/state-layout.js, the state path authority (plan 36-02). Only that one install/ module is copied.
+  const base = freshTmp("gops-lex-scratchbuild-");
+  const dir = join(base, "scripts");
+  mkdirSync(dir);
+  mkdirSync(join(base, "install"));
+  copyFileSync(join(ROOT, "install", "state-layout.js"), join(base, "install", "state-layout.js"));
   for (const f of readdirSync(join(ROOT, "scripts")).filter((n) =>
     n.endsWith(".js"),
   )) {

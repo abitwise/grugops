@@ -196,7 +196,7 @@ node -e "console.log(Object.keys(require('./agent-factory/config/factory.config.
 agent-factory/contracts/context-note.md
 
 # Board columns (13 today) — from the seed board
-agent-factory/seed/plans/board.md
+agent-factory/seed/memory-bank/plans/board.md
 ```
 
 `WP-09` applies to this set first. A role, a workflow, a config key, a note kind and a board column

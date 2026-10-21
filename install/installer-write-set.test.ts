@@ -11,7 +11,7 @@
 //   3. D-18: a dangling symbolic link read as `absent`, and the write that followed went through it,
 //      OUTSIDE the target (every seed file, every runnable, CLAUDE.md, ...). A link into a missing
 //      directory, or a link loop, crashed the run.
-//   4. DC-1 flavour: the doctor printed `ok` for plans/board.md with a FIFO there.
+//   4. DC-1 flavour: the doctor printed `ok` for the board (BOARD_REL since plan 36-02) with a FIFO there.
 //   5. `--migrate` renamed the legacy config to .bak while the destination was a FIFO it never wrote.
 //
 // THE CLASS TEST (brief §2.1). The write set is DERIVED, never typed. Since plan 33.1-27 it comes
@@ -59,6 +59,7 @@ import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check
 import { ISO_PLACEHOLDER, MARKER_REL, deriveAgentWriteSets, deriveWritePaths, lineNamesPath, pathText, runInstall, runUninstall } from "./installer-paths.test-support.js";
 import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, entryOwners, hostPointers } from "./host-tools.js";
 import { dirList, fileRecords, plantLegacyGemini } from "./ledger.test-support.js";
+import { BOARD_REL } from "./state-layout.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
 
@@ -593,7 +594,8 @@ describe("the shared kit's VERSION is read through readUserFile (DC-3, red-team 
 
 // ── The doctor never prints `ok` over a special file (finding 4) ──────────────────────────────
 describe("the doctor reads the state files it checks, never their presence alone (DC-1, DC-3, red-team of plan 33.1-26)", () => {
-  for (const rel of ["plans/board.md", ".grugops/factory.config.json"]) {
+  // 2026-10-21, plan 36-02: the board plant follows the doctor to BOARD_REL (the seed moved under memory-bank/plans/).
+  for (const rel of [BOARD_REL, ".grugops/factory.config.json"]) {
     for (const shape of ["FIFO", "directory"] as const) {
       it(`--check: a ${shape} at ${rel} is never reported ok`, async () => {
         const root = fresh("doc");

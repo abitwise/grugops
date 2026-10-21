@@ -29,6 +29,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { BOARD_REL } from "../install/state-layout.js";
 
 import { parseBoard } from "./board-model.js";
 import type { BoardModel } from "./board-model.js";
@@ -424,7 +425,7 @@ describe("board-corpus — provenance", () => {
 // carries no comment at all is a failure rather than an empty slice nobody notices.
 const DOC_BLOCK_FILES = [
   { rel: "plans/board.md", carriesBoardShape: true },
-  { rel: "agent-factory/seed/plans/board.md", carriesBoardShape: true },
+  { rel: `agent-factory/seed/${BOARD_REL}`, carriesBoardShape: true },
   { rel: "plans/traceability.md", carriesBoardShape: false },
 ] as const;
 

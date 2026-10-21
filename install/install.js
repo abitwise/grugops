@@ -85,7 +85,7 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { STATE_ROOTS } from "./state-layout.js";
+import { BOARD_REL, STATE_ROOTS } from "./state-layout.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -2114,8 +2114,8 @@ function doctor() {
     // [path, referencing-file].
     //
     // PRESENCE IS NOT PROOF (red-team of plan 33.1-26, DC-1/DC-3). Each entry also says what it must BE.
-    // A file entry is read through readUserFile, so a FIFO, a directory or a /dev/zero link at
-    // plans/board.md is never reported `ok` (it used to be, on existsSync alone, and the run printed
+    // A file entry is read through readUserFile, so a FIFO, a directory or a /dev/zero link at the
+    // board (BOARD_REL) is never reported `ok` (it used to be, on existsSync alone, and the run printed
     // ALL CHECKS PASSED). A directory entry must stat as a directory. Anything else present is a WARN
     // that says no verdict was reached on it; absent stays the FAIL it always was.
     const refs = [
@@ -2124,7 +2124,7 @@ function doctor() {
         [join(DOCTOR_KIT_ROOT, "roles", "_role-switch-protocol.md"), statRef, "file"],
         [join(DOCTOR_KIT_ROOT, "workflows"), statRef, "dir"],
         [join(TARGET, ".grugops", "factory.config.json"), statRef, "file"],
-        [join(TARGET, "plans", "board.md"), statRef, "file"],
+        [join(TARGET, BOARD_REL), statRef, "file"],
         // MIGR-02 (Phase 24): plans/handoffs/ is no longer seeded (the note-native trace replaced the
         // handoff relay), so the doctor must NOT require it — checking it here would FAIL every clean
         // install. Removed deliberately in lockstep with the seedState mkdir removal.

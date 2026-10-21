@@ -146,7 +146,7 @@
 //     bold-label                  41  `**Deterministic prefetch.** Before the model writes …`
 //     actor-subject               15  `BA/PM defines the product — recording the product …`
 //     determiner-subject          15  `The Orchestrator pulls the ticket into development …`
-//     not-an-approved-verb         7  `Tickets are written to \`plans/tickets/\` and a …`
+//     not-an-approved-verb         7  `Tickets are written to \`memory-bank/plans/tickets/\` and a …`
 //     conditional-clause           3  `When the behavior is unclear, the System Analyst …`
 //     ----------------------   -----  --------------------------------------------------------
 //     TOTAL                       81  over 125 `## Steps` bullets in 19 files (findings in 16)
@@ -188,6 +188,7 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
+import { BOARD_REL } from "../install/state-layout.js";
 // The ONE fence state machine, asked per line so a finding can carry its source line number, and
 // the ONE section-locator authority (plan 29-20) this module now asks EVERY section-extent question
 // of. It declares no heading-equality test and no section-end predicate of its own.
@@ -668,7 +669,8 @@ const bareWord = (w: string): string =>
 const CONFIG_JSON = "agent-factory/config/factory.config.json";
 const NOTE_CONTRACT = "agent-factory/contracts/context-note.md";
 const NOTE_KINDS_HEADING = "## The six note kinds";
-const BOARD = "agent-factory/seed/plans/board.md";
+// The seed board, through the state path authority (plan 36-02: the seed moved under memory-bank/plans/).
+const BOARD = `agent-factory/seed/${BOARD_REL}`;
 const BOARD_TABLE_HEADER = "| Column | Entry means | Exit owner | WIP (default) |";
 
 /** A markdown table's first cell, unwrapped from backticks and bold. Empty when the row has none. */

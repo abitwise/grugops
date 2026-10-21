@@ -19,7 +19,7 @@
 //
 // THE HIGHEST-VALUE CASE IN THIS PHASE IS VACUOUS WITHOUT THE MUTATION HALF. Research measured it:
 // with the comment-blanking pre-pass DELETED ENTIRELY, the "a documentation block yields zero
-// columns" assertion still passes on `plans/board.md`, on its seed twin, on the chess board and on
+// columns" assertion still passes on the repository's own board, on its seed twin, on the chess board and on
 // the dogfood board — because every mini-board inside every one of those comments happens to be
 // four-space indented, and the anchored heading scan refuses an indented heading on its own. A
 // correct implementation and a no-op are indistinguishable on the transcribed corpus. The four
@@ -63,6 +63,7 @@
 // imported the module it exists to measure could not be evidence about it.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { BOARD_REL, LEGACY_BOARD_REL } from "../install/state-layout.js";
 // ── The closed disposition set ───────────────────────────────────────────────────────────────────
 //
 // Every member is a bucket `agent-factory/contracts/board.md` names in its "Sections and the line
@@ -119,8 +120,10 @@ const DOGFOOD = "scripts/fixtures/board-replay/dogfood-board.md";
 const SPEC = "docs/initial/agent_factory_builder_spec_v2.md";
 const EX02 = "examples/02-brownfield-bootstrap.md";
 const EX05 = "examples/05-release-run.md";
-const KIT = "plans/board.md";
-const SEED = "agent-factory/seed/plans/board.md";
+// The repository's own board stays at the pre-v3 path until plan 36-06 moves the repository's state; the seed board
+// moved under memory-bank/plans/ in plan 36-02. Both are spelled through install/state-layout.ts.
+const KIT = LEGACY_BOARD_REL;
+const SEED = `agent-factory/seed/${BOARD_REL}`;
 const CONTRACT = "agent-factory/contracts/board.md";
 /**
  * Every source this corpus CLAIMS to draw from, spelled once.

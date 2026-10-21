@@ -151,8 +151,12 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * 66 on 2026-10-18 (quick task 261018-hs8, Task 4): `tools/grugops/LICENSE` entered as a file, because install copies the
  * root LICENSE beside the runnables (a fifth RUNNABLES row); an edit to it is left byte for byte by uninstall, as for
  * every runnable. 65 -> 66.
+ * 67 on 2026-10-21 (plan 36-02, LAYOUT-01, D-17): the seeded state moved under memory-bank/plans/ (the nine seed files
+ * keep their count) and `memory-bank/plans/uat/.gitkeep` entered as a file, because seedState walks the seed tree; an
+ * edit to it is left byte for byte by uninstall, as for every seeded file. Measured by this test's printed
+ * INSTALLED_FILES. 66 -> 67.
  */
-const INSTALLED_FILE_COUNT = 66;
+const INSTALLED_FILE_COUNT = 67;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

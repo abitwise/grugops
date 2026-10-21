@@ -402,6 +402,7 @@ describe("R1/R2 portability: a copied installed tree is another directory until 
     rebindMarker(copy);
     ok(runUninstall(copy, home), "uninstall of the re-bound copy");
     for (const rel of [...CREATED, ...REMOVED_DIRS]) expect(existsSync(abs(copy, rel)), rel).toBe(false);
-    expect(readdirSync(copy).sort()).toEqual([".grugops", "memory-bank", "plans", "tools"]);
+    // 2026-10-21, plan 36-02: the seeded state lives under memory-bank/plans/, so the target root gains no pre-v3 state dir.
+    expect(readdirSync(copy).sort()).toEqual([".grugops", "memory-bank", "tools"]);
   });
 });

@@ -157,8 +157,22 @@ import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, pl
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
 import { HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners, hostPointers, scriptCommand } from "./host-tools.js";
 // Plan 36-01 (LAYOUT-03): the one protected root list both removal paths read; the runnable-removal decoys are planted
-// under every root of it, so a root added to the list is covered here with no edit.
-import { STATE_ROOTS } from "./state-layout.js";
+// under every root of it, so a root added to the list is covered here with no edit. Plan 36-02 (LAYOUT-01): the
+// seeded state paths, so the seed assertions name the v3 state root only through the authority.
+import {
+  BOARD_REL,
+  EPICS_REL,
+  FEATURES_REL,
+  LEGACY_STATE_ROOT_REL,
+  METRICS_REL,
+  NFR_CATALOG_REL,
+  RELEASES_REL,
+  SPRINTS_REL,
+  STATE_ROOTS,
+  TICKETS_REL,
+  TRACEABILITY_REL,
+  UAT_REL,
+} from "./state-layout.js";
 /** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"];
 
@@ -271,14 +285,16 @@ function plantSourceMarkers(dir: string, note: string, only?: string): void {
 
 // make_fixture — a minimal fake user repo: a user-owned CLAUDE.md (to prove additive installs),
 // plus a stand-in "frozen core" under agent-factory/ (to prove uninstall never deletes it) and a
-// user-owned plans/board.md (to prove user data survives). Mirrors install.test.sh's make_fixture.
+// user-owned board at BOARD_REL (to prove user data survives). Mirrors install.test.sh's make_fixture.
+// 2026-10-21, plan 36-02: the board moved to the v3 state root (BOARD_REL) ahead of plan 36-12's
+// old-layout install refusal, so these installs keep running once the refusal lands.
 function makeFixture(): string {
   const d = mkTmp();
   mkdirSync(join(d, "agent-factory", "roles"), { recursive: true });
-  mkdirSync(join(d, "plans"), { recursive: true });
+  mkdirSync(dirname(join(d, BOARD_REL)), { recursive: true });
   writeFileSync(join(d, "CLAUDE.md"), "# User Project\n\nMy own dev instructions — must be preserved.\n");
   writeFileSync(join(d, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE — uninstall must never delete this.\n");
-  writeFileSync(join(d, "plans", "board.md"), "user board\n");
+  writeFileSync(join(d, BOARD_REL), "user board\n");
   return d;
 }
 
@@ -704,10 +720,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(target, ".grugops", "factory.config.json"))).toBe(true);
     expect(existsSync(join(target, "memory-bank", "00-index.md"))).toBe(true);
 
-    // SURVIVES — the frozen core + the user's own plans/ data (never deleted).
+    // SURVIVES — the frozen core + the user's own board at BOARD_REL (never deleted).
     const core = readFileSync(join(target, "agent-factory", "roles", "orchestrator.md"), "utf8");
     expect(core).toContain("FROZEN CORE");
-    expect(readFileSync(join(target, "plans", "board.md"), "utf8")).toContain("user board");
+    expect(readFileSync(join(target, BOARD_REL), "utf8")).toContain("user board");
 
     // SURVIVES — the shared kit at $GRUGOPS_HOME is never removed by uninstall (D-06).
     expect(existsSync(join(home, "agent-factory"))).toBe(true);
@@ -736,20 +752,79 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expectMaterializedKit(skill, home);
   });
 
-  // ── Two-root: the per-repo state plane is seeded, but plans/handoffs/ is NOT (two-root [3]) ─────
-  // MIGR-02 (Phase 24): the old relay's runtime plans/handoffs/ dir is no longer seeded — the
-  // note-native trace replaces the handoff relay, so a fresh install must leave it ABSENT. This
-  // assertion is INVERTED from the pre-Phase-24 version (which asserted the dir IS a directory).
-  it("two-root: the per-repo state plane is seeded but plans/handoffs/ is NOT created (config + marker + memory-bank/; MIGR-02)", () => {
+  // ── Two-root: the per-repo state plane is seeded under the v3 state root, and no pre-v3 root is created (two-root [3]) ─
+  // MIGR-02 (Phase 24): the old relay's runtime handoffs dir is no longer seeded — the note-native trace replaces the
+  // handoff relay. LAYOUT-01 (plan 36-02, D-17): every seeded state path lands under memory-bank/plans/, uat/ included,
+  // and a fresh install creates no top-level pre-v3 state directory at all, so the handoffs dir under it cannot exist
+  // either. Every path is named through install/state-layout.ts, so a state path added to the seed without a constant,
+  // or a constant whose seed entry is dropped, fails here (T-36-05).
+  const SEEDED_STATE_FILES = [BOARD_REL, NFR_CATALOG_REL, TRACEABILITY_REL, METRICS_REL];
+  const SEEDED_STATE_DIRS = [TICKETS_REL, EPICS_REL, FEATURES_REL, SPRINTS_REL, RELEASES_REL, UAT_REL];
+  const seedBytes = (rel: string): Buffer => readFileSync(join(REPO_ROOT, "agent-factory", "seed", rel));
+  function expectSeededStatePlane(target: string): void {
+    for (const rel of SEEDED_STATE_FILES) expect(statSync(join(target, rel)).isFile(), rel).toBe(true);
+    for (const rel of SEEDED_STATE_DIRS) expect(statSync(join(target, rel)).isDirectory(), rel).toBe(true);
+    // D-17: the UAT subpath is seeded through its .gitkeep, like the other trees.
+    expect(statSync(join(target, UAT_REL, ".gitkeep")).isFile()).toBe(true);
+    expect(existsSync(join(target, LEGACY_STATE_ROOT_REL))).toBe(false);
+  }
+  it("two-root: the per-repo state plane is seeded under memory-bank/plans/ and no pre-v3 state root is created (config + marker + memory-bank/; MIGR-02, LAYOUT-01)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     expect(existsSync(join(target, ".grugops", "factory.config.json"))).toBe(true);
     expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
-    expect(existsSync(join(target, "plans", "board.md"))).toBe(true);
     expect(existsSync(join(target, "memory-bank", "00-index.md"))).toBe(true);
-    // MIGR-02: a fresh install never recreates the old relay's runtime handoffs dir.
-    expect(existsSync(join(target, "plans", "handoffs"))).toBe(false);
+    expectSeededStatePlane(target);
+    // Never-overwrite at the new path: the fixture's user-owned board keeps its bytes.
+    expect(readFileSync(join(target, BOARD_REL), "utf8")).toBe("user board\n");
+  });
+
+  // Edge LAYOUT-01 empty (plan 36-02): a target with no state at all, and a target holding only an empty
+  // memory-bank/ directory, both receive the full memory-bank/plans/ set from ONE install.
+  it("two-root: an empty target and a target holding only an empty memory-bank/ both get the full memory-bank/plans/ set from one install (LAYOUT-01)", () => {
+    const bare = mkTmp();
+    const withEmptyBank = mkTmp();
+    mkdirSync(join(withEmptyBank, "memory-bank"));
+    for (const target of [bare, withEmptyBank]) {
+      expect(runInstall(target, mkTmp()).status).toBe(0);
+      expectSeededStatePlane(target);
+      for (const rel of SEEDED_STATE_FILES) expect(readFileSync(join(target, rel)), rel).toEqual(seedBytes(rel));
+    }
+  });
+
+  // Edge LAYOUT-01 concurrency (plan 36-02): an install interrupted during seeding, run again, seeds only the
+  // missing memory-bank/plans/ files and overwrites none (the existing never-overwrite seed contract, new path).
+  it("two-root: a re-run after an interrupted seed restores only the missing memory-bank/plans/ files and overwrites none (LAYOUT-01)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    // Stand in for an interruption: one seeded file and the uat/ tree never landed; one seeded file the user edited.
+    rmSync(join(target, METRICS_REL));
+    rmSync(join(target, UAT_REL), { recursive: true });
+    writeFileSync(join(target, TRACEABILITY_REL), "user-edited traceability\n");
+    expect(runInstall(target, home).status).toBe(0);
+    expectSeededStatePlane(target);
+    expect(readFileSync(join(target, METRICS_REL))).toEqual(seedBytes(METRICS_REL));
+    expect(readFileSync(join(target, TRACEABILITY_REL), "utf8")).toBe("user-edited traceability\n");
+  });
+
+  // Edge LAYOUT-01 ordering (plan 36-02): the seed report lists the memory-bank/plans/ files in one deterministic
+  // order (listSeedFiles sorts), so two DRY_RUN previews of one target print identical seed lines.
+  it("two-root: two DRY_RUN previews of one target print identical memory-bank/plans/ seed lines (LAYOUT-01)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const preview = (): string[] => {
+      const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags([])], {
+        encoding: "utf8",
+        env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+      });
+      expect(r.status).toBe(0);
+      return (r.stdout ?? "").split("\n").filter((line) => line.includes(`${dirname(BOARD_REL)}/`));
+    };
+    const first = preview();
+    expect(first.length).toBeGreaterThan(0);
+    expect(preview()).toEqual(first);
   });
 
   // ── never-overwrite: a pre-existing seeded file is left byte-untouched (two-root [4], D-04) ──
@@ -1122,7 +1197,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(target, ".claude", "skills"))).toBe(false);
     // ...and the user's own content is untouched, as always.
     expect(existsSync(join(target, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
-    expect(existsSync(join(target, "plans", "board.md"))).toBe(true);
+    expect(existsSync(join(target, BOARD_REL))).toBe(true);
     expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("must be preserved");
   });
 
@@ -4763,7 +4838,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // (c) the user-owned non-grugops backup + the protected seeded state SURVIVE.
     expect(readFileSync(join(target, "mine.bak"), "utf8")).toContain("USER-OWNED BACKUP");
     expect(existsSync(join(target, ".grugops", "factory.config.json"))).toBe(true);
-    expect(existsSync(join(target, "plans", "board.md"))).toBe(true);
+    expect(existsSync(join(target, BOARD_REL))).toBe(true);
     // the LIVE kit at home is untouched (only the backups were pruned).
     expect(existsSync(join(home, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
   });
@@ -6168,7 +6243,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     for (const rel of RUNNABLE_RELS) expect(existsSync(join(target, rel))).toBe(false);
     // The pre-existing frozen-core and user-data guarantees still hold alongside the new pass.
     expect(readFileSync(join(target, "agent-factory", "roles", "orchestrator.md"), "utf8")).toContain("FROZEN CORE");
-    expect(readFileSync(join(target, "plans", "board.md"), "utf8")).toBe("user board\n");
+    expect(readFileSync(join(target, BOARD_REL), "utf8")).toBe("user board\n");
   });
 
   it("runnable removal: a recorded runnable whose SOURCE this kit no longer ships is removed by its record (plan 33.1-36)", () => {
@@ -6427,7 +6502,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // The user's own content is untouched — reversibility that destroys user data is not
     // reversibility (CLAUDE.md installer constraint).
     expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("My own dev instructions");
-    expect(readFileSync(join(target, "plans", "board.md"), "utf8")).toBe("user board\n");
+    expect(readFileSync(join(target, BOARD_REL), "utf8")).toBe("user board\n");
   });
 
   it("R-04 (5): an uninstall from a home with NOTHING installed is a clean no-op (edge probe 2)", () => {

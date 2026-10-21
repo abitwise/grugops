@@ -4,7 +4,7 @@ _Updated: <ISO date> by <role>_
 <!--
   FORMAT — read before you move a ticket. Clear voice: this is a technical file, not a role prompt.
 
-  plans/board.md is grugops's SINGLE SOURCE OF WIP TRUTH. Every ticket sits in exactly one column.
+  memory-bank/plans/board.md is grugops's SINGLE SOURCE OF WIP TRUTH. Every ticket sits in exactly one column.
   Each column has a definition (ENTRY MEANS), an EXIT OWNER (the role that signs off to move the
   ticket out), and a WIP limit. The Orchestrator refuses to pull work past a limit without a
   written reason.
@@ -33,7 +33,7 @@ _Updated: <ISO date> by <role>_
 
   IDS. `ABC-014` — a capital letter, capitals and digits, a hyphen, then digits. `EPIC-006` and
   `FEAT-007` are a SECOND CLASS: they record epics and features, they are never joined against
-  `plans/tickets/`, and they never count toward a column's WIP number.
+  `memory-bank/plans/tickets/`, and they never count toward a column's WIP number.
 
   UPDATES. `_Updated: <YYYY-MM-DD> by <actor>`. Any other shape is reported as an unparsed line.
 
@@ -42,7 +42,7 @@ _Updated: <ISO date> by <role>_
   the heading to match — the two must agree. In lean mode the In Security/NFR and Ready to Release
   columns may stay empty unless a trigger fires; the columns still exist.
 
-  BOARD <-> TICKET. Each ticket file (`plans/tickets/<prefix>-xxx.md`) carries `column:` equal to
+  BOARD <-> TICKET. Each ticket file (`memory-bank/plans/tickets/<prefix>-xxx.md`) carries `column:` equal to
   the board column it sits under, and `status:` as the kebab-case form of that column
   (`In Development` -> `in-development`). The validator reports drift between the two.
 
@@ -51,7 +51,7 @@ _Updated: <ISO date> by <role>_
   kept because it reads better; it is no longer what keeps the example out of the board.
 
   CADENCE: the Kanban columns ship by default (`cadence=kanban`). The scrum overlay — sprint goal,
-  committed backlog, burndown — lives in `plans/sprints/SPRINT-xx.md` and is not pre-rendered here.
+  committed backlog, burndown — lives in `memory-bank/plans/sprints/SPRINT-xx.md` and is not pre-rendered here.
   The sizing, priority and Blocked conventions below are shared by both cadences.
 -->
 

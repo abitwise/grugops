@@ -41,6 +41,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { BOARD_REL } from "../install/state-layout.js";
 
 import {
   LARGE_BOARD_BYTES,
@@ -112,7 +113,7 @@ type CorpusDoc = { readonly label: string; readonly text: string };
 
 const REAL_DOCS: readonly string[] = [
   "plans/board.md",
-  "agent-factory/seed/plans/board.md",
+  `agent-factory/seed/${BOARD_REL}`,
   "plans/traceability.md",
 ];
 
