@@ -20,7 +20,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import ts from "typescript";
 import { accessSync, constants as fsConstants, appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import {
@@ -42,6 +42,9 @@ import {
 } from "./installer-paths.test-support.js";
 import { allAskRules } from "./checkpoint-ask-rules.js";
 import { HOST_TOOLS, HOST_TOOL_COUNT, agentCommand, agentFlag, scriptCommand } from "./host-tools.js";
+// Phase 36 (D-13 step 2, plan 36-03): the legacy handoffs directory and the pre-v3 state root are named only through the
+// state path authority.
+import { LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL } from "./state-layout.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gclose-"));
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -439,7 +442,7 @@ describe("closing claims: --update says complete only when it copied the kit (pl
   });
 });
 
-// ── sibling B: an already-migrated --migrate says what it did to plans/handoffs/ ────────────────────
+// ── sibling B: an already-migrated --migrate says what it did to the legacy handoffs directory ──────
 
 /** A scratch row whose target is a bare directory (no in-repo agent-factory/, so no leftover kit). */
 function bareRow(): { target: string; kitHome: string; home: string } {
@@ -458,15 +461,34 @@ const snapBoth = (target: string, kitHome: string): string => `${snapshotTree(ta
 const NOTHING_CHANGED = /Nothing was changed\.|Nothing to do\./;
 const NO_CHANGE_SENTENCE = /Nothing was changed|Nothing to do|nothing changed/;
 const LEFTOVER = /a leftover LIVE in-repo agent-factory\/ remains/;
-const handoffsBackups = (target: string): string[] =>
-  readdirSync(join(target, "plans")).filter((e) => e.startsWith("handoffs.bak.")).map((e) => `plans/${e}`);
+/** A string matched literally inside a regular expression. */
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * The handoffs backups in a target's pre-v3 state root (LEGACY_STATE_ROOT_REL, the directory that holds
+ * LEGACY_HANDOFFS_REL), as POSIX paths relative to the target. Since plan 36-02 a fresh install creates no pre-v3 state
+ * root, and B4 and its matrix row plant a regular file in its place: a root that is absent (ENOENT) or is not a
+ * directory (ENOTDIR) holds no backup, so the list is empty. Any other error is thrown, so a root this test cannot read
+ * is never read as "no backups".
+ */
+const handoffsBackups = (target: string): string[] => {
+  let names: string[];
+  try {
+    names = readdirSync(join(target, LEGACY_STATE_ROOT_REL));
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return [];
+    throw e;
+  }
+  const prefix = `${basename(LEGACY_HANDOFFS_REL)}.bak.`;
+  return names.filter((e) => e.startsWith(prefix)).map((e) => `${LEGACY_STATE_ROOT_REL}/${e}`);
+};
 const stageHandoffs = (target: string): void => {
-  mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
-  writeFileSync(join(target, "plans", "handoffs", "h1.md"), "a user's handoff\n");
+  mkdirSync(join(target, LEGACY_HANDOFFS_REL), { recursive: true });
+  writeFileSync(join(target, LEGACY_HANDOFFS_REL, "h1.md"), "a user's handoff\n");
 };
 
 describe("closing claims: an already-migrated --migrate says what it changed (plan 34-26, D-25, sibling B)", () => {
-  it("B1 installed bare target, no plans/handoffs/: exit 0, already migrated and nothing changed; the snapshots are identical", () => {
+  it(`B1 installed bare target, no ${LEGACY_HANDOFFS_REL}/: exit 0, already migrated and nothing changed; the snapshots are identical`, () => {
     const { target, kitHome, home } = bareRow();
     installFirst(target, kitHome, home);
     const before = snapBoth(target, kitHome);
@@ -478,7 +500,7 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     expect(snapBoth(target, kitHome)).toBe(before);
   });
 
-  it("B2 installed bare target with plans/handoffs/: exit 0, names the backup and that it was recorded in the marker; no no-change sentence; the snapshot differs", () => {
+  it(`B2 installed bare target with ${LEGACY_HANDOFFS_REL}/: exit 0, names the backup and that it was recorded in the marker; no no-change sentence; the snapshot differs`, () => {
     const { target, kitHome, home } = bareRow();
     installFirst(target, kitHome, home);
     stageHandoffs(target);
@@ -487,7 +509,7 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     expect(r.status, r.stdout).toBe(0);
     const made = handoffsBackups(target);
     expect(made.length, r.stdout).toBe(1);
-    const closing = r.stdout.split("\n").filter((l) => l.includes("This run backed up plans/handoffs/"));
+    const closing = r.stdout.split("\n").filter((l) => l.includes(`This run backed up ${LEGACY_HANDOFFS_REL}/`));
     expect(closing.length, r.stdout).toBe(1);
     expect(closing[0]).toContain(made[0]);
     expect(closing[0]).toContain(`recorded the backup in ${MARKER_REL}`);
@@ -503,7 +525,7 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     const before = snapBoth(target, kitHome);
     const r = runInstall(target, kitHome, ["--migrate"], { home, dryRun: true });
     expect(r.status, r.stdout).toBe(0);
-    expect(r.stdout).toMatch(/DRY_RUN: this run would back up plans\/handoffs\//);
+    expect(r.stdout).toMatch(new RegExp(`DRY_RUN: this run would back up ${escapeRe(LEGACY_HANDOFFS_REL)}/`));
     expect(r.stdout).toMatch(/Nothing was changed\./);
     expect(r.stdout).not.toMatch(/This run backed up/);
     expect(snapBoth(target, kitHome)).toBe(before);
@@ -512,8 +534,12 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
   it("B4 installed target whose plans is a regular file: a verify line, the migrate INCOMPLETE banner, exit 3, no no-change sentence", () => {
     const { target, kitHome, home } = bareRow();
     installFirst(target, kitHome, home);
-    rmSync(join(target, "plans"), { recursive: true, force: true });
-    writeFileSync(join(target, "plans"), "a regular file named plans\n");
+    rmSync(join(target, LEGACY_STATE_ROOT_REL), { recursive: true, force: true });
+    writeFileSync(join(target, LEGACY_STATE_ROOT_REL), `a regular file named ${LEGACY_STATE_ROOT_REL}\n`);
+    // The listing helper's ENOTDIR arm (plan 36-03): the pre-v3 state root is a regular file, so it holds no backup and
+    // the helper says so instead of throwing.
+    expect(lstatSync(join(target, LEGACY_STATE_ROOT_REL)).isFile(), "premise: the pre-v3 state root is a regular file").toBe(true);
+    expect(handoffsBackups(target), "a pre-v3 state root that is a regular file (ENOTDIR) lists no handoffs backup").toEqual([]);
     const before = snapBoth(target, kitHome);
     const r = runInstall(target, kitHome, ["--migrate"], { home });
     const verifies = verifyLines(r.stdout);
@@ -537,7 +563,7 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     expect(snapBoth(target, kitHome)).toBe(before);
   });
 
-  it("B5 installed target with a leftover in-repo agent-factory/ and plans/handoffs/: the leftover advice, the backup named, no no-change sentence", () => {
+  it(`B5 installed target with a leftover in-repo agent-factory/ and ${LEGACY_HANDOFFS_REL}/: the leftover advice, the backup named, no no-change sentence`, () => {
     const { target, kitHome, home } = scratchRow();
     installFirst(target, kitHome, home);
     stageHandoffs(target);
@@ -546,7 +572,7 @@ describe("closing claims: an already-migrated --migrate says what it changed (pl
     expect(r.status, r.stdout).toBe(0);
     expect(r.stdout).toMatch(LEFTOVER);
     expect(r.stdout).toMatch(/back up and remove the leftover agent-factory\/ by hand/);
-    expect(r.stdout).toMatch(/This run backed up plans\/handoffs\//);
+    expect(r.stdout).toMatch(new RegExp(`This run backed up ${escapeRe(LEGACY_HANDOFFS_REL)}/`));
     expect(r.stdout, r.stdout).not.toMatch(NO_CHANGE_SENTENCE);
     expect(snapBoth(target, kitHome)).not.toBe(before);
   });
@@ -611,7 +637,7 @@ type ModeClass = "acting" | "reader" | "modifier";
 /** Every string the argv loops compare the argument with, keyed `<binary> <literal>`, classified. */
 const MODE_TABLE: Readonly<Record<string, { readonly cls: ModeClass; readonly reason: string }>> = {
   "install.ts --update": { cls: "acting", reason: "refreshes the kit home; rows below" },
-  "install.ts --migrate": { cls: "acting", reason: "migrates an old layout or backs up plans/handoffs/; rows below" },
+  "install.ts --migrate": { cls: "acting", reason: "migrates an old layout or backs up the legacy handoffs directory; rows below" },
   "install.ts --prune-old-kit": { cls: "acting", reason: "removes recorded backups; rows below" },
   "install.ts --check": { cls: "reader", reason: "the doctor writes nothing; its FAIL/WARN exit matrix is pinned by the doctor cases in install.test.ts" },
   "install.ts --strict": { cls: "modifier", reason: "promotes --check warnings to failure; acts only with --check" },
@@ -778,7 +804,7 @@ const MODE_ROWS: readonly ModeRow[] = [
     },
   },
   {
-    id: "--migrate already migrated, no plans/handoffs/",
+    id: `--migrate already migrated, no ${LEGACY_HANDOFFS_REL}/`,
     mode: "--migrate",
     verify: false,
     stage: () => {
@@ -788,7 +814,7 @@ const MODE_ROWS: readonly ModeRow[] = [
     },
   },
   {
-    id: "--migrate already migrated, plans/handoffs/ backed up",
+    id: `--migrate already migrated, ${LEGACY_HANDOFFS_REL}/ backed up`,
     mode: "--migrate",
     verify: false,
     stage: () => {
@@ -805,8 +831,8 @@ const MODE_ROWS: readonly ModeRow[] = [
     stage: () => {
       const w = bareRow();
       installFirst(w.target, w.kitHome, w.home);
-      rmSync(join(w.target, "plans"), { recursive: true, force: true });
-      writeFileSync(join(w.target, "plans"), "a regular file named plans\n");
+      rmSync(join(w.target, LEGACY_STATE_ROOT_REL), { recursive: true, force: true });
+      writeFileSync(join(w.target, LEGACY_STATE_ROOT_REL), `a regular file named ${LEGACY_STATE_ROOT_REL}\n`);
       return w;
     },
   },

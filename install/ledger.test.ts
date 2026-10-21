@@ -70,6 +70,8 @@ import {
 } from "./install-marker.js";
 import { TREE_MAX_ENTRIES, realTargetPath } from "./user-file.js";
 import { HOST_TOOLS } from "./host-tools.js";
+// Phase 36 (D-13 step 2, plan 36-03): the legacy handoffs directory is named only through the state path authority.
+import { LEGACY_HANDOFFS_REL } from "./state-layout.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree, storedMode, userModeEdit } from "./installer-paths.test-support.js";
 import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, plantLegacyGemini, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
@@ -698,7 +700,7 @@ describe("plan 33.1-40: backupContentRecord, outermostBackups and carriedBackups
     const inner = entry(`agent-factory.bak.${ISO}/config/factory.config.json.bak.${ISO}`, "legacy-config", "agent-factory/config/factory.config.json");
     const sibling = entry(`factory.config.json.bak.${ISO}`, "legacy-config", "factory.config.json");
     // A name that only starts with another entry's name is not inside it.
-    const prefixOnly = entry(`agent-factory.bak.${ISO}x`, "handoffs", "plans/handoffs");
+    const prefixOnly = entry(`agent-factory.bak.${ISO}x`, "handoffs", LEGACY_HANDOFFS_REL);
     expect(outermostBackups([inner, outer, sibling, prefixOnly]).map((e) => e.path)).toEqual([outer.path, sibling.path, prefixOnly.path]);
     expect(outermostBackups([]), "an empty set").toEqual([]);
     expect(outermostBackups([inner]).map((e) => e.path), "an inner entry alone is the outermost").toEqual([inner.path]);
@@ -710,14 +712,14 @@ describe("plan 33.1-40: backupContentRecord, outermostBackups and carriedBackups
     mkdirSync(join(root, kept));
     const file = `factory.config.json.bak.${ISO}`;
     writeFileSync(join(root, file), "{}\n");
-    const gone = `plans/handoffs.bak.${ISO}`;
+    const gone = `${LEGACY_HANDOFFS_REL}.bak.${ISO}`;
     // Behind a link: plans2 is a link to a real directory that holds the name.
     const real = fresh("carry-backups-real");
     mkdirSync(join(real, `handoffs.bak.${ISO}`));
     symlinkSync(real, join(root, "plans2"));
     const behindLink = `plans2/handoffs.bak.${ISO}`;
     const withRecord: BackupEntry = { ...entry(kept), content: "tree:sha256:" + "0".repeat(64) };
-    const l = readLedger(holder([withRecord, entry(file, "legacy-config", "factory.config.json"), entry(gone, "handoffs", "plans/handoffs"), entry(behindLink, "handoffs", "plans2/handoffs")]));
+    const l = readLedger(holder([withRecord, entry(file, "legacy-config", "factory.config.json"), entry(gone, "handoffs", LEGACY_HANDOFFS_REL), entry(behindLink, "handoffs", "plans2/handoffs")]));
     expect(l.state).toBe("ok");
     const carried = carriedBackups(l, root);
     expect(carried.map((e) => e.path).sort()).toEqual([file, kept].sort());

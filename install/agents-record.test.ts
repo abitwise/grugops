@@ -157,6 +157,8 @@ import {
 } from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 import { USER_FILE_MAX_BYTES } from "./user-file.js";
+// Phase 36 (D-13 step 2, plan 36-03): the legacy handoffs directory is named only through the state path authority.
+import { LEGACY_HANDOFFS_REL } from "./state-layout.js";
 import { memberNamed, readJsonText } from "./json-text.js";
 import { skipLine, stageShapeOrSkip, type SkipEntry } from "../scripts/check-platform-shapes.js";
 
@@ -344,7 +346,7 @@ const fileEntry = (path: string): LedgerEntry => ({ path, kind: "file", content:
 const CLAUDE_SKILL = ".claude/skills/grugops-gate/SKILL.md";
 const askNothing = { path: ASK_RULES_REL, kind: "ask-rules", added: [], createdFile: false, createdPermissions: false, createdAsk: false, askContent: null } as LedgerEntry;
 const askAdded = { path: ASK_RULES_REL, kind: "ask-rules", added: ["Bash(git push *)"], createdFile: false, createdPermissions: false, createdAsk: false, askContent: null } as LedgerEntry;
-const backupEntry = { path: "plans/handoffs.bak.x", kind: "backup", origin: "handoffs", of: "plans/handoffs", content: null } as LedgerEntry;
+const backupEntry = { path: `${LEGACY_HANDOFFS_REL}.bak.x`, kind: "backup", origin: "handoffs", of: LEGACY_HANDOFFS_REL, content: null } as LedgerEntry;
 const blockEntry = { path: "CLAUDE.md", kind: "block", block: "x", separator: "blank-line" } as unknown as LedgerEntry;
 
 describe("agentsToRecord: the one derivation of `agents` (D-26, D-29)", () => {
@@ -890,8 +892,8 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
   it("R17 (rewriteLedger, already-migrated --migrate): the handoffs backup is recorded; `agents` is byte-identical, the holding entries are identical, only backup entries changed", () => {
     const w = world("r17");
     install(w, [flag("claude"), flag("codex")]);
-    mkdirSync(at(w.target, "plans/handoffs"), { recursive: true });
-    writeFileSync(at(w.target, "plans/handoffs/h1.md"), "a user's handoff\n");
+    mkdirSync(at(w.target, LEGACY_HANDOFFS_REL), { recursive: true });
+    writeFileSync(at(w.target, `${LEGACY_HANDOFFS_REL}/h1.md`), "a user's handoff\n");
     const agentsBefore = JSON.stringify(agentsOf(w));
     const holdingBefore = holding(w);
     const nonBackupBefore = nonBackup(w);
@@ -3303,7 +3305,7 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
   // R56 (plan 34.1-59, 2026-10-14, D-45 item 3, DI-25, UAT G-34.1-16): install writes only what it can record in
   // .grugops/install.json, so over a marker it cannot record into it writes nothing. Until plan 34.1-59 install over a
   // user's own JSON object at the marker path printed a verify, left the file byte for byte and then wrote the whole
-  // footprint (the kit home, AGENTS.md, memory-bank/, plans/, tools/grugops/, the chosen agents' entries) with no record,
+  // footprint (the kit home, AGENTS.md, memory-bank/, the pre-v3 state root, tools/grugops/, the chosen agents' entries) with no record,
   // so no uninstall could take any of it out. A foreign read's output names no next step and no command (D-44, D-45) and
   // nothing offers removing the marker (D-37). The control is install's own marker with one trailing comma: the same
   // refusal, and the closing names the install command for this run's agents (fix by hand, then run it).
@@ -3868,10 +3870,11 @@ describe("D-37 (34.1 review CR-05): no printed text offers deleting the marker, 
 // under it) each identical before and after; the owner's verify and the marker's own `skipped` line (for every defect,
 // a malformed ledger included, D-46); after a foreign read no install.js or uninstall.js command anywhere; after every
 // other read exactly one printed command, the install command for this run's agents (agentCommand with this world's
-// context); and under DRY_RUN the banner's DRY_RUN suffix. A world also holds a user's plans/handoffs/ file, which a
-// --migrate backs up on every path: a --migrate that got past the refusal would change the target. By D-46 every
-// defect is refused, so every install cell is a refusal cell, pinned by count; a cell installRefusal does not answer
-// keeps the install-cell assertions it had and, under the two new runs, is a counted skip.
+// context); and under DRY_RUN the banner's DRY_RUN suffix. A world also holds a user's file in the legacy handoffs
+// directory (LEGACY_HANDOFFS_REL), which a --migrate backs up on every path: a --migrate that got past the refusal
+// would change the target. By D-46 every defect is refused, so every install cell is a refusal cell, pinned by count;
+// a cell installRefusal does not answer keeps the install-cell assertions it had and, under the two new runs, is a
+// counted skip.
 //
 // THE CLOSING NAMES ONLY THE AGENTS THE USER NAMED (plan 34.1-61, 2026-10-17, D-47, WR-41, WR-42). A flag-less install
 // run, "install (flag-less)", joins the printing runs (8 runs, 5 of them install runs). In the matrix world Claude Code
@@ -4176,8 +4179,8 @@ function markerPathState(w: World): string {
 }
 /** Every line of stdout and stderr. */
 const allLines = (r: Run): string[] => [...r.stdout.split("\n"), ...r.stderr.split("\n")];
-/** A user's own file under plans/handoffs/, which --migrate backs up on every path (plan 34.1-59, D-45, D-46). */
-const MATRIX_HANDOFF_REL = "plans/handoffs/a-users-handoff.md";
+/** A user's own file in the legacy handoffs directory, which --migrate backs up on every path (plan 34.1-59, D-45, D-46). */
+const MATRIX_HANDOFF_REL = `${LEGACY_HANDOFFS_REL}/a-users-handoff.md`;
 /**
  * The target's tree as snapshotTree rows (plan 34.1-59, 2026-10-17, D-45, D-46), with the marker path and everything
  * under it left out: snapshotTree throws on a file it cannot read (a mode 000 marker), and markerPathState covers the
