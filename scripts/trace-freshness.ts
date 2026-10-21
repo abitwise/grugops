@@ -1,6 +1,7 @@
 // trace-freshness.ts — grugops traceability render drift gate (MIGR-03, D-03).
 //
-// The human-facing trace matrix at plans/traceability.md is GENERATED, never hand-maintained: it is
+// The human-facing trace matrix (the traceability file under the state root) is GENERATED, never
+// hand-maintained: it is
 // committed solely as the deterministic product of `node scripts/trace-render.js`. The shared
 // verified-context NOTES under .grugops/context/<task>/notes/ are the SOURCE OF TRUTH; their `refs`
 // carry each ticket's requirement / code / test / UAT / release links. traceability.md is the derived,
@@ -14,9 +15,10 @@
 //                                     # exit 1 = drift detected OR a regen failed
 //
 // WHY A DEDICATED GATE: the committed-.js `freshness` gate proves the build outputs; the
-// `freshness:context` gate walks .grugops/context/ index renders. NEITHER sees plans/traceability.md,
-// which is per-repo RUNTIME state under plans/ (not committed kit output). This gate is the plans/-rooted
-// twin, re-rooted from .grugops/queue/ (now-running-freshness.ts) to the notes → plans/ trace. It is
+// `freshness:context` gate walks .grugops/context/ index renders. NEITHER sees the traceability file,
+// which is per-repo RUNTIME state under the state root (not committed kit output). This gate is the
+// state-root twin, re-rooted from .grugops/queue/ (now-running-freshness.ts) to the notes → state-root
+// trace. It is
 // STANDALONE — like now-running-freshness / context-freshness / catalog-freshness, it is NOT folded into
 // scripts/freshness.js NOR into scripts/check-foundation-guards.ts (D-03). It is wired as its own
 // package.json script (freshness:traceability) so a stale committed render fails the build red on its own.
@@ -28,8 +30,8 @@
 // bare Node. import.meta.dirname (stable at the Node 22+ floor) resolves the repo root.
 //
 // CHECK_ROOT override: a hermetic fixture root (a temp dir holding .grugops/context/<task>/notes/ and
-// plans/traceability.md) is supplied via the CHECK_ROOT env var. Absent it, the gate checks the real
-// .grugops/context/ + plans/.
+// the traceability file under the state root) is supplied via the CHECK_ROOT env var. Absent it, the
+// gate checks the real .grugops/context/ + the state root.
 //
 // Greenfield vacuous success: if no .grugops/context/ notes tree exists yet, there is nothing committed
 // that could have drifted — the gate succeeds and says so honestly, rather than failing.
@@ -56,6 +58,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, sep } from "node:path";
 import { jsImportClosure } from "./js-import-closure.js";
+import { STATE_ROOT_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
@@ -68,13 +71,13 @@ const toPosix = (p: string): string => p.split(sep).join("/");
 // process.exit — every side-effecting statement (mkdtempSync, cpSync, spawnSync, the exits) lives here.
 function main(): void {
   // The root to check: the real repo, or a CHECK_ROOT override (the hermetic fixture root) holding a
-  // sibling .grugops/context tree + plans/traceability.md. Read at call time so an importer that sets
+  // sibling .grugops/context tree + the traceability file under the state root. Read at call time so an importer that sets
   // CHECK_ROOT before invoking main() is honored.
   const CHECK_ROOT = process.env.CHECK_ROOT;
   const CONTEXT_ROOT = CHECK_ROOT
     ? join(CHECK_ROOT, ".grugops", "context")
     : join(ROOT, ".grugops", "context");
-  const PLANS_ROOT = CHECK_ROOT ? join(CHECK_ROOT, "plans") : join(ROOT, "plans");
+  const PLANS_ROOT = CHECK_ROOT ? join(CHECK_ROOT, STATE_ROOT_REL) : join(ROOT, STATE_ROOT_REL);
 
   // Unique temp mirror per run; cleaned up before every process.exit.
   // realpathSync-resolve the temp dir: on macOS tmpdir() lives under /var (a symlink to /private/var),
@@ -102,7 +105,8 @@ function main(): void {
 
   // Lay out the temp mirror's render once: <tmp>/scripts/trace-render.js AND every committed .js it
   // transitively imports. Mirror the whole .grugops/context/ notes tree into <tmp>/.grugops/context
-  // and spawn the mirrored render so it writes <tmp>/plans/traceability.md — the committed tree is
+  // and spawn the mirrored render so it writes the traceability file under <tmp>'s state root — the
+  // committed tree is
   // never touched.
   //
   // THE DEPENDENCY SET IS DERIVED, NOT LISTED (plan 30-01). It used to name two files, with a
@@ -117,13 +121,13 @@ function main(): void {
   }
   const mirroredRender = join(tmp, RENDER_REL);
   const mirroredContextRoot = join(tmp, ".grugops", "context");
-  const mirroredPlansRoot = join(tmp, "plans");
+  const mirroredPlansRoot = join(tmp, STATE_ROOT_REL);
 
   mkdirSync(mirroredContextRoot, { recursive: true });
   cpSync(CONTEXT_ROOT, mirroredContextRoot, { recursive: true });
   mkdirSync(mirroredPlansRoot, { recursive: true });
 
-  // Mirror-spawn the render: writes <tmp>/plans/traceability.md from the mirrored notes.
+  // Mirror-spawn the render: writes the traceability file under <tmp>'s state root from the mirrored notes.
   const r = spawnSync("node", [mirroredRender, mirroredContextRoot, mirroredPlansRoot], {
     encoding: "utf8",
   });
@@ -142,7 +146,7 @@ function main(): void {
 
   // ── Byte-compare the committed render against the fresh regeneration ──────
   const committedPath = join(PLANS_ROOT, "traceability.md");
-  const relPath = toPosix(join("plans", "traceability.md"));
+  const relPath = toPosix(TRACEABILITY_REL);
 
   let committed: Buffer;
   try {
@@ -172,7 +176,7 @@ function main(): void {
   cleanup();
 
   console.log(
-    "Traceability fresh: the committed plans/traceability.md matches a fresh regeneration from the shared-context notes.",
+    `Traceability fresh: the committed ${relPath} matches a fresh regeneration from the shared-context notes.`,
   );
   process.exit(0);
 }

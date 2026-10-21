@@ -6,7 +6,8 @@
 // (project memory: bare `npm test` triggers the live claude-CLI lane; this is a hermetic temp test).
 //
 // Proves (D-03 — fail-closed; the trace is the proof):
-//   fresh   : committed plans/traceability.md matches a fresh regen from the notes → exit 0.
+//   fresh   : the committed traceability file under the state root matches a fresh regen from the
+//             notes → exit 0.
 //   STALE   : the committed render edited without re-rendering → exit 1, stdout names the file + STALE.
 //   greenfield : no .grugops/context/ notes tree yet → exit 0 (vacuous pass, honest).
 //   fail-closed : notes exist but the committed render is absent/unreadable → the gate NEVER reports
@@ -25,6 +26,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { STATE_ROOT_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const RENDER_JS = join(ROOT, "scripts", "trace-render.js");
@@ -62,11 +64,11 @@ function plantNote(ctxRoot: string, task: string, name: string, at: string, refs
   writeFileSync(join(notesDir, `${name}.md`), text, "utf8");
 }
 
-// A CHECK_ROOT holding .grugops/context/ + plans/.
+// A CHECK_ROOT holding .grugops/context/ + the state root, planted at the same constant the gate reads.
 function makeCheckRoot(prefix: string): { checkRoot: string; ctxRoot: string; plansRoot: string } {
   const checkRoot = freshTmp(prefix);
   const ctxRoot = join(checkRoot, ".grugops", "context");
-  const plansRoot = join(checkRoot, "plans");
+  const plansRoot = join(checkRoot, STATE_ROOT_REL);
   mkdirSync(ctxRoot, { recursive: true });
   mkdirSync(plansRoot, { recursive: true });
   return { checkRoot, ctxRoot, plansRoot };
@@ -104,13 +106,13 @@ describe("trace-freshness gate — fail-closed on drift (D-03)", () => {
     appendFileSync(join(plansRoot, "traceability.md"), "| TAMPER-001 | | | | |\n");
     const r = runGate(checkRoot);
     expect(r.status).not.toBe(0);
-    expect(r.stdout).toMatch(/traceability\.md/);
+    expect(r.stdout).toContain(TRACEABILITY_REL);
     expect(r.stdout).toMatch(/STALE/);
   });
 
   it("greenfield: no .grugops/context/ notes tree → vacuous pass (exit 0)", () => {
     const checkRoot = freshTmp("trace-gate-greenfield-");
-    mkdirSync(join(checkRoot, "plans"), { recursive: true }); // plans exists, no .grugops/context/
+    mkdirSync(join(checkRoot, STATE_ROOT_REL), { recursive: true }); // state root exists, no .grugops/context/
     const r = runGate(checkRoot);
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/vacuous pass/i);
@@ -118,7 +120,7 @@ describe("trace-freshness gate — fail-closed on drift (D-03)", () => {
 
   it("fail-closed: notes exist but the committed render is absent → never reports fresh (exit 1)", () => {
     const { checkRoot, ctxRoot } = makeCheckRoot("trace-gate-failclosed-");
-    // Notes exist (NOT greenfield), but no committed plans/traceability.md was ever rendered.
+    // Notes exist (NOT greenfield), but no committed traceability file was ever rendered.
     plantNote(ctxRoot, "taskA", "n1", "2026-06-21T10:00:00Z", ["ABC-001", "src/a.ts"]);
     const r = runGate(checkRoot);
     expect(r.status).not.toBe(0);

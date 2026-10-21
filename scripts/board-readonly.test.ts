@@ -3290,9 +3290,12 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
         "scripts/voice-model.js",
       ],
     },
+    // 2026-10-21, plan 36-07: trace-render.js imports ../install/state-layout.js (constants only, no
+    // node:fs symbol) for its default state root, so its closure gained it. Taken from jsImportClosure.
     {
       entry: "scripts/trace-render.js",
       modules: [
+        "install/state-layout.js",
         "scripts/audit-model.js",
         "scripts/audit-prepass.js",
         "scripts/check-diff-disposition.js",

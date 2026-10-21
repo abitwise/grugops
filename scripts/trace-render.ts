@@ -1,6 +1,7 @@
 // trace-render.ts — the requirement→code→test→release trace render (MIGR-03, D-01/D-04/D-06).
 //
-// The human-facing traceability matrix at plans/traceability.md is GENERATED, never hand-maintained:
+// The human-facing traceability matrix (the traceability file under the state root, TRACEABILITY_REL in
+// install/state-layout.ts) is GENERATED, never hand-maintained:
 // it is the deterministic product of `node scripts/trace-render.js`. The shared verified-context
 // NOTES under .grugops/context/<task>/notes/ are the SOURCE OF TRUTH; their `refs` carry the
 // requirement / code / test / UAT / release links a ticket accrues as work is done. traceability.md
@@ -15,8 +16,8 @@
 // validator's `trace.includes(id)` completeness check (validate-agent-factory.ts) stays a minimal,
 // path-unchanged re-point (A2).
 //
-//   node scripts/trace-render.js                 # regen plans/traceability.md (real roots)
-//   node scripts/trace-render.js <ctxRoot> <plansRoot>   # explicit roots (tests pass temp dirs)
+//   node scripts/trace-render.js                 # regen the traceability file under the state root (real roots)
+//   node scripts/trace-render.js <ctxRoot> <stateRoot>   # explicit roots (tests pass temp dirs)
 //
 // Build model (D-13): node:fs + node:path ONLY (plus the readContext/atomicWrite helpers re-used from
 // the committed context-io.js) — ZERO host runtime deps. Authored in TypeScript, compiled with `tsc`
@@ -31,11 +32,13 @@ import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 
 import { readContext, atomicWrite, type NoteRecord } from "./context-io.js";
+import { STATE_ROOT_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
 const DEFAULT_CONTEXT_ROOT = join(ROOT, ".grugops", "context");
-const DEFAULT_PLANS_ROOT = join(ROOT, "plans");
+// The state root (install/state-layout.ts); the traceability file is written directly under it.
+const DEFAULT_PLANS_ROOT = join(ROOT, STATE_ROOT_REL);
 
 // ── cell(): escape free-text before it enters a pipe-delimited markdown table cell. ─────────────
 // Cloned from context-io.ts (which cloned it from generate-catalog.ts): backslash first, then pipe,
@@ -152,7 +155,7 @@ export function buildRows(contextRoot: string): TicketRow[] {
   return [...rows.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-// ── render: read notes → emit byte-reproducible plans/traceability.md. ──────────────────────────
+// ── render: read notes → emit the byte-reproducible traceability file under the state root. ─────
 // GENERATED header naming the re-run command; the five-column table; deterministic ticket-id sort;
 // cell()-escaped cells; single trailing newline via a trailing "" push; atomicWrite.
 export function renderTraceability(
@@ -188,7 +191,7 @@ if (isMain) {
   const [ctxRoot, plansRoot] = process.argv.slice(2);
   try {
     renderTraceability(ctxRoot ?? DEFAULT_CONTEXT_ROOT, plansRoot ?? DEFAULT_PLANS_ROOT);
-    console.log("rendered plans/traceability.md from the shared-context note refs.");
+    console.log(`rendered ${TRACEABILITY_REL} from the shared-context note refs.`);
     process.exit(0);
   } catch (e) {
     console.error(`trace-render: ${(e as Error).message}`);

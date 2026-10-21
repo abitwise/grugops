@@ -76,6 +76,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
 import { closureTargets } from "./js-import-closure.js";
+import { STATE_ROOT_REL } from "../install/state-layout.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
@@ -666,8 +667,9 @@ export const HOST_CAPABILITIES: readonly HostCapability[] = Object.freeze([
     probe(scratch: string): boolean {
       try {
         // Both constructions the test corpus stages: a DIRECTORY whose name carries U+0001 with a
-        // child beneath it, and a FILE whose name carries a newline.
-        mkdirSync(join(scratch, "d\u0001x", "plans"), { recursive: true });
+        // child beneath it (the state root, as the board fixtures stage it), and a FILE whose name
+        // carries a newline.
+        mkdirSync(join(scratch, "d\u0001x", STATE_ROOT_REL), { recursive: true });
         writeFileSync(join(scratch, "f\nx"), "x");
         return true;
       } catch {

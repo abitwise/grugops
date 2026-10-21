@@ -25,6 +25,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { STATE_ROOT_REL } from "../install/state-layout.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const RENDER_JS = join(ROOT, "scripts", "trace-render.js");
@@ -87,13 +88,14 @@ function runRender(ctxRoot: string, plansRoot: string): { status: number; stdout
 function makeRoots(prefix: string): { ctxRoot: string; plansRoot: string } {
   const base = freshTmp(prefix);
   const ctxRoot = join(base, ".grugops", "context");
-  const plansRoot = join(base, "plans");
+  // The scratch state root sits at the same constant the render defaults to (install/state-layout.ts).
+  const plansRoot = join(base, STATE_ROOT_REL);
   mkdirSync(ctxRoot, { recursive: true });
   mkdirSync(plansRoot, { recursive: true });
   return { ctxRoot, plansRoot };
 }
 
-describe("trace-render — note refs → plans/traceability.md (D-01/D-04/D-06)", () => {
+describe("trace-render — note refs → the traceability file under the state root (D-01/D-04/D-06)", () => {
   it("renders a row keyed by ticket id across the five trace columns", () => {
     const { ctxRoot, plansRoot } = makeRoots("trace-row-");
     plantNote(ctxRoot, "taskA", "n1", "2026-06-21T10:00:00Z", [
