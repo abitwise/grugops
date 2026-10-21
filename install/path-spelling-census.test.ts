@@ -60,9 +60,11 @@ const INSTALL_DIR = import.meta.dirname;
 /**
  * The number of installer source modules counted when this census was written (plan 34-11). 9 since plan 34.1-12
  * added install/agent-picker.ts, which imports nothing and spells, records or compares no path (it is the checkbox
- * list's pure state machine; its rows carry each registry row's `detect` text only as a label).
+ * list's pure state machine; its rows carry each registry row's `detect` text only as a label). 10 since 2026-10-21, plan
+ * 36-01 added install/state-layout.ts, which imports nothing and spells, records or compares no path (it is constants
+ * only: POSIX-relative strings that consumers join with node:path join). Re-derived by listing install/, not incremented.
  */
-const SCANNED_FILE_COUNT = 9;
+const SCANNED_FILE_COUNT = 10;
 
 function scannedFiles(): string[] {
   return readdirSync(INSTALL_DIR)
@@ -466,8 +468,8 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
 
 // ── the test side (plan 34-12) ──────────────────────────────────────────────────────────────────────
 
-/** The number of installer test and test-support files counted when the test-side census was written (plan 34-12; 28 since plan 34-14 added mode-census.test.ts; 29 since plan 34-25 added closing-claims.test.ts, which compares no recorded path; 30 since plan 34-27 added kit-route.test.ts, which joins and reads the recorded kitRoot and compares it raw with nothing; 31 since plan 34.1-01 added host-entries.test.ts, which matches printed report lines by the target-relative entry path only and compares no recorded absolute path; 32 since plan 34.1-05 added agent-flag-census.test.ts, which parses module source text and compares no path at all; 33 since plan 34.1-09 added opencode-permission.test.ts, which compares opencode.json's bytes and the home-relative pattern and asserts only that no absolute scratch path appears in the file, so it compares no recorded absolute path; 34 since plan 34.1-12 added agent-picker.test.ts, which drives a pure key decoder and compares no path at all; 35 since plan 34.1-13 added host-entry-docs.test.ts, which compares only `git ls-files` repository-relative names with fixed prefixes and compares no recorded absolute path; 36 since plan 34.1-14 added agents-record.test.ts, which compares the marker's `agents` list, target-relative ledger paths and the agent flags of a printed command, and compares no recorded absolute path; 37 since plan 34.1-15 added message-references.test.ts, which matches printed lines against commands built by agentCommand from the scratch target it chose and opencode.json's home-relative pattern, and compares no recorded absolute path). */
-const TEST_SCANNED_FILE_COUNT = 37;
+/** The number of installer test and test-support files counted when the test-side census was written (plan 34-12; 28 since plan 34-14 added mode-census.test.ts; 29 since plan 34-25 added closing-claims.test.ts, which compares no recorded path; 30 since plan 34-27 added kit-route.test.ts, which joins and reads the recorded kitRoot and compares it raw with nothing; 31 since plan 34.1-01 added host-entries.test.ts, which matches printed report lines by the target-relative entry path only and compares no recorded absolute path; 32 since plan 34.1-05 added agent-flag-census.test.ts, which parses module source text and compares no path at all; 33 since plan 34.1-09 added opencode-permission.test.ts, which compares opencode.json's bytes and the home-relative pattern and asserts only that no absolute scratch path appears in the file, so it compares no recorded absolute path; 34 since plan 34.1-12 added agent-picker.test.ts, which drives a pure key decoder and compares no path at all; 35 since plan 34.1-13 added host-entry-docs.test.ts, which compares only `git ls-files` repository-relative names with fixed prefixes and compares no recorded absolute path; 36 since plan 34.1-14 added agents-record.test.ts, which compares the marker's `agents` list, target-relative ledger paths and the agent flags of a printed command, and compares no recorded absolute path; 37 since plan 34.1-15 added message-references.test.ts, which matches printed lines against commands built by agentCommand from the scratch target it chose and opencode.json's home-relative pattern, and compares no recorded absolute path; 38 since 2026-10-21, plan 36-01 added state-layout.test.ts, which compares the state-layout constants with each other and parses module source, and compares no recorded absolute path; re-derived by listing install/, not incremented). */
+const TEST_SCANNED_FILE_COUNT = 38;
 
 function scannedTestFiles(): string[] {
   return readdirSync(INSTALL_DIR)

@@ -2887,10 +2887,10 @@ function rewriteLedger(holderPath, root, scope, bytesAtStart, next, what) {
 // entries of the removed backups are taken out of the record that held them (rewriteLedgerWithout).
 // Every decision is taken before the DRY_RUN branch, so the preview names what the real run does.
 // ---------------------------------------------------------------------------
-// isPruneProtected: mirror uninstall.ts's isProtected() denylist (uninstall.ts:110-119) so prune
-// can NEVER touch the live kit, the seeded state, or any user-owned tree — even if a recorded backup
-// somehow named a path under one. agent-factory/, plans/, .planning/, .grugops/, docs/, src/ (and
-// the root itself) are off-limits, always. Checked against $TARGET.
+// isPruneProtected: the same denylist as uninstall.ts's isProtected(), read from the one exported
+// STATE_ROOTS (install/state-layout.ts, plan 36-01), so prune can NEVER touch the live kit, the seeded
+// state, or any user-owned tree — even if a recorded backup somehow named a path under one. Every
+// STATE_ROOTS root (and the root itself) is off-limits, always. Checked against $TARGET.
 function isPruneProtected(p) {
     for (const d of STATE_ROOTS) {
         const base = `${TARGET}/${d}`;

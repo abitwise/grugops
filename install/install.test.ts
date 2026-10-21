@@ -156,6 +156,9 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, withoutAgentsField, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
 import { HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners, hostPointers, scriptCommand } from "./host-tools.js";
+// Plan 36-01 (LAYOUT-03): the one protected root list both removal paths read; the runnable-removal decoys are planted
+// under every root of it, so a root added to the list is covered here with no edit.
+import { STATE_ROOTS } from "./state-layout.js";
 /** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"];
 
@@ -6147,7 +6150,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // pass ever discovered its work by scanning the target instead of mirroring the installer's
     // fixed mapping, or if the denylist stopped gating it, these are what would be destroyed.
     const sourceBytes = readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "reference-check.js"));
-    const decoys = ["agent-factory", "plans", ".planning", ".grugops", "docs", "src"].map((d) => {
+    const decoys = STATE_ROOTS.map((d) => {
       const p = join(target, d, "reference-check.js");
       mkdirSync(join(target, d), { recursive: true });
       writeFileSync(p, sourceBytes);

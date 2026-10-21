@@ -2242,8 +2242,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     committed `.js` twin landed in the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 98 with this module tracked (2026-10-12).
+ *
+ * 98 -> 99 (plan 36-01, task 2, phase 36 D-13 step 1), ONE CONSTANTS-ONLY INSTALLER MODULE:
+ *   - `install/state-layout.ts` — the one state path authority: every per-repo state path, the
+ *     pre-v3 root, STATE_ROOTS (the one protected root list both removal paths read) and the one
+ *     fallback sentence. It imports nothing, declares no function and no class, and does no I/O.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function at all, builds no section bound with
+ *     `new RegExp`, reads no grant and renders no spawn verdict. Its committed `.js` twin landed in
+ *     the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 99 with this module tracked (2026-10-21).
  */
-const NON_TEST_MODULE_COUNT = 98;
+const NON_TEST_MODULE_COUNT = 99;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

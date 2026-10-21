@@ -51,7 +51,8 @@
 //   backup     reportBackup: a backup install made is user content; it is reported `left`, never removed.
 //   dir        reverseDir → rmdirIfEmpty, deepest first, after every file: a recorded directory, only
 //              when it is empty and this run emptied it (GONE_THIS_RUN). tools/ is never removed, and the
-//              seeded per-repo state (.grugops/, plans/, memory-bank/) is never visited for removal.
+//              seeded per-repo state (.grugops/, the pre-v3 state root, memory-bank/: STATE_ROOTS) is
+//              never visited for removal.
 // Each reversal records the entry's outcome in OUTCOMES (`<path>#<kind>`), for the marker rule.
 //
 // ONE AGENT AT A TIME (phase 34.1, D-05, D-20, D-23). `uninstall.js --codex` (the same per-agent flags as install.js)
@@ -91,8 +92,8 @@
 // marker, the recorded backups lose their record, so `--prune-old-kit` can no longer remove them (it then
 // reports them as unrecorded); install/README.md says to prune before uninstall.
 //
-// It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state
-// (.grugops/factory.config.json, plans/, memory-bank/), the shared kit at $GRUGOPS_HOME, or any
+// It NEVER deletes a STATE_ROOTS root (agent-factory/, the pre-v3 state root, .planning/, docs/, src/, the
+// seeded per-repo state .grugops/ and memory-bank/), the shared kit at $GRUGOPS_HOME, or any
 // user file. Those paths are guarded explicitly; only the install.json marker may be removed from
 // under the otherwise-protected .grugops/, via a narrow named exception (removeMarker decides, and the
 // closing prints what it did from the MarkerOutcome it returns, plan 34-26). Removing the shared
@@ -184,7 +185,7 @@ import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPa
 import { HOST_TOOLS, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, hostFootprint, entryOwners, agentCommand, commandContextFromRecord, type CommandContext, type HostTool, type HostAdapterKind } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority (constants only, imports nothing). STATE_ROOTS is the one
 // protected root list isProtected reads and the preserved banner prints.
-import { STATE_ROOTS } from "./state-layout.js";
+import { LEGACY_HANDOFFS_REL, STATE_ROOTS } from "./state-layout.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -389,8 +390,8 @@ let KEPT_FOR = 0;
 // ---------------------------------------------------------------------------
 
 // SAFETY GUARD: refuse to ever operate on a frozen-core or user-data path. Every removal
-// target is checked against this denylist before it is touched. agent-factory/, plans/,
-// .planning/, docs/, src/ — and the repo root itself — are off-limits, always.
+// target is checked against this denylist before it is touched. Every STATE_ROOTS root
+// (install/state-layout.ts) — and the repo root itself — is off-limits, always.
 //
 // Two-root (D-06): .grugops/ is now PROTECTED too. Once the installer seeds per-repo state
 // (.grugops/factory.config.json) it becomes the user's content and survives uninstall. The ONE
@@ -599,13 +600,13 @@ function reverseFile(entry: FileEntry): void {
 
 // reportBackup (plan 33.1-38): a `backup` entry names a backup install made of something of the user's.
 // Since plan 33.1-40 install records every backup it makes in the target (the in-repo agent-factory/ and
-// the legacy config --migrate moves aside, plans/handoffs/, and an edited kit file D-32 backs up). A backup
+// the legacy config --migrate moves aside, LEGACY_HANDOFFS_REL, and an edited kit file D-32 backs up). A backup
 // holds the user's content, so uninstall never removes one: it is reported `left` with its origin, and
 // nothing is read or changed.
 const BACKUP_ORIGIN_TEXT: Readonly<Record<BackupEntry["origin"], string>> = {
   "in-repo-kit": "the in-repo agent-factory/ --migrate moved aside",
   "legacy-config": "a legacy config --migrate moved aside",
-  handoffs: "plans/handoffs/ --migrate moved aside",
+  handoffs: `${LEGACY_HANDOFFS_REL}/ --migrate moved aside`,
   "edited-kit-file": "a kit file you edited, backed up before the kit was refreshed",
   "kit-home": "a kit-home kit",
 };
@@ -1585,7 +1586,7 @@ function removeAskRules(): Outcome {
 //
 // Never remove $GRUGOPS_HOME — the shared kit is depended on by other repos; removing it is a
 // manual `rm` only (no --purge-kit this phase). Never remove .grugops/factory.config.json,
-// plans/, or memory-bank/ — those are seeded user state. This touches exactly one named file.
+// the pre-v3 state root, or memory-bank/ — those are seeded user state. This touches exactly one named file.
 //
 // Uninstall-after-migrate (SC3, MIGR-01): uninstall makes NO special migrate-rollback move. By
 // removing only the grugops-owned wiring + this marker while PRESERVING the migrate-created
@@ -2460,7 +2461,7 @@ function sameFileBytes(a: string, b: string): boolean {
 // consequence was reproduced, not theorised: `uninstall.js --target <a grugops checkout>` removed
 // the kit's own 17 committed adapters and 7 committed skills, deleted the repo's AGENTS.md, stripped
 // its CLAUDE.md pointer block — and printed `== uninstall complete ==` with exit 0. isProtected()
-// below covers agent-factory/, plans/, .planning/, .grugops/, docs/ and src/, but NOT .claude/,
+// below covers every STATE_ROOTS root (install/state-layout.ts), but NOT .claude/,
 // which is exactly where those committed adapters and skills live. Widening isProtected() to cover
 // .claude/ is not the fix: .claude/ is the directory this uninstaller legitimately empties in a
 // normal target, so protecting it would break every ordinary reversal. The right boundary is the

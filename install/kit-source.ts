@@ -107,7 +107,7 @@ import { join } from "node:path";
 //
 // WHY THIS PAIR. A grugops source checkout carries both; a normal installed target can carry
 // neither together. The installer writes .claude/, CLAUDE.md, .gemini/, .github/, .grugops/,
-// plans/, memory-bank/ and tools/grugops/ into a target and NEVER an install/ directory — so a
+// the per-repo state roots and tools/grugops/ into a target and NEVER an install/ directory — so a
 // target carrying the installer artifact is a checkout of the kit, not a consumer of it.
 // agent-factory/VERSION alone is deliberately NOT enough: install/README.md §1's minimal path tells
 // users to copy agent-factory/ into their own repo, so that half legitimately appears in an

@@ -78,10 +78,13 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * 37 since plan 34.1-15 added message-references.test.ts, which has no chmod call and no expected mode (it parses
  * product source for string fragments and matches printed lines).
  * SOURCE_FILE_COUNT is 9 since plan 34.1-12 added install/agent-picker.ts, which imports nothing, renders no mode and
- * compares none (it is the checkbox list's pure state machine). */
-const INSTALL_TEST_FILE_COUNT = 37;
+ * compares none (it is the checkbox list's pure state machine).
+ * 2026-10-21, plan 36-01 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 37 -> 38 for
+ * state-layout.test.ts, which has no chmod call and no expected mode (it compares constants and parses source), and
+ * SOURCE_FILE_COUNT 9 -> 10 for install/state-layout.ts, which is constants only and renders or compares no mode. */
+const INSTALL_TEST_FILE_COUNT = 38;
 const SCRIPTS_TEST_FILE_COUNT = 73;
-const SOURCE_FILE_COUNT = 9;
+const SOURCE_FILE_COUNT = 10;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
  * 10 -> 9 and restore 18 -> 16 on 2026-10-11 (plan 34.1-03, D-12): settings-json-provenance.test.ts lost B2 (a mode-000
