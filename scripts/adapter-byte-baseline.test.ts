@@ -39,6 +39,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { listAgentAdapters, ROLE_COUNT } from "./kit-model.js";
+import {
+  BOARD_REL,
+  LEGACY_BOARD_REL,
+  LEGACY_FALLBACK_CLAUSE,
+  LEGACY_STATE_ROOT_REL,
+  STATE_ROOT_REL,
+} from "../install/state-layout.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -148,6 +155,37 @@ const DEGRADED_PHRASE_SUBJECT = "non-Claude-Code";
 const RETIRED_DEGRADED_PHRASE = ["the", RETIRED_HOST_COUNT_WORD, DEGRADED_PHRASE_SUBJECT, "CLIs"].join(" ");
 const REWORDED_DEGRADED_PHRASE = ["the", DEGRADED_PHRASE_SUBJECT, "host", "CLIs"].join(" ");
 
+/**
+ * THE THIRD RECORDED DIVERGENCE (plan 36-10, decisions D-03 and D-14) — A STATED TRANSFORM ON THE
+ * FROZEN BASELINE, ASSEMBLED FROM THE STATE-LAYOUT AUTHORITY, NEVER FROM kit-model.ts OR THE
+ * GENERATOR'S OUTPUT.
+ *
+ * Phase 36 moves per-repo planning state under `memory-bank/plans/` and states the old-layout
+ * fallback as one constant, LEGACY_FALLBACK_CLAUSE. The kit-vs-state invariant line every adapter
+ * carries therefore changes in EVERY adapter: the retired STATE clause (the pre-v3 root, then
+ * memory-bank and .grugops, comma-joined) becomes the v3 STATE clause followed by one space and the
+ * fallback clause. On the coordinator only, the body line naming the board takes the v3 board path.
+ * Both land in one regeneration, so they are one divergence with two targets.
+ *
+ * Every root and path below is read out of install/state-layout.js, the authority this phase made
+ * the one place a state path is spelled; the expected bytes are therefore a transform of the frozen
+ * baseline by that authority, and an INVARIANT or coordinator line that drifted from it is a red
+ * byte comparison rather than a new expected value. Each target is asserted to occur exactly once in
+ * the baseline adapter before it applies, so a baseline that lacks it (or carries it twice) is a
+ * named throw rather than a silent no-op. The board transform runs before the invariant transform,
+ * because the fallback clause itself names the pre-v3 board path.
+ */
+const STATE_CLAUSE_TAIL = " = STATE in this repo.";
+const MEMORY_BANK_ROOT = "`memory-bank/`";
+const GRUGOPS_ROOT = "`.grugops/`";
+const RETIRED_STATE_CLAUSE =
+  [`\`${LEGACY_STATE_ROOT_REL}/\``, MEMORY_BANK_ROOT, GRUGOPS_ROOT].join(", ") + STATE_CLAUSE_TAIL;
+const NEW_STATE_CLAUSE =
+  `${MEMORY_BANK_ROOT} (planning state in \`${STATE_ROOT_REL}/\`) and ${GRUGOPS_ROOT}${STATE_CLAUSE_TAIL}` +
+  ` ${LEGACY_FALLBACK_CLAUSE}`;
+const RETIRED_BOARD_REF = `\`${LEGACY_BOARD_REL}\``;
+const NEW_BOARD_REF = `\`${BOARD_REL}\``;
+
 /** Replace the one occurrence of `from` in `line`, refusing a line that carries it zero or several times. */
 const replaceOnce = (line: string, from: string, to: string): string => {
   const count = line.split(from).length - 1;
@@ -157,16 +195,34 @@ const replaceOnce = (line: string, from: string, to: string): string => {
 
 /**
  * The bytes the baseline adapter is EXPECTED to have on the working tree: identical, except for the
- * coordinator's TWO recorded divergences — the `tools:` line carries the scoped admission tool
- * appended after the last baseline tool (33-28), and the Degraded tier line carries the reworded
- * host phrase (D-14). Each is applied to the baseline bytes as a single-line edit whose target is
+ * THREE recorded divergences. In EVERY adapter the kit-vs-state invariant line carries the v3 STATE
+ * clause and the fallback clause (36-10, D-14). In the coordinator only, the `tools:` line carries
+ * the scoped admission tool appended after the last baseline tool (33-28), the Degraded tier line
+ * carries the reworded host phrase (34-07 D-14), and the body line naming the board carries the v3
+ * board path (36-10). Each is applied to the baseline bytes as a single-line edit whose target is
  * asserted unique first, so the whole file — the `model:` line MODEL-01 is about, the rest of the
  * body, the trailing newline — is still compared byte for byte.
  */
+const lineCarryingOnce = (name: string, lines: string[], target: string): number => {
+  const carrying = lines.filter((l) => l.includes(target)).length;
+  if (carrying !== 1) {
+    throw new Error(`${name} at the baseline carries ${String(carrying)} line(s) with "${target}", expected exactly one`);
+  }
+  return lines.findIndex((l) => l.includes(target));
+};
+
 const expectedWorkingBytes = (name: string, baseline: Buffer, scoped: string): Buffer => {
-  if (name !== DIVERGING_ADAPTER) return baseline;
   const text = baseline.toString("utf8");
   const lines = text.split("\n");
+  if (name === DIVERGING_ADAPTER) {
+    // The board line first: the fallback clause the invariant transform inserts names the pre-v3
+    // board path itself, so the uniqueness of this target is asserted on the untransformed baseline.
+    const boardAt = lineCarryingOnce(name, lines, RETIRED_BOARD_REF);
+    lines[boardAt] = replaceOnce(lines[boardAt] as string, RETIRED_BOARD_REF, NEW_BOARD_REF);
+  }
+  const stateAt = lineCarryingOnce(name, lines, RETIRED_STATE_CLAUSE);
+  lines[stateAt] = replaceOnce(lines[stateAt] as string, RETIRED_STATE_CLAUSE, NEW_STATE_CLAUSE);
+  if (name !== DIVERGING_ADAPTER) return Buffer.from(lines.join("\n"), "utf8");
   const at = lines.findIndex((l) => l.startsWith("tools: "));
   if (at === -1) throw new Error(`${name} at the baseline carries no \`tools: \` line`);
   if (lines.filter((l) => l.startsWith("tools: ")).length !== 1) {
@@ -246,7 +302,7 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
     expect(/^[0-9a-f]{40}$/.test(PRE_PHASE_ADAPTER_BASELINE)).toBe(true);
   });
 
-  it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE — except the TWO recorded coordinator divergences: the grant (33-28, held init frame) and the Degraded line (D-14, stated transform)", () => {
+  it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE — except the THREE recorded divergences: the coordinator grant (33-28, held init frame), the coordinator Degraded line (34-07 D-14, stated transform) and the v3 state paths with the fallback clause (36-10 D-14, stated transform from the state-layout authority)", () => {
     // ── THE PREMISE, BEFORE THE CLAIM. ───────────────────────────────────────────────────────
     const names = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
     const scoped = scopedAdmissionToolFromInitFrame();
@@ -269,6 +325,28 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
       baselineCoordText.includes(REWORDED_DEGRADED_PHRASE),
       "the pre-phase baseline already carries the reworded Degraded phrase — the D-14 divergence would be a no-op",
     ).toBe(false);
+    // The same for 36-10: the frozen coordinator must carry the pre-v3 board reference exactly once
+    // and must not already carry the v3 one, and EVERY frozen adapter must carry the retired STATE
+    // clause exactly once and must not already carry the v3 clause or the fallback sentence.
+    expect(
+      baselineCoordText.split(RETIRED_BOARD_REF).length - 1,
+      "the pre-phase baseline coordinator must carry the pre-v3 board reference exactly once — otherwise the 36-10 board transform has no single target",
+    ).toBe(1);
+    expect(
+      baselineCoordText.includes(NEW_BOARD_REF),
+      "the pre-phase baseline coordinator already carries the v3 board reference — the 36-10 board divergence would be a no-op",
+    ).toBe(false);
+    for (const name of names) {
+      const baselineText = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, name).toString("utf8");
+      expect(
+        baselineText.split(RETIRED_STATE_CLAUSE).length - 1,
+        `${name} at the pre-phase baseline must carry the retired STATE clause exactly once — otherwise the 36-10 invariant transform has no single target`,
+      ).toBe(1);
+      expect(
+        baselineText.includes(NEW_STATE_CLAUSE) || baselineText.includes(LEGACY_FALLBACK_CLAUSE),
+        `${name} at the pre-phase baseline already carries the v3 STATE clause or the fallback clause — the 36-10 divergence would be a no-op`,
+      ).toBe(false);
+    }
     // The count is derived INDEPENDENTLY of the loop that consumes it: ROLE_COUNT is the kit
     // authority's two-sided cardinality, and this derivation never consulted it. A short listing is
     // therefore a named failure rather than a smaller clean run.
@@ -297,26 +375,32 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
       const expected = expectedWorkingBytes(name, baseline, scoped);
       if (!expected.equals(working)) {
         differing.push(
-          `${name} — baseline ${String(baseline.length)} bytes (expected ${String(expected.length)} after the one recorded divergence), working tree ${String(working.length)} bytes`,
+          `${name} — baseline ${String(baseline.length)} bytes (expected ${String(expected.length)} after the recorded divergences), working tree ${String(working.length)} bytes`,
         );
       }
     }
 
     expect(
       differing,
-      `the adapter bytes moved against the pinned pre-phase baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the TWO recorded divergences (the coordinator's tools line carrying the scoped admission tool, plan 33-28; the coordinator's Degraded line carrying the reworded host phrase, D-14). MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator`,
+      `the adapter bytes moved against the pinned pre-phase baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the THREE recorded divergences (the coordinator's tools line carrying the scoped admission tool, plan 33-28; the coordinator's Degraded line carrying the reworded host phrase, 34-07 D-14; every adapter's invariant line carrying the v3 STATE clause and the fallback clause, with the coordinator's board line carrying the v3 board path, 36-10 D-14). MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator`,
     ).toEqual([]);
 
-    // AND THE DIVERGENCE IS EXACTLY THESE TWO LINES OF ONE FILE. Derived from the fixtures and the
-    // stated transform, never from the generator: the coordinator's working bytes minus the
-    // baseline bytes is the appended `, <scoped>` plus the phrase replacement's length difference,
-    // and nothing else.
+    // AND ON THE COORDINATOR THE DIVERGENCE IS EXACTLY THESE FOUR LINES. Derived from the fixtures
+    // and the stated transforms, never from the generator: the coordinator's working bytes minus the
+    // baseline bytes is the appended `, <scoped>`, the Degraded phrase replacement's length
+    // difference, the STATE clause replacement's length difference and the board reference
+    // replacement's length difference, and nothing else. The specialists' single changed line is
+    // covered by the byte comparison above, which applies the same STATE clause transform to them.
     const baselineCoord = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER);
     const workingCoord = readFileSync(join(ROOT, ADAPTER_DIR, DIVERGING_ADAPTER));
     expect(workingCoord.length - baselineCoord.length).toBe(
       Buffer.byteLength(`, ${scoped}`, "utf8") +
         Buffer.byteLength(REWORDED_DEGRADED_PHRASE, "utf8") -
-        Buffer.byteLength(RETIRED_DEGRADED_PHRASE, "utf8"),
+        Buffer.byteLength(RETIRED_DEGRADED_PHRASE, "utf8") +
+        Buffer.byteLength(NEW_STATE_CLAUSE, "utf8") -
+        Buffer.byteLength(RETIRED_STATE_CLAUSE, "utf8") +
+        Buffer.byteLength(NEW_BOARD_REF, "utf8") -
+        Buffer.byteLength(RETIRED_BOARD_REF, "utf8"),
     );
     const baselineLines = baselineCoord.toString("utf8").split("\n");
     const workingLines = workingCoord.toString("utf8").split("\n");
@@ -324,12 +408,16 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
     const changedLines = baselineLines
       .map((l, i) => (l === workingLines[i] ? null : i))
       .filter((i): i is number => i !== null);
-    expect(changedLines).toHaveLength(2);
+    expect(changedLines).toHaveLength(4);
     const changedBaseline = changedLines.map((i) => baselineLines[i] as string);
     expect(changedBaseline.filter((l) => l.startsWith("tools: "))).toHaveLength(1);
     expect(changedBaseline.filter((l) => l.includes(RETIRED_DEGRADED_PHRASE))).toHaveLength(1);
+    expect(changedBaseline.filter((l) => l.includes(RETIRED_STATE_CLAUSE))).toHaveLength(1);
+    expect(changedBaseline.filter((l) => l.includes(RETIRED_BOARD_REF))).toHaveLength(1);
     const changedWorking = changedLines.map((i) => workingLines[i] as string);
     expect(changedWorking.filter((l) => l.includes(REWORDED_DEGRADED_PHRASE))).toHaveLength(1);
+    expect(changedWorking.filter((l) => l.includes(NEW_STATE_CLAUSE))).toHaveLength(1);
+    expect(changedWorking.filter((l) => l.includes(NEW_BOARD_REF) && !l.includes(LEGACY_FALLBACK_CLAUSE))).toHaveLength(1);
   });
 
   it("the working adapter directory holds EXACTLY the baseline set — none added, none removed", () => {

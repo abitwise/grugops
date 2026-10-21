@@ -447,6 +447,9 @@ function specialistBody(a) {
         "deploy.",
     ];
 }
+// The board path below is a literal, not an import of install/state-layout.js: this file is copied by
+// hand into the freshness mirrors (36-RESEARCH Pitfall 8). scripts/adapter-byte-baseline.test.ts ties
+// it to BOARD_REL through its third recorded divergence (plan 36-10).
 function coordinatorBody(a) {
     return [
         PROVENANCE,
@@ -456,7 +459,7 @@ function coordinatorBody(a) {
         ...RESOLVER,
         "",
         `Read \`agent-factory/roles/${a.file}\` now, then \`.grugops/factory.config.json\`, the root`,
-        "`AGENTS.md` and `plans/board.md` (respect every WIP limit), and act as that role.",
+        "`AGENTS.md` and `memory-bank/plans/board.md` (respect every WIP limit), and act as that role.",
         "",
         "Require typed notes per Workflow 16. The shared verified context is the only memory — never relay data between agents.",
         "",

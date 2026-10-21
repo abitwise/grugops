@@ -263,7 +263,14 @@ const MARKDOWN_EXT = ".md";
 // The kit-vs-state invariant blockquote. Byte-identical in all 17 agent adapters and all 14 SKILL.md
 // files (7 plugin-form sources + 7 standalone twins) — verified by exact line equality across all
 // seven skill sources when this constant moved.
-export const INVARIANT = "> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)";
+//
+// THE STATE CLAUSE AND THE FALLBACK SENTENCE (plan 36-10, D-03 as amended by D-14). The sentence
+// after "= STATE in this repo." is LEGACY_FALLBACK_CLAUSE from install/state-layout.ts, copied byte
+// for byte. It stays a COPY inside this literal rather than an import: kit-model.js is copied by hand
+// into the adapters, catalog and skill-twins freshness mirrors, and an import of
+// ../install/state-layout.js would leave each mirrored generator unable to start (36-RESEARCH
+// Pitfall 8). A test (plan 36-11) holds every carrier's copy equal to the constant.
+export const INVARIANT = "> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = STATE in this repo. If `memory-bank/plans/board.md` is absent and `plans/board.md` exists, use `plans/` and say once: run `install --migrate`. If both exist, use `memory-bank/plans/` and say once that `plans/` is stale. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)";
 // The resolver block (D-06) — byte-identical in all 17 agent adapters and in the ONE standalone skill
 // twin that carries it (.claude/skills/grugops/SKILL.md).
 //
