@@ -196,7 +196,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 
 | Code | Meaning |
 |------|---------|
-| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the `plans/handoffs/` backup it made, named, and whether it was recorded in `.grugops/install.json`) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). An uninstall that removes some agents (`--codex`, …) adds which agents it removed and which stay installed to its closing line (see "Removing one agent" under Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
+| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the legacy handoffs backup it made, named, and whether it was recorded in `.grugops/install.json`; [docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md) describes that backup) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). An uninstall that removes some agents (`--codex`, …) adds which agents it removed and which stay installed to its closing line (see "Removing one agent" under Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
 | `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below), refuses when no agent was named, none is recorded and none was detected (see "Which agents an unattended install is for"), and refuses when the agent list at a terminal is cancelled with Ctrl-C or confirmed with no agent checked (see "The agent list at a terminal"); each of these selection refusals names every agent flag. When `.grugops/install.json` is a file install cannot use, these selection refusals exit `3` instead, with the `verify` line about the file (row `3`). `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, `--target` with no value, or (`install.js` only) an agent flag (`--claude`, `--codex`, …) combined with `--check`, `--update` or `--prune-old-kit`. Nothing was read or written. |
 | `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. `install.js` also exits `3`, and stops before it writes anything in the repository or the kit home, when `.grugops/install.json` is a file it cannot use, whether or not an agent was named or could be chosen: a file install never wrote, one it cannot read, or one whose install ledger is malformed (see the paragraph under Undo that opens "The marker is install's record for one directory"). |
@@ -1399,12 +1399,9 @@ DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
 
 - backs up the displaced in-repo `agent-factory/` to a timestamped
   `agent-factory.bak.<ISO>` directory (it is renamed aside, never deleted);
-- backs up any runtime-accumulated **`plans/handoffs/`** directory — the old delivery relay's
-  per-stage handoff files — to a timestamped `plans/handoffs.bak.<ISO>` directory (renamed aside,
-  **never deleted and never converted**: the originals are preserved verbatim for you, since the
-  current grugops trace is note-native and does not parse the legacy handoff format). If a backup
-  of that exact name already exists, `--migrate` **aborts that step and leaves your originals
-  untouched** rather than overwrite the existing backup;
+- backs up the legacy handoffs directory an older release's delivery relay left, if there is one,
+  and never deletes it; [docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md) describes that backup,
+  how uninstall and `--prune-old-kit` treat it, and how to restore it;
 - carries your **edited config forward** to `.grugops/factory.config.json` and leaves the
   original in place renamed to `<original>.bak.<ISO>`. Both legacy config locations are handled —
   the in-repo `agent-factory/config/factory.config.json` and a repo-root `factory.config.json`;
@@ -1415,27 +1412,24 @@ DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
   file). That link is removed only in a run that writes the kit. Any other link there is left in
   place and nothing is written through it.
 
-Each backup `--migrate` makes (the in-repo kit, each legacy config, `plans/handoffs/`, and the backups of
-kit files you edited) is recorded in the install ledger in `.grugops/install.json`, with a record of its
-content. `--prune-old-kit` can later remove the in-repo kit and config backups while they are unchanged;
-it never removes the handoffs backup or a backup of an edited kit file.
+Each backup `--migrate` makes (the in-repo kit, each legacy config, the legacy handoffs directory,
+and the backups of kit files you edited) is recorded in the install ledger in
+`.grugops/install.json`, with a record of its content. `--prune-old-kit` can later remove the
+in-repo kit and config backups while they are unchanged; it never removes the handoffs backup or a
+backup of an edited kit file.
 
 `--migrate` is **whole or not at all**. Before it changes anything, it checks the config it would
 carry forward and builds the whole kit plan, rendering the adapters with that carried config (so a
 `DRY_RUN=1` preview shows the models the real run installs). If anything is refused (a `models`
 value the resolver refuses, a link at an adapter path that is not install's own, a config path that
 is not a regular file, or any other kit refusal above), **nothing is migrated**: no config is moved,
-`agent-factory/` and `plans/handoffs/` are not backed up, no kit file is written and no marker is
-written, and the run exits `3` with a `verify` line for each refusal. The repository is still the
-old layout, so fix what the `verify` lines name (edit the legacy config, or remove the link if it is
-yours to remove) and re-run `--migrate`: it then performs the whole migration. A plain re-install
-(without `--migrate`) also replaces install's own links, so a repository an earlier release left
-half-migrated (a marker, the old links still in place) is completed by re-running the installer.
-
-The `plans/handoffs/` backup runs on **every** `--migrate` (whether your repo is on the old layout
-or already on the current two-root layout), because the handoffs dir can accumulate regardless of
-layout state. When `plans/handoffs/` is absent it is a clean no-op (`--migrate` reports *nothing to
-migrate* and changes nothing).
+`agent-factory/` and the legacy handoffs directory are not backed up, no kit file is written and no
+marker is written, and the run exits `3` with a `verify` line for each refusal. The repository is
+still the old layout, so fix what the `verify` lines name (edit the legacy config, or remove the
+link if it is yours to remove) and re-run `--migrate`: it then performs the whole migration. A plain
+re-install (without `--migrate`) also replaces install's own links, so a repository an earlier
+release left half-migrated (a marker, the old links still in place) is completed by re-running the
+installer.
 
 It is **idempotent and re-run-safe**: running `--migrate` a second time on an already-migrated
 repo does nothing. If a stray **live** in-repo `agent-factory/` is left behind after migration,
@@ -1483,28 +1477,8 @@ A migrate is reversible by hand. To return a repo to its pre-migrate state:
 After these steps your `agent-factory/` kit and your edited config are exactly as they were before
 the migrate. All commands are local `mv`/`rm`/`node` — nothing fetches anything.
 
-##### Restoring `plans/handoffs/` and the `git revert` lossless rollback
-
-The migration is **lossless and reversible** because nothing is ever deleted — every relocated
-thing lives on as a timestamped `.bak.<ISO>` directory beside the original. To restore your old
-delivery-relay handoffs, simply rename the backup back:
-
-```sh
-cd /path/to/repo
-mv plans/handoffs.bak.<ISO> plans/handoffs
-```
-
-If the migration itself was committed to git, you can roll the whole change back with a single
-`git revert` of the migration commit, then restore the out-of-band `.bak.<ISO>` directory by hand:
-
-```sh
-git revert <migration-commit-sha>     # undoes the committed migration edits
-mv plans/handoffs.bak.<ISO> plans/handoffs   # restore the preserved handoffs (kept out-of-band)
-```
-
-`git revert` reverses the tracked changes, and because the handoffs were renamed aside (never
-deleted) the `.bak.<ISO>` directory survives the revert and carries your original files verbatim —
-so the `git revert` + restore is a **lossless** round-trip with no data left orphaned.
+To restore the legacy handoffs backup, or to roll a committed migration back with `git revert`, see
+[docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md).
 
 ### Updating the shared kit (`--update`)
 
@@ -1568,8 +1542,8 @@ This is the **single, opt-in deletion path** in grugops, and it is deliberately 
   recorded content: every file's bytes and permission bits, every link's target, and every name in a
   directory. A backup you changed since, even by one added file, is left and named with the reason. A
   backup whose content install could not read in full when it made it is never removed.
-- It **never** removes a `plans/handoffs.bak.<ISO>` backup or a backup of a kit file you edited
-  (`<file>.grugops-edited-<ISO>`), because those hold your content. It names each one `left`.
+- It **never** removes the legacy handoffs backup ([docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md)) or a backup of a
+  kit file you edited (`<file>.grugops-edited-<ISO>`), because those hold your content. It names each one `left`.
 - **Anything else named like a backup is left and named.** A name is not proof that grugops made a file:
   your own `thesis.bak.<ISO>/` or `budget.xlsx.bak.<ISO>` has the same shape. A backup grugops made
   before this release has no record either, so prune leaves it too (`not recorded by install`). Check
