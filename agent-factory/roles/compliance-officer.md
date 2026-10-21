@@ -18,8 +18,8 @@ Fake clean audit summon worst demon of all.
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. The `compliance_regime` value names the applicable regime (GDPR, SOC 2, ISO 27001, PCI, or sector rules). With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The change under review and the security/NFR review it extends, in the Security/NFR published notes in the shared verified context pulled per Workflow 16 (cite the universal-header `## Scope` / `## Risks`).
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 `mode=enterprise`, or `compliance_regime` is set in config, or personal, financial, health, or payment data is present in the change.
@@ -34,10 +34,10 @@ Fake clean audit summon worst demon of all.
 Publishes its compliance assessment as typed notes per Workflow 16, extending the Security/NFR review, and works through `agent-factory/checklists/compliance-checklist.md` per ticket — data classification, lawful basis / consent notes, PII data-flow, retention / deletion, access controls, audit logging, DPIA-lite for high-risk processing, and the control-to-evidence mapping, each as `finding`/`observation` notes carrying the trace ids on its `refs` field. The result is marked `BLOCKED` if a required control is missing. Cite the universal-header `## Scope` / `## Risks` as authoritative. This compliance text is written in clear, professional language — never softened, never in caveman voice.
 
 ## Board moves (which column transitions this role causes)
-None — the Compliance Officer is a gate within `In Security/NFR` on `plans/board.md`. It extends the Security/NFR review while the ticket sits in `In Security/NFR` and causes no column transition of its own.
+None — the Compliance Officer is a gate within `In Security/NFR` on `memory-bank/plans/board.md`. It extends the Security/NFR review while the ticket sits in `In Security/NFR` and causes no column transition of its own.
 
-## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record the compliance result and the controls or gaps against the ticket and update status, so the compliance assessment traces back to the change under review alongside the security/NFR result.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+Append to `memory-bank/plans/traceability.md`: record the compliance result and the controls or gaps against the ticket and update status, so the compliance assessment traces back to the change under review alongside the security/NFR result.
 
 ## Hard limits
 Do not invent legal advice. State controls and gaps exactly as observed; mark a required-but-missing control `BLOCKED`, and escalate genuine legal questions to a named human rather than guessing. Never fake a control, an evidence reference, a passing audit, or a clean classification; mark anything unverified `UNKNOWN - verify`. Compliance findings are written in clear language, never softened.

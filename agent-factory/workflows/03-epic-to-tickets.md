@@ -26,24 +26,24 @@ Each role reads the shared verified context before it works. Each role records i
 4. Walk the flows and system rules where the behavior is unclear (System Analyst).
 5. Record the clarified behavior as typed notes per Workflow 16 — the `In Analysis` exit.
 6. Confirm each ticket against `agent-factory/checklists/definition-of-ready.md`. A ticket sized `XL` is not pulled into dev — emit `SPLIT_REQUIRED` and split it first.
-7. Write each ticket to `plans/tickets/`.
+7. Write each ticket to `memory-bank/plans/tickets/`.
 8. Append a traceability row per ticket.
 
 ## Board moves
-On `plans/board.md`, a ticket whose behavior needs analysis sits in `In Analysis`; the System Analyst owns that exit. Tickets land in `Backlog` and BA/PM moves a Definition-of-Ready-met ticket to `Ready`.
+On `memory-bank/plans/board.md`, a ticket whose behavior needs analysis sits in `In Analysis`; the System Analyst owns that exit. Tickets land in `Backlog` and BA/PM moves a Definition-of-Ready-met ticket to `Ready`.
 
 ## Trace updates
-Append to `plans/traceability.md` one row per ticket — `Ticket`, `Title`, `Epic`, `Feature`, `NFRs` and `Status`. Each ticket then traces back to its epic and forward to code/test/UAT/release.
+Append to `memory-bank/plans/traceability.md` one row per ticket — `Ticket`, `Title`, `Epic`, `Feature`, `NFRs` and `Status`. Each ticket then traces back to its epic and forward to code/test/UAT/release.
 
 ## Metrics emitted
-Record `Throughput` in `plans/metrics.md` as tickets are created.
+Record `Throughput` in `memory-bank/plans/metrics.md` as tickets are created.
 
 ## Stop conditions
 - The behavior is ambiguous and the System Analyst cannot resolve it — stop and request the missing decision; do not fabricate the flow.
 - A ticket is sized `XL` — `SPLIT_REQUIRED`; route it back to BA/PM for splitting before it enters `Ready for Dev`.
 
 ## Done condition
-Each ticket has user value, scope, acceptance criteria, test notes, security/NFR triggers, a size, a priority, and a traceability row. Tickets are written to `plans/tickets/`.
+Each ticket has user value, scope, acceptance criteria, test notes, security/NFR triggers, a size, a priority, and a traceability row. Tickets are written to `memory-bank/plans/tickets/`.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/epic-to-tickets-<id>`), then `type(scope): summary`. The artifacts are the tickets, the board moves, the system-analysis notes recorded per Workflow 16 when produced, and the traceability rows. Never merge, never deploy; humans hold both.

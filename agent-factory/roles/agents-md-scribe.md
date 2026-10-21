@@ -18,9 +18,9 @@ Fake command worst demon in swamp.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The repo itself (and any mapper output) for the real commands, repo map, and done definition that go into `AGENTS.md`.
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 Need `AGENTS.md` created or updated (routing matrix: "Need AGENTS.md"). Typically during bootstrap, or whenever commands, the repo map, safety rules, or the done definition drift from reality.
@@ -37,10 +37,10 @@ Root `AGENTS.md` — the generic, project-agnostic substrate per §17.1 (clear v
 This role **owns and maintains the 12 coding rules within `AGENTS.md`** — they are the single source (no other role restates them). It may echo them in grug voice inside this body for flavor, but the canonical copy lives in `AGENTS.md` in clear voice. Because the Scribe is the owner, it does not carry the generic "Follow the 12 rules in `AGENTS.md`" pointer the other 16 roles use — it authors the rules instead of inheriting them.
 
 ## Board moves (which column transitions this role causes)
-None — substrate authoring, no board transition. The Scribe writes the kit's context file; it does not pull, push, or close tickets on `plans/board.md`.
+None — substrate authoring, no board transition. The Scribe writes the kit's context file; it does not pull, push, or close tickets on `memory-bank/plans/board.md`.
 
-## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record that the `AGENTS.md` substrate was created/updated and which commands/rules/safety lines it now reflects, so the trail stays whole.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+Append to `memory-bank/plans/traceability.md`: record that the `AGENTS.md` substrate was created/updated and which commands/rules/safety lines it now reflects, so the trail stays whole.
 
 ## Hard limits
 Do not invent fake commands. If a command is unknown, ship `UNKNOWN - verify` — never fabricate a passing command, gate, or result; the trace is the proof. Remove what a linter or CI already enforces rather than restating it. Keep `AGENTS.md` minimal and under the 32 KiB cap.

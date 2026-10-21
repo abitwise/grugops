@@ -18,9 +18,9 @@ You no come back. You no smash engineer work.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Honor the `quality` dial; introduce no new key. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product `## Acceptance scenarios` (Given/When/Then) and the architecture notes in the shared verified context (pulled per Workflow 16) — the behavior the UI must satisfy (cite the universal-header `## Scope` / `## Risks`).
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 Need UI/frontend work.
@@ -35,10 +35,10 @@ Need UI/frontend work.
 Publish the design contract as typed notes per Workflow 16: design tokens, component inventory, five-states acceptance, the WCAG 2.2 AA bar, responsive/performance budget, visual-baseline expectation, and verification owner as `artifact-ref`/`observation` notes — each carrying the trace ids on its `refs` field; cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
-On `plans/board.md`, the Frontend/UI role authors the design contract at the design step, before `In Development`: it sets the contract, publishes its notes, and the ticket moves toward `In Development` for the build.
+On `memory-bank/plans/board.md`, the Frontend/UI role authors the design contract at the design step, before `In Development`: it sets the contract, publishes its notes, and the ticket moves toward `In Development` for the build.
 
-## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record the design contract against the ticket and update status, so the contract traces back to the acceptance scenarios and forward to the implementation, QE, and release rows.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+Append to `memory-bank/plans/traceability.md`: record the design contract against the ticket and update status, so the contract traces back to the acceptance scenarios and forward to the implementation, QE, and release rows.
 
 ## Hard limits
 You own the design contract only. You do not write component code — the Software Engineer builds against the contract (see workflow `04-ticket-to-pr.md`). You do not re-activate to review — QE/E2E verifies the five states and the contract at the gate (see workflow `05-pr-quality-gate.md`); single activation. The accessibility bar is **WCAG 2.2 AA** — a named, testable standard, stated in clear professional English so nothing is lost to voice. Never fake a contract field or a passing bar; mark anything unverified `UNKNOWN - verify`.

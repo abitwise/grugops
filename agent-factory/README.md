@@ -21,7 +21,7 @@ always hold merge and deploy.
 **All work starts at `agent-factory/roles/orchestrator.md`.** Tell your coding agent:
 
 > Read `agent-factory/roles/orchestrator.md`, then `.grugops/factory.config.json`,
-> then `plans/board.md`. Act as the Orchestrator.
+> then `memory-bank/plans/board.md`. Act as the Orchestrator.
 
 <!-- claim: C-28-025 -->
 The Orchestrator reads the config, classifies your request, respects the board's WIP limits,
@@ -93,10 +93,10 @@ Which safety claims still hold on this repository, joined to the live checkpoint
 ## How work flows
 
 <!-- claim: C-28-033 -->
-- **The board** — `plans/board.md` is the visible state of the factory: WIP-limited columns
+- **The board** — `memory-bank/plans/board.md` is the visible state of the factory: WIP-limited columns
   that every ticket moves through, from Ready to Done (or to Ready to Release in enterprise
   mode). The board *is* the state; the column an item sits in is its status.
-- **Traceability** — `plans/traceability.md` is the audit trail: one row per requirement,
+- **Traceability** — `memory-bank/plans/traceability.md` is the audit trail: one row per requirement,
   linking requirement → ticket → code → test → UAT → release, so every shipped change is
   accountable end to end.
 - **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues

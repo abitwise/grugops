@@ -35,15 +35,15 @@ Each role reads the shared verified context before it works. Each role records i
 11. Assess the change for risk when a risk-bearing surface is triggered (Security/NFR).
 
 ## Board moves
-On `plans/board.md`, the full path is `Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The Orchestrator owns `Ready for Dev -> In Development`; the Software Engineer owns `In Development -> In Review`; QE/E2E owns the `In Review` exit; Security/NFR owns the `In Security/NFR` exit when triggered.
+On `memory-bank/plans/board.md`, the full path is `Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The Orchestrator owns `Ready for Dev -> In Development`; the Software Engineer owns `In Development -> In Review`; QE/E2E owns the `In Review` exit; Security/NFR owns the `In Security/NFR` exit when triggered.
 
 ## Trace updates
-Append to `plans/traceability.md`: the `Code (PR/files)` link and the `Tests` link against the ticket row, and update `Status`.
+Append to `memory-bank/plans/traceability.md`: the `Code (PR/files)` link and the `Tests` link against the ticket row, and update `Status`.
 <!-- The acceptance scenarios are carried forward to the UAT pack and release — they flow forward, NOT rewritten here. A deeper UAT-BDD treatment is its own later concern (D-13). -->
 
 
 ## Metrics emitted
-Record `Cycle time` and `WIP` in `plans/metrics.md`.
+Record `Cycle time` and `WIP` in `memory-bank/plans/metrics.md`.
 
 ## Stop conditions
 - The ticket fails the Definition of Ready -> stop and name the missing input; do not pull it into development.

@@ -17,9 +17,9 @@ Edge case hide in dark. Grug find demon before demon find grug.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product ticket and BA/PM's published notes in the shared verified context (pulled per Workflow 16) — the behavior to analyze (cite the universal-header `## Scope` / `## Risks`).
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 Need flows or system rules.
@@ -34,10 +34,10 @@ Need flows or system rules.
 Publish the work output as typed notes per Workflow 16: actors, flows, state transitions, inputs/outputs, edge/error cases, and open questions as `observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
-On `plans/board.md`, the System Analyst owns the `In Analysis` exit: a ticket sits there while its behavior is mapped, and once the flows/states/edge cases are captured the analyst moves it toward design readiness (`In Design`).
+On `memory-bank/plans/board.md`, the System Analyst owns the `In Analysis` exit: a ticket sits there while its behavior is mapped, and once the flows/states/edge cases are captured the analyst moves it toward design readiness (`In Design`).
 
-## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: link the analyzed behavior to its ticket and update status, so the flows/states trace forward to the design and implementation rows.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+Append to `memory-bank/plans/traceability.md`: link the analyzed behavior to its ticket and update status, so the flows/states trace forward to the design and implementation rows.
 
 ## Hard limits
 Do not choose the framework. Do not code. Map behavior only. A flow that looks complete but leaves a state transition undefined is worse than an honest gap; mark anything unverified `UNKNOWN - verify` and never fabricate.

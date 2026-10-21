@@ -17,9 +17,9 @@ Map show swamp and demon. Map no move rock.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The existing repo itself — source tree, configs, CI, tests — for the real structure and commands.
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 Need repo mapping of an existing repo.
@@ -33,10 +33,10 @@ Need repo mapping of an existing repo.
 `memory-bank/brownfield-map.md` — produced at **runtime** under the brownfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write, not pre-create it.
 
 ## Board moves (which column transitions this role causes)
-None — maps; does not move tickets. Its "safe first tickets" feed the backlog, but the Mapper causes no column transition on `plans/board.md`.
+None — maps; does not move tickets. Its "safe first tickets" feed the backlog, but the Mapper causes no column transition on `memory-bank/plans/board.md`.
 
-## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record that the map was produced and which areas/risks it surfaced, so downstream tickets trace back to the mapping.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+Append to `memory-bank/plans/traceability.md`: record that the map was produced and which areas/risks it surfaced, so downstream tickets trace back to the mapping.
 
 ## Hard limits
 Do not refactor. Do not fix. Only map. Record real commands only — an inferred command is worse than none, since the next agent trusts it. Mark anything unverified `UNKNOWN - verify`.

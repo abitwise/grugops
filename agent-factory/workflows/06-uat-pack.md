@@ -28,7 +28,7 @@ Each role reads the shared verified context before it works. Each role records i
 5. Obtain the named human's signoff on the scenarios; the ticket then moves on toward release.
 
 ## Board moves
-On `plans/board.md`, the UAT Planner moves the ticket `Ready for UAT -> In UAT` to begin acceptance. The UAT Planner owns the `In UAT` exit. Once the named human signs off, the ticket moves to `Ready to Release` (or directly to `Done` in lean mode).
+On `memory-bank/plans/board.md`, the UAT Planner moves the ticket `Ready for UAT -> In UAT` to begin acceptance. The UAT Planner owns the `In UAT` exit. Once the named human signs off, the ticket moves to `Ready to Release` (or directly to `Done` in lean mode).
 
 Green machine-backed evidence does not by itself carry the ticket past acceptance. With the shipped configuration, the `In UAT -> Ready to Release` move still stops for a named human at the `sign_off_acceptance` checkpoint. The zero-config posture stops there, and this workflow does not change it. The lean path straight to `Done` is unchanged. A repository that trusts its machine-backed evidence may lower `sign_off_acceptance` under `.grugops/factory.config.json#checkpoints`. The closed disposition vocabulary is `block`, `notify` and `off`, and no fourth value exists. Only a value the repository actually wrote can lower it; absence reads as the documented default. `sign_off_acceptance` is not a safety floor, so no floor is weakened and no second key is involved. No new checkpoint id is added for an evidence-backed advance. The UAT Planner presents the pack as machine-backed either way — the dial changes who signs, never what the evidence is.
 
@@ -37,10 +37,10 @@ Green machine-backed evidence does not by itself carry the ticket past acceptanc
 An optional attended browser lane exists for a human who wants to watch the session. The lane produces a `finding` stamped with a named human and an `artifact-ref` describing what was witnessed, and nothing else. The witnessing human's name arrives only through the existing admission grant that a separate process reads; the agent can never author it. The lane cannot produce a gate stamp, so an attended narration is never presented in the pack as machine-verified evidence. Read `agent-factory/checklists/browser-uat-recipe.md` for the setup and for host availability. The recipe is referenced here, never restated.
 
 ## Trace updates
-Append to `plans/traceability.md` the `UAT` link and the human signoff result against the ticket row. Update `Status` in the same row, so acceptance traces back to the test row and forward to the release row.
+Append to `memory-bank/plans/traceability.md` the `UAT` link and the human signoff result against the ticket row. Update `Status` in the same row, so acceptance traces back to the test row and forward to the release row.
 
 ## Metrics emitted
-Record `Lead time` in `plans/metrics.md` as the ticket clears acceptance.
+Record `Lead time` in `memory-bank/plans/metrics.md` as the ticket clears acceptance.
 
 ## Stop conditions
 - The acceptance criteria are missing or ambiguous — stop and route the ticket back; never self-sign or fake a pass. A named human signoff is required. `checkpoint: sign_off_acceptance`

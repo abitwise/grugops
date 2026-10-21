@@ -49,10 +49,10 @@ Run these in order.
 - A result cannot be honestly admitted by WF16 (no real stamp, budget exhausted) → stop and hand to a human per WF16. Do not fake a stamp; do not mark the task done on an unverified result. `checkpoint: exhaust_self_fix_budget`
 
 ## Board moves
-None of its own. The queue and `plans/board.md` are two different substrates and must never be conflated. The queue tracks subtask ownership (pending → claimed → done) inside one ticket's work, while the board tracks the ticket through the delivery columns. Claiming a subtask does not move a ticket, and moving a ticket does not claim anything. The board move belongs to the invoking workflow.
+None of its own. The queue and `memory-bank/plans/board.md` are two different substrates and must never be conflated. The queue tracks subtask ownership (pending → claimed → done) inside one ticket's work, while the board tracks the ticket through the delivery columns. Claiming a subtask does not move a ticket, and moving a ticket does not claim anything. The board move belongs to the invoking workflow.
 
 ## Trace updates
-None of its own. Ownership is not part of the requirement→code→test→release trail — `plans/traceability.md` records what was built and verified, not who picked it up. The now-running registry record (`claimed/<task>/claim.md`) is the ownership record and is complete on its own. Any trace row this subtask's results deserve is appended by the invoking workflow from the notes admitted per Workflow 16.
+None of its own. Ownership is not part of the requirement→code→test→release trail — `memory-bank/plans/traceability.md` records what was built and verified, not who picked it up. The now-running registry record (`claimed/<task>/claim.md`) is the ownership record and is complete on its own. Any trace row this subtask's results deserve is appended by the invoking workflow from the notes admitted per Workflow 16.
 
 ## Done condition
 The subtask was claimed exactly once (atomic `mkdirSync`), and transitioned pending → claimed → done by atomic rename. Its results were recorded only through WF16 (`context-io.ts`) under an honest kind. No data was relayed agent-to-agent — coordination flowed only through the on-disk queue and shared context. Any stale or tampered claim was reclaimed by the coordinator's wall-clock sweep.

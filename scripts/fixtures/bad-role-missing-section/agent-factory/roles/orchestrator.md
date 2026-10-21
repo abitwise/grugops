@@ -22,5 +22,5 @@ grug do thing. grug not do other thing.
 ## Board moves (which column transitions this role causes)
 - none in the fixture
 
-## Trace updates (what it must record in plans/traceability.md)
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
 - none in the fixture

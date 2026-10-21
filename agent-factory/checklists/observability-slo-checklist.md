@@ -5,7 +5,7 @@ tier: enterprise
 # Observability / SLO Checklist
 
 Apply this checklist when a ticket touches a user-facing or critical path. The SLO/target is
-referenced from `plans/nfr-catalog.md` (cite it, do not redefine it); the dashboard/runbook
+referenced from `memory-bank/plans/nfr-catalog.md` (cite it, do not redefine it); the dashboard/runbook
 link lives in `memory-bank/70-runbook.md`.
 
 - structured logs (no sensitive data)

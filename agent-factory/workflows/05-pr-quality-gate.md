@@ -56,13 +56,13 @@ The backpressure loop, in clear voice. Run it in this order:
 6. Hand the change to the human gate. A human reviews the PR against `agent-factory/checklists/pr-review-checklist.md`. A human merges. A human (or a human-confirmed pipeline) deploys. This step is human-only.
 
 ## Board moves
-On `plans/board.md`, the gate runs while the ticket sits in `In Review`. When a triggered Security/NFR review is needed, the QE/E2E exit moves it on to `In Security/NFR`. The gate does not move work to `Done` — only a human-approved merge (and release, in enterprise mode) does.
+On `memory-bank/plans/board.md`, the gate runs while the ticket sits in `In Review`. When a triggered Security/NFR review is needed, the QE/E2E exit moves it on to `In Security/NFR`. The gate does not move work to `Done` — only a human-approved merge (and release, in enterprise mode) does.
 
 ## Trace updates
-Append to `plans/traceability.md`: the `Tests` link (from the QE result) and the `Code (PR/files)` link, against the ticket row, and update `Status`.
+Append to `memory-bank/plans/traceability.md`: the `Tests` link (from the QE result) and the `Code (PR/files)` link, against the ticket row, and update `Status`.
 
 ## Metrics emitted
-Record `Gate pass rate` in `plans/metrics.md`.
+Record `Gate pass rate` in `memory-bank/plans/metrics.md`.
 
 ## Stop conditions
 - The self-fix budget (`self_fix_attempts`) is exhausted and the gate still fails -> `BLOCKED_NEEDS_FIX`. Stop and hand to a human. `checkpoint: exhaust_self_fix_budget`

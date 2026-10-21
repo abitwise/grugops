@@ -556,10 +556,10 @@ up to enterprise governance (scrum cadence, compliance regimes, release gates) o
 - mechanism: FIXED in 28-05. Three assertions, measured separately. The board HOLDS, unchanged — `agent-factory/seed/plans/board.md` ships WIP-limited columns and `factory.config.json` `wip_limits` names all ten. Traceability HOLDS, unchanged — `agent-factory/seed/plans/traceability.md` ships with the requirement→ticket→code→test→UAT→release row shape (that arrow chain is a TABLE ROW SHAPE, not a routing order, and was correctly left standing). THE LIFECYCLE BULLET WAS THE DEFECT and is the one that moved: it narrated `the Orchestrator routes each request through the relevant stages (analysis → design → … → release)`, the third D-10 arrow-chain site, found by the anchor pass and reached by neither the drift guard nor the task-1 read. It now states decompose-and-enqueue for `whichever stages the work actually needs`, adds the claim step, and closes on `never a relay from the role before it` — measured against `orchestrator.md` § *Responsibilities* step 4, `agent-factory/workflows/17-task-claim.md` (the pending → claimed → done transitions and `Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent`), and `agent-factory/workflows/16-context-read-write.md` (pull-before-act, publish-after-verify). The already-correct Workflow 16 clause is retained verbatim. Registered as one slice because an anchor between two list items would split the rendered list.
 
 ```
-- **The board** — `plans/board.md` is the visible state of the factory: WIP-limited columns
+- **The board** — `memory-bank/plans/board.md` is the visible state of the factory: WIP-limited columns
   that every ticket moves through, from Ready to Done (or to Ready to Release in enterprise
   mode). The board *is* the state; the column an item sits in is its status.
-- **Traceability** — `plans/traceability.md` is the audit trail: one row per requirement,
+- **Traceability** — `memory-bank/plans/traceability.md` is the audit trail: one row per requirement,
   linking requirement → ticket → code → test → UAT → release, so every shipped change is
   accountable end to end.
 - **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues

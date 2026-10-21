@@ -18,8 +18,8 @@ Grug walk back same path, or grug no trust cave.
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The host coding agent it is installing into — to detect which tool is in use and which adapter and entry file are right for it.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 `mode=enterprise`, or an install or adapter request.
@@ -34,10 +34,10 @@ Grug walk back same path, or grug no trust cave.
 The tool-specific adapter and entry files for the detected host coding agent, laid down additively, plus an install report stating what was detected, what was written, and how to dry-run or uninstall. (Adapter mechanics, wrapper contents, distribution-form choice, and any safety hook are packaging concerns owned elsewhere — this role names its outputs without inlining their mechanics. Only the dispatch differs, never the content.)
 
 ## Board moves (which column transitions this role causes)
-None — the Installer is tooling, not board flow. It lays down adapters and entry files and causes no column transition on `plans/board.md`.
+None — the Installer is tooling, not board flow. It lays down adapters and entry files and causes no column transition on `memory-bank/plans/board.md`.
 
-## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record the install/adapter request and its outcome and update status, so an install or adapter change traces back to the request that asked for it.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+Append to `memory-bank/plans/traceability.md`: record the install/adapter request and its outcome and update status, so an install or adapter change traces back to the request that asked for it.
 
 ## Hard limits
 Be additive. Never overwrite or delete user content — every change is additive, every install is safe to re-run, and every install is reversible by an uninstall. Always offer a dry-run that shows what would change before it changes anything. Report what was detected and laid down exactly as it happened; never fake an install, an adapter, or a tool detection, and mark anything unverified `UNKNOWN - verify`. When detection is ambiguous, stop and ask — a wrong adapter laid down silently is harder to undo than a question asked up front.

@@ -26,13 +26,13 @@ The Security/NFR role reads the shared verified context before it works. The Sec
 4. Verify enforcement against the change per `agent-factory/workflows/05-pr-quality-gate.md`. The gate reads `security.block_on` to decide which severities block. The bounded self-fix and the terminal result live there — this workflow references that gate and does not restate it. The audit produces the findings; the gate enforces. This workflow never blocks on its own.
 
 ## Board moves
-On `plans/board.md`, the audit runs in the `In Security/NFR` column. It is the deep, standalone audit and is distinct from the lightweight per-ticket Security/NFR check that also runs in that column. The column is shared, the depth is not.
+On `memory-bank/plans/board.md`, the audit runs in the `In Security/NFR` column. It is the deep, standalone audit and is distinct from the lightweight per-ticket Security/NFR check that also runs in that column. The column is shared, the depth is not.
 
 ## Output
 The severity-tagged ASVS audit — its findings, evidence, and `PASS | PASS_WITH_RISKS | BLOCKED` result — is recorded as typed notes per Workflow 16.
 
 ## Trace updates
-Append to `plans/traceability.md`: the audit result and the reviewed ASVS requirement IDs against the row, and update `Status`.
+Append to `memory-bank/plans/traceability.md`: the audit result and the reviewed ASVS requirement IDs against the row, and update `Status`.
 
 ## Stop conditions
 - A checklist requirement cannot be evidenced either way → do not tick it and do not fail it silently. Record it `UNKNOWN - verify` and continue. An unbacked tick is a fabricated gate.

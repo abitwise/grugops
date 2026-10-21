@@ -72,10 +72,10 @@ Every stop condition of step 3's upward search, quoted from `TRUSTED_ROOT_STOP_C
 - The upward search inspects at most 64 ancestors.
 
 ## Board moves
-None of its own. This workflow is a seam every role passes through, not a column of work — running it never moves a ticket on `plans/board.md`. The board move belongs to the workflow that invoked it (04, 05, 14, 15 and the rest). That workflow makes the move on its own terms. A read or a write here neither advances nor holds a ticket.
+None of its own. This workflow is a seam every role passes through, not a column of work — running it never moves a ticket on `memory-bank/plans/board.md`. The board move belongs to the workflow that invoked it (04, 05, 14, 15 and the rest). That workflow makes the move on its own terms. A read or a write here neither advances nor holds a ticket.
 
 ## Trace updates
-None of its own. The requirement→code→test→release trail in `plans/traceability.md` is rendered from the admitted notes. So this workflow feeds the trace rather than editing it: an `artifact-ref` note carries the trace ids, and the render picks them up. The invoking workflow appends and updates its own rows. Never hand-edit a traceability row to stand in for a note that admission refused — that is a faked trace.
+None of its own. The requirement→code→test→release trail in `memory-bank/plans/traceability.md` is rendered from the admitted notes. So this workflow feeds the trace rather than editing it: an `artifact-ref` note carries the trace ids, and the render picks them up. The invoking workflow appends and updates its own rows. Never hand-edit a traceability row to stand in for a note that admission refused — that is a faked trace.
 
 ## Done condition
 The task's verified context was read before work began. Every result was recorded via `context-io.ts` under the honest kind. A `finding` carries a real `§14-gate#<id>` or `human:<name>` stamp that admission accepts; soft results are recorded as `claim` / `observation`. No refused finding was faked into a pass or silently degraded. Any refusal was resolved by earning a real stamp within budget, or by honest re-record as a `claim` with `confidence: UNKNOWN - verify`.

@@ -5,7 +5,7 @@ capabilities: read edit shell admit
 ---
 # Role: Orchestrator
 
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (never written); `plans/`, `memory-bank/`, `.grugops/` = STATE. Roles pull shared context and publish typed notes per Workflow 16 — never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (never written); `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = STATE. If `memory-bank/plans/board.md` is absent and `plans/board.md` exists, use `plans/` and say once: run `install --migrate`. If both exist, use `memory-bank/plans/` and say once that `plans/` is stale. Roles pull shared context and publish typed notes per Workflow 16 — never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
 
 ## One job
 Decompose each request into subtasks and route each to the right role agent over the shared queue.
@@ -20,9 +20,9 @@ Too many grug in cave at once, cave fall in.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `queue` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- `plans/board.md` — column state and per-column WIP.
+- `memory-bank/plans/board.md` — column state and per-column WIP.
 - `memory-bank/00-index.md` on start, then the roles' published notes per Workflow 16.
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 - `agent-factory/checklists/definition-of-ready.md` — the pull gate.
 
 ## Activates when
@@ -64,11 +64,11 @@ Typed notes per Workflow 16 plus an inline `# Orchestrator Decision` block, each
 In the **Workflow** line, NAME the workflow file — do not inline steps. Each classification maps to its like-named workflow in `agent-factory/workflows/`; `install` has none — the Installer handles it directly.
 
 ## Board moves (which column transitions this role causes)
-On `plans/board.md` it owns two exits and enforces WIP on **every** column:
+On `memory-bank/plans/board.md` it owns two exits and enforces WIP on **every** column:
 - `Ready for Dev → In Development` — pulls sized, ready work in.
 - `… → Done` — closes a ticket once merged (and released, in enterprise mode).
 
-## Trace updates (what it must record in plans/traceability.md)
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
 Append when work moves: the requirement→ticket linkage and status. It authors no code/test evidence — each agent updates its own row; it records the routing/close decision.
 
 ## Hard limits

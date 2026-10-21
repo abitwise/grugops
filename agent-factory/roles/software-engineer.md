@@ -19,8 +19,8 @@ Fake green summon worst demon of all.
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. The `checkpoints` matrix decides where the work stops. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The ticket's shared verified context — pull it per Workflow 16 before touching code, so you start from the verified findings and decisions, not a blank slate.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- `plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 Need code (one ticket).
@@ -34,10 +34,10 @@ Need code (one ticket).
 Publish the work output as typed notes per Workflow 16: the implementation decisions as `decision` notes, the diff/branch/files/tests/commands/migration/docs/remaining-work as `artifact-ref` and `observation` notes, any risk as a `finding`/`observation` — each carrying the trace ids on its `refs` field. Several one-kind notes, never one mega-packet; reference WF16, never restate a write path.
 
 ## Board moves (which column transitions this role causes)
-On `plans/board.md`, the Software Engineer owns the `In Development → In Review` transition: while the diff is written the ticket sits in `In Development`, and once it is implemented with tests and checks the engineer moves it to `In Review`.
+On `memory-bank/plans/board.md`, the Software Engineer owns the `In Development → In Review` transition: while the diff is written the ticket sits in `In Development`, and once it is implemented with tests and checks the engineer moves it to `In Review`.
 
-## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record the PR / branch, files changed, and tests added against the ticket, and update status, so the implementation traces back to its product ticket and forward to the test and UAT rows.
+## Trace updates (what it must record in memory-bank/plans/traceability.md)
+Append to `memory-bank/plans/traceability.md`: record the PR / branch, files changed, and tests added against the ticket, and update status, so the implementation traces back to its product ticket and forward to the test and UAT rows.
 
 ## Hard limits
 Make a small diff for one ticket: no big rewrites, no unrequested dependency changes, no architecture change without an ADR, no hidden scope. Stop and hand back if scope grows or the architecture must change.

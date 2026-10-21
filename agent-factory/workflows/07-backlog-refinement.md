@@ -16,7 +16,7 @@ Run this regularly to keep the `Ready` column stocked, or right before planning.
 Each role reads the shared verified context before it works. Each role records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
 ## Inputs required
-- The top of the `Backlog` column on `plans/board.md` — the captured ideas to refine.
+- The top of the `Backlog` column on `memory-bank/plans/board.md` — the captured ideas to refine.
 - `.grugops/factory.config.json` for `mode`, `cadence`, sizing (tshirt), and `priority_scheme` (`P0`–`P3`).
 - `agent-factory/checklists/definition-of-ready.md` — the bar each item must meet before it can be promoted.
 - `agent-factory/checklists/example-mapping.md` — the Three Amigos / Example Mapping ceremony, when the `bdd` dial is not `off`.
@@ -31,13 +31,13 @@ Each role reads the shared verified context before it works. Each role records i
 7. Promote items that meet `agent-factory/checklists/definition-of-ready.md` into the `Ready` column. Record the refinement as typed notes per Workflow 16. The record names the items reviewed, the split decisions, and the assigned sizes and priorities. It also names the IDs promoted and anything still blocked.
 
 ## Board moves
-On `plans/board.md`, BA/PM owns the `Backlog -> Ready` exit: items that meet the Definition of Ready move from `Backlog` to `Ready`. `XL` items do not advance — they are split back into the `Backlog` as smaller tickets via `SPLIT_REQUIRED`. The `Ready` column WIP limit (from `factory.config.json#wip_limits`) caps how many items sit ready at once.
+On `memory-bank/plans/board.md`, BA/PM owns the `Backlog -> Ready` exit: items that meet the Definition of Ready move from `Backlog` to `Ready`. `XL` items do not advance — they are split back into the `Backlog` as smaller tickets via `SPLIT_REQUIRED`. The `Ready` column WIP limit (from `factory.config.json#wip_limits`) caps how many items sit ready at once.
 
 ## Trace updates
-In `plans/traceability.md`, confirm or extend the rows for the refined tickets — the requirement→epic→feature→ticket linkage and `Status`. Every promoted ticket then traces back to a product requirement before dev pulls it.
+In `memory-bank/plans/traceability.md`, confirm or extend the rows for the refined tickets — the requirement→epic→feature→ticket linkage and `Status`. Every promoted ticket then traces back to a product requirement before dev pulls it.
 
 ## Metrics emitted
-None new — refinement stocks the `Ready` column and does not close work. Surfacing the `WIP` of `Ready` against its limit (from the frozen `plans/metrics.md` set) is enough to show whether the larder is full. Do not invent a refinement metric.
+None new — refinement stocks the `Ready` column and does not close work. Surfacing the `WIP` of `Ready` against its limit (from the frozen `memory-bank/plans/metrics.md` set) is enough to show whether the larder is full. Do not invent a refinement metric.
 
 ## Stop conditions
 - An item cannot be made Ready because an input is missing — leave it in `Backlog` with the named gap recorded. A missing input is an unclear value, an undefined behavior, or an unanswered spike; record the gap as a typed note per Workflow 16. Never fake readiness or promote an item that fails the Definition of Ready.

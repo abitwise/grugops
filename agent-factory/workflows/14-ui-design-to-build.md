@@ -30,10 +30,10 @@ Each role reads the shared verified context before it works. Each role records i
 6. Verify the built UI against the contract per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix, and the terminal result live there. This workflow references that gate and does not restate it. QE/E2E owns the verification; Frontend/UI does not re-activate to review.
 
 ## Board moves
-On `plans/board.md`, the contract is authored before `In Development` (the design step). The build and verification then follow the standard `Ready for Dev -> In Development -> In Review (-> In Security/NFR)` path. The Software Engineer and QE/E2E own it per workflows 04 and 05. Frontend/UI causes no board transition of its own — it writes the contract the engineer pulls from.
+On `memory-bank/plans/board.md`, the contract is authored before `In Development` (the design step). The build and verification then follow the standard `Ready for Dev -> In Development -> In Review (-> In Security/NFR)` path. The Software Engineer and QE/E2E own it per workflows 04 and 05. Frontend/UI causes no board transition of its own — it writes the contract the engineer pulls from.
 
 ## Trace updates
-Append to `plans/traceability.md`: the design-contract link against the ticket row, and update `Status`. The code and test links are appended by the referenced build (04) and gate (05).
+Append to `memory-bank/plans/traceability.md`: the design-contract link against the ticket row, and update `Status`. The code and test links are appended by the referenced build (04) and gate (05).
 
 ## Stop conditions
 - The ticket has no readable acceptance scenarios and no product context to author the contract from → stop. Send it back to product rather than inventing the intent.
