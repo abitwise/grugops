@@ -167,7 +167,7 @@ Plans:
   4. A user whose repo is still on the old layout keeps working after a kit update: roles fall back to `plans/` and print a one-line "run `install --migrate`" notice, and a plain install refuses to seed new state there and names the command (LAYOUT-04)
   5. grugops's own repo state lives in the new layout and its validator and gates pass on it (LAYOUT-05)
 
-**Plans**: 11/14 plans executed
+**Plans**: 13/14 plans executed
 
 Plans:
 **Wave 1**
@@ -220,7 +220,7 @@ Plans:
 
 **Wave 13**
 
-- [ ] 36-13-PLAN.md — TRACER: `--migrate`, a both repository and the doctor handle the pre-v3 layout without forking state; then the v4.0 end is recorded (`[v3.0, D-11]`) and published [LAYOUT-04]
+- [x] 36-13-PLAN.md — TRACER: `--migrate`, a both repository and the doctor handle the pre-v3 layout without forking state; then the v4.0 end is recorded (`[v3.0, D-11]`) and published [LAYOUT-04]
 
 **Wave 14**
 
@@ -344,7 +344,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
-| 36. State-layout authority, path move and protection | v3.0 | 12/14 | In Progress | - |
+| 36. State-layout authority, path move and protection | v3.0 | 13/14 | In Progress | - |
 | 37. Overview board, per-file records and budgets | v3.0 | 0/TBD | Not started | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |

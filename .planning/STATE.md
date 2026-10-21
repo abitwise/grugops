@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: executing
-stopped_at: Completed 36-12-PLAN.md
-last_updated: "2026-10-21T10:55:43.022Z"
+stopped_at: Completed 36-13-PLAN.md
+last_updated: "2026-10-21T11:19:08.990Z"
 last_activity: 2026-10-21
-last_activity_desc: Completed 36-12 (pre-v3 state-layout refusal of a plain install)
-state_head: d984913a72fec038891c196fd683e0f4c6092c34
+last_activity_desc: Completed 36-13 (pre-v3 entry points and the fallback's v4.0 end)
+state_head: a39254d86f9149c76c1e32947c94a445be6b99ec
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
   percent: 11
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 ## Current Position
 
 Phase: 36 (State-layout authority, path move and protection) — EXECUTING
-Plan: 13 of 14
+Plan: 14 of 14
 Status: Ready to execute
-Last activity: 2026-10-21 — Completed 36-12 (pre-v3 state-layout refusal of a plain install)
+Last activity: 2026-10-21 — Completed 36-13 (pre-v3 entry points and the fallback's v4.0 end)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -726,6 +726,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P10 | 40 min | 1 tasks | 38 files |
 | Phase 36 P11 | 9min | 1 tasks | 5 files |
 | Phase 36 P12 | 20min | 1 tasks | 8 files |
+| Phase 36 P13 | 20min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -1994,6 +1995,8 @@ Recent decisions affecting current work:
 - [Phase 36]: 36-10: INVARIANT keeps LEGACY_FALLBACK_CLAUSE as a copied literal (no state-layout import, Pitfall 8); changing kit-model.ts also requires npm run generate:hook-manifest
 - [Phase 36]: 36-11: C-28-012 needed no registry edit — its verbatim block is the single line AGENTS.md:16 and check-claim-anchors compares only that many lines; the every-carrier test in scripts/kit-model.test.ts holds 37 derived carriers to LEGACY_FALLBACK_CLAUSE by exact byte containment
 - [Phase 36]: 36-12: stateLayout() treats an unreadable board path (EACCES, ELOOP) as unreadable, never absent; a plain install refuses on pre-v3 or unreadable layout before any write, exit 1, printing migrateCommand() over the agents named by flag
+- [Phase 36]: 36-13: the doctor prints no state-layout line on a fresh layout; the board stat FAILs on the absent board, and an ok line would call an empty repository healthy
+- [Phase 36]: 36-13: LAYOUT-04 left unchecked until the live fallback check (Task 2 human-check: an agent on a pre-v3 repo after --update reads plans/ and says once to run install --migrate) passes
 
 ### Pending Todos
 
@@ -2324,8 +2327,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T10:55:43.010Z
-Stopped at: Completed 36-12-PLAN.md
+Last session: 2026-10-21T11:19:08.932Z
+Stopped at: Completed 36-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
