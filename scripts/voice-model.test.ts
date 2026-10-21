@@ -860,7 +860,7 @@ describe("normalizeSentence (D-38)", () => {
 
   it("unwraps code spans, links (dropping the target), bold and italic", () => {
     expect(normalizeSentence("Mark it `BLOCKED` now")).toBe("mark it blocked now");
-    expect(normalizeSentence("See [the board](plans/board.md) now")).toBe("see board now");
+    expect(normalizeSentence("See [the board](memory-bank/plans/board.md) now")).toBe("see board now");
     expect(normalizeSentence("**Run** the *gate* now")).toBe("run gate now");
   });
 

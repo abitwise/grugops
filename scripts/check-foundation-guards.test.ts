@@ -1174,7 +1174,7 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "no module imports ./canonical-frontmatter.js — the cutover did not happen",
     ).toBeGreaterThan(0);
     // DEPARTURE (plan 32-05, task 1): `board-read.ts` entered this set in plan 32-03 and LEAVES it
-    // here. That plan routed `plans/tickets/*.md` through `admit` and recorded the consequence
+    // here. That plan routed the repository ticket files through `admit` and recorded the consequence
     // rather than smoothing it over: `CANONICAL_SCHEMA` is the KIT ADAPTER schema, so every
     // ticket-shaped document was refused with `unknown-key` and `board-vs-ticket` could never be
     // derived. Plan 32-05 answered the question the honest way — the TICKET is a second document
@@ -9656,7 +9656,7 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // bumps above it lands in the SAME commit as the run in which the full suite first observed it.
 //
 // 60 -> 61 (plan 32-01, task 1): ONE test module, `scripts/board-tracer.test.ts` — the Phase 32
-// tracer, which drives ONE path from the real `plans/board.md` through the board grammar, the read
+// tracer, which drives ONE path from the real repository board through the board grammar, the read
 // seam and the CLI. It is a genuine test module rather than a corpus file, so a pin that surfaced it
 // arriving is the correct thing to have fired. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 61 on this tree, agreeing with the live census, and the
@@ -9665,9 +9665,9 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // 61 -> 62 (plan 32-02, task 1): ONE test module, `scripts/board-model.test.ts` — the five
 // structural invariants of the board grammar's line partition (I1 totality, I2 comment
 // invisibility, I3 column conservation, I4 unparsed ordering, I5 row conservation), asserted over
-// the kit board, its seed twin, `plans/traceability.md` and a synthetic board that reaches every
-// bucket. It is a genuine test module rather than a corpus file, so a pin that surfaced it arriving
-// is the correct thing to have fired. Re-derived rather than incremented:
+// the kit board, its seed twin, the repository traceability file and a synthetic board that reaches
+// every bucket. It is a genuine test module rather than a corpus file, so a pin that surfaced it
+// arriving is the correct thing to have fired. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 62 on this tree, agreeing with the live census, and the
 // bump lands in the SAME commit as the run in which the full suite first observed the module.
 //

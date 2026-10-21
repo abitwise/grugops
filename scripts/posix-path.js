@@ -37,10 +37,10 @@ import { sep } from "node:path";
 /**
  * Spell `path` with forward slashes, treating every occurrence of `separator` as a separator.
  *
- * Forward slashes already present are kept, so a mixed spelling (`plans\tickets/ABC.md`, the
- * shape `path.win32.join` produces from a POSIX literal) collapses to one form. Idempotent: the
- * result contains no `separator` unless `separator` is `/` itself, in which case the call is the
- * identity.
+ * Forward slashes already present are kept, so a mixed spelling
+ * (`memory-bank\plans\tickets/ABC.md`, the shape `path.win32.join` produces from a POSIX literal)
+ * collapses to one form. Idempotent: the result contains no `separator` unless `separator` is `/`
+ * itself, in which case the call is the identity.
  *
  * An EMPTY separator is refused rather than honoured: `"abc".split("")` splits every character
  * and would silently rewrite `abc` to `a/b/c`. That is a caller defect, not a spelling.

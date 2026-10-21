@@ -11434,7 +11434,7 @@ describe("uat-spec-integrity — 33-17 (D-15): one parse-fault key for the host 
     // On the host separator the rule is `toPosix` — the module's own inline spelling held EQUAL to
     // the shared normalizer, over spellings that discriminate: a pure win32 path, a mixed one (the
     // shape `path.win32.join` makes from a POSIX literal), a POSIX one, and one with no separator.
-    for (const p of [backslashed, forward, "plans\\tickets/ABC.md", "e2e/uat/x.uat.spec.ts", "x.ts"]) {
+    for (const p of [backslashed, forward, "memory-bank\\plans\\tickets/ABC.md", "e2e/uat/x.uat.spec.ts", "x.ts"]) {
       expect(faultKey(p), `host-separator form differs from toPosix for ${p}`).toBe(toPosix(p));
       expect(faultKey(p, win32.sep), `win32 form differs from toPosixWith for ${p}`).toBe(
         toPosixWith(p, win32.sep),

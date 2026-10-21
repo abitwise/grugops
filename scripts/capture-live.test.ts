@@ -153,7 +153,7 @@ function contextRootWithNotes(notes: readonly { by: string; kind: string; body: 
   notes.forEach((n, i) => {
     const at = `2026-09-19T${String(hour).padStart(2, "0")}:0${i}:00.000Z`;
     const id = `${at.replace(/[-:]/g, "").replace(".000Z", "Z")}-${n.kind}-note${i}`;
-    const fence = [`kind: ${n.kind}`, `by: ${n.by}`, `at: ${at}`, "verified_by: ", "confidence: medium", "refs:", "  - plans/tickets/AUDIT-1.md", "supersedes: null"];
+    const fence = [`kind: ${n.kind}`, `by: ${n.by}`, `at: ${at}`, "verified_by: ", "confidence: medium", "refs:", "  - memory-bank/plans/AUDIT-1.md", "supersedes: null"];
     const rest = ["---", "", n.body, ""].join("\n");
     const unsealed = ["---", ...fence, rest].join("\n");
     const text = sealed ? ["---", ...fence, `${NOTE_SEAL_KEY}: ${noteSeal(unsealed)}`, rest].join("\n") : unsealed;

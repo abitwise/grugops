@@ -40,7 +40,9 @@ describe("posix-path — the separator-parameterized normalizer (D-15)", () => {
   it("a MIXED spelling under the backslash separator collapses to one forward-slash form", () => {
     // Windows accepts both separators in one path, and `path.win32.join` of a POSIX literal against
     // a host-spelled prefix produces exactly this mixed shape before the normalizer sees it.
-    expect(toPosixWith("plans\\tickets/ABC-001.md", win32.sep)).toBe("plans/tickets/ABC-001.md");
+    expect(toPosixWith("memory-bank\\plans\\tickets/ABC-001.md", win32.sep)).toBe(
+      "memory-bank/plans/tickets/ABC-001.md",
+    );
     expect(toPosixWith(win32.join(".grugops", "context"), win32.sep)).toBe(".grugops/context");
   });
 
@@ -48,25 +50,25 @@ describe("posix-path — the separator-parameterized normalizer (D-15)", () => {
     // Asserted as an equality with the two-argument form rather than against a literal, so the
     // sentence is the same on every host: on Windows both sides rewrite, on POSIX neither does.
     // The POSIX input passes through byte-identical on every host (the plan's no-op guarantee).
-    for (const p of ["a/b/c", "plans/board.md", ".grugops/context", "a\\b", "C:\\x\\y", ""]) {
+    for (const p of ["a/b/c", "memory-bank/plans/board.md", ".grugops/context", "a\\b", "C:\\x\\y", ""]) {
       expect(toPosix(p)).toBe(toPosixWith(p, sep));
     }
-    expect(toPosix("plans/tickets/ABC-001.md")).toBe("plans/tickets/ABC-001.md");
+    expect(toPosix("memory-bank/plans/tickets/ABC-001.md")).toBe("memory-bank/plans/tickets/ABC-001.md");
   });
 
   it("a refusal message built from a backslash-spelled relative path renders forward slashes", () => {
     // The D-15 behaviour at the message boundary, shown over the normalizer itself: the relative
     // computation's separator does not reach the published sentence.
-    const rel = win32.relative("C:\\repo", "C:\\repo\\plans\\tickets\\ESCAPE.md");
-    expect(rel).toBe("plans\\tickets\\ESCAPE.md"); // the premise: win32.relative spells with `\`
+    const rel = win32.relative("C:\\repo", "C:\\repo\\memory-bank\\plans\\tickets\\ESCAPE.md");
+    expect(rel).toBe("memory-bank\\plans\\tickets\\ESCAPE.md"); // the premise: win32.relative spells with `\`
     const message = `refused: ${toPosixWith(rel, win32.sep)} leaves the tree`;
-    expect(message).toBe("refused: plans/tickets/ESCAPE.md leaves the tree");
+    expect(message).toBe("refused: memory-bank/plans/tickets/ESCAPE.md leaves the tree");
     expect(message).not.toContain("\\");
   });
 
   it("a Windows drive-absolute path keeps its drive and loses only its separators", () => {
-    expect(toPosixWith("C:\\Users\\r\\repo\\plans\\board.md", win32.sep)).toBe(
-      "C:/Users/r/repo/plans/board.md",
+    expect(toPosixWith("C:\\Users\\r\\repo\\memory-bank\\plans\\board.md", win32.sep)).toBe(
+      "C:/Users/r/repo/memory-bank/plans/board.md",
     );
   });
 

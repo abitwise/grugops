@@ -50,6 +50,7 @@ import ts from "typescript";
 import { closureTargets } from "./js-import-closure.js";
 // Phase 34.1 D-01: the installer spawn below names every registry agent, spelled by the registry (agent-flag census).
 import { HOST_TOOLS, agentFlag } from "../install/host-tools.js";
+import { LEGACY_STATE_ROOT_REL, STATE_ROOT_REL } from "../install/state-layout.js";
 import {
   capabilitySkipEntry,
   isForcedAbsent,
@@ -6108,8 +6109,10 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
     expect(readdirSync(destRoot).sort()).toEqual([CR08_TASK]);
     expect(readdirSync(join(destRoot, CR08_TASK)).sort()).toEqual(["notes"]);
     expect(cr08NoteFiles(destRoot)).toEqual([`${originId}.md`]);
-    // No board or traceability artifact anywhere under the governance root either.
-    expect(existsSync(join(repoRoot, "plans"))).toBe(false);
+    // No board or traceability artifact anywhere under the governance root either, under the
+    // state root of either layout.
+    expect(existsSync(join(repoRoot, STATE_ROOT_REL))).toBe(false);
+    expect(existsSync(join(repoRoot, LEGACY_STATE_ROOT_REL))).toBe(false);
   });
 });
 
