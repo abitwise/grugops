@@ -1,7 +1,7 @@
 ---
 phase: 36-state-layout-authority-path-move-and-protection
 verified: 2026-10-21T15:40:00Z
-status: human_needed
+status: passed
 score: 4/5 must-haves verified
 covered_files:
   - ".github/workflows/ci.yml"

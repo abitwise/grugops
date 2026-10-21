@@ -185,6 +185,7 @@ This is a largely **introspective** milestone: most work improves grugops's own 
 **v3.0 — Specialist agents. Shared context. Coordinated work. (in progress):**
 
 - ✓ Graph-memory decision — not adopted, nothing built; user/role posture, `verified_by` stamp rule and an event-based revisit trigger recorded in `35-DECISION.md` — v3.0 Phase 35 (GRAPH-01, GRAPH-02)
+- ✓ State-layout authority — planning state under `memory-bank/plans/` named by one constants-only module (`install/state-layout.ts`), an old-spelling gate with a derived allow-list, `STATE_ROOTS` protecting state from prune and uninstall, and a pre-v3 repo kept working (install refuses and names `--migrate`; roles fall back to `plans/`, confirmed live on Claude Code) — v3.0 Phase 36 (LAYOUT-01..05)
 
 ### Active
 
@@ -328,6 +329,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-10-21 after Phase 36 — **Phase 36 (State-layout authority, path move and protection) complete** (14/14 plans; verification 4/5 + 1 behavior item, human_needed → passed after UAT 2/2, the live pre-v3 fallback run on Claude Code 2.1.304; security 29/29 closed). LAYOUT-01..05 validated. WR-04 (two-root `--migrate` dead end) pinned to Phase 38 SC 6 / MIGRATE-04; WR-01..03 and IN-01..04 open in 36-REVIEW-DISPOSITION.md. Next: Phase 37.*
+
 *Last updated: 2026-10-20 after Phase 35 — **Phase 35 (Graph-memory decision record) complete** (1/1 plan; verification 12/12, human_needed → passed after UAT 2/2; security 7/7 closed). [v3.0, D-10] recorded: graph memory not adopted, nothing built. GRAPH-01 and GRAPH-02 validated. Next: Phase 36.*
 
 *Last updated: 2026-10-20 — milestone v3.0 "Specialist agents. Shared context. Coordinated work." started (plain-language roles, state contract repair, Tech Lead + engineer levels, orchestrator flow, skills per role, graph-memory spike, story and layered docs); voice constraint revised.*
