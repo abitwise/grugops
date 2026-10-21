@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: executing
-stopped_at: Completed 36-05-PLAN.md
-last_updated: "2026-10-21T08:07:33.490Z"
+stopped_at: Completed 36-06-PLAN.md
+last_updated: "2026-10-21T08:49:47.552Z"
 last_activity: 2026-10-21
 last_activity_desc: Phase 36 execution started
-state_head: e131ce7d37e8d5085823d0153cfddf5a0c4f70be
+state_head: 42f57ea730537c3ab6ec9f7a7537bfa35ca903cb
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 6
+  completed_plans: 7
   percent: 11
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 ## Current Position
 
 Phase: 36 (State-layout authority, path move and protection) — EXECUTING
-Plan: 6 of 14
+Plan: 7 of 14
 Status: Ready to execute
 Last activity: 2026-10-21 — Phase 36 execution started
 
@@ -719,6 +719,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P03 | 18 min | 2 tasks | 7 files |
 | Phase 36 P04 | 13 min | 2 tasks | 5 files |
 | Phase 36 P05 | 11 min | 2 tasks | 10 files |
+| Phase 36 P06 | 39 min | 1 tasks | 98 files |
 
 ## Accumulated Context
 
@@ -1977,6 +1978,8 @@ Recent decisions affecting current work:
 - [Phase 36]: 36-04: plan 36-06 must also move scripts/fixtures/board-snapshot and route the hard-coded plans/tickets/ sentences in scripts/board-model.ts through the table: a probe with the v3 table values left 28 board-test failures, all in those owners, and every scratch-tree plant passed
 - [Phase 36]: 36-05: board-model conflict-message expectations are template literals starting with ${FIXED_SUBPATHS.tickets}/, so plan 36-06 must move the model's plans/tickets/ message prefix (board-model.ts 1467-1478, 1750) together with the table
 - [Phase 36]: 36-05: a mixed-separator sample spells the whole state root with backslashes (memory-bank\plans\tickets/ABC.md); memory-bank\plans/ABC.md reads to state-path-scan as a pre-v3 plans/ site
+- [Phase 36]: 36-06: PUBLISHED_SUBSTITUTION_COUNT 86 -> 91; board-model ticket-path sentences interpolate TICKETS_REL through spelled
+- [Phase 36]: 36-06: contracts/board.md presence-table rows spell memory-bank/plans/tickets/ (rest of the contract left to 36-08)
 
 ### Pending Todos
 
@@ -2307,8 +2310,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T08:07:33.434Z
-Stopped at: Completed 36-05-PLAN.md
+Last session: 2026-10-21T08:49:47.497Z
+Stopped at: Completed 36-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

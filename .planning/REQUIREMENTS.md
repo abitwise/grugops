@@ -19,7 +19,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 - [ ] **LAYOUT-02**: One constants-only module owns every state path and budget; readers, writers, the validator, the installer and the uninstaller import it, and a gate fails on any old `plans/` spelling (slash, `join(...)` and backslash forms) outside a named allow-list, with a derived count
 - [x] **LAYOUT-03**: Install pruning and uninstall both protect every state root, including `memory-bank/`, from one exported list
 - [ ] **LAYOUT-04**: A user whose repo is still on the old layout keeps working after a kit update: roles fall back to `plans/` and print a one-line "run `install --migrate`" notice; a plain install refuses to seed new state on the old layout and names the command
-- [ ] **LAYOUT-05**: grugops's own repo state is moved to the new layout (dogfood)
+- [x] **LAYOUT-05**: grugops's own repo state is moved to the new layout (dogfood)
 
 ### Per-file records and budgets (SPLIT)
 
@@ -121,7 +121,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LAYOUT-02 | Phase 36 | Pending |
 | LAYOUT-03 | Phase 36 | Complete |
 | LAYOUT-04 | Phase 36 | Pending |
-| LAYOUT-05 | Phase 36 | Pending |
+| LAYOUT-05 | Phase 36 | Complete |
 | SPLIT-01 | Phase 37 | Pending |
 | SPLIT-02 | Phase 37 | Pending |
 | SPLIT-03 | Phase 37 | Pending |
