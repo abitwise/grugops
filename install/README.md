@@ -44,7 +44,7 @@ separated:
 - **Shared, read-only kit** → copied once to `${GRUGOPS_HOME:-$HOME/.grugops}` (default
   `~/.grugops`). One kit, shared across every repo you install into.
 - **Per-repo, writable state** → seeded into the target repo (`.grugops/factory.config.json`,
-  the install marker, `plans/`, and `memory-bank/`).
+  the install marker, `memory-bank/plans/`, and `memory-bank/`).
 
 The flags name the agents to install for: one flag per supported agent (`--claude`, `--codex`,
 `--antigravity`, `--opencode`, `--copilot`, `--pi`), and there is no all-agents flag. Each run writes
@@ -409,7 +409,7 @@ are written only when that agent is chosen.
   programs copied there. The license is recorded and removed like them, and a file you already have
   at that path is never written. Install writes no `NOTICE` and no other license file into your repo
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
-  the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
+  the `.grugops/install.json` marker, `memory-bank/plans/`, and `memory-bank/`
 - `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is
   discontinued, and its registry row is now Antigravity CLI, which reads `AGENTS.md` with no settings
   entry). An install made before that change may have added `"AGENTS.md"` to the file's
@@ -608,7 +608,7 @@ In the **shared kit root** (`${GRUGOPS_HOME:-$HOME/.grugops}`):
   it
 
 It never overwrites or deletes any file you own. Existing seeded state is left byte-untouched on
-re-install (skip-if-exists), and `agent-factory/`, `plans/`, `.planning/`, `docs/`, and `src/`
+re-install (skip-if-exists), and `agent-factory/`, `memory-bank/plans/`, `.planning/`, `docs/`, and `src/`
 in your target are never modified beyond the additive edits above: install refuses to run when the
 kit home overlaps the target (see the exit-code section above), so the kit is never written into, and
 never replaces, anything in your repository. A path the installer reads or
@@ -1364,7 +1364,7 @@ It deliberately does **not** touch:
 
 - the **shared kit** at `${GRUGOPS_HOME:-$HOME/.grugops}` — other repos depend on it, so
   removing it is a manual `rm -rf ~/.grugops` you run yourself when you want it gone everywhere
-- your **seeded per-repo state** — `.grugops/factory.config.json`, `plans/`, and `memory-bank/`
+- your **seeded per-repo state** — `.grugops/factory.config.json`, `memory-bank/plans/`, and `memory-bank/`
   become your content once seeded (they may hold real work), so they survive uninstall
 - an **empty directory you made yourself** — only a directory install created (recorded in the
   install ledger in `.grugops/install.json`) is removed
@@ -1557,7 +1557,7 @@ This is the **single, opt-in deletion path** in grugops, and it is deliberately 
   entries.
 - It **never** runs on the default install path. Deletion happens only when you pass this flag
   (grugops never deletes first).
-- It never touches the **live** `agent-factory/` kit, your seeded `.grugops/` state, `plans/`,
+- It never touches the **live** `agent-factory/` kit, your seeded `.grugops/` state, `memory-bank/plans/`,
   `.planning/`, `docs/`, `src/`, or any other content you own (the same protected-path guard the
   uninstaller uses), even if a record names a path there.
 - A recorded backup that is a symbolic link is removed as a link, never followed. A backup is reported

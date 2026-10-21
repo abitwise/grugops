@@ -41,7 +41,7 @@ Release Manager
 grug cut release, not corner — but grug never push the big red button alone.
 ## Required inputs
 the implementation, QE, security/NFR and UAT notes published for the included tickets;
-plans/nfr-catalog.md; release-readiness-checklist.md; factory.config.json
+memory-bank/plans/nfr-catalog.md; release-readiness-checklist.md; factory.config.json
 (production_requires_human_confirmation)
 ## Workflow
 12-release.md
@@ -50,7 +50,7 @@ Release Manager owns the Ready to Release exit; ticket moves to Done only after 
 approves the deploy
 ## Expected notes
 Release Manager publishes the release record into the shared verified context (Workflow 16);
-plans/releases/REL-0007.md
+memory-bank/plans/releases/REL-0007.md
 ## Stop conditions
 release-readiness-checklist fails, or there is no named human approval -> BLOCKED, do not deploy
 ## Next action
@@ -73,7 +73,7 @@ confirms the production action does it move to `Done`:
 ## Expected files and published notes
 
 The Release Manager prepares the release and requires approval; it never deploys prod itself.
-It writes the release record `plans/releases/REL-0007.md` (representative snippet):
+It writes the release record `memory-bank/plans/releases/REL-0007.md` (representative snippet):
 
 ```markdown
 # REL-0007
@@ -91,7 +91,7 @@ Re-deploy 1.3.2; FX feature flag off; no schema migration to reverse.
 ## DR notes
 RTO 30m · RPO 5m
 ## Readiness checklist
-release-readiness-checklist.md — PASS (evidence attached from plans/nfr-catalog.md)
+release-readiness-checklist.md — PASS (evidence attached from memory-bank/plans/nfr-catalog.md)
 ## Status
 READY_TO_RELEASE
 ```
@@ -129,7 +129,7 @@ action. Humans hold merge and deploy.
 ## Trace updates (completed rows)
 
 On `RELEASED`, the Release Manager records `REL-0007` against each included ticket in
-`plans/traceability.md` and updates `Status` to `Done`, so every shipped change traces back
+`memory-bank/plans/traceability.md` and updates `Status` to `Done`, so every shipped change traces back
 through its UAT, test, and implementation rows to its product ticket. The enterprise
 definition of done is met only when the row is complete through the `Release` column:
 
@@ -139,9 +139,9 @@ definition of done is met only when the row is complete through the `Release` co
 
 ## Metrics and done
 
-`plans/metrics.md` records `Lead time` as the release clears — reported exactly as it stands,
+`memory-bank/plans/metrics.md` records `Lead time` as the release clears — reported exactly as it stands,
 never faking a passing gate, a clean release, or an approval that did not happen; anything
-unverified is marked `UNKNOWN - verify`. The release is done: `plans/releases/REL-0007.md` is
+unverified is marked `UNKNOWN - verify`. The release is done: `memory-bank/plans/releases/REL-0007.md` is
 written and its contents are published into the shared verified context, the status is
 `RELEASED`, the traceability row is complete through `Release`, and a named human approved and
 confirmed the production action.

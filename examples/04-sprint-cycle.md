@@ -44,11 +44,11 @@ committed items leave Ready into the SPRINT-12 commitment; Orchestrator pulls ea
 Ready for Dev as the box runs
 ## Expected notes
 BA/PM publishes the refinement pass into the shared verified context (Workflow 16);
-plans/sprints/SPRINT-12.md
+memory-bank/plans/sprints/SPRINT-12.md
 ## Stop conditions
 Ready too thin to fill capacity (run 07 first); an item fails Definition of Ready
 ## Next action
-write plans/sprints/SPRINT-12.md with the one-sentence goal and the committed list
+write memory-bank/plans/sprints/SPRINT-12.md with the one-sentence goal and the committed list
 ```
 
 ## Refinement (07) and planning (08)
@@ -119,7 +119,7 @@ role can self-certify a pass. checkpoints.open_pr=block — the agent opens a br
 The Orchestrator runs `09-daily-sweep` to reconcile every column against the real ticket
 status, escalate anything blocked past `blocked_escalation_days`, and recommend the next pull
 within WIP. It emits the flow metrics from the frozen set — `Cycle time`, `WIP`, and
-`Blocked time` — into `plans/metrics.md`, and produces a short done / next / blocked report:
+`Blocked time` — into `memory-bank/plans/metrics.md`, and produces a short done / next / blocked report:
 
 ```text
 Sweep 2026-06-12 — done: ABC-012 merged · next: pull nothing (WIP healthy) · blocked: none
@@ -135,14 +135,14 @@ metrics line (drawn only from the frozen §6.5 vocabulary — no invented metric
 SPRINT-12 closed — Velocity 6 pts (2/2 committed accepted) · Throughput 2 · Cycle time 3.5d median
 ```
 
-The retro (`11-retro`) reads `plans/metrics.md`, names the top 1–3 wastes from the values
+The retro (`11-retro`) reads `memory-bank/plans/metrics.md`, names the top 1–3 wastes from the values
 (e.g. a `Cycle time` spike caused by a slow review), and publishes the metrics snapshot and
 Keep / Stop / Start as typed notes in the shared verified context (Workflow 16), plus 1–3
 improvement tickets tagged `factory` into `Backlog`. grug look at numbers, not vibes.
 
 ## Trace and done
 
-Each accepted ticket's row in `plans/traceability.md` is confirmed complete through `Tests`
+Each accepted ticket's row in `memory-bank/plans/traceability.md` is confirmed complete through `Tests`
 and `Status`:
 
 | Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |

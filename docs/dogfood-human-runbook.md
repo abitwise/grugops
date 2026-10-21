@@ -63,7 +63,7 @@ These constraints uphold V14: humans always hold merge and deploy.
 ## Prerequisites
 
 1. The throwaway dogfood sample repo from the agent-run half (a minimal TypeScript + Node +
-   Fastify app with grugops's `agent-factory/`, `plans/`, and `AGENTS.md` present). It lives
+   Fastify app with grugops's `agent-factory/`, `memory-bank/plans/`, and `AGENTS.md` present). It lives
    **outside** the grugops repo. If you no longer have it, recreate a fresh sample and install
    grugops onto it the same way (`GRUGOPS_SRC`/`TARGET` install, then copy the kit body).
 2. A Claude Code version that supports plugins and marketplaces (verify against current tool docs;

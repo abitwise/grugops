@@ -32,7 +32,7 @@ The sample already answered `GET /health`; the ticket adds a sibling read-only `
 ## Orchestrator decision
 
 The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · checkpoints.open_pr=block`) and
-`plans/board.md` first, classified the request as `ticket-to-pr`, checked `ABC-001` against the
+`memory-bank/plans/board.md` first, classified the request as `ticket-to-pr`, checked `ABC-001` against the
 Definition of Ready, and pulled it within WIP:
 
 ```markdown
@@ -162,7 +162,7 @@ It also still exits 0 on grugops's own tree (the D-42 self-test).
 
 ## Trace updates (real row)
 
-`plans/traceability.md` on the sample carried ABC-001 from seed to In Review:
+`memory-bank/plans/traceability.md` on the sample carried ABC-001 from seed to In Review:
 
 | Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |
 |--------|-------|------|---------|------|-----------------|-------|-----|---------|--------|

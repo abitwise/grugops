@@ -16,7 +16,7 @@ Installing grugops into a *new* repo is broken in three ways, all from one root 
 
 1. **Wrong target.** The v1.1 installer defaulted `TARGET=$(pwd)`. Run from inside the clone, it installs into the clone. No `--target` flag and no prompt — the only redirect is the obscure `TARGET=/path` env var. → user "had to change folder to run it."
 2. **Symlinks back into the clone.** `INSTALL_MODE=symlink` was the default (D-30). Adapters are symlinked into the clone — fragile (break if the clone moves), confusing in the target's git.
-3. **The kit never arrives.** The installer *explicitly* never touches `agent-factory/`. It lays down only thin adapters that reference `agent-factory/roles/…`, `agent-factory/config/…`, `agent-factory/workflows/…`, `plans/…` **repo-relative**. Those paths don't exist in the target → the adapters dangle → Claude hunts in the clone.
+3. **The kit never arrives.** The installer *explicitly* never touches `agent-factory/`. It lays down only thin adapters that reference `agent-factory/roles/…`, `agent-factory/config/…`, `agent-factory/workflows/…`, `memory-bank/plans/…` **repo-relative**. Those paths don't exist in the target → the adapters dangle → Claude hunts in the clone.
 
 The README's "minimal path §1" assumes the user *manually* copies `AGENTS.md` + `agent-factory/` first; the scripted path neither does that nor warns when it's missing.
 
@@ -32,34 +32,34 @@ Chosen over "vendor the kit into every repo" (footprint) and "symlink overlay" (
 
 | Goes to `$GRUGOPS_HOME` (shared, read-only) | Stays per-repo (writable, in the target) |
 |---|---|
-| `agent-factory/roles/` | `plans/` — board, tickets, traceability, metrics, sprints, releases, nfr |
+| `agent-factory/roles/` | `memory-bank/plans/` — board, tickets, traceability, metrics, sprints, releases, nfr |
 | `agent-factory/workflows/` | `memory-bank/` |
 | `agent-factory/checklists/` | the project's `factory.config.json` (mode/cadence/autonomy/WIP differ per repo) |
-| `agent-factory/packaging/` | **runtime handoffs → `plans/handoffs/`** (roles fill these per request; cannot live in a shared read-only dir, would collide across projects) |
+| `agent-factory/packaging/` | **runtime handoffs → `memory-bank/plans/handoffs/`** (roles fill these per request; cannot live in a shared read-only dir, would collide across projects) |
 | handoff **templates**, `VERSION`, a **default** `factory.config.json` | |
 
 ### Path-root convention
 
 - `$GRUGOPS_HOME` — env var, default `~/.grugops`. **Kit reads** resolve under `$GRUGOPS_HOME/agent-factory/…`.
-- **State reads/writes** resolve repo-relative: `plans/…`, the repo's `factory.config.json`, `plans/handoffs/…`, `memory-bank/…`.
+- **State reads/writes** resolve repo-relative: `memory-bank/plans/…`, the repo's `factory.config.json`, `memory-bank/plans/handoffs/…`, `memory-bank/…`.
 - Adapters (`.claude/skills/*`, `.claude/agents/grugops-orchestrator.md`) point at `$GRUGOPS_HOME/agent-factory/…` for the kit, repo-relative for state.
 - **2026-10-10, phase 34 D-26:** hosts with no Claude Code adapter resolve the kit root from the `kitRoot` field of `.grugops/install.json`, which every install writes. `AGENTS.md` and the installer-written pointers (the `CLAUDE.md` block, the Copilot pointer, the Pi template) name it through one fixed sentence, `KIT_ROUTE` in `install/host-tools.ts`, and `install.js --check` follows that route and prints one `reach` line per host. Whether a live host other than Claude Code follows it is `UNKNOWN - verify` until a run shows it.
 
 ### Blast radius (measured 2026-06-06)
 
 Across **31** role + workflow files, path-roots are intermixed:
-- `agent-factory/handoffs/` — **50 refs** → must become `plans/handoffs/` (writes) / `$GRUGOPS_HOME/agent-factory/handoffs/` (template reads)
+- `agent-factory/handoffs/` — **50 refs** → must become `memory-bank/plans/handoffs/` (writes) / `$GRUGOPS_HOME/agent-factory/handoffs/` (template reads)
 - `agent-factory/config/` — **32 refs** → repo `factory.config.json`
 - `agent-factory/{roles,workflows,checklists}` — ~55 refs → `$GRUGOPS_HOME/…`
-- `plans/*`, `memory-bank/*` — already repo-local, unchanged
+- `memory-bank/plans/*`, `memory-bank/*` — already repo-local, unchanged
 
-This re-touches the **role-switch protocol shipped on `grugops/quick-harden-role-switch-autocommit`** — its step 4 says "write the role's handoff file under `agent-factory/handoffs/`" → becomes `plans/handoffs/`. Sequence: merge or rebase that branch first so the phase edits the final protocol text once.
+This re-touches the **role-switch protocol shipped on `grugops/quick-harden-role-switch-autocommit`** — its step 4 says "write the role's handoff file under `agent-factory/handoffs/`" → becomes `memory-bank/plans/handoffs/`. Sequence: merge or rebase that branch first so the phase edits the final protocol text once.
 
 ## Installer changes
 
 - `install --target <repo>` + interactive prompt ("Install into which repo? [.]").
 - Install/update the kit to `$GRUGOPS_HOME` (**copy**, no symlinks); idempotent.
-- Seed per-repo state into the target: the project `factory.config.json` (from the shared default) + `plans/` skeleton incl. `plans/handoffs/`.
+- Seed per-repo state into the target: the project `factory.config.json` (from the shared default) + `memory-bank/plans/` skeleton incl. `memory-bank/plans/handoffs/`.
 - Lay adapters referencing `$GRUGOPS_HOME` for kit, repo for state.
 - `--check` **doctor**: verify every path the adapters/roles reference actually resolves (kit at `$GRUGOPS_HOME`, state in repo); fail loudly with the missing path. This is the guard that would have caught all three pains.
 - Preserve the contract: additive, idempotent, `DRY_RUN=1`, reversible; never overwrite/delete user content; never set the deploy-approval env var. The uninstaller is updated for the two-root layout. *(v1.1 shipped this as a dual POSIX + Node installer pair; Phase 15 consolidated it into a single Node TypeScript installer — see the tooling note at the top.)*

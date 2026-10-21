@@ -29,7 +29,7 @@ GRUGOPS_SRC=<grugops repo> TARGET=<sample dir> INSTALL_MODE=copy sh install/inst
 
 That laid down the `AGENTS.md` substrate, the standalone `.claude/skills/grugops*` adapters, the
 `grugops-orchestrator` sub-agent wrapper, and the `CLAUDE.md` and Copilot pointer blocks. The kit
-body the pointers reference (`agent-factory/`, `plans/`, `memory-bank/`) was copied in via the
+body the pointers reference (`agent-factory/`, `memory-bank/plans/`, `memory-bank/`) was copied in via the
 documented "just install the markdown" minimal path. The installer **never** set the deploy
 approval env var — only a human may.
 
@@ -101,7 +101,7 @@ The bootstrap produced these REAL files on the sample tree:
   unverifiable slots — single-file eslint/prettier autofix, the formatter, and e2e — were honestly
   left `UNKNOWN - verify`, never fabricated.
 - `memory-bank/50-decisions/ADR-0001-version-endpoint-inline.md` — the structural decision.
-- `plans/tickets/ABC-001.md` — the first ticket (status/column in lockstep with the board).
+- `memory-bank/plans/tickets/ABC-001.md` — the first ticket (status/column in lockstep with the board).
 
 The three analysis roles each recorded a result for the next role to read. **Clear voice — this
 paragraph is a correction, not an aside.** This run was captured on 2026-06-03, when a role
@@ -132,7 +132,7 @@ add one endpoint (GET /version) on the existing app, with tests.
 
 ## Trace + done
 
-`plans/traceability.md` was seeded with the first ticket's row, and `plans/nfr-catalog.md` got
+`memory-bank/plans/traceability.md` was seeded with the first ticket's row, and `memory-bank/plans/nfr-catalog.md` got
 NFR-001:
 
 | Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |

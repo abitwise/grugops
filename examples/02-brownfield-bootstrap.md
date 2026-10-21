@@ -41,7 +41,7 @@ the existing repository; factory.config.json; memory-bank/00-index.md for orient
 ## Workflow
 01-bootstrap-brownfield.md
 ## Board moves
-seed plans/board.md with its columns + WIP limits; Security/NFR owns the In Security/NFR exit
+seed memory-bank/plans/board.md with its columns + WIP limits; Security/NFR owns the In Security/NFR exit
 for the high-risk scan; safe first tickets enter Backlog
 ## Expected notes
 Security/NFR publishes its high-risk scan verdict into the shared verified context (Workflow 16)
@@ -140,7 +140,7 @@ blocked risk until it is resolved.
 
 ## Trace and metrics
 
-`plans/traceability.md` is seeded with rows for the safe first tickets, each linked to the
+`memory-bank/plans/traceability.md` is seeded with rows for the safe first tickets, each linked to the
 risk the scan raised so the first work traces back to a documented posture:
 
 | Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |
@@ -148,7 +148,7 @@ risk the scan raised so the first work traces back to a documented posture:
 | ABC-001 | /charge request validation | — | — | RISK-001 | — | — | — | — | Backlog |
 | ABC-002 | Pin Docker base image | — | — | — | — | — | — | — | Backlog |
 
-Metrics stay empty at bootstrap — `plans/metrics.md` records `Throughput` and `Lead time`
+Metrics stay empty at bootstrap — `memory-bank/plans/metrics.md` records `Throughput` and `Lead time`
 once real work begins; nothing is faked here.
 
 ## Done
@@ -156,6 +156,6 @@ once real work begins; nothing is faked here.
 The root `AGENTS.md`, `memory-bank/brownfield-map.md`, and the updated memory-bank exist; the
 confirmed commands and the risks are documented (Security/NFR's `PASS_WITH_RISKS` verdict is
 published in the shared verified context, where the next role reads it rather than being handed
-it); the safe first tickets exist in `Backlog`; `plans/board.md` is seeded; the config is present.
+it); the safe first tickets exist in `Backlog`; `memory-bank/plans/board.md` is seeded; the config is present.
 The `AGENTS.md` command slots stay `UNKNOWN - verify` until verified per-project. grug mapped
 before grug touched.
