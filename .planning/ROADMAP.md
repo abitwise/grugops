@@ -167,12 +167,12 @@ Plans:
   4. A user whose repo is still on the old layout keeps working after a kit update: roles fall back to `plans/` and print a one-line "run `install --migrate`" notice, and a plain install refuses to seed new state there and names the command (LAYOUT-04)
   5. grugops's own repo state lives in the new layout and its validator and gates pass on it (LAYOUT-05)
 
-**Plans**: 14 plans
+**Plans**: 1/14 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 36-01-PLAN.md — TRACER: `install/state-layout.ts` (constants only, `STATE_ROOTS`, `LEGACY_FALLBACK_CLAUSE`) and one protected list read by prune and uninstall; then the two-sided count pin and one-list checks; then the scan core `scripts/state-path-scan.ts` every later plan proves its slice with [LAYOUT-02, LAYOUT-03]
+- [x] 36-01-PLAN.md — TRACER: `install/state-layout.ts` (constants only, `STATE_ROOTS`, `LEGACY_FALLBACK_CLAUSE`) and one protected list read by prune and uninstall; then the two-sided count pin and one-list checks; then the scan core `scripts/state-path-scan.ts` every later plan proves its slice with [LAYOUT-02, LAYOUT-03]
 
 **Wave 2**
 
@@ -344,7 +344,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
-| 36. State-layout authority, path move and protection | v3.0 | 0/TBD | Not started | - |
+| 36. State-layout authority, path move and protection | v3.0 | 1/14 | In Progress | - |
 | 37. Overview board, per-file records and budgets | v3.0 | 0/TBD | Not started | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |

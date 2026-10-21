@@ -5,17 +5,17 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: executing
-stopped_at: Phase 36 context gathered
-last_updated: "2026-10-21T05:45:33.883Z"
+stopped_at: Completed 36-01-PLAN.md
+last_updated: "2026-10-21T06:45:10.885Z"
 last_activity: 2026-10-21
 last_activity_desc: Phase 36 execution started
-state_head: 7c5b7781a6c0b8f5725f17d9ddf16b627f647c66
+state_head: c12c989675b960e1a4af6166d3e57c80d370530b
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 1
-  percent: 7
+  completed_plans: 2
+  percent: 11
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 ## Current Position
 
 Phase: 36 (State-layout authority, path move and protection) — EXECUTING
-Plan: 1 of 14
-Status: Executing Phase 36
+Plan: 2 of 14
+Status: Ready to execute
 Last activity: 2026-10-21 — Phase 36 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -714,6 +714,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P61 | 58min | 3 tasks | 8 files |
 | Phase 34.1 P62 | 35min | 3 tasks | 4 files |
 | Phase 35 P01 | 2min | 2 tasks | 2 files |
+| Phase 36 P01 | 56 min | 3 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -1962,6 +1963,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: Plan 34.1-61 (D-47, WR-41/WR-42): with no agent named by flag or at the agent list, the pre-write refusal's closing prints the install or --migrate command with no agent flag plus DOCTOR_NO_FLAG_CLAUSE; INSTALL_REFUSAL is decided before the agents are chosen and refuseSelection asks it first
 - [Phase 34.1]: Plan 34.1-62 (D-47): the refusal's closing (agents named, flag-less command, --migrate command) is stated once, in install/README.md's unusable-marker paragraph; row 3 only gains 'whether or not an agent was named or could be chosen' (DOC-1)
 - [Phase 35]: [v3.0, D-10] Graph memory not adopted, nothing built or reserved; posture, verified_by stamp rule and both-conditions trigger live only in 35-DECISION.md
+- [Phase 36]: 36-01: install/state-layout.ts is the constants-only state path authority; one exported STATE_ROOTS (agent-factory, the pre-v3 root, .planning, .grugops, docs, src, memory-bank; STATE_ROOT_COUNT 7, two-sided) is read by isPruneProtected and isProtected, and isSeededState is deleted
+- [Phase 36]: 36-01: scripts/state-path-scan.js is the counting core of the old-spelling gate: three spellings built from the constants (segment = matching quotes), exact LEGACY_FALLBACK_CLAUSE pieces counted separately (D-15), named .planning/ exclusion (D-11), exit 2 on git failure, unreadable file or empty set; every later plan proves its slice with it
 
 ### Pending Todos
 
@@ -2292,9 +2295,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-20T19:17:13.241Z
-Stopped at: Phase 36 context gathered
-Resume file: .planning/phases/36-state-layout-authority-path-move-and-protection/36-CONTEXT.md
+Last session: 2026-10-21T06:45:10.828Z
+Stopped at: Completed 36-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
