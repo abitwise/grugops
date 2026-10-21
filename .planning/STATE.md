@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: executing
-stopped_at: Completed 36-09-PLAN.md
-last_updated: "2026-10-21T09:38:03.857Z"
+stopped_at: Completed 36-10-PLAN.md
+last_updated: "2026-10-21T10:20:07.734Z"
 last_activity: 2026-10-21
 last_activity_desc: Phase 36 execution started
-state_head: 23b02ad99fd9dc8666fa9df909094644525a0929
+state_head: d4be8e3d8ff06716d229aaa78872484531df64d6
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 10
+  completed_plans: 11
   percent: 11
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 ## Current Position
 
 Phase: 36 (State-layout authority, path move and protection) — EXECUTING
-Plan: 10 of 14
+Plan: 11 of 14
 Status: Ready to execute
 Last activity: 2026-10-21 — Phase 36 execution started
 
@@ -723,6 +723,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P07 | 16 min | 2 tasks | 31 files |
 | Phase 36 P08 | 13 min | 2 tasks | 217 files |
 | Phase 36 P09 | 11min | 2 tasks | 9 files |
+| Phase 36 P10 | 40 min | 1 tasks | 38 files |
 
 ## Accumulated Context
 
@@ -1988,6 +1989,7 @@ Recent decisions affecting current work:
 - [Phase 36]: 36-08: the kit-home Orchestrator invariant (orchestrator.md line 8) names memory-bank/ (planning state in memory-bank/plans/) and .grugops/ as STATE and carries LEGACY_FALLBACK_CLAUSE verbatim; 36-10/36-11 must use the same STATE clause wording
 - [Phase 36]: 36-08: in the claim registry only the C-28-033 fenced verbatim block moved with its README anchor; the mechanism prose stays as history (D-09, D-16)
 - [Phase 36]: 36-09: the legacy handoffs backup material (and the restore/git revert subsection) moved from install/README.md to docs/pre-v3-state-layout.md, which the README links to; the backup keeps its pre-v3 plans/handoffs/ paths there
+- [Phase 36]: 36-10: INVARIANT keeps LEGACY_FALLBACK_CLAUSE as a copied literal (no state-layout import, Pitfall 8); changing kit-model.ts also requires npm run generate:hook-manifest
 
 ### Pending Todos
 
@@ -2318,8 +2320,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T09:38:03.799Z
-Stopped at: Completed 36-09-PLAN.md
+Last session: 2026-10-21T10:20:07.723Z
+Stopped at: Completed 36-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

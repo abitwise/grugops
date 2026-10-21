@@ -208,7 +208,7 @@ Plans:
 
 **Wave 10**
 
-- [ ] 36-10-PLAN.md — TRACER: the new INVARIANT reaches every adapter and skill twin in one regeneration, with a third stated baseline transform [LAYOUT-01, LAYOUT-04]
+- [x] 36-10-PLAN.md — TRACER: the new INVARIANT reaches every adapter and skill twin in one regeneration, with a third stated baseline transform [LAYOUT-01, LAYOUT-04]
 
 **Wave 11**
 
@@ -344,7 +344,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
-| 36. State-layout authority, path move and protection | v3.0 | 9/14 | In Progress | - |
+| 36. State-layout authority, path move and protection | v3.0 | 10/14 | In Progress | - |
 | 37. Overview board, per-file records and budgets | v3.0 | 0/TBD | Not started | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
