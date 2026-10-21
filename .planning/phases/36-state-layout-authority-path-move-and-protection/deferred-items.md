@@ -16,3 +16,9 @@ they are fixed in plan 36-01. The other 20 are below.
 | `scripts/harness-instance-ledger.test.ts` | 4 | cites phase-31 SUMMARY files and `deferred-items.md` that no longer resolve | same |
 | `scripts/canonical-corpus.test.ts` | 1 | cites eleven absent `.planning/phases/27-spawn-correctness-kit-set-authority/27-REVIEW*.md` files | phase 27 records archived; same class |
 | `install/installer-fs-census.test.ts` | 1 | `openAsBlobSync` is an unclassified `node:fs` export on Node v26 | known DI-03 (local Node v26 only; CI pins Node 22); STATE.md records it from phase 34 on |
+
+## Found during 36-02 (CI gate scripts run by hand, 2026-10-21)
+
+| Gate | Result | Cause | Why out of scope |
+|------|--------|-------|------------------|
+| `node scripts/check-flip-manifest.js` | exit 1, no verdict | reads `.planning/phases/33-live-capture-windows-portability/33-FLIP-MANIFEST.md`, which is absent | phase 33 records left `.planning/phases/` when milestones were archived (same class as the 36-01 rows); no file plan 36-02 touched is read |
