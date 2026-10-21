@@ -63,6 +63,7 @@ import {
   stripHtmlComments,
 } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
+import { BOARD_REL, TICKETS_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 import type {
   BoardModel,
   Conflict,
@@ -478,11 +479,11 @@ export const SOURCE_COUNT = 6;
  * computed from a file's content, from argv beyond the root, or from an environment variable.
  */
 export const FIXED_SUBPATHS = {
-  board: "plans/board.md",
-  tickets: "plans/tickets",
+  board: BOARD_REL,
+  tickets: TICKETS_REL,
   queue: ".grugops/queue",
   context: ".grugops/context",
-  traceability: "plans/traceability.md",
+  traceability: TRACEABILITY_REL,
   config: "agent-factory/config/factory.config.json",
 } as const satisfies Readonly<Record<SourceName, string>>;
 

@@ -63,7 +63,7 @@
 // imported the module it exists to measure could not be evidence about it.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { BOARD_REL, LEGACY_BOARD_REL } from "../install/state-layout.js";
+import { BOARD_REL } from "../install/state-layout.js";
 // ── The closed disposition set ───────────────────────────────────────────────────────────────────
 //
 // Every member is a bucket `agent-factory/contracts/board.md` names in its "Sections and the line
@@ -120,9 +120,9 @@ const DOGFOOD = "scripts/fixtures/board-replay/dogfood-board.md";
 const SPEC = "docs/initial/agent_factory_builder_spec_v2.md";
 const EX02 = "examples/02-brownfield-bootstrap.md";
 const EX05 = "examples/05-release-run.md";
-// The repository's own board stays at the pre-v3 path until plan 36-06 moves the repository's state; the seed board
-// moved under memory-bank/plans/ in plan 36-02. Both are spelled through install/state-layout.ts.
-const KIT = LEGACY_BOARD_REL;
+// The repository's own board moved under memory-bank/plans/ in plan 36-06, and the seed board in plan 36-02. Both are
+// spelled through install/state-layout.ts.
+const KIT = BOARD_REL;
 const SEED = `agent-factory/seed/${BOARD_REL}`;
 const CONTRACT = "agent-factory/contracts/board.md";
 /**

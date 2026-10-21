@@ -914,7 +914,6 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS: readonly string[] = [
   // ROOT DIRECTORIES — excluded at the root only, for the reasons above. (Plan 34.1-04, D-25, deleted the `.gemini/`
   // entry together with this repository's own `.gemini/settings.json`, the one tracked file it covered.)
   "memory-bank/",
-  "plans/",
   // EXACT PATHS — the tracked non-markdown surfaces dispositioned by name above.
   "agent-factory/config/factory.config.json",
   "agent-factory/seed/.grugops/factory.config.json",

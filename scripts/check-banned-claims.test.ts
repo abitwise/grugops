@@ -3301,7 +3301,9 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     const exact = bannedClaimExcludedExactPaths();
     expect(seg).toEqual(["docs", ".planning", "scripts"]);
     // [".gemini/", ...] -> without it (plan 34.1-04, D-25): the entry left with this repository's own .gemini/settings.json.
-    expect(root).toEqual(["memory-bank/", "plans/"]);
+    // ["memory-bank/", "plans/"] -> ["memory-bank/"] (plan 36-06, 2026-10-21): the repository's state moved under
+    // memory-bank/plans/, so the plans/ root entry covered nothing.
+    expect(root).toEqual(["memory-bank/"]);
     // 31-06 added tsconfig.fixtures.json, dispositioned by name in the block above.
     // 8 -> 11 (plan 34.1-01): the three generated host entries (.agents/skills/grugops/SKILL.md,
     // .opencode/commands/grugops.md, .pi/prompts/grugops.md), dispositioned by name in the block above

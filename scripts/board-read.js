@@ -47,6 +47,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync, } from "
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { joinSnapshot, normalizeDocument, parseBoard, parseTicketDocument, sourceValue, spelled, stripHtmlComments, } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
+import { BOARD_REL, TICKETS_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 // ── The conflict set (D-10) ──────────────────────────────────────────────────────────────────────
 //
 // DECLARED IN THE PURE MODULE AND RE-EXPORTED HERE, for the reason recorded above the `SourceState`
@@ -332,11 +333,11 @@ export const SOURCE_COUNT = 6;
  * computed from a file's content, from argv beyond the root, or from an environment variable.
  */
 export const FIXED_SUBPATHS = {
-    board: "plans/board.md",
-    tickets: "plans/tickets",
+    board: BOARD_REL,
+    tickets: TICKETS_REL,
     queue: ".grugops/queue",
     context: ".grugops/context",
-    traceability: "plans/traceability.md",
+    traceability: TRACEABILITY_REL,
     config: "agent-factory/config/factory.config.json",
 };
 // ── Root resolution (T-32-03) ────────────────────────────────────────────────────────────────────

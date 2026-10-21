@@ -41,7 +41,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
-import { BOARD_REL } from "../install/state-layout.js";
+import { BOARD_REL, TICKETS_REL } from "../install/state-layout.js";
 import { FIXED_SUBPATHS } from "./board-read.js";
 
 import {
@@ -2963,6 +2963,15 @@ const NULL_BRANCH = "<returns null — not a conflict>";
 const HOLE = "<>";
 
 /**
+ * The state-layout constants a presence sentence interpolates, by the identifier the module spells
+ * them with (plan 36-06). A substitution of one of these is fixed TEXT, the authority's own path, and
+ * never a value read out of a document, so the derivation writes the constant's value where a hole
+ * would stand. Every other substitution is still a hole. A constant added to a sentence and missing
+ * here leaves a hole the measured sentence does not have, so the two sets disagree and the case reds.
+ */
+const LAYOUT_CONSTANTS: Readonly<Record<string, string>> = { TICKETS_REL };
+
+/**
  * Every string a `return` inside `presenceActual` can produce, with each `${...}` replaced by a
  * hole. TOTAL BY REFUSAL: a construct this walk does not recognise THROWS, so a branch expressed a
  * new way reds here rather than vanishing from the derived set and taking its coverage with it.
@@ -2988,7 +2997,15 @@ function templatesOf(node: ts.Node): readonly string[] {
   if (node.kind === ts.SyntaxKind.NullKeyword) return [NULL_BRANCH];
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
   if (ts.isTemplateExpression(node)) {
-    return [node.head.text + node.templateSpans.map((s) => HOLE + s.literal.text).join("")];
+    return [
+      node.head.text +
+        node.templateSpans
+          .map((s) => {
+            const fixed = ts.isIdentifier(s.expression) ? LAYOUT_CONSTANTS[s.expression.text] : undefined;
+            return (fixed ?? HOLE) + s.literal.text;
+          })
+          .join(""),
+    ];
   }
   if (ts.isConditionalExpression(node)) {
     return [...templatesOf(node.whenTrue), ...templatesOf(node.whenFalse)];
@@ -3872,7 +3889,12 @@ const NOT_PUBLISHED_RECEIVERS: readonly string[] = [
 // green is the failure class this repository has already paid for twice, so the set is deleted
 // rather than redrawn a third time: EVERY substitution at a published position is built through the
 // builder, and the census asserts that as a two-sided equality.
-const PUBLISHED_SUBSTITUTION_COUNT = 86;
+//
+// 86 -> 91 on 2026-10-21 (plan 36-06): the five ticket-path sentences in board-model.ts (the four
+// presence sentences and the row-without-file `expected`) build their path from TICKETS_REL, the
+// state-layout authority, instead of a hand-spelled `plans/tickets/` prefix. Each is a substitution
+// at a published position and each is built through `spelled`, so the equality below still holds.
+const PUBLISHED_SUBSTITUTION_COUNT = 91;
 
 /** ONE program for the whole block: a full `ts.Program` over every tracked `scripts/*.ts`. */
 let censusProgram: ReturnType<typeof createScriptsProgram> | null = null;

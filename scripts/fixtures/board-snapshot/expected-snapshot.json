@@ -42,7 +42,7 @@
     {
       "actual": "no ticket file carries that identifier",
       "column": "In Development",
-      "expected": "plans/tickets/ABC-999.md",
+      "expected": "memory-bank/plans/tickets/ABC-999.md",
       "kind": "row-without-file",
       "source": "board",
       "ticketId": "ABC-999"

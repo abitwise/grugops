@@ -26,7 +26,7 @@
 // smaller green number.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { BOARD_REL } from "../install/state-layout.js";
@@ -539,7 +539,12 @@ const occurrences = (haystack: string, needle: string): number => haystack.split
  */
 function mirrorWithNoOpStripper(): string {
   const dir = freshTmp("board-model-noop-mirror-");
-  const path = join(dir, "board-model.js");
+  // THE MIRROR KEEPS THE REPOSITORY LAYOUT (plan 36-06): board-model.js imports
+  // ../install/state-layout.js, so the mirror sits in scripts/ beside a copy of install/state-layout.js.
+  mkdirSync(join(dir, "scripts"));
+  mkdirSync(join(dir, "install"));
+  copyFileSync(join(ROOT, "install", "state-layout.js"), join(dir, "install", "state-layout.js"));
+  const path = join(dir, "scripts", "board-model.js");
   const live = readFileSync(MODEL_JS, "utf8");
   const mutated =
     live.replace(PREPASS_CALL, "identityStrip(normalized)") +

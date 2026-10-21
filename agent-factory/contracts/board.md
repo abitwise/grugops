@@ -293,9 +293,9 @@ drifts from the code reds rather than being caught by eye.
 | What the reader measured about the row's identifier | `actual` says |
 |---|---|
 | A document declares it. | Nothing — this is not a conflict, and no `row-without-file` is raised. |
-| A file of that stem was admitted under a **different** declared identifier, **and that file is the one joined under it**. | `plans/tickets/<id>.md exists and declares the identifier <other>, so it is joined under that identifier and not this one` |
-| A file of that stem declares a **different** identifier but **lost the duplicate-identifier contest** for it, so it is joined under nothing. | `plans/tickets/<id>.md exists and declares the identifier <other>, which plans/tickets/<winner>.md claimed first, so it is joined under no identifier` |
-| A file of that stem exists and the ticket grammar refused it. | `plans/tickets/<id>.md exists and the reader could not admit it (<code>)` |
+| A file of that stem was admitted under a **different** declared identifier, **and that file is the one joined under it**. | `memory-bank/plans/tickets/<id>.md exists and declares the identifier <other>, so it is joined under that identifier and not this one` |
+| A file of that stem declares a **different** identifier but **lost the duplicate-identifier contest** for it, so it is joined under nothing. | `memory-bank/plans/tickets/<id>.md exists and declares the identifier <other>, which memory-bank/plans/tickets/<winner>.md claimed first, so it is joined under no identifier` |
+| A file of that stem exists and the ticket grammar refused it. | `memory-bank/plans/tickets/<id>.md exists and the reader could not admit it (<code>)` |
 | The identifier is in none of the three measured sets. | `no ticket file carries that identifier` |
 
 The last sentence is the only one that asserts a negative, and it is reachable only by falling off
@@ -306,7 +306,7 @@ fact these sentences state is one a consumer can check for itself. The projector
 not read something; it may not say something is not there when it is.
 
 A file name and a declared identifier are two different facts, so both are published: every record
-in `tickets[]` carries `stem`, the file's name under `plans/tickets/` without its extension, beside
+in `tickets[]` carries `stem`, the file's name under `memory-bank/plans/tickets/` without its extension, beside
 the `id` the document declares. They agree for every well-formed ticket. The day they disagree the
 board says so under both identifiers: the row's identifier raises `row-without-file` naming what the
 file declares, and the declared identifier raises `ticket-unplaced` because no row names it.

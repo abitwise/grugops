@@ -34,6 +34,7 @@
 //
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface that a
 // human reads to learn where work stands, never caveman voice).
+import { TICKETS_REL } from "../install/state-layout.js";
 // ── The published schema version (D-19) ──────────────────────────────────────────────────────────
 //
 // `schemaVersion` is the shape a future web renderer consumes unchanged.
@@ -1040,16 +1041,16 @@ export function presenceActual(id, presence) {
             // document disagreeing with itself three fields later, which is the very disagreement
             // DASH-03 exists to surface between two sources.
             if (presence.joinedStem === id) {
-                return (spelled `plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
+                return (spelled `${TICKETS_REL}/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
                     `so it is joined under that identifier and not this one`);
             }
-            return (spelled `plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
+            return (spelled `${TICKETS_REL}/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
                 (presence.joinedStem === undefined
                     ? `which no admitted document is joined under, so it is joined under no identifier`
-                    : spelled `which plans/tickets/${presence.joinedStem}.md claimed first, ` +
+                    : spelled `which ${TICKETS_REL}/${presence.joinedStem}.md claimed first, ` +
                         `so it is joined under no identifier`));
         case "refused":
-            return spelled `plans/tickets/${id}.md exists and the reader could not admit it (${presence.code})`;
+            return spelled `${TICKETS_REL}/${id}.md exists and the reader could not admit it (${presence.code})`;
         case "absent":
             return "no ticket file carries that identifier";
     }
@@ -1263,7 +1264,7 @@ export function joinSnapshot(inputs) {
             kind: "row-without-file",
             ticketId: p.id,
             column: p.column,
-            expected: spelled `plans/tickets/${p.id}.md`,
+            expected: spelled `${TICKETS_REL}/${p.id}.md`,
             actual,
             source: "board",
         });

@@ -56,6 +56,7 @@ import { pathToFileURL } from "node:url";
 // (Plan 34-06, D-11) The host registry the validator's dispatch-map check reads. The kits below
 // generate their dispatch table FROM it, so no host name is typed in this file.
 import { HOST_TOOLS } from "../install/host-tools.js";
+import { BOARD_REL, STATE_ROOT_REL, TICKETS_REL } from "../install/state-layout.js";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
 // tree, and a second implementation of it is the defect this phase exists to delete, not a
@@ -73,6 +74,9 @@ import {
 
 const ROOT = join(import.meta.dirname, "..");
 const VALIDATOR_JS = join(ROOT, "scripts", "validate-agent-factory.js");
+
+/** The ticket tree escaped for a regular expression, so a message pattern follows the state-layout authority. */
+const TICKETS_RE = TICKETS_REL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const FIX = join(ROOT, "scripts", "fixtures");
 
 // ── What counts as a validator fixture REPOSITORY ────────────────────────────────────────────────
@@ -206,7 +210,7 @@ function out(r: SpawnSyncReturns<string>): string {
 }
 
 // Build a hermetic kit copy from fixtures/good (agent-factory + AGENTS.md + .claude-plugin),
-// optionally including plans/. Returns the new temp root.
+// optionally including the state tree at STATE_ROOT_REL. Returns the new temp root.
 function copyGoodKit(includePlans: boolean): string {
   const d = mkdtempSync(join(tmpdir(), "grugops-val-"));
   tmpDirs.push(d);
@@ -220,7 +224,7 @@ function copyGoodKit(includePlans: boolean): string {
     });
   }
   if (includePlans) {
-    cpSync(join(FIX, "good", "plans"), join(d, "plans"), { recursive: true });
+    cpSync(join(FIX, "good", STATE_ROOT_REL), join(d, STATE_ROOT_REL), { recursive: true });
   }
   return d;
 }
@@ -284,7 +288,7 @@ describe("validate-agent-factory.js (VAL-01 / VAL-02 self-test)", () => {
     const kit = copyGoodKit(false);
     const state = mkdtempSync(join(tmpdir(), "grugops-val-state-"));
     tmpDirs.push(state);
-    cpSync(join(FIX, "good", "plans"), join(state, "plans"), { recursive: true });
+    cpSync(join(FIX, "good", STATE_ROOT_REL), join(state, STATE_ROOT_REL), { recursive: true });
     const r = runSplit(kit, state);
     expect(r.status).toBe(0);
   });
@@ -292,7 +296,7 @@ describe("validate-agent-factory.js (VAL-01 / VAL-02 self-test)", () => {
   it("SPLIT bad-missing-kit (VALIDATE_KIT_ROOT→nonexistent) → nonzero + 'missing required'", () => {
     const state = mkdtempSync(join(tmpdir(), "grugops-val-state-"));
     tmpDirs.push(state);
-    cpSync(join(FIX, "good", "plans"), join(state, "plans"), { recursive: true });
+    cpSync(join(FIX, "good", STATE_ROOT_REL), join(state, STATE_ROOT_REL), { recursive: true });
     const r = runSplit(join(state, "no-such-kit-dir"), state);
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/missing required/i);
@@ -989,7 +993,7 @@ function twoRoots(): { kit: string; state: string } {
   const kit = copyGoodKit(false);
   const state = mkdtempSync(join(tmpdir(), "grugops-val-state2-"));
   tmpDirs.push(state);
-  cpSync(join(FIX, "good", "plans"), join(state, "plans"), { recursive: true });
+  cpSync(join(FIX, "good", STATE_ROOT_REL), join(state, STATE_ROOT_REL), { recursive: true });
   return { kit, state };
 }
 
@@ -1362,8 +1366,8 @@ describe("validate-agent-factory.js — one board grammar (plan 32-08, DASH-01 /
   /** A hermetic kit whose board and single ticket are exactly the shapes a case names. */
   function kitWithBoardAndTicket(board: string, ticket: string): string {
     const d = copyGoodKit(true);
-    writeFileSync(join(d, "plans", "board.md"), board);
-    writeFileSync(join(d, "plans", "tickets", "TST-001.md"), ticket);
+    writeFileSync(join(d, BOARD_REL), board);
+    writeFileSync(join(d, TICKETS_REL, "TST-001.md"), ticket);
     return d;
   }
 
@@ -1463,11 +1467,11 @@ describe("validate-agent-factory.js — one board grammar (plan 32-08, DASH-01 /
   it("keeps both board↔ticket messages byte-identical through the extraction", () => {
     const bad = runFixture(join(FIX, "bad-ticket-bad-column"));
     expect(out(bad)).toContain(
-      'plans/tickets/ABC-001.md: column "Nonexistent Column" is not a board column',
+      `${TICKETS_REL}/ABC-001.md: column "Nonexistent Column" is not a board column`,
     );
     const mismatch = runFixture(join(FIX, "bad-ticket-mismatch"));
     expect(out(mismatch)).toContain(
-      'plans/tickets/ABC-001.md: status "in-review" does not match column "In Development" (expected kebab "in-development")',
+      `${TICKETS_REL}/ABC-001.md: status "in-review" does not match column "In Development" (expected kebab "in-development")`,
     );
   });
 });
@@ -1517,7 +1521,7 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
   it("NO REGION: a document with no frontmatter is refused by code, not read anyway", () => {
     const r = runFixture(join(FIX, "bad-ticket-no-region"));
     expect(out(r), "the refusal names its CODE and its reason, so the finding is actionable").toMatch(
-      /plans\/tickets\/ABC-001\.md: refused by the ticket grammar \(no-opening-delimiter\): /,
+      new RegExp(`${TICKETS_RE}/ABC-001\\.md: refused by the ticket grammar \\(no-opening-delimiter\\): `),
     );
     expect(r.status).not.toBe(0);
     expect(
@@ -1537,7 +1541,7 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
   it("DUPLICATE KEY: two values for one key are refused, not silently halved", () => {
     const r = runFixture(join(FIX, "bad-ticket-duplicate-key"));
     expect(out(r)).toMatch(
-      /plans\/tickets\/ABC-001\.md: refused by the ticket grammar \(duplicate-key\): /,
+      new RegExp(`${TICKETS_RE}/ABC-001\\.md: refused by the ticket grammar \\(duplicate-key\\): `),
     );
     expect(r.status).not.toBe(0);
   });
@@ -1548,7 +1552,7 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
   it("pins the refusal message's shape: path, code, and the grammar's own reason", () => {
     const r = runFixture(join(FIX, "bad-ticket-duplicate-key"));
     expect(out(r)).toContain(
-      "plans/tickets/ABC-001.md: refused by the ticket grammar (duplicate-key): " +
+      `${TICKETS_REL}/ABC-001.md: refused by the ticket grammar (duplicate-key): ` +
         "`column` is written twice, so the document expresses two values for one key",
     );
   });

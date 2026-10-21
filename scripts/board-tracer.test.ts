@@ -479,7 +479,7 @@ import {
   repoSubpath,
   resolveRepoRoot,
 } from "./board-read.js";
-import { LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL } from "../install/state-layout.js";
+import { BOARD_REL, TICKETS_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 
 /**
  * The state directory a plant creates, derived from the read seam's own table (D-13 step 2). It is the
@@ -524,15 +524,15 @@ describe("board-read — the source set (D-12)", () => {
   });
 
   it("joins only FIXED LITERAL subpaths — no path is derived from any file's content (ASVS V12)", () => {
-    // The table is compared with an INDEPENDENT authority (install/state-layout.js), so this case
-    // cannot pass by reading the table against itself. Plan 36-06 flips both sides to BOARD_REL,
-    // TICKETS_REL and TRACEABILITY_REL when the repository's state moves.
-    expect(FIXED_SUBPATHS.board).toBe(LEGACY_BOARD_REL);
+    // The three state rows are compared with the state-layout authority (install/state-layout.js),
+    // which the table imports since plan 36-06 moved the repository's state. A row that went back to
+    // a hand-spelled literal, or to the pre-v3 root, fails here.
+    expect(FIXED_SUBPATHS.board).toBe(BOARD_REL);
     expect(FIXED_SUBPATHS.config).toBe("agent-factory/config/factory.config.json");
-    expect(FIXED_SUBPATHS.tickets).toBe(`${LEGACY_STATE_ROOT_REL}/tickets`);
+    expect(FIXED_SUBPATHS.tickets).toBe(TICKETS_REL);
     expect(FIXED_SUBPATHS.queue).toBe(".grugops/queue");
     expect(FIXED_SUBPATHS.context).toBe(".grugops/context");
-    expect(FIXED_SUBPATHS.traceability).toBe(`${LEGACY_STATE_ROOT_REL}/traceability.md`);
+    expect(FIXED_SUBPATHS.traceability).toBe(TRACEABILITY_REL);
     expect(Object.keys(FIXED_SUBPATHS).length).toBe(SOURCE_COUNT);
   });
 });

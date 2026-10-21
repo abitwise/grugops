@@ -3239,9 +3239,13 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
       ],
     },
     { entry: "hooks/hook-entry.js", modules: ["hooks/hook-entry.js"] },
+    // 2026-10-21, plan 36-06: board-read.js and board-model.js import ../install/state-layout.js (constants
+    // only, no node:fs symbol), so the board-dashboard.js and board-model.js closures gained it. Both rows
+    // were taken from jsImportClosure, not typed.
     {
       entry: "scripts/board-dashboard.js",
       modules: [
+        "install/state-layout.js",
         "scripts/board-dashboard.js",
         "scripts/board-model.js",
         "scripts/board-read.js",
@@ -3249,7 +3253,7 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
         "scripts/kit-model.js",
       ],
     },
-    { entry: "scripts/board-model.js", modules: ["scripts/board-model.js"] },
+    { entry: "scripts/board-model.js", modules: ["install/state-layout.js", "scripts/board-model.js"] },
     { entry: "scripts/claim.js", modules: ["scripts/claim.js", "scripts/is-entry.js"] },
     {
       entry: "scripts/context-io.js",

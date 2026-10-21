@@ -81,6 +81,13 @@ import { boardHasColumn, kebab, parseBoard, parseTicketDocument } from "./board-
 // import edge (34-RESEARCH.md assumption A5): install/ still imports nothing from scripts/ (33.1
 // D-18/D-28), and the registry module is pure data with no imports, so no installer code comes in.
 import { HOST_TOOLS } from "../install/host-tools.js";
+import {
+  BOARD_REL,
+  METRICS_REL,
+  NFR_CATALOG_REL,
+  TICKETS_REL,
+  TRACEABILITY_REL,
+} from "../install/state-layout.js";
 
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
@@ -312,12 +319,7 @@ function checkRequiredFiles(): void {
     if (!kitExists(rel)) err(`missing required file: ${rel}`);
   }
   // …and STATE refs (plans/…) resolve under STATE_ROOT.
-  for (const rel of [
-    "plans/board.md",
-    "plans/traceability.md",
-    "plans/nfr-catalog.md",
-    "plans/metrics.md",
-  ]) {
+  for (const rel of [BOARD_REL, TRACEABILITY_REL, NFR_CATALOG_REL, METRICS_REL]) {
     if (!stateExists(rel)) err(`missing required file: ${rel}`);
   }
 }
@@ -715,11 +717,11 @@ function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean): vo
 
 // ── Check 5+6: board<->ticket status match (vacuous on zero tickets) + traceability rows ──────
 function checkTickets(): void {
-  const ticketFiles = stateListDir("plans/tickets").filter((f) => f.endsWith(".md"));
+  const ticketFiles = stateListDir(TICKETS_REL).filter((f) => f.endsWith(".md"));
   if (ticketFiles.length === 0) return; // D-43 vacuity: zero tickets → green
 
-  const board = stateRead("plans/board.md") || "";
-  const trace = stateRead("plans/traceability.md") || "";
+  const board = stateRead(BOARD_REL) || "";
+  const trace = stateRead(TRACEABILITY_REL) || "";
 
   // WHICH HEADINGS OPEN A COLUMN IS ASKED OF THE GRAMMAR, NOT ANSWERED HERE (DASH-01 / D-06).
   // The rule lives in `boardColumnName`/`boardHasColumn` in scripts/board-model.ts and is stated in
@@ -728,7 +730,7 @@ function checkTickets(): void {
   const boardModel = parseBoard(board);
 
   for (const f of ticketFiles) {
-    const rel = `plans/tickets/${f}`;
+    const rel = `${TICKETS_REL}/${f}`;
     const text = stateRead(rel);
     if (text === null) continue;
     // A TICKET'S FRONTMATTER IS ASKED OF THE GRAMMAR, NOT RE-READ HERE (DASH-01 / D-06, plan 32-12).
