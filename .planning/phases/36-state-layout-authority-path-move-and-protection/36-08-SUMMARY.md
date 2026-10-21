@@ -94,7 +94,7 @@ status: complete
 
 # Phase 36 Plan 08: Roles, workflows and kit docs name memory-bank/plans/, and the kit-home invariant carries the fallback clause Summary
 
-**401 pre-v3 state-path sites across 16+1 roles, 18 workflows, the board contract, both checklists, the kit README and 176 fixture role copies now read `memory-bank/plans/…`. The Orchestrator's line 8, the one invariant copy an unmigrated repository still reads after `--update`, now names `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` as STATE and carries `LEGACY_FALLBACK_CLAUSE` verbatim. The C-28-033 claim block moved with its README anchor.**
+**401 pre-v3 state-path sites across 17 roles, 19 workflows, the board contract, both checklists, the kit README and 176 fixture role copies now read `memory-bank/plans/…`. The Orchestrator's line 8, the one invariant copy an unmigrated repository still reads after `--update`, now names `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` as STATE and carries `LEGACY_FALLBACK_CLAUSE` verbatim. The C-28-033 claim block moved with its README anchor.**
 
 ## Performance
 
@@ -102,7 +102,7 @@ status: complete
 - **Started:** 2026-10-21T09:10:09Z
 - **Completed:** 2026-10-21T09:22:57Z
 - **Tasks:** 2 (one tracer, one auto)
-- **Files modified:** 217 (17 roles, 18 workflows, 1 contract, 2 checklists, the kit README, the claim registry, 176 fixture role copies, and the 36-08 ledger-free docs)
+- **Files modified:** 217 (17 roles, 19 workflows, 1 contract, 2 checklists, the kit README, the claim registry and 176 fixture role copies)
 
 ## Accomplishments
 

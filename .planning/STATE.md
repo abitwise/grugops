@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 36
 current_phase_name: State-layout authority, path move and protection
 status: executing
-stopped_at: Completed 36-07-PLAN.md
-last_updated: "2026-10-21T09:08:49.986Z"
+stopped_at: Completed 36-08-PLAN.md
+last_updated: "2026-10-21T09:24:26.790Z"
 last_activity: 2026-10-21
 last_activity_desc: Phase 36 execution started
-state_head: 9fc1cd8eadca27cb3bd294a63e15ed0bd0bd57ae
+state_head: c16d5fc25b9b4c4345945e0f24c4602232ffeb95
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 15
-  completed_plans: 8
+  completed_plans: 9
   percent: 11
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-20 after Phase 35)
 ## Current Position
 
 Phase: 36 (State-layout authority, path move and protection) — EXECUTING
-Plan: 8 of 14
+Plan: 9 of 14
 Status: Ready to execute
 Last activity: 2026-10-21 — Phase 36 execution started
 
@@ -721,6 +721,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P05 | 11 min | 2 tasks | 10 files |
 | Phase 36 P06 | 39 min | 1 tasks | 98 files |
 | Phase 36 P07 | 16 min | 2 tasks | 31 files |
+| Phase 36 P08 | 13 min | 2 tasks | 217 files |
 
 ## Accumulated Context
 
@@ -1983,6 +1984,8 @@ Recent decisions affecting current work:
 - [Phase 36]: 36-06: contracts/board.md presence-table rows spell memory-bank/plans/tickets/ (rest of the contract left to 36-08)
 - [Phase 36]: 36-07: board-dashboard's no-board line names FIXED_SUBPATHS.board (the reader's layout), not a new BOARD_REL import; a frame cell is a plain template, never spelled (the 32.1-07 census reds otherwise)
 - [Phase 36]: 36-07: kit-model INVARIANT and the generate-role-adapters coordinator line keep the pre-v3 spelling until plan 36-10, which changes both in one adapter and twin regeneration; the 36-07 scan truth holds only with those 4 files excluded until then
+- [Phase 36]: 36-08: the kit-home Orchestrator invariant (orchestrator.md line 8) names memory-bank/ (planning state in memory-bank/plans/) and .grugops/ as STATE and carries LEGACY_FALLBACK_CLAUSE verbatim; 36-10/36-11 must use the same STATE clause wording
+- [Phase 36]: 36-08: in the claim registry only the C-28-033 fenced verbatim block moved with its README anchor; the mechanism prose stays as history (D-09, D-16)
 
 ### Pending Todos
 
@@ -2313,8 +2316,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T09:08:49.930Z
-Stopped at: Completed 36-07-PLAN.md
+Last session: 2026-10-21T09:24:26.734Z
+Stopped at: Completed 36-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
