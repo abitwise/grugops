@@ -85,7 +85,7 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, STATE_ROOT_REL, STATE_ROOTS } from "./state-layout.js";
+import { BOARD_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, STATE_ROOT_REL, STATE_ROOTS } from "./state-layout.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -2130,6 +2130,28 @@ function doctor() {
     // The file each stat line below names as its reference: the adapter the cross-check read, or the marker when no
     // Claude Code adapter is installed here (D-07).
     const statRef = adapterFile ?? markerFile;
+    // --- the state layout (phase 36, plan 36-13, 2026-10-21, D-07, D-02, LAYOUT-04) --------------------------------
+    // One line, from the one probe (stateLayout(), D-01), printed whatever the lines above found. The board stat in the
+    // set below reads its path from the same answer, so the layout line and the board line can never disagree. Never a
+    // FAIL (D-07): a pre-v3 repository still works through the agents' fallback, so it is a WARN that names the
+    // --migrate command, and --strict promotes it like any other WARN. It is never `ok` while the state is still under
+    // the pre-v3 root, and it never claims a migration that has not happened.
+    const layout = stateLayout();
+    if (layout === "current") {
+        docReport("ok", `state layout: ${STATE_ROOT_REL}/`);
+    }
+    else if (layout === "pre-v3") {
+        docWarn(`state layout: pre-v3 (${LEGACY_BOARD_REL} exists, ${BOARD_REL} does not); run \`${migrateCommand([])}\` to ` +
+            `migrate it`);
+    }
+    else if (layout === "both") {
+        docWarn(`state layout: ${STATE_ROOT_REL}/ is used; ${LEGACY_STATE_ROOT_REL}/ is stale (both boards exist; nothing was ` +
+            `merged or deleted)`);
+    }
+    else if (typeof layout === "object") {
+        docWarn(`state layout: ${layout.unreadable} could not be read (${layout.code}), so NO VERDICT was reached on the layout`);
+    }
+    // A fresh layout (no board at either path) prints no layout line: the board stat below FAILs on the absent board.
     // --- deterministic ordered first-failure stat set (D-02 / D-05) ----------------------------
     // Fixed order, most-load-bearing first. Kit refs resolve under DOCTOR_KIT_ROOT (the kit home the printed commands
     // state; plan 34.1-50, D-38); state refs resolve
@@ -2148,7 +2170,8 @@ function doctor() {
         [join(DOCTOR_KIT_ROOT, "roles", "_role-switch-protocol.md"), statRef, "file"],
         [join(DOCTOR_KIT_ROOT, "workflows"), statRef, "dir"],
         [join(TARGET, ".grugops", "factory.config.json"), statRef, "file"],
-        [join(TARGET, BOARD_REL), statRef, "file"],
+        // The board: the pre-v3 board when the layout is pre-v3 (plan 36-13, D-07), the v3 board otherwise.
+        [join(TARGET, layout === "pre-v3" ? LEGACY_BOARD_REL : BOARD_REL), statRef, "file"],
         // MIGR-02 (Phase 24): the legacy handoffs directory is no longer seeded (the note-native trace replaced
         // the handoff relay), so the doctor must NOT require it — checking it here would FAIL every clean
         // install. Removed deliberately in lockstep with the seedState mkdir removal.
@@ -4978,13 +5001,42 @@ function listSeedFiles(root, base = "") {
 function seedRoot() {
     return DRY_RUN ? join(KIT_COPY_SOURCE, "seed") : join(KIT_ROOT, "seed");
 }
+//
+// THE STATE LAYOUT DECIDES THE STATE-ROOT SEED (phase 36, plan 36-13, 2026-10-21, D-02, D-05, D-06; research Pattern
+// 4). seedState asks stateLayout() once. A plain install never reaches here on a pre-v3 or unreadable layout (the
+// refusal above the --migrate branch, plan 36-12); --migrate does, because its two-root arm and its clean fall-through
+// run the install run below. So:
+//   pre-v3      every seed path under STATE_ROOT_REL/ is skipped, with ONE `skipped` line naming the pre-v3 state:
+//               seeding there would put a second, empty board beside the user's (T-36-17). The state move itself
+//               arrives with the v3 migrate arm (Phase 38, D-06); this run leaves the state where it is.
+//   unreadable  the same paths are skipped, with ONE verify naming the path and the code: a board that cannot be asked
+//               about is never treated as absent, and the run ends INCOMPLETE rather than claiming a seed.
+//   both        seeds as always (never-overwrite) and prints ONE `note` that the pre-v3 root is stale (D-02). Never a
+//               verify: the v3 layout is in use and nothing is wrong with this run, so it is not INCOMPLETE.
+// Seed paths outside STATE_ROOT_REL/ (the factory configuration, the memory-bank pages) are seeded on every layout.
 function seedState() {
     const seed = seedRoot();
     if (!existsSync(seed)) {
         report("skipped", `state seed (no seed subtree at ${seed})`);
         return;
     }
+    const layout = stateLayout();
+    const skipStateRoot = layout === "pre-v3" || typeof layout === "object";
+    if (layout === "pre-v3") {
+        report("skipped", `${STATE_ROOT_REL}/ seed (this repository's planning state is still in the pre-v3 layout under ` +
+            `${LEGACY_STATE_ROOT_REL}/; nothing was seeded beside it)`);
+    }
+    else if (typeof layout === "object") {
+        verify(`${STATE_ROOT_REL}/ seed: the state layout could not be read (${layout.unreadable}: ${layout.code}), so it cannot ` +
+            `be shown that this repository is not on the pre-v3 layout. Nothing was seeded under ${STATE_ROOT_REL}/.`);
+    }
+    else if (layout === "both") {
+        report("note", `${LEGACY_STATE_ROOT_REL}/ is stale: ${BOARD_REL} and ${LEGACY_BOARD_REL} both exist; this run uses ` +
+            `${STATE_ROOT_REL}/ and merges or deletes nothing`);
+    }
     for (const rel of listSeedFiles(seed)) {
+        if (skipStateRoot && rel.startsWith(`${STATE_ROOT_REL}/`))
+            continue;
         seedFile(join(seed, rel), join(TARGET, rel), rel);
     }
     // MIGR-02 (Phase 24): the old relay's runtime dir (the legacy handoffs directory) is no longer

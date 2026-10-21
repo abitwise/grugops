@@ -119,10 +119,14 @@ const SOURCE_FILE_COUNT = 10;
  * access-denial 16 -> 17 and restore 25 -> 26 on 2026-10-21 (plan 36-12, D-05, LAYOUT-04): pre-v3-layout.test.ts case
  * (d) makes the pre-v3 state root mode 000 so the layout probe's lstat answers EACCES (an unreadable layout, refused),
  * and gives the permissions back in a `finally`; the case is skipped with a printed reason on win32 and as root.
+ * access-denial 17 -> 18 and restore 26 -> 27 on 2026-10-21 (plan 36-13, D-06, LAYOUT-04): pre-v3-layout.test.ts case
+ * (i) makes the pre-v3 state root mode 000 before a --migrate run, so the seed's layout probe answers EACCES (nothing
+ * is seeded under the v3 state root and a verify names the path), and gives the permissions back in a `finally`; the
+ * case is skipped with a printed reason on win32 and as root.
  * Measured per file and kind by this census's own failure message. */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 17,
-  restore: 26,
+  "access-denial": 18,
+  restore: 27,
   "row-315": 7,
   "posix-bits": 2,
 };
