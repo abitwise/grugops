@@ -240,27 +240,28 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 18 plans
+**Plans**: 19 plans
 
 Plans:
 - [ ] 37-01-PLAN.md — Marker and archived-Done decisions (checkpoints), board contract first, budget and path constants
 - [ ] 37-02-PLAN.md — scripts/state-rules.ts and the validator budget pass (WARN unmigrated, FAIL migrated)
 - [ ] 37-03-PLAN.md — Embed generator, its freshness gate, and the host state-check runnable (board budget, marker severity)
 - [ ] 37-04-PLAN.md — state-check checks every budget; --json, sanitized output, read-only proof
-- [ ] 37-05-PLAN.md — state-check NFR index integrity, rollable report and move-only report
+- [ ] 37-05-PLAN.md — state-check NFR index integrity, rollable report and move-only report (directory keepers are not records)
 - [ ] 37-06-PLAN.md — scripts/trace-model.ts and the host trace-render runnable (per-ticket files, two roots)
-- [ ] 37-07-PLAN.md — trace-render --check and its refusals (hand-written files, case-fold collisions, visible skips)
-- [ ] 37-08-PLAN.md — Own-tree trace render and directory-compare freshness gate in CI; state-check trace freshness
-- [ ] 37-09-PLAN.md — state-roll runnable: Done rows move to the archive with a conservation proof
-- [ ] 37-10-PLAN.md — state-roll: dated progress entries, refusals, dry run, re-run after an interrupted roll
-- [ ] 37-11-PLAN.md — Board reader seventh source boardArchive, snapshot version 3
-- [ ] 37-12-PLAN.md — Installer materializes the three runnables; v3 seed; marker on fresh layouts only
-- [ ] 37-13-PLAN.md — Roles, part 1: trace sections rendered, NFR one file each, board overview rule
-- [ ] 37-14-PLAN.md — Roles, part 2, and the commit convention
-- [ ] 37-15-PLAN.md — Workflows, part 1: WF05 render and state-check (D-12), WF09 roll and move-only, WF12, WF16, NFR seeding
-- [ ] 37-16-PLAN.md — Workflows, part 2: trace and commit sentences (WF18's bound paragraph kept)
-- [ ] 37-17-PLAN.md — Substrate, contract wording and checklists; the permanent hand-trace scan test
-- [ ] 37-18-PLAN.md — grugops's own state on v3 forms with its marker (D-06); phase gate
+- [ ] 37-07-PLAN.md — trace-render --check and its refusals (hand-written files, case-fold collisions, visible skips, keepers left alone)
+- [ ] 37-08-PLAN.md — Own-tree trace render and directory-compare freshness gate in CI (mid-phase full run 1)
+- [ ] 37-09-PLAN.md — state-check trace freshness on hosts (split from 37-08)
+- [ ] 37-10-PLAN.md — state-roll runnable: Done rows move to the archive with a conservation proof
+- [ ] 37-11-PLAN.md — state-roll: dated progress entries, refusals, dry run, re-run after an interrupted roll
+- [ ] 37-12-PLAN.md — Board reader seventh source boardArchive, snapshot version 3
+- [ ] 37-13-PLAN.md — Installer materializes the three runnables; v3 seed; marker on fresh layouts only (mid-phase full run 2)
+- [ ] 37-14-PLAN.md — Roles, part 1: trace sections rendered, NFR one file each, board overview rule
+- [ ] 37-15-PLAN.md — Roles, part 2, and the commit convention
+- [ ] 37-16-PLAN.md — Workflows, part 1: WF05 render and state-check (D-12), WF09 roll and move-only, WF12, WF16, NFR seeding
+- [ ] 37-17-PLAN.md — Workflows, part 2: trace and commit sentences (WF18's bound paragraph kept)
+- [ ] 37-18-PLAN.md — Substrate, contract wording and checklists; the permanent hand-trace scan test
+- [ ] 37-19-PLAN.md — grugops's own state on v3 forms with its marker (D-06); phase gate
 **Notes**: D-6 (trace per ticket, rendered) and D-7 (archive-only surfaces). New ticket detail goes in ticket bodies, not new keys.
 
 ### Phase 38: install --migrate v3
