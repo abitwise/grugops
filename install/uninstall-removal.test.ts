@@ -658,6 +658,28 @@ describe("every STATE_ROOTS root refuses a recorded file (plan 36-01, LAYOUT-03)
       expect(lines.map((l) => `${l.label} ${l.msg}`), `${root}\n${r.stdout}`).toEqual([`refused ${rel} (protected path — never removed)`]);
     }
   });
+  // Adjacency: a name that only shares a prefix with a root (`docs2/`, `memory-bank-notes/`) is not that root. Its
+  // recorded file, still holding its record, is removed, while the same record under the root itself is refused.
+  it("a recorded file under a prefix-sharing sibling of a root is removed; the same record under the root is refused", () => {
+    const t = installedTree("prefix-siblings");
+    const siblings = STATE_ROOTS.filter((root) => root === "docs" || root === "memory-bank").map((root) => ({
+      sibling: `${root === "docs" ? "docs2" : `${root}-notes`}/f.md`,
+      inside: `${root}/f.md`,
+    }));
+    expect(siblings.length, "the adjacency case lost its roots").toBe(2);
+    const rels = siblings.flatMap((x) => [x.sibling, x.inside]);
+    const before = new Map(rels.map((rel) => [rel, plantFile(t.target, rel)]));
+    recordFiles(t.target, rels);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 });
+    expectFinished(r, "uninstall over prefix-sharing siblings");
+    for (const { sibling, inside } of siblings) {
+      expect(existsSync(join(t.target, ...sibling.split("/"))), `${sibling} is not a protected root but was kept\n${r.stdout}`).toBe(false);
+      expect(linesFor(r.stdout, sibling, t.target).map((l) => l.label), `${sibling}\n${r.stdout}`).toEqual(["removed"]);
+      const p = join(t.target, ...inside.split("/"));
+      expect(readFileSync(p).equals(before.get(inside)!), `${inside}: changed`).toBe(true);
+      expect(linesFor(r.stdout, inside, t.target).map((l) => `${l.label} ${l.msg}`), `${inside}\n${r.stdout}`).toEqual([`refused ${inside} (protected path — never removed)`]);
+    }
+  });
 });
 
 // ── THE LEGACY GEMINI ENTRY (phase 34.1, D-12; brief DC-2) ──────────────────────────────────────────
