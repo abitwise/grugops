@@ -49,7 +49,7 @@ import {
   sanitizeCell,
 } from "./board-dashboard.js";
 import type { DashboardIo, LoopDeps, Options, WatchHandle } from "./board-dashboard.js";
-import { CONFLICT_KINDS, SOURCE_NAMES, readSnapshot } from "./board-read.js";
+import { CONFLICT_KINDS, FIXED_SUBPATHS, SOURCE_NAMES, readSnapshot } from "./board-read.js";
 // The PUBLISHED version, read from the module rather than retyped here (plan 32-33).
 import {
   RENDER_STRIPPED,
@@ -916,7 +916,7 @@ describe("board-dashboard — a board removed under a live run degrades VISIBLY 
         // value to carry forward. Without a previous read there is nothing to be stale ABOUT, and
         // the source would be `unavailable` instead — a different, also-honest state.
         const removeAt = setTimeout(() => {
-          rmSync(join(dir, "plans", "board.md"), { force: true });
+          rmSync(join(dir, FIXED_SUBPATHS.board), { force: true });
         }, 700);
         const stopAt = setTimeout(() => proc.kill("SIGINT"), 2_600);
 
@@ -981,7 +981,7 @@ describe("board-dashboard — NDJSON under --json --watch, measured from outside
         // Touch a watched file, so at least one of the documents below is event-driven rather than
         // all of them being poll ticks.
         const touchAt = setTimeout(() => {
-          appendFileSync(join(dir, "plans", "board.md"), "\n");
+          appendFileSync(join(dir, FIXED_SUBPATHS.board), "\n");
         }, 600);
         const stopAt = setTimeout(() => proc.kill("SIGINT"), 2_400);
 
@@ -1132,7 +1132,7 @@ const CSI_CLEAR = `${ESC}[2J`;
 /** A ticket whose FIRST line is not a `---` delimiter, so the grammar quotes it back on stderr. */
 function plantFirstLine(dir: string, id: string, firstLine: string): void {
   writeFileSync(
-    join(dir, "plans", "tickets", `${id}.md`),
+    join(dir, FIXED_SUBPATHS.tickets, `${id}.md`),
     `${firstLine}\n---\nid: ${id}\ncolumn: Backlog\nstatus: ready\n---\n`,
     "utf8",
   );
@@ -1675,7 +1675,7 @@ describe("board-dashboard — the JSON framing prose describes the program (WR-0
 // WHY THE KEYS AND NOT ONLY THE VALUES. The chokepoint sanitizes the SERIALIZED TEXT rather than
 // walking the value tree, because the document's KEYS are content-derived too: the dial's
 // per-column limits are keyed by column name, and a column name is a line an agent wrote into
-// `plans/board.md`. A rule that only visits values answers for half the document.
+// the board file. A rule that only visits values answers for half the document.
 //
 // WHY BOTH ARMS. The plain frame path was already clean — its cells and its header go through
 // `sanitizeCell` on the way out. That is exactly why it needs a case: a proof that runs only the
@@ -2005,16 +2005,16 @@ describe("board-dashboard — the stdout write-site census is derived from the m
 /**
  * A fixture copy whose board row AND ticket frontmatter title both carry the 8-bit introducers.
  *
- * BOTH, because the two travel by different routes: the row title is read out of `plans/board.md`
- * by the board grammar, and the frontmatter title out of `plans/tickets/ABC-101.md` by the ticket
+ * BOTH, because the two travel by different routes: the row title is read out of the board file
+ * by the board grammar, and the frontmatter title out of the ticket file ABC-101.md by the ticket
  * grammar. Neither grammar refuses a C1 code point — the ticket control class is C0 plus DEL — so
  * both reach the join, and the document is where they meet.
  */
 function withPlantedC1Copy(body: (dir: string) => void): void {
   withFixtureCopy((dir) => {
     const planted = `Something${C1_CSI}in the${C1_OSC}backlog`;
-    const boardPath = join(dir, "plans", "board.md");
-    const ticketPath = join(dir, "plans", "tickets", "ABC-101.md");
+    const boardPath = join(dir, FIXED_SUBPATHS.board);
+    const ticketPath = join(dir, FIXED_SUBPATHS.tickets, "ABC-101.md");
     writeFileSync(
       boardPath,
       readFileSync(boardPath, "utf8").replace("Something in the backlog", planted),
@@ -2047,8 +2047,8 @@ describe("board-dashboard — a planted C1 reaches NEITHER channel of the shippe
 
   it("PREMISE: the planted introducers survive the grammars and reach the document's input", () => {
     withPlantedC1Copy((dir) => {
-      const board = readFileSync(join(dir, "plans", "board.md"), "utf8");
-      const ticket = readFileSync(join(dir, "plans", "tickets", "ABC-101.md"), "utf8");
+      const board = readFileSync(join(dir, FIXED_SUBPATHS.board), "utf8");
+      const ticket = readFileSync(join(dir, FIXED_SUBPATHS.tickets, "ABC-101.md"), "utf8");
       expect(
         [...new Set([...controlCodePoints(board), ...controlCodePoints(ticket)])].sort(),
         "PREMISE: the plant did not land in the scratch tree, so the zero counts below would be " +
@@ -2194,7 +2194,7 @@ function recoveredControls(value: unknown, path: string, found: RecoveredControl
  */
 function withPlantedControlsCopy(body: (dir: string) => void): void {
   withFixtureCopy((dir) => {
-    const boardPath = join(dir, "plans", "board.md");
+    const boardPath = join(dir, FIXED_SUBPATHS.board);
     writeFileSync(
       boardPath,
       readFileSync(boardPath, "utf8")
@@ -2206,7 +2206,7 @@ function withPlantedControlsCopy(body: (dir: string) => void): void {
     );
 
     // 2. a TICKET document's title takes the 8-bit introducer
-    const ticketPath = join(dir, "plans", "tickets", "ABC-101.md");
+    const ticketPath = join(dir, FIXED_SUBPATHS.tickets, "ABC-101.md");
     writeFileSync(
       ticketPath,
       readFileSync(ticketPath, "utf8").replace(
@@ -2240,8 +2240,8 @@ describe("board-dashboard — a consumer RECOVERS no control character from the 
     ).toContain("function scrub");
 
     withPlantedControlsCopy((dir) => {
-      const board = readFileSync(join(dir, "plans", "board.md"), "utf8");
-      const ticket = readFileSync(join(dir, "plans", "tickets", "ABC-101.md"), "utf8");
+      const board = readFileSync(join(dir, FIXED_SUBPATHS.board), "utf8");
+      const ticket = readFileSync(join(dir, FIXED_SUBPATHS.tickets, "ABC-101.md"), "utf8");
       const cfg = readFileSync(join(dir, "agent-factory", "config", "factory.config.json"), "utf8");
       // `controlCodePoints` rather than the strict twin: these are FILE bytes, where the newline
       // is the file's own structure. The strict twin is for a value recovered from a document,
@@ -2343,7 +2343,7 @@ describe("board-dashboard — a consumer RECOVERS no control character from the 
     expect(escapedAsText, "PREMISE: the literal is not six characters of TEXT").toHaveLength(6);
 
     withFixtureCopy((dir) => {
-      const boardPath = join(dir, "plans", "board.md");
+      const boardPath = join(dir, FIXED_SUBPATHS.board);
       writeFileSync(
         boardPath,
         readFileSync(boardPath, "utf8").replace(
@@ -3045,11 +3045,11 @@ describe("32.1-07 — F-14 end to end: an admitted C1 byte is SPELLED in the pub
   it("the conflict sentences name the declared identifier, byte spelled, on stdout", () => {
     withFixtureCopy((dir) => {
       writeFileSync(
-        join(dir, "plans", "tickets", "ABC-901.md"),
+        join(dir, FIXED_SUBPATHS.tickets, "ABC-901.md"),
         `---\nid: ${DECLARED}\ntitle: the F-14 reproduction\nstatus: backlog\ncolumn: Backlog\n---\n\n# x\n`,
         "utf8",
       );
-      const board = readFileSync(join(dir, "plans", "board.md"), "utf8");
+      const board = readFileSync(join(dir, FIXED_SUBPATHS.board), "utf8");
       const anchor = "- [ABC-101] Something in the backlog  (owner: BA/PM, since: 2026-09-01)";
       expect(
         board.includes(anchor),
@@ -3057,7 +3057,7 @@ describe("32.1-07 — F-14 end to end: an admitted C1 byte is SPELLED in the pub
           "the conflicts below are about a tree that does not exist",
       ).toBe(true);
       writeFileSync(
-        join(dir, "plans", "board.md"),
+        join(dir, FIXED_SUBPATHS.board),
         board.replace(anchor, `${anchor}\n- [ABC-901] the F-14 reproduction`),
         "utf8",
       );
@@ -3081,7 +3081,7 @@ describe("32.1-07 — F-14 end to end: an admitted C1 byte is SPELLED in the pub
           "document states that a file declares an identifier it does not declare. A reader who " +
           "searches the tree for what it prints finds nothing",
       ).toEqual([
-        `plans/tickets/ABC-901.md exists and declares the identifier ${SPELLED}, ` +
+        `${FIXED_SUBPATHS.tickets}/ABC-901.md exists and declares the identifier ${SPELLED}, ` +
           "so it is joined under that identifier and not this one",
       ]);
 
@@ -3108,7 +3108,7 @@ describe("32.1-07 — F-14 end to end: an admitted C1 byte is SPELLED in the pub
       // frame. Two modules' sentences, one byte, one line a human reads.
       const doc = (stem: string): void =>
         writeFileSync(
-          join(dir, "plans", "tickets", `${stem}.md`),
+          join(dir, FIXED_SUBPATHS.tickets, `${stem}.md`),
           `---\nid: ${DECLARED}\ntitle: t\nstatus: backlog\ncolumn: Backlog\n---\n\n# x\n`,
           "utf8",
         );

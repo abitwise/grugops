@@ -40,8 +40,9 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { BOARD_REL } from "../install/state-layout.js";
+import { FIXED_SUBPATHS } from "./board-read.js";
 
 import {
   LARGE_BOARD_BYTES,
@@ -112,9 +113,9 @@ const RICH = RICH_LINES.join("\n");
 type CorpusDoc = { readonly label: string; readonly text: string };
 
 const REAL_DOCS: readonly string[] = [
-  "plans/board.md",
+  FIXED_SUBPATHS.board,
   `agent-factory/seed/${BOARD_REL}`,
-  "plans/traceability.md",
+  FIXED_SUBPATHS.traceability,
 ];
 
 const CORPUS: readonly CorpusDoc[] = [
@@ -254,7 +255,7 @@ describe("board-model — the harness's own premises", () => {
     const scan = scanIndependently(board.text);
     expect(
       scan.commented.size,
-      "PREMISE: plans/board.md ships a multi-line HTML comment; a zero here means the oracle saw none",
+      `PREMISE: ${FIXED_SUBPATHS.board} ships a multi-line HTML comment; a zero here means the oracle saw none`,
     ).toBeGreaterThan(10);
   });
 
@@ -402,7 +403,7 @@ describe("board-model — I4, unparsed lines are ordered and real", () => {
   }
 
   it("reports zero unparsed lines on the kit board as it ships", () => {
-    const model = parseBoard(readFileSync(join(ROOT, "plans/board.md"), "utf8"));
+    const model = parseBoard(readFileSync(join(ROOT, FIXED_SUBPATHS.board), "utf8"));
     expect(model.unparsed, "a fresh checkout's board must produce no findings").toEqual([]);
     expect(model.preamble.length, "the `_Updated:` placeholder lives in the preamble").toBeGreaterThan(0);
   });
@@ -808,7 +809,7 @@ const ticket = (
 /**
  * A record whose FILE STEM and DECLARED IDENTIFIER disagree — the third population (plan 32-33).
  *
- * `plans/tickets/<stem>.md` declares `<id>`. This is what the reader hands the join for a document
+ * The ticket file `<stem>.md` declares `<id>`. This is what the reader hands the join for a document
  * it listed, opened, parsed and admitted under an identifier that is not its file name.
  */
 const mismatched = (
@@ -864,7 +865,7 @@ describe("board-model — the conflict kinds are a CLOSED set (D-10)", () => {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // PLAN 32-09 — THE PRESENCE-DEPENDENT SPLIT, DERIVED RATHER THAN RESTATED.
 //
-// CR-02's consequence: with `plans/tickets/` unreadable, the join asserted that seven ticket files
+// CR-02's consequence: with the ticket directory unreadable, the join asserted that seven ticket files
 // did not exist, six of which did. The fix gates the two kinds whose derivation depends on a
 // COMPLETE listing. The split itself is the thing that can rot — a future eighth kind lands in
 // `CONFLICT_KINDS` and nobody asks which side of this line it falls on — so the COMPLEMENT is
@@ -1045,11 +1046,11 @@ describe("board-model — a REFUSED document is never reported as an ABSENT one 
     expect(raised.length).toBe(1);
     expect(raised[0]?.actual).not.toBe(ABSENCE_SENTENCE);
     expect(raised[0]?.actual).toContain("unknown-key");
-    expect(raised[0]?.actual).toContain("plans/tickets/ABC-900.md");
+    expect(raised[0]?.actual).toContain(`${FIXED_SUBPATHS.tickets}/ABC-900.md`);
     // The KIND does not split and `expected` does not move: D-10 makes the kind set part of the
     // published shape, and the honesty is reachable inside the existing kind.
     expect(raised[0]?.kind).toBe("row-without-file");
-    expect(raised[0]?.expected).toBe("plans/tickets/ABC-900.md");
+    expect(raised[0]?.expected).toBe(`${FIXED_SUBPATHS.tickets}/ABC-900.md`);
     expect(raised[0]?.column).toBe("In Development");
   });
 
@@ -1448,7 +1449,7 @@ describe("board-model — joinSnapshot derives every conflict kind (D-08, D-09, 
     const found = only(conflicts, "row-without-file");
     expect(found).toHaveLength(1);
     expect(found[0]?.ticketId).toBe("ABC-001");
-    expect(found[0]?.expected).toBe("plans/tickets/ABC-001.md");
+    expect(found[0]?.expected).toBe(`${FIXED_SUBPATHS.tickets}/ABC-001.md`);
     expect(found[0]?.source).toBe("board");
     expect(snapshot.board?.columns[0]?.rows).toHaveLength(1);
   });
@@ -1518,7 +1519,7 @@ describe("board-model — joinSnapshot derives every conflict kind (D-08, D-09, 
     ).toEqual([]);
     expect(
       only(conflicts, "ticket-unplaced"),
-      "an epic row is never joined against plans/tickets/",
+      `an epic row is never joined against ${FIXED_SUBPATHS.tickets}/`,
     ).toEqual([]);
   });
 
@@ -1823,11 +1824,13 @@ describe("board-model — the golden projection spells a location token one way 
       "<fixture-root>/.grugops/queue/claimed/abc-105-tampered/claim.md carries 2 `at:` lines",
     );
     // A bare `path` value, the other shape the golden carries.
-    expect(projectLocations("<fixture-root>\\plans\\board.md", win32.sep)).toBe(
-      "<fixture-root>/plans/board.md",
+    expect(projectLocations(`<fixture-root>\\${FIXED_SUBPATHS.board.split("/").join("\\")}`, win32.sep)).toBe(
+      `<fixture-root>/${FIXED_SUBPATHS.board}`,
     );
     // Under the POSIX separator the projection is the identity — the live call on this host.
-    expect(projectLocations("<fixture-root>/plans/board.md", "/")).toBe("<fixture-root>/plans/board.md");
+    expect(projectLocations(`<fixture-root>/${FIXED_SUBPATHS.board}`, "/")).toBe(
+      `<fixture-root>/${FIXED_SUBPATHS.board}`,
+    );
     // A backslash OUTSIDE a location token is not a separator and is left alone.
     expect(projectLocations("no location here \\ at all", win32.sep)).toBe("no location here \\ at all");
   });
@@ -2645,7 +2648,7 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
       presenceActual("ABC-901", winner),
       "the WINNER is genuinely joined under the identifier it declares, and its sentence is unchanged",
     ).toBe(
-      "plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined " +
+      `${FIXED_SUBPATHS.tickets}/ABC-901.md exists and declares the identifier ABC-902, so it is joined ` +
         "under that identifier and not this one",
     );
     expect(
@@ -2653,8 +2656,8 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
       "the LOSER is joined under NO identifier, and the sentence must not assert a join that did " +
         "not happen. CLAUDE.md's no-fabrication rule is what makes this a defect rather than a nicety",
     ).toBe(
-      "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which " +
-        "plans/tickets/ABC-901.md claimed first, so it is joined under no identifier",
+      `${FIXED_SUBPATHS.tickets}/ABC-903.md exists and declares the identifier ABC-902, which ` +
+        `${FIXED_SUBPATHS.tickets}/ABC-901.md claimed first, so it is joined under no identifier`,
     );
 
     // THE TWO SENTENCES ARE DISTINCT, which is the whole point: one arm, two facts, two answers.
@@ -2676,11 +2679,11 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
 
     expect(sentences.get("admitted-under-this-id"), "an admitted row is not a conflict").toBe(null);
     expect(sentences.get("admitted-under-another-id")).toBe(
-      "plans/tickets/ABC-300.md exists and declares the identifier ABC-777, so it is joined " +
+      `${FIXED_SUBPATHS.tickets}/ABC-300.md exists and declares the identifier ABC-777, so it is joined ` +
         "under that identifier and not this one",
     );
     expect(sentences.get("refused")).toBe(
-      "plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)",
+      `${FIXED_SUBPATHS.tickets}/ABC-900.md exists and the reader could not admit it (unknown-key)`,
     );
     expect(sentences.get("absent"), "the absence sentence is unchanged, byte for byte").toBe(
       ABSENT_TEXT,
@@ -2725,23 +2728,23 @@ describe("board-model — the join states what the file declares, never that it 
     expect(
       forMismatch.map((c) => c.actual),
       "the projector asserted that no file carries ABC-300 while holding the record it built " +
-        "from plans/tickets/ABC-300.md — a positive claim about a filesystem it read correctly",
+        `from ${FIXED_SUBPATHS.tickets}/ABC-300.md — a positive claim about a filesystem it read correctly`,
     ).not.toContain(ABSENT_TEXT);
 
     const raised = only(MISMATCH_JOIN(), "row-without-file").filter((c) => c.ticketId === "ABC-300");
     expect(raised.length, "and the row is still reported: silence is a quieter fabrication").toBe(1);
     expect(raised[0]?.actual).toContain("declares the identifier ABC-777");
-    expect(raised[0]?.actual).toContain("plans/tickets/ABC-300.md");
+    expect(raised[0]?.actual).toContain(`${FIXED_SUBPATHS.tickets}/ABC-300.md`);
     // The kind does not split and `expected` does not move.
     expect(raised[0]?.kind).toBe("row-without-file");
-    expect(raised[0]?.expected).toBe("plans/tickets/ABC-300.md");
+    expect(raised[0]?.expected).toBe(`${FIXED_SUBPATHS.tickets}/ABC-300.md`);
     expect(raised[0]?.column).toBe("In Development");
   });
 
   it("leaves the refused and genuinely-absent rows BYTE-IDENTICAL to what they said before", () => {
     const conflicts = only(MISMATCH_JOIN(), "row-without-file");
     expect(conflicts.find((c) => c.ticketId === "ABC-900")?.actual).toBe(
-      "plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)",
+      `${FIXED_SUBPATHS.tickets}/ABC-900.md exists and the reader could not admit it (unknown-key)`,
     );
     expect(conflicts.find((c) => c.ticketId === "ABC-404")?.actual).toBe(ABSENT_TEXT);
     // Exactly three rows, so the fix neither dropped a population nor invented a fourth row.
@@ -2812,10 +2815,11 @@ function withTicketTree(
   // this platform — an unresolved root makes the reader refuse its own fixture for containment.
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "board-presence-")));
   try {
-    mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
-    writeFileSync(join(dir, "plans", "board.md"), board, "utf8");
+    mkdirSync(join(dir, FIXED_SUBPATHS.tickets), { recursive: true });
+    mkdirSync(join(dir, posix.dirname(FIXED_SUBPATHS.board)), { recursive: true });
+    writeFileSync(join(dir, FIXED_SUBPATHS.board), board, "utf8");
     for (const [name, text] of Object.entries(files)) {
-      writeFileSync(join(dir, "plans", "tickets", name), text, "utf8");
+      writeFileSync(join(dir, FIXED_SUBPATHS.tickets, name), text, "utf8");
     }
     run(dir);
   } finally {
@@ -2850,7 +2854,7 @@ describe("board-model — the presence partition's KEYS balance as arithmetic (p
     withTicketTree(TREE_FILES, TREE_BOARD, (dir) => {
       // THE LEFT-HAND SIDE IS TAKEN FROM THE DIRECTORY, on the other side of the reader's loop. A
       // number taken from the record set would be vacuously equal to itself.
-      const listed = readdirSync(join(dir, "plans", "tickets")).filter((n) => n.endsWith(".md"));
+      const listed = readdirSync(join(dir, FIXED_SUBPATHS.tickets)).filter((n) => n.endsWith(".md"));
       const fromListing = new Set(listed.map((n) => n.slice(0, -".md".length)));
       expect(
         fromListing.size,
@@ -3102,7 +3106,7 @@ const PRESENCE_AUDIT: readonly AuditRow[] = [
     readerProducible: true,
     populations: () => populationsFromTree(CONTEST_TREE),
     before:
-      "plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined " +
+      `${FIXED_SUBPATHS.tickets}/ABC-901.md exists and declares the identifier ABC-902, so it is joined ` +
       "under that identifier and not this one",
   },
   {
@@ -3117,7 +3121,7 @@ const PRESENCE_AUDIT: readonly AuditRow[] = [
       refusedById: new Map(),
     }),
     before:
-      "plans/tickets/ABC-950.md exists and declares the identifier ABC-951, which no admitted " +
+      `${FIXED_SUBPATHS.tickets}/ABC-950.md exists and declares the identifier ABC-951, which no admitted ` +
       "document is joined under, so it is joined under no identifier",
   },
   {
@@ -3128,8 +3132,8 @@ const PRESENCE_AUDIT: readonly AuditRow[] = [
     readerProducible: true,
     populations: () => populationsFromTree(CONTEST_TREE),
     before:
-      "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which " +
-      "plans/tickets/ABC-901.md claimed first, so it is joined under no identifier",
+      `${FIXED_SUBPATHS.tickets}/ABC-903.md exists and declares the identifier ABC-902, which ` +
+      `${FIXED_SUBPATHS.tickets}/ABC-901.md claimed first, so it is joined under no identifier`,
   },
   {
     branch: "B5 refused by the ticket grammar",
@@ -3138,7 +3142,7 @@ const PRESENCE_AUDIT: readonly AuditRow[] = [
     values: ["ABC-900", "unknown-key"],
     readerProducible: true,
     populations: () => populationsFromTree(REFUSED_TREE),
-    before: "plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)",
+    before: `${FIXED_SUBPATHS.tickets}/ABC-900.md exists and the reader could not admit it (unknown-key)`,
   },
   {
     branch: "B6 absent",
@@ -3271,7 +3275,7 @@ describe("board-model — the `joinedStem === undefined` branch is unreachable f
     expect(p.kind).toBe("admitted-under-another-id");
     expect(p.kind === "admitted-under-another-id" ? p.joinedStem : "unset").toBeUndefined();
     expect(presenceActual("ABC-950", p)).toBe(
-      "plans/tickets/ABC-950.md exists and declares the identifier ABC-951, which no admitted " +
+      `${FIXED_SUBPATHS.tickets}/ABC-950.md exists and declares the identifier ABC-951, which no admitted ` +
         "document is joined under, so it is joined under no identifier",
     );
   });
@@ -3302,11 +3306,11 @@ describe("board-model — the converse of the arm the WR-01 fix touched (plan 32
 
     // The loser still names the winner by file name, and the winner still says it is joined.
     expect(presenceActual("ABC-903", presenceOf("ABC-903", populations))).toBe(
-      "plans/tickets/ABC-903.md exists and declares the identifier ABC-902, which " +
-        "plans/tickets/ABC-901.md claimed first, so it is joined under no identifier",
+      `${FIXED_SUBPATHS.tickets}/ABC-903.md exists and declares the identifier ABC-902, which ` +
+        `${FIXED_SUBPATHS.tickets}/ABC-901.md claimed first, so it is joined under no identifier`,
     );
     expect(presenceActual("ABC-901", presenceOf("ABC-901", populations))).toBe(
-      "plans/tickets/ABC-901.md exists and declares the identifier ABC-902, so it is joined " +
+      `${FIXED_SUBPATHS.tickets}/ABC-901.md exists and declares the identifier ABC-902, so it is joined ` +
         "under that identifier and not this one",
     );
   });
@@ -3561,7 +3565,7 @@ describe("32.1-07 — F-14: a quoted ticket identifier's C1 byte is SPELLED, nev
         "deleted, so the snapshot misquotes its own evidence: a reader who searches the tree for " +
         "what it prints finds nothing, and a reader who re-types it produces a different identifier",
     ).toBe(
-      `plans/tickets/ABC-901.md exists and declares the identifier ${F14_SPELLED}, ` +
+      `${FIXED_SUBPATHS.tickets}/ABC-901.md exists and declares the identifier ${F14_SPELLED}, ` +
         "so it is joined under that identifier and not this one",
     );
     expect(
