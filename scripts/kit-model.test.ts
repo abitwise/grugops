@@ -63,7 +63,15 @@ import {
   PLUGIN_SKILL_ADAPTER_COUNT,
   SPAWN_GRANT_SCAN_COUNT,
   MAX_WALK_ENTRIES,
+  INVARIANT,
 } from "./kit-model.js";
+// A test may import the state-layout authority; only the hand-mirrored production modules may not
+// (36-RESEARCH Pitfall 8). The every-carrier case below holds each copy of the clause to it.
+import {
+  LEGACY_FALLBACK_CLAUSE,
+  LEGACY_STATE_ROOT_REL,
+  STATE_ROOT_REL,
+} from "../install/state-layout.js";
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -1947,5 +1955,185 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
     expect(spawnGrantScanPrefix("packaging")).toBe("agent-factory/packaging/");
     // @ts-expect-error — the guard against a typo silently returning undefined.
     expect(() => spawnGrantScanPrefix("packagin")).toThrow(/no spawn-grant scan part/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// THE EVERY-CARRIER FALLBACK CLAUSE (plan 36-11; D-03 as amended by D-14; LAYOUT-04, agent half).
+//
+// The rule for where state lives on an unmigrated repository is ONE sentence, LEGACY_FALLBACK_CLAUSE
+// in install/state-layout.ts. Every text an agent can read the rule from carries a COPY of it:
+// INVARIANT, AGENTS.md § Kit vs state, each invariant copy in the packaging templates, each plugin-form
+// skill source, the kit-home Orchestrator's line 8, each generated agent adapter and each generated
+// skill twin. These cases hold every copy to the constant byte for byte, so a carrier that drifts by
+// one character (an em dash, a backtick, a no-break space) goes red here rather than teaching one
+// repository a different rule from another.
+//
+// THE CARRIER LISTS ARE DERIVED, NEVER TYPED. Adapters come from listRoles() through the generator's
+// own `grugops-<stem>.md` rule (and are checked against listAgentAdapters()), skill sources from
+// listPluginSkillAdapters(), twins from listSkillAdapters(), packaging files from
+// listPackagingTemplates(). The count of carriers asked is asserted against the sum of those
+// derivations, so a carrier that silently drops out of a list is caught rather than skipped.
+//
+// EQUALITY IS EXACT UTF-8 BYTE CONTAINMENT, with no normalization. The discrimination control below
+// mutates one character of the clause in every carrier (including a no-break space that Unicode
+// normalization would fold back to a space) and requires the same predicate to refuse it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+const REPO = join(import.meta.dirname, "..");
+const CLAUSE_BYTES = Buffer.from(LEGACY_FALLBACK_CLAUSE, "utf8");
+const INVARIANT_LINE_PREFIX = "> **Kit vs state invariant:**";
+
+/** The one carrier predicate: exact UTF-8 byte containment of the clause, no normalization. */
+function holdsClause(bytes: Buffer): boolean {
+  return bytes.includes(CLAUSE_BYTES);
+}
+
+interface ClauseCarrier {
+  readonly label: string;
+  readonly bytes: Buffer;
+}
+
+/** The lines after `## Kit vs state`, up to (not including) the next `## ` heading. */
+function kitVsStateSection(text: string): string {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l === "## Kit vs state");
+  if (at < 0) throw new Error("AGENTS.md has no `## Kit vs state` heading");
+  const rest = lines.slice(at + 1);
+  const end = rest.findIndex((l) => l.startsWith("## "));
+  return (end < 0 ? rest : rest.slice(0, end)).join("\n");
+}
+
+interface CarrierSet {
+  readonly carriers: ClauseCarrier[];
+  readonly derivedCount: number;
+}
+
+function clauseCarriers(): CarrierSet {
+  const carriers: ClauseCarrier[] = [];
+  const read = (rel: string): Buffer => readFileSync(join(REPO, rel));
+
+  // 1. INVARIANT, the literal the generators stamp into every adapter and skill.
+  carriers.push({ label: "INVARIANT (scripts/kit-model.js)", bytes: Buffer.from(INVARIANT, "utf8") });
+
+  // 2. AGENTS.md § Kit vs state.
+  carriers.push({
+    label: "AGENTS.md § Kit vs state",
+    bytes: Buffer.from(kitVsStateSection(read("AGENTS.md").toString("utf8")), "utf8"),
+  });
+
+  // 3. Each packaging template, counted per invariant copy.
+  const packaging = listPackagingTemplates(REPO);
+  let packagingCopies = 0;
+  for (const file of packaging) {
+    const rel = `agent-factory/packaging/${file}`;
+    const copies = read(rel)
+      .toString("utf8")
+      .split("\n")
+      .filter((l) => l.startsWith(INVARIANT_LINE_PREFIX));
+    // A packaging template with no invariant copy would drop out of the carrier set silently.
+    if (copies.length === 0) throw new Error(`${rel} carries no invariant copy`);
+    copies.forEach((line, i) => {
+      carriers.push({ label: `${rel} invariant copy ${i + 1}`, bytes: Buffer.from(line, "utf8") });
+    });
+    packagingCopies += copies.length;
+  }
+
+  // 4. Each plugin-form skill source.
+  const skillSources = listPluginSkillAdapters(REPO);
+  for (const rel of skillSources) carriers.push({ label: `skills/${rel}`, bytes: read(`skills/${rel}`) });
+
+  // 5. The kit-home Orchestrator's line 8, the copy an unmigrated repository reads after --update.
+  const orchestratorLine8 = read("agent-factory/roles/orchestrator.md").toString("utf8").split("\n")[7] ?? "";
+  carriers.push({
+    label: "agent-factory/roles/orchestrator.md line 8",
+    bytes: Buffer.from(orchestratorLine8, "utf8"),
+  });
+
+  // 6. Each generated agent adapter, from the generator's rule over listRoles().
+  const roles = listRoles(REPO);
+  for (const role of roles) {
+    const rel = `.claude/agents/grugops-${role.replace(/\.md$/, "")}.md`;
+    carriers.push({ label: rel, bytes: read(rel) });
+  }
+
+  // 7. Each generated skill twin.
+  const twins = listSkillAdapters(REPO);
+  for (const rel of twins) carriers.push({ label: `.claude/skills/${rel}`, bytes: read(`.claude/skills/${rel}`) });
+
+  const derivedCount = 1 + 1 + packagingCopies + skillSources.length + 1 + roles.length + twins.length;
+  return { carriers, derivedCount };
+}
+
+/** Change one character of every clause occurrence in `bytes` (split/join, so every copy moves). */
+function mutateClause(bytes: Buffer, from: number, replacement: string): Buffer {
+  const mutated =
+    LEGACY_FALLBACK_CLAUSE.slice(0, from) + replacement + LEGACY_FALLBACK_CLAUSE.slice(from + 1);
+  return Buffer.from(bytes.toString("utf8").split(LEGACY_FALLBACK_CLAUSE).join(mutated), "utf8");
+}
+
+describe("the fallback clause in every carrier (plan 36-11; D-03, D-14; LAYOUT-04)", () => {
+  it("every carrier holds LEGACY_FALLBACK_CLAUSE byte for byte", () => {
+    const { carriers } = clauseCarriers();
+    const drifted = carriers.filter((c) => !holdsClause(c.bytes)).map((c) => c.label);
+    // Joined to one line so the failure names every drifted carrier in a single readable string.
+    expect(drifted.join("; "), "carriers whose copy of LEGACY_FALLBACK_CLAUSE is missing or differs").toBe("");
+  });
+
+  it("the carrier lists are derived and the count asked equals the sum of the derivations", () => {
+    const { carriers, derivedCount } = clauseCarriers();
+    expect(carriers.length).toBe(derivedCount);
+    // Floors at what the derivations return: every derived list is non-empty.
+    expect(listRoles(REPO).length).toBeGreaterThan(0);
+    expect(listPluginSkillAdapters(REPO).length).toBeGreaterThan(0);
+    expect(listSkillAdapters(REPO).length).toBeGreaterThan(0);
+    expect(listPackagingTemplates(REPO).length).toBeGreaterThan(0);
+    // The generator writes one adapter per role and nothing else, so the role-derived adapter set is
+    // the adapter directory's own derivation; a stray or missing adapter is not silently skipped.
+    expect(listRoles(REPO).map((r) => `grugops-${r.replace(/\.md$/, "")}.md`).sort()).toEqual(
+      listAgentAdapters(REPO),
+    );
+    // One twin per skill source.
+    expect(listSkillAdapters(REPO).length).toBe(listPluginSkillAdapters(REPO).length);
+    // Labels are unique, so no carrier is counted twice.
+    expect(new Set(carriers.map((c) => c.label)).size).toBe(carriers.length);
+  });
+
+  it("discrimination control: one changed character of the clause in any carrier fails the same predicate", () => {
+    const { carriers } = clauseCarriers();
+    const space = LEGACY_FALLBACK_CLAUSE.indexOf(" ");
+    const backtick = LEGACY_FALLBACK_CLAUSE.indexOf("`");
+    expect(space).toBeGreaterThan(-1);
+    expect(backtick).toBeGreaterThan(-1);
+    // PREMISE: a no-break space folds back to a space under NFKC, so a comparator that normalized
+    // would accept the first mutation. Exact byte containment must refuse it.
+    const nbsp = mutateClause(CLAUSE_BYTES, space, " ").toString("utf8");
+    expect(nbsp.normalize("NFKC")).toBe(LEGACY_FALLBACK_CLAUSE);
+    for (const c of carriers) {
+      if (!holdsClause(c.bytes)) continue; // the drift case above already names it
+      expect(holdsClause(mutateClause(c.bytes, space, " ")), `${c.label} (no-break space)`).toBe(false);
+      expect(holdsClause(mutateClause(c.bytes, backtick, "'")), `${c.label} (backtick)`).toBe(false);
+    }
+  });
+
+  it("INVARIANT names the v3 state root and no pre-v3 root outside the clause", () => {
+    expect(INVARIANT.split(LEGACY_FALLBACK_CLAUSE).length - 1).toBe(1);
+    expect(INVARIANT).toContain(`\`${STATE_ROOT_REL}/\``);
+    expect(INVARIANT.split(LEGACY_FALLBACK_CLAUSE).join("")).not.toContain(`\`${LEGACY_STATE_ROOT_REL}/\``);
+  });
+
+  it("no role other than orchestrator.md and no workflow carries the clause or any migrate text (D-03)", () => {
+    const offenders: string[] = [];
+    for (const role of listRoles(REPO)) {
+      if (role === "orchestrator.md") continue;
+      const rel = `agent-factory/roles/${role}`;
+      const bytes = readFileSync(join(REPO, rel));
+      if (holdsClause(bytes) || bytes.toString("utf8").includes("install --migrate")) offenders.push(rel);
+    }
+    for (const wf of listWorkflows(REPO)) {
+      const rel = `agent-factory/workflows/${wf}`;
+      const bytes = readFileSync(join(REPO, rel));
+      if (holdsClause(bytes) || bytes.toString("utf8").includes("install --migrate")) offenders.push(rel);
+    }
+    expect(offenders).toEqual([]);
   });
 });
