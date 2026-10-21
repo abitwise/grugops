@@ -50,6 +50,7 @@ import {
   userModeEdit,
 } from "./installer-paths.test-support.js";
 import { agentCommand } from "./host-tools.js";
+import { BOARD_REL, LEGACY_HANDOFFS_REL, STATE_ROOTS, STATE_ROOT_REL } from "./state-layout.js";
 import { ledgerOf, readMarkerObject, withLedger, type RawEntry } from "./ledger.test-support.js";
 import { modeText, treeRecord } from "./user-file.js";
 import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
@@ -99,11 +100,11 @@ const install = (w: World, args: readonly string[] = [], dryRun = false): Run =>
   return r;
 };
 
-/** The old layout, with a plans/handoffs/ directory so the handoffs origin is covered too. */
+/** The old layout, with a pre-v3 handoffs directory (LEGACY_HANDOFFS_REL) so the handoffs origin is covered too. */
 function oldLayout(w: World): void {
   makeOldLayoutFixture(w.t, { rootConfig: true });
-  mkdirSync(at(w.t, "plans/handoffs"), { recursive: true });
-  writeFileSync(at(w.t, "plans/handoffs/relay-1.md"), "a handoff the user kept\n");
+  mkdirSync(at(w.t, LEGACY_HANDOFFS_REL), { recursive: true });
+  writeFileSync(at(w.t, `${LEGACY_HANDOFFS_REL}/relay-1.md`), "a handoff the user kept\n");
 }
 
 /** The ledger's backup entries, by path. */
@@ -142,7 +143,7 @@ function backupsMade(before: string, after: string): string[] {
 function originOf(path: string): string {
   if (path.includes(".grugops-edited-")) return "edited-kit-file";
   if (path.startsWith("agent-factory.bak.")) return "in-repo-kit";
-  if (path.startsWith("plans/handoffs.bak.")) return "handoffs";
+  if (path.startsWith(`${LEGACY_HANDOFFS_REL}.bak.`)) return "handoffs";
   if (/(^|\/)factory\.config\.json\.bak\./.test(path)) return "legacy-config";
   return "unknown";
 }
@@ -193,7 +194,7 @@ describe("every backup install makes in the target is recorded (plan 33.1-40 Tas
     oldLayout(w);
     expect(install(w, ["--migrate", "--backup-edited-kit"]).status).toBe(0);
     const first = backupEntries(w.t);
-    const handoffs = [...first.keys()].find((p) => p.startsWith("plans/handoffs.bak."))!;
+    const handoffs = [...first.keys()].find((p) => p.startsWith(`${LEGACY_HANDOFFS_REL}.bak.`))!;
     const kitBak = [...first.keys()].find((p) => p.startsWith("agent-factory.bak."))!;
     rmSync(at(w.t, handoffs), { recursive: true });
     // A change inside a backup does not move its record: the record says what install left there.
@@ -498,6 +499,46 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     expect(existsSync(at(w.t, rel)), "a backup under the live agent-factory/ was removed").toBe(true);
     expect(linesOf(r, "left").filter((l) => l.includes(rel) && l.includes("protected")).length, r.stdout).toBe(1);
     expect(backupEntries(w.t).has(rel)).toBe(true);
+  });
+
+  // LAYOUT-03 (plan 36-01, D-13 step 1): every root of the one exported STATE_ROOTS list, read from the import and
+  // never retyped, keeps a recorded backup under it. memory-bank is planted under the state root itself (the board
+  // path with a backup suffix), so a backup under memory-bank/plans/ is the case that proves the new root is held.
+  it("a recorded backup under every STATE_ROOTS root (memory-bank/plans/ included) is left byte-identical, its entry kept", () => {
+    const w = migrated("protected-roots");
+    const stamp = ".bak.2026-01-02T03-04-05.678Z";
+    const planted = STATE_ROOTS.map((root) => {
+      const of = root === "memory-bank" ? BOARD_REL : `${root}/factory.config.json`;
+      const rel = `${of}${stamp}`;
+      expect(rel.startsWith(`${root}/`), `${rel} is not under ${root}/`).toBe(true);
+      return { root, rel, of };
+    });
+    expect(planted.some((x) => x.rel.startsWith(`${STATE_ROOT_REL}/`)), "no plant under the state root").toBe(true);
+    const before = new Map<string, Buffer>();
+    for (const { rel } of planted) {
+      mkdirSync(at(w.t, rel.slice(0, rel.lastIndexOf("/"))), { recursive: true });
+      writeFileSync(at(w.t, rel), `{ "a": "a backup under a protected root: ${rel}" }\n`);
+      before.set(rel, readFileSync(at(w.t, rel)));
+    }
+    editLedger(w.t, (entries) => [
+      ...entries,
+      ...planted.map(({ rel, of }) => ({
+        path: rel,
+        kind: "backup",
+        origin: "legacy-config",
+        of,
+        content: `sha256:${sha(readFileSync(at(w.t, rel)))};mode=${modeOf(at(w.t, rel))}`,
+      })),
+    ]);
+    const r = prune(w);
+    expect(r.status, r.stdout).toBe(0);
+    const kept = backupEntries(w.t);
+    for (const { root, rel } of planted) {
+      expect(existsSync(at(w.t, rel)), `${root}: the backup under a protected root was removed`).toBe(true);
+      expect(readFileSync(at(w.t, rel)).equals(before.get(rel)!), `${root}: the backup's bytes changed`).toBe(true);
+      expect(linesOf(r, "left").filter((l) => l.includes(rel) && l.includes("under a protected path")).length, `${root}\n${r.stdout}`).toBe(1);
+      expect(kept.has(rel), `${root}: the entry was taken out of the record`).toBe(true);
+    }
   });
 
   it("a forged entry naming a user's directory with a record that does not match it is left (T-33.1-402)", () => {

@@ -202,6 +202,9 @@ import {
   type LaunchHost,
   type RouteFacts,
 } from "./host-tools.js";
+// Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
+// free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
+import { STATE_ROOTS } from "./state-layout.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step, type PickerRow, type PickerState } from "./agent-picker.js";
@@ -3209,8 +3212,7 @@ function rewriteLedger(
 // somehow named a path under one. agent-factory/, plans/, .planning/, .grugops/, docs/, src/ (and
 // the root itself) are off-limits, always. Checked against $TARGET.
 function isPruneProtected(p: string): boolean {
-  const protectedDirs = ["agent-factory", "plans", ".planning", ".grugops", "docs", "src"];
-  for (const d of protectedDirs) {
+  for (const d of STATE_ROOTS) {
     const base = `${TARGET}/${d}`;
     if (p === base || p.startsWith(`${base}/`)) return true;
   }

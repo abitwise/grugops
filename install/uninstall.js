@@ -136,6 +136,9 @@ import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPa
 // hostFootprint (each row's kind footprint, then its launch agent) gives the report pass its directory candidates
 // (reportDirCandidates).
 import { HOST_TOOLS, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, hostFootprint, entryOwners, agentCommand, commandContextFromRecord } from "./host-tools.js";
+// Phase 36 D-13: the one state path authority (constants only, imports nothing). STATE_ROOTS is the one
+// protected root list isProtected reads and the preserved banner prints.
+import { STATE_ROOTS } from "./state-layout.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -330,8 +333,7 @@ let KEPT_FOR = 0;
 // $GRUGOPS_HOME is never named in any removal path: it is shared across repos, and removing it
 // is a manual `rm` (no --purge-kit this phase).
 function isProtected(p) {
-    const protectedDirs = ["agent-factory", "plans", ".planning", ".grugops", "docs", "src"];
-    for (const d of protectedDirs) {
+    for (const d of STATE_ROOTS) {
         const base = `${TARGET}/${d}`;
         if (p === base || p.startsWith(`${base}/`))
             return true;
@@ -534,10 +536,6 @@ function reportBackup(entry) {
     report("left", `${entry.path} (install's backup of your content: ${BACKUP_ORIGIN_TEXT[entry.origin]}, from ${entry.of}; uninstall never removes a backup)`);
     setOutcome(entry, "left");
 }
-// SEEDED PER-REPO STATE (D-06): a directory install seeded for the user's own state. Install records the
-// directories it created there, but they are the user's from then on, and uninstall never removes them.
-// isProtected covers .grugops/ and plans/; memory-bank/ is the other seeded tree.
-const isSeededState = (rel) => rel === "memory-bank" || rel.startsWith("memory-bank/");
 // rmdir_if_empty: remove a now-empty directory install created (never recursive, never -f a tree).
 // Reached only from reverseDir, for a `dir` entry of the ledger.
 //
@@ -635,7 +633,7 @@ const TOOLS_LEFT = "tools/ (grugops owns tools/grugops/ only — the directory i
     "marker records that install created it)";
 // reverseDir (plan 33.1-38): a `dir` entry. Walked deepest first, after every file entry, so a directory
 // is reached once everything this run removes from it is gone. It asks the one authority first; tools/ and
-// the seeded per-repo state (isProtected, isSeededState) are never removed; every other directory goes
+// the seeded per-repo state (isProtected, over STATE_ROOTS) are never removed; every other directory goes
 // through rmdirIfEmpty, which asks owns again at the removal itself (the census pins it there).
 function reverseDir(entry) {
     if (!owns(LEDGER, TARGET, entry.path, "dir").owned) {
@@ -648,7 +646,7 @@ function reverseDir(entry) {
         setOutcome(entry, isDir(`${TARGET}/tools`) ? "left" : "gone");
         return;
     }
-    if (isSeededState(entry.path) || isProtected(`${TARGET}/${entry.path}`)) {
+    if (isProtected(`${TARGET}/${entry.path}`)) {
         setOutcome(entry, "left");
         return;
     }
@@ -2625,7 +2623,7 @@ const markerOutcome = removeMarker();
 // removeMarker keeps or leaves it in most of its arms. The marker line is built from removeMarker's
 // MarkerOutcome alone.
 console.log("\n-- preserved (never touched) --");
-console.log("  agent-factory/  plans/  .planning/  docs/  src/  the shared kit at $GRUGOPS_HOME,");
+console.log(`  ${STATE_ROOTS.map((d) => `${d}/`).join("  ")}  the shared kit at $GRUGOPS_HOME,`);
 console.log("  and every byte in this repo that install did not record adding.");
 console.log("  .grugops/ (seeded state) is kept; its install.json marker is reported on the next line.");
 console.log(`  ${MARKER_REL} (the install marker): ${markerOutcomeLine(markerOutcome)}`);

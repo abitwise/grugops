@@ -49,6 +49,8 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { LEGACY_MERGED_BEFORE, LEGACY_MERGED_TEXT, askRecord, dirList, ledgerOf, plantLegacyGemini, readMarkerObject, withLedger } from "./ledger.test-support.js";
+import { fileRecord } from "./install-marker.js";
+import { BOARD_REL, STATE_ROOTS } from "./state-layout.js";
 import { ADAPTER_FOOTPRINT, AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners, type HostTool } from "./host-tools.js";
 import {
   INSTALL_JS,
@@ -70,6 +72,7 @@ import {
   runUninstall,
   snapshotTree,
   spawnBin,
+  storedMode,
   statedKitHome,
   statedSpelling,
   statedWords,
@@ -612,6 +615,47 @@ describe("the ledger walk: blocks, settings, directories and backups (plan 33.1-
       const left = linesFor(r.stdout, rel, t.target);
       expect(left.map((l) => l.label), `${what}\n${r.stdout}`).toEqual(["left"]);
       expect(left[0].msg).toMatch(/uninstall never removes a backup/);
+    }
+  });
+});
+
+// ── THE ONE PROTECTED ROOT LIST (plan 36-01, LAYOUT-03, D-13 step 1) ────────────────────────────────
+// Every root of STATE_ROOTS, read from the import and never retyped, refuses a recorded file whose record
+// still holds: the file is left byte for byte and its line says `(protected path — never removed)`.
+// memory-bank is planted at the board path (BOARD_REL), so a file under memory-bank/plans/ is the case that
+// proves the new state root is held.
+/** A recorded file entry for `rel` in `target`, whose content record is what the file holds now. */
+function recordFiles(target: string, rels: readonly string[]): void {
+  const markerPath = join(target, ...MARKER_REL.split("/"));
+  const marker = JSON.parse(readFileSync(markerPath, "utf8")) as Record<string, unknown>;
+  const added = rels.map((rel) => {
+    const p = join(target, ...rel.split("/"));
+    return { path: rel, kind: "file", content: fileRecord(readFileSync(p), storedMode(p)), kit: false };
+  });
+  writeFileSync(markerPath, JSON.stringify(withLedger(marker, (e) => [...e, ...added]), null, 2) + "\n");
+}
+function plantFile(target: string, rel: string): Buffer {
+  const p = join(target, ...rel.split("/"));
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, `a file of the user's under a protected root: ${rel}\n`);
+  return readFileSync(p);
+}
+
+describe("every STATE_ROOTS root refuses a recorded file (plan 36-01, LAYOUT-03)", () => {
+  it("a recorded file under every root (memory-bank/plans/ included) is left byte-identical with `(protected path — never removed)`", () => {
+    const t = installedTree("protected-roots");
+    const planted = STATE_ROOTS.map((root) => ({ root, rel: root === "memory-bank" ? BOARD_REL : `${root}/protected-root-probe.md` }));
+    expect(planted.map((x) => x.rel), "no plant under the state root: STATE_ROOTS lost memory-bank").toContain(BOARD_REL);
+    const before = new Map(planted.map(({ rel }) => [rel, plantFile(t.target, rel)]));
+    recordFiles(t.target, planted.map((x) => x.rel));
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 });
+    expectFinished(r, "uninstall over recorded files under every protected root");
+    for (const { root, rel } of planted) {
+      const p = join(t.target, ...rel.split("/"));
+      expect(existsSync(p), `${root}: the recorded file under a protected root was removed\n${r.stdout}`).toBe(true);
+      expect(readFileSync(p).equals(before.get(rel)!), `${root}: the file's bytes changed`).toBe(true);
+      const lines = linesFor(r.stdout, rel, t.target);
+      expect(lines.map((l) => `${l.label} ${l.msg}`), `${root}\n${r.stdout}`).toEqual([`refused ${rel} (protected path — never removed)`]);
     }
   });
 });
