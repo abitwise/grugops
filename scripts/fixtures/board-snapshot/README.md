@@ -16,13 +16,13 @@ both directions.
 
 | Kind | Manufactured by |
 |------|-----------------|
-| `board-vs-ticket` (column) | `plans/board.md:36` places `ABC-102` under `Ready`; `plans/tickets/ABC-102.md:5` names `In Review`. |
-| `board-vs-ticket` (status) | `plans/tickets/ABC-103.md:4` says `ready` where `kebab()` of its own `column:` on line 5 is `in-development`. |
-| `ticket-unplaced` | `plans/tickets/ABC-200.md` exists and no row on `plans/board.md` names it. |
-| `ticket-duplicated` | `plans/board.md:51` and `plans/board.md:55` both carry `ABC-105`, under `In Review` and under `Done`. |
-| `row-without-file` | `plans/board.md:43` names `ABC-999` and `plans/tickets/ABC-999.md` does not exist. |
-| `wip-limit` | `plans/board.md:49` claims a limit of 3; `agent-factory/config/factory.config.json:8` configures 2. |
-| `wip-count` | `plans/board.md:39` claims 2 live and three ticket rows follow it on lines 41-43. |
+| `board-vs-ticket` (column) | `memory-bank/plans/board.md:36` places `ABC-102` under `Ready`; `memory-bank/plans/tickets/ABC-102.md:5` names `In Review`. |
+| `board-vs-ticket` (status) | `memory-bank/plans/tickets/ABC-103.md:4` says `ready` where `kebab()` of its own `column:` on line 5 is `in-development`. |
+| `ticket-unplaced` | `memory-bank/plans/tickets/ABC-200.md` exists and no row on `memory-bank/plans/board.md` names it. |
+| `ticket-duplicated` | `memory-bank/plans/board.md:51` and `memory-bank/plans/board.md:55` both carry `ABC-105`, under `In Review` and under `Done`. |
+| `row-without-file` | `memory-bank/plans/board.md:43` names `ABC-999` and `memory-bank/plans/tickets/ABC-999.md` does not exist. |
+| `wip-limit` | `memory-bank/plans/board.md:49` claims a limit of 3; `agent-factory/config/factory.config.json:8` configures 2. |
+| `wip-count` | `memory-bank/plans/board.md:39` claims 2 live and three ticket rows follow it on lines 41-43. |
 | `column-missing` | `agent-factory/config/factory.config.json:9` configures `Ready to Release` and no heading opens it. |
 
 The duplicated row also produces a third `board-vs-ticket`: its `Done` placement disagrees with the
@@ -33,18 +33,18 @@ wrong in two ways at once, and the projector reports both.
 
 | Shape | Where | Why it is here |
 |-------|-------|----------------|
-| The comment pre-pass | `plans/board.md:12-23` | A four-space-indented mini-board inside an HTML comment. No column, row or update in the golden carries a line number from that span. Blanking is the defence; the indentation is a second one. |
-| The kit placeholder update | `plans/board.md:3` | `_Updated: <ISO date> by <role>_` is not the canonical shape, so it is preamble rather than a finding on a fresh install. |
-| The canonical update | `plans/board.md:10` | The one `updates[]` entry. |
-| Preamble | `plans/board.md:3-8` | The `preamble[]` bucket, non-empty. |
-| A non-column section | `plans/board.md:25` | `## Notes (fixture)` opens no column; its prose is section content rather than unparsed. |
-| Unparsed lines | `plans/board.md:37`, `46-47` | A foreign-prefix row refused by `id_prefix`, and a prose paragraph inside a column. |
-| An epic row | `plans/board.md:44` | A second class (D-02): never joined against `plans/tickets/`, never counted toward WIP. Remove it and `wip-count` still reads `counted 3`. |
-| The three heading kinds | `plans/board.md:30`, `34`, `39`, `49`, `53`, `57` | `unlimited`, `limited` and the single legal `blocked` heading. |
+| The comment pre-pass | `memory-bank/plans/board.md:12-23` | A four-space-indented mini-board inside an HTML comment. No column, row or update in the golden carries a line number from that span. Blanking is the defence; the indentation is a second one. |
+| The kit placeholder update | `memory-bank/plans/board.md:3` | `_Updated: <ISO date> by <role>_` is not the canonical shape, so it is preamble rather than a finding on a fresh install. |
+| The canonical update | `memory-bank/plans/board.md:10` | The one `updates[]` entry. |
+| Preamble | `memory-bank/plans/board.md:3-8` | The `preamble[]` bucket, non-empty. |
+| A non-column section | `memory-bank/plans/board.md:25` | `## Notes (fixture)` opens no column; its prose is section content rather than unparsed. |
+| Unparsed lines | `memory-bank/plans/board.md:37`, `46-47` | A foreign-prefix row refused by `id_prefix`, and a prose paragraph inside a column. |
+| An epic row | `memory-bank/plans/board.md:44` | A second class (D-02): never joined against `memory-bank/plans/tickets/`, never counted toward WIP. Remove it and `wip-count` still reads `counted 3`. |
+| The three heading kinds | `memory-bank/plans/board.md:30`, `34`, `39`, `49`, `53`, `57` | `unlimited`, `limited` and the single legal `blocked` heading. |
 | A well-formed claim | `.grugops/queue/claimed/abc-104-implement/claim.md` | The queue source reads it and the row reaches the snapshot. |
 | A tampered claim | `.grugops/queue/claimed/abc-105-tampered/claim.md` | Two `at:` lines. The record is skipped and the path is named in `readErrors`, so the tamper skip is reached by a committed artifact. |
 | A context task | `.grugops/context/abc-104-implement/` | Two notes, one superseding the other, so the supersede fold reports two notes and one live. `index.jsonl` is the derived render. |
-| The traceability comment | `plans/traceability.md:3-14` | An example table row inside the file's own HTML comment. It contributes no row, because the traceability reader runs the board's comment pre-pass first. |
+| The traceability comment | `memory-bank/plans/traceability.md:3-14` | An example table row inside the file's own HTML comment. It contributes no row, because the traceability reader runs the board's comment pre-pass first. |
 
 ## Regenerating `expected-snapshot.json`
 

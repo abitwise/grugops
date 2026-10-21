@@ -73,6 +73,7 @@ import {
 // (Plan 30-07) The generated guarantees page's path, taken from the generator that declares it —
 // the same import both gates make, so this harness cannot come to disagree with them.
 import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
+import { STATE_ROOT_REL } from "../install/state-layout.js";
 import {
   BANNED_CLAIM_LITERALS,
   BANNED_CLAIM_SCAN_COUNT,
@@ -2903,8 +2904,8 @@ describe("check-banned-claims — every tracked text path is scanned or excluded
     //
     // BANNED_CLAIM_EXCLUDED_LOCATIONS's block header has always said an exclusion must "read as a
     // decision rather than … a silent omission". Nothing enforced it, so five classes accumulated
-    // outside the scan set and outside the block — install/README.md, .claude/, memory-bank/,
-    // plans/ and skills/ — and four rounds of review found four of them. The fifth, skills/, was
+    // outside the scan set and outside the block — install/README.md, .claude/, memory-bank/, the
+    // then-separate top-level state root, and skills/ — and four rounds of review found four of them. The fifth, skills/, was
     // found only by deriving the remainder. This case derives it every run, so the sixth class reds
     // on the day it lands.
     //
@@ -3301,8 +3302,8 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     const exact = bannedClaimExcludedExactPaths();
     expect(seg).toEqual(["docs", ".planning", "scripts"]);
     // [".gemini/", ...] -> without it (plan 34.1-04, D-25): the entry left with this repository's own .gemini/settings.json.
-    // ["memory-bank/", "plans/"] -> ["memory-bank/"] (plan 36-06, 2026-10-21): the repository's state moved under
-    // memory-bank/plans/, so the plans/ root entry covered nothing.
+    // ["memory-bank/", <the pre-v3 state root>] -> ["memory-bank/"] (plan 36-06, 2026-10-21): the repository's
+    // state moved under STATE_ROOT_REL, so the pre-v3 root entry covered nothing.
     expect(root).toEqual(["memory-bank/"]);
     // 31-06 added tsconfig.fixtures.json, dispositioned by name in the block above.
     // 8 -> 11 (plan 34.1-01): the three generated host entries (.agents/skills/grugops/SKILL.md,
@@ -3341,9 +3342,9 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
 
   it("NO SEGMENT-CLASS NAME SITS BELOW THE ROOT OF A LIVE SCAN MEMBER — the fix removed nothing", () => {
     // THE CASE THAT WOULD HAVE RED-ED THE REVIEW'S OWN SUGGESTED FIX, and the reason this list has
-    // three kinds rather than two. The suggested segment set included `memory-bank` and `plans`.
-    // `agent-factory/seed/plans/` and `agent-factory/seed/memory-bank/` hold 13 markdown files that
-    // are SCAN MEMBERS — the templates the kit ships — so that projection would have deleted
+    // three kinds rather than two. The suggested segment set included both segment names of
+    // STATE_ROOT_REL (its dirname and its basename). The kit's seed state and seed brief under
+    // `agent-factory/seed/memory-bank/` hold 13 markdown files that are SCAN MEMBERS — the templates the kit ships — so that projection would have deleted
     // thirteen shipped documents from a safety scan inside the fix for a fail-open.
     //
     // This asserts the property directly: no member of the LIVE scan contains a segment-class name
@@ -3368,12 +3369,14 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
       "a WALK-derived member carrying a segment-class name below its root means the walk descended somewhere it was told not to — the day the kit ships an agent-factory/**/docs/, this is the line that reds",
     ).toEqual([]);
     // AND THE MEASUREMENT THAT MAKES THE THREE-KIND RULE NECESSARY, asserted rather than recounted:
-    // the two root-anchored names DO occur below the root of live scan members.
+    // the two segment names of STATE_ROOT_REL DO occur below the root of live scan members.
+    const stateRootSegments = [posix.dirname(STATE_ROOT_REL), posix.basename(STATE_ROOT_REL)];
+    expect(stateRootSegments, "STATE_ROOT_REL must name two segments for this case to mean anything").toHaveLength(2);
     const seedMembers = bannedClaimScan().filter((m) =>
       m
         .split("/")
         .slice(0, -1)
-        .some((c) => c === "plans" || c === "memory-bank"),
+        .some((c) => stateRootSegments.includes(c)),
     );
     expect(seedMembers.length).toBe(13);
     // …and every one of them is a kit path, not a root-level dogfood path.

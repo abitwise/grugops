@@ -32,10 +32,11 @@
 //   VALIDATE_KIT_ROOT  REQUIRED — NO DEFAULT. Holds the read-only kit (agent-factory/…, AGENTS.md,
 //                      .claude-plugin/). Unset is a HARD ERROR (process.exit(1) with a "(C3)"
 //                      message) — it never silently falls back to "." / the dev checkout.
-//   VALIDATE_ROOT      The STATE root (plans/…). Optional; defaults to the repo root (back-compat
-//                      for the existing single-tree fixtures and self-validation).
+//   VALIDATE_ROOT      The STATE tree (the repo holding STATE_ROOT_REL). Optional; defaults to the
+//                      repo root (back-compat for the existing single-tree fixtures and
+//                      self-validation).
 // kit-classified checks resolve under KIT_ROOT; state-classified checks under STATE_ROOT
-// (Phase-7 classification: agent-factory/… + AGENTS.md + .claude-plugin/ = KIT; plans/… = STATE).
+// (Phase-7 classification: agent-factory/… + AGENTS.md + .claude-plugin/ = KIT; the state root = STATE).
 //
 // Two-tier findings (D-44): ERRORS (missing file/section; config doesn't parse or lacks
 // mode/cadence; config carrying the RETIRED `autonomy` scalar or a malformed `checkpoints`
@@ -70,9 +71,9 @@ import { CHECKPOINTS, DISPOSITIONS } from "./checkpoints.js";
 // asked only at the file the reader consults second.
 import { governanceConfigCandidates } from "./context-io.js";
 // THE BOARD GRAMMAR IS READ, NEVER RESTATED (DASH-01 / D-06). scripts/board-model.ts is the only
-// sanctioned reader of plans/board.md, and agent-factory/contracts/board.md is the normative schema
-// it cites. This file used to carry its own two-line column parser, which made the validator a
-// SECOND authority on what a column is — free to disagree with the projector, and a disagreement
+// sanctioned reader of the board file (BOARD_REL), and agent-factory/contracts/board.md is the
+// normative schema it cites. This file used to carry its own two-line column parser, which made the
+// validator a SECOND authority on what a column is — free to disagree with the projector, and a disagreement
 // between two parsers is invisible until it has already misreported the board. `kebab` comes from
 // the same module for the same reason: `kebab(column) === status` is a rule of that grammar.
 import { boardHasColumn, kebab, parseBoard, parseTicketDocument } from "./board-model.js";
@@ -211,8 +212,8 @@ const WORKFLOWS = deriveKitNames(listWorkflows, "workflow", "agent-factory/workf
 // The 17 static handoff templates were DELETED in Phase 24 (the shared verified-context notes
 // replaced the static-handoff relay). The former FROZEN_HANDOFFS existence list is gone with them;
 // a workflow's role output is now recorded as typed notes per Workflow 16, and the requirement→
-// code→test→release trace SURVIVES as the note-derived plans/traceability.md render (D-01). The
-// per-ticket trace-completeness check below (checkTickets) is RE-POINTED at that render — same
+// code→test→release trace SURVIVES as the note-derived traceability render (TRACEABILITY_REL,
+// D-01). The per-ticket trace-completeness check below (checkTickets) is RE-POINTED at that render — same
 // path, same ticket-id key (trace.includes(id)), only the row source changed (D-04, Pitfall 4):
 // it is preserved, never removed, so the trace-completeness guarantee is not silently weakened.
 
@@ -318,7 +319,7 @@ function checkRequiredFiles(): void {
   ]) {
     if (!kitExists(rel)) err(`missing required file: ${rel}`);
   }
-  // …and STATE refs (plans/…) resolve under STATE_ROOT.
+  // …and STATE refs (the *_REL constants) resolve under STATE_ROOT.
   for (const rel of [BOARD_REL, TRACEABILITY_REL, NFR_CATALOG_REL, METRICS_REL]) {
     if (!stateExists(rel)) err(`missing required file: ${rel}`);
   }

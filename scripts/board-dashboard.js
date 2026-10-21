@@ -237,7 +237,7 @@ function warn(io, ...lines) {
  * whatever text remains, and there is nothing left for it to escape into a control character.
  *
  * KEYS AS WELL AS VALUES, because the document's keys are content-derived: `config.wipLimits` is
- * keyed by COLUMN NAME, and a column name is a line an agent wrote into `plans/board.md`. A pass
+ * keyed by COLUMN NAME, and a column name is a line an agent wrote into the board file. A pass
  * that visited only values would answer for half the document — which is the half the old ordering
  * happened to get right.
  *
@@ -624,7 +624,7 @@ export function renderFrame(result, width, style = PLAIN_STYLE) {
     if (result.snapshot.board === null) {
         // D-11 forbids an empty board as an output state. A board that could not be read says so on its
         // own line; it never renders as zero columns a reader would mistake for an empty backlog.
-        lines.push(cell("no board: plans/board.md was not readable on this tree", w));
+        lines.push(cell(`no board: ${FIXED_SUBPATHS.board} was not readable on this tree`, w));
     }
     else {
         lines.push(...renderColumns(result, w, style));
@@ -646,10 +646,10 @@ const UNWATCHED_SOURCE = "config";
  *
  * A FINAL SEGMENT CARRYING AN EXTENSION NAMES A FILE, and a file is watched through its PARENT
  * directory — the file-level watch is the one the RESEARCH probe measured dying on the first atomic
- * rename. `plans/board.md` therefore contributes `plans`, and a board that moves to `docs/board.md`
- * moves the watch with it. Every directory-shaped subpath in `FIXED_SUBPATHS` has a final segment
- * with no dot in it, and every file-shaped one ends in `.md` or `.json`, so the rule reads the
- * layout rather than guessing at it. No filesystem access happens here: this runs at module load,
+ * rename. `FIXED_SUBPATHS.board` therefore contributes its parent, the state root, and a board that
+ * moves to `docs/board.md` moves the watch with it. Every directory-shaped subpath in
+ * `FIXED_SUBPATHS` has a final segment with no dot in it, and every file-shaped one ends in `.md` or
+ * `.json`, so the rule reads the layout rather than guessing at it. No filesystem access happens here: this runs at module load,
  * and a derivation that stat-ed the tree would make the watched set depend on which tree the process
  * happened to start in.
  */
@@ -674,7 +674,7 @@ function watchDirForSubpath(subpath) {
  *   - `agent-factory/config/factory.config.json` IS DELIBERATELY NOT WATCHED (D-14). The dial changes
  *     when a human edits it rather than when work moves, and the mandatory poll picks it up within
  *     one period.
- *   - `traceability` shares `plans/` with the board, so it contributes no directory of its own. It is
+ *   - `traceability` shares the state root with the board, so it contributes no directory of its own. It is
  *     watched — by the board's entry — and a watch failure there is reported against `board`, which
  *     is the source that owns the directory the handle was opened on.
  *   - The queue expands over `QUEUE_STAGES` rather than watching `.grugops/queue` itself, because
@@ -764,7 +764,7 @@ export function createLoop(options, io, deps) {
     /**
      * The CURRENT watch failure per directory, keyed by its `WATCH_DIRS` relative name (WR-06).
      *
-     * A MAP RATHER THAN A LIST, BECAUSE THE VALUE IS A STATE AND NOT A LOG. "the watch on `plans` is
+     * A MAP RATHER THAN A LIST, BECAUSE THE VALUE IS A STATE AND NOT A LOG. "the watch on the state root is
      * down" is one fact about one directory at one moment; it becomes true, then it becomes false, and
      * the thing a frame prints is whichever it is now. As an append-only list the same fact was
      * recorded once per poll tick — 8,640 a day at the floor, every one of them printed on every frame
@@ -809,7 +809,7 @@ export function createLoop(options, io, deps) {
      * `Set<SourceName>` built from every `OUTSIDE-ROOT` read error's `source` field, and `arm`
      * consulted it. But the containment authority raises that error PER ENTRY — one ticket file, one
      * claimed task directory, one context task — while `deriveWatchDirs` gives several directories
-     * ONE source label, so a single planted symlink took `plans/tickets`, or all three queue stages,
+     * ONE source label, so a single planted symlink took the tickets directory, or all three queue stages,
      * off the low-latency path while nothing on any channel said so. Containment is now asked about
      * the directory a handle would be opened on, at `arm`, through `deps.contained`. Nothing about
      * it is accumulated here, which is also the answer to the DASH-04 concurrency question: two

@@ -3892,7 +3892,7 @@ const NOT_PUBLISHED_RECEIVERS: readonly string[] = [
 //
 // 86 -> 91 on 2026-10-21 (plan 36-06): the five ticket-path sentences in board-model.ts (the four
 // presence sentences and the row-without-file `expected`) build their path from TICKETS_REL, the
-// state-layout authority, instead of a hand-spelled `plans/tickets/` prefix. Each is a substitution
+// state-layout authority, instead of a hand-spelled pre-v3 tickets prefix. Each is a substitution
 // at a published position and each is built through `spelled`, so the equality below still holds.
 const PUBLISHED_SUBSTITUTION_COUNT = 91;
 

@@ -36,10 +36,10 @@
 // THAT SENTENCE USED TO BE FALSE, AND THE PLACE IT WAS FALSE IS WHY THE AUTHORITY EXISTS (plan
 // 32-10, CR-04). The containment test compared a path `resolve()` had normalised LEXICALLY, and
 // `resolve()` does not follow symlinks while `readFileSync` does. A link planted at
-// `plans/tickets/ZZZ-999.md` therefore passed the test by SPELLING and was opened by its TARGET, and
+// `${TICKETS_REL}/ZZZ-999.md` therefore passed the test by SPELLING and was opened by its TARGET, and
 // the first characters of that target came back out in `readErrors[].message` — a field printed to
 // stderr on every frame and embedded in the published `--json` document. `realpathSync` resolves
-// every ANCESTOR link as well as the leaf, so a symlinked `plans/` directory and a symlinked ticket
+// every ANCESTOR link as well as the leaf, so a symlinked state-root directory and a symlinked ticket
 // file are one question asked once, at one place.
 //
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
@@ -202,7 +202,7 @@ export type SourceOutcome<T> =
 /**
  * Read a file as stat, read, stat — and accept the bytes only when all three agree (D-11, DASH-05).
  *
- * WHY A PLAIN `readFileSync` IS NOT ENOUGH. `plans/board.md` is edited by agents and humans with
+ * WHY A PLAIN `readFileSync` IS NOT ENOUGH. The board file (`BOARD_REL`) is edited by agents and humans with
  * ordinary editors, and `scripts/context-io.ts:896-926` (cloned at `scripts/claim.ts:218-248`)
  * replaces a destination with unlink-then-rename on Windows. Both leave a window in which a reader
  * sees a file that is half of one version and half of another, or no file at all. A projector that
@@ -517,7 +517,7 @@ export type SnapshotResult = {
  * bounded }` record this type replaced could answer only "there is a listing" or "there is not",
  * which meant every `readdirSync` failure — a denied mode, a file where a directory was expected, an
  * exhausted descriptor table — had to be answered with the SAME value a directory nobody has created
- * yet produces. That is what CR-02 measured: an `EACCES` on `plans/tickets/` rendered a clean `[ok]`
+ * yet produces. That is what CR-02 measured: an `EACCES` on the tickets directory rendered a clean `[ok]`
  * header and seven positive assertions that ticket files which exist do not. A listing that cannot
  * distinguish "I looked and there was nothing" from "I could not look" is a listing that reports
  * success it did not have, so the distinction is in the TYPE and not in a convention.
@@ -608,7 +608,7 @@ function isWithinRoot(root: string, target: string): boolean {
  * WHY THE ANCESTOR IS ASKED AT ALL. `realpathSync` on an absent path throws `ENOENT` and tells us
  * nothing about WHERE the path would have been. Answering "absent, therefore fine" on that alone
  * admits `../escape` (which is outside and merely does not exist yet) and, worse, admits
- * `plans/board.md` under a `plans` that is a link out of the tree: the read then returns ENOENT
+ * the board file under a state root that is a link out of the tree: the read then returns ENOENT
  * today and reads the attacker's file the moment they create it, which is a check that expires. So
  * the question is asked about the nearest real ancestor, and the caller applies the same containment
  * test to the composed path.
@@ -636,7 +636,7 @@ function anchorAbsentTarget(
       // reporting it as an escape would send an operator looking for an attacker instead of a mode.
       return { ok: false, code: err.code ?? "unreadable" };
     }
-    // The ancestor may BE the root — `plans/` under a tree with no `plans/` yet anchors on the root
+    // The ancestor may BE the root — the state root under a tree with no state root yet anchors on the root
     // itself, which is the ordinary fresh-checkout shape and is legitimate.
     if (probeReal !== root && !isWithinRoot(root, probeReal)) return { ok: false, code: OUTSIDE_ROOT };
     return { ok: true, real: resolve(probeReal, relative(probe, target)) };
@@ -649,17 +649,17 @@ function anchorAbsentTarget(
  * `root` has ALREADY been through `realpathSync` at `resolveRepoRoot`, and this function puts the
  * target through it too — so both sides of the comparison are real paths and the comparison means
  * something for the first time. Resolving the FULL target resolves every ancestor link as well as
- * the leaf, which is why a symlinked `plans/` directory and a symlinked `plans/tickets/ZZZ-999.md`
+ * the leaf, which is why a symlinked state-root directory and a symlinked `${TICKETS_REL}/ZZZ-999.md`
  * are not two rules.
  *
  * EXPORTED SINCE PLAN 32-34, SO IT IS THE ONE PLACE THE REPOSITORY DECIDES AND NOT ONLY THIS MODULE.
  * The dashboard's watch arm has to answer exactly this question about exactly the directory a
  * `fs.watch` handle would be opened on, and it used to answer a DIFFERENT one: it filtered this
  * module's `OUTSIDE-ROOT` read errors down to their `source` LABEL and un-armed every directory
- * sharing that label, so one symlinked ticket file took `plans/tickets` off the low-latency path and
+ * sharing that label, so one symlinked ticket file took the tickets directory off the low-latency path and
  * one symlinked claimed task took all three queue stages off it (32-REVIEW.md CR-01). No set derived
- * from those errors can do better: a refusal spelled `plans/tickets/ESCAPE.md` under a healthy
- * `plans/tickets` and one spelled `plans/board.md` under a `plans` that is itself a link out of the
+ * from those errors can do better: a refusal spelled `${TICKETS_REL}/ESCAPE.md` under a healthy
+ * tickets directory and one spelled `${BOARD_REL}` under a state root that is itself a link out of the
  * tree have the same shape and opposite answers, and the difference is a property of the DIRECTORY,
  * which is the question this function takes. `32-34-RED-baseline.txt` probes A and E are that pair,
  * measured. The ancestor rule comes free with it, for the reason the paragraph above states: the
@@ -1092,7 +1092,7 @@ function gatherFile<T>(
 }
 
 /**
- * Read `plans/board.md` (D-11).
+ * Read the board file, `BOARD_REL` (D-11).
  *
  * A board that was never written is ABSENT, not stale: nothing is rendered for it and the top-level
  * discriminant says `unavailable`, so no caller reads zero columns as a clean board. A board that
@@ -1181,7 +1181,7 @@ function configView(raw: Record<string, unknown>): FactoryConfigView {
 // ── tickets (D-03, T-32-11) ──────────────────────────────────────────────────────────────────────
 
 /**
- * The fallback identity of a `plans/tickets/*.md` entry: its stem, and nothing read out of it.
+ * The fallback identity of a `${TICKETS_REL}/*.md` entry: its stem, and nothing read out of it.
  *
  * ONE SPELLING FOR BOTH ARMS OF THE PARTITION (plan 32-15). The admitted arm falls back to the stem
  * when the document states no `id`; the unadmitted arm has only the stem, because a refused document
@@ -1199,7 +1199,7 @@ function unadmittedFrom(name: string, code: string): UnadmittedTicket {
 }
 
 /**
- * Read every `*.md` under `plans/tickets/` through the ticket grammar in the pure module.
+ * Read every `*.md` under the tickets directory (`TICKETS_REL`) through the ticket grammar in the pure module.
  *
  * THE OPEN QUESTION PLAN 32-03 RECORDED IS ANSWERED HERE, AND THE ANSWER IS A DOCUMENT CLASS RATHER
  * THAN A WIDENED SCHEMA. That plan routed tickets through `admit` and wrote down the consequence:
@@ -1376,7 +1376,7 @@ export function readTicketsSource(
     // so far, which is n(n-1)/2 comparisons: about fifty million at the walk bound of 10,000, on
     // every watch event and every poll tick. D-14 is explicit that a hung read is a stale badge and
     // never a frozen screen, so cost inside this walk is correctness-adjacent rather than cosmetic,
-    // and it is reachable by anyone who can add files to `plans/tickets/`.
+    // and it is reachable by anyone who can add files to the tickets directory.
     const claimedBy = seenById.get(id);
     if (claimedBy !== undefined) {
       errors.push({
@@ -1894,9 +1894,9 @@ function splitPipeRow(line: string): readonly string[] | null {
 }
 
 /**
- * Read `plans/traceability.md` through the SAME comment pre-pass the board is read through (D-03).
+ * Read the traceability file (`TRACEABILITY_REL`) through the SAME comment pre-pass the board is read through (D-03).
  *
- * THE FILE CARRIES ITS OWN EXAMPLE ROW INSIDE ITS OWN COMMENT, at `plans/traceability.md:15`. That is
+ * THE FILE CARRIES ITS OWN EXAMPLE ROW INSIDE ITS OWN COMMENT, at line 15 of the traceability file. That is
  * the board's hazard one file over, and it gets the board's ANSWER — `stripHtmlComments` from
  * `./board-model.js` — rather than a second one. Two pre-passes would be two chances to disagree
  * about what a comment is, and the row a human filed would then depend on which reader looked.
@@ -2036,7 +2036,7 @@ export function readSnapshot(
  * WHY THIS FUNCTION HAS TO EXIST (plan 32-09). `SourceState`'s `unavailable` arm carries no value by
  * design — D-13's whole point is that "render an empty section because the read failed" must be
  * unrepresentable. But that arm is also where a FAILED read with no previous good value lands, so at
- * the published shape a denied `plans/tickets/` on a FIRST read looks exactly like a `plans/tickets/`
+ * the published shape a denied tickets directory on a FIRST read looks exactly like a tickets directory
  * nobody has created. Fixing that inside `SourceState` would mean a new arm, a `SCHEMA_VERSION` bump
  * and a regenerated golden. It does not need one: the difference already survives in `readErrors`,
  * which D-13 names as "the only place the difference from a legitimate absence survives". This
@@ -2089,7 +2089,7 @@ function deriveOverallSource(
   // A SOURCE THAT IS UNAVAILABLE BECAUSE IT COULD NOT BE READ DEGRADES THE DISCRIMINANT (plan 32-09).
   // An ABSENT one still degrades nothing — that is D-13 and it is unchanged. The difference is the
   // `readErrors` entry, which is exactly what `unreadableSources` reads. Without this arm, a denied
-  // `plans/tickets/` on a first read printed `[ok]` beside a badge saying the opposite, which is the
+  // tickets directory on a first read printed `[ok]` beside a badge saying the opposite, which is the
   // confident-wrong-board output the phase goal rules out.
   if (unreadableSources(sources, readErrors).length > 0) return "stale";
   return "ok";

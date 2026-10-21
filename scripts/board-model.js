@@ -48,7 +48,7 @@ import { TICKETS_REL } from "../install/state-layout.js";
 // the shape it was written against, which is the only thing a version is for. "Additive" describes
 // what a change costs a TOLERANT consumer; it never described what it costs this constant.
 //
-// VERSION 2 (plan 32-33): `TicketRecord` gained `stem`, the file's name under `plans/tickets/`
+// VERSION 2 (plan 32-33): `TicketRecord` gained `stem`, the file's name under the tickets directory (`TICKETS_REL`)
 // without its extension, beside the `id` the document declares. The two are different facts and the
 // document used to publish only the second, so a consumer holding the snapshot could not tell which
 // file an identifier came from — and the join, asking the same question internally, answered it
@@ -580,7 +580,7 @@ export function matchUpdateLine(line, lineNo) {
 //
 // WHY A TICKET GRAMMAR LIVES HERE AND NOT IN `scripts/canonical-frontmatter.ts`.
 //
-// Plan 32-03 routed `plans/tickets/*.md` through `admit` and RECORDED the problem rather than
+// Plan 32-03 routed `${TICKETS_REL}/*.md` through `admit` and RECORDED the problem rather than
 // smoothing it over: `CANONICAL_SCHEMA` is the KIT ADAPTER schema (`name`, `description`, `tools`,
 // …), so a ticket carrying `status:` or `column:` is refused with `unknown-key`. A projector that
 // refuses every real ticket cannot derive `board-vs-ticket` at all, so the question had to be
@@ -731,7 +731,7 @@ export function visible(text) {
  * that quote a value a document DECLARED — were never asked about, and a ticket whose `id` value
  * carries `U+0085` is ADMITTED: the grammar's control class (`TICKET_CONTROL`) does not cover the
  * C1 block, the key line's value capture admits it, and `RENDER_STRIPPED` deletes it. So a published
- * snapshot stated, twice, that `plans/tickets/ABC-901.md` declares the identifier `ABC-902X` — a
+ * snapshot stated, twice, that `${TICKETS_REL}/ABC-901.md` declares the identifier `ABC-902X` — a
  * file that declares something else. A reader who searches the tree for what the sentence prints
  * finds nothing, and a reader who re-types it produces a different identifier. That is `visible`'s
  * own docblock, one field over: "a reader following that message re-types the line exactly as
@@ -899,12 +899,12 @@ export const CONFLICT_KINDS = [
  */
 export const CONFLICT_KIND_COUNT = 7;
 /**
- * The conflict kinds whose derivation depends on a COMPLETE `plans/tickets/` listing (plan 32-09).
+ * The conflict kinds whose derivation depends on a COMPLETE tickets-directory listing (plan 32-09).
  *
  * WHY EACH OF THE TWO IS PRESENCE-DEPENDENT, in the form of the sentence it says to a human:
  *
  *   `row-without-file`   "no ticket file carries that identifier". That is a claim about every file
- *                        in `plans/tickets/` — it can only be made by something that saw all of them.
+ *                        in the tickets directory — it can only be made by something that saw all of them.
  *   `ticket-unplaced`    "no row names this ticket" is a claim about the board, but the SUBJECT of
  *                        the claim is a ticket record, and the set of subjects is the listing. A
  *                        listing that stopped early raises the kind for a subset nobody chose and,
@@ -930,7 +930,7 @@ export const PRESENCE_DEPENDENT_CONFLICT_KINDS = [
 // identifier" from two maps keyed on two different notions of identity — the DECLARED id of an
 // admitted document, and the file STEM of a refused one. A document admitted under a declared
 // identifier other than its stem is in neither map, so the stem's presence question was answered as
-// absence: `plans/tickets/ABC-300.md` sat on disk, readable, parsed and admitted, and the projector
+// absence: `${TICKETS_REL}/ABC-300.md` sat on disk, readable, parsed and admitted, and the projector
 // printed "no ticket file carries that identifier" under an `[ok]` badge.
 //
 // WHY A DISCRIMINATED ANSWER RATHER THAN A THIRD MAP LOOKUP AT THE CALL SITE. Round 1 closed the
@@ -1102,7 +1102,7 @@ export function joinSnapshot(inputs) {
         found.push({ line, conflict });
     };
     // Every ticket row on the board, in document order. Epic rows are a SEPARATE CLASS (D-02): they
-    // are never joined against `plans/tickets/` and never counted toward a column's WIP number, so
+    // are never joined against the tickets directory and never counted toward a column's WIP number, so
     // they are absent from this index by construction rather than filtered out of each derivation.
     const placements = [];
     for (const column of board.columns) {

@@ -11,7 +11,7 @@ _Updated: <date>_
   attaches evidence. Tickets reference NFR IDs in their traceability row; Security/NFR fails
   a gate if a touched flow violates a referenced target. Keep targets few and real.
 
-  NFR IDs follow the stable scheme: NFR-xxx (see plans/traceability.md for the full ID scheme).
+  NFR IDs follow the stable scheme: NFR-xxx (see memory-bank/plans/traceability.md for the full ID scheme).
 
   Example row shape (this is a comment, NOT a live table row — illustrates the format only):
 

@@ -50,7 +50,7 @@ import { TICKETS_REL } from "../install/state-layout.js";
 // the shape it was written against, which is the only thing a version is for. "Additive" describes
 // what a change costs a TOLERANT consumer; it never described what it costs this constant.
 //
-// VERSION 2 (plan 32-33): `TicketRecord` gained `stem`, the file's name under `plans/tickets/`
+// VERSION 2 (plan 32-33): `TicketRecord` gained `stem`, the file's name under the tickets directory (`TICKETS_REL`)
 // without its extension, beside the `id` the document declares. The two are different facts and the
 // document used to publish only the second, so a consumer holding the snapshot could not tell which
 // file an identifier came from — and the join, asking the same question internally, answered it
@@ -169,7 +169,7 @@ export type BoardRow = RowParts & {
   readonly truncated: boolean;
 };
 
-/** An `EPIC`/`FEAT` row: a second named class, never joined against `plans/tickets/` (D-02). */
+/** An `EPIC`/`FEAT` row: a second named class, never joined against the tickets directory (D-02). */
 export type EpicRow = BoardRow & {
   /** The column the row appeared under, or `null` when it sat outside every column. */
   readonly column: string | null;
@@ -316,9 +316,9 @@ export type FactoryConfigView = {
 // Each is a PROJECTION, not a copy of the file it came from. The dashboard joins and renders; it is
 // not a second store, and a field nothing renders is a field that goes stale unnoticed.
 
-/** One ticket under `plans/tickets/`, as `parseTicketDocument` below admitted it. */
+/** One ticket under the tickets directory, as `parseTicketDocument` below admitted it. */
 export type TicketRecord = {
-  /** The file name relative to `plans/tickets/`, which is the only identity the reader can trust. */
+  /** The file name relative to the tickets directory, which is the only identity the reader can trust. */
   readonly file: string;
   /**
    * The file's name without its `.md` extension — `ABC-300` for `ABC-300.md` (plan 32-33, CR-03).
@@ -349,7 +349,7 @@ export type TicketRecord = {
 };
 
 /**
- * One `plans/tickets/*.md` the reader LISTED, READ, and could not admit (plan 32-15, CR-01).
+ * One `${TICKETS_REL}/*.md` the reader LISTED, READ, and could not admit (plan 32-15, CR-01).
  *
  * WHY THIS TYPE LIVES IN THE PURE MODULE. `JoinInputs` names it, and `board-model.ts` may not import
  * `board-read.ts` — the dependency runs the other way (D-15, D-23). `scripts/board-read.ts` imports
@@ -379,7 +379,7 @@ export type QueueRow = {
   readonly at: string;
 };
 
-/** One row of `plans/traceability.md`, beneath its real header and outside its own comment. */
+/** One row of the traceability file, beneath its real header and outside its own comment. */
 export type TraceRow = {
   readonly ticket: string;
   readonly title: string;
@@ -902,7 +902,7 @@ export function matchUpdateLine(line: string, lineNo: number): UpdateEntry | nul
 //
 // WHY A TICKET GRAMMAR LIVES HERE AND NOT IN `scripts/canonical-frontmatter.ts`.
 //
-// Plan 32-03 routed `plans/tickets/*.md` through `admit` and RECORDED the problem rather than
+// Plan 32-03 routed `${TICKETS_REL}/*.md` through `admit` and RECORDED the problem rather than
 // smoothing it over: `CANONICAL_SCHEMA` is the KIT ADAPTER schema (`name`, `description`, `tools`,
 // …), so a ticket carrying `status:` or `column:` is refused with `unknown-key`. A projector that
 // refuses every real ticket cannot derive `board-vs-ticket` at all, so the question had to be
@@ -1077,7 +1077,7 @@ export function visible(text: string): string {
  * that quote a value a document DECLARED — were never asked about, and a ticket whose `id` value
  * carries `U+0085` is ADMITTED: the grammar's control class (`TICKET_CONTROL`) does not cover the
  * C1 block, the key line's value capture admits it, and `RENDER_STRIPPED` deletes it. So a published
- * snapshot stated, twice, that `plans/tickets/ABC-901.md` declares the identifier `ABC-902X` — a
+ * snapshot stated, twice, that `${TICKETS_REL}/ABC-901.md` declares the identifier `ABC-902X` — a
  * file that declares something else. A reader who searches the tree for what the sentence prints
  * finds nothing, and a reader who re-types it produces a different identifier. That is `visible`'s
  * own docblock, one field over: "a reader following that message re-types the line exactly as
@@ -1278,12 +1278,12 @@ export const CONFLICT_KIND_COUNT = 7;
 export type ConflictKind = (typeof CONFLICT_KINDS)[number];
 
 /**
- * The conflict kinds whose derivation depends on a COMPLETE `plans/tickets/` listing (plan 32-09).
+ * The conflict kinds whose derivation depends on a COMPLETE tickets-directory listing (plan 32-09).
  *
  * WHY EACH OF THE TWO IS PRESENCE-DEPENDENT, in the form of the sentence it says to a human:
  *
  *   `row-without-file`   "no ticket file carries that identifier". That is a claim about every file
- *                        in `plans/tickets/` — it can only be made by something that saw all of them.
+ *                        in the tickets directory — it can only be made by something that saw all of them.
  *   `ticket-unplaced`    "no row names this ticket" is a claim about the board, but the SUBJECT of
  *                        the claim is a ticket record, and the set of subjects is the listing. A
  *                        listing that stopped early raises the kind for a subset nobody chose and,
@@ -1310,7 +1310,7 @@ export const PRESENCE_DEPENDENT_CONFLICT_KINDS = [
 // identifier" from two maps keyed on two different notions of identity — the DECLARED id of an
 // admitted document, and the file STEM of a refused one. A document admitted under a declared
 // identifier other than its stem is in neither map, so the stem's presence question was answered as
-// absence: `plans/tickets/ABC-300.md` sat on disk, readable, parsed and admitted, and the projector
+// absence: `${TICKETS_REL}/ABC-300.md` sat on disk, readable, parsed and admitted, and the projector
 // printed "no ticket file carries that identifier" under an `[ok]` badge.
 //
 // WHY A DISCRIMINATED ANSWER RATHER THAN A THIRD MAP LOOKUP AT THE CALL SITE. Round 1 closed the
@@ -1518,7 +1518,7 @@ export type JoinInputs = {
   readonly generatedAt: string;
   readonly sources: FactorySnapshot["sources"];
   /**
-   * Every `plans/tickets/*.md` the reader LISTED, READ and could not admit (plan 32-15, CR-01).
+   * Every `${TICKETS_REL}/*.md` the reader LISTED, READ and could not admit (plan 32-15, CR-01).
    *
    * REQUIRED, WITH NO DEFAULT AND NO OPTIONAL MARKER, AND THAT IS THE MECHANISM. An optional field
    * would let a future call site omit the answer and silently re-acquire the defect this closes:
@@ -1590,7 +1590,7 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   };
 
   // Every ticket row on the board, in document order. Epic rows are a SEPARATE CLASS (D-02): they
-  // are never joined against `plans/tickets/` and never counted toward a column's WIP number, so
+  // are never joined against the tickets directory and never counted toward a column's WIP number, so
   // they are absent from this index by construction rather than filtered out of each derivation.
   const placements: Placement[] = [];
   for (const column of board.columns) {

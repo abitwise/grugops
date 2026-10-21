@@ -643,20 +643,22 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // with `git ls-files '*.md'` minus `bannedClaimScan()` and disagreed with it twice, so both numbers
 // below are this repository's rather than the review's:
 //
-//   memory-bank/  9 files  — the review said 9, a session measurement said 8. Derived: 9.
-//   plans/        4 files  — the review said `plans/board.md`, 1 file. Derived: 4. board.md,
-//                            metrics.md, nfr-catalog.md and traceability.md.
+//   memory-bank/ 13 files  — the review said 9, a session measurement said 8. Derived: 9 at round
+//                            6. The separate top-level state root then held 4 more (the review
+//                            said 1, the board): the board, metrics, NFR catalog and traceability
+//                            files. Plan 36-06 (2026-10-21) moved those four under memory-bank/, at
+//                            the state root install/state-layout.ts names, so memory-bank/ holds 13.
 //   skills/       7 files  — named in NO round-5 finding. Found only by deriving the remainder,
 //                            and ADMITTED above rather than listed here.
 //
-// memory-bank/ and plans/ are grugops's own RUNTIME DOGFOOD STATE, and D-16's build-time/runtime
-// surface split places them outside a build-time gate over kit files. The kit tells a host repo to
-// create both directories and then writes into them: plans/board.md is the visible board,
-// plans/metrics.md, plans/nfr-catalog.md and plans/traceability.md are the trail the roles emit, and
-// memory-bank/ is the project brief, product, architecture, contributing, progress, runbook and
-// glossary prose a factory run maintains. They are the OUTPUT of using grugops, not part of what
-// grugops ships — the same distinction that keeps .planning/ out. Measured with this gate's own
-// matcher before the exclusion was written: 0 live occurrences across all 13 files.
+// memory-bank/ is grugops's own RUNTIME DOGFOOD STATE, and D-16's build-time/runtime surface split
+// places it outside a build-time gate over kit files. The kit tells a host repo to create it and then
+// writes into it: the board file under the state root is the visible board, the metrics, NFR catalog
+// and traceability files beside it are the trail the roles emit, and the rest of memory-bank/ is the
+// project brief, product, architecture, contributing, progress, runbook and glossary prose a factory
+// run maintains. They are the OUTPUT of using grugops, not part of what grugops ships — the same
+// distinction that keeps .planning/ out. Measured with this gate's own matcher before the exclusion
+// was written: 0 live occurrences across all 13 files.
 //
 // THE REMEDY IF THAT ARGUMENT EVER STOPS HOLDING, so the next reader is not left to invent one:
 // they enter as a DERIVED PART with their own disk walk, their own vacuity floor and
@@ -751,19 +753,19 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // contributing to neither the walk nor the coverage answer — which is the same silence this block
 // exists to prevent, moved somewhere new.
 //
-// ── WHY `memory-bank/` AND `plans/` ARE ROOT-ANCHORED AND NOT SEGMENT CLASSES ────────────────
+// ── WHY `memory-bank/` IS ROOT-ANCHORED AND NOT A SEGMENT CLASS ──────────────────────────────
 //
 // THE ROUND-6 REVIEW'S SUGGESTED FIX WAS A SET OF BARE SEGMENT NAMES INCLUDING `memory-bank` AND
-// `plans`, AND IT IS WRONG. Measured on this tree before the change: `agent-factory/seed/plans/`
-// and `agent-factory/seed/memory-bank/` hold 13 markdown files that are SCAN MEMBERS TODAY — the
-// board, metrics, nfr-catalog and traceability templates, and the nine memory-bank templates the
-// kit SHIPS for a host repo to copy. A segment projection over those two names would have deleted
+// the then-separate state-root name, AND IT IS WRONG. Measured on this tree before the change: the
+// kit's seed state and seed memory-bank (since phase 36 both under `agent-factory/seed/memory-bank/`)
+// hold 13 markdown files that are SCAN MEMBERS TODAY — the board, metrics, nfr-catalog and
+// traceability templates, and the nine memory-bank templates the kit SHIPS for a host repo to copy. A segment projection over those two names would have deleted
 // thirteen shipped documents from a safety scan inside the fix for a fail-open.
 //
 // The names mean DIFFERENT THINGS at different depths, which is exactly why the anchoring has to be
-// per entry: at the ROOT, `plans/` and `memory-bank/` are grugops's own runtime dogfood state (the
-// OUTPUT of using grugops, per D-16's build-time/runtime split); inside the kit they are the
-// TEMPLATE grugops ships. `docs/`, `.planning/` and `scripts/` carry their reason wherever they
+// per entry: at the ROOT, `memory-bank/` is grugops's own runtime dogfood state (the
+// OUTPUT of using grugops, per D-16's build-time/runtime split); inside the kit it is the TEMPLATE
+// grugops ships. `docs/`, `.planning/` and `scripts/` carry their reason wherever they
 // appear — a copy of the record directory is a record directory, and a copy of this module's own
 // source is still the authority that declares the literals — so those three, and only those three,
 // are segment classes. A permanent case asserts that no member of the live scan contains a
@@ -1316,7 +1318,7 @@ export function bannedClaimScanOverlap(parts = BANNED_CLAIM_SCAN_PARTS) {
  *
  * AND `kit` STAYED AT 73 ACROSS THE SAME BUILD, which is the number that proves the round's OTHER
  * change moved nothing: the walk now refuses to descend into a segment-class directory, and the
- * thirteen kit documents under agent-factory/seed/plans/ and agent-factory/seed/memory-bank/ are
+ * thirteen kit documents under agent-factory/seed/memory-bank/ (seed state and seed brief) are
  * still members. See the anchoring paragraph at BANNED_CLAIM_EXCLUDED_LOCATIONS for why those two
  * names are root-anchored and not segment classes.
  *
