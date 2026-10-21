@@ -243,25 +243,66 @@ Plans:
 **Plans**: 19 plans
 
 Plans:
+**Wave 1**
 - [ ] 37-01-PLAN.md — Marker and archived-Done decisions (checkpoints), board contract first, budget and path constants
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 37-02-PLAN.md — scripts/state-rules.ts and the validator budget pass (WARN unmigrated, FAIL migrated)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 37-03-PLAN.md — Embed generator, its freshness gate, and the host state-check runnable (board budget, marker severity)
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 37-04-PLAN.md — state-check checks every budget; --json, sanitized output, read-only proof
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 37-05-PLAN.md — state-check NFR index integrity, rollable report and move-only report (directory keepers are not records)
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 37-06-PLAN.md — scripts/trace-model.ts and the host trace-render runnable (per-ticket files, two roots)
+
+**Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 37-07-PLAN.md — trace-render --check and its refusals (hand-written files, case-fold collisions, visible skips, keepers left alone)
+
+**Wave 8** *(blocked on Wave 7 completion)*
 - [ ] 37-08-PLAN.md — Own-tree trace render and directory-compare freshness gate in CI (mid-phase full run 1)
+
+**Wave 9** *(blocked on Wave 8 completion)*
 - [ ] 37-09-PLAN.md — state-check trace freshness on hosts (split from 37-08)
+
+**Wave 10** *(blocked on Wave 9 completion)*
 - [ ] 37-10-PLAN.md — state-roll runnable: Done rows move to the archive with a conservation proof
+
+**Wave 11** *(blocked on Wave 10 completion)*
 - [ ] 37-11-PLAN.md — state-roll: dated progress entries, refusals, dry run, re-run after an interrupted roll
+
+**Wave 12** *(blocked on Wave 11 completion)*
 - [ ] 37-12-PLAN.md — Board reader seventh source boardArchive, snapshot version 3
+
+**Wave 13** *(blocked on Wave 12 completion)*
 - [ ] 37-13-PLAN.md — Installer materializes the three runnables; v3 seed; marker on fresh layouts only (mid-phase full run 2)
+
+**Wave 14** *(blocked on Wave 13 completion)*
 - [ ] 37-14-PLAN.md — Roles, part 1: trace sections rendered, NFR one file each, board overview rule
+
+**Wave 15** *(blocked on Wave 14 completion)*
 - [ ] 37-15-PLAN.md — Roles, part 2, and the commit convention
+
+**Wave 16** *(blocked on Wave 15 completion)*
 - [ ] 37-16-PLAN.md — Workflows, part 1: WF05 render and state-check (D-12), WF09 roll and move-only, WF12, WF16, NFR seeding
+
+**Wave 17** *(blocked on Wave 16 completion)*
 - [ ] 37-17-PLAN.md — Workflows, part 2: trace and commit sentences (WF18's bound paragraph kept)
+
+**Wave 18** *(blocked on Wave 17 completion)*
 - [ ] 37-18-PLAN.md — Substrate, contract wording and checklists; the permanent hand-trace scan test
+
+**Wave 19** *(blocked on Wave 18 completion)*
 - [ ] 37-19-PLAN.md — grugops's own state on v3 forms with its marker (D-06); phase gate
+
+**Cross-cutting constraints:**
+- The edits are the mechanical minimum (the full prose rewrite is Phase 40): no role gains a new section, and every role stays within its existing size budget
+
 **Notes**: D-6 (trace per ticket, rendered) and D-7 (archive-only surfaces). New ticket detail goes in ticket bodies, not new keys.
 
 ### Phase 38: install --migrate v3
