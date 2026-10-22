@@ -47,6 +47,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { EMBED_SPECS, regionSpans, rewriteRunnable } from "./generate-runnable-embeds.js";
 
 import {
   parseFrontmatter,
@@ -4838,10 +4839,49 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       .trim()
       .split("\n")
       .filter((p) => p !== "");
+  // THE GENERATED-REGION RULE (2026-10-22, plan 37-08; the rule plan 37-03 gave the state-path and reader
+  // censuses, 37-06 the writer census, and D-16 the section-extent census). A host runnable imports `node:`
+  // builtins only, so scripts/runnable-ref/trace-render.ts carries context-io.ts's note reader as declarations
+  // copied verbatim by scripts/generate-runnable-embeds.ts. That copy is not a second grammar: the embed
+  // freshness gate proves it byte-identical to context-io.ts, which stays the one member. So it is admitted by
+  // WHERE it sits — inside a span `regionSpans` returns, in an EMBED_SPECS target whose region is fresh — never
+  // by the runnable's name. A stale region is read whole, so a hand-edited copy is still a grammar site.
+  const outsideFreshRegions = (rel: string, text: string, fresh: boolean): string => {
+    if (!fresh || !EMBED_SPECS.some((s) => s.target === rel)) return text;
+    let out = "";
+    let at = 0;
+    for (const [a, b] of regionSpans(text)) {
+      out += text.slice(at, a);
+      at = b;
+    }
+    return out + text.slice(at);
+  };
+  const regionIsFresh = (rel: string): boolean => {
+    const spec = EMBED_SPECS.find((s) => s.target === rel);
+    return spec !== undefined && !rewriteRunnable(spec, REPO_ROOT).changed;
+  };
   const liveGrammarSites = (): string[] =>
     grammarSitesAmong(trackedTs(), (p) =>
-      readFileSync(join(REPO_ROOT, p), "utf8"),
+      outsideFreshRegions(p, readFileSync(join(REPO_ROOT, p), "utf8"), regionIsFresh(p)),
     );
+
+  it("37-08 — the generated-region rule: a fresh embedded copy of the note reader is admitted, a stale or out-of-region one is not", () => {
+    const runnable = "scripts/runnable-ref/trace-render.ts";
+    const text = readFileSync(join(REPO_ROOT, runnable), "utf8");
+    // PREMISE: the rule is load-bearing. Read whole, the runnable IS a grammar site, through its region.
+    expect(EMBED_SPECS.some((s) => s.target === runnable), "PREMISE: the runnable is an EMBED_SPECS target").toBe(true);
+    expect(regionIsFresh(runnable), "PREMISE: its committed region is fresh").toBe(true);
+    expect(isGrammarSite(text), "PREMISE: read whole, the runnable carries the embedded grammar").toBe(true);
+    // Admitted: the fresh region is set aside, and nothing outside it is a grammar.
+    expect(isGrammarSite(outsideFreshRegions(runnable, text, true))).toBe(false);
+    // Refused: a stale region is read whole.
+    expect(isGrammarSite(outsideFreshRegions(runnable, text, false))).toBe(true);
+    // Refused: the same bytes in a module that is not an EMBED_SPECS target are read whole.
+    expect(isGrammarSite(outsideFreshRegions("scripts/not-a-target.ts", text, true))).toBe(true);
+    // Refused: a grammar written outside the region of a fresh target still counts.
+    const planted = `${text}\nconst head = /^---/;\nconst key = /^(\\w+):\\s*/;\n`;
+    expect(isGrammarSite(outsideFreshRegions(runnable, planted, true))).toBe(true);
+  });
 
   it("D-50 IN-05 — the set of tracked .ts files carrying a LOCAL frontmatter-parsing construct is exactly the ONE named non-guard file", () => {
     const tracked = trackedTs();
