@@ -29,7 +29,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { BOARD_REL } from "../install/state-layout.js";
+import { BOARD_REL, PROGRESS_REL } from "../install/state-layout.js";
 import { FIXED_SUBPATHS } from "./board-read.js";
 
 import { parseBoard } from "./board-model.js";
@@ -409,17 +409,19 @@ describe("board-corpus — provenance", () => {
 
 // `carriesBoardShape` is MEASURED, not assumed, and it is `false` for one of the three.
 //
-// The traceability matrix's documentation block illustrates a PIPE TABLE, not a board. Nothing
-// inside it is board-shaped, so "this block yields zero columns" is true of it for a reason that has
+// The third block (the seed progress file's since plan 37-13; the traceability matrix's before it)
+// illustrates no board: it shows a dated status heading. Nothing inside it is board-shaped, so "this block yields zero columns" is true of it for a reason that has
 // nothing to do with the comment pre-pass — an empty document yields zero columns too. Recording
 // that as a field, and asserting the field two-sided, is what stops the third block from reading as
 // a third piece of evidence for a claim it does not support. The evidence for that claim lives in
 // the un-indented mutation replayed in the discrimination proof below.
 //
-// THE THIRD BLOCK IS THE SEED MATRIX (plan 37-08, 2026-10-22). It was this repository's own
+// THE THIRD BLOCK WAS THE SEED MATRIX (plan 37-08, 2026-10-22). It was this repository's own
 // memory-bank/plans/traceability.md until plan 37-08 replaced that file with the generated trace index, which
-// carries no documentation block. The same hand-written matrix and its block still ship as the kit seed, so
-// the case now reads the seed copy, the way the second row reads the seed board.
+// carries no documentation block, and the case then read the seed copy. Plan 37-13 (2026-10-22, SPLIT-03) made
+// the seed matrix the same generated index, so no traceability file carries a block any more. The third row now
+// reads the seed progress file (PROGRESS_REL), whose block describes a dated `## YYYY-MM-DD` status heading and
+// carries nothing board-shaped, so it keeps the row's role: a non-board witness, measured as such below.
 //
 // THE SPAN IS DERIVED, NOT TYPED (plan 32-08). These three pairs of line numbers used to be
 // literals — the repository board was `from: 4, to: 51`. Plan 32-08 rewrote that comment to state
@@ -432,7 +434,7 @@ describe("board-corpus — provenance", () => {
 const DOC_BLOCK_FILES = [
   { rel: FIXED_SUBPATHS.board, carriesBoardShape: true },
   { rel: `agent-factory/seed/${BOARD_REL}`, carriesBoardShape: true },
-  { rel: `agent-factory/seed/${FIXED_SUBPATHS.traceability}`, carriesBoardShape: false },
+  { rel: `agent-factory/seed/${PROGRESS_REL}`, carriesBoardShape: false },
 ] as const;
 
 /** The first `<!--` … `-->` span of a file, as 1-based inclusive line numbers. */

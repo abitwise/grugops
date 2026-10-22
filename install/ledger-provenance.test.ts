@@ -116,8 +116,12 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
   // Re-pinned 2026-10-18 (quick task 261018-hs8, Task 4): install copies the root LICENSE to `tools/grugops/LICENSE`
   // beside the runnables (a fifth RUNNABLES row), so it entered CREATED (14 -> 15; derived list adds it). REMOVED_DIRS is
   // unchanged: `tools/grugops` was already there.
-  it("install creates 15 files in an empty target (2 pointer files, 3 whole-file host entries, 4 launch agents, AGENTS.md, 4 runnables, tools/grugops/LICENSE), and the round trip removes 22 directories", () => {
-    expect(CREATED.length, CREATED.join(", ")).toBe(15);
+  // Re-pinned 2026-10-22 (plan 37-13, SPLIT-05): install materializes the three state runnables, so
+  // `tools/grugops/state-check.js`, `tools/grugops/trace-render.js` and `tools/grugops/state-roll.js` entered CREATED
+  // (15 -> 18; derived list adds them). REMOVED_DIRS is unchanged: `tools/grugops` was already there, and the seeded
+  // state directories are never removed.
+  it("install creates 18 files in an empty target (2 pointer files, 3 whole-file host entries, 4 launch agents, AGENTS.md, 7 runnables, tools/grugops/LICENSE), and the round trip removes 22 directories", () => {
+    expect(CREATED.length, CREATED.join(", ")).toBe(18);
     expect(CREATED.filter((r) => POINTER.has(r)).length).toBe(2);
     expect(CREATED, "the Pi prompt template is not among the files install created").toContain(PI_PROMPT_REL);
     expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(22);

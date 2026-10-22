@@ -47,9 +47,12 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // The WHY corrected 2026-10-19 by quick task 261019-mq1 (261018-hs8 review IN-02): it said "the 6 files install
 // created" and listed 9 (2 pointer files, 3 whole-file host entries, 4 launch files). It now states 9, calls the four
 // "launch files" (Pi's is not an agent, review IN-05), and a test below checks that its stated parts sum to the pin.
-const RECORDED_FILE_COUNT = 39;
+// 39 -> 42 on 2026-10-22 (plan 37-13, SPLIT-05): install materializes the three state runnables
+// `tools/grugops/state-check.js`, `tools/grugops/trace-render.js` and `tools/grugops/state-roll.js` (three more
+// RUNNABLES rows) and records each, so the runnables part reads 7 (measured: the case printed 42).
+const RECORDED_FILE_COUNT = 42;
 const RECORDED_FILE_COUNT_WHY =
-  "17 adapters + 7 skills + AGENTS.md + 4 runnables + tools/grugops/LICENSE + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
+  "17 adapters + 7 skills + AGENTS.md + 7 runnables + tools/grugops/LICENSE + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
 
 let SCRATCH = "";
 beforeAll(() => {

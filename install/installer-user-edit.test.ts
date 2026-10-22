@@ -155,8 +155,14 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * keep their count) and `memory-bank/plans/uat/.gitkeep` entered as a file, because seedState walks the seed tree; an
  * edit to it is left byte for byte by uninstall, as for every seeded file. Measured by this test's printed
  * INSTALLED_FILES. 66 -> 67.
+ * 74 on 2026-10-22 (plan 37-13, SPLIT-05, D-04): `tools/grugops/state-check.js`, `tools/grugops/trace-render.js` and
+ * `tools/grugops/state-roll.js` entered as files (three more RUNNABLES rows), and the v3 seed added
+ * `memory-bank/plans/nfr/.gitkeep`, `memory-bank/plans/traceability/.gitkeep`, `memory-bank/plans/archive/.gitkeep` and
+ * the layout marker `memory-bank/plans/.layout` (each variant installs into a target with no planning state, so the
+ * marker is seeded); an edit to any of them is left byte for byte by uninstall. Measured by this test's printed
+ * INSTALLED_FILES. 67 -> 74.
  */
-const INSTALLED_FILE_COUNT = 67;
+const INSTALLED_FILE_COUNT = 74;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

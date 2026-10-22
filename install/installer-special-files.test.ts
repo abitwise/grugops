@@ -112,7 +112,14 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // keep their count) and `memory-bank/plans/uat/.gitkeep` entered (67 files and links written, plus the two read-only
 // inputs), because seedState walks the seed tree and asks each destination through readForWrite; a FIFO and a
 // directory are planted at it by derivation. Measured by this test's printed READ_PATHS. 68 -> 69.
-const READ_PATH_COUNT = 69;
+// 76 on 2026-10-22 (plan 37-13, SPLIT-05, D-04): `tools/grugops/state-check.js`, `tools/grugops/trace-render.js` and
+// `tools/grugops/state-roll.js` entered (three more RUNNABLES rows, each destination asked through readForWrite), and
+// the v3 seed's `memory-bank/plans/nfr/.gitkeep`, `memory-bank/plans/traceability/.gitkeep`,
+// `memory-bank/plans/archive/.gitkeep` and layout marker `memory-bank/plans/.layout` entered (seedState asks each
+// destination through readForWrite, and the marker's skipped line on a non-fresh layout asks it the same way); 74 files
+// and links written, plus the two read-only inputs. A FIFO and a directory are planted at each by derivation.
+// Measured by this test's printed READ_PATHS. 69 -> 76.
+const READ_PATH_COUNT = 76;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo
