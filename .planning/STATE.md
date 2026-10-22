@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Phase 37 planned (19 plans)
-last_updated: "2026-10-21T20:57:29.211Z"
-last_activity: 2026-10-21
-last_activity_desc: Phase 37 planned, 19 plans in 19 sequential waves
-state_head: dda20377c80fe7ce9a87be82883ea6fd807446d1
+stopped_at: Completed 37-01-PLAN.md
+last_updated: "2026-10-22T07:41:51.977Z"
+last_activity: 2026-10-22
+last_activity_desc: Completed 37-01 (board contract, budgets and layout constants)
+state_head: 8da4b53aa419ddca553c49368654647145a9491a
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 15
+  completed_plans: 16
   percent: 22
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 
 ## Current Position
 
-Phase: 37 (Overview board, per-file records and budgets) — READY TO EXECUTE
-Plan: Not started
+Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
+Plan: 2 of 19
 Status: Ready to execute
-Last activity: 2026-10-21 — Phase 37 planned, 19 plans in 19 sequential waves
+Last activity: 2026-10-22 — Completed 37-01 (board contract, budgets and layout constants)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -729,6 +729,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P12 | 20min | 1 tasks | 8 files |
 | Phase 36 P13 | 20min | 2 tasks | 10 files |
 | Phase 36 P14 | 42 min | 2 tasks | 9 files |
+| Phase 37 P01 | 42 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2000,6 +2001,8 @@ Recent decisions affecting current work:
 - [Phase 36]: 36-13: the doctor prints no state-layout line on a fresh layout; the board stat FAILs on the absent board, and an ok line would call an empty repository healthy
 - [Phase 36]: 36-13: LAYOUT-04 left unchecked until the live fallback check (Task 2 human-check: an agent on a pre-v3 repo after --update reads plans/ and says once to run install --migrate) passes
 - [Phase 36]: 36-14: check-state-paths gate exits only on outside sites/legacy paths; dead allow-list entries are red in the test via deadEntries, never by pinning the list length
+- [Phase 37]: D-14: layout marker is memory-bank/plans/.layout holding layout: v3, with or without one trailing newline, after BOM removal and CRLF folding (human, option a)
+- [Phase 37]: D-15: archived Done tickets stay placed through a seventh reader source boardArchive, snapshot version 3; archive rows place for ticket-unplaced only; plan 37-12 implements (human, option a)
 
 ### Pending Todos
 
@@ -2331,9 +2334,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-21T13:47:53.655Z
-Stopped at: Phase 37 context gathered
-Resume file: .planning/phases/37-overview-board-per-file-records-and-budgets/37-CONTEXT.md
+Last session: 2026-10-22T07:41:51.658Z
+Stopped at: Completed 37-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
