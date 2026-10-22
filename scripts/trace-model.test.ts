@@ -25,6 +25,7 @@ import {
   traceFileName,
   type TraceRow,
 } from "./trace-model.js";
+import * as model from "./trace-model.js";
 import { indexLineFindings } from "./state-rules.js";
 import { normalizeDocument, stripHtmlComments } from "./board-model.js";
 import { BUDGETS, TRACE_DIR_REL, TRACEABILITY_REL } from "../install/state-layout.js";
@@ -229,5 +230,129 @@ describe("collectTraceNotes and planTraceTree: two roots, a failing task, the pl
     expect(plan.get(TRACEABILITY_REL)).toBe(renderTraceIndex(THREE_ROWS));
     expect(plan.get(`${TRACE_DIR_REL}/ABC-2.md`)).toBe(renderTicketTrace(bareRow("ABC-2")));
     expect([...planTraceTree([], TRACEABILITY_REL, TRACE_DIR_REL).keys()]).toEqual([TRACEABILITY_REL]);
+  });
+});
+
+// ── Plan 37-07: the owned-entry rule, case-fold collisions and the tree comparison ─────────────────────────
+// The new exports are read through the namespace import `model`, so until they exist each case fails on its
+// own call rather than the whole file failing to load.
+
+/** A fake repository: absolute path → text. A listing returns the direct children of a directory. */
+function fakeTree(root: string, files: Record<string, string>, reads: string[] = []) {
+  const map = new Map(Object.entries(files).map(([rel, text]) => [`${root}/${rel}`, text]));
+  return {
+    readText(path: string): string | null {
+      reads.push(path);
+      return map.get(path) ?? null;
+    },
+    listDir(path: string): readonly string[] | null {
+      const prefix = `${path}/`;
+      const names = [...map.keys()].filter((k) => k.startsWith(prefix)).map((k) => k.slice(prefix.length));
+      return names.length === 0 ? null : names.filter((n) => !n.includes("/"));
+    },
+  };
+}
+
+const ROWS_AB = buildTraceRows([{ refs: ["ABC-1", "#41"] }, { refs: ["ABC-2", "UAT-3"] }]);
+
+function freshFiles(): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const [rel, text] of planTraceTree(ROWS_AB, TRACEABILITY_REL, TRACE_DIR_REL)) files[rel] = text;
+  return files;
+}
+
+function compare(files: Record<string, string>, reads: string[] = []) {
+  const plan = planTraceTree(ROWS_AB, TRACEABILITY_REL, TRACE_DIR_REL);
+  return model.compareTraceTree(plan, "/r", fakeTree("/r", files, reads), TRACEABILITY_REL, TRACE_DIR_REL);
+}
+
+describe("ownedTraceEntries: the record rule for the trace tree (plan 37-01 contract)", () => {
+  it("keeps the names that do not begin with `.`, in code-unit order", () => {
+    expect(model.ownedTraceEntries(["ABC-2.md", ".gitkeep", "ABC-10.md", ".DS_Store"])).toEqual(["ABC-10.md", "ABC-2.md"]);
+    expect(model.ownedTraceEntries([])).toEqual([]);
+  });
+});
+
+describe("caseFoldCollisions: identifiers whose trace file names fold to one name (research Pitfall 11)", () => {
+  it("groups every identifier whose lower-case file name collides, each group and the groups in code-unit order", () => {
+    expect(model.caseFoldCollisions(["abc-1", "ABC-2", "ABC-1", "xyz-3", "Abc-1", "XYZ-3"])).toEqual([
+      ["ABC-1", "Abc-1", "abc-1"],
+      ["XYZ-3", "xyz-3"],
+    ]);
+  });
+
+  it("no collision is an empty list, and one identifier given twice is not a collision", () => {
+    expect(model.caseFoldCollisions(["ABC-1", "ABC-2", "ABC-1"])).toEqual([]);
+  });
+});
+
+describe("compareTraceTree: the one comparison render and state-check share (D-01, D-02)", () => {
+  it("a fresh tree has no difference", () => {
+    expect(compare(freshFiles())).toEqual({ missing: [], extra: [], changed: [], handWritten: [] });
+  });
+
+  it("names a missing file, a changed file and an extra generated file, by repository-relative path", () => {
+    const files = freshFiles();
+    delete files[`${TRACE_DIR_REL}/ABC-1.md`];
+    files[`${TRACE_DIR_REL}/ABC-2.md`] += "x";
+    files[`${TRACE_DIR_REL}/ABC-9.md`] = `${TRACE_GENERATED_HEADER}\n# Trace: ABC-9\n`;
+    expect(compare(files)).toEqual({
+      missing: [`${TRACE_DIR_REL}/ABC-1.md`],
+      extra: [`${TRACE_DIR_REL}/ABC-9.md`],
+      changed: [`${TRACE_DIR_REL}/ABC-2.md`],
+      handWritten: [],
+    });
+  });
+
+  it("a planned or extra file whose first line is not the generated header is hand-written, never changed or extra", () => {
+    const files = freshFiles();
+    files[TRACEABILITY_REL] = "# Traceability Matrix\n| Ticket | Code |\n";
+    files[`${TRACE_DIR_REL}/notes.md`] = "my own notes\n";
+    const r = compare(files);
+    expect(r.handWritten).toEqual([`${TRACE_DIR_REL}/notes.md`, TRACEABILITY_REL].sort(compareCodeUnits));
+    expect(r.changed).toEqual([]);
+    expect(r.extra).toEqual([]);
+  });
+
+  it("a directory keeper and operating-system metadata are never read, compared or reported", () => {
+    const files = freshFiles();
+    files[`${TRACE_DIR_REL}/.gitkeep`] = "";
+    files[`${TRACE_DIR_REL}/.DS_Store`] = "binary";
+    const reads: string[] = [];
+    expect(compare(files, reads)).toEqual({ missing: [], extra: [], changed: [], handWritten: [] });
+    expect(reads.filter((p) => p.includes("/."))).toEqual([]);
+  });
+
+  it("an absent trace directory compares the index alone, so a hand-written index still fails (no vacuous pass)", () => {
+    const empty = new Map([[TRACEABILITY_REL, renderTraceIndex([])]]);
+    const io = fakeTree("/r", { [TRACEABILITY_REL]: "# Traceability Matrix\n" });
+    expect(model.compareTraceTree(empty, "/r", io, TRACEABILITY_REL, TRACE_DIR_REL).handWritten).toEqual([TRACEABILITY_REL]);
+    const fresh = fakeTree("/r", { [TRACEABILITY_REL]: renderTraceIndex([]) });
+    expect(model.compareTraceTree(empty, "/r", fresh, TRACEABILITY_REL, TRACE_DIR_REL)).toEqual({
+      missing: [],
+      extra: [],
+      changed: [],
+      handWritten: [],
+    });
+  });
+
+  it("a refusal from the text reader propagates, so the caller reports could-not-run", () => {
+    const io = {
+      readText(): string | null {
+        throw new Error("refused: not a regular file");
+      },
+      listDir: () => null,
+    };
+    const plan = new Map([[TRACEABILITY_REL, "x"]]);
+    expect(() => model.compareTraceTree(plan, "/r", io, TRACEABILITY_REL, TRACE_DIR_REL)).toThrow(
+      "refused: not a regular file",
+    );
+  });
+
+  it("isGeneratedTraceText reads the first line only, and accepts a CRLF line end on it", () => {
+    expect(model.isGeneratedTraceText(`${TRACE_GENERATED_HEADER}\nbody\n`)).toBe(true);
+    expect(model.isGeneratedTraceText(`${TRACE_GENERATED_HEADER}\r\nbody\r\n`)).toBe(true);
+    expect(model.isGeneratedTraceText(`x\n${TRACE_GENERATED_HEADER}\n`)).toBe(false);
+    expect(model.isGeneratedTraceText("")).toBe(false);
   });
 });

@@ -6,7 +6,9 @@
 // state-layout constants, never this repository's own tree. Notes are planted as raw bytes and sealed through
 // the committed context-io.js seal export, the way scripts/trace-render.test.ts plants them.
 //
-//   exit 0 → rendered
+//   exit 0 → rendered, or (--check) the tree equals a fresh render
+//   exit 1 → (plan 37-07) a hand-written file, a case-fold collision, or (--check) a missing, extra or
+//            changed file; nothing written
 //   exit 2 → could not run, with nothing on stdout and nothing written
 
 import { describe, it, expect, afterAll } from "vitest";
@@ -236,7 +238,8 @@ describe("trace-render.js — could not run: exit 2, nothing on stdout, nothing 
   it("no argument, two arguments, an unknown option and a missing root", () => {
     expectRefused(null, [], "no repository root was given");
     expectRefused(null, [repo(), repo()], "more than one repository root");
-    expectRefused(null, [repo(), "--check"], "unknown option --check");
+    expectRefused(null, [repo(), "--bogus"], "unknown option --bogus");
+    expectRefused(null, [repo(), "--check", "--check"], "--check was given more than once");
     expectRefused(null, [join(mkTmp("grugops-trace-render-gone-"), "absent")], "cannot be resolved");
   });
 
@@ -297,5 +300,212 @@ describe("trace-render.js — could not run: exit 2, nothing on stdout, nothing 
       return;
     }
     expectRefused(root, [root], `the context root ${CONTEXT_REL} resolves outside the repository root`);
+  });
+});
+
+// ── Plan 37-07: the read-only --check mode and the refusals that protect hand-written content ─────────────
+
+/** Every entry under the trace directory plus the index, with its lstat mtime, so a write is seen. */
+function snapshotWithTimes(root: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [rel, bytes] of snapshot(root)) out.set(rel, `${lstatSync(join(root, rel)).mtimeMs}|${bytes}`);
+  return out;
+}
+
+/** A rendered two-root repository: the write mode has run once and exited 0. */
+function renderedRepo(): string {
+  const root = twoRootRepo();
+  const r = run(root);
+  expect(r.status, r.stderr).toBe(0);
+  return root;
+}
+
+describe("trace-render.js --check — read-only: 0 fresh, 1 naming each difference, and nothing written", () => {
+  it("after a render, --check exits 0, prints a fresh line with the counts, and changes no byte or mtime", () => {
+    const root = renderedRepo();
+    const before = snapshotWithTimes(root);
+    const r = run(root, "--check");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("The trace is fresh");
+    expect(r.stdout).toContain("2 task(s) and 2 note(s) read");
+    for (const arm of ctxio.NOTE_SKIP_ARMS) expect(r.stdout).toContain(`${arm} 0`);
+    expect(snapshotWithTimes(root)).toEqual(before);
+  });
+
+  it("--check is accepted before the root as well as after it", () => {
+    const root = renderedRepo();
+    expect(run("--check", root).status).toBe(0);
+  });
+
+  it("Edge SPLIT-03 concurrency: deleting one rendered file makes --check exit 1 naming it", () => {
+    const root = renderedRepo();
+    rmSync(join(root, TRACE_DIR_REL, "ABC-002.md"));
+    const before = snapshotWithTimes(root);
+    const r = run(root, "--check");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain(`MISSING ${TRACE_DIR_REL}/ABC-002.md`);
+    expect(snapshotWithTimes(root)).toEqual(before);
+  });
+
+  it("an extra generated trace file and a one-byte change are each named, and nothing is written", () => {
+    const root = renderedRepo();
+    writeFileSync(join(root, TRACE_DIR_REL, "ABC-099.md"), `${TRACE_GENERATED_HEADER}\n# Trace: ABC-099\n`, "utf8");
+    const one = join(root, TRACE_DIR_REL, "ABC-001.md");
+    writeFileSync(one, readFileSync(one, "utf8").replace("NFR-002", "NFR-003"), "utf8");
+    const before = snapshotWithTimes(root);
+    const r = run(root, "--check");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain(`EXTRA ${TRACE_DIR_REL}/ABC-099.md`);
+    expect(r.stdout).toContain(`CHANGED ${TRACE_DIR_REL}/ABC-001.md`);
+    expect(r.stdout).not.toContain("The trace is fresh");
+    expect(snapshotWithTimes(root)).toEqual(before);
+  });
+
+  it("with no context root at all, the zero-row index passes --check and a hand-written index fails it (no vacuous pass)", () => {
+    const root = repo();
+    expect(run(root).status).toBe(0);
+    expect(run(root, "--check").status).toBe(0);
+    writeFileSync(join(root, TRACEABILITY_REL), "# Traceability Matrix\n_Updated: <date>_\n", "utf8");
+    const r = run(root, "--check");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain(`HAND-WRITTEN ${TRACEABILITY_REL}`);
+  });
+
+  it("a directory keeper and operating-system metadata beside a fresh render are never named, read or touched", () => {
+    const root = renderedRepo();
+    writeFileSync(join(root, TRACE_DIR_REL, ".gitkeep"), "", "utf8");
+    writeFileSync(join(root, TRACE_DIR_REL, ".DS_Store"), "Bud1\u0000\u0000", "utf8");
+    const before = snapshotWithTimes(root);
+    const check = run(root, "--check");
+    expect(check.status, check.stdout + check.stderr).toBe(0);
+    expect(check.stdout).not.toContain(".gitkeep");
+    expect(check.stdout).not.toContain(".DS_Store");
+    const write = run(root);
+    expect(write.status, write.stdout + write.stderr).toBe(0);
+    expect(write.stdout).not.toContain(".gitkeep");
+    expect(write.stdout).not.toContain(".DS_Store");
+    const after = snapshotWithTimes(root);
+    for (const keeper of [".gitkeep", ".DS_Store"]) {
+      expect(after.get(`${TRACE_DIR_REL}/${keeper}`)).toBe(before.get(`${TRACE_DIR_REL}/${keeper}`));
+    }
+  });
+
+  it("an unsealed note and a refused task name are counted and named, and --check still exits 0", () => {
+    const root = twoRootRepo();
+    plant(root, CONTEXT_REL, "taskC", "hand", noteText("hand", ["ABC-003"], false));
+    const bad = `bad${"\u001b"}task`;
+    const skipped = stageNameOrSkip(
+      () => plant(root, CONTEXT_REL, bad, "n9", noteText("n9", ["ABC-009"])),
+      "scripts/runnable-ref/trace-render.test.ts: a refused task name under --check (plan 37-07)",
+    );
+    expect(run(root).status).toBe(0);
+    const r = run(root, "--check");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("unsealed 1");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the write-mode refused-task case above (the same catch)"));
+      return;
+    }
+    expect(r.stdout).toContain("unreadable tasks 1");
+    expect(r.stdout).toContain(`UNREADABLE TASK ${CONTEXT_REL}/badtask: `);
+  });
+
+  it("a FIFO at a planned trace file path makes --check exit 2 naming it, and it is never opened", () => {
+    const root = renderedRepo();
+    const at = join(root, TRACE_DIR_REL, "ABC-001.md");
+    rmSync(at);
+    const skipped = stageShapeOrSkip("FIFO", at, "scripts/runnable-ref/trace-render.test.ts: a FIFO at a trace file under --check (plan 37-07)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the write-mode FIFO-at-the-index case (the same lstat-before-open rule)"));
+      return;
+    }
+    const r = run(root, "--check");
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain(`${TRACE_DIR_REL}/ABC-001.md is present and is not a regular file`);
+  });
+
+  it("a FIFO at an unplanned name in the trace directory makes --check exit 2 naming it, and it is never opened", () => {
+    const root = renderedRepo();
+    const at = join(root, TRACE_DIR_REL, "ABC-077.md");
+    const skipped = stageShapeOrSkip("FIFO", at, "scripts/runnable-ref/trace-render.test.ts: a FIFO extra under --check (plan 37-07)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the FIFO-at-a-planned-path case beside this one"));
+      return;
+    }
+    const r = run(root, "--check");
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain(`${TRACE_DIR_REL}/ABC-077.md is present and is not a regular file`);
+  });
+});
+
+describe("trace-render.js — never destroys hand-written content, never folds two tickets into one file", () => {
+  it("an old hand-written traceability.md makes the write mode exit 1 naming it, with every byte unchanged", () => {
+    const root = twoRootRepo();
+    writeFileSync(join(root, TRACEABILITY_REL), "# Traceability Matrix\n| Ticket | Code |\n", "utf8");
+    const before = snapshotWithTimes(root);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain(`HAND-WRITTEN ${TRACEABILITY_REL}`);
+    expect(r.stdout).toContain("2 task(s) and 2 note(s) read");
+    expect(r.stdout).toContain("0 file(s) written");
+    expect(snapshotWithTimes(root)).toEqual(before);
+    expect(existsSync(join(root, TRACE_DIR_REL))).toBe(false);
+    const check = run(root, "--check");
+    expect(check.status).toBe(1);
+    expect(check.stdout).toContain(`HAND-WRITTEN ${TRACEABILITY_REL}`);
+  });
+
+  it("a hand-written file in the trace directory is refused the same way and never deleted", () => {
+    const root = renderedRepo();
+    const mine = join(root, TRACE_DIR_REL, "my-notes.md");
+    writeFileSync(mine, "my own notes about the trace\n", "utf8");
+    const planned = join(root, TRACE_DIR_REL, "ABC-002.md");
+    writeFileSync(planned, "# ABC-002, edited by hand\n", "utf8");
+    const before = snapshotWithTimes(root);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain(`HAND-WRITTEN ${TRACE_DIR_REL}/my-notes.md`);
+    expect(r.stdout).toContain(`HAND-WRITTEN ${TRACE_DIR_REL}/ABC-002.md`);
+    expect(snapshotWithTimes(root)).toEqual(before);
+  });
+
+  it("an extra file that starts with the generated header is removed by the write mode and reported", () => {
+    const root = renderedRepo();
+    writeFileSync(join(root, TRACE_DIR_REL, "ABC-099.md"), `${TRACE_GENERATED_HEADER}\n# Trace: ABC-099\n`, "utf8");
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain(`REMOVED ${TRACE_DIR_REL}/ABC-099.md`);
+    expect(r.stdout).toContain("1 file(s) removed");
+    expect(lexists(join(root, TRACE_DIR_REL, "ABC-099.md"))).toBe(false);
+    expect(run(root, "--check").status).toBe(0);
+  });
+
+  it("notes carrying ABC-1 and abc-1 make the run exit 1 naming both, and nothing is written", () => {
+    const root = repo();
+    plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "#1"]));
+    plant(root, CONTEXT_REL, "taskB", "n2", noteText("n2", ["abc-1", "#2"]));
+    const before = snapshotWithTimes(root);
+    for (const args of [[root], [root, "--check"]]) {
+      const r = run(...args);
+      expect(r.status, r.stdout + r.stderr).toBe(1);
+      expect(r.stdout).toContain("COLLISION ABC-1, abc-1");
+      expect(snapshotWithTimes(root)).toEqual(before);
+    }
+    expect(existsSync(join(root, TRACEABILITY_REL))).toBe(false);
+  });
+
+  it("a ticket re-cased from abc-1 to ABC-1 renders once and --check is then fresh, on a case-insensitive disk too", () => {
+    const root = repo();
+    plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["abc-1", "#1"]));
+    expect(run(root).status).toBe(0);
+    rmSync(join(root, CONTEXT_REL, "taskA"), { recursive: true });
+    plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "#1"]));
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(readdirSync(join(root, TRACE_DIR_REL))).toEqual(["ABC-1.md"]);
+    expect(readFileSync(join(root, TRACE_DIR_REL, "ABC-1.md"), "utf8")).toContain("# Trace: ABC-1\n");
+    expect(run(root, "--check").status).toBe(0);
   });
 });
