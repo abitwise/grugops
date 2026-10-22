@@ -155,7 +155,7 @@ const DONE_COLUMN = "Done";
  * line is the first row past the budget, the row the roll would move first.
  */
 export function doneRowFindings(rel, model, budgets) {
-    const rows = model.columns.filter((c) => c.name === DONE_COLUMN).flatMap((c) => c.rows);
+    const rows = doneRows(model);
     if (rows.length <= budgets.doneRows)
         return [];
     return [over(rel, "doneRows", rows.length, budgets, rows[budgets.doneRows]?.line)];
@@ -353,29 +353,120 @@ export function nfrIntegrityFindings(indexRel, parsed, fileNames, nfrDirRel) {
     }
     return findings;
 }
-/** PLACEHOLDER (plan 37-05 RED): the progress-entry grammar lands in GREEN. */
-export function progressEntries(_text) {
-    return { dated: [], standing: [] };
+/** A `##` heading line: exactly two `#`, then a space or the end of the line. `###` and deeper never match. */
+const SECTION_HEADING = /^##(?: |$)/;
+/**
+ * A dated status entry's heading (D-09): `## `, then an ISO date `YYYY-MM-DD`, then a space or the end of the
+ * line. The date must also be a calendar date, so a heading such as `## 2026-13-01` is standing content.
+ */
+const DATED_HEADING = /^## [0-9]{4}-[0-9]{2}-[0-9]{2}(?: |$)/;
+/** Whether `ymd` (`YYYY-MM-DD`, digits already checked) names a day of the proleptic Gregorian calendar. */
+function isCalendarDate(ymd) {
+    const year = Number(ymd.slice(0, 4));
+    const month = Number(ymd.slice(5, 7));
+    const day = Number(ymd.slice(8, 10));
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+    return day >= 1 && day <= days;
 }
-/** PLACEHOLDER (plan 37-05 RED). */
-export function doneRowCount(_model) {
-    return 0;
+/**
+ * The `##` headings of the progress file, each classified (D-09). `text` is LF text; a caller that wants a
+ * heading inside an HTML comment ignored passes it through board-model's stripHtmlComments first, which
+ * keeps every line.
+ *
+ * A dated status entry is a `##` heading whose text begins with an ISO date followed by a space or the end of
+ * the line: only those roll. Every other `##` heading is standing content (a directive, a ruling, `What
+ * works`): it is listed so a caller can name it, and it never rolls. A `###` or deeper heading is neither.
+ *
+ * WHAT THIS DOES NOT ANSWER: where an entry ends. That is the section-extent question, and LANG-07 gives it
+ * exactly one owner in this tree, scripts/frontmatter.ts (sectionEndIndex); a second answer here would be a
+ * second section grammar (scripts/check-foundation-guards.test.ts, SECTION_EXTENT_OWNERS). state-check needs
+ * only the classification. The roll planner of plan 37-11 takes each entry's extent from that owner.
+ */
+export function progressEntries(text) {
+    const dated = [];
+    const standing = [];
+    for (const [n, line] of text.split("\n").entries()) {
+        if (!SECTION_HEADING.test(line))
+            continue;
+        const heading = line.slice("## ".length);
+        const date = heading.slice(0, "YYYY-MM-DD".length);
+        if (DATED_HEADING.test(line) && isCalendarDate(date))
+            dated.push({ date, heading, line: n + 1 });
+        else
+            standing.push({ heading, line: n + 1 });
+    }
+    return { dated, standing };
 }
-/** PLACEHOLDER (plan 37-05 RED). */
-export function rollableSurfaces(_doneRowCount, _progressBytes, _progress, _budgets) {
-    return [];
+/** The ticket rows under every column named `Done`, counted together, in board order. */
+function doneRows(model) {
+    return model.columns.filter((c) => c.name === DONE_COLUMN).flatMap((c) => c.rows);
 }
-/** PLACEHOLDER (plan 37-05 RED). */
-export function formatRollable(_r) {
-    return "";
+/** How many ticket rows the Done column holds (BUDGETS.doneRows counts these). */
+export function doneRowCount(model) {
+    return doneRows(model).length;
 }
-/** PLACEHOLDER (plan 37-05 RED). */
-export function progressBytesFinding(rel, bytes, _progress, _decisionsRel, budgets) {
-    return fileBytesFinding(rel, bytes, "progressBytes", budgets);
+/**
+ * The surfaces a roll is due on, in the fixed order done, progress (D-07, D-08, D-09).
+ *
+ * - done: the Done column holds more than BUDGETS.doneRows rows. `doneRowCount` is null when the board was
+ *   not read.
+ * - progress: the progress file is over BUDGETS.progressBytes (`progressBytes` is its size, or null when it
+ *   was not measured) and holds at least one dated status entry. A file of standing sections only is over
+ *   budget and not rollable: rolling it would hide live rules (D-09).
+ *
+ * This says a roll is due. It moves nothing: state-roll does the moving.
+ */
+export function rollableSurfaces(doneRowCount, progressBytes, progress, budgets) {
+    const out = [];
+    if (doneRowCount !== null && doneRowCount > budgets.doneRows) {
+        out.push({ surface: "done", key: "doneRows", measured: doneRowCount, budget: budgets.doneRows, unit: UNITS.doneRows });
+    }
+    if (progressBytes !== null && progressBytes > budgets.progressBytes && progress !== null && progress.dated.length > 0) {
+        out.push({
+            surface: "progress",
+            key: "progressBytes",
+            measured: progressBytes,
+            budget: budgets.progressBytes,
+            unit: UNITS.progressBytes,
+        });
+    }
+    return out;
 }
-/** PLACEHOLDER (plan 37-05 RED). */
-export function moveOnlyFindings(_liveRel, _liveNames, _archiveRel, _archiveNames) {
-    return [];
+/** The one spelling of a rollable surface: `<surface>: <measured> <unit>, keeps <budget> <unit> (BUDGETS.<key>)`. */
+export function formatRollable(r) {
+    return `${r.surface}: ${grouped(r.measured)} ${r.unit}, keeps ${grouped(r.budget)} ${r.unit} (BUDGETS.${r.key})`;
+}
+/**
+ * The progress file's byte finding. Over budget with no dated status entry, nothing in it can roll, so the
+ * note names each standing `##` section and says it belongs in the decision records directory `decisionsRel`
+ * (D-09). With a dated entry the finding carries no note: the ROLLABLE report says what to run. `progress` is
+ * null when the file was not read; the finding is then the plain byte finding.
+ */
+export function progressBytesFinding(rel, bytes, progress, decisionsRel, budgets) {
+    const finding = fileBytesFinding(rel, bytes, "progressBytes", budgets);
+    if (finding === null || progress === null || progress.dated.length > 0)
+        return finding;
+    const sections = progress.standing.length === 0
+        ? "it has no `##` section, so its text belongs"
+        : `its standing sections ${progress.standing.map((s) => `\`## ${s.heading}\``).join(", ")} belong`;
+    return {
+        ...finding,
+        note: "it holds no dated status entry (a `## YYYY-MM-DD` heading), so nothing in it can roll; " +
+            `${sections} in ${decisionsRel}/ as decision records`,
+    };
+}
+/**
+ * The move-only rule (SPLIT-06, v3.0 D-7): a record name present both in a live folder and in its archive
+ * folder is a finding, because a move leaves one copy. Both raw listings go through recordEntryNames here, so
+ * a keeper such as `.gitkeep` in both folders is not a copied record. One finding per name, in code-unit
+ * order, naming both paths.
+ */
+export function moveOnlyFindings(liveRel, liveNames, archiveRel, archiveNames) {
+    const archived = new Set(recordEntryNames(archiveNames));
+    return recordEntryNames(liveNames)
+        .filter((name) => archived.has(name))
+        .map((name) => integrityFinding(`${liveRel}/${name}`, "move-only-copy", `${archiveRel}/${name} holds the same name, and a move leaves one copy: this record is in both folders`));
 }
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
 /** `n` with its digits grouped in threes by commas, independent of the host locale. */

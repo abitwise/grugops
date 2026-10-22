@@ -42,8 +42,8 @@ export const EMBED_CLOSE = "// </runnable-embeds>";
 /**
  * Every generated region in the repository. The first row is the state checker (plans 37-03, 37-04 and 37-05):
  * the budget numbers and every state path it reads from install/state-layout.ts, every budget rule, the record
- * rule, the marker rule, the output sanitizer and the NFR index grammar and integrity rule from
- * scripts/state-rules.ts, the board grammar from scripts/board-model.ts, and the non-blocking reader from
+ * rule, the marker rule, the output sanitizer, the NFR index grammar and integrity rule, the progress-entry
+ * grammar and the rollable and move-only rules from scripts/state-rules.ts, the board grammar from scripts/board-model.ts, and the non-blocking reader from
  * scripts/context-io.ts.
  */
 export const EMBED_SPECS = Object.freeze([
@@ -63,6 +63,10 @@ export const EMBED_SPECS = Object.freeze([
                     "TRACEABILITY_REL",
                     "NFR_CATALOG_REL",
                     "PROGRESS_REL",
+                    "DECISIONS_REL",
+                    "DECISIONS_ARCHIVE_REL",
+                    "QUEUE_DONE_REL",
+                    "QUEUE_DONE_ARCHIVE_REL",
                 ],
             },
             {
@@ -78,6 +82,13 @@ export const EMBED_SPECS = Object.freeze([
                     "recordEntryNames",
                     "parseNfrIndex",
                     "nfrIntegrityFindings",
+                    "progressEntries",
+                    "doneRowCount",
+                    "rollableSurfaces",
+                    "formatRollable",
+                    "progressBytesFinding",
+                    "moveOnlyFindings",
+                    "integrityFinding",
                     "unmeasuredFinding",
                     "formatFinding",
                     "sortFindings",

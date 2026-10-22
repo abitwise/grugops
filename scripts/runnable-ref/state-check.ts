@@ -13,18 +13,27 @@
 //   exit 1 → the layout marker is valid and at least one finding exists (the gate blocks)
 //   exit 2 → the check could not run: a bad argument, a root that is not a readable directory, or a required
 //            file that is present and cannot be read. Exit 2 is never a pass: it prints nothing on stdout.
-// With `--json`, stdout carries exactly one JSON document, `{ ok, marker, enforced, findings }`, where `ok` is
+// With `--json`, stdout carries exactly one JSON document, `{ ok, marker, enforced, findings, rollable,
+// moveOnly }`, where `ok` is
 // false exactly when the exit code is 1, `marker` is "absent", "valid" or "invalid", and `enforced` is true
-// when the marker is valid. Each finding carries rel, key, measured, budget, unit, line and note.
+// when the marker is valid. Each finding carries rel, key, measured, budget, unit, line and note (budget and
+// unit are null on a finding about no budget). The document also carries `rollable`, the surfaces a roll is
+// due on in the fixed order done, progress, and `moveOnly`, one { live, archive, liveCount, archivedCount }
+// per move-only surface.
 //
 // THE MARKER DECIDES SEVERITY (D-04, D-05, D-14). With a valid marker every finding prints as `FINDING` and
 // fails. With no marker, or an unrecognized one, every finding prints as `WARN` and the exit code is 0; an
 // unrecognized marker is itself a warning that names it.
 //
-// THE INTEGRITY CHECKS (plan 37-05). After the budgets it checks the hand-kept NFR catalog against the NFR
-// files in both directions (D-13), through the embedded parseNfrIndex and nfrIntegrityFindings. Each
-// expected NFR path is derived from an identifier; no path is ever taken from link text. These findings take
-// the marker's severity like the budget findings.
+// THE INTEGRITY CHECKS AND THE REPORTS (plan 37-05). After the budgets it checks the hand-kept NFR catalog
+// against the NFR files in both directions (D-13), through the embedded parseNfrIndex and
+// nfrIntegrityFindings; each expected NFR path is derived from an identifier, and no path is ever taken from
+// link text. It reports a name found both in a move-only live folder and in its archive folder
+// (.grugops/queue/done/ and memory-bank/50-decisions/, v3.0 D-7). These findings take the marker's severity
+// like the budget findings. Two report lines change no exit code by themselves: a `ROLLABLE` line per surface
+// a roll is due on (the Done column, or a progress file over budget that holds a dated status entry, D-08,
+// D-09), naming the state-roll command, and a `MOVE-ONLY` line per move-only surface with its live and
+// archived record counts, printed on every run. state-check itself never moves anything.
 //
 // WHAT IT MEASURES IS DECIDED BY THE RULES, NOT HERE. Which directory entries count is the embedded
 // budgetEntryNames, given the raw listing; this file filters no name itself (D-11). A record's size is its
@@ -72,7 +81,15 @@ export const TRACEABILITY_REL = `${STATE_ROOT_REL}/traceability.md`;
 export const MEMORY_BANK_REL = "memory-bank";
 export const NFR_DIR_REL = `${STATE_ROOT_REL}/nfr`;
 export const TRACE_DIR_REL = `${STATE_ROOT_REL}/traceability`;
+export const ARCHIVE_REL = `${STATE_ROOT_REL}/archive`;
 export const PROGRESS_REL = `${MEMORY_BANK_REL}/60-progress.md`;
+export const DECISIONS_REL = `${MEMORY_BANK_REL}/50-decisions`;
+export const DECISIONS_ARCHIVE_REL = `${ARCHIVE_REL}/decisions`;
+export const GRUGOPS_DIR_REL = ".grugops";
+export const QUEUE_REL = `${GRUGOPS_DIR_REL}/queue`;
+export const QUEUE_DONE_REL = `${QUEUE_REL}/done`;
+export const GRUGOPS_ARCHIVE_REL = `${GRUGOPS_DIR_REL}/archive`;
+export const QUEUE_DONE_ARCHIVE_REL = `${GRUGOPS_ARCHIVE_REL}/queue-done`;
 export const LAYOUT_MARKER_REL = `${STATE_ROOT_REL}/.layout`;
 export const LAYOUT_MARKER_CONTENT = "layout: v3";
 export const BUDGETS = Object.freeze({
@@ -240,7 +257,7 @@ export function boardBudgetFindings(
 }
 const DONE_COLUMN = "Done";
 export function doneRowFindings(rel: string, model: BoardFacts, budgets: StateBudgets): StateFinding[] {
-  const rows = model.columns.filter((c) => c.name === DONE_COLUMN).flatMap((c) => c.rows);
+  const rows = doneRows(model);
   if (rows.length <= budgets.doneRows) return [];
   return [over(rel, "doneRows", rows.length, budgets, rows[budgets.doneRows]?.line)];
 }
@@ -427,6 +444,106 @@ export function nfrIntegrityFindings(
     );
   }
   return findings;
+}
+export type DatedEntry = { readonly date: string; readonly heading: string; readonly line: number };
+export type StandingSection = { readonly heading: string; readonly line: number };
+export type ProgressEntries = { readonly dated: readonly DatedEntry[]; readonly standing: readonly StandingSection[] };
+const SECTION_HEADING = /^##(?: |$)/;
+const DATED_HEADING = /^## [0-9]{4}-[0-9]{2}-[0-9]{2}(?: |$)/;
+function isCalendarDate(ymd: string): boolean {
+  const year = Number(ymd.slice(0, 4));
+  const month = Number(ymd.slice(5, 7));
+  const day = Number(ymd.slice(8, 10));
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+  return day >= 1 && day <= days;
+}
+export function progressEntries(text: string): ProgressEntries {
+  const dated: DatedEntry[] = [];
+  const standing: StandingSection[] = [];
+  for (const [n, line] of text.split("\n").entries()) {
+    if (!SECTION_HEADING.test(line)) continue;
+    const heading = line.slice("## ".length);
+    const date = heading.slice(0, "YYYY-MM-DD".length);
+    if (DATED_HEADING.test(line) && isCalendarDate(date)) dated.push({ date, heading, line: n + 1 });
+    else standing.push({ heading, line: n + 1 });
+  }
+  return { dated, standing };
+}
+function doneRows(model: BoardFacts): { readonly line: number }[] {
+  return model.columns.filter((c) => c.name === DONE_COLUMN).flatMap((c) => c.rows);
+}
+export function doneRowCount(model: BoardFacts): number {
+  return doneRows(model).length;
+}
+export type RollSurface = "done" | "progress";
+export type RollableSurface = {
+  readonly surface: RollSurface;
+  readonly key: "doneRows" | "progressBytes";
+  readonly measured: number;
+  readonly budget: number;
+  readonly unit: StateUnit;
+};
+export function rollableSurfaces(
+  doneRowCount: number | null,
+  progressBytes: number | null,
+  progress: ProgressEntries | null,
+  budgets: StateBudgets,
+): RollableSurface[] {
+  const out: RollableSurface[] = [];
+  if (doneRowCount !== null && doneRowCount > budgets.doneRows) {
+    out.push({ surface: "done", key: "doneRows", measured: doneRowCount, budget: budgets.doneRows, unit: UNITS.doneRows });
+  }
+  if (progressBytes !== null && progressBytes > budgets.progressBytes && progress !== null && progress.dated.length > 0) {
+    out.push({
+      surface: "progress",
+      key: "progressBytes",
+      measured: progressBytes,
+      budget: budgets.progressBytes,
+      unit: UNITS.progressBytes,
+    });
+  }
+  return out;
+}
+export function formatRollable(r: RollableSurface): string {
+  return `${r.surface}: ${grouped(r.measured)} ${r.unit}, keeps ${grouped(r.budget)} ${r.unit} (BUDGETS.${r.key})`;
+}
+export function progressBytesFinding(
+  rel: string,
+  bytes: number,
+  progress: ProgressEntries | null,
+  decisionsRel: string,
+  budgets: StateBudgets,
+): StateFinding | null {
+  const finding = fileBytesFinding(rel, bytes, "progressBytes", budgets);
+  if (finding === null || progress === null || progress.dated.length > 0) return finding;
+  const sections =
+    progress.standing.length === 0
+      ? "it has no `##` section, so its text belongs"
+      : `its standing sections ${progress.standing.map((s) => `\`## ${s.heading}\``).join(", ")} belong`;
+  return {
+    ...finding,
+    note:
+      "it holds no dated status entry (a `## YYYY-MM-DD` heading), so nothing in it can roll; " +
+      `${sections} in ${decisionsRel}/ as decision records`,
+  };
+}
+export function moveOnlyFindings(
+  liveRel: string,
+  liveNames: readonly string[],
+  archiveRel: string,
+  archiveNames: readonly string[],
+): StateFinding[] {
+  const archived = new Set(recordEntryNames(archiveNames));
+  return recordEntryNames(liveNames)
+    .filter((name) => archived.has(name))
+    .map((name) =>
+      integrityFinding(
+        `${liveRel}/${name}`,
+        "move-only-copy",
+        `${archiveRel}/${name} holds the same name, and a move leaves one copy: this record is in both folders`,
+      ),
+    );
 }
 function grouped(n: number): string {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -1001,17 +1118,27 @@ function readMarker(): MarkerState {
   return markerState(marker.kind === "text" ? marker.text : null, LAYOUT_MARKER_CONTENT);
 }
 
-/** The board's findings: bytes, ticket-row characters, `_Updated:` lines and Done rows, as checkBudgets reads it. */
-function boardFindings(): StateFinding[] {
+/**
+ * The board's findings: bytes, ticket-row characters, `_Updated:` lines and Done rows, as checkBudgets reads it,
+ * and the Done row count the rollable report reads (null when the board was not read).
+ */
+function boardFindings(): { readonly findings: StateFinding[]; readonly doneRows: number | null } {
   const board = readState(BOARD_REL, "board file");
-  if (board.kind === "absent") return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "the board file is absent")];
-  if (board.kind === "outside") return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, OUTSIDE_ROOT)];
+  if (board.kind === "absent") {
+    return { findings: [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "the board file is absent")], doneRows: null };
+  }
+  if (board.kind === "outside") {
+    return { findings: [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, OUTSIDE_ROOT)], doneRows: null };
+  }
   const normalized = normalizeDocument(board.text);
   const model = parseBoard(board.text);
-  return [
-    ...boardBudgetFindings(BOARD_REL, { raw: board.text, normalized, blanked: stripHtmlComments(normalized) }, model, BUDGETS),
-    ...doneRowFindings(BOARD_REL, model, BUDGETS),
-  ];
+  return {
+    findings: [
+      ...boardBudgetFindings(BOARD_REL, { raw: board.text, normalized, blanked: stripHtmlComments(normalized) }, model, BUDGETS),
+      ...doneRowFindings(BOARD_REL, model, BUDGETS),
+    ],
+    doneRows: doneRowCount(model),
+  };
 }
 
 /** The index-line findings of one index file, measured outside HTML comments. `index` is its readState result. */
@@ -1095,10 +1222,91 @@ function directoryFindings(dirRel: string, key: FileBudgetKey, listing: Listing)
 function nfrFindings(catalog: StateText, listing: Listing): StateFinding[] {
   if (catalog.kind === "outside" || listing.kind === "unlisted") return [];
   const names = listing.kind === "listed" ? listing.names : [];
+  for (const name of recordEntryNames(names)) confirmListed(`${NFR_DIR_REL}/${name}`);
   const text = catalog.kind === "text" ? catalog.text : "";
   const parsed = parseNfrIndex(stripHtmlComments(normalizeDocument(text)));
   return nfrIntegrityFindings(NFR_CATALOG_REL, parsed, names, NFR_DIR_REL);
 }
+
+/**
+ * The concurrency arm of the NFR check (SPLIT-02): a name the nfr/ listing returned must still be there when the
+ * index is compared with it. One whose lstat fails (it vanished, ENOENT, or cannot be stat'ed) is never
+ * counted as present and never a pass: the check reports it by name and could not run (exit 2). A test cannot
+ * open this window on demand, so it is held by review (plan 37-05, Flagged assumptions).
+ */
+function confirmListed(rel: string): void {
+  try {
+    nodeFs.lstatSync(nodePath.join(root, ...rel.split("/")));
+  } catch (e) {
+    couldNotRun(
+      `the NFR file ${rel} was listed and then could not be inspected (${codeOf(e)}), so the index check cannot ` +
+        "say whether it exists.",
+    );
+  }
+}
+
+/** The progress file's byte finding and what the rollable report reads from it. */
+type ProgressReport = {
+  readonly findings: StateFinding[];
+  readonly bytes: number | null;
+  readonly entries: ProgressEntries | null;
+};
+
+/**
+ * The progress file's byte finding, measured from its lstat size as checkBudgets measures it. Only a file
+ * over its budget is read: its dated status entries decide whether it is rollable, and with none the finding
+ * names its standing sections and where they belong (D-09, through the embedded progressBytesFinding). The
+ * text is comment-blanked first, so an example heading inside an HTML comment opens no entry. A file that was
+ * measured and then cannot be read is exit 2, naming it.
+ */
+function progressReport(): ProgressReport {
+  const sized = sizeFinding(PROGRESS_REL, "progressBytes", true);
+  const measured = sized.find((f) => f.measured !== null)?.measured ?? null;
+  if (measured === null) return { findings: sized, bytes: null, entries: null };
+  const text = readState(PROGRESS_REL, "progress file");
+  if (text.kind !== "text") couldNotRun(`the progress file ${PROGRESS_REL} was measured and then could not be read.`);
+  const entries = progressEntries(stripHtmlComments(normalizeDocument(text.text)));
+  const finding = progressBytesFinding(PROGRESS_REL, measured, entries, DECISIONS_REL, BUDGETS);
+  return { findings: finding === null ? [] : [finding], bytes: measured, entries };
+}
+
+/** One move-only surface's counts: records in the live folder and in its archive folder (null when unlisted). */
+type MoveOnlySurface = {
+  readonly live: string;
+  readonly archive: string;
+  readonly liveCount: number | null;
+  readonly archivedCount: number | null;
+};
+
+/**
+ * The move-only report of one surface (SPLIT-06, v3.0 D-7): the embedded moveOnlyFindings over the raw
+ * listings of the live folder and its archive folder, and their record counts by the embedded
+ * recordEntryNames, so a keeper is never counted. An absent folder holds no record. A folder that resolves
+ * outside the root, or cannot be listed, is a finding by name, its count is unknown, and the two folders are
+ * not compared.
+ */
+function moveOnlyReport(liveRel: string, archiveRel: string): { findings: StateFinding[]; surface: MoveOnlySurface } {
+  const findings: StateFinding[] = [];
+  const counted = (rel: string, listing: Listing): number | null => {
+    if (listing.kind === "unlisted") {
+      findings.push(integrityFinding(rel, "move-only-unlisted", listing.note));
+      return null;
+    }
+    return listing.kind === "listed" ? recordEntryNames(listing.names).length : 0;
+  };
+  const live = listDirectory(liveRel);
+  const archive = listDirectory(archiveRel);
+  const liveCount = counted(liveRel, live);
+  const archivedCount = counted(archiveRel, archive);
+  if (live.kind !== "unlisted" && archive.kind !== "unlisted") {
+    const names = (l: Listing): readonly string[] => (l.kind === "listed" ? l.names : []);
+    findings.push(...moveOnlyFindings(liveRel, names(live), archiveRel, names(archive)));
+  }
+  return { findings, surface: { live: liveRel, archive: archiveRel, liveCount, archivedCount } };
+}
+
+/** The command a ROLLABLE line names. state-roll is shipped beside this file under tools/grugops/. */
+const ROLL_COMMAND = "node tools/grugops/state-roll.js";
 
 /** A finding with every value read from the repository made printable. Text and JSON both print these. */
 function printableFinding(f: StateFinding): StateFinding {
@@ -1107,6 +1315,8 @@ function printableFinding(f: StateFinding): StateFinding {
 
 let marker: MarkerState;
 let findings: StateFinding[];
+let rollable: RollableSurface[];
+let moveOnly: MoveOnlySurface[];
 try {
   // checkBudgets' call order and inputs (scripts/validate-agent-factory.ts).
   marker = readMarker();
@@ -1118,18 +1328,24 @@ try {
   const nfrListing = listDirectory(NFR_DIR_REL);
   const nfrFiles = directoryFindings(NFR_DIR_REL, "nfrBytes", nfrListing);
   const traceFiles = directoryFindings(TRACE_DIR_REL, "traceBytes", listDirectory(TRACE_DIR_REL));
-  const progress = sizeFinding(PROGRESS_REL, "progressBytes", true);
-  // The integrity checks follow the budgets (plan 37-05, D-13).
+  const progress = progressReport();
+  // The integrity, rollable and move-only reports follow the budgets (plan 37-05, D-08, D-09, D-13, v3.0 D-7).
   const nfrIntegrity = nfrFindings(nfrCatalog, nfrListing);
+  const queueDone = moveOnlyReport(QUEUE_DONE_REL, QUEUE_DONE_ARCHIVE_REL);
+  const decisions = moveOnlyReport(DECISIONS_REL, DECISIONS_ARCHIVE_REL);
+  rollable = rollableSurfaces(board.doneRows, progress.bytes, progress.entries, BUDGETS);
+  moveOnly = [queueDone.surface, decisions.surface];
   findings = sortFindings([
-    ...board,
+    ...board.findings,
     ...traceIndex,
     ...nfrIndex,
     ...tickets,
     ...nfrFiles,
     ...traceFiles,
-    ...progress,
+    ...progress.findings,
     ...nfrIntegrity,
+    ...queueDone.findings,
+    ...decisions.findings,
   ]).map(printableFinding);
 } catch (e) {
   couldNotRun(`the check failed unexpectedly: ${(e as Error).message}`);
@@ -1154,21 +1370,33 @@ if (asJson) {
       line: f.line ?? null,
       note: f.note ?? null,
     })),
+    rollable: rollable.map((r) => r.surface),
+    moveOnly,
   };
   out.push(JSON.stringify(report));
-} else if (enforced) {
-  for (const f of findings) out.push(`FINDING  ${formatFinding(f)}`);
-  if (findings.length === 0) out.push("No findings.");
 } else {
-  if (marker.state === "invalid") out.push(`WARN     ${formatMarkerWarning(LAYOUT_MARKER_REL, printable(marker.reason))}`);
-  for (const f of findings) out.push(`WARN     ${formatFinding(f)}`);
-  if (marker.state === "absent" && findings.length > 0) {
-    out.push(
-      `LAYOUT   no layout marker at ${LAYOUT_MARKER_REL}: budget findings are warnings until the repository is ` +
-        "migrated to the v3 layout",
-    );
+  // A ROLLABLE line and a MOVE-ONLY count line are reports: neither changes the exit code; the finding beneath
+  // each does, by the marker.
+  const reports = [
+    ...rollable.map((r) => `ROLLABLE  ${formatRollable(r)} — run ${ROLL_COMMAND} ${printable(rootArg)}`),
+    ...moveOnly.map((m) => `MOVE-ONLY ${m.live}: ${m.liveCount ?? "not listed"} live, ${m.archivedCount ?? "not listed"} archived`),
+  ];
+  if (enforced) {
+    for (const f of findings) out.push(`FINDING  ${formatFinding(f)}`);
+    out.push(...reports);
+    if (findings.length === 0) out.push("No findings.");
+  } else {
+    if (marker.state === "invalid") out.push(`WARN     ${formatMarkerWarning(LAYOUT_MARKER_REL, printable(marker.reason))}`);
+    for (const f of findings) out.push(`WARN     ${formatFinding(f)}`);
+    out.push(...reports);
+    if (marker.state === "absent" && findings.length > 0) {
+      out.push(
+        `LAYOUT   no layout marker at ${LAYOUT_MARKER_REL}: budget findings are warnings until the repository is ` +
+          "migrated to the v3 layout",
+      );
+    }
+    if (marker.state === "absent" && findings.length === 0) out.push("No findings.");
   }
-  if (marker.state === "absent" && findings.length === 0) out.push("No findings.");
 }
 process.exitCode = exitCode;
 process.stdout.write(`${out.join("\n")}\n`);

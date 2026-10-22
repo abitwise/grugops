@@ -630,7 +630,7 @@ describe("nfrIntegrityFindings: the index and the NFR files in both directions (
 
 // ── Dated progress entries, rollable surfaces and move-only copies (plan 37-05, D-08, D-09, v3.0 D-7) ──
 
-describe("progressEntries: only a `##` heading that begins with an ISO date opens a status entry (D-09)", () => {
+describe("progressEntries: only a `##` heading that begins with an ISO date opens a dated progress entry (D-09)", () => {
   it("dates `## 2026-10-21 — sweep` and `## 2026-10-21`, and not a standing heading, a `###` heading or `##2026-10-21`", () => {
     const text = [
       "# Progress", // 1
@@ -646,21 +646,28 @@ describe("progressEntries: only a `##` heading that begins with an ISO date open
     ].join("\n");
     const p = progressEntries(text);
     expect(p.dated).toEqual([
-      { date: "2026-10-21", heading: "2026-10-21 — sweep", startLine: 2, endLine: 3 },
-      { date: "2026-10-21", heading: "2026-10-21", startLine: 8, endLine: 9 },
+      { date: "2026-10-21", heading: "2026-10-21 — sweep", line: 2 },
+      { date: "2026-10-21", heading: "2026-10-21", line: 8 },
     ]);
     expect(p.standing).toEqual([{ heading: "Standing directive 2026-10-21", line: 4 }]);
   });
 
-  it("an entry spans to the line before the next `##` heading, and a `###` heading inside it does not end it", () => {
-    const p = progressEntries(["## 2026-10-20 a", "### 2026-10-20 detail", "body", "## What works", "x"].join("\n"));
-    expect(p.dated).toEqual([{ date: "2026-10-20", heading: "2026-10-20 a", startLine: 1, endLine: 3 }]);
-    expect(p.standing).toEqual([{ heading: "What works", line: 4 }]);
+  it("a `###` or deeper heading is neither dated nor standing, and a bare `##` is standing", () => {
+    const p = progressEntries(["## 2026-10-20 a", "### 2026-10-20 detail", "#### x", "##", "body"].join("\n"));
+    expect(p.dated).toEqual([{ date: "2026-10-20", heading: "2026-10-20 a", line: 1 }]);
+    expect(p.standing).toEqual([{ heading: "", line: 4 }]);
   });
 
-  it("the last entry runs to the end of the file, with or without a final newline", () => {
-    expect(progressEntries("## 2026-10-20\na\nb\n").dated[0]?.endLine).toBe(3);
-    expect(progressEntries("## 2026-10-20\na\nb").dated[0]?.endLine).toBe(3);
+  it("a leap day is a calendar date in a leap year only", () => {
+    expect(progressEntries("## 2028-02-29 x").dated).toHaveLength(1);
+    expect(progressEntries("## 2026-02-29 x").dated).toHaveLength(0);
+    expect(progressEntries("## 2000-02-29 x").dated).toHaveLength(1);
+    expect(progressEntries("## 2100-02-29 x").dated).toHaveLength(0);
+  });
+
+  it("PREMISE: it answers no section-extent question; an entry carries its heading line only", () => {
+    const [entry] = progressEntries("## 2026-10-20 a\nbody\n").dated;
+    expect(Object.keys(entry ?? {}).sort()).toEqual(["date", "heading", "line"]);
   });
 
   it("a date that is not a calendar date, or a date glued to more text, is standing, never rollable", () => {
