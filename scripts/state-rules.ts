@@ -3,10 +3,12 @@
 //
 // WHAT THIS OWNS. The rule that decides whether a state file breaks each of the nine budgets, the record rule
 // (which directory entries are records, and so which the byte budgets measure), the rule that reads the
-// layout marker, the one spelling of a budget finding, and the one order findings print in. Later plans of
-// phase 37 add the progress-entry and roll rules here, beside these. The budget numbers are not owned
-// here: they are BUDGETS in install/state-layout.ts, and a caller passes that object in. Nothing in this file
-// spells a budget number or a state path.
+// layout marker, the one spelling of a finding, and the one order findings print in. Plan 37-05 adds the
+// NFR index line grammar and its integrity rule (D-13), the progress-entry grammar (D-09), the rollable and
+// move-only rules (D-08, v3.0 D-7); later plans add the roll planners beside them. The budget numbers are not
+// owned here: they are BUDGETS in install/state-layout.ts, and a caller passes that object in. Nothing in
+// this file spells a budget number or a state path; a caller passes every path in. The one path fragment
+// here is the NFR link grammar's `nfr/` segment, which is part of the index line form, not a state path.
 //
 // WHAT IT DOES NOT DO. It reads no file and lists no directory. Every caller reads the text, or takes the
 // size from lstat, and passes it in. So a budget check is read-only by construction, and the same rule gives
@@ -26,21 +28,41 @@
 export type StateUnit = "bytes" | "characters" | "lines" | "rows";
 
 /**
- * One broken budget, or one file the check could not measure.
+ * One broken budget, one file the check could not measure, or one integrity finding.
  *
- * `key` is a key of BUDGETS. `measured` is null when the file could not be measured (it is not a regular
- * file, or it could not be read); the finding still names the file, so nothing is dropped. `line` is a
- * one-based line number when the budget is about one line or one row.
+ * For a budget finding `key` is a key of BUDGETS. `measured` is null when the file could not be measured (it
+ * is not a regular file, or it could not be read); the finding still names the file, so nothing is dropped.
+ * `line` is a one-based line number when the finding is about one line or one row.
+ *
+ * An integrity finding (the NFR index against the NFR files, a move-only copy) is about no budget: its key is
+ * one of the non-budget keys below, `measured`, `budget` and `unit` are null, and `note` says what is wrong.
  */
 export type StateFinding = {
   readonly rel: string;
   readonly key: string;
   readonly measured: number | null;
-  readonly budget: number;
-  readonly unit: StateUnit;
+  readonly budget: number | null;
+  readonly unit: StateUnit | null;
   readonly line?: number;
   readonly note?: string;
 };
+
+/** The keys of the findings that are about no budget (plan 37-05, D-13, v3.0 D-7). */
+export type IntegrityKey =
+  | "nfr-missing-file"
+  | "nfr-unindexed-file"
+  | "nfr-duplicate-line"
+  | "nfr-link-mismatch"
+  | "nfr-malformed-line"
+  | "nfr-bad-file-name"
+  | "nfr-case-collision"
+  | "move-only-copy"
+  | "move-only-unlisted";
+
+/** An integrity finding: about no budget, so it carries its note in place of a measure. */
+export function integrityFinding(rel: string, key: IntegrityKey, note: string, line?: number): StateFinding {
+  return { rel, key, measured: null, budget: null, unit: null, ...(line === undefined ? {} : { line }), note };
+}
 
 /** What the layout marker says (D-04, D-05, D-14). */
 export type MarkerState =
@@ -330,6 +352,176 @@ export function budgetEntryNames(names: readonly string[]): string[] {
   return recordEntryNames(names).filter((n) => n.endsWith(".md"));
 }
 
+// ── The NFR index against the NFR files (D-13, SPLIT-02) ─────────────────────────────────────────
+
+/** One well-formed NFR index line: the identifier, the link target as written, and its one-based line. */
+export type NfrIndexEntry = { readonly id: string; readonly target: string; readonly line: number };
+
+/** A line that begins `- [NFR` and does not match the index line grammar. */
+export type NfrMalformedLine = { readonly line: number; readonly text: string };
+
+/** What parseNfrIndex reads from an NFR catalog. */
+export type NfrIndex = { readonly entries: readonly NfrIndexEntry[]; readonly malformed: readonly NfrMalformedLine[] };
+
+/**
+ * The one NFR index line grammar (agent-factory/contracts/board.md, `## Reconciliation and non-goals`):
+ * `- [NFR-<digits>](<target>)`, then the end of the line or one space and free text. The target is captured as
+ * written, so a wrong one is reported rather than read as another line shape; it is never opened.
+ */
+const NFR_INDEX_LINE = /^- \[(NFR-[0-9]+)\]\(([^)]*)\)(?: [\s\S]*)?$/;
+
+/** The start every NFR index line has. A line that starts so and does not match NFR_INDEX_LINE is malformed. */
+const NFR_LINE_START = "- [NFR";
+
+/** The directory segment of every NFR link, relative to the catalog: the target for NFR-001 is `nfr/NFR-001.md`. */
+const NFR_LINK_DIR = "nfr";
+
+/** The one NFR file name grammar: `NFR-<digits>.md`. Nothing else about an NFR file is read (D-13). */
+const NFR_FILE_NAME = /^NFR-[0-9]+\.md$/;
+
+/**
+ * The index lines of an NFR catalog. `blankedText` is the catalog after board-model's normalizeDocument and
+ * stripHtmlComments, so a line inside an HTML comment is blank and line numbers stay those of the file.
+ *
+ * A line whose text, after any leading spaces, begins `- [NFR` is either an entry (it matches the grammar
+ * exactly, with no leading space) or malformed. No such line is skipped. Every other line is not an index
+ * line: a heading, a comment, a blank line, prose.
+ */
+export function parseNfrIndex(blankedText: string): NfrIndex {
+  const entries: NfrIndexEntry[] = [];
+  const malformed: NfrMalformedLine[] = [];
+  blankedText.split("\n").forEach((text, i) => {
+    const m = NFR_INDEX_LINE.exec(text);
+    if (m !== null) entries.push({ id: m[1] ?? "", target: m[2] ?? "", line: i + 1 });
+    else if (text.trimStart().startsWith(NFR_LINE_START)) malformed.push({ line: i + 1, text });
+  });
+  return { entries, malformed };
+}
+
+/** The link target the grammar requires for `id`, derived from the identifier and never from link text. */
+export function nfrLinkTarget(id: string): string {
+  return `${NFR_LINK_DIR}/${id}.md`;
+}
+
+/**
+ * The NFR index checked against the NFR files, in both directions (D-13): every index line names an existing
+ * file and every NFR file has exactly one index line.
+ *
+ * `indexRel` is the catalog's path and `parsed` its parseNfrIndex result. `fileNames` is the raw listing of
+ * the NFR directory at `nfrDirRel`; the record rule (recordEntryNames) is applied here, so a keeper such as
+ * `.gitkeep` or `.DS_Store` is never a bad name and never unindexed. Every expected path is derived from an
+ * identifier and compared as a string: this function touches no path, and no link text is ever followed.
+ *
+ * Findings: `nfr-malformed-line` and `nfr-link-mismatch` by line; one `nfr-duplicate-line` per identifier
+ * with more than one line, naming every line; `nfr-missing-file` for an indexed identifier with no file;
+ * `nfr-unindexed-file` for a well-named file no line names; `nfr-bad-file-name` for a record whose name is
+ * not `NFR-<digits>.md`; one `nfr-case-collision` per group of names that differ only by letter case.
+ */
+export function nfrIntegrityFindings(
+  indexRel: string,
+  parsed: NfrIndex,
+  fileNames: readonly string[],
+  nfrDirRel: string,
+): StateFinding[] {
+  const findings: StateFinding[] = [];
+  const records = recordEntryNames(fileNames);
+  const present = new Set(records);
+
+  for (const m of parsed.malformed) {
+    findings.push(
+      integrityFinding(
+        indexRel,
+        "nfr-malformed-line",
+        "this line begins `- [NFR` and is not an index line `- [NFR-<digits>](nfr/NFR-<digits>.md) <text>`",
+        m.line,
+      ),
+    );
+  }
+
+  const linesById = new Map<string, NfrIndexEntry[]>();
+  for (const e of parsed.entries) {
+    const group = linesById.get(e.id);
+    if (group === undefined) linesById.set(e.id, [e]);
+    else group.push(e);
+  }
+  for (const [id, group] of linesById) {
+    const first = group[0];
+    if (first === undefined) continue;
+    if (group.length > 1) {
+      findings.push(
+        integrityFinding(
+          indexRel,
+          "nfr-duplicate-line",
+          `${id} has ${group.length} index lines (lines ${group.map((e) => e.line).join(", ")}); keep exactly one`,
+          first.line,
+        ),
+      );
+    }
+    for (const e of group) {
+      if (e.target !== nfrLinkTarget(id)) {
+        findings.push(
+          integrityFinding(
+            indexRel,
+            "nfr-link-mismatch",
+            `the link of ${id} must be \`${nfrLinkTarget(id)}\`, the path derived from its identifier; the link ` +
+              "as written was not followed",
+            e.line,
+          ),
+        );
+      }
+    }
+    if (!present.has(`${id}.md`)) {
+      findings.push(
+        integrityFinding(
+          `${nfrDirRel}/${id}.md`,
+          "nfr-missing-file",
+          `${indexRel} indexes ${id} and this file does not exist`,
+        ),
+      );
+    }
+  }
+
+  for (const name of records) {
+    const rel = `${nfrDirRel}/${name}`;
+    if (!NFR_FILE_NAME.test(name)) {
+      findings.push(
+        integrityFinding(rel, "nfr-bad-file-name", "the name is not `NFR-<digits>.md`, so no index line can name it"),
+      );
+      continue;
+    }
+    const id = name.slice(0, -".md".length);
+    if (!linesById.has(id)) {
+      findings.push(
+        integrityFinding(
+          rel,
+          "nfr-unindexed-file",
+          `no line of ${indexRel} names ${id}; add exactly one line \`- [${id}](${nfrLinkTarget(id)}) <category>: <target>\``,
+        ),
+      );
+    }
+  }
+
+  const namesByFold = new Map<string, string[]>();
+  for (const name of records) {
+    const fold = name.toLowerCase();
+    const group = namesByFold.get(fold);
+    if (group === undefined) namesByFold.set(fold, [name]);
+    else group.push(name);
+  }
+  for (const group of namesByFold.values()) {
+    const first = group[0];
+    if (first === undefined || group.length < 2) continue;
+    findings.push(
+      integrityFinding(
+        `${nfrDirRel}/${first}`,
+        "nfr-case-collision",
+        `these names differ only by letter case: ${group.join(", ")}; keep one`,
+      ),
+    );
+  }
+  return findings;
+}
+
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
 
 /** `n` with its digits grouped in threes by commas, independent of the host locale. */
@@ -341,9 +533,13 @@ function grouped(n: number): string {
  * The one spelling of a finding:
  * `<rel>[:<line>]: <measured> <unit>, budget <budget> <unit> (BUDGETS.<key>)`, then ` — <note>` when the
  * finding carries one. A finding that could not be measured says so in place of the measured value.
+ *
+ * A finding about no budget (an integrity finding, whose budget is null) prints no budget clause:
+ * `<rel>[:<line>]: <note> (<key>)`.
  */
 export function formatFinding(f: StateFinding): string {
   const where = f.line === undefined ? f.rel : `${f.rel}:${f.line}`;
+  if (f.budget === null || f.unit === null) return `${where}: ${f.note ?? "no detail"} (${f.key})`;
   const measured = f.measured === null ? "not measured" : `${grouped(f.measured)} ${f.unit}`;
   const note = f.note === undefined ? "" : ` — ${f.note}`;
   return `${where}: ${measured}, budget ${grouped(f.budget)} ${f.unit} (BUDGETS.${f.key})${note}`;

@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
-import { BUDGETS, LAYOUT_MARKER_CONTENT } from "../install/state-layout.js";
+import { BUDGETS, LAYOUT_MARKER_CONTENT, NFR_CATALOG_REL, NFR_DIR_REL } from "../install/state-layout.js";
 import { normalizeDocument, parseBoard, stripHtmlComments } from "./board-model.js";
 import {
   boardBudgetFindings,
@@ -20,7 +20,11 @@ import {
   formatFinding,
   formatMarkerWarning,
   indexLineFindings,
+  integrityFinding,
   markerState,
+  nfrIntegrityFindings,
+  nfrLinkTarget,
+  parseNfrIndex,
   recordEntryNames,
   sortFindings,
   stripControlChars,
@@ -387,6 +391,17 @@ describe("formatFinding", () => {
   });
 });
 
+describe("formatFinding: a finding about no budget (plan 37-05)", () => {
+  it("prints its note and key, and no budget clause", () => {
+    const f = integrityFinding("m/nfr/NFR-003.md", "nfr-unindexed-file", "no line names NFR-003");
+    expect(formatFinding(f)).toBe("m/nfr/NFR-003.md: no line names NFR-003 (nfr-unindexed-file)");
+    expect(formatFinding(integrityFinding("m/c.md", "nfr-malformed-line", "bad line", 4))).toBe(
+      "m/c.md:4: bad line (nfr-malformed-line)",
+    );
+    expect(formatFinding(f)).not.toContain("BUDGETS.");
+  });
+});
+
 describe("sortFindings", () => {
   const f = (rel: string, key: string, line?: number): StateFinding => ({
     rel,
@@ -449,6 +464,151 @@ describe("stripControlChars: control characters on the way out (plan 37-04, T-37
     const csi = String.fromCharCode(0x9b);
     expect(stripControlChars(`T-1${esc}[31m red${csi}0m.md`, false)).toBe("T-1[31m red0m.md");
     expect(stripControlChars("caf\u00e9 \u2014 \u00a0ok", false)).toBe("caf\u00e9 \u2014 \u00a0ok");
+  });
+});
+
+// ── The NFR index against the NFR files (plan 37-05, D-13, SPLIT-02) ───────────────────────────────
+
+const IDX = NFR_CATALOG_REL;
+const DIR = NFR_DIR_REL;
+
+/** The integrity findings of a catalog text (no HTML comment, LF only) against a raw nfr/ listing. */
+function nfr(text: string, files: readonly string[]): StateFinding[] {
+  return nfrIntegrityFindings(IDX, parseNfrIndex(text), files, DIR);
+}
+
+/** `key|rel|line` of each finding, the shape the cases below compare. */
+function keys(list: readonly StateFinding[]): string[] {
+  return sortFindings(list).map((f) => `${f.key}|${f.rel}|${f.line ?? "-"}`);
+}
+
+describe("parseNfrIndex: the one NFR index line grammar (D-13)", () => {
+  it("returns one entry per well-formed line with id, target and line number, and lists a line with no link as malformed", () => {
+    const parsed = parseNfrIndex(
+      [
+        "# NFR catalog",
+        "",
+        "- [NFR-001](nfr/NFR-001.md) Performance: p95 under 300 ms",
+        "- [NFR-002] missing link",
+        "- [NFR-010](nfr/NFR-010.md)",
+        "",
+      ].join("\n"),
+    );
+    expect(parsed.entries).toEqual([
+      { id: "NFR-001", target: "nfr/NFR-001.md", line: 3 },
+      { id: "NFR-010", target: "nfr/NFR-010.md", line: 5 },
+    ]);
+    expect(parsed.malformed).toEqual([{ line: 4, text: "- [NFR-002] missing link" }]);
+  });
+
+  it("reads a wrong link as written, so the integrity rule can report it", () => {
+    expect(parseNfrIndex("- [NFR-001](nfr/../x.md) text").entries).toEqual([
+      { id: "NFR-001", target: "nfr/../x.md", line: 1 },
+    ]);
+  });
+
+  it("never skips a line that begins `- [NFR`: no space before the text, an indent and a bad id are all malformed", () => {
+    const parsed = parseNfrIndex(
+      ["- [NFR-001](nfr/NFR-001.md)text", "  - [NFR-002](nfr/NFR-002.md) indented", "- [NFR-x](nfr/NFR-x.md) bad id"].join("\n"),
+    );
+    expect(parsed.entries).toEqual([]);
+    expect(parsed.malformed.map((m) => m.line)).toEqual([1, 2, 3]);
+  });
+
+  it("does not read prose, headings or a blanked comment as index lines", () => {
+    const parsed = parseNfrIndex(["# NFR catalog", "Some prose about NFR-001.", "                         ", "* [NFR-1]"].join("\n"));
+    expect(parsed).toEqual({ entries: [], malformed: [] });
+  });
+
+  it("PREMISE: the link grammar's `nfr/` segment, beside the catalog, is NFR_DIR_REL", () => {
+    const catalogDir = NFR_CATALOG_REL.slice(0, NFR_CATALOG_REL.lastIndexOf("/"));
+    expect(`${catalogDir}/${nfrLinkTarget("NFR-001")}`).toBe(`${NFR_DIR_REL}/NFR-001.md`);
+  });
+});
+
+describe("nfrIntegrityFindings: the index and the NFR files in both directions (D-13, SPLIT-02)", () => {
+  const ONE = "- [NFR-001](nfr/NFR-001.md) Performance: p95 under 300 ms\n";
+
+  it("CONTROL: a matching index and file set yields no finding", () => {
+    expect(nfr(`${ONE}- [NFR-002](nfr/NFR-002.md) Security: TLS 1.3\n`, ["NFR-002.md", "NFR-001.md"])).toEqual([]);
+  });
+
+  it("an entry with no file yields one finding naming the file the identifier derives", () => {
+    expect(keys(nfr(ONE, []))).toEqual([`nfr-missing-file|${DIR}/NFR-001.md|-`]);
+  });
+
+  it("a file NFR-003.md with no entry yields one finding", () => {
+    const found = nfr(ONE, ["NFR-001.md", "NFR-003.md"]);
+    expect(keys(found)).toEqual([`nfr-unindexed-file|${DIR}/NFR-003.md|-`]);
+    expect(found[0]?.note).toContain("- [NFR-003](nfr/NFR-003.md)");
+  });
+
+  it.each(["nfr/../x.md", "nfr/NFR-009.md", "./nfr/NFR-001.md", "NFR-001.md", "nfr/nfr-001.md"])(
+    "an entry for NFR-001 whose link is %s yields one link finding, and the file it names is never looked for",
+    (target) => {
+      const found = nfr(`- [NFR-001](${target}) text\n`, ["NFR-001.md"]);
+      expect(keys(found)).toEqual([`nfr-link-mismatch|${IDX}|1`]);
+      expect(found[0]?.note).toContain("`nfr/NFR-001.md`");
+    },
+  );
+
+  it("a record whose name is not NFR-<digits>.md (notes.md) yields one bad-name finding", () => {
+    expect(keys(nfr(ONE, ["NFR-001.md", "notes.md"]))).toEqual([`nfr-bad-file-name|${DIR}/notes.md|-`]);
+  });
+
+  it("a malformed line is a finding by its line number", () => {
+    expect(keys(nfr(`${ONE}- [NFR-002] missing link\n`, ["NFR-001.md"]))).toEqual([`nfr-malformed-line|${IDX}|2`]);
+  });
+
+  it("keepers: [.gitkeep] and zero index lines yields no finding (the fresh v3 seed's shape)", () => {
+    expect(nfr("# NFR catalog\n", [".gitkeep"])).toEqual([]);
+  });
+
+  it("keepers: [.gitkeep, .DS_Store, NFR-001.md] with the matching line yields none; a keeper is never a bad name or unindexed", () => {
+    expect(nfr(ONE, [".gitkeep", ".DS_Store", "NFR-001.md"])).toEqual([]);
+    expect(nfr(ONE, [".hidden.md", "NFR-001.md"])).toEqual([]);
+  });
+
+  it("empty: no directory listing and no index line yields no finding", () => {
+    expect(nfr("", [])).toEqual([]);
+  });
+
+  it("empty: a single line with no file, and a single file with no line, each yield exactly one finding", () => {
+    expect(nfr(ONE, [])).toHaveLength(1);
+    expect(nfr("", ["NFR-001.md"])).toHaveLength(1);
+  });
+
+  it("adjacency: two lines naming one NFR are one duplicate finding naming both line numbers, never merged", () => {
+    const found = nfr(`${ONE}- [NFR-002](nfr/NFR-002.md) b\n${ONE}`, ["NFR-001.md", "NFR-002.md"]);
+    expect(keys(found)).toEqual([`nfr-duplicate-line|${IDX}|1`]);
+    expect(found[0]?.note).toContain("lines 1, 3");
+  });
+
+  it("adjacency: two files whose names differ only by letter case are one collision finding naming both", () => {
+    const found = nfr(ONE, ["NFR-001.md", "nfr-001.md"]);
+    const collisions = found.filter((f) => f.key === "nfr-case-collision");
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0]?.note).toContain("NFR-001.md");
+    expect(collisions[0]?.note).toContain("nfr-001.md");
+    expect(keys(found)).toEqual([`nfr-case-collision|${DIR}/NFR-001.md|-`, `nfr-bad-file-name|${DIR}/nfr-001.md|-`]);
+  });
+
+  it("ordering: a shuffled index with the same lines yields the same findings", () => {
+    const lines = [
+      "- [NFR-001](nfr/NFR-001.md) a",
+      "- [NFR-002](nfr/NFR-002.md) b",
+      "- [NFR-004](nfr/NFR-004.md) d",
+      "- [NFR-005](nfr/NFR-005.md) e",
+    ];
+    const files = ["NFR-005.md", "NFR-003.md", "NFR-001.md", "notes.md", "NFR-002.md"];
+    const a = sortFindings(nfr(lines.join("\n"), files));
+    const b = sortFindings(nfr([...lines].reverse().join("\n"), [...files].reverse()));
+    expect(a).toEqual(b);
+    expect(keys(a)).toEqual([
+      `nfr-unindexed-file|${DIR}/NFR-003.md|-`,
+      `nfr-missing-file|${DIR}/NFR-004.md|-`,
+      `nfr-bad-file-name|${DIR}/notes.md|-`,
+    ]);
   });
 });
 

@@ -229,6 +229,9 @@ function paddedTo(text: string, bytes: number): string {
   return `${text}${"x".repeat(pad - 1)}\n`;
 }
 
+/** The NFR catalog line for NFR-001, in the one index line form (plan 37-05, D-13). */
+const NFR_LINE_001 = "- [NFR-001](nfr/NFR-001.md) Performance: p95 under 300 ms\n";
+
 /** A board that keeps every budget: one Ready row, and an empty Done column last, where appended rows land. */
 const CLEAN_BOARD = "# Board\n\n## Ready (WIP unlimited)\n\n- [ABC-001] a ready ticket\n\n## Done (WIP unlimited)\n";
 
@@ -262,7 +265,10 @@ const planters: Record<keyof typeof BUDGETS, (root: string) => void> = {
   boardUpdatedLines: (r) => appendTo(r, BOARD_REL, "\n_Updated: 2026-10-21 by qe\n_Updated: 2026-10-22 by qe\n"),
   indexEntryBytes: (r) => appendTo(r, NFR_CATALOG_REL, `${"e".repeat(BUDGETS.indexEntryBytes + 1)}\n`),
   ticketBytes: (r) => plant(r, `${TICKETS_REL}/ABC-002.md`, paddedTo("# ABC-002\n", BUDGETS.ticketBytes + 1)),
-  nfrBytes: (r) => plant(r, `${NFR_DIR_REL}/NFR-001.md`, paddedTo("# NFR-001\n", BUDGETS.nfrBytes + 1)),
+  nfrBytes: (r) => {
+    plant(r, `${NFR_DIR_REL}/NFR-001.md`, paddedTo("# NFR-001\n", BUDGETS.nfrBytes + 1));
+    appendTo(r, NFR_CATALOG_REL, NFR_LINE_001);
+  },
   traceBytes: (r) => plant(r, `${TRACE_DIR_REL}/ABC-083.md`, paddedTo("# ABC-083\n", BUDGETS.traceBytes + 1)),
   progressBytes: (r) => plant(r, PROGRESS_REL, paddedTo("# Progress\n", BUDGETS.progressBytes + 1)),
   doneRows: (r) =>
@@ -630,5 +636,95 @@ describe("state-check.ts is read-only: its syntax tree calls no file-mutating AP
       if (flag !== undefined && ts.isStringLiteral(flag)) expect(flag.text).toBe("r");
       expect(text).toMatch(/O_RDONLY|^["']r["']$/);
     }
+  });
+});
+
+// ── The NFR index against the NFR files, on a host (plan 37-05, D-13, SPLIT-02) ──────────────────────
+
+/** The stdout lines that carry an NFR integrity finding. */
+function nfrLines(stdout: string): string[] {
+  return stdout.split("\n").filter((l) => /\(nfr-[a-z-]+\)$/.test(l));
+}
+
+/** A clean repository whose catalog indexes NFR-001 and NFR-002 and whose nfr/ holds both files beside .gitkeep. */
+function nfrRepo(marker?: string): string {
+  const root = cleanRepo(marker);
+  appendTo(root, NFR_CATALOG_REL, `${NFR_LINE_001}- [NFR-002](nfr/NFR-002.md) Security: TLS 1.3 on every endpoint\n`);
+  plant(root, `${NFR_DIR_REL}/NFR-001.md`, "# NFR-001\n");
+  plant(root, `${NFR_DIR_REL}/NFR-002.md`, "# NFR-002\n");
+  return root;
+}
+
+describe("state-check.js — the NFR index and the NFR files agree, checked on a host (plan 37-05, D-13)", () => {
+  it("CONTROL: an index and nfr/ that agree, with nfr/.gitkeep present, print no NFR finding", () => {
+    for (const marker of [undefined, LAYOUT_MARKER_CONTENT]) {
+      const r = run(nfrRepo(marker));
+      expect(r.status, r.stderr).toBe(0);
+      expect(nfrLines(r.stdout), r.stdout).toEqual([]);
+      expect(r.stdout).toContain("No findings.");
+    }
+  });
+
+  it("removing one NFR file prints one WARN finding naming that NFR, and exits 0 with no marker", () => {
+    const root = nfrRepo();
+    rmSync(join(root, ...`${NFR_DIR_REL}/NFR-002.md`.split("/")));
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(0);
+    const lines = nfrLines(r.stdout);
+    expect(lines, r.stdout).toHaveLength(1);
+    expect(lines[0]).toMatch(/^WARN {5}/);
+    expect(lines[0]).toContain(`${NFR_DIR_REL}/NFR-002.md`);
+    expect(lines[0]).toContain("(nfr-missing-file)");
+    expect(r.stdout).not.toContain("No findings.");
+  });
+
+  it("the same with the D-14 marker prints a FINDING line and exits 1", () => {
+    const root = nfrRepo(LAYOUT_MARKER_CONTENT);
+    rmSync(join(root, ...`${NFR_DIR_REL}/NFR-002.md`.split("/")));
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    const lines = nfrLines(r.stdout);
+    expect(lines, r.stdout).toHaveLength(1);
+    expect(lines[0]).toMatch(/^FINDING {2}/);
+    expect(lines[0]).toContain("NFR-002");
+  });
+
+  it("an unindexed file, a wrong link and a malformed line are each one finding, in --json with null budget and unit", () => {
+    const root = nfrRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${NFR_DIR_REL}/NFR-003.md`, "# NFR-003\n");
+    appendTo(root, NFR_CATALOG_REL, "- [NFR-009](nfr/../../../etc/passwd) traversal\n- [NFR-004] no link\n");
+    const r = runJson(root);
+    expect(r.status, r.stderr).toBe(1);
+    const nfrKeys = r.report.findings.map((f) => `${f.key}|${f.rel}`).filter((k) => k.startsWith("nfr-"));
+    expect(nfrKeys.sort()).toEqual(
+      [
+        `nfr-link-mismatch|${NFR_CATALOG_REL}`,
+        `nfr-malformed-line|${NFR_CATALOG_REL}`,
+        `nfr-missing-file|${NFR_DIR_REL}/NFR-009.md`,
+        `nfr-unindexed-file|${NFR_DIR_REL}/NFR-003.md`,
+      ].sort(),
+    );
+    for (const f of r.report.findings.filter((x) => x.key.startsWith("nfr-"))) {
+      expect(f.budget).toBeNull();
+      expect(f.unit).toBeNull();
+      expect(f.measured).toBeNull();
+    }
+  });
+
+  it("an absent nfr/ directory with zero index lines prints no NFR finding", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    rmSync(join(root, ...NFR_DIR_REL.split("/")), { recursive: true });
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(0);
+    expect(nfrLines(r.stdout)).toEqual([]);
+  });
+
+  it("an absent catalog is a finding by name, and every NFR file is then unindexed", () => {
+    const root = nfrRepo(LAYOUT_MARKER_CONTENT);
+    rmSync(join(root, ...NFR_CATALOG_REL.split("/")));
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${NFR_CATALOG_REL}: not measured`);
+    expect(nfrLines(r.stdout).filter((l) => l.includes("(nfr-unindexed-file)"))).toHaveLength(2);
   });
 });

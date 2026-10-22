@@ -60,10 +60,11 @@ export type EmbedSpec = {
 };
 
 /**
- * Every generated region in the repository. The first row is the state checker (plans 37-03 and 37-04): the
- * budget numbers and every state path it reads from install/state-layout.ts, every budget rule, the record
- * rule, the marker rule and the output sanitizer from scripts/state-rules.ts, the board grammar from
- * scripts/board-model.ts, and the non-blocking reader from scripts/context-io.ts.
+ * Every generated region in the repository. The first row is the state checker (plans 37-03, 37-04 and 37-05):
+ * the budget numbers and every state path it reads from install/state-layout.ts, every budget rule, the record
+ * rule, the marker rule, the output sanitizer and the NFR index grammar and integrity rule from
+ * scripts/state-rules.ts, the board grammar from scripts/board-model.ts, and the non-blocking reader from
+ * scripts/context-io.ts.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -94,6 +95,9 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "indexLineFindings",
           "fileBytesFinding",
           "budgetEntryNames",
+          "recordEntryNames",
+          "parseNfrIndex",
+          "nfrIntegrityFindings",
           "unmeasuredFinding",
           "formatFinding",
           "sortFindings",

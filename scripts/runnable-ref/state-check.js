@@ -1,4 +1,5 @@
-// state-check.ts — the read-only host state checker (phase 37, plans 37-03 and 37-04, SPLIT-04, SPLIT-05).
+// state-check.ts — the read-only host state checker (phase 37, plans 37-03, 37-04 and 37-05, SPLIT-02, SPLIT-04,
+// SPLIT-05, SPLIT-06).
 //
 // WHAT IT IS. A kit-shipped runnable in the shape of reference-check.ts: authored here, compiled to a committed
 // state-check.js, and run on a host as `node state-check.js <repo-root> [--json]` with only Node present. It
@@ -19,6 +20,11 @@
 // THE MARKER DECIDES SEVERITY (D-04, D-05, D-14). With a valid marker every finding prints as `FINDING` and
 // fails. With no marker, or an unrecognized one, every finding prints as `WARN` and the exit code is 0; an
 // unrecognized marker is itself a warning that names it.
+//
+// THE INTEGRITY CHECKS (plan 37-05). After the budgets it checks the hand-kept NFR catalog against the NFR
+// files in both directions (D-13), through the embedded parseNfrIndex and nfrIntegrityFindings. Each
+// expected NFR path is derived from an identifier; no path is ever taken from link text. These findings take
+// the marker's severity like the budget findings.
 //
 // WHAT IT MEASURES IS DECIDED BY THE RULES, NOT HERE. Which directory entries count is the embedded
 // budgetEntryNames, given the raw listing; this file filters no name itself (D-11). A record's size is its
@@ -87,6 +93,9 @@ export const BUDGETS = Object.freeze({
     /** Rows the Done column keeps; older rows move to the Done archive. */
     doneRows: 20,
 });
+export function integrityFinding(rel, key, note, line) {
+    return { rel, key, measured: null, budget: null, unit: null, ...(line === undefined ? {} : { line }), note };
+}
 export function utf8Bytes(text) {
     let n = 0;
     for (let i = 0; i < text.length; i++) {
@@ -240,11 +249,92 @@ export function recordEntryNames(names) {
 export function budgetEntryNames(names) {
     return recordEntryNames(names).filter((n) => n.endsWith(".md"));
 }
+const NFR_INDEX_LINE = /^- \[(NFR-[0-9]+)\]\(([^)]*)\)(?: [\s\S]*)?$/;
+const NFR_LINE_START = "- [NFR";
+const NFR_LINK_DIR = "nfr";
+const NFR_FILE_NAME = /^NFR-[0-9]+\.md$/;
+export function parseNfrIndex(blankedText) {
+    const entries = [];
+    const malformed = [];
+    blankedText.split("\n").forEach((text, i) => {
+        const m = NFR_INDEX_LINE.exec(text);
+        if (m !== null)
+            entries.push({ id: m[1] ?? "", target: m[2] ?? "", line: i + 1 });
+        else if (text.trimStart().startsWith(NFR_LINE_START))
+            malformed.push({ line: i + 1, text });
+    });
+    return { entries, malformed };
+}
+export function nfrLinkTarget(id) {
+    return `${NFR_LINK_DIR}/${id}.md`;
+}
+export function nfrIntegrityFindings(indexRel, parsed, fileNames, nfrDirRel) {
+    const findings = [];
+    const records = recordEntryNames(fileNames);
+    const present = new Set(records);
+    for (const m of parsed.malformed) {
+        findings.push(integrityFinding(indexRel, "nfr-malformed-line", "this line begins `- [NFR` and is not an index line `- [NFR-<digits>](nfr/NFR-<digits>.md) <text>`", m.line));
+    }
+    const linesById = new Map();
+    for (const e of parsed.entries) {
+        const group = linesById.get(e.id);
+        if (group === undefined)
+            linesById.set(e.id, [e]);
+        else
+            group.push(e);
+    }
+    for (const [id, group] of linesById) {
+        const first = group[0];
+        if (first === undefined)
+            continue;
+        if (group.length > 1) {
+            findings.push(integrityFinding(indexRel, "nfr-duplicate-line", `${id} has ${group.length} index lines (lines ${group.map((e) => e.line).join(", ")}); keep exactly one`, first.line));
+        }
+        for (const e of group) {
+            if (e.target !== nfrLinkTarget(id)) {
+                findings.push(integrityFinding(indexRel, "nfr-link-mismatch", `the link of ${id} must be \`${nfrLinkTarget(id)}\`, the path derived from its identifier; the link ` +
+                    "as written was not followed", e.line));
+            }
+        }
+        if (!present.has(`${id}.md`)) {
+            findings.push(integrityFinding(`${nfrDirRel}/${id}.md`, "nfr-missing-file", `${indexRel} indexes ${id} and this file does not exist`));
+        }
+    }
+    for (const name of records) {
+        const rel = `${nfrDirRel}/${name}`;
+        if (!NFR_FILE_NAME.test(name)) {
+            findings.push(integrityFinding(rel, "nfr-bad-file-name", "the name is not `NFR-<digits>.md`, so no index line can name it"));
+            continue;
+        }
+        const id = name.slice(0, -".md".length);
+        if (!linesById.has(id)) {
+            findings.push(integrityFinding(rel, "nfr-unindexed-file", `no line of ${indexRel} names ${id}; add exactly one line \`- [${id}](${nfrLinkTarget(id)}) <category>: <target>\``));
+        }
+    }
+    const namesByFold = new Map();
+    for (const name of records) {
+        const fold = name.toLowerCase();
+        const group = namesByFold.get(fold);
+        if (group === undefined)
+            namesByFold.set(fold, [name]);
+        else
+            group.push(name);
+    }
+    for (const group of namesByFold.values()) {
+        const first = group[0];
+        if (first === undefined || group.length < 2)
+            continue;
+        findings.push(integrityFinding(`${nfrDirRel}/${first}`, "nfr-case-collision", `these names differ only by letter case: ${group.join(", ")}; keep one`));
+    }
+    return findings;
+}
 function grouped(n) {
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 export function formatFinding(f) {
     const where = f.line === undefined ? f.rel : `${f.rel}:${f.line}`;
+    if (f.budget === null || f.unit === null)
+        return `${where}: ${f.note ?? "no detail"} (${f.key})`;
     const measured = f.measured === null ? "not measured" : `${grouped(f.measured)} ${f.unit}`;
     const note = f.note === undefined ? "" : ` — ${f.note}`;
     return `${where}: ${measured}, budget ${grouped(f.budget)} ${f.unit} (BUDGETS.${f.key})${note}`;
@@ -716,9 +806,8 @@ function boardFindings() {
         ...doneRowFindings(BOARD_REL, model, BUDGETS),
     ];
 }
-/** The index-line findings of one index file, measured outside HTML comments. */
-function indexFindings(rel) {
-    const index = readState(rel, "index file");
+/** The index-line findings of one index file, measured outside HTML comments. `index` is its readState result. */
+function indexFindings(rel, index) {
     if (index.kind === "absent")
         return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, "the file is absent")];
     if (index.kind === "outside")
@@ -753,29 +842,56 @@ function sizeFinding(rel, key, missingIsClean) {
     const finding = fileBytesFinding(rel, st.size, key, BUDGETS);
     return finding === null ? [] : [finding];
 }
+/** The note on a directory that resolves outside the repository root. */
+const OUTSIDE_ROOT_DIR = "it resolves outside the repository root, so it was not listed";
+/**
+ * The raw listing of the directory at `dirRel`, each directory listed once per run so every rule that reads it
+ * sees the same names. A directory that does not exist is absent. One that resolves outside the root, or
+ * cannot be resolved or listed, is unlisted with the reason, which the caller reports by name.
+ */
+function listDirectory(dirRel) {
+    const at = locate(dirRel);
+    if (at.kind === "absent")
+        return at;
+    if (at.kind === "error")
+        return { kind: "unlisted", note: `the directory could not be resolved (${at.code})` };
+    if (at.kind === "outside")
+        return { kind: "unlisted", note: OUTSIDE_ROOT_DIR };
+    try {
+        return { kind: "listed", names: nodeFs.readdirSync(at.real) };
+    }
+    catch (e) {
+        return { kind: "unlisted", note: `the directory could not be listed (${codeOf(e)})` };
+    }
+}
 /**
  * The byte findings of every record in one directory. The raw listing goes to the embedded budgetEntryNames,
  * which decides which entries are records; this function filters no name itself (D-11). A directory that
  * does not exist is an empty set. A directory that resolves outside the root, or cannot be listed, is
  * reported by name, so its files are never silently unmeasured.
  */
-function directoryFindings(dirRel, key) {
-    const at = locate(dirRel);
-    if (at.kind === "absent")
+function directoryFindings(dirRel, key, listing) {
+    if (listing.kind === "absent")
         return [];
-    if (at.kind === "error")
-        return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be resolved (${at.code})`)];
-    if (at.kind === "outside") {
-        return [unmeasuredFinding(dirRel, key, BUDGETS, "it resolves outside the repository root, so it was not listed")];
-    }
-    let names;
-    try {
-        names = nodeFs.readdirSync(at.real);
-    }
-    catch (e) {
-        return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be listed (${codeOf(e)})`)];
-    }
-    return budgetEntryNames(names).flatMap((name) => sizeFinding(`${dirRel}/${name}`, key, false));
+    if (listing.kind === "unlisted")
+        return [unmeasuredFinding(dirRel, key, BUDGETS, listing.note)];
+    return budgetEntryNames(listing.names).flatMap((name) => sizeFinding(`${dirRel}/${name}`, key, false));
+}
+/**
+ * The NFR index checked against the NFR files in both directions (D-13), by the embedded nfrIntegrityFindings.
+ * The catalog is the text indexFindings read, comment-blanked, and the listing is the raw one the byte budget
+ * read; the rule applies the record rule itself, so this function filters no name. An absent catalog is an
+ * index with no line, so every NFR file is reported as unindexed beside the absent-catalog finding. A catalog
+ * or a directory that resolves outside the root, or cannot be listed, is already a finding by name, and is
+ * not checked further: a set nobody read cannot be compared.
+ */
+function nfrFindings(catalog, listing) {
+    if (catalog.kind === "outside" || listing.kind === "unlisted")
+        return [];
+    const names = listing.kind === "listed" ? listing.names : [];
+    const text = catalog.kind === "text" ? catalog.text : "";
+    const parsed = parseNfrIndex(stripHtmlComments(normalizeDocument(text)));
+    return nfrIntegrityFindings(NFR_CATALOG_REL, parsed, names, NFR_DIR_REL);
 }
 /** A finding with every value read from the repository made printable. Text and JSON both print these. */
 function printableFinding(f) {
@@ -786,14 +902,26 @@ let findings;
 try {
     // checkBudgets' call order and inputs (scripts/validate-agent-factory.ts).
     marker = readMarker();
+    const board = boardFindings();
+    const traceIndex = indexFindings(TRACEABILITY_REL, readState(TRACEABILITY_REL, "index file"));
+    const nfrCatalog = readState(NFR_CATALOG_REL, "index file");
+    const nfrIndex = indexFindings(NFR_CATALOG_REL, nfrCatalog);
+    const tickets = directoryFindings(TICKETS_REL, "ticketBytes", listDirectory(TICKETS_REL));
+    const nfrListing = listDirectory(NFR_DIR_REL);
+    const nfrFiles = directoryFindings(NFR_DIR_REL, "nfrBytes", nfrListing);
+    const traceFiles = directoryFindings(TRACE_DIR_REL, "traceBytes", listDirectory(TRACE_DIR_REL));
+    const progress = sizeFinding(PROGRESS_REL, "progressBytes", true);
+    // The integrity checks follow the budgets (plan 37-05, D-13).
+    const nfrIntegrity = nfrFindings(nfrCatalog, nfrListing);
     findings = sortFindings([
-        ...boardFindings(),
-        ...indexFindings(TRACEABILITY_REL),
-        ...indexFindings(NFR_CATALOG_REL),
-        ...directoryFindings(TICKETS_REL, "ticketBytes"),
-        ...directoryFindings(NFR_DIR_REL, "nfrBytes"),
-        ...directoryFindings(TRACE_DIR_REL, "traceBytes"),
-        ...sizeFinding(PROGRESS_REL, "progressBytes", true),
+        ...board,
+        ...traceIndex,
+        ...nfrIndex,
+        ...tickets,
+        ...nfrFiles,
+        ...traceFiles,
+        ...progress,
+        ...nfrIntegrity,
     ]).map(printableFinding);
 }
 catch (e) {
