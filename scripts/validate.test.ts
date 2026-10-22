@@ -41,6 +41,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -3626,6 +3627,47 @@ describe("validate-agent-factory.js — state budgets and the layout marker (pla
       expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
     },
   );
+
+  // FAIL mode on a REAL tree (plan 37-19, D-04, D-06, T-37-26). The fixture cases above prove the switch on
+  // a planted tree; these copy grugops's own memory-bank/, whose marker D-06 placed by hand, so the claim
+  // that CI runs the validator in FAIL mode on the own tree is exercised, not assumed.
+  /** A temp state root holding a copy of grugops's own memory-bank/, marker included. */
+  function ownStateCopy(): string {
+    const d = mkdtempSync(join(tmpdir(), "grugops-own-state-"));
+    tmpDirs.push(d);
+    cpSync(join(ROOT, "memory-bank"), join(d, "memory-bank"), { recursive: true });
+    return d;
+  }
+
+  it("PREMISE: grugops's own memory-bank/ carries a valid layout marker, so the copies below start migrated", () => {
+    expect(readFileSync(join(ROOT, LAYOUT_MARKER_REL), "utf8").replace(/\n$/, "")).toBe(LAYOUT_MARKER_CONTENT);
+    expect(statSync(join(ROOT, BOARD_REL)).size).toBeLessThanOrEqual(BUDGETS.boardBytes);
+  });
+
+  it("a copy of the own state with the board grown past BUDGETS.boardBytes: exit 1 and an ERROR naming BUDGETS.boardBytes", () => {
+    const d = ownStateCopy();
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    const r = runSplit(ROOT, d);
+    expect(r.status, out(r)).toBe(1);
+    const errs = tagged(r, "ERROR").filter((l) => l.includes("(BUDGETS.boardBytes)"));
+    expect(errs, out(r)).toHaveLength(1);
+    expect(errs[0]).toContain(BOARD_FINDING);
+    expect(tagged(r, "WARNING").filter((l) => l.includes("BUDGETS.")), out(r)).toEqual([]);
+    expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+  });
+
+  it("the same grown copy with the own marker removed: exit 0 and a WARNING for the same finding", () => {
+    const d = ownStateCopy();
+    rmSync(join(d, LAYOUT_MARKER_REL));
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    const r = runSplit(ROOT, d);
+    expect(r.status, out(r)).toBe(0);
+    const warns = tagged(r, "WARNING").filter((l) => l.includes("(BUDGETS.boardBytes)"));
+    expect(warns, out(r)).toHaveLength(1);
+    expect(warns[0]).toContain(BOARD_FINDING);
+    expect(tagged(r, "ERROR"), out(r)).toEqual([]);
+    expect(tagged(r, "LAYOUT"), out(r)).toHaveLength(1);
+  });
 });
 
 // ── Every budget, with coverage that cannot shrink silently (plan 37-02 task 2, D-10, D-11) ─────────
