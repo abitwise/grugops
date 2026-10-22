@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-09-PLAN.md
-last_updated: "2026-10-22T14:00:26.564Z"
+stopped_at: Completed 37-10-PLAN.md
+last_updated: "2026-10-22T14:31:08.965Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-09 (state-check checks host trace freshness with the renderer's embedded model and note reader, read-only)
-state_head: c7d3b88b5ceeac3783a28309449b8a94da504b48
+last_activity_desc: Completed 37-10 (state-roll moves Done rows past BUDGETS.doneRows verbatim to the Done archive, with a line-conservation proof and a byte-exact rollback)
+state_head: 27ed9b54f7634bf13694865a0575d0d5b6047bbb
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 24
+  completed_plans: 25
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 10 of 19
+Plan: 11 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-09 (state-check checks host trace freshness with the renderer's embedded model and note reader, read-only)
+Last activity: 2026-10-22 — Completed 37-10 (state-roll moves Done rows past BUDGETS.doneRows verbatim to the Done archive, with a line-conservation proof and a byte-exact rollback)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -738,6 +738,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P07 | 12 min | 1 tasks | 8 files |
 | Phase 37 P08 | 48 min | 1 tasks | 20 files |
 | Phase 37 P09 | 10 min | 1 tasks | 7 files |
+| Phase 37 P10 | 25 min | 1 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -2027,6 +2028,9 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-09: state-check embeds the renderer's trace model and note reader (no writer); a hand-written index is one trace-hand-written finding and nothing is compared
 - [Phase 37]: 37-09: trace keys trace-stale, trace-hand-written, trace-collision, trace-not-compared join IntegrityKey; state-rules' private compareCodeUnits renamed codeUnitOrder so the state-check region has one owner per name
 - [Phase 37]: 37-09: state-check's TRACE line retypes the renderer's counts line; a test holds the two equal on one repository
+- [Phase 37]: Plan 37-10: state-roll moves Done rows past BUDGETS.doneRows verbatim to the top of the Done archive; planDoneRoll takes BoardTexts and refuses a moved row carrying an HTML comment, two Done columns, or an archive not headed exactly ## Done (WIP unlimited)
+- [Phase 37]: Plan 37-10: executeRoll re-reads both files before writing and writes nothing if either changed; a rollback that cannot restore both files is restore-failed (exit 2); the runnable refuses a symlinked board or archive and any text holding U+FFFD
+- [Phase 37]: Plan 37-10: rows keep their raw line ending; a created archive heading follows the moved rows, but CRLF rows moved into an existing LF archive leave it with mixed line endings (flagged for plan 37-11)
 
 ### Pending Todos
 
@@ -2358,8 +2362,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T14:00:17.049Z
-Stopped at: Completed 37-09-PLAN.md
+Last session: 2026-10-22T14:31:08.696Z
+Stopped at: Completed 37-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
