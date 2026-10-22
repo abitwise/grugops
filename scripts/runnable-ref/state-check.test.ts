@@ -657,12 +657,14 @@ describe("state-check.ts is read-only: its syntax tree calls no file-mutating AP
     expect(calls.map((c) => c.expression.getText(sf))).toContain("process.stdout.write");
   });
 
-  it("imports node:fs and node:path only", () => {
+  // 2026-10-22, plan 37-09: node:crypto joins. The embedded note reader's seal check hashes a note with
+  // createHash, which reads only; every specifier is still a `node:` builtin, and no other module is imported.
+  it("imports node:crypto, node:fs and node:path only", () => {
     const specifiers = sf.statements
       .filter(ts.isImportDeclaration)
       .map((d) => (d.moduleSpecifier as ts.StringLiteral).text)
       .sort();
-    expect([...new Set(specifiers)]).toEqual(["node:fs", "node:path"]);
+    expect([...new Set(specifiers)]).toEqual(["node:crypto", "node:fs", "node:path"]);
   });
 
   it("calls no write, rename, unlink, rm, rmdir, mkdir, copyFile, symlink, truncate or appendFile API", () => {

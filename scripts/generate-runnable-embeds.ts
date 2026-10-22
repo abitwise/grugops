@@ -71,6 +71,11 @@ export type EmbedSpec = {
  * Plan 37-07 (2026-10-22) adds the trace model's comparison to that row: the owned-entry rule, the case-fold
  * collision groups, the generated-header test, the tree comparison and the trace-file read ceiling, so the
  * --check mode and the write mode's refusals compare with the same model state-check embeds (plan 37-09).
+ * Plan 37-09 (2026-10-22) adds to the state checker's row the two context roots, the trace model (the note
+ * collection, the tree plan, the comparison with its owned-entry rule, the case-fold collision groups, the
+ * generated-header test and the trace-file read ceiling) and the note read path (the walk with its skip arms,
+ * the record projection), so state-check and the renderer read the same notes and compare with the same code.
+ * The writer (atomicWrite) is never a root of this row: state-check is read-only.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -93,6 +98,8 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "DECISIONS_ARCHIVE_REL",
           "QUEUE_DONE_REL",
           "QUEUE_DONE_ARCHIVE_REL",
+          "CONTEXT_REL",
+          "CONTEXT_ARCHIVE_REL",
         ],
       },
       {
@@ -122,7 +129,23 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
         ],
       },
       { module: "scripts/board-model.ts", roots: ["parseBoard", "normalizeDocument", "stripHtmlComments"] },
-      { module: "scripts/context-io.ts", roots: ["readRegularFileOrNull"] },
+      {
+        module: "scripts/trace-model.ts",
+        roots: [
+          "TRACE_GENERATED_HEADER",
+          "buildTraceRows",
+          "collectTraceNotes",
+          "planTraceTree",
+          "caseFoldCollisions",
+          "isGeneratedTraceText",
+          "compareTraceTree",
+          "TRACE_FILE_MAX_BYTES",
+        ],
+      },
+      {
+        module: "scripts/context-io.ts",
+        roots: ["readRegularFileOrNull", "readRawNotesWithSkips", "recordFromParsed", "NOTE_SKIP_ARMS"],
+      },
     ],
   },
   {

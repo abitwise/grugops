@@ -57,7 +57,15 @@ export type IntegrityKey =
   | "nfr-bad-file-name"
   | "nfr-case-collision"
   | "move-only-copy"
-  | "move-only-unlisted";
+  | "move-only-unlisted"
+  // Plan 37-09 (2026-10-22): state-check's trace freshness. A planned file that is missing, an unplanned
+  // generated file, or a planned file that differs from a fresh render (trace-stale); a file that does not
+  // start with the generated header (trace-hand-written); two ticket identifiers that fold to one trace file
+  // name (trace-collision); and a trace that was not compared, by the path that stopped it (trace-not-compared).
+  | "trace-stale"
+  | "trace-hand-written"
+  | "trace-collision"
+  | "trace-not-compared";
 
 /** An integrity finding: about no budget, so it carries its note in place of a measure. */
 export function integrityFinding(rel: string, key: IntegrityKey, note: string, line?: number): StateFinding {
@@ -339,7 +347,7 @@ export function fileBytesFinding(
  * this, never a copy.
  */
 export function recordEntryNames(names: readonly string[]): string[] {
-  return names.filter((n) => !n.startsWith(".")).sort(compareCodeUnits);
+  return names.filter((n) => !n.startsWith(".")).sort(codeUnitOrder);
 }
 
 /**
@@ -734,7 +742,7 @@ export function stripControlChars(text: string, multiLine: boolean): string {
 }
 
 /** Code-unit order, never the host locale's, so every run prints the same order whatever the locale. */
-function compareCodeUnits(a: string, b: string): number {
+function codeUnitOrder(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
@@ -742,8 +750,8 @@ function compareCodeUnits(a: string, b: string): number {
 export function sortFindings(list: readonly StateFinding[]): StateFinding[] {
   return [...list].sort(
     (a, b) =>
-      compareCodeUnits(a.rel, b.rel) ||
-      compareCodeUnits(a.key, b.key) ||
+      codeUnitOrder(a.rel, b.rel) ||
+      codeUnitOrder(a.key, b.key) ||
       (a.line ?? 0) - (b.line ?? 0),
   );
 }

@@ -232,7 +232,7 @@ export function fileBytesFinding(rel, bytes, key, budgets) {
  * this, never a copy.
  */
 export function recordEntryNames(names) {
-    return names.filter((n) => !n.startsWith(".")).sort(compareCodeUnits);
+    return names.filter((n) => !n.startsWith(".")).sort(codeUnitOrder);
 }
 /**
  * Which directory entries the byte budgets measure: the records that end `.md`. A caller passes the raw
@@ -510,12 +510,12 @@ export function stripControlChars(text, multiLine) {
     return out;
 }
 /** Code-unit order, never the host locale's, so every run prints the same order whatever the locale. */
-function compareCodeUnits(a, b) {
+function codeUnitOrder(a, b) {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 /** Findings sorted by path, then budget key, then line (a finding with no line sorts first). */
 export function sortFindings(list) {
-    return [...list].sort((a, b) => compareCodeUnits(a.rel, b.rel) ||
-        compareCodeUnits(a.key, b.key) ||
+    return [...list].sort((a, b) => codeUnitOrder(a.rel, b.rel) ||
+        codeUnitOrder(a.key, b.key) ||
         (a.line ?? 0) - (b.line ?? 0));
 }
