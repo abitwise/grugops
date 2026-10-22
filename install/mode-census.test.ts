@@ -91,9 +91,12 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * (restore).
  * SCRIPTS_TEST_FILE_COUNT 74 -> 75 (2026-10-21, plan 36-14, re-derived by listing scripts/, not incremented) for
  * scripts/check-state-paths.test.ts, which has no chmod call and reads no `.mode` (it writes text into scratch git
- * repositories, reads the gate's stdout and parses tracked sources). */
+ * repositories, reads the gate's stdout and parses tracked sources).
+ * SCRIPTS_TEST_FILE_COUNT 75 -> 76 (2026-10-22, plan 37-02, re-derived by listing scripts/, not incremented) for
+ * scripts/state-rules.test.ts, which has no chmod call and reads no `.mode` (it calls pure functions and parses
+ * one tracked source). */
 const INSTALL_TEST_FILE_COUNT = 39;
-const SCRIPTS_TEST_FILE_COUNT = 75;
+const SCRIPTS_TEST_FILE_COUNT = 76;
 const SOURCE_FILE_COUNT = 10;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial

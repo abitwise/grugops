@@ -50,7 +50,7 @@
 // rel>); no write path is ever derived from file content. Every read/JSON.parse is wrapped in
 // try/catch so a missing or garbled file becomes a finding, never an unhandled throw
 // (T-06-01/T-06-03, mirrors the MCP admission gate's and install.ts's fail-closed posture).
-import { readFileSync, existsSync, readdirSync, realpathSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 // Phase 27 (KIT-02): the role and workflow name sets are DERIVED here, never hand-listed.
 // kit-model.ts is the single authority for "which roles and workflows exist" (KIT-01). It reads NO
@@ -75,13 +75,18 @@ import { governanceConfigCandidates } from "./context-io.js";
 // validator a SECOND authority on what a column is — free to disagree with the projector, and a disagreement
 // between two parsers is invisible until it has already misreported the board. `kebab` comes from
 // the same module for the same reason: `kebab(column) === status` is a rule of that grammar.
-import { boardHasColumn, kebab, parseBoard, parseTicketDocument } from "./board-model.js";
+import { boardHasColumn, kebab, normalizeDocument, parseBoard, parseTicketDocument, stripHtmlComments, } from "./board-model.js";
+// (Plan 37-02, SPLIT-04) EVERY BUDGET RULE IS ASKED OF ITS ONE OWNER, NEVER RESTATED HERE.
+// scripts/state-rules.ts decides whether a file breaks a budget and spells the finding; the numbers are
+// BUDGETS in install/state-layout.ts. This file reads the files, passes text or sizes in, and routes each
+// finding by the layout marker (D-04, D-05). No budget number is typed in this file.
+import { boardBudgetFindings, formatFinding, formatMarkerWarning, markerState, sortFindings, } from "./state-rules.js";
 // (Plan 34-06, D-10 validator coverage / D-11) THE SUPPORTED HOST SET IS IMPORTED, NEVER RESTATED.
 // install/host-tools.ts is the one registry of host tools. This is a DELIBERATE scripts→install
 // import edge (34-RESEARCH.md assumption A5): install/ still imports nothing from scripts/ (33.1
 // D-18/D-28), and the registry module is pure data with no imports, so no installer code comes in.
 import { HOST_TOOLS } from "../install/host-tools.js";
-import { BOARD_REL, METRICS_REL, NFR_CATALOG_REL, TICKETS_REL, TRACEABILITY_REL, } from "../install/state-layout.js";
+import { BOARD_REL, BUDGETS, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, METRICS_REL, NFR_CATALOG_REL, TICKETS_REL, TRACEABILITY_REL, } from "../install/state-layout.js";
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
 // KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT and has NO default — the deliberate C3 override
@@ -709,6 +714,66 @@ function checkTickets() {
         }
     }
 }
+// ── Check 6b: state budgets (plan 37-02, SPLIT-04, D-04, D-05, D-10, D-11) ──────────────────────
+// Every budget finding is an ERROR when the layout marker is valid and a WARNING otherwise. The absence of
+// a marker is not itself a finding (research Pitfall 9): when a budget finding exists on an unmarked tree,
+// one informational LAYOUT line names the marker path, and it is never pushed to `warnings`, so a tree with
+// no broken budget prints nothing new. A marker that is present and not valid is a WARNING by name, and the
+// budget findings stay warnings (D-05). No file is exempt by name (D-11).
+/** True when `rel` under the state root is a regular file (following a link), without opening it. */
+function stateIsRegularFile(rel) {
+    try {
+        return statSync(join(STATE_ROOT, rel)).isFile();
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * The layout marker's state. The marker is checked to be a regular file before it is read, so a FIFO or a
+ * directory at the marker path is reported, never opened. A present marker that cannot be read is invalid.
+ */
+function readLayoutMarker() {
+    if (!stateExists(LAYOUT_MARKER_REL))
+        return { state: "absent" };
+    if (!stateIsRegularFile(LAYOUT_MARKER_REL)) {
+        return { state: "invalid", reason: "it is not a regular file, so it was not read" };
+    }
+    const text = stateRead(LAYOUT_MARKER_REL);
+    if (text === null)
+        return { state: "invalid", reason: "the file could not be read" };
+    return markerState(text, LAYOUT_MARKER_CONTENT);
+}
+/** The board's budget findings, or the one finding that says the board could not be measured. */
+function boardFindings() {
+    if (!stateExists(BOARD_REL))
+        return []; // already a required-file error (checkRequiredFiles)
+    const unmeasured = (note) => [
+        { rel: BOARD_REL, key: "boardBytes", measured: null, budget: BUDGETS.boardBytes, unit: "bytes", note },
+    ];
+    if (!stateIsRegularFile(BOARD_REL))
+        return unmeasured("not a regular file, so it was not read");
+    const raw = stateRead(BOARD_REL);
+    if (raw === null)
+        return unmeasured("the file could not be read");
+    // Read and parsed exactly as checkTickets reads and parses it: the same safe reader, the one grammar.
+    const normalized = normalizeDocument(raw);
+    const blanked = stripHtmlComments(normalized);
+    return boardBudgetFindings(BOARD_REL, { raw, normalized, blanked }, parseBoard(raw), BUDGETS);
+}
+function checkBudgets() {
+    const marker = readLayoutMarker();
+    if (marker.state === "invalid")
+        warn(formatMarkerWarning(LAYOUT_MARKER_REL, marker.reason));
+    const findings = sortFindings([...boardFindings()]);
+    const route = marker.state === "valid" ? err : warn;
+    for (const f of findings)
+        route(formatFinding(f));
+    if (marker.state === "absent" && findings.length > 0) {
+        console.error(`  LAYOUT   no layout marker at ${LAYOUT_MARKER_REL}: budget findings are warnings until the ` +
+            "repository is migrated to the v3 layout");
+    }
+}
 // ── Check 7: packaging present + plugin.json has a name ───────────────────────────────────────
 function checkPackaging() {
     if (!kitExists("agent-factory/packaging/adapters.md")) {
@@ -834,6 +899,7 @@ checkRoleSections();
 checkWorkflowSections();
 checkConfig();
 checkTickets();
+checkBudgets();
 checkPackaging();
 checkRoleSwitchProtocol();
 checkCommitConvention();

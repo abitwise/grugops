@@ -56,7 +56,14 @@ import { pathToFileURL } from "node:url";
 // (Plan 34-06, D-11) The host registry the validator's dispatch-map check reads. The kits below
 // generate their dispatch table FROM it, so no host name is typed in this file.
 import { HOST_TOOLS } from "../install/host-tools.js";
-import { BOARD_REL, STATE_ROOT_REL, TICKETS_REL } from "../install/state-layout.js";
+import {
+  BOARD_REL,
+  BUDGETS,
+  LAYOUT_MARKER_CONTENT,
+  LAYOUT_MARKER_REL,
+  STATE_ROOT_REL,
+  TICKETS_REL,
+} from "../install/state-layout.js";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
 // tree, and a second implementation of it is the defect this phase exists to delete, not a
@@ -3474,4 +3481,142 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
         "resolution landed somewhere unexpected",
     ).toBe(join(ROOT, "scripts", "board-model.ts").split("\\").join("/"));
   });
+});
+
+// ── State budgets and the layout marker (plan 37-02, SPLIT-04, D-04, D-05, D-10, D-11, D-14) ────────
+//
+// Every tree below is a temp copy of the whole good fixture. Every budget number comes from BUDGETS and the
+// marker from LAYOUT_MARKER_REL and LAYOUT_MARKER_CONTENT, so nothing here retypes a budget or a path.
+
+/** A temp copy of the whole good fixture, as one tree holding both the kit and the state. */
+function budgetTree(): string {
+  const d = mkdtempSync(join(tmpdir(), "grugops-budget-"));
+  tmpDirs.push(d);
+  cpSync(join(FIX, "good"), d, { recursive: true });
+  return d;
+}
+
+/** Grow the tree's board to exactly `bytes` UTF-8 bytes with one trailing line of `x`. */
+function growBoardTo(dir: string, bytes: number): void {
+  const p = join(dir, BOARD_REL);
+  const text = readFileSync(p, "utf8");
+  const pad = bytes - Buffer.byteLength(text, "utf8");
+  if (pad < 2) throw new Error("PREMISE: the fixture board is already at the requested size");
+  writeFileSync(p, `${text}${"x".repeat(pad - 1)}\n`);
+}
+
+function writeMarker(dir: string, content: string): void {
+  writeFileSync(join(dir, LAYOUT_MARKER_REL), content);
+}
+
+/** The stderr lines that carry a given severity tag. */
+function tagged(r: SpawnSyncReturns<string>, tag: "ERROR" | "WARNING" | "LAYOUT"): string[] {
+  return (r.stderr ?? "").split("\n").filter((l) => l.startsWith(`  ${tag} `));
+}
+
+describe("validate-agent-factory.js — state budgets and the layout marker (plan 37-02, SPLIT-04)", () => {
+  // Digits grouped by commas, as the finding prints them, without asking the host locale.
+  const BOARD_FINDING = `${BOARD_REL}: ${String(BUDGETS.boardBytes + 1).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} bytes`;
+
+  it("an over-budget board with no marker: exit 0, a WARNING naming the board and BUDGETS.boardBytes, one LAYOUT line", () => {
+    const d = budgetTree();
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    const warns = tagged(r, "WARNING").filter((l) => l.includes("(BUDGETS.boardBytes)"));
+    expect(warns, out(r)).toHaveLength(1);
+    expect(warns[0]).toContain(BOARD_FINDING);
+    expect(tagged(r, "ERROR"), out(r)).toEqual([]);
+    const layout = tagged(r, "LAYOUT");
+    expect(layout, out(r)).toHaveLength(1);
+    expect(layout[0]).toContain(LAYOUT_MARKER_REL);
+  });
+
+  it("the LAYOUT line is informational: it is not counted as a warning under --strict", () => {
+    const d = budgetTree();
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    const strict = runFixture(d, "--strict");
+    // --strict counts every WARNING line and nothing else.
+    expect(strict.stderr ?? "", out(strict)).toContain(`${tagged(strict, "WARNING").length} ERROR(S)`);
+  });
+
+  it.each([
+    ["without a line ending", LAYOUT_MARKER_CONTENT],
+    ["with one trailing newline", `${LAYOUT_MARKER_CONTENT}\n`],
+  ])("the same tree with a valid marker (%s): exit 1 and an ERROR line for the same finding", (_l, content) => {
+    const d = budgetTree();
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    writeMarker(d, content);
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(1);
+    const errs = tagged(r, "ERROR").filter((l) => l.includes("(BUDGETS.boardBytes)"));
+    expect(errs, out(r)).toHaveLength(1);
+    expect(errs[0]).toContain(BOARD_FINDING);
+    expect(tagged(r, "WARNING").filter((l) => l.includes("BUDGETS.")), out(r)).toEqual([]);
+    expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+  });
+
+  it("the same tree with an invalid marker: exit 0, a WARNING naming the marker as not recognized, the board finding a WARNING", () => {
+    const d = budgetTree();
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    writeMarker(d, "layout: v4\n");
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    const warns = tagged(r, "WARNING");
+    expect(warns.filter((l) => l.includes(LAYOUT_MARKER_REL) && l.includes("not recognized")), out(r)).toHaveLength(1);
+    expect(warns.filter((l) => l.includes("(BUDGETS.boardBytes)")), out(r)).toHaveLength(1);
+    expect(tagged(r, "ERROR"), out(r)).toEqual([]);
+    expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+  });
+
+  it("an invalid marker is a WARNING even when no budget is broken (D-05), so --strict fails on it", () => {
+    const d = budgetTree();
+    writeMarker(d, "");
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    expect(tagged(r, "WARNING").filter((l) => l.includes(LAYOUT_MARKER_REL)), out(r)).toHaveLength(1);
+  });
+
+  it("a directory at the marker path is reported by name as not recognized, never read", () => {
+    const d = budgetTree();
+    mkdirSync(join(d, LAYOUT_MARKER_REL));
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    const warns = tagged(r, "WARNING");
+    expect(warns.filter((l) => l.includes(LAYOUT_MARKER_REL) && l.includes("not a regular file")), out(r)).toHaveLength(1);
+    expect(warns.filter((l) => l.includes("(BUDGETS.boardBytes)")), out(r)).toHaveLength(1);
+  });
+
+  it("CONTROL: a valid marker with no broken budget prints no budget line and no LAYOUT line", () => {
+    const d = budgetTree();
+    writeMarker(d, LAYOUT_MARKER_CONTENT);
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    expect(out(r)).not.toContain("BUDGETS.");
+    expect(tagged(r, "ERROR"), out(r)).toEqual([]);
+    expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+  });
+
+  it("CONTROL: a board of exactly BUDGETS.boardBytes bytes is no finding", () => {
+    const d = budgetTree();
+    growBoardTo(d, BUDGETS.boardBytes);
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    expect(out(r)).not.toContain("BUDGETS.");
+    expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+  });
+
+  it.each([[undefined], ["--strict"]])(
+    "grugops's own tree (%s): exit 0, no budget line, no marker line and no LAYOUT line",
+    (flag) => {
+      const args = flag ? [VALIDATOR_JS, flag] : [VALIDATOR_JS];
+      const r = spawnSync("node", args, { encoding: "utf8", env: { ...process.env, VALIDATE_KIT_ROOT: ROOT } });
+      expect(r.status, out(r)).toBe(0);
+      expect(out(r)).not.toContain("BUDGETS.");
+      expect(out(r)).not.toContain(LAYOUT_MARKER_REL);
+      expect(tagged(r, "WARNING"), out(r)).toEqual([]);
+      expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+    },
+  );
 });
