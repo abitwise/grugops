@@ -171,7 +171,7 @@ status: complete
 ### RED evidence
 
 - **Command:** `npx vitest run scripts/runnable-ref/state-roll.test.ts --reporter=tap-flat`. It ran with the new tests over HEAD's `state-roll.js` (96c7927b), swapped into the working tree for the run and restored afterwards (confirmed with `cmp`).
-- **Result:** exit 1, 32 tests, 13 failed (the tap-flat count; the earlier default-reporter run read 15 rows as `not ok`). The failures are the new behavior cases: progress roll, standing-only message, both surfaces, dry-run PLAN lines, prose refusal, both interrupted-roll refusals, refusal before the first write, mixed endings, move-only surfaces and both exit-1 cases. Each failed on its assertion. The target `EDGE SPLIT-01` case failed because HEAD moved rows 21-23 again (exit 0) where the test expected exit 2. HEAD already passed the second-column archive case, because 37-10 refused that shape.
+- **Result:** exit 1, 32 tests, 13 failed. The failures are the new behavior cases: progress roll, standing-only message, both surfaces, dry-run PLAN lines, prose refusal, both interrupted-roll refusals, refusal before the first write, mixed endings, move-only surfaces and both exit-1 cases. Each failed on its assertion. The target `EDGE SPLIT-01` case failed because HEAD moved rows 21-23 again (exit 0) where the test expected exit 2. HEAD already passed the second-column archive case, because 37-10 refused that shape.
 - **Classifier:** `gsd_run check tdd-red-evidence` returned INVALID_RED (`invalid_record`, "Malformed TAP"). Vitest's tap-flat reporter writes multi-line assertion messages unescaped into the YAML block, so the record cannot be parsed. This is not a semantic fault.
 - **Semantic assessment:** each target ran and failed on its planned assertion. There was no load, fixture or syntax fault.
 - The record is kept in the session scratchpad, not in the repository.
@@ -179,7 +179,7 @@ status: complete
 ## Files Created/Modified
 
 - `scripts/state-rules.ts`, `.js`: the progress-roll section, the Done refusals, the order-aware proof and the restore that skips unchanged files.
-- `scripts/state-rules.test.ts`: 30 new unit cases. They pass `sectionEndIndex` from `scripts/frontmatter.ts`.
+- `scripts/state-rules.test.ts`: 25 new unit cases. They pass `sectionEndIndex` from `scripts/frontmatter.ts`.
 - `scripts/generate-runnable-embeds.ts`, `.js`: the row's new roots and a dated doc paragraph.
 - `scripts/runnable-ref/state-roll.ts`, `.js`: a new header and hand-written part. The region was regenerated, never edited.
 - `scripts/runnable-ref/state-roll.test.ts`: 17 new host and source cases (32 in total).
