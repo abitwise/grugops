@@ -36,8 +36,8 @@ Publish the work output as typed notes per Workflow 16: the implementation decis
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the Software Engineer owns the `In Development → In Review` transition: while the diff is written the ticket sits in `In Development`, and once it is implemented with tests and checks the engineer moves it to `In Review`.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the PR / branch, files changed, and tests added against the ticket, and update status, so the implementation traces back to its product ticket and forward to the test and UAT rows.
+## Trace updates
+Publish the PR or branch, the files changed and the tests added as refs on an `artifact-ref` note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Make a small diff for one ticket: no big rewrites, no unrequested dependency changes, no architecture change without an ADR, no hidden scope. Stop and hand back if scope grows or the architecture must change.
