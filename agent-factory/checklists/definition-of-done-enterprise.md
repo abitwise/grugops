@@ -6,8 +6,8 @@ tier: enterprise
 
 This checklist is the enterprise superset of the lean Definition of Done. The Orchestrator applies it
 in `mode: enterprise`. The coverage threshold is read from `factory.config.json` (quality
-settings); the NFR budget and SLO targets are read from `memory-bank/plans/nfr-catalog.md` — cite those,
-do not redefine them here.
+settings); the NFR budget and SLO targets are read from the NFR files under `memory-bank/plans/nfr/`
+that the index `memory-bank/plans/nfr-catalog.md` lists — cite those, do not redefine them here.
 
 All of lean DoD, plus:
 - coverage meets threshold (config)
@@ -20,4 +20,4 @@ All of lean DoD, plus:
 - observability in place (logs/metrics/traces + alert if user-facing path)
 - ADR written for any structural decision
 - release notes entry drafted
-- traceability complete: requirement -> ticket -> code -> test -> (release)
+- trace complete in the ticket's rendered trace file: requirement -> ticket -> code -> test -> (release)

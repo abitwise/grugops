@@ -639,7 +639,7 @@ the Staleness section names.
 Two cross-checks are named here as **not performed this phase**, so a reader meets each as a
 decision rather than as an omission. The per-ticket traceability cells — code, tests, UAT, release —
 are read as opaque cells rather than joined against the ticket. And the projector states no opinion
-about a ticket identifier that is well formed and absent from the traceability matrix; the
+about a ticket identifier that is well formed and absent from the trace index; the
 validator already warns about that one.
 
 **The trace index and the trace files.** `memory-bank/plans/traceability.md` is a generated index

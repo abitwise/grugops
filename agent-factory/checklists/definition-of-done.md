@@ -15,5 +15,5 @@ Definition of Done in `mode: lean`; in `mode: enterprise` it applies the superse
 - docs updated
 - work output published as typed notes into the shared verified context
 - risks documented
-- traceability row updated
+- the ticket's refs are published on notes and its trace file renders
 - no fake command results
