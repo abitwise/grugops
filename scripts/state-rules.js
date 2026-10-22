@@ -84,6 +84,24 @@ export function boardBudgetFindings(rel, texts, _model, budgets) {
     }
     return findings;
 }
+export function indexLineFindings(_rel, _texts, _budgets) {
+    return [];
+}
+export function fileBytesFinding(_rel, _bytes, _key, _budgets) {
+    return null;
+}
+export function unmeasuredFinding(rel, key, budgets, note) {
+    return { rel, key, measured: null, budget: budgets[key], unit: "bytes", note };
+}
+export function doneRowFindings(_rel, _model, _budgets) {
+    return [];
+}
+export function recordEntryNames(_names) {
+    return [];
+}
+export function budgetEntryNames(_names) {
+    return [];
+}
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
 /** `n` with its digits grouped in threes by commas, independent of the host locale. */
 function grouped(n) {

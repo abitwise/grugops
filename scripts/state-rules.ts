@@ -150,6 +150,51 @@ export function boardBudgetFindings(
   return findings;
 }
 
+// ── RED stubs (plan 37-02 task 2): signatures only, replaced by the GREEN commit ─────────────────
+
+/** The two forms of an index document a caller passes in. */
+export type DocumentTexts = {
+  readonly normalized: string;
+  readonly blanked: string;
+};
+
+/** The byte budgets a file is measured against by its lstat size. */
+export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "traceBytes" | "progressBytes";
+
+export function indexLineFindings(_rel: string, _texts: DocumentTexts, _budgets: StateBudgets): StateFinding[] {
+  return [];
+}
+
+export function fileBytesFinding(
+  _rel: string,
+  _bytes: number,
+  _key: FileBudgetKey,
+  _budgets: StateBudgets,
+): StateFinding | null {
+  return null;
+}
+
+export function unmeasuredFinding(
+  rel: string,
+  key: keyof StateBudgets,
+  budgets: StateBudgets,
+  note: string,
+): StateFinding {
+  return { rel, key, measured: null, budget: budgets[key], unit: "bytes", note };
+}
+
+export function doneRowFindings(_rel: string, _model: BoardFacts, _budgets: StateBudgets): StateFinding[] {
+  return [];
+}
+
+export function recordEntryNames(_names: readonly string[]): string[] {
+  return [];
+}
+
+export function budgetEntryNames(_names: readonly string[]): string[] {
+  return [];
+}
+
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
 
 /** `n` with its digits grouped in threes by commas, independent of the host locale. */

@@ -58,12 +58,19 @@ import { pathToFileURL } from "node:url";
 import { HOST_TOOLS } from "../install/host-tools.js";
 import {
   BOARD_REL,
+  BUDGET_COUNT,
   BUDGETS,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
+  NFR_CATALOG_REL,
+  NFR_DIR_REL,
+  PROGRESS_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
+  TRACE_DIR_REL,
+  TRACEABILITY_REL,
 } from "../install/state-layout.js";
+import { skipLine, stageShapeOrSkip } from "./check-platform-shapes.js";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
 // tree, and a second implementation of it is the defect this phase exists to delete, not a
@@ -3619,4 +3626,194 @@ describe("validate-agent-factory.js — state budgets and the layout marker (pla
       expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
     },
   );
+});
+
+// ── Every budget, with coverage that cannot shrink silently (plan 37-02 task 2, D-10, D-11) ─────────
+
+/** Write `rel` under `dir`, creating its parent directories. */
+function plant(dir: string, rel: string, text: string): void {
+  const p = join(dir, rel);
+  mkdirSync(join(p, ".."), { recursive: true });
+  writeFileSync(p, text);
+}
+
+/** Append text to a file of the tree. */
+function appendTo(dir: string, rel: string, text: string): void {
+  const p = join(dir, rel);
+  writeFileSync(p, `${readFileSync(p, "utf8")}${text}`);
+}
+
+/** `text` padded with one trailing line of `x` to exactly `bytes` UTF-8 bytes. */
+function paddedTo(text: string, bytes: number): string {
+  const pad = bytes - Buffer.byteLength(text, "utf8");
+  if (pad < 2) throw new Error("PREMISE: the text is already at the requested size");
+  return `${text}${"x".repeat(pad - 1)}\n`;
+}
+
+/** A ticket document the ticket grammar admits, sitting in the fixture board's Ready column. */
+const READY_TICKET = "---\ncolumn: Ready\nstatus: ready\n---\n# ABC-001 budget fixture ticket\n";
+
+/**
+ * One planter per BUDGETS key. Each breaks ONLY its own budget in a temp copy of the good fixture. Typed as a
+ * Record over the BUDGETS keys, so a tenth key without a planter fails typecheck, and counted against
+ * BUDGET_COUNT below, so the table cannot shrink either.
+ */
+const planters: Record<keyof typeof BUDGETS, (dir: string) => void> = {
+  boardBytes: (d) => growBoardTo(d, BUDGETS.boardBytes + 1),
+  boardRowChars: (d) => {
+    const head = "- [ABC-901] ";
+    appendTo(d, BOARD_REL, `\n${head}${"t".repeat(BUDGETS.boardRowChars + 1 - head.length)}\n`);
+  },
+  boardUpdatedLines: (d) =>
+    appendTo(d, BOARD_REL, "\n_Updated: 2026-10-21 by qe\n_Updated: 2026-10-22 by qe\n"),
+  indexEntryBytes: (d) => appendTo(d, TRACEABILITY_REL, `${"e".repeat(BUDGETS.indexEntryBytes + 1)}\n`),
+  ticketBytes: (d) => {
+    plant(d, `${TICKETS_REL}/ABC-001.md`, paddedTo(READY_TICKET, BUDGETS.ticketBytes + 1));
+    appendTo(d, TRACEABILITY_REL, "| ABC-001 | t | | | | | | | | |\n");
+  },
+  nfrBytes: (d) => plant(d, `${NFR_DIR_REL}/NFR-001.md`, paddedTo("# NFR-001\n", BUDGETS.nfrBytes + 1)),
+  traceBytes: (d) => plant(d, `${TRACE_DIR_REL}/ABC-083.md`, paddedTo("# ABC-083\n", BUDGETS.traceBytes + 1)),
+  progressBytes: (d) => plant(d, PROGRESS_REL, paddedTo("# Progress\n", BUDGETS.progressBytes + 1)),
+  doneRows: (d) =>
+    appendTo(
+      d,
+      BOARD_REL,
+      `\n${Array.from({ length: BUDGETS.doneRows + 1 }, (_v, i) => `- [ABC-${700 + i}] done row`).join("\n")}\n`,
+    ),
+};
+
+/** The stderr lines that name any budget constant. */
+function budgetLines(r: SpawnSyncReturns<string>): string[] {
+  return (r.stderr ?? "").split("\n").filter((l) => l.includes("(BUDGETS."));
+}
+
+describe("validate-agent-factory.js — every BUDGETS key is checked (plan 37-02, D-10, D-11)", () => {
+  it("the planter table covers every BUDGETS key: its size equals BUDGET_COUNT", () => {
+    expect(Object.keys(planters).length).toBe(BUDGET_COUNT);
+    expect(Object.keys(planters).sort()).toEqual(Object.keys(BUDGETS).sort());
+  });
+
+  it.each(Object.keys(BUDGETS) as (keyof typeof BUDGETS)[])(
+    "a tree with only BUDGETS.%s broken reports a finding naming it, and nothing else",
+    (key) => {
+      const d = budgetTree();
+      planters[key](d);
+      const r = runFixture(d);
+      expect(r.status, out(r)).toBe(0);
+      const lines = budgetLines(r);
+      expect(lines.length, out(r)).toBeGreaterThan(0);
+      for (const l of lines) {
+        expect(l, out(r)).toContain(`(BUDGETS.${key})`);
+        expect(l.startsWith("  WARNING "), out(r)).toBe(true);
+      }
+      expect(tagged(r, "ERROR"), out(r)).toEqual([]);
+      expect(tagged(r, "LAYOUT"), out(r)).toHaveLength(1);
+    },
+  );
+
+  it.each(Object.keys(BUDGETS) as (keyof typeof BUDGETS)[])(
+    "with a valid marker, the broken BUDGETS.%s is an ERROR and the run exits 1",
+    (key) => {
+      const d = budgetTree();
+      planters[key](d);
+      writeMarker(d, LAYOUT_MARKER_CONTENT);
+      const r = runFixture(d);
+      expect(r.status, out(r)).toBe(1);
+      const lines = budgetLines(r);
+      expect(lines.length, out(r)).toBeGreaterThan(0);
+      for (const l of lines) expect(l.startsWith("  ERROR "), out(r)).toBe(true);
+    },
+  );
+
+  it("a trace-file finding names the ticket and says to split its work, not to edit the generated file", () => {
+    const d = budgetTree();
+    planters.traceBytes(d);
+    const lines = budgetLines(runFixture(d));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`${TRACE_DIR_REL}/ABC-083.md`);
+    expect(lines[0]).toMatch(/ABC-083.*split/);
+  });
+
+  it("an index line over budget is reported for the NFR catalog as well as the trace index", () => {
+    const d = budgetTree();
+    appendTo(d, NFR_CATALOG_REL, `${"e".repeat(BUDGETS.indexEntryBytes + 1)}\n`);
+    const lines = budgetLines(runFixture(d));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`${NFR_CATALOG_REL}:`);
+    expect(lines[0]).toContain("(BUDGETS.indexEntryBytes)");
+  });
+
+  it("a .gitkeep in each of the ticket, NFR and trace directories of a clean fixture is no finding", () => {
+    const d = budgetTree();
+    for (const dir of [TICKETS_REL, NFR_DIR_REL, TRACE_DIR_REL]) plant(d, `${dir}/.gitkeep`, "");
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    expect(budgetLines(r), out(r)).toEqual([]);
+    expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+  });
+
+  it("an over-budget dot-prefixed .md file is not a record, so it is never measured (the record rule, not an exemption)", () => {
+    const d = budgetTree();
+    plant(d, `${NFR_DIR_REL}/.hidden.md`, paddedTo("# hidden\n", BUDGETS.nfrBytes + 100));
+    plant(d, `${TRACE_DIR_REL}/.hidden.md`, paddedTo("# hidden\n", BUDGETS.traceBytes + 100));
+    plant(d, `${TICKETS_REL}/.hidden.md`, paddedTo(READY_TICKET, BUDGETS.ticketBytes + 100));
+    const r = runFixture(d);
+    expect(budgetLines(r), out(r)).toEqual([]);
+  });
+
+  it("CONTROL: the same file under a record name IS measured, whatever its name (D-11)", () => {
+    const d = budgetTree();
+    plant(d, `${NFR_DIR_REL}/notes.md`, paddedTo("# notes\n", BUDGETS.nfrBytes + 100));
+    const lines = budgetLines(runFixture(d));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`${NFR_DIR_REL}/notes.md`);
+  });
+
+  it("a directory ending .md in the ticket or trace directory is reported by name, never opened", () => {
+    const d = budgetTree();
+    mkdirSync(join(d, TICKETS_REL, "ABC-002.md"));
+    mkdirSync(join(d, TRACE_DIR_REL, "ABC-002.md"), { recursive: true });
+    const lines = budgetLines(runFixture(d));
+    expect(lines.filter((l) => l.includes(`${TICKETS_REL}/ABC-002.md`) && l.includes("not a regular file"))).toHaveLength(1);
+    expect(lines.filter((l) => l.includes(`${TRACE_DIR_REL}/ABC-002.md`) && l.includes("not a regular file"))).toHaveLength(1);
+  });
+
+  it("a FIFO ending .md in the NFR directory is reported by name in bounded time, never opened", () => {
+    const d = budgetTree();
+    mkdirSync(join(d, NFR_DIR_REL), { recursive: true });
+    const fifo = join(d, NFR_DIR_REL, "NFR-009.md");
+    const skipped = stageShapeOrSkip("FIFO", fifo, "scripts/validate.test.ts: a FIFO in the NFR directory (plan 37-02)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the directory-ending-.md case beside this one (the same lstat rule)"));
+      return;
+    }
+    const r = spawnSync("node", [VALIDATOR_JS], {
+      encoding: "utf8",
+      timeout: 20_000,
+      env: { ...process.env, VALIDATE_KIT_ROOT: d, VALIDATE_ROOT: d },
+    });
+    expect(r.error, "the validator did not answer in bounded time: it opened the FIFO").toBeUndefined();
+    const lines = budgetLines(r);
+    expect(lines.filter((l) => l.includes(`${NFR_DIR_REL}/NFR-009.md`) && l.includes("not a regular file")), out(r)).toHaveLength(1);
+  });
+
+  it("two runs over one unchanged tree print byte-identical stderr, budget findings sorted by path, key and line", () => {
+    const d = budgetTree();
+    for (const key of Object.keys(planters) as (keyof typeof BUDGETS)[]) planters[key](d);
+    const first = runFixture(d);
+    const second = runFixture(d);
+    expect(second.stderr).toBe(first.stderr);
+    const lines = budgetLines(first);
+    expect(lines.length, out(first)).toBeGreaterThanOrEqual(BUDGET_COUNT);
+    const keyed = lines.map((l) => {
+      const m = /^ {2}WARNING {2}(.+?)(?::(\d+))?: .*\(BUDGETS\.(\w+)\)/.exec(l);
+      if (m === null) throw new Error(`unparsed budget line: ${l}`);
+      return { rel: m[1] as string, line: Number(m[2] ?? 0), key: m[3] as string };
+    });
+    const sorted = [...keyed].sort((a, b) =>
+      a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : a.key < b.key ? -1 : a.key > b.key ? 1 : a.line - b.line,
+    );
+    expect(keyed).toEqual(sorted);
+    expect(new Set(keyed.map((k) => k.key)).size, "every key appears").toBe(BUDGET_COUNT);
+  });
 });
