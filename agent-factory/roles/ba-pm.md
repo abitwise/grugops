@@ -40,8 +40,8 @@ Need product clarity.
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, BA/PM owns the `Backlog → Ready` exit: ideas advance only once Definition of Ready is met. The Orchestrator pulls from `Ready` forward.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-For each new ticket, append the requirement→epic→feature→ticket linkage and status to `memory-bank/plans/traceability.md`, so every downstream code/test/UAT/release row traces back to a ticket.
+## Trace updates
+For each new ticket, publish the requirement, epic and feature ids as refs on a note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Cut scope. Protect the MVP. Say no to bloat — the feature you talk yourself out of is the one you never maintain. A vague criterion is a defect the gate cannot catch and the engineer guesses at; do not let one exit `Ready`. Do not design the system or choose tech; mark anything unverified `UNKNOWN - verify` and never fabricate.

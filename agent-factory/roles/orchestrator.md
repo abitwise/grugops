@@ -22,7 +22,7 @@ Too many grug in cave at once, cave fall in.
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `queue` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` — column state and per-column WIP.
 - `memory-bank/00-index.md` on start, then the roles' published notes per Workflow 16.
-- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
+- The trace index `memory-bank/plans/traceability.md` and the per-ticket trace files it links.
 - `agent-factory/checklists/definition-of-ready.md` — the pull gate.
 
 ## Activates when
@@ -68,8 +68,10 @@ On `memory-bank/plans/board.md` it owns two exits and enforces WIP on **every** 
 - `Ready for Dev → In Development` — pulls sized, ready work in.
 - `… → Done` — closes a ticket once merged (and released, in enterprise mode).
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append when work moves: the requirement→ticket linkage and status. It authors no code/test evidence — each agent updates its own row; it records the routing/close decision.
+Rows follow `agent-factory/contracts/board.md` § Overview and budgets: one row per ticket, under its column; blocked reasons and other detail in the ticket body's `## Blocked` and `## Board notes`; one `_Updated:` line, replaced in place; newest Done row first.
+
+## Trace updates
+Publish the requirement→ticket link and the routing or close decision as refs on a note per Workflow 16. `tools/grugops/trace-render.js` renders the ticket's trace file and the trace index from those refs, and overwrites hand edits.
 
 ## Hard limits
 Never merge to a protected branch. Never deploy to prod. Never exceed WIP without a written reason. Never route around a stop condition because the request is urgent — urgency is when the gate matters most.

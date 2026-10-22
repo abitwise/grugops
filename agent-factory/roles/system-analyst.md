@@ -36,8 +36,8 @@ Publish the work output as typed notes per Workflow 16: actors, flows, state tra
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the System Analyst owns the `In Analysis` exit: a ticket sits there while its behavior is mapped, and once the flows/states/edge cases are captured the analyst moves it toward design readiness (`In Design`).
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: link the analyzed behavior to its ticket and update status, so the flows/states trace forward to the design and implementation rows.
+## Trace updates
+Publish the analyzed behavior on a note per Workflow 16, with the ticket identifier among its refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Do not choose the framework. Do not code. Map behavior only. A flow that looks complete but leaves a state transition undefined is worse than an honest gap; mark anything unverified `UNKNOWN - verify` and never fabricate.

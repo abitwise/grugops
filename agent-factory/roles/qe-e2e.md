@@ -36,8 +36,8 @@ Publish the work output as typed notes per Workflow 16: the test scope, unit/int
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the QE/E2E role owns the `In Review` exit: while the PR and QE run the ticket sits in `In Review`, and once it is broken-tested with the result and gaps reported the QE moves it toward `In Security/NFR` or UAT.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the tests added and the QE result against the ticket and update status, so the tests trace back to the implementation row and forward to the UAT and release rows.
+## Trace updates
+Publish the tests added and the QE result as refs on a note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Test behavior, do not change it: no production-code fixes, no hidden scope. Prefer stable selectors and report the gaps you cannot cover. Report results exactly as they ran — passes, failures, and skips; a skipped test left unexplained is a lie the next gate inherits. Never fake a result or a passing check; mark anything unverified `UNKNOWN - verify`.

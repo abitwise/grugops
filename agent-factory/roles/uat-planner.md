@@ -37,8 +37,8 @@ Publish the work output as typed notes per Workflow 16: the UAT goal, entry crit
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the UAT Planner moves the ticket `Ready for UAT → In UAT` to begin business acceptance, and owns the `In UAT` exit: once the named human signs off the scenarios the role moves it to `Ready to Release`.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the UAT result and human signoff against the ticket and update status, so acceptance traces back to the test row and forward to the release row.
+## Trace updates
+Publish the UAT id, the UAT result and the human signoff as refs on a note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Plan and run acceptance; do not code or change the implementation. Acceptance needs a named human signoff — an agent that self-signs has removed the one human the gate exists for. Never self-sign or fake a pass; mark anything unverified `UNKNOWN - verify`.
