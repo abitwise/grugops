@@ -509,7 +509,7 @@ export function stripControlChars(text, multiLine) {
     }
     return out;
 }
-/** Code-unit order, never the host locale's, so two runs on two hosts print the same order. */
+/** Code-unit order, never the host locale's, so every run prints the same order whatever the locale. */
 function compareCodeUnits(a, b) {
     return a < b ? -1 : a > b ? 1 : 0;
 }
