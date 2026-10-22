@@ -26,7 +26,8 @@ always hold merge and deploy.
 <!-- claim: C-28-025 -->
 The Orchestrator reads the config, classifies your request, respects the board's WIP limits,
 activates the right specialist roles, requires each to publish typed notes into the shared
-verified context, updates the board and traceability, and produces the next action.
+verified context, updates the board, and produces the next action. The trace is rendered
+from those notes.
 
 <!-- claim: C-28-026 -->
 > **Note:** The portable root `AGENTS.md` substrate — the other entry point most host tools
@@ -96,9 +97,10 @@ Which safety claims still hold on this repository, joined to the live checkpoint
 - **The board** — `memory-bank/plans/board.md` is the visible state of the factory: WIP-limited columns
   that every ticket moves through, from Ready to Done (or to Ready to Release in enterprise
   mode). The board *is* the state; the column an item sits in is its status.
-- **Traceability** — `memory-bank/plans/traceability.md` is the audit trail: one row per requirement,
-  linking requirement → ticket → code → test → UAT → release, so every shipped change is
-  accountable end to end.
+- **Traceability** — the audit trail, rendered per ticket from published note refs. Each ticket's
+  file under `memory-bank/plans/traceability/` links requirement → ticket → code → test → UAT →
+  release, and `memory-bank/plans/traceability.md` indexes them one line per ticket, so every
+  shipped change is accountable end to end.
 - **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues
   them for whichever stages the work actually needs (analysis, design, engineering, QE,
   security/NFR, UAT, release); each role claims its subtask, pulls the shared verified

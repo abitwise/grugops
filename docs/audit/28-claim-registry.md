@@ -241,10 +241,10 @@ All work starts with the Orchestrator: `agent-factory/roles/orchestrator.md`.
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: Measured against `agent-factory/roles/orchestrator.md`, which carries the classification step, the role-activation step, the requirement that each role publish typed notes, and the board/traceability update. `activates` is the still-correct v2.0 verb; this line does NOT assert the linear routing order C-28-010 measures false.
+- mechanism: Measured against `agent-factory/roles/orchestrator.md`, which carries the classification step, the role-activation step, the requirement that each role publish typed notes, and the board update; § *Trace updates* says `tools/grugops/trace-render.js` renders the trace from published note refs (reworded in plan 37-18, v3.0 D-6). `activates` is the still-correct v2.0 verb; this line does NOT assert the linear routing order C-28-010 measures false.
 
 ```
-The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board and traceability, and produces the next action.
+The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board, and produces the next action; the trace is rendered from those notes.
 ```
 
 ### C-28-014
@@ -340,11 +340,11 @@ Andrej Karpathy's coding-agent rules — 12 rules grouped under four principles.
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: Measured against `agent-factory/seed/`: `memory-bank/` carries `00-index.md`, `10-project-brief.md`, `20-product.md`, `30-architecture.md`, `40-contributing.md` and `60-progress.md`; `plans/` carries `board.md`, `traceability.md`, `nfr-catalog.md`, `metrics.md` and the `sprints/`, `releases/`, `epics/`, `features/`, `tickets/` directories. Every artifact this line names exists in the seed the installer walks.
+- mechanism: Measured against `agent-factory/seed/`: `memory-bank/` carries `00-index.md`, `10-project-brief.md`, `20-product.md`, `30-architecture.md`, `40-contributing.md` and `60-progress.md`; `plans/` carries `board.md`, `traceability.md`, `nfr-catalog.md`, `metrics.md` and the `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`, `traceability/` and `nfr/` directories (the last two named in plan 37-18: per-ticket trace files and one file per NFR). Every artifact this line names exists in the seed the installer walks.
 
 ```
 - `memory-bank/*` — the agent-maintained working memory: read on start; `60-progress.md` is the running plan-of-record, `50-decisions/` holds ADRs, plus project brief, product, architecture, contributing, runbook, glossary.
-- `memory-bank/plans/*` — the delivery state: `board.md` (status), `traceability.md` (requirement→ticket→code→test→UAT→release), `nfr-catalog.md`, plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
+- `memory-bank/plans/*` — the delivery state: `board.md` (status), `traceability.md` (rendered index; per-ticket trace files under `traceability/`), `nfr-catalog.md` (index; one file per NFR under `nfr/`), plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
 ```
 
 ### C-28-021
@@ -412,16 +412,17 @@ always hold merge and deploy.
 ### C-28-025
 
 - file: agent-factory/README.md
-- line: 25-27
+- line: 27-30
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: Each named step is present in `agent-factory/roles/orchestrator.md`: the config read, the classification, the WIP-limit respect, the role activation, the requirement to publish typed notes into the shared verified context (Workflow 16), and the board/traceability update. `publish typed notes into the shared verified context` is the corrected v2.0 wording, not the deleted relay.
+- mechanism: Each named step is present in `agent-factory/roles/orchestrator.md`: the config read, the classification, the WIP-limit respect, the role activation, the requirement to publish typed notes into the shared verified context (Workflow 16), and the board update; the closing sentence is measured against § *Trace updates*, where `tools/grugops/trace-render.js` renders the trace from published note refs (reworded in plan 37-18, v3.0 D-6). `publish typed notes into the shared verified context` is the corrected v2.0 wording, not the deleted relay.
 
 ```
 The Orchestrator reads the config, classifies your request, respects the board's WIP limits,
 activates the right specialist roles, requires each to publish typed notes into the shared
-verified context, updates the board and traceability, and produces the next action.
+verified context, updates the board, and produces the next action. The trace is rendered
+from those notes.
 ```
 
 ### C-28-026
@@ -549,19 +550,20 @@ up to enterprise governance (scrum cadence, compliance regimes, release gates) o
 ### C-28-033
 
 - file: agent-factory/README.md
-- line: 91-101
+- line: 97-108
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: FIXED in 28-05. Three assertions, measured separately. The board HOLDS, unchanged — `agent-factory/seed/plans/board.md` ships WIP-limited columns and `factory.config.json` `wip_limits` names all ten. Traceability HOLDS, unchanged — `agent-factory/seed/plans/traceability.md` ships with the requirement→ticket→code→test→UAT→release row shape (that arrow chain is a TABLE ROW SHAPE, not a routing order, and was correctly left standing). THE LIFECYCLE BULLET WAS THE DEFECT and is the one that moved: it narrated `the Orchestrator routes each request through the relevant stages (analysis → design → … → release)`, the third D-10 arrow-chain site, found by the anchor pass and reached by neither the drift guard nor the task-1 read. It now states decompose-and-enqueue for `whichever stages the work actually needs`, adds the claim step, and closes on `never a relay from the role before it` — measured against `orchestrator.md` § *Responsibilities* step 4, `agent-factory/workflows/17-task-claim.md` (the pending → claimed → done transitions and `Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent`), and `agent-factory/workflows/16-context-read-write.md` (pull-before-act, publish-after-verify). The already-correct Workflow 16 clause is retained verbatim. Registered as one slice because an anchor between two list items would split the rendered list.
+- mechanism: FIXED in 28-05. Three assertions, measured separately. The board HOLDS, unchanged — `agent-factory/seed/plans/board.md` ships WIP-limited columns and `factory.config.json` `wip_limits` names all ten. Traceability HOLDS, reworded in plan 37-18 (v3.0 D-6) — `tools/grugops/trace-render.js` renders one file per ticket under `memory-bank/plans/traceability/` from published note refs, with the requirement→ticket→code→test→UAT→release link shape (that arrow chain is a LINK SHAPE, not a routing order, and was correctly left standing), and a one-line-per-ticket index in `traceability.md`; measured against `scripts/trace-model.ts` and the seed's `plans/traceability/` directory. THE LIFECYCLE BULLET WAS THE DEFECT and is the one that moved: it narrated `the Orchestrator routes each request through the relevant stages (analysis → design → … → release)`, the third D-10 arrow-chain site, found by the anchor pass and reached by neither the drift guard nor the task-1 read. It now states decompose-and-enqueue for `whichever stages the work actually needs`, adds the claim step, and closes on `never a relay from the role before it` — measured against `orchestrator.md` § *Responsibilities* step 4, `agent-factory/workflows/17-task-claim.md` (the pending → claimed → done transitions and `Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent`), and `agent-factory/workflows/16-context-read-write.md` (pull-before-act, publish-after-verify). The already-correct Workflow 16 clause is retained verbatim. Registered as one slice because an anchor between two list items would split the rendered list.
 
 ```
 - **The board** — `memory-bank/plans/board.md` is the visible state of the factory: WIP-limited columns
   that every ticket moves through, from Ready to Done (or to Ready to Release in enterprise
   mode). The board *is* the state; the column an item sits in is its status.
-- **Traceability** — `memory-bank/plans/traceability.md` is the audit trail: one row per requirement,
-  linking requirement → ticket → code → test → UAT → release, so every shipped change is
-  accountable end to end.
+- **Traceability** — the audit trail, rendered per ticket from published note refs. Each ticket's
+  file under `memory-bank/plans/traceability/` links requirement → ticket → code → test → UAT →
+  release, and `memory-bank/plans/traceability.md` indexes them one line per ticket, so every
+  shipped change is accountable end to end.
 - **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues
   them for whichever stages the work actually needs (analysis, design, engineering, QE,
   security/NFR, UAT, release); each role claims its subtask, pulls the shared verified

@@ -18,7 +18,7 @@ Read in this order:
 3. `memory-bank/plans/board.md` — the visible state; respect every column's WIP limit before pulling new work.
 
 <!-- claim: C-28-013 -->
-The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board and traceability, and produces the next action.
+The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board, and produces the next action; the trace is rendered from those notes.
 
 ## Role / workflow files
 
@@ -92,7 +92,7 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 
 - Board: `memory-bank/plans/board.md`
 - Cadence + WIP: `.grugops/factory.config.json`
-- Traceability: `memory-bank/plans/traceability.md`
+- Trace: index `memory-bank/plans/traceability.md`, one file per ticket in `memory-bank/plans/traceability/`
 
 ## Safety rules
 
@@ -152,7 +152,7 @@ Andrej Karpathy's coding-agent rules — 12 rules grouped under four principles.
 
 <!-- claim: C-28-020 -->
 - `memory-bank/*` — the agent-maintained working memory: read on start; `60-progress.md` is the running plan-of-record, `50-decisions/` holds ADRs, plus project brief, product, architecture, contributing, runbook, glossary.
-- `memory-bank/plans/*` — the delivery state: `board.md` (status), `traceability.md` (requirement→ticket→code→test→UAT→release), `nfr-catalog.md`, plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
+- `memory-bank/plans/*` — the delivery state: `board.md` (status), `traceability.md` (rendered index; per-ticket trace files under `traceability/`), `nfr-catalog.md` (index; one file per NFR under `nfr/`), plus `sprints/`, `releases/`, `epics/`, `features/`, `tickets/`.
 
 ## When uncertain
 

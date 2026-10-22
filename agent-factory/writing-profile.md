@@ -216,7 +216,7 @@ precisely the overstated-claim class this project has already registered and mea
 | seed templates | build-time gate |
 | contracts | build-time gate |
 | typed notes written into the shared verified context | instruction, via `agent-factory/workflows/16-context-read-write.md` |
-| board and traceability rows written at run time | instruction, via the same workflow |
+| board rows written at run time; trace files rendered by tools/grugops/trace-render.js | instruction, via the same workflow |
 
 ### Named exclusions, with their reasons
 
