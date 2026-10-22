@@ -379,13 +379,27 @@ describe("board-dashboard — the watched directory set (D-14)", () => {
     expect(WATCH_DIR_COUNT).toBe(WATCH_DIRS.length);
   });
 
-  it("pins the watched-directory count at six", () => {
+  it("pins the watched-directory count at seven", () => {
+    // SEVEN SINCE 2026-10-22 (plan 37-12): the seventh source `boardArchive` (D-15) lives in
+    // `memory-bank/plans/archive/`, a directory no other source's watch covers — the state root's
+    // watch is armed without `recursive`, so it never sees an event inside a subdirectory.
     expect(
       WATCH_DIRS.length,
-      "a seventh watched directory is a D-14 DECISION recorded in the phase context, never a " +
+      "an eighth watched directory is a D-14 DECISION recorded in the phase context, never a " +
         "bumped constant: each watch is the low-latency path for a named source, and a directory " +
         "nobody assigned a source to is a watch whose failure has nowhere to be reported",
-    ).toBe(6);
+    ).toBe(7);
+  });
+
+  it("watches the Done archive's own directory, reported against `boardArchive` (D-15)", () => {
+    const archiveDir = posix.dirname(FIXED_SUBPATHS.boardArchive);
+    expect(
+      archiveDir,
+      "PREMISE: the archive no longer sits in its own directory under the state root",
+    ).toBe(`${STATE_DIR_REL}/archive`);
+    expect(WATCH_DIRS.filter((d) => d.rel === archiveDir)).toEqual([
+      { rel: archiveDir, source: "boardArchive" },
+    ]);
   });
 
   it("IS the derivation over the live layout authorities, not a copy of its answer", () => {
@@ -444,7 +458,7 @@ describe("board-dashboard — the watched directory set (D-14)", () => {
   });
 
   it("drops the dial, and folds traceability into the directory the board already supplies", () => {
-    // The two facts a reader counting six directories against six sources needs, asserted rather
+    // The two facts a reader counting seven directories against seven sources needs, asserted rather
     // than only written down: `config` is watched by nobody, and `traceability` shares the state
     // directory.
     expect(WATCH_DIRS.map((d) => d.rel)).not.toContain("agent-factory/config");
@@ -872,7 +886,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
     expect(h.loop.watchedDirs()).toEqual([STATE_DIR_REL]);
     expect(
       h.loop.watchErrors(),
-      "the five directories that do not exist on this tree kept a record about a condition that " +
+      "the six directories that do not exist on this tree kept a record about a condition that " +
         "is over — an absent directory is not a failed watch",
     ).toEqual([]);
   });
@@ -890,14 +904,15 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
         symlinkSync(join(outside, STATE_DIR_REL), join(tree, STATE_DIR_REL), "dir");
       },
       ({ refused, armed }) => {
-        // THREE sources, not two: the state directory carries the board, the ticket directory AND
-        // the traceability file, so one symlink refuses all three — and it is the watched
-        // directory for the first and the third.
+        // FOUR sources, not two: the state directory carries the board, the ticket directory, the
+        // traceability file AND, since plan 37-12 (2026-10-22, D-15), the Done archive under its
+        // `archive/` directory, so one symlink refuses all four — and it is the watched directory
+        // for the board and the traceability file.
         expect(
           refused.map((e) => e.source).sort(),
           "PREMISE: the reader did not refuse the symlinked directory, so the watch assertion " +
             "below is about a tree that was never outside the root",
-        ).toEqual(["board", "tickets", "traceability"]);
+        ).toEqual(["board", "boardArchive", "tickets", "traceability"]);
 
         expect(
           armed.filter((d) => toPosix(d).includes(STATE_DIR_REL)),
@@ -913,7 +928,7 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
           refused.length,
           "the refusal is reported ONCE, by the authority that made it. A second record from the " +
             "watch arm would be the same finding twice in the same list",
-        ).toBe(3);
+        ).toBe(4);
       },
     );
   });
@@ -977,23 +992,26 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
   /** The healthy armed set for a `withLinkedTree` run: every watched directory exists on it. */
   // Sorted, because `armedRel` is sorted: the two state-directory entries come from the reader's
   // table, so their place in name order is computed rather than typed.
-  const ALL_SIX = [
+  // SEVEN SINCE 2026-10-22 (plan 37-12, D-15): the fixture carries the Done archive, so its
+  // directory exists on the copied tree and is armed with the other six.
+  const ALL_SEVEN = [
     ".grugops/context",
     ".grugops/queue/claimed",
     ".grugops/queue/done",
     ".grugops/queue/pending",
     STATE_DIR_REL,
+    posix.dirname(FIXED_SUBPATHS.boardArchive),
     FIXED_SUBPATHS.tickets,
   ].sort();
 
-  it("PREMISE: an unmutated tree arms every one of the six watched directories", () => {
+  it("PREMISE: an unmutated tree arms every one of the seven watched directories", () => {
     // Without this the shortened lists below are indistinguishable from a tree that never had the
     // directory in the first place — which is exactly what the committed fixture's missing
     // `pending` and `done` stages would have produced.
     withLinkedTree(
       () => undefined,
       ({ armedRel, refused }) => {
-        expect(armedRel).toEqual(ALL_SIX);
+        expect(armedRel).toEqual(ALL_SEVEN);
         expect(armedRel.length).toBe(WATCH_DIR_COUNT);
         expect(refused, "the unmutated fixture refuses nothing for containment").toEqual([]);
       },
@@ -1018,7 +1036,7 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
             "inside the root, readable, and holds seven legitimate tickets; taking it off the " +
             "low-latency path turns a live view into a ten-second-granular one under a confident " +
             "header (32-REVIEW.md CR-01)",
-        ).toEqual(ALL_SIX);
+        ).toEqual(ALL_SEVEN);
       },
     );
   });
@@ -1045,7 +1063,7 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
           refused.map((e) => e.source),
           "PREMISE: the reader did not refuse the escaping claimed task",
         ).toEqual(["queue"]);
-        expect(armedRel).toEqual(ALL_SIX);
+        expect(armedRel).toEqual(ALL_SEVEN);
       },
     );
   });
@@ -1066,7 +1084,7 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
           refused.map((e) => e.source),
           "PREMISE: the reader did not refuse the escaping context task",
         ).toEqual(["context"]);
-        expect(armedRel).toEqual(ALL_SIX);
+        expect(armedRel).toEqual(ALL_SEVEN);
       },
     );
   });
@@ -1083,7 +1101,7 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
       },
       ({ armedRel, refused }) => {
         expect(refused.map((e) => e.source)).toEqual(["tickets"]);
-        expect(armedRel).toEqual(ALL_SIX.filter((d) => d !== FIXED_SUBPATHS.tickets));
+        expect(armedRel).toEqual(ALL_SEVEN.filter((d) => d !== FIXED_SUBPATHS.tickets));
       },
     );
   });
@@ -1107,8 +1125,8 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
       ({ armedRel, refused }) => {
         expect(
           refused.map((e) => e.source).sort(),
-          `PREMISE: the three sources under ${STATE_DIR_REL}/ were not all refused`,
-        ).toEqual(["board", "tickets", "traceability"]);
+          `PREMISE: the four sources under ${STATE_DIR_REL}/ were not all refused`,
+        ).toEqual(["board", "boardArchive", "tickets", "traceability"]);
         expect(
           // `e.path` is an absolute host LOCATION (plan 33-03 leaves those in the host spelling);
           // the suffix is compared in one spelling so this premise decides the same thing on

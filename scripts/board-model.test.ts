@@ -4825,3 +4825,170 @@ describe("32.1-09 — the watch-paragraph equality is a control, not a coinciden
     ).toBeGreaterThan(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 37-12 TASK 2 — THE DONE ARCHIVE IN THE JOIN, AND THE CLOSED TICKET KEY SET (D-07, D-15,
+// SPLIT-01, SPLIT-07).
+//
+// Every placement rule the contract's `## The Done archive` section states, asked of `joinSnapshot`
+// directly: archive rows place for `ticket-unplaced` only, a board row plus an archive row is
+// `ticket-duplicated`, archive rows reach no WIP number and no `column-missing`, and an archive that
+// is not `ok` suppresses `ticket-unplaced` and nothing else.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const ARCHIVE_DONE = "## Done (WIP unlimited)\n";
+
+/** `n` archive rows, ABC-300 upward, under the archive's one Done heading. */
+function archiveOf(n: number): string {
+  const rows: string[] = [];
+  for (let i = 0; i < n; i += 1) rows.push(`- [ABC-${300 + i}] Rolled ticket ${i}`);
+  return `${ARCHIVE_DONE}${rows.join("\n")}\n`;
+}
+
+const WIP_BOARD =
+  "## In Development (WIP 1/3)\n- [ABC-001] Being built\n## Done (WIP unlimited)\n- [ABC-002] Shipped\n";
+const WIP_CONFIG: FactoryConfigView = { mode: "lean", idPrefix: "ABC", wipLimits: { "In Development": 3 } };
+
+const ARCHIVE_GATED_KINDS = new Set<ConflictKind>(["ticket-unplaced"]);
+
+describe("board-model — the Done archive in the join (plan 37-12, D-15)", () => {
+  it("places a ticket whose only row is in the archive, and only that ticket", () => {
+    const tickets = [ticket("ABC-300", "Done", "done"), ticket("ABC-999", "Done", "done")];
+    const { conflicts } = joinOf({ board: WIP_BOARD, tickets, archive: archiveOf(1), idPrefix: "ABC" });
+    expect(only(conflicts, "ticket-unplaced").map((c) => c.ticketId)).toEqual(["ABC-999"]);
+  });
+
+  it("raises ONE ticket-duplicated naming both places for a board row plus an archive row", () => {
+    const board = "## In Review (WIP 1/3)\n- [ABC-300] Back in review\n";
+    const tickets = [ticket("ABC-300", "In Review", "in-review")];
+    const { conflicts } = joinOf({ board, tickets, archive: archiveOf(1), idPrefix: "ABC" });
+    const dup = only(conflicts, "ticket-duplicated");
+    expect(dup.length).toBe(1);
+    expect(dup[0]?.ticketId).toBe("ABC-300");
+    expect(dup[0]?.column).toBe("In Review");
+    expect(dup[0]?.actual).toBe("In Review, Done in memory-bank/plans/archive/board-done.md");
+    // The archive row is a placement for ticket-unplaced and for this kind only: the ticket file names
+    // In Review, the board row is In Review, so no board-vs-ticket is derived from the archive row.
+    expect(only(conflicts, "board-vs-ticket")).toEqual([]);
+  });
+
+  it("keeps a board-only duplicate's sentence unchanged when the archive holds no row for it", () => {
+    const board = "## In Review (WIP 2/3)\n- [ABC-001] One\n- [ABC-001] Two\n";
+    const { conflicts } = joinOf({ board, tickets: [], archive: archiveOf(3), idPrefix: "ABC" });
+    const dup = only(conflicts, "ticket-duplicated");
+    expect(dup.map((c) => [c.ticketId, c.expected, c.actual])).toEqual([
+      ["ABC-001", "one row on the board", "In Review, In Review"],
+    ]);
+  });
+
+  it("lets 25 archive rows change no counted live number and raise no WIP or column-missing conflict", () => {
+    const without = joinOf({ board: WIP_BOARD, tickets: [], config: WIP_CONFIG, idPrefix: "ABC" });
+    const withArchive = joinOf({
+      board: WIP_BOARD,
+      tickets: [],
+      config: WIP_CONFIG,
+      archive: archiveOf(25),
+      idPrefix: "ABC",
+    });
+    const archive = sourceValue(withArchive.snapshot.sources.boardArchive);
+    expect(
+      archive?.columns.flatMap((c) => c.rows).length,
+      "PREMISE: the archive did not parse to 25 rows, so the WIP comparison below measures nothing",
+    ).toBe(25);
+    const counts = (r: typeof without): readonly (readonly [string, number])[] =>
+      (r.snapshot.board?.columns ?? []).map((c) => [c.name, c.rows.length] as const);
+    expect(counts(withArchive)).toEqual(counts(without));
+    const wipKinds = new Set<ConflictKind>(["wip-count", "wip-limit", "column-missing"]);
+    expect(withArchive.conflicts.filter((c) => wipKinds.has(c.kind))).toEqual([]);
+    expect(without.conflicts.filter((c) => wipKinds.has(c.kind))).toEqual([]);
+  });
+
+  it("never lets an archive heading satisfy or dispute a configured column", () => {
+    // The archive carries a heading for a configured column the board lacks, with a claimed number
+    // its rows contradict. column-missing is still raised from the BOARD, and no wip-count or
+    // wip-limit is derived from the archive's own heading.
+    const config: FactoryConfigView = {
+      mode: "lean",
+      idPrefix: "ABC",
+      wipLimits: { "In Development": 3, "Ready to Release": 4 },
+    };
+    const archive = "## Ready to Release (WIP 0/9)\n- [ABC-400] Odd\n- [ABC-401] Odder\n";
+    const { conflicts } = joinOf({ board: WIP_BOARD, tickets: [], config, archive, idPrefix: "ABC" });
+    const wipKinds = new Set<ConflictKind>(["wip-count", "wip-limit", "column-missing"]);
+    expect(conflicts.filter((c) => wipKinds.has(c.kind)).map((c) => [c.kind, c.column])).toEqual([
+      ["column-missing", "Ready to Release"],
+    ]);
+  });
+
+  it("suppresses ticket-unplaced, and nothing else, while the archive source is not ok", () => {
+    const fixture = readSnapshot(join(ROOT, "scripts", "fixtures", "board-snapshot"));
+    const base = fixture.snapshot.sources;
+    expect(
+      new Set(fixture.conflicts.map((c) => c.kind)).size,
+      "PREMISE: the committed fixture no longer reaches all seven kinds, so 'nothing else moved' " +
+        "would be measured over a narrower set",
+    ).toBe(CONFLICT_KIND_COUNT);
+    const unadmittedTickets: readonly UnadmittedTicket[] = [];
+    const stale = (): FactorySnapshot["sources"]["boardArchive"] => {
+      const s = base.boardArchive;
+      if (s.source !== "ok") throw new Error("PREMISE: the fixture archive is not ok");
+      return { ...s, source: "stale", stale: { reason: "unreadable", since: s.readAt } };
+    };
+    for (const boardArchive of [UNAVAILABLE, stale()] as const) {
+      const rejoined = joinSnapshot({
+        repoRoot: fixture.snapshot.repoRoot,
+        generatedAt: fixture.snapshot.generatedAt,
+        sources: { ...base, boardArchive },
+        unadmittedTickets,
+      });
+      expect(
+        rejoined.conflicts,
+        `with the archive ${boardArchive.source}, exactly ticket-unplaced is suppressed`,
+      ).toEqual(fixture.conflicts.filter((c) => !ARCHIVE_GATED_KINDS.has(c.kind)));
+    }
+  });
+
+  it("keeps the conflict kind set at seven", () => {
+    expect(CONFLICT_KIND_COUNT).toBe(7);
+    expect(CONFLICT_KINDS.length).toBe(7);
+  });
+});
+
+describe("board-model — the ticket key set stays closed at eight (SPLIT-07, v3.0 D-9)", () => {
+  const head = (extra = ""): string =>
+    "---\nid: ABC-010\ntitle: A ticket\nstatus: blocked\ncolumn: Blocked\nsize: S\npriority: P2\n" +
+    `epic: EPIC-001\nfeature: FEAT-001\n${extra}---\n`;
+
+  it("keeps TICKET_KEYS at the eight keys", () => {
+    expect(TICKET_KEY_COUNT).toBe(8);
+    expect(TICKET_KEYS.length).toBe(TICKET_KEY_COUNT);
+  });
+
+  for (const key of ["blocked", "blocked_reason", "Status"]) {
+    it(`refuses the key \`${key}:\` by name, never admits it with the key ignored`, () => {
+      const admission = parseTicketDocument(`${head(`${key}: waiting on a decision\n`)}\n# ABC-010\n`);
+      expect(admission.ok).toBe(false);
+      expect(admission.ok ? null : admission.code).toBe("unknown-key");
+      expect(admission.ok ? "" : admission.reason).toContain(`\`${key}\``);
+    });
+  }
+
+  it("admits an empty body and a body with a `## Blocked` section with the same eight-key value", () => {
+    const empty = parseTicketDocument(head());
+    const blocked = parseTicketDocument(`${head()}\n# ABC-010\n\n## Blocked\n\nWaiting on the security review.\n`);
+    expect(empty.ok && blocked.ok).toBe(true);
+    expect(empty.ok ? Object.keys(empty.value).length : 0).toBe(TICKET_KEY_COUNT);
+    expect(blocked.ok ? blocked.value : null).toEqual(empty.ok ? empty.value : undefined);
+  });
+
+  it("admits bodies holding `## Blocked` and `## Board notes` in either order with identical values", () => {
+    const blockedFirst = parseTicketDocument(
+      `${head()}\n## Blocked\n\nWaiting.\n\n## Board notes\n\nMoved by the Orchestrator.\n`,
+    );
+    const notesFirst = parseTicketDocument(
+      `${head()}\n## Board notes\n\nMoved by the Orchestrator.\n\n## Blocked\n\nWaiting.\n`,
+    );
+    expect(blockedFirst.ok && notesFirst.ok).toBe(true);
+    expect(blockedFirst.ok ? blockedFirst.value : null).toEqual(notesFirst.ok ? notesFirst.value : undefined);
+  });
+});

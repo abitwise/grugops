@@ -269,6 +269,22 @@ describe("board-dashboard — the D-17 header (D-12, D-17, D-20)", () => {
   });
 });
 
+describe("board-dashboard — the Done archive is the seventh badged source (plan 37-12, D-15)", () => {
+  it("names all seven sources, the Done archive among them, when all seven are stale", () => {
+    const sources: { [K in SourceName]?: SourceState<never> } = {};
+    for (const name of SOURCE_NAMES) sources[name] = staleSince("2026-09-14T11:00:00.000Z", "torn");
+    const result = makeResult({ source: "stale", sources });
+    const header = frameLines(renderFrame(result, 400))[0] as string;
+    expect(SOURCE_NAMES.length, "PREMISE: the source set is not the seven D-15 names").toBe(7);
+    const badge = /STALE: ([^]*?) {2}\d+ conflicts/.exec(header)?.[1] ?? "";
+    // Each badged part reads `<name> (<age>, <reason>)`, so a name is the word before an opening
+    // parenthesis at the start of the badge or after a part separator.
+    const named = [...badge.matchAll(/(?:^|\), )([A-Za-z]+) \(/g)].map((m) => m[1]);
+    expect(named).toEqual([...SOURCE_NAMES]);
+    expect(named).toContain("boardArchive");
+  });
+});
+
 describe("board-dashboard — the D-17 columns (D-03, D-09, D-17)", () => {
   it("renders claimed, counted and limit on a wip-count column, and live over limit on one without", () => {
     const result = fixtureResult();

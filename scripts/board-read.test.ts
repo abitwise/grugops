@@ -5124,3 +5124,147 @@ describe("32.1-13 — every composed path a published sentence quotes SPELLS a d
     );
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 37-12 TASK 2 — THE DONE ARCHIVE THROUGH THE REAL SEAM (D-07, D-15).
+//
+// An archive that cannot be read is a badge, and it suppresses `ticket-unplaced` only. An archive row
+// beside a board row is `ticket-duplicated` naming both places. The trace index is read as rows
+// through the existing `Ticket` header rule, and no per-ticket trace file is opened.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+import { renderTraceIndex } from "./trace-model.js";
+
+const ARCHIVE_DIR_REL = posix.dirname(FIXED_SUBPATHS.boardArchive);
+
+/** Write the Done archive (`FIXED_SUBPATHS.boardArchive`) under `dir`. */
+function plantArchive(dir: string, body: string): void {
+  mkdirSync(join(dir, ARCHIVE_DIR_REL), { recursive: true });
+  writeFileSync(join(dir, FIXED_SUBPATHS.boardArchive), body, "utf8");
+}
+
+/** Make the archive path a DIRECTORY, which no file read can open as a file. */
+function plantArchiveAsDirectory(dir: string): void {
+  rmSync(join(dir, FIXED_SUBPATHS.boardArchive), { force: true });
+  mkdirSync(join(dir, FIXED_SUBPATHS.boardArchive), { recursive: true });
+}
+
+/**
+ * ABC-005 sits In Review on the board; ABC-006 has two board rows (a board-only duplicate); ABC-007
+ * has a file and no row anywhere, so it is unplaced whenever the gate lets the kind be derived.
+ */
+const ARCHIVE_CASE_BOARD =
+  "## In Review (WIP 2/3)\n- [ABC-005] Under review\n- [ABC-006] Twice on the board\n" +
+  "## Done (WIP unlimited)\n- [ABC-006] Twice on the board\n";
+
+function plantArchiveCaseTree(dir: string): void {
+  plantBoard(dir, ARCHIVE_CASE_BOARD);
+  plantTicketDoc(dir, "ABC-005", "In Review", "in-review");
+  plantTicketDoc(dir, "ABC-006", "In Review", "in-review");
+  plantTicketDoc(dir, "ABC-007", "Done", "done");
+}
+
+const kindsIn = (r: SnapshotResult): readonly string[] => [...new Set(r.conflicts.map((c) => c.kind))].sort();
+
+describe("board-read — the Done archive source (plan 37-12, D-15)", () => {
+  it("names both places when a ticket has a row on the board and a row in the archive", () => {
+    withTempTree((dir) => {
+      plantArchiveCaseTree(dir);
+      plantArchive(dir, "## Done (WIP unlimited)\n- [ABC-005] Under review\n");
+      const result = readSnapshot(dir);
+      const dup = result.conflicts.filter((c) => c.kind === "ticket-duplicated" && c.ticketId === "ABC-005");
+      expect(dup.length, "one conflict for the identifier, not one per place").toBe(1);
+      expect(dup[0]?.actual).toBe(`In Review, Done in ${FIXED_SUBPATHS.boardArchive}`);
+      expect(dup[0]?.column).toBe("In Review");
+      expect(dup[0]?.expected).toBe("one row, on the board or in the Done archive");
+    });
+  });
+
+  it("settles a DIRECTORY at the archive path as unreadable and derives no ticket-unplaced at all", () => {
+    withTempTree((dir) => {
+      plantArchiveCaseTree(dir);
+      plantArchiveAsDirectory(dir);
+      const result = readSnapshot(dir);
+      const archive = result.snapshot.sources.boardArchive;
+      // A FIRST read with nothing to carry settles `unavailable` and keeps the difference from an
+      // absence in `readErrors`, so the header badges it as never read and the discriminant is stale.
+      expect(archive.source).toBe("unavailable");
+      const errors = result.readErrors.filter((e) => e.source === "boardArchive");
+      expect(errors.length, "the unreadable archive is reported once, against its own source").toBe(1);
+      expect(unreadableSources(result.snapshot.sources, result.readErrors).map((u) => u.name)).toEqual([
+        "boardArchive",
+      ]);
+      expect(result.source).toBe("stale");
+      expect(
+        result.conflicts.filter((c) => c.kind === "ticket-unplaced"),
+        "ABC-007 has no row on the board, but the archive could not be read, so nobody knows whether " +
+          "it was rolled there; the kind is suppressed rather than asserted",
+      ).toEqual([]);
+      // The kinds that do not depend on the archive listing are still derived: the board-only
+      // duplicate, and the board-vs-ticket its Done row raises against the file's In Review.
+      expect(kindsIn(result)).toEqual(["board-vs-ticket", "ticket-duplicated"]);
+      expect(result.conflicts.find((c) => c.kind === "ticket-duplicated")?.ticketId).toBe("ABC-006");
+    });
+  });
+
+  it("carries the last good archive as STALE when it becomes unreadable, and still suppresses ticket-unplaced", () => {
+    withTempTree((dir) => {
+      plantArchiveCaseTree(dir);
+      plantArchive(dir, "## Done (WIP unlimited)\n- [ABC-005] Under review\n");
+      const first = readSnapshot(dir);
+      expect(first.snapshot.sources.boardArchive.source).toBe("ok");
+      // PREMISE: with a readable archive that does not hold ABC-007, the kind IS derived.
+      expect(first.conflicts.filter((c) => c.kind === "ticket-unplaced").map((c) => c.ticketId)).toEqual([
+        "ABC-007",
+      ]);
+
+      plantArchiveAsDirectory(dir);
+      const second = readSnapshot(dir, first);
+      const archive = second.snapshot.sources.boardArchive;
+      expect(archive.source).toBe("stale");
+      expect(archive.source === "stale" ? archive.stale.reason : null).toBe("unreadable");
+      expect(second.conflicts.filter((c) => c.kind === "ticket-unplaced")).toEqual([]);
+      // ticket-duplicated is a positive claim about rows that WERE read, so the carried archive row
+      // still raises it for ABC-005, beside the board-only duplicate ABC-006.
+      expect(
+        second.conflicts.filter((c) => c.kind === "ticket-duplicated").map((c) => c.ticketId),
+      ).toEqual(["ABC-005", "ABC-006"]);
+    });
+  });
+
+  it("reads an ABSENT archive as an ok empty archive, which suppresses nothing", () => {
+    withTempTree((dir) => {
+      plantArchiveCaseTree(dir);
+      const result = readSnapshot(dir);
+      expect(result.snapshot.sources.boardArchive.source).toBe("ok");
+      expect(result.readErrors).toEqual([]);
+      expect(result.conflicts.filter((c) => c.kind === "ticket-unplaced").map((c) => c.ticketId)).toEqual([
+        "ABC-007",
+      ]);
+    });
+  });
+
+  it("reads the generated trace index as one TraceRow per index line, with no trace file opened", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const empty = { Requirement: [], Code: [], Tests: [], UAT: [], Release: [] };
+      mkdirSync(join(dir, posix.dirname(FIXED_SUBPATHS.traceability)), { recursive: true });
+      writeFileSync(
+        join(dir, FIXED_SUBPATHS.traceability),
+        renderTraceIndex([
+          { id: "ABC-002", ...empty },
+          { id: "ABC-001", ...empty },
+        ]),
+        "utf8",
+      );
+      // NO per-ticket trace file exists under memory-bank/plans/traceability/, so a reader that
+      // opened one would fail or report it; the index alone must produce both rows.
+      expect(existsSync(join(dir, posix.dirname(FIXED_SUBPATHS.traceability), "traceability"))).toBe(false);
+      const result = readSnapshot(dir);
+      const trace = result.snapshot.sources.traceability;
+      expect(trace.source).toBe("ok");
+      expect(trace.source === "ok" ? trace.value.map((r) => r.ticket) : []).toEqual(["ABC-001", "ABC-002"]);
+      expect(result.readErrors).toEqual([]);
+    });
+  });
+});
