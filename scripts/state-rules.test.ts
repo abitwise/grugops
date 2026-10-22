@@ -23,8 +23,12 @@ import {
 } from "../install/state-layout.js";
 import { normalizeDocument, parseBoard, stripHtmlComments } from "./board-model.js";
 import {
+  assembleRoll,
   boardBudgetFindings,
   budgetEntryNames,
+  checkConservation,
+  DONE_ARCHIVE_HEADING,
+  executeRoll,
   doneRowCount,
   doneRowFindings,
   fileBytesFinding,
@@ -38,6 +42,8 @@ import {
   nfrIntegrityFindings,
   nfrLinkTarget,
   parseNfrIndex,
+  planArchiveInsert,
+  planDoneRoll,
   progressBytesFinding,
   progressEntries,
   recordEntryNames,
@@ -47,6 +53,8 @@ import {
   unmeasuredFinding,
   utf8Bytes,
   type BoardFacts,
+  type RollIo,
+  type RollPlan,
   type StateFinding,
 } from "./state-rules.js";
 
@@ -774,6 +782,337 @@ describe("moveOnlyFindings: a move leaves one copy (SPLIT-06, v3.0 D-7)", () => 
     expect(moveOnlyFindings(DECISIONS_REL, ["a.md"], DECISIONS_ARCHIVE_REL, ["b.md"])).toEqual([]);
     const found = moveOnlyFindings(DECISIONS_REL, ["b.md", "a.md"], DECISIONS_ARCHIVE_REL, ["a.md", "b.md"]);
     expect(found.map((f) => f.rel)).toEqual([`${DECISIONS_REL}/a.md`, `${DECISIONS_REL}/b.md`]);
+  });
+});
+
+// ── Plan 37-10: the Done roll (D-07, D-08) ──────────────────────────────────────────────────────
+
+const ROLL_BOARD_REL = "board.md";
+const ROLL_ARCHIVE_REL = "archive/board-done.md";
+
+/** A ticket row for the roll cases. */
+function doneRow(n: number): string {
+  return `- [ABC-${String(n).padStart(3, "0")}] finished ticket ${n}  (engineer, 2026-10-${String((n % 28) + 1).padStart(2, "0")})`;
+}
+
+/** A board whose Done column holds `count` rows, newest first, with a column before it and one after it. */
+function rollBoard(count: number, eol = "\n"): string {
+  const lines = [
+    "# Board",
+    "_Updated: 2026-10-22 by orchestrator_",
+    "",
+    "## In Development (WIP 0/3)",
+    "",
+    "## Done (WIP unlimited)",
+    "",
+    ...Array.from({ length: count }, (_, i) => doneRow(i + 1)),
+    "",
+    "## Blocked (visible, time-tracked)",
+    "",
+  ];
+  return lines.join(eol);
+}
+
+/** The three forms of a document and its parse, as the runnable builds them. */
+function rollInput(raw: string): {
+  texts: { raw: string; normalized: string; blanked: string };
+  model: ReturnType<typeof parseBoard>;
+} {
+  const normalized = normalizeDocument(raw);
+  return { texts: { raw, normalized, blanked: stripHtmlComments(normalized) }, model: parseBoard(raw) };
+}
+
+/** The 1-based line of `text` that equals `line` (with or without its `\r`). */
+function lineOf(text: string, line: string): number {
+  return text.split("\n").findIndex((l) => l === line || l === `${line}\r`) + 1;
+}
+
+/** An in-memory io over a map, with hooks a case uses to make it faulty. */
+function memoryIo(
+  files: Map<string, string>,
+  faults: {
+    readonly read?: (rel: string, n: number, text: string | null) => string | null;
+    readonly write?: (rel: string, n: number) => void;
+  } = {},
+): RollIo {
+  const reads = new Map<string, number>();
+  const writes = new Map<string, number>();
+  return {
+    read(rel) {
+      const n = (reads.get(rel) ?? 0) + 1;
+      reads.set(rel, n);
+      const text = files.get(rel) ?? null;
+      return faults.read === undefined ? text : faults.read(rel, n, text);
+    },
+    write(rel, text) {
+      const n = (writes.get(rel) ?? 0) + 1;
+      writes.set(rel, n);
+      faults.write?.(rel, n);
+      files.set(rel, text);
+    },
+    remove(rel) {
+      files.delete(rel);
+    },
+  };
+}
+
+/** The roll plan for `board` and `archive`, built the way the runnable builds it. */
+function plannedRoll(board: string, archive: string | null): RollPlan {
+  const b = rollInput(board);
+  const roll = planDoneRoll(b.texts, b.model, BUDGETS.doneRows);
+  if (roll.kind !== "roll") throw new Error(`PREMISE: the board should roll, got ${roll.kind}`);
+  const insert = planArchiveInsert(archive === null ? null : rollInput(archive), roll.texts);
+  if (insert.kind !== "insert") throw new Error(`PREMISE: the archive insert should plan, got ${insert.reason}`);
+  return assembleRoll(ROLL_BOARD_REL, ROLL_ARCHIVE_REL, { source: board, archive }, roll, insert);
+}
+
+describe("planDoneRoll: the Done rows past BUDGETS.doneRows (D-07)", () => {
+  const keep = BUDGETS.doneRows;
+
+  it(`a board with ${keep + 3} Done rows and keep ${keep} moves rows ${keep + 1}-${keep + 3}, with their exact texts`, () => {
+    const raw = rollBoard(keep + 3);
+    const { texts, model } = rollInput(raw);
+    const plan = planDoneRoll(texts, model, keep);
+    expect(plan.kind).toBe("roll");
+    if (plan.kind !== "roll") return;
+    const moved = [keep + 1, keep + 2, keep + 3];
+    expect(plan.rows).toBe(keep + 3);
+    expect(plan.texts).toEqual(moved.map(doneRow));
+    expect(plan.lines).toEqual(moved.map((n) => lineOf(raw, doneRow(n))));
+    expect(plan.ids).toEqual(moved.map((n) => `ABC-${String(n).padStart(3, "0")}`));
+  });
+
+  it(`a board with exactly ${keep} Done rows has nothing to roll, and so does one with none`, () => {
+    for (const count of [keep, 0]) {
+      const { texts, model } = rollInput(rollBoard(count));
+      expect(planDoneRoll(texts, model, keep)).toEqual({ kind: "none", rows: count });
+    }
+  });
+
+  it("a board with no Done column has nothing to roll", () => {
+    const { texts, model } = rollInput("# Board\n\n## Backlog (WIP unlimited)\n\n" + doneRow(1) + "\n");
+    expect(planDoneRoll(texts, model, 0)).toEqual({ kind: "none", rows: 0 });
+  });
+
+  it("a CRLF board's moved texts keep their \\r, and its byte-order mark stays on line 1", () => {
+    const raw = `${BOM}${rollBoard(keep + 2, "\r\n")}`;
+    const { texts, model } = rollInput(raw);
+    const plan = planDoneRoll(texts, model, keep);
+    expect(plan.kind).toBe("roll");
+    if (plan.kind !== "roll") return;
+    expect(plan.texts).toEqual([doneRow(keep + 1), doneRow(keep + 2)].map((t) => `${t}\r`));
+    expect(plan.lines.every((l) => l > 1)).toBe(true);
+  });
+
+  it("two columns named Done are refused, naming both lines", () => {
+    const raw = rollBoard(keep + 1) + "## Done (WIP unlimited)\n\n" + doneRow(99) + "\n";
+    const { texts, model } = rollInput(raw);
+    const plan = planDoneRoll(texts, model, keep);
+    expect(plan.kind).toBe("refuse");
+    if (plan.kind === "refuse") expect(plan.reason).toContain("2 columns named Done");
+  });
+
+  it("a moved row carrying an HTML comment is refused by identifier; the same comment on a kept row rolls (CONTROL)", () => {
+    const moved = rollBoard(keep + 1).replace(doneRow(keep + 1), `${doneRow(keep + 1)} <!-- x -->`);
+    const a = rollInput(moved);
+    const refused = planDoneRoll(a.texts, a.model, keep);
+    expect(refused.kind).toBe("refuse");
+    if (refused.kind === "refuse") expect(refused.reason).toContain(`ABC-0${keep + 1} on line`);
+
+    const kept = rollBoard(keep + 1).replace(doneRow(1), `${doneRow(1)} <!-- x -->`);
+    const b = rollInput(kept);
+    expect(planDoneRoll(b.texts, b.model, keep).kind).toBe("roll");
+  });
+
+  it("a keep that is not a whole number of rows is refused", () => {
+    const { texts, model } = rollInput(rollBoard(3));
+    for (const bad of [-1, 1.5, Number.NaN]) expect(planDoneRoll(texts, model, bad).kind).toBe("refuse");
+  });
+});
+
+describe("planArchiveInsert: the moved rows go to the top of the Done archive (D-07)", () => {
+  const rows = [doneRow(21), doneRow(22), doneRow(23)];
+
+  it("with no archive, it creates one `## Done (WIP unlimited)` heading with the rows directly under it, in order", () => {
+    const plan = planArchiveInsert(null, rows);
+    expect(plan.kind).toBe("insert");
+    if (plan.kind !== "insert") return;
+    expect(plan.created).toBe(true);
+    expect(plan.text).toBe(`${DONE_ARCHIVE_HEADING}\n${rows.join("\n")}\n`);
+    const model = parseBoard(plan.text);
+    expect(model.columns.map((c) => c.heading)).toEqual([DONE_ARCHIVE_HEADING]);
+    expect(model.columns[0]?.rows.map((r) => r.id)).toEqual(["ABC-021", "ABC-022", "ABC-023"]);
+    expect(model.unparsed).toEqual([]);
+  });
+
+  it("with CRLF rows, the created heading ends with CRLF too", () => {
+    const plan = planArchiveInsert(null, rows.map((r) => `${r}\r`));
+    expect(plan.kind === "insert" && plan.text).toBe(`${DONE_ARCHIVE_HEADING}\r\n${rows.join("\r\n")}\r\n`);
+  });
+
+  it("over an existing archive, the new rows go above the older ones and every old line is kept", () => {
+    const old = `${DONE_ARCHIVE_HEADING}\n\n${doneRow(1)}\n${doneRow(2)}\n`;
+    const plan = planArchiveInsert(rollInput(old), rows);
+    expect(plan.kind).toBe("insert");
+    if (plan.kind !== "insert") return;
+    expect(plan.created).toBe(false);
+    expect(plan.text).toBe(`${DONE_ARCHIVE_HEADING}\n\n${rows.join("\n")}\n${doneRow(1)}\n${doneRow(2)}\n`);
+    expect(parseBoard(plan.text).columns[0]?.rows.map((r) => r.id)).toEqual([
+      "ABC-021",
+      "ABC-022",
+      "ABC-023",
+      "ABC-001",
+      "ABC-002",
+    ]);
+  });
+
+  it("an archive with a heading and no row gets the rows directly under its heading", () => {
+    const old = `# Done archive\n\n${DONE_ARCHIVE_HEADING}\n`;
+    const plan = planArchiveInsert(rollInput(old), rows);
+    expect(plan.kind === "insert" && plan.text).toBe(`# Done archive\n\n${DONE_ARCHIVE_HEADING}\n${rows.join("\n")}\n`);
+  });
+
+  it("an archive with a second column, another heading or no column is refused and never guessed at", () => {
+    for (const old of [
+      `${DONE_ARCHIVE_HEADING}\n\n## Backlog (WIP unlimited)\n`,
+      "## Done (WIP 1/3)\n",
+      "# nothing here\n",
+      `${DONE_ARCHIVE_HEADING} <!-- open\nstill a comment -->\n`,
+    ]) {
+      const plan = planArchiveInsert(rollInput(old), rows);
+      expect(plan.kind, JSON.stringify(old)).toBe("refuse");
+    }
+  });
+});
+
+describe("checkConservation: the line-conservation proof (D-08)", () => {
+  const board = rollBoard(BUDGETS.doneRows + 3);
+  const archive = `${DONE_ARCHIVE_HEADING}\n${doneRow(90)}\n`;
+
+  it("the planned texts pass, for a created archive and for an existing one", () => {
+    for (const a of [null, archive]) {
+      const plan = plannedRoll(board, a);
+      expect(checkConservation(plan.before, plan.after, plan)).toBeNull();
+    }
+  });
+
+  it("a board with one extra line, a row left behind or a changed byte is named as a board mismatch", () => {
+    const plan = plannedRoll(board, archive);
+    for (const source of [
+      `${plan.after.source}extra\n`,
+      board,
+      plan.after.source.replace("finished ticket 1 ", "finished ticket I "),
+    ]) {
+      expect(checkConservation(plan.before, { source, archive: plan.after.archive }, plan)).toContain(
+        `${ROLL_BOARD_REL} line`,
+      );
+    }
+    expect(checkConservation(plan.before, { source: null, archive: plan.after.archive }, plan)).toContain("absent");
+  });
+
+  it("an archive missing a moved row, holding one twice or absent is named as an archive mismatch", () => {
+    const plan = plannedRoll(board, archive);
+    const one = doneRow(BUDGETS.doneRows + 1);
+    for (const a of [plan.after.archive.replace(`${one}\n`, ""), plan.after.archive.replace(one, `${one}\n${one}`)]) {
+      expect(checkConservation(plan.before, { source: plan.after.source, archive: a }, plan)).toContain(
+        `${ROLL_ARCHIVE_REL} line`,
+      );
+    }
+    expect(checkConservation(plan.before, { source: plan.after.source, archive: null }, plan)).toContain("absent");
+  });
+
+  it("a plan whose texts are not the board's lines as read fails the proof (it never trusts the plan's new texts)", () => {
+    const plan = plannedRoll(board, archive);
+    const forged = { ...plan, texts: plan.texts.map((t, i) => (i === 0 ? `${t} changed` : t)) };
+    expect(checkConservation(plan.before, plan.after, forged)).toContain("is not the row the plan moves");
+  });
+});
+
+describe("executeRoll: archive first, board second, proof, and a byte-exact rollback (D-08)", () => {
+  const board = rollBoard(BUDGETS.doneRows + 3);
+  const archive = `${DONE_ARCHIVE_HEADING}\n\n${doneRow(90)}\n`;
+
+  it("a sound io ends with both files exactly as planned", () => {
+    for (const a of [null, archive]) {
+      const plan = plannedRoll(board, a);
+      const files = new Map([[ROLL_BOARD_REL, board]]);
+      if (a !== null) files.set(ROLL_ARCHIVE_REL, a);
+      expect(executeRoll(plan, memoryIo(files))).toEqual({ ok: true });
+      expect(files.get(ROLL_BOARD_REL)).toBe(plan.after.source);
+      expect(files.get(ROLL_ARCHIVE_REL)).toBe(plan.after.archive);
+    }
+  });
+
+  it("an io whose second read of the board returns one extra line is a mismatch: both files restored, a created archive removed", () => {
+    const plan = plannedRoll(board, null);
+    const files = new Map([[ROLL_BOARD_REL, board]]);
+    const io = memoryIo(files, {
+      read: (rel, n, text) => (rel === ROLL_BOARD_REL && n === 2 && text !== null ? `${text}one extra line\n` : text),
+    });
+    const outcome = executeRoll(plan, io);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.stage).toBe("rolled-back");
+    expect(outcome.reason).toContain(`${ROLL_BOARD_REL} line`);
+    expect(files.get(ROLL_BOARD_REL)).toBe(board);
+    expect(files.has(ROLL_ARCHIVE_REL)).toBe(false);
+  });
+
+  it("the same mismatch over an existing archive writes the archive back to its old bytes", () => {
+    const plan = plannedRoll(board, archive);
+    const files = new Map([
+      [ROLL_BOARD_REL, board],
+      [ROLL_ARCHIVE_REL, archive],
+    ]);
+    const io = memoryIo(files, {
+      read: (rel, n, text) => (rel === ROLL_BOARD_REL && n === 2 && text !== null ? `${text}one extra line\n` : text),
+    });
+    const outcome = executeRoll(plan, io);
+    expect(outcome.ok === false && outcome.stage).toBe("rolled-back");
+    expect(files.get(ROLL_BOARD_REL)).toBe(board);
+    expect(files.get(ROLL_ARCHIVE_REL)).toBe(archive);
+  });
+
+  it("a board write that throws after the archive was written restores both files", () => {
+    const plan = plannedRoll(board, archive);
+    const files = new Map([
+      [ROLL_BOARD_REL, board],
+      [ROLL_ARCHIVE_REL, archive],
+    ]);
+    const io = memoryIo(files, {
+      write: (rel, n) => {
+        if (rel === ROLL_BOARD_REL && n === 1) throw new Error("ENOSPC: no space left on device");
+      },
+    });
+    const outcome = executeRoll(plan, io);
+    expect(outcome.ok === false && outcome.stage).toBe("rolled-back");
+    expect(outcome.ok === false && outcome.reason).toContain("ENOSPC");
+    expect(files.get(ROLL_BOARD_REL)).toBe(board);
+    expect(files.get(ROLL_ARCHIVE_REL)).toBe(archive);
+  });
+
+  it("a board that changed after it was planned is not written at all", () => {
+    const plan = plannedRoll(board, null);
+    const changed = `${board}- [ABC-999] arrived later  (engineer, 2026-10-22)\n`;
+    const files = new Map([[ROLL_BOARD_REL, changed]]);
+    const outcome = executeRoll(plan, memoryIo(files));
+    expect(outcome.ok === false && outcome.stage).toBe("changed");
+    expect(files.get(ROLL_BOARD_REL)).toBe(changed);
+    expect(files.has(ROLL_ARCHIVE_REL)).toBe(false);
+  });
+
+  it("a restore that cannot be completed is reported as restore-failed, naming the file", () => {
+    const plan = plannedRoll(board, null);
+    const files = new Map([[ROLL_BOARD_REL, board]]);
+    const io = memoryIo(files, {
+      read: (rel, n, text) => (rel === ROLL_BOARD_REL && n === 2 && text !== null ? `${text}x\n` : text),
+      write: (rel, n) => {
+        if (rel === ROLL_BOARD_REL && n === 2) throw new Error("EACCES");
+      },
+    });
+    const outcome = executeRoll(plan, io);
+    expect(outcome.ok === false && outcome.stage).toBe("restore-failed");
+    expect(outcome.ok === false && outcome.reason).toContain(`${ROLL_BOARD_REL} could not be written back`);
   });
 });
 

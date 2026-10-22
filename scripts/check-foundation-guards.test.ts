@@ -2314,8 +2314,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     commit as the modules.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 107 with these modules tracked (2026-10-22, plan 37-06).
+ *
+ * 107 -> 108 (plan 37-10, phase 37 SPLIT-06), ONE MODULE:
+ *   - `scripts/runnable-ref/state-roll.ts` — the host Done roll, builtins only; its region carries copies of
+ *     the Done-roll planners, the line-conservation proof, the injected-io executor, the board grammar, the
+ *     non-blocking reader, the atomic writer, three state paths and BUDGETS.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no
+ *     `new RegExp`, reads no grant and renders no spawn verdict. Its committed `.js` twin landed in the same
+ *     commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 108 with this module tracked (2026-10-22, plan 37-10).
  */
-const NON_TEST_MODULE_COUNT = 107;
+const NON_TEST_MODULE_COUNT = 108;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

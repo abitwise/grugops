@@ -5,7 +5,8 @@
 // (which directory entries are records, and so which the byte budgets measure), the rule that reads the
 // layout marker, the one spelling of a finding, and the one order findings print in. Plan 37-05 adds the
 // NFR index line grammar and its integrity rule (D-13), the progress-entry grammar (D-09), the rollable and
-// move-only rules (D-08, v3.0 D-7); later plans add the roll planners beside them. The budget numbers are not
+// move-only rules (D-08, v3.0 D-7). Plan 37-10 adds the Done roll: its two planners, the line-conservation
+// proof and an executor that takes its file operations as a parameter (D-07, D-08). The budget numbers are not
 // owned here: they are BUDGETS in install/state-layout.ts, and a caller passes that object in. Nothing in
 // this file spells a budget number or a state path; a caller passes every path in. The one path fragment
 // here is the NFR link grammar's `nfr/` segment, which is part of the index line form, not a state path.
@@ -467,6 +468,283 @@ export function moveOnlyFindings(liveRel, liveNames, archiveRel, archiveNames) {
     return recordEntryNames(liveNames)
         .filter((name) => archived.has(name))
         .map((name) => integrityFinding(`${liveRel}/${name}`, "move-only-copy", `${archiveRel}/${name} holds the same name, and a move leaves one copy: this record is in both folders`));
+}
+// ── The Done roll (plan 37-10, D-07, D-08) ───────────────────────────────────────────────────────
+//
+// THE RULE. When the board's Done column holds more than `keep` (BUDGETS.doneRows) rows, the first `keep`
+// rows stay: the contract writes the Done column newest first, so they are the most recent. Every later row
+// moves, whole and in board order, to the top of the Done column of the Done archive, above the rows already
+// there (agent-factory/contracts/board.md, `## The Done archive`). A row is moved as the raw line it is, so
+// a CRLF board keeps its `\r` on every line that stays and every line that moves, and a leading byte-order
+// mark stays on line 1, which is never a row.
+//
+// THE PROOF (D-08). executeRoll writes the archive first and the board second, re-reads both, and asks
+// checkConservation whether the board equals its old lines with exactly the moved lines removed and the
+// archive equals its old lines with exactly the moved block inserted at the planned line. checkConservation
+// derives both expectations from the old texts itself; it never trusts the new texts it is checking. On any
+// mismatch, or a write that throws, both files are written back to their old bytes, and an archive that did
+// not exist before is removed.
+//
+// WHAT IS NEVER MOVED. A row line that carries any part of an HTML comment is refused, not moved: moving
+// part of a comment would change which lines of the board and of the archive the comment hides. A board with
+// two columns named Done is refused, because the newest rows of two columns have no defined order.
+//
+// NO I/O. The planners take texts and parsed models. The executor takes its file operations as a parameter,
+// so the proof and the rollback are tested with a deliberately faulty io and run on a host through the
+// embedded atomicWrite (scripts/runnable-ref/state-roll.ts).
+/** The Done archive's only column heading (agent-factory/contracts/board.md, `## The Done archive`). */
+export const DONE_ARCHIVE_HEADING = "## Done (WIP unlimited)";
+/**
+ * Which Done rows of a board move to the archive. `texts` are the board's three forms (BoardTexts) and
+ * `model` is parseBoard over `texts.raw`; `keep` is BUDGETS.doneRows. A board with no Done column, or with
+ * at most `keep` Done rows, has nothing to roll.
+ */
+export function planDoneRoll(texts, model, keep) {
+    if (!Number.isInteger(keep) || keep < 0) {
+        return { kind: "refuse", reason: `the number of Done rows to keep (${keep}) is not a whole number of rows` };
+    }
+    const done = model.columns.filter((c) => c.name === DONE_COLUMN);
+    if (done.length === 0)
+        return { kind: "none", rows: 0 };
+    if (done.length > 1) {
+        return {
+            kind: "refuse",
+            reason: `the board has ${done.length} columns named ${DONE_COLUMN} (lines ${done.map((c) => c.line).join(", ")}), ` +
+                "so the newest rows have no defined order; merge them by hand first",
+        };
+    }
+    const rows = done[0].rows;
+    if (rows.length <= keep)
+        return { kind: "none", rows: rows.length };
+    const raw = texts.raw.split("\n");
+    const normalized = texts.normalized.split("\n");
+    const blanked = texts.blanked.split("\n");
+    if (raw.length !== normalized.length || raw.length !== blanked.length) {
+        return { kind: "refuse", reason: "the board's raw, normalized and comment-blanked forms do not have one line count" };
+    }
+    const moved = rows.slice(keep);
+    const lines = [];
+    const ids = [];
+    const out = [];
+    for (const row of moved) {
+        const i = row.line - 1;
+        const rawLine = raw[i];
+        const line = normalized[i];
+        if (i < 1 || rawLine === undefined || line === undefined) {
+            return { kind: "refuse", reason: `the Done row ${row.id} names line ${row.line}, which the board does not hold` };
+        }
+        if (blanked[i] !== line) {
+            return {
+                kind: "refuse",
+                reason: `the Done row ${row.id} on line ${row.line} carries an HTML comment, so it was not moved: moving part of ` +
+                    "a comment would change which lines it hides; move that row by hand",
+            };
+        }
+        if (rawLine !== line && rawLine !== `${line}\r`) {
+            return { kind: "refuse", reason: `the Done row ${row.id} on line ${row.line} is not its normalized line as read` };
+        }
+        lines.push(row.line);
+        ids.push(row.id);
+        out.push(rawLine);
+    }
+    return { kind: "roll", rows: rows.length, lines, ids, texts: out };
+}
+/**
+ * The text a created Done archive starts from: its one heading, ending as the first moved line ends (`\r\n`
+ * when that line carries `\r`, else `\n`). The moved block is inserted on its line 2.
+ */
+export function doneArchiveSkeleton(texts) {
+    return `${DONE_ARCHIVE_HEADING}${texts[0]?.endsWith("\r") === true ? "\r" : ""}\n`;
+}
+/** `lines` of `text` (split on `\n`) with `block` inserted before the 0-based line `at`, joined again. */
+function insertLines(text, at, block) {
+    const lines = text.split("\n");
+    return [...lines.slice(0, at), ...block, ...lines.slice(at)].join("\n");
+}
+/**
+ * Where the moved rows go in the Done archive, and the archive text after they are there. `archive` is null
+ * when the archive does not exist: it is then created with its one heading and the rows directly under it,
+ * in the given order. Otherwise the rows go directly above the archive's first Done row (newest first), or
+ * directly under its heading when it holds no row yet. The archive must carry exactly one column, headed
+ * `## Done (WIP unlimited)`; anything else is refused and never guessed at.
+ */
+export function planArchiveInsert(archive, texts) {
+    if (texts.length === 0)
+        return { kind: "refuse", reason: "there are no rows to insert into the Done archive" };
+    if (archive === null) {
+        const base = doneArchiveSkeleton(texts);
+        return { kind: "insert", created: true, base, at: 1, text: insertLines(base, 1, texts) };
+    }
+    const columns = archive.model.columns;
+    const column = columns[0];
+    if (columns.length !== 1 || column === undefined || column.heading !== DONE_ARCHIVE_HEADING) {
+        const found = columns.length === 0 ? "none" : columns.map((c) => `\`${c.heading}\` (line ${c.line})`).join(", ");
+        return {
+            kind: "refuse",
+            reason: `the Done archive must carry exactly one column heading, \`${DONE_ARCHIVE_HEADING}\`; it carries ${found}`,
+        };
+    }
+    const first = column.rows[0];
+    let at;
+    if (first !== undefined) {
+        at = first.line - 1;
+    }
+    else {
+        const h = column.line - 1;
+        if (archive.texts.blanked.split("\n")[h] !== archive.texts.normalized.split("\n")[h]) {
+            return { kind: "refuse", reason: `the Done archive's heading on line ${column.line} carries an HTML comment` };
+        }
+        at = column.line;
+    }
+    const base = archive.texts.raw;
+    return { kind: "insert", created: false, base, at, text: insertLines(base, at, texts) };
+}
+/** The board text with the 1-based lines in `lines` removed, every other line kept byte for byte. */
+function removeLines(text, lines) {
+    const drop = new Set(lines);
+    return text
+        .split("\n")
+        .filter((_, i) => !drop.has(i + 1))
+        .join("\n");
+}
+/** One roll plan from the two planners' answers and the two files as read. */
+export function assembleRoll(sourceRel, archiveRel, before, roll, insert) {
+    return {
+        sourceRel,
+        archiveRel,
+        lines: roll.lines,
+        texts: roll.texts,
+        archiveBase: insert.base,
+        insertAt: insert.at,
+        before,
+        after: { source: removeLines(before.source, roll.lines), archive: insert.text },
+    };
+}
+/** The first index where two line arrays differ, or -1 when they are equal. */
+function firstDifference(a, b) {
+    const n = Math.max(a.length, b.length);
+    for (let i = 0; i < n; i++)
+        if (a[i] !== b[i])
+            return i;
+    return -1;
+}
+/**
+ * The line-conservation proof (D-08): null when the files `after` holds are exactly what the roll may write,
+ * or the first mismatch, named. Both expectations are derived here from `before` and the plan's lines,
+ * texts and insert position, never from the plan's own new texts:
+ *
+ * - the board equals its old lines with exactly the planned lines removed, and each removed line is the
+ *   planned text;
+ * - the archive equals its old lines (or, when it did not exist, the created skeleton) with exactly the
+ *   planned block inserted before the planned line.
+ */
+export function checkConservation(before, after, plan) {
+    const { sourceRel, archiveRel, lines, texts } = plan;
+    if (lines.length === 0 || lines.length !== texts.length) {
+        return `the plan moves ${lines.length} line(s) and carries ${texts.length} text(s)`;
+    }
+    const old = before.source.split("\n");
+    const drop = new Set();
+    for (let k = 0; k < lines.length; k++) {
+        const line = lines[k];
+        if (k > 0 && line <= lines[k - 1])
+            return `the planned board lines are not in ascending order`;
+        if (old[line - 1] !== texts[k])
+            return `${sourceRel} line ${line} as read is not the row the plan moves`;
+        drop.add(line);
+    }
+    if (after.source === null)
+        return `${sourceRel} is absent after the roll`;
+    const expectedSource = old.filter((_, i) => !drop.has(i + 1));
+    const gotSource = after.source.split("\n");
+    const s = firstDifference(gotSource, expectedSource);
+    if (s !== -1) {
+        return (`${sourceRel} line ${s + 1} differs from the old board with the moved rows removed ` +
+            `(${gotSource.length} line(s), expected ${expectedSource.length})`);
+    }
+    const base = before.archive ?? doneArchiveSkeleton(texts);
+    if (plan.archiveBase !== base)
+        return `the archive text the plan inserts into is not ${archiveRel} as read`;
+    const baseLines = base.split("\n");
+    if (!Number.isInteger(plan.insertAt) || plan.insertAt < 1 || plan.insertAt > baseLines.length) {
+        return `the planned insert line ${plan.insertAt} is outside ${archiveRel}`;
+    }
+    if (after.archive === null)
+        return `${archiveRel} is absent after the roll`;
+    const expectedArchive = [...baseLines.slice(0, plan.insertAt), ...texts, ...baseLines.slice(plan.insertAt)];
+    const gotArchive = after.archive.split("\n");
+    const a = firstDifference(gotArchive, expectedArchive);
+    if (a !== -1) {
+        return (`${archiveRel} line ${a + 1} differs from the old archive with the moved rows inserted ` +
+            `(${gotArchive.length} line(s), expected ${expectedArchive.length})`);
+    }
+    return null;
+}
+/** A thrown value's message, for a reason. */
+function messageOf(e) {
+    return e instanceof Error ? e.message : String(e);
+}
+/**
+ * Run one roll through `io` (D-08). Both files are re-read first and must equal the plan's `before`, or
+ * nothing is written. Then the archive is written, then the board; both are re-read and checkConservation
+ * proves the result. On a mismatch, or a write or read that throws, the board is written back to its old
+ * bytes, then the archive is (or removed, when it did not exist before), and both are re-read to confirm it.
+ */
+export function executeRoll(plan, io) {
+    const { sourceRel, archiveRel, before, after } = plan;
+    try {
+        const source = io.read(sourceRel);
+        const archive = io.read(archiveRel);
+        if (source !== before.source) {
+            return { ok: false, stage: "changed", reason: `${sourceRel} changed after it was read, so nothing was written` };
+        }
+        if (archive !== before.archive) {
+            return { ok: false, stage: "changed", reason: `${archiveRel} changed after it was read, so nothing was written` };
+        }
+    }
+    catch (e) {
+        return { ok: false, stage: "changed", reason: `the files could not be re-read before the roll: ${messageOf(e)}` };
+    }
+    let reason;
+    try {
+        io.write(archiveRel, after.archive);
+        io.write(sourceRel, after.source);
+        reason = checkConservation(before, { source: io.read(sourceRel), archive: io.read(archiveRel) }, plan);
+    }
+    catch (e) {
+        reason = `the roll stopped part way: ${messageOf(e)}`;
+    }
+    if (reason === null)
+        return { ok: true };
+    const failures = [];
+    try {
+        io.write(sourceRel, before.source);
+    }
+    catch (e) {
+        failures.push(`${sourceRel} could not be written back (${messageOf(e)})`);
+    }
+    try {
+        if (before.archive === null)
+            io.remove(archiveRel);
+        else
+            io.write(archiveRel, before.archive);
+    }
+    catch (e) {
+        failures.push(`${archiveRel} could not be ${before.archive === null ? "removed" : "written back"} (${messageOf(e)})`);
+    }
+    try {
+        if (io.read(sourceRel) !== before.source)
+            failures.push(`${sourceRel} does not hold its old bytes`);
+        if (io.read(archiveRel) !== before.archive) {
+            failures.push(before.archive === null ? `${archiveRel} is still present` : `${archiveRel} does not hold its old bytes`);
+        }
+    }
+    catch (e) {
+        failures.push(`the restored files could not be re-read (${messageOf(e)})`);
+    }
+    if (failures.length > 0)
+        return { ok: false, stage: "restore-failed", reason: `${reason}; ${failures.join("; ")}` };
+    return { ok: false, stage: "rolled-back", reason };
 }
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
 /**

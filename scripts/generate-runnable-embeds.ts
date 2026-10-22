@@ -76,6 +76,11 @@ export type EmbedSpec = {
  * generated-header test and the trace-file read ceiling) and the note read path (the walk with its skip arms,
  * the record projection), so state-check and the renderer read the same notes and compare with the same code.
  * The writer (atomicWrite) is never a root of this row: state-check is read-only.
+ * Plan 37-10 (2026-10-22) adds the third row, the Done roll (D-07, D-08): the board, the archive directory, the
+ * Done archive and BUDGETS from install/state-layout.ts; the two Done-roll planners, the plan assembly, the
+ * line-conservation proof, the injected-io executor and the output sanitizer from scripts/state-rules.ts; the
+ * board grammar and its two normalizations from scripts/board-model.ts; and the non-blocking reader and the
+ * temp-sibling-plus-rename writer from scripts/context-io.ts.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -182,6 +187,21 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
       },
     ],
   },
+  {
+    target: "scripts/runnable-ref/state-roll.ts",
+    authorities: [
+      {
+        module: "install/state-layout.ts",
+        roots: ["BOARD_REL", "ARCHIVE_REL", "BOARD_DONE_ARCHIVE_REL", "BUDGETS"],
+      },
+      {
+        module: "scripts/state-rules.ts",
+        roots: ["planDoneRoll", "planArchiveInsert", "assembleRoll", "checkConservation", "executeRoll", "stripControlChars"],
+      },
+      { module: "scripts/board-model.ts", roots: ["parseBoard", "normalizeDocument", "stripHtmlComments"] },
+      { module: "scripts/context-io.ts", roots: ["readRegularFileOrNull", "atomicWrite"] },
+    ],
+  },
 ]);
 
 /**
@@ -189,8 +209,9 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
  * EMBED_SPECS.length, so a row added or removed without moving this pin fails red.
  * 2026-10-22, plan 37-03: one row, the state checker.
  * 2026-10-22, plan 37-06: two rows; the second is the host trace renderer (SPLIT-03, D-01).
+ * 2026-10-22, plan 37-10: three rows; the third is the Done roll, scripts/runnable-ref/state-roll.ts (SPLIT-06, D-08).
  */
-export const EMBED_SPEC_COUNT = 2;
+export const EMBED_SPEC_COUNT = 3;
 
 /** Names the generator never embeds, each with the reason it gives. */
 const REFUSED_NAMES: Readonly<Record<string, string>> = Object.freeze({
