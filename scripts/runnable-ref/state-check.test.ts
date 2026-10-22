@@ -1204,3 +1204,47 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
     expect(source).not.toMatch(/function atomicWrite\b/);
   });
 });
+
+// ── grugops's own tree, in CI, in FAIL mode (plan 37-19, SPLIT-05, D-06, T-37-26) ─────────────────────────
+//
+// The CI line and this file are wired at both ends: ci.yml runs the committed checker against the own tree
+// inside the ubuntu gate block, and this case fails the day that line is dropped, moved out of the block, or
+// moved after the validator.
+describe("state-check — grugops's own tree runs it in CI (plan 37-19, SPLIT-05)", () => {
+  const REPO = join(import.meta.dirname, "..", "..");
+  const OWN_LINE = "node scripts/runnable-ref/state-check.js .";
+  const VALIDATOR_LINE = "VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js";
+  const STEP_NAME = "- name: Freshness gates + repo gates (ubuntu only)";
+  const STEP_MARKER = "\n      - name:";
+
+  /** The ubuntu gate step, from its name to the next step marker or the end of the file. */
+  function ubuntuGateBlock(): string {
+    const ci = readFileSync(join(REPO, ".github", "workflows", "ci.yml"), "utf8");
+    const start = ci.indexOf(STEP_NAME);
+    expect(start, "PREMISE: ci.yml carries the ubuntu gate step").toBeGreaterThan(-1);
+    const next = ci.indexOf(STEP_MARKER, start + STEP_NAME.length);
+    return ci.slice(start, next === -1 ? ci.length : next);
+  }
+
+  it("the ubuntu gate block runs the checker against the own tree once, before the validator line", () => {
+    const lines = ubuntuGateBlock()
+      .split("\n")
+      .map((l) => l.trim());
+    expect(lines.filter((l) => l === OWN_LINE)).toHaveLength(1);
+    expect(lines.filter((l) => l === VALIDATOR_LINE)).toHaveLength(1);
+    expect(lines.indexOf(OWN_LINE)).toBe(lines.indexOf(VALIDATOR_LINE) - 1);
+  });
+
+  it("the committed checker on the own tree: marker valid, enforced, no finding, exit 0", () => {
+    const r = spawnSync(process.execPath, [HOST_JS, REPO, "--json"], {
+      encoding: "utf8",
+      cwd: dirname(HOST_JS),
+      timeout: 60_000,
+    });
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+    const report = JSON.parse(r.stdout) as { marker: string; enforced: boolean; findings: unknown[] };
+    expect(report.marker).toBe("valid");
+    expect(report.enforced).toBe(true);
+    expect(report.findings).toEqual([]);
+  });
+});

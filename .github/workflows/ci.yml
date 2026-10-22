@@ -600,4 +600,7 @@ jobs:
           # move the pinned total before walking every part's derivation. A derivation the gate could
           # not perform reports NO verdict and exits 1; that is not a pass to be worked around.
           node scripts/check-flip-manifest.js
+          # The shipped host checker against grugops's own tree, in FAIL mode since D-06 placed the own
+          # layout marker. Wired HERE and in scripts/runnable-ref/state-check.test.ts (plan 37-19).
+          node scripts/runnable-ref/state-check.js .
           VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
