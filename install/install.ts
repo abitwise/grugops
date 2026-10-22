@@ -204,7 +204,15 @@ import {
 } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, STATE_ROOT_REL, STATE_ROOTS } from "./state-layout.js";
+import {
+  BOARD_REL,
+  LAYOUT_MARKER_REL,
+  LEGACY_BOARD_REL,
+  LEGACY_HANDOFFS_REL,
+  LEGACY_STATE_ROOT_REL,
+  STATE_ROOT_REL,
+  STATE_ROOTS,
+} from "./state-layout.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step, type PickerRow, type PickerState } from "./agent-picker.js";
@@ -847,7 +855,8 @@ const errCode = (e: unknown): string => {
 };
 
 // THE STATE LAYOUT (phase 36, plan 36-12, 2026-10-21, D-01). The one probe of which state layout the target is on,
-// decided by board-file presence alone; no layout marker is read or written (Phase 38 adds its own for migrate).
+// decided by board-file presence alone; the layout marker is never read here (seedState writes it on a fresh layout
+// only, plan 37-13; Phase 38's migrate writes it for a migrated repository).
 //   current   a board at BOARD_REL and none at LEGACY_BOARD_REL (the v3 layout);
 //   pre-v3    no board at BOARD_REL and one at LEGACY_BOARD_REL;
 //   both      a board at each (D-02: the v3 layout wins; the pre-v3 root is stale);
@@ -5688,6 +5697,14 @@ function seedRoot(): string {
 //   both        seeds as always (never-overwrite) and prints ONE `note` that the pre-v3 root is stale (D-02). Never a
 //               verify: the v3 layout is in use and nothing is wrong with this run, so it is not INCOMPLETE.
 // Seed paths outside STATE_ROOT_REL/ (the factory configuration, the memory-bank pages) are seeded on every layout.
+//
+// THE LAYOUT MARKER IS SEEDED ON A FRESH LAYOUT ONLY (phase 37, plan 37-13, 2026-10-22, D-04; research Pitfall 1). The
+// seed carries LAYOUT_MARKER_REL, so a fresh v3 install is migrated from birth and its budget findings fail. This loop
+// re-seeds every missing seed file on every install, so without this gate an install over an existing repository
+// (current, both, pre-v3 under --migrate, unreadable) would write the marker into state no migrate has checked and
+// switch a large board to FAIL. On any layout but `fresh` the marker is never written: one `skipped` line names it,
+// worded "target already has it" when a file is there (a re-install over a fresh install) and otherwise saying the
+// marker comes with the state migrate. The DRY_RUN preview takes the same branch, so it previews the same decision.
 function seedState(): void {
   const seed = seedRoot();
   if (!existsSync(seed)) {
@@ -5715,6 +5732,10 @@ function seedState(): void {
     );
   }
   for (const rel of listSeedFiles(seed)) {
+    if (rel === LAYOUT_MARKER_REL && layout !== "fresh") {
+      skipLayoutMarker(join(TARGET, rel));
+      continue;
+    }
     if (skipStateRoot && rel.startsWith(`${STATE_ROOT_REL}/`)) continue;
     seedFile(join(seed, rel), join(TARGET, rel), rel);
   }
@@ -5722,6 +5743,21 @@ function seedState(): void {
   // seeded. The clean note-native trace replaces the handoff relay, so a fresh install must NOT
   // recreate the dir — the former handoffs-mkdir block is removed deliberately (not an omission).
   // Existing users who accumulated it under the old relay back it up via `--migrate` (D-17).
+}
+
+// skipLayoutMarker: the one `skipped` line for the layout marker on a layout that is not fresh (see seedState). It
+// writes nothing. readForWrite answers what is at the path without following a link; only a readable file there is
+// "target already has it", and anything else gets the not-seeded line.
+function skipLayoutMarker(dest: string): void {
+  if (readForWrite(TARGET, dest).state === "ok") {
+    report("skipped", `${LAYOUT_MARKER_REL} (target already has it)`);
+    return;
+  }
+  report(
+    "skipped",
+    `${LAYOUT_MARKER_REL} (not seeded: this repository already had planning state when this run started, so this run ` +
+      "does not mark it as on the v3 layout; the marker is written when that state is migrated to the v3 layout)",
+  );
 }
 
 // materializeRunnable (D-11 — the kit-shipped-runnable convention): copy the compiled

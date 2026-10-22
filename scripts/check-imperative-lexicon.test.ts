@@ -756,11 +756,14 @@ describe("check-imperative-lexicon — exported pins and cost", () => {
     // recipe, is a hand-authored checklist and enters the checklists part by existing.
     // (Plan 32-01) 48 → 49: agent-factory/contracts/board.md, the DASH-01 board-grammar contract,
     // is a hand-authored contract and enters the contracts part by existing (2 → 3).
-    expect(GOVERNED_CORPUS_COUNT).toBe(49);
+    // (Plan 37-13, 2026-10-22) 49 → 48: agent-factory/seed/memory-bank/plans/traceability.md became the
+    // trace render's generated zero-note index (SPLIT-03), so it carries the GENERATED marker and leaves
+    // the seed part (13 → 12); GENERATED_EXEMPT_COUNT moves 1 → 2 with it.
+    expect(GOVERNED_CORPUS_COUNT).toBe(48);
     expect(APPROVED_STEP_VERBS.length).toBe(43);
     expect(PROCEDURAL_SENTENCE_MAX_WORDS).toBe(20);
     expect(DESCRIPTIVE_SENTENCE_MAX_WORDS).toBe(25);
-    expect(GENERATED_EXEMPT_COUNT).toBe(1);
+    expect(GENERATED_EXEMPT_COUNT).toBe(2);
     // Every approved verb is capitalised and single-token: WP-01 compares at position zero, so a
     // multi-word member could never match and would be a silent no-op member.
     for (const v of APPROVED_STEP_VERBS) {

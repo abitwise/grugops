@@ -895,7 +895,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(report.ok).toBe(true);
     const text = runNode([join(target, "tools", "grugops", "state-check.js"), target], target);
     expect(text.status, text.stdout + text.stderr).toBe(0);
-    expect(text.stdout).toBe("No findings.\n");
+    // The text form: report lines (MOVE-ONLY counts, the TRACE freshness line), no FINDING or WARN line, and the
+    // closing "No findings." line.
+    const textLines = text.stdout.trimEnd().split("\n");
+    expect(textLines.at(-1), text.stdout).toBe("No findings.");
+    expect(textLines.filter((l) => /^(FINDING|WARN|LAYOUT) /.test(l)), text.stdout).toEqual([]);
     const render = runNode([join(target, "tools", "grugops", "trace-render.js"), target, "--check"], target);
     expect(render.error).toBeUndefined();
     expect(render.status, render.stdout + render.stderr).toBe(0);

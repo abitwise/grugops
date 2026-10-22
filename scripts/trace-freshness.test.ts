@@ -30,8 +30,15 @@ import { ciWorkflow, ubuntuBlockCommands } from "./ci-workflow.testkit.js";
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "trace-freshness.js");
 const RUNNABLE_JS = join(ROOT, "scripts", "runnable-ref", "trace-render.js");
-/** A hand-written matrix: the seed the kit ships, which is the shape this repository's own index had. */
-const HAND_WRITTEN_MATRIX = join(ROOT, "agent-factory", "seed", ...TRACEABILITY_REL.split("/"));
+/**
+ * A hand-written matrix: the shape the kit's seed and this repository's own index had before phase 37. Since plan
+ * 37-13 (2026-10-22, SPLIT-03) the seed is the render's zero-note index, so the hand-written shape is kept here as a
+ * literal (the pre-v3 seed's title, update line and table header) rather than read from the seed.
+ */
+const HAND_WRITTEN_MATRIX =
+  "# Traceability Matrix\n_Updated: <date>_\n\n" +
+  "| Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |\n" +
+  "|--------|-------|------|---------|------|-----------------|-------|-----|---------|--------|\n";
 
 const gate: typeof import("./trace-freshness.js") = await import(pathToFileURL(GATE_JS).href);
 const ctxio: typeof import("./context-io.js") = await import(pathToFileURL(join(ROOT, "scripts", "context-io.js")).href);
@@ -158,7 +165,7 @@ describe("trace-freshness — a directory compare through the runnable's --check
 describe("trace-freshness — never a vacuous pass (research Pitfall 3)", () => {
   it("no .grugops/context and a hand-written matrix as the index: exit 1, the index named as hand-written", () => {
     const root = emptyRoot("trace-gate-handwritten-");
-    writeFileSync(join(root, TRACEABILITY_REL), readRegular(HAND_WRITTEN_MATRIX), "utf8");
+    writeFileSync(join(root, TRACEABILITY_REL), HAND_WRITTEN_MATRIX, "utf8");
     const r = runGate(root);
     expect(r.status, r.out).toBe(1);
     expect(r.out).toContain(`HAND-WRITTEN ${TRACEABILITY_REL}`);

@@ -24,12 +24,28 @@ _Updated: <ISO date> by <role>_
 
   ROWS. A ticket row is `- [<ID>] <title>`, and everything after the title is opaque:
 
-    - [ABC-014] Asset allocation chart  (owner: Software Engineer, since: 2026-06-01)  — in flight
+    - [ABC-014] Asset allocation chart  (owner: Software Engineer, since: 2026-06-01)
 
   The parenthetical opens at the first TWO-SPACE gap followed by `(` and runs to its balanced
-  close; whatever remains after that is a trailer. Nothing inside either is interpreted, so both
-  may carry whatever a role finds useful. A SINGLE space before `(` belongs to the title instead,
-  which is what lets a title such as `Login 500 (env not loaded)` stay one title.
+  close. Nothing inside it is interpreted. The grammar still reads text after the close as an
+  opaque trailer, but an overview row has none (see OVERVIEW below). A SINGLE space before `(`
+  belongs to the title instead, which is what lets a title such as `Login 500 (env not loaded)`
+  stay one title.
+
+  OVERVIEW. This board says where each ticket stands and holds no other ticket detail:
+
+    - One row per ticket, under the one column the ticket is in, in the form shown above.
+    - Ticket detail goes in the ticket body (`memory-bank/plans/tickets/<ID>.md`): a blocked
+      ticket's reasons under `## Blocked`, any other note under `## Board notes`.
+    - The board has at most one `_Updated:` line. Replace it in place; never add a second one.
+    - A ticket moved to Done gets its row as the first row under the Done heading, so the Done
+      column reads newest first.
+    - The Done column keeps the most recent `BUDGETS.doneRows` rows.
+      `node tools/grugops/state-roll.js <repo-root>` moves older Done rows, unchanged, to
+      `memory-bank/plans/archive/board-done.md`.
+    - `node tools/grugops/state-check.js <repo-root>` checks the board's budgets (file size, row
+      length, `_Updated:` lines, Done rows). The Budgets table in `agent-factory/contracts/board.md`
+      gives each value.
 
   IDS. `ABC-014` — a capital letter, capitals and digits, a hyphen, then digits. `EPIC-006` and
   `FEAT-007` are a SECOND CLASS: they record epics and features, they are never joined against
@@ -123,7 +139,9 @@ sizing scheme is set in config (`sizing`, default `tshirt`).
 
 ### Blocked policy (spec §6.4)
 
-- Any agent can move a ticket to Blocked with a `blocked-by` reason and a date.
+- Any agent can move a ticket to Blocked. The reason and the date go in the ticket body under
+  `## Blocked`, one bullet per reason, naming who raised it and the owner who can clear it; the
+  board row stays `- [ID] title  (owner, since)`.
 - The daily sweep counts blocked time and escalates anything blocked past the config
   threshold `blocked_escalation_days` (default 2).
 - A blocker is a decision, a dependency, or a missing input. Name it. Assign a human if needed.

@@ -121,8 +121,14 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * `tools/grugops/trace-render.js` and `tools/grugops/state-roll.js` entered as files, in every variant, because install
  * materializes the three state runnables (three more RUNNABLES rows); `tools/grugops` was already a directory.
  * Measured by this test's printed union. 104 -> 107.
+ * 74 files and links + 40 directories on 2026-10-22 (plan 37-13, D-04, SPLIT-01, SPLIT-02): the v3 seed added
+ * `memory-bank/plans/nfr/.gitkeep`, `memory-bank/plans/traceability/.gitkeep`, `memory-bank/plans/archive/.gitkeep`
+ * and the layout marker `memory-bank/plans/.layout` as files, and `memory-bank/plans/nfr`,
+ * `memory-bank/plans/traceability` and `memory-bank/plans/archive` as directories, in every variant (each variant
+ * installs into a target with no planning state, so the marker is seeded). Measured by this test's printed union.
+ * 107 -> 114.
  */
-const WRITE_PATH_COUNT = 107;
+const WRITE_PATH_COUNT = 114;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";
