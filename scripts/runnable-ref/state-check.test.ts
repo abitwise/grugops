@@ -20,12 +20,13 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
-  symlinkSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import ts from "typescript";
+import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import {
   BOARD_REL,
   BUDGET_COUNT,
@@ -435,14 +436,20 @@ describe("state-check.js — every printed value is sanitized (T-37-07)", () => 
   const CSI = String.fromCharCode(0x9b);
   const DEL = String.fromCharCode(0x7f);
 
-  // Windows refuses control characters in file names, so there is no such file to build there.
-  it.skipIf(process.platform === "win32")(
-    "a ticket file named with ESC, BEL, DEL and a C1 character prints with them removed, in the text and the JSON",
-    () => {
+  // A host that refuses a control character in a file name (windows-latest) is a printed, counted skip through
+  // the platform-shape corpus (plan 33-05, D-16), never a pass.
+  it("a ticket file named with ESC, BEL, DEL and a C1 character prints with them removed, in the text and the JSON", () => {
       const root = cleanRepo(LAYOUT_MARKER_CONTENT);
       const name = `ABC-0${ESC}[31m${CSI}0${BEL}${DEL}2.md`;
       const clean = "ABC-0[31m02.md";
-      plant(root, `${TICKETS_REL}/${name}`, paddedTo("# ticket\n", BUDGETS.ticketBytes + 1));
+      const skipped = stageNameOrSkip(
+        () => plant(root, `${TICKETS_REL}/${name}`, paddedTo("# ticket\n", BUDGETS.ticketBytes + 1)),
+        "scripts/runnable-ref/state-check.test.ts: a ticket named with control characters (plan 37-04)",
+      );
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, "the root-argument case beside this one (the same sanitizer)"));
+        return;
+      }
       const text = run(root);
       expect(text.status, text.stderr).toBe(1);
       expect(text.stdout).toContain(`FINDING  ${TICKETS_REL}/${clean}: 65,537 bytes`);
@@ -450,8 +457,7 @@ describe("state-check.js — every printed value is sanitized (T-37-07)", () => 
       const json = runJson(root);
       expect(CONTROL_EXCEPT_NEWLINE.test(json.stdout), JSON.stringify(json.stdout)).toBe(false);
       expect(json.report.findings.map((f) => f.rel)).toEqual([`${TICKETS_REL}/${clean}`]);
-    },
-  );
+  });
 
   it("a root argument carrying control characters is echoed on stderr with them removed", () => {
     const gone = join(mkTmp("grugops-state-check-gone-"), `no${ESC}]0;title${BEL}pe${CSI}`);
@@ -463,69 +469,90 @@ describe("state-check.js — every printed value is sanitized (T-37-07)", () => 
 });
 
 describe("state-check.js — a path that resolves outside the root is refused by name, never measured", () => {
-  // Skipped on win32, where making a symbolic link needs a privilege the CI runner may not hold.
-  it.skipIf(process.platform === "win32")(
-    "a symlinked ticket directory pointing outside the repository root is reported as outside the root",
-    () => {
-      const root = cleanRepo(LAYOUT_MARKER_CONTENT);
-      const outside = mkTmp("grugops-state-check-outside-");
-      writeFileSync(join(outside, "ABC-009.md"), paddedTo("# ABC-009\n", BUDGETS.ticketBytes + 1));
-      rmSync(join(root, ...TICKETS_REL.split("/")), { recursive: true, force: true });
-      symlinkSync(outside, join(root, ...TICKETS_REL.split("/")), "dir");
-      const r = run(root);
-      expect(r.status, r.stderr).toBe(1);
-      expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}: not measured`);
-      expect(r.stdout).toContain("outside the repository root");
-      expect(r.stdout).not.toContain("ABC-009");
-      expect(r.stdout).not.toContain("65,537");
-    },
-  );
+  /** Stage a link through the platform-shape corpus; a host without the privilege is a printed, counted skip. */
+  function linkOrSkip(target: string, at: string, position: string): boolean {
+    const skipped = stageSymlinkOrSkip(
+      target,
+      at,
+      "symlink leaving the repository root",
+      `scripts/runnable-ref/state-check.test.ts: ${position} (plan 37-04)`,
+    );
+    if (skipped !== null) console.warn(skipLine(skipped, "scripts/validate.test.ts's lstat cases (the same entry rule)"));
+    return skipped === null;
+  }
 
-  it.skipIf(process.platform === "win32")(
-    "a ticket entry linked to a file outside the root is reported as outside the root and not measured",
-    () => {
-      const root = cleanRepo(LAYOUT_MARKER_CONTENT);
-      const outside = mkTmp("grugops-state-check-outside-");
-      writeFileSync(join(outside, "big.md"), paddedTo("# big\n", BUDGETS.ticketBytes + 1));
-      symlinkSync(join(outside, "big.md"), join(root, ...TICKETS_REL.split("/"), "ABC-010.md"));
-      const r = run(root);
-      expect(r.status, r.stderr).toBe(1);
-      expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}/ABC-010.md: not measured`);
-      expect(r.stdout).toContain("outside the repository root");
-      expect(r.stdout).not.toContain("65,537");
-    },
-  );
+  it("a symlinked ticket directory pointing outside the repository root is reported as outside the root", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const outside = mkTmp("grugops-state-check-outside-");
+    writeFileSync(join(outside, "ABC-009.md"), paddedTo("# ABC-009\n", BUDGETS.ticketBytes + 1));
+    rmSync(join(root, ...TICKETS_REL.split("/")), { recursive: true, force: true });
+    if (!linkOrSkip(outside, join(root, ...TICKETS_REL.split("/")), "a ticket directory linked outside the root")) return;
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}: not measured`);
+    expect(r.stdout).toContain("outside the repository root");
+    expect(r.stdout).not.toContain("ABC-009");
+    expect(r.stdout).not.toContain("65,537");
+  });
 
-  it.skipIf(process.platform === "win32")("a board linked outside the root is a finding by name and is not read", () => {
+  it("a ticket entry linked to a file outside the root is reported as outside the root and not measured", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const outside = mkTmp("grugops-state-check-outside-");
+    writeFileSync(join(outside, "big.md"), paddedTo("# big\n", BUDGETS.ticketBytes + 1));
+    const at = join(root, ...TICKETS_REL.split("/"), "ABC-010.md");
+    if (!linkOrSkip(join(outside, "big.md"), at, "a ticket entry linked outside the root")) return;
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}/ABC-010.md: not measured`);
+    expect(r.stdout).toContain("outside the repository root");
+    expect(r.stdout).not.toContain("65,537");
+  });
+
+  it("a board linked outside the root is a finding by name and is not read", () => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);
     const outside = mkTmp("grugops-state-check-outside-");
     writeFileSync(join(outside, "board.md"), paddedTo(CLEAN_BOARD, BUDGETS.boardBytes + 1));
     rmSync(join(root, ...BOARD_REL.split("/")));
-    symlinkSync(join(outside, "board.md"), join(root, ...BOARD_REL.split("/")));
+    if (!linkOrSkip(join(outside, "board.md"), join(root, ...BOARD_REL.split("/")), "a board linked outside the root")) return;
     const r = run(root);
     expect(r.status, r.stderr).toBe(1);
     expect(r.stdout).toContain(`FINDING  ${BOARD_REL}: not measured`);
     expect(r.stdout).toContain("outside the repository root");
     expect(r.stdout).not.toContain("24,577");
   });
+
+  it("CONTROL: a ticket entry linked inside the root is not outside the root, and is still not measured (lstat)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const target = join(root, ...TICKETS_REL.split("/"), "ABC-001.md");
+    const at = join(root, ...TICKETS_REL.split("/"), "ABC-011.md");
+    if (!linkOrSkip(target, at, "a ticket entry linked inside the root")) return;
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}/ABC-011.md: not measured`);
+    expect(r.stdout).toContain("not a regular file");
+    expect(r.stdout).not.toContain("outside the repository root");
+  });
 });
 
-/** Whether this platform can make a FIFO; probed once, so a skip is decided by the platform, not guessed. */
-const FIFO_OK = ((): boolean => {
-  if (process.platform === "win32") return false;
-  const probe = join(mkTmp("grugops-state-check-fifo-probe-"), "probe");
-  return spawnSync("mkfifo", [probe]).status === 0;
-})();
-if (!FIFO_OK) {
-  // A loud skip: the count of skipped FIFO cases shows in the vitest summary, and this line says why.
-  console.warn("state-check.test.ts: SKIPPING 2 FIFO cases: this platform cannot make a FIFO with mkfifo");
+/**
+ * Stage a FIFO through the platform-shape corpus (plan 33-05, D-16): `mkfifo` followed by `isFIFO()`, so a
+ * host that cannot make one prints a counted skip line instead of passing a case that measured nothing.
+ */
+function fifoAtOrSkip(at: string, position: string): boolean {
+  const skipped = stageShapeOrSkip("FIFO", at, `scripts/runnable-ref/state-check.test.ts: ${position} (plan 37-04)`);
+  if (skipped !== null) {
+    console.warn(skipLine(skipped, "the directory-at-the-board-path case (the same stat-before-open rule)"));
+    return false;
+  }
+  expect(statSync(at).isFIFO(), "PREMISE: the planted path is not a FIFO").toBe(true);
+  return true;
 }
 
 describe("state-check.js — a FIFO at a state path never hangs the check (T-37-31)", () => {
-  it.skipIf(!FIFO_OK)("a FIFO at the board path exits 2 naming the board, in bounded time", () => {
+  it("a FIFO at the board path exits 2 naming the board, in bounded time", () => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);
     rmSync(join(root, ...BOARD_REL.split("/")));
-    expect(spawnSync("mkfifo", [join(root, ...BOARD_REL.split("/"))]).status).toBe(0);
+    if (!fifoAtOrSkip(join(root, ...BOARD_REL.split("/")), "a FIFO at the board path")) return;
     const r = spawnSync(process.execPath, [HOST_JS, root], { encoding: "utf8", timeout: 15_000 });
     expect(r.error, "the check did not finish in bounded time").toBeUndefined();
     expect(r.status).toBe(2);
@@ -533,9 +560,9 @@ describe("state-check.js — a FIFO at a state path never hangs the check (T-37-
     expect(r.stderr).toContain(BOARD_REL);
   });
 
-  it.skipIf(!FIFO_OK)("a FIFO ending .md in the ticket directory is a finding by name, never opened", () => {
+  it("a FIFO ending .md in the ticket directory is a finding by name, never opened", () => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);
-    expect(spawnSync("mkfifo", [join(root, ...TICKETS_REL.split("/"), "ABC-077.md")]).status).toBe(0);
+    if (!fifoAtOrSkip(join(root, ...TICKETS_REL.split("/"), "ABC-077.md"), "a FIFO in the ticket directory")) return;
     const r = spawnSync(process.execPath, [HOST_JS, root], { encoding: "utf8", timeout: 15_000 });
     expect(r.error, "the check did not finish in bounded time").toBeUndefined();
     expect(r.status).toBe(1);

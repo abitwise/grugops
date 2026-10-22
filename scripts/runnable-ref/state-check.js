@@ -1,33 +1,54 @@
-// state-check.ts — the read-only host state checker (phase 37, plan 37-03, SPLIT-05).
+// state-check.ts — the read-only host state checker (phase 37, plans 37-03 and 37-04, SPLIT-04, SPLIT-05).
 //
 // WHAT IT IS. A kit-shipped runnable in the shape of reference-check.ts: authored here, compiled to a committed
-// state-check.js, and run on a host as `node state-check.js <repo-root>` with only Node present. It measures
-// the per-repo state against the budgets and reports each broken one. Plan 37-03 measures the board; plan 37-04
-// adds every other budget, `--json` and output sanitization.
+// state-check.js, and run on a host as `node state-check.js <repo-root> [--json]` with only Node present. It
+// measures the per-repo state against every D-10 budget and reports each broken one, through the same rules
+// and in the same call order as the structure validator's checkBudgets (scripts/validate-agent-factory.ts):
+// the board (bytes, ticket-row characters, `_Updated:` lines, Done rows), the two index files, every record
+// the record rule keeps in the ticket, NFR and trace directories, and the progress file.
 //
 // THE D-12 CONTRACT.
 //   exit 0 → no enforced finding: none at all, or only warnings because the layout marker is not valid
 //   exit 1 → the layout marker is valid and at least one finding exists (the gate blocks)
-//   exit 2 → the check could not run: no root argument, a root that is not a readable directory, or a required
-//            file that is present and cannot be read. Exit 2 is never a pass, and it prints no pass line.
+//   exit 2 → the check could not run: a bad argument, a root that is not a readable directory, or a required
+//            file that is present and cannot be read. Exit 2 is never a pass: it prints nothing on stdout.
+// With `--json`, stdout carries exactly one JSON document, `{ ok, marker, enforced, findings }`, where `ok` is
+// false exactly when the exit code is 1, `marker` is "absent", "valid" or "invalid", and `enforced` is true
+// when the marker is valid. Each finding carries rel, key, measured, budget, unit, line and note.
 //
 // THE MARKER DECIDES SEVERITY (D-04, D-05, D-14). With a valid marker every finding prints as `FINDING` and
 // fails. With no marker, or an unrecognized one, every finding prints as `WARN` and the exit code is 0; an
 // unrecognized marker is itself a warning that names it.
+//
+// WHAT IT MEASURES IS DECIDED BY THE RULES, NOT HERE. Which directory entries count is the embedded
+// budgetEntryNames, given the raw listing; this file filters no name itself (D-11). A record's size is its
+// lstat size, so a record is never opened, and an entry that is not a regular file is a finding by name.
+//
+// THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and a path that resolves
+// outside realpath(root) is a finding by name and is never read, listed or measured
+// (agent-factory/contracts/board.md, `## Staleness`). A path that does not exist is absent.
+//
+// OUTPUT IS SANITIZED. Every value read from the repository (a path, a file name) and every diagnostic has
+// each C0, C1 and DEL code point removed by the embedded stripControlChars before it is printed or
+// serialized, by one helper used by the text and the JSON output (agent-factory/contracts/board.md,
+// `## Control characters on the way out`).
 //
 // BUILTINS ONLY. A host runs this file with no kit and no node_modules, so it imports `node:` builtins and
 // nothing else. The hand-written part below imports them as namespaces, so the names the generated region
 // imports never collide with its own.
 //
 // NOTHING HERE IS RETYPED. Every budget number, state path and rule this file uses sits in the generated
-// region, copied verbatim from its authority by scripts/generate-runnable-embeds.ts: BUDGETS and the two paths
-// from install/state-layout.ts, the budget and marker rules from scripts/state-rules.ts, the board grammar from
-// scripts/board-model.ts and the non-blocking reader from scripts/context-io.ts. scripts/runnable-embeds-
-// freshness.ts fails CI when the region differs from a fresh derivation.
+// region, copied verbatim from its authority by scripts/generate-runnable-embeds.ts: BUDGETS and the state
+// paths from install/state-layout.ts, the budget, record, marker and sanitizing rules from
+// scripts/state-rules.ts, the board grammar from scripts/board-model.ts and the non-blocking reader from
+// scripts/context-io.ts. scripts/runnable-embeds-freshness.ts fails CI when the region differs from a fresh
+// derivation.
 //
-// READ-ONLY. It opens no file for writing. A path that is present but not a regular file is refused by its
-// stat, before any open, and the read itself goes through the embedded non-blocking reader, so a FIFO or a
-// device at a state path cannot hang it.
+// READ-ONLY. It opens no descriptor for writing and calls no API that changes the file system; its only
+// writes are to stdout and stderr. state-check.test.ts proves this over the syntax tree of this file. A run
+// concurrent with an agent's edit can therefore misreport what it read, and never change it. A path that is
+// present but not a regular file is refused by its stat, before any open, and the read itself goes through
+// the embedded non-blocking reader, so a FIFO or a device at a state path cannot hang it.
 //
 // Voice: clear professional voice (CLAUDE.md hard rule): this is a quality surface a human acts on.
 import * as nodeFs from "node:fs";
@@ -37,6 +58,13 @@ import { closeSync, constants as fsConstants, fstatSync, openSync, readSync } fr
 // from install/state-layout.ts
 export const STATE_ROOT_REL = "memory-bank/plans";
 export const BOARD_REL = `${STATE_ROOT_REL}/board.md`;
+export const TICKETS_REL = `${STATE_ROOT_REL}/tickets`;
+export const NFR_CATALOG_REL = `${STATE_ROOT_REL}/nfr-catalog.md`;
+export const TRACEABILITY_REL = `${STATE_ROOT_REL}/traceability.md`;
+export const MEMORY_BANK_REL = "memory-bank";
+export const NFR_DIR_REL = `${STATE_ROOT_REL}/nfr`;
+export const TRACE_DIR_REL = `${STATE_ROOT_REL}/traceability`;
+export const PROGRESS_REL = `${MEMORY_BANK_REL}/60-progress.md`;
 export const LAYOUT_MARKER_REL = `${STATE_ROOT_REL}/.layout`;
 export const LAYOUT_MARKER_CONTENT = "layout: v3";
 export const BUDGETS = Object.freeze({
@@ -149,6 +177,69 @@ export function boardBudgetFindings(rel, texts, model, budgets) {
     }
     return findings;
 }
+const DONE_COLUMN = "Done";
+export function doneRowFindings(rel, model, budgets) {
+    const rows = model.columns.filter((c) => c.name === DONE_COLUMN).flatMap((c) => c.rows);
+    if (rows.length <= budgets.doneRows)
+        return [];
+    return [over(rel, "doneRows", rows.length, budgets, rows[budgets.doneRows]?.line)];
+}
+function bytesOutsideComments(line, blankedLine) {
+    let kept = "";
+    let i = 0;
+    while (i < line.length) {
+        if (blankedLine.charCodeAt(i) === 0x20) {
+            let j = i;
+            let comment = false;
+            while (j < line.length && blankedLine.charCodeAt(j) === 0x20) {
+                if (line.charCodeAt(j) !== 0x20)
+                    comment = true;
+                j++;
+            }
+            if (!comment)
+                kept += line.slice(i, j);
+            i = j;
+        }
+        else {
+            let j = i;
+            while (j < line.length && blankedLine.charCodeAt(j) !== 0x20)
+                j++;
+            kept += line.slice(i, j);
+            i = j;
+        }
+    }
+    return utf8Bytes(kept);
+}
+export function indexLineFindings(rel, texts, budgets) {
+    const blanked = texts.blanked.split("\n");
+    const findings = [];
+    texts.normalized.split("\n").forEach((line, i) => {
+        const bytes = bytesOutsideComments(line, blanked[i] ?? "");
+        if (bytes > budgets.indexEntryBytes)
+            findings.push(over(rel, "indexEntryBytes", bytes, budgets, i + 1));
+    });
+    return findings;
+}
+export function fileBytesFinding(rel, bytes, key, budgets) {
+    if (bytes <= budgets[key])
+        return null;
+    const finding = over(rel, key, bytes, budgets);
+    if (key !== "traceBytes")
+        return finding;
+    const name = rel.slice(rel.lastIndexOf("/") + 1);
+    const id = name.endsWith(".md") ? name.slice(0, -".md".length) : name;
+    return {
+        ...finding,
+        note: `the trace file for ${id} is generated, so do not edit it: split the work of ticket ${id} into ` +
+            "smaller tickets",
+    };
+}
+export function recordEntryNames(names) {
+    return names.filter((n) => !n.startsWith(".")).sort(compareCodeUnits);
+}
+export function budgetEntryNames(names) {
+    return recordEntryNames(names).filter((n) => n.endsWith(".md"));
+}
 function grouped(n) {
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
@@ -157,6 +248,16 @@ export function formatFinding(f) {
     const measured = f.measured === null ? "not measured" : `${grouped(f.measured)} ${f.unit}`;
     const note = f.note === undefined ? "" : ` — ${f.note}`;
     return `${where}: ${measured}, budget ${grouped(f.budget)} ${f.unit} (BUDGETS.${f.key})${note}`;
+}
+export function stripControlChars(text, multiLine) {
+    let out = "";
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        const control = c < 0x20 || (c >= 0x7f && c <= 0x9f);
+        if (!control || (multiLine && (c === 0x09 || c === 0x0a)))
+            out += text[i];
+    }
+    return out;
 }
 function compareCodeUnits(a, b) {
     return a < b ? -1 : a > b ? 1 : 0;
@@ -497,48 +598,34 @@ export function readRegularFileOrNull(path, maxBytes, position) {
  * larger than this is refused rather than read, and the check reports that it could not run (exit 2).
  */
 const READ_CEILING_BYTES = 16 * 1024 * 1024;
-const USAGE = "Usage: node state-check.js <repo-root>";
-/** The check could not run: one message on stderr, nothing on stdout, exit 2. Never a pass. */
+const JSON_FLAG = "--json";
+const USAGE = `Usage: node state-check.js <repo-root> [${JSON_FLAG}]`;
+/** The note on a finding whose path resolves outside the repository root. */
+const OUTSIDE_ROOT = "it resolves outside the repository root, so it was not read";
+/** One value made safe to print: the embedded rule removes every C0, C1 and DEL code point. */
+function printable(value) {
+    return stripControlChars(value, false);
+}
+/** The check could not run: one sanitized message on stderr, nothing on stdout, exit 2. Never a pass. */
 function couldNotRun(message) {
-    process.stderr.write(`Error: ${message} The state check did not run.\n`);
+    process.stderr.write(`Error: ${printable(message)} The state check did not run.\n`);
     process.exit(2);
 }
 /** The errno code of a thrown filesystem error, for a message. */
 function codeOf(e) {
     return e.code ?? "unknown error";
 }
-/**
- * The text of the state file at `rel` under `root`, or null when nothing is there.
- *
- * The path is stat'ed first, so a path that is present and is not a regular file (a FIFO, a device, a socket,
- * a directory) is refused without being opened. The read goes through the embedded non-blocking reader, which
- * checks the shape again on the open descriptor. A file that is present and cannot be read is never treated
- * as absent: it is exit 2, naming the file.
- */
-function readState(root, rel, what) {
-    const abs = nodePath.join(root, ...rel.split("/"));
-    let st;
-    try {
-        st = nodeFs.statSync(abs, { throwIfNoEntry: false });
-    }
-    catch (e) {
-        couldNotRun(`cannot inspect the ${what} ${rel} (${codeOf(e)}).`);
-    }
-    if (st === undefined)
-        return null;
-    if (!st.isFile())
-        couldNotRun(`the ${what} ${rel} is present and is not a regular file, so it was not opened.`);
-    try {
-        return readRegularFileOrNull(abs, READ_CEILING_BYTES, what);
-    }
-    catch (e) {
-        const condition = e instanceof ReadPositionRefusal ? e.condition : codeOf(e);
-        couldNotRun(`the ${what} ${rel} is present and cannot be read (${condition}).`);
-    }
-}
-const rootArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const args = process.argv.slice(2);
+const unknownFlag = args.find((a) => a.startsWith("--") && a !== JSON_FLAG);
+if (unknownFlag !== undefined)
+    couldNotRun(`unknown option ${unknownFlag}. ${USAGE}.`);
+const asJson = args.includes(JSON_FLAG);
+const positionals = args.filter((a) => !a.startsWith("--"));
+const rootArg = positionals[0];
 if (rootArg === undefined)
     couldNotRun(`no repository root was given. ${USAGE}.`);
+if (positionals.length > 1)
+    couldNotRun(`more than one repository root was given. ${USAGE}.`);
 let root;
 try {
     root = nodeFs.realpathSync(rootArg);
@@ -554,35 +641,194 @@ try {
 catch (e) {
     couldNotRun(`the repository root ${rootArg} is not a readable directory (${codeOf(e)}).`);
 }
+/**
+ * Resolve `rel` under the root with realpath, following every link in the path, and say whether it lands
+ * inside realpath(root). Only ENOENT is absent; any other failure is an error the caller reports.
+ */
+function locate(rel) {
+    const abs = nodePath.join(root, ...rel.split("/"));
+    let real;
+    try {
+        real = nodeFs.realpathSync(abs);
+    }
+    catch (e) {
+        const code = codeOf(e);
+        return code === "ENOENT" ? { kind: "absent" } : { kind: "error", code };
+    }
+    const prefix = root.endsWith(nodePath.sep) ? root : `${root}${nodePath.sep}`;
+    if (real !== root && !real.startsWith(prefix))
+        return { kind: "outside" };
+    return { kind: "inside", abs, real };
+}
+/**
+ * The text of the state file at `rel`, or that it is absent or outside the root.
+ *
+ * The resolved path is stat'ed first, so a path that is present and is not a regular file (a FIFO, a device,
+ * a socket, a directory) is refused without being opened. The read goes through the embedded non-blocking
+ * reader, which checks the shape again on the open descriptor. A file that is present and cannot be read is
+ * never treated as absent: it is exit 2, naming the file.
+ */
+function readState(rel, what) {
+    const at = locate(rel);
+    if (at.kind === "error")
+        couldNotRun(`cannot resolve the ${what} ${rel} (${at.code}).`);
+    if (at.kind !== "inside")
+        return at;
+    let st;
+    try {
+        st = nodeFs.statSync(at.real, { throwIfNoEntry: false });
+    }
+    catch (e) {
+        couldNotRun(`cannot inspect the ${what} ${rel} (${codeOf(e)}).`);
+    }
+    if (st === undefined)
+        return { kind: "absent" };
+    if (!st.isFile())
+        couldNotRun(`the ${what} ${rel} is present and is not a regular file, so it was not opened.`);
+    let text;
+    try {
+        text = readRegularFileOrNull(at.real, READ_CEILING_BYTES, what);
+    }
+    catch (e) {
+        const condition = e instanceof ReadPositionRefusal ? e.condition : codeOf(e);
+        couldNotRun(`the ${what} ${rel} is present and cannot be read (${condition}).`);
+    }
+    return text === null ? { kind: "absent" } : { kind: "text", text };
+}
+/** The layout marker's state. A marker that resolves outside the root is invalid by name and never read. */
+function readMarker() {
+    const marker = readState(LAYOUT_MARKER_REL, "layout marker");
+    if (marker.kind === "outside")
+        return { state: "invalid", reason: `${OUTSIDE_ROOT}` };
+    return markerState(marker.kind === "text" ? marker.text : null, LAYOUT_MARKER_CONTENT);
+}
+/** The board's findings: bytes, ticket-row characters, `_Updated:` lines and Done rows, as checkBudgets reads it. */
+function boardFindings() {
+    const board = readState(BOARD_REL, "board file");
+    if (board.kind === "absent")
+        return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "the board file is absent")];
+    if (board.kind === "outside")
+        return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, OUTSIDE_ROOT)];
+    const normalized = normalizeDocument(board.text);
+    const model = parseBoard(board.text);
+    return [
+        ...boardBudgetFindings(BOARD_REL, { raw: board.text, normalized, blanked: stripHtmlComments(normalized) }, model, BUDGETS),
+        ...doneRowFindings(BOARD_REL, model, BUDGETS),
+    ];
+}
+/** The index-line findings of one index file, measured outside HTML comments. */
+function indexFindings(rel) {
+    const index = readState(rel, "index file");
+    if (index.kind === "absent")
+        return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, "the file is absent")];
+    if (index.kind === "outside")
+        return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, OUTSIDE_ROOT)];
+    const normalized = normalizeDocument(index.text);
+    return indexLineFindings(rel, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS);
+}
+/**
+ * The byte finding of one file, measured from its lstat size without opening it. A FIFO, a directory or a
+ * link at the path is not a regular file: it is reported by name and never measured. A path that resolves
+ * outside the root, or whose size cannot be taken, is reported too, so no file is dropped. `missingIsClean`
+ * is for the progress file, which may be absent.
+ */
+function sizeFinding(rel, key, missingIsClean) {
+    const at = locate(rel);
+    if (at.kind === "absent") {
+        return missingIsClean ? [] : [unmeasuredFinding(rel, key, BUDGETS, "its size could not be read (ENOENT)")];
+    }
+    if (at.kind === "error")
+        return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read (${at.code})`)];
+    if (at.kind === "outside")
+        return [unmeasuredFinding(rel, key, BUDGETS, OUTSIDE_ROOT)];
+    let st;
+    try {
+        st = nodeFs.lstatSync(at.abs);
+    }
+    catch (e) {
+        return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read (${codeOf(e)})`)];
+    }
+    if (!st.isFile())
+        return [unmeasuredFinding(rel, key, BUDGETS, "not a regular file, so it was not measured")];
+    const finding = fileBytesFinding(rel, st.size, key, BUDGETS);
+    return finding === null ? [] : [finding];
+}
+/**
+ * The byte findings of every record in one directory. The raw listing goes to the embedded budgetEntryNames,
+ * which decides which entries are records; this function filters no name itself (D-11). A directory that
+ * does not exist is an empty set. A directory that resolves outside the root, or cannot be listed, is
+ * reported by name, so its files are never silently unmeasured.
+ */
+function directoryFindings(dirRel, key) {
+    const at = locate(dirRel);
+    if (at.kind === "absent")
+        return [];
+    if (at.kind === "error")
+        return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be resolved (${at.code})`)];
+    if (at.kind === "outside") {
+        return [unmeasuredFinding(dirRel, key, BUDGETS, "it resolves outside the repository root, so it was not listed")];
+    }
+    let names;
+    try {
+        names = nodeFs.readdirSync(at.real);
+    }
+    catch (e) {
+        return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be listed (${codeOf(e)})`)];
+    }
+    return budgetEntryNames(names).flatMap((name) => sizeFinding(`${dirRel}/${name}`, key, false));
+}
+/** A finding with every value read from the repository made printable. Text and JSON both print these. */
+function printableFinding(f) {
+    return { ...f, rel: printable(f.rel), ...(f.note === undefined ? {} : { note: printable(f.note) }) };
+}
 let marker;
 let findings;
 try {
-    marker = markerState(readState(root, LAYOUT_MARKER_REL, "layout marker"), LAYOUT_MARKER_CONTENT);
-    const board = readState(root, BOARD_REL, "board file");
-    if (board === null) {
-        findings = [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "the board file is absent")];
-    }
-    else {
-        const normalized = normalizeDocument(board);
-        const texts = { raw: board, normalized, blanked: stripHtmlComments(normalized) };
-        findings = sortFindings(boardBudgetFindings(BOARD_REL, texts, parseBoard(board), BUDGETS));
-    }
+    // checkBudgets' call order and inputs (scripts/validate-agent-factory.ts).
+    marker = readMarker();
+    findings = sortFindings([
+        ...boardFindings(),
+        ...indexFindings(TRACEABILITY_REL),
+        ...indexFindings(NFR_CATALOG_REL),
+        ...directoryFindings(TICKETS_REL, "ticketBytes"),
+        ...directoryFindings(NFR_DIR_REL, "nfrBytes"),
+        ...directoryFindings(TRACE_DIR_REL, "traceBytes"),
+        ...sizeFinding(PROGRESS_REL, "progressBytes", true),
+    ]).map(printableFinding);
 }
 catch (e) {
     couldNotRun(`the check failed unexpectedly: ${e.message}`);
 }
+const enforced = marker.state === "valid";
+const exitCode = enforced && findings.length > 0 ? 1 : 0;
 // Every line is composed before anything is printed, so a run that cannot finish never prints part of a result.
 const out = [];
-if (marker.state === "valid") {
+if (asJson) {
+    const report = {
+        ok: exitCode !== 1,
+        marker: marker.state,
+        enforced,
+        findings: findings.map((f) => ({
+            rel: f.rel,
+            key: f.key,
+            measured: f.measured,
+            budget: f.budget,
+            unit: f.unit,
+            line: f.line ?? null,
+            note: f.note ?? null,
+        })),
+    };
+    out.push(JSON.stringify(report));
+}
+else if (enforced) {
     for (const f of findings)
         out.push(`FINDING  ${formatFinding(f)}`);
     if (findings.length === 0)
         out.push("No findings.");
-    process.exitCode = findings.length > 0 ? 1 : 0;
 }
 else {
     if (marker.state === "invalid")
-        out.push(`WARN     ${formatMarkerWarning(LAYOUT_MARKER_REL, marker.reason)}`);
+        out.push(`WARN     ${formatMarkerWarning(LAYOUT_MARKER_REL, printable(marker.reason))}`);
     for (const f of findings)
         out.push(`WARN     ${formatFinding(f)}`);
     if (marker.state === "absent" && findings.length > 0) {
@@ -591,6 +837,6 @@ else {
     }
     if (marker.state === "absent" && findings.length === 0)
         out.push("No findings.");
-    process.exitCode = 0;
 }
+process.exitCode = exitCode;
 process.stdout.write(`${out.join("\n")}\n`);

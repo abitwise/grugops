@@ -255,11 +255,19 @@ export function formatFinding(f) {
 }
 /**
  * `text` with every C0 code point, every C1 code point and DEL removed (agent-factory/contracts/board.md,
- * `## Control characters on the way out`). With `multiLine` true, tab and newline are kept.
+ * `## Control characters on the way out`). With `multiLine` true, tab and newline are kept. A caller applies
+ * it to every value read from a state file (a path, a name, a title) before that value is printed or
+ * serialized, so the cleaning never meets an escaped form.
  */
 export function stripControlChars(text, multiLine) {
-    void multiLine;
-    return text;
+    let out = "";
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        const control = c < 0x20 || (c >= 0x7f && c <= 0x9f);
+        if (!control || (multiLine && (c === 0x09 || c === 0x0a)))
+            out += text[i];
+    }
+    return out;
 }
 /** Code-unit order, never the host locale's, so two runs on two hosts print the same order. */
 function compareCodeUnits(a, b) {

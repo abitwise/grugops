@@ -60,25 +60,44 @@ export type EmbedSpec = {
 };
 
 /**
- * Every generated region in the repository. The first row is the state checker (plan 37-03): the budget
- * numbers and the two state paths it reads from install/state-layout.ts, the budget and marker rules from
- * scripts/state-rules.ts, the board grammar from scripts/board-model.ts, and the non-blocking reader from
- * scripts/context-io.ts.
+ * Every generated region in the repository. The first row is the state checker (plans 37-03 and 37-04): the
+ * budget numbers and every state path it reads from install/state-layout.ts, every budget rule, the record
+ * rule, the marker rule and the output sanitizer from scripts/state-rules.ts, the board grammar from
+ * scripts/board-model.ts, and the non-blocking reader from scripts/context-io.ts.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
     target: "scripts/runnable-ref/state-check.ts",
     authorities: [
-      { module: "install/state-layout.ts", roots: ["BUDGETS", "BOARD_REL", "LAYOUT_MARKER_REL", "LAYOUT_MARKER_CONTENT"] },
+      {
+        module: "install/state-layout.ts",
+        roots: [
+          "BUDGETS",
+          "BOARD_REL",
+          "LAYOUT_MARKER_REL",
+          "LAYOUT_MARKER_CONTENT",
+          "TICKETS_REL",
+          "NFR_DIR_REL",
+          "TRACE_DIR_REL",
+          "TRACEABILITY_REL",
+          "NFR_CATALOG_REL",
+          "PROGRESS_REL",
+        ],
+      },
       {
         module: "scripts/state-rules.ts",
         roots: [
           "markerState",
           "formatMarkerWarning",
           "boardBudgetFindings",
+          "doneRowFindings",
+          "indexLineFindings",
+          "fileBytesFinding",
+          "budgetEntryNames",
           "unmeasuredFinding",
           "formatFinding",
           "sortFindings",
+          "stripControlChars",
         ],
       },
       { module: "scripts/board-model.ts", roots: ["parseBoard", "normalizeDocument", "stripHtmlComments"] },
