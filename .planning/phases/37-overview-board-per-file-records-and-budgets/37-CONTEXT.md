@@ -114,6 +114,24 @@ not this phase.
   and the budget).
 - Whether `trace-render.js` is a bundled build or a `runnable-ref` source like the other four.
 
+### Recorded at plan 37-01 checkpoints
+- **D-14:** The layout marker is `memory-bank/plans/.layout` (option a, answered by the human on
+  2026-10-22). Its valid content is `layout: v3`, with or without exactly one trailing newline; both are
+  valid. The content is compared after one leading byte-order mark is removed and CRLF is folded to LF,
+  the same two normalizations the board contract applies to board and ticket documents. Any other
+  content is invalid. `LAYOUT_MARKER_REL` and `LAYOUT_MARKER_CONTENT` in `install/state-layout.ts`
+  carry exactly these values. — **Reversibility:** one-way once released (Phase 38's migrate and every
+  installed host repo carry the file).
+- **D-15:** A ticket whose Done row is archived stays placed through a seventh reader source,
+  `boardArchive` (option a, answered by the human on 2026-10-22), and the published snapshot moves to
+  version 3. The archive `memory-bank/plans/archive/board-done.md` is read with the same `parseBoard`
+  grammar. Archive rows count as placements for `ticket-unplaced` only. A ticket with a row on both
+  the board and the archive is `ticket-duplicated`. An unreadable archive suppresses `ticket-unplaced`,
+  on the contract's listing-completeness reasoning. The conflict kind set stays at seven. Plan 37-01
+  records the decision and writes the contract; plan 37-12 implements the reader change, the version
+  bump and the regenerated golden in one commit. — **Reversibility:** costly (a later change is
+  another snapshot version and golden regeneration).
+
 </decisions>
 
 <canonical_refs>
