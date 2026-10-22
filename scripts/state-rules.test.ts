@@ -1,5 +1,7 @@
 // state-rules.test.ts — unit tests for scripts/state-rules.ts, the one owner of every state budget rule and
-// of the layout marker reader (phase 37, plan 37-02, SPLIT-04, D-04, D-05, D-10, D-14).
+// of the layout marker reader (phase 37, plan 37-02, SPLIT-04, D-04, D-05, D-10, D-14). Plans 37-10 and 37-11
+// add the Done and progress rolls (D-07, D-08, D-09); the progress cases pass scripts/frontmatter.ts's
+// sectionEndIndex in as the section-extent owner, as the host runnable passes its generated copy (D-16).
 //
 // Every boundary case sits at a budget and one past it, with the budget read from BUDGETS in
 // install/state-layout.ts, never retyped. The module's own source is parsed to prove it imports nothing and
@@ -22,12 +24,14 @@ import {
   QUEUE_DONE_REL,
 } from "../install/state-layout.js";
 import { normalizeDocument, parseBoard, stripHtmlComments } from "./board-model.js";
+import { sectionEndIndex } from "./frontmatter.js";
 import {
   assembleRoll,
   boardBudgetFindings,
   budgetEntryNames,
   checkConservation,
   DONE_ARCHIVE_HEADING,
+  doneDuplicateRefusal,
   executeRoll,
   doneRowCount,
   doneRowFindings,
@@ -37,6 +41,8 @@ import {
   formatRollable,
   indexLineFindings,
   integrityFinding,
+  lineEndingRefusal,
+  lineEndings,
   markerState,
   moveOnlyFindings,
   nfrIntegrityFindings,
@@ -44,6 +50,10 @@ import {
   parseNfrIndex,
   planArchiveInsert,
   planDoneRoll,
+  planProgressAppend,
+  planProgressRoll,
+  PROGRESS_ARCHIVE_TITLE,
+  progressArchiveSkeleton,
   progressBytesFinding,
   progressEntries,
   recordEntryNames,
@@ -1113,6 +1123,291 @@ describe("executeRoll: archive first, board second, proof, and a byte-exact roll
     const outcome = executeRoll(plan, io);
     expect(outcome.ok === false && outcome.stage).toBe("restore-failed");
     expect(outcome.ok === false && outcome.reason).toContain(`${ROLL_BOARD_REL} could not be written back`);
+  });
+});
+
+// ── Plan 37-11: the Done refusals, the progress roll, the duplicate refusals and the line-ending rule ──────────
+
+const PROGRESS_SOURCE_REL = "progress.md";
+const PROGRESS_ARCHIVE_TEST_REL = "archive/progress.md";
+const FENCE = "`".repeat(3);
+
+/** One dated or standing `##` section: its heading, a blank line, `filler` x's, a blank line. */
+function section(heading: string, filler: number): string {
+  return `## ${heading}\n\n${"x".repeat(filler)}\n\n`;
+}
+
+/** A section padded so the whole string is exactly `bytes` UTF-8 bytes. */
+function sectionOf(heading: string, bytes: number): string {
+  return section(heading, 1 + bytes - utf8Bytes(section(heading, 1)));
+}
+
+/** The three forms of a progress text, as the runnable builds them. */
+function forms(raw: string): { raw: string; normalized: string; blanked: string } {
+  const normalized = normalizeDocument(raw);
+  return { raw, normalized, blanked: stripHtmlComments(normalized) };
+}
+
+/** The view the progress planners read an archive through. */
+function view(raw: string): string {
+  return stripHtmlComments(normalizeDocument(raw));
+}
+
+const BUDGET = BUDGETS.progressBytes;
+
+/**
+ * The plan's behavior fixture: 17,000 bytes holding dated entries 2026-10-01, 2026-09-15 and 2026-10-10 and a
+ * `## Standing directive` section. Moving 2026-09-15 (400 bytes) leaves it over budget; moving 2026-10-01 too
+ * brings it within.
+ */
+const HEAD = "# Progress\n\n";
+const OCT01 = sectionOf("2026-10-01 — sweep", 5_000);
+const STANDING = section("Standing directive", 40);
+const SEP15 = sectionOf("2026-09-15 — first pass", 400);
+const OCT10_BYTES = 17_000 - utf8Bytes(HEAD + OCT01 + STANDING + SEP15);
+const OCT10 = sectionOf("2026-10-10 — later", OCT10_BYTES);
+const PROGRESS_17K = HEAD + OCT01 + STANDING + SEP15 + OCT10;
+
+/** The progress roll plan for `text` and `archive`, built the way the runnable builds it. */
+function plannedProgress(text: string, archive: string | null): RollPlan {
+  const roll = planProgressRoll(forms(text), BUDGET, sectionEndIndex);
+  if (roll.kind !== "roll") throw new Error(`PREMISE: the progress file should roll, got ${roll.kind}`);
+  const append = planProgressAppend(archive === null ? null : forms(archive), roll, PROGRESS_SOURCE_REL, sectionEndIndex, view);
+  if (append.kind !== "insert") throw new Error(`PREMISE: the append should plan, got ${append.reason}`);
+  return assembleRoll(PROGRESS_SOURCE_REL, PROGRESS_ARCHIVE_TEST_REL, { source: text, archive }, roll, append, "progress");
+}
+
+describe("planDoneRoll and planArchiveInsert: the plan 37-11 refusals", () => {
+  const keep = BUDGETS.doneRows;
+
+  it("a Done column holding a prose line between rows is refused, naming the line; the same board within keep has nothing to roll", () => {
+    const raw = rollBoard(keep + 3).replace(`${doneRow(5)}\n`, `${doneRow(5)}\nsome prose that is not a row\n`);
+    const { texts, model } = rollInput(raw);
+    const plan = planDoneRoll(texts, model, keep);
+    expect(plan.kind).toBe("refuse");
+    if (plan.kind === "refuse") expect(plan.reason).toContain(`line(s) ${lineOf(raw, "some prose that is not a row")})`);
+    // CONTROL: no roll is due, so the prose is not a roll's concern.
+    expect(planDoneRoll(texts, model, keep + 10).kind).toBe("none");
+  });
+
+  it("an archive holding a second column heading, or any other `##` heading, is refused", () => {
+    const rows = [doneRow(21)];
+    for (const old of [
+      `${DONE_ARCHIVE_HEADING}\n${doneRow(1)}\n## Done (WIP unlimited)\n`,
+      `${DONE_ARCHIVE_HEADING}\n${doneRow(1)}\n## Notes\n`,
+    ]) {
+      const plan = planArchiveInsert(rollInput(old), rows);
+      expect(plan.kind, JSON.stringify(old)).toBe("refuse");
+    }
+  });
+});
+
+describe("doneDuplicateRefusal: a moved row already in the Done archive refuses the run (SPLIT-01)", () => {
+  it("rows 21-23 already at the top of the archive (the interrupted-roll shape) are named, all three", () => {
+    const archive = rollInput(`${DONE_ARCHIVE_HEADING}\n${[21, 22, 23, 1].map(doneRow).join("\n")}\n`).model;
+    const reason = doneDuplicateRefusal(["ABC-021", "ABC-022", "ABC-023"], archive);
+    expect(reason).toContain("ABC-021, ABC-022, ABC-023");
+    expect(reason).toContain("interrupted");
+  });
+
+  it("no shared identifier, or no archive, is no refusal", () => {
+    const archive = rollInput(`${DONE_ARCHIVE_HEADING}\n${doneRow(1)}\n`).model;
+    expect(doneDuplicateRefusal(["ABC-021"], archive)).toBeNull();
+    expect(doneDuplicateRefusal(["ABC-021"], null)).toBeNull();
+  });
+});
+
+describe("planProgressRoll: dated entries roll oldest first until the file is within budget (D-09, D-16)", () => {
+  it("PREMISE: the fixture is 17,000 bytes, and moving the oldest entry alone leaves it over budget", () => {
+    expect(utf8Bytes(PROGRESS_17K)).toBe(17_000);
+    expect(utf8Bytes(SEP15)).toBe(400);
+    expect(17_000 - 400).toBeGreaterThan(BUDGET);
+    expect(17_000 - 400 - utf8Bytes(OCT01)).toBeLessThanOrEqual(BUDGET);
+  });
+
+  it("moves 2026-09-15, then 2026-10-01, whole; 2026-10-10 and the standing section stay", () => {
+    const plan = planProgressRoll(forms(PROGRESS_17K), BUDGET, sectionEndIndex);
+    expect(plan.kind).toBe("roll");
+    if (plan.kind !== "roll") return;
+    expect(plan.blocks.map((b) => b.date)).toEqual(["2026-09-15", "2026-10-01"]);
+    expect(plan.blocks.map((b) => `${b.texts.join("\n")}\n`)).toEqual([SEP15, OCT01]);
+    expect(plan.blocks.map((b) => b.bytes)).toEqual([400, 5_000]);
+    expect(plan.remaining).toBe(utf8Bytes(HEAD + STANDING + OCT10));
+    expect(plan.remaining).toBeLessThanOrEqual(BUDGET);
+    expect(plan.standing).toEqual(["Standing directive"]);
+    // The archive order is oldest first; the lines are ascending.
+    expect(plan.order.map((k) => plan.texts[k]).join("\n")).toBe(`${SEP15}${OCT01}`.slice(0, -1));
+    expect([...plan.lines].sort((a, b) => a - b)).toEqual(plan.lines);
+  });
+
+  it("an entry's extent is what the passed section-extent function says (D-16): the planner asks it, never a scan of its own", () => {
+    const calls: number[] = [];
+    const spy = (text: string, from: number, level: 1 | 2): number => {
+      calls.push(from);
+      return sectionEndIndex(text, from, level);
+    };
+    const plan = planProgressRoll(forms(PROGRESS_17K), BUDGET, spy);
+    expect(plan.kind).toBe("roll");
+    expect(calls.length).toBeGreaterThan(0);
+    // An extent function that ends every entry right after its heading moves the headings alone.
+    const short = planProgressRoll(forms(PROGRESS_17K), BUDGET, (text, from, level) =>
+      from === 0 || text.split("\n")[from - 1]?.startsWith("## 2026") !== true ? sectionEndIndex(text, from, level) : from,
+    );
+    expect(short.kind).toBe("roll");
+    if (short.kind === "roll") expect(short.blocks.every((b) => b.texts.length === 1)).toBe(true);
+  });
+
+  it("a level-1 heading ends an entry (sectionEndIndex closes on it), and the lines after it stay", () => {
+    const text = `${sectionOf("2026-09-01 — old", 9_000)}# Appendix\n\nkept\n${sectionOf("2026-10-02 — new", 9_000)}`;
+    const plan = planProgressRoll(forms(text), BUDGET, sectionEndIndex);
+    expect(plan.kind).toBe("roll");
+    if (plan.kind !== "roll") return;
+    expect(plan.blocks.map((b) => b.date)).toEqual(["2026-09-01"]);
+    expect(plan.texts).not.toContain("# Appendix");
+  });
+
+  it("ties on a date move the entry nearer the top first", () => {
+    const text = `${sectionOf("2026-09-01 — a", 9_000)}${sectionOf("2026-09-01 — b", 9_000)}`;
+    const plan = planProgressRoll(forms(text), BUDGET, sectionEndIndex);
+    expect(plan.kind === "roll" && plan.blocks.map((b) => b.heading)).toEqual(["2026-09-01 — a"]);
+  });
+
+  it("within budget, or with only standing sections, there is nothing to roll", () => {
+    expect(planProgressRoll(forms(OCT10), BUDGET, sectionEndIndex).kind).toBe("none");
+    const standingOnly = sectionOf("Standing directive", 17_000);
+    const plan = planProgressRoll(forms(standingOnly), BUDGET, sectionEndIndex);
+    expect(plan).toEqual({ kind: "none", bytes: 17_000, dated: 0, standing: ["Standing directive"] });
+  });
+
+  it("a `##` heading inside a fenced block within a moved entry is refused as ambiguous, never moved as part of it", () => {
+    const fenced = `## 2026-09-01 — old\n\n${FENCE}\n## Not a heading\n${FENCE}\n\n${"x".repeat(9_000)}\n\n`;
+    const plan = planProgressRoll(forms(`${fenced}${sectionOf("2026-10-02 — new", 9_000)}`), BUDGET, sectionEndIndex);
+    expect(plan.kind).toBe("refuse");
+    if (plan.kind === "refuse") expect(plan.reason).toContain("`## Not a heading` on line 4");
+  });
+
+  it("a dated heading inside a fenced block is refused: it opens no entry", () => {
+    const text = `${FENCE}\n## 2026-09-01 — fenced\n${FENCE}\n\n${sectionOf("2026-10-02 — new", 17_000)}`;
+    const plan = planProgressRoll(forms(text), BUDGET, sectionEndIndex);
+    expect(plan.kind).toBe("refuse");
+    if (plan.kind === "refuse") expect(plan.reason).toContain("inside a fenced block");
+  });
+
+  it("a moved entry carrying an HTML comment is refused; the same comment on an entry that stays rolls (CONTROL)", () => {
+    const commented = (h: string): string => sectionOf(h, 9_000).replace("\n\nx", "\n\n<!-- note -->\nx");
+    const refused = planProgressRoll(forms(`${commented("2026-09-01 — old")}${sectionOf("2026-10-02 — new", 9_000)}`), BUDGET, sectionEndIndex);
+    expect(refused.kind).toBe("refuse");
+    if (refused.kind === "refuse") expect(refused.reason).toContain("HTML comment on line 3");
+    const kept = planProgressRoll(forms(`${sectionOf("2026-09-01 — old", 9_000)}${commented("2026-10-02 — new")}`), BUDGET, sectionEndIndex);
+    expect(kept.kind).toBe("roll");
+  });
+
+  it("a CRLF file's moved lines keep their \\r", () => {
+    const crlf = PROGRESS_17K.replace(/\n/g, "\r\n");
+    const plan = planProgressRoll(forms(crlf), BUDGET, sectionEndIndex);
+    expect(plan.kind).toBe("roll");
+    if (plan.kind === "roll") expect(plan.texts.every((t) => t.endsWith("\r"))).toBe(true);
+  });
+});
+
+describe("planProgressAppend: the moved entries go to the end of the progress archive, oldest first", () => {
+  const roll = planProgressRoll(forms(PROGRESS_17K), BUDGET, sectionEndIndex);
+  if (roll.kind !== "roll") throw new Error("PREMISE: the fixture rolls");
+
+  it("with no archive, it creates the title and a comment, then the entries oldest first", () => {
+    const plan = planProgressAppend(null, roll, PROGRESS_SOURCE_REL, sectionEndIndex, view);
+    expect(plan.kind).toBe("insert");
+    if (plan.kind !== "insert") return;
+    expect(plan.created).toBe(true);
+    expect(plan.text.startsWith(`${PROGRESS_ARCHIVE_TITLE}\n\n<!-- `)).toBe(true);
+    expect(plan.text).toBe(`${progressArchiveSkeleton([], PROGRESS_SOURCE_REL)}${SEP15}${OCT01}`);
+    expect(progressEntries(view(plan.text)).dated.map((d) => d.date)).toEqual(["2026-09-15", "2026-10-01"]);
+  });
+
+  it("over an existing archive, the entries go after every old line", () => {
+    const old = `${PROGRESS_ARCHIVE_TITLE}\n\n${section("2026-08-01 — older", 10)}`;
+    const plan = planProgressAppend(forms(old), roll, PROGRESS_SOURCE_REL, sectionEndIndex, view);
+    expect(plan.kind === "insert" && plan.text).toBe(`${old}${SEP15}${OCT01}`);
+  });
+
+  it("an entry whose heading line is already a line of the archive refuses the run, naming the heading (SPLIT-06)", () => {
+    const old = `${PROGRESS_ARCHIVE_TITLE}\n\n${SEP15}`;
+    const plan = planProgressAppend(forms(old), roll, PROGRESS_SOURCE_REL, sectionEndIndex, view);
+    expect(plan.kind).toBe("refuse");
+    if (plan.kind === "refuse") {
+      expect(plan.reason).toContain("`## 2026-09-15 — first pass`");
+      expect(plan.reason).not.toContain("2026-10-01");
+    }
+  });
+
+  it("an archive that does not start with its title, or that ends inside a fence or a comment, is refused", () => {
+    for (const old of ["# Something else\n", `${PROGRESS_ARCHIVE_TITLE}\n\n${FENCE}\n`, `${PROGRESS_ARCHIVE_TITLE}\n\n<!-- open\n`, ""]) {
+      const plan = planProgressAppend(forms(old), roll, PROGRESS_SOURCE_REL, sectionEndIndex, view);
+      expect(plan.kind, JSON.stringify(old)).toBe("refuse");
+    }
+  });
+});
+
+describe("checkConservation and executeRoll over a progress roll (D-08)", () => {
+  it("the planned progress roll passes the proof, for a created archive and an existing one", () => {
+    for (const a of [null, `${PROGRESS_ARCHIVE_TITLE}\n`]) {
+      const plan = plannedProgress(PROGRESS_17K, a);
+      expect(checkConservation(plan.before, plan.after, plan)).toBeNull();
+      expect(plan.after.source).toBe(HEAD + STANDING + OCT10);
+    }
+  });
+
+  it("an archive with the entries in file order, not oldest first, fails the proof", () => {
+    const plan = plannedProgress(PROGRESS_17K, null);
+    const fileOrder = `${progressArchiveSkeleton([], PROGRESS_SOURCE_REL)}${OCT01}${SEP15}`;
+    expect(checkConservation(plan.before, { source: plan.after.source, archive: fileOrder }, plan)).toContain(
+      PROGRESS_ARCHIVE_TEST_REL,
+    );
+  });
+
+  it("an archive order that places one line twice fails the proof before any comparison", () => {
+    const plan = plannedProgress(PROGRESS_17K, null);
+    const order = plan.insertOrder ?? [];
+    const doubled = { ...plan, insertOrder: [order[0] as number, ...order.slice(0, -1)] };
+    expect(checkConservation(plan.before, plan.after, doubled)).toContain("exactly once");
+  });
+
+  it("a sound io moves the entries; a source write that throws restores the archive, and leaves the untouched source alone", () => {
+    const plan = plannedProgress(PROGRESS_17K, null);
+    const ok = new Map([[PROGRESS_SOURCE_REL, PROGRESS_17K]]);
+    expect(executeRoll(plan, memoryIo(ok))).toEqual({ ok: true });
+    expect(ok.get(PROGRESS_SOURCE_REL)).toBe(plan.after.source);
+
+    const files = new Map([[PROGRESS_SOURCE_REL, PROGRESS_17K]]);
+    const io = memoryIo(files, {
+      // Every write of the source throws, as a directory that refuses writes does; the restore must not need one.
+      write: (rel) => {
+        if (rel === PROGRESS_SOURCE_REL) throw new Error("EACCES: permission denied");
+      },
+    });
+    const outcome = executeRoll(plan, io);
+    expect(outcome.ok === false && outcome.stage).toBe("rolled-back");
+    expect(files.get(PROGRESS_SOURCE_REL)).toBe(PROGRESS_17K);
+    expect(files.has(PROGRESS_ARCHIVE_TEST_REL)).toBe(false);
+  });
+});
+
+describe("lineEndingRefusal: a roll never leaves a file with mixed line endings (plan 37-11)", () => {
+  it("lineEndings reads none, lf, crlf and mixed", () => {
+    expect(["a", "a\nb\n", "a\r\nb\r\n", "a\r\nb\n"].map(lineEndings)).toEqual(["none", "lf", "crlf", "mixed"]);
+  });
+
+  it("rows from a CRLF board into an LF archive are refused; into a created archive, or with matching endings, they pass", () => {
+    const crlf = rollBoard(BUDGETS.doneRows + 2, "\r\n");
+    expect(lineEndingRefusal(plannedRoll(crlf, `${DONE_ARCHIVE_HEADING}\n${doneRow(90)}\n`))).toContain("mixed LF and CRLF");
+    expect(lineEndingRefusal(plannedRoll(crlf, null))).toBeNull();
+    expect(lineEndingRefusal(plannedRoll(crlf, `${DONE_ARCHIVE_HEADING}\r\n${doneRow(90)}\r\n`))).toBeNull();
+    expect(lineEndingRefusal(plannedRoll(rollBoard(BUDGETS.doneRows + 2), null))).toBeNull();
+  });
+
+  it("a source that already mixes line endings is refused by name", () => {
+    const mixed = rollBoard(BUDGETS.doneRows + 2).replace("# Board\n", "# Board\r\n");
+    expect(lineEndingRefusal(plannedRoll(mixed, null))).toContain(`${ROLL_BOARD_REL} already mixes LF and CRLF`);
   });
 });
 

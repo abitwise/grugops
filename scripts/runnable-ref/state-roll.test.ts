@@ -1,4 +1,4 @@
-// state-roll.test.ts — the host state roll (phase 37, plan 37-10, SPLIT-06, SPLIT-01, D-07, D-08).
+// state-roll.test.ts — the host state roll (phase 37, plans 37-10 and 37-11, SPLIT-06, SPLIT-01, D-07, D-08, D-09).
 //
 // Every case runs the COMMITTED state-roll.js copied ALONE into an empty temporary directory, with no
 // node_modules and no sibling script reachable: the host emulation that proves the file imports `node:`
@@ -8,12 +8,14 @@
 // run on a host.
 //
 //   exit 0 → rolled and proven, or nothing to roll; --dry-run writes nothing
-//   exit 1 → the proof failed and both files were restored (driven through executeRoll's unit cases)
+//   exit 1 → a write failed part way and both files were restored (plan 37-11 drives it on a host through a
+//            directory that refuses writes; the failed-proof branch is driven through executeRoll's unit cases)
 //   exit 2 → could not run or refused, with nothing on stdout and nothing written
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   lstatSync,
@@ -22,15 +24,25 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import ts from "typescript";
-import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
-import { ARCHIVE_REL, BOARD_DONE_ARCHIVE_REL, BOARD_REL, BUDGETS } from "../../install/state-layout.js";
+import { skipEntry, skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import {
+  ARCHIVE_REL,
+  BOARD_DONE_ARCHIVE_REL,
+  BOARD_REL,
+  BUDGETS,
+  DECISIONS_REL,
+  PROGRESS_ARCHIVE_REL,
+  PROGRESS_REL,
+  QUEUE_DONE_REL,
+} from "../../install/state-layout.js";
 import { parseBoard } from "../board-model.js";
-import { DONE_ARCHIVE_HEADING } from "../state-rules.js";
+import { DONE_ARCHIVE_HEADING, PROGRESS_ARCHIVE_TITLE } from "../state-rules.js";
 
 const ROLL_TS = join(import.meta.dirname, "state-roll.ts");
 const ROLL_JS = join(import.meta.dirname, "state-roll.js");
@@ -316,6 +328,270 @@ describe("state-roll.js — refusals: exit 2, nothing on stdout, nothing written
   });
 });
 
+// ── Plan 37-11: the progress roll, the refusals before any write, the dry-run PLAN lines, the re-run ──────────
+
+/** One `##` section: its heading, a blank line, `filler` x's, a blank line. */
+function section(heading: string, filler: number): string {
+  return `## ${heading}\n\n${"x".repeat(filler)}\n\n`;
+}
+
+/** A section padded so the whole string is exactly `bytes` bytes (the headings below are ASCII). */
+function sectionOf(heading: string, bytes: number): string {
+  return section(heading, 1 + bytes - Buffer.byteLength(section(heading, 1)));
+}
+
+/**
+ * The plan's behavior fixture: 17,000 bytes holding dated entries 2026-10-01, 2026-09-15 and 2026-10-10 and a
+ * `## Standing directive` section; moving 2026-09-15 alone leaves it over BUDGETS.progressBytes.
+ */
+const P_HEAD = "# Progress\n\n";
+const P_OCT01 = sectionOf("2026-10-01 sweep", 5_000);
+const P_STANDING = section("Standing directive", 40);
+const P_SEP15 = sectionOf("2026-09-15 first pass", 400);
+const P_OCT10 = sectionOf("2026-10-10 later", 17_000 - Buffer.byteLength(P_HEAD + P_OCT01 + P_STANDING + P_SEP15));
+const PROGRESS_17K = P_HEAD + P_OCT01 + P_STANDING + P_SEP15 + P_OCT10;
+
+/** A repository holding `board` and, when given, `progress` at PROGRESS_REL. */
+function repoWith(board: string, progress: string | null): string {
+  const root = repo(board);
+  if (progress !== null) writeFileSync(join(root, PROGRESS_REL), progress);
+  return root;
+}
+
+/** Write `text` at `rel` in `root`, creating its directory. */
+function plant(root: string, rel: string, text: string): void {
+  mkdirSync(join(root, dirname(rel)), { recursive: true });
+  writeFileSync(join(root, rel), text);
+}
+
+/** The 1-based line of `text` that is `line`. */
+function lineNo(text: string, line: string): number {
+  return text.split("\n").indexOf(line) + 1;
+}
+
+describe("state-roll.js — the progress roll on a host (plan 37-11, D-09)", () => {
+  it("PREMISE: the fixture is 17,000 bytes and over BUDGETS.progressBytes even without 2026-09-15", () => {
+    expect(Buffer.byteLength(PROGRESS_17K)).toBe(17_000);
+    expect(17_000 - Buffer.byteLength(P_SEP15)).toBeGreaterThan(BUDGETS.progressBytes);
+  });
+
+  it("moves 2026-09-15, then 2026-10-01, whole, to the end of a new archive oldest first; the standing section and 2026-10-10 stay", () => {
+    const root = repoWith(boardText(1), PROGRESS_17K);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toContain("MOVED   `## 2026-09-15 first pass`\nMOVED   `## 2026-10-01 sweep`");
+    // Derived independently of the roll: the old bytes with exactly the two entries cut out.
+    const after = bytesAt(root, PROGRESS_REL) ?? "";
+    expect(after).toBe(P_HEAD + P_STANDING + P_OCT10);
+    expect(Buffer.byteLength(after)).toBeLessThanOrEqual(BUDGETS.progressBytes);
+    const archive = bytesAt(root, PROGRESS_ARCHIVE_REL) ?? "";
+    expect(archive.startsWith(`${PROGRESS_ARCHIVE_TITLE}\n\n<!-- `)).toBe(true);
+    expect(archive.endsWith(`-->\n${P_SEP15}${P_OCT01}`)).toBe(true);
+    expect(bytesAt(root, BOARD_REL)).toBe(boardText(1));
+    expect(existsSync(join(root, BOARD_DONE_ARCHIVE_REL))).toBe(false);
+  });
+
+  it("over an existing archive the entries are appended after every old line", () => {
+    const root = repoWith(boardText(1), PROGRESS_17K);
+    const old = `${PROGRESS_ARCHIVE_TITLE}\n\n${section("2026-08-01 older", 10)}`;
+    plant(root, PROGRESS_ARCHIVE_REL, old);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(bytesAt(root, PROGRESS_ARCHIVE_REL)).toBe(`${old}${P_SEP15}${P_OCT01}`);
+  });
+
+  it("a progress file over budget with only standing sections is unchanged, exit 0, with a line naming them and the decision records directory", () => {
+    const standingOnly = sectionOf("Standing directive", 17_000) + section("Ruling on gates", 10);
+    const root = repoWith(boardText(1), standingOnly);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("`## Standing directive`, `## Ruling on gates`");
+    expect(r.stdout).toContain(`${DECISIONS_REL}/`);
+    expect(bytesAt(root, PROGRESS_REL)).toBe(standingOnly);
+    expect(existsSync(join(root, ARCHIVE_REL))).toBe(false);
+  });
+
+  it("the decision records directory the message names is install/state-layout.ts's DECISIONS_REL, typed once", () => {
+    const source = readFileSync(ROLL_TS, "utf8");
+    expect(source).toContain(`const DECISION_RECORDS_DIR = "${DECISIONS_REL}";`);
+    expect(source.split(DECISIONS_REL).length - 1).toBe(1);
+  });
+
+  it("both surfaces roll in one run: Done first, then progress, each proven", () => {
+    const root = repoWith(boardText(KEEP + 2), PROGRESS_17K);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout.indexOf(`MOVED   ${idOf(KEEP + 1)}`)).toBeLessThan(r.stdout.indexOf("MOVED   `## 2026-09-15"));
+    expect(doneIds(bytesAt(root, BOARD_DONE_ARCHIVE_REL) ?? "")).toEqual([idOf(KEEP + 1), idOf(KEEP + 2)]);
+    expect(bytesAt(root, PROGRESS_REL)).toBe(P_HEAD + P_STANDING + P_OCT10);
+  });
+});
+
+describe("state-roll.js — --dry-run prints every planned move and writes nothing (plan 37-11)", () => {
+  it("prints a PLAN line per Done row and per progress entry, with line numbers and byte counts", () => {
+    const board = boardText(KEEP + 2);
+    const root = repoWith(board, PROGRESS_17K);
+    const r = run(root, "--dry-run");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const n of [KEEP + 1, KEEP + 2]) {
+      expect(r.stdout).toContain(
+        `PLAN    done      ${idOf(n)}  line ${lineNo(board, row(n))}  ${Buffer.byteLength(row(n)) + 1} bytes  -> ${BOARD_DONE_ARCHIVE_REL}`,
+      );
+    }
+    const sepStart = lineNo(PROGRESS_17K, "## 2026-09-15 first pass");
+    const sepLines = P_SEP15.split("\n").length - 1;
+    expect(r.stdout).toContain(
+      `PLAN    progress  \`## 2026-09-15 first pass\`  lines ${sepStart}-${sepStart + sepLines - 1}  400 bytes  -> ${PROGRESS_ARCHIVE_REL}`,
+    );
+    expect(r.stdout).toContain("PLAN    progress  `## 2026-10-01 sweep`  lines 3-6  5000 bytes");
+    expect(r.stdout).toContain("nothing was written");
+    expect(bytesAt(root, BOARD_REL)).toBe(board);
+    expect(bytesAt(root, PROGRESS_REL)).toBe(PROGRESS_17K);
+    expect(existsSync(join(root, ARCHIVE_REL))).toBe(false);
+  });
+});
+
+describe("state-roll.js — every ambiguous shape is refused before the first write: exit 2, nothing written (plan 37-11)", () => {
+  it("a Done column holding a prose line between rows is exit 2 naming the line", () => {
+    const before = boardText(KEEP + 3).replace(`${row(4)}\n`, `${row(4)}\nThis line is prose, not a row.\n`);
+    const root = repo(before);
+    expectRefused(root, before, `line(s) ${lineNo(before, "This line is prose, not a row.")}`);
+    expect(existsSync(join(root, ARCHIVE_REL))).toBe(false);
+  });
+
+  it("an archive holding a second column heading is exit 2, its bytes untouched", () => {
+    const before = boardText(KEEP + 1);
+    const root = repo(before);
+    const archive = `${DONE_ARCHIVE_HEADING}\n${row(90)}\n\n## Done (WIP unlimited)\n${row(91)}\n`;
+    plant(root, BOARD_DONE_ARCHIVE_REL, archive);
+    expectRefused(root, before, `${BOARD_DONE_ARCHIVE_REL}: the Done archive must carry exactly one column heading`);
+    expect(bytesAt(root, BOARD_DONE_ARCHIVE_REL)).toBe(archive);
+  });
+
+  it("EDGE SPLIT-01: rows 21-23 already at the top of the archive (an interrupted roll) are exit 2 naming the three, nothing doubled", () => {
+    const before = boardText(KEEP + 3);
+    const root = repo(before);
+    // The shape an interruption after the archive write and before the board write leaves.
+    const archive = `${DONE_ARCHIVE_HEADING}\n${[KEEP + 1, KEEP + 2, KEEP + 3, 90].map(row).join("\n")}\n`;
+    plant(root, BOARD_DONE_ARCHIVE_REL, archive);
+    expectRefused(root, before, [KEEP + 1, KEEP + 2, KEEP + 3].map(idOf).join(", "));
+    expect(bytesAt(root, BOARD_DONE_ARCHIVE_REL)).toBe(archive);
+  });
+
+  it("EDGE SPLIT-06: a progress entry whose heading line is already in the progress archive is exit 2 naming it, nothing doubled", () => {
+    const board = boardText(1);
+    const root = repoWith(board, PROGRESS_17K);
+    const archive = `${PROGRESS_ARCHIVE_TITLE}\n\n${P_SEP15}`;
+    plant(root, PROGRESS_ARCHIVE_REL, archive);
+    expectRefused(root, board, "`## 2026-09-15 first pass`");
+    expect(bytesAt(root, PROGRESS_REL)).toBe(PROGRESS_17K);
+    expect(bytesAt(root, PROGRESS_ARCHIVE_REL)).toBe(archive);
+  });
+
+  it("a progress refusal with a Done roll due writes neither surface: every refusal is found before the first write", () => {
+    const board = boardText(KEEP + 2);
+    const root = repoWith(board, PROGRESS_17K);
+    plant(root, PROGRESS_ARCHIVE_REL, "# Not the progress archive\n");
+    expectRefused(root, board, `${PROGRESS_ARCHIVE_REL}: the progress archive must start with the line`);
+    expect(existsSync(join(root, BOARD_DONE_ARCHIVE_REL))).toBe(false);
+    expect(bytesAt(root, PROGRESS_REL)).toBe(PROGRESS_17K);
+  });
+
+  it("rows from a CRLF board into an existing LF archive are exit 2: the archive would mix line endings", () => {
+    const before = boardText(KEEP + 1, "\r\n");
+    const root = repo(before);
+    const archive = `${DONE_ARCHIVE_HEADING}\n${row(90)}\n`;
+    plant(root, BOARD_DONE_ARCHIVE_REL, archive);
+    expectRefused(root, before, "mixed LF and CRLF line endings");
+    expect(bytesAt(root, BOARD_DONE_ARCHIVE_REL)).toBe(archive);
+  });
+});
+
+describe("state-roll.js — the move-only surfaces are never touched (v3.0 D-7)", () => {
+  it("a planted file under .grugops/queue/done/ and one under memory-bank/50-decisions/ keep their bytes and mtime through a real roll", () => {
+    const root = repoWith(boardText(KEEP + 2), PROGRESS_17K);
+    const planted = [`${QUEUE_DONE_REL}/task-001.md`, `${DECISIONS_REL}/0001-standing.md`];
+    const past = new Date("2026-01-02T03:04:05Z");
+    for (const rel of planted) {
+      plant(root, rel, `kept ${rel}\n`);
+      utimesSync(join(root, rel), past, past);
+    }
+    const before = planted.map((rel) => lstatSync(join(root, rel)).mtimeMs);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("MOVED   `## 2026-09-15");
+    planted.forEach((rel, k) => {
+      expect(bytesAt(root, rel)).toBe(`kept ${rel}\n`);
+      expect(lstatSync(join(root, rel)).mtimeMs).toBe(before[k]);
+    });
+    expect(readdirSync(join(root, QUEUE_DONE_REL))).toEqual(["task-001.md"]);
+    expect(readdirSync(join(root, DECISIONS_REL))).toEqual(["0001-standing.md"]);
+  });
+
+  it("the runnable does not embed or name the move-only paths' constants", () => {
+    const source = readFileSync(ROLL_TS, "utf8");
+    expect(source.match(/QUEUE_DONE_REL|QUEUE_DONE_ARCHIVE_REL|DECISIONS_REL|DECISIONS_ARCHIVE_REL/g)).toBeNull();
+  });
+});
+
+/**
+ * Make the directory at `dir` refuse writes for the duration of `body`, or return a skip entry when this host
+ * does not enforce it (root, or a platform that ignores directory modes): a probe write decides, never a guess.
+ */
+function withReadOnlyDir(dir: string, position: string, body: () => void): void {
+  chmodSync(dir, 0o555);
+  try {
+    const probe = join(dir, ".write-probe");
+    let enforced = false;
+    try {
+      writeFileSync(probe, "");
+      rmSync(probe);
+    } catch {
+      enforced = true;
+    }
+    if (!enforced) {
+      console.warn(skipLine(skipEntry("read-only directory", position, "this host lets the process write a 0555 directory"), "the executeRoll faulty-io cases in scripts/state-rules.test.ts"));
+      return;
+    }
+    body();
+  } finally {
+    chmodSync(dir, 0o755);
+  }
+}
+
+describe("state-roll.js — exit 1 on a host: a write that fails part way is rolled back (plan 37-11)", () => {
+  it("a Done roll whose board write fails after the archive write is exit 1: both files hold their old bytes", () => {
+    const before = boardText(KEEP + 2);
+    const root = repo(before);
+    mkdirSync(join(root, ARCHIVE_REL));
+    const archive = `${DONE_ARCHIVE_HEADING}\n${row(90)}\n`;
+    writeFileSync(join(root, BOARD_DONE_ARCHIVE_REL), archive);
+    withReadOnlyDir(join(root, dirname(BOARD_REL)), "scripts/runnable-ref/state-roll.test.ts: the board directory (plan 37-11)", () => {
+      const r = run(root);
+      expect(r.status, r.stdout + r.stderr).toBe(1);
+      expect(r.stdout).toContain("ROLLED BACK (Done)");
+      expect(bytesAt(root, BOARD_REL)).toBe(before);
+      expect(bytesAt(root, BOARD_DONE_ARCHIVE_REL)).toBe(archive);
+    });
+  });
+
+  it("a progress roll that fails after a proven Done roll is exit 1: the Done roll stays, the progress files hold their old bytes", () => {
+    const board = boardText(KEEP + 2);
+    const root = repoWith(board, PROGRESS_17K);
+    withReadOnlyDir(join(root, dirname(PROGRESS_REL)), "scripts/runnable-ref/state-roll.test.ts: the memory bank directory (plan 37-11)", () => {
+      const r = run(root);
+      expect(r.status, r.stdout + r.stderr).toBe(1);
+      expect(r.stdout).toContain(`MOVED   ${idOf(KEEP + 1)}`);
+      expect(r.stdout).toContain("ROLLED BACK (progress)");
+      expect(doneIds(bytesAt(root, BOARD_REL) ?? "")).toHaveLength(KEEP);
+      expect(doneIds(bytesAt(root, BOARD_DONE_ARCHIVE_REL) ?? "")).toEqual([idOf(KEEP + 1), idOf(KEEP + 2)]);
+      expect(bytesAt(root, PROGRESS_REL)).toBe(PROGRESS_17K);
+      expect(existsSync(join(root, PROGRESS_ARCHIVE_REL))).toBe(false);
+    });
+  });
+});
+
 describe("state-roll.ts imports node: builtins only and carries its rules in the generated region (plan 37-10)", () => {
   const source = readFileSync(ROLL_TS, "utf8");
   const sf = ts.createSourceFile(ROLL_TS, source, ts.ScriptTarget.ES2022, true);
@@ -329,7 +605,18 @@ describe("state-roll.ts imports node: builtins only and carries its rules in the
   });
 
   it("the region carries executeRoll, checkConservation and atomicWrite exactly once each", () => {
-    for (const name of ["executeRoll", "checkConservation", "planDoneRoll", "planArchiveInsert", "atomicWrite"]) {
+    for (const name of [
+      "executeRoll",
+      "checkConservation",
+      "planDoneRoll",
+      "planArchiveInsert",
+      "planProgressRoll",
+      "planProgressAppend",
+      "doneDuplicateRefusal",
+      "lineEndingRefusal",
+      "sectionEndIndex",
+      "atomicWrite",
+    ]) {
       expect(source.split(`export function ${name}(`).length - 1, name).toBe(1);
     }
   });
