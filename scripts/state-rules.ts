@@ -349,6 +349,15 @@ export function formatFinding(f: StateFinding): string {
   return `${where}: ${measured}, budget ${grouped(f.budget)} ${f.unit} (BUDGETS.${f.key})${note}`;
 }
 
+/**
+ * `text` with every C0 code point, every C1 code point and DEL removed (agent-factory/contracts/board.md,
+ * `## Control characters on the way out`). With `multiLine` true, tab and newline are kept.
+ */
+export function stripControlChars(text: string, multiLine: boolean): string {
+  void multiLine;
+  return text;
+}
+
 /** Code-unit order, never the host locale's, so two runs on two hosts print the same order. */
 function compareCodeUnits(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;

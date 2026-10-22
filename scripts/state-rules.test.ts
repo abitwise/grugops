@@ -23,6 +23,7 @@ import {
   markerState,
   recordEntryNames,
   sortFindings,
+  stripControlChars,
   unmeasuredFinding,
   utf8Bytes,
   type BoardFacts,
@@ -417,6 +418,37 @@ describe("sortFindings", () => {
     const input = [f("b.md", "k"), f("a.md", "k")];
     sortFindings(input);
     expect(input.map((x) => x.rel)).toEqual(["b.md", "a.md"]);
+  });
+});
+
+describe("stripControlChars: control characters on the way out (plan 37-04, T-37-07)", () => {
+  /** Every C0 code point, DEL and every C1 code point, built from numbers so no raw byte sits in this file. */
+  const controls = [
+    ...Array.from({ length: 0x20 }, (_v, i) => i),
+    0x7f,
+    ...Array.from({ length: 0x20 }, (_v, i) => 0x80 + i),
+  ].map((c) => String.fromCharCode(c));
+
+  it("PREMISE: the control set is the 32 C0 code points, DEL and the 32 C1 code points", () => {
+    expect(controls).toHaveLength(65);
+  });
+
+  it("removes every C0, C1 and DEL code point from a single-line value", () => {
+    for (const c of controls) expect(stripControlChars(`a${c}b`, false), `U+${c.charCodeAt(0).toString(16)}`).toBe("ab");
+  });
+
+  it("keeps tab and newline in a multi-line value and removes every other control", () => {
+    for (const c of controls) {
+      const kept = c === "\t" || c === "\n";
+      expect(stripControlChars(`a${c}b`, true), `U+${c.charCodeAt(0).toString(16)}`).toBe(kept ? `a${c}b` : "ab");
+    }
+  });
+
+  it("removes an ESC-introduced sequence's introducer and the 8-bit CSI, and leaves printable text alone", () => {
+    const esc = String.fromCharCode(0x1b);
+    const csi = String.fromCharCode(0x9b);
+    expect(stripControlChars(`T-1${esc}[31m red${csi}0m.md`, false)).toBe("T-1[31m red0m.md");
+    expect(stripControlChars("caf\u00e9 \u2014 \u00a0ok", false)).toBe("caf\u00e9 \u2014 \u00a0ok");
   });
 });
 

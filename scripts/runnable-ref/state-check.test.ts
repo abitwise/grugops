@@ -1,4 +1,6 @@
-// state-check.test.ts — the host state checker's D-12 contract and marker severity (phase 37, plan 37-03).
+// state-check.test.ts — the host state checker's D-12 contract and marker severity (phase 37, plans 37-03 and
+// 37-04): every BUDGETS key, `--json`, sanitized output, links that leave the root, a FIFO, and the read-only
+// proof over the syntax tree of state-check.ts.
 //
 // Every case runs the COMMITTED state-check.js copied ALONE into an empty temporary directory, with no
 // node_modules and no sibling script reachable: the host-emulation that proves the file imports `node:`
@@ -11,12 +13,35 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { BOARD_REL, BUDGETS, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL } from "../../install/state-layout.js";
+import ts from "typescript";
+import {
+  BOARD_REL,
+  BUDGET_COUNT,
+  BUDGETS,
+  LAYOUT_MARKER_CONTENT,
+  LAYOUT_MARKER_REL,
+  NFR_CATALOG_REL,
+  NFR_DIR_REL,
+  PROGRESS_REL,
+  TICKETS_REL,
+  TRACE_DIR_REL,
+  TRACEABILITY_REL,
+} from "../../install/state-layout.js";
 
 const CHECK_JS = join(import.meta.dirname, "state-check.js");
+const CHECK_TS = join(import.meta.dirname, "state-check.ts");
 
 const tmpRoots: string[] = [];
 afterAll(() => {
@@ -63,9 +88,16 @@ function boardOfBytes(bytes: number): string {
   return text;
 }
 
-/** A temporary repository holding the given state files. */
+/**
+ * A temporary repository holding the given state files, and both index files, whose absence is a finding by
+ * name since plan 37-04 (so these board cases measure the board alone).
+ */
 function repo(files: { board?: string; marker?: string }): string {
   const root = mkTmp("grugops-state-check-repo-");
+  for (const rel of [TRACEABILITY_REL, NFR_CATALOG_REL]) {
+    mkdirSync(dirname(join(root, rel)), { recursive: true });
+    writeFileSync(join(root, rel), "# index\n");
+  }
   if (files.board !== undefined) {
     mkdirSync(dirname(join(root, BOARD_REL)), { recursive: true });
     writeFileSync(join(root, BOARD_REL), files.board);
@@ -171,5 +203,405 @@ describe("state-check.js — exit 2 is could-not-run, never paired with a pass l
     chmodSync(join(root, BOARD_REL), 0o644);
     expectCouldNotRun(r);
     expect(r.stderr).toContain(BOARD_REL);
+  });
+});
+
+// ── Every budget, the JSON form, sanitized output, links and FIFOs (plan 37-04, SPLIT-05, D-10, D-11, D-12) ──
+
+/** Write `rel` under `root`, creating its parent directories. */
+function plant(root: string, rel: string, text: string): void {
+  const p = join(root, ...rel.split("/"));
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, text);
+}
+
+/** Append text to a file of the repository. */
+function appendTo(root: string, rel: string, text: string): void {
+  const p = join(root, ...rel.split("/"));
+  writeFileSync(p, `${readFileSync(p, "utf8")}${text}`);
+}
+
+/** `text` padded with one trailing line of `x` to exactly `bytes` UTF-8 bytes. */
+function paddedTo(text: string, bytes: number): string {
+  const pad = bytes - Buffer.byteLength(text, "utf8");
+  if (pad < 2) throw new Error("PREMISE: the text is already at the requested size");
+  return `${text}${"x".repeat(pad - 1)}\n`;
+}
+
+/** A board that keeps every budget: one Ready row, and an empty Done column last, where appended rows land. */
+const CLEAN_BOARD = "# Board\n\n## Ready (WIP unlimited)\n\n- [ABC-001] a ready ticket\n\n## Done (WIP unlimited)\n";
+
+/**
+ * A repository that keeps every budget: a board, both index files, a `.gitkeep` keeper in the ticket, NFR and
+ * trace directories, one small ticket, and a progress file. Every path comes from the state-layout constants.
+ */
+function cleanRepo(marker?: string): string {
+  const root = mkTmp("grugops-state-check-clean-");
+  plant(root, BOARD_REL, CLEAN_BOARD);
+  plant(root, TRACEABILITY_REL, "# Traceability\n");
+  plant(root, NFR_CATALOG_REL, "# NFR catalog\n");
+  for (const dir of [TICKETS_REL, NFR_DIR_REL, TRACE_DIR_REL]) plant(root, `${dir}/.gitkeep`, "");
+  plant(root, `${TICKETS_REL}/ABC-001.md`, "# ABC-001\n");
+  plant(root, PROGRESS_REL, "# Progress\n");
+  if (marker !== undefined) plant(root, LAYOUT_MARKER_REL, marker);
+  return root;
+}
+
+/**
+ * One planter per BUDGETS key, each breaking ONLY its own budget in a clean repository. Typed as a Record over
+ * the BUDGETS keys, so a key without a planter fails typecheck, and counted against BUDGET_COUNT below, so the
+ * table cannot shrink either.
+ */
+const planters: Record<keyof typeof BUDGETS, (root: string) => void> = {
+  boardBytes: (r) => plant(r, BOARD_REL, paddedTo(CLEAN_BOARD, BUDGETS.boardBytes + 1)),
+  boardRowChars: (r) => {
+    const head = "- [ABC-901] ";
+    appendTo(r, BOARD_REL, `\n${head}${"t".repeat(BUDGETS.boardRowChars + 1 - head.length)}\n`);
+  },
+  boardUpdatedLines: (r) => appendTo(r, BOARD_REL, "\n_Updated: 2026-10-21 by qe\n_Updated: 2026-10-22 by qe\n"),
+  indexEntryBytes: (r) => appendTo(r, NFR_CATALOG_REL, `${"e".repeat(BUDGETS.indexEntryBytes + 1)}\n`),
+  ticketBytes: (r) => plant(r, `${TICKETS_REL}/ABC-002.md`, paddedTo("# ABC-002\n", BUDGETS.ticketBytes + 1)),
+  nfrBytes: (r) => plant(r, `${NFR_DIR_REL}/NFR-001.md`, paddedTo("# NFR-001\n", BUDGETS.nfrBytes + 1)),
+  traceBytes: (r) => plant(r, `${TRACE_DIR_REL}/ABC-083.md`, paddedTo("# ABC-083\n", BUDGETS.traceBytes + 1)),
+  progressBytes: (r) => plant(r, PROGRESS_REL, paddedTo("# Progress\n", BUDGETS.progressBytes + 1)),
+  doneRows: (r) =>
+    appendTo(
+      r,
+      BOARD_REL,
+      `\n${Array.from({ length: BUDGETS.doneRows + 1 }, (_v, i) => `- [ABC-${700 + i}] done row`).join("\n")}\n`,
+    ),
+};
+
+/** The stdout lines that name any budget constant. */
+function budgetLines(stdout: string): string[] {
+  return stdout.split("\n").filter((l) => l.includes("(BUDGETS."));
+}
+
+type JsonFinding = {
+  rel: string;
+  key: string;
+  measured: number | null;
+  budget: number;
+  unit: string;
+  line: number | null;
+};
+type JsonReport = { ok: boolean; marker: string; enforced: boolean; findings: JsonFinding[] };
+
+/** Run with `--json` and parse stdout, which must be exactly one JSON document on one line. */
+function runJson(root: string): { status: number | null; report: JsonReport; stdout: string; stderr: string } {
+  const r = run(root, "--json");
+  const lines = r.stdout.split("\n").filter((l) => l.length > 0);
+  expect(lines, `stdout: ${r.stdout} stderr: ${r.stderr}`).toHaveLength(1);
+  return { ...r, report: JSON.parse(lines[0] ?? "") as JsonReport };
+}
+
+/** Every C0 code point except newline, DEL and every C1 code point. Built from numbers: no raw byte here. */
+const CONTROL_EXCEPT_NEWLINE = new RegExp("[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f]");
+
+describe("state-check.js — every BUDGETS key, under the marker's severity (plan 37-04, D-04, D-05, D-10)", () => {
+  it("the planter table covers every BUDGETS key: its size equals BUDGET_COUNT", () => {
+    expect(Object.keys(planters).length).toBe(BUDGET_COUNT);
+    expect(Object.keys(planters).sort()).toEqual(Object.keys(BUDGETS).sort());
+  });
+
+  it("CONTROL: the clean repository (a .gitkeep in the ticket, NFR and trace directories) prints `No findings.` and exits 0", () => {
+    for (const marker of [undefined, LAYOUT_MARKER_CONTENT]) {
+      const r = run(cleanRepo(marker));
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toBe("No findings.\n");
+      expect(r.stderr).toBe("");
+    }
+  });
+
+  it.each(Object.keys(BUDGETS) as (keyof typeof BUDGETS)[])(
+    "a repository with only BUDGETS.%s broken prints WARN lines naming it, and exits 0 with no marker",
+    (key) => {
+      const root = cleanRepo();
+      planters[key](root);
+      const r = run(root);
+      expect(r.status, r.stderr).toBe(0);
+      const lines = budgetLines(r.stdout);
+      expect(lines.length, r.stdout).toBe(1);
+      for (const l of lines) {
+        expect(l, r.stdout).toContain(`(BUDGETS.${key})`);
+        expect(l.startsWith("WARN     "), r.stdout).toBe(true);
+      }
+      expect(r.stdout).toMatch(/^LAYOUT /m);
+      expect(r.stdout).not.toContain("FINDING");
+      expect(r.stdout).not.toContain("No findings.");
+    },
+  );
+
+  it.each(Object.keys(BUDGETS) as (keyof typeof BUDGETS)[])(
+    "with the D-14 marker, the broken BUDGETS.%s prints a FINDING line and exits 1",
+    (key) => {
+      const root = cleanRepo(`${LAYOUT_MARKER_CONTENT}\n`);
+      planters[key](root);
+      const r = run(root);
+      expect(r.status, r.stderr).toBe(1);
+      const lines = budgetLines(r.stdout);
+      expect(lines.length, r.stdout).toBe(1);
+      for (const l of lines) {
+        expect(l, r.stdout).toContain(`(BUDGETS.${key})`);
+        expect(l.startsWith("FINDING  "), r.stdout).toBe(true);
+      }
+      expect(r.stdout).not.toContain("WARN");
+      expect(r.stdout).not.toContain("No findings.");
+    },
+  );
+
+  it("a missing index file is a finding by name, never a silent pass", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    rmSync(join(root, ...TRACEABILITY_REL.split("/")));
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${TRACEABILITY_REL}: not measured`);
+  });
+
+  it("findings print in sortFindings order, and two runs print identical output", () => {
+    const root = cleanRepo();
+    for (const key of Object.keys(planters) as (keyof typeof BUDGETS)[]) planters[key](root);
+    const a = run(root);
+    const b = run(root);
+    expect(a.stdout).toBe(b.stdout);
+    const rels = budgetLines(a.stdout).map((l) => l.slice("WARN     ".length).split(":")[0] ?? "");
+    expect(rels.length).toBe(BUDGET_COUNT);
+    const sorted = [...rels].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0));
+    expect(rels).toEqual(sorted);
+  });
+});
+
+describe("state-check.js --json — one document { ok, marker, enforced, findings } and nothing else (D-12)", () => {
+  it("a clean repository with no marker: ok, marker absent, not enforced, no findings, exit 0", () => {
+    const r = runJson(cleanRepo());
+    expect(r.status).toBe(0);
+    expect(r.report).toEqual({ ok: true, marker: "absent", enforced: false, findings: [] });
+    expect(r.stderr).toBe("");
+  });
+
+  it("a broken budget with the marker: ok false exactly when the exit code is 1, and the finding carries every field", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    planters.boardRowChars(root);
+    const r = runJson(root);
+    expect(r.status).toBe(1);
+    expect(r.report.ok).toBe(false);
+    expect(r.report.marker).toBe("valid");
+    expect(r.report.enforced).toBe(true);
+    expect(r.report.findings).toHaveLength(1);
+    const f = r.report.findings[0];
+    expect(Object.keys(f ?? {})).toEqual(expect.arrayContaining(["rel", "key", "measured", "budget", "unit", "line"]));
+    expect(f).toMatchObject({ rel: BOARD_REL, key: "boardRowChars", budget: BUDGETS.boardRowChars, unit: "characters" });
+    expect(f?.measured).toBe(BUDGETS.boardRowChars + 1);
+    expect(typeof f?.line).toBe("number");
+  });
+
+  it("the same finding with no marker is a warning: ok true, not enforced, exit 0, and no LAYOUT line on stdout", () => {
+    const root = cleanRepo();
+    planters.ticketBytes(root);
+    const r = runJson(root);
+    expect(r.status).toBe(0);
+    expect(r.report.ok).toBe(true);
+    expect(r.report.enforced).toBe(false);
+    expect(r.report.findings.map((f) => f.key)).toEqual(["ticketBytes"]);
+    expect(r.report.findings[0]?.line).toBeNull();
+  });
+
+  it("an unrecognized marker is marker invalid and not enforced", () => {
+    const root = cleanRepo("layout: v2\n");
+    planters.nfrBytes(root);
+    const r = runJson(root);
+    expect(r.status).toBe(0);
+    expect(r.report).toMatchObject({ ok: true, marker: "invalid", enforced: false });
+  });
+
+  it("could-not-run with --json is exit 2 with nothing on stdout", () => {
+    const r = run(join(mkTmp("grugops-state-check-gone-"), "does-not-exist"), "--json");
+    expect(r.status).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain("did not run");
+  });
+
+  it("an unknown flag is exit 2 with usage on stderr, never a pass", () => {
+    const r = run(cleanRepo(), "--jsno");
+    expect(r.status).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain("Usage: node state-check.js <repo-root> [--json]");
+  });
+});
+
+describe("state-check.js — every printed value is sanitized (T-37-07)", () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  const CSI = String.fromCharCode(0x9b);
+  const DEL = String.fromCharCode(0x7f);
+
+  // Windows refuses control characters in file names, so there is no such file to build there.
+  it.skipIf(process.platform === "win32")(
+    "a ticket file named with ESC, BEL, DEL and a C1 character prints with them removed, in the text and the JSON",
+    () => {
+      const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+      const name = `ABC-0${ESC}[31m${CSI}0${BEL}${DEL}2.md`;
+      const clean = "ABC-0[31m02.md";
+      plant(root, `${TICKETS_REL}/${name}`, paddedTo("# ticket\n", BUDGETS.ticketBytes + 1));
+      const text = run(root);
+      expect(text.status, text.stderr).toBe(1);
+      expect(text.stdout).toContain(`FINDING  ${TICKETS_REL}/${clean}: 65,537 bytes`);
+      expect(CONTROL_EXCEPT_NEWLINE.test(text.stdout), JSON.stringify(text.stdout)).toBe(false);
+      const json = runJson(root);
+      expect(CONTROL_EXCEPT_NEWLINE.test(json.stdout), JSON.stringify(json.stdout)).toBe(false);
+      expect(json.report.findings.map((f) => f.rel)).toEqual([`${TICKETS_REL}/${clean}`]);
+    },
+  );
+
+  it("a root argument carrying control characters is echoed on stderr with them removed", () => {
+    const gone = join(mkTmp("grugops-state-check-gone-"), `no${ESC}]0;title${BEL}pe${CSI}`);
+    const r = run(gone);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("no]0;titlepe");
+    expect(CONTROL_EXCEPT_NEWLINE.test(r.stderr), JSON.stringify(r.stderr)).toBe(false);
+  });
+});
+
+describe("state-check.js — a path that resolves outside the root is refused by name, never measured", () => {
+  // Skipped on win32, where making a symbolic link needs a privilege the CI runner may not hold.
+  it.skipIf(process.platform === "win32")(
+    "a symlinked ticket directory pointing outside the repository root is reported as outside the root",
+    () => {
+      const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+      const outside = mkTmp("grugops-state-check-outside-");
+      writeFileSync(join(outside, "ABC-009.md"), paddedTo("# ABC-009\n", BUDGETS.ticketBytes + 1));
+      rmSync(join(root, ...TICKETS_REL.split("/")), { recursive: true, force: true });
+      symlinkSync(outside, join(root, ...TICKETS_REL.split("/")), "dir");
+      const r = run(root);
+      expect(r.status, r.stderr).toBe(1);
+      expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}: not measured`);
+      expect(r.stdout).toContain("outside the repository root");
+      expect(r.stdout).not.toContain("ABC-009");
+      expect(r.stdout).not.toContain("65,537");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "a ticket entry linked to a file outside the root is reported as outside the root and not measured",
+    () => {
+      const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+      const outside = mkTmp("grugops-state-check-outside-");
+      writeFileSync(join(outside, "big.md"), paddedTo("# big\n", BUDGETS.ticketBytes + 1));
+      symlinkSync(join(outside, "big.md"), join(root, ...TICKETS_REL.split("/"), "ABC-010.md"));
+      const r = run(root);
+      expect(r.status, r.stderr).toBe(1);
+      expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}/ABC-010.md: not measured`);
+      expect(r.stdout).toContain("outside the repository root");
+      expect(r.stdout).not.toContain("65,537");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")("a board linked outside the root is a finding by name and is not read", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const outside = mkTmp("grugops-state-check-outside-");
+    writeFileSync(join(outside, "board.md"), paddedTo(CLEAN_BOARD, BUDGETS.boardBytes + 1));
+    rmSync(join(root, ...BOARD_REL.split("/")));
+    symlinkSync(join(outside, "board.md"), join(root, ...BOARD_REL.split("/")));
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${BOARD_REL}: not measured`);
+    expect(r.stdout).toContain("outside the repository root");
+    expect(r.stdout).not.toContain("24,577");
+  });
+});
+
+/** Whether this platform can make a FIFO; probed once, so a skip is decided by the platform, not guessed. */
+const FIFO_OK = ((): boolean => {
+  if (process.platform === "win32") return false;
+  const probe = join(mkTmp("grugops-state-check-fifo-probe-"), "probe");
+  return spawnSync("mkfifo", [probe]).status === 0;
+})();
+if (!FIFO_OK) {
+  // A loud skip: the count of skipped FIFO cases shows in the vitest summary, and this line says why.
+  console.warn("state-check.test.ts: SKIPPING 2 FIFO cases: this platform cannot make a FIFO with mkfifo");
+}
+
+describe("state-check.js — a FIFO at a state path never hangs the check (T-37-31)", () => {
+  it.skipIf(!FIFO_OK)("a FIFO at the board path exits 2 naming the board, in bounded time", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    rmSync(join(root, ...BOARD_REL.split("/")));
+    expect(spawnSync("mkfifo", [join(root, ...BOARD_REL.split("/"))]).status).toBe(0);
+    const r = spawnSync(process.execPath, [HOST_JS, root], { encoding: "utf8", timeout: 15_000 });
+    expect(r.error, "the check did not finish in bounded time").toBeUndefined();
+    expect(r.status).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain(BOARD_REL);
+  });
+
+  it.skipIf(!FIFO_OK)("a FIFO ending .md in the ticket directory is a finding by name, never opened", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    expect(spawnSync("mkfifo", [join(root, ...TICKETS_REL.split("/"), "ABC-077.md")]).status).toBe(0);
+    const r = spawnSync(process.execPath, [HOST_JS, root], { encoding: "utf8", timeout: 15_000 });
+    expect(r.error, "the check did not finish in bounded time").toBeUndefined();
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}/ABC-077.md: not measured`);
+  });
+});
+
+describe("state-check.ts is read-only: its syntax tree calls no file-mutating API (SPLIT-05 concurrency)", () => {
+  const source = readFileSync(CHECK_TS, "utf8");
+  const sf = ts.createSourceFile(CHECK_TS, source, ts.ScriptTarget.ES2022, true);
+  const calls: ts.CallExpression[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isCallExpression(n)) calls.push(n);
+    n.forEachChild(visit);
+  };
+  visit(sf);
+
+  /** The called name: the identifier, or the last property of a property access. */
+  const calleeName = (c: ts.CallExpression): string => {
+    const e = c.expression;
+    if (ts.isIdentifier(e)) return e.text;
+    if (ts.isPropertyAccessExpression(e)) return e.name.text;
+    return `<${ts.SyntaxKind[e.kind]}>`;
+  };
+
+  /** Writing to the two standard streams is output, not a file write. */
+  const STREAM_WRITES = new Set(["process.stdout.write", "process.stderr.write"]);
+  const MUTATING =
+    /^(write|writev|writeFile|appendFile|rename|unlink|rm|rmdir|mkdir|mkdtemp|copyFile|cp|symlink|link|truncate|ftruncate|chmod|lchmod|fchmod|chown|lchown|fchown|utimes|lutimes|futimes|createWriteStream|watch|watchFile)(Sync)?$/;
+
+  it("PREMISE: the walk saw the reader's open and the output writes", () => {
+    expect(calls.length).toBeGreaterThan(50);
+    expect(calls.map(calleeName)).toContain("openSync");
+    expect(calls.map((c) => c.expression.getText(sf))).toContain("process.stdout.write");
+  });
+
+  it("imports node:fs and node:path only", () => {
+    const specifiers = sf.statements
+      .filter(ts.isImportDeclaration)
+      .map((d) => (d.moduleSpecifier as ts.StringLiteral).text)
+      .sort();
+    expect([...new Set(specifiers)]).toEqual(["node:fs", "node:path"]);
+  });
+
+  it("calls no write, rename, unlink, rm, rmdir, mkdir, copyFile, symlink, truncate or appendFile API", () => {
+    const hits = calls
+      .filter((c) => MUTATING.test(calleeName(c)) && !STREAM_WRITES.has(c.expression.getText(sf)))
+      .map((c) => c.expression.getText(sf));
+    expect(hits).toEqual([]);
+  });
+
+  it("calls nothing through a computed member, so no API name can hide from the walk", () => {
+    const hits = calls.filter((c) => ts.isElementAccessExpression(c.expression)).map((c) => c.getText(sf));
+    expect(hits).toEqual([]);
+  });
+
+  it("opens no descriptor with a w, a or r+ flag, or with O_WRONLY, O_RDWR, O_CREAT, O_APPEND or O_TRUNC", () => {
+    const opens = calls.filter((c) => /^(open|openSync)$/.test(calleeName(c)));
+    expect(opens.length).toBeGreaterThan(0);
+    for (const c of opens) {
+      const flag = c.arguments[1];
+      expect(flag, c.getText(sf)).toBeDefined();
+      const text = flag?.getText(sf) ?? "";
+      expect(text, c.getText(sf)).not.toMatch(/O_WRONLY|O_RDWR|O_CREAT|O_APPEND|O_TRUNC/);
+      if (flag !== undefined && ts.isStringLiteral(flag)) expect(flag.text).toBe("r");
+      expect(text).toMatch(/O_RDONLY|^["']r["']$/);
+    }
   });
 });
