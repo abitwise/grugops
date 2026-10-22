@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-07-PLAN.md
-last_updated: "2026-10-22T12:51:22.241Z"
+stopped_at: Completed 37-08-PLAN.md
+last_updated: "2026-10-22T13:43:20.121Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-07 (trace-render --check and the hand-written and case-fold refusals)
-state_head: 41e8a0a59798a8fa5415db93713e0b822e9ced9c
+last_activity_desc: Completed 37-08 (own trace render through the host runnable, directory-compare freshness gate in CI)
+state_head: 6e5a6182252507244d91843c17099952f8e35830
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 22
+  completed_plans: 23
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 8 of 19
+Plan: 9 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-07 (trace-render --check and the hand-written and case-fold refusals)
+Last activity: 2026-10-22 — Completed 37-08 (own trace render through the host runnable, directory-compare freshness gate in CI)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -736,6 +736,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P05 | 29 min | 2 tasks | 8 files |
 | Phase 37 P06 | 29 min | 1 tasks | 15 files |
 | Phase 37 P07 | 12 min | 1 tasks | 8 files |
+| Phase 37 P08 | 48 min | 1 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -2020,6 +2021,8 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-06: writer census is tree-wide and shape-derived (write primitive + renameSync); outside regions pinned to install backupEditedKitFiles, claim.ts atomicWrite, context-io atomicWrite
 - [Phase 37]: 37-07: the trace write mode refuses (exit 1, nothing written) a hand-written index or trace file and two ticket identifiers that fold to one file name; --check is read-only, exit 0 fresh / 1 naming each missing, extra, changed or hand-written file / 2 could not run
 - [Phase 37]: 37-07: the trace write mode acts only on compareTraceTree's sets, writes only missing and changed files, and removes extra generated files BEFORE writing, because on APFS a rename onto abc-1.md keeps the old case
+- [Phase 37]: 37-08: scripts/trace-render.js is a wrapper over the committed host runnable, and trace freshness is the runnable's --check (only exit 0 is fresh); the own memory-bank/plans/traceability.md is the zero-row generated index
+- [Phase 37]: 37-08: the frontmatter local-grammar census admits the note reader embedded in runnable-ref/trace-render.ts by the generated-region rule (fresh region of an EMBED_SPECS target), never by name
 
 ### Pending Todos
 
@@ -2351,8 +2354,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T12:51:13.259Z
-Stopped at: Completed 37-07-PLAN.md
+Last session: 2026-10-22T13:43:19.740Z
+Stopped at: Completed 37-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
