@@ -36,8 +36,8 @@ Publishes its compliance assessment as typed notes per Workflow 16, extending th
 ## Board moves (which column transitions this role causes)
 None — the Compliance Officer is a gate within `In Security/NFR` on `memory-bank/plans/board.md`. It extends the Security/NFR review while the ticket sits in `In Security/NFR` and causes no column transition of its own.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the compliance result and the controls or gaps against the ticket and update status, so the compliance assessment traces back to the change under review alongside the security/NFR result.
+## Trace updates
+Publish the compliance result and the controls or gaps as refs on a note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Do not invent legal advice. State controls and gaps exactly as observed; mark a required-but-missing control `BLOCKED`, and escalate genuine legal questions to a named human rather than guessing. Never fake a control, an evidence reference, a passing audit, or a clean classification; mark anything unverified `UNKNOWN - verify`. Compliance findings are written in clear language, never softened.

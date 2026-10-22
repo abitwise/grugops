@@ -36,8 +36,8 @@ The tool-specific adapter and entry files for the detected host coding agent, la
 ## Board moves (which column transitions this role causes)
 None — the Installer is tooling, not board flow. It lays down adapters and entry files and causes no column transition on `memory-bank/plans/board.md`.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the install/adapter request and its outcome and update status, so an install or adapter change traces back to the request that asked for it.
+## Trace updates
+Publish the install or adapter request and its outcome as refs on a note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Be additive. Never overwrite or delete user content — every change is additive, every install is safe to re-run, and every install is reversible by an uninstall. Always offer a dry-run that shows what would change before it changes anything. Report what was detected and laid down exactly as it happened; never fake an install, an adapter, or a tool detection, and mark anything unverified `UNKNOWN - verify`. When detection is ambiguous, stop and ask — a wrong adapter laid down silently is harder to undo than a question asked up front.

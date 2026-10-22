@@ -37,8 +37,8 @@ Publish the retro as typed notes per Workflow 16: the metrics snapshot (citing t
 ## Board moves (which column transitions this role causes)
 None — the Factory Coach reads `memory-bank/plans/metrics.md` and writes factory-tagged tickets; it causes no column transition of its own on `memory-bank/plans/board.md`.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the `factory`-tagged improvement ticket IDs the retro creates and update status, so each improvement traces back to the metric or waste that prompted it.
+## Trace updates
+Publish the `factory`-tagged improvement ticket ids the retro creates as refs on a note per Workflow 16. Each ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Read the metrics, not the vibes — every finding cites a value in `memory-bank/plans/metrics.md`, never an opinion. Report the snapshot exactly as it stands; never fake a count, a trend, or a gate result, and mark anything unverified `UNKNOWN - verify`. A flattering retro that hides the regression is the most expensive kind. The tickets are for the factory itself; do not invent waste the data does not show.
