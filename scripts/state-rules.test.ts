@@ -10,22 +10,38 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
-import { BUDGETS, LAYOUT_MARKER_CONTENT, NFR_CATALOG_REL, NFR_DIR_REL } from "../install/state-layout.js";
+import {
+  BUDGETS,
+  DECISIONS_ARCHIVE_REL,
+  DECISIONS_REL,
+  LAYOUT_MARKER_CONTENT,
+  NFR_CATALOG_REL,
+  NFR_DIR_REL,
+  PROGRESS_REL,
+  QUEUE_DONE_ARCHIVE_REL,
+  QUEUE_DONE_REL,
+} from "../install/state-layout.js";
 import { normalizeDocument, parseBoard, stripHtmlComments } from "./board-model.js";
 import {
   boardBudgetFindings,
   budgetEntryNames,
+  doneRowCount,
   doneRowFindings,
   fileBytesFinding,
   formatFinding,
   formatMarkerWarning,
+  formatRollable,
   indexLineFindings,
   integrityFinding,
   markerState,
+  moveOnlyFindings,
   nfrIntegrityFindings,
   nfrLinkTarget,
   parseNfrIndex,
+  progressBytesFinding,
+  progressEntries,
   recordEntryNames,
+  rollableSurfaces,
   sortFindings,
   stripControlChars,
   unmeasuredFinding,
@@ -609,6 +625,148 @@ describe("nfrIntegrityFindings: the index and the NFR files in both directions (
       `nfr-missing-file|${DIR}/NFR-004.md|-`,
       `nfr-bad-file-name|${DIR}/notes.md|-`,
     ]);
+  });
+});
+
+// ── Dated progress entries, rollable surfaces and move-only copies (plan 37-05, D-08, D-09, v3.0 D-7) ──
+
+describe("progressEntries: only a `##` heading that begins with an ISO date opens a status entry (D-09)", () => {
+  it("dates `## 2026-10-21 — sweep` and `## 2026-10-21`, and not a standing heading, a `###` heading or `##2026-10-21`", () => {
+    const text = [
+      "# Progress", // 1
+      "## 2026-10-21 — sweep", // 2
+      "swept the board", // 3
+      "## Standing directive 2026-10-21", // 4
+      "keep reading this", // 5
+      "### 2026-10-21 note", // 6
+      "##2026-10-21", // 7
+      "## 2026-10-21", // 8
+      "last entry", // 9
+      "",
+    ].join("\n");
+    const p = progressEntries(text);
+    expect(p.dated).toEqual([
+      { date: "2026-10-21", heading: "2026-10-21 — sweep", startLine: 2, endLine: 3 },
+      { date: "2026-10-21", heading: "2026-10-21", startLine: 8, endLine: 9 },
+    ]);
+    expect(p.standing).toEqual([{ heading: "Standing directive 2026-10-21", line: 4 }]);
+  });
+
+  it("an entry spans to the line before the next `##` heading, and a `###` heading inside it does not end it", () => {
+    const p = progressEntries(["## 2026-10-20 a", "### 2026-10-20 detail", "body", "## What works", "x"].join("\n"));
+    expect(p.dated).toEqual([{ date: "2026-10-20", heading: "2026-10-20 a", startLine: 1, endLine: 3 }]);
+    expect(p.standing).toEqual([{ heading: "What works", line: 4 }]);
+  });
+
+  it("the last entry runs to the end of the file, with or without a final newline", () => {
+    expect(progressEntries("## 2026-10-20\na\nb\n").dated[0]?.endLine).toBe(3);
+    expect(progressEntries("## 2026-10-20\na\nb").dated[0]?.endLine).toBe(3);
+  });
+
+  it("a date that is not a calendar date, or a date glued to more text, is standing, never rollable", () => {
+    const p = progressEntries(["## 2026-13-01 x", "## 2026-02-30 x", "## 2026-10-21x", "## 2026-1-21 x"].join("\n"));
+    expect(p.dated).toEqual([]);
+    expect(p.standing.map((s) => s.line)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("the seed's undated headings are all standing", () => {
+    const p = progressEntries(["# Progress", "## What works", "", "## What's left", "", "## Known issues", ""].join("\n"));
+    expect(p.dated).toEqual([]);
+    expect(p.standing.map((s) => s.heading)).toEqual(["What works", "What's left", "Known issues"]);
+  });
+});
+
+describe("doneRowCount", () => {
+  it("counts the ticket rows under every column named Done", () => {
+    const model = parseBoard(
+      ["# Board", "## Ready (WIP unlimited)", "- [ABC-001] r", "## Done (WIP unlimited)", "- [ABC-002] d", "- [ABC-003] d", ""].join("\n"),
+    );
+    expect(doneRowCount(model)).toBe(2);
+    expect(doneRowCount(NO_ROWS)).toBe(0);
+  });
+});
+
+describe("rollableSurfaces: when a roll is due (D-07, D-08, D-09)", () => {
+  const TWO_DATED = progressEntries("## 2026-10-20 a\nx\n## 2026-10-21 b\ny\n");
+  const STANDING = progressEntries("## Standing directive\nx\n## What works\ny\n");
+  const OVER = BUDGETS.progressBytes + 1;
+
+  it("21 Done rows make the Done surface rollable; 20 do not", () => {
+    expect(rollableSurfaces(BUDGETS.doneRows + 1, null, null, BUDGETS).map((r) => r.surface)).toEqual(["done"]);
+    expect(rollableSurfaces(BUDGETS.doneRows, null, null, BUDGETS)).toEqual([]);
+    expect(rollableSurfaces(null, null, null, BUDGETS)).toEqual([]);
+  });
+
+  it(`a progress file of ${OVER.toLocaleString("en-US")} bytes with two dated entries is rollable; the same size with only standing sections is not`, () => {
+    expect(rollableSurfaces(0, OVER, TWO_DATED, BUDGETS)).toEqual([
+      { surface: "progress", key: "progressBytes", measured: OVER, budget: BUDGETS.progressBytes, unit: "bytes" },
+    ]);
+    expect(rollableSurfaces(0, OVER, STANDING, BUDGETS)).toEqual([]);
+  });
+
+  it("a progress file within its budget is not rollable, however many dated entries it holds", () => {
+    expect(rollableSurfaces(0, BUDGETS.progressBytes, TWO_DATED, BUDGETS)).toEqual([]);
+  });
+
+  it("both apply: the surfaces come in the fixed order done, progress", () => {
+    expect(rollableSurfaces(BUDGETS.doneRows + 5, OVER, TWO_DATED, BUDGETS).map((r) => r.surface)).toEqual(["done", "progress"]);
+  });
+
+  it("formatRollable spells the surface, the measure and what the surface keeps", () => {
+    const [done] = rollableSurfaces(21, null, null, BUDGETS);
+    expect(done === undefined ? "" : formatRollable(done)).toBe("done: 21 rows, keeps 20 rows (BUDGETS.doneRows)");
+    const [progress] = rollableSurfaces(0, OVER, TWO_DATED, BUDGETS);
+    expect(progress === undefined ? "" : formatRollable(progress)).toBe(
+      "progress: 16,385 bytes, keeps 16,384 bytes (BUDGETS.progressBytes)",
+    );
+  });
+});
+
+describe("progressBytesFinding: an over-budget progress file with nothing to roll says where its content belongs (D-09)", () => {
+  const OVER = BUDGETS.progressBytes + 1;
+
+  it("with no dated entry, the note names each standing heading and the decision records directory", () => {
+    const standing = progressEntries("## Standing directive one\nx\n## What works\ny\n");
+    const f = progressBytesFinding(PROGRESS_REL, OVER, standing, DECISIONS_REL, BUDGETS);
+    expect(f?.key).toBe("progressBytes");
+    expect(f?.measured).toBe(OVER);
+    expect(f?.note).toContain("`## Standing directive one`");
+    expect(f?.note).toContain("`## What works`");
+    expect(f?.note).toContain(`${DECISIONS_REL}/`);
+  });
+
+  it("with a dated entry, the finding carries no such note (the ROLLABLE report says what to run)", () => {
+    const dated = progressEntries("## 2026-10-21 sweep\nx\n## What works\ny\n");
+    expect(progressBytesFinding(PROGRESS_REL, OVER, dated, DECISIONS_REL, BUDGETS)?.note).toBeUndefined();
+  });
+
+  it("within its budget there is no finding", () => {
+    expect(progressBytesFinding(PROGRESS_REL, BUDGETS.progressBytes, null, DECISIONS_REL, BUDGETS)).toBeNull();
+  });
+});
+
+describe("moveOnlyFindings: a move leaves one copy (SPLIT-06, v3.0 D-7)", () => {
+  it("a name present in both .grugops/queue/done/ and its archive folder is one finding naming both paths", () => {
+    const found = moveOnlyFindings(QUEUE_DONE_REL, ["T-1.md", "T-2.md"], QUEUE_DONE_ARCHIVE_REL, ["T-2.md", "T-0.md"]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ rel: `${QUEUE_DONE_REL}/T-2.md`, key: "move-only-copy", budget: null, unit: null });
+    expect(found[0]?.note).toContain(`${QUEUE_DONE_ARCHIVE_REL}/T-2.md`);
+  });
+
+  it("the same for memory-bank/50-decisions/ and its archive folder", () => {
+    const found = moveOnlyFindings(DECISIONS_REL, ["ADR-001.md"], DECISIONS_ARCHIVE_REL, ["ADR-001.md"]);
+    expect(found.map((f) => f.rel)).toEqual([`${DECISIONS_REL}/ADR-001.md`]);
+    expect(found[0]?.note).toContain(`${DECISIONS_ARCHIVE_REL}/ADR-001.md`);
+  });
+
+  it("a keeper in both folders (.gitkeep, .DS_Store) is not a copied record", () => {
+    expect(moveOnlyFindings(DECISIONS_REL, [".gitkeep", ".DS_Store", "ADR-001.md"], DECISIONS_ARCHIVE_REL, [".gitkeep", ".DS_Store"])).toEqual([]);
+  });
+
+  it("no name in both is no finding, and the findings come in code-unit order", () => {
+    expect(moveOnlyFindings(DECISIONS_REL, ["a.md"], DECISIONS_ARCHIVE_REL, ["b.md"])).toEqual([]);
+    const found = moveOnlyFindings(DECISIONS_REL, ["b.md", "a.md"], DECISIONS_ARCHIVE_REL, ["a.md", "b.md"]);
+    expect(found.map((f) => f.rel)).toEqual([`${DECISIONS_REL}/a.md`, `${DECISIONS_REL}/b.md`]);
   });
 });
 

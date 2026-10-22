@@ -353,6 +353,30 @@ export function nfrIntegrityFindings(indexRel, parsed, fileNames, nfrDirRel) {
     }
     return findings;
 }
+/** PLACEHOLDER (plan 37-05 RED): the progress-entry grammar lands in GREEN. */
+export function progressEntries(_text) {
+    return { dated: [], standing: [] };
+}
+/** PLACEHOLDER (plan 37-05 RED). */
+export function doneRowCount(_model) {
+    return 0;
+}
+/** PLACEHOLDER (plan 37-05 RED). */
+export function rollableSurfaces(_doneRowCount, _progressBytes, _progress, _budgets) {
+    return [];
+}
+/** PLACEHOLDER (plan 37-05 RED). */
+export function formatRollable(_r) {
+    return "";
+}
+/** PLACEHOLDER (plan 37-05 RED). */
+export function progressBytesFinding(rel, bytes, _progress, _decisionsRel, budgets) {
+    return fileBytesFinding(rel, bytes, "progressBytes", budgets);
+}
+/** PLACEHOLDER (plan 37-05 RED). */
+export function moveOnlyFindings(_liveRel, _liveNames, _archiveRel, _archiveNames) {
+    return [];
+}
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
 /** `n` with its digits grouped in threes by commas, independent of the host locale. */
 function grouped(n) {

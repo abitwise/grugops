@@ -522,6 +522,80 @@ export function nfrIntegrityFindings(
   return findings;
 }
 
+// ── Dated progress entries, rollable surfaces and move-only copies (D-07, D-08, D-09, v3.0 D-7) ───
+
+/** One dated status entry of the progress file: from its heading line to the line before the next `##` heading. */
+export type DatedEntry = {
+  readonly date: string;
+  readonly heading: string;
+  readonly startLine: number;
+  readonly endLine: number;
+};
+
+/** One `##` section of the progress file that is not a dated status entry: standing content, never rolled. */
+export type StandingSection = { readonly heading: string; readonly line: number };
+
+/** What progressEntries reads from the progress file. */
+export type ProgressEntries = { readonly dated: readonly DatedEntry[]; readonly standing: readonly StandingSection[] };
+
+/** PLACEHOLDER (plan 37-05 RED): the progress-entry grammar lands in GREEN. */
+export function progressEntries(_text: string): ProgressEntries {
+  return { dated: [], standing: [] };
+}
+
+/** PLACEHOLDER (plan 37-05 RED). */
+export function doneRowCount(_model: BoardFacts): number {
+  return 0;
+}
+
+/** A surface state-roll moves entries out of. */
+export type RollSurface = "done" | "progress";
+
+/** One surface over its budget that state-roll can roll. */
+export type RollableSurface = {
+  readonly surface: RollSurface;
+  readonly key: "doneRows" | "progressBytes";
+  readonly measured: number;
+  readonly budget: number;
+  readonly unit: StateUnit;
+};
+
+/** PLACEHOLDER (plan 37-05 RED). */
+export function rollableSurfaces(
+  _doneRowCount: number | null,
+  _progressBytes: number | null,
+  _progress: ProgressEntries | null,
+  _budgets: StateBudgets,
+): RollableSurface[] {
+  return [];
+}
+
+/** PLACEHOLDER (plan 37-05 RED). */
+export function formatRollable(_r: RollableSurface): string {
+  return "";
+}
+
+/** PLACEHOLDER (plan 37-05 RED). */
+export function progressBytesFinding(
+  rel: string,
+  bytes: number,
+  _progress: ProgressEntries | null,
+  _decisionsRel: string,
+  budgets: StateBudgets,
+): StateFinding | null {
+  return fileBytesFinding(rel, bytes, "progressBytes", budgets);
+}
+
+/** PLACEHOLDER (plan 37-05 RED). */
+export function moveOnlyFindings(
+  _liveRel: string,
+  _liveNames: readonly string[],
+  _archiveRel: string,
+  _archiveNames: readonly string[],
+): StateFinding[] {
+  return [];
+}
+
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
 
 /** `n` with its digits grouped in threes by commas, independent of the host locale. */

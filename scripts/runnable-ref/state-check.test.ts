@@ -31,11 +31,15 @@ import {
   BOARD_REL,
   BUDGET_COUNT,
   BUDGETS,
+  DECISIONS_ARCHIVE_REL,
+  DECISIONS_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   NFR_CATALOG_REL,
   NFR_DIR_REL,
   PROGRESS_REL,
+  QUEUE_DONE_ARCHIVE_REL,
+  QUEUE_DONE_REL,
   TICKETS_REL,
   TRACE_DIR_REL,
   TRACEABILITY_REL,
@@ -112,6 +116,19 @@ function repo(files: { board?: string; marker?: string }): string {
 
 const OVER = BUDGETS.boardBytes + 1;
 
+/** The MOVE-ONLY count lines of a run's stdout (plan 37-05: one per move-only surface, on every run). */
+function countLines(stdout: string): string[] {
+  return stdout.split("\n").filter((l) => l.startsWith("MOVE-ONLY "));
+}
+
+/** stdout without its MOVE-ONLY count lines, for the cases that are about the findings alone. */
+function withoutCounts(stdout: string): string {
+  return stdout
+    .split("\n")
+    .filter((l) => !l.startsWith("MOVE-ONLY "))
+    .join("\n");
+}
+
 describe("state-check.js — the board budget under the marker's severity (D-04, D-05, D-12)", () => {
   it("PREMISE: the copy sits alone in its directory and imports node: builtins only", () => {
     const src = readFileSync(HOST_JS, "utf8");
@@ -141,7 +158,7 @@ describe("state-check.js — the board budget under the marker's severity (D-04,
   it("a board at the budget with the marker exits 0 with `No findings.`", () => {
     const r = run(repo({ board: boardOfBytes(BUDGETS.boardBytes), marker: LAYOUT_MARKER_CONTENT }));
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout.trim()).toBe("No findings.");
+    expect(withoutCounts(r.stdout).trim()).toBe("No findings.");
   });
 
   it("an unrecognized marker is a WARN naming it, and the over-budget board stays a warning with exit 0", () => {
@@ -279,9 +296,9 @@ const planters: Record<keyof typeof BUDGETS, (root: string) => void> = {
     ),
 };
 
-/** The stdout lines that name any budget constant. */
+/** The finding lines (WARN or FINDING) that name any budget constant; a ROLLABLE line is a report, not a finding. */
 function budgetLines(stdout: string): string[] {
-  return stdout.split("\n").filter((l) => l.includes("(BUDGETS."));
+  return stdout.split("\n").filter((l) => /^(WARN|FINDING) /.test(l) && l.includes("(BUDGETS."));
 }
 
 type JsonFinding = {
@@ -292,7 +309,15 @@ type JsonFinding = {
   unit: string;
   line: number | null;
 };
-type JsonReport = { ok: boolean; marker: string; enforced: boolean; findings: JsonFinding[] };
+type JsonMoveOnly = { live: string; archive: string; liveCount: number | null; archivedCount: number | null };
+type JsonReport = {
+  ok: boolean;
+  marker: string;
+  enforced: boolean;
+  findings: JsonFinding[];
+  rollable: string[];
+  moveOnly: JsonMoveOnly[];
+};
 
 /** Run with `--json` and parse stdout, which must be exactly one JSON document on one line. */
 function runJson(root: string): { status: number | null; report: JsonReport; stdout: string; stderr: string } {
@@ -315,7 +340,11 @@ describe("state-check.js — every BUDGETS key, under the marker's severity (pla
     for (const marker of [undefined, LAYOUT_MARKER_CONTENT]) {
       const r = run(cleanRepo(marker));
       expect(r.status, r.stderr).toBe(0);
-      expect(r.stdout).toBe("No findings.\n");
+      expect(withoutCounts(r.stdout)).toBe("No findings.\n");
+      expect(countLines(r.stdout)).toEqual([
+        `MOVE-ONLY ${QUEUE_DONE_REL}: 0 live, 0 archived`,
+        `MOVE-ONLY ${DECISIONS_REL}: 0 live, 0 archived`,
+      ]);
       expect(r.stderr).toBe("");
     }
   });
@@ -382,7 +411,17 @@ describe("state-check.js --json — one document { ok, marker, enforced, finding
   it("a clean repository with no marker: ok, marker absent, not enforced, no findings, exit 0", () => {
     const r = runJson(cleanRepo());
     expect(r.status).toBe(0);
-    expect(r.report).toEqual({ ok: true, marker: "absent", enforced: false, findings: [] });
+    expect(r.report).toEqual({
+      ok: true,
+      marker: "absent",
+      enforced: false,
+      findings: [],
+      rollable: [],
+      moveOnly: [
+        { live: QUEUE_DONE_REL, archive: QUEUE_DONE_ARCHIVE_REL, liveCount: 0, archivedCount: 0 },
+        { live: DECISIONS_REL, archive: DECISIONS_ARCHIVE_REL, liveCount: 0, archivedCount: 0 },
+      ],
+    });
     expect(r.stderr).toBe("");
   });
 
@@ -726,5 +765,164 @@ describe("state-check.js — the NFR index and the NFR files agree, checked on a
     expect(r.status, r.stderr).toBe(1);
     expect(r.stdout).toContain(`FINDING  ${NFR_CATALOG_REL}: not measured`);
     expect(nfrLines(r.stdout).filter((l) => l.includes("(nfr-unindexed-file)"))).toHaveLength(2);
+  });
+});
+
+// ── Rollable surfaces, dated progress entries and the move-only report (plan 37-05, D-07, D-08, D-09) ──
+
+/** The ROLLABLE lines of a run's stdout. */
+function rollableLines(stdout: string): string[] {
+  return stdout.split("\n").filter((l) => l.startsWith("ROLLABLE "));
+}
+
+/** `count` Done rows, appended to the clean board's Done column, which is its last column. */
+function addDoneRows(root: string, count: number): void {
+  appendTo(root, BOARD_REL, `\n${Array.from({ length: count }, (_v, i) => `- [ABC-${500 + i}] done row`).join("\n")}\n`);
+}
+
+/** A progress file of exactly BUDGETS.progressBytes + 1 bytes holding two dated status entries. */
+const PROGRESS_TWO_DATED = paddedTo(
+  "# Progress\n\n## 2026-10-20 — sweep\nswept\n\n## 2026-10-21\nswept again\n",
+  BUDGETS.progressBytes + 1,
+);
+
+/** A progress file of the same size holding only standing sections. */
+const PROGRESS_STANDING = paddedTo(
+  "# Progress\n\n## Standing directive 2026-10-21\nkeep reading\n\n## What works\nmost\n",
+  BUDGETS.progressBytes + 1,
+);
+
+describe("state-check.js — ROLLABLE: the surfaces the daily sweep rolls (plan 37-05, D-07, D-08, D-09)", () => {
+  it(`${BUDGETS.doneRows + 1} Done rows print one ROLLABLE line for done naming state-roll; ${BUDGETS.doneRows} print none`, () => {
+    const root = cleanRepo();
+    addDoneRows(root, BUDGETS.doneRows + 1);
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(0);
+    expect(rollableLines(r.stdout)).toEqual([
+      `ROLLABLE  done: 21 rows, keeps 20 rows (BUDGETS.doneRows) — run node tools/grugops/state-roll.js ${root}`,
+    ]);
+    const atBudget = cleanRepo();
+    addDoneRows(atBudget, BUDGETS.doneRows);
+    expect(rollableLines(run(atBudget).stdout)).toEqual([]);
+  });
+
+  it("a progress file over budget with two dated entries is rollable, and its finding carries no standing-section note", () => {
+    const root = cleanRepo();
+    plant(root, PROGRESS_REL, PROGRESS_TWO_DATED);
+    const r = run(root);
+    expect(rollableLines(r.stdout)).toEqual([
+      `ROLLABLE  progress: 16,385 bytes, keeps 16,384 bytes (BUDGETS.progressBytes) — run node tools/grugops/state-roll.js ${root}`,
+    ]);
+    expect(budgetLines(r.stdout)).toEqual([`WARN     ${PROGRESS_REL}: 16,385 bytes, budget 16,384 bytes (BUDGETS.progressBytes)`]);
+  });
+
+  it("the same size with only standing sections is not rollable, and its finding names each standing heading and memory-bank/50-decisions/", () => {
+    const root = cleanRepo();
+    plant(root, PROGRESS_REL, PROGRESS_STANDING);
+    const r = run(root);
+    expect(rollableLines(r.stdout)).toEqual([]);
+    const lines = budgetLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("`## Standing directive 2026-10-21`");
+    expect(lines[0]).toContain("`## What works`");
+    expect(lines[0]).toContain(`${DECISIONS_REL}/`);
+  });
+
+  it("--json carries rollable [\"done\", \"progress\"] in that fixed order when both apply", () => {
+    const root = cleanRepo();
+    plant(root, PROGRESS_REL, PROGRESS_TWO_DATED);
+    addDoneRows(root, BUDGETS.doneRows + 3);
+    const r = runJson(root);
+    expect(r.report.rollable).toEqual(["done", "progress"]);
+    const text = run(root);
+    expect(rollableLines(text.stdout).map((l) => l.split(":")[0])).toEqual(["ROLLABLE  done", "ROLLABLE  progress"]);
+  });
+
+  it("a ROLLABLE line never changes the exit code by itself: the budget finding does, by the marker", () => {
+    const warn = cleanRepo();
+    addDoneRows(warn, BUDGETS.doneRows + 1);
+    expect(run(warn).status).toBe(0);
+    const enforced = cleanRepo(LAYOUT_MARKER_CONTENT);
+    addDoneRows(enforced, BUDGETS.doneRows + 1);
+    const r = runJson(enforced);
+    expect(r.status).toBe(1);
+    expect(r.report.findings.map((f) => f.key)).toEqual(["doneRows"]);
+    expect(r.report.rollable).toEqual(["done"]);
+  });
+});
+
+describe("state-check.js — MOVE-ONLY: a move leaves one copy (plan 37-05, SPLIT-06, v3.0 D-7)", () => {
+  it("a name in both .grugops/queue/done/ and its archive folder is one finding naming both paths", () => {
+    const root = cleanRepo();
+    plant(root, `${QUEUE_DONE_REL}/T-1.md`, "# T-1\n");
+    plant(root, `${QUEUE_DONE_ARCHIVE_REL}/T-1.md`, "# T-1\n");
+    plant(root, `${QUEUE_DONE_ARCHIVE_REL}/T-0.md`, "# T-0\n");
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(0);
+    const copies = r.stdout.split("\n").filter((l) => l.endsWith("(move-only-copy)"));
+    expect(copies).toHaveLength(1);
+    expect(copies[0]).toMatch(/^WARN {5}/);
+    expect(copies[0]).toContain(`${QUEUE_DONE_REL}/T-1.md`);
+    expect(copies[0]).toContain(`${QUEUE_DONE_ARCHIVE_REL}/T-1.md`);
+    expect(countLines(r.stdout)).toContain(`MOVE-ONLY ${QUEUE_DONE_REL}: 1 live, 2 archived`);
+  });
+
+  it("the same for memory-bank/50-decisions/, and with the D-14 marker it exits 1", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${DECISIONS_REL}/ADR-001.md`, "# ADR-001\n");
+    plant(root, `${DECISIONS_ARCHIVE_REL}/ADR-001.md`, "# ADR-001\n");
+    const r = runJson(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.report.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`move-only-copy|${DECISIONS_REL}/ADR-001.md`]);
+    expect(r.report.moveOnly[1]).toEqual({ live: DECISIONS_REL, archive: DECISIONS_ARCHIVE_REL, liveCount: 1, archivedCount: 1 });
+  });
+
+  it("one counts line per surface is printed on every run, and counts alone never change the exit code", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${DECISIONS_REL}/ADR-001.md`, "# ADR-001\n");
+    plant(root, `${DECISIONS_ARCHIVE_REL}/ADR-000.md`, "# ADR-000\n");
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(0);
+    expect(countLines(r.stdout)).toEqual([
+      `MOVE-ONLY ${QUEUE_DONE_REL}: 0 live, 0 archived`,
+      `MOVE-ONLY ${DECISIONS_REL}: 1 live, 1 archived`,
+    ]);
+    expect(r.stdout).toContain("No findings.");
+  });
+
+  it("a .gitkeep in all four folders is no finding and is never counted: a live folder with .gitkeep and one record prints 1 live", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    for (const dir of [QUEUE_DONE_REL, QUEUE_DONE_ARCHIVE_REL, DECISIONS_REL, DECISIONS_ARCHIVE_REL]) {
+      plant(root, `${dir}/.gitkeep`, "");
+    }
+    plant(root, `${DECISIONS_REL}/ADR-template.md`, "# template\n");
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain("(move-only-copy)");
+    expect(countLines(r.stdout)).toEqual([
+      `MOVE-ONLY ${QUEUE_DONE_REL}: 0 live, 0 archived`,
+      `MOVE-ONLY ${DECISIONS_REL}: 1 live, 0 archived`,
+    ]);
+  });
+
+  it("a live folder linked outside the root is a finding by name and is never listed", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const outside = mkTmp("grugops-state-check-outside-");
+    plant(outside, "ADR-001.md", "# ADR-001\n");
+    mkdirSync(dirname(join(root, ...DECISIONS_REL.split("/"))), { recursive: true });
+    const skipped = stageSymlinkOrSkip(
+      outside,
+      join(root, ...DECISIONS_REL.split("/")),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/state-check.test.ts: a decisions folder linked outside the root (plan 37-05)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the outside-root cases of plan 37-04 (the same locate rule)"));
+      return;
+    }
+    const r = runJson(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.report.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`move-only-unlisted|${DECISIONS_REL}`]);
+    expect(r.report.moveOnly[1]?.liveCount).toBeNull();
   });
 });
