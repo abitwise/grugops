@@ -17639,8 +17639,10 @@ describe("33-25 — KIT (b): the reader refuses a note the sanctioned writer did
 const dpe: typeof import("./dual-path-equivalence.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "dual-path-equivalence.js")).href
 );
-const trace: typeof import("./trace-render.js") = await import(
-  pathToFileURL(join(ROOT, "scripts", "trace-render.js")).href
+// 2026-10-22, plan 37-08: scripts/trace-render.js became a wrapper over the host runnable and holds no trace
+// logic, so the trace route is the trace model's buildTraceRows over the notes the committed context-io.js reads.
+const traceModel: typeof import("./trace-model.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "trace-model.js")).href
 );
 const capture: typeof import("./capture-live.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "capture-live.js")).href
@@ -17701,8 +17703,9 @@ describe("33-25 — R1/R2: every reader route reaches the refusal", () => {
     expect(md).toContain(`| ${unsealedFile} | unsealed | absent |`);
     // 4. dual-path-equivalence.projectTaskState
     expect(dpe.projectTaskState(ctx, T).map((p) => p.body), "projectTaskState").toEqual(["the writer composed this one"]);
-    // 5. trace-render: one ticket row (ABC-001), none for the hand-written note's ABC-002
-    const rows = trace.buildRows(ctx);
+    // 5. trace-render: one ticket row (ABC-001), none for the hand-written note's ABC-002. The rows are the trace
+    //    model's, over the notes readContext returns (plan 37-08: the same reader the host runnable embeds).
+    const rows = traceModel.buildTraceRows(mod.readContext(T, ctx));
     expect(rows.map((r) => r.id), "trace-render").toEqual(["ABC-001"]);
     // 6. capture-live.authorStamps (CAP-03 side (b))
     const stamps = capture.authorStamps(ctx);

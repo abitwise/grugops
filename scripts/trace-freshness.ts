@@ -1,191 +1,102 @@
-// trace-freshness.ts — grugops traceability render drift gate (MIGR-03, D-03).
+// trace-freshness.ts — grugops's own trace freshness gate (MIGR-03; phase 37, plan 37-08, SPLIT-03, D-01).
 //
-// The human-facing trace matrix (the traceability file under the state root) is GENERATED, never
-// hand-maintained: it is
-// committed solely as the deterministic product of `node scripts/trace-render.js`. The shared
-// verified-context NOTES under .grugops/context/<task>/notes/ are the SOURCE OF TRUTH; their `refs`
-// carry each ticket's requirement / code / test / UAT / release links. traceability.md is the derived,
-// human-readable mirror. That contract only holds if the committed render stays byte-identical to a
-// fresh regeneration from the notes. This gate proves it: regenerate traceability.md into a throwaway
-// temp mirror, then compare the committed file byte-for-byte against the fresh regeneration. Any
-// mismatch — or a regeneration that fails to run cleanly at all — is reported and the gate exits
-// non-zero so the drift is caught before it ships.
+// THE TRACE IS GENERATED, NEVER HAND-MAINTAINED. The trace index (TRACEABILITY_REL in install/state-layout.ts)
+// and the per-ticket trace files under the trace directory (TRACE_DIR_REL) are the render of the published
+// note refs under .grugops/context and .grugops/archive/context. The notes are the source of truth. That
+// contract holds only if the committed tree equals a fresh render, and this gate proves it.
 //
-//   node scripts/trace-freshness.js  # exit 0 = the committed render is fresh
-//                                     # exit 1 = drift detected OR a regen failed
+// A DIRECTORY COMPARE, THROUGH THE ONE PROGRAM (D-01). The gate spawns the committed host runnable
+// scripts/runnable-ref/trace-render.js with `<root> --check`. The runnable compares the index and every owned
+// file in the trace directory with a fresh render through compareTraceTree in scripts/trace-model.ts, writes
+// nothing, and exits 0 fresh, 1 on any missing, extra, changed or hand-written file (each named), or 2 when it
+// could not run. Names that begin with `.` (a directory keeper such as .gitkeep) are outside the owned tree
+// and are never read. The gate holds no comparison of its own, so it cannot disagree with the render.
 //
-// WHY A DEDICATED GATE: the committed-.js `freshness` gate proves the build outputs; the
-// `freshness:context` gate walks .grugops/context/ index renders. NEITHER sees the traceability file,
-// which is per-repo RUNTIME state under the state root (not committed kit output). This gate is the
-// state-root twin, re-rooted from .grugops/queue/ (now-running-freshness.ts) to the notes → state-root
-// trace. It is
-// STANDALONE — like now-running-freshness / context-freshness / catalog-freshness, it is NOT folded into
-// scripts/freshness.js NOR into scripts/check-foundation-guards.ts (D-03). It is wired as its own
-// package.json script (freshness:traceability) so a stale committed render fails the build red on its own.
+//   node scripts/trace-freshness.js   # exit 0 = the committed trace equals a fresh render
+//                                     # exit 1 = stale, or the render could not run
 //
-// NOTES WIN: on any conflict the gate NEVER edits the notes — it only proves the derived traceability.md
-// matches a fresh regen from the notes. The notes are authoritative.
+// NO VACUOUS PASS (research Pitfall 3). With no .grugops/context tree the runnable still renders from zero
+// notes and compares the committed index against that render, so a hand-written matrix fails the gate. Only
+// the runnable's exit 0 is fresh: its exit 1 is STALE, and its exit 2, a run ended by a signal, or a spawn
+// that failed is "could not run" and exit 1. None of those is ever reported fresh.
 //
-// Node stdlib ONLY — node:child_process, node:fs, node:os, node:path. Zero npm dependencies; runs with
-// bare Node. import.meta.dirname (stable at the Node 22+ floor) resolves the repo root.
+// CHECK_ROOT override: a hermetic fixture root (a temp dir holding memory-bank/plans/ and, optionally,
+// .grugops/context/) is supplied through the CHECK_ROOT env var. Absent it, the gate checks this repository.
 //
-// CHECK_ROOT override: a hermetic fixture root (a temp dir holding .grugops/context/<task>/notes/ and
-// the traceability file under the state root) is supplied via the CHECK_ROOT env var. Absent it, the
-// gate checks the real .grugops/context/ + the state root.
+// WIRED IN CI. `npm run freshness:traceability` runs in the ubuntu gate block of .github/workflows/ci.yml, and
+// scripts/trace-freshness.test.ts asserts that wiring and the package.json script, deliberately at both ends.
 //
-// Greenfield vacuous success: if no .grugops/context/ notes tree exists yet, there is nothing committed
-// that could have drifted — the gate succeeds and says so honestly, rather than failing.
-//
-// Fail-closed (D-03, T-24-03-STALE/FAB): if the mirrored regeneration cannot run cleanly, or the
-// committed render cannot be read, the gate NEVER reports "fresh" — it exits non-zero. A broken render
-// must never be mistaken for an up-to-date one. The trace is the proof; a stale trace is a gate FAIL,
-// never a silent pass.
-//
-// Findings are written to stdout in CLEAR PROFESSIONAL VOICE (CLAUDE.md hard rule — this is a
-// build-safety + trace surface, never caveman voice).
+// Node stdlib only. Findings are written in clear professional voice (CLAUDE.md hard rule: this is a
+// build-safety and trace surface).
 
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
-import {
-  mkdtempSync,
-  mkdirSync,
-  cpSync,
-  rmSync,
-  readFileSync,
-  realpathSync,
-  existsSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, sep } from "node:path";
-import { jsImportClosure } from "./js-import-closure.js";
-import { STATE_ROOT_REL, TRACEABILITY_REL } from "../install/state-layout.js";
+import { TRACE_RUNNABLE_REL } from "./trace-render.js";
+import { TRACE_DIR_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 
-// Repo root = this script's parent's parent (scripts/ -> repo root).
+/** The repository root: this script's parent's parent (scripts/ -> repo root). */
 const ROOT = join(import.meta.dirname, "..");
 
-const toPosix = (p: string): string => p.split(sep).join("/");
+/** The gate's verdict for a finished runnable. */
+export type FreshnessVerdict = "fresh" | "stale" | "could-not-run";
 
-// ── The gate body — runs ONLY when this module is the process entry point (WR-04). ───────────────
-// Wrapped in main() and gated behind the same import.meta-vs-argv check the siblings use. Importing
-// the module (a future aggregator, or a unit test of a helper) must NOT execute the gate or call
-// process.exit — every side-effecting statement (mkdtempSync, cpSync, spawnSync, the exits) lives here.
+/** What a finished `--check` run reports: its exit status, and the spawn error if it never started. */
+export interface CheckResult {
+  readonly status: number | null;
+  readonly error?: Error | undefined;
+}
+
+/**
+ * The verdict for a `--check` run. Only exit 0 is fresh and only exit 1 is stale. Exit 2, any other code,
+ * no exit code (a signal) and a spawn error are "could not run": never fresh.
+ */
+export function freshnessVerdict(r: CheckResult): FreshnessVerdict {
+  if (r.error !== undefined || r.status === null) return "could-not-run";
+  if (r.status === 0) return "fresh";
+  if (r.status === 1) return "stale";
+  return "could-not-run";
+}
+
+// ── The gate body: runs only when this module is the process entry point (WR-04). ─────────────────
 function main(): void {
-  // The root to check: the real repo, or a CHECK_ROOT override (the hermetic fixture root) holding a
-  // sibling .grugops/context tree + the traceability file under the state root. Read at call time so an importer that sets
-  // CHECK_ROOT before invoking main() is honored.
-  const CHECK_ROOT = process.env.CHECK_ROOT;
-  const CONTEXT_ROOT = CHECK_ROOT
-    ? join(CHECK_ROOT, ".grugops", "context")
-    : join(ROOT, ".grugops", "context");
-  const PLANS_ROOT = CHECK_ROOT ? join(CHECK_ROOT, STATE_ROOT_REL) : join(ROOT, STATE_ROOT_REL);
+  // Read at call time, so an importer that sets CHECK_ROOT before calling main() is honored.
+  const root = process.env.CHECK_ROOT ?? ROOT;
+  const r = spawnSync(process.execPath, [join(ROOT, TRACE_RUNNABLE_REL), root, "--check"], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const verdict = freshnessVerdict(r);
+  if (r.stdout) process.stdout.write(r.stdout);
+  if (r.stderr) process.stderr.write(r.stderr);
 
-  // Unique temp mirror per run; cleaned up before every process.exit.
-  // realpathSync-resolve the temp dir: on macOS tmpdir() lives under /var (a symlink to /private/var),
-  // and the trace-render.js CLI guards its behavior behind an isMain check
-  // (import.meta.url === pathToFileURL(process.argv[1]).href). If the mirror path still carries the /var
-  // symlink, the spawned render's argv[1] (symlinked) would not match its import.meta.url
-  // (realpath-resolved) and the render would silently no-op with exit 0 — defeating the byte-compare.
-  // Resolving the symlink up front keeps the two equal so the mirrored render actually runs.
-  const tmp = realpathSync(mkdtempSync(join(tmpdir(), "grugops-trace-fresh-")));
-
-  const cleanup = (): void => {
-    rmSync(tmp, { recursive: true, force: true });
-  };
-
-  // ── Greenfield vacuous success ───────────────────────────────────────────────────
-  // No .grugops/context/ notes tree yet → there is nothing committed that could have drifted (the
-  // notes are the source of truth, and there are none). Succeed honestly rather than fail.
-  if (!existsSync(CONTEXT_ROOT)) {
-    cleanup();
+  if (verdict === "fresh") {
     console.log(
-      "Traceability fresh: no .grugops/context/ notes tree exists yet — nothing committed to drift (vacuous pass).",
+      `Traceability fresh: ${TRACEABILITY_REL} and ${TRACE_DIR_REL}/ match a fresh render from the published note refs.`,
     );
     process.exit(0);
   }
-
-  // Lay out the temp mirror's render once: <tmp>/scripts/trace-render.js AND every committed .js it
-  // transitively imports. Mirror the whole .grugops/context/ notes tree into <tmp>/.grugops/context
-  // and spawn the mirrored render so it writes the traceability file under <tmp>'s state root — the
-  // committed tree is
-  // never touched.
-  //
-  // THE DEPENDENCY SET IS DERIVED, NOT LISTED (plan 30-01). It used to name two files, with a
-  // comment asserting that two was the whole graph. That was true when it was written and became
-  // false the moment context-io.js grew an import of its own, at which point the mirrored render
-  // died with ERR_MODULE_NOT_FOUND and this gate reported the crash as STALE — a defect indication
-  // for a render that never started. The closure is now walked from the bytes.
-  const RENDER_REL = "scripts/trace-render.js";
-  for (const rel of jsImportClosure(ROOT, RENDER_REL)) {
-    mkdirSync(dirname(join(tmp, rel)), { recursive: true });
-    cpSync(join(ROOT, rel), join(tmp, rel));
-  }
-  const mirroredRender = join(tmp, RENDER_REL);
-  const mirroredContextRoot = join(tmp, ".grugops", "context");
-  const mirroredPlansRoot = join(tmp, STATE_ROOT_REL);
-
-  mkdirSync(mirroredContextRoot, { recursive: true });
-  cpSync(CONTEXT_ROOT, mirroredContextRoot, { recursive: true });
-  mkdirSync(mirroredPlansRoot, { recursive: true });
-
-  // Mirror-spawn the render: writes the traceability file under <tmp>'s state root from the mirrored notes.
-  const r = spawnSync("node", [mirroredRender, mirroredContextRoot, mirroredPlansRoot], {
-    encoding: "utf8",
-  });
-
-  // ── Fail-closed: a non-zero regeneration NEVER falls through to "fresh" (D-03) ──────────
-  if (r.status !== 0) {
-    if (r.stdout) process.stdout.write(r.stdout);
-    if (r.stderr) process.stderr.write(r.stderr);
+  if (verdict === "stale") {
     console.log(
-      "Traceability freshness check FAILED: the render did not run cleanly — " +
-        "refusing to report the trace render as fresh.",
-    );
-    cleanup();
-    process.exit(1);
-  }
-
-  // ── Byte-compare the committed render against the fresh regeneration ──────
-  const committedPath = join(PLANS_ROOT, "traceability.md");
-  const relPath = toPosix(TRACEABILITY_REL);
-
-  let committed: Buffer;
-  try {
-    committed = readFileSync(committedPath);
-  } catch {
-    // Fail-closed: a render we cannot read (e.g. it is missing while notes exist) cannot be proven
-    // fresh — clean up and report, never fall through to "fresh".
-    cleanup();
-    console.log(
-      `Traceability freshness check FAILED: ${relPath} could not be read — ` +
-        "run `node scripts/trace-render.js` and commit it.",
+      `STALE: ${TRACEABILITY_REL} or ${TRACE_DIR_REL}/ differs from a fresh render from the published note refs ` +
+        "(each difference is named above). The notes are the source of truth: run `node scripts/trace-render.js` " +
+        "and commit the result.",
     );
     process.exit(1);
   }
-
-  const rebuilt = readFileSync(join(mirroredPlansRoot, "traceability.md"));
-
-  if (!committed.equals(rebuilt)) {
-    cleanup();
-    console.log(
-      `STALE: ${relPath} — the committed render differs from a fresh regeneration from the notes. ` +
-        "The shared-context notes are the source of truth; run `node scripts/trace-render.js` and commit the result.",
-    );
-    process.exit(1);
-  }
-
-  cleanup();
-
+  const why =
+    r.error !== undefined
+      ? r.error.message
+      : r.status === null
+        ? `ended by signal ${String(r.signal)}`
+        : `exit ${r.status}`;
   console.log(
-    `Traceability fresh: the committed ${relPath} matches a fresh regeneration from the shared-context notes.`,
+    `Traceability freshness check FAILED: the render could not run (${why}). ` +
+      "Refusing to report the trace as fresh.",
   );
-  process.exit(0);
+  process.exit(1);
 }
 
-// Entry check: true only when this module was launched directly (not imported). process.argv[1] is
-// the launched script path; compare it to this module's own file URL. Importing the module is
-// side-effect-free.
-const isMain = isEntrypoint(import.meta.url);
-
-if (isMain) {
+if (isEntrypoint(import.meta.url)) {
   main();
 }

@@ -237,6 +237,11 @@ jobs:
           # SPLIT-05 (plan 37-03): the generated regions in the host runnables equal a fresh derivation of their
           # authorities. Wired HERE and in scripts/generate-runnable-embeds.test.ts, deliberately at both ends.
           npm run freshness:runnable-embeds
+          # SPLIT-03 (plan 37-08, D-01): the committed trace index and trace directory equal a fresh render, proved
+          # by a directory compare through the host runnable's --check. It never passes vacuously: with no notes it
+          # still compares the index against a render from zero notes. Wired HERE and in
+          # scripts/trace-freshness.test.ts, deliberately at both ends.
+          npm run freshness:traceability
           # MODEL-03 / MODEL-05 (plan 29.1-09, WR-07) — THE REFUSALS THIS PHASE BUILT WERE UNREACHABLE
           # FROM THE BUILD, and the three lines below are the half of the fix no source edit can hold.
           #

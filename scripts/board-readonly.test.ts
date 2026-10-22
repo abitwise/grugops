@@ -1856,9 +1856,10 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   });
 
   it("CONVERSE: the wrapper every production caller uses does NOT refuse the legitimate tree", () => {
-    // The refusal added here reaches SIX production callers through `jsImportClosure`. That number
-    // used to read "seven"; it was corrected in Phase 32.1 plan 32.1-01 against a measurement over
-    // the tracked set, and it is now pinned by `WALKER_PRODUCTION_IMPORTER_COUNT` rather than left
+    // The refusal added here reaches FIVE production callers through `jsImportClosure`. That number
+    // used to read "seven"; it was corrected to six in Phase 32.1 plan 32.1-01 against a measurement over
+    // the tracked set, and moved to five on 2026-10-22 (plan 37-08) when scripts/trace-freshness.ts stopped
+    // mirroring a closure. It is pinned by `WALKER_PRODUCTION_IMPORTER_COUNT` rather than left
     // as a sentence nothing decides over. A rule
     // that also refuses the legitimate shape is a regression, and this is where it is caught —
     // `analyzeClosure` deliberately calls the non-throwing `jsImportClosureFacts`, so without this
@@ -3098,7 +3099,7 @@ describe("32.1-14 — a recovered parse is a named refusal, and a declined decla
     expect(facts.unreadable, "a well-formed source recorded an unreadable slot").toEqual([]);
   });
 
-  it("CONVERSE: every tracked build output still parses cleanly, so the refusal costs the six gates nothing", () => {
+  it("CONVERSE: every tracked build output still parses cleanly, so the refusal costs the five gates nothing", () => {
     // The refusal reaches every consumer of the shared walk. Measured over the whole tracked corpus
     // before it was added (`32.1-14-RED-baseline.txt` § 1.4): ZERO files with a parse diagnostic. A
     // red here is a genuinely malformed committed `.js`, which is a build output nobody should ship.
@@ -3143,12 +3144,12 @@ describe("32.1-14 — a recovered parse is a named refusal, and a declined decla
 // reading the diff.
 //
 // AND THE SHARED WALKER'S OTHER CALLERS ARE RE-RUN WITH LEGITIMATE INPUT. A refusal added to
-// `jsImportClosure` reaches SIX production gates — corrected from "seven" in Phase 32.1 plan
+// `jsImportClosure` reaches FIVE production gates — corrected from "seven" to six in Phase 32.1 plan
 // 32.1-01, where the number was measured over the tracked set and pinned by
-// `WALKER_PRODUCTION_IMPORTER_COUNT` — and any change to WHAT COUNTS AS A SPECIFIER is a regression
-// risk for every edge those six mirrors depend on. That was true of the deleted blanking pass and it
-// is true of the tokenizer that replaced it (32.1-06): a node set that stopped reading one shape
-// would shorten six mirrors at once. `CLOSURE_BASELINES` pins what each of them built BEFORE the
+// `WALKER_PRODUCTION_IMPORTER_COUNT`, and moved to five on 2026-10-22 (plan 37-08) — and any change to
+// WHAT COUNTS AS A SPECIFIER is a regression risk for every edge those mirrors depend on. That was true of
+// the deleted blanking pass and it is true of the tokenizer that replaced it (32.1-06): a node set that
+// stopped reading one shape would shorten every mirror at once. `CLOSURE_BASELINES` pins what each of them built BEFORE the
 // cutover, and it is unchanged by the rewrite.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -3294,25 +3295,14 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
     // node:fs symbol) for its default state root, so its closure gained it. Taken from jsImportClosure.
     // 2026-10-22, plan 37-06: trace-render.js imports ./trace-model.js (the trace model moved there; it
     // imports nothing), so the closure gained scripts/trace-model.js. Taken from jsImportClosure.
+    // 2026-10-22, plan 37-08: trace-render.js became a wrapper that spawns the host runnable
+    // scripts/runnable-ref/trace-render.js and holds no trace logic, so it imports neither context-io.js nor
+    // trace-model.js and its closure shrank to the three modules below. The gate that mirrors it is now
+    // scripts/trace-render.test.ts (scripts/trace-freshness.ts no longer mirrors a closure). Taken from
+    // jsImportClosure.
     {
       entry: "scripts/trace-render.js",
-      modules: [
-        "install/state-layout.js",
-        "scripts/audit-model.js",
-        "scripts/audit-prepass.js",
-        "scripts/check-diff-disposition.js",
-        "scripts/checkpoints.js",
-        "scripts/context-io.js",
-        "scripts/dead-vocabulary.js",
-        "scripts/frontmatter.js",
-        "scripts/generate-safety-surface.js",
-        "scripts/is-entry.js",
-        "scripts/kit-model.js",
-        "scripts/trace-model.js",
-        "scripts/trace-render.js",
-        "scripts/vacuity.js",
-        "scripts/voice-model.js",
-      ],
+      modules: ["install/state-layout.js", "scripts/is-entry.js", "scripts/trace-render.js"],
     },
   ]);
 
@@ -3331,6 +3321,10 @@ const CLOSURE_BASELINE_COUNT = 8;
  * (33.1 D-17/D-23), and `scripts/check-uat-oracles.test.ts` and `scripts/check-foundation-guards.test.ts`
  * stopped mirroring the guard's closure when UAT oracle A2 was retired (33.1 D-28). No caller was
  * added, so no `CLOSURE_BASELINES` row is needed.
+ * Held at 10 on 2026-10-22 by plan 37-08, with the members moving: scripts/trace-freshness.ts left (it no
+ * longer mirrors a closure) and scripts/trace-render.test.ts joined (it mirrors the wrapper's closure to run
+ * the own trace command on a temp root). Its entry artifact, scripts/trace-render.js, is already a
+ * `CLOSURE_BASELINES` row. Re-derived by listing the tracked importers.
  */
 const WALKER_IMPORTER_COUNT = 10;
 
@@ -3346,8 +3340,13 @@ const WALKER_IMPORTER_COUNT = 10;
  * without pinning the number would leave the same defect with a different value in it, so the
  * measured number is now DERIVED from the same set as `WALKER_IMPORTER_COUNT`, asserted, and the
  * prose quotes the pin rather than a memory.
+ *
+ * Moved 6 -> 5 on 2026-10-22 by plan 37-08: scripts/trace-freshness.ts became a directory compare through the
+ * host runnable's --check and no longer mirrors a closure, so it left the importer set. Re-derived by
+ * listing the tracked sources that import the walker: check-platform-shapes, context-freshness,
+ * generate-hook-manifest, guarantees-freshness and now-running-freshness.
  */
-const WALKER_PRODUCTION_IMPORTER_COUNT = 6;
+const WALKER_PRODUCTION_IMPORTER_COUNT = 5;
 
 describe("32-31 — the refusals that MOVED are measured at the mechanism, not assumed", () => {
   it("the relocation table has exactly the number of rows its decision records", () => {
@@ -3839,7 +3838,7 @@ describe("32.1-08 — one register owns the dynamic-import answer, and it names 
     );
   });
 
-  it("CONVERSE: the live tree carries no unreadable slot, so the new refusal costs six production gates nothing", () => {
+  it("CONVERSE: the live tree carries no unreadable slot, so the new refusal costs five production gates nothing", () => {
     // The refusal added to `jsImportClosure` reaches every caller of the shared walker. Measured
     // over all 66 tracked `.js` files before it was added: ZERO unreadable slots (recorded in
     // `32.1-08-RED-baseline.txt` § 5). This is the assertion that keeps it true — and it is the
@@ -3919,7 +3918,7 @@ describe("32-31 — every existing caller of the shared walker still builds the 
     ).toBe(WALKER_IMPORTER_COUNT);
 
     // THE PRODUCTION SUBSET, pinned so the prose cannot drift away from it again. Two sentences in
-    // this file said "seven production callers"; the measurement says six. A corrected sentence with
+    // this file said "seven production callers"; the measurement said six, and five since plan 37-08. A corrected sentence with
     // no assertion behind it is the same defect with a better number in it.
     const production = importers.filter((rel) => !rel.endsWith(".test.ts"));
     expect(

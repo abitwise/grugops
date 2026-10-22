@@ -1,112 +1,79 @@
-// trace-render.ts — the requirement→code→test→release trace render (MIGR-03, D-01/D-04/D-06).
+// trace-render.ts — grugops's own trace render command (phase 37, plan 37-08, SPLIT-03, D-01).
 //
-// The human-facing traceability matrix (the traceability file under the state root, TRACEABILITY_REL in
-// install/state-layout.ts) is GENERATED, never hand-maintained:
-// it is the deterministic product of `node scripts/trace-render.js`. The shared verified-context
-// NOTES under .grugops/context/<task>/notes/ are the SOURCE OF TRUTH; their `refs` carry the
-// requirement / code / test / UAT / release links a ticket accrues as work is done. traceability.md
-// is the derived, human-readable mirror of those refs (D-01 Option A: it SURVIVES as a render of note
-// refs — it is never hand-maintained and never deleted). This is the same render-family seam Phase 20
-// deferred to Phase 24 (D-02), through which role output is published.
+// WHAT IT IS. The documented own-tree command `node scripts/trace-render.js`. It holds NO trace logic: it runs
+// the committed host runnable scripts/runnable-ref/trace-render.js against this repository's root and exits
+// with that program's exit code. So grugops renders its own trace with the same program a host runs from
+// tools/grugops/, and the two cannot disagree about what the render is. The trace model lives once, in
+// scripts/trace-model.ts; the runnable carries a generated copy of it.
 //
-// One row per ticket id, keyed by the ticket-shaped ref a note carries; columns
-//   Requirement | Code | Tests | UAT | Release
-// are filled (D-04) from each note's `refs` (D-06), classified deterministically by ref shape — NOT
-// from the index.md at/kind/by columns. Ticket ids appear verbatim in the rendered rows so the
-// validator's `trace.includes(id)` completeness check (validate-agent-factory.ts) stays a minimal,
-// path-unchanged re-point (A2).
+//   node scripts/trace-render.js           # write mode: make the trace index and the trace directory
+//                                          # equal a fresh render from the published note refs
+//   node scripts/trace-render.js --check   # read-only: exit 0 fresh, 1 on any difference, 2 could not run
 //
-//   node scripts/trace-render.js                 # regen the traceability file under the state root (real roots)
-//   node scripts/trace-render.js <ctxRoot> <stateRoot>   # explicit roots (tests pass temp dirs)
+// WHAT IT WRITES. The runnable writes the trace index (TRACEABILITY_REL in install/state-layout.ts) and one
+// trace file per ticket under the trace directory, from the notes under .grugops/context and
+// .grugops/archive/context. It refuses a hand-written index or trace file and writes nothing in that case.
 //
-// Build model (D-13): node:fs + node:path ONLY (plus the readContext/atomicWrite helpers re-used from
-// the committed context-io.js) — ZERO host runtime deps. Authored in TypeScript, compiled with `tsc`
-// to a committed scripts/trace-render.js; the freshness.ts build-output gate proves the committed .js
-// is a faithful build of this .ts.
+// EXIT CODES. The runnable's own: 0, 1 or 2 (see the header of scripts/runnable-ref/trace-render.ts). A run
+// that ended with no exit code (a signal) or a spawn that failed is exit 2, with a line on stderr saying the
+// render could not run. An argument other than a single `--check` is exit 2 before anything is spawned.
 //
-// Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface, never
-// caveman voice).
+// Build model (D-13): node: builtins plus the state-layout constants. Authored in TypeScript, compiled with
+// `tsc` to the committed scripts/trace-render.js.
+//
+// Voice: clear professional voice (CLAUDE.md hard rule): this is a trace surface a human audits.
 
-import { readdirSync, existsSync } from "node:fs";
-import { isEntrypoint } from "./is-entry.js";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import { isEntrypoint } from "./is-entry.js";
+import { TRACEABILITY_REL } from "../install/state-layout.js";
 
-import { readContext, atomicWrite, type NoteRecord } from "./context-io.js";
-import { buildTraceRows, traceCell, type TraceRow } from "./trace-model.js";
-import { STATE_ROOT_REL, TRACEABILITY_REL } from "../install/state-layout.js";
-
-// Repo root = this script's parent's parent (scripts/ -> repo root).
+/** The repository root: this script's parent's parent (scripts/ -> repo root). */
 const ROOT = join(import.meta.dirname, "..");
-const DEFAULT_CONTEXT_ROOT = join(ROOT, ".grugops", "context");
-// The state root (install/state-layout.ts); the traceability file is written directly under it.
-const DEFAULT_PLANS_ROOT = join(ROOT, STATE_ROOT_REL);
 
-// ── List the task directories under a context root (each holds a notes/ dir). ───────────────────
-function listTasks(contextRoot: string): string[] {
-  if (!existsSync(contextRoot)) return [];
-  return readdirSync(contextRoot, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-    .sort(); // deterministic task order
+/** The committed host runnable this command runs, relative to the repository root. */
+export const TRACE_RUNNABLE_REL = "scripts/runnable-ref/trace-render.js";
+
+/** What a finished child process reports: its exit status, and the spawn error if it never started. */
+export interface ChildResult {
+  readonly status: number | null;
+  readonly error?: Error | undefined;
 }
 
-// ── Build the ticket rows from every note's refs across every task. ─────────────────────────────
-// The classification and the row merge live once, in scripts/trace-model.ts (plan 37-06). This export
-// keeps its contract until plan 37-08 turns this file into a wrapper: the notes of every task under one
-// context root, merged into one row per ticket. Its row order stays the order this render has always
-// written, so the monolithic file below keeps its bytes; the per-ticket render sorts by code units.
-export function buildRows(contextRoot: string): TraceRow[] {
-  const notes: NoteRecord[] = [];
-  for (const task of listTasks(contextRoot)) {
-    try {
-      notes.push(...readContext(task, contextRoot));
-    } catch {
-      continue; // a task name the allowlist rejects, or an unreadable notes dir — skip, never crash
-    }
-  }
-  return buildTraceRows(notes).sort((a, b) => a.id.localeCompare(b.id));
+/**
+ * The exit code this command returns for a finished runnable. The runnable's own status passes through
+ * unchanged; a run with no status (killed by a signal) or a spawn error is exit 2, never a pass.
+ */
+export function childExitCode(r: ChildResult): number {
+  if (r.error !== undefined || r.status === null) return 2;
+  return r.status;
 }
 
-// ── render: read notes → emit the byte-reproducible traceability file under the state root. ─────
-// GENERATED header naming the re-run command; the five-column table; deterministic ticket-id sort;
-// cell()-escaped cells; single trailing newline via a trailing "" push; atomicWrite.
-export function renderTraceability(
-  contextRoot: string = DEFAULT_CONTEXT_ROOT,
-  plansRoot: string = DEFAULT_PLANS_ROOT,
-): void {
-  const rows = buildRows(contextRoot);
-
-  const md: string[] = [];
-  md.push("<!-- GENERATED — do not hand-edit. Re-run: node scripts/trace-render.js -->");
-  md.push("# Traceability Matrix");
-  md.push("");
-  md.push("| Requirement | Code | Tests | UAT | Release |");
-  md.push("| --- | --- | --- | --- | --- |");
-  for (const r of rows) {
-    // The Requirement cell leads with the ticket id (verbatim, so the validator trace.includes(id)
-    // re-point stays minimal — A2), followed by any requirement-shaped refs.
-    const requirement = [r.id, ...r.Requirement].map(traceCell).join(", ");
-    const code = r.Code.map(traceCell).join(", ");
-    const tests = r.Tests.map(traceCell).join(", ");
-    const uat = r.UAT.map(traceCell).join(", ");
-    const release = r.Release.map(traceCell).join(", ");
-    md.push(`| ${requirement} | ${code} | ${tests} | ${uat} | ${release} |`);
-  }
-  md.push(""); // trailing element → exactly one final "\n"
-  atomicWrite(join(plansRoot, "traceability.md"), md.join("\n"));
+/**
+ * The runnable's arguments for this command's arguments: the repository root, then `--check` when it was
+ * given. Returns null for any other argument list, which the command refuses with exit 2.
+ */
+export function runnableArgs(root: string, argv: readonly string[]): string[] | null {
+  if (argv.length === 0) return [root];
+  if (argv.length === 1 && argv[0] === "--check") return [root, "--check"];
+  return null;
 }
 
-// ── CLI entrypoint (only when run directly, never on import) ─────────────────────────────────────
-const isMain = isEntrypoint(import.meta.url);
-
-if (isMain) {
-  const [ctxRoot, plansRoot] = process.argv.slice(2);
-  try {
-    renderTraceability(ctxRoot ?? DEFAULT_CONTEXT_ROOT, plansRoot ?? DEFAULT_PLANS_ROOT);
-    console.log(`rendered ${TRACEABILITY_REL} from the shared-context note refs.`);
-    process.exit(0);
-  } catch (e) {
-    console.error(`trace-render: ${(e as Error).message}`);
-    process.exit(1);
+function main(): void {
+  const args = runnableArgs(ROOT, process.argv.slice(2));
+  if (args === null) {
+    console.error("trace-render: usage: node scripts/trace-render.js [--check]");
+    process.exit(2);
   }
+  const r = spawnSync(process.execPath, [join(ROOT, TRACE_RUNNABLE_REL), ...args], { stdio: "inherit" });
+  const code = childExitCode(r);
+  if (code === 2 && (r.error !== undefined || r.status === null)) {
+    const why = r.error !== undefined ? r.error.message : `ended by signal ${String(r.signal)}`;
+    console.error(`trace-render: the render of ${TRACEABILITY_REL} could not run (${why}).`);
+  }
+  process.exit(code);
+}
+
+if (isEntrypoint(import.meta.url)) {
+  main();
 }
