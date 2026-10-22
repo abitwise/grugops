@@ -29,7 +29,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 - [ ] **SPLIT-04**: The validator enforces per-file byte budgets for the board, indexes (per entry), tickets, NFR files, trace files and `60-progress.md`; budgets WARN on an unmigrated repo and FAIL on a migrated one
 - [ ] **SPLIT-05**: A user's repo has a `tools/grugops/state-check.js` runnable (budgets generated from the layout module, freshness-gated) that checks budgets and index↔file integrity, called from the PR gate and daily-sweep workflows
 - [ ] **SPLIT-06**: `60-progress.md` rolls older entries into an archive file when over budget; `queue/done/` and `50-decisions/` may only be moved to an archive folder, never squashed or pruned
-- [ ] **SPLIT-07**: The ticket frontmatter key set stays closed (no new key without a recorded decision); new ticket detail goes into the ticket body
+- [x] **SPLIT-07**: The ticket frontmatter key set stays closed (no new key without a recorded decision); new ticket detail goes into the ticket body
 
 ### Migration (MIGRATE)
 
@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPLIT-04 | Phase 37 | Pending |
 | SPLIT-05 | Phase 37 | Pending |
 | SPLIT-06 | Phase 37 | Pending |
-| SPLIT-07 | Phase 37 | Pending |
+| SPLIT-07 | Phase 37 | Complete |
 | MIGRATE-01 | Phase 38 | Pending |
 | MIGRATE-02 | Phase 38 | Pending |
 | MIGRATE-03 | Phase 38 | Pending |

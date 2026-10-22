@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-11-PLAN.md
-last_updated: "2026-10-22T15:01:13.318Z"
+stopped_at: Completed 37-12-PLAN.md
+last_updated: "2026-10-22T15:27:49.522Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-11 (state-roll rolls dated progress entries oldest first with extents from the embedded sectionEndIndex, refuses every ambiguous shape and an interrupted roll before any write, and prints dry-run PLAN lines)
-state_head: 3bd28df65170668659172706ec46a3aed7411c97
+last_activity_desc: Completed 37-12 (the projector reads the Done archive as the seventh source boardArchive, keeps archived tickets placed, reports a board-plus-archive row as ticket-duplicated, and publishes snapshot version 3 with the regenerated golden)
+state_head: 41b6eae4b17d402a917977e564d6ef767af10096
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 26
+  completed_plans: 27
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 12 of 19
+Plan: 13 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-11 (state-roll rolls dated progress entries oldest first with extents from the embedded sectionEndIndex, refuses every ambiguous shape and an interrupted roll before any write, and prints dry-run PLAN lines)
+Last activity: 2026-10-22 — Completed 37-12 (the projector reads the Done archive as the seventh source boardArchive, keeps archived tickets placed, reports a board-plus-archive row as ticket-duplicated, and publishes snapshot version 3 with the regenerated golden)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -740,6 +740,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P09 | 10 min | 1 tasks | 7 files |
 | Phase 37 P10 | 25 min | 1 tasks | 9 files |
 | Phase 37 P11 | 18 min | 1 tasks | 10 files |
+| Phase 37 P12 | 23 min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -2034,6 +2035,7 @@ Recent decisions affecting current work:
 - [Phase 37]: Plan 37-10: rows keep their raw line ending; a created archive heading follows the moved rows, but CRLF rows moved into an existing LF archive leave it with mixed line endings (flagged for plan 37-11)
 - [Phase 37]: 37-11: progress entries roll oldest first with extents from the embedded sectionEndIndex, passed into the import-free planner as a parameter (D-16); the LANG-07 census admits that generated copy only inside a fresh EMBED_SPECS region
 - [Phase 37]: 37-11: state-roll refuses mixed LF/CRLF line endings before or after a roll (both surfaces) instead of folding them; an interrupted roll's leftovers (rows or entry headings already in the archive) are exit 2 naming them
+- [Phase 37]: 37-12: the Done archive is the seventh source boardArchive (D-15); an absent archive is ok and empty, an unreadable one suppresses ticket-unplaced only, and ticket-duplicated counts board plus archive rows naming both places; snapshot version 3
 
 ### Pending Todos
 
@@ -2365,8 +2367,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T15:01:13.036Z
-Stopped at: Completed 37-11-PLAN.md
+Last session: 2026-10-22T15:27:49.239Z
+Stopped at: Completed 37-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
