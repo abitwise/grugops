@@ -1,4 +1,4 @@
-// trace-model.test.ts — the pure trace model (phase 37, plan 37-06, SPLIT-03, D-01, D-03).
+// trace-model.test.ts — the pure trace model (phase 37, plans 37-06 and 37-07, SPLIT-03, D-01, D-02, D-03).
 //
 // Drives the committed scripts/trace-model.js: ref classification, the row merge, the per-ticket and index
 // text, the tree plan, the note collection over two context roots with a task whose read throws, and the two

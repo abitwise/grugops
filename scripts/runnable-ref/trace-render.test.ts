@@ -1,4 +1,4 @@
-// trace-render.test.ts — the host trace renderer (phase 37, plan 37-06, SPLIT-03, D-01, D-03).
+// trace-render.test.ts — the host trace renderer (phase 37, plans 37-06 and 37-07, SPLIT-03, D-01, D-02, D-03).
 //
 // Every case runs the COMMITTED trace-render.js copied ALONE into an empty temporary directory, with no
 // node_modules and no sibling script reachable: the host emulation that proves the file imports `node:`

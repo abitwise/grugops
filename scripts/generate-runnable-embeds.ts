@@ -68,6 +68,9 @@ export type EmbedSpec = {
  * trace paths from install/state-layout.ts, the output sanitizer from scripts/state-rules.ts, the trace model
  * from scripts/trace-model.ts, and the note read path (the walk with its skip arms and the seal check, the
  * record projection, the non-blocking reader) and the temp-sibling-plus-rename writer from scripts/context-io.ts.
+ * Plan 37-07 (2026-10-22) adds the trace model's comparison to that row: the owned-entry rule, the case-fold
+ * collision groups, the generated-header test, the tree comparison and the trace-file read ceiling, so the
+ * --check mode and the write mode's refusals compare with the same model state-check embeds (plan 37-09).
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -143,6 +146,11 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "collectTraceNotes",
           "planTraceTree",
           "compareCodeUnits",
+          "ownedTraceEntries",
+          "caseFoldCollisions",
+          "isGeneratedTraceText",
+          "compareTraceTree",
+          "TRACE_FILE_MAX_BYTES",
         ],
       },
       {
