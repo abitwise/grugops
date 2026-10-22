@@ -36,8 +36,8 @@ Need shaping of empty land.
 ## Board moves (which column transitions this role causes)
 None — shapes empty land; does not move tickets. Its first tickets land in `Backlog` on `memory-bank/plans/board.md` for the Orchestrator and BA/PM to pull; it causes no column transition.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record that the plan was produced and which first tickets/slices it proposes, so the initial backlog traces back to the plan.
+## Trace updates
+Publish the plan and the first tickets or slices it proposes as refs on a note per Workflow 16. `tools/grugops/trace-render.js` renders each ticket's trace file and the trace index from those refs, and overwrites hand edits.
 
 ## Hard limits
 Do not overbuild — a stack chosen to impress is one the team fights for a year. Prefer a boring stack unless config or the user says otherwise; keep the first architecture just enough. Mark anything unverified `UNKNOWN - verify`; never fabricate.

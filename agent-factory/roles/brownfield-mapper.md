@@ -35,8 +35,8 @@ Need repo mapping of an existing repo.
 ## Board moves (which column transitions this role causes)
 None — maps; does not move tickets. Its "safe first tickets" feed the backlog, but the Mapper causes no column transition on `memory-bank/plans/board.md`.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record that the map was produced and which areas/risks it surfaced, so downstream tickets trace back to the mapping.
+## Trace updates
+Publish the map and the areas and risks it surfaced as refs on a note per Workflow 16, with each ticket the map seeds among the refs. `tools/grugops/trace-render.js` renders each ticket's trace file and the trace index from those refs, and overwrites hand edits.
 
 ## Hard limits
 Do not refactor. Do not fix. Only map. Record real commands only — an inferred command is worse than none, since the next agent trusts it. Mark anything unverified `UNKNOWN - verify`.

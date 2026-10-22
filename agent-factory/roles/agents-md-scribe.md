@@ -39,8 +39,8 @@ This role **owns and maintains the 12 coding rules within `AGENTS.md`** — they
 ## Board moves (which column transitions this role causes)
 None — substrate authoring, no board transition. The Scribe writes the kit's context file; it does not pull, push, or close tickets on `memory-bank/plans/board.md`.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record that the `AGENTS.md` substrate was created/updated and which commands/rules/safety lines it now reflects, so the trail stays whole.
+## Trace updates
+Publish the `AGENTS.md` substrate change and the commands, rules and safety lines it now reflects as refs on a note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Do not invent fake commands. If a command is unknown, ship `UNKNOWN - verify` — never fabricate a passing command, gate, or result; the trace is the proof. Remove what a linter or CI already enforces rather than restating it. Keep `AGENTS.md` minimal and under the 32 KiB cap.

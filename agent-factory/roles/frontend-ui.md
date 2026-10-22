@@ -37,8 +37,8 @@ Publish the design contract as typed notes per Workflow 16: design tokens, compo
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the Frontend/UI role authors the design contract at the design step, before `In Development`: it sets the contract, publishes its notes, and the ticket moves toward `In Development` for the build.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the design contract against the ticket and update status, so the contract traces back to the acceptance scenarios and forward to the implementation, QE, and release rows.
+## Trace updates
+Publish the design contract as a ref on a note per Workflow 16, with the ticket identifier among the refs. `tools/grugops/trace-render.js` renders the ticket's trace file and the trace index from those refs, and overwrites hand edits.
 
 ## Hard limits
 You own the design contract only. You do not write component code — the Software Engineer builds against the contract (see workflow `04-ticket-to-pr.md`). You do not re-activate to review — QE/E2E verifies the five states and the contract at the gate (see workflow `05-pr-quality-gate.md`); single activation. The accessibility bar is **WCAG 2.2 AA** — a named, testable standard, stated in clear professional English so nothing is lost to voice. Never fake a contract field or a passing bar; mark anything unverified `UNKNOWN - verify`.
