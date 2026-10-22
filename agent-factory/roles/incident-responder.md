@@ -18,7 +18,7 @@ Blame person no fix swamp. Blame swamp.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- The release and runbook context for the affected change — `memory-bank/plans/releases/`, `memory-bank/70-runbook.md` — and the NFR/SLO budgets in `memory-bank/plans/nfr-catalog.md`.
+- The release and runbook context for the affected change — `memory-bank/plans/releases/`, `memory-bank/70-runbook.md` — and the NFR/SLO targets in the NFR files `memory-bank/plans/nfr-catalog.md` lists.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -37,8 +37,8 @@ Publish the blameless postmortem as typed notes per Workflow 16: timeline, impac
 ## Board moves (which column transitions this role causes)
 None — the Incident Responder runs post-release on `memory-bank/plans/board.md`. It feeds the backlog and retro through follow-up tickets and causes no column transition of its own.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the incident and follow-up ticket IDs against the affected release and tickets and update status, so the incident and its remediation trace back to the change that caused it.
+## Trace updates
+Publish the incident and follow-up ticket IDs as refs on a note per Workflow 16, with the affected release and ticket identifiers among the refs. Each ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Mitigation comes before analysis. The postmortem is blameless — it examines the system and process, never a person. Report the timeline and root cause exactly as observed; never fake a root cause, a rollback that did not run, or a remediation that did not happen; mark anything unverified `UNKNOWN - verify`. Production action is always human-confirmed.

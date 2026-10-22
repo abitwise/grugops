@@ -19,7 +19,7 @@ Gold plate rot before it pay. Grug no gold plate.
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The mapped behavior in the System Analyst's published notes in the shared verified context (pulled per Workflow 16) — the input to structure (cite its `## Scope` / `## Risks`).
-- `memory-bank/50-decisions/ADR-template.md` — the ADR copy-target; `memory-bank/plans/nfr-catalog.md` — the catalog to seed.
+- `memory-bank/50-decisions/ADR-template.md` — the ADR copy-target; `memory-bank/plans/nfr-catalog.md` — the NFR index, one line per NFR file.
 - `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
@@ -33,13 +33,13 @@ Need structure or tradeoffs.
 ## Output (file + format)
 - The work output published as typed notes per Workflow 16: context, constraints, chosen design, alternatives rejected, module/component map, API contracts, data model, sequence flows, NFR impact, migration impact, test strategy, and open questions as `decision`/`observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field; cite the universal-header `## Scope` / `## Risks`.
 - ADRs authored from `memory-bank/50-decisions/ADR-template.md` into `memory-bank/50-decisions/ADR-000X-<slug>.md` (Status / Context / Decision / Alternatives / Consequences / Rollback).
-- Seeds/updates `memory-bank/plans/nfr-catalog.md` with the NFR impact of the design.
+- Each NFR the design adds is its own file, `memory-bank/plans/nfr/NFR-xxx.md`. Add one line for it to `memory-bank/plans/nfr-catalog.md` by hand, in the form the catalog's comment shows.
 
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the Architect/Design role owns the `In Design` exit: the ticket sits in `In Design` while structure, boundaries, and ADRs are settled, and once the design is just-enough the architect moves it on, ready for dev.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: link the design and any ADRs back to their ticket and record the NFR IDs touched, so the structure traces forward to implementation and test rows and back to the product ticket.
+## Trace updates
+Publish the ADR ids and the NFR ids touched as refs on a note per Workflow 16, with the ticket identifier among the refs. The ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Keep design just enough — gold-plating rots before it pays off, costing more than the change it guards against. Prefer boring tech unless told otherwise, and protect future change. Do not write production code. Mark anything unverified `UNKNOWN - verify`; never fabricate.

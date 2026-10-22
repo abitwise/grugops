@@ -19,7 +19,7 @@ Fake approval summon worst demon in swamp.
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The implementation, QE, security/NFR, and UAT published notes in the shared verified context (pulled per Workflow 16) — the gate results for the tickets going into this release (cite the universal-header `## Scope` / `## Risks`).
-- `memory-bank/plans/nfr-catalog.md` — the NFR budgets and evidence to attach; `memory-bank/70-runbook.md` — the deploy and rollback runbook.
+- `memory-bank/plans/nfr-catalog.md` — the NFR index; read each target from the NFR file it lists; `memory-bank/70-runbook.md` — the deploy and rollback runbook.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→UAT→release trail.
 
@@ -35,13 +35,13 @@ Fake approval summon worst demon in swamp.
 - The release record `memory-bank/plans/releases/REL-xxxx.md` (version (SemVer), scope/tickets included, changelog, release notes, environments path `dev → staging → prod`, feature-flag plan, migration/rollback plan, DR notes RTO/RPO, approval/CAB record, status). Status is one of `READY_TO_RELEASE`, `BLOCKED`, or `RELEASED`.
 - The work output published as typed notes per Workflow 16: the release scope, gate results, deploy/rollback plan, and approval as `artifact-ref`/`observation` notes — each carrying the trace ids on its `refs` field.
 
-This role attaches NFR evidence to `memory-bank/plans/nfr-catalog.md` and may cite `agent-factory/checklists/release-readiness-checklist.md`. Cite the universal-header `## Scope` / `## Risks` as authoritative.
+This role attaches NFR evidence in each NFR file, `memory-bank/plans/nfr/NFR-xxx.md`, and may cite `agent-factory/checklists/release-readiness-checklist.md`. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the Release Manager owns the `Ready to Release` exit: while the release is being cut and approved the ticket sits in `Ready to Release`, and once a named human approves the deploy the role moves it to `Done`.
 
-## Trace updates (what it must record in memory-bank/plans/traceability.md)
-Append to `memory-bank/plans/traceability.md`: record the release ID (`REL-xxxx`) against each ticket in the release and update status, so each shipped change traces back through its UAT, test, and implementation rows to its product ticket.
+## Trace updates
+Publish the release ID (`REL-xxxx`) as a ref on a note per Workflow 16, with the identifier of each ticket in the release among the refs. Each ticket's trace file under `memory-bank/plans/traceability/` and the trace index are rendered from those refs by `tools/grugops/trace-render.js`, and hand edits to either are overwritten.
 
 ## Hard limits
 Deploy only after a named human approves; production action is always human-confirmed. You require approval, and you never deploy prod yourself. Report the release state exactly as it stands — version, scope, gate results, approval — and never fake a passing gate, a clean release, or an approval that did not happen; a release that ships on a forged signoff is the failure mode this gate exists to prevent. Mark anything unverified `UNKNOWN - verify`.
