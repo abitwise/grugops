@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-02-PLAN.md
-last_updated: "2026-10-22T08:14:14.303Z"
+stopped_at: Completed 37-03-PLAN.md
+last_updated: "2026-10-22T08:41:20.718Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-02 (state budgets and layout marker)
-state_head: 2a40bfbac5c8248ba922c6e092d5a911f8f748f9
+last_activity_desc: Completed 37-03 (generated embeds and host state-check)
+state_head: 9ce32304ef1db8891cd8b576e224877cd0b3ff90
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 17
+  completed_plans: 18
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 3 of 19
+Plan: 4 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-02 (state budgets and layout marker)
+Last activity: 2026-10-22 — Completed 37-03 (generated embeds and host state-check)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -731,6 +731,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 36 P14 | 42 min | 2 tasks | 9 files |
 | Phase 37 P01 | 42 min | 3 tasks | 6 files |
 | Phase 37 P02 | 28 min | 2 tasks | 9 files |
+| Phase 37 P03 | 23 min | 1 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -2007,6 +2008,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-02: scripts/state-rules.ts is the import-free owner of all nine budget rules, the record rule (recordEntryNames, budgetEntryNames) and the layout marker reader; the validator's checkBudgets routes findings to ERROR with a valid marker and WARNING otherwise
 - [Phase 37]: 37-02: indexLineFindings takes the normalized and the comment-blanked text and leaves out each blanked run that held a comment, so a long comment line is never measured as an index entry
 - [Phase 37]: 37-02: the marker, board and index files are checked with statSync().isFile() before they are read, so a FIFO or directory there is reported by name and never opened; record files are measured by lstat size
+- [Phase 37]: Plan 37-03: host runnables get authority rules and numbers only by generation into a marked region (scripts/generate-runnable-embeds.ts, closure resolved by the TypeScript type checker) plus the freshness gate npm run freshness:runnable-embeds wired in the ubuntu CI block; censuses admit a copy only inside a fresh region of an EMBED_SPECS target, never by name
 
 ### Pending Todos
 
@@ -2338,8 +2340,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T08:14:14.030Z
-Stopped at: Completed 37-02-PLAN.md
+Last session: 2026-10-22T08:41:20.454Z
+Stopped at: Completed 37-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
