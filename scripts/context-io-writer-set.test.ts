@@ -44,6 +44,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { EMBED_CLOSE, EMBED_OPEN, EMBED_SPECS, regionSpans, rewriteRunnable } from "./generate-runnable-embeds.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_TS = join(ROOT, "scripts", "context-io.ts");
@@ -5789,5 +5790,154 @@ describe("31-40 — the fallback ban and the disposition equality are each watch
       "a diverging site with no register entry did not fail DIRECTION 1, so that equality cannot " +
         "stop a future write-both route arriving dispositionless",
     ).toEqual([handle]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE GENERATED-REGION RULE FOR THE WRITER (2026-10-21, plan 37-06).
+//
+// The host trace renderer (scripts/runnable-ref/trace-render.ts) may import `node:` builtins only, so it
+// carries `atomicWrite` as a declaration copied verbatim from scripts/context-io.ts by
+// scripts/generate-runnable-embeds.ts. Everything above reads scripts/context-io.ts alone, so that copy would
+// otherwise be a writer no case in this file sees. It is not a second implementation of the rule: the embed
+// freshness gate (scripts/runnable-embeds-freshness.ts, wired in CI) proves the region byte-identical to the
+// authority, and the authority is the function every case above drives. So it is admitted by WHERE it sits —
+// inside a span the generator's own `regionSpans` returns, in an EMBED_SPECS target whose region is fresh —
+// never by the runnable's name, which is the rule plan 37-03 gave the reader census.
+//
+// THE SHAPE IS DERIVED, NOT NAMED. A writer is a function whose own body calls a file write primitive
+// (`writeFileSync` or `writeSync`) and `renameSync`: the temp-sibling-plus-rename shape. Matching the name
+// `atomicWrite` alone would miss a renamed copy. Outside generated regions the tree-wide set is pinned
+// two-sided to the measured members, each with a written disposition; a new one is a decision, never a bumped
+// constant. Measured 2026-10-22 over `git ls-files` of the non-test sources under scripts/, hooks/ and
+// install/.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** One function with the temp-sibling-plus-rename writer shape, located by module, name and offset. */
+interface RenameWriterSite {
+  readonly rel: string;
+  readonly name: string;
+  readonly at: number;
+}
+
+const RENAME_WRITE_PRIMITIVES = new Set(["writeFileSync", "writeSync"]);
+
+/** Every function-like in `text` whose own body (not a nested function's) writes a file and renames one. */
+function renameWriterSites(rel: string, text: string): RenameWriterSite[] {
+  const source = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true);
+  const sites: RenameWriterSite[] = [];
+  const isFunctionLike = (n: ts.Node): n is ts.FunctionLikeDeclaration =>
+    ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n);
+  const calleeName = (call: ts.CallExpression): string => {
+    const e = call.expression;
+    if (ts.isIdentifier(e)) return e.text;
+    if (ts.isPropertyAccessExpression(e)) return e.name.text;
+    return "";
+  };
+  const visit = (node: ts.Node): void => {
+    if (isFunctionLike(node) && node.body !== undefined) {
+      const calls = new Set<string>();
+      const own = (m: ts.Node): void => {
+        if (isFunctionLike(m)) return;
+        if (ts.isCallExpression(m)) calls.add(calleeName(m));
+        ts.forEachChild(m, own);
+      };
+      ts.forEachChild(node.body, own);
+      if (calls.has("renameSync") && [...calls].some((c) => RENAME_WRITE_PRIMITIVES.has(c))) {
+        const name = node.name !== undefined ? node.name.getText(source) : "<anonymous>";
+        sites.push({ rel, name, at: node.getStart(source) });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return sites;
+}
+
+/** The writer sites of `files` under `root`, split by whether each starts inside a generated region. */
+function classifyRenameWriters(root: string, files: readonly string[]): { outside: string[]; inside: string[] } {
+  const outside: string[] = [];
+  const inside: string[] = [];
+  for (const rel of files) {
+    const abs = join(root, rel);
+    if (!existsSync(abs)) continue;
+    const text = readFileSync(abs, "utf8");
+    const spans = regionSpans(text);
+    for (const site of renameWriterSites(rel, text)) {
+      const label = `${site.rel}:${site.name}`;
+      if (spans.some(([a, b]) => site.at >= a && site.at < b)) inside.push(label);
+      else outside.push(label);
+    }
+  }
+  return { outside: outside.sort(), inside: inside.sort() };
+}
+
+/** One written disposition per writer outside every generated region. */
+const RENAME_WRITER_DISPOSITIONS: Readonly<Record<string, string>> = Object.freeze({
+  "install/install.ts:backupEditedKitFiles":
+    "The installer's backup of a kit file a human edited, before install overwrites it. Its destinations are " +
+    "kit paths the installer owns, not the shared context, so it is outside this census's note scope.",
+  "scripts/claim.ts:atomicWrite":
+    "A pre-existing clone of the authority for claim.ts's own derived artifact (now-running.md), written " +
+    "wholesale on each regeneration. It writes no note and takes no caller-chosen context path.",
+  "scripts/context-io.ts:atomicWrite":
+    "THE AUTHORITY. Disclosed above in NON_NOTE_WRITER_RESIDUALS (T-31-25, accept) and driven by every case " +
+    "that reaches the index artifacts.",
+});
+
+/** The cardinality, asserted separately from the membership. */
+const EXPECTED_RENAME_WRITER_COUNT = 3;
+
+/** The tracked non-test sources this census reads. */
+function writerCandidates(): string[] {
+  // git pathspec `*` matches across `/`, so each glob reads its whole directory tree.
+  return trackedFiles("scripts/*.ts", "hooks/*.ts", "install/*.ts").filter(
+    (rel) => !rel.endsWith(".test.ts") && !rel.endsWith(".d.ts"),
+  );
+}
+
+describe("37-06 — the temp-sibling-plus-rename writer is admitted inside a generated region only by rule", () => {
+  it("outside generated regions the writer set is the measured three, each with a disposition", () => {
+    const { outside } = classifyRenameWriters(ROOT, writerCandidates());
+    expect(
+      outside,
+      "a function that writes a file and renames one landed in or left the tree outside a generated region. " +
+        "It is a writer this file does not bind, so it needs a written disposition, or it belongs in a " +
+        "generated region of an EMBED_SPECS target. Never a widened constant",
+    ).toEqual(Object.keys(RENAME_WRITER_DISPOSITIONS).sort());
+    expect(outside.length).toBe(EXPECTED_RENAME_WRITER_COUNT);
+  });
+
+  it("every writer inside a generated region sits in an EMBED_SPECS target whose region is fresh", () => {
+    const { inside } = classifyRenameWriters(ROOT, writerCandidates());
+    expect(inside, "PREMISE: the trace renderer carries the embedded atomicWrite").toContain(
+      "scripts/runnable-ref/trace-render.ts:atomicWrite",
+    );
+    for (const label of inside) {
+      const rel = label.slice(0, label.lastIndexOf(":"));
+      const spec = EMBED_SPECS.find((s) => s.target === rel);
+      expect(spec, `${rel} carries a writer inside a region and is not an EMBED_SPECS target`).toBeDefined();
+      if (spec !== undefined) expect(rewriteRunnable(spec, ROOT).changed, `${rel}: stale region`).toBe(false);
+    }
+  });
+
+  it("CONTROL: a writer inside a region leaves the outside set, and one outside a region stays in it", () => {
+    const root = freshTmp("37-06-writer-region-");
+    mkdirSync(join(root, "scripts"), { recursive: true });
+    const body =
+      "function atomicWrite(p: string, d: string): void {\n" +
+      "  const t = `${p}.tmp`;\n  writeFileSync(t, d);\n  renameSync(t, p);\n}\n";
+    writeFileSync(join(root, "scripts", "in-region.ts"), `${EMBED_OPEN}\n${body}${EMBED_CLOSE}\n`);
+    writeFileSync(join(root, "scripts", "out-of-region.ts"), `${EMBED_OPEN}\n${EMBED_CLOSE}\n${body}`);
+    const renamed = body.replace("atomicWrite", "persist");
+    writeFileSync(join(root, "scripts", "renamed.ts"), renamed);
+    const files = ["scripts/in-region.ts", "scripts/out-of-region.ts", "scripts/renamed.ts"];
+    const { outside, inside } = classifyRenameWriters(root, files);
+    expect(outside).toEqual(["scripts/out-of-region.ts:atomicWrite", "scripts/renamed.ts:persist"]);
+    expect(inside).toEqual(["scripts/in-region.ts:atomicWrite"]);
+    expect(
+      EMBED_SPECS.some((s) => s.target === "scripts/in-region.ts"),
+      "a region in a module that is not a target is refused by the case above",
+    ).toBe(false);
   });
 });

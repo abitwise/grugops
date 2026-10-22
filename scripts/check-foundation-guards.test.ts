@@ -1274,12 +1274,13 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
 //
 // THE RECOGNISER ARM IS STILL NARROWER THAN 29-22'S THIRD CONSTRUCT, AND THE NARROWING IS MEASURED.
 // That construct is `/\^#\{?[\d,]*\}?[ \\]/`, whose trailing class admits a BACKSLASH — so it
-// recognises `/^#\d+$/` in scripts/trace-render.ts, an ISSUE-REFERENCE pattern that is not a heading
+// recognises `/^#\d+$/` in scripts/trace-model.ts (in scripts/trace-render.ts until 2026-10-22, plan 37-06),
+// an ISSUE-REFERENCE pattern that is not a heading
 // in any sense. 29-22's own summary records exactly this noise as its reason for staying
 // module-scoped. The arm here requires a SEPARATOR after the hashes — a literal space or a `\s`
 // class, never a backslash — so the widening in plan 29-29 added the shape item 4 named and nothing
 // else. Both halves of that difference are asserted below on planted inputs AND on two live modules:
-// `trace-render.ts`, whose issue-reference pattern the arm must not even recognise, and
+// `trace-model.ts`, whose issue-reference pattern the arm must not even recognise, and
 // `validate-agent-factory.ts`, whose `/^##\s+/` the arm DOES recognise and which the CONJUNCTION
 // excludes because the line bounds no scan. A widening asserted only on its positive side is how
 // 29-22's noise arrived.
@@ -1372,7 +1373,7 @@ const codeLinesOfSource = (src: string): string[] =>
 //
 // The widening is `#*` (a run) and `(?: |\\s)` (a separator that may be a class). It adds NOTHING
 // else — in particular it still refuses 29-22's third construct, whose trailing character class
-// admits a BACKSLASH and so recognises `/^#\d+$/` in `trace-render.ts`, an issue reference that is
+// admits a BACKSLASH and so recognises `/^#\d+$/` in `trace-model.ts`, an issue reference that is
 // not a heading in any sense. 29-22's own summary records that noise as its reason for staying
 // module-scoped. Both directions are asserted on planted inputs and on two live modules below,
 // because a classifier WIDENED until it is noisy is the same defect as one NARROWED until the answer
@@ -2301,8 +2302,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     commit as the modules.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 105 with these modules tracked (2026-10-22, plan 37-03).
+ *
+ * 105 -> 107 (plan 37-06, phase 37 SPLIT-03), TWO MODULES:
+ *   - `scripts/trace-model.ts` — the one trace model: ref classification, the row merge, the per-ticket and
+ *     index text, the tree plan and the two hand-trace scan patterns. It imports nothing at all; the note
+ *     reader and every state path are passed in.
+ *   - `scripts/runnable-ref/trace-render.ts` — the host trace renderer, builtins only; its region carries
+ *     copies of the trace model, the note read path, the atomic writer and four state paths.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: neither declares a function named for the frontmatter parser, builds a
+ *     `new RegExp`, reads a grant or renders a spawn verdict. Their committed `.js` twins landed in the same
+ *     commit as the modules.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 107 with these modules tracked (2026-10-22, plan 37-06).
  */
-const NON_TEST_MODULE_COUNT = 105;
+const NON_TEST_MODULE_COUNT = 107;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2728,7 +2741,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
 
   it("the recogniser arm requires a SEPARATOR — it does not recognise an issue-reference pattern", () => {
     // 29-22's third construct admits a BACKSLASH after the hashes, so it recognises `/^#\d+$/` in
-    // scripts/trace-render.ts — an issue reference, not a heading — and that noise is the reason
+    // scripts/trace-model.ts (moved there from scripts/trace-render.ts on 2026-10-22, plan 37-06, when the
+    // trace model got its own module) — an issue reference, not a heading — and that noise is the reason
     // 29-22 recorded for keeping its own scan module-scoped. The narrowing is asserted from both
     // sides on planted lines, so it is a measured difference rather than a quiet convenience.
     //
@@ -2747,7 +2761,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       "an anchored `#` followed by a digit class is an issue reference and must NOT be recognised",
     ).toBe(false);
     // And the live module carrying that pattern is absent from the answer for that reason.
-    expect(sectionExtentOwners()).not.toContain("scripts/trace-render.ts");
+    expect(sectionExtentOwners()).not.toContain("scripts/trace-model.ts");
   });
 
   it("the CONSUMER set is derived, sorted and pinned two-sided with its cardinality", () => {
@@ -2881,7 +2895,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // three specs compared below, so each contributes three empty comparisons and cannot make the agreement
     // above vacuous on its own (`scripts/runnable-ref/state-check.ts` is outside this scoped walk).
     // Re-derived: the scoped walk over `scripts/` minus tests reports 68 with the modules tracked (2026-10-22).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(68);
+    // 68 → 69 (plan 37-06, SPLIT-03): `scripts/trace-model.ts`, the one trace model. It imports nothing at
+    // all, so it contributes three empty comparisons and cannot make the agreement above vacuous on its own
+    // (`scripts/runnable-ref/trace-render.ts` is outside this scoped walk). Re-derived: the scoped walk over
+    // `scripts/` minus tests reports 69 with the module tracked (2026-10-22).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(69);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2915,7 +2933,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 62 → 63 (plan 34.1-02): `host-entries-freshness.ts`, three specs per module as ever.
     // 63 → 64 (plan 36-01, task 3): `state-path-scan.ts`, three specs per module as ever.
     // 65 → 66 (plan 37-02, task 1): `state-rules.ts`, three specs per module as ever (2026-10-22).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(68 * 3);
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(69 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2984,21 +3002,23 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // a widening that is clean on fixtures and noisy on the repository.
     const owners = sectionExtentOwners();
 
-    // `trace-render.ts` carries `/^#\d+$/`, an ISSUE-REFERENCE pattern. The recogniser arm must not
-    // even recognise it, so the exclusion is not resting on the terminator arm by luck.
+    // `trace-model.ts` carries `/^#\d+$/`, an ISSUE-REFERENCE pattern. The recogniser arm must not
+    // even recognise it, so the exclusion is not resting on the terminator arm by luck. (2026-10-22, plan
+    // 37-06: the pattern moved here from `trace-render.ts` with the rest of the trace model, so the premise
+    // follows it; the old module no longer carries it.)
     const traceSrc = codeLinesOfSource(
-      readFileSync(join(ROOT, "scripts", "trace-render.ts"), "utf8"),
+      readFileSync(join(ROOT, "scripts", "trace-model.ts"), "utf8"),
     ).join("\n");
     const issueRefLine = traceSrc
       .split("\n")
       .find((l) => l.includes("test(ref)") && l.includes("\\d+"));
-    expect(issueRefLine, "trace-render.ts must still carry the issue-reference pattern").toBeDefined();
+    expect(issueRefLine, "trace-model.ts must still carry the issue-reference pattern").toBeDefined();
     expect(
       HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(issueRefLine as string)),
       "an anchored `#` followed by a digit class is an issue reference, not a heading",
     ).toBe(false);
     expect(sectionExtentSitesIn(traceSrc)).toEqual([]);
-    expect(owners).not.toContain("scripts/trace-render.ts");
+    expect(owners).not.toContain("scripts/trace-model.ts");
 
     // THE OTHER DIRECTION, AND THE STRONGER HALF: a live module the WIDENED recogniser arm DOES
     // recognise, excluded by the CONJUNCTION because its line bounds no scan.
@@ -3137,7 +3157,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 66 → 68 (plan 37-03): `generate-runnable-embeds.ts` and `runnable-embeds-freshness.ts`, the same
       // modules the flat reader gained; both pins move in one commit for the same reason. Re-derived:
       // `ls scripts/*.ts` minus the tests reports 68 (2026-10-22).
-    ).toBe(68);
+      // 68 → 69 (plan 37-06): `trace-model.ts`, the same module the flat reader gained; both pins move in
+      // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 69 (2026-10-22).
+    ).toBe(69);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9867,7 +9889,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // (`scripts/runnable-ref/state-check.test.ts` landed too and is not in this top-level count). The pin moved
 // because a module landed, not to make a red go away. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 77 on this tree (2026-10-22, plan 37-03).
-const TRIPWIRE_MODULES = 77;
+//
+// 77 -> 78 (plan 37-06): ONE test module, `scripts/trace-model.test.ts` — the pure trace model's
+// classification, merge, rendering, collection and planning cases, and the two cross-plan contracts with plans
+// 37-13 and 37-18 (`scripts/runnable-ref/trace-render.test.ts` landed too and is not in this top-level count).
+// The pin moved because a module landed, not to make a red go away. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 78 on this tree (2026-10-22, plan 37-06).
+const TRIPWIRE_MODULES = 78;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

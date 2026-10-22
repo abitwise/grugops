@@ -193,9 +193,14 @@ describe("regionSpans and rewriteRunnable", () => {
   it("one character edited inside a region makes the freshness gate exit 1 naming the target (temporary mirror)", () => {
     // The mirror sits under the repository's gitignored .temp/ so the copied gate resolves `typescript` from this
     // checkout's node_modules, as it does in CI. The tree itself is never edited.
+    // Every target and every authority is mirrored (2026-10-22, plan 37-06: the gate re-derives every row, so a
+    // mirror of the first row alone reads the second target as missing); only the first target is edited.
     const spec = EMBED_SPECS[0] as EmbedSpec;
     const files: Record<string, string> = {};
-    for (const a of spec.authorities) files[a.module] = readFileSync(join(ROOT, a.module), "utf8");
+    for (const s of EMBED_SPECS) {
+      for (const a of s.authorities) files[a.module] = readFileSync(join(ROOT, a.module), "utf8");
+      files[s.target] = readFileSync(join(ROOT, s.target), "utf8");
+    }
     const committed = readFileSync(join(ROOT, spec.target), "utf8");
     const [a] = regionSpans(committed)[0] as readonly [number, number];
     const at = committed.indexOf("boardBytes: 24_576", a);
@@ -212,6 +217,7 @@ describe("regionSpans and rewriteRunnable", () => {
     expect(r.stdout).toContain("FAILED");
     expect(r.stdout).toContain(spec.target);
     expect(r.stdout).toContain("npm run generate:runnable-embeds");
+    for (const other of EMBED_SPECS.slice(1)) expect(r.stdout, "an unedited target is not reported").not.toContain(other.target);
 
     // Control: the same mirror with the committed text is fresh.
     writeFileSync(join(mirror, ...spec.target.split("/")), committed);

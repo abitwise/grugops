@@ -30,72 +30,13 @@ import { readdirSync, existsSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import { readContext, atomicWrite } from "./context-io.js";
+import { buildTraceRows, traceCell } from "./trace-model.js";
 import { STATE_ROOT_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
 const DEFAULT_CONTEXT_ROOT = join(ROOT, ".grugops", "context");
 // The state root (install/state-layout.ts); the traceability file is written directly under it.
 const DEFAULT_PLANS_ROOT = join(ROOT, STATE_ROOT_REL);
-// ── cell(): escape free-text before it enters a pipe-delimited markdown table cell. ─────────────
-// Cloned from context-io.ts (which cloned it from generate-catalog.ts): backslash first, then pipe,
-// then flatten newlines to a space — so a ref carrying a literal `|` never breaks the table.
-function cell(s) {
-    return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
-}
-// ── Ref classification (D-06) ───────────────────────────────────────────────────────────────────
-// The five trace columns are derived from each note's `refs` by ref SHAPE. The row KEY is the
-// ticket-shaped ref the note carries. The classifier is deterministic and prefix-anchored so the
-// render is byte-reproducible.
-//
-// Ticket id: a `<PREFIX>-<number>` ref whose prefix is NOT one of the reserved structural prefixes
-// (EPIC / FEAT / NFR / ADR / RISK / REL / INC / UAT). This matches the traceability.md ID scheme
-// (config id_prefix, default ABC) without hard-coding the project prefix.
-const RESERVED_PREFIXES = new Set(["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT"]);
-const ID_SHAPE = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/;
-function isTicketRef(ref) {
-    const m = ID_SHAPE.exec(ref);
-    return m !== null && !RESERVED_PREFIXES.has(m[1].toUpperCase());
-}
-// A ref looks like a Tests link when it names a test file or an e2e path.
-function isTestRef(ref) {
-    return /(^|[\/.])(test|spec)([\/.]|$)/i.test(ref) || /(^|\/)e2e(\/|$)/i.test(ref);
-}
-// A ref looks like a Code link when it names a PR (#123) or a source file/path (and is NOT a test ref).
-function isCodeRef(ref) {
-    if (isTestRef(ref))
-        return false;
-    return /^#\d+$/.test(ref) || ref.includes("/") || /\.[A-Za-z0-9]+$/.test(ref);
-}
-function classify(ref) {
-    const m = ID_SHAPE.exec(ref);
-    const prefix = m ? m[1].toUpperCase() : "";
-    if (prefix === "UAT")
-        return "UAT";
-    if (prefix === "REL")
-        return "Release";
-    if (prefix === "NFR" || prefix === "EPIC" || prefix === "FEAT")
-        return "Requirement";
-    if (isTestRef(ref))
-        return "Tests";
-    if (isTicketRef(ref))
-        return null; // the row key, never a cell value
-    if (isCodeRef(ref))
-        return "Code";
-    // A bare requirement-style token (e.g. REQ-ish ALL-CAPS-id that is not a structural prefix and not
-    // a path) is treated as a Requirement link.
-    if (m)
-        return "Requirement";
-    return null;
-}
-function emptyRow(id) {
-    return { id, Requirement: [], Code: [], Tests: [], UAT: [], Release: [] };
-}
-// Append `value` to `bucket` only if not already present (preserve first-seen order; dedup keeps the
-// render stable when the same ref appears on several notes).
-function pushUnique(bucket, value) {
-    if (!bucket.includes(value))
-        bucket.push(value);
-}
 // ── List the task directories under a context root (each holds a notes/ dir). ───────────────────
 function listTasks(contextRoot) {
     if (!existsSync(contextRoot))
@@ -106,41 +47,21 @@ function listTasks(contextRoot) {
         .sort(); // deterministic task order
 }
 // ── Build the ticket rows from every note's refs across every task. ─────────────────────────────
-// A note contributes to a ticket row when its refs carry a ticket-shaped id. Every OTHER ref on that
-// note is classified into one of the five columns. A note with no ticket ref contributes nothing (it
-// is a non-trace note — a soft observation/claim with no ticket linkage).
+// The classification and the row merge live once, in scripts/trace-model.ts (plan 37-06). This export
+// keeps its contract until plan 37-08 turns this file into a wrapper: the notes of every task under one
+// context root, merged into one row per ticket. Its row order stays the order this render has always
+// written, so the monolithic file below keeps its bytes; the per-ticket render sorts by code units.
 export function buildRows(contextRoot) {
-    const rows = new Map();
+    const notes = [];
     for (const task of listTasks(contextRoot)) {
-        let notes;
         try {
-            notes = readContext(task, contextRoot);
+            notes.push(...readContext(task, contextRoot));
         }
         catch {
             continue; // a task name the allowlist rejects, or an unreadable notes dir — skip, never crash
         }
-        for (const n of notes) {
-            const ticketIds = n.refs.filter(isTicketRef);
-            if (ticketIds.length === 0)
-                continue;
-            for (const ticketId of ticketIds) {
-                let row = rows.get(ticketId);
-                if (!row) {
-                    row = emptyRow(ticketId);
-                    rows.set(ticketId, row);
-                }
-                for (const ref of n.refs) {
-                    if (ref === ticketId)
-                        continue; // the key itself is never a cell
-                    const col = classify(ref);
-                    if (col !== null)
-                        pushUnique(row[col], ref);
-                }
-            }
-        }
     }
-    // Deterministic row order: by ticket id (lexicographic).
-    return [...rows.values()].sort((a, b) => a.id.localeCompare(b.id));
+    return buildTraceRows(notes).sort((a, b) => a.id.localeCompare(b.id));
 }
 // ── render: read notes → emit the byte-reproducible traceability file under the state root. ─────
 // GENERATED header naming the re-run command; the five-column table; deterministic ticket-id sort;
@@ -156,11 +77,11 @@ export function renderTraceability(contextRoot = DEFAULT_CONTEXT_ROOT, plansRoot
     for (const r of rows) {
         // The Requirement cell leads with the ticket id (verbatim, so the validator trace.includes(id)
         // re-point stays minimal — A2), followed by any requirement-shaped refs.
-        const requirement = [r.id, ...r.Requirement].map(cell).join(", ");
-        const code = r.Code.map(cell).join(", ");
-        const tests = r.Tests.map(cell).join(", ");
-        const uat = r.UAT.map(cell).join(", ");
-        const release = r.Release.map(cell).join(", ");
+        const requirement = [r.id, ...r.Requirement].map(traceCell).join(", ");
+        const code = r.Code.map(traceCell).join(", ");
+        const tests = r.Tests.map(traceCell).join(", ");
+        const uat = r.UAT.map(traceCell).join(", ");
+        const release = r.Release.map(traceCell).join(", ");
         md.push(`| ${requirement} | ${code} | ${tests} | ${uat} | ${release} |`);
     }
     md.push(""); // trailing element → exactly one final "\n"

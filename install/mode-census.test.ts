@@ -97,9 +97,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * one tracked source).
  * SCRIPTS_TEST_FILE_COUNT 76 -> 77 (2026-10-22, plan 37-03, re-derived by listing scripts/, not incremented) for
  * scripts/generate-runnable-embeds.test.ts, which has no chmod call and reads no `.mode` (it writes fixture
- * authorities into temporary directories and reads the generator's output and the gate's stdout). */
+ * authorities into temporary directories and reads the generator's output and the gate's stdout).
+ * SCRIPTS_TEST_FILE_COUNT 77 -> 78 (2026-10-22, plan 37-06, re-derived by listing scripts/, not incremented) for
+ * scripts/trace-model.test.ts, which has no chmod call and reads no `.mode` (it calls pure functions only). */
 const INSTALL_TEST_FILE_COUNT = 39;
-const SCRIPTS_TEST_FILE_COUNT = 77;
+const SCRIPTS_TEST_FILE_COUNT = 78;
 const SOURCE_FILE_COUNT = 10;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial

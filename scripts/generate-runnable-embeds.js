@@ -44,7 +44,10 @@ export const EMBED_CLOSE = "// </runnable-embeds>";
  * the budget numbers and every state path it reads from install/state-layout.ts, every budget rule, the record
  * rule, the marker rule, the output sanitizer, the NFR index grammar and integrity rule, the progress-entry
  * grammar and the rollable and move-only rules from scripts/state-rules.ts, the board grammar from scripts/board-model.ts, and the non-blocking reader from
- * scripts/context-io.ts.
+ * scripts/context-io.ts. The second row is the trace renderer (plan 37-06): the two context roots and the two
+ * trace paths from install/state-layout.ts, the output sanitizer from scripts/state-rules.ts, the trace model
+ * from scripts/trace-model.ts, and the note read path (the walk with its skip arms and the seal check, the
+ * record projection, the non-blocking reader) and the temp-sibling-plus-rename writer from scripts/context-io.ts.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -99,13 +102,43 @@ export const EMBED_SPECS = Object.freeze([
             { module: "scripts/context-io.ts", roots: ["readRegularFileOrNull"] },
         ],
     },
+    {
+        target: "scripts/runnable-ref/trace-render.ts",
+        authorities: [
+            {
+                module: "install/state-layout.ts",
+                roots: ["CONTEXT_REL", "CONTEXT_ARCHIVE_REL", "TRACE_DIR_REL", "TRACEABILITY_REL"],
+            },
+            { module: "scripts/state-rules.ts", roots: ["stripControlChars"] },
+            {
+                module: "scripts/trace-model.ts",
+                roots: [
+                    "TRACE_GENERATED_HEADER",
+                    "classifyRef",
+                    "isTicketRef",
+                    "buildTraceRows",
+                    "renderTicketTrace",
+                    "renderTraceIndex",
+                    "traceFileName",
+                    "collectTraceNotes",
+                    "planTraceTree",
+                    "compareCodeUnits",
+                ],
+            },
+            {
+                module: "scripts/context-io.ts",
+                roots: ["readRawNotesWithSkips", "recordFromParsed", "readRegularFileOrNull", "atomicWrite", "NOTE_SKIP_ARMS"],
+            },
+        ],
+    },
 ]);
 /**
  * A pinned integer, not a derivation: scripts/generate-runnable-embeds.test.ts asserts it equals
  * EMBED_SPECS.length, so a row added or removed without moving this pin fails red.
  * 2026-10-22, plan 37-03: one row, the state checker.
+ * 2026-10-22, plan 37-06: two rows; the second is the host trace renderer (SPLIT-03, D-01).
  */
-export const EMBED_SPEC_COUNT = 1;
+export const EMBED_SPEC_COUNT = 2;
 /** Names the generator never embeds, each with the reason it gives. */
 const REFUSED_NAMES = Object.freeze({
     LEGACY_STATE_ROOT_REL: "its quoted value is the spelling the old-state-path gate counts (research Pitfall 2); choose roots whose " +
