@@ -142,6 +142,19 @@ warning. What to write instead: the same six key lines, between an opening `---`
 one, at the top of the file. The specification carries a pointer to this contract beside the
 example; this paragraph is the authority it points at.
 
+### Ticket body sections
+
+The eight keys above stay the closed set, and no key is added for ticket detail. Detail that does
+not belong on the board row goes in the ticket body, under one of two level-two headings:
+
+- `## Blocked` holds a blocked ticket's reasons, one bullet per reason. Each bullet gives the date,
+  who raised it, the reason and the owner who can clear it, for example
+  `- 2026-10-21, raised by Software Engineer: waiting on ADR-0007 (owner: Architect/Design)`.
+- `## Board notes` holds text that used to sit in a board row's trailer, copied verbatim.
+
+The body is never interpreted, so the grammar reads neither section. Section order carries no
+meaning, and a ticket with neither section is admitted the same way as one with both.
+
 ## Rows
 
 A **ticket row** is a top-level bullet carrying a bracketed identifier, one space, and a title.
@@ -202,6 +215,74 @@ in a parser would promote that example into live state.
 A line matching `_Updated: <YYYY-MM-DD> by <actor>` is an update entry carrying a date, an actor,
 and the remaining text. An `_Updated:` line in any other shape is an unparsed line. Update entries
 are their own class, so they never become rows.
+
+## Overview and budgets
+
+The board is an overview. It says where each ticket stands and holds no other ticket detail. The
+rules below are writing and budget rules, not a grammar change. The reader admits every row shape
+the Rows section admits, and the Bounds section is unchanged.
+
+- Each ticket has one row, under the column it is in, written `- [ID] title  (owner, since)`.
+  Nothing follows the parenthetical, so the row carries no trailer.
+- The whole board carries at most one `_Updated:` line.
+- A blocked ticket's reasons go in the ticket body, and so does every other ticket detail. The
+  Ticket body sections subsection names where each kind of detail goes.
+- A ticket moved to Done gets its row as the first row under the Done heading. The Done column
+  therefore reads newest first.
+- The Done column keeps the most recent `BUDGETS.doneRows` rows. Older rows move verbatim to the
+  Done archive, described in The Done archive section below.
+
+### Budgets
+
+Each budget is spelled once, as a key of `BUDGETS` in `install/state-layout.ts`.
+`install/state-layout.test.ts` reads this table at run time, located by this heading, and compares
+its rows to that object in both directions.
+
+| Constant | Value | Unit | Applies to |
+|----------|-------|------|------------|
+| `BUDGETS.boardBytes` | 24576 | UTF-8 bytes | the board file |
+| `BUDGETS.boardRowChars` | 160 | UTF-16 code units | each ticket-row line of the board |
+| `BUDGETS.boardUpdatedLines` | 1 | lines | board lines that begin `_Updated:`, outside HTML comments |
+| `BUDGETS.indexEntryBytes` | 200 | UTF-8 bytes | each line of the trace index and the NFR catalog, outside HTML comments |
+| `BUDGETS.ticketBytes` | 65536 | UTF-8 bytes | each `.md` file in `memory-bank/plans/tickets/` |
+| `BUDGETS.nfrBytes` | 8192 | UTF-8 bytes | each `.md` file in `memory-bank/plans/nfr/` |
+| `BUDGETS.traceBytes` | 8192 | UTF-8 bytes | each `.md` file in `memory-bank/plans/traceability/` |
+| `BUDGETS.progressBytes` | 16384 | UTF-8 bytes | `memory-bank/60-progress.md` |
+| `BUDGETS.doneRows` | 20 | rows | rows under the Done heading of the board |
+
+The trace index is `memory-bank/plans/traceability.md`, and the NFR catalog is
+`memory-bank/plans/nfr-catalog.md`.
+
+Budgets are checked by the structure validator and by `tools/grugops/state-check.js`. They are not
+reader bounds. The reader never refuses a board for a budget, and the Bounds section below states
+the only ceilings the reader measures.
+
+No budget has an exemption or grandfather list. A file over budget is reported until a human splits
+or trims it. Files under the archive directories, `memory-bank/plans/archive/` and
+`.grugops/archive/`, are outside every budget.
+
+### The layout marker
+
+The layout marker is the file `memory-bank/plans/.layout`. Its valid content is exactly
+`layout: v3`, with or without one trailing newline. Two normalizations run first, the same two the
+Ticket documents subsection states: one leading byte-order mark is removed, and Windows line
+endings are folded. Any other content is invalid, for example `layout: v4`, an empty file or a
+second line. `install/state-layout.ts` spells the path once as `LAYOUT_MARKER_REL` and the content
+once as `LAYOUT_MARKER_CONTENT`.
+
+The marker decides the severity of a budget finding, and nothing else:
+
+- With no marker, every budget finding is a warning. An absent marker is not itself a finding.
+- With a marker whose content is invalid, every budget finding is a warning. The marker is
+  reported by name as not recognized, and its content is never guessed at.
+- With a valid marker, the structure validator reports every budget finding as an error, and
+  `tools/grugops/state-check.js` exits 1.
+- `tools/grugops/state-check.js` applies the same severity to its index-integrity, trace-freshness
+  and move-only findings. A could-not-run is exit 2 whatever the marker says.
+
+A fresh install carries the marker from the seed. Phase 38's `install --migrate` writes the marker
+as its last step, so a migrate that stops part way leaves no marker. The marker is a severity
+switch, not a security boundary.
 
 ## Sections and the line partition
 
@@ -522,6 +603,35 @@ whose number is not a base-ten integer fails the heading form, so it opens no co
 become unparsed lines. The number is never rounded, and it is never coerced to zero. A refusal a
 reader can see beats a number nobody wrote.
 
+## The Done archive
+
+The Done archive is the file `memory-bank/plans/archive/board-done.md`. It holds the Done rows the
+board no longer keeps. It is a board-grammar document, and its only column heading is
+`## Done (WIP unlimited)`.
+
+Rows arrive in the archive only through `tools/grugops/state-roll.js`, copied verbatim. The archive
+reads newest first: a roll puts the rows it moves above the rows already there, in the order the
+board held them. No agent edits the archive by hand.
+
+A ticket whose Done row is archived stays placed by these rules:
+
+- The projector reads the archive as a seventh source named `boardArchive`, with the same
+  `parseBoard` grammar it reads the board with.
+- Archive rows are placements for `ticket-unplaced` only. A ticket whose only row is in the archive
+  raises no `ticket-unplaced`.
+- A ticket with a row on the board and a row in the archive is `ticket-duplicated`. A roll that
+  copied a row and did not remove it is therefore visible.
+- Archive rows never count toward WIP, and they never raise `column-missing`.
+- `ticket-unplaced` is derived only while the archive source is `ok`. An absent archive is an empty
+  archive, so it places no ticket and suppresses nothing.
+- An archive that could not be read suppresses `ticket-unplaced`. The listing-completeness rule in
+  the Conflicts section gives the reason: a placement nobody read cannot be denied.
+- The conflict kinds stay seven.
+
+The `boardArchive` source is published from snapshot version 3. Version 3 lands with the reader
+change and the regenerated golden in one commit. Until that commit, the snapshot version stays 2
+and the reader joins the six sources the Staleness section names.
+
 ## Reconciliation and non-goals
 
 Two cross-checks are named here as **not performed this phase**, so a reader meets each as a
@@ -529,6 +639,33 @@ decision rather than as an omission. The per-ticket traceability cells — code,
 are read as opaque cells rather than joined against the ticket. And the projector states no opinion
 about a ticket identifier that is well formed and absent from the traceability matrix; the
 validator already warns about that one.
+
+**The trace index and the trace files.** `memory-bank/plans/traceability.md` is a generated index
+with one line per ticket. It is a pipe table whose header is `| Ticket | Trace |`. The projector
+reads it through its `Ticket` header cell, and every cell stays opaque. The per-ticket trace files
+under `memory-bank/plans/traceability/` are rendered from published note refs by
+`tools/grugops/trace-render.js`. The projector never opens a per-ticket trace file.
+
+**The NFR catalog.** `memory-bank/plans/nfr-catalog.md` is an index kept by hand, with one line per
+NFR file. Each line reads `- [NFR-xxx](nfr/NFR-xxx.md) <category>: <target>`.
+`tools/grugops/state-check.js` checks the index against the files in `memory-bank/plans/nfr/` in
+both directions. Every line points to an existing file, and every file has exactly one line.
+
+**Which directory entries are records.** The rule covers the NFR and trace directories and the
+move-only surfaces. The move-only surfaces are `.grugops/queue/done/`, `memory-bank/50-decisions/`
+and their archive folders.
+
+- An entry whose name begins with `.` is not a record. Examples are a directory keeper such as
+  `.gitkeep` and operating-system metadata such as `.DS_Store`.
+- No index, freshness or move-only rule reads, counts or reports an entry that is not a record.
+- The byte budgets measure only `.md` files whose name does not begin with `.`. The ticket
+  directory follows the same rule, so a dot-prefixed `.md` file such as `.hidden.md` is never
+  measured.
+- No ticket identifier, NFR identifier or decision record name begins with `.`, so the rule hides
+  no record.
+
+The seed and grugops's own tree carry `.gitkeep` keepers in these directories. The rule is stated
+here for that reason, before any checker exists.
 
 `docs/initial/agent_factory_builder_spec_v2.md` lists `web UI, dashboards, SaaS platform` among its
 out-of-scope items. This contract serves a read-only terminal projector over files that already
