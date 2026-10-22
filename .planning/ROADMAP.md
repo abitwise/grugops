@@ -240,7 +240,7 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 15/19 plans executed
+**Plans**: 16/19 plans executed
 
 Plans:
 **Wave 1**
@@ -289,7 +289,7 @@ Plans:
 - [x] 37-15-PLAN.md — Roles, part 2, and the commit convention
 
 **Wave 16** *(blocked on Wave 15 completion)*
-- [ ] 37-16-PLAN.md — Workflows, part 1: WF05 render and state-check (D-12), WF09 roll and move-only, WF12, WF16, NFR seeding
+- [x] 37-16-PLAN.md — Workflows, part 1: WF05 render and state-check (D-12), WF09 roll and move-only, WF12, WF16, NFR seeding
 
 **Wave 17** *(blocked on Wave 16 completion)*
 - [ ] 37-17-PLAN.md — Workflows, part 2: trace and commit sentences (WF18's bound paragraph kept)
@@ -408,7 +408,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
-| 37. Overview board, per-file records and budgets | v3.0 | 15/19 | In Progress | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 16/19 | In Progress | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |

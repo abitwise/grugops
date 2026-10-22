@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-15-PLAN.md
-last_updated: "2026-10-22T17:33:02.107Z"
+stopped_at: Completed 37-16-PLAN.md
+last_updated: "2026-10-22T18:03:45.268Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-15 (the last seven role prompts publish trace refs on a note per Workflow 16 instead of editing the trace, and the commit convention names the rendered trace files; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
-state_head: 9677cd680ca1a63884cf6b618390a3e1db9a2df7
+last_activity_desc: Completed 37-16 (WF05 runs trace-render then state-check and reads state-check's exit codes per D-12; WF09 renders, checks, rolls on a ROLLABLE line, keeps dated progress entries and states the move-only rule; WF12 reads the rendered trace; WF00 seeds NFRs one file each; ten workflows publish trace refs instead of editing the trace; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
+state_head: 6adcf6ace61e32e559b5ce6799c9af8ef1122b24
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 30
+  completed_plans: 31
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 16 of 19
+Plan: 17 of 19
 Status: Ready to execute
 Last activity: 2026-10-22 — Completed 37-15 (the last seven role prompts publish trace refs on a note per Workflow 16 instead of editing the trace, and the commit convention names the rendered trace files; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
 
@@ -744,6 +744,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P13 | 78 min | 2 tasks | 26 files |
 | Phase 37 P14 | 25 min | 3 tasks | 10 files |
 | Phase 37 P15 | 9min | 2 tasks | 8 files |
+| Phase 37 P16 | 25 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2043,6 +2044,9 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-13: the seed trace index is the trace render's zero-note output, so it carries the GENERATED line; the imperative-lexicon gate's generated set is 2 and its corpus 48
 - [Phase 37]: 37-14: a role's size budget is its guard_role_size FAIL ceiling; orchestrator.md (7359 B of 7570) and incident-responder.md (3666 B of 3802) entered the WARN tier with no unrelated text trimmed, and Phase 40's prose rewrite settles the orchestrator size obligation
 - [Phase 37]: 37-15: Size-tight roles (Frontend/UI, both mappers) use the Orchestrator's shorter rendered-by sentence; mapper notes name tickets because the trace model drops a note that names no ticket
+- [Phase 37]: 37-16: WF05's state-check never-a-stop clause is folded into the existing SPLIT_REQUIRED bullet so the 43-bullet stop census in scripts/checkpoints.ts holds
+- [Phase 37]: 37-16: WF03 step 8 starts with the approved verb Record, not Publish (WP-01); adding Publish to the approved verb set is writing-profile's (37-18) call
+- [Phase 37]: 37-16: WF09 reads the render and state-check exit codes by pointing at Workflow 05 Step 3 instead of restating the arms; WF02 says its epic-level refs name no ticket and points at WF03
 
 ### Pending Todos
 
@@ -2374,8 +2378,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T17:33:01.812Z
-Stopped at: Completed 37-15-PLAN.md
+Last session: 2026-10-22T18:03:44.990Z
+Stopped at: Completed 37-16-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
