@@ -138,7 +138,7 @@ import { realTargetPath } from "./user-file.js";
 // Plan 34.1-06 (D-23): the adapter kinds every install before this phase wrote, the one statement of the legacy rule.
 import { LEGACY_ADAPTER_KINDS, readInstallMarker } from "./install-marker.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
-import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, pathText, printedCommand, printedInvocation, runPrintedCommand, spawnBin, statedModeWords, statedSpelling, statedWords, withAgentFlags } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, makePreV3StateFixture, pathText, printedCommand, printedInvocation, runPrintedCommand, spawnBin, statedModeWords, statedSpelling, statedWords, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
 const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
@@ -160,12 +160,19 @@ import { HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, PI_PROMPT_REL, agentC
 // under every root of it, so a root added to the list is covered here with no edit. Plan 36-02 (LAYOUT-01): the
 // seeded state paths, so the seed assertions name the v3 state root only through the authority.
 import {
+  ARCHIVE_REL,
   BOARD_REL,
   EPICS_REL,
   FEATURES_REL,
+  LAYOUT_MARKER_CONTENT,
+  LAYOUT_MARKER_REL,
+  LEGACY_BOARD_REL,
   LEGACY_HANDOFFS_REL,
   LEGACY_STATE_ROOT_REL,
   METRICS_REL,
+  NFR_DIR_REL,
+  STATE_ROOT_REL,
+  TRACE_DIR_REL,
   NFR_CATALOG_REL,
   RELEASES_REL,
   SPRINTS_REL,
@@ -826,6 +833,151 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const first = preview();
     expect(first.length).toBeGreaterThan(0);
     expect(preview()).toEqual(first);
+  });
+
+  // ── the layout marker: a fresh repository is born migrated, an existing one never is (plan 37-13, D-04) ─────────
+  // The seed carries the marker at LAYOUT_MARKER_REL holding LAYOUT_MARKER_CONTENT, and the installer re-seeds a
+  // missing seed file on every install (research Pitfall 1). So seedState writes the marker only when stateLayout()
+  // is `fresh`: a repository that already holds planning state (a board at either root) is never switched to FAIL
+  // severity by an install, whatever its board's size. Every run sets GRUGOPS_HOME and HOME to scratch directories.
+  const markerRun = (target: string, kitHome: string, args: string[] = [], dryRun = false) => {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        INSTALL_MODE: "copy",
+        GRUGOPS_SRC: REPO_ROOT,
+        GRUGOPS_HOME: kitHome,
+        HOME: mkTmp(),
+        TARGET: target,
+        DRY_RUN: dryRun ? "1" : "",
+      },
+    });
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  };
+  const markerAt = (target: string): string => join(target, ...LAYOUT_MARKER_REL.split("/"));
+  /** The report lines carrying `label` (report's `  <label padded to 14> <msg>` shape). */
+  const labelledLines = (out: string, label: string): string[] =>
+    out.split("\n").filter((l) => l.startsWith(`  ${label.padEnd(14)} `));
+  /** Every report line that names the marker path. */
+  const markerLines = (out: string): string[] => out.split("\n").filter((l) => l.includes(LAYOUT_MARKER_REL));
+  /** The one `skipped` line a non-fresh layout prints for the marker, asserted to be exactly one. */
+  function expectOneMarkerSkip(out: string): string {
+    const lines = labelledLines(out, "skipped").filter((l) => l.includes(LAYOUT_MARKER_REL));
+    expect(lines, out).toHaveLength(1);
+    expect(lines[0]).toContain("not seeded");
+    expect(lines[0]).toContain("migrated");
+    expect(markerLines(out), out).toEqual(lines);
+    return lines[0];
+  }
+  const runNode = (args: string[], cwd: string) =>
+    spawnSync("node", args, { encoding: "utf8", cwd, env: { PATH: process.env.PATH ?? "" } });
+
+  it("layout marker: a fresh install writes LAYOUT_MARKER_CONTENT, and the installed state-check (marker valid, no finding) and trace-render --check pass (D-04, SPLIT-05)", () => {
+    const target = mkTmp();
+    const r = markerRun(target, mkTmp());
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(markerAt(target)), r.stdout).toBe(true);
+    expect(readFileSync(markerAt(target), "utf8")).toBe(LAYOUT_MARKER_CONTENT);
+    expect(labelledLines(r.stdout, "created").filter((l) => l.includes(LAYOUT_MARKER_REL)), r.stdout).toHaveLength(1);
+    // The seed's keepers are present, so a keeper reported as a record would turn the check below red.
+    for (const dir of [NFR_DIR_REL, TRACE_DIR_REL, ARCHIVE_REL]) {
+      expect(lstatSync(join(target, ...dir.split("/"), ".gitkeep")).isFile(), dir).toBe(true);
+    }
+    const check = runNode([join(target, "tools", "grugops", "state-check.js"), target, "--json"], target);
+    expect(check.error).toBeUndefined();
+    expect(check.status, check.stdout + check.stderr).toBe(0);
+    const report = JSON.parse(check.stdout) as { ok: boolean; marker: string; enforced: boolean; findings: unknown[]; trace: { findings: unknown[] } };
+    expect(report.marker).toBe("valid");
+    expect(report.enforced).toBe(true);
+    expect(report.findings).toEqual([]);
+    expect(report.trace.findings).toEqual([]);
+    expect(report.ok).toBe(true);
+    const text = runNode([join(target, "tools", "grugops", "state-check.js"), target], target);
+    expect(text.status, text.stdout + text.stderr).toBe(0);
+    expect(text.stdout).toBe("No findings.\n");
+    const render = runNode([join(target, "tools", "grugops", "trace-render.js"), target, "--check"], target);
+    expect(render.error).toBeUndefined();
+    expect(render.status, render.stdout + render.stderr).toBe(0);
+  });
+
+  it("layout marker: an install into a target that holds the board and no marker leaves the marker absent and prints one skipped line naming it (research Pitfall 1)", () => {
+    const target = makeFixture();
+    const kitHome = mkTmp();
+    const r = markerRun(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(markerAt(target))).toBe(false);
+    expectOneMarkerSkip(r.stdout);
+    // A re-run decides the same way: the marker never arrives through a second install either.
+    const again = markerRun(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(existsSync(markerAt(target))).toBe(false);
+    expectOneMarkerSkip(again.stdout);
+  });
+
+  it("layout marker: a both layout and a pre-v3 --migrate run never write the marker (T-37-21)", () => {
+    const both = makeFixture();
+    makePreV3StateFixture(both);
+    const b = markerRun(both, mkTmp());
+    expect(b.status, b.stdout + b.stderr).toBe(0);
+    expect(existsSync(markerAt(both))).toBe(false);
+    expectOneMarkerSkip(b.stdout);
+
+    const preV3 = makeOldLayoutFixture();
+    makePreV3StateFixture(preV3);
+    const m = markerRun(preV3, mkTmp(), ["--migrate", "--backup-edited-kit"]);
+    expect(m.status, m.stdout + m.stderr).toBe(0);
+    expect(existsSync(markerAt(preV3))).toBe(false);
+    expect(existsSync(join(preV3, STATE_ROOT_REL))).toBe(false);
+    expect(readFileSync(join(preV3, LEGACY_BOARD_REL), "utf8")).toContain("USER PRE-V3 BOARD");
+    expectOneMarkerSkip(m.stdout);
+  });
+
+  it("layout marker: a second install over a fresh-installed target changes no seed byte (never-overwrite)", () => {
+    const target = mkTmp();
+    const kitHome = mkTmp();
+    expect(markerRun(target, kitHome).status).toBe(0);
+    const before = snapshot(join(target, "memory-bank"));
+    expect(before).toContain(LAYOUT_MARKER_REL.slice("memory-bank/".length));
+    const again = markerRun(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(snapshot(join(target, "memory-bank"))).toBe(before);
+    const seededAgain = again.stdout.split("\n").filter((l) => /^ {2}(created|would-add)\s/.test(l) && l.includes("memory-bank/"));
+    expect(seededAgain, again.stdout).toEqual([]);
+    const lines = markerLines(again.stdout);
+    expect(lines, again.stdout).toEqual([`  ${"skipped".padEnd(14)} ${LAYOUT_MARKER_REL} (target already has it)`]);
+    expect(readFileSync(markerAt(target), "utf8")).toBe(LAYOUT_MARKER_CONTENT);
+  });
+
+  it("layout marker: the seed trace index is byte-identical to what the committed trace-render runnable writes for an empty repository (SPLIT-03)", () => {
+    const repo = mkTmp();
+    mkdirSync(join(repo, ...STATE_ROOT_REL.split("/")), { recursive: true });
+    const render = runNode([join(REPO_ROOT, "scripts", "runnable-ref", "trace-render.js"), repo], repo);
+    expect(render.error).toBeUndefined();
+    expect(render.status, render.stdout + render.stderr).toBe(0);
+    const written = join(repo, ...TRACEABILITY_REL.split("/"));
+    expect(lstatSync(written).isFile()).toBe(true);
+    expect(readFileSync(written)).toEqual(seedBytes(TRACEABILITY_REL));
+  });
+
+  it("layout marker: DRY_RUN previews the decision the real run makes, and writes nothing", () => {
+    // A fresh target: the preview would add the marker, the real run creates it.
+    const fresh = mkTmp();
+    const preview = markerRun(fresh, mkTmp(), [], true);
+    expect(preview.status, preview.stdout + preview.stderr).toBe(0);
+    expect(labelledLines(preview.stdout, "would-add").filter((l) => l.includes(LAYOUT_MARKER_REL)), preview.stdout).toHaveLength(1);
+    expect(existsSync(markerAt(fresh))).toBe(false);
+    expect(snapshot(fresh)).toBe("");
+    // A target with a board: the preview prints the same skipped line the real run prints.
+    const current = makeFixture();
+    const before = snapshot(current);
+    const dry = markerRun(current, mkTmp(), [], true);
+    expect(dry.status, dry.stdout + dry.stderr).toBe(0);
+    const dryLine = expectOneMarkerSkip(dry.stdout);
+    expect(snapshot(current)).toBe(before);
+    const real = markerRun(current, mkTmp());
+    expect(real.status, real.stdout + real.stderr).toBe(0);
+    expect(expectOneMarkerSkip(real.stdout)).toBe(dryLine);
   });
 
   // ── never-overwrite: a pre-existing seeded file is left byte-untouched (two-root [4], D-04) ──
