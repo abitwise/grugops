@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-05-PLAN.md
-last_updated: "2026-10-22T09:43:25.842Z"
+stopped_at: Completed 37-06-PLAN.md
+last_updated: "2026-10-22T10:16:25.982Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-05 (state-check NFR index integrity, ROLLABLE and MOVE-ONLY reports)
-state_head: 358e05c25d71eecb1a16e266889125e984378149
+last_activity_desc: Completed 37-06 (per-ticket trace files and a one-line index rendered on a host)
+state_head: bd1219c38cdeb643e92243bcf38abb6c8cd6d01b
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 20
+  completed_plans: 21
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 6 of 19
+Plan: 7 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-05 (state-check NFR index integrity, ROLLABLE and MOVE-ONLY reports)
+Last activity: 2026-10-22 — Completed 37-06 (per-ticket trace files and a one-line index rendered on a host)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -734,6 +734,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P03 | 23 min | 1 tasks | 14 files |
 | Phase 37 P04 | 25 min | 1 tasks | 8 files |
 | Phase 37 P05 | 29 min | 2 tasks | 8 files |
+| Phase 37 P06 | 29 min | 1 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -2014,6 +2015,8 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-04: state-check sanitizes every printed value with stripControlChars, now in scripts/state-rules.ts and embedded; a path resolving outside realpath(root) is a finding by name, never read; a missing index file is a finding by name in state-check
 - [Phase 37]: 37-05: progressEntries only classifies the progress file's ## headings (dated vs standing) and gives no entry span; LANG-07 keeps section extent with scripts/frontmatter.ts alone, so plan 37-11 must take the span from sectionEndIndex and needs a human ruling on generated copies (deferred-items.md)
 - [Phase 37]: 37-05: a dated progress heading needs a real calendar date; StateFinding.budget/unit are nullable for integrity findings, which print '<rel>[:<line>]: <note> (<key>)'
+- [Phase 37]: 37-06: trace-render write mode never exits 1 (reserved for 37-07 check mode); skipped notes are reported by arm, never fail the render
+- [Phase 37]: 37-06: writer census is tree-wide and shape-derived (write primitive + renameSync); outside regions pinned to install backupEditedKitFiles, claim.ts atomicWrite, context-io atomicWrite
 
 ### Pending Todos
 
@@ -2345,8 +2348,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T09:43:25.560Z
-Stopped at: Completed 37-05-PLAN.md
+Last session: 2026-10-22T10:16:25.711Z
+Stopped at: Completed 37-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
