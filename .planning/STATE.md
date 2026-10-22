@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-03-PLAN.md
-last_updated: "2026-10-22T08:41:20.718Z"
+stopped_at: Completed 37-04-PLAN.md
+last_updated: "2026-10-22T09:10:17.507Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-03 (generated embeds and host state-check)
-state_head: 9ce32304ef1db8891cd8b576e224877cd0b3ff90
+last_activity_desc: Completed 37-04 (state-check checks every budget, --json, sanitized output)
+state_head: 3a883efa61726d0aae2272bc2c5655f47c77e18e
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 18
+  completed_plans: 19
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 4 of 19
+Plan: 5 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-03 (generated embeds and host state-check)
+Last activity: 2026-10-22 — Completed 37-04 (state-check checks every budget, --json, sanitized output)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -732,6 +732,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P01 | 42 min | 3 tasks | 6 files |
 | Phase 37 P02 | 28 min | 2 tasks | 9 files |
 | Phase 37 P03 | 23 min | 1 tasks | 14 files |
+| Phase 37 P04 | 25 min | 1 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2009,6 +2010,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-02: indexLineFindings takes the normalized and the comment-blanked text and leaves out each blanked run that held a comment, so a long comment line is never measured as an index entry
 - [Phase 37]: 37-02: the marker, board and index files are checked with statSync().isFile() before they are read, so a FIFO or directory there is reported by name and never opened; record files are measured by lstat size
 - [Phase 37]: Plan 37-03: host runnables get authority rules and numbers only by generation into a marked region (scripts/generate-runnable-embeds.ts, closure resolved by the TypeScript type checker) plus the freshness gate npm run freshness:runnable-embeds wired in the ubuntu CI block; censuses admit a copy only inside a fresh region of an EMBED_SPECS target, never by name
+- [Phase 37]: 37-04: state-check sanitizes every printed value with stripControlChars, now in scripts/state-rules.ts and embedded; a path resolving outside realpath(root) is a finding by name, never read; a missing index file is a finding by name in state-check
 
 ### Pending Todos
 
@@ -2340,8 +2342,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T08:41:20.454Z
-Stopped at: Completed 37-03-PLAN.md
+Last session: 2026-10-22T09:10:17.236Z
+Stopped at: Completed 37-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
