@@ -416,6 +416,11 @@ describe("board-corpus — provenance", () => {
 // a third piece of evidence for a claim it does not support. The evidence for that claim lives in
 // the un-indented mutation replayed in the discrimination proof below.
 //
+// THE THIRD BLOCK IS THE SEED MATRIX (plan 37-08, 2026-10-22). It was this repository's own
+// memory-bank/plans/traceability.md until plan 37-08 replaced that file with the generated trace index, which
+// carries no documentation block. The same hand-written matrix and its block still ship as the kit seed, so
+// the case now reads the seed copy, the way the second row reads the seed board.
+//
 // THE SPAN IS DERIVED, NOT TYPED (plan 32-08). These three pairs of line numbers used to be
 // literals — the repository board was `from: 4, to: 51`. Plan 32-08 rewrote that comment to state
 // the canonical heading and row forms, the block grew by five lines, and the PREMISE case below failed
@@ -427,7 +432,7 @@ describe("board-corpus — provenance", () => {
 const DOC_BLOCK_FILES = [
   { rel: FIXED_SUBPATHS.board, carriesBoardShape: true },
   { rel: `agent-factory/seed/${BOARD_REL}`, carriesBoardShape: true },
-  { rel: FIXED_SUBPATHS.traceability, carriesBoardShape: false },
+  { rel: `agent-factory/seed/${FIXED_SUBPATHS.traceability}`, carriesBoardShape: false },
 ] as const;
 
 /** The first `<!--` … `-->` span of a file, as 1-based inclusive line numbers. */

@@ -546,7 +546,7 @@ export function moveOnlyFindings(
     );
 }
 function grouped(n: number): string {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return String(n).replace(/(\d)(?=(\d{3})+$)/g, "$1,");
 }
 export function formatFinding(f: StateFinding): string {
   const where = f.line === undefined ? f.rel : `${f.rel}:${f.line}`;

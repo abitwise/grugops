@@ -11978,7 +11978,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // wiring case reads the block's commands to assert `npm run freshness:runnable-embeds` runs there, beside the
   // hook-manifest gate, so it imports the authority (ciWorkflow, ubuntuBlockCommands). The gate fired on its
   // first draft, which spelled a locator of its own, and the draft was changed to import the authority.
-  const UBUNTU_BLOCK_READER_COUNT = 5;
+  // 5 → 6 (plan 37-08, 2026-10-22): `scripts/trace-freshness.test.ts` joins the class. Its both-ends wiring case
+  // reads the block's commands to assert `npm run freshness:traceability` runs there, so it imports the
+  // authority (ciWorkflow, ubuntuBlockCommands). Re-derived by listing the scripts/*.test.ts files that import it.
+  const UBUNTU_BLOCK_READER_COUNT = 6;
 
   // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP THE RIGHT BOUND IS PROVEN AGAINST.
   //

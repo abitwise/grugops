@@ -469,9 +469,13 @@ export function moveOnlyFindings(liveRel, liveNames, archiveRel, archiveNames) {
         .map((name) => integrityFinding(`${liveRel}/${name}`, "move-only-copy", `${archiveRel}/${name} holds the same name, and a move leaves one copy: this record is in both folders`));
 }
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────
-/** `n` with its digits grouped in threes by commas, independent of the host locale. */
+/**
+ * `n` with its digits grouped in threes by commas, independent of the host locale. The pattern consumes the
+ * digit before each comma (2026-10-22, plan 37-08): a pure zero-width lookahead is refused under scripts/ by
+ * the closed lookahead class in scripts/check-uat-oracles.test.ts. Same output for every integer.
+ */
 function grouped(n) {
-    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return String(n).replace(/(\d)(?=(\d{3})+$)/g, "$1,");
 }
 /**
  * The one spelling of a finding:

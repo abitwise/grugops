@@ -3523,7 +3523,7 @@ function tagged(r: SpawnSyncReturns<string>, tag: "ERROR" | "WARNING" | "LAYOUT"
 
 describe("validate-agent-factory.js — state budgets and the layout marker (plan 37-02, SPLIT-04)", () => {
   // Digits grouped by commas, as the finding prints them, without asking the host locale.
-  const BOARD_FINDING = `${BOARD_REL}: ${String(BUDGETS.boardBytes + 1).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} bytes`;
+  const BOARD_FINDING = `${BOARD_REL}: ${String(BUDGETS.boardBytes + 1).replace(/(\d)(?=(\d{3})+$)/g, "$1,")} bytes`;
 
   it("an over-budget board with no marker: exit 0, a WARNING naming the board and BUDGETS.boardBytes, one LAYOUT line", () => {
     const d = budgetTree();
