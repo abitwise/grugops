@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-17-PLAN.md
-last_updated: "2026-10-22T18:16:28.744Z"
+stopped_at: Completed 37-18-PLAN.md
+last_updated: "2026-10-22T19:01:54.127Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-17 (the last nine workflows publish trace refs on notes or say they publish none, WF18 forbids hand-editing a trace file in one changed sentence, and no workflow matches the hand-trace scan pattern; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
-state_head: e229b115df073102ad3d41dcbe3aa46103998497
+last_activity_desc: Completed 37-18 (AGENTS.md, the kit README, the writing profile, the board contract and the three checklists describe the rendered trace and one file per NFR; scripts/trace-instructions.test.ts scans all 77 tracked kit markdown files plus AGENTS.md with the imported HAND_TRACE_PATTERNS and is mutation-checked; pins 78 to 79; every gate green, targeted run shows only baseline failures)
+state_head: 8f1d52fca5658b469c598b03b3ce44d57118c7e3
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 32
+  completed_plans: 33
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 18 of 19
+Plan: 19 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-17 (the last nine workflows publish trace refs on notes or say they publish none, WF18 forbids hand-editing a trace file in one changed sentence, and no workflow matches the hand-trace scan pattern; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
+Last activity: 2026-10-22 — Completed 37-18 (AGENTS.md, the kit README, the writing profile, the board contract and the three checklists describe the rendered trace and one file per NFR; scripts/trace-instructions.test.ts scans all 77 tracked kit markdown files plus AGENTS.md with the imported HAND_TRACE_PATTERNS and is mutation-checked; pins 78 to 79; every gate green, targeted run shows only baseline failures)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -746,6 +746,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P15 | 9min | 2 tasks | 8 files |
 | Phase 37 P16 | 25 min | 3 tasks | 10 files |
 | Phase 37 P17 | 10 min | 2 tasks | 9 files |
+| Phase 37 P18 | 39min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -2049,6 +2050,8 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-16: WF03 step 8 starts with the approved verb Record, not Publish (WP-01); adding Publish to the approved verb set is writing-profile's (37-18) call
 - [Phase 37]: 37-16: WF09 reads the render and state-check exit codes by pointing at Workflow 05 Step 3 instead of restating the arms; WF02 says its epic-level refs name no ticket and points at WF03
 - [Phase 37]: 37-17: the rendered trace has no Status column, so the five workflows that set a trace Status no longer do; status stays on the board
+- [Phase 37]: 37-18: the claim registry (docs/audit/28-claim-registry.md) changes in the same commit as the claimed AGENTS.md and README prose (C-28-013, C-28-020, C-28-025, C-28-033), as check-claim-anchors requires
+- [Phase 37]: 37-18: scripts/trace-instructions.test.ts imports HAND_TRACE_PATTERNS from trace-model.ts and counts its git ls-files scan set against a per-directory second listing; Publish stays out of the approved step-verb set (WF03 keeps Record)
 
 ### Pending Todos
 
@@ -2380,8 +2383,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T18:16:28.723Z
-Stopped at: Completed 37-17-PLAN.md
+Last session: 2026-10-22T19:01:42.819Z
+Stopped at: Completed 37-18-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

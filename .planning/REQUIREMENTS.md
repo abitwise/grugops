@@ -25,7 +25,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 
 - [ ] **SPLIT-01**: `board.md` is an overview: one short line per ticket per column and at most one `_Updated:` line; the board contract is changed first, and blocked reasons and other detail live in the ticket file
 - [ ] **SPLIT-02**: Each NFR is its own file, and `nfr-catalog.md` is a one-line-per-NFR index
-- [ ] **SPLIT-03**: Traceability is one file per ticket rendered from published note refs, with `traceability.md` as a one-line-per-ticket index; no role instructs an agent to append to traceability by hand
+- [x] **SPLIT-03**: Traceability is one file per ticket rendered from published note refs, with `traceability.md` as a one-line-per-ticket index; no role instructs an agent to append to traceability by hand
 - [ ] **SPLIT-04**: The validator enforces per-file byte budgets for the board, indexes (per entry), tickets, NFR files, trace files and `60-progress.md`; budgets WARN on an unmigrated repo and FAIL on a migrated one
 - [ ] **SPLIT-05**: A user's repo has a `tools/grugops/state-check.js` runnable (budgets generated from the layout module, freshness-gated) that checks budgets and index↔file integrity, called from the PR gate and daily-sweep workflows
 - [ ] **SPLIT-06**: `60-progress.md` rolls older entries into an archive file when over budget; `queue/done/` and `50-decisions/` may only be moved to an archive folder, never squashed or pruned
@@ -124,7 +124,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LAYOUT-05 | Phase 36 | Complete |
 | SPLIT-01 | Phase 37 | Pending |
 | SPLIT-02 | Phase 37 | Pending |
-| SPLIT-03 | Phase 37 | Pending |
+| SPLIT-03 | Phase 37 | Complete |
 | SPLIT-04 | Phase 37 | Pending |
 | SPLIT-05 | Phase 37 | Pending |
 | SPLIT-06 | Phase 37 | Pending |
