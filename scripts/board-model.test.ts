@@ -763,12 +763,14 @@ type JoinOverrides = {
   readonly context?: readonly ContextTaskState[];
   readonly traceability?: readonly TraceRow[];
   readonly config?: FactoryConfigView | null;
+  /** The Done archive's text (D-15). Absent means an empty archive; `null` means unavailable. */
+  readonly archive?: string | null;
   readonly idPrefix?: string | null;
   /** The reader's unadmitted half (plan 32-15). Defaulted EMPTY here, never on `JoinInputs`. */
   readonly unadmittedTickets?: readonly UnadmittedTicket[];
 };
 
-/** Build the six source states a join takes, from the pieces a case cares about. */
+/** Build the seven source states a join takes, from the pieces a case cares about. */
 function sourcesFor(o: JoinOverrides): FactorySnapshot["sources"] {
   return {
     board:
@@ -780,6 +782,10 @@ function sourcesFor(o: JoinOverrides): FactorySnapshot["sources"] {
     context: okSource(o.context ?? []),
     traceability: okSource(o.traceability ?? []),
     config: o.config === null ? UNAVAILABLE : okSource(o.config ?? LEAN_CONFIG),
+    boardArchive:
+      o.archive === null
+        ? UNAVAILABLE
+        : okSource(parseBoard(o.archive ?? "", { idPrefix: o.idPrefix ?? null })),
   };
 }
 
@@ -1836,7 +1842,7 @@ describe("board-model — the golden projection spells a location token one way 
   });
 });
 
-describe("board-model — the committed golden freezes schemaVersion 2 byte for byte (D-19)", () => {
+describe("board-model — the committed golden freezes schemaVersion 3 byte for byte (D-19)", () => {
   const rendered = serializeFixture();
 
   // THE REGENERATION SEAM. Production callers set nothing; the comparison below is what runs in CI.
@@ -1965,7 +1971,23 @@ describe("board-model — the committed golden freezes schemaVersion 2 byte for 
         "the SAME commit (D-19) — the published shape is what DASH-08 promises a future web " +
         "renderer consumes unchanged",
     ).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION, "the published shape is version 2").toBe(2);
+    // VERSION 3 SINCE 2026-10-22 (plan 37-12): the seventh source `boardArchive`, by the human
+    // decision D-15 recorded in 37-CONTEXT.md and in agent-factory/contracts/board.md.
+    expect(SCHEMA_VERSION, "the published shape is version 3").toBe(3);
+  });
+
+  it("places the archived ABC-201 through the Done archive, and still reports ABC-200 unplaced (D-15)", () => {
+    expect(goldenText.length, GOLDEN_ABSENT).toBeGreaterThan(1000);
+    const golden = JSON.parse(goldenText) as {
+      snapshot: { sources: Record<string, { source: string }> };
+      conflicts: { kind: string; ticketId?: string }[];
+    };
+    expect(golden.snapshot.sources["boardArchive"]?.source).toBe("ok");
+    const unplaced = golden.conflicts
+      .filter((c) => c.kind === "ticket-unplaced")
+      .map((c) => c.ticketId);
+    expect(unplaced, "the archive row places ABC-201; ABC-200 has a row nowhere").toEqual(["ABC-200"]);
+    expect(golden.conflicts.filter((c) => c.ticketId === "ABC-201")).toEqual([]);
   });
 
   it("populates every bucket of the partition, so the golden is not a narrow slice", () => {
@@ -3841,6 +3863,7 @@ const PUBLISHED_RECEIVERS: readonly string[] = [
   "prop:actual", // a conflict's measured half
   "prop:expected", // a conflict's stated half
   "prop:message", // every `ReadError`/`Containment` message
+  "return:placeOf", // one place a `ticket-duplicated` names, joined into that conflict's `actual`
   "return:presenceActual", // the presence sentence set, one per arm
 ];
 
@@ -3894,7 +3917,11 @@ const NOT_PUBLISHED_RECEIVERS: readonly string[] = [
 // presence sentences and the row-without-file `expected`) build their path from TICKETS_REL, the
 // state-layout authority, instead of a hand-spelled pre-v3 tickets prefix. Each is a substitution
 // at a published position and each is built through `spelled`, so the equality below still holds.
-const PUBLISHED_SUBSTITUTION_COUNT = 91;
+//
+// 91 -> 93 on 2026-10-22 (plan 37-12, D-15): `placeOf` in board-model.ts names an archived row's
+// place for `ticket-duplicated` as its column plus BOARD_DONE_ARCHIVE_REL. Its two substitutions
+// reach a conflict's `actual`, a published position, and both are built through `spelled`.
+const PUBLISHED_SUBSTITUTION_COUNT = 93;
 
 /** ONE program for the whole block: a full `ts.Program` over every tracked `scripts/*.ts`. */
 let censusProgram: ReturnType<typeof createScriptsProgram> | null = null;

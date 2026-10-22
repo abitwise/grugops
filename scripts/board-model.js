@@ -34,7 +34,7 @@
 //
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface that a
 // human reads to learn where work stands, never caveman voice).
-import { TICKETS_REL } from "../install/state-layout.js";
+import { BOARD_DONE_ARCHIVE_REL, TICKETS_REL } from "../install/state-layout.js";
 // ── The published schema version (D-19) ──────────────────────────────────────────────────────────
 //
 // `schemaVersion` is the shape a future web renderer consumes unchanged.
@@ -55,7 +55,14 @@ import { TICKETS_REL } from "../install/state-layout.js";
 // wrongly for every document whose declared identifier is not its stem. The human decision to move
 // the version for it is recorded in
 // `.planning/phases/32-board-projector-cli-dashboard/32-33-SUMMARY.md`.
-export const SCHEMA_VERSION = 2;
+//
+// VERSION 3 (plan 37-12, D-15): the snapshot gained a seventh source, `boardArchive`, the Done
+// archive (`BOARD_DONE_ARCHIVE_REL`) read with the same `parseBoard` grammar as the board. Its rows
+// are placements for `ticket-unplaced` only, and a ticket with a row on the board and a row in the
+// archive is `ticket-duplicated`. The conflict kind set did not change. The human decision is D-15
+// in `.planning/phases/37-overview-board-per-file-records-and-budgets/37-CONTEXT.md`, and the rule is
+// stated in `agent-factory/contracts/board.md` § The Done archive.
+export const SCHEMA_VERSION = 3;
 // ── Bounds (D-20) ────────────────────────────────────────────────────────────────────────────────
 //
 // EACH OF THE FOUR NUMBERS BELOW IS A DECISION RECORDED IN `agent-factory/contracts/board.md`
@@ -1059,8 +1066,12 @@ export function presenceActual(id, presence) {
 export function sourceValue(state) {
     return state.source === "unavailable" ? null : state.value;
 }
+/** Where one placement sits, as `ticket-duplicated` names it: a column, or a column of the archive. */
+function placeOf(p) {
+    return p.archived ? spelled `${p.column} in ${BOARD_DONE_ARCHIVE_REL}` : p.column;
+}
 /**
- * Join the six read sources into the published snapshot and derive every conflict.
+ * Join the seven read sources into the published snapshot and derive every conflict.
  *
  * THIS FUNCTION READS NOTHING. It is a pure function of already-read values, which is what makes the
  * committed golden a byte-for-byte function of its committed inputs (D-15, D-19). It also means no
@@ -1082,11 +1093,21 @@ export function joinSnapshot(inputs) {
     const board = sourceValue(sources.board);
     const config = sourceValue(sources.config);
     const tickets = sourceValue(sources.tickets) ?? [];
+    // THE DONE ARCHIVE (plan 37-12, D-15). A stale archive carries its last good model, and its rows
+    // still count for `ticket-duplicated`, which is a positive claim about rows that were read. An
+    // unavailable archive carries nothing, so it places nothing.
+    const archive = sourceValue(sources.boardArchive);
     // THE ONE PREDICATE BOTH PRESENCE-DEPENDENT ARMS READ, spelled once (plan 32-09). `ok` and nothing
     // else: a `stale` tickets source carries a value, but that value is the PREVIOUS listing or a
     // bounded prefix of this one, and neither establishes that a file absent from it is absent from
     // the directory. `unavailable` carries nothing at all.
     const ticketsListingComplete = sources.tickets.source === "ok";
+    // THE ARCHIVE JOINS THE SAME GATE, FOR `ticket-unplaced` ONLY (D-15). "No row names this ticket"
+    // is now a claim about the board AND the Done archive, so it is made only while both were read
+    // cleanly. An absent archive reads as an `ok` empty archive (the reader's rule), so it suppresses
+    // nothing; an archive that could not be read suppresses the kind, because a placement nobody read
+    // cannot be denied. `row-without-file` does not read the archive and keeps the tickets gate alone.
+    const placementsComplete = ticketsListingComplete && sources.boardArchive.source === "ok";
     const snapshot = {
         schemaVersion: SCHEMA_VERSION,
         repoRoot: inputs.repoRoot,
@@ -1107,7 +1128,7 @@ export function joinSnapshot(inputs) {
     const placements = [];
     for (const column of board.columns) {
         for (const row of column.rows) {
-            placements.push({ id: row.id, column: column.name, line: row.line });
+            placements.push({ id: row.id, column: column.name, line: row.line, archived: false });
         }
     }
     const byId = new Map();
@@ -1117,6 +1138,19 @@ export function joinSnapshot(inputs) {
             byId.set(p.id, [p]);
         else
             list.push(p);
+    }
+    // Every ticket row in the Done archive, in document order (D-15). The archive's columns are read
+    // by the board grammar, so epic rows are a separate class here too and never place a ticket.
+    const archivedById = new Map();
+    for (const column of archive?.columns ?? []) {
+        for (const row of column.rows) {
+            const p = { id: row.id, column: column.name, line: row.line, archived: true };
+            const list = archivedById.get(p.id);
+            if (list === undefined)
+                archivedById.set(p.id, [p]);
+            else
+                list.push(p);
+        }
     }
     // THE ONE MAP EVERY ARM CONSUMING THE TICKET POPULATION READS (plan 32-17, WR-08).
     //
@@ -1133,7 +1167,8 @@ export function joinSnapshot(inputs) {
     //                                      PLACEMENTS and looks the identifier up.
     //   board-vs-ticket, arm two (status)  reads `ticketById.values()`.
     //   ticket-unplaced                    reads `ticketById.values()`.
-    //   ticket-duplicated                  derived from the BOARD alone; holds no ticket record.
+    //   ticket-duplicated                  derived from the board and the Done archive rows (D-15);
+    //                                      holds no ticket record.
     //   row-without-file                   reads `presenceOf(p.id, populations)` and NOTHING ELSE;
     //                                      the three maps reach it through `populations`, so the arm
     //                                      cannot be correct for one population and wrong for the
@@ -1200,8 +1235,12 @@ export function joinSnapshot(inputs) {
     // so raising "no row names this ticket" for it would be the same fabrication in the converse
     // direction: a positive claim that a refused document IS a ticket. The refusal is already
     // reported, with its path and its code, in `readErrors`; that is the honest channel for it.
-    for (const t of ticketsListingComplete ? ticketById.values() : []) {
-        if (byId.has(t.id))
+    //
+    // A ROW IN THE DONE ARCHIVE PLACES ITS TICKET (D-15), and the gate is `placementsComplete`, which
+    // also requires an `ok` archive: with the archive unreadable, a ticket whose only row was rolled
+    // would be reported as unplaced on the strength of a file nobody read.
+    for (const t of placementsComplete ? ticketById.values() : []) {
+        if (byId.has(t.id) || archivedById.has(t.id))
             continue;
         add(0, {
             kind: "ticket-unplaced",
@@ -1216,15 +1255,24 @@ export function joinSnapshot(inputs) {
     // Two rows under the SAME heading are two rows, not one. Counting DISTINCT columns here would
     // silently dedupe an adjacent pair, which is the shape a copy-paste slip produces and therefore
     // the one a human most needs told about.
-    for (const [id, list] of byId) {
+    //
+    // THE DONE ARCHIVE'S ROWS COUNT HERE TOO (D-15). A roll that copied a row and did not remove it
+    // leaves one identifier on the board and in the archive, and `actual` names both places: a board
+    // row by its column, an archive row by its column and the archive's path. Board rows come first,
+    // so the conflict's `column` and line are the board row's whenever the board holds one.
+    const duplicateIds = new Set([...byId.keys(), ...archivedById.keys()]);
+    for (const id of duplicateIds) {
+        const onBoard = byId.get(id) ?? [];
+        const inArchive = archivedById.get(id) ?? [];
+        const list = [...onBoard, ...inArchive];
         if (list.length < 2)
             continue;
         add(list[0]?.line ?? 0, {
             kind: "ticket-duplicated",
             ticketId: id,
             column: list[0]?.column ?? "",
-            expected: "one row on the board",
-            actual: list.map((p) => p.column).join(", "),
+            expected: inArchive.length === 0 ? "one row on the board" : "one row, on the board or in the Done archive",
+            actual: list.map(placeOf).join(", "),
             source: "board",
         });
     }

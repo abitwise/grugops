@@ -112,6 +112,7 @@ function stubResult(n: number, root: string = REPO): SnapshotResult {
         context: absent,
         traceability: absent,
         config: absent,
+        boardArchive: absent,
       },
     },
     conflicts: [],

@@ -278,7 +278,7 @@
     },
     "generatedAt": "1970-01-01T00:00:00.000Z",
     "repoRoot": "<fixture-root>",
-    "schemaVersion": 2,
+    "schemaVersion": 3,
     "sources": {
       "board": {
         "readAt": "1970-01-01T00:00:00.000Z",
@@ -472,6 +472,44 @@
           ]
         }
       },
+      "boardArchive": {
+        "readAt": "1970-01-01T00:00:00.000Z",
+        "source": "ok",
+        "value": {
+          "bounds": {
+            "boardBytes": 129,
+            "exceeded": false,
+            "longestLine": 77
+          },
+          "columns": [
+            {
+              "claimedLive": null,
+              "heading": "## Done (WIP unlimited)",
+              "kind": "unlimited",
+              "limit": null,
+              "line": 3,
+              "name": "Done",
+              "rows": [
+                {
+                  "id": "ABC-201",
+                  "line": 5,
+                  "meta": "owner: Orchestrator, since: 2026-10-01",
+                  "title": "Archived fixture ticket",
+                  "trailer": "",
+                  "truncated": false
+                }
+              ]
+            }
+          ],
+          "epicRows": [],
+          "nonColumnSections": [],
+          "preamble": [
+            "# Done archive (fixture)"
+          ],
+          "unparsed": [],
+          "updates": []
+        }
+      },
       "config": {
         "readAt": "1970-01-01T00:00:00.000Z",
         "source": "ok",
@@ -569,6 +607,14 @@
             "status": "ready",
             "stem": "ABC-200",
             "title": "A ticket file with no row on the board"
+          },
+          {
+            "column": "Done",
+            "file": "ABC-201.md",
+            "id": "ABC-201",
+            "status": "done",
+            "stem": "ABC-201",
+            "title": "Archived fixture ticket"
           }
         ]
       },

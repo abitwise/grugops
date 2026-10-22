@@ -45,6 +45,8 @@ wrong in two ways at once, and the projector reports both.
 | A tampered claim | `.grugops/queue/claimed/abc-105-tampered/claim.md` | Two `at:` lines. The record is skipped and the path is named in `readErrors`, so the tamper skip is reached by a committed artifact. |
 | A context task | `.grugops/context/abc-104-implement/` | Two notes, one superseding the other, so the supersede fold reports two notes and one live. `index.jsonl` is the derived render. |
 | The traceability comment | `memory-bank/plans/traceability.md:3-14` | An example table row inside the file's own HTML comment. It contributes no row, because the traceability reader runs the board's comment pre-pass first. |
+| The Done archive | `memory-bank/plans/archive/board-done.md:5` | The `boardArchive` source (D-15, snapshot version 3). Its one row places `ABC-201`, so the archive reaches the golden as a source read `ok` and a placement. |
+| An archived ticket | `memory-bank/plans/tickets/ABC-201.md` | Status `done`, column `Done`, and no row on `memory-bank/plans/board.md`. Its only row is in the archive, so it raises no `ticket-unplaced`, while `ABC-200`, with no row anywhere, still does. |
 
 ## Regenerating `expected-snapshot.json`
 

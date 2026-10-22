@@ -3381,8 +3381,12 @@ describe("board-read — every read target comes from a path authority (plan 32-
     "isWithinRoot",
     "listDirectoryBounded",
     "listingFailure",
+    // TWICE SINCE 2026-10-22 (plan 37-12, D-15): the Done archive reader closes over its own
+    // `parse`, the board grammar with the dial's `id_prefix`, beside the board reader's.
+    "parse",
     "parse",
     "parseTraceability",
+    "readBoardArchiveSource",
     "readBoardSource",
     "readConfigSource",
     "readContextSource",
@@ -3408,7 +3412,11 @@ describe("board-read — every read target comes from a path authority (plan 32-
   // predicate went away with `records.find(...)`, replaced by a `seenById` map lookup that carries
   // no callback (WR-08). A callback that LEAVES moves this denominator exactly as a new one does,
   // which is why it is pinned rather than derived from the census it is checking.
-  const ROUTING_UNIVERSE_ANONYMOUS = 16;
+  //
+  // SEVENTEEN SINCE 2026-10-22 (plan 37-12, D-15): `readSnapshot` wraps the Done archive reader in
+  // `guarded` with one more `() => readBoardArchiveSource(...)` closure, the shape every other
+  // source's read already has. Re-derived by listing the census universe after the change.
+  const ROUTING_UNIVERSE_ANONYMOUS = 17;
   const ROUTING_UNIVERSE_TOTAL = ROUTING_UNIVERSE_NAMED.length + ROUTING_UNIVERSE_ANONYMOUS + 2;
 
   it("pins the collected function UNIVERSE by name and by count", () => {
@@ -4162,8 +4170,31 @@ describe("board-read — every non-grammar document class has a recorded byte-or
     },
   ];
 
-  /** The classes the two grammars own; they are answered in `scripts/board-model.test.ts`. */
-  const GRAMMAR_SOURCES: readonly string[] = ["board", "tickets"];
+  /**
+   * The classes the two grammars own; they are answered in `scripts/board-model.test.ts`.
+   *
+   * `boardArchive` JOINED THIS SET ON 2026-10-22 (plan 37-12, D-15): the Done archive is read by
+   * `parseBoard`, the board grammar, so its byte-order-mark answer is the board's. The case below
+   * reads a mark-led archive through the real seam so the claim is measured, not only stated.
+   */
+  const GRAMMAR_SOURCES: readonly string[] = ["board", "tickets", "boardArchive"];
+
+  it("boardArchive: places a ticket from a mark-led archive, exactly as from the same archive without one", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      mkdirSync(join(dir, posix.dirname(FIXED_SUBPATHS.boardArchive)), { recursive: true });
+      writeFileSync(
+        join(dir, FIXED_SUBPATHS.boardArchive),
+        `${MARK}## Done (WIP unlimited)\n- [ABC-001] Shipped\n`,
+        "utf8",
+      );
+      const archive = readSnapshot(dir).snapshot.sources.boardArchive;
+      expect(archive.source).toBe("ok");
+      expect(
+        archive.source === "ok" ? archive.value.columns.flatMap((c) => c.rows.map((r) => r.id)) : [],
+      ).toEqual(["ABC-001"]);
+    });
+  });
 
   function plantClaimAt(dir: string, task: string, text: string): string {
     const taskDir = join(dir, ".grugops", "queue", "claimed", task);

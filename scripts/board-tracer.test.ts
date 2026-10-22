@@ -97,11 +97,12 @@ describe("board-model — the heading grammar (D-05)", () => {
   });
 
   it("exports the published schema version", () => {
-    // VERSION 2 SINCE PLAN 32-33, which published `TicketRecord.stem`. This is the LITERAL pin —
-    // every other assertion in this tree compares an emitted document against the constant, which
-    // agrees with itself by construction. A number a human had to retype is what records that the
-    // move was a decision (D-19).
-    expect(SCHEMA_VERSION).toBe(2);
+    // VERSION 3 SINCE PLAN 37-12 (2026-10-22), which published the seventh source `boardArchive` by
+    // the human decision D-15 (37-CONTEXT.md, option a). Version 2 (plan 32-33) published
+    // `TicketRecord.stem`. This is the LITERAL pin — every other assertion in this tree compares an
+    // emitted document against the constant, which agrees with itself by construction. A number a
+    // human had to retype is what records that the move was a decision (D-19).
+    expect(SCHEMA_VERSION).toBe(3);
   });
 
   it("parses the kit board to 13 columns in on-disk order, each with zero rows", () => {
@@ -466,7 +467,15 @@ describe("board-model — kebab, the ONE spelling (D-06)", () => {
 // and the distinction between an ABSENT source and a STALE one (D-13).
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, realpathSync } from "node:fs";
+import {
+  cpSync,
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  symlinkSync,
+  realpathSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 
 import {
@@ -479,7 +488,12 @@ import {
   repoSubpath,
   resolveRepoRoot,
 } from "./board-read.js";
-import { BOARD_REL, TICKETS_REL, TRACEABILITY_REL } from "../install/state-layout.js";
+import {
+  BOARD_DONE_ARCHIVE_REL,
+  BOARD_REL,
+  TICKETS_REL,
+  TRACEABILITY_REL,
+} from "../install/state-layout.js";
 
 /**
  * The state directory a plant creates, derived from the read seam's own table (D-13 step 2). It is the
@@ -503,12 +517,14 @@ describe("board-read — the source set (D-12)", () => {
     expect(SOURCE_COUNT).toBe(SOURCE_NAMES.length);
   });
 
-  it("pins the source count at six", () => {
+  it("pins the source count at seven", () => {
+    // SEVEN SINCE 2026-10-22 (plan 37-12): the seventh source `boardArchive` is the decision D-15,
+    // recorded in 37-CONTEXT.md and in agent-factory/contracts/board.md § The Done archive.
     expect(
       SOURCE_NAMES.length,
-      "a seventh joined source is a DECISION recorded in the phase context and in " +
+      "an eighth joined source is a DECISION recorded in the phase context and in " +
         "agent-factory/contracts/board.md, never a bumped constant",
-    ).toBe(6);
+    ).toBe(7);
   });
 
   it("names every joined source exactly once", () => {
@@ -519,6 +535,7 @@ describe("board-read — the source set (D-12)", () => {
       "context",
       "traceability",
       "config",
+      "boardArchive",
     ]);
     expect(new Set(SOURCE_NAMES).size).toBe(SOURCE_NAMES.length);
   });
@@ -533,7 +550,65 @@ describe("board-read — the source set (D-12)", () => {
     expect(FIXED_SUBPATHS.queue).toBe(".grugops/queue");
     expect(FIXED_SUBPATHS.context).toBe(".grugops/context");
     expect(FIXED_SUBPATHS.traceability).toBe(TRACEABILITY_REL);
+    expect(FIXED_SUBPATHS.boardArchive).toBe(BOARD_DONE_ARCHIVE_REL);
     expect(Object.keys(FIXED_SUBPATHS).length).toBe(SOURCE_COUNT);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 37-12 TASK 1 — THE TRACER: AN ARCHIVED DONE ROW KEEPS ITS TICKET PLACED (D-07, D-15).
+//
+// The committed board-snapshot fixture carries `memory-bank/plans/archive/board-done.md` with one
+// row naming ABC-201, and ABC-201 has no row on the board. The cases read the fixture through the
+// real seam and assert the placement end to end, then delete the archive from a scratch copy and
+// assert the placement goes with it.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+const SNAPSHOT_FIXTURE = join(ROOT, "scripts", "fixtures", "board-snapshot");
+
+/** The ticket identifiers a result raises `ticket-unplaced` for. */
+function unplacedIds(result: ReturnType<typeof readSnapshot>): readonly string[] {
+  return result.conflicts
+    .filter((c) => c.kind === "ticket-unplaced")
+    .map((c) => c.ticketId ?? "")
+    .sort();
+}
+
+describe("board-read — the Done archive is the seventh source (plan 37-12, D-15)", () => {
+  it("reads the fixture's archive as `boardArchive`, `ok`, with seven sources in SOURCE_NAMES order", () => {
+    const result = readSnapshot(SNAPSHOT_FIXTURE);
+    expect(Object.keys(result.snapshot.sources)).toEqual([...SOURCE_NAMES]);
+    const archive = result.snapshot.sources.boardArchive;
+    expect(archive.source).toBe("ok");
+    const rows = archive.source === "ok" ? archive.value.columns.flatMap((c) => c.rows) : [];
+    expect(
+      rows.map((r) => r.id),
+      "PREMISE: the fixture's archive holds no row, so every placement case below measures nothing",
+    ).toEqual(["ABC-201"]);
+    expect(result.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(result.snapshot.schemaVersion).toBe(3);
+  });
+
+  it("raises no conflict for the archived ABC-201 and still raises ticket-unplaced for ABC-200", () => {
+    const result = readSnapshot(SNAPSHOT_FIXTURE);
+    expect(result.conflicts.filter((c) => c.ticketId === "ABC-201")).toEqual([]);
+    expect(unplacedIds(result)).toEqual(["ABC-200"]);
+  });
+
+  it("with the archive file deleted, reads an `ok` empty archive and raises ticket-unplaced for ABC-201", () => {
+    withTempTree((dir) => {
+      const copy = join(dir, "board-snapshot");
+      cpSync(SNAPSHOT_FIXTURE, copy, { recursive: true });
+      rmSync(join(copy, BOARD_DONE_ARCHIVE_REL));
+      expect(existsSync(join(copy, BOARD_DONE_ARCHIVE_REL))).toBe(false);
+
+      const result = readSnapshot(copy);
+      const archive = result.snapshot.sources.boardArchive;
+      expect(archive.source, "an absent archive is an empty archive, not a stale or unavailable one").toBe("ok");
+      expect(archive.source === "ok" ? archive.value.columns : null).toEqual([]);
+      expect(result.readErrors.filter((e) => e.source === "boardArchive")).toEqual([]);
+      expect(unplacedIds(result)).toEqual(["ABC-200", "ABC-201"]);
+    });
   });
 });
 

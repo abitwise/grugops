@@ -147,6 +147,7 @@ function makeResult(partial: {
     context: { source: "ok", value: [], readAt: READ_AT },
     traceability: { source: "ok", value: [], readAt: READ_AT },
     config: { source: "ok", value: config, readAt: READ_AT },
+    boardArchive: { source: "ok", value: boardModel(), readAt: READ_AT },
   } as unknown as FactorySnapshot["sources"];
 
   const sources = { ...defaults, ...(partial.sources ?? {}) } as FactorySnapshot["sources"];

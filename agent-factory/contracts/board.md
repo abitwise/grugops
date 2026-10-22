@@ -352,8 +352,9 @@ file still renders. The projector never hides a line in order to report a confli
 
 **A conflict that depends on a complete listing is not raised while that listing is not `ok`.**
 `row-without-file` and `ticket-unplaced` both assert something about every file in `memory-bank/plans/tickets/`,
-so neither is derived unless the tickets source read cleanly. A conflict derived from a listing that
-failed is an assertion about a filesystem nobody read. The badge reports the one thing that is true:
+so neither is derived unless the tickets source read cleanly. `ticket-unplaced` also needs the
+`boardArchive` source to be `ok`, for the reason The Done archive section gives. A conflict derived
+from a listing that failed is an assertion about a filesystem nobody read. The badge reports the one thing that is true:
 the listing failed. The other five kinds are unaffected — each is a claim about a document that was
 read, or about the board and the dial alone.
 
@@ -441,9 +442,10 @@ Reading a source produces one of three outcomes, and the three are distinct.
 | `stale` | The source could not be read cleanly, so the previous good value is carried. |
 | `unavailable` | The source is absent. The arm carries no value at all. |
 
-The joined sources are `board`, `tickets`, `queue`, `context`, `traceability` and `config`. Each
-carries its own `readAt` timestamp and its own `stale` record, which names a reason and the time of
-the last good read. Staleness is per source, so a missing queue directory never hides a fresh board.
+The joined sources are `board`, `tickets`, `queue`, `context`, `traceability`, `config` and,
+seventh, `boardArchive`. Each carries its own `readAt` timestamp and its own `stale` record, which
+names a reason and the time of the last good read. Staleness is per source, so a missing queue
+directory never hides a fresh board.
 
 The header shows one badge naming every stale source and the age of its last good read. The
 `--json` document carries the same per-source fields, so a pipeline sees what a terminal reader
@@ -628,9 +630,9 @@ A ticket whose Done row is archived stays placed by these rules:
   the Conflicts section gives the reason: a placement nobody read cannot be denied.
 - The conflict kinds stay seven.
 
-The `boardArchive` source is published from snapshot version 3. Version 3 lands with the reader
-change and the regenerated golden in one commit. Until that commit, the snapshot version stays 2
-and the reader joins the six sources the Staleness section names.
+The `boardArchive` source is published from snapshot version 3. Version 3 landed with the reader
+change and the regenerated golden in one commit (plan 37-12), and the reader joins the seven sources
+the Staleness section names.
 
 ## Reconciliation and non-goals
 
@@ -687,7 +689,7 @@ it admits everything and discriminates nothing.
 
 ## The published snapshot version
 
-The snapshot document carries `schemaVersion`, and it is **2**. `scripts/board-model.ts` states the
+The snapshot document carries `schemaVersion`, and it is **3**. `scripts/board-model.ts` states the
 same number once, as `SCHEMA_VERSION`, and the committed golden at
 `scripts/fixtures/board-snapshot/expected-snapshot.json` carries it a third time as a measured value
 rather than a typed one.
@@ -698,8 +700,10 @@ kind set are alike under it. A consumer therefore decides from the number alone 
 it holds is the shape it was written against, which is the only thing a version is for. "Additive"
 describes what a change costs a tolerant consumer; it has never described what it costs this number.
 
-Version 2 added `stem` to every record in `tickets[]`, so the file a ticket came from and the
-identifier it declares are both published facts. Version 1 published only the second.
+Version 3 added the `boardArchive` source, the Done archive read with the board grammar, so a
+ticket whose Done row was rolled off the board stays placed (D-15). Version 2 added `stem` to every
+record in `tickets[]`, so the file a ticket came from and the identifier it declares are both
+published facts. Version 1 published only the second.
 
 ## Provenance
 

@@ -47,12 +47,12 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync, } from "
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { joinSnapshot, normalizeDocument, parseBoard, parseTicketDocument, sourceValue, spelled, stripHtmlComments, } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
-import { BOARD_REL, TICKETS_REL, TRACEABILITY_REL } from "../install/state-layout.js";
+import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, TICKETS_REL, TRACEABILITY_REL, } from "../install/state-layout.js";
 // ── The conflict set (D-10) ──────────────────────────────────────────────────────────────────────
 //
 // DECLARED IN THE PURE MODULE AND RE-EXPORTED HERE, for the reason recorded above the `SourceState`
 // re-export. `joinSnapshot` derives the conflicts and it lives beside the grammar it compares
-// against; this module PRODUCES the six source states the join takes, so this is where the set and
+// against; this module PRODUCES the seven source states the join takes, so this is where the set and
 // its cardinality are published to a consumer of the read seam.
 // `PRESENCE_DEPENDENT_CONFLICT_KINDS` rides with them for the same reason (plan 32-09): the subset
 // is a property of the conflict set, and the read seam is what produces the source state that gates
@@ -323,8 +323,14 @@ export const SOURCE_NAMES = [
     "context",
     "traceability",
     "config",
+    "boardArchive",
 ];
-export const SOURCE_COUNT = 6;
+// SEVEN SINCE 2026-10-22 (plan 37-12, D-15). The Done archive joined as `boardArchive`, the seventh
+// source, by the decision this tuple's header asks for: D-15 in
+// `.planning/phases/37-overview-board-per-file-records-and-budgets/37-CONTEXT.md` (option a, answered
+// by the human on 2026-10-22) and `agent-factory/contracts/board.md` § The Done archive. It is
+// appended after `config`, so the order of the six that were already here is unchanged.
+export const SOURCE_COUNT = 7;
 /**
  * The fixed literal subpath of every source (ASVS V12).
  *
@@ -339,6 +345,7 @@ export const FIXED_SUBPATHS = {
     context: ".grugops/context",
     traceability: TRACEABILITY_REL,
     config: "agent-factory/config/factory.config.json",
+    boardArchive: BOARD_DONE_ARCHIVE_REL,
 };
 // ── Root resolution (T-32-03) ────────────────────────────────────────────────────────────────────
 /**
@@ -693,11 +700,11 @@ function settledFrom(settled, extra = [], unadmitted = []) {
  * Run ONE source's reader, turning a containment refusal into THAT source's stale arm (plan 32-10).
  *
  * WHY A REFUSAL MUST NOT BE FATAL. `repoSubpath` throws, which is right — a fixed subpath that
- * leaves the tree is a tree this module cannot vouch for. But `readSnapshot` calls six readers in a
- * row, so an unguarded throw from the first one ends the snapshot and blanks the other five: a
+ * leaves the tree is a tree this module cannot vouch for. But `readSnapshot` calls seven readers in a
+ * row, so an unguarded throw from the first one ends the snapshot and blanks the other six: a
  * single hostile entry would take the whole dashboard down, which costs more than the attack it
  * answers (T-32-10-03). D-12 is explicit that staleness is PER SOURCE with one badge, so a refused
- * source is one badge over five readable ones.
+ * source is one badge over six readable ones.
  *
  * ONLY `BoardReadError` IS CAUGHT, AND EVERYTHING ELSE IS RETHROWN. This helper exists to localize a
  * containment refusal. Widening it into a catch-all would hide the next real defect exactly the way
@@ -1545,6 +1552,28 @@ function readTraceabilitySource(root, readAt, previous, seam) {
     return settledFrom(settleSource("traceability", path, gatherFile(path, seam, parseTraceability), previous, readAt));
 }
 /**
+ * Read the Done archive, `BOARD_DONE_ARCHIVE_REL` (plan 37-12, D-15).
+ *
+ * THE SAME GRAMMAR AS THE BOARD, WITH THE SAME DIAL VALUE. The archive holds Done rows copied
+ * verbatim off the board by `state-roll`, so it is read by `parseBoard` with the `id_prefix` the
+ * board is read with: a row that names a ticket on the board names the same ticket here.
+ *
+ * AN ABSENT ARCHIVE IS AN `ok` EMPTY ARCHIVE, AND THAT IS THE CONTRACT'S RULE, NOT A FALLBACK. A
+ * repository nothing has rolled yet has no archive file, and the contract says an absent archive
+ * places no ticket and suppresses nothing. So `absent` is answered here with the model of an empty
+ * document, read through the same parse, and settles `ok`. Every other failure — a denied mode, a
+ * directory where the file should be, bytes that will not decode — goes through `settleSource`
+ * unchanged, so the badge reports it and `joinSnapshot` suppresses `ticket-unplaced` (an archive
+ * nobody read cannot deny a placement). No `fallback` is passed: that arm stays the config dial's.
+ */
+function readBoardArchiveSource(root, readAt, previous, seam, idPrefix) {
+    const path = repoSubpath(root, FIXED_SUBPATHS.boardArchive);
+    const parse = (text) => parseBoard(text, { idPrefix });
+    const gathered = gatherFile(path, seam, parse);
+    const outcome = gathered.kind === "absent" ? { kind: "value", value: parse("") } : gathered;
+    return settledFrom(settleSource("boardArchive", path, outcome, previous, readAt));
+}
+/**
  * Read the tree under `repoRoot` into one discriminated snapshot result.
  *
  * `previous` IS THE LAST GOOD RESULT, AND IT IS A PARAMETER RATHER THAN MODULE STATE. That is what
@@ -1562,8 +1591,8 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
     // THE DIAL IS READ FIRST, and the order is load-bearing rather than cosmetic: `id_prefix` is part
     // of what a conforming row identifier means (D-02), so the board parse needs the dial's value.
     // EVERY SOURCE READ IS WRAPPED (plan 32-10). `repoSubpath` throws on a containment refusal, and
-    // six unguarded calls in a row means the FIRST refusal blanks the other five — D-12 says staleness
-    // is per source with one badge, so a refused source is one badge over five readable ones. The
+    // seven unguarded calls in a row means the FIRST refusal blanks the other six — D-12 says staleness
+    // is per source with one badge, so a refused source is one badge over six readable ones. The
     // wrapper count is pinned against `SOURCE_NAMES.length` by a census derived from this file.
     const config = guarded("config", root, readAt, before?.config, () => readConfigSource(root, readAt, before?.config, seam), LEAN_CONFIG_VIEW);
     const board = guarded("board", root, readAt, before?.board, () => readBoardSource(root, readAt, before?.board, seam, sourceValue(config.state)?.idPrefix ?? null));
@@ -1571,6 +1600,7 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
     const queue = guarded("queue", root, readAt, before?.queue, () => readQueueSource(root, readAt, before?.queue, seam));
     const context = guarded("context", root, readAt, before?.context, () => readContextSource(root, readAt, before?.context, seam));
     const traceability = guarded("traceability", root, readAt, before?.traceability, () => readTraceabilitySource(root, readAt, before?.traceability, seam));
+    const boardArchive = guarded("boardArchive", root, readAt, before?.boardArchive, () => readBoardArchiveSource(root, readAt, before?.boardArchive, seam, sourceValue(config.state)?.idPrefix ?? null));
     const sources = {
         board: board.state,
         tickets: tickets.state,
@@ -1578,9 +1608,10 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
         context: context.state,
         traceability: traceability.state,
         config: config.state,
+        boardArchive: boardArchive.state,
     };
     // THE JOIN IS THE PURE MODULE'S. This function reads; it does not compare. `joinSnapshot` takes
-    // the six settled states and returns the published snapshot together with every conflict, which
+    // the seven settled states and returns the published snapshot together with every conflict, which
     // is what makes the committed golden a byte-for-byte function of its committed inputs (D-19).
     const joined = joinSnapshot({
         repoRoot: root,
@@ -1601,6 +1632,7 @@ export function readSnapshot(repoRoot, previous, seam = {}) {
         ...context.errors,
         ...traceability.errors,
         ...config.errors,
+        ...boardArchive.errors,
     ];
     return {
         source: deriveOverallSource(sources, readErrors),
