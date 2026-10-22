@@ -33,7 +33,7 @@ Each role reads the shared verified context before it works. Each role records i
 On `memory-bank/plans/board.md`, seed the board with its columns and per-column WIP limits. Security/NFR owns the `In Security/NFR` exit for the high-risk scan; the safe first tickets enter `Backlog`.
 
 ## Trace updates
-Seed `memory-bank/plans/traceability.md` rows for the safe first tickets. Set `Status` and link any `NFRs` raised by the scan. The first work then traces back to a documented risk posture.
+Brownfield Mapper publishes each safe first ticket as a ref on a note per Workflow 16. Security/NFR publishes the NFR ids the scan raised the same way. Each note names the ticket identifier among its refs. The next trace render turns those refs into each ticket's trace file and index line. The first work then traces back to a documented risk posture.
 
 ## Metrics emitted
 None beyond seeding. The board and metrics counters start empty; `memory-bank/plans/metrics.md` records `Throughput` and `Lead time` once real work begins.
@@ -46,4 +46,4 @@ None beyond seeding. The board and metrics counters start empty; `memory-bank/pl
 The root `AGENTS.md`, `memory-bank/brownfield-map.md` and the updated memory-bank exist. The known commands and the risks are documented, with the security-nfr scan result recorded as a typed note per Workflow 16. The safe first tickets exist. `memory-bank/plans/board.md` is seeded and `.grugops/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-brownfield-<id>`), then `type(scope): summary`. The artifacts are the brownfield map, the seeded board, the safe first tickets, the security-nfr note recorded per Workflow 16 and the traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-brownfield-<id>`), then `type(scope): summary`. The artifacts are the brownfield map, the seeded board, the safe first tickets, the security-nfr note recorded per Workflow 16 and the rendered trace files. Never merge, never deploy; humans hold both.

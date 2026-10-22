@@ -38,7 +38,7 @@ Each role reads the shared verified context before it works. Each role records i
 On `memory-bank/plans/board.md`, the full path is `Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The Orchestrator owns `Ready for Dev -> In Development`; the Software Engineer owns `In Development -> In Review`; QE/E2E owns the `In Review` exit; Security/NFR owns the `In Security/NFR` exit when triggered.
 
 ## Trace updates
-Append to `memory-bank/plans/traceability.md`: the `Code (PR/files)` link and the `Tests` link against the ticket row, and update `Status`.
+The Software Engineer publishes the PR and the files changed, and QE/E2E publishes the tests, as refs on notes per Workflow 16. Each note names the ticket identifier among its refs. The trace render in Workflow 05 turns those refs into the ticket's trace file and index line.
 <!-- The acceptance scenarios are carried forward to the UAT pack and release — they flow forward, NOT rewritten here. A deeper UAT-BDD treatment is its own later concern (D-13). -->
 
 
@@ -53,4 +53,4 @@ Record `Cycle time` and `WIP` in `memory-bank/plans/metrics.md`.
 Code is changed per the `checkpoints` matrix and tests are added. The gate commands have run. The implementation and QE results are recorded as typed notes per Workflow 16, with the security-nfr result when triggered. The trace is updated. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first, then `type(scope): summary`. Never a protected branch: the implementation already lives on a `grugops/ticket-to-pr-<id>` working branch per `checkpoints.open_pr`. The artifacts are the board moves, the metrics and the updated traceability rows. They also include the implementation, QE and security-nfr context notes recorded per Workflow 16. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first, then `type(scope): summary`. Never a protected branch: the implementation already lives on a `grugops/ticket-to-pr-<id>` working branch per `checkpoints.open_pr`. The artifacts are the board moves, the metrics and the rendered trace files. They also include the implementation, QE and security-nfr context notes recorded per Workflow 16. Never merge, never deploy; humans hold both.

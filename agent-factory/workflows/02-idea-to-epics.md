@@ -29,7 +29,7 @@ Each role reads the shared verified context before it works. Each role records i
 On `memory-bank/plans/board.md`, the new epics enter `Backlog`. BA/PM owns the `Backlog -> Ready` exit and moves an item to `Ready` once it meets the Definition of Ready.
 
 ## Trace updates
-Append to `memory-bank/plans/traceability.md`: the `Epic` and `Feature` rows for the new epics, and set `Status`, so every downstream ticket traces back to a product epic.
+BA/PM publishes the new epic and feature ids as refs on a note per Workflow 16. A note that names no ticket adds nothing to the trace. Workflow 03 therefore publishes each ticket's epic and feature ids. The trace render turns those refs into each ticket's trace file and index line. Every downstream ticket then traces back to a product epic.
 
 ## Metrics emitted
 Record `Throughput` and `Lead time` in `memory-bank/plans/metrics.md` as epics land in `Backlog`.
@@ -41,4 +41,4 @@ Record `Throughput` and `Lead time` in `memory-bank/plans/metrics.md` as epics l
 The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The product decisions are recorded as typed notes per Workflow 16 and the trace rows are appended.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/idea-to-epics-<id>`), then `type(scope): summary`. The artifacts are the epics, the board update, the product notes recorded per Workflow 16 and the traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/idea-to-epics-<id>`), then `type(scope): summary`. The artifacts are the epics, the board update, the product notes recorded per Workflow 16 and the rendered trace files. Never merge, never deploy; humans hold both.
