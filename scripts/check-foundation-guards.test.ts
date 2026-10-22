@@ -61,6 +61,9 @@ import {
 // The harness's own premise produced a false result in six instances across four straight rounds, so
 // it is asserted, never assumed.
 import { fencedLineFlags } from "./frontmatter.js";
+// (Plan 37-11, D-16) The generator's own region locator and derivation: the LANG-07 census admits a generated copy
+// of the section-extent owner only inside a fresh region of an EMBED_SPECS target (admittedGeneratedCopy).
+import { EMBED_CLOSE, EMBED_OPEN, EMBED_SPECS, deriveRegion, regionSpans, type EmbedSpec } from "./generate-runnable-embeds.js";
 
 // (Plan 29-01) The two new guards' predicates, read from the authority so the mirror repair and the
 // fixtures below cannot come to disagree with the guards about what conforms.
@@ -1586,7 +1589,60 @@ const sectionExtentOwnersAmong = (
   rec: readonly RegExp[] = HEADING_RECOGNISER_CONSTRUCTS,
   term: readonly RegExp[] = SCAN_TERMINATOR_CONSTRUCTS,
 ): string[] =>
-  names.filter((n) => sectionExtentSitesIn(read(n), rec, term).length > 0).sort();
+  names
+    .filter((n) => {
+      const src = read(n);
+      return sectionExtentSitesIn(src, rec, term).length > 0 && !admittedGeneratedCopy(n, src, rec, term);
+    })
+    .sort();
+
+/**
+ * THE GENERATED-REGION ADMISSION RULE (D-16, answered by the human on 2026-10-22; plan 37-11). A host runnable
+ * may import `node:` builtins only, so the state roll carries `sectionEndIndex` as a declaration copied verbatim
+ * from scripts/frontmatter.ts by scripts/generate-runnable-embeds.ts, and that copy is not a second owner of the
+ * section-extent question: scripts/runnable-embeds-freshness.ts proves the region byte-identical to a fresh
+ * derivation, so it can only ever say what the one owner says. It is the rule plan 37-03 gave the state-path and
+ * non-blocking-reader censuses (scripts/check-state-paths.test.ts, scripts/nonblocking-reader-parity.test.ts),
+ * and like theirs it never admits a module by its name. A module is admitted only when ALL of these hold:
+ *
+ *   1. it is an EMBED_SPECS target;
+ *   2. it carries exactly one generated region, located by the generator's own regionSpans;
+ *   3. that region is FRESH: its text equals deriveRegion for the target, so a hand-edited copy is refused;
+ *   4. with the region's text removed (its lines kept, so every line number holds), the module answers the
+ *      question nowhere: a copy outside the region is refused.
+ *
+ * The control case in the LANG-07 block below proves 3 and 4 and the name rule, each failing on its own.
+ */
+const admittedGeneratedCopy = (
+  rel: string,
+  src: string,
+  rec: readonly RegExp[] = HEADING_RECOGNISER_CONSTRUCTS,
+  term: readonly RegExp[] = SCAN_TERMINATOR_CONSTRUCTS,
+): boolean => {
+  const spec = EMBED_SPECS.find((s) => s.target === rel);
+  if (spec === undefined) return false;
+  let spans: Array<readonly [number, number]>;
+  try {
+    spans = regionSpans(src);
+  } catch {
+    return false;
+  }
+  if (spans.length !== 1) return false;
+  const [a, b] = spans[0] as readonly [number, number];
+  if (src.slice(a, b) !== freshRegionOf(spec)) return false;
+  const outside = src.slice(0, a) + src.slice(a, b).replace(/[^\n]/g, "") + src.slice(b);
+  return sectionExtentSitesIn(outside, rec, term).length === 0;
+};
+
+/** A fresh derivation of each target's region, computed once per run (the generator parses every authority). */
+const FRESH_REGIONS = new Map<string, string>();
+const freshRegionOf = (spec: EmbedSpec): string => {
+  const known = FRESH_REGIONS.get(spec.target);
+  if (known !== undefined) return known;
+  const text = deriveRegion(spec, ROOT);
+  FRESH_REGIONS.set(spec.target, text);
+  return text;
+};
 
 /**
  * The modules that OWN the predicate, derived over every non-test module IN THE TREE.
@@ -2749,6 +2805,45 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     expect(withSeventh).toHaveLength(SECTION_EXTENT_OWNER_COUNT + 2);
   });
 
+  it("D-16 (plan 37-11): a generated copy is admitted only inside a FRESH region of an EMBED_SPECS target, never by name", () => {
+    // THE LIVE PREMISE. The state roll really carries the copy, inside its region: without the admission rule it
+    // would be a second owner, so this case is not satisfied by a tree in which no copy exists.
+    const target = "scripts/runnable-ref/state-roll.ts";
+    const live = readFileSync(join(ROOT, ...target.split("/")), "utf8");
+    expect(EMBED_SPECS.some((s) => s.target === target)).toBe(true);
+    expect(sectionExtentSitesIn(live), "PREMISE: the generated copy of sectionEndIndex is a site").toEqual([
+      "sectionEndIndex :: if (!flags[i] && closes.test(lines[i])) return i;",
+    ]);
+    expect(admittedGeneratedCopy(target, live)).toBe(true);
+    expect(sectionExtentOwners()).not.toContain(target);
+
+    // Every control below runs THE RULE, sectionExtentOwnersAmong, over a single in-memory module.
+    const ownersOf = (rel: string, text: string): string[] => sectionExtentOwnersAmong([rel], () => text);
+    expect(ownersOf(target, live), "CONTROL: the live copy alone is admitted").toEqual([]);
+
+    // 1. A HAND-EDITED copy inside the region: the region is no longer fresh, so the module is an owner again.
+    const edited = live.replace(
+      "if (!flags[i] && closes.test(lines[i])) return i;",
+      "if (!flags[i] && closes.test(lines[i])) return i + 0;",
+    );
+    expect(edited, "PREMISE: the edit landed").not.toBe(live);
+    expect(ownersOf(target, edited)).toEqual([target]);
+
+    // 2. A copy OUTSIDE the region, with the region itself fresh: the module answers the question there.
+    expect(ownersOf(target, `${live}\n${PLANTED_SIXTH_LOCATOR}`)).toEqual([target]);
+
+    // 3. The same fresh region in a module that is NOT a target: admission is by EMBED_SPECS, never by a name or
+    //    by the marker lines alone.
+    expect(ownersOf("scripts/not-a-target.ts", live)).toEqual(["scripts/not-a-target.ts"]);
+
+    // 4. Unbalanced or doubled markers are never admitted.
+    expect(ownersOf(target, `${live}\n${EMBED_OPEN}\n`)).toEqual([target]);
+    const span = regionSpans(live)[0] as readonly [number, number];
+    const doubled = `${live}\n${live.slice(span[0], span[1])}\n`;
+    expect(ownersOf(target, doubled)).toEqual([target]);
+    expect(EMBED_CLOSE.length).toBeGreaterThan(0);
+  });
+
   it("the recogniser arm requires a SEPARATOR — it does not recognise an issue-reference pattern", () => {
     // 29-22's third construct admits a BACKSLASH after the hashes, so it recognises `/^#\d+$/` in
     // scripts/trace-model.ts (moved there from scripts/trace-render.ts on 2026-10-22, plan 37-06, when the
@@ -3050,7 +3145,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       "PREMISE: the widened arm must recognise a line in at least one live module, or the half " +
         "below is an exclusion measured over nothing",
     ).toBeGreaterThan(0);
-    const excludedByConjunction = recognisedModules.filter((n) => !owners.includes(n));
+    // (Plan 37-11, D-16) A module absent from the owners because the generated-region rule admitted its copy is
+    // excluded by that rule, not by the conjunction, so it is no witness for this half.
+    const excludedByConjunction = recognisedModules.filter(
+      (n) => !owners.includes(n) && !admittedGeneratedCopy(n, readFileSync(join(ROOT, n), "utf8")),
+    );
     expect(
       excludedByConjunction,
       "at least one module the recogniser arm recognises must contribute NO site — that gap is the " +

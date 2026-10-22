@@ -1,50 +1,71 @@
-// state-roll.ts — the host state roll (phase 37, plan 37-10, SPLIT-06, SPLIT-01, D-07, D-08).
+// state-roll.ts — the host state roll (phase 37, plans 37-10 and 37-11, SPLIT-06, SPLIT-01, D-07, D-08, D-09).
 //
 // WHAT IT IS. A kit-shipped runnable in the shape of state-check.ts and trace-render.ts: authored here, compiled
 // to a committed state-roll.js, and run on a host as `node state-roll.js <repo-root> [--dry-run]` with only Node
-// present. It keeps the board's Done column inside BUDGETS.doneRows rows: the first BUDGETS.doneRows rows stay
-// (the contract writes Done newest first), and every later row moves, whole, verbatim and in board order, to the
-// top of the Done column of memory-bank/plans/archive/board-done.md. The archive is created with its one
-// `## Done (WIP unlimited)` heading when it is absent. Plan 37-11 adds the progress roll (D-09), the duplicate
-// refusal, the dry-run PLAN lines and the re-run after an interrupted roll.
+// present. It rolls two surfaces, Done first and progress second, each moved whole, verbatim and with a proof:
+//   - Done (D-07). The board's Done column keeps its first BUDGETS.doneRows rows (the contract writes Done newest
+//     first), and every later row moves, in board order, to the top of the Done column of
+//     memory-bank/plans/archive/board-done.md, which is created with its one `## Done (WIP unlimited)` heading
+//     when it is absent.
+//   - Progress (D-09). When memory-bank/60-progress.md is over BUDGETS.progressBytes, its dated status entries
+//     (`## YYYY-MM-DD` headings) move, oldest date first, to the end of memory-bank/plans/archive/progress.md
+//     until the file is within budget or no dated entry remains. A standing `##` section never moves. Where an
+//     entry ends is answered by the generated copy of scripts/frontmatter.ts's sectionEndIndex (D-16).
+// It never reads, writes or lists the finished-task queue folder or the decision records folder: those are moved
+// whole only by a human or a migrate (v3.0 D-7), so their paths are not even embedded here.
 //
 // THE D-12 CONTRACT.
-//   exit 0 → the rows were moved and the move was proven, or there was nothing to roll. `--dry-run` writes
-//            nothing and exits 0 when a roll could run.
-//   exit 1 → the roll was written, the line-conservation proof failed (or a write failed part way), and both
-//            files were written back to their old bytes; an archive this run created was removed.
-//   exit 2 → the roll could not run or was refused: a bad argument, a root that is not a readable (and, to
+//   exit 0 → every planned roll was written and proven, or there was nothing to roll. `--dry-run` prints one
+//            PLAN line per move (its line numbers and byte count), writes nothing and exits 0 when the rolls
+//            could run.
+//   exit 1 → a roll was written, its line-conservation proof failed (or a write failed part way), and its two
+//            files were written back to their old bytes; an archive this run created was removed. A Done roll
+//            that had already been written and proven before a progress roll failed stays written, and stdout
+//            says so.
+//   exit 2 → a roll could not run or was refused: a bad argument, a root that is not a readable (and, to
 //            write, writable) directory, a path that resolves outside the repository root, a missing board, a
-//            symbolic link, FIFO or directory where the board or the archive should be, a file the reader
-//            refuses or that holds bytes a text write would not keep, a board or archive the planners refuse,
-//            a file that changed after it was read, or a rollback that could not be completed. Exit 2 is never
-//            a pass: it prints nothing on stdout.
+//            symbolic link, FIFO or directory where a state file should be, a file the reader refuses or that
+//            holds bytes a text write would not keep, a shape a planner refuses (a Done column holding a line
+//            that is not a row, an archive with a heading it must not hold, a row or entry the archive already
+//            holds, mixed line endings, an ambiguous entry), a file that changed after it was read, or a
+//            rollback that could not be completed. Every refusal a planner can find is found before the first
+//            write. Exit 2 is never a pass: it prints nothing on stdout, and when a Done roll had already been
+//            written and proven, stderr says so.
 //
-// THE PROOF (D-08). The rules are scripts/state-rules.ts's planDoneRoll, planArchiveInsert, assembleRoll,
-// checkConservation and executeRoll, embedded below. executeRoll writes the archive first and the board second,
-// re-reads both and proves that the board equals its old lines with exactly the moved lines removed and the
-// archive equals its old lines with exactly the moved block inserted. On a mismatch it writes both files back.
-// Lines are removed from the text as read, so a CRLF board keeps CRLF and a byte-order mark stays in place.
+// THE PROOF (D-08). The rules are scripts/state-rules.ts's planners, assembleRoll, checkConservation and
+// executeRoll, embedded below. executeRoll writes the archive first and the source second, re-reads both and
+// proves that the source equals its old lines with exactly the moved lines removed and the archive equals its
+// old lines with exactly the moved lines inserted in the planned order. On a mismatch it writes both files back.
+// Lines are removed from the text as read, so a CRLF file keeps CRLF and a byte-order mark stays in place. Each
+// roll is atomic on its own: the progress roll runs only after the Done roll was proven.
+//
+// A RE-RUN AFTER AN INTERRUPTION IS SAFE. Each file is written atomically, so an interruption between the archive
+// write and the source write leaves the moved rows or entries in both files. The next run refuses (exit 2) and
+// names them, because moving them again would double them in the archive; the board reader reports the overlap
+// as ticket-duplicated meanwhile (plan 37-12).
 //
 // THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and one that resolves outside
-// realpath(root) is refused by name. The board and the archive are lstat'ed before they are opened, so a FIFO is
-// never opened and a symbolic link is never replaced by a file. The archive directory is created only when it is
-// absent and a roll is to be written, after its parent's realpath is confirmed inside the root.
+// realpath(root) is refused by name. Every state file is lstat'ed before it is opened, so a FIFO is never opened
+// and a symbolic link is never replaced by a file. The archive directory is created only when it is absent and a
+// roll is to be written, after its parent's realpath is confirmed inside the root.
 //
 // EVERY WRITE IS ATOMIC. Each file goes through the embedded atomicWrite (a temp sibling, then a rename), so an
 // interrupted roll leaves each file either its old or its new bytes.
 //
-// OUTPUT IS SANITIZED. Every value read from the repository (an identifier, a path, a reason) has each C0, C1 and
-// DEL code point removed by the embedded stripControlChars before it is printed.
+// OUTPUT IS SANITIZED. Every value read from the repository (an identifier, a heading, a path, a reason) has each
+// C0, C1 and DEL code point removed by the embedded stripControlChars before it is printed.
 //
 // BUILTINS ONLY. A host runs this file with no kit and no node_modules, so it imports `node:` builtins and nothing
 // else. The hand-written part below imports them as namespaces, so the names the generated region imports never
 // collide with its own.
 //
-// NOTHING HERE IS RETYPED. The state paths, BUDGETS, the roll rules, the board grammar, the reader and the writer
-// sit in the generated region, copied verbatim from install/state-layout.ts, scripts/state-rules.ts,
-// scripts/board-model.ts and scripts/context-io.ts by scripts/generate-runnable-embeds.ts.
-// scripts/runnable-embeds-freshness.ts fails CI when the region differs from a fresh derivation.
+// NOTHING HERE IS RETYPED, WITH ONE NAMED EXCEPTION. The state paths, BUDGETS, the roll rules, the board grammar,
+// the section-extent owner, the reader and the writer sit in the generated region, copied verbatim from
+// install/state-layout.ts, scripts/state-rules.ts, scripts/board-model.ts, scripts/frontmatter.ts and
+// scripts/context-io.ts by scripts/generate-runnable-embeds.ts. scripts/runnable-embeds-freshness.ts fails CI when
+// the region differs from a fresh derivation. The exception is DECISION_RECORDS_DIR below: a message names the
+// decision records directory, and embedding its constant would put a move-only path in this file. A test in
+// state-roll.test.ts binds that one string to install/state-layout.ts's constant.
 //
 // Voice: clear professional voice (CLAUDE.md hard rule): this file moves state a human audits.
 import * as nodeFs from "node:fs";
@@ -55,8 +76,11 @@ import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, ren
 // from install/state-layout.ts
 export const STATE_ROOT_REL = "memory-bank/plans";
 export const BOARD_REL = `${STATE_ROOT_REL}/board.md`;
+export const MEMORY_BANK_REL = "memory-bank";
 export const ARCHIVE_REL = `${STATE_ROOT_REL}/archive`;
 export const BOARD_DONE_ARCHIVE_REL = `${ARCHIVE_REL}/board-done.md`;
+export const PROGRESS_REL = `${MEMORY_BANK_REL}/60-progress.md`;
+export const PROGRESS_ARCHIVE_REL = `${ARCHIVE_REL}/progress.md`;
 export const BUDGETS = Object.freeze({
     /** UTF-8 bytes of the board file (24 KiB). */
     boardBytes: 24_576,
@@ -77,7 +101,56 @@ export const BUDGETS = Object.freeze({
     /** Rows the Done column keeps; older rows move to the Done archive. */
     doneRows: 20,
 });
+export function utf8Bytes(text) {
+    let n = 0;
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if (c < 0x80)
+            n += 1;
+        else if (c < 0x800)
+            n += 2;
+        else if (c >= 0xd800 && c <= 0xdbff && i + 1 < text.length) {
+            const d = text.charCodeAt(i + 1);
+            if (d >= 0xdc00 && d <= 0xdfff) {
+                n += 4;
+                i++;
+            }
+            else {
+                n += 3;
+            }
+        }
+        else {
+            n += 3;
+        }
+    }
+    return n;
+}
 const DONE_COLUMN = "Done";
+const SECTION_HEADING = /^##(?: |$)/;
+const DATED_HEADING = /^## [0-9]{4}-[0-9]{2}-[0-9]{2}(?: |$)/;
+function isCalendarDate(ymd) {
+    const year = Number(ymd.slice(0, 4));
+    const month = Number(ymd.slice(5, 7));
+    const day = Number(ymd.slice(8, 10));
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+    return day >= 1 && day <= days;
+}
+export function progressEntries(text) {
+    const dated = [];
+    const standing = [];
+    for (const [n, line] of text.split("\n").entries()) {
+        if (!SECTION_HEADING.test(line))
+            continue;
+        const heading = line.slice("## ".length);
+        const date = heading.slice(0, "YYYY-MM-DD".length);
+        if (DATED_HEADING.test(line) && isCalendarDate(date))
+            dated.push({ date, heading, line: n + 1 });
+        else
+            standing.push({ heading, line: n + 1 });
+    }
+    return { dated, standing };
+}
 export const DONE_ARCHIVE_HEADING = "## Done (WIP unlimited)";
 export function planDoneRoll(texts, model, keep) {
     if (!Number.isInteger(keep) || keep < 0) {
@@ -96,6 +169,17 @@ export function planDoneRoll(texts, model, keep) {
     const rows = done[0].rows;
     if (rows.length <= keep)
         return { kind: "none", rows: rows.length };
+    // Plan 37-11: a Done column that holds a line other than ticket rows and blank lines is not a shape the roll
+    // can reason about (which rows are the newest, and where does the prose belong after the move), so it is
+    // refused before anything moves. The grammar names each such line and the column it sat under.
+    const prose = model.unparsed.filter((u) => u.column === DONE_COLUMN);
+    if (prose.length > 0) {
+        return {
+            kind: "refuse",
+            reason: `the ${DONE_COLUMN} column holds ${prose.length} line(s) that are not ticket rows (line(s) ` +
+                `${prose.map((u) => u.line).join(", ")}), so it was not rolled; move that text out of the column by hand`,
+        };
+    }
     const raw = texts.raw.split("\n");
     const normalized = texts.normalized.split("\n");
     const blanked = texts.blanked.split("\n");
@@ -152,6 +236,14 @@ export function planArchiveInsert(archive, texts) {
             reason: `the Done archive must carry exactly one column heading, \`${DONE_ARCHIVE_HEADING}\`; it carries ${found}`,
         };
     }
+    const other = archive.model.nonColumnSections;
+    if (other.length > 0) {
+        return {
+            kind: "refuse",
+            reason: `the Done archive must carry no heading but \`${DONE_ARCHIVE_HEADING}\`; it also carries ` +
+                other.map((s) => `\`${s.heading}\` (line ${s.line})`).join(", "),
+        };
+    }
     const first = column.rows[0];
     let at;
     if (first !== undefined) {
@@ -174,12 +266,14 @@ function removeLines(text, lines) {
         .filter((_, i) => !drop.has(i + 1))
         .join("\n");
 }
-export function assembleRoll(sourceRel, archiveRel, before, roll, insert) {
+export function assembleRoll(sourceRel, archiveRel, before, roll, insert, surface = "done") {
     return {
+        surface,
         sourceRel,
         archiveRel,
         lines: roll.lines,
         texts: roll.texts,
+        insertOrder: roll.order ?? roll.texts.map((_, k) => k),
         archiveBase: insert.base,
         insertAt: insert.at,
         before,
@@ -198,6 +292,16 @@ export function checkConservation(before, after, plan) {
     if (lines.length === 0 || lines.length !== texts.length) {
         return `the plan moves ${lines.length} line(s) and carries ${texts.length} text(s)`;
     }
+    // The archive order must place every moved line exactly once (plan 37-11), so no line can be doubled or
+    // dropped by the order alone.
+    const order = plan.insertOrder ?? texts.map((_, k) => k);
+    const placed = new Set(order);
+    if (order.length !== texts.length ||
+        placed.size !== order.length ||
+        order.some((k) => !Number.isInteger(k) || k < 0 || k >= texts.length)) {
+        return `the planned archive order does not place each of the ${texts.length} moved line(s) exactly once`;
+    }
+    const inserted = order.map((k) => texts[k]);
     const old = before.source.split("\n");
     const drop = new Set();
     for (let k = 0; k < lines.length; k++) {
@@ -217,7 +321,8 @@ export function checkConservation(before, after, plan) {
         return (`${sourceRel} line ${s + 1} differs from the old board with the moved rows removed ` +
             `(${gotSource.length} line(s), expected ${expectedSource.length})`);
     }
-    const base = before.archive ?? doneArchiveSkeleton(texts);
+    const base = before.archive ??
+        ((plan.surface ?? "done") === "progress" ? progressArchiveSkeleton(inserted, sourceRel) : doneArchiveSkeleton(texts));
     if (plan.archiveBase !== base)
         return `the archive text the plan inserts into is not ${archiveRel} as read`;
     const baseLines = base.split("\n");
@@ -226,7 +331,7 @@ export function checkConservation(before, after, plan) {
     }
     if (after.archive === null)
         return `${archiveRel} is absent after the roll`;
-    const expectedArchive = [...baseLines.slice(0, plan.insertAt), ...texts, ...baseLines.slice(plan.insertAt)];
+    const expectedArchive = [...baseLines.slice(0, plan.insertAt), ...inserted, ...baseLines.slice(plan.insertAt)];
     const gotArchive = after.archive.split("\n");
     const a = firstDifference(gotArchive, expectedArchive);
     if (a !== -1) {
@@ -265,17 +370,31 @@ export function executeRoll(plan, io) {
     if (reason === null)
         return { ok: true };
     const failures = [];
+    // Plan 37-11: a file that already holds its old bytes (a write that threw before it replaced the file) is
+    // left alone, so a file whose directory refuses writes does not turn a clean rollback into a failed one.
+    const holds = (rel, old) => {
+        try {
+            return io.read(rel) === old;
+        }
+        catch {
+            return false;
+        }
+    };
     try {
-        io.write(sourceRel, before.source);
+        if (!holds(sourceRel, before.source))
+            io.write(sourceRel, before.source);
     }
     catch (e) {
         failures.push(`${sourceRel} could not be written back (${messageOf(e)})`);
     }
     try {
-        if (before.archive === null)
-            io.remove(archiveRel);
-        else
+        if (before.archive === null) {
+            if (!holds(archiveRel, null))
+                io.remove(archiveRel);
+        }
+        else if (!holds(archiveRel, before.archive)) {
             io.write(archiveRel, before.archive);
+        }
     }
     catch (e) {
         failures.push(`${archiveRel} could not be ${before.archive === null ? "removed" : "written back"} (${messageOf(e)})`);
@@ -293,6 +412,202 @@ export function executeRoll(plan, io) {
     if (failures.length > 0)
         return { ok: false, stage: "restore-failed", reason: `${reason}; ${failures.join("; ")}` };
     return { ok: false, stage: "rolled-back", reason };
+}
+export const PROGRESS_ARCHIVE_TITLE = "# Progress archive";
+function lineBytes(raw) {
+    return utf8Bytes(raw) + 1;
+}
+export function planProgressRoll(texts, budgetBytes, sectionEnd) {
+    if (!Number.isInteger(budgetBytes) || budgetBytes < 0) {
+        return { kind: "refuse", reason: `the progress budget (${budgetBytes}) is not a whole number of bytes` };
+    }
+    const bytes = utf8Bytes(texts.raw);
+    const entries = progressEntries(texts.blanked);
+    const standing = entries.standing.map((s) => s.heading);
+    const dated = entries.dated.length;
+    if (bytes <= budgetBytes || dated === 0)
+        return { kind: "none", bytes, dated, standing };
+    const raw = texts.raw.split("\n");
+    const normalized = texts.normalized.split("\n");
+    const blanked = texts.blanked.split("\n");
+    if (raw.length !== normalized.length || raw.length !== blanked.length) {
+        return { kind: "refuse", reason: "the progress file's raw, normalized and comment-blanked forms do not have one line count" };
+    }
+    const headingAt = new Map();
+    for (const e of [...entries.dated, ...entries.standing])
+        headingAt.set(e.line - 1, e.heading);
+    /** The entry `e` as a block, or the reason it cannot move. */
+    const blockOf = (e) => {
+        const start = e.line - 1;
+        const name = `the entry \`## ${e.heading}\` (line ${e.line})`;
+        if (sectionEnd(texts.blanked, start, 2) !== start) {
+            return `${name} sits inside a fenced block, so it opens no entry; move it out of the fence by hand`;
+        }
+        let end = sectionEnd(texts.blanked, start + 1, 2);
+        // The empty string after a final line feed is the file's end, not a line of the last entry.
+        if (end === raw.length && end - 1 > start && raw[end - 1] === "")
+            end -= 1;
+        const lines = [];
+        const out = [];
+        let size = 0;
+        for (let i = start; i < end; i++) {
+            const inner = headingAt.get(i);
+            if (i > start && inner !== undefined) {
+                return (`the heading \`## ${inner}\` on line ${i + 1} sits inside ${name} without ending it (it is fenced, or ` +
+                    "it has no text after its hashes), so the entry's extent is ambiguous; fix that heading by hand");
+            }
+            const rawLine = raw[i];
+            const line = normalized[i];
+            if (blanked[i] !== line) {
+                return (`${name} carries an HTML comment on line ${i + 1}, so it was not moved: moving part of a comment ` +
+                    "would change which lines it hides; move that entry by hand");
+            }
+            if (rawLine !== line && rawLine !== `${line}\r`) {
+                return `line ${i + 1} of ${name} is not its normalized line as read (a byte-order mark?), so it was not moved`;
+            }
+            lines.push(i + 1);
+            out.push(rawLine);
+            size += lineBytes(rawLine);
+        }
+        return { date: e.date, heading: e.heading, lines, texts: out, bytes: size };
+    };
+    const oldestFirst = [...entries.dated].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.line - b.line);
+    const blocks = [];
+    let left = bytes;
+    for (const e of oldestFirst) {
+        if (left <= budgetBytes)
+            break;
+        const block = blockOf(e);
+        if (typeof block === "string")
+            return { kind: "refuse", reason: block };
+        blocks.push(block);
+        left -= block.bytes;
+    }
+    const lines = blocks.flatMap((b) => b.lines).sort((a, b) => a - b);
+    const indexOf = new Map(lines.map((l, k) => [l, k]));
+    const order = blocks.flatMap((b) => b.lines.map((l) => indexOf.get(l)));
+    const remaining = utf8Bytes(removeLines(texts.raw, lines));
+    return {
+        kind: "roll",
+        bytes,
+        remaining,
+        dated,
+        standing,
+        blocks,
+        lines,
+        texts: lines.map((l) => raw[l - 1]),
+        order,
+    };
+}
+export function progressArchiveSkeleton(inserted, sourceRel) {
+    const eol = inserted[0]?.endsWith("\r") === true ? "\r\n" : "\n";
+    return [
+        PROGRESS_ARCHIVE_TITLE,
+        "",
+        `<!-- Dated status entries moved whole from ${sourceRel} by state-roll, oldest first. Move only: never ` +
+            "edit, squash or prune an entry here. -->",
+        "",
+    ].join(eol);
+}
+function appendAt(text) {
+    const lines = text.split("\n");
+    return lines.at(-1) === "" ? lines.length - 1 : lines.length;
+}
+export function planProgressAppend(archive, roll, sourceRel, sectionEnd, view) {
+    const inserted = roll.order.map((k) => roll.texts[k]);
+    if (inserted.length === 0)
+        return { kind: "refuse", reason: "there are no entries to append to the progress archive" };
+    let base;
+    if (archive === null) {
+        base = progressArchiveSkeleton(inserted, sourceRel);
+    }
+    else {
+        const first = archive.normalized.split("\n")[0];
+        if (first !== PROGRESS_ARCHIVE_TITLE) {
+            return {
+                kind: "refuse",
+                reason: `the progress archive must start with the line \`${PROGRESS_ARCHIVE_TITLE}\`; it starts with \`${first ?? ""}\``,
+            };
+        }
+        const present = new Set(archive.normalized.split("\n"));
+        const doubled = roll.blocks.filter((b) => present.has(`## ${b.heading}`));
+        if (doubled.length > 0) {
+            return {
+                kind: "refuse",
+                reason: `the progress archive already holds the heading line of ${doubled.length} entry(ies) this roll would ` +
+                    `move (${doubled.map((b) => `\`## ${b.heading}\``).join(", ")}): an earlier roll was interrupted after ` +
+                    "it wrote the archive, or the entries were copied by hand. Nothing was moved; once each copy is " +
+                    "confirmed equal, delete the progress file's copy by hand and run state-roll again",
+            };
+        }
+        base = archive.raw;
+    }
+    const at = appendAt(base);
+    const text = insertLines(base, at, inserted);
+    const after = view(text);
+    const shown = after.split("\n");
+    for (let j = 0; j < inserted.length; j++) {
+        const line = inserted[j];
+        if (shown[at + j] !== (line.endsWith("\r") ? line.slice(0, -1) : line)) {
+            return {
+                kind: "refuse",
+                reason: `the moved line that would be line ${at + j + 1} of the progress archive would be hidden by an HTML comment there`,
+            };
+        }
+    }
+    let h = at;
+    for (const b of roll.blocks) {
+        if (sectionEnd(after, h, 2) !== h) {
+            return {
+                kind: "refuse",
+                reason: `the moved entry \`## ${b.heading}\` would sit inside a fenced block in the progress archive (line ${h + 1})`,
+            };
+        }
+        h += b.lines.length;
+    }
+    return { kind: "insert", created: archive === null, base, at, text };
+}
+export function doneDuplicateRefusal(ids, archive) {
+    if (archive === null)
+        return null;
+    const present = new Set(archive.columns.flatMap((c) => c.rows.map((r) => r.id)));
+    const doubled = ids.filter((id) => present.has(id));
+    if (doubled.length === 0)
+        return null;
+    return (`the Done archive already holds ${doubled.length} row(s) this roll would move (${doubled.join(", ")}): an ` +
+        "earlier roll was interrupted after it wrote the archive, or the rows were copied by hand. Nothing was moved; " +
+        "once each copy is confirmed equal, delete the board's row by hand and run state-roll again");
+}
+export function lineEndings(text) {
+    const lines = text.split("\n");
+    if (lines.length === 1)
+        return "none";
+    let cr = 0;
+    for (let i = 0; i < lines.length - 1; i++)
+        if (lines[i].endsWith("\r"))
+            cr++;
+    if (cr === 0)
+        return "lf";
+    return cr === lines.length - 1 ? "crlf" : "mixed";
+}
+export function lineEndingRefusal(plan) {
+    const files = [
+        [plan.sourceRel, plan.before.source, plan.after.source],
+        [plan.archiveRel, plan.before.archive, plan.after.archive],
+    ];
+    for (const [rel, before] of files) {
+        if (before !== null && lineEndings(before) === "mixed") {
+            return `${rel} already mixes LF and CRLF line endings, so it was not rolled; give it one line ending first`;
+        }
+    }
+    for (const [rel, , after] of files) {
+        if (lineEndings(after) === "mixed") {
+            return (`the roll would leave ${rel} with mixed LF and CRLF line endings, because ${plan.sourceRel} and ` +
+                `${plan.archiveRel} do not end their lines the same way (or the last moved line has no line ending); ` +
+                "give both files the same line ending first");
+        }
+    }
+    return null;
 }
 export function stripControlChars(text, multiLine) {
     let out = "";
@@ -569,6 +884,89 @@ export function matchUpdateLine(line, lineNo) {
         truncated: text.cut || actor.cut,
     };
 }
+// from scripts/frontmatter.ts
+const HTML_BLOCK_OPEN = /^ {0,3}<[!/a-zA-Z]/;
+export function blockContextFlags(text) {
+    const lines = text.split("\n");
+    const flags = [];
+    let inside = false;
+    let openChar = "";
+    let openLen = 0;
+    let html = "none";
+    for (const line of lines) {
+        if (html !== "none") {
+            // A COMMENT block ends on the line carrying `-->`; a TAG block ends at the next blank line.
+            const ends = html === "comment" ? line.includes("-->") : /^[ \t]*$/.test(line);
+            flags.push(true);
+            if (ends)
+                html = "none";
+            continue;
+        }
+        const run = strictFenceRun(line);
+        if (!inside) {
+            if (run !== null) {
+                inside = !inside;
+                openChar = run.char;
+                openLen = run.len;
+                flags.push(true);
+                continue;
+            }
+            if (HTML_BLOCK_OPEN.test(line)) {
+                html = line.includes("<!--") ? "comment" : "tag";
+                // A comment that opens and closes on one line, or a tag block on a line that is itself
+                // blank-terminated, does not carry the block past itself.
+                if (html === "comment" && line.includes("-->"))
+                    html = "none";
+                flags.push(true);
+                continue;
+            }
+        }
+        else if (run !== null &&
+            run.char === openChar &&
+            run.len >= openLen &&
+            /^[ \t]*$/.test(run.info)) {
+            // §4.5's closing rule IN FULL here: same character, at least as long, and NO info string.
+            inside = !inside;
+            flags.push(true);
+            continue;
+        }
+        flags.push(inside);
+    }
+    return flags;
+}
+function strictFenceRun(line) {
+    const at = line.search(/[^ ]/);
+    if (at < 0 || at > 3)
+        return null;
+    const rest = line.slice(at);
+    const char = rest[0];
+    if (char !== "`" && char !== "~")
+        return null;
+    let len = 0;
+    while (len < rest.length && rest[len] === char)
+        len += 1;
+    if (len < 3)
+        return null;
+    const info = rest.slice(len);
+    if (char === "`" && info.includes("`"))
+        return null; // a backtick fence's info string may not carry one
+    return { char, len, info };
+}
+const HEADING_AT_MOST_1 = /^# /;
+const HEADING_AT_MOST_2 = /^#{1,2} /;
+export function sectionEndIndex(text, from, level) {
+    const lines = text.split("\n");
+    // THE STRICT PROJECTION (round 4, R5-2). "Does this line END a section" must agree with the
+    // renderer or every freeze built on it is fiction; "is this line governed prose" is the other
+    // question and keeps the measured lax view.
+    const flags = blockContextFlags(text);
+    const closes = level === 1 ? HEADING_AT_MOST_1 : HEADING_AT_MOST_2;
+    for (let i = Math.max(from, 0); i < lines.length; i++) {
+        if (!flags[i] && closes.test(lines[i]))
+            return i;
+    }
+    return lines.length;
+}
 // from scripts/context-io.ts
 export function atomicWrite(finalPath, data) {
     const tmp = `${finalPath}.tmp-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}`;
@@ -659,12 +1057,18 @@ export function readRegularFileOrNull(path, maxBytes, position) {
     }
 }
 // </runnable-embeds>
-// ── The hand-written part: argv, the boundary checks, the reads, the plan, the io and the report ──────────
+// ── The hand-written part: argv, the boundary checks, the reads, the plans, the io and the report ─────────
 /**
- * The largest board or archive this roll reads, in bytes. This is a reader ceiling, not a budget: a larger
- * file is refused rather than read, and the roll does not run (exit 2).
+ * The largest state file this roll reads, in bytes. This is a reader ceiling, not a budget: a larger file is
+ * refused rather than read, and the roll does not run (exit 2).
  */
 const READ_CEILING_BYTES = 16 * 1024 * 1024;
+/**
+ * The decision records directory, named only in a message (D-09: standing content belongs there). It is the
+ * one string this file types instead of embedding: the constant is a move-only path (v3.0 D-7), and the roll
+ * never reaches that directory. scripts/runnable-ref/state-roll.test.ts binds it to install/state-layout.ts.
+ */
+const DECISION_RECORDS_DIR = "memory-bank/50-decisions";
 const DRY_RUN_FLAG = "--dry-run";
 const USAGE = `Usage: node state-roll.js <repo-root> [${DRY_RUN_FLAG}]`;
 /** One value made safe to print: the embedded rule removes every C0, C1 and DEL code point. */
@@ -820,39 +1224,139 @@ const archiveParentReal = realDirectoryOrNull(archiveParentRel, "the state direc
 if (archiveParentReal === null)
     couldNotRun(`the state directory ${archiveParentRel} does not exist; install grugops first.`);
 const archiveDirReal = realDirectoryOrNull(ARCHIVE_REL, "the archive directory");
-if (relParent(BOARD_DONE_ARCHIVE_REL) !== ARCHIVE_REL) {
-    couldNotRun(`the Done archive ${BOARD_DONE_ARCHIVE_REL} does not sit in the archive directory ${ARCHIVE_REL}.`);
+for (const rel of [BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL]) {
+    if (relParent(rel) !== ARCHIVE_REL)
+        couldNotRun(`the archive ${rel} does not sit in the archive directory ${ARCHIVE_REL}.`);
 }
 /** Where the archive directory is, or will be once a roll creates it under its confirmed parent. */
 const archiveDirPath = archiveDirReal ?? nodePath.join(archiveParentReal, relBase(ARCHIVE_REL));
-const archivePath = nodePath.join(archiveDirPath, relBase(BOARD_DONE_ARCHIVE_REL));
-const archiveText = archiveDirReal === null ? null : readText(BOARD_DONE_ARCHIVE_REL, archivePath);
-// ── The plan ────────────────────────────────────────────────────────────────────────────────────────
-/** The three forms of a document the planners read, and its parse. */
-function documentOf(raw) {
+const doneArchivePath = nodePath.join(archiveDirPath, relBase(BOARD_DONE_ARCHIVE_REL));
+const doneArchiveText = archiveDirReal === null ? null : readText(BOARD_DONE_ARCHIVE_REL, doneArchivePath);
+const progressDirRel = relParent(PROGRESS_REL);
+const progressDirReal = realDirectoryOrNull(progressDirRel, "the memory bank directory");
+const progressPath = progressDirReal === null ? null : nodePath.join(progressDirReal, relBase(PROGRESS_REL));
+const progressText = progressPath === null ? null : readText(PROGRESS_REL, progressPath);
+const progressArchivePath = nodePath.join(archiveDirPath, relBase(PROGRESS_ARCHIVE_REL));
+const progressArchiveText = archiveDirReal === null ? null : readText(PROGRESS_ARCHIVE_REL, progressArchivePath);
+// ── The plans: every refusal a planner can find is found here, before anything is written ────────────
+/** The three forms of a document the planners read. */
+function formsOf(raw) {
     const normalized = normalizeDocument(raw);
-    return { texts: { raw, normalized, blanked: stripHtmlComments(normalized) }, model: parseBoard(raw) };
+    return { raw, normalized, blanked: stripHtmlComments(normalized) };
+}
+/** The three forms of a board-grammar document and its parse. */
+function documentOf(raw) {
+    return { texts: formsOf(raw), model: parseBoard(raw) };
+}
+/** A text's normalized, comment-blanked form: the view the progress planners read an archive through. */
+function viewOf(raw) {
+    return stripHtmlComments(normalizeDocument(raw));
+}
+/** The status lines of the surfaces that have nothing to roll. */
+const idle = [];
+/** The UTF-8 bytes a raw line takes with its line feed. */
+function bytesOfLine(raw) {
+    return utf8Bytes(raw) + 1;
 }
 const board = documentOf(boardText);
-const roll = planDoneRoll(board.texts, board.model, BUDGETS.doneRows);
-if (roll.kind === "refuse")
-    couldNotRun(`${BOARD_REL}: ${roll.reason}.`);
-if (roll.kind === "none") {
-    process.stdout.write(`Nothing to roll: the Done column of ${BOARD_REL} holds ${roll.rows} row(s), and it keeps ` +
-        `${BUDGETS.doneRows} (BUDGETS.doneRows).\n`);
-    process.exit(0);
+const doneRoll = planDoneRoll(board.texts, board.model, BUDGETS.doneRows);
+if (doneRoll.kind === "refuse")
+    couldNotRun(`${BOARD_REL}: ${doneRoll.reason}.`);
+let done = null;
+if (doneRoll.kind === "none") {
+    idle.push(`Nothing to roll: the Done column of ${BOARD_REL} holds ${doneRoll.rows} row(s), and it keeps ` +
+        `${BUDGETS.doneRows} (BUDGETS.doneRows).`);
 }
-const insert = planArchiveInsert(archiveText === null ? null : documentOf(archiveText), roll.texts);
-if (insert.kind === "refuse")
-    couldNotRun(`${BOARD_DONE_ARCHIVE_REL}: ${insert.reason}.`);
-const plan = assembleRoll(BOARD_REL, BOARD_DONE_ARCHIVE_REL, { source: boardText, archive: archiveText }, roll, insert);
-const movedCount = roll.lines.length;
-const where = `from ${BOARD_REL} to the top of ${BOARD_DONE_ARCHIVE_REL}${insert.created ? " (a new file)" : ""}`;
+else {
+    const archive = doneArchiveText === null ? null : documentOf(doneArchiveText);
+    const insert = planArchiveInsert(archive, doneRoll.texts);
+    if (insert.kind === "refuse")
+        couldNotRun(`${BOARD_DONE_ARCHIVE_REL}: ${insert.reason}.`);
+    const doubled = doneDuplicateRefusal(doneRoll.ids, archive === null ? null : archive.model);
+    if (doubled !== null)
+        couldNotRun(`${BOARD_DONE_ARCHIVE_REL}: ${doubled}.`);
+    const plan = assembleRoll(BOARD_REL, BOARD_DONE_ARCHIVE_REL, { source: boardText, archive: doneArchiveText }, doneRoll, insert, "done");
+    const endings = lineEndingRefusal(plan);
+    if (endings !== null)
+        couldNotRun(`${endings}.`);
+    const target = `${BOARD_DONE_ARCHIVE_REL}${insert.created ? " (a new file)" : ""}`;
+    done = {
+        plan,
+        created: insert.created,
+        planLines: doneRoll.ids.map((id, k) => `PLAN    done      ${printable(id)}  line ${doneRoll.lines[k]}  ${bytesOfLine(doneRoll.texts[k])} ` +
+            `bytes  -> ${target}`),
+        movedLines: doneRoll.ids.map((id) => `MOVED   ${printable(id)}`),
+        what: `${doneRoll.lines.length} Done row(s) from ${BOARD_REL} to the top of ${target}`,
+    };
+}
+let progress = null;
+if (progressText === null) {
+    idle.push(`Nothing to roll: ${PROGRESS_REL} does not exist.`);
+}
+else {
+    const progressRoll = planProgressRoll(formsOf(progressText), BUDGETS.progressBytes, sectionEndIndex);
+    if (progressRoll.kind === "refuse")
+        couldNotRun(`${PROGRESS_REL}: ${progressRoll.reason}.`);
+    if (progressRoll.kind === "none") {
+        if (progressRoll.bytes <= BUDGETS.progressBytes) {
+            idle.push(`Nothing to roll: ${PROGRESS_REL} is ${progressRoll.bytes} bytes, within its budget of ` +
+                `${BUDGETS.progressBytes} bytes (BUDGETS.progressBytes).`);
+        }
+        else {
+            const sections = progressRoll.standing.length === 0
+                ? "it has no `##` section, so its text belongs"
+                : `its standing sections ${progressRoll.standing.map((h) => `\`## ${printable(h)}\``).join(", ")} belong`;
+            idle.push(`Nothing can roll: ${PROGRESS_REL} is ${progressRoll.bytes} bytes, over its budget of ` +
+                `${BUDGETS.progressBytes} bytes (BUDGETS.progressBytes), and it holds no dated status entry (a ` +
+                `\`## YYYY-MM-DD\` heading), so nothing in it moves. Standing content is not progress: ${sections} in ` +
+                `${DECISION_RECORDS_DIR}/ as decision records (D-09).`);
+        }
+    }
+    else {
+        const append = planProgressAppend(progressArchiveText === null ? null : formsOf(progressArchiveText), progressRoll, PROGRESS_REL, sectionEndIndex, viewOf);
+        if (append.kind === "refuse")
+            couldNotRun(`${PROGRESS_ARCHIVE_REL}: ${append.reason}.`);
+        const plan = assembleRoll(PROGRESS_REL, PROGRESS_ARCHIVE_REL, { source: progressText, archive: progressArchiveText }, progressRoll, append, "progress");
+        const endings = lineEndingRefusal(plan);
+        if (endings !== null)
+            couldNotRun(`${endings}.`);
+        const target = `${PROGRESS_ARCHIVE_REL}${append.created ? " (a new file)" : ""}`;
+        const span = (b) => {
+            const first = b.lines[0];
+            const last = b.lines[b.lines.length - 1];
+            return first === last ? `line ${first}` : `lines ${first}-${last}`;
+        };
+        progress = {
+            plan,
+            created: append.created,
+            planLines: progressRoll.blocks.map((b) => `PLAN    progress  \`## ${printable(b.heading)}\`  ${span(b)}  ${b.bytes} bytes  -> ${target}`),
+            movedLines: progressRoll.blocks.map((b) => `MOVED   \`## ${printable(b.heading)}\``),
+            what: `${progressRoll.blocks.length} progress entry(ies) from ${PROGRESS_REL} to the end of ${target}; ` +
+                `${PROGRESS_REL} goes from ${progressRoll.bytes} to ${progressRoll.remaining} bytes (budget ` +
+                `${BUDGETS.progressBytes}, BUDGETS.progressBytes)` +
+                (progressRoll.remaining > BUDGETS.progressBytes
+                    ? `, still over budget once every dated entry has moved: its standing sections belong in ` +
+                        `${DECISION_RECORDS_DIR}/ as decision records (D-09)`
+                    : ""),
+        };
+    }
+}
 if (DRY_RUN) {
-    process.stdout.write(`Dry run: ${movedCount} Done row(s) would move ${where}; nothing was written.\n`);
+    const lines = [...(done?.planLines ?? []), ...(progress?.planLines ?? []), ...idle];
+    if (done !== null)
+        lines.push(`Dry run: ${done.what.replace(" from ", " would move from ")}; nothing was written.`);
+    if (progress !== null)
+        lines.push(`Dry run: ${progress.what.replace(" from ", " would move from ")}; nothing was written.`);
+    if (done === null && progress === null)
+        lines.push("Dry run: nothing would move; nothing was written.");
+    process.stdout.write(`${lines.join("\n")}\n`);
     process.exit(0);
 }
-// ── The roll ────────────────────────────────────────────────────────────────────────────────────────
+if (done === null && progress === null) {
+    process.stdout.write(`${idle.join("\n")}\n`);
+    process.exit(0);
+}
+// ── The rolls: Done first, then progress, each atomic on its own ─────────────────────────────────────
 let createdDir = false;
 if (archiveDirReal === null) {
     try {
@@ -885,9 +1389,11 @@ function removeCreatedDir() {
 }
 const paths = new Map([
     [BOARD_REL, boardPath],
-    [BOARD_DONE_ARCHIVE_REL, archivePath],
+    [BOARD_DONE_ARCHIVE_REL, doneArchivePath],
+    ...(progressPath === null ? [] : [[PROGRESS_REL, progressPath]]),
+    [PROGRESS_ARCHIVE_REL, progressArchivePath],
 ]);
-/** The absolute path executeRoll's io acts on for `rel`; only the two planned files are reachable. */
+/** The absolute path executeRoll's io acts on for `rel`; only the planned state files are reachable. */
 function pathOf(rel) {
     const path = paths.get(rel);
     if (path === undefined)
@@ -899,26 +1405,45 @@ const io = {
     write: (rel, text) => atomicWrite(pathOf(rel), text),
     remove: (rel) => nodeFs.unlinkSync(pathOf(rel)),
 };
-const outcome = executeRoll(plan, io);
-if (outcome.ok) {
-    const lines = roll.ids.map((id) => `MOVED   ${printable(id)}`);
-    process.stdout.write(`${[
-        ...lines,
-        `Rolled ${movedCount} Done row(s) ${where}; the board keeps ${BUDGETS.doneRows} (BUDGETS.doneRows), and ` +
-            "the move was proven line for line.",
-    ].join("\n")}\n`);
-    process.exit(0);
+/** What stdout says about the rolls written and proven so far. */
+const written = [];
+/** The sentence stderr adds after a progress failure when the Done roll before it stands. */
+function doneStands() {
+    return done === null || written.length === 0
+        ? ""
+        : ` The Done roll before it was written and proven and stays: ${done.what}` +
+            ` (${done.movedLines.map((l) => l.slice("MOVED   ".length)).join(", ")}).`;
 }
-if (outcome.stage === "changed") {
+/** Run one planned roll and handle every outcome but success. `surface` names it in a message. */
+function runRoll(p, surface) {
+    const outcome = executeRoll(p.plan, io);
+    const files = `${p.plan.sourceRel} and ${p.plan.archiveRel}`;
+    if (outcome.ok) {
+        written.push(...p.movedLines, `Rolled ${p.what}; the move was proven line for line.`);
+        return;
+    }
+    if (outcome.stage === "changed") {
+        removeCreatedDir();
+        process.stderr.write(`Error: ${printable(outcome.reason)}. The ${surface} roll wrote nothing.${printable(doneStands())}\n`);
+        process.exit(2);
+    }
+    if (outcome.stage === "restore-failed") {
+        process.stderr.write(`Error: ${printable(outcome.reason)}. The ${surface} roll failed and could not be fully undone: compare ` +
+            `${files} with version control before anything else writes them.${printable(doneStands())}\n`);
+        process.exit(2);
+    }
     removeCreatedDir();
-    couldNotRun(`${outcome.reason}.`);
+    const rest = surface === "Done" && progress !== null ? " The progress roll was not attempted." : "";
+    process.stdout.write(`${[
+        ...written,
+        `ROLLED BACK (${surface}): ${printable(outcome.reason)}. ${files} hold their old bytes` +
+            `${p.created ? ", and the archive this run created was removed" : ""}.${rest}`,
+    ].join("\n")}\n`);
+    process.exit(1);
 }
-if (outcome.stage === "restore-failed") {
-    process.stderr.write(`Error: ${printable(outcome.reason)}. The roll failed and could not be fully undone: compare ${BOARD_REL} and ` +
-        `${BOARD_DONE_ARCHIVE_REL} with version control before anything else writes them.\n`);
-    process.exit(2);
-}
-removeCreatedDir();
-process.stdout.write(`ROLLED BACK: ${printable(outcome.reason)}. ${BOARD_REL} and ${BOARD_DONE_ARCHIVE_REL} hold their old bytes` +
-    `${insert.created ? ", and the archive this run created was removed" : ""}.\n`);
-process.exit(1);
+if (done !== null)
+    runRoll(done, "Done");
+if (progress !== null)
+    runRoll(progress, "progress");
+process.stdout.write(`${[...written, ...idle].join("\n")}\n`);
+process.exit(0);

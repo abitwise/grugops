@@ -81,6 +81,11 @@ export type EmbedSpec = {
  * line-conservation proof, the injected-io executor and the output sanitizer from scripts/state-rules.ts; the
  * board grammar and its two normalizations from scripts/board-model.ts; and the non-blocking reader and the
  * temp-sibling-plus-rename writer from scripts/context-io.ts.
+ * Plan 37-11 (2026-10-22) adds to that row the progress roll (D-09): the progress file and the progress archive
+ * from install/state-layout.ts; the progress planners, the two duplicate refusals, the line-ending rule and the
+ * byte measure from scripts/state-rules.ts; and scripts/frontmatter.ts's sectionEndIndex, the one section-extent
+ * owner (LANG-07), whose generated copy answers where a progress entry ends (D-16). The move-only surfaces
+ * (.grugops/queue/done/ and memory-bank/50-decisions/) are not roots: the roll never reaches them (v3.0 D-7).
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -192,13 +197,26 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
     authorities: [
       {
         module: "install/state-layout.ts",
-        roots: ["BOARD_REL", "ARCHIVE_REL", "BOARD_DONE_ARCHIVE_REL", "BUDGETS"],
+        roots: ["BOARD_REL", "ARCHIVE_REL", "BOARD_DONE_ARCHIVE_REL", "PROGRESS_REL", "PROGRESS_ARCHIVE_REL", "BUDGETS"],
       },
       {
         module: "scripts/state-rules.ts",
-        roots: ["planDoneRoll", "planArchiveInsert", "assembleRoll", "checkConservation", "executeRoll", "stripControlChars"],
+        roots: [
+          "planDoneRoll",
+          "planArchiveInsert",
+          "doneDuplicateRefusal",
+          "planProgressRoll",
+          "planProgressAppend",
+          "lineEndingRefusal",
+          "assembleRoll",
+          "checkConservation",
+          "executeRoll",
+          "utf8Bytes",
+          "stripControlChars",
+        ],
       },
       { module: "scripts/board-model.ts", roots: ["parseBoard", "normalizeDocument", "stripHtmlComments"] },
+      { module: "scripts/frontmatter.ts", roots: ["sectionEndIndex"] },
       { module: "scripts/context-io.ts", roots: ["readRegularFileOrNull", "atomicWrite"] },
     ],
   },
