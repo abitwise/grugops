@@ -2,15 +2,19 @@
 _Updated: <date>_
 
 <!--
-  FORMAT — read before you fill this in. (clear voice; this is a technical file, not a role prompt.)
+  FORMAT — read before you add an entry. (clear voice; this is a technical file, not a role prompt.)
 
-  The running plan-of-record. The daily sweep keeps this current: what works, what is left, and
-  the known issues. Ships EMPTY — fill per-project during bootstrap. This is the file roles
-  check to learn the current state of the work.
+  This file is the running status log. Each status entry is a level-two heading that starts with
+  an ISO date, followed by the entry's text, for example:
+
+    ## 2026-10-21 — <summary>
+
+  Add a new entry at the end of the file. When this file passes its budget (BUDGETS.progressBytes),
+  `node tools/grugops/state-roll.js <repo-root>` moves the oldest entries, whole, to the end of
+  memory-bank/plans/archive/progress.md. Only dated entries move.
+
+  Standing directives and rulings are not status entries. Write each one as a decision record in
+  memory-bank/50-decisions/, never here.
+
+  The file ships with no entry.
 -->
-
-## What works
-
-## What's left
-
-## Known issues
