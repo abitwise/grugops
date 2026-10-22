@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-14-PLAN.md
-last_updated: "2026-10-22T17:20:52.015Z"
+stopped_at: Completed 37-15-PLAN.md
+last_updated: "2026-10-22T17:33:02.107Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-14 (ten role prompts publish trace refs on a note per Workflow 16 instead of editing the trace, Architect/Design authors each NFR as its own file with a hand-kept index line, and the Orchestrator states the board overview rule; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
-state_head: 83e263f3336fb21e0349e7c455b48793eeb1efb5
+last_activity_desc: Completed 37-15 (the last seven role prompts publish trace refs on a note per Workflow 16 instead of editing the trace, and the commit convention names the rendered trace files; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
+state_head: 9677cd680ca1a63884cf6b618390a3e1db9a2df7
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 29
+  completed_plans: 30
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 15 of 19
+Plan: 16 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-14 (ten role prompts publish trace refs on a note per Workflow 16 instead of editing the trace, Architect/Design authors each NFR as its own file with a hand-kept index line, and the Orchestrator states the board overview rule; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
+Last activity: 2026-10-22 — Completed 37-15 (the last seven role prompts publish trace refs on a note per Workflow 16 instead of editing the trace, and the commit convention names the rendered trace files; generators unchanged, every freshness and prose gate green, targeted run shows only baseline failures)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -743,6 +743,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P12 | 23 min | 2 tasks | 16 files |
 | Phase 37 P13 | 78 min | 2 tasks | 26 files |
 | Phase 37 P14 | 25 min | 3 tasks | 10 files |
+| Phase 37 P15 | 9min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2041,6 +2042,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-13: the installer writes the layout marker only into a fresh layout; any repository that already holds planning state (current, both, pre-v3 under --migrate, unreadable) gets one skipped line and no marker, so Phase 38's migrate must write LAYOUT_MARKER_REL itself
 - [Phase 37]: 37-13: the seed trace index is the trace render's zero-note output, so it carries the GENERATED line; the imperative-lexicon gate's generated set is 2 and its corpus 48
 - [Phase 37]: 37-14: a role's size budget is its guard_role_size FAIL ceiling; orchestrator.md (7359 B of 7570) and incident-responder.md (3666 B of 3802) entered the WARN tier with no unrelated text trimmed, and Phase 40's prose rewrite settles the orchestrator size obligation
+- [Phase 37]: 37-15: Size-tight roles (Frontend/UI, both mappers) use the Orchestrator's shorter rendered-by sentence; mapper notes name tickets because the trace model drops a note that names no ticket
 
 ### Pending Todos
 
@@ -2372,8 +2374,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T17:20:52.003Z
-Stopped at: Completed 37-14-PLAN.md
+Last session: 2026-10-22T17:33:01.812Z
+Stopped at: Completed 37-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
