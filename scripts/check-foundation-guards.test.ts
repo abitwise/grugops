@@ -10004,7 +10004,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // 37-13 and 37-18 (`scripts/runnable-ref/trace-render.test.ts` landed too and is not in this top-level count).
 // The pin moved because a module landed, not to make a red go away. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 78 on this tree (2026-10-22, plan 37-06).
-const TRIPWIRE_MODULES = 78;
+//
+// 78 -> 79 (plan 37-18, task 3): ONE test module, `scripts/trace-instructions.test.ts` — the permanent scan that no
+// tracked kit markdown file or AGENTS.md tells an agent to edit the trace by hand, over a scan set derived with
+// `git ls-files` and counted a second way, with the two patterns imported from scripts/trace-model.ts. The pin moved
+// because a module landed, not to make a red go away. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 79 on this tree (2026-10-22, plan 37-18).
+const TRIPWIRE_MODULES = 79;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
