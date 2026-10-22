@@ -132,6 +132,19 @@ not this phase.
   bump and the regenerated golden in one commit. — **Reversibility:** costly (a later change is
   another snapshot version and golden regeneration).
 
+### Recorded after plan 37-05
+- **D-16:** A verbatim generated copy of `sectionEndIndex` is not a second section-extent owner
+  (answered by the human on 2026-10-22, raised by plan 37-05 and logged in deferred-items.md). The
+  LANG-07 census in `scripts/check-foundation-guards.test.ts` (SECTION_EXTENT_OWNERS) admits such a
+  copy only inside a generated region of an `EMBED_SPECS` target whose region is fresh, by the same
+  rule plan 37-03 gave the state-path and non-blocking-reader censuses, and never by file name; a
+  control case proves a hand-edited or out-of-region copy still fails. `scripts/frontmatter.ts` stays
+  the one owner. Plan 37-11's `planProgressRoll` and the `state-roll` runnable get entry extents from
+  `sectionEndIndex` through that embed, so an entry ends where `sectionEndIndex(text, from, 2)` says
+  (fence-aware, and it also closes on a level-1 heading), not at a hand-written "next `##` heading"
+  scan. The exemption for all generated regions and a 37-11 workaround were both rejected.
+  — **Reversibility:** cheap (a census rule and its control case).
+
 </decisions>
 
 <canonical_refs>
