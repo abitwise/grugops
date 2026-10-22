@@ -19,3 +19,10 @@
   **Found during:** plan 37-18, Task 1 (an extra gate run beyond the plan's gate list)
   **What:** the gate reads every clause changed in its watched corpus since base `4d2b8f0` and wants a row for each under `docs/audit/29-style-dispositions/`. Phase 37's role, workflow, README and AGENTS.md rewrites (plans 37-14 to 37-18) and earlier phases' edits have no disposition rows, so 707 clauses are undispositioned. Plan 37-18's AGENTS.md lines 21, 93 and 95 are among them. `scripts/check-diff-disposition.test.ts` passes: it drives planted repositories, not the live tree.
   **Why deferred:** pre-existing and phase-wide. No phase-37 plan lists this gate, and writing 707 disposition rows, or moving the base, is a decision for the phase gate (37-19) or a human.
+  **37-19 note (2026-10-22):** still 707 findings over 40 elements after plan 37-19. None of the nine files plan 37-19 changed is in the watched corpus, so the plan added no finding. The decision stays with a human.
+
+- The ubuntu-block reader census in scripts/check-foundation-guards.test.ts (UBUNTU_BLOCK_READER_COUNT, the class negative) lists only top-level `scripts/*.test.ts`
+  status: open
+  **Found during:** plan 37-19, Task 2 (wiring the own-tree state-check case)
+  **What:** the census uses a non-recursive `readdirSync(scripts)`. A test file under `scripts/runnable-ref/` that spelled its own copy of the ubuntu step name would not be refused, and one that imports `scripts/ci-workflow.testkit.ts` is not counted. Plan 37-19's case in `scripts/runnable-ref/state-check.test.ts` imports the authority, so it obeys the class rule, but the pin stays at 6 because the census does not see the file.
+  **Why deferred:** changing the census's scope changes a guard outside this plan's files. The fix is to derive the member set from a recursive listing of tracked `scripts/**/*.test.ts` and move the pin by listing (6 -> 7).
