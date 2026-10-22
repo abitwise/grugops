@@ -32,7 +32,7 @@ On `memory-bank/plans/board.md`, the audit runs in the `In Security/NFR` column.
 The severity-tagged ASVS audit — its findings, evidence, and `PASS | PASS_WITH_RISKS | BLOCKED` result — is recorded as typed notes per Workflow 16.
 
 ## Trace updates
-Append to `memory-bank/plans/traceability.md`: the audit result and the reviewed ASVS requirement IDs against the row, and update `Status`.
+Security/NFR publishes the audit result and the reviewed ASVS requirement ids as refs on a note per Workflow 16. Each note names the ticket identifier among its refs. The next trace render turns those refs into the ticket's trace file and index line.
 
 ## Stop conditions
 - A checklist requirement cannot be evidenced either way → do not tick it and do not fail it silently. Record it `UNKNOWN - verify` and continue. An unbacked tick is a fabricated gate.
@@ -44,4 +44,4 @@ Append to `memory-bank/plans/traceability.md`: the audit result and the reviewed
 The filtered checklist is walked, and every pass cites evidence or reads `UNKNOWN - verify`. The findings carry their default-or-overridden severity, and the report is handed off for enforcement at the gate. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/security-audit-<id>`), then `type(scope): summary`. The artifacts are the board context, the security-nfr audit notes recorded per Workflow 16, and the updated traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/security-audit-<id>`), then `type(scope): summary`. The artifacts are the board context, the security-nfr audit notes recorded per Workflow 16, and the rendered trace files. Never merge, never deploy; humans hold both.

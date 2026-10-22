@@ -33,7 +33,7 @@ Each role reads the shared verified context before it works. Each role records i
 On `memory-bank/plans/board.md`, the contract is authored before `In Development` (the design step). The build and verification then follow the standard `Ready for Dev -> In Development -> In Review (-> In Security/NFR)` path. The Software Engineer and QE/E2E own it per workflows 04 and 05. Frontend/UI causes no board transition of its own — it writes the contract the engineer pulls from.
 
 ## Trace updates
-Append to `memory-bank/plans/traceability.md`: the design-contract link against the ticket row, and update `Status`. The code and test links are appended by the referenced build (04) and gate (05).
+Frontend/UI publishes the design-contract link as a ref on a note per Workflow 16. Each note names the ticket identifier among its refs. The referenced build (04) and gate (05) publish the code and test refs. The next trace render turns those refs into the ticket's trace file and index line.
 
 ## Stop conditions
 - The ticket has no readable acceptance scenarios and no product context to author the contract from → stop. Send it back to product rather than inventing the intent.
@@ -45,4 +45,4 @@ Append to `memory-bank/plans/traceability.md`: the design-contract link against 
 The design contract is written, and the components are built per workflow 04. The five states and the WCAG 2.2 AA accessibility bar are met, and the visual baseline is established. The built UI is verified against the contract per workflow 05. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/ui-design-to-build-<id>`), then `type(scope): summary`. The artifacts are the board context, the frontend design-contract note recorded per Workflow 16, and the updated traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/ui-design-to-build-<id>`), then `type(scope): summary`. The artifacts are the board context, the frontend design-contract note recorded per Workflow 16, and the rendered trace files. Never merge, never deploy; humans hold both.

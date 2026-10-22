@@ -52,7 +52,7 @@ Run these in order.
 None of its own. The queue and `memory-bank/plans/board.md` are two different substrates and must never be conflated. The queue tracks subtask ownership (pending → claimed → done) inside one ticket's work, while the board tracks the ticket through the delivery columns. Claiming a subtask does not move a ticket, and moving a ticket does not claim anything. The board move belongs to the invoking workflow.
 
 ## Trace updates
-None of its own. Ownership is not part of the requirement→code→test→release trail — `memory-bank/plans/traceability.md` records what was built and verified, not who picked it up. The now-running registry record (`claimed/<task>/claim.md`) is the ownership record and is complete on its own. Any trace row this subtask's results deserve is appended by the invoking workflow from the notes admitted per Workflow 16.
+None of its own. Ownership is not part of the requirement→code→test→release trail — the rendered trace records what was built and verified, not who picked it up. The now-running registry record (`claimed/<task>/claim.md`) is the ownership record and is complete on its own. The invoking workflow's roles publish the refs on notes per Workflow 16, and the render adds them.
 
 ## Done condition
 The subtask was claimed exactly once (atomic `mkdirSync`), and transitioned pending → claimed → done by atomic rename. Its results were recorded only through WF16 (`context-io.ts`) under an honest kind. No data was relayed agent-to-agent — coordination flowed only through the on-disk queue and shared context. Any stale or tampered claim was reclaimed by the coordinator's wall-clock sweep.
