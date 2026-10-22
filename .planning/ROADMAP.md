@@ -240,7 +240,7 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 6/19 plans executed
+**Plans**: 7/19 plans executed
 
 Plans:
 **Wave 1**
@@ -262,7 +262,7 @@ Plans:
 - [x] 37-06-PLAN.md — scripts/trace-model.ts and the host trace-render runnable (per-ticket files, two roots)
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 37-07-PLAN.md — trace-render --check and its refusals (hand-written files, case-fold collisions, visible skips, keepers left alone)
+- [x] 37-07-PLAN.md — trace-render --check and its refusals (hand-written files, case-fold collisions, visible skips, keepers left alone)
 
 **Wave 8** *(blocked on Wave 7 completion)*
 - [ ] 37-08-PLAN.md — Own-tree trace render and directory-compare freshness gate in CI (mid-phase full run 1)
@@ -408,7 +408,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
-| 37. Overview board, per-file records and budgets | v3.0 | 6/19 | In Progress | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 7/19 | In Progress | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
