@@ -13,7 +13,7 @@ When you have a new idea and an empty (or near-empty) repo and want the factory 
 - AGENTS.md Scribe — writes the root `AGENTS.md` substrate; no board move.
 - BA/PM — defines product, breaks the idea into epics, sizes and prioritizes the first tickets.
 - System Analyst — clarifies behavior where the design is unclear.
-- Architect/Design — sets the structure, records ADRs, seeds the NFR catalog.
+- Architect/Design — sets the structure, records ADRs, seeds the NFR files and their index.
 
 Each role reads the shared verified context before it works. Each role records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
@@ -30,7 +30,7 @@ Each role reads the shared verified context before it works. Each role records i
 5. Write the first epics, features and tickets to `memory-bank/plans/epics/`, `memory-bank/plans/features/` and `memory-bank/plans/tickets/` (BA/PM).
 6. Clarify the behavior where the design is unclear (System Analyst). Record the clarified behavior as typed notes per Workflow 16.
 7. Set the structure (Architect/Design). Record the structural decisions as typed notes per Workflow 16, and the ADRs into `memory-bank/50-decisions/`.
-8. Seed `memory-bank/plans/nfr-catalog.md` (Architect/Design).
+8. Seed the NFRs (Architect/Design). Write each NFR as its own file under `memory-bank/plans/nfr/`. Add one index line for each file to `memory-bank/plans/nfr-catalog.md`, in the form its comment shows.
 9. Seed `memory-bank/plans/board.md` with the standard columns and WIP limits.
 10. Confirm `.grugops/factory.config.json` is present.
 
@@ -38,7 +38,7 @@ Each role reads the shared verified context before it works. Each role records i
 On `memory-bank/plans/board.md`, seed the board with its columns and per-column WIP limits. BA/PM owns the `Backlog -> Ready` exit for the first epics. The System Analyst owns the `In Analysis` exit and Architect/Design owns the `In Design` exit as the first tickets walk the early columns.
 
 ## Trace updates
-Seed `memory-bank/plans/traceability.md` rows for the first tickets — `Epic` / `Feature` and `Status`. Record the ADR ids beside them. Every first ticket then traces back to a product epic and an architecture decision.
+BA/PM publishes each first ticket's epic and feature ids as refs on a note per Workflow 16. Architect/Design publishes the ADR ids the same way. Each note names the ticket identifier among its refs. The next trace render turns those refs into each ticket's trace file and index line. Every first ticket then traces back to a product epic and an architecture decision.
 
 ## Metrics emitted
 None beyond seeding. The board and metrics counters start empty; `memory-bank/plans/metrics.md` records `Throughput` and `Lead time` once real work begins.
@@ -50,4 +50,4 @@ None beyond seeding. The board and metrics counters start empty; `memory-bank/pl
 The root `AGENTS.md`, the memory-bank, `memory-bank/greenfield-plan.md` and the first tickets all exist. The product, system and architecture work is recorded as typed notes in the shared verified context per Workflow 16. `memory-bank/plans/board.md` is seeded and `.grugops/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-greenfield-<id>`), then `type(scope): summary`. The artifacts are the seeded board, the first tickets, the context notes recorded per Workflow 16, the memory-bank and the traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-greenfield-<id>`), then `type(scope): summary`. The artifacts are the seeded board, the first tickets, the context notes recorded per Workflow 16, the memory-bank and the rendered trace files. Never merge, never deploy; humans hold both.

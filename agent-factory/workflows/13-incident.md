@@ -15,7 +15,7 @@ The Incident Responder reads the shared verified context before it works. The In
 
 ## Inputs required
 - The release and runbook context for the affected change — `memory-bank/plans/releases/` and `memory-bank/70-runbook.md`.
-- The NFR/SLO budgets in `memory-bank/plans/nfr-catalog.md`.
+- The NFR/SLO targets in the NFR files that the index `memory-bank/plans/nfr-catalog.md` lists, one file each under `memory-bank/plans/nfr/`.
 - `.grugops/factory.config.json` for `mode` and `environments`.
 
 ## Steps
@@ -29,7 +29,7 @@ The Incident Responder reads the shared verified context before it works. The In
 None new on `memory-bank/plans/board.md` — the Incident Responder runs post-release and causes no column transition of its own. The follow-up tickets it creates enter the `Backlog` like any other captured work, to be refined and pulled later.
 
 ## Trace updates
-Append to `memory-bank/plans/traceability.md`: record the incident ID (`INC-xxxx`) and the follow-up ticket IDs against the affected release and tickets, and update `Status`. The incident and its remediation then trace back to the change that caused it.
+The Incident Responder publishes the incident ID (`INC-xxxx`) and the follow-up ticket IDs as refs on a note per Workflow 16. The affected release and tickets are named among the refs. The next trace render turns those refs into each affected ticket's trace file and index line. The incident and its remediation then trace back to the change that caused it.
 
 ## Metrics emitted
 Record `Escaped defects` in `memory-bank/plans/metrics.md` for the incident, if applicable. Report the timeline and root cause exactly as observed. Never fake a root cause, a rollback that did not run, or a remediation that did not happen. Mark anything unverified `UNKNOWN - verify`.
@@ -41,4 +41,4 @@ Record `Escaped defects` in `memory-bank/plans/metrics.md` for the incident, if 
 The blameless postmortem is recorded as typed notes per Workflow 16, and the follow-up tickets are created in `memory-bank/plans/tickets/` so they enter the `Backlog`. The postmortem never blames a person; it examines the system and the process.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/incident-<id>`), then `type(scope): summary`. The artifacts are the postmortem notes recorded per Workflow 16, the follow-up tickets, the escaped-defects metric, and the incident-linked traceability rows. The mitigation/rollback production action stays human-confirmed — never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/incident-<id>`), then `type(scope): summary`. The artifacts are the postmortem notes recorded per Workflow 16, the follow-up tickets, the escaped-defects metric, and the rendered trace files. The mitigation/rollback production action stays human-confirmed — never merge, never deploy; humans hold both.

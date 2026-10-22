@@ -15,16 +15,17 @@ Each role reads the shared verified context before it works. Each role records i
 
 ## Inputs required
 - The implementation, QE, security/NFR, and UAT results for the tickets going into the release. These gate results prove the work is ready, and are read from the shared verified context per Workflow 16.
-- `memory-bank/plans/nfr-catalog.md` — the NFR budgets and evidence to attach.
+- `memory-bank/plans/nfr-catalog.md` — the NFR index. Each line names one NFR file under `memory-bank/plans/nfr/`, which holds the target and the evidence to attach.
+- `memory-bank/plans/traceability.md` — the trace index. Each line links one ticket's rendered trace file under `memory-bank/plans/traceability/`.
 - `agent-factory/checklists/release-readiness-checklist.md` — the enterprise readiness gate this workflow works through.
 - `.grugops/factory.config.json` for `mode`, `environments`, and `production_requires_human_confirmation`.
 - `tools/grugops/host-protection.js` — the read-only git-host check the installer materializes. It reports on the protected branches and does not report on the production environment (33.1 D-31).
 
 ## Steps
-1. Set the version (SemVer) and pick the scope — the tickets included in this release.
+1. Set the version (SemVer) and pick the scope — the tickets included in this release. Read each included ticket's rendered trace file through the trace index.
 2. Compile the changelog and the release notes from the included tickets.
 3. Confirm the migration plan, the rollback plan, and the DR notes (RTO/RPO) for the `dev -> staging -> prod` path.
-4. Attach the NFR, security, and compliance evidence from `memory-bank/plans/nfr-catalog.md`.
+4. Attach the NFR, security, and compliance evidence. Read each NFR target from the file the NFR index lists. Attach the evidence in that NFR file.
 5. Walk `agent-factory/checklists/release-readiness-checklist.md` end to end. Record the result.
 6. Record a named human approval, then a named human confirms the production action. The step is keyed to `production_requires_human_confirmation: true`. Run `node tools/grugops/host-protection.js` before the named human confirms the production action. Record its branch verdicts in the release record, and the same as an `observation` note. The check does not report on the production environment (33.1 D-31): its environment line reads `UNKNOWN - verify` by design. The release record states that only the named human's confirmation protects the deploy. That confirmation stays mandatory whatever the check reports. Exit `2` is never read as a pass. Deploy to production happens only after a named human approves. The production action is always human-confirmed, and this workflow never deploys prod itself.
 
@@ -35,7 +36,7 @@ On `memory-bank/plans/board.md`, the Release Manager owns the `Ready to Release`
 The release record is written to `memory-bank/plans/releases/REL-xxxx.md`. The record holds the version, the scope, the changelog, the release notes, and the `dev -> staging -> prod` path. It also holds the migration/rollback plan, the DR notes, and the approval record. The release outcome is recorded as typed notes per Workflow 16.
 
 ## Trace updates
-Append to `memory-bank/plans/traceability.md` the release ID (`REL-xxxx`) against each ticket in the release, and update `Status`. Every shipped change then traces back through its UAT, test, and implementation rows to its product ticket. The enterprise definition of done is not met until the `Release` column of the row is complete.
+The Release Manager publishes the release ID (`REL-xxxx`) as a ref on the release note per Workflow 16. Each ticket in the release is named among the refs. The next trace render adds the release to each ticket's trace file and index line. Every shipped change then traces back through its UAT, test, and implementation refs to its product ticket. The enterprise definition of done is not met until each ticket's rendered trace names its release.
 
 ## Metrics emitted
 Record `Lead time` in `memory-bank/plans/metrics.md` as the release clears. Report the values exactly as they stand. Never fake a passing gate, a clean release, or an approval that did not happen. Mark anything unverified `UNKNOWN - verify`.
@@ -47,4 +48,4 @@ Record `Lead time` in `memory-bank/plans/metrics.md` as the release clears. Repo
 The release outcome is recorded as typed notes per Workflow 16, and the release record `memory-bank/plans/releases/REL-xxxx.md` is written. The status is one of `READY_TO_RELEASE | BLOCKED | RELEASED`. A release reaches `RELEASED` only after a named human approves and confirms the production action.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/release-<id>`), then `type(scope): summary`. The artifacts are the release notes recorded per Workflow 16 and the `memory-bank/plans/releases/REL-xxxx.md` record with its approval entry. They also include the board move, the metric and the release-linked traceability rows. The commit records the release; it does not deploy it — never merge, never deploy; the production action stays human-confirmed and humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/release-<id>`), then `type(scope): summary`. The artifacts are the release notes recorded per Workflow 16 and the `memory-bank/plans/releases/REL-xxxx.md` record with its approval entry. They also include the board move, the metric and the rendered trace files. The commit records the release; it does not deploy it — never merge, never deploy; the production action stays human-confirmed and humans hold both.
