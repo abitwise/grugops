@@ -195,3 +195,7 @@ None.
 ---
 *Phase: 37-overview-board-per-file-records-and-budgets*
 *Completed: 2026-10-22*
+
+## Self-Check: PASSED
+
+All five created or modified key files exist, and the five commits 33177831, efadaf11, f8ff84f2, b879f7f0 and 0bdff313 are ancestors of HEAD.
