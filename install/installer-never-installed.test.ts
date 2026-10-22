@@ -117,8 +117,12 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * one, and the five subdirectories and nine seed files moved with the same count), and `memory-bank/plans/uat`
  * entered as a directory with `memory-bank/plans/uat/.gitkeep` as a file, in every variant. Measured by this test's
  * printed union. 102 -> 104.
+ * 70 files and links + 37 directories on 2026-10-22 (plan 37-13, SPLIT-05): `tools/grugops/state-check.js`,
+ * `tools/grugops/trace-render.js` and `tools/grugops/state-roll.js` entered as files, in every variant, because install
+ * materializes the three state runnables (three more RUNNABLES rows); `tools/grugops` was already a directory.
+ * Measured by this test's printed union. 104 -> 107.
  */
-const WRITE_PATH_COUNT = 104;
+const WRITE_PATH_COUNT = 107;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

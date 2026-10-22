@@ -100,8 +100,10 @@ const KIT_PATHS = SET.files.filter((p) => KIT_PATH.test(p));
 const RUNNABLE_PATHS = SET.files.filter((p) => RUNNABLE_PATH.test(p));
 const AGENTS = "AGENTS.md";
 // Pinned: 7 skills and 17 adapters; 4 runnables. A derivation that loses one fails here.
+// RUNNABLE_PATH_COUNT 4 -> 7 on 2026-10-22 (plan 37-13, SPLIT-05): the three state runnables state-check.js,
+// trace-render.js and state-roll.js entered the derived set (measured: the assertion printed 7).
 const KIT_PATH_COUNT = 24;
-const RUNNABLE_PATH_COUNT = 4;
+const RUNNABLE_PATH_COUNT = 7;
 const REMOVED_BY_NAME = [...KIT_PATHS, ...RUNNABLE_PATHS, AGENTS];
 
 /** The link install itself makes at `rel` (linkOrCopy's symlinkSync(src, dest)): the kit source path. */

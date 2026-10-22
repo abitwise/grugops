@@ -5076,6 +5076,12 @@ const RUNNABLES = [
     ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
     ["scripts/runnable-ref/uat-spec-integrity.js", "tools/grugops/uat-spec-integrity.js"],
     ["scripts/runnable-ref/host-protection.js", "tools/grugops/host-protection.js"],
+    // The three state runnables (phase 37, plan 37-13, 2026-10-22, SPLIT-05): the read-only budget and index
+    // check, the trace render, and the Done and progress roll. state-check names
+    // `node tools/grugops/trace-render.js <root>` as the remedy for a stale trace, so each lands at this path.
+    ["scripts/runnable-ref/state-check.js", "tools/grugops/state-check.js"],
+    ["scripts/runnable-ref/trace-render.js", "tools/grugops/trace-render.js"],
+    ["scripts/runnable-ref/state-roll.js", "tools/grugops/state-roll.js"],
     // The MIT license asks that its notice go with every copy of the software. The programs above are
     // copies that stay in the user's repository, and a license in the kit home does not travel with it.
     // So the license goes next to them, by the same rule (quick task 261018-hs8, Task 4). NOTICE is not

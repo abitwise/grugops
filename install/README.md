@@ -407,7 +407,14 @@ are written only when that agent is chosen.
 - `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
   `tools/grugops/host-protection.js` (§5), and `tools/grugops/LICENSE`, the MIT license for the
   programs copied there. The license is recorded and removed like them, and a file you already have
-  at that path is never written. Install writes no `NOTICE` and no other license file into your repo
+  at that path is never written. Install writes no `NOTICE` and no other license file into your repo.
+  Three of the programs work on the planning state:
+  - `tools/grugops/state-check.js` checks the state budgets and indexes and changes no file
+  - `tools/grugops/trace-render.js` renders the per-ticket trace files and the trace index
+  - `tools/grugops/state-roll.js` moves older Done rows and dated progress entries into archive files
+
+  Install never overwrites a copy that is already there, so an updated program reaches your
+  repository only after you remove the old copy and install again
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `memory-bank/plans/`, and `memory-bank/`
 - `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is

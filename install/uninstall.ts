@@ -2797,6 +2797,10 @@ const RUNNABLES_MIRROR: Array<[string, string]> = [
   ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
   ["scripts/runnable-ref/uat-spec-integrity.js", "tools/grugops/uat-spec-integrity.js"],
   ["scripts/runnable-ref/host-protection.js", "tools/grugops/host-protection.js"],
+  // The three state runnables (plan 37-13, 2026-10-22, SPLIT-05), in install.ts's order.
+  ["scripts/runnable-ref/state-check.js", "tools/grugops/state-check.js"],
+  ["scripts/runnable-ref/trace-render.js", "tools/grugops/trace-render.js"],
+  ["scripts/runnable-ref/state-roll.js", "tools/grugops/state-roll.js"],
   // The MIT license for the programs above, copied beside them (quick task 261018-hs8, Task 4).
   ["LICENSE", "tools/grugops/LICENSE"],
 ];

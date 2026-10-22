@@ -6106,17 +6106,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // The integer, so a pair that shrinks together still fails. Four kit-shipped runnables:
     // reference-check, test-skip-integrity, uat-spec-integrity (Phase 31, D-13) and
     // host-protection, the read-only git-host check (Phase 33.1, D-19), plus, since quick task
-    // 261018-hs8 (Task 4, 2026-10-18), the MIT license for them: 4 -> 5.
-    expect(RUNNABLE_RELS.length).toBe(5);
-    expect(mirror.length).toBe(5);
-    expect(PROGRAM_RELS.length).toBe(4);
+    // 261018-hs8 (Task 4, 2026-10-18), the MIT license for them: 4 -> 5. 5 -> 8 on 2026-10-22 (plan 37-13,
+    // SPLIT-05): the three state runnables state-check, trace-render and state-roll, so seven programs.
+    expect(RUNNABLE_RELS.length).toBe(8);
+    expect(mirror.length).toBe(8);
+    expect(PROGRAM_RELS.length).toBe(7);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
     // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
     // this half can no longer come back short while its own integer still passes.
     const srcSideInstall = mappingSources("install.ts", "RUNNABLES");
     const srcSideUninstall = mappingSources("uninstall.ts", "RUNNABLES_MIRROR");
     expect(srcSideUninstall).toEqual(srcSideInstall);
-    expect(srcSideInstall.length).toBe(5);
+    expect(srcSideInstall.length).toBe(8);
     // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
     // explicit assertions so routing both halves through one parser lost none of what it checked:
     // every program source lives under the runnable reference directory and every dest under the one
@@ -6124,7 +6125,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // root LICENSE, copied to tools/grugops/LICENSE (quick task 261018-hs8, Task 4).
     const rows = parseMapping("install.ts", "RUNNABLES");
     const programRows = rows.filter(([, d]) => d.endsWith(".js"));
-    expect(programRows.length).toBe(4);
+    expect(programRows.length).toBe(7);
     for (const [s] of programRows) expect(s.startsWith("scripts/runnable-ref/")).toBe(true);
     expect(rows.filter(([, d]) => !d.endsWith(".js"))).toEqual([["LICENSE", LICENSE_REL]]);
     for (const d of RUNNABLE_RELS) expect(d.startsWith("tools/grugops/")).toBe(true);
@@ -6300,6 +6301,70 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // A program row: its dry-run line carries the "grugops runnable" label (PROGRAM_RELS).
     expect(r.stdout ?? "").toContain(`${PROGRAM_RELS[0]} (grugops runnable, recorded in the install ledger)`);
     expect(snapshot(target)).toBe(before);
+  });
+
+  // ── the three state runnables (phase 37, plan 37-13, 2026-10-22, D-01, D-08, SPLIT-05) ────────────────────
+  // state-check, trace-render and state-roll reach a host repository through the same RUNNABLES rows as the
+  // other programs. Named here, not derived, so a row dropped from both mappings together still fails: these
+  // cases are what the host's own `node tools/grugops/<name>.js` relies on (state-check names
+  // `node tools/grugops/trace-render.js <root>` as the remedy for a stale trace).
+  const STATE_RUNNABLES = ["state-check.js", "trace-render.js", "state-roll.js"] as const;
+  const stateRunnableRel = (name: string): string => `tools/grugops/${name}`;
+
+  it("state runnables: a fresh install materializes state-check, trace-render and state-roll byte-identical to scripts/runnable-ref/ (SPLIT-05)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const name of STATE_RUNNABLES) {
+      const rel = stateRunnableRel(name);
+      expect(RUNNABLE_RELS, rel).toContain(rel);
+      expect(lstatSync(join(target, ...rel.split("/"))).isFile(), rel).toBe(true);
+      expect(readFileSync(join(target, ...rel.split("/"))), rel).toEqual(
+        readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", name)),
+      );
+      expect(r.stdout, rel).toContain(rel);
+    }
+  });
+
+  it("state runnables: the installed state-check runs with Node alone on the freshly installed target and exits 0 (SPLIT-05)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const check = spawnSync("node", [join(target, "tools", "grugops", "state-check.js"), target], {
+      encoding: "utf8",
+      cwd: target,
+      env: { PATH: process.env.PATH ?? "" },
+    });
+    expect(check.error).toBeUndefined();
+    expect(check.status, check.stdout + check.stderr).toBe(0);
+  });
+
+  it("state runnables: uninstall removes untouched copies of all three, and keeps and reports a user-edited one (SPLIT-05)", () => {
+    const untouched = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(untouched, home).status).toBe(0);
+    const u = runUninstall(untouched, home);
+    expect(u.status, u.stdout).toBe(0);
+    for (const name of STATE_RUNNABLES) {
+      const rel = stateRunnableRel(name);
+      expect(existsSync(join(untouched, ...rel.split("/"))), `${rel} survived an untouched uninstall`).toBe(false);
+      expect(u.stdout).toContain(`${rel} (grugops runnable, recorded in the install ledger)`);
+    }
+
+    const edited = mkTmp();
+    const home2 = mkTmp();
+    expect(runInstall(edited, home2).status).toBe(0);
+    const editedRel = stateRunnableRel("state-roll.js");
+    const editedBody = "// USER-EDITED state-roll — an uninstall must never destroy this.\n";
+    writeFileSync(join(edited, ...editedRel.split("/")), editedBody);
+    const v = runUninstall(edited, home2);
+    expect(v.status, v.stdout).toBe(0);
+    expect(readFileSync(join(edited, ...editedRel.split("/")), "utf8")).toBe(editedBody);
+    expect(v.stdout).toContain(`${editedRel} (it does not hold what the install ledger records install wrote there`);
+    for (const name of ["state-check.js", "trace-render.js"]) {
+      expect(existsSync(join(edited, "tools", "grugops", name)), name).toBe(false);
+    }
   });
 
   // ── tools/grugops/LICENSE (quick task 261018-hs8, Task 4, LICENSE-SHIP-01) ──────────────────────────
@@ -7319,7 +7384,9 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // `.pi/grugops-orchestrator.md`) entered the derived list; Antigravity CLI's joined in Task 1, and Codex CLI has none. The plant takes their bytes too.
     // 14 -> 15 on 2026-10-18 (quick task 261018-hs8, Task 4): install copies the root LICENSE to `tools/grugops/LICENSE`
     // beside the runnables (a fifth RUNNABLES row), so it entered the derived list; the plant takes its exact bytes too.
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(15);
+    // 15 -> 18 on 2026-10-22 (plan 37-13, SPLIT-05): the three state runnables `tools/grugops/state-check.js`,
+    // `tools/grugops/trace-render.js` and `tools/grugops/state-roll.js` entered the derived list; the plant takes their bytes too.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(18);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {
