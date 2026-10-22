@@ -821,14 +821,20 @@ function watchDirForSubpath(subpath: string): string {
  * drift class, and the answer is the one the other three censuses in this phase already took: derive
  * the set, then assert the RELATIONSHIP rather than the members.
  *
- * WHAT THE DERIVATION DOES NOT COVER, stated here because a reader counting six directories against
- * six sources will otherwise look for a seventh:
+ * WHAT THE DERIVATION DOES NOT COVER, stated here because a reader counting seven directories
+ * against seven sources will otherwise look for an eighth:
  *   - `agent-factory/config/factory.config.json` IS DELIBERATELY NOT WATCHED (D-14). The dial changes
  *     when a human edits it rather than when work moves, and the mandatory poll picks it up within
  *     one period.
  *   - `traceability` shares the state root with the board, so it contributes no directory of its own. It is
  *     watched — by the board's entry — and a watch failure there is reported against `board`, which
  *     is the source that owns the directory the handle was opened on.
+ *   - `boardArchive` (plan 37-12, D-15) DOES get a directory of its own, `memory-bank/plans/archive`.
+ *     It sits under the state root, but the state root's watch is armed without `recursive`, so it
+ *     never sees an event inside a subdirectory. First source wins still holds: no earlier source
+ *     claims that directory, so the archive's watch failures are reported against `boardArchive`.
+ *     A tree nothing has rolled yet has no such directory, and `armAll` arms only directories that
+ *     exist, as it does for the queue stages.
  *   - The queue expands over `QUEUE_STAGES` rather than watching `.grugops/queue` itself, because
  *     `fs.watch` is armed WITHOUT `recursive` (see the section head): a watch on the queue root sees
  *     the stage directories appear and disappear, never the claim files inside them.
@@ -873,7 +879,11 @@ export { WATCH_DIRS };
  * fourth queue stage, a seventh source. Each of those is a D-14 decision recorded in the phase
  * context, and this constant is what makes the decision impossible to take silently.
  */
-export const WATCH_DIR_COUNT = 6;
+//
+// SEVEN SINCE 2026-10-22 (plan 37-12): the Done archive's directory, for the seventh source
+// `boardArchive`, by the human decision D-15 recorded in 37-CONTEXT.md. Re-derived by listing
+// `deriveWatchDirs()` after the source landed.
+export const WATCH_DIR_COUNT = 7;
 
 /**
  * TEST SEAM — name a watched directory whose watcher throws on its first event.
