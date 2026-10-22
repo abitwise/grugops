@@ -292,7 +292,7 @@ Plans:
 - [x] 37-16-PLAN.md — Workflows, part 1: WF05 render and state-check (D-12), WF09 roll and move-only, WF12, WF16, NFR seeding
 
 **Wave 17** *(blocked on Wave 16 completion)*
-- [ ] 37-17-PLAN.md — Workflows, part 2: trace and commit sentences (WF18's bound paragraph kept)
+- [x] 37-17-PLAN.md — Workflows, part 2: trace and commit sentences (WF18's bound paragraph kept)
 
 **Wave 18** *(blocked on Wave 17 completion)*
 - [ ] 37-18-PLAN.md — Substrate, contract wording and checklists; the permanent hand-trace scan test
@@ -408,7 +408,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
-| 37. Overview board, per-file records and budgets | v3.0 | 16/19 | In Progress | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 17/19 | In Progress | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
