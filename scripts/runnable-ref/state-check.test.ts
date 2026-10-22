@@ -25,11 +25,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import {
   BOARD_REL,
   BUDGET_COUNT,
+  CONTEXT_ARCHIVE_REL,
+  CONTEXT_REL,
   BUDGETS,
   DECISIONS_ARCHIVE_REL,
   DECISIONS_REL,
@@ -44,6 +47,13 @@ import {
   TRACE_DIR_REL,
   TRACEABILITY_REL,
 } from "../../install/state-layout.js";
+import { renderTraceIndex } from "../trace-model.js";
+
+/**
+ * The zero-row generated index (plan 37-09): a repository with no published note renders exactly this, so a
+ * fixture that plants it has a fresh trace and its cases measure only what they plant.
+ */
+const ZERO_ROW_INDEX = renderTraceIndex([]);
 
 const CHECK_JS = join(import.meta.dirname, "state-check.js");
 const CHECK_TS = join(import.meta.dirname, "state-check.ts");
@@ -101,7 +111,7 @@ function repo(files: { board?: string; marker?: string }): string {
   const root = mkTmp("grugops-state-check-repo-");
   for (const rel of [TRACEABILITY_REL, NFR_CATALOG_REL]) {
     mkdirSync(dirname(join(root, rel)), { recursive: true });
-    writeFileSync(join(root, rel), "# index\n");
+    writeFileSync(join(root, rel), rel === TRACEABILITY_REL ? ZERO_ROW_INDEX : "# index\n");
   }
   if (files.board !== undefined) {
     mkdirSync(dirname(join(root, BOARD_REL)), { recursive: true });
@@ -121,11 +131,11 @@ function countLines(stdout: string): string[] {
   return stdout.split("\n").filter((l) => l.startsWith("MOVE-ONLY "));
 }
 
-/** stdout without its MOVE-ONLY count lines, for the cases that are about the findings alone. */
+/** stdout without its MOVE-ONLY and TRACE count lines, for the cases that are about the findings alone. */
 function withoutCounts(stdout: string): string {
   return stdout
     .split("\n")
-    .filter((l) => !l.startsWith("MOVE-ONLY "))
+    .filter((l) => !l.startsWith("MOVE-ONLY ") && !l.startsWith("TRACE "))
     .join("\n");
 }
 
@@ -255,11 +265,12 @@ const CLEAN_BOARD = "# Board\n\n## Ready (WIP unlimited)\n\n- [ABC-001] a ready 
 /**
  * A repository that keeps every budget: a board, both index files, a `.gitkeep` keeper in the ticket, NFR and
  * trace directories, one small ticket, and a progress file. Every path comes from the state-layout constants.
+ * The trace index is the zero-row generated one, so the trace is fresh (plan 37-09).
  */
 function cleanRepo(marker?: string): string {
   const root = mkTmp("grugops-state-check-clean-");
   plant(root, BOARD_REL, CLEAN_BOARD);
-  plant(root, TRACEABILITY_REL, "# Traceability\n");
+  plant(root, TRACEABILITY_REL, ZERO_ROW_INDEX);
   plant(root, NFR_CATALOG_REL, "# NFR catalog\n");
   for (const dir of [TICKETS_REL, NFR_DIR_REL, TRACE_DIR_REL]) plant(root, `${dir}/.gitkeep`, "");
   plant(root, `${TICKETS_REL}/ABC-001.md`, "# ABC-001\n");
@@ -317,6 +328,7 @@ type JsonReport = {
   findings: JsonFinding[];
   rollable: string[];
   moveOnly: JsonMoveOnly[];
+  trace: { compared: boolean; findings: (JsonFinding & { note: string | null })[] };
 };
 
 /** Run with `--json` and parse stdout, which must be exactly one JSON document on one line. */
@@ -421,6 +433,7 @@ describe("state-check.js --json — one document { ok, marker, enforced, finding
         { live: QUEUE_DONE_REL, archive: QUEUE_DONE_ARCHIVE_REL, liveCount: 0, archivedCount: 0 },
         { live: DECISIONS_REL, archive: DECISIONS_ARCHIVE_REL, liveCount: 0, archivedCount: 0 },
       ],
+      trace: { compared: true, findings: [] },
     });
     expect(r.stderr).toBe("");
   });
@@ -924,5 +937,268 @@ describe("state-check.js — MOVE-ONLY: a move leaves one copy (plan 37-05, SPLI
     expect(r.status, r.stderr).toBe(1);
     expect(r.report.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`move-only-unlisted|${DECISIONS_REL}`]);
     expect(r.report.moveOnly[1]?.liveCount).toBeNull();
+  });
+});
+
+// ── Trace freshness on a host (plan 37-09, SPLIT-05, SPLIT-03, D-01, D-03) ────────────────────────────
+// state-check embeds the renderer's own trace model (collectTraceNotes, planTraceTree, compareTraceTree) and
+// note reader (readRawNotesWithSkips), so it compares a host's rendered trace files with its published notes
+// and writes nothing. Each repository is rendered by the COMMITTED trace-render.js, copied alone into its own
+// empty directory, so the two runnables are compared as a host runs them.
+
+const RENDER_HOST_JS = (() => {
+  const host = mkTmp("grugops-state-check-render-host-");
+  const js = join(host, "trace-render.js");
+  copyFileSync(join(import.meta.dirname, "trace-render.js"), js);
+  return js;
+})();
+
+const ctxio: typeof import("../context-io.js") = await import(
+  pathToFileURL(join(import.meta.dirname, "..", "context-io.js")).href
+);
+
+/** The renderer on a repository, as a host runs it. */
+function render(root: string, ...args: string[]): { status: number | null; stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [RENDER_HOST_JS, root, ...args], { encoding: "utf8", cwd: dirname(RENDER_HOST_JS) });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+/** Render the repository and require the render to succeed. */
+function renderOk(root: string): void {
+  const r = render(root);
+  expect(r.status, `render: ${r.stdout} ${r.stderr}`).toBe(0);
+}
+
+/** The text of a note carrying `refs`, sealed through the committed seal export (as trace-render.test.ts does). */
+function noteText(name: string, refs: readonly string[]): string {
+  const fence =
+    `id: ${name}\n` +
+    "kind: artifact-ref\n" +
+    "by: engineer\n" +
+    "at: 2026-10-22T10:00:00Z\n" +
+    "verified_by: \n" +
+    "confidence: high\n" +
+    "refs:\n" +
+    refs.map((r) => `  - ${r}`).join("\n") +
+    "\n" +
+    "supersedes: \n";
+  const rest = "---\n\n" + "an artifact-ref note carrying trace refs.\n";
+  return "---\n" + fence + `${ctxio.NOTE_SEAL_KEY}: ${ctxio.noteSeal("---\n" + fence + rest)}\n` + rest;
+}
+
+/** Plant a sealed note under `<root>/<contextRel>/<task>/notes/<name>.md`. */
+function plantNote(root: string, contextRel: string, task: string, name: string, refs: readonly string[]): void {
+  plant(root, `${contextRel}/${task}/notes/${name}.md`, noteText(name, refs));
+}
+
+/** A clean repository with one sealed note for ABC-001 in the live context root, rendered by the host renderer. */
+function tracedRepo(marker?: string): string {
+  const root = cleanRepo(marker);
+  plantNote(root, CONTEXT_REL, "taskA", "n1", ["ABC-001", "NFR-002", "src/a.ts", "a.spec.ts"]);
+  renderOk(root);
+  return root;
+}
+
+/** The finding lines (WARN or FINDING) about the trace: every key the trace check uses begins `trace-`. */
+function traceLines(stdout: string): string[] {
+  return stdout.split("\n").filter((l) => /^(WARN|FINDING) /.test(l) && /\(trace-[a-z-]+\)$/.test(l));
+}
+
+/** The TRACE report line: the renderer's own --check summary, prefixed. */
+function traceReportLines(stdout: string): string[] {
+  return stdout.split("\n").filter((l) => l.startsWith("TRACE "));
+}
+
+const REMEDY = "node tools/grugops/trace-render.js";
+
+describe("state-check.js — a host's rendered trace is fresh, checked with the renderer's own model (plan 37-09, D-01)", () => {
+  it("a repository the renderer just rendered prints no trace finding, and --json carries trace.compared true", () => {
+    for (const marker of [undefined, LAYOUT_MARKER_CONTENT]) {
+      const root = tracedRepo(marker);
+      const r = run(root);
+      expect(r.status, `${r.stdout} ${r.stderr}`).toBe(0);
+      expect(traceLines(r.stdout)).toEqual([]);
+      expect(r.stdout).toContain("No findings.");
+      const j = runJson(root);
+      expect(j.status).toBe(0);
+      expect(j.report.trace).toEqual({ compared: true, findings: [] });
+    }
+  });
+
+  it("the TRACE line is the renderer's own --check summary for the same repository, read and skip counts included", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${CONTEXT_REL}/taskB/notes/broken.md`, "not a note at all\n");
+    const check = render(root, "--check");
+    expect(check.status, check.stdout).toBe(0);
+    const summary = check.stdout.split("\n").filter((l) => l.startsWith("The trace is fresh: "));
+    expect(summary).toHaveLength(1);
+    expect(summary[0]).toContain("2 task(s) and 1 note(s) read");
+    expect(summary[0]).toContain("unparseable 1");
+    expect(traceReportLines(run(root).stdout)).toEqual([`TRACE    ${summary[0]}`]);
+  });
+
+  it("a new sealed note for a new ticket (no re-render) names the missing trace file and the changed index: WARN and exit 0 with no marker", () => {
+    const root = tracedRepo();
+    plantNote(root, CONTEXT_REL, "taskA", "n2", ["ABC-002", "#41"]);
+    const r = run(root);
+    expect(r.status, `${r.stdout} ${r.stderr}`).toBe(0);
+    const lines = traceLines(r.stdout);
+    expect(lines).toHaveLength(2);
+    expect(lines.every((l) => l.startsWith("WARN     ") && l.endsWith("(trace-stale)"))).toBe(true);
+    expect(lines.some((l) => l.startsWith(`WARN     ${TRACE_DIR_REL}/ABC-002.md: `))).toBe(true);
+    expect(lines.some((l) => l.startsWith(`WARN     ${TRACEABILITY_REL}: `))).toBe(true);
+    for (const l of lines) expect(l).toContain(`run ${REMEDY} ${root}`);
+    expect(traceReportLines(r.stdout)).toHaveLength(1);
+    expect(traceReportLines(r.stdout)[0]).toMatch(/^TRACE {4}The trace is not fresh: 2 difference\(s\); /);
+  });
+
+  it("the same with the D-14 marker is a FINDING per file and exits 1; --json names each in trace.findings", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    plantNote(root, CONTEXT_REL, "taskA", "n2", ["ABC-002", "#41"]);
+    const r = run(root);
+    expect(r.status, `${r.stdout} ${r.stderr}`).toBe(1);
+    expect(traceLines(r.stdout).every((l) => l.startsWith("FINDING  "))).toBe(true);
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    expect(j.report.ok).toBe(false);
+    expect(j.report.trace.compared).toBe(true);
+    expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([
+      `trace-stale|${TRACEABILITY_REL}`,
+      `trace-stale|${TRACE_DIR_REL}/ABC-002.md`,
+    ]);
+    expect(j.report.findings.map((f) => `${f.key}|${f.rel}`)).toEqual(
+      j.report.trace.findings.map((f) => `${f.key}|${f.rel}`),
+    );
+  });
+
+  it("a note removed after the render leaves an extra generated trace file, named as trace-stale", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    rmSync(join(root, ...`${CONTEXT_REL}/taskA/notes/n1.md`.split("/")));
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([
+      `trace-stale|${TRACEABILITY_REL}`,
+      `trace-stale|${TRACE_DIR_REL}/ABC-001.md`,
+    ]);
+    expect(j.report.trace.findings[1]?.note).toContain("a fresh render removes it");
+  });
+
+  it("D-03: a note only in the archive context root counts exactly like one in the live root", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    const from = join(root, ...`${CONTEXT_REL}/taskA`.split("/"));
+    const to = join(root, ...`${CONTEXT_ARCHIVE_REL}/taskA`.split("/"));
+    plant(root, `${CONTEXT_ARCHIVE_REL}/taskA/notes/n1.md`, readFileSync(join(from, "notes", "n1.md"), "utf8"));
+    rmSync(from, { recursive: true });
+    expect(statSync(to).isDirectory()).toBe(true);
+    const fresh = runJson(root);
+    expect(fresh.status, JSON.stringify(fresh.report)).toBe(0);
+    expect(fresh.report.trace).toEqual({ compared: true, findings: [] });
+    plantNote(root, CONTEXT_ARCHIVE_REL, "taskC", "n3", ["ABC-003", "UAT-12"]);
+    const stale = runJson(root);
+    expect(stale.status).toBe(1);
+    expect(stale.report.trace.findings.map((f) => f.rel)).toEqual([TRACEABILITY_REL, `${TRACE_DIR_REL}/ABC-003.md`]);
+  });
+
+  it("a hand-written traceability.md is one WARN line naming it and no compare result; --json carries trace.compared false", () => {
+    const root = cleanRepo();
+    plant(root, TRACEABILITY_REL, "# Traceability\n\n| Ticket | Code |\n| --- | --- |\n| ABC-001 | #41 |\n");
+    plantNote(root, CONTEXT_REL, "taskA", "n1", ["ABC-001", "#41"]);
+    const r = run(root);
+    expect(r.status, `${r.stdout} ${r.stderr}`).toBe(0);
+    const lines = traceLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(new RegExp(`^WARN {5}${TRACEABILITY_REL.replace(/[.]/g, "[.]")}: .*\\(trace-hand-written\\)$`));
+    expect(r.stdout).not.toContain("(trace-stale)");
+    expect(traceReportLines(r.stdout)).toEqual([]);
+    const j = runJson(root);
+    expect(j.status).toBe(0);
+    expect(j.report.trace.compared).toBe(false);
+    expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-hand-written|${TRACEABILITY_REL}`]);
+  });
+
+  it("the same hand-written index with the D-14 marker is one finding and exits 1", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, TRACEABILITY_REL, "# Traceability\n");
+    const r = run(root);
+    expect(r.status, `${r.stdout} ${r.stderr}`).toBe(1);
+    expect(traceLines(r.stdout)).toHaveLength(1);
+    expect(traceLines(r.stdout)[0]).toMatch(/^FINDING {2}.*\(trace-hand-written\)$/);
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    expect(j.report.trace.compared).toBe(false);
+  });
+
+  it("a hand-written file in the trace directory of a rendered tree is a finding by name, never fresh", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${TRACE_DIR_REL}/ABC-099.md`, "# my own notes\n");
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    expect(j.report.trace.compared).toBe(true);
+    expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-hand-written|${TRACE_DIR_REL}/ABC-099.md`]);
+  });
+
+  it("two ticket identifiers that fold to one file name are a finding, as the renderer's --check reports them", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plantNote(root, CONTEXT_REL, "taskA", "n1", ["ABC-1", "#1"]);
+    plantNote(root, CONTEXT_REL, "taskB", "n2", ["abc-1", "#2"]);
+    expect(render(root, "--check").status).toBe(1);
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    const collisions = j.report.trace.findings.filter((f) => f.key === "trace-collision");
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0]?.note).toContain("ABC-1, abc-1");
+  });
+
+  it("CONTROL: a fresh render plus .gitkeep and .DS_Store in the trace directory yields no trace finding (the plan 37-07 owned-entry rule)", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${TRACE_DIR_REL}/.gitkeep`, "");
+    plant(root, `${TRACE_DIR_REL}/.DS_Store`, "Bud1 binary metadata\n");
+    const r = run(root);
+    expect(r.status, `${r.stdout} ${r.stderr}`).toBe(0);
+    expect(traceLines(r.stdout)).toEqual([]);
+    const j = runJson(root);
+    expect(j.report.trace).toEqual({ compared: true, findings: [] });
+  });
+
+  it("a context root linked outside the repository root is not compared: a finding by name and trace.compared false", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const outside = mkTmp("grugops-state-check-outside-context-");
+    plantNote(outside, "ctx", "taskA", "n1", ["ABC-001"]);
+    mkdirSync(dirname(join(root, ...CONTEXT_REL.split("/"))), { recursive: true });
+    const skipped = stageSymlinkOrSkip(
+      join(outside, "ctx"),
+      join(root, ...CONTEXT_REL.split("/")),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/state-check.test.ts: a context root linked outside the root (plan 37-09)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the outside-root cases of plan 37-04 (the same locate rule)"));
+      return;
+    }
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    expect(j.report.trace.compared).toBe(false);
+    expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-not-compared|${CONTEXT_REL}`]);
+  });
+
+  it("a FIFO at a planned trace file is exit 2 naming it, in bounded time, with nothing on stdout (T-37-32)", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    const at = join(root, ...`${TRACE_DIR_REL}/ABC-001.md`.split("/"));
+    rmSync(at);
+    if (!fifoAtOrSkip(at, "a FIFO at a planned trace file")) return;
+    for (const extra of [[], ["--json"]]) {
+      const r = spawnSync(process.execPath, [HOST_JS, root, ...extra], { encoding: "utf8", timeout: 15_000 });
+      expect(r.error, "the check did not finish in bounded time").toBeUndefined();
+      expect(r.status).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain(`${TRACE_DIR_REL}/ABC-001.md`);
+    }
+  });
+
+  it("the embedded region carries the comparison and no writer: compareTraceTree once, atomicWrite never", () => {
+    const source = readFileSync(CHECK_TS, "utf8");
+    expect(source.match(/export function compareTraceTree\b/g) ?? []).toHaveLength(1);
+    expect(source.match(/export function readRawNotesWithSkips\b|function readRawNotesWithSkips\b/g) ?? []).toHaveLength(1);
+    expect(source).not.toMatch(/function atomicWrite\b/);
   });
 });
