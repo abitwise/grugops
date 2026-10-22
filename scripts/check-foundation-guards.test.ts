@@ -2286,8 +2286,23 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     twin landed in the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 102 with this module tracked (2026-10-22, plan 37-02).
+ *
+ * 102 -> 105 (plan 37-03, phase 37 SPLIT-05), THREE MODULES:
+ *   - `scripts/generate-runnable-embeds.ts` — the one embed generator: it copies the declaration closure of
+ *     named roots, verbatim, from four authorities into a marked region of each host runnable, refusing a
+ *     non-`node:` import, a duplicate name and LEGACY_STATE_ROOT_REL. It loads `typescript` at run time
+ *     through createRequire, as `scripts/js-import-closure.ts` does, so its committed `.js` imports builtins
+ *     and relative modules only.
+ *   - `scripts/runnable-embeds-freshness.ts` — the gate that re-derives every region and exits 1 on drift.
+ *   - `scripts/runnable-ref/state-check.ts` — the host state checker, builtins only; its region carries
+ *     copies of the board grammar, the non-blocking reader, the budget rules and BUDGETS.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: none declares a function named for the frontmatter parser, builds a
+ *     `new RegExp`, reads a grant or renders a spawn verdict. Their committed `.js` twins landed in the same
+ *     commit as the modules.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 105 with these modules tracked (2026-10-22, plan 37-03).
  */
-const NON_TEST_MODULE_COUNT = 102;
+const NON_TEST_MODULE_COUNT = 105;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2861,7 +2876,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // budget rule. It imports nothing at all, so it contributes three empty comparisons and cannot
     // make the agreement above vacuous on its own. Re-derived: the scoped walk over `scripts/` minus
     // tests reports 66 with the module tracked (2026-10-22).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(66);
+    // 66 → 68 (plan 37-03, SPLIT-05): `scripts/generate-runnable-embeds.ts` and
+    // `scripts/runnable-embeds-freshness.ts`, the embed generator and its gate. Neither imports any of the
+    // three specs compared below, so each contributes three empty comparisons and cannot make the agreement
+    // above vacuous on its own (`scripts/runnable-ref/state-check.ts` is outside this scoped walk).
+    // Re-derived: the scoped walk over `scripts/` minus tests reports 68 with the modules tracked (2026-10-22).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(68);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2895,7 +2915,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 62 → 63 (plan 34.1-02): `host-entries-freshness.ts`, three specs per module as ever.
     // 63 → 64 (plan 36-01, task 3): `state-path-scan.ts`, three specs per module as ever.
     // 65 → 66 (plan 37-02, task 1): `state-rules.ts`, three specs per module as ever (2026-10-22).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(66 * 3);
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(68 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3114,7 +3134,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 65 → 66 (plan 37-02, task 1): `state-rules.ts`, the same module the flat reader gained; both
       // pins move in one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests
       // reports 66 (2026-10-22).
-    ).toBe(66);
+      // 66 → 68 (plan 37-03): `generate-runnable-embeds.ts` and `runnable-embeds-freshness.ts`, the same
+      // modules the flat reader gained; both pins move in one commit for the same reason. Re-derived:
+      // `ls scripts/*.ts` minus the tests reports 68 (2026-10-22).
+    ).toBe(68);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9838,7 +9861,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // scripts/state-rules.ts proving it imports nothing. The pin moved because a module landed, not to make a
 // red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 76 on this tree
 // (2026-10-22, plan 37-02).
-const TRIPWIRE_MODULES = 76;
+//
+// 76 -> 77 (plan 37-03): ONE test module, `scripts/generate-runnable-embeds.test.ts` — the embed generator's
+// closure, refusal, freshness-drift and two-sided pin cases, on fixture authorities in temporary directories
+// (`scripts/runnable-ref/state-check.test.ts` landed too and is not in this top-level count). The pin moved
+// because a module landed, not to make a red go away. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 77 on this tree (2026-10-22, plan 37-03).
+const TRIPWIRE_MODULES = 77;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
@@ -11917,7 +11946,11 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // 3 → 4 (plan 34.1-02): `scripts/host-entries-freshness.test.ts` joins the class. Its both-ends
   // wiring case reads the block's commands to assert `npm run freshness:host-entries` runs there, so
   // it imports the authority (ciWorkflow, ubuntuBlockCommands) rather than spelling a locator.
-  const UBUNTU_BLOCK_READER_COUNT = 4;
+  // 4 → 5 (plan 37-03, 2026-10-22): `scripts/generate-runnable-embeds.test.ts` joins the class. Its both-ends
+  // wiring case reads the block's commands to assert `npm run freshness:runnable-embeds` runs there, beside the
+  // hook-manifest gate, so it imports the authority (ciWorkflow, ubuntuBlockCommands). The gate fired on its
+  // first draft, which spelled a locator of its own, and the draft was changed to import the authority.
+  const UBUNTU_BLOCK_READER_COUNT = 5;
 
   // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP THE RIGHT BOUND IS PROVEN AGAINST.
   //

@@ -52,6 +52,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { closureTargets } from "./js-import-closure.js";
 import { shapeNamed, skipEntry, skipLine, stageShapeOrSkip } from "./check-platform-shapes.js";
+import { EMBED_CLOSE, EMBED_OPEN, EMBED_SPECS, regionSpans, rewriteRunnable } from "./generate-runnable-embeds.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -336,21 +337,43 @@ function candidateSources(root: string): string[] {
   return [...new Set([...trackedSources(root), ...walkedSources(root)])].sort();
 }
 
-/** The DERIVED set of files implementing the discipline, repo-relative and sorted. */
-function deriveImplementingFiles(root: string, files: string[]): string[] {
-  const hits = new Set<string>();
+/**
+ * THE GENERATED-REGION RULE (2026-10-21, plan 37-03). A host runnable may import `node:` builtins only, so it
+ * carries `readRegularFileOrNull` as a declaration copied verbatim from `scripts/context-io.ts` by
+ * `scripts/generate-runnable-embeds.ts`. That copy is not a third spelling of the rule: the embed freshness
+ * gate (`scripts/runnable-embeds-freshness.ts`, wired in CI) proves the region byte-identical to the authority,
+ * and the agreement axis below already drives the authority. So the cardinality axis counts implementations
+ * OUTSIDE generated regions, and every implementation INSIDE one must sit in an EMBED_SPECS target whose region
+ * is fresh, which a case below asserts. Regions are located by the generator's own `regionSpans`, never by a
+ * file name.
+ */
+function classifyImplementations(root: string, files: string[]): { outside: string[]; inside: string[] } {
+  const outside = new Set<string>();
+  const inside = new Set<string>();
   for (const rel of files) {
     const abs = join(root, rel);
     if (!existsSync(abs)) continue;
-    const source = ts.createSourceFile(rel, readFileSync(abs, "utf8"), ts.ScriptTarget.Latest, true);
+    const text = readFileSync(abs, "utf8");
+    const spans = regionSpans(text);
+    const source = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true);
     for (const fn of everyFunctionLike(source)) {
-      if (bodyImplementsDiscipline(fn)) {
-        hits.add(rel);
-        break;
-      }
+      if (!bodyImplementsDiscipline(fn)) continue;
+      const at = fn.getStart(source);
+      if (spans.some(([a, b]) => at >= a && at < b)) inside.add(rel);
+      else outside.add(rel);
     }
   }
-  return [...hits].sort();
+  return { outside: [...outside].sort(), inside: [...inside].sort() };
+}
+
+/** The DERIVED set of files implementing the discipline outside generated regions, repo-relative and sorted. */
+function deriveImplementingFiles(root: string, files: string[]): string[] {
+  return classifyImplementations(root, files).outside;
+}
+
+/** The DERIVED set of files carrying an implementation inside a generated region. */
+function deriveRegionImplementingFiles(root: string, files: string[]): string[] {
+  return classifyImplementations(root, files).inside;
 }
 
 const TRACKED = trackedSources(ROOT);
@@ -430,6 +453,29 @@ describe("31-27 — the non-blocking read rule has exactly TWO implementations, 
 
   it("the derived CARDINALITY is 2", () => {
     expect(IMPLEMENTING.length).toBe(2);
+  });
+
+  it("every implementation inside a generated region sits in an EMBED_SPECS target whose region is fresh", () => {
+    const inRegions = deriveRegionImplementingFiles(ROOT, CANDIDATES);
+    expect(inRegions.length, "PREMISE: the state checker carries the embedded reader").toBeGreaterThan(0);
+    for (const rel of inRegions) {
+      const spec = EMBED_SPECS.find((s) => s.target === rel);
+      expect(spec, `${rel} carries the reader inside a region and is not an EMBED_SPECS target`).toBeDefined();
+      if (spec !== undefined) expect(rewriteRunnable(spec, ROOT).changed, `${rel}: stale region`).toBe(false);
+    }
+  });
+
+  it("CONTROL: an implementation inside a region leaves the outside count, and one outside a region stays in it", () => {
+    const root = mkdtempSync(join(ROOT, ".temp", "37-03-parity-region-"));
+    tmpRoots.push(root);
+    mkdirSync(join(root, "scripts"), { recursive: true });
+    const body = seededThirdImplementation(REFUSAL_SPELLINGS[0] as RefusalSpelling);
+    writeFileSync(join(root, "scripts", "in-region.ts"), `${EMBED_OPEN}\n${body}${EMBED_CLOSE}\n`);
+    writeFileSync(join(root, "scripts", "out-of-region.ts"), `${EMBED_OPEN}\n${EMBED_CLOSE}\n${body}`);
+    const files = ["scripts/in-region.ts", "scripts/out-of-region.ts"];
+    expect(deriveImplementingFiles(root, files)).toEqual(["scripts/out-of-region.ts"]);
+    expect(deriveRegionImplementingFiles(root, files)).toEqual(["scripts/in-region.ts"]);
+    expect(EMBED_SPECS.some((s) => s.target === "scripts/in-region.ts"), "a region in a module that is not a target is refused by the case above").toBe(false);
   });
 
   // ONE MIRROR PER ACCEPTED SPELLING, GENERATED FROM THE SAME LIST THE PREDICATE ACCEPTS. Writing

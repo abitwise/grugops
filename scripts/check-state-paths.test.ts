@@ -38,6 +38,7 @@ import ts from "typescript";
 import { LEGACY_FALLBACK_CLAUSE, LEGACY_STATE_ROOT_REL, STATE_ROOT_REL } from "../install/state-layout.js";
 import { SCAN_EXCLUSIONS, SPELLING_NAMES } from "./state-path-scan.js";
 import { ALLOW_LIST, deadEntries, evaluate, matchesGlob } from "./check-state-paths.js";
+import { EMBED_CLOSE, EMBED_OPEN, EMBED_SPECS, regionSpans, rewriteRunnable } from "./generate-runnable-embeds.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(REPO_ROOT, "scripts", "check-state-paths.js");
@@ -312,6 +313,39 @@ function holdsLiteral(fileName: string, text: string, needle: string): boolean {
   return found;
 }
 
+/** The start offset of every string literal or template part in `text` that contains `needle`. */
+function literalOffsets(fileName: string, text: string, needle: string): number[] {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const out: number[] = [];
+  const walk = (n: ts.Node): void => {
+    if (
+      (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) &&
+      n.text.includes(needle)
+    ) {
+      out.push(n.getStart(sf));
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(sf);
+  return out;
+}
+
+/**
+ * THE GENERATED-REGION ADMISSION RULE (2026-10-21, plan 37-03, research Pitfall 2). A host runnable may import
+ * `node:` builtins only, so the state paths it needs reach it as declarations copied verbatim from
+ * install/state-layout.ts by scripts/generate-runnable-embeds.ts, and that copy spells STATE_ROOT_REL. Such a
+ * module is not a fourth spelling: its copy is generated, and scripts/runnable-embeds-freshness.ts proves it
+ * equal to the authority. So a module outside STATE_ROOT_HOLDERS is admitted only when it is an EMBED_SPECS
+ * target and EVERY literal in it holding STATE_ROOT_REL lies inside a span regionSpans returns; the case that
+ * uses this rule also requires the region to be fresh. No module is admitted by its name.
+ */
+function admittedByGeneratedRegion(rel: string, text: string): boolean {
+  if (!EMBED_SPECS.some((s) => s.target === rel)) return false;
+  const spans = regionSpans(text);
+  const offsets = literalOffsets(rel, text, STATE_ROOT_REL);
+  return offsets.length > 0 && offsets.every((o) => spans.some(([a, b]) => o >= a && o < b));
+}
+
 /** True when `text` has an import declaration whose module specifier ends in state-layout.js. */
 function importsStateLayout(fileName: string, text: string): boolean {
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -346,7 +380,25 @@ describe("ownership: the new state root is spelled only by its authority and two
 
   it("the modules holding a string literal that contains STATE_ROOT_REL are exactly the three, in both directions", () => {
     const holders = sources.filter((rel) => holdsLiteral(rel, read(rel), STATE_ROOT_REL));
-    expect(holders).toEqual([...STATE_ROOT_HOLDERS].sort());
+    // A holder inside a fresh generated region is admitted by the rule above admittedByGeneratedRegion, never by name.
+    const generated = holders.filter((rel) => !STATE_ROOT_HOLDERS.includes(rel) && admittedByGeneratedRegion(rel, read(rel)));
+    expect(holders.filter((rel) => !generated.includes(rel))).toEqual([...STATE_ROOT_HOLDERS].sort());
+    for (const rel of generated) {
+      const spec = EMBED_SPECS.find((s) => s.target === rel);
+      expect(spec, `${rel} is not an EMBED_SPECS target`).toBeDefined();
+      if (spec !== undefined) {
+        expect(rewriteRunnable(spec, REPO_ROOT).changed, `${rel}: its generated region is stale, so it is not admitted`).toBe(false);
+      }
+    }
+  });
+
+  it("control: the generated-region rule refuses a literal outside the region and a module that is not a target", () => {
+    const target = (EMBED_SPECS[0] as { target: string }).target;
+    const inside = [EMBED_OPEN, `export const A = "${STATE_ROOT_REL}";`, EMBED_CLOSE, ""].join("\n");
+    expect(admittedByGeneratedRegion(target, inside)).toBe(true);
+    expect(admittedByGeneratedRegion(target, `${inside}const B = "${STATE_ROOT_REL}/board.md";\n`)).toBe(false);
+    expect(admittedByGeneratedRegion("scripts/not-a-target.ts", inside)).toBe(false);
+    expect(admittedByGeneratedRegion(target, `const C = "${STATE_ROOT_REL}";\n`)).toBe(false);
   });
 
   it("control: the literal predicate sees a plain string, a template part and a split-free spelling, and ignores a comment", () => {
