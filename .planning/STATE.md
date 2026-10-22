@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-12-PLAN.md
-last_updated: "2026-10-22T15:27:49.522Z"
+stopped_at: Completed 37-13-PLAN.md
+last_updated: "2026-10-22T16:50:39.236Z"
 last_activity: 2026-10-22
-last_activity_desc: Completed 37-12 (the projector reads the Done archive as the seventh source boardArchive, keeps archived tickets placed, reports a board-plus-archive row as ticket-duplicated, and publishes snapshot version 3 with the regenerated golden)
-state_head: 41b6eae4b17d402a917977e564d6ef767af10096
+last_activity_desc: Completed 37-13 (the installer materializes state-check, trace-render and state-roll into tools/grugops/, the v3 seed ships the overview board, NFR index, dated progress log, generated trace index and layout marker, and the marker is written only on a fresh layout; mid-phase full run 2 found 9 new failures, all fixed, and the 20 baseline failures unchanged)
+state_head: 85fa7298aef4ee30dc275c100fc4af0fd777f94f
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 34
-  completed_plans: 27
+  completed_plans: 28
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 13 of 19
+Plan: 14 of 19
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-12 (the projector reads the Done archive as the seventh source boardArchive, keeps archived tickets placed, reports a board-plus-archive row as ticket-duplicated, and publishes snapshot version 3 with the regenerated golden)
+Last activity: 2026-10-22 — Completed 37-13 (the installer materializes state-check, trace-render and state-roll into tools/grugops/, the v3 seed ships the overview board, NFR index, dated progress log, generated trace index and layout marker, and the marker is written only on a fresh layout; mid-phase full run 2 found 9 new failures, all fixed, and the 20 baseline failures unchanged)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -741,6 +741,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P10 | 25 min | 1 tasks | 9 files |
 | Phase 37 P11 | 18 min | 1 tasks | 10 files |
 | Phase 37 P12 | 23 min | 2 tasks | 16 files |
+| Phase 37 P13 | 78 min | 2 tasks | 26 files |
 
 ## Accumulated Context
 
@@ -2036,6 +2037,8 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-11: progress entries roll oldest first with extents from the embedded sectionEndIndex, passed into the import-free planner as a parameter (D-16); the LANG-07 census admits that generated copy only inside a fresh EMBED_SPECS region
 - [Phase 37]: 37-11: state-roll refuses mixed LF/CRLF line endings before or after a roll (both surfaces) instead of folding them; an interrupted roll's leftovers (rows or entry headings already in the archive) are exit 2 naming them
 - [Phase 37]: 37-12: the Done archive is the seventh source boardArchive (D-15); an absent archive is ok and empty, an unreadable one suppresses ticket-unplaced only, and ticket-duplicated counts board plus archive rows naming both places; snapshot version 3
+- [Phase 37]: 37-13: the installer writes the layout marker only into a fresh layout; any repository that already holds planning state (current, both, pre-v3 under --migrate, unreadable) gets one skipped line and no marker, so Phase 38's migrate must write LAYOUT_MARKER_REL itself
+- [Phase 37]: 37-13: the seed trace index is the trace render's zero-note output, so it carries the GENERATED line; the imperative-lexicon gate's generated set is 2 and its corpus 48
 
 ### Pending Todos
 
@@ -2367,8 +2370,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T15:27:49.239Z
-Stopped at: Completed 37-12-PLAN.md
+Last session: 2026-10-22T16:50:38.932Z
+Stopped at: Completed 37-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
