@@ -34,7 +34,7 @@ On `memory-bank/plans/board.md`, the review confirms items already in the frozen
 None new. The sprint file `memory-bank/plans/sprints/SPRINT-xx.md` is the artifact — the review notes are appended to it. The validated outcomes are recorded as typed notes per Workflow 16.
 
 ## Trace updates
-Confirm the reviewed tickets' rows in `memory-bank/plans/traceability.md` are complete for each accepted item — `UAT`, `Status`, and (where released) the release link. Do not author new rows here.
+Sprint review publishes no refs of its own. BA/PM confirms that each accepted ticket's rendered trace file names its `UAT` ref and, where released, its release ref. A missing ref goes back to the role that owns it, which publishes it on a note per Workflow 16. The next trace render adds it.
 
 ## Metrics emitted
 Record `Velocity` in `memory-bank/plans/metrics.md` — the scrum size points completed in this sprint. Take the value from the accepted items and write it back into the sprint file's Velocity field.
@@ -46,4 +46,4 @@ Record `Velocity` in `memory-bank/plans/metrics.md` — the scrum size points co
 The review notes are appended to `memory-bank/plans/sprints/SPRINT-xx.md`. Velocity is filled, the Carried out items carry reasons, and the demo / release notes and Notes-for-retro are captured. Every accepted item genuinely met its acceptance criteria.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/sprint-review-<id>`), then `type(scope): summary`. The artifacts are the review notes appended to `memory-bank/plans/sprints/SPRINT-xx.md`, the velocity metric and the confirmed traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/sprint-review-<id>`), then `type(scope): summary`. The artifacts are the review notes appended to `memory-bank/plans/sprints/SPRINT-xx.md`, the velocity metric and the rendered trace files. Never merge, never deploy; humans hold both.

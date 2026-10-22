@@ -37,7 +37,7 @@ Green machine-backed evidence does not by itself carry the ticket past acceptanc
 An optional attended browser lane exists for a human who wants to watch the session. The lane produces a `finding` stamped with a named human and an `artifact-ref` describing what was witnessed, and nothing else. The witnessing human's name arrives only through the existing admission grant that a separate process reads; the agent can never author it. The lane cannot produce a gate stamp, so an attended narration is never presented in the pack as machine-verified evidence. Read `agent-factory/checklists/browser-uat-recipe.md` for the setup and for host availability. The recipe is referenced here, never restated.
 
 ## Trace updates
-Append to `memory-bank/plans/traceability.md` the `UAT` link and the human signoff result against the ticket row. Update `Status` in the same row, so acceptance traces back to the test row and forward to the release row.
+The UAT Planner publishes the `UAT` link and the human signoff result as refs on a note per Workflow 16. Each note names the ticket identifier among its refs. The next run of `tools/grugops/trace-render.js` turns those refs into the ticket's trace file and index line. Acceptance then traces back to the tests and forward to the release.
 
 ## Metrics emitted
 Record `Lead time` in `memory-bank/plans/metrics.md` as the ticket clears acceptance.
@@ -49,4 +49,4 @@ Record `Lead time` in `memory-bank/plans/metrics.md` as the ticket clears accept
 The scenarios, test data, pass/fail criteria, signoff checklist, and known limitations exist. The named human has signed off. The ticket moves to `Ready to Release` (or to `Done` in lean mode).
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/uat-pack-<id>`), then `type(scope): summary`. The artifacts are the UAT pack notes recorded per Workflow 16, the recorded human signoff, the board move, the metrics and the updated traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/uat-pack-<id>`), then `type(scope): summary`. The artifacts are the UAT pack notes recorded per Workflow 16, the recorded human signoff, the board move, the metrics and the rendered trace files. Never merge, never deploy; humans hold both.

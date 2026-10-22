@@ -34,7 +34,7 @@ Each role reads the shared verified context before it works. Each role records i
 On `memory-bank/plans/board.md`, BA/PM owns the `Backlog -> Ready` exit: items that meet the Definition of Ready move from `Backlog` to `Ready`. `XL` items do not advance — they are split back into the `Backlog` as smaller tickets via `SPLIT_REQUIRED`. The `Ready` column WIP limit (from `factory.config.json#wip_limits`) caps how many items sit ready at once.
 
 ## Trace updates
-In `memory-bank/plans/traceability.md`, confirm or extend the rows for the refined tickets — the requirement→epic→feature→ticket linkage and `Status`. Every promoted ticket then traces back to a product requirement before dev pulls it.
+BA/PM publishes each refined ticket's epic, feature and NFR ids as refs on a note per Workflow 16. Each note names the ticket identifier among its refs. The next trace render turns those refs into each ticket's trace file and index line. Every promoted ticket then traces back to a product requirement before dev pulls it.
 
 ## Metrics emitted
 None new — refinement stocks the `Ready` column and does not close work. Surfacing the `WIP` of `Ready` against its limit (from the frozen `memory-bank/plans/metrics.md` set) is enough to show whether the larder is full. Do not invent a refinement metric.
@@ -46,4 +46,4 @@ None new — refinement stocks the `Ready` column and does not close work. Surfa
 The refinement is recorded as typed notes per Workflow 16 and the `Ready` column is stocked. The column holds enough sized, prioritized, DoR-met work that dev never starves — continuous pull in kanban, the next sprint in scrum. Every `XL` item was split, and no item was promoted that did not meet the Definition of Ready.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/backlog-refinement-<id>`), then `type(scope): summary`. The artifacts are the refinement notes recorded per Workflow 16, the re-sized/re-prioritized tickets, the `Backlog -> Ready` board moves and the confirmed traceability rows. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/backlog-refinement-<id>`), then `type(scope): summary`. The artifacts are the refinement notes recorded per Workflow 16, the re-sized/re-prioritized tickets, the `Backlog -> Ready` board moves and the rendered trace files. Never merge, never deploy; humans hold both.

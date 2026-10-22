@@ -41,7 +41,7 @@ On `memory-bank/plans/board.md`, committed items leave the `Ready` column into t
 The primary output is `memory-bank/plans/sprints/SPRINT-xx.md` (the sprint file). The sprint goal and committed list are recorded as typed notes per Workflow 16 for the team.
 
 ## Trace updates
-None new beyond the committed tickets' existing rows. Each committed ticket already carries its row in `memory-bank/plans/traceability.md`; sprint planning commits to those rows, it does not author new code/test/UAT links.
+None of its own. Each committed ticket's trace file is rendered from the refs its notes already published. Sprint planning publishes no refs of its own and adds no code, test or UAT link.
 
 ## Metrics emitted
 Record `Velocity` in `memory-bank/plans/metrics.md` — the scrum size points per sprint, measured against this committed set; the actual count is filled at sprint review.

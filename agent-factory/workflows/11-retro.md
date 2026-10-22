@@ -28,7 +28,7 @@ The Factory Coach reads the shared verified context before it works. The Factory
 None — the Factory Coach causes no column transition of its own on `memory-bank/plans/board.md`. The improvement tickets it creates enter the `Backlog` like any other captured work, to be refined and pulled later.
 
 ## Trace updates
-In `memory-bank/plans/traceability.md`, record the `factory`-tagged improvement ticket IDs the retro created and their `Status`. Each factory improvement then traces back to the metric or waste that prompted it.
+The Factory Coach publishes each `factory`-tagged improvement ticket ID as a ref on a retro note per Workflow 16. That note also names the metric or waste that prompted the ticket. The next trace render turns those refs into each ticket's trace file and index line. Each factory improvement then traces back to its waste.
 
 ## Metrics emitted
 The retro reads `memory-bank/plans/metrics.md` rather than closing work. It surfaces a subset of the frozen 9 to ground its findings — for example `Throughput`, `Cycle time`, and `Rework rate`. Report the values exactly as they stand; never fake a count or a trend, and do not invent a metric.
@@ -40,4 +40,4 @@ The retro reads `memory-bank/plans/metrics.md` rather than closing work. It surf
 The retro is recorded as typed notes per Workflow 16 — the metrics snapshot, the top 1–3 wastes, and Keep / Stop / Start. 1–3 improvement tickets tagged `factory` are created in `memory-bank/plans/tickets/`. Every finding cites a value in `memory-bank/plans/metrics.md`; in lean mode the retro is kept light.
 
 ## Commit
-Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/retro-<id>`), then `type(scope): summary`. The artifacts are the retro notes recorded per Workflow 16, the `factory`-tagged improvement tickets and the traceability rows linking them to their waste. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/retro-<id>`), then `type(scope): summary`. The artifacts are the retro notes recorded per Workflow 16, the `factory`-tagged improvement tickets and the rendered trace files. Never merge, never deploy; humans hold both.
