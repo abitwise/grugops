@@ -1,9 +1,10 @@
 // state-rules.ts — the one owner of every state budget rule and of the layout marker reader (phase 37,
 // SPLIT-04, D-04, D-05, D-10, D-11, D-14).
 //
-// WHAT THIS OWNS. The rule that decides whether a state file breaks a budget, the rule that reads the layout
-// marker, the one spelling of a budget finding, and the one order findings print in. Later plans of phase 37
-// add the index-line, progress-entry and roll rules here, beside these. The budget numbers are not owned
+// WHAT THIS OWNS. The rule that decides whether a state file breaks each of the nine budgets, the record rule
+// (which directory entries are records, and so which the byte budgets measure), the rule that reads the
+// layout marker, the one spelling of a budget finding, and the one order findings print in. Later plans of
+// phase 37 add the progress-entry and roll rules here, beside these. The budget numbers are not owned
 // here: they are BUDGETS in install/state-layout.ts, and a caller passes that object in. Nothing in this file
 // spells a budget number or a state path.
 //
@@ -133,66 +134,200 @@ export function formatMarkerWarning(rel: string, reason: string): string {
   return `${rel}: layout marker not recognized: ${reason}. Budget findings stay warnings.`;
 }
 
-// ── The board (BUDGETS.boardBytes) ───────────────────────────────────────────────────────────────
-
-/** The board's budget findings. */
-export function boardBudgetFindings(
-  rel: string,
-  texts: BoardTexts,
-  _model: BoardFacts,
-  budgets: StateBudgets,
-): StateFinding[] {
-  const findings: StateFinding[] = [];
-  const bytes = utf8Bytes(texts.raw);
-  if (bytes > budgets.boardBytes) {
-    findings.push({ rel, key: "boardBytes", measured: bytes, budget: budgets.boardBytes, unit: "bytes" });
-  }
-  return findings;
-}
-
-// ── RED stubs (plan 37-02 task 2): signatures only, replaced by the GREEN commit ─────────────────
-
-/** The two forms of an index document a caller passes in. */
-export type DocumentTexts = {
-  readonly normalized: string;
-  readonly blanked: string;
+/** The unit each budget is stated in. A Record over the budget keys, so a budget added without a unit fails typecheck. */
+const UNITS: { readonly [K in keyof StateBudgets]: StateUnit } = {
+  boardBytes: "bytes",
+  boardRowChars: "characters",
+  boardUpdatedLines: "lines",
+  indexEntryBytes: "bytes",
+  ticketBytes: "bytes",
+  nfrBytes: "bytes",
+  traceBytes: "bytes",
+  progressBytes: "bytes",
+  doneRows: "rows",
 };
 
-/** The byte budgets a file is measured against by its lstat size. */
-export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "traceBytes" | "progressBytes";
-
-export function indexLineFindings(_rel: string, _texts: DocumentTexts, _budgets: StateBudgets): StateFinding[] {
-  return [];
+/** A finding for a file, line or row that measured over its budget. */
+function over(rel: string, key: keyof StateBudgets, measured: number, budgets: StateBudgets, line?: number): StateFinding {
+  return {
+    rel,
+    key,
+    measured,
+    budget: budgets[key],
+    unit: UNITS[key],
+    ...(line === undefined ? {} : { line }),
+  };
 }
 
-export function fileBytesFinding(
-  _rel: string,
-  _bytes: number,
-  _key: FileBudgetKey,
-  _budgets: StateBudgets,
-): StateFinding | null {
-  return null;
-}
-
+/**
+ * The finding for a file the check could not measure: it is not a regular file, or it could not be listed or
+ * read. It names the file and its budget, so a file that cannot be measured is reported, never dropped.
+ */
 export function unmeasuredFinding(
   rel: string,
   key: keyof StateBudgets,
   budgets: StateBudgets,
   note: string,
 ): StateFinding {
-  return { rel, key, measured: null, budget: budgets[key], unit: "bytes", note };
+  return { rel, key, measured: null, budget: budgets[key], unit: UNITS[key], note };
 }
 
-export function doneRowFindings(_rel: string, _model: BoardFacts, _budgets: StateBudgets): StateFinding[] {
-  return [];
+// ── The board (boardBytes, boardRowChars, boardUpdatedLines) ─────────────────────────────────────
+
+/** The prefix of a line that counts against BUDGETS.boardUpdatedLines, in either the canonical or the kit form. */
+const UPDATED_PREFIX = "_Updated:";
+
+/**
+ * The board's budget findings.
+ *
+ * - boardBytes: the UTF-8 bytes of the raw text, as read.
+ * - boardRowChars: for each ticket row of every column (`model.columns[].rows[]`), the UTF-16 code units of
+ *   the normalized line the row sits on. `row.line` is one-based in the normalized text, as parseBoard
+ *   numbers it. Epic rows, headings and every other line are not ticket rows and are not measured.
+ * - boardUpdatedLines: the lines of the comment-blanked text that begin `_Updated:`. This counts the kit's
+ *   placeholder form, which parseBoard does not read as an update, as well as the canonical one, and never
+ *   a line inside an HTML comment. The finding's line is the first line over the budget.
+ */
+export function boardBudgetFindings(
+  rel: string,
+  texts: BoardTexts,
+  model: BoardFacts,
+  budgets: StateBudgets,
+): StateFinding[] {
+  const findings: StateFinding[] = [];
+  const bytes = utf8Bytes(texts.raw);
+  if (bytes > budgets.boardBytes) findings.push(over(rel, "boardBytes", bytes, budgets));
+
+  const lines = texts.normalized.split("\n");
+  for (const column of model.columns) {
+    for (const row of column.rows) {
+      const units = (lines[row.line - 1] ?? "").length;
+      if (units > budgets.boardRowChars) findings.push(over(rel, "boardRowChars", units, budgets, row.line));
+    }
+  }
+
+  const updatedAt: number[] = [];
+  texts.blanked.split("\n").forEach((line, i) => {
+    if (line.startsWith(UPDATED_PREFIX)) updatedAt.push(i + 1);
+  });
+  if (updatedAt.length > budgets.boardUpdatedLines) {
+    findings.push(over(rel, "boardUpdatedLines", updatedAt.length, budgets, updatedAt[budgets.boardUpdatedLines]));
+  }
+  return findings;
 }
 
-export function recordEntryNames(_names: readonly string[]): string[] {
-  return [];
+/** The column whose rows BUDGETS.doneRows counts. */
+const DONE_COLUMN = "Done";
+
+/**
+ * The Done column's finding: the ticket rows under every column named `Done`, counted together. The finding's
+ * line is the first row past the budget, the row the roll would move first.
+ */
+export function doneRowFindings(rel: string, model: BoardFacts, budgets: StateBudgets): StateFinding[] {
+  const rows = model.columns.filter((c) => c.name === DONE_COLUMN).flatMap((c) => c.rows);
+  if (rows.length <= budgets.doneRows) return [];
+  return [over(rel, "doneRows", rows.length, budgets, rows[budgets.doneRows]?.line)];
 }
 
-export function budgetEntryNames(_names: readonly string[]): string[] {
-  return [];
+// ── The two index files (indexEntryBytes) ────────────────────────────────────────────────────────
+
+/** The two forms of an index document a caller passes in, as for BoardTexts. */
+export type DocumentTexts = {
+  readonly normalized: string;
+  readonly blanked: string;
+};
+
+/**
+ * The UTF-8 bytes of the part of `line` outside every HTML comment.
+ *
+ * `blankedLine` is the same line after board-model's stripHtmlComments, which turns each comment code unit
+ * into a space, so the two line up code unit for code unit. A comment is therefore a run of spaces in
+ * `blankedLine` under which `line` holds something other than a space (a comment always holds its `<!--`).
+ * Every such run is left out whole; a run of spaces that was spaces in `line` too is counted. The only text
+ * left out that is not comment is whitespace directly beside a comment.
+ */
+function bytesOutsideComments(line: string, blankedLine: string): number {
+  let kept = "";
+  let i = 0;
+  while (i < line.length) {
+    if (blankedLine.charCodeAt(i) === 0x20) {
+      let j = i;
+      let comment = false;
+      while (j < line.length && blankedLine.charCodeAt(j) === 0x20) {
+        if (line.charCodeAt(j) !== 0x20) comment = true;
+        j++;
+      }
+      if (!comment) kept += line.slice(i, j);
+      i = j;
+    } else {
+      let j = i;
+      while (j < line.length && blankedLine.charCodeAt(j) !== 0x20) j++;
+      kept += line.slice(i, j);
+      i = j;
+    }
+  }
+  return utf8Bytes(kept);
+}
+
+/** Every line of an index document over BUDGETS.indexEntryBytes, measured outside HTML comments. */
+export function indexLineFindings(rel: string, texts: DocumentTexts, budgets: StateBudgets): StateFinding[] {
+  const blanked = texts.blanked.split("\n");
+  const findings: StateFinding[] = [];
+  texts.normalized.split("\n").forEach((line, i) => {
+    const bytes = bytesOutsideComments(line, blanked[i] ?? "");
+    if (bytes > budgets.indexEntryBytes) findings.push(over(rel, "indexEntryBytes", bytes, budgets, i + 1));
+  });
+  return findings;
+}
+
+// ── Record files measured by size (ticketBytes, nfrBytes, traceBytes, progressBytes) ──────────────
+
+/** The byte budgets a file is measured against by its lstat size. */
+export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "traceBytes" | "progressBytes";
+
+/**
+ * The finding for one file of `bytes` bytes (its lstat size), or null when it is within its budget. A trace
+ * file is generated, so its finding names the ticket (the file stem; trace files are keyed by identifier)
+ * and says the remedy is splitting the ticket's work, never editing the file (research Pitfall 10).
+ */
+export function fileBytesFinding(
+  rel: string,
+  bytes: number,
+  key: FileBudgetKey,
+  budgets: StateBudgets,
+): StateFinding | null {
+  if (bytes <= budgets[key]) return null;
+  const finding = over(rel, key, bytes, budgets);
+  if (key !== "traceBytes") return finding;
+  const name = rel.slice(rel.lastIndexOf("/") + 1);
+  const id = name.endsWith(".md") ? name.slice(0, -".md".length) : name;
+  return {
+    ...finding,
+    note:
+      `the trace file for ${id} is generated, so do not edit it: split the work of ticket ${id} into ` +
+      "smaller tickets",
+  };
+}
+
+// ── Which directory entries are records ──────────────────────────────────────────────────────────
+
+/**
+ * The record rule for the state checks (agent-factory/contracts/board.md): an entry whose name begins with
+ * `.` is not a record. Returns the names that are, in code-unit order. Plan 37-05's integrity rules use
+ * this, never a copy.
+ */
+export function recordEntryNames(names: readonly string[]): string[] {
+  return names.filter((n) => !n.startsWith(".")).sort(compareCodeUnits);
+}
+
+/**
+ * Which directory entries the byte budgets measure: the records that end `.md`. A caller passes the raw
+ * listing and filters nothing itself. A keeper such as `.gitkeep` and a dot-prefixed `.md` file are not
+ * records, so they are never measured. This is the definition of the input set, not an exemption list
+ * (D-11): no record is left out by its name.
+ */
+export function budgetEntryNames(names: readonly string[]): string[] {
+  return recordEntryNames(names).filter((n) => n.endsWith(".md"));
 }
 
 // ── Spelling and order ───────────────────────────────────────────────────────────────────────────

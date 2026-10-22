@@ -51,7 +51,7 @@
 // try/catch so a missing or garbled file becomes a finding, never an unhandled throw
 // (T-06-01/T-06-03, mirrors the MCP admission gate's and install.ts's fail-closed posture).
 
-import { readFileSync, existsSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { readFileSync, existsSync, lstatSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 // Phase 27 (KIT-02): the role and workflow name sets are DERIVED here, never hand-listed.
 // kit-model.ts is the single authority for "which roles and workflows exist" (KIT-01). It reads NO
@@ -90,10 +90,16 @@ import {
 // finding by the layout marker (D-04, D-05). No budget number is typed in this file.
 import {
   boardBudgetFindings,
+  budgetEntryNames,
+  doneRowFindings,
+  fileBytesFinding,
   formatFinding,
   formatMarkerWarning,
+  indexLineFindings,
   markerState,
   sortFindings,
+  unmeasuredFinding,
+  type FileBudgetKey,
   type MarkerState,
   type StateFinding,
 } from "./state-rules.js";
@@ -109,7 +115,10 @@ import {
   LAYOUT_MARKER_REL,
   METRICS_REL,
   NFR_CATALOG_REL,
+  NFR_DIR_REL,
+  PROGRESS_REL,
   TICKETS_REL,
+  TRACE_DIR_REL,
   TRACEABILITY_REL,
 } from "../install/state-layout.js";
 
@@ -823,22 +832,83 @@ function readLayoutMarker(): MarkerState {
 /** The board's budget findings, or the one finding that says the board could not be measured. */
 function boardFindings(): StateFinding[] {
   if (!stateExists(BOARD_REL)) return []; // already a required-file error (checkRequiredFiles)
-  const unmeasured = (note: string): StateFinding[] => [
-    { rel: BOARD_REL, key: "boardBytes", measured: null, budget: BUDGETS.boardBytes, unit: "bytes", note },
-  ];
-  if (!stateIsRegularFile(BOARD_REL)) return unmeasured("not a regular file, so it was not read");
+  if (!stateIsRegularFile(BOARD_REL)) {
+    return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "not a regular file, so it was not read")];
+  }
   const raw = stateRead(BOARD_REL);
-  if (raw === null) return unmeasured("the file could not be read");
+  if (raw === null) return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "the file could not be read")];
   // Read and parsed exactly as checkTickets reads and parses it: the same safe reader, the one grammar.
   const normalized = normalizeDocument(raw);
   const blanked = stripHtmlComments(normalized);
-  return boardBudgetFindings(BOARD_REL, { raw, normalized, blanked }, parseBoard(raw), BUDGETS);
+  const model = parseBoard(raw);
+  return [
+    ...boardBudgetFindings(BOARD_REL, { raw, normalized, blanked }, model, BUDGETS),
+    ...doneRowFindings(BOARD_REL, model, BUDGETS),
+  ];
+}
+
+/** The index-line findings of one of the two index files. A missing file is already a required-file error. */
+function indexFindings(rel: string): StateFinding[] {
+  if (!stateExists(rel)) return [];
+  if (!stateIsRegularFile(rel)) {
+    return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, "not a regular file, so it was not read")];
+  }
+  const raw = stateRead(rel);
+  if (raw === null) return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, "the file could not be read")];
+  const normalized = normalizeDocument(raw);
+  return indexLineFindings(rel, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS);
+}
+
+/**
+ * The byte finding of one record file, measured from its lstat size without opening it (T-37-03). A FIFO, a
+ * directory or a link at the path is not a regular file: it is reported by name and never read. A file whose
+ * size cannot be taken is reported too, so no file is dropped. `missingIsClean` is for the progress file,
+ * which may be absent.
+ */
+function sizeFinding(rel: string, key: FileBudgetKey, missingIsClean: boolean): StateFinding[] {
+  let st;
+  try {
+    st = lstatSync(join(STATE_ROOT, rel));
+  } catch (e) {
+    const code = (e as { code?: unknown }).code;
+    if (missingIsClean && code === "ENOENT") return [];
+    return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read (${String(code ?? "unknown")})`)];
+  }
+  if (!st.isFile()) return [unmeasuredFinding(rel, key, BUDGETS, "not a regular file, so it was not measured")];
+  const finding = fileBytesFinding(rel, st.size, key, BUDGETS);
+  return finding === null ? [] : [finding];
+}
+
+/**
+ * The byte findings of every record in one directory. The raw listing goes to budgetEntryNames, which decides
+ * which entries are records; this function filters no name itself (D-11). A directory that does not exist is
+ * an empty set. A directory that exists and cannot be listed is reported by name, so its files are never
+ * silently unmeasured.
+ */
+function directoryFindings(dirRel: string, key: FileBudgetKey): StateFinding[] {
+  if (!existsSync(join(STATE_ROOT, dirRel))) return [];
+  let names: string[];
+  try {
+    names = readdirSync(join(STATE_ROOT, dirRel));
+  } catch (e) {
+    const code = String((e as { code?: unknown }).code ?? "unknown");
+    return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be listed (${code})`)];
+  }
+  return budgetEntryNames(names).flatMap((name) => sizeFinding(`${dirRel}/${name}`, key, false));
 }
 
 function checkBudgets(): void {
   const marker = readLayoutMarker();
   if (marker.state === "invalid") warn(formatMarkerWarning(LAYOUT_MARKER_REL, marker.reason));
-  const findings = sortFindings([...boardFindings()]);
+  const findings = sortFindings([
+    ...boardFindings(),
+    ...indexFindings(TRACEABILITY_REL),
+    ...indexFindings(NFR_CATALOG_REL),
+    ...directoryFindings(TICKETS_REL, "ticketBytes"),
+    ...directoryFindings(NFR_DIR_REL, "nfrBytes"),
+    ...directoryFindings(TRACE_DIR_REL, "traceBytes"),
+    ...sizeFinding(PROGRESS_REL, "progressBytes", true),
+  ]);
   const route = marker.state === "valid" ? err : warn;
   for (const f of findings) route(formatFinding(f));
   if (marker.state === "absent" && findings.length > 0) {
