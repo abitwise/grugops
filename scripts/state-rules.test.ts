@@ -662,7 +662,7 @@ describe("progressEntries: only a `##` heading that begins with an ISO date open
       "last entry", // 9
       "",
     ].join("\n");
-    const p = progressEntries(text);
+    const p = progressEntries(text, sectionEndIndex);
     expect(p.dated).toEqual([
       { date: "2026-10-21", heading: "2026-10-21 — sweep", line: 2 },
       { date: "2026-10-21", heading: "2026-10-21", line: 8 },
@@ -670,32 +670,61 @@ describe("progressEntries: only a `##` heading that begins with an ISO date open
     expect(p.standing).toEqual([{ heading: "Standing directive 2026-10-21", line: 4 }]);
   });
 
-  it("a `###` or deeper heading is neither dated nor standing, and a bare `##` is standing", () => {
-    const p = progressEntries(["## 2026-10-20 a", "### 2026-10-20 detail", "#### x", "##", "body"].join("\n"));
+  it("a `###` or deeper heading is neither dated nor standing, and neither is a bare `##`: the section-extent owner reads no heading there (plan 37-23)", () => {
+    const p = progressEntries(["## 2026-10-20 a", "### 2026-10-20 detail", "#### x", "##", "body"].join("\n"), sectionEndIndex);
     expect(p.dated).toEqual([{ date: "2026-10-20", heading: "2026-10-20 a", line: 1 }]);
-    expect(p.standing).toEqual([{ heading: "", line: 4 }]);
+    expect(p.standing).toEqual([]);
+  });
+
+  it("WR-02: a `##` line inside a fenced block is no heading, dated or not; the owner decides, so an unterminated fence hides the rest (plan 37-23)", () => {
+    const fence = "`".repeat(3);
+    const text = [
+      "## 2026-10-01 real", // 1
+      fence, // 2
+      "## 2020-01-01 fenced", // 3
+      "## Not a heading", // 4
+      fence, // 5
+      "## Standing directive", // 6
+      "~~~", // 7
+      "## 2019-01-01 in an unterminated fence", // 8
+      "",
+    ].join("\n");
+    const p = progressEntries(text, sectionEndIndex);
+    expect(p.dated).toEqual([{ date: "2026-10-01", heading: "2026-10-01 real", line: 1 }]);
+    expect(p.standing).toEqual([{ heading: "Standing directive", line: 6 }]);
+  });
+
+  it("PREMISE: it asks the passed section-extent function at every `##` line, and classifies only where that function starts a section", () => {
+    const asked: number[] = [];
+    const text = "## 2026-10-01 a\nx\n## 2026-10-02 b\n## Standing\n";
+    const none = progressEntries(text, (t, from, level) => {
+      asked.push(from);
+      return sectionEndIndex(t, from, level) === from ? from + 1 : sectionEndIndex(t, from, level);
+    });
+    expect(asked).toEqual([0, 2, 3]);
+    expect(none).toEqual({ dated: [], standing: [] });
   });
 
   it("a leap day is a calendar date in a leap year only", () => {
-    expect(progressEntries("## 2028-02-29 x").dated).toHaveLength(1);
-    expect(progressEntries("## 2026-02-29 x").dated).toHaveLength(0);
-    expect(progressEntries("## 2000-02-29 x").dated).toHaveLength(1);
-    expect(progressEntries("## 2100-02-29 x").dated).toHaveLength(0);
+    expect(progressEntries("## 2028-02-29 x", sectionEndIndex).dated).toHaveLength(1);
+    expect(progressEntries("## 2026-02-29 x", sectionEndIndex).dated).toHaveLength(0);
+    expect(progressEntries("## 2000-02-29 x", sectionEndIndex).dated).toHaveLength(1);
+    expect(progressEntries("## 2100-02-29 x", sectionEndIndex).dated).toHaveLength(0);
   });
 
   it("PREMISE: it answers no section-extent question; an entry carries its heading line only", () => {
-    const [entry] = progressEntries("## 2026-10-20 a\nbody\n").dated;
+    const [entry] = progressEntries("## 2026-10-20 a\nbody\n", sectionEndIndex).dated;
     expect(Object.keys(entry ?? {}).sort()).toEqual(["date", "heading", "line"]);
   });
 
   it("a date that is not a calendar date, or a date glued to more text, is standing, never rollable", () => {
-    const p = progressEntries(["## 2026-13-01 x", "## 2026-02-30 x", "## 2026-10-21x", "## 2026-1-21 x"].join("\n"));
+    const p = progressEntries(["## 2026-13-01 x", "## 2026-02-30 x", "## 2026-10-21x", "## 2026-1-21 x"].join("\n"), sectionEndIndex);
     expect(p.dated).toEqual([]);
     expect(p.standing.map((s) => s.line)).toEqual([1, 2, 3, 4]);
   });
 
   it("the seed's undated headings are all standing", () => {
-    const p = progressEntries(["# Progress", "## What works", "", "## What's left", "", "## Known issues", ""].join("\n"));
+    const p = progressEntries(["# Progress", "## What works", "", "## What's left", "", "## Known issues", ""].join("\n"), sectionEndIndex);
     expect(p.dated).toEqual([]);
     expect(p.standing.map((s) => s.heading)).toEqual(["What works", "What's left", "Known issues"]);
   });
@@ -712,8 +741,8 @@ describe("doneRowCount", () => {
 });
 
 describe("rollableSurfaces: when a roll is due (D-07, D-08, D-09)", () => {
-  const TWO_DATED = progressEntries("## 2026-10-20 a\nx\n## 2026-10-21 b\ny\n");
-  const STANDING = progressEntries("## Standing directive\nx\n## What works\ny\n");
+  const TWO_DATED = progressEntries("## 2026-10-20 a\nx\n## 2026-10-21 b\ny\n", sectionEndIndex);
+  const STANDING = progressEntries("## Standing directive\nx\n## What works\ny\n", sectionEndIndex);
   const OVER = BUDGETS.progressBytes + 1;
 
   it("21 Done rows make the Done surface rollable; 20 do not", () => {
@@ -751,7 +780,7 @@ describe("progressBytesFinding: an over-budget progress file with nothing to rol
   const OVER = BUDGETS.progressBytes + 1;
 
   it("with no dated entry, the note names each standing heading and the decision records directory", () => {
-    const standing = progressEntries("## Standing directive one\nx\n## What works\ny\n");
+    const standing = progressEntries("## Standing directive one\nx\n## What works\ny\n", sectionEndIndex);
     const f = progressBytesFinding(PROGRESS_REL, OVER, standing, DECISIONS_REL, BUDGETS);
     expect(f?.key).toBe("progressBytes");
     expect(f?.measured).toBe(OVER);
@@ -761,7 +790,7 @@ describe("progressBytesFinding: an over-budget progress file with nothing to rol
   });
 
   it("with a dated entry, the finding carries no such note (the ROLLABLE report says what to run)", () => {
-    const dated = progressEntries("## 2026-10-21 sweep\nx\n## What works\ny\n");
+    const dated = progressEntries("## 2026-10-21 sweep\nx\n## What works\ny\n", sectionEndIndex);
     expect(progressBytesFinding(PROGRESS_REL, OVER, dated, DECISIONS_REL, BUDGETS)?.note).toBeUndefined();
   });
 
@@ -1279,18 +1308,38 @@ describe("planProgressRoll: dated entries roll oldest first until the file is wi
     expect(plan).toEqual({ kind: "none", bytes: 17_000, dated: 0, standing: ["Standing directive"] });
   });
 
-  it("a `##` heading inside a fenced block within a moved entry is refused as ambiguous, never moved as part of it", () => {
+  it("a `##` heading inside a fenced block within a moved entry is no heading: it moves as content of its entry (plan 37-23, WR-02)", () => {
     const fenced = `## 2026-09-01 — old\n\n${FENCE}\n## Not a heading\n${FENCE}\n\n${"x".repeat(9_000)}\n\n`;
-    const plan = planProgressRoll(forms(`${fenced}${sectionOf("2026-10-02 — new", 9_000)}`), BUDGET, sectionEndIndex);
-    expect(plan.kind).toBe("refuse");
-    if (plan.kind === "refuse") expect(plan.reason).toContain("`## Not a heading` on line 4");
+    const text = `${fenced}${sectionOf("2026-10-02 — new", 9_000)}`;
+    // The one classifier reads no heading on line 4: it is fenced.
+    const entries = progressEntries(forms(text).blanked, sectionEndIndex);
+    expect([...entries.dated, ...entries.standing].map((e) => e.line)).toEqual([1, 9]);
+    const plan = planProgressRoll(forms(text), BUDGET, sectionEndIndex);
+    expect(plan.kind).toBe("roll");
+    if (plan.kind !== "roll") return;
+    expect(plan.blocks.map((b) => b.date)).toEqual(["2026-09-01"]);
+    expect(plan.blocks[0]?.texts.join("\n")).toBe(fenced.slice(0, -1));
+    expect(plan.blocks[0]?.texts).toContain("## Not a heading");
   });
 
-  it("a dated heading inside a fenced block is refused: it opens no entry", () => {
-    const text = `${FENCE}\n## 2026-09-01 — fenced\n${FENCE}\n\n${sectionOf("2026-10-02 — new", 17_000)}`;
+  it("a dated heading inside a fenced block opens no entry: the roll moves the real entry and leaves the fence; with the fence alone there is nothing to roll (plan 37-23, WR-02)", () => {
+    const fence = `${FENCE}\n## 2026-09-01 — fenced\n${FENCE}\n\n`;
+    const text = `${fence}${sectionOf("2026-10-02 — new", 17_000)}`;
     const plan = planProgressRoll(forms(text), BUDGET, sectionEndIndex);
-    expect(plan.kind).toBe("refuse");
-    if (plan.kind === "refuse") expect(plan.reason).toContain("inside a fenced block");
+    expect(plan.kind).toBe("roll");
+    if (plan.kind !== "roll") return;
+    expect(plan.dated).toBe(1);
+    expect(plan.blocks.map((b) => b.heading)).toEqual(["2026-10-02 — new"]);
+    expect(plan.lines.every((l) => l > 4)).toBe(true);
+    expect(utf8Bytes(text) - plan.remaining).toBe(17_000);
+    // The fence alone, beside a standing section: no dated entry, nothing to roll (D-09), never a refusal.
+    const alone = `${fence}${sectionOf("Standing directive", 17_000)}`;
+    expect(planProgressRoll(forms(alone), BUDGET, sectionEndIndex)).toEqual({
+      kind: "none",
+      bytes: utf8Bytes(alone),
+      dated: 0,
+      standing: ["Standing directive"],
+    });
   });
 
   it("a moved entry carrying an HTML comment is refused; the same comment on an entry that stays rolls (CONTROL)", () => {
@@ -1321,7 +1370,7 @@ describe("planProgressAppend: the moved entries go to the end of the progress ar
     expect(plan.created).toBe(true);
     expect(plan.text.startsWith(`${PROGRESS_ARCHIVE_TITLE}\n\n<!-- `)).toBe(true);
     expect(plan.text).toBe(`${progressArchiveSkeleton([], PROGRESS_SOURCE_REL)}${SEP15}${OCT01}`);
-    expect(progressEntries(view(plan.text)).dated.map((d) => d.date)).toEqual(["2026-09-15", "2026-10-01"]);
+    expect(progressEntries(view(plan.text), sectionEndIndex).dated.map((d) => d.date)).toEqual(["2026-09-15", "2026-10-01"]);
   });
 
   it("over an existing archive, the entries go after every old line", () => {

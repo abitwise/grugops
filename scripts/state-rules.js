@@ -356,7 +356,10 @@ export function nfrIntegrityFindings(indexRel, parsed, fileNames, nfrDirRel) {
     }
     return findings;
 }
-/** A `##` heading line: exactly two `#`, then a space or the end of the line. `###` and deeper never match. */
+/**
+ * A line that may be a `##` heading: exactly two `#`, then a space or the end of the line. `###` and deeper never
+ * match. Whether the line IS a section heading is the section-extent owner's answer (progressEntries asks it).
+ */
 const SECTION_HEADING = /^##(?: |$)/;
 /**
  * A dated status entry's heading (D-09): `## `, then an ISO date `YYYY-MM-DD`, then a space or the end of the
@@ -373,12 +376,20 @@ function isCalendarDate(ymd) {
     return day >= 1 && day <= days;
 }
 /**
- * The `##` headings of the progress file, each classified (D-09). `text` is LF text; a caller that wants a
- * heading inside an HTML comment ignored passes it through board-model's stripHtmlComments first, which
- * keeps every line.
+ * The `##` section headings of the progress file, each classified (D-09). `text` is LF text; a caller that wants
+ * a heading inside an HTML comment ignored passes it through board-model's stripHtmlComments first, which keeps
+ * every line. `sectionEnd` is the one section-extent owner (D-16): scripts/frontmatter.ts's sectionEndIndex, or
+ * its generated copy in a host runnable.
  *
- * A dated status entry is a `##` heading whose text begins with an ISO date followed by a space or the end of
- * the line: only those roll. Every other `##` heading is standing content (a directive, a ruling, `What
+ * WHICH LINES ARE HEADINGS (plan 37-23, D-17, WR-02). This asks the owner, never a fence test of its own: line
+ * `i` is a `##` section heading only when it starts `## ` and `sectionEnd(text, i, 2) === i`, that is, when the
+ * owner says a level-2 section starts there. A line inside a fenced block (or an HTML block) is no heading, and
+ * neither is a bare `##` (the owner's heading needs a space after its hashes). So state-check, which reports
+ * ROLLABLE from this answer, and the roll planner, which moves entries by it, can never disagree about which
+ * headings exist.
+ *
+ * A dated status entry is such a heading whose text begins with an ISO date followed by a space or the end of
+ * the line: only those roll. Every other `##` section heading is standing content (a directive, a ruling, `What
  * works`): it is listed so a caller can name it, and it never rolls. A `###` or deeper heading is neither.
  *
  * WHAT THIS DOES NOT ANSWER: where an entry ends. That is the section-extent question, and LANG-07 gives it
@@ -386,11 +397,11 @@ function isCalendarDate(ymd) {
  * second section grammar (scripts/check-foundation-guards.test.ts, SECTION_EXTENT_OWNERS). state-check needs
  * only the classification. The roll planner of plan 37-11 takes each entry's extent from that owner.
  */
-export function progressEntries(text) {
+export function progressEntries(text, sectionEnd) {
     const dated = [];
     const standing = [];
     for (const [n, line] of text.split("\n").entries()) {
-        if (!SECTION_HEADING.test(line))
+        if (!SECTION_HEADING.test(line) || sectionEnd(text, n, 2) !== n)
             continue;
         const heading = line.slice("## ".length);
         const date = heading.slice(0, "YYYY-MM-DD".length);
@@ -813,10 +824,13 @@ export function executeRoll(plan, io) {
 // the comment-blanked, normalized text, the same view progressEntries classifies, so a heading inside an HTML
 // comment neither opens nor closes an entry.
 //
+// WHICH HEADINGS ARE ENTRIES (plan 37-23, D-17, WR-02). progressEntries asks the same owner which lines are
+// section headings, so a fenced line or a bare `##` is no heading: a fenced dated heading opens no entry and is
+// moved, as content, with the entry it sits in. Every heading progressEntries returns is a line where the owner
+// starts a level-2 section, so none can sit inside another entry's extent, and state-check's ROLLABLE report
+// and this planner read one answer.
+//
 // WHAT IS REFUSED, NEVER GUESSED AT. Each refusal names the line or the entry and writes nothing:
-// - a dated heading inside a fenced block (it opens no entry), and a `##` heading that progressEntries reads
-//   inside a moved entry's extent without ending it (a fenced one, or a bare `##`), because the entry's extent
-//   would then disagree with the classification;
 // - a moved entry that carries any part of an HTML comment, or a line that is not its normalized line as read
 //   (a byte-order mark on line 1), as for a moved Done row;
 // - an archive whose first line is not the title, and an archive the moved entries would not read back from
@@ -841,7 +855,7 @@ export function planProgressRoll(texts, budgetBytes, sectionEnd) {
         return { kind: "refuse", reason: `the progress budget (${budgetBytes}) is not a whole number of bytes` };
     }
     const bytes = utf8Bytes(texts.raw);
-    const entries = progressEntries(texts.blanked);
+    const entries = progressEntries(texts.blanked, sectionEnd);
     const standing = entries.standing.map((s) => s.heading);
     const dated = entries.dated.length;
     if (bytes <= budgetBytes || dated === 0)
@@ -852,16 +866,10 @@ export function planProgressRoll(texts, budgetBytes, sectionEnd) {
     if (raw.length !== normalized.length || raw.length !== blanked.length) {
         return { kind: "refuse", reason: "the progress file's raw, normalized and comment-blanked forms do not have one line count" };
     }
-    const headingAt = new Map();
-    for (const e of [...entries.dated, ...entries.standing])
-        headingAt.set(e.line - 1, e.heading);
     /** The entry `e` as a block, or the reason it cannot move. */
     const blockOf = (e) => {
         const start = e.line - 1;
         const name = `the entry \`## ${e.heading}\` (line ${e.line})`;
-        if (sectionEnd(texts.blanked, start, 2) !== start) {
-            return `${name} sits inside a fenced block, so it opens no entry; move it out of the fence by hand`;
-        }
         let end = sectionEnd(texts.blanked, start + 1, 2);
         // The empty string after a final line feed is the file's end, not a line of the last entry.
         if (end === raw.length && end - 1 > start && raw[end - 1] === "")
@@ -870,11 +878,6 @@ export function planProgressRoll(texts, budgetBytes, sectionEnd) {
         const out = [];
         let size = 0;
         for (let i = start; i < end; i++) {
-            const inner = headingAt.get(i);
-            if (i > start && inner !== undefined) {
-                return (`the heading \`## ${inner}\` on line ${i + 1} sits inside ${name} without ending it (it is fenced, or ` +
-                    "it has no text after its hashes), so the entry's extent is ambiguous; fix that heading by hand");
-            }
             const rawLine = raw[i];
             const line = normalized[i];
             if (blanked[i] !== line) {

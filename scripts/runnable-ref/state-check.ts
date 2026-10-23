@@ -35,7 +35,9 @@
 // (.grugops/queue/done/ and memory-bank/50-decisions/, v3.0 D-7). These findings take the marker's severity
 // like the budget findings. Two report lines change no exit code by themselves: a `ROLLABLE` line per surface
 // a roll is due on (the Done column, or a progress file over budget that holds a dated status entry, D-08,
-// D-09), naming the state-roll command, and a `MOVE-ONLY` line per move-only surface with its live and
+// D-09), naming the state-roll command; which `##` lines are dated entries is asked of the embedded
+// sectionEndIndex, the section-extent owner state-roll's planner asks too, so a fenced example heading is no
+// entry for either (plan 37-23, WR-02), and a `MOVE-ONLY` line per move-only surface with its live and
 // archived record counts, printed on every run. state-check itself never moves anything.
 //
 // TRACE FRESHNESS (plan 37-09, D-01, D-03). Last, it checks that the rendered trace files match the published
@@ -492,11 +494,11 @@ function isCalendarDate(ymd: string): boolean {
   const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
   return day >= 1 && day <= days;
 }
-export function progressEntries(text: string): ProgressEntries {
+export function progressEntries(text: string, sectionEnd: SectionEndFn): ProgressEntries {
   const dated: DatedEntry[] = [];
   const standing: StandingSection[] = [];
   for (const [n, line] of text.split("\n").entries()) {
-    if (!SECTION_HEADING.test(line)) continue;
+    if (!SECTION_HEADING.test(line) || sectionEnd(text, n, 2) !== n) continue;
     const heading = line.slice("## ".length);
     const date = heading.slice(0, "YYYY-MM-DD".length);
     if (DATED_HEADING.test(line) && isCalendarDate(date)) dated.push({ date, heading, line: n + 1 });
@@ -579,6 +581,7 @@ export function moveOnlyFindings(
       ),
     );
 }
+export type SectionEndFn = (text: string, from: number, level: 1 | 2) => number;
 function grouped(n: number): string {
   return String(n).replace(/(\d)(?=(\d{3})+$)/g, "$1,");
 }
@@ -966,6 +969,86 @@ export function matchUpdateLine(line: string, lineNo: number): UpdateEntry | nul
     line: lineNo,
     truncated: text.cut || actor.cut,
   };
+}
+// from scripts/frontmatter.ts
+const HTML_BLOCK_OPEN = /^ {0,3}<[!/a-zA-Z]/;
+export function blockContextFlags(text: string): boolean[] {
+  const lines = text.split("\n");
+  const flags: boolean[] = [];
+  let inside = false;
+  let openChar = "";
+  let openLen = 0;
+  let html: "none" | "comment" | "tag" = "none";
+  for (const line of lines) {
+    if (html !== "none") {
+      // A COMMENT block ends on the line carrying `-->`; a TAG block ends at the next blank line.
+      const ends = html === "comment" ? line.includes("-->") : /^[ \t]*$/.test(line);
+      flags.push(true);
+      if (ends) html = "none";
+      continue;
+    }
+    const run = strictFenceRun(line);
+    if (!inside) {
+      if (run !== null) {
+        inside = !inside;
+        openChar = run.char;
+        openLen = run.len;
+        flags.push(true);
+        continue;
+      }
+      if (HTML_BLOCK_OPEN.test(line)) {
+        html = line.includes("<!--") ? "comment" : "tag";
+        // A comment that opens and closes on one line, or a tag block on a line that is itself
+        // blank-terminated, does not carry the block past itself.
+        if (html === "comment" && line.includes("-->")) html = "none";
+        flags.push(true);
+        continue;
+      }
+    } else if (
+      run !== null &&
+      run.char === openChar &&
+      run.len >= openLen &&
+      /^[ \t]*$/.test(run.info)
+    ) {
+      // §4.5's closing rule IN FULL here: same character, at least as long, and NO info string.
+      inside = !inside;
+      flags.push(true);
+      continue;
+    }
+    flags.push(inside);
+  }
+  return flags;
+}
+function strictFenceRun(line: string): { char: string; len: number; info: string } | null {
+  const at = line.search(/[^ ]/);
+  if (at < 0 || at > 3) return null;
+  const rest = line.slice(at);
+  const char = rest[0];
+  if (char !== "`" && char !== "~") return null;
+  let len = 0;
+  while (len < rest.length && rest[len] === char) len += 1;
+  if (len < 3) return null;
+  const info = rest.slice(len);
+  if (char === "`" && info.includes("`")) return null; // a backtick fence's info string may not carry one
+  return { char, len, info };
+}
+const HEADING_AT_MOST_1 = /^# /;
+const HEADING_AT_MOST_2 = /^#{1,2} /;
+export function sectionEndIndex(
+  text: string,
+  from: number,
+  level: 1 | 2,
+): number {
+  const lines = text.split("\n");
+  // THE STRICT PROJECTION (round 4, R5-2). "Does this line END a section" must agree with the
+  // renderer or every freeze built on it is fiction; "is this line governed prose" is the other
+  // question and keeps the measured lax view.
+  const flags = blockContextFlags(text);
+  const closes = level === 1 ? HEADING_AT_MOST_1 : HEADING_AT_MOST_2;
+  for (let i = Math.max(from, 0); i < lines.length; i++) {
+    if (!flags[i] && closes.test(lines[i])) return i;
+  }
+  return lines.length;
 }
 // from scripts/trace-model.ts
 export const TRACE_GENERATED_HEADER =
@@ -1884,8 +1967,10 @@ type ProgressReport = {
  * The progress file's byte finding, measured from its lstat size as checkBudgets measures it. Only a file
  * over its budget is read: its dated status entries decide whether it is rollable, and with none the finding
  * names its standing sections and where they belong (D-09, through the embedded progressBytesFinding). The
- * text is comment-blanked first, so an example heading inside an HTML comment opens no entry. A file that was
- * measured and then cannot be read is exit 2, naming it.
+ * text is comment-blanked first, so an example heading inside an HTML comment opens no entry, and the embedded
+ * progressEntries asks the generated sectionEndIndex which lines are headings, so a fenced example heading opens
+ * none either (plan 37-23, WR-02): state-roll classifies with the same owner. A file that was measured and then
+ * cannot be read is exit 2, naming it.
  */
 function progressReport(): ProgressReport {
   const sized = sizeFinding(PROGRESS_REL, "progressBytes", true);
@@ -1893,7 +1978,7 @@ function progressReport(): ProgressReport {
   if (measured === null) return { findings: sized, bytes: null, entries: null };
   const text = readState(PROGRESS_REL, "progress file");
   if (text.kind !== "text") couldNotRun(`the progress file ${PROGRESS_REL} was measured and then could not be read.`);
-  const entries = progressEntries(stripHtmlComments(normalizeDocument(text.text)));
+  const entries = progressEntries(stripHtmlComments(normalizeDocument(text.text)), sectionEndIndex);
   const finding = progressBytesFinding(PROGRESS_REL, measured, entries, DECISIONS_REL, BUDGETS);
   return { findings: finding === null ? [] : [finding], bytes: measured, entries };
 }

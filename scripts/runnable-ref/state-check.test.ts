@@ -808,6 +808,21 @@ const PROGRESS_STANDING = paddedTo(
   BUDGETS.progressBytes + 1,
 );
 
+/** A fenced example of a progress entry: its dated heading sits inside a backtick fence (plan 37-23, WR-02). */
+const FENCED_EXAMPLE = "```markdown\n## 2020-01-01 example entry\nwhat an entry looks like\n```\n";
+
+/** Over budget; its only dated heading is the fenced example, beside a `## Standing directive` section. */
+const PROGRESS_FENCED_ONLY = paddedTo(
+  `# Progress\n\n## Standing directive\nkeep reading\n\n${FENCED_EXAMPLE}\n`,
+  BUDGETS.progressBytes + 1,
+);
+
+/** The same, with a real dated entry above the fence: the fence is that entry's content. */
+const PROGRESS_REAL_ABOVE_FENCE = paddedTo(
+  `# Progress\n\n## 2026-10-01 real entry\ndid things\n\n${FENCED_EXAMPLE}\n## Standing directive\nkeep reading\n`,
+  BUDGETS.progressBytes + 1,
+);
+
 describe("state-check.js — ROLLABLE: the surfaces the daily sweep rolls (plan 37-05, D-07, D-08, D-09)", () => {
   it(`${BUDGETS.doneRows + 1} Done rows print one ROLLABLE line for done naming state-roll; ${BUDGETS.doneRows} print none`, () => {
     const root = cleanRepo();
@@ -842,6 +857,31 @@ describe("state-check.js — ROLLABLE: the surfaces the daily sweep rolls (plan 
     expect(lines[0]).toContain("`## Standing directive 2026-10-21`");
     expect(lines[0]).toContain("`## What works`");
     expect(lines[0]).toContain(`${DECISIONS_REL}/`);
+  });
+
+  it("WR-02: a dated heading inside a fenced block is no entry: not ROLLABLE, and the D-09 note names `## Standing directive` and the decisions folder (plan 37-23)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, PROGRESS_REL, PROGRESS_FENCED_ONLY);
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(rollableLines(r.stdout).filter((l) => l.startsWith("ROLLABLE  progress"))).toEqual([]);
+    const lines = budgetLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^FINDING /);
+    expect(lines[0]).toContain("`## Standing directive`");
+    expect(lines[0]).toContain(`${DECISIONS_REL}/`);
+    expect(lines[0]).not.toContain("2020-01-01");
+  });
+
+  it("WR-02: the same file with a real dated entry above the fence is ROLLABLE (plan 37-23)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, PROGRESS_REL, PROGRESS_REAL_ABOVE_FENCE);
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(1);
+    expect(rollableLines(r.stdout).filter((l) => l.startsWith("ROLLABLE  progress"))).toHaveLength(1);
+    const lines = budgetLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain(`${DECISIONS_REL}/`);
   });
 
   it("--json carries rollable [\"done\", \"progress\"] in that fixed order when both apply", () => {

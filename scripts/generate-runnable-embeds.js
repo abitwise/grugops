@@ -74,6 +74,10 @@ export const EMBED_CLOSE = "// </runnable-embeds>";
  * identifier", which both runnables pass to the trace model, so the trace never keeps a ticket shape of its own.
  * The same plan adds traceFileNameRefusals to the trace renderer's trace-model roots: every planned trace file name
  * is checked before the first write, in both modes.
+ * Plan 37-23 (2026-10-23) adds scripts/frontmatter.ts sectionEndIndex to the state checker's row (D-17, WR-02,
+ * AUTH-1): progressEntries asks the one section-extent owner which progress lines are `##` section headings, and
+ * state-check passes this generated copy, so its ROLLABLE report and state-roll's planner classify dated entries
+ * with one fence-aware answer. D-16 admits the copy inside this fresh generated region; the census is unchanged.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -130,6 +134,7 @@ export const EMBED_SPECS = Object.freeze([
                 module: "scripts/board-model.ts",
                 roots: ["parseBoard", "normalizeDocument", "stripHtmlComments", "isTicketId"],
             },
+            { module: "scripts/frontmatter.ts", roots: ["sectionEndIndex"] },
             {
                 module: "scripts/trace-model.ts",
                 roots: [

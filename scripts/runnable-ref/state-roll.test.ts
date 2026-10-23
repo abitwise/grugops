@@ -351,6 +351,15 @@ const P_SEP15 = sectionOf("2026-09-15 first pass", 400);
 const P_OCT10 = sectionOf("2026-10-10 later", 17_000 - Buffer.byteLength(P_HEAD + P_OCT01 + P_STANDING + P_SEP15));
 const PROGRESS_17K = P_HEAD + P_OCT01 + P_STANDING + P_SEP15 + P_OCT10;
 
+/** A fenced example of a progress entry: its dated heading sits inside a backtick fence (plan 37-23, WR-02). */
+const P_FENCED_EXAMPLE = "```markdown\n## 2020-01-01 example entry\nwhat an entry looks like\n```\n";
+
+/** Over budget; its only dated heading is the fenced example, beside a `## Standing directive` section. */
+const P_FENCED_ONLY = `# Progress\n\n${P_FENCED_EXAMPLE}\n${sectionOf("Standing directive", 17_000)}`;
+
+/** A real dated entry holding the fenced example, then a large `## Standing directive` section. */
+const P_REAL_ABOVE_FENCE = `# Progress\n\n## 2026-10-01 real entry\ndid things\n\n${P_FENCED_EXAMPLE}\n${sectionOf("Standing directive", 17_000)}`;
+
 /** A repository holding `board` and, when given, `progress` at PROGRESS_REL. */
 function repoWith(board: string, progress: string | null): string {
   const root = repo(board);
@@ -409,6 +418,37 @@ describe("state-roll.js — the progress roll on a host (plan 37-11, D-09)", () 
     expect(r.stdout).toContain("`## Standing directive`, `## Ruling on gates`");
     expect(r.stdout).toContain(`${DECISIONS_REL}/`);
     expect(bytesAt(root, PROGRESS_REL)).toBe(standingOnly);
+    expect(existsSync(join(root, ARCHIVE_REL))).toBe(false);
+  });
+
+  it("WR-02: a dated heading inside a fenced block is no entry: the file is unchanged, exit 0, `Nothing can roll` (plan 37-23)", () => {
+    const root = repoWith(boardText(1), P_FENCED_ONLY);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toContain(`Nothing can roll: ${PROGRESS_REL}`);
+    expect(r.stdout).toContain("`## Standing directive`");
+    expect(r.stdout).toContain(`${DECISIONS_REL}/`);
+    expect(bytesAt(root, PROGRESS_REL)).toBe(P_FENCED_ONLY);
+    expect(existsSync(join(root, ARCHIVE_REL))).toBe(false);
+  });
+
+  it("WR-02: with a real dated entry above the fence, --dry-run plans that entry, the fence inside its line span (plan 37-23)", () => {
+    const board = boardText(1);
+    const root = repoWith(board, P_REAL_ABOVE_FENCE);
+    const r = run(root, "--dry-run");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const first = lineNo(P_REAL_ABOVE_FENCE, "## 2026-10-01 real entry");
+    const last = lineNo(P_REAL_ABOVE_FENCE, "## Standing directive") - 1;
+    const fenced = lineNo(P_REAL_ABOVE_FENCE, "## 2020-01-01 example entry");
+    expect(first).toBeLessThan(fenced);
+    expect(fenced).toBeLessThan(last);
+    const bytes = Buffer.byteLength(`${P_REAL_ABOVE_FENCE.split("\n").slice(first - 1, last).join("\n")}\n`);
+    expect(r.stdout).toContain(
+      `PLAN    progress  \`## 2026-10-01 real entry\`  lines ${first}-${last}  ${bytes} bytes  -> ${PROGRESS_ARCHIVE_REL}`,
+    );
+    expect(r.stdout).not.toContain("2020-01-01 example entry`  line");
+    expect(bytesAt(root, PROGRESS_REL)).toBe(P_REAL_ABOVE_FENCE);
     expect(existsSync(join(root, ARCHIVE_REL))).toBe(false);
   });
 

@@ -140,11 +140,11 @@ function isCalendarDate(ymd) {
     const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
     return day >= 1 && day <= days;
 }
-export function progressEntries(text) {
+export function progressEntries(text, sectionEnd) {
     const dated = [];
     const standing = [];
     for (const [n, line] of text.split("\n").entries()) {
-        if (!SECTION_HEADING.test(line))
+        if (!SECTION_HEADING.test(line) || sectionEnd(text, n, 2) !== n)
             continue;
         const heading = line.slice("## ".length);
         const date = heading.slice(0, "YYYY-MM-DD".length);
@@ -426,7 +426,7 @@ export function planProgressRoll(texts, budgetBytes, sectionEnd) {
         return { kind: "refuse", reason: `the progress budget (${budgetBytes}) is not a whole number of bytes` };
     }
     const bytes = utf8Bytes(texts.raw);
-    const entries = progressEntries(texts.blanked);
+    const entries = progressEntries(texts.blanked, sectionEnd);
     const standing = entries.standing.map((s) => s.heading);
     const dated = entries.dated.length;
     if (bytes <= budgetBytes || dated === 0)
@@ -437,16 +437,10 @@ export function planProgressRoll(texts, budgetBytes, sectionEnd) {
     if (raw.length !== normalized.length || raw.length !== blanked.length) {
         return { kind: "refuse", reason: "the progress file's raw, normalized and comment-blanked forms do not have one line count" };
     }
-    const headingAt = new Map();
-    for (const e of [...entries.dated, ...entries.standing])
-        headingAt.set(e.line - 1, e.heading);
     /** The entry `e` as a block, or the reason it cannot move. */
     const blockOf = (e) => {
         const start = e.line - 1;
         const name = `the entry \`## ${e.heading}\` (line ${e.line})`;
-        if (sectionEnd(texts.blanked, start, 2) !== start) {
-            return `${name} sits inside a fenced block, so it opens no entry; move it out of the fence by hand`;
-        }
         let end = sectionEnd(texts.blanked, start + 1, 2);
         // The empty string after a final line feed is the file's end, not a line of the last entry.
         if (end === raw.length && end - 1 > start && raw[end - 1] === "")
@@ -455,11 +449,6 @@ export function planProgressRoll(texts, budgetBytes, sectionEnd) {
         const out = [];
         let size = 0;
         for (let i = start; i < end; i++) {
-            const inner = headingAt.get(i);
-            if (i > start && inner !== undefined) {
-                return (`the heading \`## ${inner}\` on line ${i + 1} sits inside ${name} without ending it (it is fenced, or ` +
-                    "it has no text after its hashes), so the entry's extent is ambiguous; fix that heading by hand");
-            }
             const rawLine = raw[i];
             const line = normalized[i];
             if (blanked[i] !== line) {
