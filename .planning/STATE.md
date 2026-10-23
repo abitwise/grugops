@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-25-PLAN.md
-last_updated: "2026-10-23T16:13:48.560Z"
+stopped_at: Completed 37-26-PLAN.md
+last_updated: "2026-10-23T16:46:34.625Z"
 last_activity: 2026-10-23
 last_activity_desc: Phase 37 execution started
-state_head: b29d386974a2cd663e79016be808d11e8bb85e26
+state_head: 6c46b7384f3aa4e721bf3672acdf44998f0c2bc7
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 42
-  completed_plans: 40
+  completed_plans: 41
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 26 of 27
+Plan: 27 of 27
 Status: Ready to execute
 Last activity: 2026-10-23 — Phase 37 execution started
 
@@ -754,6 +754,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P23 | 24 min | 2 tasks | 12 files |
 | Phase 37 P24 | 53 min | 2 tasks | 15 files |
 | Phase 37 P25 | 33 min | 2 tasks | 5 files |
+| Phase 37 P26 | 30 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -2068,6 +2069,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-23: progressEntries(text, sectionEnd) classifies a ## line only where sectionEnd(text, i, 2) === i; state-check embeds sectionEndIndex, so ROLLABLE and state-roll read one fence-aware classifier (WR-02)
 - [Phase 37]: 37-23: planProgressRoll's fenced-dated-heading and inner-heading ambiguity refusals removed as unreachable with one classifier; a census pins the one classifier
 - [Phase 37]: 37-25: READ-1 rows over the three runnables are derived by deriveReadSites/callingSites (16, 19, 11 sites; 95 pairs; 162 rows); an exit-1 row must add a finding line to the unfaulted run and an exit-2 row must be refused by name, never through the 37-20 backstop; state-check names an unresolvable own directory as runnable-version-skew
+- [Phase 37]: Plan 37-26: the validator treats only ENOENT as absent (statAt/lstatAt/textAt/namesAt/canonicalBase); read failures outside checkBudgets are ERRORS whatever the marker, inside it unmeasured budget findings under the marker, and an unreadable marker is an ERROR; ENOTDIR is a failure (IN-03 suggestion not adopted)
 
 ### Pending Todos
 
@@ -2399,8 +2401,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-23T16:13:31.433Z
-Stopped at: Completed 37-25-PLAN.md
+Last session: 2026-10-23T16:46:34.331Z
+Stopped at: Completed 37-26-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
