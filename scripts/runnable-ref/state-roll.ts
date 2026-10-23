@@ -49,9 +49,14 @@
 // as ticket-duplicated meanwhile (plan 37-12).
 //
 // THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and one that resolves outside
-// realpath(root) is refused by name. Every state file is lstat'ed before it is opened, so a FIFO is never opened
-// and a symbolic link is never replaced by a file. The archive directory is created only when it is absent and a
-// roll is to be written, after its parent's realpath is confirmed inside the root.
+// realpath(root) is refused by name. Whether a state directory or a state file is there is answered by the embedded
+// entryPresence, the one absence owner of the three runnables (plan 37-30, D-18): only an lstat ENOENT on the path
+// or one of its components is "absent". A dangling link at the path or at an ancestor, a component that is not a
+// directory, or any other failure to reach the path is a refusal by name that carries the owner's reason, never
+// "nothing there". The owner's lstat comes before any open, so a FIFO is never opened and a symbolic link is never
+// replaced by a file; a reader that finds nothing after the owner said "present" is a refusal (the file vanished),
+// never absence. The archive directory is created only when it is absent and a roll is to be written, after its
+// parent's realpath is confirmed inside the root.
 //
 // EVERY WRITE IS ATOMIC. Each file goes through the embedded atomicWrite (a temp sibling, then a rename), so an
 // interrupted roll leaves each file either its old or its new bytes.
@@ -78,8 +83,9 @@ import * as nodePath from "node:path";
 
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 import { randomUUID } from "node:crypto";
-import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-export const RUNNABLE_SET_STAMP = "sha256:af74adb4badd0c3718dddff6c9ab9d78d09f18f9ba5b2c8e5288a3b59e9da296";
+import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { join, parse, resolve, sep } from "node:path";
+export const RUNNABLE_SET_STAMP = "sha256:dc5316137a03b4016d1ee85ce3bf9e36cb9934eb66f392a3043ac3d0243f68ec";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "state-roll.js";
 // from install/state-layout.ts
@@ -1279,6 +1285,69 @@ export function readRegularFileOrNull(
     closeSync(fd);
   }
 }
+export type EntryPresence =
+  | { readonly kind: "absent" }
+  | { readonly kind: "unreadable"; readonly code: string; readonly reason: string }
+  | { readonly kind: "present"; readonly entry: Stats; readonly target: Stats; readonly real: string };
+function presenceCode(e: unknown): string {
+  const code = (e as NodeJS.ErrnoException | null)?.code;
+  return typeof code === "string" && code !== "" ? code : "unknown";
+}
+export function entryPresence(path: string): EntryPresence {
+  const full = resolve(path);
+  const top = parse(full).root;
+  // Every prefix from the filesystem root to the path itself, so one lstat, one stat and one realpath answer for
+  // every component.
+  const prefixes: string[] = [top];
+  for (const name of full.slice(top.length).split(sep)) {
+    if (name !== "") prefixes.push(join(prefixes[prefixes.length - 1] as string, name));
+  }
+  for (let i = 0; ; i += 1) {
+    const at = prefixes[i] as string;
+    const last = i === prefixes.length - 1;
+    let entry: Stats;
+    try {
+      entry = lstatSync(at);
+    } catch (e) {
+      const code = presenceCode(e);
+      if (code === "ENOENT") return { kind: "absent" };
+      return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})` };
+    }
+    // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
+    // path names, and the one stat site is reached under every caller.
+    let target = entry;
+    if (entry.isSymbolicLink() || last) {
+      try {
+        target = statSync(at);
+      } catch (e) {
+        const code = presenceCode(e);
+        return {
+          kind: "unreadable",
+          code,
+          reason: !entry.isSymbolicLink()
+            ? `"${at}" cannot be inspected (${code})`
+            : last
+              ? `it is a symbolic link whose target cannot be reached (${code})`
+              : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+        };
+      }
+    }
+    if (!last) {
+      if (!target.isDirectory()) {
+        return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)` };
+      }
+      continue;
+    }
+    let real: string;
+    try {
+      real = realpathSync(at);
+    } catch (e) {
+      const code = presenceCode(e);
+      return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})` };
+    }
+    return { kind: "present", entry, target, real };
+  }
+}
 // </runnable-embeds>
 
 // ── The hand-written part: argv, the boundary checks, the reads, the plans, the io and the report ─────────
@@ -1398,53 +1467,39 @@ function relBase(rel: string): string {
 }
 
 /**
- * The real path of the directory at `rel`, or null when nothing is there. Anything else is refused by name: a
- * path that resolves outside the root, a present entry that is not a directory, or one that cannot be resolved.
+ * The real path of the directory at `rel`, or null when nothing is there. The embedded entryPresence answers
+ * whether anything is (plan 37-30, D-18), with the same mapping as trace-render's: absent is null; unreadable (a
+ * dangling link at the path or at an ancestor, a component that is not a directory, any other failure) is refused
+ * by name with the owner's reason; a path that resolves outside the root, or a present entry that is not a
+ * directory, is refused as before.
  */
 function realDirectoryOrNull(rel: string, what: string): string | null {
-  const path = abs(rel);
-  try {
-    nodeFs.lstatSync(path);
-  } catch (e) {
-    if (codeOf(e) === "ENOENT") return null;
-    couldNotRun(`${what} ${rel} cannot be inspected (${codeOf(e)}).`);
-  }
-  let real: string;
-  try {
-    real = nodeFs.realpathSync(path);
-  } catch (e) {
-    couldNotRun(`${what} ${rel} cannot be resolved (${codeOf(e)}).`);
-  }
-  if (!insideRoot(real)) couldNotRun(`${what} ${rel} resolves outside the repository root, so it was not used.`);
-  let st: nodeFs.Stats;
-  try {
-    st = nodeFs.statSync(real);
-  } catch (e) {
-    couldNotRun(`${what} ${rel} cannot be inspected (${codeOf(e)}).`);
-  }
-  if (!st.isDirectory()) couldNotRun(`${what} ${rel} is not a directory.`);
-  return real;
+  const presence = entryPresence(abs(rel));
+  if (presence.kind === "absent") return null;
+  if (presence.kind === "unreadable") couldNotRun(`${what} ${rel} cannot be inspected: ${presence.reason}.`);
+  if (!insideRoot(presence.real)) couldNotRun(`${what} ${rel} resolves outside the repository root, so it was not used.`);
+  if (!presence.target.isDirectory()) couldNotRun(`${what} ${rel} is not a directory.`);
+  return presence.real;
 }
 
 /**
- * The text of the file at `path` (`rel` names it), or null when nothing is there. It is lstat'ed first, so a
- * symbolic link, a FIFO, a device or a directory is refused by name and never opened; then it is read through
- * the embedded non-blocking reader under the read ceiling. A text holding U+FFFD is refused too: a roll writes
- * text, so a byte the decoder replaced would not be written back as it was. Every refusal THROWS, so the
+ * The text of the file at `path` (`rel` names it), or null when nothing is there. The embedded entryPresence answers
+ * whether anything is (plan 37-30, D-18): absent is null, and unreadable (a dangling link, a dangling ancestor, any
+ * other failure to reach the path) is refused with the owner's reason. A present entry is judged by its own lstat,
+ * so a symbolic link, a FIFO, a device or a directory is refused by name and never opened; then the file is read
+ * through the embedded non-blocking reader under the read ceiling. A reader that finds nothing after the owner said
+ * "present" is refused (the path vanished), never read as absent. A text holding U+FFFD is refused too: a roll
+ * writes text, so a byte the decoder replaced would not be written back as it was. Every refusal THROWS, so the
  * executor can still restore both files when a re-read during the roll is refused.
  */
 function readTextOrThrow(rel: string, path: string): string | null {
-  let st: nodeFs.Stats;
-  try {
-    st = nodeFs.lstatSync(path);
-  } catch (e) {
-    if (codeOf(e) === "ENOENT") return null;
-    throw new Error(`${rel} cannot be inspected (${codeOf(e)})`);
-  }
-  if (st.isSymbolicLink()) {
+  const presence = entryPresence(path);
+  if (presence.kind === "absent") return null;
+  if (presence.kind === "unreadable") throw new Error(`${rel} cannot be inspected: ${presence.reason}`);
+  if (presence.entry.isSymbolicLink()) {
     throw new Error(`${rel} is a symbolic link, and a roll would replace the link with a file`);
   }
-  if (!st.isFile()) throw new Error(`${rel} is present and is not a regular file, so it was not opened`);
+  if (!presence.entry.isFile()) throw new Error(`${rel} is present and is not a regular file, so it was not opened`);
   let text: string | null;
   try {
     text = readRegularFileOrNull(path, READ_CEILING_BYTES, "state file");
@@ -1452,7 +1507,8 @@ function readTextOrThrow(rel: string, path: string): string | null {
     const condition = e instanceof ReadPositionRefusal ? e.condition : codeOf(e);
     throw new Error(`${rel} is present and cannot be read (${condition})`);
   }
-  if (text !== null && text.includes("�")) {
+  if (text === null) throw new Error(`${rel} was present and then could not be found, so it was not read`);
+  if (text.includes("�")) {
     throw new Error(
       `${rel} holds U+FFFD or bytes that are not UTF-8, and a roll writes text, so those bytes would not be kept`,
     );

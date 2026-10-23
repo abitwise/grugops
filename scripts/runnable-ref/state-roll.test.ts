@@ -37,12 +37,14 @@ import {
   BOARD_REL,
   BUDGETS,
   DECISIONS_REL,
+  MEMORY_BANK_REL,
   PROGRESS_ARCHIVE_REL,
   PROGRESS_REL,
   QUEUE_DONE_REL,
 } from "../../install/state-layout.js";
 import { parseBoard } from "../board-model.js";
 import { DONE_ARCHIVE_HEADING, PROGRESS_ARCHIVE_TITLE } from "../state-rules.js";
+import { treeDigest } from "../fault-inject.test-support.js";
 
 const ROLL_TS = join(import.meta.dirname, "state-roll.ts");
 const ROLL_JS = join(import.meta.dirname, "state-roll.js");
@@ -660,4 +662,91 @@ describe("state-roll.ts imports node: builtins only and carries its rules in the
       expect(source.split(`export function ${name}(`).length - 1, name).toBe(1);
     }
   });
+});
+
+// ── Plan 37-30 (D-18, READ-1 round 2): a dangling link at a state-roll position is never absent ─────────────
+
+/** The shared shape of the owner's reason for a link whose target cannot be reached (the path itself or an ancestor). */
+const UNREACHABLE_LINK = /symbolic link .*target (that )?cannot be reached/;
+
+/** Where a row plants its dangling link, and what the fixture needs besides the board and the progress file. */
+const DANGLING_ROWS: readonly { readonly label: string; readonly rel: string; readonly archiveDir: boolean }[] = [
+  { label: "the archive directory", rel: ARCHIVE_REL, archiveDir: false },
+  { label: "the Done archive", rel: BOARD_DONE_ARCHIVE_REL, archiveDir: true },
+  { label: "the progress file", rel: PROGRESS_REL, archiveDir: false },
+  { label: "the progress archive", rel: PROGRESS_ARCHIVE_REL, archiveDir: true },
+  { label: "the state directory", rel: dirname(BOARD_REL), archiveDir: false },
+];
+
+const DANGLING_MODES: readonly (readonly string[])[] = [[], ["--dry-run"]];
+
+/**
+ * A repository where both rolls are planned (a Done column over BUDGETS.doneRows, a progress file over budget),
+ * with a dangling link at `rel`; or the printed platform reason the link could not be made.
+ */
+function danglingRepo(rel: string, archiveDir: boolean): string | { readonly skip: string } {
+  const root = repoWith(boardText(KEEP + 1), PROGRESS_17K);
+  if (archiveDir) mkdirSync(join(root, ARCHIVE_REL));
+  const at = join(root, rel);
+  rmSync(at, { recursive: true, force: true });
+  const skipped = stageSymlinkOrSkip(
+    join(root, "no-such-target"),
+    at,
+    "dangling symlink (its target does not exist)",
+    `scripts/runnable-ref/state-roll.test.ts: a dangling link at ${rel} (plan 37-30)`,
+  );
+  if (skipped !== null) return { skip: skipLine(skipped, "the dangling-link rows of state-check.test.ts (the same absence owner)") };
+  if (!lstatSync(at).isSymbolicLink()) throw new Error(`PREMISE: ${rel} is a link`);
+  return root;
+}
+
+describe("state-roll.js — a dangling link at an archive or progress position is refused by name, never absent (plan 37-30, D-18)", () => {
+  for (const row of DANGLING_ROWS) {
+    for (const mode of DANGLING_MODES) {
+      const label = mode.length === 0 ? "write mode" : "--dry-run";
+      it(`${row.label} (${row.rel}), ${label}: exit 2 naming the path, nothing written`, () => {
+        const root = danglingRepo(row.rel, row.archiveDir);
+        if (typeof root !== "string") {
+          console.warn(root.skip);
+          return;
+        }
+        const before = treeDigest(root);
+        const r = run(root, ...mode);
+        expect(r.status, r.stdout + r.stderr).toBe(2);
+        expect(r.stdout).toBe("");
+        expect(r.stderr).toContain(row.rel);
+        expect(r.stderr).toContain("Nothing was rolled.");
+        expect(treeDigest(root)).toEqual(before);
+      });
+
+      it(`${row.label} (${row.rel}), ${label}: the refusal carries the owner's reason`, () => {
+        const root = danglingRepo(row.rel, row.archiveDir);
+        if (typeof root !== "string") {
+          console.warn(root.skip);
+          return;
+        }
+        const r = run(root, ...mode);
+        expect(r.status, r.stdout + r.stderr).toBe(2);
+        expect(r.stderr).toMatch(UNREACHABLE_LINK);
+      });
+    }
+  }
+
+  for (const mode of DANGLING_MODES) {
+    const label = mode.length === 0 ? "write mode" : "--dry-run";
+    it(`a dangling ${MEMORY_BANK_REL} (an ancestor of every state path), ${label}: exit 2 by the link, never "does not exist"`, () => {
+      const root = danglingRepo(MEMORY_BANK_REL, false);
+      if (typeof root !== "string") {
+        console.warn(root.skip);
+        return;
+      }
+      const before = treeDigest(root);
+      const r = run(root, ...mode);
+      expect(r.status, r.stdout + r.stderr).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toMatch(UNREACHABLE_LINK);
+      expect(r.stderr).not.toContain("does not exist");
+      expect(treeDigest(root)).toEqual(before);
+    });
+  }
 });

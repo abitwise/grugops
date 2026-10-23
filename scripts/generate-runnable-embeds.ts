@@ -119,6 +119,10 @@ export type EmbedSpec = {
  * notes. The same plan adds readTaskNoteRefs and listContextTasks to both rows (D-18, CR-04): the one task read and
  * the one context-root listing, so a context-root entry that is not a task directory (a symbolic link of any kind, a
  * regular file, a FIFO) is a failed task by name in both runnables and no hand-written part decides presence.
+ * Plan 37-30 (2026-10-24) adds scripts/context-io.ts entryPresence to the context-io roots of the state roll's row
+ * (D-18, READ-1 round 2): state-roll's realDirectoryOrNull and readTextOrThrow ask the one absence owner, so a
+ * dangling archive, progress or state-directory link (or a dangling ancestor) is a refusal by name and never absent,
+ * and "is this path present" has one answer in all three runnables.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -276,7 +280,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
       },
       { module: "scripts/board-model.ts", roots: ["parseBoard", "normalizeDocument", "stripHtmlComments"] },
       { module: "scripts/frontmatter.ts", roots: ["sectionEndIndex"] },
-      { module: "scripts/context-io.ts", roots: ["readRegularFileOrNull", "atomicWrite"] },
+      { module: "scripts/context-io.ts", roots: ["readRegularFileOrNull", "atomicWrite", "entryPresence"] },
     ],
   },
 ]);

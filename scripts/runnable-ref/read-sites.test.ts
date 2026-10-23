@@ -111,10 +111,14 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * `traceDirectory:statSync#0` and `readTraceText:lstatSync#0` are gone (net -4). The owner's three sites gain the
  * callers `<top>#0` (the pre-write check) and `readText#0` in trace-render, and `runnableSkewFindings#0` (each
  * sibling program) in state-check.
+ * 2026-10-24, plan 37-30 (Task 1): 12, 15 and 10 read sites. state-roll embeds the absence owner (D-18), so its
+ * realDirectoryOrNull asks it and `realDirectoryOrNull:{lstatSync,realpathSync,statSync}#0` are gone (net -3), and
+ * readTextOrThrow asks it and `readTextOrThrow:lstatSync#0` is gone (net -1); the owner's three sites arrive (net
+ * +3), each entered from two callers, `realDirectoryOrNull#0` and `readTextOrThrow#0`.
  */
 const TRACE_RENDER_READ_SITES = 12;
 const STATE_CHECK_READ_SITES = 15;
-const STATE_ROLL_READ_SITES = 11;
+const STATE_ROLL_READ_SITES = 10;
 const PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_READ_SITES,
   "state-check": STATE_CHECK_READ_SITES,
@@ -162,6 +166,8 @@ const TR_PRESENCE_CALLERS = [
   "readText#0",
 ];
 const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "locate#0", "runnableSkewFindings#0"];
+/** The callers of the absence owner in state-roll (plan 37-30): realDirectoryOrNull and readTextOrThrow. */
+const SR_PRESENCE_CALLERS = ["realDirectoryOrNull#0", "readTextOrThrow#0"];
 
 const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   // trace-render: the embedded non-blocking reader (via readText and via the note walk) and the note walk.
@@ -230,22 +236,20 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("state-check", SC, "listDir:readdirSync#0", ["compareTraceTree#0", "traceReport#0"]),
   ...rows("state-check", SC, "runnableSkewFindings:realpathSync#0"),
 
-  // state-roll: the embedded reader (one caller, readTextOrThrow), the root, realDirectoryOrNull under each call.
+  // state-roll: the embedded reader (one caller, readTextOrThrow) and the root.
   ...rows("state-roll", SR, "readRegularFileOrNull:openSync#0"),
   ...rows("state-roll", SR, "readRegularFileOrNull:fstatSync#0"),
   ...rows("state-roll", SR, "readRegularFileOrNull:readSync#0"),
   ...rows("state-roll", SR, "<top>:realpathSync#0"),
   ...rows("state-roll", SR, "<top>:statSync#0"),
   ...rows("state-roll", SR, "<top>:accessSync#0"),
-  ...rows("state-roll", SR, "realDirectoryOrNull:lstatSync#0", ["<top>#0", "<top>#1", "<top>#2", "<top>#3"]),
-  // <top>#2 is the archive directory: without one, realDirectoryOrNull returns at its lstat.
-  ...rows("state-roll", SR, "realDirectoryOrNull:realpathSync#0", ["<top>#0", "<top>#1", "<top>#3"]),
-  ...rows("state-roll", ["write", "dry-run"], "realDirectoryOrNull:realpathSync#0", ["<top>#2"]),
-  ...rows("state-roll", SR, "realDirectoryOrNull:statSync#0", ["<top>#0", "<top>#1", "<top>#3"]),
-  ...rows("state-roll", ["write", "dry-run"], "realDirectoryOrNull:statSync#0", ["<top>#2"]),
-  // readTextOrThrow: the planning reads (readText), and the roll's own re-reads (io.read), which a dry run never makes.
-  ...rows("state-roll", SR, "readTextOrThrow:lstatSync#0", ["readText#0"]),
-  ...rows("state-roll", ["write", "write-new-archive"], "readTextOrThrow:lstatSync#0", ["io.read#0"]),
+  // state-roll: the one absence owner (plan 37-30, D-18), under its two callers. realDirectoryOrNull (the state
+  // directory, the archive directory, the memory bank directory) and readTextOrThrow (the planning reads through
+  // readText, and the roll's re-reads through io.read) make no read of their own since plan 37-30. The first call
+  // of each caller (the state directory, the board) reaches all three owner sites in every mode.
+  ...rows("state-roll", SR, "entryPresence:lstatSync#0", SR_PRESENCE_CALLERS),
+  ...rows("state-roll", SR, "entryPresence:statSync#0", SR_PRESENCE_CALLERS),
+  ...rows("state-roll", SR, "entryPresence:realpathSync#0", SR_PRESENCE_CALLERS),
   // The realpath after the roll creates the archive directory: only a repository without one reaches it.
   ...rows("state-roll", ["write-new-archive"], "<top>:realpathSync#1"),
 ];
@@ -793,8 +797,8 @@ describe("READ-1 table: a mode a row does not list reaches no fault there", () =
 
 // ── The one-owner census (plan 37-29, D-18, READ-1 round 2) ──────────────────────────────────────────────
 
-/** The runnables the census covers in this plan; plan 37-30 adds state-roll. */
-const ONE_OWNER_RUNNABLES = ["trace-render", "state-check"] as const;
+/** The runnables the census covers: trace-render and state-check since plan 37-29, state-roll since plan 37-30. */
+const ONE_OWNER_RUNNABLES = ["trace-render", "state-check", "state-roll"] as const;
 
 /** The only functions in which a runnable may compare a code with the string literal ENOENT. */
 const ENOENT_OWNERS = ["entryPresence", "readRegularFileOrNull"] as const;
@@ -808,6 +812,7 @@ const ENOENT_OWNERS = ["entryPresence", "readRegularFileOrNull"] as const;
 const ENOENT_COMPARISONS: Record<(typeof ONE_OWNER_RUNNABLES)[number], number> = {
   "trace-render": 2,
   "state-check": 2,
+  "state-roll": 2,
 };
 
 /** The two option names that let a read decide absence or entry type in place of the owner. */
