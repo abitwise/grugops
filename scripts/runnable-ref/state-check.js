@@ -70,9 +70,10 @@
 // computes over all three programs' generated bodies, with RUNNABLE_SET (the programs built together) and
 // RUNNABLE_SELF. After the trace report, this file reads every other program in RUNNABLE_SET from its own directory
 // through the embedded non-blocking reader, and asks the embedded readRunnableStamp (scripts/runnable-stamp.ts, the
-// one owner of the stamp line's shape) for its stamp. A sibling that is absent is no finding: a host may run this
-// file alone. A sibling whose stamp differs from this file's own, that carries no stamp or more than one, or that is
-// present and could not be read (unopenable, not a regular file, above the ceiling) is one runnable-version-skew
+// one owner of the stamp line's shape) for its stamp. A sibling that is absent (the generated entryPresence's answer,
+// plan 37-29) is no finding: a host may run this file alone. A sibling whose stamp differs from this file's own,
+// that carries no stamp or more than one, that is a link whose target cannot be reached, that vanished after it was
+// seen, or that is present and could not be read (unopenable, not a regular file, above the ceiling) is one runnable-version-skew
 // finding naming it, under the marker's severity like every integrity finding. The remedy is stated to a human:
 // remove the three programs and install them again together. This file never replaces or removes one.
 //
@@ -1602,10 +1603,11 @@ function locate(rel) {
 /**
  * The text of the state file at `rel`, or that it is absent or outside the root.
  *
- * The resolved path is stat'ed first, so a path that is present and is not a regular file (a FIFO, a device,
- * a socket, a directory) is refused without being opened. The read goes through the embedded non-blocking
- * reader, which checks the shape again on the open descriptor. A file that is present and cannot be read is
- * never treated as absent: it is exit 2, naming the file.
+ * Whether it is present is the absence owner's answer, through locate (plan 37-29, D-18): a path the owner refuses
+ * is exit 2 naming it. What the path names is the owner's stat, so a path that is present and is not a regular file
+ * (a FIFO, a device, a socket, a directory) is refused without being opened. The read goes through the embedded
+ * non-blocking reader, which checks the shape again on the open descriptor. A file that is present and cannot be
+ * read, or that the reader can no longer find (it vanished), is never treated as absent: it is exit 2, naming it.
  */
 function readState(rel, what) {
     const at = locate(rel);
@@ -1613,16 +1615,7 @@ function readState(rel, what) {
         couldNotRun(`cannot resolve the ${what} ${rel}: ${at.reason}.`);
     if (at.kind !== "inside")
         return at;
-    let st;
-    try {
-        st = nodeFs.statSync(at.real, { throwIfNoEntry: false });
-    }
-    catch (e) {
-        couldNotRun(`cannot inspect the ${what} ${rel} (${codeOf(e)}).`);
-    }
-    if (st === undefined)
-        return { kind: "absent" };
-    if (!st.isFile())
+    if (!at.target.isFile())
         couldNotRun(`the ${what} ${rel} is present and is not a regular file, so it was not opened.`);
     let text;
     try {
@@ -1632,7 +1625,9 @@ function readState(rel, what) {
         const condition = e instanceof ReadPositionRefusal ? e.condition : codeOf(e);
         couldNotRun(`the ${what} ${rel} is present and cannot be read (${condition}).`);
     }
-    return text === null ? { kind: "absent" } : { kind: "text", text };
+    if (text === null)
+        couldNotRun(`the ${what} ${rel} was present and then could not be found, so it was not read.`);
+    return { kind: "text", text };
 }
 /** The layout marker's state. A marker that resolves outside the root is invalid by name and never read. */
 function readMarker() {
@@ -1673,10 +1668,11 @@ function indexFindings(rel, index) {
     return indexLineFindings(rel, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS);
 }
 /**
- * The byte finding of one file, measured from its lstat size without opening it. A FIFO, a directory or a
- * link at the path is not a regular file: it is reported by name and never measured. A path that resolves
- * outside the root, or whose size cannot be taken, is reported too, so no file is dropped. `missingIsClean`
- * is for the progress file, which may be absent.
+ * The byte finding of one file, measured from its lstat size without opening it: the absence owner's lstat of the
+ * entry, through locate (plan 37-29, D-18). A FIFO, a directory or a link at the path is not a regular file: it is
+ * reported by name and never measured. A path that resolves outside the root, or that the owner refuses (a link at
+ * it or on it whose target cannot be reached), is reported too, so no file is dropped. `missingIsClean` is for the
+ * progress file, which may be absent: only the owner's absent is missing.
  */
 function sizeFinding(rel, key, missingIsClean) {
     const at = locate(rel);
@@ -1687,16 +1683,9 @@ function sizeFinding(rel, key, missingIsClean) {
         return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read: ${at.reason}`)];
     if (at.kind === "outside")
         return [unmeasuredFinding(rel, key, BUDGETS, OUTSIDE_ROOT)];
-    let st;
-    try {
-        st = nodeFs.lstatSync(at.abs);
-    }
-    catch (e) {
-        return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read (${codeOf(e)})`)];
-    }
-    if (!st.isFile())
+    if (!at.entry.isFile())
         return [unmeasuredFinding(rel, key, BUDGETS, "not a regular file, so it was not measured")];
-    const finding = fileBytesFinding(rel, st.size, key, BUDGETS);
+    const finding = fileBytesFinding(rel, at.entry.size, key, BUDGETS);
     return finding === null ? [] : [finding];
 }
 /** The note on a directory that resolves outside the repository root. */
@@ -1834,7 +1823,7 @@ function insideRoot(real) {
  * Resolve the directory at `rel` before it is used. A path the absence owner refuses (a link at it or at an
  * ancestor whose target cannot be reached, or one that cannot be inspected) is `refused` with the owner's reason,
  * and the caller decides its outcome (plan 37-29, IN-10): it is never absent. A present entry that is not a
- * directory, or one whose stat fails, is could-not-run (exit 2), naming it.
+ * directory is could-not-run (exit 2), naming it.
  */
 function traceDirectory(rel, what) {
     const at = locate(rel);
@@ -1842,14 +1831,7 @@ function traceDirectory(rel, what) {
         return at;
     if (at.kind === "error")
         return { kind: "refused", reason: at.reason };
-    let st;
-    try {
-        st = nodeFs.statSync(at.real);
-    }
-    catch (e) {
-        couldNotRun(`cannot inspect ${what} ${rel} (${codeOf(e)}).`);
-    }
-    if (!st.isDirectory())
+    if (!at.target.isDirectory())
         couldNotRun(`${what} ${rel} is present and is not a directory.`);
     return { kind: "dir", real: at.real };
 }
@@ -1864,8 +1846,10 @@ function readTraceTask(task, contextReal) {
 }
 /**
  * The text the trace model compares with, at a path it composed as `<root>/<rel>`, or null when nothing is
- * there. realpath first, then lstat, so a link, a FIFO or a directory is refused by name and never opened; then
- * the embedded non-blocking reader under the model's trace-file ceiling. Every refusal is could-not-run.
+ * there. Whether anything is there is the absence owner's answer, through locate (plan 37-29, D-18), and its lstat
+ * of the entry decides the shape, so a link, a FIFO or a directory is refused by name and never opened; then the
+ * embedded non-blocking reader under the model's trace-file ceiling. A file the owner reported present that the
+ * reader then cannot find vanished, and is refused, never missing. Every refusal is could-not-run.
  */
 function readTraceText(path) {
     const rel = path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
@@ -1876,24 +1860,19 @@ function readTraceText(path) {
         couldNotRun(`cannot resolve the trace file ${rel}: ${at.reason}.`);
     if (at.kind === "outside")
         couldNotRun(`the trace file ${rel} resolves outside the repository root, so it was not read.`);
-    let st;
-    try {
-        st = nodeFs.lstatSync(at.abs);
-    }
-    catch (e) {
-        if (codeOf(e) === "ENOENT")
-            return null;
-        couldNotRun(`cannot inspect the trace file ${rel} (${codeOf(e)}).`);
-    }
-    if (!st.isFile())
+    if (!at.entry.isFile())
         couldNotRun(`the trace file ${rel} is present and is not a regular file, so it was not opened.`);
+    let text;
     try {
-        return readRegularFileOrNull(at.real, TRACE_FILE_MAX_BYTES, "trace file");
+        text = readRegularFileOrNull(at.real, TRACE_FILE_MAX_BYTES, "trace file");
     }
     catch (e) {
         const condition = e instanceof ReadPositionRefusal ? e.condition : codeOf(e);
         couldNotRun(`the trace file ${rel} is present and cannot be read (${condition}).`);
     }
+    if (text === null)
+        couldNotRun(`the trace file ${rel} was present and then could not be found, so it was not compared.`);
+    return text;
 }
 /**
  * Whether the rendered trace matches the published notes, by the embedded trace model. `index` is the index
@@ -2028,6 +2007,16 @@ function runnableSkewFindings() {
         const rel = hereReal !== null && insideRoot(hereReal)
             ? nodePath.relative(root, nodePath.join(hereReal, name)).split(nodePath.sep).join("/")
             : abs;
+        // Whether the sibling is present is the absence owner's answer (plan 37-29, D-18): only its absent is "this file
+        // runs alone". A sibling the owner refuses (a link whose target cannot be reached) is a finding by name, and a
+        // sibling the reader can no longer find after the owner saw it vanished: a finding too, never an absent sibling.
+        const presence = entryPresence(abs);
+        if (presence.kind === "absent")
+            continue;
+        if (presence.kind === "unreadable") {
+            out.push(integrityFinding(rel, "runnable-version-skew", `it could not be inspected (${presence.reason}), so its build could not be compared with ${RUNNABLE_SELF}`));
+            continue;
+        }
         let text;
         try {
             text = readRegularFileOrNull(abs, READ_CEILING_BYTES, "state program");
@@ -2037,8 +2026,10 @@ function runnableSkewFindings() {
             out.push(integrityFinding(rel, "runnable-version-skew", `it could not be read (${condition}), so its build could not be compared with ${RUNNABLE_SELF}`));
             continue;
         }
-        if (text === null)
+        if (text === null) {
+            out.push(integrityFinding(rel, "runnable-version-skew", `it was present and then could not be found, so its build could not be compared with ${RUNNABLE_SELF}`));
             continue;
+        }
         const read = readRunnableStamp(text);
         if (read.kind === "stamp" && read.stamp === RUNNABLE_SET_STAMP)
             continue;

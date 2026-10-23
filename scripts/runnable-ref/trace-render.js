@@ -996,16 +996,14 @@ const traceDirReal = realDirectoryOrNull(traceDirAbs, `the trace directory ${TRA
 function notRegular(rel) {
     couldNotRun(`${rel} is present and is not a regular file, so nothing was written.`);
 }
+// Whether a planned path is present is the absence owner's answer (plan 37-29, D-18): absent passes, a path the
+// owner refuses (a dangling link at it or on it, or one that cannot be inspected) is refused by name, and a present
+// entry that is not a regular file (a link of any kind, a FIFO, a directory) is never opened or replaced.
 for (const rel of plan.keys()) {
-    let st = null;
-    try {
-        st = nodeFs.lstatSync(abs(rel));
-    }
-    catch (e) {
-        if (codeOf(e) !== "ENOENT")
-            couldNotRun(`${rel} cannot be inspected (${codeOf(e)}).`);
-    }
-    if (st !== null && !st.isFile())
+    const presence = entryPresence(abs(rel));
+    if (presence.kind === "unreadable")
+        couldNotRun(`${rel} cannot be inspected: ${presence.reason}.`);
+    if (presence.kind === "present" && !presence.entry.isFile())
         notRegular(rel);
 }
 /** The repository-relative form of a path the trace model composed as `<root>/<rel>`. */
@@ -1013,33 +1011,37 @@ function relOfPath(path) {
     return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
 }
 /**
- * The text reader the trace model compares with: lstat first, so a FIFO, a link or a directory is refused by
- * name and never opened; then the embedded non-blocking reader under the trace-file ceiling. Any refusal is
- * could-not-run (exit 2), never a difference and never a pass.
+ * The text reader the trace model compares with. Whether the path is present is the absence owner's answer (plan
+ * 37-29, D-18): absent is null, a path it refuses is refused by name, and a present entry that is not a regular
+ * file (a FIFO, a link, a directory) is refused by name and never opened; then the embedded non-blocking reader
+ * under the trace-file ceiling. A file the owner reported present that the reader then cannot find vanished: it is
+ * refused too, never missing. Any refusal is could-not-run (exit 2), never a difference and never a pass.
  */
 function readText(path) {
     const rel = relOfPath(path);
-    let st;
-    try {
-        st = nodeFs.lstatSync(path);
-    }
-    catch (e) {
-        if (codeOf(e) === "ENOENT")
-            return null;
-        couldNotRun(`${rel} cannot be inspected (${codeOf(e)}).`);
-    }
-    if (!st.isFile())
+    const presence = entryPresence(path);
+    if (presence.kind === "absent")
+        return null;
+    if (presence.kind === "unreadable")
+        couldNotRun(`${rel} cannot be inspected: ${presence.reason}.`);
+    if (!presence.entry.isFile())
         notRegular(rel);
+    let text;
     try {
-        return readRegularFileOrNull(path, TRACE_FILE_MAX_BYTES, "trace file");
+        text = readRegularFileOrNull(path, TRACE_FILE_MAX_BYTES, "trace file");
     }
     catch (e) {
         couldNotRun(`${rel} cannot be read: ${e instanceof Error ? e.message : String(e)}`);
     }
+    if (text === null)
+        couldNotRun(`${rel} was present and then could not be found, so it was not compared.`);
+    return text;
 }
 /**
  * The raw entry names of the trace directory, or null when it is absent. The directory was already resolved
- * inside the root above. The model, not this lister, applies the owned-entry rule (ownedTraceEntries).
+ * inside the root above, so a listing that fails, whatever its code, is could-not-run: ENOENT here means it
+ * vanished after it was resolved, never an empty directory (plan 37-29, D-18). The model, not this lister,
+ * applies the owned-entry rule (ownedTraceEntries).
  */
 function listDir(path) {
     if (traceDirReal === null)
@@ -1048,8 +1050,6 @@ function listDir(path) {
         return nodeFs.readdirSync(path);
     }
     catch (e) {
-        if (codeOf(e) === "ENOENT")
-            return null;
         couldNotRun(`${relOfPath(path)} cannot be listed (${codeOf(e)}).`);
     }
 }

@@ -1783,6 +1783,27 @@ describe("READ-1 round 2: a dangling link at a state path is never absent (plan 
     });
   }
 
+  it("a sibling program (state-roll.js beside the state-check copy) made a dangling link: exit 1 with a runnable-version-skew FINDING naming it", () => {
+    const dir = siblingHost();
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const premise = runSiblings(dir, root);
+    expect(premise.status, `PREMISE: the siblings agree\n${premise.stdout}${premise.stderr}`).toBe(0);
+    const at = join(dir, "state-roll.js");
+    rmSync(at);
+    const skip = stageSymlinkOrSkip(join(dir, "gone.js"), at, "dangling symlink (its target does not exist)", `${DANGLING_POSITION} (a sibling program)`);
+    if (skip !== null) {
+      console.warn(skipLine(skip, "the plan 37-24 sibling rows of this file"));
+      return;
+    }
+    const r = runSiblings(dir, root);
+    const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(r.status, all).toBe(1);
+    const skew = skewLines(r.stdout);
+    expect(skew, all).toHaveLength(1);
+    expect(skew[0], all).toContain("state-roll.js");
+    expect(skew[0], all).toMatch(UNREACHABLE_LINK);
+  });
+
   it("the table ran one row per state path", () => {
     expect(DANGLING_STATE_ROWS).toHaveLength(15);
     expect(danglingRowsRun).toBe(DANGLING_STATE_ROWS.length);

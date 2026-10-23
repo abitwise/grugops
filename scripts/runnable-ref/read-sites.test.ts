@@ -25,10 +25,11 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import ts from "typescript";
 import { skipLine, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import {
   ARCHIVE_REL,
@@ -55,6 +56,7 @@ import {
   callingSites,
   classifiedFsCalls,
   deriveReadSites,
+  enclosingName,
   hasNodeStack,
   runFaulted,
   scriptUrl,
@@ -103,9 +105,15 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * owner (IN-10), so its own `realDirectoryOrNull:{lstatSync,realpathSync,statSync}#0` are gone (net -3), and
  * state-check's locate does too, so `locate:realpathSync#0` is gone (net -1). The owner's three sites gain a fourth
  * caller in each: `realDirectoryOrNull#0` and `locate#0`.
+ * 2026-10-24, plan 37-29 (Task 2): 12, 15 and 11 read sites. Every other absence decision of the two trace runnables
+ * moved onto the owner: trace-render's pre-write `<top>:lstatSync#0` and `readText:lstatSync#0` are gone (net -2),
+ * and state-check's `readState:statSync#0` (the stat with throwIfNoEntry false), `sizeFinding:lstatSync#0`,
+ * `traceDirectory:statSync#0` and `readTraceText:lstatSync#0` are gone (net -4). The owner's three sites gain the
+ * callers `<top>#0` (the pre-write check) and `readText#0` in trace-render, and `runnableSkewFindings#0` (each
+ * sibling program) in state-check.
  */
-const TRACE_RENDER_READ_SITES = 14;
-const STATE_CHECK_READ_SITES = 19;
+const TRACE_RENDER_READ_SITES = 12;
+const STATE_CHECK_READ_SITES = 15;
 const STATE_ROLL_READ_SITES = 11;
 const PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_READ_SITES,
@@ -140,9 +148,20 @@ function rows(runnable: Runnable, modes: readonly Mode[], key: string, vias?: re
   return vias === undefined ? [{ runnable, key, modes }] : vias.map((via) => ({ runnable, key, via, modes }));
 }
 
-/** The callers of the absence owner in each trace runnable (plan 37-28; realDirectoryOrNull and locate, plan 37-29). */
-const TR_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "realDirectoryOrNull#0"];
-const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "locate#0"];
+/**
+ * The callers of the absence owner in each trace runnable: the walk, listContextTasks and readTaskNoteRefs (plan
+ * 37-28); realDirectoryOrNull and locate (plan 37-29, Task 1); the pre-write check, readText and runnableSkewFindings
+ * (plan 37-29, Task 2).
+ */
+const TR_PRESENCE_CALLERS = [
+  "readRawNotesWithSkips#0",
+  "listContextTasks#0",
+  "readTaskNoteRefs#0",
+  "realDirectoryOrNull#0",
+  "<top>#0",
+  "readText#0",
+];
+const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "locate#0", "runnableSkewFindings#0"];
 
 const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   // trace-render: the embedded non-blocking reader (via readText and via the note walk) and the note walk.
@@ -152,7 +171,8 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "readRawNotesWithSkips:readdirSync#0"),
   // trace-render: the one absence owner (plan 37-28, D-18), under each caller: the walk (the notes directory),
   // listContextTasks (the fixture's `.gitkeep` keepers), readTaskNoteRefs (each task entry) and, since plan 37-29
-  // (IN-10), realDirectoryOrNull (the context roots, the state directory and the trace directory).
+  // (IN-10), realDirectoryOrNull (the context roots, the state directory and the trace directory), the pre-write
+  // check (`<top>#0`) and readText (each compared path).
   ...rows("trace-render", TR, "entryPresence:lstatSync#0", TR_PRESENCE_CALLERS),
   ...rows("trace-render", TR, "entryPresence:statSync#0", TR_PRESENCE_CALLERS),
   ...rows("trace-render", TR, "entryPresence:realpathSync#0", TR_PRESENCE_CALLERS),
@@ -163,10 +183,9 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "<top>:realpathSync#0"),
   ...rows("trace-render", TR, "<top>:statSync#0"),
   ...rows("trace-render", TR, "<top>:accessSync#0"),
-  // trace-render: the pre-write loop and the trace directory reader (the task lister and reader handed to the trace
-  // model are thin wrappers over the generated listContextTasks and readTaskNoteRefs since plan 37-28).
-  ...rows("trace-render", TR, "<top>:lstatSync#0"),
-  ...rows("trace-render", TR, "readText:lstatSync#0", ["compareTraceTree#0", "compareTraceTree#1", "<top>#0"]),
+  // trace-render: the trace directory reader (the task lister and reader handed to the trace model are thin wrappers
+  // over the generated listContextTasks and readTaskNoteRefs since plan 37-28; the pre-write check and readText ask
+  // the owner since plan 37-29).
   ...rows("trace-render", TR, "listDir:readdirSync#0", ["compareTraceTree#0", "<top>#0"]),
 
   // state-check: the embedded reader (the state reader, the trace reader, the note walk, the sibling stamp read).
@@ -190,7 +209,8 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ]),
   ...rows("state-check", SC, "readRawNotesWithSkips:readdirSync#0"),
   // state-check: the one absence owner (plan 37-28, D-18), under each caller, and the generated listing.
-  // Since plan 37-29 (IN-10) locate asks the owner too, so every state path reaches it under locate#0.
+  // Since plan 37-29 (IN-10) locate asks the owner too, so every state path reaches it under locate#0, and so does
+  // runnableSkewFindings for each sibling program.
   ...rows("state-check", SC, "entryPresence:lstatSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "entryPresence:statSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "entryPresence:realpathSync#0", SC_PRESENCE_CALLERS),
@@ -199,8 +219,6 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("state-check", SC, "<top>:realpathSync#0"),
   ...rows("state-check", SC, "<top>:statSync#0"),
   ...rows("state-check", SC, "<top>:accessSync#0"),
-  ...rows("state-check", SC, "readState:statSync#0", ["readMarker#0", "boardFindings#0", "progressReport#0", "<top>#0", "<top>#1"]),
-  ...rows("state-check", SC, "sizeFinding:lstatSync#0", ["directoryFindings#0", "progressReport#0"]),
   ...rows("state-check", SC, "listDirectory:readdirSync#0", [
     "moveOnlyReport#0",
     "moveOnlyReport#1",
@@ -209,8 +227,6 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
     "<top>#2",
   ]),
   ...rows("state-check", SC, "confirmListed:lstatSync#0"),
-  ...rows("state-check", SC, "traceDirectory:statSync#0", ["traceReport#0", "traceReport#1"]),
-  ...rows("state-check", SC, "readTraceText:lstatSync#0"),
   ...rows("state-check", SC, "listDir:readdirSync#0", ["compareTraceTree#0", "traceReport#0"]),
   ...rows("state-check", SC, "runnableSkewFindings:realpathSync#0"),
 
@@ -773,4 +789,113 @@ describe("READ-1 table: a mode a row does not list reaches no fault there", () =
       });
     }
   }
+});
+
+// ── The one-owner census (plan 37-29, D-18, READ-1 round 2) ──────────────────────────────────────────────
+
+/** The runnables the census covers in this plan; plan 37-30 adds state-roll. */
+const ONE_OWNER_RUNNABLES = ["trace-render", "state-check"] as const;
+
+/** The only functions in which a runnable may compare a code with the string literal ENOENT. */
+const ENOENT_OWNERS = ["entryPresence", "readRegularFileOrNull"] as const;
+
+/**
+ * The ENOENT comparisons of each committed runnable, all inside ENOENT_OWNERS.
+ * 2026-10-24, plan 37-29: 2 and 2 (entryPresence's lstat ENOENT and readRegularFileOrNull's open ENOENT, one each).
+ * At 3eded848 trace-render had 6 (realDirectoryOrNull, the pre-write loop, readText and listDir besides the two)
+ * and state-check 4 (locate and readTraceText besides the two).
+ */
+const ENOENT_COMPARISONS: Record<(typeof ONE_OWNER_RUNNABLES)[number], number> = {
+  "trace-render": 2,
+  "state-check": 2,
+};
+
+/** The two option names that let a read decide absence or entry type in place of the owner. */
+const FORBIDDEN_PROPERTIES = ["throwIfNoEntry", "withFileTypes"] as const;
+
+/** True when `n` is the string literal ENOENT (a plain or a no-substitution template literal). */
+function isEnoentLiteral(n: ts.Node): boolean {
+  return (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && n.text === "ENOENT";
+}
+
+/** Every ENOENT comparison of a .js: an `===`/`!==`/`==`/`!=` with an ENOENT operand, or a `case "ENOENT":`. */
+function enoentComparisons(sf: ts.SourceFile): { readonly line: number; readonly enclosing: string }[] {
+  const out: { line: number; enclosing: string }[] = [];
+  const equality = new Set([
+    ts.SyntaxKind.EqualsEqualsEqualsToken,
+    ts.SyntaxKind.ExclamationEqualsEqualsToken,
+    ts.SyntaxKind.EqualsEqualsToken,
+    ts.SyntaxKind.ExclamationEqualsToken,
+  ]);
+  const visit = (n: ts.Node): void => {
+    const hit =
+      (ts.isBinaryExpression(n) && equality.has(n.operatorToken.kind) && (isEnoentLiteral(n.left) || isEnoentLiteral(n.right))) ||
+      (ts.isCaseClause(n) && isEnoentLiteral(n.expression));
+    if (hit) out.push({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, enclosing: enclosingName(n) });
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** Every property of an object literal named one of FORBIDDEN_PROPERTIES, by line. */
+function forbiddenProperties(sf: ts.SourceFile): string[] {
+  const out: string[] = [];
+  const visit = (n: ts.Node): void => {
+    if ((ts.isPropertyAssignment(n) || ts.isShorthandPropertyAssignment(n)) && ts.isObjectLiteralExpression(n.parent)) {
+      const name = ts.isIdentifier(n.name) || ts.isStringLiteral(n.name) ? n.name.text : null;
+      if (name !== null && (FORBIDDEN_PROPERTIES as readonly string[]).includes(name)) {
+        out.push(`${name} at line ${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`);
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** A committed runnable's .js as a syntax tree, as deriveReadSites parses it. */
+function parsedJs(name: Runnable): ts.SourceFile {
+  const js = committed(name);
+  return ts.createSourceFile(js, readFileSync(js, "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+}
+
+describe("READ-1 one owner (plan 37-29, D-18): ENOENT is compared only inside entryPresence and readRegularFileOrNull", () => {
+  for (const name of ONE_OWNER_RUNNABLES) {
+    it(`${name}.js: every ENOENT comparison sits in an owner, and the count is pinned`, () => {
+      const found = enoentComparisons(parsedJs(name));
+      console.log(`ENOENT_COMPARISONS ${name}: ${found.length} (${found.map((c) => `${c.enclosing}:${c.line}`).join(", ")})`);
+      expect(
+        found.filter((c) => !(ENOENT_OWNERS as readonly string[]).includes(c.enclosing)).map((c) => `${c.enclosing}:${c.line}`),
+        `${name}.js decides absence outside the owner`,
+      ).toEqual([]);
+      expect(found.length).toBe(ENOENT_COMPARISONS[name]);
+      expect(new Set(found.map((c) => c.enclosing)), "each owner holds its comparison").toEqual(new Set(ENOENT_OWNERS));
+    });
+
+    it(`${name}.js: no object literal names throwIfNoEntry or withFileTypes`, () => {
+      expect(forbiddenProperties(parsedJs(name))).toEqual([]);
+    });
+  }
+
+  it("the census reads the syntax tree: a comment or a message string naming ENOENT is not a comparison, and a case label is", () => {
+    const sf = ts.createSourceFile(
+      "synth.js",
+      [
+        "// code === \"ENOENT\" in a comment",
+        "function a(code) { return `the code is ENOENT, ${code === \"x\"}`; }",
+        "function b(code) { switch (code) { case \"ENOENT\": return 1; } return \"ENOENT\" !== code; }",
+        "const c = { throwIfNoEntry: false, withFileTypes };",
+        "",
+      ].join("\n"),
+      ts.ScriptTarget.ES2022,
+      true,
+      ts.ScriptKind.JS,
+    );
+    expect(enoentComparisons(sf)).toEqual([
+      { line: 3, enclosing: "b" },
+      { line: 3, enclosing: "b" },
+    ]);
+    expect(forbiddenProperties(sf)).toEqual(["throwIfNoEntry at line 4", "withFileTypes at line 4"]);
+  });
 });

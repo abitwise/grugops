@@ -1454,3 +1454,39 @@ describe("IN-10: a dangling context root or ancestor is never an absent root", (
     expect(text.stdout).toContain("TRACE    The trace is fresh: 1 task(s)");
   });
 });
+
+// ── Plan 37-29 (D-18, READ-1 round 2): a dangling link at a trace position is refused, never missing ─────────
+// The pre-write check and the text reader ask the generated entryPresence: a link at a planned trace file or at
+// the index is not a regular file, refused by name before any write, whatever its target.
+
+const TRACE_POSITION_ROWS = [`${TRACE_DIR_REL}/ABC-1.md`, TRACEABILITY_REL] as const;
+
+describe("READ-1 round 2: a dangling link at a planned trace file or at the index is refused by name", () => {
+  for (const rel of TRACE_POSITION_ROWS) {
+    it(`${rel} a dangling link after a render: write and --check exit 2 naming it, nothing written or removed`, () => {
+      const root = stateBaseRepo(true);
+      plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
+      const first = run(root);
+      expect(first.status, `PREMISE: the note renders: ${first.stdout}${first.stderr}`).toBe(0);
+      const at = join(root, ...rel.split("/"));
+      rmSync(at);
+      const skip = stageSymlinkOrSkip(join(root, "gone"), at, "dangling symlink (its target does not exist)", `${IN10_POSITION} (${rel})`);
+      if (skip !== null) {
+        console.warn(skipLine(skip, "the FIFO rows of this file (the same not-a-regular-file refusal)"));
+        return;
+      }
+      const before = treeDigest(root);
+      const write = run(root);
+      const check = run(root, "--check");
+      const all = `write ${write.status}\n${write.stdout}${write.stderr}\ncheck ${check.status}\n${check.stdout}${check.stderr}`;
+      expect(write.status, all).toBe(2);
+      expect(write.stdout, all).toBe("");
+      expect(write.stderr, all).toContain(rel);
+      expect(write.stderr, all).not.toMatch(V8_FRAME);
+      expect(treeDigest(root), "nothing was written, changed or removed").toEqual(before);
+      expect(check.status, all).toBe(2);
+      expect(check.stdout, all).toBe("");
+      expect(check.stderr, all).toContain(rel);
+    });
+  }
+});
