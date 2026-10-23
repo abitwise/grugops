@@ -1499,3 +1499,74 @@ describe("scripts/state-rules.ts imports nothing and reaches for no runtime API 
     expect(hits).toEqual([]);
   });
 });
+
+describe("one classifier: only progressEntries decides which progress lines are dated entries (plan 37-23, D-17, WR-02, AUTH-1)", () => {
+  const source = readFileSync(join(ROOT, SOURCE_REL), "utf8");
+  const sf = ts.createSourceFile(SOURCE_REL, source, ts.ScriptTarget.ES2022, true);
+
+  /** Every node of the syntax tree, in source order. */
+  function nodes(): ts.Node[] {
+    const out: ts.Node[] = [];
+    const visit = (n: ts.Node): void => {
+      out.push(n);
+      n.forEachChild(visit);
+    };
+    visit(sf);
+    return out;
+  }
+
+  /** The name of the function declaration a node sits in, or `<module>` at the top level. */
+  function enclosingFunction(n: ts.Node): string {
+    for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) {
+      if (ts.isFunctionDeclaration(p)) return p.name?.text ?? "<anonymous>";
+    }
+    return "<module>";
+  }
+
+  /** The function declaration named `name`. */
+  function declaration(name: string): ts.FunctionDeclaration {
+    const found = nodes().filter((n): n is ts.FunctionDeclaration => ts.isFunctionDeclaration(n) && n.name?.text === name);
+    expect(found, name).toHaveLength(1);
+    return found[0] as ts.FunctionDeclaration;
+  }
+
+  it("SECTION_HEADING and DATED_HEADING are read only inside progressEntries, each at least once", () => {
+    for (const name of ["SECTION_HEADING", "DATED_HEADING"]) {
+      const refs = nodes().filter(
+        (n): n is ts.Identifier =>
+          ts.isIdentifier(n) && n.text === name && !(ts.isVariableDeclaration(n.parent) && n.parent.name === n),
+      );
+      expect(refs.length, `${name} is read somewhere`).toBeGreaterThan(0);
+      expect(refs.map(enclosingFunction), name).toEqual(refs.map(() => "progressEntries"));
+    }
+  });
+
+  it("the module's only heading-shaped regular expressions are those two constants", () => {
+    const literals = nodes().filter((n) => n.kind === ts.SyntaxKind.RegularExpressionLiteral && n.getText(sf).includes("#"));
+    const owners = literals.map((n) =>
+      ts.isVariableDeclaration(n.parent) && ts.isIdentifier(n.parent.name) ? n.parent.name.text : "<not a constant>",
+    );
+    expect(owners.sort()).toEqual(["DATED_HEADING", "SECTION_HEADING"]);
+  });
+
+  it("progressEntries asks its section-extent parameter, and planProgressRoll passes its own sectionEnd to progressEntries", () => {
+    const entries = declaration("progressEntries");
+    const param = entries.parameters[1]?.name;
+    expect(param !== undefined && ts.isIdentifier(param) ? param.text : null).toBe("sectionEnd");
+    const asks = nodes().filter(
+      (n) =>
+        ts.isCallExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        n.expression.text === "sectionEnd" &&
+        enclosingFunction(n) === "progressEntries",
+    );
+    expect(asks).toHaveLength(1);
+    const calls = nodes().filter(
+      (n): n is ts.CallExpression =>
+        ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "progressEntries",
+    );
+    expect(calls.map(enclosingFunction)).toEqual(["planProgressRoll"]);
+    const passed = calls[0]?.arguments[1];
+    expect(passed !== undefined && ts.isIdentifier(passed) ? passed.text : null).toBe("sectionEnd");
+  });
+});
