@@ -18241,3 +18241,73 @@ describe("entryPresence: the one absence owner (plan 37-28, D-18)", () => {
     expect(r.kind === "present" ? r.real : "").toBe(realpathSync(join(process.cwd(), "scripts", "context-io.ts")));
   });
 });
+
+// ── Plan 37-28 (D-18, CR-04): the trace's one listing and one task read ─────────────────────────────────────
+describe("listContextTasks and readTaskNoteRefs: every entry is a task, a keeper, or refused by name (plan 37-28, CR-04)", () => {
+  it("listContextTasks returns every entry name except regular dot-named files", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-list-");
+    mkdirSync(join(ctx, "taskA"));
+    mkdirSync(join(ctx, ".hidden-task"));
+    writeFileSync(join(ctx, ".gitkeep"), "");
+    writeFileSync(join(ctx, ".DS_Store"), "x");
+    writeFileSync(join(ctx, "taskB"), "a regular file");
+    const expected = [".hidden-task", "taskA", "taskB"];
+    const linkSkip = stageSymlinkOrSkip(join(ctx, "taskA"), join(ctx, ".linked-keeper"), "symlink to a directory inside the repository root", P3728);
+    if (linkSkip === null) expected.push(".linked-keeper");
+    else console.warn(skipLine(linkSkip, "the regular-file keeper rows of this case"));
+    const fifoSkip = stageShapeOrSkip("FIFO", join(ctx, ".fifo"), P3728);
+    if (fifoSkip === null) expected.push(".fifo");
+    else console.warn(skipLine(fifoSkip, "the regular-file keeper rows of this case"));
+    expect(mod.listContextTasks(ctx).sort()).toEqual(expected.sort());
+  });
+
+  it("listContextTasks on a root that cannot be listed throws", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-list-missing-");
+    expect(() => mod.listContextTasks(join(ctx, "no-such-root"))).toThrow(/ENOENT/);
+  });
+
+  it("readTaskNoteRefs reads a task directory's refs and skips", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-read-");
+    mkdirSync(join(ctx, "taskA", "notes"), { recursive: true });
+    writeFileSync(join(ctx, "taskA", "notes", "n1.md"), sealed(goodNoteText()));
+    writeFileSync(join(ctx, "taskA", "notes", "junk.md"), "not a note\n");
+    const read = mod.readTaskNoteRefs("taskA", ctx, realpathSync(ctx));
+    expect(read.notes).toEqual([{ refs: ["AUTH-01"] }]);
+    expect(read.skipped.map((s) => `${s.file}:${s.arm}`)).toEqual(["junk.md:unparseable"]);
+  });
+
+  it("readTaskNoteRefs refuses a link entry, a regular file, a FIFO and a vanished entry, each by throwing", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-refuse-");
+    const boundary = realpathSync(ctx);
+    mkdirSync(join(ctx, "real", "notes"), { recursive: true });
+    const linkSkip = stageSymlinkOrSkip(join(ctx, "real"), join(ctx, "taskLink"), "symlink to a directory inside the repository root", P3728);
+    if (linkSkip === null) {
+      expect(() => mod.readTaskNoteRefs("taskLink", ctx, boundary)).toThrow("it is a symbolic link, and a symbolic link is never read as a task");
+    } else console.warn(skipLine(linkSkip, "the regular-file and vanished rows of this case"));
+    writeFileSync(join(ctx, "taskFile"), "x");
+    expect(() => mod.readTaskNoteRefs("taskFile", ctx, boundary)).toThrow("it is not a directory, so it is not a task");
+    const fifoSkip = stageShapeOrSkip("FIFO", join(ctx, "taskFifo"), P3728);
+    if (fifoSkip === null) {
+      expect(() => mod.readTaskNoteRefs("taskFifo", ctx, boundary)).toThrow("it is not a directory, so it is not a task");
+    } else console.warn(skipLine(fifoSkip, "the regular-file and vanished rows of this case"));
+    expect(() => mod.readTaskNoteRefs("taskGone", ctx, boundary)).toThrow("it was listed and is no longer there");
+    expect(() => mod.readTaskNoteRefs("bad name", ctx, boundary)).toThrow(/invalid task name/);
+  });
+
+  it("readTaskNoteRefs refuses a notes directory that resolves outside the boundary", () => {
+    const repo = freshTmp("grugops-ctxio-3728-boundary-repo-");
+    const outside = freshTmp("grugops-ctxio-3728-boundary-outside-");
+    mkdirSync(join(repo, "ctx", "taskA"), { recursive: true });
+    mkdirSync(join(outside, "notes"));
+    const skip = stageSymlinkOrSkip(join(outside, "notes"), join(repo, "ctx", "taskA", "notes"), "symlink to a directory outside the repository root", P3728);
+    if (skip !== null) {
+      console.warn(skipLine(skip, "the in-root rows of this describe"));
+      return;
+    }
+    expect(() => mod.readTaskNoteRefs("taskA", join(repo, "ctx"), realpathSync(repo))).toThrow(
+      "its notes directory resolves outside the repository root, so it was not read",
+    );
+    // The same link inside a boundary that holds it is read through (the notes position follows an in-root link).
+    expect(mod.readTaskNoteRefs("taskA", join(repo, "ctx"), "/").notes).toEqual([]);
+  });
+});

@@ -23,7 +23,10 @@
 //            write section had started) and never surfaces as Node's own exit 1 (plan 37-20). In both modes
 //            exit 2 also covers a note read that was not complete (plan 37-21, CR-01): a task whose notes
 //            could not be read, or a note skipped under an I/O arm (unopenable, not-a-regular-file,
-//            above-ceiling, vanished), each named on stderr; nothing is compared, written or removed. In both
+//            above-ceiling, vanished), each named on stderr; nothing is compared, written or removed. A
+//            context-root entry that is not a task directory (a symbolic link of any kind, a regular file, a
+//            FIFO), or that vanished after the listing, and a `notes` link whose target cannot be reached, are
+//            such failed tasks too (plan 37-28, D-18, CR-03, CR-04), named on stderr. In both
 //            modes exit 2 also covers a planned trace file name that is not `<ticket identifier>.md` for an
 //            identifier the board grammar admits, within the file-name limit (plan 37-22, WR-01), checked before
 //            the first lstat or write. Exit 2 is never a pass: it prints nothing on stdout, and every check that
@@ -41,12 +44,17 @@
 // unsealed) can be non-zero there: whether a read was complete is decided by the embedded trace model's
 // planCompleteTraceTree, the one predicate state-check asks too, and an incomplete read is exit 2 with each
 // task and note named on stderr. A skipped note is never rendered: the seal check is the reader's, embedded
-// verbatim, and is never re-implemented here.
+// verbatim, and is never re-implemented here. Every entry of a context root is a task, a keeper or a failed task:
+// keepers (a regular file whose name begins with `.`, such as `.gitkeep`) are the one entry kind that is neither a
+// task nor a failure, and they are never read or counted (plan 37-28, D-18).
 //
 // THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and a context root, a task's
 // notes directory or the trace directory that resolves outside realpath(root) is refused by name. The trace
 // directory is created only when absent and a trace file is to be written, after its parent's realpath is
-// confirmed inside the root. Every compared path is lstat'ed before it is opened, so a FIFO is never opened.
+// confirmed inside the root. Every compared path is lstat'ed before it is opened, so a FIFO is never opened. The
+// task position never follows a link: a context-root entry that is a symbolic link is a failed task (plan 37-28,
+// CR-04). Whether a task or its notes are present is the generated entryPresence's answer, through the generated
+// readTaskNoteRefs and listContextTasks; only an lstat ENOENT is absence (D-18).
 //
 // EVERY WRITE IS ATOMIC. Each file goes through the embedded atomicWrite (a temp sibling, then a rename), so an
 // interrupted render leaves each file either its old or its new bytes. Two renders over the same notes produce
@@ -71,7 +79,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:ba6f9060c83ef007879f977837a929d6b9815bd1299f4a11be694a11e47fa2a6";
+export const RUNNABLE_SET_STAMP = "sha256:af74adb4badd0c3718dddff6c9ab9d78d09f18f9ba5b2c8e5288a3b59e9da296";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "trace-render.js";
 // from install/state-layout.ts
@@ -604,8 +612,10 @@ export function entryPresence(path) {
                 return { kind: "absent" };
             return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})` };
         }
+        // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
+        // path names, and the one stat site is reached under every caller.
         let target = entry;
-        if (entry.isSymbolicLink()) {
+        if (entry.isSymbolicLink() || last) {
             try {
                 target = statSync(at);
             }
@@ -614,9 +624,11 @@ export function entryPresence(path) {
                 return {
                     kind: "unreadable",
                     code,
-                    reason: last
-                        ? `it is a symbolic link whose target cannot be reached (${code})`
-                        : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+                    reason: !entry.isSymbolicLink()
+                        ? `"${at}" cannot be inspected (${code})`
+                        : last
+                            ? `it is a symbolic link whose target cannot be reached (${code})`
+                            : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
                 };
             }
         }
@@ -636,6 +648,10 @@ export function entryPresence(path) {
         }
         return { kind: "present", entry, target, real };
     }
+}
+function isWithin(real, boundary) {
+    const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
+    return real === boundary || real.startsWith(prefix);
 }
 function codedError(message, code) {
     const err = new Error(message);
@@ -659,7 +675,7 @@ function readRawNotesWithSkips(task, contextRoot, boundary = null) {
     if (!presence.target.isDirectory()) {
         throw codedError(`context-io: the notes directory "${notesDir}" is not a directory (ENOTDIR)`, "ENOTDIR");
     }
-    if (boundary !== null && presence.real !== boundary && !presence.real.startsWith(boundary + sep)) {
+    if (boundary !== null && !isWithin(presence.real, boundary)) {
         throw new Error("its notes directory resolves outside the repository root, so it was not read");
     }
     const skipped = [];
@@ -769,6 +785,35 @@ function recordFromParsed(parsed, id) {
         gate_run: s.gate_run ?? undefined,
         content_hash: s.content_hash ?? undefined,
         body: parsed.body.trim(),
+    };
+}
+export function listContextTasks(contextRoot) {
+    const out = [];
+    for (const name of readdirSync(contextRoot)) {
+        if (name.startsWith(".")) {
+            const presence = entryPresence(join(contextRoot, name));
+            if (presence.kind === "present" && presence.entry.isFile())
+                continue;
+        }
+        out.push(name);
+    }
+    return out;
+}
+export function readTaskNoteRefs(task, contextRoot, boundary) {
+    assertSafeTask(task);
+    const presence = entryPresence(join(contextRoot, task));
+    if (presence.kind === "absent")
+        throw new Error("it was listed and is no longer there");
+    if (presence.kind === "unreadable")
+        throw codedError(presence.reason, presence.code);
+    if (presence.entry.isSymbolicLink())
+        throw new Error("it is a symbolic link, and a symbolic link is never read as a task");
+    if (!presence.entry.isDirectory())
+        throw new Error("it is not a directory, so it is not a task");
+    const read = readRawNotesWithSkips(task, contextRoot, boundary);
+    return {
+        notes: read.notes.map((raw) => ({ refs: recordFromParsed(raw.parsed, raw.id).refs })),
+        skipped: read.skipped,
     };
 }
 export function normalizeKind(raw) {
@@ -894,44 +939,25 @@ function relOfRoot(real) {
     return CONTEXT_ROOTS.find((r) => r.real === real)?.rel ?? real;
 }
 /**
- * The task directories under one context root, by Dirent, so a symlinked entry is never a task. A root that
+ * The entries of one context root, by the generated listContextTasks (plan 37-28, D-18, CR-04): every entry but
+ * keepers, so an entry that is not a task directory reaches readTask and is refused there by name. A root that
  * cannot be listed is could-not-run (CR-02, D-12): it is never read as a root with no tasks.
  */
 function listTasks(real) {
     try {
-        return nodeFs
-            .readdirSync(real, { withFileTypes: true })
-            .filter((e) => e.isDirectory())
-            .map((e) => e.name);
+        return listContextTasks(real);
     }
     catch (e) {
         couldNotRun(`the context root ${relOfRoot(real)} cannot be listed (${codeOf(e)}).`);
     }
 }
 /**
- * One task's notes, through the embedded walk (its skip arms and its seal check) and the embedded record
- * projection. A notes directory that resolves outside the root, or that cannot be resolved, throws, so the task
- * is a read failure by name and the render stops (plan 37-21).
+ * One task's notes, by the generated readTaskNoteRefs (plan 37-28, D-18, CR-03, CR-04): the task position never
+ * follows a link, a notes directory that resolves outside the root is refused, and every refusal throws, so the
+ * task is a read failure by name and the render stops (plan 37-21).
  */
 function readTask(task, real) {
-    assertSafeTask(task);
-    const notesDir = nodePath.join(real, task, "notes");
-    let notesReal = null;
-    try {
-        notesReal = nodeFs.realpathSync(notesDir);
-    }
-    catch (e) {
-        if (codeOf(e) !== "ENOENT")
-            throw new Error(`its notes directory cannot be resolved (${codeOf(e)})`);
-    }
-    if (notesReal !== null && !insideRoot(notesReal)) {
-        throw new Error("its notes directory resolves outside the repository root, so it was not read");
-    }
-    const read = readRawNotesWithSkips(task, real);
-    return {
-        notes: read.notes.map((raw) => ({ refs: recordFromParsed(raw.parsed, raw.id).refs })),
-        skipped: read.skipped,
-    };
+    return readTaskNoteRefs(task, real, root);
 }
 /**
  * The note read was not complete (plan 37-21, D-17, CR-01, READ-1): a task could not be read, or a note was

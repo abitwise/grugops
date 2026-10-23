@@ -94,9 +94,14 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * `readRawNotesWithSkips:statSync#0` (the stat with throwIfNoEntry false, CR-03) is gone and the one absence
  * owner's three sites take its place: `entryPresence:lstatSync#0`, `entryPresence:statSync#0` and
  * `entryPresence:realpathSync#0` (net +2 each). state-roll does not embed the walk.
+ * 2026-10-23, plan 37-28 (Task 2): 17, 20 and 11 read sites. The hand-written task reads and listings are gone:
+ * trace-render's `readTask:realpathSync#0` and `listTasks:readdirSync#0`, state-check's
+ * `readTraceTask:realpathSync#0` and `listTasks:readdirSync#0`; the generated `listContextTasks:readdirSync#0`
+ * takes the listings' place (net -1 each). The owner's three sites are now entered from three callers, the walk,
+ * listContextTasks (a keeper's presence) and readTaskNoteRefs (the task entry), so each is one row per caller.
  */
-const TRACE_RENDER_READ_SITES = 18;
-const STATE_CHECK_READ_SITES = 21;
+const TRACE_RENDER_READ_SITES = 17;
+const STATE_CHECK_READ_SITES = 20;
 const STATE_ROLL_READ_SITES = 11;
 const PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_READ_SITES,
@@ -137,11 +142,13 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "readRegularFileOrNull:fstatSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
   ...rows("trace-render", TR, "readRegularFileOrNull:readSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
   ...rows("trace-render", TR, "readRawNotesWithSkips:readdirSync#0"),
-  // trace-render: the one absence owner (plan 37-28, D-18), asked by the walk; the notes link of the fixture
-  // reaches its stat.
-  ...rows("trace-render", TR, "entryPresence:lstatSync#0"),
-  ...rows("trace-render", TR, "entryPresence:statSync#0"),
-  ...rows("trace-render", TR, "entryPresence:realpathSync#0"),
+  // trace-render: the one absence owner (plan 37-28, D-18), under each caller: the walk (the notes directory),
+  // listContextTasks (the fixture's `.gitkeep` keepers) and readTaskNoteRefs (each task entry).
+  ...rows("trace-render", TR, "entryPresence:lstatSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  ...rows("trace-render", TR, "entryPresence:statSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  ...rows("trace-render", TR, "entryPresence:realpathSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  // trace-render: the generated context-root listing (plan 37-28, CR-04), entered only from the hand-written listTasks.
+  ...rows("trace-render", TR, "listContextTasks:readdirSync#0"),
   // trace-render: the root, realDirectoryOrNull (the context-root map, the state directory, the trace directory).
   ...rows("trace-render", TR, "<top>:realpathSync#0"),
   ...rows("trace-render", TR, "<top>:statSync#0"),
@@ -149,9 +156,8 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "realDirectoryOrNull:lstatSync#0", ["<top>#0", "<top>#1", "<top>#2"]),
   ...rows("trace-render", TR, "realDirectoryOrNull:realpathSync#0", ["<top>#0", "<top>#1", "<top>#2"]),
   ...rows("trace-render", TR, "realDirectoryOrNull:statSync#0", ["<top>#0", "<top>#1", "<top>#2"]),
-  // trace-render: the listers and readers handed to the trace model, and the pre-write loop.
-  ...rows("trace-render", TR, "listTasks:readdirSync#0", ["collectTraceNotes#0", "<top>#0"]),
-  ...rows("trace-render", TR, "readTask:realpathSync#0", ["collectTraceNotes#0", "<top>#0"]),
+  // trace-render: the pre-write loop and the trace directory reader (the task lister and reader handed to the trace
+  // model are thin wrappers over the generated listContextTasks and readTaskNoteRefs since plan 37-28).
   ...rows("trace-render", TR, "<top>:lstatSync#0"),
   ...rows("trace-render", TR, "readText:lstatSync#0", ["compareTraceTree#0", "compareTraceTree#1", "<top>#0"]),
   ...rows("trace-render", TR, "listDir:readdirSync#0", ["compareTraceTree#0", "<top>#0"]),
@@ -176,10 +182,11 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
     "runnableSkewFindings#0",
   ]),
   ...rows("state-check", SC, "readRawNotesWithSkips:readdirSync#0"),
-  // state-check: the one absence owner (plan 37-28, D-18), asked by the walk.
-  ...rows("state-check", SC, "entryPresence:lstatSync#0"),
-  ...rows("state-check", SC, "entryPresence:statSync#0"),
-  ...rows("state-check", SC, "entryPresence:realpathSync#0"),
+  // state-check: the one absence owner (plan 37-28, D-18), under each caller, and the generated listing.
+  ...rows("state-check", SC, "entryPresence:lstatSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  ...rows("state-check", SC, "entryPresence:statSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  ...rows("state-check", SC, "entryPresence:realpathSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  ...rows("state-check", SC, "listContextTasks:readdirSync#0"),
   // state-check: the root, locate under each caller, and the hand-written readers.
   ...rows("state-check", SC, "<top>:realpathSync#0"),
   ...rows("state-check", SC, "<top>:statSync#0"),
@@ -202,9 +209,7 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ]),
   ...rows("state-check", SC, "confirmListed:lstatSync#0"),
   ...rows("state-check", SC, "traceDirectory:statSync#0", ["traceReport#0", "traceReport#1"]),
-  ...rows("state-check", SC, "readTraceTask:realpathSync#0"),
   ...rows("state-check", SC, "readTraceText:lstatSync#0"),
-  ...rows("state-check", SC, "listTasks:readdirSync#0", ["collectTraceNotes#0", "traceReport#0"]),
   ...rows("state-check", SC, "listDir:readdirSync#0", ["compareTraceTree#0", "traceReport#0"]),
   ...rows("state-check", SC, "runnableSkewFindings:realpathSync#0"),
 
@@ -359,7 +364,8 @@ function linkOrSkip(target: string, at: string, position: string): string | null
  * trace-render's repository: a sealed note in the live context root and one in the archive context root, rendered.
  * Three paths are symbolic links to directories inside the root, so every branch of realDirectoryOrNull runs
  * under each of its three calls: the archive context root, `memory-bank/plans` (the state directory) and the trace
- * directory inside it. A fourth, taskA's `notes` (plan 37-28), reaches the absence owner's stat of a link. After the render, the trace directory gains a generated trace file the plan no longer holds
+ * directory inside it. A fourth, taskA's `notes` (plan 37-28), reaches the absence owner's stat of a link, and a
+ * regular `.gitkeep` in each context root reaches the owner under listContextTasks. After the render, the trace directory gains a generated trace file the plan no longer holds
  * (ABC-099.md, a copy of ABC-001.md): the trace model reads it as an extra file, which reaches its second readText
  * call, and the write mode would remove it, the CR-01 shape. So the unfaulted write mode removes one file and the
  * unfaulted --check is exit 1 with one EXTRA line.
@@ -369,6 +375,9 @@ function traceRenderRepo(): string | { readonly skip: string } {
   // Plan 37-28: taskA's `notes` is a link to `real-notes`, so the absence owner's stat of a link is reached.
   plant(root, `${CONTEXT_REL}/taskA/real-notes/n1.md`, noteText("n1", ["ABC-001", "src/a.ts"]));
   plant(root, `archive-context-real/taskB/notes/n2.md`, noteText("n2", ["ABC-002", "#41"]));
+  // Plan 37-28: a regular `.gitkeep` keeper in each context root, so listContextTasks asks the absence owner.
+  plant(root, `${CONTEXT_REL}/.gitkeep`, "");
+  plant(root, "archive-context-real/.gitkeep", "");
   mkdirSync(join(root, ...dirname(CONTEXT_ARCHIVE_REL).split("/")), { recursive: true });
   mkdirSync(join(root, "plans-real"));
   mkdirSync(join(root, "trace-real"));
@@ -422,6 +431,9 @@ function stateCheckRepo(): string | { readonly skip: string } {
   );
   if (skip !== null) return { skip };
   plant(root, `${CONTEXT_ARCHIVE_REL}/taskB/notes/n2.md`, noteText("n2", ["ABC-002", "#41"]));
+  // Plan 37-28: a regular `.gitkeep` keeper in each context root, so listContextTasks asks the absence owner.
+  plant(root, `${CONTEXT_REL}/.gitkeep`, "");
+  plant(root, `${CONTEXT_ARCHIVE_REL}/.gitkeep`, "");
   mkdirSync(join(root, ...TRACE_DIR_REL.split("/")), { recursive: true });
   plant(root, PROGRESS_REL, PROGRESS_OVER_BUDGET);
   for (const dir of [QUEUE_DONE_REL, QUEUE_DONE_ARCHIVE_REL, DECISIONS_REL, DECISIONS_ARCHIVE_REL]) plant(root, `${dir}/.gitkeep`, "");

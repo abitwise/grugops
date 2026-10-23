@@ -1108,3 +1108,235 @@ describe("CR-03: a dangling notes link is a failed task, never a task with no no
     });
   }
 });
+
+// ── Plan 37-28 (D-18, CR-04, READ-1 round 2): every context-root entry is a task, a keeper, or a failed task ──
+// The listing kept only Dirent directories, so a task directory replaced by a symbolic link was dropped with no
+// count and no name, and the write mode removed its tickets' trace files with exit 0 (CR-04). Both runnables now
+// list with the generated listContextTasks (every entry but keepers) and read with the generated readTaskNoteRefs,
+// which refuses a symbolic link of any kind, a regular file, a FIFO and a vanished entry by name.
+
+const CR04_POSITION = "scripts/runnable-ref/trace-render.test.ts: a context-root entry (plan 37-28, CR-04)";
+
+/** A marked repository with one sealed note naming ABC-1 in `<rootRel>/taskA`, rendered, and state-check clean. */
+function renderedTaskRepo(rootRel: string): { root: string; rootDir: string } {
+  const root = stateBaseRepo(true);
+  plant(root, rootRel, "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
+  const first = run(root);
+  expect(first.status, `PREMISE: the repository renders: ${first.stdout}${first.stderr}`).toBe(0);
+  expect(existsSync(join(root, TRACE_DIR_REL, "ABC-1.md")), "PREMISE: ABC-1.md was rendered").toBe(true);
+  const premise = stateCheckTrace(root);
+  expect(premise.status, `PREMISE: the rendered repository is clean: ${premise.raw}`).toBe(0);
+  expect(premise.trace).toEqual({ compared: true, findings: [] });
+  return { root, rootDir: join(root, ...rootRel.split("/")) };
+}
+
+/** A shape planted at a task position: the entry's name, the words its refusal names, and its staging. */
+type TaskShape = {
+  readonly label: string;
+  readonly name: string;
+  readonly reason: string;
+  readonly stage: (root: string, at: string, position: string) => SkipEntry | null;
+};
+
+/** Every non-directory shape a context-root entry can take (D-18, brief §1.1 non-error shapes). */
+const TASK_SHAPES: readonly TaskShape[] = [
+  {
+    label: "a symbolic link to a regular file",
+    name: "taskL",
+    reason: "symbolic link",
+    stage: (root, at, position) => {
+      writeFileSync(join(root, "a-regular-file.txt"), "x\n");
+      return stageSymlinkOrSkip(join(root, "a-regular-file.txt"), at, "symlink to a regular file", position);
+    },
+  },
+  {
+    label: "a dangling symbolic link",
+    name: "taskD",
+    reason: "symbolic link",
+    stage: (root, at, position) => stageSymlinkOrSkip(join(root, "no-such-target"), at, "dangling symlink", position),
+  },
+  {
+    label: "a regular file whose name does not begin with a dot",
+    name: "taskB",
+    reason: "not a directory",
+    stage: (_root, at) => {
+      writeFileSync(at, "not a task\n");
+      return null;
+    },
+  },
+  {
+    label: "a FIFO",
+    name: "taskC",
+    reason: "not a directory",
+    stage: (_root, at, position) => stageShapeOrSkip("FIFO", at, position),
+  },
+  {
+    label: "a symbolic link named .gitkeep",
+    name: ".gitkeep",
+    reason: "symbolic link",
+    stage: (root, at, position) => {
+      writeFileSync(join(root, "a-keeper-target.txt"), "");
+      return stageSymlinkOrSkip(join(root, "a-keeper-target.txt"), at, "symlink to a regular file", position);
+    },
+  },
+];
+let taskShapeRowsRun = 0;
+
+describe("CR-04: a context-root entry that is not a task directory is a failed task, never dropped", () => {
+  for (const rootRel of CONTEXT_ROOT_RELS) {
+    it(`${rootRel}: taskA replaced by a link to an in-root directory holding the same note: exit 2 naming the link, nothing removed, never fresh`, () => {
+      const { root, rootDir } = renderedTaskRepo(rootRel);
+      renameSync(join(rootDir, "taskA"), join(root, "moved-task"));
+      const skip = stageSymlinkOrSkip(
+        join(root, "moved-task"),
+        join(rootDir, "taskA"),
+        "symlink to a directory inside the repository root",
+        `${CR04_POSITION} (${rootRel})`,
+      );
+      if (skip !== null) {
+        console.warn(skipLine(skip, "the task-position rows of this describe"));
+        return;
+      }
+      expect(lstatSync(join(rootDir, "taskA")).isSymbolicLink(), "PREMISE: taskA is a link").toBe(true);
+      expect(lstatSync(join(rootDir, "taskA", "notes", "n1.md")).isFile(), "PREMISE: the link reaches the same note").toBe(true);
+      const before = treeDigest(root);
+      const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+      const runs = sequenceRuns(root);
+      expectRefusedTask(root, runs, `${rootRel}/taskA`, before, indexBefore);
+      expect(runs.write.stderr).toContain("symbolic link, and a symbolic link is never read as a task");
+      expect(runs.json.trace.findings[0]?.note).toContain("symbolic link");
+      rmSync(join(root, ...LAYOUT_MARKER_REL.split("/")));
+      const warn = stateCheck(root);
+      expect(warn.status, warn.stdout + warn.stderr).toBe(0);
+      expect(warn.stdout).toMatch(new RegExp(`^WARN {5}${rootRel.replace(/[.]/g, "\\.")}/taskA: .*\\(trace-not-compared\\)$`, "m"));
+      expect(warn.stdout).not.toContain("The trace is fresh");
+    });
+
+    for (const shape of TASK_SHAPES) {
+      it(`${rootRel}: ${shape.label} beside a rendered taskA is a failed task named on stderr and in trace-not-compared`, () => {
+        taskShapeRowsRun += 1;
+        const { root, rootDir } = renderedTaskRepo(rootRel);
+        const skip = shape.stage(root, join(rootDir, shape.name), `${CR04_POSITION} (${shape.label}, ${rootRel})`);
+        if (skip !== null) {
+          console.warn(skipLine(skip, "the other task-position rows of this describe (the same failed-task rule)"));
+          return;
+        }
+        const before = treeDigest(root);
+        const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+        const runs = sequenceRuns(root);
+        expectRefusedTask(root, runs, `${rootRel}/${shape.name}`, before, indexBefore);
+        expect(runs.write.stderr).toContain(shape.reason);
+        expect(runs.json.trace.findings[0]?.note).toContain(shape.reason);
+      });
+    }
+
+    it(`CONTROL ${rootRel}: a regular .gitkeep and .DS_Store beside taskA are keepers: byte-identical trace, 1 task, fresh`, () => {
+      const { root, rootDir } = renderedTaskRepo(rootRel);
+      const without = snapshot(root);
+      writeFileSync(join(rootDir, ".gitkeep"), "");
+      writeFileSync(join(rootDir, ".DS_Store"), "Bud1 metadata\n");
+      const write = run(root);
+      expect(write.status, write.stdout + write.stderr).toBe(0);
+      expect(write.stdout).toContain("Rendered the trace: 1 task(s) and 1 note(s) read;");
+      expect(write.stdout).toContain("unreadable tasks 0; 0 file(s) written, 0 file(s) removed.");
+      expect(snapshot(root)).toEqual(without);
+      const check = run(root, "--check");
+      expect(check.status, check.stdout + check.stderr).toBe(0);
+      expect(check.stdout).toContain("The trace is fresh: 1 task(s)");
+      const json = stateCheckTrace(root);
+      expect(json.status, json.raw).toBe(0);
+      expect(json.trace).toEqual({ compared: true, findings: [] });
+      const text = stateCheck(root);
+      expect(text.status, text.stdout + text.stderr).toBe(0);
+      expect(text.stdout).toContain("The trace is fresh: 1 task(s)");
+    });
+
+    it(`CONTROL ${rootRel}: a directory .hidden-task holding a sealed note naming ABC-2 is a task, and ABC-2.md is rendered`, () => {
+      const { root } = renderedTaskRepo(rootRel);
+      plant(root, rootRel, ".hidden-task", "n2", noteText("n2", ["ABC-2"]));
+      const write = run(root);
+      expect(write.status, write.stdout + write.stderr).toBe(0);
+      expect(write.stdout).toContain("Rendered the trace: 2 task(s) and 2 note(s) read;");
+      expect(existsSync(join(root, TRACE_DIR_REL, "ABC-2.md"))).toBe(true);
+      expect(stateCheckTrace(root).trace).toEqual({ compared: true, findings: [] });
+    });
+  }
+
+  it("the task-position table ran every shape in both roots", () => {
+    expect(TASK_SHAPES).toHaveLength(5);
+    expect(taskShapeRowsRun).toBe(TASK_SHAPES.length * CONTEXT_ROOT_RELS.length);
+  });
+});
+
+/** The hand-written part of a committed runnable .ts (after EMBED_CLOSE), as a syntax tree. */
+function handWritten(rel: string): ts.SourceFile {
+  const lines = readFileSync(join(import.meta.dirname, rel), "utf8").split("\n");
+  const close = lines.indexOf(EMBED_CLOSE);
+  expect(close, `PREMISE: ${rel} carries the region's close line`).toBeGreaterThan(0);
+  return ts.createSourceFile(rel, lines.slice(close + 1).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+}
+
+/** Every call expression in a subtree. */
+function callsIn(n: ts.Node, out: ts.CallExpression[] = []): ts.CallExpression[] {
+  if (ts.isCallExpression(n)) out.push(n);
+  ts.forEachChild(n, (c) => {
+    callsIn(c, out);
+  });
+  return out;
+}
+
+/** The function bodies named `name`: a function declaration, or a const initialized with an arrow or a function. */
+function functionsNamed(source: ts.SourceFile, name: string): ts.Node[] {
+  const out: ts.Node[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === name) out.push(n);
+    if (
+      ts.isVariableDeclaration(n) &&
+      ts.isIdentifier(n.name) &&
+      n.name.text === name &&
+      n.initializer !== undefined &&
+      (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))
+    ) {
+      out.push(n.initializer);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(source);
+  return out;
+}
+
+/** The hand-written task read and listing of each runnable. */
+const CENSUS_WRAPPERS: Record<string, readonly string[]> = {
+  "trace-render.ts": ["readTask", "listTasks"],
+  "state-check.ts": ["readTraceTask", "listTasks"],
+};
+
+describe("CR-04 census: no hand-written part of either runnable decides whether a task or its notes are present", () => {
+  for (const [rel, wrappers] of Object.entries(CENSUS_WRAPPERS)) {
+    it(`${rel}: readTaskNoteRefs and listContextTasks are each called once, the wrappers make no node:fs call, and nothing passes withFileTypes`, () => {
+      const source = handWritten(rel);
+      const calls = callsIn(source);
+      expect(calls.filter((c) => calledName(c) === "readTaskNoteRefs"), "readTaskNoteRefs calls").toHaveLength(1);
+      expect(calls.filter((c) => calledName(c) === "listContextTasks"), "listContextTasks calls").toHaveLength(1);
+      for (const wrapper of wrappers) {
+        const bodies = functionsNamed(source, wrapper);
+        expect(bodies, `PREMISE: ${rel} has one hand-written ${wrapper}`).toHaveLength(1);
+        const fsCalls = callsIn(bodies[0] as ts.Node).filter(
+          (c) =>
+            ts.isPropertyAccessExpression(c.expression) &&
+            ts.isIdentifier(c.expression.expression) &&
+            c.expression.expression.text === "nodeFs",
+        );
+        expect(fsCalls.map((c) => c.getText(source)), `${rel} ${wrapper} makes a node:fs call of its own`).toEqual([]);
+      }
+      const withFileTypes = calls.filter((c) =>
+        c.arguments.some(
+          (a) =>
+            ts.isObjectLiteralExpression(a) &&
+            a.properties.some((p) => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === "withFileTypes"),
+        ),
+      );
+      expect(withFileTypes.map((c) => c.getText(source)), `${rel} passes withFileTypes`).toEqual([]);
+    });
+  }
+});

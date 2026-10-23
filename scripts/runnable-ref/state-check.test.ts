@@ -30,7 +30,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
-import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip, type SkipEntry } from "../check-platform-shapes.js";
 import {
   BOARD_REL,
   BUDGET_COUNT,
@@ -1327,6 +1327,105 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
         expect(j.report.trace.findings[0]?.note).toContain("this task's notes could not be read (");
         expect(j.report.trace.findings[0]?.note).toContain("symbolic link");
       }
+    });
+  }
+
+  // Plan 37-28 (D-18, CR-04): every context-root entry is a task, a keeper or a failed task. A task directory
+  // replaced by a link, and each non-directory shape at a task position, is one trace-not-compared finding naming
+  // the entry, with and without the marker, in both context roots; keepers (regular dot-named files) are neither.
+  const CR04_SHAPES: readonly {
+    readonly label: string;
+    readonly name: string;
+    readonly stage: (root: string, contextDir: string, at: string, position: string) => SkipEntry | null;
+  }[] = [
+    {
+      label: "taskA replaced by a link to an in-root directory holding the same note",
+      name: "taskA",
+      stage: (root, contextDir, at, position) => {
+        renameSync(join(contextDir, "taskA"), join(root, "moved-task"));
+        return stageSymlinkOrSkip(join(root, "moved-task"), at, "symlink to a directory inside the repository root", position);
+      },
+    },
+    {
+      label: "a symbolic link to a regular file",
+      name: "taskL",
+      stage: (root, _c, at, position) => {
+        writeFileSync(join(root, "a-regular-file.txt"), "x\n");
+        return stageSymlinkOrSkip(join(root, "a-regular-file.txt"), at, "symlink to a regular file", position);
+      },
+    },
+    {
+      label: "a dangling symbolic link",
+      name: "taskD",
+      stage: (root, _c, at, position) => stageSymlinkOrSkip(join(root, "no-such-target"), at, "dangling symlink", position),
+    },
+    {
+      label: "a regular file",
+      name: "taskB",
+      stage: (_r, _c, at) => {
+        writeFileSync(at, "not a task\n");
+        return null;
+      },
+    },
+    { label: "a FIFO", name: "taskC", stage: (_r, _c, at, position) => stageShapeOrSkip("FIFO", at, position) },
+    {
+      label: "a symbolic link named .gitkeep",
+      name: ".gitkeep",
+      stage: (root, _c, at, position) => {
+        writeFileSync(join(root, "a-keeper-target.txt"), "");
+        return stageSymlinkOrSkip(join(root, "a-keeper-target.txt"), at, "symlink to a regular file", position);
+      },
+    },
+  ];
+  for (const contextRel of [CONTEXT_REL, CONTEXT_ARCHIVE_REL] as const) {
+    for (const shape of CR04_SHAPES) {
+      it(`CR-04: ${contextRel}: ${shape.label} is trace-not-compared naming the entry, with and without the D-14 marker, never fresh`, () => {
+        for (const marker of [LAYOUT_MARKER_CONTENT, undefined]) {
+          const root = cleanRepo(marker);
+          plantNote(root, contextRel, "taskA", "n1", ["ABC-001", "src/a.ts"]);
+          renderOk(root);
+          const contextDir = join(root, ...contextRel.split("/"));
+          const skipped = shape.stage(
+            root,
+            contextDir,
+            join(contextDir, shape.name),
+            `scripts/runnable-ref/state-check.test.ts: CR-04 ${shape.label} (plan 37-28, ${contextRel})`,
+          );
+          if (skipped !== null) {
+            console.warn(skipLine(skipped, "the other CR-04 rows of this describe (the same failed-task rule)"));
+            return;
+          }
+          const text = run(root);
+          const j = runJson(root);
+          const expected = marker === undefined ? 0 : 1;
+          expect(text.status, `${text.stdout} ${text.stderr}`).toBe(expected);
+          expect(text.stdout).not.toContain("The trace is fresh");
+          expect(traceReportLines(text.stdout)).toEqual([]);
+          const lines = traceLines(text.stdout);
+          expect(lines).toHaveLength(1);
+          const rel = `${contextRel}/${shape.name}`.replace(/[.]/g, "\\.");
+          expect(lines[0]).toMatch(new RegExp(`^${marker === undefined ? "WARN {5}" : "FINDING {2}"}${rel}: .*\\(trace-not-compared\\)$`));
+          expect(j.status).toBe(expected);
+          expect(j.report.trace.compared).toBe(false);
+          expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-not-compared|${contextRel}/${shape.name}`]);
+          expect(j.report.trace.findings[0]?.note).toContain("this task's notes could not be read (");
+        }
+      });
+    }
+
+    it(`CR-04 CONTROL: ${contextRel}: a regular .gitkeep and .DS_Store beside taskA are keepers: no finding, the trace fresh`, () => {
+      const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+      plantNote(root, contextRel, "taskA", "n1", ["ABC-001", "src/a.ts"]);
+      renderOk(root);
+      const contextDir = join(root, ...contextRel.split("/"));
+      writeFileSync(join(contextDir, ".gitkeep"), "");
+      writeFileSync(join(contextDir, ".DS_Store"), "Bud1 metadata\n");
+      const text = run(root);
+      expect(text.status, `${text.stdout} ${text.stderr}`).toBe(0);
+      expect(traceLines(text.stdout)).toEqual([]);
+      expect(text.stdout).toContain("The trace is fresh: 1 task(s)");
+      const j = runJson(root);
+      expect(j.report.trace).toEqual({ compared: true, findings: [] });
     });
   }
 

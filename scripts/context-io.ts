@@ -2154,8 +2154,8 @@ interface RawNoteRead {
  * `unreadable`: anything else that stops the path being reached, with its errno code. A component that is a
  * symbolic link whose target cannot be reached, a component before the last that is not a directory (ENOTDIR),
  * and any other lstat, stat or realpath failure.
- * `present`: `entry` is the lstat of the path itself, `target` the stat of what it names (the same object when the
- * entry is not a link), and `real` its realpath.
+ * `present`: `entry` is the lstat of the path itself, `target` the stat of what it names (for an entry that is not
+ * a link, the stat of the entry itself), and `real` its realpath.
  */
 export type EntryPresence =
   | { readonly kind: "absent" }
@@ -2179,8 +2179,9 @@ function presenceCode(e: unknown): string {
  * directory, then each component from the filesystem root is lstat'ed. ENOENT on a component is `absent`; any
  * other lstat failure is `unreadable`. A component before the last that is a link is stat'ed, and a failure is
  * `unreadable` (ENOENT for a dangling link, ELOOP, EACCES); a component before the last that is neither a directory
- * nor a link to one is `unreadable` with code ENOTDIR. The last component keeps its lstat as `entry`; when it is a
- * link it is stat'ed, and a failure is `unreadable`; then its realpath is taken, and a failure is `unreadable`.
+ * nor a link to one is `unreadable` with code ENOTDIR. The last component keeps its lstat as `entry` and is stat'ed
+ * (through the link when it is one), and a failure is `unreadable`; then its realpath is taken, and a failure is
+ * `unreadable`.
  *
  * The literal ENOENT is compared in this function and nowhere else in the note walk, the trace's task read or the
  * context-root listing. Every caller asks this function and decides nothing about absence itself.
@@ -2205,8 +2206,10 @@ export function entryPresence(path: string): EntryPresence {
       if (code === "ENOENT") return { kind: "absent" };
       return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})` };
     }
+    // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
+    // path names, and the one stat site is reached under every caller.
     let target = entry;
-    if (entry.isSymbolicLink()) {
+    if (entry.isSymbolicLink() || last) {
       try {
         target = statSync(at);
       } catch (e) {
@@ -2214,9 +2217,11 @@ export function entryPresence(path: string): EntryPresence {
         return {
           kind: "unreadable",
           code,
-          reason: last
-            ? `it is a symbolic link whose target cannot be reached (${code})`
-            : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+          reason: !entry.isSymbolicLink()
+            ? `"${at}" cannot be inspected (${code})`
+            : last
+              ? `it is a symbolic link whose target cannot be reached (${code})`
+              : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
         };
       }
     }
@@ -2235,6 +2240,12 @@ export function entryPresence(path: string): EntryPresence {
     }
     return { kind: "present", entry, target, real };
   }
+}
+
+/** True when `real` is `boundary` or under it. A boundary that ends in the separator (`/`) is its own prefix. */
+function isWithin(real: string, boundary: string): boolean {
+  const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
+  return real === boundary || real.startsWith(prefix);
 }
 
 /** An Error carrying an errno-style `code`, so a caller that asserts the code (plan 37-21) still can. */
@@ -2269,7 +2280,7 @@ function readRawNotesWithSkips(task: string, contextRoot: string, boundary: stri
   if (!presence.target.isDirectory()) {
     throw codedError(`context-io: the notes directory "${notesDir}" is not a directory (ENOTDIR)`, "ENOTDIR");
   }
-  if (boundary !== null && presence.real !== boundary && !presence.real.startsWith(boundary + sep)) {
+  if (boundary !== null && !isWithin(presence.real, boundary)) {
     throw new Error("its notes directory resolves outside the repository root, so it was not read");
   }
   const skipped: SkippedNoteEntry[] = [];
@@ -2387,6 +2398,64 @@ function recordFromParsed(parsed: ParsedFrontmatter, id: string): NoteRecord {
     gate_run: s.gate_run ?? undefined,
     content_hash: s.content_hash ?? undefined,
     body: parsed.body.trim(),
+  };
+}
+
+// ── The trace's view of a context root (plan 37-28, D-18, CR-04). ───────────────────────────────
+/**
+ * Every entry of a context root except keepers, for the trace (plan 37-28, D-18, CR-04).
+ *
+ * The listing both runnables used kept only Dirent directories, so a task directory replaced by a symbolic link was
+ * dropped with no count and no name, and the write mode then removed its tickets' trace files with exit 0 (CR-04).
+ * This listing drops nothing it cannot name: every entry is returned except a keeper, and `readTaskNoteRefs`
+ * refuses each returned entry that is not a task directory by name, so it reaches the trace model as a failed task.
+ *
+ * A keeper is a name beginning with `.` whose entryPresence is `present` with an `entry` that is a regular file
+ * (not a link): `.gitkeep`, `.DS_Store`. That is the record rule's keeper rule (recordEntryNames,
+ * budgetEntryNames, the trace directory's ownedTraceEntries) restricted to regular files, because a dot-named
+ * directory is a legal task name (TASK_NAME_RE) and is read as a task, and a dot-named link or FIFO could hold or
+ * hide a ticket's notes. A root that cannot be listed throws, as before.
+ */
+export function listContextTasks(contextRoot: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(contextRoot)) {
+    if (name.startsWith(".")) {
+      const presence = entryPresence(join(contextRoot, name));
+      if (presence.kind === "present" && presence.entry.isFile()) continue;
+    }
+    out.push(name);
+  }
+  return out;
+}
+
+/**
+ * One task's notes as the trace reads them: each published note's refs, and the walk's skip list (plan 37-28,
+ * D-18, CR-04). Both runnables call this generated copy, so neither decides by hand whether a task or its notes
+ * are present.
+ *
+ * The task position never follows a link (the 37-06 trust decision): the entry is asked of entryPresence, the one
+ * absence owner, and it throws when the entry is absent after the listing named it (`it was listed and is no
+ * longer there`, a vanished entry is a read failure), when it cannot be reached (the owner's reason), when it is a
+ * symbolic link of any kind, and when it is not a directory (a regular file, a FIFO). Then the walk reads the
+ * notes with `boundary` (the repository root), so a notes directory whose real path leaves it throws. Every throw
+ * reaches the trace model as a failed task, named on stderr by the renderer and as a `trace-not-compared` finding
+ * by state-check, so no trace file is removed while a refused entry could have held its ticket's notes (33.1 DC-2).
+ */
+export function readTaskNoteRefs(
+  task: string,
+  contextRoot: string,
+  boundary: string,
+): { notes: { refs: string[] }[]; skipped: SkippedNoteEntry[] } {
+  assertSafeTask(task);
+  const presence = entryPresence(join(contextRoot, task));
+  if (presence.kind === "absent") throw new Error("it was listed and is no longer there");
+  if (presence.kind === "unreadable") throw codedError(presence.reason, presence.code);
+  if (presence.entry.isSymbolicLink()) throw new Error("it is a symbolic link, and a symbolic link is never read as a task");
+  if (!presence.entry.isDirectory()) throw new Error("it is not a directory, so it is not a task");
+  const read = readRawNotesWithSkips(task, contextRoot, boundary);
+  return {
+    notes: read.notes.map((raw) => ({ refs: recordFromParsed(raw.parsed, raw.id).refs })),
+    skipped: read.skipped,
   };
 }
 

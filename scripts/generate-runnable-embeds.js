@@ -96,7 +96,9 @@ export const EMBED_CLOSE = "// </runnable-embeds>";
  * Plan 37-28 (2026-10-23) adds scripts/context-io.ts entryPresence to the context-io roots of the state checker's
  * row and the trace renderer's row (D-18, CR-03, READ-1 round 2): the one absence owner, under which only an lstat
  * ENOENT is "nothing there", so a dangling `notes` link is a failed task in both runnables, never a task with no
- * notes.
+ * notes. The same plan adds readTaskNoteRefs and listContextTasks to both rows (D-18, CR-04): the one task read and
+ * the one context-root listing, so a context-root entry that is not a task directory (a symbolic link of any kind, a
+ * regular file, a FIFO) is a failed task by name in both runnables and no hand-written part decides presence.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -170,7 +172,15 @@ export const EMBED_SPECS = Object.freeze([
             },
             {
                 module: "scripts/context-io.ts",
-                roots: ["readRegularFileOrNull", "readRawNotesWithSkips", "recordFromParsed", "NOTE_SKIP_ARMS", "entryPresence"],
+                roots: [
+                    "readRegularFileOrNull",
+                    "readRawNotesWithSkips",
+                    "recordFromParsed",
+                    "NOTE_SKIP_ARMS",
+                    "entryPresence",
+                    "readTaskNoteRefs",
+                    "listContextTasks",
+                ],
             },
             { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },
         ],
@@ -215,6 +225,8 @@ export const EMBED_SPECS = Object.freeze([
                     "atomicWrite",
                     "NOTE_SKIP_ARMS",
                     "entryPresence",
+                    "readTaskNoteRefs",
+                    "listContextTasks",
                 ],
             },
         ],
