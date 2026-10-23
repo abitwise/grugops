@@ -795,6 +795,51 @@ describe("READ-1 table: a mode a row does not list reaches no fault there", () =
   }
 });
 
+// ── The roll's re-reads under the owner (plan 37-30, D-18) ───────────────────────────────────────────────
+
+/**
+ * Until plan 37-30 the roll's re-reads had their own row, `readTextOrThrow:lstatSync#0 via io.read#0`. The owner's
+ * rows are keyed by its direct caller, readTextOrThrow#0, and the preload fires at the first matching call, which is
+ * the board's planning read; so the re-read position would no longer be failed by any row. This row keeps it: the
+ * owner's lstat fails only while the stack holds the line of io.read's call of readTextOrThrow, found by
+ * callingSites, never by a line lookup.
+ */
+describe("READ-1 table: the roll's re-reads under the absence owner (plan 37-30, D-18)", () => {
+  const js = committed("state-roll");
+  const site = DERIVED["state-roll"].find((p) => p.site.key === "entryPresence:lstatSync#0")?.site;
+  const reread = callingSites(js, "readTextOrThrow").find((c) => c.scope === "io.read");
+
+  it("PREMISE: the owner's lstat and io.read's call of readTextOrThrow are both derived", () => {
+    expect(site, "entryPresence:lstatSync#0 is a derived site of state-roll.js").toBeDefined();
+    expect(reread, "io.read calls readTextOrThrow in state-roll.js").toBeDefined();
+  });
+
+  for (const mode of SR) {
+    it(`state-roll ${mode}: entryPresence:lstatSync#0 under io.read ${mode === "dry-run" ? "is not reached" : "fails as could-not-run or a rollback, nothing changed"}`, () => {
+      if (site === undefined || reread === undefined) throw new Error("PREMISE: see the premise row");
+      const pair: DerivedPair = { site, via: { id: "io.read#0", line: reread.line, kind: reread.kind } };
+      const run = runPair("state-roll", pair, mode);
+      if ("skip" in run) {
+        console.warn(run.skip);
+        return;
+      }
+      const { r, before, after, all } = run;
+      if (mode === "dry-run") {
+        expect(r.fired, `a dry run makes no re-read\n${all}`).toBe(0);
+        return;
+      }
+      expect(r.fired, `the fault fired (site-not-via ${r.siteNotVia})\n${all}`).toBeGreaterThan(0);
+      expect(r.signal, all).toBeNull();
+      expect([1, 2], `exit 1 or 2, never 0\n${all}`).toContain(r.status);
+      if (r.status === 2) expect(r.stdout, all).toBe("");
+      else expect(r.stdout, all).toMatch(FINDING_LINE["state-roll"]);
+      expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+      expect(hasNodeStack(r.stderr), all).toBe(false);
+      expect(after, `nothing was written, changed or removed\n${all}`).toEqual(before);
+    });
+  }
+});
+
 // ── The one-owner census (plan 37-29, D-18, READ-1 round 2) ──────────────────────────────────────────────
 
 /** The runnables the census covers: trace-render and state-check since plan 37-29, state-roll since plan 37-30. */
