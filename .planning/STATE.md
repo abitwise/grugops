@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-28-PLAN.md
-last_updated: "2026-10-23T20:57:41.815Z"
+stopped_at: Completed 37-29-PLAN.md
+last_updated: "2026-10-23T21:35:29.592Z"
 last_activity: 2026-10-23
 last_activity_desc: Phase 37 execution started
-state_head: f4776f383d905680a60aa91fd702d8816a315b03
+state_head: eb78c9c2f9fdc35c82a7cc02b0e3a8a3c74fd3b6
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 47
-  completed_plans: 43
+  total_plans: 48
+  completed_plans: 44
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 29 of 32
+Plan: 30 of 32
 Status: Ready to execute
 Last activity: 2026-10-23 — Phase 37 execution started
 
@@ -757,6 +757,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P26 | 30 min | 2 tasks | 7 files |
 | Phase 37 P27 | 36 min | 2 tasks | 8 files |
 | Phase 37 P28 | 47 min | 2 tasks | 21 files |
+| Phase 37 P29 | 30 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2075,6 +2076,7 @@ Recent decisions affecting current work:
 - [Phase 37]: Plan 37-27: HAND_TRACE_PATTERNS has three patterns derived from the truth (edit/hand-edit/modify verbs; trace row|rows|matrix|column|columns without the word traceability); the scan carries KNOWN_VIOLATIONS/RENDERED_WORDING corpora and a paragraph mode; WF03 rewording split in two sentences for the WP-03 25-word bound; examples/ stays outside the scan set (deferred, Phase 43 candidate)
 - [Phase 37]: 37-28: entryPresence (scripts/context-io.ts) is the one absence owner; only an lstat ENOENT is absent, and it stats the last component always so its one stat site serves every caller
 - [Phase 37]: 37-28: every context-root entry is a task, a keeper (regular non-link dot-named file) or a failed task; both runnables use the generated listContextTasks and readTaskNoteRefs (CR-04)
+- [Phase 37]: 37-29: a context root entryPresence refuses (dangling link at it or an ancestor) is trace-not-compared in state-check and exit 2 in trace-render; ENOENT is compared only in entryPresence and readRegularFileOrNull in both runnables (census pinned 2 and 2)
 
 ### Pending Todos
 
@@ -2406,8 +2408,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-23T20:57:41.118Z
-Stopped at: Completed 37-28-PLAN.md
+Last session: 2026-10-23T21:35:29.580Z
+Stopped at: Completed 37-29-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
