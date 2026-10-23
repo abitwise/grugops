@@ -33,6 +33,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -3857,5 +3858,138 @@ describe("validate-agent-factory.js — every BUDGETS key is checked (plan 37-02
     );
     expect(keyed).toEqual(sorted);
     expect(new Set(keyed.map((k) => k.key)).size, "every key appears").toBe(BUDGET_COUNT);
+  });
+});
+
+// ── IN-03: an unreachable state directory or layout marker is named, never read as absent (plan 37-26, D-17) ──
+//
+// The validator answered "does it exist" with existsSync, which is false for EACCES on a parent component as well as
+// for ENOENT. So a budget directory behind a mode-000 directory was read as absent and got no finding at all, and a
+// layout marker behind one read as absent, which turns a migrated tree's budget errors into warnings. Only ENOENT is
+// absence now, as state-check's `locate` decides; every other failure is a finding by name (37-GAP-PLANNING-BRIEF.md
+// READ-1). Each case puts the path behind a symbolic link into a mode-000 directory, so the link itself is reachable
+// and only the target is not.
+
+/** Why a mode-000 directory denies nothing here, or null when the cases can run. */
+function mode000SkipReason(): string | null {
+  if (process.platform === "win32") return "win32 keeps no POSIX permission bits, so a mode-000 directory denies nothing";
+  if (typeof process.getuid === "function" && process.getuid() === 0) return "root reads a mode-000 directory, so nothing is denied";
+  return null;
+}
+
+/** Run `body` with `dir` at mode 000. The mode is given back in a `finally`, so a failed case leaves a removable tree. */
+function withMode000<T>(dir: string, body: () => T): T {
+  chmodSync(dir, 0o000);
+  try {
+    return body();
+  } finally {
+    chmodSync(dir, 0o755);
+  }
+}
+
+/**
+ * Replace `rel` in the tree `d` with a symbolic link to the same name inside `memory-bank/plans/locked`, after
+ * `makeTarget` has created the target. Returns the locked directory, which the case puts at mode 000.
+ */
+function linkIntoLocked(d: string, rel: string, makeTarget: (abs: string) => void): string {
+  const locked = join(d, STATE_ROOT_REL, "locked");
+  mkdirSync(locked, { recursive: true });
+  const target = join(locked, rel.split("/").pop() as string);
+  makeTarget(target);
+  rmSync(join(d, rel), { recursive: true, force: true });
+  symlinkSync(target, join(d, rel));
+  return locked;
+}
+
+/** A budget tree whose NFR directory, holding one NFR file, sits behind a link into the locked directory. */
+function nfrBehindLock(withMarker: boolean): { d: string; locked: string } {
+  const d = budgetTree();
+  if (withMarker) writeMarker(d, LAYOUT_MARKER_CONTENT);
+  const locked = linkIntoLocked(d, NFR_DIR_REL, (t) => {
+    mkdirSync(t);
+    writeFileSync(join(t, "NFR-001.md"), "# NFR-001\n");
+  });
+  return { d, locked };
+}
+
+/** The text of a tagged stderr line after its tag. */
+function untagged(line: string): string {
+  return line.replace(/^ {2}(ERROR|WARNING|LAYOUT) +/, "");
+}
+
+describe("IN-03: an unreachable state directory or layout marker is a named finding, never absent (plan 37-26, D-17)", () => {
+  it("with the D-14 marker, an NFR directory behind a mode-000 directory: exit 1, an ERROR naming it and EACCES", () => {
+    const skip = mode000SkipReason();
+    if (skip !== null) {
+      console.warn(`SKIPPED (plan 37-26 IN-03): ${skip}`);
+      return;
+    }
+    const { d, locked } = nfrBehindLock(true);
+    const r = withMode000(locked, () => {
+      expect(existsSync(join(d, NFR_DIR_REL)), "PREMISE: an existence test reads the unreachable directory as absent").toBe(false);
+      return runFixture(d);
+    });
+    expect(r.status, out(r)).toBe(1);
+    const errs = tagged(r, "ERROR").filter((l) => l.includes(`${NFR_DIR_REL}:`) && l.includes("EACCES"));
+    expect(errs, out(r)).toHaveLength(1);
+    expect(errs[0], out(r)).toContain("(BUDGETS.nfrBytes)");
+    expect(r.stdout ?? "", out(r)).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("without the marker, the same finding is a WARNING with the same text, and the run exits 0 bare (D-04, D-05)", () => {
+    const skip = mode000SkipReason();
+    if (skip !== null) {
+      console.warn(`SKIPPED (plan 37-26 IN-03): ${skip}`);
+      return;
+    }
+    const marked = nfrBehindLock(true);
+    const bare = nfrBehindLock(false);
+    const withMarker = withMode000(marked.locked, () => runFixture(marked.d));
+    const r = withMode000(bare.locked, () => runFixture(bare.d));
+    expect(r.status, out(r)).toBe(0);
+    const warns = tagged(r, "WARNING").filter((l) => l.includes(`${NFR_DIR_REL}:`) && l.includes("EACCES"));
+    expect(warns, out(r)).toHaveLength(1);
+    expect(tagged(r, "ERROR"), out(r)).toEqual([]);
+    const errs = tagged(withMarker, "ERROR").filter((l) => l.includes(`${NFR_DIR_REL}:`));
+    expect(errs, out(withMarker)).toHaveLength(1);
+    expect(untagged(warns[0] as string)).toBe(untagged(errs[0] as string));
+  });
+
+  it("a layout marker behind a mode-000 directory: exit 1, an ERROR naming the marker, so a broken budget is never passed as a warning", () => {
+    const skip = mode000SkipReason();
+    if (skip !== null) {
+      console.warn(`SKIPPED (plan 37-26 IN-03): ${skip}`);
+      return;
+    }
+    const d = budgetTree();
+    const locked = linkIntoLocked(d, LAYOUT_MARKER_REL, (t) => writeFileSync(t, LAYOUT_MARKER_CONTENT));
+    growBoardTo(d, BUDGETS.boardBytes + 1);
+    const r = withMode000(locked, () => runFixture(d));
+    expect(r.status, out(r)).toBe(1);
+    const errs = tagged(r, "ERROR").filter((l) => l.includes(`${LAYOUT_MARKER_REL}:`) && l.includes("EACCES"));
+    expect(errs, out(r)).toHaveLength(1);
+    expect(errs[0], out(r)).toContain("the layout could not be decided");
+    expect(tagged(r, "LAYOUT"), "an unreadable marker is not reported as an absent one").toEqual([]);
+    expect(r.stdout ?? "", out(r)).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("CONTROLS: an absent NFR directory and an absent marker keep today's output, with and without the marker", () => {
+    const bare = budgetTree();
+    expect(existsSync(join(bare, NFR_DIR_REL)), "PREMISE: the good fixture has no NFR directory").toBe(false);
+    expect(existsSync(join(bare, LAYOUT_MARKER_REL)), "PREMISE: the good fixture has no marker").toBe(false);
+    const marked = budgetTree();
+    writeMarker(marked, LAYOUT_MARKER_CONTENT);
+    // The good fixture's whole output before plan 37-26, measured with the validator at e6a0f780: the scope line and
+    // the fixture's one dispatch-table warning. Absence must not move a byte of it.
+    const TODAY_STDERR =
+      "  SCOPE    governance configurations examined: agent-factory/config/factory.config.json\n" +
+      "  WARNING  agent-factory/packaging/adapters.md: carries no per-host dispatch table (no table row whose first " +
+      "cell is a bold host name), so no host row could be checked against the host registry\n";
+    for (const d of [bare, marked]) {
+      const r = runFixture(d);
+      expect(r.status, out(r)).toBe(0);
+      expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+      expect(r.stderr, out(r)).toBe(TODAY_STDERR);
+    }
   });
 });

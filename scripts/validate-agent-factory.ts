@@ -51,7 +51,7 @@
 // try/catch so a missing or garbled file becomes a finding, never an unhandled throw
 // (T-06-01/T-06-03, mirrors the MCP admission gate's and install.ts's fail-closed posture).
 
-import { readFileSync, existsSync, lstatSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { readFileSync, existsSync, lstatSync, readdirSync, realpathSync, statSync, type Stats } from "node:fs";
 import { join, resolve, sep } from "node:path";
 // Phase 27 (KIT-02): the role and workflow name sets are DERIVED here, never hand-listed.
 // kit-model.ts is the single authority for "which roles and workflows exist" (KIT-01). It reads NO
@@ -147,6 +147,91 @@ if (!process.env.VALIDATE_KIT_ROOT) {
 }
 const KIT_ROOT = resolve(process.env.VALIDATE_KIT_ROOT);
 
+// ── Two-tier finding collector (D-44) ───────────────────────────────────────────────────────
+const errors: string[] = [];
+const warnings: string[] = [];
+const STRICT = process.argv.includes("--strict");
+const err = (m: string): void => {
+  errors.push(m);
+};
+const warn = (m: string): void => {
+  warnings.push(m);
+};
+
+// ── The read primitives (plan 37-26, D-17, 37-GAP-PLANNING-BRIEF.md READ-1) ──────────────────────
+// statAt, lstatAt, textAt and namesAt are where this file reads the file system; canonicalBase's realpath is the
+// fifth read. Each answers `absent` for ENOENT and for nothing else, as state-check's `locate` decides. EACCES on a
+// parent component, EIO, ENOTDIR and every other code reach the caller as `failed` with the code, so a read that
+// failed is never "no data" and never a pass. 37-REVIEW IN-03 suggested reading ENOTDIR as absent too; that is not
+// adopted, because a path component that is not a directory is a malformed tree, not a missing file.
+type ReadResult<T> =
+  | { readonly kind: "ok"; readonly value: T }
+  | { readonly kind: "absent" }
+  | { readonly kind: "failed"; readonly code: string };
+
+/** The errno code of a thrown fs error, or `unknown`. */
+function errnoCode(e: unknown): string {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === "string" && code !== "" ? code : "unknown";
+}
+
+/** A failed read: absent for ENOENT only, otherwise failed with its code. */
+function failure(e: unknown): { readonly kind: "absent" } | { readonly kind: "failed"; readonly code: string } {
+  const code = errnoCode(e);
+  return code === "ENOENT" ? { kind: "absent" } : { kind: "failed", code };
+}
+
+/** The code of a read that did not succeed. `absent` after a successful stat means the path vanished: ENOENT. */
+function codeOf(r: { readonly kind: "absent" } | { readonly kind: "failed"; readonly code: string }): string {
+  return r.kind === "failed" ? r.code : "ENOENT";
+}
+
+/** stat, following a link as the existence test it replaces did. */
+function statAt(abs: string): ReadResult<Stats> {
+  try {
+    return { kind: "ok", value: statSync(abs) };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** lstat: the path itself, never a link's target. */
+function lstatAt(abs: string): ReadResult<Stats> {
+  try {
+    return { kind: "ok", value: lstatSync(abs) };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** The file's text as UTF-8. */
+function textAt(abs: string): ReadResult<string> {
+  try {
+    return { kind: "ok", value: readFileSync(abs, "utf8") };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** The directory's entry names. */
+function namesAt(abs: string): ReadResult<string[]> {
+  try {
+    return { kind: "ok", value: readdirSync(abs) };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** The paths whose read failure is already an ERROR, so one path is reported once whichever read met it first. */
+const readFailuresRecorded = new Set<string>();
+
+/** Record one ERROR for the path `abs`, once. */
+function recordReadFailure(abs: string, message: string): void {
+  if (readFailuresRecorded.has(abs)) return;
+  readFailuresRecorded.add(abs);
+  err(message);
+}
+
 // ── Safe filesystem helpers, forked per root (try/catch → null/false/[]; never throw) ────────
 // kit* resolve under KIT_ROOT; state* resolve under STATE_ROOT. Each keeps the fail-closed
 // posture verbatim so a missing/garbled file becomes a finding, never an unhandled throw.
@@ -178,17 +263,6 @@ const stateListDir = (rel: string): string[] => {
   } catch {
     return [];
   }
-};
-
-// ── Two-tier finding collector (D-44) ───────────────────────────────────────────────────────
-const errors: string[] = [];
-const warnings: string[] = [];
-const STRICT = process.argv.includes("--strict");
-const err = (m: string): void => {
-  errors.push(m);
-};
-const warn = (m: string): void => {
-  warnings.push(m);
 };
 
 // ── Derived name lists (KIT-02, Phase 27 — the frozen arrays are DELETED) ────────────────────
@@ -806,38 +880,57 @@ function checkTickets(): void {
 // no broken budget prints nothing new. A marker that is present and not valid is a WARNING by name, and the
 // budget findings stay warnings (D-05). No file is exempt by name (D-11).
 
-/** True when `rel` under the state root is a regular file (following a link), without opening it. */
-function stateIsRegularFile(rel: string): boolean {
-  try {
-    return statSync(join(STATE_ROOT, rel)).isFile();
-  } catch {
-    return false;
-  }
+// (Plan 37-26, D-17, IN-03) THE BUDGET PASS READS THROUGH THE PRIMITIVES, NOT THE RECORDING HELPERS. A read that
+// fails here is a budget fact (`not measured`, with its code) routed by the marker like every other budget finding,
+// as state-check routes it; it is not also recorded as a helper ERROR, so one failure is reported once. The marker is
+// the exception: a marker that cannot be inspected or read decides the severity of every budget finding, so it is an
+// ERROR by name, and a read failure can never downgrade a migrated tree's budget errors to warnings.
+
+/** The absolute path of `rel` under the state root. */
+function stateAbs(rel: string): string {
+  return join(STATE_ROOT, rel);
+}
+
+/** A marker that is present and could not be inspected or read: an ERROR by name, and invalid. */
+function markerUnreadable(abs: string, code: string): MarkerState {
+  recordReadFailure(abs, `${LAYOUT_MARKER_REL}: could not be read (${code}), so the layout could not be decided`);
+  return { state: "invalid", reason: `it could not be read (${code})` };
 }
 
 /**
  * The layout marker's state. The marker is checked to be a regular file before it is read, so a FIFO or a
- * directory at the marker path is reported, never opened. A present marker that cannot be read is invalid.
+ * directory at the marker path is reported, never opened. Only ENOENT is an absent marker.
  */
 function readLayoutMarker(): MarkerState {
-  if (!stateExists(LAYOUT_MARKER_REL)) return { state: "absent" };
-  if (!stateIsRegularFile(LAYOUT_MARKER_REL)) {
+  const abs = stateAbs(LAYOUT_MARKER_REL);
+  const st = statAt(abs);
+  if (st.kind === "absent") return { state: "absent" };
+  if (st.kind === "failed") return markerUnreadable(abs, st.code);
+  if (!st.value.isFile()) {
     return { state: "invalid", reason: "it is not a regular file, so it was not read" };
   }
-  const text = stateRead(LAYOUT_MARKER_REL);
-  if (text === null) return { state: "invalid", reason: "the file could not be read" };
-  return markerState(text, LAYOUT_MARKER_CONTENT);
+  const text = textAt(abs);
+  if (text.kind !== "ok") return markerUnreadable(abs, codeOf(text));
+  return markerState(text.value, LAYOUT_MARKER_CONTENT);
 }
 
 /** The board's budget findings, or the one finding that says the board could not be measured. */
 function boardFindings(): StateFinding[] {
-  if (!stateExists(BOARD_REL)) return []; // already a required-file error (checkRequiredFiles)
-  if (!stateIsRegularFile(BOARD_REL)) {
+  const abs = stateAbs(BOARD_REL);
+  const st = statAt(abs);
+  if (st.kind === "absent") return []; // already a required-file error (checkRequiredFiles)
+  if (st.kind === "failed") {
+    return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, `the file could not be inspected (${st.code})`)];
+  }
+  if (!st.value.isFile()) {
     return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "not a regular file, so it was not read")];
   }
-  const raw = stateRead(BOARD_REL);
-  if (raw === null) return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, "the file could not be read")];
-  // Read and parsed exactly as checkTickets reads and parses it: the same safe reader, the one grammar.
+  const text = textAt(abs);
+  if (text.kind !== "ok") {
+    return [unmeasuredFinding(BOARD_REL, "boardBytes", BUDGETS, `the file could not be read (${codeOf(text)})`)];
+  }
+  const raw = text.value;
+  // Read and parsed exactly as checkTickets reads and parses it: the same primitive, the one grammar.
   const normalized = normalizeDocument(raw);
   const blanked = stripHtmlComments(normalized);
   const model = parseBoard(raw);
@@ -849,13 +942,20 @@ function boardFindings(): StateFinding[] {
 
 /** The index-line findings of one of the two index files. A missing file is already a required-file error. */
 function indexFindings(rel: string): StateFinding[] {
-  if (!stateExists(rel)) return [];
-  if (!stateIsRegularFile(rel)) {
+  const abs = stateAbs(rel);
+  const st = statAt(abs);
+  if (st.kind === "absent") return [];
+  if (st.kind === "failed") {
+    return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, `the file could not be inspected (${st.code})`)];
+  }
+  if (!st.value.isFile()) {
     return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, "not a regular file, so it was not read")];
   }
-  const raw = stateRead(rel);
-  if (raw === null) return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, "the file could not be read")];
-  const normalized = normalizeDocument(raw);
+  const text = textAt(abs);
+  if (text.kind !== "ok") {
+    return [unmeasuredFinding(rel, "indexEntryBytes", BUDGETS, `the file could not be read (${codeOf(text)})`)];
+  }
+  const normalized = normalizeDocument(text.value);
   return indexLineFindings(rel, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS);
 }
 
@@ -866,35 +966,38 @@ function indexFindings(rel: string): StateFinding[] {
  * which may be absent.
  */
 function sizeFinding(rel: string, key: FileBudgetKey, missingIsClean: boolean): StateFinding[] {
-  let st;
-  try {
-    st = lstatSync(join(STATE_ROOT, rel));
-  } catch (e) {
-    const code = (e as { code?: unknown }).code;
-    if (missingIsClean && code === "ENOENT") return [];
-    return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read (${String(code ?? "unknown")})`)];
+  const st = lstatAt(stateAbs(rel));
+  if (st.kind !== "ok") {
+    if (missingIsClean && st.kind === "absent") return [];
+    return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read (${codeOf(st)})`)];
   }
-  if (!st.isFile()) return [unmeasuredFinding(rel, key, BUDGETS, "not a regular file, so it was not measured")];
-  const finding = fileBytesFinding(rel, st.size, key, BUDGETS);
+  if (!st.value.isFile()) return [unmeasuredFinding(rel, key, BUDGETS, "not a regular file, so it was not measured")];
+  const finding = fileBytesFinding(rel, st.value.size, key, BUDGETS);
   return finding === null ? [] : [finding];
 }
 
 /**
  * The byte findings of every record in one directory. The raw listing goes to budgetEntryNames, which decides
- * which entries are records; this function filters no name itself (D-11). A directory that does not exist is
- * an empty set. A directory that exists and cannot be listed is reported by name, so its files are never
- * silently unmeasured.
+ * which entries are records; this function filters no name itself (D-11). Only a directory that is absent (ENOENT)
+ * is an empty set. A directory that cannot be inspected (IN-03: EACCES on a parent, read as absent before plan
+ * 37-26), that is not a directory, or that cannot be listed is reported by name, so its files are never silently
+ * unmeasured.
  */
 function directoryFindings(dirRel: string, key: FileBudgetKey): StateFinding[] {
-  if (!existsSync(join(STATE_ROOT, dirRel))) return [];
-  let names: string[];
-  try {
-    names = readdirSync(join(STATE_ROOT, dirRel));
-  } catch (e) {
-    const code = String((e as { code?: unknown }).code ?? "unknown");
-    return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be listed (${code})`)];
+  const abs = stateAbs(dirRel);
+  const st = statAt(abs);
+  if (st.kind === "absent") return [];
+  if (st.kind === "failed") {
+    return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be inspected (${st.code})`)];
   }
-  return budgetEntryNames(names).flatMap((name) => sizeFinding(`${dirRel}/${name}`, key, false));
+  if (!st.value.isDirectory()) {
+    return [unmeasuredFinding(dirRel, key, BUDGETS, "not a directory, so it was not listed")];
+  }
+  const names = namesAt(abs);
+  if (names.kind !== "ok") {
+    return [unmeasuredFinding(dirRel, key, BUDGETS, `the directory could not be listed (${codeOf(names)})`)];
+  }
+  return budgetEntryNames(names.value).flatMap((name) => sizeFinding(`${dirRel}/${name}`, key, false));
 }
 
 function checkBudgets(): void {
