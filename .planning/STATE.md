@@ -4,12 +4,12 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
-status: verifying
-stopped_at: Completed 37-32-PLAN.md
+status: gaps_found
+stopped_at: Re-verified after gap round 2 (gaps_found 11/13)
 last_updated: "2026-10-23T23:36:32.392Z"
-last_activity: 2026-10-23
-last_activity_desc: Phase 37 execution started
-state_head: e1d893a73be40bc25b088335542791e0780d3510
+last_activity: 2026-10-24
+last_activity_desc: Gap round 2 executed (37-28..37-32), re-verified gaps_found 11/13: CR-05 dangling-outside-root absent bypass; WR-11 scan; WF03:46
+state_head: aaf1d075
 progress:
   total_phases: 9
   completed_phases: 2
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 
 ## Current Position
 
-Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
+Phase: 37 (Overview board, per-file records and budgets) — GAPS FOUND
 Plan: 32 of 32
-Status: Phase complete — ready for verification
-Last activity: 2026-10-23 — Phase 37 execution started
+Status: Gaps found (round 2 of 4 done); next /gsd-plan-phase 37 --gaps
+Last activity: 2026-10-24 — Gap round 2 executed (37-28..37-32), re-verified gaps_found 11/13: CR-05 dangling-outside-root absent bypass; WR-11 scan; WF03:46
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
