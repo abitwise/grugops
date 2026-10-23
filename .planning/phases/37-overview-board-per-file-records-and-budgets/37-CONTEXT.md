@@ -157,6 +157,20 @@ not this phase.
   gates ahead of the phase-37 lines in `ci.yml`) is not in this round. Agents follow
   37-GAP-PLANNING-BRIEF.md. — **Reversibility:** reversible (scope only).
 
+### Recorded before gap round 2
+- **D-18:** Gap round 2 (of 4) covers exactly these items, chosen by the human on 2026-10-23 from
+  37-VERIFICATION.md (re-verification, `gaps_found` 11/13) and 37-REVIEW.md (round-1 review): the
+  READ-1 family CR-03 (a dangling `notes` symlink reads as "no notes"), CR-04 (a symlinked task
+  directory is dropped uncounted), IN-06 (`statSync` with `throwIfNoEntry: false` also returns
+  undefined for ENOTDIR; the comment's premise is false) and IN-10 (state-check's `locate` and the
+  renderer's `realDirectoryOrNull` give two answers to "is this context root present"), closed by one
+  lstat-based "absent" owner where only an lstat ENOENT on the entry itself is absence; plus WR-08 (the
+  hand-trace scan is derived from the truth's wording, not from the sentences it caught) and WR-09 (the
+  WF02:41 and WF03:9 rewording, then regenerated adapters, catalog and skill twins). WR-07, WR-10,
+  IN-07, IN-08 and IN-09 stay open in 37-REVIEW-DISPOSITION.md, as do the round-0 items D-17 left open.
+  The CI-reachability human item is not in this round. Agents follow 37-GAP-PLANNING-BRIEF.md. —
+  **Reversibility:** reversible (scope only).
+
 </decisions>
 
 <canonical_refs>

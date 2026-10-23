@@ -21,6 +21,31 @@ is removed only when a COMPLETE read shows its ticket has no published refs, nev
 produced nothing. DC-3 (bounded reads; lstat before opening, no FIFO hang) applies to every new test
 fixture. Read `.planning/milestones/v2.1-phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-GAP-PLANNING-BRIEF.md` §1.
 
+### 1.1 Round 2 addendum (2026-10-23, scope D-18)
+
+READ-1 recurred after round 1 in a form the round-1 fault table could not reach: CR-03 (a dangling
+`notes` link: `realpathSync` ENOENT and `statSync(..., { throwIfNoEntry: false })` both say "absent",
+so the task reads as zero notes) and CR-04 (a symlinked task directory is filtered out of `listTasks`
+with no count). Neither raises an error, so injecting error codes never finds them. IN-06 (ENOTDIR also
+returns undefined) and IN-10 (two "is the context root present" answers) are the same family. Two
+consequences for every round-2 plan:
+
+- **Absence has one owner.** Only an `lstat` ENOENT on the entry itself is "absent". An entry that
+  exists but whose target is missing, is a link, or is the wrong type is a failed read (or a named,
+  counted trust arm), never "no data". The renderer, `state-check` and the embedded walk use that one
+  owner; no caller decides absence from `realpathSync`, `statSync` with `throwIfNoEntry: false`, or a
+  `Dirent` type filter.
+- **The READ-1 table also plants non-error shapes.** Besides injected error codes, each read site
+  gets rows for a dangling link, a link to a directory, a link to a file, a regular file where a
+  directory is expected, and (for directory listings) a refused entry. Each asserts the old trace
+  file and index line survive, exit 2, and `state-check` reports `trace-not-compared`. The site list
+  is re-derived by search, and the row count asserted.
+
+SCAN-1 recurred too (WR-08). The round-2 scan is derived from the truth "no kit file tells an agent to
+write the trace by hand": a write verb aimed at "the trace" in any spelling is a positive, and every
+sentence in 37-REVIEW.md WR-08's table is a `KNOWN_VIOLATIONS` row. A site outside D-18's scope is
+listed with "out of round 2 scope, see 37-REVIEW-DISPOSITION.md", not dropped.
+
 ## 2. Required in every gap-round plan set
 
 ### 2.1 Tests that catch any member of the class
