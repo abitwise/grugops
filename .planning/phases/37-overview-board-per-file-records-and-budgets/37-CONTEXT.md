@@ -145,12 +145,27 @@ not this phase.
   scan. The exemption for all generated regions and a 37-11 workaround were both rejected.
   — **Reversibility:** cheap (a census rule and its control case).
 
+### Recorded before gap round 1
+- **D-17:** Gap round 1 (of 4) covers exactly these items, chosen by the human on 2026-10-23 from
+  37-VERIFICATION.md and 37-REVIEW.md: Gap 1 (CR-01), Gap 2 (CR-02), Gap 3 (the three hand-append
+  sentences in WF02:41, WF03:9 and `_commit-convention.md`:52, plus a wider permanent scan), IN-03 (the
+  validator's `directoryFindings` reads an unreachable directory as absent, the same class as CR-01),
+  WR-01 (ticket-ID shape taken from the board grammar's one authority), WR-02 (one fence-aware answer
+  to "which progress headings are dated entries") and WR-05 (a version stamp on each runnable's
+  generated region and a named skew finding in `state-check`). WR-03, WR-04, WR-06, IN-01, IN-02,
+  IN-04 and IN-05 stay open in 37-REVIEW-DISPOSITION.md. The CI-reachability human item (two older red
+  gates ahead of the phase-37 lines in `ci.yml`) is not in this round. Agents follow
+  37-GAP-PLANNING-BRIEF.md. — **Reversibility:** reversible (scope only).
+
 </decisions>
 
 <canonical_refs>
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
+
+- `.planning/phases/37-overview-board-per-file-records-and-budgets/37-GAP-PLANNING-BRIEF.md` — defect
+  classes and rules for every gap round (D-17)
 
 ### Scope and milestone decisions
 - `.planning/ROADMAP.md` § Phase 37: goal, success criteria, notes (D-6, D-7)
