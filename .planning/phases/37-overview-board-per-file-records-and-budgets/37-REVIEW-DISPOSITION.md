@@ -3,6 +3,26 @@ phase: 37
 review: 37-REVIEW.md
 titles: json
 findings:
+  - id: CR-05
+    severity: critical
+    disposition: open
+    title: "An absent context root under a link that leaves the repository root reads as \"no tasks\", so the render removes the tickets' trace files (exit 0); with the folder present, the same link is refused as outside the root"
+  - id: WR-11
+    severity: warning
+    disposition: open
+    title: "SCAN-1 recurs: pattern 4 needs one of eleven determiners directly before `trace`, and the shared verb list has no `-ing` forms, so plain hand-write instructions pass"
+  - id: IN-11
+    severity: info
+    disposition: open
+    title: "A stray regular file or FIFO at the top of a context root now blocks every render, and the remedy text names the wrong fix"
+  - id: IN-12
+    severity: info
+    disposition: open
+    title: "Two read-sites assertions are looser than the rules they state"
+  - id: IN-13
+    severity: info
+    disposition: open
+    title: "The repository boundary has four hand copies that disagree on a root ending in the separator"
   - id: CR-01
     severity: critical
     disposition: fixed
@@ -99,39 +119,44 @@ findings:
     severity: info
     disposition: open
     title: "state-check and trace-render disagree on a dangling context-root link"
-open: 11
-total: 11
-recorded: 2026-10-23T17:38:21.367Z
+open: 23
+total: 29
+recorded: 2026-10-23T23:53:08.428Z
 ---
 
 # Phase 37: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | round 0; fixed by gap round 1 plan 37-21, closure confirmed by the round-1 review |
-| CR-02 | critical | fixed | round 0; fixed by gap round 1 plan 37-20, closure confirmed by the round-1 review |
-| WR-01 | warning | fixed | round 0; fixed by gap round 1 plan 37-22, closure confirmed by the round-1 review |
-| WR-02 | warning | fixed | round 0; fixed by gap round 1 plan 37-23, closure confirmed by the round-1 review |
-| WR-03 | warning | open | round 0; outside gap round 1 scope (D-17), still open |
-| WR-04 | warning | open | round 0; outside gap round 1 scope (D-17), still open |
-| WR-05 | warning | fixed | round 0; fixed by gap round 1 plan 37-24, closure confirmed by the round-1 review (residual reported as WR-07) |
-| WR-06 | warning | open | round 0; outside gap round 1 scope (D-17), still open |
-| IN-01 | info | open | round 0; outside gap round 1 scope (D-17), still open |
-| IN-02 | info | open | round 0; outside gap round 1 scope (D-17), still open |
-| IN-03 | info | fixed | round 0; fixed by gap round 1 plan 37-26, closure confirmed by the round-1 review |
-| IN-04 | info | open | round 0; outside gap round 1 scope (D-17), still open |
-| IN-05 | info | open | round 0; outside gap round 1 scope (D-17), still open |
-| CR-03 | critical | open | - |
-| CR-04 | critical | open | - |
-| WR-07 | warning | open | - |
-| WR-08 | warning | open | - |
-| WR-09 | warning | open | - |
-| WR-10 | warning | open | - |
-| IN-06 | info | open | - |
-| IN-07 | info | open | - |
-| IN-08 | info | open | - |
-| IN-09 | info | open | - |
-| IN-10 | info | open | - |
+| CR-05 | critical | open | - |
+| WR-11 | warning | open | - |
+| IN-11 | info | open | - |
+| IN-12 | info | open | - |
+| IN-13 | info | open | - |
+| CR-01 | critical | fixed | round 0; fixed by gap round 1 plan 37-21, closure confirmed by the round-1 review (not in the current review) |
+| CR-02 | critical | fixed | round 0; fixed by gap round 1 plan 37-20, closure confirmed by the round-1 review (not in the current review) |
+| WR-01 | warning | fixed | round 0; fixed by gap round 1 plan 37-22, closure confirmed by the round-1 review (not in the current review) |
+| WR-02 | warning | fixed | round 0; fixed by gap round 1 plan 37-23, closure confirmed by the round-1 review (not in the current review) |
+| WR-03 | warning | open | round 0; outside gap round 1 scope (D-17), still open (not in the current review) |
+| WR-04 | warning | open | round 0; outside gap round 1 scope (D-17), still open (not in the current review) |
+| WR-05 | warning | fixed | round 0; fixed by gap round 1 plan 37-24, closure confirmed by the round-1 review (residual reported as WR-07) (not in the current review) |
+| WR-06 | warning | open | round 0; outside gap round 1 scope (D-17), still open (not in the current review) |
+| IN-01 | info | open | round 0; outside gap round 1 scope (D-17), still open (not in the current review) |
+| IN-02 | info | open | round 0; outside gap round 1 scope (D-17), still open (not in the current review) |
+| IN-03 | info | fixed | round 0; fixed by gap round 1 plan 37-26, closure confirmed by the round-1 review (not in the current review) |
+| IN-04 | info | open | round 0; outside gap round 1 scope (D-17), still open (not in the current review) |
+| IN-05 | info | open | round 0; outside gap round 1 scope (D-17), still open (not in the current review) |
+| CR-03 | critical | open | - (not in the current review) |
+| CR-04 | critical | open | - (not in the current review) |
+| WR-07 | warning | open | - (not in the current review) |
+| WR-08 | warning | open | - (not in the current review) |
+| WR-09 | warning | open | - (not in the current review) |
+| WR-10 | warning | open | - (not in the current review) |
+| IN-06 | info | open | - (not in the current review) |
+| IN-07 | info | open | - (not in the current review) |
+| IN-08 | info | open | - (not in the current review) |
+| IN-09 | info | open | - (not in the current review) |
+| IN-10 | info | open | - (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
