@@ -1,8 +1,8 @@
 ---
 phase: 37-overview-board-per-file-records-and-budgets
-verified: 2026-10-22T21:30:00Z
+verified: 2026-10-23T20:50:00Z
 status: gaps_found
-score: 9/13 must-haves verified
+score: 11/13 must-haves verified
 covered_files:
   - ".github/workflows/ci.yml"
   - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-01-PLAN.md"
@@ -43,6 +43,22 @@ covered_files:
   - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-18-SUMMARY.md"
   - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-19-PLAN.md"
   - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-19-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-20-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-20-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-21-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-21-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-22-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-22-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-23-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-23-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-24-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-24-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-25-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-25-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-26-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-26-SUMMARY.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-27-PLAN.md"
+  - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-27-SUMMARY.md"
   - "agent-factory/_commit-convention.md"
   - "agent-factory/contracts/board.md"
   - "agent-factory/workflows/02-idea-to-epics.md"
@@ -50,73 +66,77 @@ covered_files:
   - "install/state-layout.ts"
   - "scripts/board-model.ts"
   - "scripts/board-read.ts"
+  - "scripts/context-io.ts"
+  - "scripts/generate-runnable-embeds.ts"
   - "scripts/runnable-ref/state-check.ts"
   - "scripts/runnable-ref/state-roll.ts"
   - "scripts/runnable-ref/trace-render.ts"
+  - "scripts/runnable-stamp.ts"
   - "scripts/state-rules.ts"
+  - "scripts/trace-freshness.ts"
+  - "scripts/trace-instructions.test.ts"
   - "scripts/trace-model.ts"
   - "scripts/validate-agent-factory.ts"
-covered_digest: "v3:sha256:0e00fd6c10aabf345d7c1f844b6aa47db7b748329ffda9e270faa2f1efa187c6"
+covered_digest: "v3:sha256:3ce075c2757f0db17fadabc72b0f587f334be27725f16edb967519fd2c0ddd8a"
 behavior_unverified: 0
 overrides_applied: 0
-re_verification: false
+re_verification:
+  previous_status: gaps_found
+  previous_score: 9/13
+  gaps_closed:
+    - "Gap 2 (CR-02): an unlistable context root is exit 2 in trace-render and state-check, not exit 1 with a stack trace"
+    - "Gap 3 (the three hand-append sentences in WF02:41, WF03:9, _commit-convention.md:52): reworded; no live kit sentence tells an agent to write the trace by hand"
+    - "Gap 1, EACCES / ENOTDIR / EIO arm (CR-01 as reported): an unreadable notes directory or task stops the render with exit 2, removes nothing, and state-check raises trace-not-compared"
+    - "Round-0 warnings WR-01 (ticket shape from the board grammar), WR-02 (one fence-aware progress classifier), WR-05 (build stamp, partly), IN-03 (validator unreachable directory)"
+  gaps_remaining:
+    - "Gap 1 in its dangling-symlink and symlinked-task forms (CR-03, CR-04): the same incomplete-read-as-absence defect, one register over"
+  regressions: []
 gaps:
-  - truth: "Honest freshness (37-06, 37-07, 37-08, 37-09; threat T-37-30; CLAUDE.md no-fabrication): an incomplete read of the notes is never reported as a fresh trace, and a could-not-run is never read as a pass"
+  - truth: "Honest freshness (37-06, 37-07, 37-08, 37-09, 37-21, 37-25; threat T-37-30; READ-1 in 37-GAP-PLANNING-BRIEF.md): an incomplete read of the notes is never reported as a fresh trace, and a trace file is removed only when a COMPLETE read shows its ticket has no published refs"
     status: failed
-    reason: "CR-01 reproduced. A task whose notes directory cannot be read (EACCES) is caught and counted, but it is treated as 'this ticket has no notes'. The write mode of trace-render.js then REMOVES that ticket's rendered trace file and drops its index line, exit 0. Afterwards both `trace-render.js --check` and `state-check.js` print 'The trace is fresh' with 'No findings', exit 0, marker valid, while the line 'UNREADABLE TASK ...' is shown beside them. Workflow 05 commits the rendered files on the PR branch, so the removal is committed. T-37-30 is the exact threat 'state-check reporting a host's trace as fresh when it did not compare'."
+    reason: "Round 1 closed the EACCES / ENOTDIR / EIO forms but the same defect survives in two forms the READ-1 fault table cannot reach. CR-03 and CR-04 both reproduced by this verifier on the committed .js at HEAD. (a) A dangling `notes` symlink: realpathSync ENOENT is read as 'no notes directory', and the embedded walk's statSync with throwIfNoEntry false follows the link and also returns undefined, so the task reads as zero notes. trace-render exits 0 with 'REMOVED memory-bank/plans/traceability/ABC-1.md' and 'unreadable tasks 0'; state-check then prints 'The trace is fresh' with no trace finding. (b) A task directory that is a symbolic link: listTasks drops it silently (Dirent.isDirectory false), the counts line shows '0 task(s)' and 'unreadable tasks 0', the ticket's trace file is REMOVED with exit 0, and state-check prints 'The trace is fresh: 0 task(s)'. Workflow 05 commits the rendered files, so the removal is committed. Same effect as round-0 CR-01: a tracked audit-trail file is deleted on a read that produced nothing, and the gate reports a pass it did not earn. The brief's own required row ('render, make a task unreadable, render again, assert the old trace file survives and the exit code is 2') is satisfied only for the EACCES spelling."
     artifacts:
       - path: "scripts/runnable-ref/trace-render.ts"
-        issue: "failedTasks and the I/O skip arms (unopenable, not-a-regular-file, above-ceiling, vanished) do not stop the write mode or turn --check into a finding; the compare runs on the partial read"
+        issue: "readTask (around line 956) treats realpath ENOENT as absent without an lstat on the entry; listTasks (around line 940) filters out symlinked entries without counting or naming them"
       - path: "scripts/runnable-ref/state-check.ts"
-        issue: "traceReport raises no finding and no could-not-run for a failed task; trace.compared stays true"
-      - path: "scripts/trace-model.ts"
-        issue: "collectTraceNotes returns failedTasks but compareTraceTree/planTraceTree have no notion of an incomplete read"
+        issue: "readTraceTask (around line 2112) is a hand-written duplicate of the same two decisions; listTasks (around line 2191) drops symlinked tasks the same way"
+      - path: "scripts/context-io.ts"
+        issue: "readRawNotesWithSkips (around line 2160): statSync with throwIfNoEntry false returns undefined for a dangling link (and for ENOTDIR), read as { notes: [], skipped: [] }; the same walk files a dangling note-level link under the vanished arm, which is counted as a failure"
+      - path: "scripts/runnable-ref/read-sites.test.ts"
+        issue: "the READ-1 table injects error codes (EIO) at each read site; it never plants ENOENT-through-a-link or a refused directory entry, so it cannot see either case"
     missing:
-      - "write mode: when any task failed or an I/O skip arm fired, write and remove nothing and exit 2 (could not run)"
-      - "--check and state-check: a failed task is exit 2 / a named finding, never a fresh pass; trace.compared false"
-      - "a test that renders, makes a task unreadable, re-renders, and asserts the old trace file still exists and the exit code is not 0 (existing tests only cover a refused task NAME)"
-  - truth: "Exit contract (37-06, 37-07, header of trace-render.ts): trace-render exits 2 when it could not run, and trace-freshness maps only exit 1 to stale"
-    status: failed
-    reason: "CR-02 reproduced. A context root that exists but cannot be listed (mode 000) makes trace-render.js, in write mode and with --check, die with an uncaught node:fs EACCES stack trace and exit 1 (the 'finding' code), while state-check.js on the same tree correctly exits 2. scripts/trace-freshness.ts reads exit 1 as stale and tells the user to re-render and commit. The gate still fails closed (no false pass), but the code and the remedy are wrong."
-    artifacts:
-      - path: "scripts/runnable-ref/trace-render.ts"
-        issue: "listTasks calls readdirSync with no try/catch, outside collectTraceNotes' per-task try; no top-level catch converts an unexpected throw to exit 2"
-    missing:
-      - "catch the listing error and call couldNotRun (exit 2), and wrap the hand-written top level in a try/catch that does the same"
-      - "a test for an unreadable context root in both modes"
-  - truth: "SPLIT-03 at workflow level (37-15, 37-17): no workflow tells an agent to append to the trace by hand, and the commit convention names the rendered trace files instead of the old word"
-    status: partial
-    reason: "Roles are clean (no role file instructs a hand append; every role's Trace updates section names the render). But three stale sentences remain outside the permanent scan, because its patterns need the word 'traceability': agent-factory/workflows/02-idea-to-epics.md:41 'the trace rows are appended' (Done condition, contradicting the same file's Trace updates section at line 31-32); agent-factory/workflows/03-epic-to-tickets.md:9 'a trace row before it can be pulled'; agent-factory/_commit-convention.md:52 example commit 'write trace row'. 37-SECURITY.md records the first two as T-37-27 (open, below threshold). The roadmap SC wording ('no role tells an agent') holds; the 37-17 truth ('no workflow tells an agent to append to the trace by hand') does not."
-    artifacts:
-      - path: "agent-factory/workflows/02-idea-to-epics.md"
-        issue: "line 41 says the trace rows are appended"
-      - path: "agent-factory/workflows/03-epic-to-tickets.md"
-        issue: "line 9 makes 'a trace row' a pull precondition"
-      - path: "agent-factory/_commit-convention.md"
-        issue: "line 52 example commit message says 'write trace row'"
-    missing:
-      - "reword the three sentences to the rendered-from-refs form, regenerate adapters/catalog/skill-twins, and widen scripts/trace-instructions.test.ts with a pattern for passive 'trace row(s) ... appended/written/added' wording"
+      - "decide absence with lstat on the entry itself, in one place (the embedded walk), so only an lstat ENOENT is 'no notes'; an entry that exists but whose target cannot be reached is a failed task (CR-03)"
+      - "report every context-root entry that listTasks refuses (symlinked task) as a failed task or a named trust arm, and never remove a trace file while a refused entry could have held its ticket's notes (CR-04)"
+      - "READ-1 rows for a dangling notes link and a symlinked task directory, asserting the old trace file and index line survive, exit code 2, and state-check reports trace-not-compared"
 deferred: []
 advisory: []
 human_verification:
-  - test: "CI reachability of the new own-tree gates"
+  - test: "CI reachability of the own-tree gates (carried from round 0; D-17 left it out of round 1)"
     expected: "On a pushed branch the ubuntu 'Freshness gates + repo gates' step reaches `node scripts/runnable-ref/state-check.js .` and `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js`"
-    why_human: "Both lines sit AFTER `node scripts/check-diff-disposition.js` and `node scripts/check-flip-manifest.js` in one `run: |` block (bash -e, fail-fast). Both of those exit 1 on this tree today (pre-existing, not phase-37 caused; confirmed by running them). So on CI the two phase-37 lines are wired but unreachable until a human decides how to clear the two older reds (disposition rows or a moved base; flip-manifest reading an archived phase-33 file). Locally both phase-37 commands exit 0."
-  - test: "Live host run of the PR-gate and daily-sweep sub-steps (planned non-blocking item, 37-VALIDATION Manual-Only, 37-19 'Human verification pending')"
+    why_human: "Both lines (ci.yml lines 605-606) sit after `node scripts/check-diff-disposition.js` and `node scripts/check-flip-manifest.js` in one fail-fast run block. This verifier re-ran both today: each still exits 1 on this tree (the diff-disposition count is 720 findings, up from 707 after plan 37-27's two reworded workflow lines, per deferred-items.md). A human decides how to clear them (disposition rows or a moved base; flip-manifest reading an archived file) before a push can reach the phase-37 lines. Locally state-check.js and the validator both exit 0."
+  - test: "Live host run of the PR-gate and daily-sweep sub-steps (planned non-blocking item, 37-VALIDATION Manual-Only)"
     expected: "On a real host remote: trace-render exits 0, state-check prints the marker valid and exits 0, and the workflow step records the exit code without blocking the gate"
-    why_human: "Needs a live CI run on a host remote; nothing has been pushed. The local half (scratch install with GRUGOPS_HOME and HOME set, then both runnables) was run by this verifier and passed (see Behavioral Spot-Checks)."
+    why_human: "Needs a live CI run on a host remote; nothing has been pushed. The local half passed in round 0 and again today for the own tree."
 ---
 
-# Phase 37: Overview board, per-file records and budgets - Verification Report
+# Phase 37: Overview board, per-file records and budgets - Verification Report (re-verification after gap round 1)
 
 **Phase Goal:** State files stay small: the board is a one-line-per-ticket overview, NFRs and traceability are one file per record with one-line indexes, and byte budgets are checked both in grugops and in every host repo.
-**Verified:** 2026-10-22T21:30:00Z
+**Verified:** 2026-10-23T20:50:00Z
 **Status:** gaps_found
-**Re-verification:** No, initial verification
+**Re-verification:** Yes, after gap round 1 (plans 37-20..37-27, scope fixed by D-17). The round-0 report is `git show abacf8f4:.planning/phases/37-overview-board-per-file-records-and-budgets/37-VERIFICATION.md` (gaps_found 9/13).
 
 ## Summary
 
-The phase goal is delivered in its core: the contract-first board overview, per-file NFR and trace records with one-line indexes, the nine budgets in one authority, the validator (WARN unmigrated, FAIL migrated), three single-file host runnables (`state-check`, `trace-render`, `state-roll`), the archive and move-only rules, the seventh reader source, and the own-tree marker all exist, are wired, and work when exercised. The five roadmap success criteria hold. Three narrower plan-level truths do not hold, two of them on the trace path, and one of those (CR-01) lets a runnable report a trace as fresh after an incomplete read, which is the very outcome threat T-37-30 was written to prevent. That is why the status is `gaps_found` and not `passed`.
+The score rose from 9/13 to 11/13. Round 1 closed two of the three round-0 gaps in full (Gap 2, the exit-2 contract; Gap 3, the three hand-append sentences) and closed the first of the two forms of Gap 1 (the unreadable-directory form the review named). It did not close Gap 1 itself. The same defect, an incomplete read treated as absence so that a ticket's trace file is deleted with exit 0 and the checks then say "fresh", is still reachable by two inputs: a dangling `notes` symlink (CR-03) and a symlinked task directory (CR-04). I reproduced both against the committed `.js` at HEAD and I also reproduced that the EACCES form is closed, so the contrast is real and not an artefact of my fixture. The phase's five roadmap success criteria still hold. The failing truth is the plan-level honesty truth that the brief names READ-1, and the CLAUDE.md "never fake a passing gate" constraint applies to it, so the status stays `gaps_found`.
+
+## Round-0 gaps: closed or not
+
+| Round-0 gap | Result | Evidence from this verification |
+| ----------- | ------ | -------------------------------- |
+| Gap 1 (CR-01): incomplete read reported as fresh; write mode removes the file | NOT CLOSED (partly closed) | EACCES form closed: `notes` mode 000 -> render exit 2 naming `UNREADABLE TASK`, old `ABC-1.md` kept, `--check` exit 2, `state-check` finding `trace-not-compared`. A regular file in place of `notes` (ENOTDIR) -> exit 2, file kept. But a dangling `notes` link and a symlinked task directory still delete the file with exit 0 (see Truth 10) |
+| Gap 2 (CR-02): unlistable context root exits 1 with a stack trace | CLOSED | `.grugops/context` mode 000: `trace-render.js`, `trace-render.js --check` and `state-check.js` all exit 2 with "the context root .grugops/context cannot be listed (EACCES)". `scripts/runnable-ref/runnable-exit-contract.test.ts` passes. `scripts/trace-freshness.ts` maps only exit 1 to stale and exit 2 to could-not-run (lines 51-57) |
+| Gap 3: three hand-append sentences (WF02:41, WF03:9, `_commit-convention.md`:52) | CLOSED for the three sentences; scan breadth still narrow (WARNING) | All three reworded (WF02:41 now "...feed the trace render", WF03:9 "Those ids are published as refs on a note (Workflow 16)...", commit example now "commit rendered trace"). A search of `agent-factory/` and `AGENTS.md` for write verbs aimed at "the trace" found only false hits ("with trace ids on refs"). The permanent scan was widened, but see WR-08 below |
 
 ## Goal Achievement
 
@@ -124,133 +144,138 @@ The phase goal is delivered in its core: the contract-first board overview, per-
 
 | #  | Truth | Status | Evidence |
 | -- | ----- | ------ | -------- |
-| 1  | SC1 (SPLIT-01, SPLIT-07): board contract changed first; board is one short row per ticket per column, at most one `_Updated:` line, blocked reasons in the ticket body; closed 8-key set | VERIFIED | Commit order efadaf11 (D-14/D-15 in CONTEXT), f8ff84f2 (contract), b879f7f0 (constants) precede every reader/seed/validator/role edit. `agent-factory/contracts/board.md` has `## Overview and budgets`, `### Budgets` table, `## Blocked` and `## Board notes` body sections. `TICKET_KEY_COUNT = 8` unchanged (board-model.ts:974). Seed board has the overview form row and the OVERVIEW comment. |
-| 2  | SC2 (SPLIT-02, SPLIT-03): each NFR its own file, each ticket its own rendered trace file, both with one-line indexes; no role tells an agent to append to traceability by hand | VERIFIED (roles); see gap 3 for workflow residue | `grep` of `agent-factory/roles/*.md`: every `## Trace updates` publishes refs and names `tools/grugops/trace-render.js`; zero hand-append instruction. Fresh install: `memory-bank/plans/nfr/`, `traceability/`, `archive/` seeded; NFR index checked both ways by state-check (planted file without line -> `nfr-unindexed-file`; line without file -> `nfr-missing-file`, exit 1 under the marker). |
-| 3  | SC3 (SPLIT-04): validator enforces all nine budgets, WARN unmigrated, FAIL migrated | VERIFIED | `BUDGETS` has 9 keys, `BUDGET_COUNT = 9`; `scripts/state-rules.ts` owns the rules; `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` exits 0 bare and with `--strict`; validate.test.ts (passed) grows a copy of the own memory-bank past `BUDGETS.boardBytes`: exit 1 with marker, exit 0 + WARNING without. |
-| 4  | SC4 (SPLIT-05): `tools/grugops/state-check.js` on hosts, budgets generated from the layout module, freshness-gated, checks budgets and index-to-file integrity, called by PR gate and daily sweep | VERIFIED | `npm run freshness:runnable-embeds`: 3 targets fresh. Installer materializes 7 runnables (scratch install listed state-check, state-roll, trace-render beside the four). WF05 step 3 and WF09 steps 1-2 call trace-render then state-check; D-12 wording present (exit 1 recorded as `observation`, exit 2 / no exit code = could-not-run). state-check AST read-only test passes. |
-| 5  | SC5 (SPLIT-06): progress rolls into an archive when over budget; `queue/done/` and `50-decisions/` move-only | VERIFIED | Scratch run: 25 Done rows -> state-check printed `ROLLABLE`, `state-roll` moved 5 rows to `memory-bank/plans/archive/board-done.md` with a line-conservation proof, re-check clean. WF09 states move-only (`.grugops/archive/queue-done/`, `memory-bank/plans/archive/decisions/`), no squash or prune; state-check prints live/archived counts and flags a name in both. No prune/squash wording for either folder anywhere in `agent-factory/`. |
-| 6  | Contract-first decisions D-14/D-15/D-16: marker `memory-bank/plans/.layout` = `layout: v3`; seventh reader source `boardArchive`; snapshot version 3; seven conflict kinds | VERIFIED | `LAYOUT_MARKER_REL`, `LAYOUT_MARKER_CONTENT = "layout: v3"` in state-layout.ts; `SCHEMA_VERSION = 3`, `CONFLICT_KIND_COUNT = 7` in board-model.ts; contract `## The Done archive` section; board-read/board-model/board-corpus/board-readonly tests pass. |
-| 7  | Host runnables are single-file, builtins-only; fresh install is valid | VERIFIED | Scratch install (GRUGOPS_HOME and HOME in scratch): marker `layout: v3`, `state-check.js .` exit 0 "No findings", `trace-render.js . --check` exit 0. state-check.test.ts, trace-render.test.ts, state-roll.test.ts (host-emulation copies) pass. |
-| 8  | Severity follows the marker (D-04/D-05) in state-check | VERIFIED | Same scratch repo, board grown past budget: marker present -> `FINDING ... (BUDGETS.boardBytes)` exit 1; marker removed -> `LAYOUT` WARN line, exit 0. |
-| 9  | D-06 / 37-19: own repo carries the marker, validator FAIL mode non-vacuous, own state in v3 forms | VERIFIED | `memory-bank/plans/.layout` = `layout: v3` (commit 9cffa7ab); `state-check.js .` and validator exit 0; own board/nfr-catalog/traceability are the seed forms; `nfr/`, `archive/`, `traceability/` tracked via `.gitkeep`. |
-| 10 | Honest freshness: an incomplete read is never reported as a fresh trace (T-37-30, 37-07, 37-09) | FAILED (BLOCKER) | See Gap 1. Reproduced in a scratch repo: after `chmod 000` on a task's `notes/`, `trace-render.js` exit 0 `REMOVED memory-bank/plans/traceability/ABC-1.md`; then `--check` exit 0 and `state-check.js` exit 0 "The trace is fresh ... No findings" with `ok: true`, `trace.compared: true`. |
-| 11 | Exit contract: trace-render exits 2 for could-not-run (37-06, 37-07) | FAILED | See Gap 2. Context root mode 000: `trace-render.js` and `--check` both exit 1 with a node:fs stack trace; state-check exits 2 on the same tree. |
-| 12 | No workflow or commit convention tells an agent to append to the trace by hand (37-15, 37-17) | PARTIAL (WARNING-level, listed as gap) | See Gap 3. Three residual sentences. |
-| 13 | 37-19: CI runs state-check and the validator on the own tree, so CI proves FAIL mode | PRESENT, REACHABILITY UNCERTAIN (WARNING, human) | Lines present in `.github/workflows/ci.yml:605-606`, asserted by a test, and exit 0 locally; but they follow `check-diff-disposition` (exit 1) and `check-flip-manifest` (exit 1) in one fail-fast block. Not counted in the score. |
+| 1  | SC1 (SPLIT-01, SPLIT-07): contract-first board overview, one row per ticket, closed 8-key set | VERIFIED | Unchanged from round 0 and not touched by gap round 1 (round 1 changed no board contract file: `git diff 51fa4c77 HEAD --stat -- agent-factory/` lists only the three reworded files). board-read, board-model, board-corpus suites are inside the 20-failure-only baseline run. |
+| 2  | SC2 (SPLIT-02, SPLIT-03): one file per NFR, one rendered trace file per ticket, one-line indexes; no role tells an agent to hand-append | VERIFIED | Roles still publish refs and name `tools/grugops/trace-render.js` (checked in qe-e2e.md:40 and software-engineer.md:40 and by grep over the role set). Index integrity checks unchanged. |
+| 3  | SC3 (SPLIT-04): validator enforces nine budgets, WARN unmigrated, FAIL migrated | VERIFIED | `scripts/validate-read-sites.test.ts` and `scripts/validate.test.ts` pass; `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` exit 0 (orchestrator gate log). Plan 37-26 routed every validator read through the primitives (IN-03 closed). |
+| 4  | SC4 (SPLIT-05): `tools/grugops/state-check.js` on hosts, freshness-gated, called by PR gate and daily sweep | VERIFIED | generate-runnable-embeds and state-check suites pass; orchestrator ran `npm run freshness:runnable-embeds`; `node scripts/runnable-ref/state-check.js .` prints "No findings", exit 0. |
+| 5  | SC5 (SPLIT-06): progress roll into an archive; done queue and decisions move-only | VERIFIED | state-roll, progress-agreement suites pass. WR-02 closed: `progressEntries` takes the fence-aware extent owner, `scripts/runnable-ref/progress-agreement.test.ts` pins state-check and state-roll agreeing on a fenced dated heading. |
+| 6  | D-14/D-15/D-16 contract-first decisions (marker, boardArchive source, snapshot v3, seven conflict kinds) | VERIFIED | Unchanged; suites pass. |
+| 7  | Host runnables are single-file, builtins-only; a fresh install is valid | VERIFIED | Runnable tests (host-emulation copies) pass; I ran the three committed `.js` copied into a scratch host directory in every reproduction below. |
+| 8  | Severity follows the marker in state-check (D-04/D-05) | VERIFIED | state-check suite passes; reproductions above show FINDING lines with exit 1 under the marker. |
+| 9  | D-06 / 37-19: own repo carries the marker; own state in v3 forms | VERIFIED | `node scripts/runnable-ref/state-check.js .` and the validator exit 0 on this tree. |
+| 10 | Honest freshness (READ-1, T-37-30): an incomplete read of the notes is never reported as a fresh trace, and a trace file is removed only on a complete read | FAILED (BLOCKER) | See Gap 1 and the reproductions below. EACCES / ENOTDIR forms hold; dangling `notes` link and symlinked task directory do not. |
+| 11 | Exit contract: trace-render and state-check exit 2 for could-not-run; trace-freshness never reads exit 2 as stale | VERIFIED | CR-02 closed (see table). Header rule honoured; `runnable-exit-contract.test.ts` passes; the `uncaughtException` handler is registered in all three runnables before argv is read. |
+| 12 | No workflow or commit convention tells an agent to append to the trace by hand | VERIFIED (WARNING: scan breadth and WF02 wording, WR-08, WR-09) | The three round-0 sentences are fixed; no live kit sentence matches a write verb aimed at the trace. The permanent scan still lets seven plain hand-write sentences through (see WR-08), so the guard is narrower than the truth even though the tree is clean today. |
+| 13 | 37-19: CI runs state-check and the validator on the own tree | PRESENT, REACHABILITY UNCERTAIN (WARNING, human) | Lines present at ci.yml:605-606; behind two gates that still exit 1 (re-run today: check-diff-disposition exit 1, check-flip-manifest exit 1). Left out of round 1 by D-17. Not counted in the score. |
 
-**Score:** 9/13 truths verified (truths 10, 11, 12 failed or partial; truth 13 unreached on CI and routed to a human).
+**Score:** 11/13 (truths 1-9, 11, 12 verified; truth 10 failed; truth 13 routed to a human).
 
-### CR-01 and CR-02: do they break a must-have?
+### Reproduction of CR-03 and CR-04 (the reviewer's script, run by me)
 
-- **CR-01: yes, it breaks a must-have.** Reproduced with the committed `.js` in a scratch repo. No plan truth is violated literally in the "counted and named" sense (37-06: "a task whose read throws is caught, counted and named, never swallowed"; it is named). But the same phase promised, in 37-09 and in threat T-37-30 (disposition: mitigate, SECURITY marks it closed), that state-check does not report a trace as fresh when it did not compare, and 37-07/37-08 promised no vacuous compare. With an unreadable task, state-check says "The trace is fresh ... No findings" and exits 0 on a migrated repo, and the write mode deletes a tracked audit-trail file and its index row, which Workflow 05 then commits. The rendered files are derived data, so the loss is recoverable by re-render, but the gate meanwhile reports a pass it did not earn. That is the "never fake a passing gate" constraint. While the directory stays unreadable and before the destructive render, state-check does report `trace-stale` exit 1, so the false pass appears only after the sanctioned render has run once. The 37-SECURITY audit closed T-37-30 on tests that never cover this arm.
-- **CR-02: yes, a narrower must-have is broken (the exit-2 contract), with no false pass.** `trace-freshness` still fails closed (exit 1 for a stale tree or a could-not-run). The wrong exit code and the wrong remedy text are the harm.
+Script: `/private/tmp/claude-501/-Users-olgeroeselg-Projects-public-grugops/f182d521-ebf7-4465-be45-bf4c5c6c1714/scratchpad/repro.mjs`, with HOME and GRUGOPS_HOME set to a scratch directory; it copies the committed `trace-render.js`, `state-check.js` and `state-roll.js` into a scratch host directory and uses scratch repositories only.
 
-### Other review findings (37-REVIEW.md), re-checked against the code
+| Case | Sequence | Result | Verdict |
+| ---- | -------- | ------ | ------- |
+| CR-03 dangling `notes` link | render with `notes` -> `real-notes/` (ABC-1.md written); rename `real-notes`; `--check`; render; state-check | `--check` exit 1 (stale, EXTRA ABC-1.md) then render exit 0 "REMOVED memory-bank/plans/traceability/ABC-1.md ... unreadable tasks 0"; files after: none; state-check "TRACE The trace is fresh: 1 task(s) and 0 note(s) read ... unreadable tasks 0." | CONFIRMED |
+| CR-04 symlinked task dir | render with a real task (ABC-1.md written); replace the task dir with a symlink; render; state-check | render exit 0 "REMOVED ...ABC-1.md ... 0 task(s) and 0 note(s) read ... unreadable tasks 0"; state-check "The trace is fresh: 0 task(s) and 0 note(s) read" | CONFIRMED |
+| Control: `notes` mode 000 | render, chmod 000, render, `--check`, state-check | render exit 2, file kept; `--check` exit 2; state-check `trace-not-compared` finding | closed, as claimed |
+| Control: `notes` is a regular file | render, replace dir with file, render | exit 2, "UNREADABLE TASK ... ENOTDIR", file kept | closed |
+| Control: context root mode 000 | render, `--check`, state-check | all three exit 2, "cannot be listed (EACCES)" | closed (CR-02) |
+
+In the dangling-link case the first state-check exit code in my scratch repository was 1 only because that scratch repository has no board file; the TRACE line itself reads "fresh" with no trace finding, which is the defect. On a migrated host with a valid board the whole run exits 0.
+
+Why the round's own tests did not catch it: `read-sites.test.ts` fails each read site with an injected error code (EIO). Neither case produces an error: both are an `ENOENT` that comes from a link, or an entry that a filter drops, so no fault table keyed on error codes can reach them. This is the brief's "sibling search" step: the lstat/realpath/listing decision sites were not searched for non-error absence arms.
+
+### Other review findings after the round
 
 | Finding | Re-checked | Effect on must-haves |
 | ------- | ---------- | -------------------- |
-| WR-01 ticket-ID shape wider than the board's | Reproduced: refs `ABC-1`, `CWE-79` and a 300-letter ref gave `CWE-79.md` as a ticket trace file, 2 files written, then exit 2 (ENAMETOOLONG) | Breaks the "refusals run before the first write" claim in the trace-render header; also makes `CWE-79` a ticket. WARNING. |
-| WR-02 ROLLABLE vs state-roll refusal on a fenced dated heading | Reproduced: state-check prints `ROLLABLE progress`, state-roll exits 2 "sits inside a fenced block" | WF09 would fail daily on that input; no pass is faked. WARNING. |
-| WR-03 board-read still reads the old matrix shape for the new index | Not re-run; consistent with `parseTraceability` mapping cells to title/status | Published snapshot carries link markup as title/status. 37-12's "one TraceRow per index line" still holds. WARNING. |
-| WR-04, WR-05, WR-06, IN-01..IN-05 | Not individually reproduced; none maps to a must-have truth | Open per 37-REVIEW-DISPOSITION.md. WR-05 (runnable version skew) is a real operational risk for Phase 38 hosts. |
+| CR-03, CR-04 | Reproduced (above) | Gap 1 |
+| WR-07 stamp covers only generated regions | Read `stampOver` in `scripts/generate-runnable-embeds.ts` (lines 626-637): it hashes each target's path and its derived `imports` and `declarations` only. The hand-written READ-1 and EXIT-1 fixes are not in any stamp, so a host with an older `trace-render.js` and current siblings gets equal stamps and no `runnable-version-skew` finding, while the old renderer exits 1 on an unlistable root. The README and `runnable-stamp.ts` claim "built together" | WARNING. WR-05 is closed for generated-region skew only. Operational risk for Phase 38 hosts |
+| WR-08 SCAN-1 narrower than its truth | Ran `HAND_TRACE_PATTERNS` from the committed `trace-model.js` over ten sentences: it catches "write trace row", "the trace rows are appended", "Append a row to traceability.md" and passes all seven of "Append the PR link to the trace.", "Hand-edit the trace.", "Update the trace file for the ticket.", "Add a line to the trace index.", "Write the trace entry for each ticket.", "Fill in the Release column of the trace.", "Add the test path to ./memory-bank/plans/traceability.md." The live tree has none of these today | WARNING (guard narrower than truth; brief class SCAN-1) |
+| WR-09 Gap 3 rewording | WF02:41 says the epic and feature ids "feed the trace render"; WF02 line 31 says "A note that names no ticket adds nothing to the trace", and `isTicketRef` excludes EPIC and FEAT, so the Done condition claims an effect the render never has. WF03:9 omits the "ticket identifier among the refs" condition that line 36 states | WARNING (wording; no script behaviour) |
+| WR-10 reserved prefix set | Reproduced: a note with refs `INC-7` and `src/fix.ts` renders no `INC-7.md`; the board grammar admits `INC` as a ticket prefix, the trace does not | WARNING (AUTH-1 still split; the board's `id_prefix` can be one of the six reserved prefixes) |
+| IN-08 | Reproduced: ABC-3.md lists `utf-8` and `abc-12` under `## Requirement` | INFO |
+| IN-06, IN-07, IN-09, IN-10 | Not individually reproduced; IN-06 and IN-10 are the same family as CR-03 | INFO |
+| WR-03, WR-04, WR-06, IN-01, IN-02, IN-04, IN-05 | Open by D-17, unchanged | out of round 1 scope |
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 | -------- | -------- | ------ | ------- |
-| `install/state-layout.ts` | BUDGETS (9), marker, archive paths | VERIFIED | Lines 107-172; constants-only; pins tested two-sided |
-| `scripts/state-rules.ts` | one owner of every budget rule | VERIFIED | Imported by validator, embedded in runnables; tests pass (426 tests across 9 files) |
-| `scripts/trace-model.ts` | trace model, HAND_TRACE_PATTERNS | VERIFIED | Wired into trace-render and state-check by generation |
-| `scripts/runnable-ref/state-check.js` / `.ts` | host checker | VERIFIED | Installed, exits 0/1 as contracted; trace arm has Gap 1 |
-| `scripts/runnable-ref/trace-render.js` / `.ts` | host renderer | PARTIAL | Works on readable input; Gaps 1 and 2 on unreadable input |
-| `scripts/runnable-ref/state-roll.js` / `.ts` | host roll | VERIFIED | Scratch roll of 5 Done rows proven; WR-02 edge noted |
-| `scripts/generate-runnable-embeds.ts`, `runnable-embeds-freshness.ts` | generation + freshness gate | VERIFIED | `freshness:runnable-embeds` green |
-| `scripts/trace-freshness.ts` | directory-compare gate | VERIFIED | `freshness:traceability` green; maps exit codes correctly given its input |
-| `agent-factory/contracts/board.md` | overview, budgets, marker, Done archive | VERIFIED | Sections present |
-| Seeds (`board.md`, `nfr-catalog.md`, `traceability.md`, `60-progress.md`, `.layout`, keepers) | v3 forms | VERIFIED | Tracked; own tree matches seed bytes |
-| Roles and workflows | trace rendered, NFR per file, overview rule | VERIFIED with Gap 3 residue | Roles clean; WF02:41, WF03:9, _commit-convention.md:52 stale |
+| `scripts/runnable-ref/trace-render.ts` / `.js` | host renderer, exit contract, complete-read rule | PARTIAL | Exit contract and EACCES arm fixed; `listTasks` and `readTask` still decide absence by realpath and filter (CR-03, CR-04) |
+| `scripts/runnable-ref/state-check.ts` / `.js` | host checker | PARTIAL | Names `trace-not-compared` for a failed task; the same two hand-written decisions are duplicated and carry CR-03 and CR-04 |
+| `scripts/context-io.ts` embedded walk | one reader | PARTIAL | statSync with throwIfNoEntry false reads a dangling link as no notes |
+| `scripts/runnable-ref/state-roll.ts` | host roll | VERIFIED | Uses the one fence-aware extent owner (WR-02 closed) |
+| `scripts/trace-model.ts` | trace model and scan patterns | VERIFIED with WARNING | Ticket test now taken from the board grammar (WR-01 closed); scan narrow (WR-08); reserved set separate (WR-10) |
+| `scripts/generate-runnable-embeds.ts`, `scripts/runnable-stamp.ts` | build stamp | VERIFIED with WARNING | Stamp present, tests pass; coverage limited to generated regions (WR-07) |
+| `scripts/trace-freshness.ts` | directory-compare gate | VERIFIED | Exit 2 is could-not-run, never stale |
+| `scripts/validate-agent-factory.ts` | validator reads through primitives | VERIFIED | `validate-read-sites.test.ts` passes (IN-03 closed) |
+| the rest (seeds, contracts, roles, workflows, installer) | unchanged from round 0 | VERIFIED | No round-1 change |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 | ---- | -- | --- | ------ | ------- |
-| state-layout.ts | validator, runnables | import / generated region | WIRED | embeds fresh |
-| WF05 / WF09 | trace-render, state-check, state-roll | documented commands | WIRED | text present; live host run pending |
-| installer RUNNABLES | tools/grugops/*.js | materialization | WIRED | 7 files in scratch install; uninstall mirror tested |
-| state-roll | board-read | boardArchive source | WIRED | archive rows place tickets; tests pass |
-| ci.yml | state-check, validator | run block lines 605-606 | WIRED but behind two pre-existing reds | see human item 1 |
+| runnables | context-io walk | embedded region | WIRED | embeds fresh per the orchestrator's gate log |
+| runnables | siblings | build stamp | PARTIAL | detects generated-region skew only (WR-07) |
+| trace-render write mode | trace files | complete-read predicate | PARTIAL | holds for error-code failures, not for a link-borne ENOENT or a dropped entry |
+| ci.yml | state-check, validator | run block lines 605-606 | WIRED but unreached | behind two gates that exit 1 |
 
 ### Data-Flow Trace (Level 4)
 
-Not applicable to UI data. Trace data flow checked: published sealed notes -> `readRawNotesWithSkips` -> `buildTraceRows` -> per-ticket files and index (real data, FLOWING on readable input; incomplete-read arm is Gap 1).
+Published sealed notes -> `readRawNotesWithSkips` -> `buildTraceRows` -> per-ticket files and index: FLOWING on readable input. On the two CR-03 / CR-04 inputs the source yields an empty list and the sink treats it as the full truth.
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 | -------- | ------- | ------ | ------ |
-| Embed freshness | `npm run -s freshness:runnable-embeds` | 3 targets fresh, exit 0 | PASS |
-| Trace freshness (own tree) | `npm run -s freshness:traceability` | fresh, exit 0 | PASS |
-| Committed .js equals build | `npm run -s freshness` | 86 .js files fresh, exit 0 | PASS |
-| Repo gates | check-state-paths, check-foundation-guards, check-nul-bytes, check-kit-refs, check-imperative-lexicon, check-banned-claims, check-claim-anchors | all exit 0 | PASS |
-| Own tree, FAIL mode | `node scripts/runnable-ref/state-check.js .`; `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js [--strict]` | exit 0 each | PASS |
-| Targeted suites (1 worker) | state-rules, trace-model, trace-instructions, trace-freshness, generate-runnable-embeds, state-layout, state-roll, trace-render, state-check | 9 files, 426 tests passed | PASS |
-| Wider suites (1 worker) | validate, board-read, board-model, board-corpus, board-tracer, board-readonly, check-state-paths, nonblocking-reader-parity, context-io-writer-set | 1132 passed, 2 failed; both failures are the two `context-io-writer-set` baseline cases in 37-BASELINE.md (archived phase-31 record) | PASS (no new failure) |
-| Scratch install + runnables | install into scratch target (GRUGOPS_HOME, HOME in scratch); `state-check.js .`, `trace-render.js . --check` | exit 0, marker valid | PASS |
-| Marker severity | oversize board with and without `.layout` | exit 1 / exit 0 + WARN | PASS |
-| NFR index both directions | planted file / planted line | named findings, exit 1 | PASS |
-| Roll | 25 Done rows -> `state-roll.js` | 5 rows moved, proven, re-check clean | PASS |
-| CR-01 | unreadable `notes/` then render, `--check`, state-check | file REMOVED exit 0; then fresh exit 0 | FAIL (Gap 1) |
-| CR-02 | unreadable `.grugops/context` | trace-render exit 1 + stack; state-check exit 2 | FAIL (Gap 2) |
-
-Full regression: the orchestrator's 37-19 phase-gate run (125 files, 9,141 tests, 1 worker) showed only the 20 baseline failures; no non-planning file changed between that run's code and HEAD. I did not repeat the full run. No vitest process was left running.
+| Round-1 and phase suites, one worker | `npx vitest run --maxWorkers 1` over read-sites, runnable-exit-contract, progress-agreement, trace-model, trace-instructions, validate-read-sites, trace-freshness, trace-render, state-check, state-roll, state-rules, generate-runnable-embeds | 12 files, 696 tests passed; no vitest process left | PASS |
+| Type check | `npx tsc --noEmit` | exit 0 | PASS |
+| Own tree, FAIL mode | `node scripts/runnable-ref/state-check.js .` | "No findings", exit 0 | PASS |
+| Full non-e2e suite | not re-run (30 minutes); relied on the orchestrator's log: 20 failed / 9,456 passed / 2 skipped, the 20 equal to 37-BASELINE.md, run after the last code commit ec2a5f89 | accepted as given | PASS (no new failure) |
+| CR-02 closed | context root mode 000, three programs | exit 2 each | PASS |
+| CR-01 EACCES arm closed | notes mode 000 | exit 2, file kept | PASS |
+| CR-03 | dangling notes link | file removed exit 0, "fresh" | FAIL |
+| CR-04 | symlinked task directory | file removed exit 0, "fresh" | FAIL |
+| Scan breadth | `HAND_TRACE_PATTERNS` over ten sentences | 3 caught, 7 pass | FAIL (WARNING, WR-08) |
+| Pre-existing reds | `check-diff-disposition`, `check-flip-manifest` | exit 1 each | known, human item 1 |
 
 ### Probe Execution
 
-Step 7c: SKIPPED. No `probe-*.sh` is declared by any phase-37 plan, and none exists under `scripts/*/tests/`.
+Step 7c: SKIPPED. No phase-37 plan declares a `probe-*.sh`.
 
 ### Requirements Coverage
 
-All seven IDs appear in plan frontmatter (37-01 .. 37-19) and in REQUIREMENTS.md, mapped to Phase 37; no orphans.
+Every ID in plan frontmatter (37-01..37-27) is one of SPLIT-01..SPLIT-07; counts across plans: SPLIT-01 9, SPLIT-02 6, SPLIT-03 14, SPLIT-04 6, SPLIT-05 11, SPLIT-06 9, SPLIT-07 2. All seven appear in REQUIREMENTS.md (lines 26-32), mapped to Phase 37 in the traceability table (lines 125-131, currently "Gaps Found"). No orphans.
 
 | Requirement | Source Plans | Status | Evidence |
 | ----------- | ------------ | ------ | -------- |
-| SPLIT-01 | 37-01, 02, 10, 11, 12, 13, 14, 16, 19 | SATISFIED | Truth 1, 5, 6; contract-first order confirmed from git |
-| SPLIT-02 | 37-05, 13, 14, 16, 18, 19 | SATISFIED | Truth 2; NFR integrity exercised both directions |
-| SPLIT-03 | 37-06..09, 14..18 | PARTIAL | Rendering and indexes work; roles clean; Gap 1 (incomplete read), Gap 3 (workflow residue) |
-| SPLIT-04 | 37-01, 02, 03, 04, 19 | SATISFIED | Truth 3, 8, 9 |
-| SPLIT-05 | 37-03, 04, 05, 09, 13, 16, 19 | SATISFIED for the runnable and its workflow wiring; CI reachability is human item 1 | Truth 4, 7 |
-| SPLIT-06 | 37-05, 10, 11, 13, 16, 19 | SATISFIED | Truth 5 |
-| SPLIT-07 | 37-01, 12 | SATISFIED | Truth 1; refusal of extra keys covered by board-read tests |
-
-REQUIREMENTS.md currently marks SPLIT-03 Complete; the orchestrator should hold that until Gaps 1 and 3 are closed or overridden.
+| SPLIT-01 | 37-01, 02, 10..14, 16, 19 | SATISFIED | Truth 1, 6 |
+| SPLIT-02 | 37-05, 13, 14, 16, 18, 19 | SATISFIED | Truth 2 |
+| SPLIT-03 | 37-06..09, 14..18, 20..22, 25, 27 | NOT FULLY SATISFIED | Rendering, indexes and role wording hold; the trace's honesty under an incomplete read (Truth 10) does not. Keep the REQUIREMENTS.md row at Gaps Found |
+| SPLIT-04 | 37-01..04, 19, 26 | SATISFIED | Truth 3 |
+| SPLIT-05 | 37-03..05, 09, 13, 16, 19, 20, 21, 24, 25 | SATISFIED for the runnable and its workflow wiring; CI reachability is a human item | Truth 4, 7, 13 |
+| SPLIT-06 | 37-05, 10, 11, 13, 16, 19, 20, 23, 25 | SATISFIED | Truth 5 |
+| SPLIT-07 | 37-01, 12 | SATISFIED | Truth 1 |
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 | ---- | ---- | ------- | -------- | ------ |
-| `scripts/runnable-ref/trace-render.ts` | ~841, 953-970 | incomplete read treated as absence | BLOCKER | Gap 1 |
-| `scripts/runnable-ref/trace-render.ts` | ~810-815 | uncaught readdirSync | BLOCKER (narrow) | Gap 2 |
-| `agent-factory/workflows/02-idea-to-epics.md` | 41 | "the trace rows are appended" | WARNING | Gap 3 |
-| `agent-factory/workflows/03-epic-to-tickets.md` | 9 | "a trace row before it can be pulled" | WARNING | Gap 3 |
-| `agent-factory/_commit-convention.md` | 52 | example commit "write trace row" | WARNING | Gap 3 |
-| `.github/workflows/ci.yml` | 605-606 | wired after two red gates in a fail-fast block | WARNING | human item 1 |
+| `scripts/runnable-ref/trace-render.ts` | ~956-973 | realpath ENOENT read as "no notes" | BLOCKER | Gap 1 (CR-03) |
+| `scripts/runnable-ref/trace-render.ts` | ~940-949 | symlinked task silently filtered | BLOCKER | Gap 1 (CR-04) |
+| `scripts/runnable-ref/state-check.ts` | ~2112-2129, ~2191-2200 | duplicate of both decisions | BLOCKER | Gap 1 |
+| `scripts/context-io.ts` | ~2154-2160 | throwIfNoEntry false read as absent; comment says "missing path only" | BLOCKER (part of Gap 1) | CR-03, IN-06 |
+| `scripts/generate-runnable-embeds.ts` | 626-637 | stamp covers generated regions only | WARNING | WR-07 |
+| `scripts/trace-model.ts` | 58-62 | scan patterns narrower than the truth | WARNING | WR-08 |
+| `agent-factory/workflows/02-idea-to-epics.md` | 41 | Done condition claims an effect line 31 denies | WARNING | WR-09 |
+| `scripts/trace-model.ts` | 85-86 | second reserved-prefix set | WARNING | WR-10 |
 
-Debt markers: a `TBD|FIXME|XXX` scan (with `-a`) over the 120 non-planning, non-compiled files changed since 33177831^ found none. Known pre-existing reds, not counted as phase-37 gaps: `check-diff-disposition` (exit 1, 707 findings per deferred-items.md), `check-flip-manifest` (exit 1), and the 20 baseline test failures.
+A `TBD|FIXME|XXX` check was not repeated this round: round 0 found none, and round 1 changed `.ts` and test files whose review (43 files) reports no debt marker.
 
 ### Human Verification Required
 
-1. **CI reachability.** Decide how to clear `check-diff-disposition` and `check-flip-manifest` (or reorder the block) so a push reaches `state-check.js .` and the validator. Expected: both phase-37 lines run on CI. Why human: needs a decision on 707 disposition rows or a moved base, and a push.
-2. **Live host run (planned, non-blocking).** Push a branch from a scratch host remote and confirm the PR-gate step runs `node tools/grugops/state-check.js .` and records its exit code without blocking. The local half passed here.
-
-### Security note on the permanent scan (answer to the auditor)
-
-`scripts/trace-instructions.test.ts` uses `HAND_TRACE_PATTERNS` (trace-model.ts:40-43), which require the word "traceability". Passive wording that says "trace row(s)" without that word (WF02:41, WF03:9, `_commit-convention.md:52`) passes the scan. Against SPLIT-03 as the roadmap words it ("no role instructs"), roles pass. Against 37-16/37-17's "no workflow tells an agent to append to the trace by hand", WF02:41 does not pass. The scan is a narrower guard than the truth; Gap 3 asks for it to be widened.
+1. **CI reachability.** Decide how to clear `check-diff-disposition` (720 findings) and `check-flip-manifest` (exit 1) so a push reaches `state-check.js .` and the validator. Why human: needs a decision on the disposition rows or a moved base, and a push. D-17 kept this out of round 1.
+2. **Live host run of the PR-gate and daily-sweep sub-steps.** Planned and non-blocking; needs a live remote.
 
 ### Gaps Summary
 
-Three gaps, all small and local. Gap 1 is the one that matters: make an unreadable task or note a could-not-run in `trace-render` (write mode refuses before removing anything) and a named finding or exit 2 in `--check` and `state-check`, with the missing test. Gap 2 is a missing try/catch around the context-root listing. Gap 3 is three sentences plus a wider scan pattern. Warnings WR-01 (ticket-ID shape and pre-write refusal), WR-02 (ROLLABLE vs fenced heading) and WR-05 (runnable version skew, relevant to Phase 38) should be planned in the same gap round; the rest of 37-REVIEW.md stays open per its disposition file. Closing these should lift the score to 12/13, with truth 13 (CI reachability) left to the two human items.
+One gap remains, and it is the round-0 Gap 1 in a narrower form. Round 1 fixed the failure the review named (an unreadable directory) and proved the fix with a table that injects error codes. The defect class, "a read that yields nothing is taken as the whole truth, then the write mode deletes by absence", also has two silent arms that raise no error: a link whose target is gone, and a directory entry that a filter drops. The fix is small and local: decide absence with `lstat` on the entry in the one embedded walk, count and name every refused context-root entry as a failed task, and add the two fixtures as READ-1 rows. Both runnables carry hand-written copies of the same decisions (`readTask` in trace-render and `readTraceTask` in state-check), so a single owner removes the duplicate too. This is one gap round (round 2 of 4 on the cap) and should lift the score to 12/13, with truth 13 left to the human item.
+
+The four warnings (WR-07 stamp coverage, WR-08 scan breadth, WR-09 workflow wording, WR-10 reserved prefixes) are not goal-blocking. WR-08 and WR-09 are cheap to take in the same round; WR-07 matters for Phase 38 hosts that upgrade one runnable at a time.
 
 ---
 
-_Verified: 2026-10-22T21:30:00Z_
+_Verified: 2026-10-23T20:50:00Z_
 _Verifier: Claude (gsd-verifier)_
