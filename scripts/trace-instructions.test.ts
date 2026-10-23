@@ -8,10 +8,16 @@
 //     agent-factory/ on disk and asking git for the tracked markdown directly inside each one, plus AGENTS.md;
 //   - the set holds every role listRoles returns and every workflow listWorkflows returns, and those two lists have
 //     ROLE_COUNT and WORKFLOW_COUNT members, so the scan cannot skip a role or a workflow;
+//   - the set has SCAN_SET_SIZE files, so a short set is red even if the second listing were short the same way;
 //   - the set holds the three files whose sentences the earlier two-pattern scan missed (plan 37-27, Gap 3);
-//   - there are three HAND_TRACE_PATTERNS; every row of KNOWN_VIOLATIONS (every known violating sentence, the three
-//     pre-fix kit sentences among them) matches at least one, and no row of RENDERED_WORDING (the rendered-from-refs
-//     wording, the rendered index sentence included) matches any;
+//   - there are four HAND_TRACE_PATTERNS; every row of KNOWN_VIOLATIONS (every known violating sentence, the three
+//     pre-fix kit sentences and the seven 37-REVIEW.md WR-08 sentences among them) matches at least one, and no row of
+//     RENDERED_WORDING (the rendered-from-refs wording, the rendered index sentence included) matches any;
+//   - every EXCLUSION_CONTROLS pair holds one exclusion of pattern 4: its negative (a live kit sentence where one
+//     exists) matches no pattern, and its control positive, the same shape without the excluded feature, matches
+//     pattern 4 (plan 37-32, WR-08);
+//   - the four patterns stay linear: each returns in well under the RUNTIME_CEILING_MS ceiling on 20,000-character
+//     adversarial inputs, in line mode and in paragraph mode;
 //   - the line scanner reports a seeded hit with its line number, and the paragraph scanner reports a sentence
 //     wrapped over two lines as `path:first-last`, which the line scanner cannot see;
 //   - across the whole set, zero lines and zero paragraphs match any pattern. A line hit prints `path:line` and the
@@ -24,6 +30,10 @@
 // SCAN-1 (plan 37-27, 37-GAP-PLANNING-BRIEF.md): the patterns are derived from the truth (no kit file tells an agent
 // to write the trace by hand), not from the first sentences the scan caught. The corpus below is what keeps them
 // that wide: a pattern narrowed until a known violating sentence passes turns a KNOWN_VIOLATIONS row red.
+//
+// Round 2 (plan 37-32, D-18, WR-08): the three patterns still needed the word "traceability" or a retired matrix noun,
+// so "Append the PR link to the trace." passed. Pattern 4 aims a write verb at the trace in any spelling, and each of
+// its exclusions is reasoned from the same truth and held here by a negative and a control (EXCLUSION_CONTROLS).
 //
 // Why the rule exists: the trace is rendered by tools/grugops/trace-render.js from published note refs, and the
 // render overwrites hand edits. A kit sentence that tells an agent to add a line to the trace by hand would send it
@@ -190,6 +200,20 @@ const KNOWN_VIOLATIONS: readonly string[] = [
   "Append to traceability.md the PR link",
   "update the traceability row",
   "hand-edit traceability.md to add the release",
+  // The seven sentences of 37-REVIEW.md WR-08's table, verbatim: each passed the three-pattern scan (plan 37-32).
+  "Append the PR link to the trace.",
+  "Hand-edit the trace.",
+  "Update the trace file for the ticket.",
+  "Add a line to the trace index.",
+  "Write the trace entry for each ticket.",
+  "Fill in the Release column of the trace.",
+  // The path-dot case: the `.` in `./` stopped pattern 1's old `[^.]{0,120}` bound.
+  "Add the test path to ./memory-bank/plans/traceability.md.",
+  // The trace in the other spellings pattern 4 names (plan 37-32).
+  "Add the PR to the ticket's trace file.",
+  "Record the release in each ticket's trace.",
+  "Edit the trace index by hand.",
+  "Update its trace file.",
 ];
 
 /** The sentence line of the rendered index: the one line that is no header, heading, blank or table row. */
@@ -211,7 +235,146 @@ const RENDERED_WORDING: readonly string[] = [
   "grug make tickets small — each one has value, scope, acceptance, test notes, size, priority, and epic and feature ids before it can be pulled.",
   "Those ids are published as refs on a note (Workflow 16), so the trace render gives the ticket a trace file.",
   "- `docs(board): grug move ABC-001 into In Review, commit rendered trace`",
+  // The rendered wording the gap-planning brief names (37-GAP-PLANNING-BRIEF.md §1.1, 37-REVIEW.md WR-08).
+  "the trace render",
+  "feed the trace",
+  "the rendered trace",
+  "with trace ids on refs",
 ];
+
+/**
+ * One exclusion of pattern 4 per entry. Pattern 4 asks for a write verb aimed at the trace; each exclusion is a case
+ * where that shape does not tell an agent to write the trace by hand (scripts/trace-model.ts states the reason).
+ * `negative` matches no pattern; `control` is the same shape without the excluded feature and matches pattern 4, so an
+ * exclusion that grew past its reason, or a pattern 4 that stopped matching, turns a row red. `source` is the
+ * repository-relative file a live negative is copied from, verbatim (held below: the file still holds the sentence,
+ * with its line breaks read as spaces), or null when no live kit sentence needs this exclusion alone and the negative
+ * is written to isolate it. Never drop a row to make the scan pass.
+ */
+interface ExclusionControl {
+  reason: string;
+  source: string | null;
+  negative: string;
+  control: string;
+}
+const EXCLUSION_CONTROLS: readonly ExclusionControl[] = [
+  {
+    reason: "negation `no <word>`: a prohibition tells the agent not to write",
+    source: "agent-factory/workflows/05-pr-quality-gate.md",
+    negative: "No step edits a trace file or the index by hand.",
+    control: "Each step edits a trace file or the index by hand.",
+  },
+  {
+    reason: "negation `never`, before a hyphenated verb",
+    source: "agent-factory/workflows/18-context-compaction.md",
+    negative: "Never hand-edit a trace file to preserve a trace the compaction actually broke.",
+    control: "Hand-edit a trace file to preserve a trace the compaction actually broke.",
+  },
+  {
+    reason: "negation reaches only the verb it precedes, never past its clause",
+    source: "agent-factory/workflows/16-context-read-write.md",
+    negative: "No workflow edits a trace file or the trace index.",
+    control: "Do not wait for the render; add the PR link to the trace.",
+  },
+  {
+    reason: "the renderer as the verb's subject: the render writes, not an agent",
+    source: "agent-factory/workflows/12-release.md",
+    negative: "The next trace render adds the release to each ticket's trace file and index line.",
+    control: "The render is slow, so append the PR link to the trace.",
+  },
+  {
+    reason: "the trace as a predicate after a copula is a classification, not an object (live, also bound by `because`)",
+    source: "agent-factory/contracts/board.md",
+    negative:
+      "The schema is written in clear professional voice because it is a trace and safety surface: the board is what a human reads to learn where work stands, and a parser that quietly reinterprets it reports a state nobody wrote.",
+    control: "The schema is written in clear professional voice and it updates a trace and safety surface.",
+  },
+  {
+    reason: "the trace as a predicate after a copula, isolated",
+    source: null,
+    negative: "The PR link added here is a trace of the change.",
+    control: "The PR link added here makes a trace of the change.",
+  },
+  {
+    reason: "the note route between the verb and the trace: a typed note is the sanctioned write",
+    source: "agent-factory/roles/software-engineer.md",
+    negative:
+      "3. Record what changed — files, behavior, tests, commands run — as typed notes for the shared context and the trace.",
+    control: "3. Record what changed — files, behavior, tests, commands run — in the shared context and the trace.",
+  },
+  {
+    reason: "the ref route between the verb and the trace, isolated",
+    source: null,
+    negative: "Record the PR link as refs on a note, so the trace is rendered from it.",
+    control: "Record the PR link on the board, so the trace is rendered from it.",
+  },
+  {
+    reason: "a clause bound at a semicolon: the verb's object sits in the clause before it",
+    source: "AGENTS.md",
+    negative:
+      "The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board, and produces the next action; the trace is rendered from those notes.",
+    control:
+      "The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board, and produces the next action, and the trace is rendered from those notes.",
+  },
+  {
+    reason: "a clause bound at `because`: the reason clause names what a thing is, not what to write",
+    source: "agent-factory/contracts/task-notes.template.md",
+    negative: "It is written in clear professional voice because it describes a trace surface.",
+    control: "It is written in clear professional voice and it describes a trace surface.",
+  },
+  {
+    reason: "a clause bound at a sentence end: a dot followed by a space",
+    source: null,
+    negative: "Update the board. The trace is rendered from the notes.",
+    control: "Update the board, then the trace is rendered from the notes.",
+  },
+  {
+    reason: "a verb followed by `nothing` writes nothing (live, also a `no <word>` negation)",
+    source: "agent-factory/workflows/02-idea-to-epics.md",
+    negative: "A note that names no ticket adds nothing to the trace.",
+    control: "A note that names a ticket adds a line to the trace.",
+  },
+  {
+    reason: "a verb followed by `nothing`, isolated",
+    source: null,
+    negative: "Each note adds nothing to the trace.",
+    control: "Each note adds a line to the trace.",
+  },
+  {
+    reason: "`the trace render` names the renderer, not the trace",
+    source: null,
+    negative: "Update the trace render step before the release.",
+    control: "Update the trace before the release.",
+  },
+];
+
+/**
+ * The scan set's pinned size. The two-way derivation catches a set that is short against the disk; the pin catches a
+ * change in the set itself, which must then be looked at and the pin moved with a dated line.
+ * History: 2026-10-24, plan 37-32: 77 files; 77 at 45c04b27.
+ */
+const SCAN_SET_SIZE = 77;
+
+/**
+ * The runtime ceiling for one pattern on one adversarial input. The expected time is a few milliseconds; the ceiling
+ * sits about two orders of magnitude above it, so a loaded one-worker run stays green while a backtracking blow-up
+ * (a superlinear regular expression once made a guard in this project take 383 s) fails.
+ */
+const RUNTIME_CEILING_MS = 2000;
+
+/** `text` wrapped at word boundaries into lines of at most `width` characters. */
+function wrap(text: string, width: number): string {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(" ").filter((w) => w.length > 0)) {
+    if (line.length > 0 && line.length + 1 + word.length > width) {
+      lines.push(line);
+      line = word;
+    } else line = line.length > 0 ? `${line} ${word}` : word;
+  }
+  if (line.length > 0) lines.push(line);
+  return lines.join("\n");
+}
 
 describe("the scan set (plan 37-18): every tracked kit markdown file and AGENTS.md, counted two ways", () => {
   const files = scanSet();
@@ -219,6 +382,10 @@ describe("the scan set (plan 37-18): every tracked kit markdown file and AGENTS.
   it("is not empty and holds the substrate", () => {
     expect(files.length).toBeGreaterThan(0);
     expect(files).toContain(SUBSTRATE);
+  });
+
+  it(`has SCAN_SET_SIZE (${SCAN_SET_SIZE}) files (plan 37-32)`, () => {
+    expect(files.length, `scan set ${files.length} files; move the pin with a dated history line`).toBe(SCAN_SET_SIZE);
   });
 
   it("holds the three files whose sentences the two-pattern scan missed (plan 37-27, Gap 3)", () => {
@@ -248,12 +415,12 @@ describe("the scan set (plan 37-18): every tracked kit markdown file and AGENTS.
   });
 });
 
-describe("the three hand-trace patterns (imported from scripts/trace-model.ts) catch their seeded lines", () => {
-  const [handEdit, oldShape] = HAND_TRACE_PATTERNS as [RegExp, RegExp, RegExp];
+describe("the four hand-trace patterns (imported from scripts/trace-model.ts) catch their seeded lines", () => {
+  const [handEdit, oldShape] = HAND_TRACE_PATTERNS as [RegExp, RegExp, RegExp, RegExp];
   const rendered = "The ticket's trace file is rendered from published note refs";
 
-  it("there are exactly three patterns", () => {
-    expect(HAND_TRACE_PATTERNS).toHaveLength(3);
+  it("there are exactly four patterns", () => {
+    expect(HAND_TRACE_PATTERNS).toHaveLength(4);
   });
 
   it.each(KNOWN_VIOLATIONS.map((row) => [row]))("KNOWN_VIOLATIONS row matches at least one pattern: %s", (row) => {
@@ -281,6 +448,43 @@ describe("the three hand-trace patterns (imported from scripts/trace-model.ts) c
     for (const p of HAND_TRACE_PATTERNS) expect(p.test(rendered), `${p} matched: ${rendered}`).toBe(false);
   });
 
+  it.each(EXCLUSION_CONTROLS.map((c) => [c.reason, c]))(
+    "EXCLUSION_CONTROLS (plan 37-32): %s: the negative matches no pattern, the control matches pattern 4",
+    (_reason, c) => {
+      const pattern4 = HAND_TRACE_PATTERNS[3];
+      expect(pattern4, "there is no fourth pattern").toBeDefined();
+      for (const p of HAND_TRACE_PATTERNS) expect(p.test(c.negative), `${p} matched: ${c.negative}`).toBe(false);
+      expect(pattern4!.test(c.control), `pattern 4 missed the control: ${c.control}`).toBe(true);
+      if (c.source !== null) {
+        // A live negative is still the kit's sentence: the file holds it once its line breaks are read as spaces.
+        const flat = readFileSync(join(ROOT, c.source), "utf8").replace(/\s*\n\s*/g, " ");
+        expect(flat.includes(c.negative), `${c.source} no longer holds: ${c.negative}`).toBe(true);
+      }
+    },
+  );
+
+  it("each pattern returns in under RUNTIME_CEILING_MS on 20,000-character adversarial inputs, line and paragraph", () => {
+    // Neither input holds the word trace, so every pattern fails; a backtracking pattern fails slowly.
+    const inputs = ["add ".repeat(5000), "add the ".repeat(2500)];
+    for (const input of inputs) {
+      expect(input.length).toBeGreaterThanOrEqual(20000);
+      for (const p of HAND_TRACE_PATTERNS) {
+        const t0 = performance.now();
+        const matched = p.test(input);
+        const ms = performance.now() - t0;
+        expect(matched, `${p} matched an input with no trace`).toBe(false);
+        expect(ms, `${p} took ${ms.toFixed(1)} ms on ${input.length} characters`).toBeLessThan(RUNTIME_CEILING_MS);
+      }
+      const wrapped = wrap(input, 80);
+      expect(wrapped.split("\n").length, "the wrapped text is one line, so it tests no paragraph join").toBeGreaterThan(1);
+      const t0 = performance.now();
+      const hits = paragraphHitsIn("seed.md", wrapped);
+      const ms = performance.now() - t0;
+      expect(hits).toEqual([]);
+      expect(ms, `the paragraph scan took ${ms.toFixed(1)} ms`).toBeLessThan(RUNTIME_CEILING_MS);
+    }
+  });
+
   it("the line scanner reports a seeded hit with its path and line number, and nothing for clean text", () => {
     const seeded = ["# Seeded", "", rendered, "Append to traceability.md the PR link", ""].join("\n");
     expect(hitsIn("seed.md", seeded)).toEqual([
@@ -298,6 +502,8 @@ describe("the paragraph scanner (plan 37-27, SCAN-1): a violating sentence wrapp
       "rows are appended.",
     ],
     ["`Append to` / `traceability.md the PR link`", "Append to", "traceability.md the PR link"],
+    // Plan 37-32 (WR-08): a pattern-4 sentence wrapped before its object.
+    ["`Append the PR link to` / `the trace.`", "Append the PR link to", "the trace."],
   ])("%s: paragraph mode reports seed.md:3-4, line mode reports nothing", (_label, first, second) => {
     const seeded = ["# Seeded", "", first, second, "", "Unrelated closing line."].join("\n");
     expect(hitsIn("seed.md", seeded), "a line alone matched, so this row does not test wrapping").toEqual([]);

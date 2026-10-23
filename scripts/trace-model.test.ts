@@ -4,7 +4,8 @@
 // text, the tree plan, the note collection over two context roots with a task whose read throws, and the two
 // cross-plan contracts with plans 37-13 and 37-18. Those two read the validator's own index-line rule
 // (state-rules' indexLineFindings over board-model's comment blanking) with the imported BUDGETS, and the
-// imported HAND_TRACE_PATTERNS, so no number and no pattern is retyped here.
+// imported HAND_TRACE_PATTERNS, so no number and no pattern is retyped here. The one copied list is pattern 1's verbs at
+// 45c04b27 (plan 37-32), a historical floor HAND_TRACE_WRITE_VERBS may only widen, not a pattern.
 //
 // Pure: nothing here touches the file system.
 
@@ -15,6 +16,7 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import {
   HAND_TRACE_PATTERNS,
+  HAND_TRACE_WRITE_VERBS,
   TRACE_GENERATED_HEADER,
   TRACE_LINK_DIR,
   buildTraceRows,
@@ -132,8 +134,8 @@ describe("renderTraceIndex: the one-line-per-ticket index (D-01)", () => {
 });
 
 describe("HAND_TRACE_PATTERNS: the one home of the hand-trace scan patterns (plan 37-18)", () => {
-  it("has exactly three members, case-insensitive and without the g flag, each matching its own control line", () => {
-    expect(HAND_TRACE_PATTERNS).toHaveLength(3);
+  it("has exactly four members, case-insensitive and without the g flag, each matching its own control line", () => {
+    expect(HAND_TRACE_PATTERNS).toHaveLength(4);
     expect(Object.isFrozen(HAND_TRACE_PATTERNS)).toBe(true);
     for (const p of HAND_TRACE_PATTERNS) {
       expect(p.flags.includes("i")).toBe(true);
@@ -147,6 +149,33 @@ describe("HAND_TRACE_PATTERNS: the one home of the hand-trace scan patterns (pla
     // Plan 37-27 (SCAN-1): the third names the retired matrix shape without the word traceability.
     expect(oldShapeNoWord.test("write trace row")).toBe(true);
     expect(oldShapeNoWord.test("Append to traceability.md the PR link")).toBe(false);
+    // Plan 37-32 (D-18, WR-08): the fourth aims a write verb at the trace in any spelling.
+    const toTheTrace = HAND_TRACE_PATTERNS[3]!;
+    expect(toTheTrace.test("Append the PR link to the trace.")).toBe(true);
+    expect(toTheTrace.test("Update its trace file.")).toBe(true);
+    expect(toTheTrace.test("No step edits a trace file or the index by hand.")).toBe(false);
+    // Pattern 1's bound crosses a path's dot and stops at a sentence end.
+    expect(handEdit.test("Add the test path to ./memory-bank/plans/traceability.md.")).toBe(true);
+    expect(handEdit.test("Add the test path. The traceability index is rendered.")).toBe(false);
+  });
+
+  it("HAND_TRACE_WRITE_VERBS is frozen, letters and hyphens only, and holds every verb pattern 1 held at 45c04b27", () => {
+    expect(Object.isFrozen(HAND_TRACE_WRITE_VERBS)).toBe(true);
+    for (const v of HAND_TRACE_WRITE_VERBS) expect(v, "a verb needs escaping in a RegExp").toMatch(/^[a-z-]+$/);
+    expect(new Set(HAND_TRACE_WRITE_VERBS).size, "a verb is listed twice").toBe(HAND_TRACE_WRITE_VERBS.length);
+    // Pattern 1's verbs at 45c04b27, copied from its alternation then: the list may only widen pattern 1.
+    const before = [
+      "append", "appends", "add", "adds", "write", "writes", "wrote", "written", "fill", "fills", "update",
+      "updates", "updated", "record", "records", "edit", "edits", "edited", "hand-edit", "hand-edits",
+      "hand-edited", "modify", "modifies", "modified",
+    ];
+    expect(before.filter((v) => !HAND_TRACE_WRITE_VERBS.includes(v))).toEqual([]);
+    // Patterns 1 and 4 are built from the list: every verb starts a match of each.
+    const [handEdit, , , toTheTrace] = HAND_TRACE_PATTERNS as [RegExp, RegExp, RegExp, RegExp];
+    for (const v of HAND_TRACE_WRITE_VERBS) {
+      expect(handEdit.test(`${v} traceability`), `pattern 1 misses ${v}`).toBe(true);
+      expect(toTheTrace.test(`${v} the trace`), `pattern 4 misses ${v}`).toBe(true);
+    }
   });
 
   it.each([
