@@ -554,11 +554,18 @@ const FINDING_LINE: Record<Runnable, RegExp> = {
   "state-roll": /^ROLLED BACK /,
 };
 
-/** Run `pair` of `name` faulted with EIO on a fresh fixture in `mode`; the tree digests before and after. */
+/** A trace difference: trace-render's --check lines and state-check's trace-stale findings. */
+const TRACE_DIFF_LINE = /^(MISSING|EXTRA|CHANGED) |^FINDING .*\(trace-stale\)\s*$/;
+
+/**
+ * Run `pair` of `name` faulted with `code` (EIO unless a row asks for another, plan 37-31's ENOENT variant) on a
+ * fresh fixture in `mode`; the tree digests before and after.
+ */
 function runPair(
   name: Runnable,
   pair: DerivedPair,
   mode: Mode,
+  code = "EIO",
 ): { r: FaultedRun; before: ReadonlyMap<string, string>; after: ReadonlyMap<string, string>; all: string } | { skip: string } {
   const root = fixture(name, mode);
   if (typeof root !== "string") return root;
@@ -572,7 +579,7 @@ function runPair(
       fn: pair.site.fn,
       site: { url, line: pair.site.line },
       ...(pair.via === undefined ? {} : { via: { url, line: pair.via.line } }),
-      code: "EIO",
+      code,
     },
     { scratch: mkTmp("grugops-read-sites-fault-"), cwd: dirname(HOST[name]) },
   );
@@ -580,7 +587,7 @@ function runPair(
   const where =
     `site ${pair.site.key} line ${pair.site.line}` +
     (pair.via === undefined ? "" : `, via ${pair.via.id} line ${pair.via.line} (${pair.via.kind})`);
-  const all = `${name} ${mode}, ${where}\nstatus ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+  const all = `${name} ${mode}, ${where}, ${code}\nstatus ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
   return { r, before, after, all };
 }
 
@@ -760,6 +767,40 @@ describe("deriveReadSites and callingSites on synthetic programs (plan 37-25)", 
 
 // ── The table: every read site, under every caller, in every mode that reaches it ────────────────────────
 
+/**
+ * THE READ-1 RULE for one faulted run of a table row: the fault fired; exit 1 adding a finding line the unfaulted
+ * run does not print, or exit 2 with an empty stdout, refused by name (never the unexpected-throw backstop); no
+ * Node stack; nothing written, changed or removed. The EIO table and its ENOENT variant (plan 37-31) both assert it.
+ */
+function assertReadRule(runnable: Runnable, base: string, run: { r: FaultedRun; before: ReadonlyMap<string, string>; after: ReadonlyMap<string, string>; all: string }): void {
+  const { r, before, after, all } = run;
+  expect(
+    r.fired,
+    `the fault fired; the preload counted ${r.siteNotVia} call(s) at the site but not the via (non-zero: the via ` +
+      `line is wrong, fix the derivation or the fixture, never this assertion)\n${all}`,
+  ).toBeGreaterThan(0);
+  expect(r.signal, all).toBeNull();
+  expect([1, 2], `exit 1 or 2, never 0 and never no code\n${all}`).toContain(r.status);
+  if (r.status === 2) {
+    expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
+    // A read failure is expected, so it is refused by name where it happens. The unexpected-throw handler of
+    // plan 37-20 is a backstop for what nothing caught; a read that reaches it was not handled.
+    expect(r.stderr, `exit 2 by name, never through the unexpected-throw backstop\n${all}`).not.toContain(
+      "stopped unexpectedly (",
+    );
+  } else {
+    const seen = new Set(base.split("\n"));
+    const added = r.stdout.split("\n").filter((l) => FINDING_LINE[runnable].test(l) && !seen.has(l));
+    expect(added.length, `exit 1 adds a finding line the unfaulted run does not print\n${all}`).toBeGreaterThan(0);
+    // A trace difference the unfaulted run does not print means the failed read was compared as data or as
+    // nothing (plan 37-31): a vanished task read as "no notes" shows as EXTRA or trace-stale, which is the absence
+    // READ-1 forbids, not a finding about the read.
+    expect(added.filter((l) => TRACE_DIFF_LINE.test(l)), `a faulted read adds no trace difference\n${all}`).toEqual([]);
+  }
+  expect(hasNodeStack(r.stderr), `no Node stack trace\n${all}`).toBe(false);
+  expect(after, `nothing was written, changed or removed\n${all}`).toEqual(before);
+}
+
 describe("READ-1 table: every derived read site fails as could-not-run or a named finding, never a pass or a write", () => {
   for (const row of READ_SITE_ROWS) {
     for (const mode of row.modes) {
@@ -770,28 +811,7 @@ describe("READ-1 table: every derived read site fails as could-not-run or a name
           console.warn(typeof base !== "string" ? base.skip : (run as { skip: string }).skip);
           return;
         }
-        const { r, before, after, all } = run;
-        expect(
-          r.fired,
-          `the fault fired; the preload counted ${r.siteNotVia} call(s) at the site but not the via (non-zero: the via ` +
-            `line is wrong, fix the derivation or the fixture, never this assertion)\n${all}`,
-        ).toBeGreaterThan(0);
-        expect(r.signal, all).toBeNull();
-        expect([1, 2], `exit 1 or 2, never 0 and never no code\n${all}`).toContain(r.status);
-        if (r.status === 2) {
-          expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
-          // A read failure is expected, so it is refused by name where it happens. The unexpected-throw handler of
-          // plan 37-20 is a backstop for what nothing caught; a read that reaches it was not handled.
-          expect(r.stderr, `exit 2 by name, never through the unexpected-throw backstop\n${all}`).not.toContain(
-            "stopped unexpectedly (",
-          );
-        } else {
-          const seen = new Set(base.split("\n"));
-          const added = r.stdout.split("\n").filter((l) => FINDING_LINE[row.runnable].test(l) && !seen.has(l));
-          expect(added.length, `exit 1 adds a finding line the unfaulted run does not print\n${all}`).toBeGreaterThan(0);
-        }
-        expect(hasNodeStack(r.stderr), `no Node stack trace\n${all}`).toBe(false);
-        expect(after, `nothing was written, changed or removed\n${all}`).toEqual(before);
+        assertReadRule(row.runnable, base, run);
       });
     }
   }
@@ -853,6 +873,127 @@ describe("READ-1 table: the roll's re-reads under the absence owner (plan 37-30,
       expect(r.stderr, all).not.toContain("stopped unexpectedly (");
       expect(hasNodeStack(r.stderr), all).toBe(false);
       expect(after, `nothing was written, changed or removed\n${all}`).toEqual(before);
+    });
+  }
+});
+
+// ── The ENOENT variant (plan 37-31, D-18; 37-REVIEW.md CR-03 fix) ────────────────────────────────────────
+//
+// ENOENT is the code a dangling link and a vanished file both produce, and the one code a read can mistake for
+// "nothing here". So every row of the table runs again, in each of its modes, with ENOENT in place of EIO, under
+// the same rule. This is also the only deterministic way to open the vanish window: an ENOENT at the owner's stat
+// of a link target or its realpath, at the walk's readdirSync or at the reader's openSync is a path that went away
+// between the presence answer (or the listing) and the read (SPLIT-03, SPLIT-05, SPLIT-06 concurrency).
+//
+// THE ONE EXEMPTION. Only an lstat ENOENT on a component is absence (37-GAP-PLANNING-BRIEF.md §1.1), and it is
+// answered in exactly one place: the lstat inside entryPresence. Where that lstat's caller serves a position that may
+// be absent by design, ENOENT there is a correct "absent", and the program must answer it as absence; that is not a
+// defect. Each such row is decided here from the owner rule, before any row runs, and still runs: it must fire its
+// fault, and its outcome is printed. A row reached after a listing named the entry (readTaskNoteRefs, the keeper test
+// of listContextTasks) is never exempt, and neither is any other site: an ENOENT there is a path that vanished.
+
+/** `<runnable> <key> via <via>` (or `<runnable> <key>`): one row's identity across the three runnables. */
+function rowId(row: ReadSiteRow): string {
+  return `${row.runnable} ${pairId(row.key, row.via)}`;
+}
+
+/** The rows where an ENOENT is a correct absence, each with the position and the owner rule that make it so. */
+const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
+  [
+    "trace-render entryPresence:lstatSync#0 via readRawNotesWithSkips#0",
+    "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
+  ],
+  [
+    "trace-render entryPresence:lstatSync#0 via realDirectoryOrNull#0",
+    "a context root, the state directory and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet (plan 37-29)",
+  ],
+  [
+    "trace-render entryPresence:lstatSync#0 via <top>#0",
+    "a planned trace file or index may be absent before its first render: the pre-write check passes an absent path (plan 37-29)",
+  ],
+  [
+    "trace-render entryPresence:lstatSync#0 via readText#0",
+    "a planned trace file or index may be absent: the compare reports it missing, and the write mode writes it (plan 37-29)",
+  ],
+  [
+    "state-check entryPresence:lstatSync#0 via readRawNotesWithSkips#0",
+    "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
+  ],
+  [
+    "state-check entryPresence:lstatSync#0 via locate#0",
+    "every state path locate serves may be absent: the layout marker (no marker is WARN mode), the board and the indexes (an absent finding), the progress file, the folders and the trace positions (plan 37-29)",
+  ],
+  [
+    "state-check entryPresence:lstatSync#0 via runnableSkewFindings#0",
+    "a sibling program may be absent: state-check then runs alone and reports no skew (plan 37-24, plan 37-29)",
+  ],
+  [
+    "state-roll entryPresence:lstatSync#0 via realDirectoryOrNull#0",
+    "the archive directory and the memory bank directory may be absent (a roll creates the first, the second holds no progress file); an absent state directory is could-not-run by its caller (plan 37-30)",
+  ],
+  [
+    "state-roll entryPresence:lstatSync#0 via readTextOrThrow#0",
+    "the Done archive, the progress file and the progress archive may be absent; an absent board is could-not-run by its caller (plan 37-30)",
+  ],
+]);
+
+/** The exemption count. 2026-10-24, plan 37-31: 9 (trace-render 4, state-check 3, state-roll 2). */
+const ENOENT_EXEMPT_SIZE = 9;
+
+describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted with ENOENT, is could-not-run or a named finding unless absence is the correct answer there", () => {
+  it("ENOENT_EXEMPT is printed, its size is pinned, and every key is a real row whose site is the owner's lstat", () => {
+    console.log(`ENOENT_EXEMPT (${ENOENT_EXEMPT.size}):\n${[...ENOENT_EXEMPT].map(([k, v]) => `  ${k}: ${v}`).join("\n")}`);
+    expect(ENOENT_EXEMPT.size).toBe(ENOENT_EXEMPT_SIZE);
+    const ids = new Set(READ_SITE_ROWS.map(rowId));
+    for (const key of ENOENT_EXEMPT.keys()) {
+      expect(ids.has(key), `${key} is a row of READ_SITE_ROWS`).toBe(true);
+      expect(key, `${key}: only the owner's lstat can answer absence`).toMatch(/^[a-z-]+ entryPresence:lstatSync#0 via /);
+    }
+    for (const via of ["readTaskNoteRefs#0", "listContextTasks#0"]) {
+      expect([...ENOENT_EXEMPT.keys()].filter((k) => k.endsWith(` via ${via}`)), `a row through ${via} is never exempt`).toEqual([]);
+    }
+  });
+
+  for (const row of READ_SITE_ROWS) {
+    for (const mode of row.modes) {
+      const exempt = ENOENT_EXEMPT.get(rowId(row));
+      it(`${row.runnable} ${mode}: ${pairId(row.key, row.via)}, ENOENT${exempt === undefined ? "" : " (exempt)"}`, () => {
+        const base = baselineStdout(row.runnable, mode);
+        const run = runPair(row.runnable, pairOf(row), mode, "ENOENT");
+        if (typeof base !== "string" || "skip" in run) {
+          console.warn(typeof base !== "string" ? base.skip : (run as { skip: string }).skip);
+          return;
+        }
+        if (exempt === undefined) {
+          assertReadRule(row.runnable, base, run);
+          return;
+        }
+        const { r, all } = run;
+        console.log(`${rowId(row)} ${mode}: exempt (${exempt}) exit ${r.status}`);
+        expect(r.fired, `an exempt row still fires its fault\n${all}`).toBeGreaterThan(0);
+        expect(r.signal, all).toBeNull();
+        expect(hasNodeStack(r.stderr), `no Node stack trace\n${all}`).toBe(false);
+        expect(r.stderr, `never the unexpected-throw backstop\n${all}`).not.toContain("stopped unexpectedly (");
+      });
+    }
+  }
+
+  // The roll's re-reads (plan 37-30's row above): the owner's lstat answering absent during the roll is a file that
+  // vanished after the planning read found it (SPLIT-06), so it is never exempt.
+  const js = committed("state-roll");
+  const site = DERIVED["state-roll"].find((p) => p.site.key === "entryPresence:lstatSync#0")?.site;
+  const reread = callingSites(js, "readTextOrThrow").find((c) => c.scope === "io.read");
+  for (const mode of ["write", "write-new-archive"] as const) {
+    it(`state-roll ${mode}: entryPresence:lstatSync#0 under io.read, ENOENT: a file that vanished during the roll is refused, nothing changed`, () => {
+      if (site === undefined || reread === undefined) throw new Error("PREMISE: the roll's re-read row's premise row");
+      const base = baselineStdout("state-roll", mode);
+      const pair: DerivedPair = { site, via: { id: "io.read#0", line: reread.line, kind: reread.kind } };
+      const run = runPair("state-roll", pair, mode, "ENOENT");
+      if (typeof base !== "string" || "skip" in run) {
+        console.warn(typeof base !== "string" ? base.skip : (run as { skip: string }).skip);
+        return;
+      }
+      assertReadRule("state-roll", base, run);
     });
   }
 });
