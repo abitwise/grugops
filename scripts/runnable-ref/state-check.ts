@@ -2279,17 +2279,26 @@ function listed(names: readonly string[]): string {
  * present file that could not be read. An absent sibling is no finding. The sibling is read through the embedded
  * non-blocking reader under READ_CEILING_BYTES, so a FIFO is a refusal and never a hang. Its `rel` is its path
  * under the repository root when this file's directory resolves inside the root, and its absolute path otherwise.
+ * A directory that cannot be resolved is one finding by name (plan 37-25, D-17, READ-1): the failure is never read
+ * as a directory outside the root. The siblings are still compared, each named by its absolute path.
  */
 function runnableSkewFindings(): StateFinding[] {
   const here = import.meta.dirname;
+  const out: StateFinding[] = [];
   let hereReal: string | null = null;
   try {
     hereReal = nodeFs.realpathSync(here);
-  } catch {
-    hereReal = null;
+  } catch (e) {
+    out.push(
+      integrityFinding(
+        here,
+        "runnable-version-skew",
+        `the directory of ${RUNNABLE_SELF} could not be resolved (${codeOf(e)}), so whether its sibling programs sit ` +
+          "inside the repository root could not be told; each is named by its absolute path",
+      ),
+    );
   }
   const remedy = `remove ${listed(RUNNABLE_SET)} and install them again together`;
-  const out: StateFinding[] = [];
   for (const name of RUNNABLE_SET) {
     if (name === RUNNABLE_SELF) continue;
     const abs = nodePath.join(here, name);

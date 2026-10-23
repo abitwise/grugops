@@ -11,7 +11,8 @@
 // with `node --import`, outside the program. A stdout write that throws synchronously reaches each runnable's last
 // statement, past every inner catch. Two further rows inject an EIO at one node:fs call by line: the symbolic-link
 // follow-up statSync in trace-render's realDirectoryOrNull (TR-6), and the realpathSync after state-roll creates
-// its archive directory (SR-8). Plan 37-25 replaces the two line lookups with the derived site table.
+// its archive directory (SR-8). Both sites are found by their derived keys (plan 37-25: deriveReadSites over the
+// copied .js), never by a line or a text lookup.
 //
 // THE MESSAGE NEVER DENIES A WRITE. state-roll names a roll already written and proven, and says `No roll had
 // started.` only when none had; trace-render names the files it wrote and removed before it stopped.
@@ -42,6 +43,7 @@ import {
   INJECTED_STDOUT_MESSAGE,
   hasNodeStack,
   runFaulted,
+  deriveReadSites,
   scriptUrl,
   treeDigest,
   type FaultedRun,
@@ -166,12 +168,11 @@ function boardRepo(count: number): string {
   return root;
 }
 
-/** The 1-based line of the one line of the copied `name` .js that contains `needle`; it must be unique. */
-function lineOf(name: Runnable, needle: string): number {
-  const lines = readFileSync(HOST[name], "utf8").split("\n");
-  const at = lines.flatMap((l, i) => (l.includes(needle) ? [i + 1] : []));
-  expect(at, `PREMISE: exactly one line of ${name}.js holds ${needle}`).toHaveLength(1);
-  return at[0] as number;
+/** The line of the one derived read site of the copied `name` .js whose key is `key` (plan 37-25). */
+function siteLine(name: Runnable, key: string): number {
+  const at = deriveReadSites(HOST[name]).filter((s) => s.key === key);
+  expect(at.map((s) => s.key), `PREMISE: exactly one derived read site of ${name}.js is ${key}`).toEqual([key]);
+  return (at[0] as { readonly line: number }).line;
 }
 
 const STDOUT_THROW = { kind: "stdout-throw" } as const;
@@ -244,7 +245,7 @@ describe("EXIT-1: a failing follow-up read after a symbolic link or a created di
       console.warn(skipLine(skipped, "the CR-02 cases in scripts/runnable-ref/trace-render.test.ts (the same couldNotRun)"));
       return;
     }
-    const site = { url: scriptUrl(HOST["trace-render"]), line: lineOf("trace-render", "st = nodeFs.statSync(real);") };
+    const site = { url: scriptUrl(HOST["trace-render"]), line: siteLine("trace-render", "realDirectoryOrNull:statSync#0") };
     const before = treeDigest(root);
     const r = runWith("trace-render", [root], { kind: "fs", fn: "statSync", site, code: "EIO" });
     const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
@@ -259,7 +260,7 @@ describe("EXIT-1: a failing follow-up read after a symbolic link or a created di
   it("SR-8: an EIO at the realpathSync after state-roll creates its archive directory leaves the tree unchanged", () => {
     const root = boardRepo(BUDGETS.doneRows + 1);
     const before = treeDigest(root);
-    const site = { url: scriptUrl(HOST["state-roll"]), line: lineOf("state-roll", "realpathSync(archiveDirPath)") };
+    const site = { url: scriptUrl(HOST["state-roll"]), line: siteLine("state-roll", "<top>:realpathSync#1") };
     const r = runWith("state-roll", [root], { kind: "fs", fn: "realpathSync", site, code: "EIO" });
     const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
     expect(r.fired, `PREMISE: the fault fired (site-not-via ${r.siteNotVia})\n${all}`).toBeGreaterThan(0);
