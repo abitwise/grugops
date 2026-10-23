@@ -49,7 +49,7 @@ is one short line in the imperative.
 Examples (grug commit small, grug commit clear):
 
 - `feat(ticket): grug cut ABC-001 ticket with acceptance criteria`
-- `docs(board): grug move ABC-001 into In Review, write trace row`
+- `docs(board): grug move ABC-001 into In Review, commit rendered trace`
 - `chore(metrics): grug record cycle time after the daily sweep`
 
 Keep the format line itself precise; the caveman flavor lives only in the summary text.

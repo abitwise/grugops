@@ -132,24 +132,27 @@ describe("renderTraceIndex: the one-line-per-ticket index (D-01)", () => {
 });
 
 describe("HAND_TRACE_PATTERNS: the one home of the hand-trace scan patterns (plan 37-18)", () => {
-  it("has exactly two members, case-insensitive and without the g flag, each matching its own control line", () => {
-    expect(HAND_TRACE_PATTERNS).toHaveLength(2);
+  it("has exactly three members, case-insensitive and without the g flag, each matching its own control line", () => {
+    expect(HAND_TRACE_PATTERNS).toHaveLength(3);
     expect(Object.isFrozen(HAND_TRACE_PATTERNS)).toBe(true);
     for (const p of HAND_TRACE_PATTERNS) {
       expect(p.flags.includes("i")).toBe(true);
       expect(p.flags.includes("g")).toBe(false);
     }
-    const [handEdit, oldShape] = HAND_TRACE_PATTERNS as [RegExp, RegExp];
+    const [handEdit, oldShape, oldShapeNoWord] = HAND_TRACE_PATTERNS as [RegExp, RegExp, RegExp];
     expect(handEdit.test("Append to traceability.md the PR link")).toBe(true);
     expect(handEdit.test("the traceability matrix")).toBe(false);
     expect(oldShape.test("the traceability matrix")).toBe(true);
     expect(oldShape.test("Append to traceability.md the PR link")).toBe(false);
+    // Plan 37-27 (SCAN-1): the third names the retired matrix shape without the word traceability.
+    expect(oldShapeNoWord.test("write trace row")).toBe(true);
+    expect(oldShapeNoWord.test("Append to traceability.md the PR link")).toBe(false);
   });
 
   it.each([
     ["zero rows", [] as TraceRow[]],
     ["two rows", INDEX_ROWS],
-  ])("CROSS-PLAN (37-18): no line of the %s index matches either pattern, the header comment included", (_label, rows) => {
+  ])("CROSS-PLAN (37-18): no line of the %s index matches any pattern, the header comment included", (_label, rows) => {
     const lines = renderTraceIndex(rows).split("\n");
     expect(lines[0]).toBe(TRACE_GENERATED_HEADER);
     for (const line of lines) {
