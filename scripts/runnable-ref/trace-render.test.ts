@@ -14,6 +14,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   lstatSync,
@@ -508,4 +509,43 @@ describe("trace-render.js — never destroys hand-written content, never folds t
     expect(readFileSync(join(root, TRACE_DIR_REL, "ABC-1.md"), "utf8")).toContain("# Trace: ABC-1\n");
     expect(run(root, "--check").status).toBe(0);
   });
+});
+
+// ── Plan 37-20 (D-17 Gap 2, CR-02, EXIT-1): an unreadable context root is could-not-run, never a finding ─────
+
+/** A V8 stack frame line: an uncaught throw printed by Node. A could-not-run line never holds one. */
+const V8_FRAME = /^\s+at .+:\d+:\d+\)?$/m;
+
+/** chmod 000 cannot deny root, and Windows has no POSIX mode bits: the CR-02 cases need neither. */
+const CR02_SKIP =
+  process.platform === "win32"
+    ? "Windows has no POSIX mode bits"
+    : process.getuid?.() === 0
+      ? "running as root, which chmod 000 cannot deny"
+      : null;
+if (CR02_SKIP !== null) {
+  console.warn(`SKIP scripts/runnable-ref/trace-render.test.ts CR-02 cases: ${CR02_SKIP}.`);
+}
+
+describe("CR-02: an unreadable context root is could-not-run (exit 2), in both modes", () => {
+  for (const mode of ["write", "--check"] as const) {
+    it.skipIf(CR02_SKIP !== null)(`${mode}: .grugops/context at mode 000 exits 2, empty stdout, a named EACCES line, no stack`, () => {
+      const root = renderedRepo();
+      const ctx = join(root, CONTEXT_REL);
+      expect(lstatSync(ctx).isDirectory(), "PREMISE: the live context root is a real directory").toBe(true);
+      const before = snapshotWithTimes(root);
+      chmodSync(ctx, 0o000);
+      let r: { status: number | null; stdout: string; stderr: string };
+      try {
+        r = mode === "write" ? run(root) : run(root, "--check");
+      } finally {
+        chmodSync(ctx, 0o755);
+      }
+      expect(r.status, r.stdout + r.stderr).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain(`the context root ${CONTEXT_REL} cannot be listed (EACCES)`);
+      expect(r.stderr).not.toMatch(V8_FRAME);
+      if (mode === "write") expect(snapshotWithTimes(root)).toEqual(before);
+    });
+  }
 });

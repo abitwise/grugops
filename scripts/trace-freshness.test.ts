@@ -19,7 +19,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -202,6 +202,34 @@ describe("trace-freshness — a render that could not run is never fresh", () =>
     const r = runGate(freshTmp("trace-gate-no-state-"));
     expect(r.status, r.out).toBe(1);
     expect(r.out).toContain("Traceability freshness check FAILED: the render could not run");
+  });
+
+  // Plan 37-20 (D-17 Gap 2, CR-02, D-12): the runnable maps an unlistable context root to exit 2, so the gate
+  // reports could-not-run and never the STALE remedy that tells a user to re-render a tree the render could not read.
+  const unlistableSkip =
+    process.platform === "win32"
+      ? "Windows has no POSIX mode bits"
+      : process.getuid?.() === 0
+        ? "running as root, which chmod 000 cannot deny"
+        : null;
+  if (unlistableSkip !== null) {
+    console.warn(`SKIP scripts/trace-freshness.test.ts unlistable-context-root case: ${unlistableSkip}.`);
+  }
+  it.skipIf(unlistableSkip !== null)("a rendered tree whose .grugops/context is at mode 000: exit 1, could not run, no re-render remedy", () => {
+    const root = renderedRoot("trace-gate-unlistable-");
+    const ctx = join(root, CONTEXT_REL);
+    expect(lstatSync(ctx).isDirectory(), "PREMISE: the context root is a real directory").toBe(true);
+    chmodSync(ctx, 0o000);
+    let r: { status: number | null; out: string };
+    try {
+      r = runGate(root);
+    } finally {
+      chmodSync(ctx, 0o755);
+    }
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain("could not run");
+    expect(r.out).not.toContain("and commit the result");
+    expect(r.out).not.toContain("Traceability fresh:");
   });
 
   it("the verdict mapping: only exit 0 is fresh, only exit 1 is stale; exit 2, a signal and a spawn error are could-not-run", () => {
