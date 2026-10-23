@@ -73,6 +73,9 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+export const RUNNABLE_SET_STAMP = "sha256:4f9ef10f423294e9367c9eb9bc11c072e09505f6b221144ed646bb9539466581";
+export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
+export const RUNNABLE_SELF = "trace-render.js";
 // from install/state-layout.ts
 export const STATE_ROOT_REL = "memory-bank/plans";
 export const TRACEABILITY_REL = `${STATE_ROOT_REL}/traceability.md`;

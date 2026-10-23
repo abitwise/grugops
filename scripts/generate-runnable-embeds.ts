@@ -22,7 +22,17 @@
 //     target (the name and both modules are named), because one of the two would silently win;
 //   * LEGACY_STATE_ROOT_REL, whose quoted value is the spelling the old-state-path gate counts (research
 //     Pitfall 2), so a root must be chosen whose closure does not reach it;
-//   * a root that is not a top-level declaration of its authority, and an embedded line equal to a marker.
+//   * a root that is not a top-level declaration of its authority, and an embedded line equal to a marker;
+//   * an authority declaration or import named like one of the three generated build stamp names below.
+//
+// THE BUILD STAMP (plan 37-24, D-17, WR-05, AUTH-1). The three targets are installed into a host as separate
+// files and never updated in place, so each region also carries three generated lines whose shape
+// scripts/runnable-stamp.ts owns: RUNNABLE_SET_STAMP, a sha256 over every EMBED_SPECS target's generated body
+// (its target path, a NUL byte, its import lines and declarations, a NUL byte, in EMBED_SPECS order);
+// RUNNABLE_SET, the file names built together; and RUNNABLE_SELF, the program carrying the region. A change to
+// any authority any target embeds changes the stamp of every region, so programs built from different authorities
+// never carry equal stamps. The stamp is never written by hand: the freshness gate re-derives it with the region.
+// state-check reads its siblings' stamps and reports runnable-version-skew when one differs from its own.
 //
 // DEV ONLY. This module and its freshness gate run in this repository's checkout and CI, never on a host. The
 // TypeScript compiler is acquired at run time through createRequire, as scripts/js-import-closure.ts does, so
@@ -31,11 +41,13 @@
 //
 // Voice: clear professional voice (CLAUDE.md hard rule): these refusals guard what every host runs.
 
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import type * as TS from "typescript";
 import { isEntrypoint } from "./is-entry.js";
+import { RUNNABLE_STAMP_DECLARED_NAMES, formatRunnableStampLines } from "./runnable-stamp.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -98,6 +110,9 @@ export type EmbedSpec = {
  * AUTH-1): progressEntries asks the one section-extent owner which progress lines are `##` section headings, and
  * state-check passes this generated copy, so its ROLLABLE report and state-roll's planner classify dated entries
  * with one fence-aware answer. D-16 admits the copy inside this fresh generated region; the census is unchanged.
+ * Plan 37-24 (2026-10-23) adds scripts/runnable-stamp.ts readRunnableStamp to the state checker's row (D-17, WR-05,
+ * AUTH-1): state-check reads the build stamp of trace-render.js and state-roll.js beside it with the one reader of
+ * the stamp line's shape, and reports runnable-version-skew when a stamp differs from its own.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -173,6 +188,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
         module: "scripts/context-io.ts",
         roots: ["readRegularFileOrNull", "readRawNotesWithSkips", "recordFromParsed", "NOTE_SKIP_ARMS"],
       },
+      { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },
     ],
   },
   {
@@ -497,11 +513,22 @@ function elementText(b: ImportBinding): string {
   return b.imported === b.local ? b.local : `${b.imported} as ${b.local}`;
 }
 
+/** What the generator writes for one target between the markers, apart from the build stamp lines. */
+export type EmbedBody = {
+  /** One merged import line per `node:` specifier, in code-unit order of the specifier. */
+  readonly imports: readonly string[];
+  /** A `// from <module>` line and each authority's closure, verbatim and in source order. */
+  readonly declarations: readonly string[];
+};
+
+/** Who owns the three generated stamp names, in a refusal. */
+const STAMP_LINES_OWNER = "the generated build stamp lines (scripts/runnable-stamp.ts)";
+
 /**
- * The region a fresh derivation gives for `spec`, markers included. Throws on every refusal the module
- * header lists.
+ * The import lines and declarations a fresh derivation gives for `spec`, without the markers and without the
+ * build stamp lines. Throws on every refusal the module header lists.
  */
-export function deriveRegion(spec: EmbedSpec, root: string = ROOT): string {
+export function deriveBody(spec: EmbedSpec, root: string = ROOT): EmbedBody {
   const modules = spec.authorities.map((a) => a.module);
   const repeated = modules.find((m, i) => modules.indexOf(m) !== i);
   if (repeated !== undefined) {
@@ -510,8 +537,11 @@ export function deriveRegion(spec: EmbedSpec, root: string = ROOT): string {
   const closures = spec.authorities.map((a) => closeAuthority(root, a));
 
   // One name, one owner, across every authority's declarations and imports in this target. A name an authority
-  // declares in more than one statement (a function's overloads) is one declaration of that authority.
+  // declares in more than one statement (a function's overloads) is one declaration of that authority. The three
+  // names the build stamp lines declare are claimed first (plan 37-24), so an authority that declares or imports
+  // one of them is refused by name.
   const owner = new Map<string, string>();
+  for (const n of RUNNABLE_STAMP_DECLARED_NAMES) owner.set(n, STAMP_LINES_OWNER);
   const importOf = new Map<string, ImportBinding>();
   const claim = (name: string, module: string): void => {
     const prior = owner.get(name);
@@ -582,7 +612,62 @@ export function deriveRegion(spec: EmbedSpec, root: string = ROOT): string {
       throw new Error(`generate-runnable-embeds: an embedded declaration for ${spec.target} holds a region marker line`);
     }
   }
-  return [EMBED_OPEN, ...importLines, ...body, EMBED_CLOSE].join("\n");
+  return { imports: importLines, declarations: body };
+}
+
+/** The file name a target is installed and run under: its basename, `.ts` changed to `.js`. */
+function runnableFileName(target: string): string {
+  const base = target.split("/").pop() ?? target;
+  if (!base.endsWith(".ts")) throw new Error(`generate-runnable-embeds: the target ${target} is not a .ts source`);
+  return `${base.slice(0, -".ts".length)}.js`;
+}
+
+/** The stamp over bodies already derived, in `set` order. */
+function stampOver(set: readonly EmbedSpec[], bodies: readonly EmbedBody[]): string {
+  const hash = createHash("sha256");
+  set.forEach((spec, i) => {
+    const body = bodies[i] as EmbedBody;
+    hash.update(spec.target, "utf8");
+    hash.update("\0", "utf8");
+    hash.update([...body.imports, ...body.declarations].join("\n"), "utf8");
+    hash.update("\0", "utf8");
+  });
+  return `sha256:${hash.digest("hex")}`;
+}
+
+/**
+ * The build stamp of `set`: `sha256:` and the hex sha256 of, for each spec in `set` order, its target, a NUL byte,
+ * its generated body (deriveBody's import lines and declarations, joined by newlines) and a NUL byte. Computed from
+ * the authorities, never read from a region, so a hand-edited stamp is stale.
+ */
+export function runnableSetStamp(set: readonly EmbedSpec[], root: string = ROOT): string {
+  return stampOver(
+    set,
+    set.map((s) => deriveBody(s, root)),
+  );
+}
+
+/**
+ * The region a fresh derivation gives for `spec`, markers included: the import lines, the three build stamp lines
+ * for `set`, then the declarations. `spec` must be a member of `set` (by identity); the generator and the freshness
+ * gate pass EMBED_SPECS. Throws on every refusal the module header lists, and when `spec` is not in `set`.
+ */
+export function deriveRegion(spec: EmbedSpec, root: string = ROOT, set: readonly EmbedSpec[] = EMBED_SPECS): string {
+  const at = set.indexOf(spec);
+  if (at === -1) {
+    throw new Error(
+      `generate-runnable-embeds: ${spec.target} is not a member of the spec set its build stamp is computed over, so ` +
+        "its region cannot be derived",
+    );
+  }
+  const bodies = set.map((s) => deriveBody(s, root));
+  const own = bodies[at] as EmbedBody;
+  const stampLines = formatRunnableStampLines(
+    stampOver(set, bodies),
+    set.map((s) => runnableFileName(s.target)),
+    runnableFileName(spec.target),
+  );
+  return [EMBED_OPEN, ...own.imports, ...stampLines, ...own.declarations, EMBED_CLOSE].join("\n");
 }
 
 /**
@@ -632,7 +717,7 @@ export function rewriteRunnable(spec: EmbedSpec, root: string = ROOT): { changed
     );
   }
   const [a, b] = spans[0] as readonly [number, number];
-  const next = src.slice(0, a) + deriveRegion(spec, root) + src.slice(b);
+  const next = src.slice(0, a) + deriveRegion(spec, root, EMBED_SPECS) + src.slice(b);
   return { changed: next !== src, text: next };
 }
 

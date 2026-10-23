@@ -68,7 +68,11 @@ export type IntegrityKey =
   | "trace-stale"
   | "trace-hand-written"
   | "trace-collision"
-  | "trace-not-compared";
+  | "trace-not-compared"
+  // Plan 37-24 (2026-10-23, D-17, WR-05): a sibling state program beside state-check whose build stamp differs
+  // from state-check's own, is missing or repeated, or that could not be read, so the two may embed different
+  // copies of one authority (runnable-version-skew).
+  | "runnable-version-skew";
 
 /** An integrity finding: about no budget, so it carries its note in place of a measure. */
 export function integrityFinding(rel: string, key: IntegrityKey, note: string, line?: number): StateFinding {

@@ -19,6 +19,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -48,6 +49,7 @@ import {
   TRACEABILITY_REL,
 } from "../../install/state-layout.js";
 import { renderTraceIndex } from "../trace-model.js";
+import { RUNNABLE_STAMP_LINE, readRunnableStamp } from "../runnable-stamp.js";
 import { ciWorkflow, ubuntuBlockCommands } from "../ci-workflow.testkit.js";
 
 /**
@@ -1288,6 +1290,166 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
     expect(source.match(/export function compareTraceTree\b/g) ?? []).toHaveLength(1);
     expect(source.match(/export function readRawNotesWithSkips\b|function readRawNotesWithSkips\b/g) ?? []).toHaveLength(1);
     expect(source).not.toMatch(/function atomicWrite\b/);
+  });
+});
+
+// ── Sibling programs built together (plan 37-24, D-17, WR-05, AUTH-1) ─────────────────────────────────────
+//
+// The three state programs are installed side by side and never updated in place. Each case copies the three
+// COMMITTED .js files into one new directory, edits only the copies, and runs the copied state-check.js, which
+// reads its siblings from its own directory. The stamp line is read and written through scripts/runnable-stamp.ts,
+// the one owner of its shape.
+
+/** The three state programs a host installs together. */
+const SIBLING_NAMES = ["state-check.js", "trace-render.js", "state-roll.js"] as const;
+
+/** The three committed programs copied into one new directory. */
+function siblingHost(): string {
+  const dir = mkTmp("grugops-state-check-siblings-");
+  for (const n of SIBLING_NAMES) copyFileSync(join(import.meta.dirname, n), join(dir, n));
+  return dir;
+}
+
+/** The copied state-check.js in `dir`, on `root`. */
+function runSiblings(dir: string, root: string, ...args: string[]): { status: number | null; stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [join(dir, "state-check.js"), root, ...args], {
+    encoding: "utf8",
+    cwd: dir,
+    timeout: 15_000,
+  });
+  expect(r.error, "the check did not finish in bounded time").toBeUndefined();
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+/** The finding lines (WARN or FINDING) whose key is runnable-version-skew. */
+function skewLines(stdout: string): string[] {
+  return stdout.split("\n").filter((l) => /^(WARN|FINDING) /.test(l) && l.endsWith("(runnable-version-skew)"));
+}
+
+/** The stamp the committed state-check.js carries. */
+function committedStamp(): string {
+  const read = readRunnableStamp(readFileSync(CHECK_JS, "utf8"));
+  if (read.kind !== "stamp") throw new Error(`PREMISE: the committed state-check.js carries one stamp, not ${read.kind}`);
+  return read.stamp;
+}
+
+/** Rewrite the copied program `name` in `dir` with `edit`, and require the edit to change it. */
+function editCopy(dir: string, name: string, edit: (text: string) => string): void {
+  const at = join(dir, name);
+  const before = readFileSync(at, "utf8");
+  const after = edit(before);
+  expect(after, `PREMISE: the edit changed the copied ${name}`).not.toBe(before);
+  writeFileSync(at, after);
+}
+
+/** One hex digit of the copy's stamp changed: the first digit after `sha256:`, moved to another hex digit. */
+function changeOneStampDigit(text: string): string {
+  const read = readRunnableStamp(text);
+  expect(read.kind, "PREMISE: the copy carries exactly one stamp").toBe("stamp");
+  const stamp = read.kind === "stamp" ? read.stamp : "";
+  const digit = stamp.charAt("sha256:".length);
+  const changed = `sha256:${digit === "a" ? "b" : "a"}${stamp.slice("sha256:".length + 1)}`;
+  return text.replace(`"${stamp}"`, `"${changed}"`);
+}
+
+/** The stamp line removed from the copy. */
+function removeStampLine(text: string): string {
+  return text
+    .split("\n")
+    .filter((l) => !RUNNABLE_STAMP_LINE.test(l))
+    .join("\n");
+}
+
+describe("state-check.js — a sibling built from other authorities is runnable-version-skew (plan 37-24, D-17, WR-05)", () => {
+  it("PREMISE: the three committed programs carry one equal stamp", () => {
+    const own = committedStamp();
+    for (const n of SIBLING_NAMES) {
+      expect(readRunnableStamp(readFileSync(join(import.meta.dirname, n), "utf8")), n).toEqual({ kind: "stamp", stamp: own });
+    }
+  });
+
+  it("the three committed programs in one directory, a clean repository with the marker: exit 0, no runnable-version-skew", () => {
+    const dir = siblingHost();
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const r = runSiblings(dir, root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).not.toContain("runnable-version-skew");
+    expect(r.stdout).toContain("No findings.");
+    const j = runSiblings(dir, root, "--json");
+    expect(j.status).toBe(0);
+    expect((JSON.parse(j.stdout) as JsonReport).findings).toEqual([]);
+  });
+
+  it("one hex digit of the copied trace-render.js stamp changed: exit 1, one FINDING naming trace-render.js and both stamps; --json carries it", () => {
+    const dir = siblingHost();
+    editCopy(dir, "trace-render.js", changeOneStampDigit);
+    const theirs = readRunnableStamp(readFileSync(join(dir, "trace-render.js"), "utf8"));
+    expect(theirs.kind).toBe("stamp");
+    const theirStamp = theirs.kind === "stamp" ? theirs.stamp : "";
+    const own = committedStamp();
+    expect(theirStamp).not.toBe(own);
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const r = runSiblings(dir, root);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^FINDING {2}/);
+    expect(lines[0]).toContain(`${realpathSync(dir)}/trace-render.js: `);
+    expect(lines[0]).toContain(theirStamp);
+    expect(lines[0]).toContain(own);
+    expect(lines[0]).toContain("remove state-check.js, state-roll.js and trace-render.js and install them again together");
+    expect(r.stdout.split("\n").filter((l) => /^(WARN|FINDING) /.test(l)), "the skew is the only finding").toHaveLength(1);
+
+    const j = runSiblings(dir, root, "--json");
+    expect(j.status).toBe(1);
+    const report = JSON.parse(j.stdout) as JsonReport;
+    expect(report.ok).toBe(false);
+    const skew = report.findings.filter((f) => f.key === "runnable-version-skew") as (JsonFinding & { note: string })[];
+    expect(skew).toHaveLength(1);
+    expect(skew[0]?.rel).toBe(join(realpathSync(dir), "trace-render.js"));
+    expect(skew[0]?.note).toContain(`(stamp ${theirStamp}) than state-check.js (stamp ${own})`);
+  });
+
+  it("the stamp line removed from the copied trace-render.js: the finding says it carries no build stamp", () => {
+    const dir = siblingHost();
+    editCopy(dir, "trace-render.js", removeStampLine);
+    const r = runSiblings(dir, cleanRepo(LAYOUT_MARKER_CONTENT));
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("trace-render.js: it carries no build stamp, so an older kit built it");
+  });
+
+  it("trace-render.js absent: exit 0, no finding (a host may run state-check alone)", () => {
+    const dir = siblingHost();
+    rmSync(join(dir, "trace-render.js"));
+    const r = runSiblings(dir, cleanRepo(LAYOUT_MARKER_CONTENT));
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(skewLines(r.stdout)).toEqual([]);
+    expect(r.stdout).toContain("No findings.");
+  });
+
+  it("the same altered copy without the marker: a WARN line and exit 0", () => {
+    const dir = siblingHost();
+    editCopy(dir, "trace-render.js", changeOneStampDigit);
+    const r = runSiblings(dir, cleanRepo());
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^WARN {5}.*trace-render\.js: it was built from different authorities/);
+  });
+
+  it("programs installed under the repository root are named by their path under the root (tools/grugops/)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const dir = join(root, "tools", "grugops");
+    mkdirSync(dir, { recursive: true });
+    for (const n of SIBLING_NAMES) copyFileSync(join(import.meta.dirname, n), join(dir, n));
+    editCopy(dir, "state-roll.js", changeOneStampDigit);
+    const r = runSiblings(dir, root);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^FINDING {2}tools\/grugops\/state-roll\.js: it was built from different authorities/);
   });
 });
 

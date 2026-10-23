@@ -57,6 +57,18 @@
 // the trace is never reported fresh from a partial read. A FIFO, a link or anything else that is not a regular
 // file at a compared path is could-not-run (exit 2).
 //
+// SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js and state-roll.js are installed
+// side by side and never updated in place, and each embeds its own generated copy of shared authorities (the trace
+// model, BUDGETS). Each generated region therefore carries a build stamp, RUNNABLE_SET_STAMP, which the generator
+// computes over all three programs' generated bodies, with RUNNABLE_SET (the programs built together) and
+// RUNNABLE_SELF. After the trace report, this file reads every other program in RUNNABLE_SET from its own directory
+// through the embedded non-blocking reader, and asks the embedded readRunnableStamp (scripts/runnable-stamp.ts, the
+// one owner of the stamp line's shape) for its stamp. A sibling that is absent is no finding: a host may run this
+// file alone. A sibling whose stamp differs from this file's own, that carries no stamp or more than one, or that is
+// present and could not be read (unopenable, not a regular file, above the ceiling) is one runnable-version-skew
+// finding naming it, under the marker's severity like every integrity finding. The remedy is stated to a human:
+// remove the three programs and install them again together. This file never replaces or removes one.
+//
 // WHAT IT MEASURES IS DECIDED BY THE RULES, NOT HERE. Which directory entries count is the embedded
 // budgetEntryNames, given the raw listing; this file filters no name itself (D-11). A record's size is its
 // lstat size, so a record is never opened, and an entry that is not a regular file is a finding by name.
@@ -78,8 +90,9 @@
 // region, copied verbatim from its authority by scripts/generate-runnable-embeds.ts: BUDGETS and the state
 // paths from install/state-layout.ts, the budget, record, marker and sanitizing rules from
 // scripts/state-rules.ts, the board grammar from scripts/board-model.ts, the trace model from
-// scripts/trace-model.ts, and the non-blocking reader and the note read path from scripts/context-io.ts (never
-// its writer). scripts/runnable-embeds-freshness.ts fails CI when the region differs from a fresh derivation.
+// scripts/trace-model.ts, the non-blocking reader and the note read path from scripts/context-io.ts (never
+// its writer), and the stamp reader from scripts/runnable-stamp.ts. scripts/runnable-embeds-freshness.ts fails
+// CI when the region differs from a fresh derivation.
 // The one text retyped here is the renderer's counts line, which trace-model.ts does not export; the TRACE
 // case in state-check.test.ts holds it equal to the renderer's own output on one repository.
 //
@@ -98,6 +111,9 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+export const RUNNABLE_SET_STAMP = "sha256:4f9ef10f423294e9367c9eb9bc11c072e09505f6b221144ed646bb9539466581";
+export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
+export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
 export const STATE_ROOT_REL = "memory-bank/plans";
 export const BOARD_REL = `${STATE_ROOT_REL}/board.md`;
@@ -168,7 +184,11 @@ export type IntegrityKey =
   | "trace-stale"
   | "trace-hand-written"
   | "trace-collision"
-  | "trace-not-compared";
+  | "trace-not-compared"
+  // Plan 37-24 (2026-10-23, D-17, WR-05): a sibling state program beside state-check whose build stamp differs
+  // from state-check's own, is missing or repeated, or that could not be read, so the two may embed different
+  // copies of one authority (runnable-version-skew).
+  | "runnable-version-skew";
 export function integrityFinding(rel: string, key: IntegrityKey, note: string, line?: number): StateFinding {
   return { rel, key, measured: null, budget: null, unit: null, ...(line === undefined ? {} : { line }), note };
 }
@@ -1699,6 +1719,24 @@ function recordFromParsed(parsed: ParsedFrontmatter, id: string): NoteRecord {
 export function normalizeKind(raw: string | undefined): string {
   return (raw ?? "").trim();
 }
+// from scripts/runnable-stamp.ts
+export const RUNNABLE_STAMP_NAME = "RUNNABLE_SET_STAMP";
+export const RUNNABLE_STAMP_LINE = new RegExp(`^export const ${RUNNABLE_STAMP_NAME} = "(sha256:[0-9a-f]{64})";$`);
+export type RunnableStampRead =
+  | { readonly kind: "stamp"; readonly stamp: string }
+  | { readonly kind: "none" }
+  | { readonly kind: "ambiguous"; readonly count: number };
+export function readRunnableStamp(text: string): RunnableStampRead {
+  const stamps: string[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const m = RUNNABLE_STAMP_LINE.exec(line);
+    if (m !== null) stamps.push(m[1] as string);
+  }
+  if (stamps.length === 0) return { kind: "none" };
+  if (stamps.length > 1) return { kind: "ambiguous", count: stamps.length };
+  return { kind: "stamp", stamp: stamps[0] as string };
+}
 // </runnable-embeds>
 
 // ── The hand-written part: argv, the reads, the routing and the exit code ─────────────────────────────
@@ -2227,6 +2265,67 @@ function traceReport(index: StateText): TraceReport {
   return { compared: true, findings, lines };
 }
 
+// ── Sibling programs built together (plan 37-24, D-17, WR-05, AUTH-1) ────────────────────────────────────
+
+/** `names` as one list for a sentence: `a`, `a and b`, `a, b and c`. */
+function listed(names: readonly string[]): string {
+  if (names.length < 2) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/**
+ * One runnable-version-skew finding per sibling program in RUNNABLE_SET, other than this one, that sits in this
+ * file's directory and was not built together with it: a different stamp, no stamp, more than one stamp, or a
+ * present file that could not be read. An absent sibling is no finding. The sibling is read through the embedded
+ * non-blocking reader under READ_CEILING_BYTES, so a FIFO is a refusal and never a hang. Its `rel` is its path
+ * under the repository root when this file's directory resolves inside the root, and its absolute path otherwise.
+ */
+function runnableSkewFindings(): StateFinding[] {
+  const here = import.meta.dirname;
+  let hereReal: string | null = null;
+  try {
+    hereReal = nodeFs.realpathSync(here);
+  } catch {
+    hereReal = null;
+  }
+  const remedy = `remove ${listed(RUNNABLE_SET)} and install them again together`;
+  const out: StateFinding[] = [];
+  for (const name of RUNNABLE_SET) {
+    if (name === RUNNABLE_SELF) continue;
+    const abs = nodePath.join(here, name);
+    const rel =
+      hereReal !== null && insideRoot(hereReal)
+        ? nodePath.relative(root, nodePath.join(hereReal, name)).split(nodePath.sep).join("/")
+        : abs;
+    let text: string | null;
+    try {
+      text = readRegularFileOrNull(abs, READ_CEILING_BYTES, "state program");
+    } catch (e) {
+      const condition = e instanceof ReadPositionRefusal ? e.condition : codeOf(e);
+      out.push(
+        integrityFinding(
+          rel,
+          "runnable-version-skew",
+          `it could not be read (${condition}), so its build could not be compared with ${RUNNABLE_SELF}`,
+        ),
+      );
+      continue;
+    }
+    if (text === null) continue;
+    const read = readRunnableStamp(text);
+    if (read.kind === "stamp" && read.stamp === RUNNABLE_SET_STAMP) continue;
+    const note =
+      read.kind === "none"
+        ? `it carries no build stamp, so an older kit built it; ${remedy}`
+        : read.kind === "ambiguous"
+          ? `it carries ${read.count} build stamps, so its build could not be compared with ${RUNNABLE_SELF}; ${remedy}`
+          : `it was built from different authorities (stamp ${read.stamp}) than ${RUNNABLE_SELF} (stamp ` +
+            `${RUNNABLE_SET_STAMP}); ${remedy}`;
+    out.push(integrityFinding(rel, "runnable-version-skew", note));
+  }
+  return out;
+}
+
 /** The command a ROLLABLE line names. state-roll is shipped beside this file under tools/grugops/. */
 const ROLL_COMMAND = "node tools/grugops/state-roll.js";
 
@@ -2260,6 +2359,8 @@ try {
   // Trace freshness comes last (plan 37-09, D-01, D-03): the renderer's model over both context roots.
   const traced = traceReport(traceIndexFile);
   trace = { ...traced, findings: sortFindings(traced.findings).map(printableFinding) };
+  // The sibling programs' build stamps (plan 37-24, D-17, WR-05): a finding under the marker's severity.
+  const skew = runnableSkewFindings();
   rollable = rollableSurfaces(board.doneRows, progress.bytes, progress.entries, BUDGETS);
   moveOnly = [queueDone.surface, decisions.surface];
   findings = sortFindings([
@@ -2274,6 +2375,7 @@ try {
     ...queueDone.findings,
     ...decisions.findings,
     ...traced.findings,
+    ...skew,
   ]).map(printableFinding);
 } catch (e) {
   couldNotRun(`the check failed unexpectedly: ${(e as Error).message}`);

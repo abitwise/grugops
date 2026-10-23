@@ -2390,8 +2390,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     `new RegExp`, reads no grant and renders no spawn verdict.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 109 with this module tracked (2026-10-23, plan 37-20).
+ *
+ * 109 -> 110 (plan 37-24, D-17 WR-05, AUTH-1), ONE MODULE:
+ *   - `scripts/runnable-stamp.ts` — the one owner of the build stamp line's shape: the embed generator formats
+ *     the three stamp lines with it, and state-check reads a sibling program's stamp through a generated copy
+ *     of its reader. It imports nothing at all.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no
+ *     section bound (its one regular expression matches the stamp line, never a heading), reads no grant and
+ *     renders no spawn verdict. Its committed `.js` twin landed in the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 110 with this module tracked (2026-10-23, plan 37-24).
  */
-const NON_TEST_MODULE_COUNT = 109;
+const NON_TEST_MODULE_COUNT = 110;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -3019,7 +3029,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `node:crypto`, `node:fs`, `node:path` and `node:url` and none of the three specs compared below, so it
     // contributes three empty comparisons and cannot make the agreement above vacuous on its own. Re-derived: the
     // scoped walk over `scripts/` minus tests reports 70 with the module tracked (2026-10-23).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(70);
+    // 70 → 71 (plan 37-24, D-17 WR-05): `scripts/runnable-stamp.ts`, the one owner of the build stamp line. It
+    // imports nothing at all, so it contributes three empty comparisons and cannot make the agreement above
+    // vacuous on its own. Re-derived: the scoped walk over `scripts/` minus tests reports 71 with the module
+    // tracked (2026-10-23).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(71);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3054,7 +3068,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 63 → 64 (plan 36-01, task 3): `state-path-scan.ts`, three specs per module as ever.
     // 65 → 66 (plan 37-02, task 1): `state-rules.ts`, three specs per module as ever (2026-10-22).
     // 69 → 70 (plan 37-20): `fault-inject.test-support.ts`, three specs per module as ever (2026-10-23).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(70 * 3);
+    // 70 → 71 (plan 37-24): `runnable-stamp.ts`, three specs per module as ever (2026-10-23).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(71 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3287,7 +3302,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 69 → 70 (plan 37-20): `fault-inject.test-support.ts`, the same module the flat reader gained; both pins
       // move in one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 70
       // (2026-10-23).
-    ).toBe(70);
+      // 70 → 71 (plan 37-24): `runnable-stamp.ts`, the same module the flat reader gained; both pins move in one
+      // commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 71 (2026-10-23).
+    ).toBe(71);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
