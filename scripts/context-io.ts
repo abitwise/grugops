@@ -1387,10 +1387,15 @@ export function readRegularFileOrNull(
     fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") return null; // genuinely nothing here
-    // Present and unopenable — EACCES, ELOOP, ENXIO (a socket), a dangling symlink's own ENOENT on
-    // the TARGET is reported as ENOENT by open(2) and is therefore correctly "nothing here". Fail
-    // closed, naming the position rather than surfacing a bare errno the caller cannot place.
+    // ENOENT from open(2) is null. It does NOT prove that nothing is there: open(2) follows a link
+    // and reports a dangling link's missing TARGET as ENOENT too, so this reader cannot tell a
+    // missing path from a dangling link (plan 37-30, D-18). A caller that needs the absence answer
+    // asks entryPresence first, and treats a null from here after a "present" answer as a path that
+    // vanished, never as absence.
+    if (code === "ENOENT") return null;
+    // Any other open failure — EACCES, ELOOP, ENXIO (a socket) — means the path is present and
+    // unopenable. Fail closed, naming the position rather than surfacing a bare errno the caller
+    // cannot place.
     throw new ReadPositionRefusal(
       "unopenable",
       `context-io: the ${position} "${path}" IS present and could not be opened (${code ?? "unknown"}) ` +

@@ -124,7 +124,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:dc5316137a03b4016d1ee85ce3bf9e36cb9934eb66f392a3043ac3d0243f68ec";
+export const RUNNABLE_SET_STAMP = "sha256:fea4446350aa8464a82883044551713a6c3a95b45485f15589d75160c4587e20";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
@@ -1502,10 +1502,15 @@ export function readRegularFileOrNull(
     fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") return null; // genuinely nothing here
-    // Present and unopenable — EACCES, ELOOP, ENXIO (a socket), a dangling symlink's own ENOENT on
-    // the TARGET is reported as ENOENT by open(2) and is therefore correctly "nothing here". Fail
-    // closed, naming the position rather than surfacing a bare errno the caller cannot place.
+    // ENOENT from open(2) is null. It does NOT prove that nothing is there: open(2) follows a link
+    // and reports a dangling link's missing TARGET as ENOENT too, so this reader cannot tell a
+    // missing path from a dangling link (plan 37-30, D-18). A caller that needs the absence answer
+    // asks entryPresence first, and treats a null from here after a "present" answer as a path that
+    // vanished, never as absence.
+    if (code === "ENOENT") return null;
+    // Any other open failure — EACCES, ELOOP, ENXIO (a socket) — means the path is present and
+    // unopenable. Fail closed, naming the position rather than surfacing a bare errno the caller
+    // cannot place.
     throw new ReadPositionRefusal(
       "unopenable",
       `context-io: the ${position} "${path}" IS present and could not be opened (${code ?? "unknown"}) ` +
