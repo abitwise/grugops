@@ -6,7 +6,7 @@ cadence: both
 # Workflow: Epic to tickets
 
 ## When to use
-When an epic needs to become small, ready, traceable tickets. grug make tickets small — each one has value, scope, acceptance, test notes, size, priority, and epic and feature ids before it can be pulled. Those ids are published as refs on a note (Workflow 16), so the trace render gives the ticket a trace file. The epic flows epic -> BA/PM -> System Analyst (if behavior unclear) -> tickets.
+When an epic needs to become small, ready, traceable tickets. grug make tickets small — each one has value, scope, acceptance, test notes, size, priority, and epic and feature ids before it can be pulled. Those ids are published with the ticket identifier as refs on a note (Workflow 16). The epic flows epic -> BA/PM -> System Analyst (if behavior unclear) -> tickets.
 
 ## Agents involved
 - BA/PM — breaks the epic into tickets, sizes them (`XS`/`S`/`M`/`L`/`XL`), and prioritizes them (`P0`-`P3`).

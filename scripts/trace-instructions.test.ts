@@ -235,6 +235,10 @@ const RENDERED_WORDING: readonly string[] = [
   "grug make tickets small — each one has value, scope, acceptance, test notes, size, priority, and epic and feature ids before it can be pulled.",
   "Those ids are published as refs on a note (Workflow 16), so the trace render gives the ticket a trace file.",
   "- `docs(board): grug move ABC-001 into In Review, commit rendered trace`",
+  // WR-09 (plan 37-32): the two sentences that replace the plan 37-27 rewordings of 02-idea-to-epics.md:41 and
+  // 03-epic-to-tickets.md:9, which contradicted their own Trace updates sections.
+  "The product decisions are recorded as typed notes per Workflow 16. The epic and feature ids reach the trace once Workflow 03 publishes them, with the ticket identifier, on each ticket's note.",
+  "Those ids are published with the ticket identifier as refs on a note (Workflow 16).",
   // The rendered wording the gap-planning brief names (37-GAP-PLANNING-BRIEF.md §1.1, 37-REVIEW.md WR-08).
   "the trace render",
   "feed the trace",

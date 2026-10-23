@@ -38,7 +38,7 @@ Record `Throughput` and `Lead time` in `memory-bank/plans/metrics.md` as epics l
 - The idea is too vague to scope — stop and request the missing clarity from the requester. Do not invent the user, the pain, or the value.
 
 ## Done condition
-The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The product decisions are recorded as typed notes per Workflow 16, and the epic and feature ids they publish as refs feed the trace render.
+The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The product decisions are recorded as typed notes per Workflow 16. The epic and feature ids reach the trace once Workflow 03 publishes them, with the ticket identifier, on each ticket's note.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/idea-to-epics-<id>`), then `type(scope): summary`. The artifacts are the epics, the board update, the product notes recorded per Workflow 16 and the rendered trace files. Never merge, never deploy; humans hold both.
