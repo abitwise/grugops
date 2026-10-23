@@ -30,7 +30,7 @@ import {
 } from "./trace-model.js";
 import * as model from "./trace-model.js";
 import { indexLineFindings } from "./state-rules.js";
-import { normalizeDocument, stripHtmlComments } from "./board-model.js";
+import { isTicketId, normalizeDocument, stripHtmlComments } from "./board-model.js";
 import { BUDGETS, TRACE_DIR_REL, TRACEABILITY_REL } from "../install/state-layout.js";
 import { EMBED_CLOSE, EMBED_SPECS } from "./generate-runnable-embeds.js";
 
@@ -39,7 +39,9 @@ function bareRow(id: string): TraceRow {
   return { id, Requirement: [], Code: [], Tests: [], UAT: [], Release: [] };
 }
 
-const THREE_ROWS = ["ABC-2", "ABC-10", "abc-3"].map(bareRow);
+// Plan 37-22 (WR-01): `abc-3` was a third row here, a lowercase ticket the board grammar never admits. The rows are
+// now the two board identifiers, in an order that code units sort differently from the input.
+const INDEX_ROWS = ["ABC-2", "ABC-10"].map(bareRow);
 
 describe("classifyRef: the trace slot each ref shape fills (D-06)", () => {
   it.each([
@@ -55,41 +57,44 @@ describe("classifyRef: the trace slot each ref shape fills (D-06)", () => {
     ["#41", "Code"],
     ["src/fx/rate.ts", "Code"],
   ])("%s is classified as %s", (ref, expected) => {
-    expect(classifyRef(ref)).toBe(expected);
+    expect(classifyRef(ref, isTicketId)).toBe(expected);
   });
 
   it("the ticket identifier itself is no cell, and an unshaped word is none either", () => {
-    expect(classifyRef("ABC-012")).toBeNull();
-    expect(isTicketRef("ABC-012")).toBe(true);
-    expect(isTicketRef("NFR-002")).toBe(false);
-    expect(isTicketRef("ABC-01/x")).toBe(false);
-    expect(classifyRef("prose")).toBeNull();
+    expect(classifyRef("ABC-012", isTicketId)).toBeNull();
+    expect(isTicketRef("ABC-012", isTicketId)).toBe(true);
+    expect(isTicketRef("NFR-002", isTicketId)).toBe(false);
+    expect(isTicketRef("ABC-01/x", isTicketId)).toBe(false);
+    expect(classifyRef("prose", isTicketId)).toBeNull();
   });
 });
 
 describe("buildTraceRows: one row per ticket, refs merged first-seen without duplicates", () => {
   it("a note carrying [ABC-012, #41, fx.spec.ts, REL-0007] yields one ABC-012 row with those cells", () => {
-    const rows = buildTraceRows([{ refs: ["ABC-012", "#41", "fx.spec.ts", "REL-0007"] }]);
+    const rows = buildTraceRows([{ refs: ["ABC-012", "#41", "fx.spec.ts", "REL-0007"] }], isTicketId);
     expect(rows).toEqual([
       { id: "ABC-012", Requirement: [], Code: ["#41"], Tests: ["fx.spec.ts"], UAT: [], Release: ["REL-0007"] },
     ]);
   });
 
   it("two notes for one ticket merge their refs first-seen and de-duplicated", () => {
-    const rows = buildTraceRows([
-      { refs: ["ABC-012", "#41", "NFR-002"] },
-      { refs: ["#40", "ABC-012", "#41", "UAT-1"] },
-      { refs: ["#99"] },
-    ]);
+    const rows = buildTraceRows(
+      [
+        { refs: ["ABC-012", "#41", "NFR-002"] },
+        { refs: ["#40", "ABC-012", "#41", "UAT-1"] },
+        { refs: ["#99"] },
+      ],
+      isTicketId,
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.Code).toEqual(["#41", "#40"]);
     expect(rows[0]?.Requirement).toEqual(["NFR-002"]);
     expect(rows[0]?.UAT).toEqual(["UAT-1"]);
   });
 
-  it("rows sort by code units, so the order does not depend on the locale", () => {
-    const rows = buildTraceRows([{ refs: ["abc-3"] }, { refs: ["ABC-2"] }, { refs: ["ABC-10"] }]);
-    expect(rows.map((r) => r.id)).toEqual(["ABC-10", "ABC-2", "abc-3"]);
+  it("rows sort by code units, so the order does not depend on the locale; a lowercase ref is no ticket (plan 37-22)", () => {
+    const rows = buildTraceRows([{ refs: ["abc-3"] }, { refs: ["ABC-2"] }, { refs: ["ABC-10"] }], isTicketId);
+    expect(rows.map((r) => r.id)).toEqual(["ABC-10", "ABC-2"]);
     expect(compareCodeUnits("B", "a")).toBe(-1);
     expect(compareCodeUnits("a", "a")).toBe(0);
   });
@@ -97,17 +102,16 @@ describe("buildTraceRows: one row per ticket, refs merged first-seen without dup
 
 describe("renderTraceIndex: the one-line-per-ticket index (D-01)", () => {
   it("starts with the generated header and has one linked line per row, in code-unit order", () => {
-    const lines = renderTraceIndex(THREE_ROWS).split("\n");
+    const lines = renderTraceIndex(INDEX_ROWS).split("\n");
     expect(lines[0]).toBe(TRACE_GENERATED_HEADER);
     expect(lines).toContain("| Ticket | Trace |");
     const rowLines = lines.filter((l) => l.startsWith("| ") && l.includes("]("));
     expect(rowLines).toEqual([
       "| ABC-10 | [ABC-10](traceability/ABC-10.md) |",
       "| ABC-2 | [ABC-2](traceability/ABC-2.md) |",
-      "| abc-3 | [abc-3](traceability/abc-3.md) |",
     ]);
-    expect(renderTraceIndex(THREE_ROWS).endsWith("|\n")).toBe(true);
-    expect(renderTraceIndex(THREE_ROWS).endsWith("\n\n")).toBe(false);
+    expect(renderTraceIndex(INDEX_ROWS).endsWith("|\n")).toBe(true);
+    expect(renderTraceIndex(INDEX_ROWS).endsWith("\n\n")).toBe(false);
   });
 
   it("the index links resolve to TRACE_DIR_REL beside TRACEABILITY_REL", () => {
@@ -116,7 +120,7 @@ describe("renderTraceIndex: the one-line-per-ticket index (D-01)", () => {
 
   it.each([
     ["zero rows", [] as TraceRow[]],
-    ["three rows", THREE_ROWS],
+    ["two rows", INDEX_ROWS],
   ])("CROSS-PLAN (37-13): every line of the %s index fits BUDGETS.indexEntryBytes outside comments", (_label, rows) => {
     const normalized = normalizeDocument(renderTraceIndex(rows));
     const findings = indexLineFindings(TRACEABILITY_REL, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS);
@@ -144,7 +148,7 @@ describe("HAND_TRACE_PATTERNS: the one home of the hand-trace scan patterns (pla
 
   it.each([
     ["zero rows", [] as TraceRow[]],
-    ["three rows", THREE_ROWS],
+    ["two rows", INDEX_ROWS],
   ])("CROSS-PLAN (37-18): no line of the %s index matches either pattern, the header comment included", (_label, rows) => {
     const lines = renderTraceIndex(rows).split("\n");
     expect(lines[0]).toBe(TRACE_GENERATED_HEADER);
@@ -220,18 +224,17 @@ describe("collectTraceNotes and planTraceTree: two roots, a failing task, the pl
     expect(c.skipped).toEqual([{ root: "live", task: "t1", file: "x.md", arm: "unsealed", detail: "absent" }]);
     expect(c.failedTasks).toEqual([{ root: "live", task: "bad", reason: "task name refused" }]);
     // A ticket whose notes sit only in the archive root still gets a row.
-    expect(buildTraceRows(c.notes).map((r) => r.id)).toEqual(["ABC-1", "ABC-2", "ARC-9"]);
+    expect(buildTraceRows(c.notes, isTicketId).map((r) => r.id)).toEqual(["ABC-1", "ABC-2", "ARC-9"]);
   });
 
   it("plans the index first, then one file per ticket under the trace directory, in code-unit order", () => {
-    const plan = planTraceTree(THREE_ROWS, TRACEABILITY_REL, TRACE_DIR_REL);
+    const plan = planTraceTree(INDEX_ROWS, TRACEABILITY_REL, TRACE_DIR_REL);
     expect([...plan.keys()]).toEqual([
       TRACEABILITY_REL,
       `${TRACE_DIR_REL}/ABC-10.md`,
       `${TRACE_DIR_REL}/ABC-2.md`,
-      `${TRACE_DIR_REL}/abc-3.md`,
     ]);
-    expect(plan.get(TRACEABILITY_REL)).toBe(renderTraceIndex(THREE_ROWS));
+    expect(plan.get(TRACEABILITY_REL)).toBe(renderTraceIndex(INDEX_ROWS));
     expect(plan.get(`${TRACE_DIR_REL}/ABC-2.md`)).toBe(renderTicketTrace(bareRow("ABC-2")));
     expect([...planTraceTree([], TRACEABILITY_REL, TRACE_DIR_REL).keys()]).toEqual([TRACEABILITY_REL]);
   });
@@ -257,7 +260,7 @@ function fakeTree(root: string, files: Record<string, string>, reads: string[] =
   };
 }
 
-const ROWS_AB = buildTraceRows([{ refs: ["ABC-1", "#41"] }, { refs: ["ABC-2", "UAT-3"] }]);
+const ROWS_AB = buildTraceRows([{ refs: ["ABC-1", "#41"] }, { refs: ["ABC-2", "UAT-3"] }], isTicketId);
 
 function freshFiles(): Record<string, string> {
   const files: Record<string, string> = {};
@@ -444,14 +447,15 @@ describe("traceReadFailures and planCompleteTraceTree: an incomplete read gives 
 
   it("on a complete collection the plan equals buildTraceRows plus planTraceTree; on an incomplete one there is no plan", () => {
     const c = completeCollection();
-    const done = model.planCompleteTraceTree(c, TRACEABILITY_REL, TRACE_DIR_REL);
+    const done = model.planCompleteTraceTree(c, isTicketId, TRACEABILITY_REL, TRACE_DIR_REL);
     expect(done.complete).toBe(true);
     if (!done.complete) throw new Error("unreachable");
-    const rows = buildTraceRows(c.notes);
+    const rows = buildTraceRows(c.notes, isTicketId);
     expect(done.rows).toEqual(rows);
     expect([...done.plan]).toEqual([...planTraceTree(rows, TRACEABILITY_REL, TRACE_DIR_REL)]);
     const partial = model.planCompleteTraceTree(
       { ...c, failedTasks: [{ root: "live", task: "t9", reason: "EACCES" }] },
+      isTicketId,
       TRACEABILITY_REL,
       TRACE_DIR_REL,
     );

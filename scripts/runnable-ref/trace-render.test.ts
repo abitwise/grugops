@@ -513,24 +513,29 @@ describe("trace-render.js — never destroys hand-written content, never folds t
     expect(run(root, "--check").status).toBe(0);
   });
 
-  it("notes carrying ABC-1 and abc-1 make the run exit 1 naming both, and nothing is written", () => {
+  // Plan 37-22 (WR-01): this case expected `COLLISION ABC-1, abc-1` and exit 1. Under the board grammar abc-1 is
+  // not a ticket, so there is one ticket, one trace file and no collision.
+  it("abc-1 is not a ticket under the board grammar: one trace file, no collision, exit 0", () => {
     const root = repo();
     plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "#1"]));
     plant(root, CONTEXT_REL, "taskB", "n2", noteText("n2", ["abc-1", "#2"]));
-    const before = snapshotWithTimes(root);
-    for (const args of [[root], [root, "--check"]]) {
-      const r = run(...args);
-      expect(r.status, r.stdout + r.stderr).toBe(1);
-      expect(r.stdout).toContain("COLLISION ABC-1, abc-1");
-      expect(snapshotWithTimes(root)).toEqual(before);
-    }
-    expect(existsSync(join(root, TRACEABILITY_REL))).toBe(false);
+    const r = run(root);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).not.toContain("COLLISION");
+    expect(readdirSync(join(root, TRACE_DIR_REL))).toEqual(["ABC-1.md"]);
+    expect(readFileSync(join(root, TRACEABILITY_REL), "utf8")).not.toContain("abc-1");
+    const check = run(root, "--check");
+    expect(check.status, check.stdout + check.stderr).toBe(0);
+    expect(check.stdout).not.toContain("COLLISION");
   });
 
   it("a ticket re-cased from abc-1 to ABC-1 renders once and --check is then fresh, on a case-insensitive disk too", () => {
     const root = repo();
     plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["abc-1", "#1"]));
     expect(run(root).status).toBe(0);
+    // Plan 37-22 (WR-01): abc-1 is not a ticket under the board grammar, so the first render writes no file for it.
+    expect(lexists(join(root, TRACE_DIR_REL, "abc-1.md"))).toBe(false);
+    expect(readFileSync(join(root, TRACEABILITY_REL), "utf8")).not.toContain("abc-1");
     rmSync(join(root, CONTEXT_REL, "taskA"), { recursive: true });
     plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "#1"]));
     const r = run(root);
@@ -853,4 +858,51 @@ describe("READ-1: every I/O arm of the note reader stops the render and the comp
       });
     }
   }
+});
+
+// ── Plan 37-22 (D-17, WR-01, AUTH-1): the board grammar decides which refs are tickets ───────────────────────
+// The trace once had its own ticket shape (any letters, either case, any length), so a lowercase ref became a
+// ticket and a 300-letter ref became a file name the disk refused (ENAMETOOLONG) after other files were written.
+// The board grammar (agent-factory/contracts/board.md, scripts/board-model.ts isTicketId) is the one answer now.
+
+const WR01_LONG_REF = `${"A".repeat(300)}-1`;
+const WR01_REFS = ["ABC-1", "CWE-79", "utf-8", "abc-1", WR01_LONG_REF, "#41"] as const;
+
+describe("WR-01: a ref the board grammar refuses is never a ticket, so it never becomes a trace file name", () => {
+  it("one sealed note with ABC-1, CWE-79, utf-8, abc-1, a 300-letter ref and #41 renders exactly ABC-1.md and CWE-79.md; --check and state-check are clean", () => {
+    const root = repo();
+    plantFile(root, BOARD_REL, "# Board\n\n## Ready (WIP unlimited)\n\n## Done (WIP unlimited)\n");
+    plantFile(root, NFR_CATALOG_REL, "# NFR catalog\n");
+    plantFile(root, PROGRESS_REL, "# Progress\n");
+    plantFile(root, LAYOUT_MARKER_REL, LAYOUT_MARKER_CONTENT);
+    plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", WR01_REFS));
+    const write = run(root);
+    expect(write.status, write.stdout + write.stderr).toBe(0);
+    expect(write.stderr).toBe("");
+    expect(write.stderr).not.toContain("ENAMETOOLONG");
+    const owned = readdirSync(join(root, TRACE_DIR_REL)).filter((n) => !n.startsWith(".")).sort();
+    expect(owned).toEqual(["ABC-1.md", "CWE-79.md"]);
+    const ticketLines = readFileSync(join(root, TRACEABILITY_REL), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("| ") && l.includes("]("));
+    expect(ticketLines).toEqual([
+      "| ABC-1 | [ABC-1](traceability/ABC-1.md) |",
+      "| CWE-79 | [CWE-79](traceability/CWE-79.md) |",
+    ]);
+    const check = run(root, "--check");
+    expect(check.status, check.stdout + check.stderr).toBe(0);
+    const json = stateCheckTrace(root);
+    expect(json.status, json.raw).toBe(0);
+    expect(json.trace).toEqual({ compared: true, findings: [] });
+  });
+
+  it("the board grammar's answers did not move: [ABC-1] is a ticket row, [abc-1] is unparsed, [EPIC-1] is an epic row", async () => {
+    const board: typeof import("../board-model.js") = await import(
+      pathToFileURL(join(import.meta.dirname, "..", "board-model.js")).href
+    );
+    const model = board.parseBoard("# Board\n\n## Ready (WIP unlimited)\n\n- [ABC-1] t\n- [abc-1] t\n- [EPIC-1] e\n");
+    expect(model.columns.flatMap((c) => c.rows.map((r) => r.id))).toEqual(["ABC-1"]);
+    expect(model.epicRows.map((r) => r.id)).toEqual(["EPIC-1"]);
+    expect(model.unparsed).toHaveLength(1);
+  });
 });

@@ -89,6 +89,9 @@ export type EmbedSpec = {
  * Plan 37-21 (2026-10-23) adds planCompleteTraceTree to the trace-model roots of the state checker's row and the
  * trace renderer's row (D-17, CR-01, READ-1): the one predicate that says the note read was complete, and the
  * plan given only for a complete read, so the render's two modes and state-check ask the same question.
+ * Plan 37-22 (2026-10-23) adds scripts/board-model.ts isTicketId to the trace renderer's row and to the state
+ * checker's board-model roots (D-17, WR-01, AUTH-1): the board grammar's one answer to "is this a ticket
+ * identifier", which both runnables pass to the trace model, so the trace never keeps a ticket shape of its own.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -141,7 +144,10 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "stripControlChars",
         ],
       },
-      { module: "scripts/board-model.ts", roots: ["parseBoard", "normalizeDocument", "stripHtmlComments"] },
+      {
+        module: "scripts/board-model.ts",
+        roots: ["parseBoard", "normalizeDocument", "stripHtmlComments", "isTicketId"],
+      },
       {
         module: "scripts/trace-model.ts",
         roots: [
@@ -170,6 +176,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
         roots: ["CONTEXT_REL", "CONTEXT_ARCHIVE_REL", "TRACE_DIR_REL", "TRACEABILITY_REL"],
       },
       { module: "scripts/state-rules.ts", roots: ["stripControlChars"] },
+      { module: "scripts/board-model.ts", roots: ["isTicketId"] },
       {
         module: "scripts/trace-model.ts",
         roots: [

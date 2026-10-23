@@ -14,6 +14,9 @@
 // (planCompleteTraceTree): a plan exists only for a complete note read, so a failed task or a note skipped
 // under an I/O arm stops the render and the compare instead of reading as a ticket with no notes (CR-01).
 //
+// Plan 37-22 takes the ticket answer from the board grammar (D-17, WR-01): isTicketRef, classifyRef,
+// buildTraceRows and planCompleteTraceTree take scripts/board-model.ts isTicketId as a parameter.
+//
 // WHO USES IT. It is embedded, by scripts/generate-runnable-embeds.ts, into the host runnable
 // scripts/runnable-ref/trace-render.ts (this plan) and into state-check (plan 37-09), so the render and the
 // freshness comparison run the same code. scripts/trace-render.ts imports it for its own monolithic render
@@ -48,17 +51,20 @@ export const HAND_TRACE_PATTERNS = Object.freeze([
  * beside TRACEABILITY_REL in install/state-layout.ts.
  */
 export const TRACE_LINK_DIR = "traceability";
-// ── Ref classification (D-06) ───────────────────────────────────────────────────────────────────────────
-// The trace columns come from each note's `refs`, classified by the ref's shape. The row key is the
-// ticket-shaped ref the note carries. Every rule is anchored, so the render is reproducible.
 /** Structural prefixes that are never a ticket: requirements, decisions, risks, releases, incidents, UAT. */
 const RESERVED_PREFIXES = new Set(["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT"]);
-/** `<PREFIX>-<number>`: letters and digits starting with a letter, one hyphen, digits. No separator fits. */
+/**
+ * `<PREFIX>-<number>`: letters and digits starting with a letter, one hyphen, digits. It decides no ticket: it
+ * only picks the column of a ref that is not one (the UAT, REL and requirement prefixes, and the
+ * any-other-identifier-is-a-requirement arm of classifyRef).
+ */
 const ID_SHAPE = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/;
-/** True when `ref` is a ticket identifier: the ID shape with a prefix that is not a reserved one. */
-export function isTicketRef(ref) {
-    const m = ID_SHAPE.exec(ref);
-    return m !== null && !RESERVED_PREFIXES.has(m[1].toUpperCase());
+/**
+ * True when `ref` is a ticket identifier: the board grammar admits it (`isTicketId`) and the text before its last
+ * hyphen is not a reserved structural prefix.
+ */
+export function isTicketRef(ref, isTicketId) {
+    return isTicketId(ref) && !RESERVED_PREFIXES.has(ref.slice(0, ref.lastIndexOf("-")));
 }
 /** A Tests link names a test or spec file, or an e2e path. */
 function isTestRef(ref) {
@@ -72,8 +78,11 @@ function isCodeRef(ref) {
 }
 /** The five trace columns, in the order a ticket's trace file lists them. */
 export const TRACE_COLUMNS = Object.freeze(["Requirement", "Code", "Tests", "UAT", "Release"]);
-/** The column one ref belongs to, or null for the ticket key itself and for a ref no rule classifies. */
-export function classifyRef(ref) {
+/**
+ * The column one ref belongs to, or null for a ticket identifier (the board grammar's answer, `isTicketId`) and
+ * for a ref no rule classifies.
+ */
+export function classifyRef(ref, isTicketId) {
     const m = ID_SHAPE.exec(ref);
     const prefix = m ? m[1].toUpperCase() : "";
     if (prefix === "UAT")
@@ -84,7 +93,7 @@ export function classifyRef(ref) {
         return "Requirement";
     if (isTestRef(ref))
         return "Tests";
-    if (isTicketRef(ref))
+    if (isTicketRef(ref, isTicketId))
         return null;
     if (isCodeRef(ref))
         return "Code";
@@ -105,14 +114,15 @@ export function traceCell(s) {
     return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n|\r/g, " ");
 }
 /**
- * One row per ticket identifier found in the notes' refs. Every other ref on a note that names a ticket is
- * classified into a column of that ticket's row; two notes for one ticket merge their refs in first-seen order
- * without duplicates. A note naming no ticket contributes nothing. Rows are sorted by code-unit order of the id.
+ * One row per ticket identifier found in the notes' refs, a ticket being what the board grammar's `isTicketId`
+ * admits. Every other ref on a note that names a ticket is classified into a column of that ticket's row; two
+ * notes for one ticket merge their refs in first-seen order without duplicates. A note naming no ticket
+ * contributes nothing. Rows are sorted by code-unit order of the id.
  */
-export function buildTraceRows(notes) {
+export function buildTraceRows(notes, isTicketId) {
     const rows = new Map();
     for (const note of notes) {
-        for (const ticketId of note.refs.filter(isTicketRef)) {
+        for (const ticketId of note.refs.filter((ref) => isTicketRef(ref, isTicketId))) {
             let row = rows.get(ticketId);
             if (row === undefined) {
                 row = { id: ticketId, Requirement: [], Code: [], Tests: [], UAT: [], Release: [] };
@@ -121,7 +131,7 @@ export function buildTraceRows(notes) {
             for (const ref of note.refs) {
                 if (ref === ticketId)
                     continue;
-                const column = classifyRef(ref);
+                const column = classifyRef(ref, isTicketId);
                 if (column !== null && !row[column].includes(ref))
                     row[column].push(ref);
             }
@@ -130,7 +140,10 @@ export function buildTraceRows(notes) {
     return [...rows.values()].sort((a, b) => compareCodeUnits(a.id, b.id));
 }
 // ── Rendered text ───────────────────────────────────────────────────────────────────────────────────────
-/** The file name of one ticket's trace. The id comes from ID_SHAPE, so it holds no path separator. */
+/**
+ * The file name of one ticket's trace. The id is one the board grammar admits (upper-case ASCII letters, digits,
+ * one hyphen, at most 26 characters), so it holds no path separator and fits every disk's name limit.
+ */
 export function traceFileName(id) {
     return `${id}.md`;
 }
@@ -249,13 +262,14 @@ export function traceReadFailures(collection) {
 }
 /**
  * The plan of the rendered tree, given only when the note read was complete (traceReadFailures is empty).
- * With any failure there is no plan, so no caller can compare, write or remove from a partial read.
+ * With any failure there is no plan, so no caller can compare, write or remove from a partial read. The rows'
+ * tickets are what the board grammar's `isTicketId` admits (plan 37-22).
  */
-export function planCompleteTraceTree(collection, traceabilityRel, traceDirRel) {
+export function planCompleteTraceTree(collection, isTicketId, traceabilityRel, traceDirRel) {
     const failures = traceReadFailures(collection);
     if (failures.length > 0)
         return { complete: false, failures };
-    const rows = buildTraceRows(collection.notes);
+    const rows = buildTraceRows(collection.notes, isTicketId);
     return { complete: true, rows, plan: planTraceTree(rows, traceabilityRel, traceDirRel) };
 }
 // ── The owned tree, collisions and the comparison (plan 37-07, D-01, D-02, research Pitfalls 5 and 11) ──────
@@ -269,7 +283,8 @@ export const TRACE_FILE_MAX_BYTES = 8 * 1024 * 1024;
  * The record rule for the trace tree (the plan 37-01 contract): the entries of the trace directory that the
  * renderer considers at all are the names that do not begin with `.`, in code-unit order. A directory keeper
  * (`.gitkeep`) or operating-system metadata (`.DS_Store`) is never read, compared, refused, removed or
- * reported. No ticket identifier begins with `.` (ID_SHAPE), so no generated file is ever outside this set.
+ * reported. No ticket identifier begins with `.` (the board grammar's isTicketId), so no generated file is ever
+ * outside this set.
  * This module imports nothing, so it states the rule for the tree it checks rather than sharing
  * scripts/state-rules.ts recordEntryNames.
  */
@@ -280,7 +295,8 @@ export function ownedTraceEntries(names) {
  * The groups of distinct ticket identifiers whose trace file names are equal once lower-cased. On a
  * case-insensitive disk such a group would write one file over another (research Pitfall 11), so a caller
  * refuses the run. Each group and the list of groups are in code-unit order; no group has fewer than two ids.
- * ID_SHAPE admits ASCII letters and digits only, so lower-casing is the whole fold.
+ * The board grammar admits upper-case ASCII letters and digits only, so lower-casing is the whole fold, and no
+ * two distinct board identifiers fold together (plan 37-22); this stays as a defensive check.
  */
 export function caseFoldCollisions(ids) {
     const byFold = new Map();

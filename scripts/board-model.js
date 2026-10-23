@@ -136,6 +136,16 @@ const H2_PREFIX = "## ";
 const ROW = /^- \[([^\]]{1,64})\] (.*)$/;
 const TICKET_ID = /^[A-Z][A-Z0-9]{0,15}-\d{1,9}$/;
 const EPIC_ID = /^(?:EPIC|FEAT)-\d{1,9}$/;
+/**
+ * True when `id` is a ticket identifier under the board grammar: a capital letter, then capitals and digits (a
+ * prefix of 1 to 16 characters), one hyphen, and 1 to 9 digits, and not an epic or feature identifier (the
+ * grammar's second class). This is the one answer to "is this a ticket identifier" (plan 37-22, D-17, WR-01):
+ * matchRow asks it, and scripts/generate-runnable-embeds.ts embeds it into the host trace renderer and state
+ * checker, which pass it to the trace model. The configured `id_prefix` is a separate rule matchRow applies.
+ */
+export function isTicketId(id) {
+    return TICKET_ID.test(id) && !EPIC_ID.test(id);
+}
 /** The two-space gap that discriminates a real parenthetical from parentheses inside a title. */
 const META_GAP = "  (";
 // ── Update lines (D-03) ──────────────────────────────────────────────────────────────────────────
@@ -343,7 +353,7 @@ function boundRow(parts) {
 /**
  * The ticket identifier's prefix — everything before the final hyphen of an already-matched ID.
  *
- * Only ever applied to a string that `TICKET_ID` has already admitted, so the hyphen it looks for
+ * Only ever applied to a string that `isTicketId` has already admitted, so the hyphen it looks for
  * is guaranteed present and the result is guaranteed to be capitals and digits.
  */
 function idPrefixOf(id) {
@@ -369,7 +379,7 @@ function matchRow(line, idPrefix) {
     const id = row[1];
     if (EPIC_ID.test(id))
         return { id, parts: splitRow(row[2]), isEpic: true };
-    if (!TICKET_ID.test(id))
+    if (!isTicketId(id))
         return null;
     if (idPrefix !== null && idPrefix !== "" && idPrefixOf(id) !== idPrefix)
         return null;

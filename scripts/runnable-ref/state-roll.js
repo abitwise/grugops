@@ -648,6 +648,9 @@ const H2_PREFIX = "## ";
 const ROW = /^- \[([^\]]{1,64})\] (.*)$/;
 const TICKET_ID = /^[A-Z][A-Z0-9]{0,15}-\d{1,9}$/;
 const EPIC_ID = /^(?:EPIC|FEAT)-\d{1,9}$/;
+export function isTicketId(id) {
+    return TICKET_ID.test(id) && !EPIC_ID.test(id);
+}
 const META_GAP = "  (";
 const UPDATED = /^_Updated: (\d{4}-\d{2}-\d{2}) by (.*)$/;
 export function stripHtmlComments(text) {
@@ -750,7 +753,7 @@ function matchRow(line, idPrefix) {
     const id = row[1];
     if (EPIC_ID.test(id))
         return { id, parts: splitRow(row[2]), isEpic: true };
-    if (!TICKET_ID.test(id))
+    if (!isTicketId(id))
         return null;
     if (idPrefix !== null && idPrefix !== "" && idPrefixOf(id) !== idPrefix)
         return null;

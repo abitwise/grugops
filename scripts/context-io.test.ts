@@ -17644,6 +17644,10 @@ const dpe: typeof import("./dual-path-equivalence.js") = await import(
 const traceModel: typeof import("./trace-model.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "trace-model.js")).href
 );
+// 2026-10-23, plan 37-22 (WR-01): the trace's tickets are the board grammar's answer, passed in as isTicketId.
+const boardModel: typeof import("./board-model.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "board-model.js")).href
+);
 const capture: typeof import("./capture-live.js") = await import(
   pathToFileURL(join(ROOT, "scripts", "capture-live.js")).href
 );
@@ -17705,7 +17709,7 @@ describe("33-25 — R1/R2: every reader route reaches the refusal", () => {
     expect(dpe.projectTaskState(ctx, T).map((p) => p.body), "projectTaskState").toEqual(["the writer composed this one"]);
     // 5. trace-render: one ticket row (ABC-001), none for the hand-written note's ABC-002. The rows are the trace
     //    model's, over the notes readContext returns (plan 37-08: the same reader the host runnable embeds).
-    const rows = traceModel.buildTraceRows(mod.readContext(T, ctx));
+    const rows = traceModel.buildTraceRows(mod.readContext(T, ctx), boardModel.isTicketId);
     expect(rows.map((r) => r.id), "trace-render").toEqual(["ABC-001"]);
     // 6. capture-live.authorStamps (CAP-03 side (b))
     const stamps = capture.authorStamps(ctx);

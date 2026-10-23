@@ -1140,16 +1140,18 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
     expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-hand-written|${TRACE_DIR_REL}/ABC-099.md`]);
   });
 
-  it("two ticket identifiers that fold to one file name are a finding, as the renderer's --check reports them", () => {
+  // Plan 37-22 (WR-01): this case expected one trace-collision finding naming `ABC-1, abc-1`. Under the board
+  // grammar abc-1 is not a ticket, so ABC-1 with abc-1 is one ticket and no collision.
+  it("two ticket identifiers that fold to one file name are a finding: ABC-1 with abc-1 is none, since abc-1 is no ticket under the board grammar", () => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);
     plantNote(root, CONTEXT_REL, "taskA", "n1", ["ABC-1", "#1"]);
     plantNote(root, CONTEXT_REL, "taskB", "n2", ["abc-1", "#2"]);
-    expect(render(root, "--check").status).toBe(1);
+    expect(render(root).status).toBe(0);
+    expect(render(root, "--check").status).toBe(0);
     const j = runJson(root);
-    expect(j.status).toBe(1);
-    const collisions = j.report.trace.findings.filter((f) => f.key === "trace-collision");
-    expect(collisions).toHaveLength(1);
-    expect(collisions[0]?.note).toContain("ABC-1, abc-1");
+    expect(j.status).toBe(0);
+    expect(j.report.trace.findings.filter((f) => f.key === "trace-collision")).toEqual([]);
+    expect(j.report.trace).toEqual({ compared: true, findings: [] });
   });
 
   it("CONTROL: a fresh render plus .gitkeep and .DS_Store in the trace directory yields no trace finding (the plan 37-07 owned-entry rule)", () => {
