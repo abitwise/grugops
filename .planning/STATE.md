@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-22-PLAN.md
-last_updated: "2026-10-23T14:13:13.724Z"
+stopped_at: Completed 37-23-PLAN.md
+last_updated: "2026-10-23T14:40:37.375Z"
 last_activity: 2026-10-23
 last_activity_desc: Phase 37 execution started
-state_head: 81a3329693b943385ba742d571c664023058f3ef
+state_head: e70d79e42757daf95955164e38b3d2d5a9b356bd
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 42
-  completed_plans: 37
+  completed_plans: 38
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 23 of 27
+Plan: 24 of 27
 Status: Ready to execute
 Last activity: 2026-10-23 — Phase 37 execution started
 
@@ -751,6 +751,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P20 | 26 min | 2 tasks | 12 files |
 | Phase 37 P21 | 30 min | 2 tasks | 17 files |
 | Phase 37 P22 | 24 min | 2 tasks | 16 files |
+| Phase 37 P23 | 24 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -2062,6 +2063,8 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-21: planCompleteTraceTree is the one trace completeness predicate; only unparseable and unsealed are trust skips, every other reader arm and every failed task stops trace-render (exit 2) and is trace-not-compared in state-check
 - [Phase 37]: 37-22: the board grammar's isTicketId (scripts/board-model.ts) is the one ticket answer; the import-free trace model takes it as a TicketIdTest parameter and both trace runnables pass their generated copy (WR-01, AUTH-1)
 - [Phase 37]: 37-22: trace-render checks every planned trace file name (traceFileNameRefusals, TRACE_FILE_NAME_MAX_BYTES 255) before its first lstat or write, in both modes; refs the board refuses (utf-8, abc-1, over-long) are no longer tickets but stay Requirement links on a ticket's trace
+- [Phase 37]: 37-23: progressEntries(text, sectionEnd) classifies a ## line only where sectionEnd(text, i, 2) === i; state-check embeds sectionEndIndex, so ROLLABLE and state-roll read one fence-aware classifier (WR-02)
+- [Phase 37]: 37-23: planProgressRoll's fenced-dated-heading and inner-heading ambiguity refusals removed as unreachable with one classifier; a census pins the one classifier
 
 ### Pending Todos
 
@@ -2393,8 +2396,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-23T14:13:13.432Z
-Stopped at: Completed 37-22-PLAN.md
+Last session: 2026-10-23T14:40:37.069Z
+Stopped at: Completed 37-23-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

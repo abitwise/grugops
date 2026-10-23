@@ -248,3 +248,9 @@ None.
 ---
 *Phase: 37-overview-board-per-file-records-and-budgets*
 *Completed: 2026-10-23*
+
+## Self-Check: PASSED
+
+- Created file exists: scripts/runnable-ref/progress-agreement.test.ts
+- Task commits are ancestors of HEAD: c194d52a, 1788c761
+- Acceptance criteria re-run: the WR-02 runnable cases, the table (11/11) and the census pass; freshness:runnable-embeds exits 0 with a `// from scripts/frontmatter.ts` block in the state-check region; scripts/check-foundation-guards.test.ts unchanged; state-rules.test.ts case count 127 -> 132; `git status --porcelain scripts/state-rules.ts` empty after the mutation revert
