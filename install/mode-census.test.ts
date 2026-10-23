@@ -146,8 +146,14 @@ const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
 };
 const USER_MODE_EDIT_CHMOD_COUNT = 1;
 
-/** Rule (b): the chmod calls in the scripts tests (access denial and restore; none sets a mode as evidence). */
-const SCRIPTS_CHMOD_COUNT = 33;
+/** Rule (b): the chmod calls in the scripts tests (access denial and restore; none sets a mode as evidence).
+ * 33 -> 37 on 2026-10-23 (phase 37 gap round 1), measured per file by this census's own failure message: plan 37-20
+ * added two to trace-freshness.test.ts (the context root at mode 000 and its restore in a `finally`) and plan 37-21
+ * added two to context-io.test.ts (a task directory at mode 000 so the note walk's ENOENT-only absence test is
+ * reached, and its restore in a `finally`). Each pair is an access denial and a restore; none sets a mode as
+ * evidence. Per file: board-read 10, context-io 14, generate-skill-twins 2, kit-model 3, skill-twins-freshness 6,
+ * trace-freshness 2. */
+const SCRIPTS_CHMOD_COUNT = 37;
 
 /** Rule (d): the expected-mode literals allowed on a `mode-census: row-315` line. */
 const ROW_315_LITERAL_EXPECTATION_COUNT = 2;

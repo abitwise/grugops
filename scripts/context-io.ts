@@ -2151,7 +2151,13 @@ interface RawNoteRead {
 function readRawNotesWithSkips(task: string, contextRoot: string): RawNoteRead {
   assertSafeTask(task);
   const notesDir = join(contextRoot, task, "notes");
-  if (!existsSync(notesDir)) return { notes: [], skipped: [] };
+  // ONLY ENOENT IS ABSENCE (plan 37-21, D-17, READ-1 of the phase-37 gap-planning brief). The existence test
+  // this replaced answered false for EACCES on a parent as well as for ENOENT, so a task whose directory could
+  // not be searched read as a task with no notes, and the trace render then removed that ticket's trace file
+  // (CR-01). `throwIfNoEntry: false` answers undefined for a missing path only; any other failure throws and
+  // reaches the trace model as a failed task. A present non-directory goes on to readdirSync, which throws
+  // ENOTDIR.
+  if (statSync(notesDir, { throwIfNoEntry: false }) === undefined) return { notes: [], skipped: [] };
   const skipped: SkippedNoteEntry[] = [];
   const out: RawNote[] = [];
   for (const file of readdirSync(notesDir)) {

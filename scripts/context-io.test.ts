@@ -18061,3 +18061,38 @@ describe("33-26 — KIT § 3: an absent scalar is refused by name, never seriali
     expect(fieldList).toMatch(/if \(note\.supersedes !== null\) assertNoteScalar\("supersedes", note\.supersedes\)/);
   });
 });
+
+// ── Plan 37-21 (D-17, READ-1): the note walk reads only ENOENT as an absent notes directory ──────────────
+// The walk used an existence test on the notes directory, and that test answers false for EACCES on a parent as
+// well as for ENOENT, so a task whose directory could not be searched read as a task with no notes. Now only
+// a missing directory is absent; any other failure throws and reaches the trace model as a failed task.
+describe("readContext: an unreadable task directory throws, a missing task reads as no notes (plan 37-21, READ-1)", () => {
+  const skipReason =
+    process.platform === "win32"
+      ? "Windows has no POSIX mode bits"
+      : process.getuid?.() === 0
+        ? "running as root, which chmod 000 cannot deny"
+        : null;
+  if (skipReason !== null) console.warn(`SKIP scripts/context-io.test.ts plan 37-21 walk case: ${skipReason}.`);
+  it.skipIf(skipReason !== null)("a task directory at mode 000 throws; a task that does not exist returns []", () => {
+    const ctx = freshTmp("grugops-ctxio-walk-enoent-");
+    const task = "taskA";
+    const notesDir = join(ctx, task, "notes");
+    mkdirSync(notesDir, { recursive: true });
+    writeFileSync(join(notesDir, "x.md"), "not a note\n");
+    expect(mod.readContext("taskMissing", ctx)).toEqual([]);
+    const taskDir = join(ctx, task);
+    expect(statSync(taskDir).isDirectory(), "PREMISE: the task directory is a real directory").toBe(true);
+    chmodSync(taskDir, 0o000);
+    let thrown: unknown = null;
+    try {
+      mod.readContext(task, ctx);
+    } catch (e) {
+      thrown = e;
+    } finally {
+      chmodSync(taskDir, 0o755);
+    }
+    expect(thrown, "readContext read an unsearchable task directory as a task with no notes").toBeInstanceOf(Error);
+    expect((thrown as NodeJS.ErrnoException).code).toBe("EACCES");
+  });
+});

@@ -23,12 +23,20 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import {
+  hostCapabilityOrSkip,
+  skipLine,
+  stageNameOrSkip,
+  stageShapeOrSkip,
+  stageSymlinkOrSkip,
+  type SkipEntry,
+} from "../check-platform-shapes.js";
 import {
   BOARD_REL,
   CONTEXT_ARCHIVE_REL,
@@ -40,7 +48,7 @@ import {
   TRACE_DIR_REL,
   TRACEABILITY_REL,
 } from "../../install/state-layout.js";
-import { TRACE_GENERATED_HEADER } from "../trace-model.js";
+import { TRACE_GENERATED_HEADER, TRACE_TRUST_SKIP_ARMS } from "../trace-model.js";
 import { treeDigest } from "../fault-inject.test-support.js";
 
 const RENDER_JS = join(import.meta.dirname, "trace-render.js");
@@ -697,5 +705,152 @@ describe("CR-01: an incomplete read never removes a trace file", () => {
         expect(text.stdout).not.toContain("The trace is fresh");
       },
     );
+  }
+});
+
+// ── Plan 37-21 (READ-1): every reader arm, in both context roots (D-03) ─────────────────────────────────────
+// The I/O rows are derived from the reader's own arms (NOTE_SKIP_ARMS minus TRACE_TRUST_SKIP_ARMS), each with
+// one fixture builder in a Record keyed by arm, so a new I/O arm without a builder fails red here. The directory
+// shape is a second not-a-regular-file builder. Each row renders a clean repository, plants the shape in a task
+// of one context root, then runs the write mode, --check and state-check (with the marker): exit 2, exit 2 and a
+// trace-not-compared finding naming the note, with the tree digest unchanged. The two trust arms are controls.
+
+/** A planted shape: the note file name, a skip entry when the platform cannot make it, and its mode switch. */
+type PlantedShape = {
+  readonly file: string;
+  readonly skip: SkipEntry | null;
+  /** Makes the shape effective after the digest is taken (a mode-000 file cannot be digested). */
+  readonly activate?: () => void;
+  /** Undoes activate, in a finally, before the tree is digested again. */
+  readonly deactivate?: () => void;
+};
+type ShapeBuilder = (notesDir: string, position: string) => PlantedShape;
+
+const POSITION = "scripts/runnable-ref/trace-render.test.ts: a note in the plan 37-21 arm table";
+
+/** One builder per I/O arm of the note reader. */
+const IO_ARM_BUILDERS: Record<string, ShapeBuilder> = {
+  unopenable: (notesDir, position) => {
+    const at = join(notesDir, "u.md");
+    writeFileSync(at, noteText("u", ["ABC-7"]));
+    const skip = hostCapabilityOrSkip("chmod 000 enforcement", position);
+    return { file: "u.md", skip, activate: () => chmodSync(at, 0o000), deactivate: () => chmodSync(at, 0o644) };
+  },
+  "not-a-regular-file": (notesDir, position) => ({
+    file: "x.md",
+    skip: stageShapeOrSkip("FIFO", join(notesDir, "x.md"), position),
+  }),
+  "above-ceiling": (notesDir) => {
+    const at = join(notesDir, "big.md");
+    writeFileSync(at, "");
+    truncateSync(at, ctxio.NOTE_FILE_MAX_BYTES + 1);
+    expect(lstatSync(at).size, "PREMISE: the file is one byte over the note ceiling").toBe(ctxio.NOTE_FILE_MAX_BYTES + 1);
+    return { file: "big.md", skip: null };
+  },
+  vanished: (notesDir, position) => ({
+    file: "z.md",
+    skip: stageSymlinkOrSkip(join(notesDir, "nowhere.md"), join(notesDir, "z.md"), "dangling symlink", position),
+  }),
+};
+
+/** Second builders for an arm, beside its Record entry: a directory named like a note is not a regular file. */
+const EXTRA_ARM_BUILDERS: readonly { readonly arm: string; readonly build: ShapeBuilder }[] = [
+  {
+    arm: "not-a-regular-file",
+    build: (notesDir, position) => ({ file: "y.md", skip: stageShapeOrSkip("directory", join(notesDir, "y.md"), position) }),
+  },
+];
+
+const IO_ARMS = ctxio.NOTE_SKIP_ARMS.filter((arm) => !TRACE_TRUST_SKIP_ARMS.includes(arm));
+const ARM_ROOTS = [CONTEXT_REL, CONTEXT_ARCHIVE_REL] as const;
+const ARM_ROWS = ARM_ROOTS.flatMap((rootRel) => [
+  ...IO_ARMS.map((arm) => ({ rootRel, arm, build: IO_ARM_BUILDERS[arm] as ShapeBuilder | undefined })),
+  ...EXTRA_ARM_BUILDERS.map((b) => ({ rootRel, arm: b.arm, build: b.build as ShapeBuilder | undefined })),
+]);
+let ioRowsRun = 0;
+
+/** A clean, rendered, marked repository holding a sealed ABC-9 note in `<rootRel>/taskZ/notes/`. */
+function armRepo(rootRel: string): { root: string; notesDir: string } {
+  const root = stateCleanRepo(true);
+  plant(root, rootRel, "taskZ", "n9", noteText("n9", ["ABC-9"]));
+  const r = run(root);
+  expect(r.status, r.stdout + r.stderr).toBe(0);
+  const premise = stateCheckTrace(root);
+  expect(premise.status, `PREMISE: the rendered repository is clean: ${premise.raw}`).toBe(0);
+  expect(premise.trace).toEqual({ compared: true, findings: [] });
+  return { root, notesDir: join(root, ...rootRel.split("/"), "taskZ", "notes") };
+}
+
+describe("READ-1: every I/O arm of the note reader stops the render and the compare by name, in both context roots", () => {
+  it("the I/O arms are the four the brief names, and every one has a builder", () => {
+    expect([...IO_ARMS].sort()).toEqual(["above-ceiling", "not-a-regular-file", "unopenable", "vanished"]);
+    for (const arm of IO_ARMS) expect(IO_ARM_BUILDERS[arm], `no fixture builder for the I/O arm ${arm}`).toBeDefined();
+  });
+
+  for (const row of ARM_ROWS) {
+    it(`${row.rootRel}: a note under the ${row.arm} arm makes write exit 2 with the digest unchanged, --check exit 2, state-check trace-not-compared`, () => {
+      ioRowsRun += 1;
+      expect(row.build, `no fixture builder for the I/O arm ${row.arm}`).toBeDefined();
+      const { root, notesDir } = armRepo(row.rootRel);
+      const shape = (row.build as ShapeBuilder)(notesDir, `${POSITION} (${row.arm}, ${row.rootRel})`);
+      if (shape.skip !== null) {
+        console.warn(skipLine(shape.skip, "the other I/O arm rows of this table (the same read-failure rule)"));
+        return;
+      }
+      const before = treeDigest(root);
+      const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+      let write: { status: number | null; stdout: string; stderr: string };
+      let check: { status: number | null; stdout: string; stderr: string };
+      let json: { status: number | null; trace: TraceJson; raw: string };
+      shape.activate?.();
+      try {
+        write = run(root);
+        check = run(root, "--check");
+        json = stateCheckTrace(root);
+      } finally {
+        shape.deactivate?.();
+      }
+      const named = `UNREADABLE NOTE ${row.rootRel}/taskZ/notes/${shape.file} (${row.arm}): `;
+      expect(write.status, write.stdout + write.stderr).toBe(2);
+      expect(write.stdout).toBe("");
+      expect(write.stderr).toContain(named);
+      expect(write.stderr).toContain("(0 task(s) and 1 note(s) could not be read)");
+      expect(treeDigest(root)).toEqual(before);
+      expect(readFileSync(join(root, TRACEABILITY_REL), "utf8")).toBe(indexBefore);
+      expect(check.status, check.stdout + check.stderr).toBe(2);
+      expect(check.stdout).toBe("");
+      expect(check.stderr).toContain(named);
+      expect(json.status, json.raw).toBe(1);
+      expect(json.trace.compared).toBe(false);
+      expect(json.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([
+        `trace-not-compared|${row.rootRel}/taskZ/notes/${shape.file}`,
+      ]);
+      expect(json.trace.findings[0]?.note).toContain(`(${row.arm}: `);
+    });
+  }
+
+  it("the table ran (I/O arm count + 1) x 2 roots rows", () => {
+    expect(ARM_ROWS).toHaveLength((IO_ARMS.length + EXTRA_ARM_BUILDERS.length) * ARM_ROOTS.length);
+    expect(ARM_ROWS).toHaveLength(10);
+    expect(ioRowsRun).toBe(10);
+  });
+
+  for (const rootRel of ARM_ROOTS) {
+    for (const arm of TRACE_TRUST_SKIP_ARMS) {
+      it(`CONTROL ${rootRel}: a note under the trust arm ${arm} still renders exit 0 with no trace file for its ticket`, () => {
+        const { root, notesDir } = armRepo(rootRel);
+        writeFileSync(join(notesDir, "t.md"), arm === "unsealed" ? noteText("t", ["ABC-8"], false) : "not a note at all\n");
+        const write = run(root);
+        expect(write.status, write.stdout + write.stderr).toBe(0);
+        expect(write.stdout).toContain(`${arm} 1`);
+        expect(existsSync(join(root, TRACE_DIR_REL, "ABC-8.md"))).toBe(false);
+        expect(existsSync(join(root, TRACE_DIR_REL, "ABC-9.md"))).toBe(true);
+        const check = run(root, "--check");
+        expect(check.status, check.stdout + check.stderr).toBe(0);
+        const json = stateCheckTrace(root);
+        expect(json.status, json.raw).toBe(0);
+        expect(json.trace).toEqual({ compared: true, findings: [] });
+      });
+    }
   }
 });

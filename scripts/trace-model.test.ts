@@ -9,7 +9,10 @@
 // Pure: nothing here touches the file system.
 
 import { describe, it, expect } from "vitest";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
+import ts from "typescript";
 import {
   HAND_TRACE_PATTERNS,
   TRACE_GENERATED_HEADER,
@@ -29,6 +32,7 @@ import * as model from "./trace-model.js";
 import { indexLineFindings } from "./state-rules.js";
 import { normalizeDocument, stripHtmlComments } from "./board-model.js";
 import { BUDGETS, TRACE_DIR_REL, TRACEABILITY_REL } from "../install/state-layout.js";
+import { EMBED_CLOSE, EMBED_SPECS } from "./generate-runnable-embeds.js";
 
 /** A row with nothing classified, for the index cases (the index reads only the id). */
 function bareRow(id: string): TraceRow {
@@ -355,4 +359,130 @@ describe("compareTraceTree: the one comparison render and state-check share (D-0
     expect(model.isGeneratedTraceText(`x\n${TRACE_GENERATED_HEADER}\n`)).toBe(false);
     expect(model.isGeneratedTraceText("")).toBe(false);
   });
+});
+
+// ── Plan 37-21 (D-17, CR-01, READ-1): one predicate decides that the note read was complete ─────────────────
+// The reader's skip arms are imported from the committed context-io.js, so a new reader arm reaches these cases
+// without an edit here and is a read failure until TRACE_TRUST_SKIP_ARMS classifies it.
+
+const ctxio: typeof import("./context-io.js") = await import(
+  pathToFileURL(join(import.meta.dirname, "context-io.js")).href
+);
+
+/** The four reader arms that are I/O conditions, not trust decisions (37-GAP-PLANNING-BRIEF.md READ-1). */
+const IO_ARMS = ["unopenable", "not-a-regular-file", "above-ceiling", "vanished"];
+
+/** A collection with no failure: two tasks, one note each, and one skip under each trust arm. */
+function completeCollection(): model.TraceCollection {
+  return {
+    tasks: 2,
+    notes: [{ refs: ["ABC-1", "src/a.ts"] }, { refs: ["ABC-2"] }],
+    skipped: [
+      { root: "live", task: "t1", file: "hand.md", arm: "unsealed", detail: "absent" },
+      { root: "archive", task: "t2", file: "junk.md", arm: "unparseable", detail: "" },
+    ],
+    failedTasks: [],
+  };
+}
+
+describe("traceReadFailures and planCompleteTraceTree: an incomplete read gives no plan (plan 37-21, CR-01)", () => {
+  it("the partition: NOTE_SKIP_ARMS minus TRACE_TRUST_SKIP_ARMS is exactly the four I/O arms", () => {
+    const trust = model.TRACE_TRUST_SKIP_ARMS;
+    expect(trust).toHaveLength(2);
+    for (const arm of trust) expect(ctxio.NOTE_SKIP_ARMS as readonly string[]).toContain(arm);
+    const io = ctxio.NOTE_SKIP_ARMS.filter((arm) => !trust.includes(arm));
+    expect(io).toHaveLength(4);
+    expect([...io].sort()).toEqual([...IO_ARMS].sort());
+    expect(Object.isFrozen(trust)).toBe(true);
+  });
+
+  it("a failed task is a failure with file and arm null; each I/O arm is a failure; each trust arm is not; an unknown arm is", () => {
+    const base = completeCollection();
+    expect(model.traceReadFailures(base)).toEqual([]);
+    const failed = model.traceReadFailures({
+      ...base,
+      failedTasks: [{ root: "live", task: "bad", reason: "EACCES: permission denied" }],
+    });
+    expect(failed).toEqual([{ root: "live", task: "bad", file: null, arm: null, reason: "EACCES: permission denied" }]);
+    for (const arm of IO_ARMS) {
+      const got = model.traceReadFailures({
+        ...base,
+        skipped: [...base.skipped, { root: "archive", task: "t3", file: "x.md", arm, detail: arm === "vanished" ? "" : "why" }],
+      });
+      expect(got, arm).toHaveLength(1);
+      expect(got[0]?.file).toBe("x.md");
+      expect(got[0]?.arm).toBe(arm);
+      expect(got[0]?.reason.length, `${arm} carries a reason`).toBeGreaterThan(0);
+    }
+    for (const arm of model.TRACE_TRUST_SKIP_ARMS) {
+      const got = model.traceReadFailures({
+        ...base,
+        skipped: [{ root: "live", task: "t4", file: "y.md", arm, detail: "" }],
+      });
+      expect(got, arm).toEqual([]);
+    }
+    const unknown = model.traceReadFailures({
+      ...base,
+      skipped: [{ root: "live", task: "t5", file: "z.md", arm: "future-arm", detail: "" }],
+    });
+    expect(unknown.map((f) => f.arm)).toEqual(["future-arm"]);
+  });
+
+  it("failures come in collection order: every failed task, then every non-trust skip", () => {
+    const got = model.traceReadFailures({
+      tasks: 3,
+      notes: [],
+      skipped: [
+        { root: "live", task: "a", file: "1.md", arm: "vanished", detail: "" },
+        { root: "live", task: "a", file: "2.md", arm: "unsealed", detail: "absent" },
+        { root: "archive", task: "c", file: "3.md", arm: "unopenable", detail: "EACCES" },
+      ],
+      failedTasks: [{ root: "archive", task: "b", reason: "refused" }],
+    });
+    expect(got.map((f) => `${f.root}/${f.task}/${f.file ?? "-"}`)).toEqual(["archive/b/-", "live/a/1.md", "archive/c/3.md"]);
+  });
+
+  it("on a complete collection the plan equals buildTraceRows plus planTraceTree; on an incomplete one there is no plan", () => {
+    const c = completeCollection();
+    const done = model.planCompleteTraceTree(c, TRACEABILITY_REL, TRACE_DIR_REL);
+    expect(done.complete).toBe(true);
+    if (!done.complete) throw new Error("unreachable");
+    const rows = buildTraceRows(c.notes);
+    expect(done.rows).toEqual(rows);
+    expect([...done.plan]).toEqual([...planTraceTree(rows, TRACEABILITY_REL, TRACE_DIR_REL)]);
+    const partial = model.planCompleteTraceTree(
+      { ...c, failedTasks: [{ root: "live", task: "t9", reason: "EACCES" }] },
+      TRACEABILITY_REL,
+      TRACE_DIR_REL,
+    );
+    expect(partial.complete).toBe(false);
+    expect("plan" in partial).toBe(false);
+    expect("rows" in partial).toBe(false);
+    if (partial.complete) throw new Error("unreachable");
+    expect(partial.failures).toHaveLength(1);
+  });
+
+  // One authority (37-GAP-PLANNING-BRIEF.md §2.2): the hand-written part of each runnable obtains its plan only
+  // from the generated planCompleteTraceTree, called once, and never builds rows or plans a tree itself.
+  for (const target of ["scripts/runnable-ref/trace-render.ts", "scripts/runnable-ref/state-check.ts"]) {
+    it(`census: after EMBED_CLOSE, ${target} calls planCompleteTraceTree once and never names buildTraceRows or planTraceTree`, () => {
+      expect(EMBED_SPECS.map((s) => s.target)).toContain(target);
+      const text = readFileSync(join(import.meta.dirname, "..", ...target.split("/")), "utf8");
+      const close = text.split("\n").indexOf(EMBED_CLOSE);
+      expect(close, `PREMISE: ${target} carries the region's close line`).toBeGreaterThan(0);
+      const hand = text.split("\n").slice(close + 1).join("\n");
+      const source = ts.createSourceFile(target, hand, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+      const calls: string[] = [];
+      const names: string[] = [];
+      const walk = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) calls.push(n.expression.text);
+        if (ts.isIdentifier(n)) names.push(n.text);
+        ts.forEachChild(n, walk);
+      };
+      walk(source);
+      expect(calls.filter((c) => c === "planCompleteTraceTree")).toHaveLength(1);
+      expect(names.filter((x) => x === "buildTraceRows" || x === "planTraceTree")).toEqual([]);
+      expect(calls.filter((c) => c === "collectTraceNotes")).toHaveLength(1);
+    });
+  }
 });
