@@ -2,8 +2,9 @@
 // 37-GAP-PLANNING-BRIEF.md §1 READ-1 and §2.1).
 //
 // THE RULE. In trace-render, state-check and state-roll, a read that fails is either could-not-run (exit 2, an
-// empty stdout) or a named finding (exit 1, a finding line that the unfaulted run does not print). It is never
-// "no data", never a pass, and never lets a write mode write or remove anything.
+// empty stdout, refused by name rather than through the unexpected-throw backstop of plan 37-20) or a named
+// finding (exit 1, a finding line that the unfaulted run does not print). It is never "no data", never a pass,
+// and never lets a write mode write or remove anything.
 //
 // WHERE THE SITES COME FROM. Every site is derived from the COMMITTED .js by scripts/fault-inject.test-support.ts
 // (deriveReadSites): each call whose callee resolves through the file's own node:fs bindings to a read function.
@@ -709,6 +710,11 @@ describe("READ-1 table: every derived read site fails as could-not-run or a name
         expect([1, 2], `exit 1 or 2, never 0 and never no code\n${all}`).toContain(r.status);
         if (r.status === 2) {
           expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
+          // A read failure is expected, so it is refused by name where it happens. The unexpected-throw handler of
+          // plan 37-20 is a backstop for what nothing caught; a read that reaches it was not handled.
+          expect(r.stderr, `exit 2 by name, never through the unexpected-throw backstop\n${all}`).not.toContain(
+            "stopped unexpectedly (",
+          );
         } else {
           const seen = new Set(base.split("\n"));
           const added = r.stdout.split("\n").filter((l) => FINDING_LINE[row.runnable].test(l) && !seen.has(l));
