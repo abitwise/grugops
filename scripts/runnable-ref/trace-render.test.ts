@@ -48,7 +48,9 @@ import {
   TRACE_DIR_REL,
   TRACEABILITY_REL,
 } from "../../install/state-layout.js";
+import ts from "typescript";
 import { TRACE_GENERATED_HEADER, TRACE_TRUST_SKIP_ARMS } from "../trace-model.js";
+import { EMBED_CLOSE } from "../generate-runnable-embeds.js";
 import { treeDigest } from "../fault-inject.test-support.js";
 
 const RENDER_JS = join(import.meta.dirname, "trace-render.js");
@@ -904,5 +906,97 @@ describe("WR-01: a ref the board grammar refuses is never a ticket, so it never 
     expect(model.columns.flatMap((c) => c.rows.map((r) => r.id))).toEqual(["ABC-1"]);
     expect(model.epicRows.map((r) => r.id)).toEqual(["EPIC-1"]);
     expect(model.unparsed).toHaveLength(1);
+  });
+});
+
+// ── Plan 37-22 (D-17, WR-01): every planned trace file name is checked before the first write ────────────────
+// No real repository can reach a refused name once the board grammar decides the tickets, so the runnable half
+// is proven by the order of the committed trace-render.js's top-level statements, read as a syntax tree.
+
+/** The calls that touch a path: inspect (lstat), write, create or remove. */
+const PATH_EFFECT_CALLS = new Set(["lstatSync", "unlinkSync", "mkdirSync", "writeFileSync", "renameSync", "rmSync", "atomicWrite"]);
+
+/** The called name of a call: `f(...)` or `x.f(...)`. */
+function calledName(call: ts.CallExpression): string | null {
+  if (ts.isIdentifier(call.expression)) return call.expression.text;
+  if (ts.isPropertyAccessExpression(call.expression)) return call.expression.name.text;
+  return null;
+}
+
+/** Every called name in a subtree, function declarations excluded (their bodies run only when called). */
+function callsOutsideDeclarations(n: ts.Node, out: string[] = []): string[] {
+  if (ts.isFunctionDeclaration(n)) return out;
+  if (ts.isCallExpression(n)) {
+    const name = calledName(n);
+    if (name !== null) out.push(name);
+  }
+  ts.forEachChild(n, (c) => {
+    callsOutsideDeclarations(c, out);
+  });
+  return out;
+}
+
+/** Every identifier read in a subtree. */
+function identifiersIn(n: ts.Node, out: Set<string> = new Set()): Set<string> {
+  if (ts.isIdentifier(n)) out.add(n.text);
+  ts.forEachChild(n, (c) => {
+    identifiersIn(c, out);
+  });
+  return out;
+}
+
+describe("WR-01 call order: trace-render checks every planned file name before the first path effect, in both modes", () => {
+  it("census over the committed trace-render.js: one traceFileNameRefusals call, top level, outside any CHECK branch, before the first lstat or write, and a non-empty result reaches couldNotRun", () => {
+    const text = readFileSync(RENDER_JS, "utf8");
+    const lines = text.split("\n");
+    const close = lines.indexOf(EMBED_CLOSE);
+    expect(close, "PREMISE: the committed trace-render.js carries the region's close line").toBeGreaterThan(0);
+    const hand = lines.slice(close + 1).join("\n");
+    const source = ts.createSourceFile("trace-render.js", hand, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+    const statements = [...source.statements];
+
+    // Exactly one call, anywhere in the hand-written part.
+    const calls: ts.CallExpression[] = [];
+    const findCalls = (n: ts.Node): void => {
+      if (ts.isCallExpression(n) && calledName(n) === "traceFileNameRefusals") calls.push(n);
+      ts.forEachChild(n, findCalls);
+    };
+    findCalls(source);
+    expect(calls).toHaveLength(1);
+    const call = calls[0] as ts.CallExpression;
+
+    // Its enclosing top-level statement, and no branch on CHECK on the way up.
+    let node: ts.Node = call;
+    while (node.parent !== undefined && node.parent !== source) {
+      if (ts.isIfStatement(node.parent)) {
+        expect(identifiersIn(node.parent.expression).has("CHECK"), "the call sits inside a branch on CHECK").toBe(false);
+      }
+      node = node.parent;
+    }
+    const callIndex = statements.indexOf(node as ts.Statement);
+    expect(callIndex).toBeGreaterThanOrEqual(0);
+    expect(ts.isFunctionDeclaration(node)).toBe(false);
+
+    // The call initializes a top-level const.
+    expect(ts.isVariableStatement(node)).toBe(true);
+    const decl = call.parent;
+    expect(ts.isVariableDeclaration(decl) && decl.initializer === call).toBe(true);
+    expect(((node as ts.VariableStatement).declarationList.flags & ts.NodeFlags.Const) !== 0).toBe(true);
+    const constName = ((decl as ts.VariableDeclaration).name as ts.Identifier).text;
+
+    // The first top-level statement that inspects, writes, creates or removes a path.
+    const firstEffect = statements.findIndex((s) => callsOutsideDeclarations(s).some((c) => PATH_EFFECT_CALLS.has(c)));
+    expect(firstEffect, "PREMISE: the hand-written part touches a path at top level").toBeGreaterThan(0);
+    expect(callIndex, "traceFileNameRefusals runs after the first path effect").toBeLessThan(firstEffect);
+
+    // A top-level if on that const, before the first effect, whose then-branch calls couldNotRun.
+    const guardIndex = statements.findIndex(
+      (s, i) => i > callIndex && ts.isIfStatement(s) && identifiersIn(s.expression).has(constName),
+    );
+    expect(guardIndex, `no top-level if reads ${constName}`).toBeGreaterThan(callIndex);
+    expect(guardIndex).toBeLessThan(firstEffect);
+    const guard = statements[guardIndex] as ts.IfStatement;
+    expect(identifiersIn(guard.expression).has("CHECK")).toBe(false);
+    expect(callsOutsideDeclarations(guard.thenStatement)).toContain("couldNotRun");
   });
 });

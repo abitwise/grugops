@@ -490,3 +490,132 @@ describe("traceReadFailures and planCompleteTraceTree: an incomplete read gives 
     });
   }
 });
+
+// ── Plan 37-22 (D-17, WR-01, AUTH-1): the trace and the board agree on which refs are tickets ────────────────
+// One owner answers "is this a ticket identifier": scripts/board-model.ts isTicketId. The trace adds only its
+// reserved structural prefixes. The corpus pins today's answer (CWE-79 stays ticket-shaped, as the board grammar
+// says), so a later change to either side is visible here.
+
+/** The longest identifier the board grammar admits: a 16-character prefix and 9 digits. */
+const LONGEST_BOARD_ID = `A${"Z".repeat(15)}-123456789`;
+
+const AGREEMENT_CORPUS: readonly string[] = [
+  "ABC-1",
+  "CWE-79",
+  "utf-8",
+  "abc-1",
+  `${"A".repeat(300)}-1`,
+  "EPIC-1",
+  "FEAT-2",
+  "NFR-1",
+  "ADR-3",
+  "UAT-4",
+  "REL-5",
+  LONGEST_BOARD_ID,
+  `A${"Z".repeat(16)}-1`,
+  "ABC-1234567890",
+  " ABC-1",
+  "ABC-1 ",
+  "ABC--1",
+  "ABC-1/x",
+];
+
+/** The trace's reserved structural prefixes, as the trace model states them (never a ticket). */
+const RESERVED = ["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT"];
+const reservedPrefix = (x: string): boolean => RESERVED.includes(x.slice(0, x.lastIndexOf("-")));
+
+describe("AUTH-1 agreement: the trace's ticket test is the board grammar's, minus the reserved prefixes (plan 37-22, WR-01)", () => {
+  it("the corpus has 18 members, and isTicketRef(x) is isTicketId(x) and not reserved for every one", () => {
+    expect(AGREEMENT_CORPUS).toHaveLength(18);
+    expect(new Set(AGREEMENT_CORPUS).size).toBe(18);
+    for (const x of AGREEMENT_CORPUS) {
+      const label = x.length > 40 ? `${x.slice(0, 12)}...(${x.length} chars)` : JSON.stringify(x);
+      expect(isTicketRef(x, isTicketId), label).toBe(isTicketId(x) && !reservedPrefix(x));
+      if (isTicketRef(x, isTicketId)) expect(isTicketId(x), `the trace accepted ${label}, which the board refuses`).toBe(true);
+    }
+  });
+
+  it("today's answer is pinned: exactly ABC-1, CWE-79 and the longest board identifier are tickets", () => {
+    expect(AGREEMENT_CORPUS.filter((x) => isTicketRef(x, isTicketId))).toEqual(["ABC-1", "CWE-79", LONGEST_BOARD_ID]);
+    // PREMISE: the board grammar itself refuses the shapes the old trace shape admitted.
+    for (const x of ["utf-8", "abc-1", `${"A".repeat(300)}-1`, `A${"Z".repeat(16)}-1`, "ABC-1234567890"]) {
+      expect(isTicketId(x), x.slice(0, 20)).toBe(false);
+    }
+    expect(LONGEST_BOARD_ID).toHaveLength(26);
+  });
+
+  it("the longest board identifier fits the index line budget and the file-name limit", () => {
+    const normalized = normalizeDocument(renderTraceIndex([bareRow(LONGEST_BOARD_ID)]));
+    expect(indexLineFindings(TRACEABILITY_REL, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS)).toEqual([]);
+    expect(normalized).toContain(`| ${LONGEST_BOARD_ID} | [${LONGEST_BOARD_ID}](traceability/${LONGEST_BOARD_ID}.md) |`);
+    expect(Buffer.byteLength(traceFileName(LONGEST_BOARD_ID), "utf8")).toBeLessThanOrEqual(model.TRACE_FILE_NAME_MAX_BYTES);
+    expect(model.TRACE_FILE_NAME_MAX_BYTES).toBe(255);
+  });
+
+  it("no two distinct identifiers the board admits fold to one trace file name", () => {
+    const admitted = AGREEMENT_CORPUS.filter((x) => isTicketId(x));
+    expect(admitted.length).toBeGreaterThan(1);
+    for (const id of admitted) expect(id).toBe(id.toUpperCase());
+    expect(model.caseFoldCollisions(admitted)).toEqual([]);
+    expect(new Set(admitted.map((id) => traceFileName(id).toLowerCase())).size).toBe(admitted.length);
+  });
+
+  it("isTicketRef's body asks its predicate parameter and holds no regular-expression literal of its own", () => {
+    const path = join(import.meta.dirname, "trace-model.ts");
+    const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+    const fns = source.statements.filter(
+      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === "isTicketRef",
+    );
+    expect(fns).toHaveLength(1);
+    const fn = fns[0] as ts.FunctionDeclaration;
+    expect(fn.parameters).toHaveLength(2);
+    const predicate = (fn.parameters[1] as ts.ParameterDeclaration).name;
+    expect(ts.isIdentifier(predicate)).toBe(true);
+    const predicateName = (predicate as ts.Identifier).text;
+    const called: string[] = [];
+    let regexLiterals = 0;
+    const walk = (n: ts.Node): void => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) called.push(n.expression.text);
+      if (n.kind === ts.SyntaxKind.RegularExpressionLiteral) regexLiterals += 1;
+      ts.forEachChild(n, walk);
+    };
+    walk(fn.body as ts.Block);
+    expect(called).toContain(predicateName);
+    expect(regexLiterals).toBe(0);
+  });
+});
+
+describe("traceFileNameRefusals: every planned trace file name is legal before the first write (plan 37-22, WR-01)", () => {
+  const page = (rel: string): Map<string, string> => new Map([[TRACEABILITY_REL, "index"], [rel, "text"]]);
+
+  it("a planned abc-1.md is one reason: abc-1 is not an identifier the board grammar admits", () => {
+    const reasons = model.traceFileNameRefusals(page(`${TRACE_DIR_REL}/abc-1.md`), TRACE_DIR_REL, isTicketId);
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain(`${TRACE_DIR_REL}/abc-1.md: `);
+  });
+
+  it("a planned 300-letter name is one reason, under the board grammar and under a predicate that admits it", () => {
+    const rel = `${TRACE_DIR_REL}/${"A".repeat(300)}-1.md`;
+    expect(model.traceFileNameRefusals(page(rel), TRACE_DIR_REL, isTicketId)).toHaveLength(1);
+    // The byte limit is its own arm: with a predicate that admits the name, the length alone refuses it.
+    const admitAll = (): boolean => true;
+    const byLength = model.traceFileNameRefusals(page(rel), TRACE_DIR_REL, admitAll);
+    expect(byLength).toHaveLength(1);
+    expect(byLength[0]).toContain(`over the ${model.TRACE_FILE_NAME_MAX_BYTES}-byte limit`);
+  });
+
+  it("the plan of the whole corpus has no refusal, and the reasons come one per key in code-unit order", () => {
+    const rows = buildTraceRows([{ refs: [...AGREEMENT_CORPUS] }], isTicketId);
+    expect(rows.map((r) => r.id)).toEqual(["ABC-1", LONGEST_BOARD_ID, "CWE-79"].sort(compareCodeUnits));
+    const plan = planTraceTree(rows, TRACEABILITY_REL, TRACE_DIR_REL);
+    expect(model.traceFileNameRefusals(plan, TRACE_DIR_REL, isTicketId)).toEqual([]);
+    const bad = new Map(plan);
+    bad.set(`${TRACE_DIR_REL}/zz-1.md`, "x");
+    bad.set(`${TRACE_DIR_REL}/ABC-1.txt`, "x");
+    bad.set(`${TRACE_DIR_REL}/sub/ABC-2.md`, "x");
+    const reasons = model.traceFileNameRefusals(bad, TRACE_DIR_REL, isTicketId);
+    expect(reasons.map((r) => r.slice(0, r.indexOf(": ")))).toEqual(
+      [`${TRACE_DIR_REL}/ABC-1.txt`, `${TRACE_DIR_REL}/sub/ABC-2.md`, `${TRACE_DIR_REL}/zz-1.md`].sort(compareCodeUnits),
+    );
+  });
+});

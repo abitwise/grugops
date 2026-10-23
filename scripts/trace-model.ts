@@ -15,7 +15,8 @@
 // under an I/O arm stops the render and the compare instead of reading as a ticket with no notes (CR-01).
 //
 // Plan 37-22 takes the ticket answer from the board grammar (D-17, WR-01): isTicketRef, classifyRef,
-// buildTraceRows and planCompleteTraceTree take scripts/board-model.ts isTicketId as a parameter.
+// buildTraceRows and planCompleteTraceTree take scripts/board-model.ts isTicketId as a parameter, and
+// traceFileNameRefusals checks every planned file name before the render's first write.
 //
 // WHO USES IT. It is embedded, by scripts/generate-runnable-embeds.ts, into the host runnable
 // scripts/runnable-ref/trace-render.ts (this plan) and into state-check (plan 37-09), so the render and the
@@ -369,6 +370,55 @@ export function planCompleteTraceTree(
   if (failures.length > 0) return { complete: false, failures };
   const rows = buildTraceRows(collection.notes, isTicketId);
   return { complete: true, rows, plan: planTraceTree(rows, traceabilityRel, traceDirRel) };
+}
+
+// ── Every planned file name is legal before the first write (plan 37-22, D-17, WR-01) ──────────────────────
+// A trace file name is decided by a ref a note carries. The render once wrote part of the tree and then met a
+// name the disk refused (ENAMETOOLONG), and every later run failed at its pre-write check. So the render checks
+// every planned name first, whatever is on disk, and refuses the run when one is not legal.
+
+/**
+ * The longest file name the trace writes, in UTF-8 bytes: 255, the longest single name ext4, APFS and NTFS
+ * accept. A board identifier is at most 26 characters, so a trace file name is at most 29 bytes.
+ */
+export const TRACE_FILE_NAME_MAX_BYTES = 255;
+
+/** The UTF-8 length of `s`, in bytes, counted by code point (this module imports nothing). */
+function utf8ByteLength(s: string): number {
+  let bytes = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0) as number;
+    bytes += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+  }
+  return bytes;
+}
+
+/**
+ * One reason per planned trace file that is not legal, in code-unit order of the key; empty when every one is.
+ * A planned key under `<traceDirRel>/` is legal exactly when it equals `<traceDirRel>/<traceFileName(id)>` for an
+ * id the board grammar admits (`isTicketId`) and the file name is at most TRACE_FILE_NAME_MAX_BYTES bytes in
+ * UTF-8. Keys outside the trace directory (the index) are not trace file names and are not asked.
+ */
+export function traceFileNameRefusals(
+  plan: ReadonlyMap<string, string>,
+  traceDirRel: string,
+  isTicketId: TicketIdTest,
+): string[] {
+  const prefix = `${traceDirRel}/`;
+  const reasons: string[] = [];
+  for (const key of [...plan.keys()].sort(compareCodeUnits)) {
+    if (!key.startsWith(prefix)) continue;
+    const name = key.slice(prefix.length);
+    const id = name.endsWith(".md") ? name.slice(0, -".md".length) : null;
+    if (id === null || !isTicketId(id) || traceFileName(id) !== name) {
+      reasons.push(`${key}: the file name is not <ticket identifier>.md for an identifier the board grammar admits`);
+    } else if (utf8ByteLength(name) > TRACE_FILE_NAME_MAX_BYTES) {
+      reasons.push(
+        `${key}: the file name is ${utf8ByteLength(name)} bytes, over the ${TRACE_FILE_NAME_MAX_BYTES}-byte limit`,
+      );
+    }
+  }
+  return reasons;
 }
 
 // ── The owned tree, collisions and the comparison (plan 37-07, D-01, D-02, research Pitfalls 5 and 11) ──────

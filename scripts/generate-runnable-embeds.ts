@@ -92,6 +92,8 @@ export type EmbedSpec = {
  * Plan 37-22 (2026-10-23) adds scripts/board-model.ts isTicketId to the trace renderer's row and to the state
  * checker's board-model roots (D-17, WR-01, AUTH-1): the board grammar's one answer to "is this a ticket
  * identifier", which both runnables pass to the trace model, so the trace never keeps a ticket shape of its own.
+ * The same plan adds traceFileNameRefusals to the trace renderer's trace-model roots: every planned trace file name
+ * is checked before the first write, in both modes.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -190,6 +192,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "collectTraceNotes",
           "planTraceTree",
           "planCompleteTraceTree",
+          "traceFileNameRefusals",
           "compareCodeUnits",
           "ownedTraceEntries",
           "caseFoldCollisions",
