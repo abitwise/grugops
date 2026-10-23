@@ -25,27 +25,44 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
-import { skipLine, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import {
   ARCHIVE_REL,
+  BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
   BUDGETS,
   CONTEXT_ARCHIVE_REL,
   CONTEXT_REL,
   DECISIONS_ARCHIVE_REL,
   DECISIONS_REL,
+  GRUGOPS_ARCHIVE_REL,
+  GRUGOPS_DIR_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
+  MEMORY_BANK_REL,
   NFR_CATALOG_REL,
   NFR_DIR_REL,
+  PROGRESS_ARCHIVE_REL,
   PROGRESS_REL,
   QUEUE_DONE_ARCHIVE_REL,
   QUEUE_DONE_REL,
+  STATE_ROOT_REL,
   TICKETS_REL,
   TRACE_DIR_REL,
   TRACEABILITY_REL,
@@ -947,5 +964,671 @@ describe("READ-1 one owner (plan 37-29, D-18): ENOENT is compared only inside en
       { line: 3, enclosing: "b" },
     ]);
     expect(forbiddenProperties(sf)).toEqual(["throwIfNoEntry at line 4", "withFileTypes at line 4"]);
+  });
+});
+
+// ── READ-1 shapes: the non-error shapes at every read position (plan 37-31, D-18) ───────────────────────────
+//
+// WHY THIS HALF EXISTS. The EIO table above makes a read site fail with an error code. CR-03 (a dangling `notes`
+// link) and CR-04 (a symbolic-link task entry) raised no error at the place that decided, so no error-code row could
+// reach them (37-GAP-PLANNING-BRIEF.md §1.1). Here each read position gets the shapes themselves: a dangling link, a
+// link to a directory, a link to a regular file, a regular file where a directory is expected (a directory where a
+// file is expected), a FIFO, and at a context-root listing a dot-named entry that is not a keeper.
+//
+// WHERE THE POSITIONS COME FROM. Every absence decision of the three runnables is the generated entryPresence's
+// (plans 37-28 to 37-30), so a read position is a path some caller hands to it. The callers are derived from the
+// committed .js with callingSites, counted and pinned, and SHAPE_POSITIONS is held equal to the derived
+// (runnable, via) set both ways. A caller may serve paths of several kinds (state-check's locate serves directories
+// and files), so it may own more than one entry; the equality is over the distinct (runnable, via) pairs.
+//
+// WHAT EACH CELL ASSERTS. A refused cell is could-not-run by name, or (state-check) a `trace-not-compared` finding
+// naming the position, and never a fresh trace; nothing is written. A follow cell (an in-root link to a directory
+// holding the same content, at a position that follows in-root links, plan 37-28's flagged assumption) and a keeper
+// cell (a regular `.gitkeep` or `.DS_Store`) read through, with output equal to the unplanted run's: both prove the
+// owner never turned a present entry into absence.
+
+/** The kind of a read position: what it expects there and whether it follows an in-root link. */
+type ShapeKind = "directory-follow" | "directory-refuse" | "listing" | "file" | "file-follow" | "program";
+
+/** One shape a cell plants. The `dot-` and `keeper-` shapes are planted as an entry inside a context root. */
+type ShapeName =
+  | "dangling link"
+  | "link to a directory"
+  | "link to a regular file"
+  | "regular file"
+  | "directory"
+  | "FIFO"
+  | "keeper .gitkeep"
+  | "keeper .DS_Store"
+  | ".gitkeep as a link to a regular file"
+  | ".gitkeep as a dangling link"
+  | ".gitkeep as a FIFO";
+
+/** What a cell expects: refused by name, read through a followed link, or read through a keeper. */
+type ShapeExpect = "refused" | "follow" | "keeper";
+
+/**
+ * The shapes that apply to each kind, with the outcome each must give.
+ * - directory-follow: the notes directory, a context root or an ancestor of one, the state directory, the memory
+ *   bank, the trace directory, the archive directory. A live in-root link to a directory is read through (plan
+ *   37-28's flagged assumption); a dangling link, a link to a file and a regular file are refused.
+ * - directory-refuse: a task entry. The task position never follows a link (37-06 trust decision, CR-04).
+ * - listing: a dot-named entry of a context root, asked of the owner by listContextTasks. A regular file is a keeper;
+ *   a dot-named link or FIFO is a failed task, never dropped.
+ * - file: a trace file, the index, an extra trace file, a state file state-roll rolls. Refuses every link.
+ * - file-follow: state-check's layout marker, read by readState, whose shape test is the owner's stat of the target
+ *   (plan 37-04): an in-root link to a regular file holding the same marker is read through; every other shape is
+ *   refused.
+ * - program: a sibling program beside state-check (plan 37-24), read through the non-blocking reader.
+ */
+const SHAPES_BY_KIND: Record<ShapeKind, readonly { readonly shape: ShapeName; readonly expect: ShapeExpect }[]> = {
+  "directory-follow": [
+    { shape: "dangling link", expect: "refused" },
+    { shape: "link to a directory", expect: "follow" },
+    { shape: "link to a regular file", expect: "refused" },
+    { shape: "regular file", expect: "refused" },
+  ],
+  "directory-refuse": [
+    { shape: "dangling link", expect: "refused" },
+    { shape: "link to a directory", expect: "refused" },
+    { shape: "link to a regular file", expect: "refused" },
+    { shape: "regular file", expect: "refused" },
+    { shape: "FIFO", expect: "refused" },
+  ],
+  listing: [
+    { shape: "keeper .gitkeep", expect: "keeper" },
+    { shape: "keeper .DS_Store", expect: "keeper" },
+    { shape: ".gitkeep as a link to a regular file", expect: "refused" },
+    { shape: ".gitkeep as a dangling link", expect: "refused" },
+    { shape: ".gitkeep as a FIFO", expect: "refused" },
+  ],
+  file: [
+    { shape: "dangling link", expect: "refused" },
+    { shape: "link to a directory", expect: "refused" },
+    { shape: "link to a regular file", expect: "refused" },
+    { shape: "directory", expect: "refused" },
+    { shape: "FIFO", expect: "refused" },
+  ],
+  "file-follow": [
+    { shape: "dangling link", expect: "refused" },
+    { shape: "link to a directory", expect: "refused" },
+    { shape: "link to a regular file", expect: "follow" },
+    { shape: "directory", expect: "refused" },
+    { shape: "FIFO", expect: "refused" },
+  ],
+  program: [
+    { shape: "dangling link", expect: "refused" },
+    { shape: "directory", expect: "refused" },
+    { shape: "FIFO", expect: "refused" },
+  ],
+};
+
+/**
+ * The base fixture a position's cells start from.
+ * - `trace`: the rendered two-root repository (shapeTraceRepo), shared by trace-render and state-check.
+ * - `trace-extra`: the same with a generated trace file the plan no longer holds (ABC-099.md), the only path the
+ *   renderer's readText reaches that its pre-write check does not refuse first.
+ * - `host`: the `trace` repository, with state-check run from a fresh directory holding copies of the three
+ *   runnables, so a cell can plant a shape at a sibling program.
+ * - `roll`: state-roll's repository with both rolls planned and an empty archive directory.
+ * - `roll-archived`: the same after one roll, so the Done archive and the progress archive exist.
+ */
+type ShapeBase = "trace" | "trace-extra" | "host" | "roll" | "roll-archived";
+
+/** One read position: a (runnable, via) of the owner, the concrete paths it serves, their kind and the modes. */
+interface ShapePosition {
+  readonly runnable: Runnable;
+  /** `<scope>#<ordinal>` of the owner's calling call expression, as derivedPairs names a via. */
+  readonly via: string;
+  readonly position: string;
+  /** Repository-relative paths; for `host`, names in the runnable's own directory. */
+  readonly paths: readonly string[];
+  readonly kind: ShapeKind;
+  readonly modes: readonly Mode[];
+  readonly base: ShapeBase;
+}
+
+/** state-roll's two modes for the shape table: a roll and a dry run (write-new-archive is the EIO table's fixture). */
+const SR_SHAPE_MODES: readonly Mode[] = ["dry-run", "write"];
+/** trace-render's modes in the order a cell runs them: --check reads only, so it runs first on the planted tree. */
+const TR_SHAPE_MODES: readonly Mode[] = ["check", "write"];
+
+const ABC_001_TRACE = `${TRACE_DIR_REL}/ABC-001.md`;
+const ABC_099_TRACE = `${TRACE_DIR_REL}/ABC-099.md`;
+const TASK_A_REL = `${CONTEXT_REL}/taskA`;
+const TASK_B_REL = `${CONTEXT_ARCHIVE_REL}/taskB`;
+
+/**
+ * Every directory the trace runnables resolve through the owner before the note read: each context root and each
+ * ancestor of one, the memory bank and the state directory (ancestors of the trace directory), and the trace
+ * directory. trace-render reaches them through realDirectoryOrNull, state-check through locate.
+ */
+const TRACE_DIRECTORIES: readonly string[] = [
+  GRUGOPS_DIR_REL,
+  GRUGOPS_ARCHIVE_REL,
+  CONTEXT_REL,
+  CONTEXT_ARCHIVE_REL,
+  MEMORY_BANK_REL,
+  STATE_ROOT_REL,
+  TRACE_DIR_REL,
+];
+
+/** The note-walk, listing and task positions both trace runnables share, through the generated walk. */
+function sharedTracePositions(runnable: "trace-render" | "state-check", modes: readonly Mode[]): ShapePosition[] {
+  return [
+    {
+      runnable,
+      via: "readRawNotesWithSkips#0",
+      position: "the notes directory of a task",
+      paths: [`${TASK_A_REL}/notes`, `${TASK_B_REL}/notes`],
+      kind: "directory-follow",
+      modes,
+      base: "trace",
+    },
+    {
+      runnable,
+      via: "listContextTasks#0",
+      position: "a dot-named entry of a context root (the keeper test)",
+      paths: [CONTEXT_REL, CONTEXT_ARCHIVE_REL],
+      kind: "listing",
+      modes,
+      base: "trace",
+    },
+    {
+      runnable,
+      via: "readTaskNoteRefs#0",
+      position: "a task entry",
+      paths: [TASK_A_REL, TASK_B_REL],
+      kind: "directory-refuse",
+      modes,
+      base: "trace",
+    },
+  ];
+}
+
+const SHAPE_POSITIONS: readonly ShapePosition[] = [
+  ...sharedTracePositions("trace-render", TR_SHAPE_MODES),
+  {
+    runnable: "trace-render",
+    via: "realDirectoryOrNull#0",
+    position: "a context root, an ancestor of one, the state directory or the trace directory",
+    paths: TRACE_DIRECTORIES,
+    kind: "directory-follow",
+    modes: TR_SHAPE_MODES,
+    base: "trace",
+  },
+  {
+    runnable: "trace-render",
+    via: "<top>#0",
+    position: "a planned path (the pre-write check): the index and a trace file",
+    paths: [TRACEABILITY_REL, ABC_001_TRACE],
+    kind: "file",
+    modes: TR_SHAPE_MODES,
+    base: "trace",
+  },
+  {
+    // readText also reads the planned paths, but the pre-write check above refuses them first in both modes, so the
+    // path only readText reaches is an extra trace file (listed by listDir, owned, not planned).
+    runnable: "trace-render",
+    via: "readText#0",
+    position: "an extra trace file (the compare read)",
+    paths: [ABC_099_TRACE],
+    kind: "file",
+    modes: TR_SHAPE_MODES,
+    base: "trace-extra",
+  },
+  ...sharedTracePositions("state-check", SC),
+  {
+    runnable: "state-check",
+    via: "locate#0",
+    position: "a context root, an ancestor of one, the state directory or the trace directory",
+    paths: TRACE_DIRECTORIES,
+    kind: "directory-follow",
+    modes: SC,
+    base: "trace",
+  },
+  {
+    runnable: "state-check",
+    via: "locate#0",
+    position: "the index and a trace file",
+    paths: [TRACEABILITY_REL, ABC_001_TRACE],
+    kind: "file",
+    modes: SC,
+    base: "trace",
+  },
+  {
+    runnable: "state-check",
+    via: "locate#0",
+    position: "an extra trace file",
+    paths: [ABC_099_TRACE],
+    kind: "file",
+    modes: SC,
+    base: "trace-extra",
+  },
+  {
+    runnable: "state-check",
+    via: "locate#0",
+    position: "the layout marker",
+    paths: [LAYOUT_MARKER_REL],
+    kind: "file-follow",
+    modes: SC,
+    base: "trace",
+  },
+  {
+    runnable: "state-check",
+    via: "runnableSkewFindings#0",
+    position: "a sibling program beside state-check",
+    paths: ["state-roll.js", "trace-render.js"],
+    kind: "program",
+    modes: SC,
+    base: "host",
+  },
+  {
+    runnable: "state-roll",
+    via: "realDirectoryOrNull#0",
+    position: "the state directory, the memory bank directory and the archive directory",
+    paths: [STATE_ROOT_REL, MEMORY_BANK_REL, ARCHIVE_REL],
+    kind: "directory-follow",
+    modes: SR_SHAPE_MODES,
+    base: "roll",
+  },
+  {
+    runnable: "state-roll",
+    via: "readTextOrThrow#0",
+    position: "the board and the progress file",
+    paths: [BOARD_REL, PROGRESS_REL],
+    kind: "file",
+    modes: SR_SHAPE_MODES,
+    base: "roll",
+  },
+  {
+    runnable: "state-roll",
+    via: "readTextOrThrow#0",
+    position: "the Done archive and the progress archive",
+    paths: [BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL],
+    kind: "file",
+    modes: SR_SHAPE_MODES,
+    base: "roll-archived",
+  },
+];
+
+/**
+ * The calling call expressions of the generated entryPresence in each committed runnable (callingSites).
+ * 2026-10-24, plan 37-31: 6, 5 and 2, measured after plans 37-28 to 37-30. trace-render: readRawNotesWithSkips,
+ * listContextTasks, readTaskNoteRefs, realDirectoryOrNull, the pre-write check (`<top>`) and readText. state-check:
+ * readRawNotesWithSkips, listContextTasks, readTaskNoteRefs, locate and runnableSkewFindings. state-roll:
+ * realDirectoryOrNull and readTextOrThrow.
+ */
+const TRACE_RENDER_OWNER_CALLERS = 6;
+const STATE_CHECK_OWNER_CALLERS = 5;
+const STATE_ROLL_OWNER_CALLERS = 2;
+const OWNER_CALLER_PINS: Record<Runnable, number> = {
+  "trace-render": TRACE_RENDER_OWNER_CALLERS,
+  "state-check": STATE_CHECK_OWNER_CALLERS,
+  "state-roll": STATE_ROLL_OWNER_CALLERS,
+};
+
+/** The owner's calling call expressions of a committed runnable, named `<scope>#<ordinal>` as derivedPairs does. */
+function ownerCallers(name: Runnable): string[] {
+  const ordinals = new Map<string, number>();
+  return callingSites(committed(name), "entryPresence").map((c) => {
+    const ordinal = ordinals.get(c.scope) ?? 0;
+    ordinals.set(c.scope, ordinal + 1);
+    return `${c.scope}#${ordinal}`;
+  });
+}
+
+/** One cell: a position, one of its paths, and one shape its kind applies. */
+interface ShapeCell {
+  readonly pos: ShapePosition;
+  readonly path: string;
+  readonly shape: ShapeName;
+  readonly expect: ShapeExpect;
+}
+
+const SHAPE_ROWS: readonly ShapeCell[] = SHAPE_POSITIONS.flatMap((pos) =>
+  pos.paths.flatMap((path) => SHAPES_BY_KIND[pos.kind].map((s) => ({ pos, path, shape: s.shape, expect: s.expect }))),
+);
+
+/**
+ * The cell count. 2026-10-24, plan 37-31: 185 = trace-render 71 (notes 2x4, listing 2x5, task 2x5, directories
+ * 7x4, planned paths 2x5, the extra trace file 1x5) + state-check 82 (the same 28 shared cells, directories 7x4,
+ * the index and a trace file 2x5, the extra trace file 1x5, the marker 1x5, siblings 2x3) + state-roll 32
+ * (directories 3x4, files 4x5).
+ */
+const SHAPE_ROW_COUNT = 185;
+
+/** `<runnable> <via> <path>: <shape>`, one cell's identity. */
+function cellId(c: ShapeCell): string {
+  return `${c.pos.runnable} ${c.pos.via} ${c.path}: ${c.shape}`;
+}
+
+/** The repository-relative path a cell plants at: an entry inside a context root for a listing, else the path. */
+function plantedRel(c: ShapeCell): string {
+  if (c.pos.kind !== "listing") return c.path;
+  return `${c.path}/${c.shape === "keeper .DS_Store" ? ".DS_Store" : ".gitkeep"}`;
+}
+
+/**
+ * The rendered two-root repository the trace cells start from: the D-14 marker, a board, a ticket, an NFR file
+ * with its index line, a sealed note in each context root, and the trace rendered from them; no link and no extra
+ * file, so the unplanted --check is fresh and state-check prints no finding. With `extra`, the trace directory gains
+ * ABC-099.md, a copy of the generated ABC-001.md that no note names.
+ */
+function shapeTraceRepo(extra: boolean): string {
+  const root = mkTmp("grugops-read-shapes-trace-");
+  plant(root, LAYOUT_MARKER_REL, `${LAYOUT_MARKER_CONTENT}\n`);
+  plant(root, BOARD_REL, "# Board\n\n## Ready (WIP unlimited)\n\n- [ABC-001] a ready ticket\n\n## Done (WIP unlimited)\n\n- [ABC-002] a done ticket\n");
+  plant(root, `${TICKETS_REL}/ABC-001.md`, "# ABC-001\n");
+  plant(root, NFR_CATALOG_REL, `# NFR catalog\n\n${NFR_LINE_001}`);
+  plant(root, `${NFR_DIR_REL}/NFR-001.md`, "# NFR-001\n");
+  plant(root, `${TASK_A_REL}/notes/n1.md`, noteText("n1", ["ABC-001", "NFR-001", "src/a.ts"]));
+  plant(root, `${TASK_B_REL}/notes/n2.md`, noteText("n2", ["ABC-002", "#41"]));
+  mkdirSync(join(root, ...TRACE_DIR_REL.split("/")), { recursive: true });
+  renderOk(root);
+  if (extra) copyFileSync(join(root, ...ABC_001_TRACE.split("/")), join(root, ...ABC_099_TRACE.split("/")));
+  return root;
+}
+
+/**
+ * state-roll's repository for the shape cells: stateRollRepo with an archive directory, so both rolls are planned.
+ * With `archived`, one roll has run, so the Done archive and the progress archive exist for a cell to replace.
+ */
+function shapeRollRepo(archived: boolean): string {
+  const root = stateRollRepo(true);
+  if (archived) {
+    const r = runIn(HOST["state-roll"], root, []);
+    expect(r.status, `PREMISE: the first roll runs\n${r.stdout}\n${r.stderr}`).toBe(0);
+    for (const rel of [BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL]) {
+      expect(lstatSync(join(root, ...rel.split("/"))).isFile(), `PREMISE: the first roll wrote ${rel}`).toBe(true);
+    }
+  }
+  return root;
+}
+
+/** Run the runnable copy at `js` unfaulted from its own directory. */
+function runIn(js: string, root: string, args: readonly string[]): { status: number | null; stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [js, root, ...args], { encoding: "utf8", cwd: dirname(js), timeout: 30_000 });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+/** A fresh directory holding byte copies of the three committed runnables; returns the state-check copy. */
+function freshHost(): string {
+  const dir = mkTmp("grugops-read-shapes-host-");
+  for (const n of RUNNABLES) copyFileSync(committed(n), join(dir, `${n}.js`));
+  return join(dir, "state-check.js");
+}
+
+/** A cell's fixture: the repository root and the runnable copy to run. */
+function shapeFixture(c: ShapeCell): { readonly root: string; readonly js: string } {
+  const base = c.pos.base;
+  if (base === "roll" || base === "roll-archived") return { root: shapeRollRepo(base === "roll-archived"), js: HOST["state-roll"] };
+  const root = shapeTraceRepo(base === "trace-extra");
+  return { root, js: base === "host" ? freshHost() : HOST[c.pos.runnable] };
+}
+
+/**
+ * What a follow or keeper cell compares: the bytes of every path the runnable writes, read through any link. Only
+ * a regular file is read (statSync first), so a FIFO is never opened (DC-3); a path that is not one is `null`.
+ */
+function writtenBytes(root: string, runnable: Runnable): ReadonlyMap<string, string | null> {
+  const out = new Map<string, string | null>();
+  const read = (rel: string): void => {
+    const p = join(root, ...rel.split("/"));
+    let isFile = false;
+    try {
+      isFile = statSync(p).isFile();
+    } catch {
+      isFile = false;
+    }
+    out.set(rel, isFile ? readFileSync(p, "utf8") : null);
+  };
+  if (runnable === "state-roll") {
+    for (const rel of [BOARD_REL, PROGRESS_REL, BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL]) read(rel);
+    return out;
+  }
+  read(TRACEABILITY_REL);
+  for (const name of readdirSync(join(root, ...TRACE_DIR_REL.split("/"))).sort()) read(`${TRACE_DIR_REL}/${name}`);
+  return out;
+}
+
+/**
+ * Move whatever is at `at` out of every read position (into `<root>/shape-aside/`, which no runnable reads), and
+ * return it as the moved path, or null when nothing was there.
+ */
+function moveAside(root: string, at: string, rel: string): string | null {
+  try {
+    lstatSync(at);
+  } catch {
+    return null;
+  }
+  const aside = join(root, "shape-aside");
+  mkdirSync(aside, { recursive: true });
+  const to = join(aside, rel.split("/").join("__"));
+  renameSync(at, to);
+  return to;
+}
+
+/**
+ * Plant the cell's shape at its path under `root` (or in the runnable's directory for a `host` cell). Returns null
+ * when it was planted, or the printed platform reason it could not be.
+ */
+function plantShape(c: ShapeCell, root: string, js: string): string | null {
+  const rel = plantedRel(c);
+  const at = c.pos.base === "host" ? join(dirname(js), rel) : join(root, ...rel.split("/"));
+  const position = `scripts/runnable-ref/read-sites.test.ts: ${cellId(c)} (plan 37-31)`;
+  const pinnedBy = "the dangling-link and CR-04 rows of trace-render.test.ts, state-check.test.ts and state-roll.test.ts";
+  const targets = join(root, "shape-targets");
+  mkdirSync(targets, { recursive: true });
+  const flat = rel.split("/").join("__");
+  const link = (target: string, shape: string): string | null => {
+    const skipped = stageSymlinkOrSkip(target, at, shape, position);
+    return skipped === null ? null : skipLine(skipped, pinnedBy);
+  };
+  const fifo = (): string | null => {
+    const skipped = stageShapeOrSkip("FIFO", at, position);
+    return skipped === null ? null : skipLine(skipped, pinnedBy);
+  };
+  switch (c.shape) {
+    case "keeper .gitkeep":
+    case "keeper .DS_Store":
+      writeFileSync(at, "");
+      return null;
+    case ".gitkeep as a link to a regular file": {
+      const target = join(targets, `${flat}.txt`);
+      writeFileSync(target, "");
+      return link(target, "symlink to a regular file");
+    }
+    case ".gitkeep as a dangling link":
+      return link(join(root, "shape-no-such-target"), "dangling symlink (its target does not exist)");
+    case ".gitkeep as a FIFO":
+      return fifo();
+    case "dangling link":
+      moveAside(root, at, rel);
+      return link(join(root, "shape-no-such-target"), "dangling symlink (its target does not exist)");
+    case "link to a directory": {
+      // At a directory position the original moves to the target, so the link holds the same content; at a file
+      // position the target is an empty directory.
+      const target = join(targets, flat);
+      const moved = moveAside(root, at, rel);
+      if (moved !== null && lstatSync(moved).isDirectory()) renameSync(moved, target);
+      else mkdirSync(target);
+      return link(target, "symlink to a directory inside the repository root");
+    }
+    case "link to a regular file": {
+      // At a file position the original moves to the target, so the link holds the same bytes; at a directory
+      // position the target is a regular file.
+      const target = join(targets, `${flat}.target`);
+      const moved = moveAside(root, at, rel);
+      if (moved !== null && lstatSync(moved).isFile()) renameSync(moved, target);
+      else writeFileSync(target, "a regular file\n");
+      return link(target, "symlink to a regular file");
+    }
+    case "regular file":
+      moveAside(root, at, rel);
+      writeFileSync(at, "a regular file where a directory is expected\n");
+      return null;
+    case "directory":
+      moveAside(root, at, rel);
+      mkdirSync(at);
+      return null;
+    case "FIFO":
+      moveAside(root, at, rel);
+      return fifo();
+  }
+}
+
+/** One unplanted run per (base, runnable, mode): the outcome a follow or keeper cell must equal. */
+const shapeBaselines = new Map<string, { status: number | null; stdout: string; bytes: ReadonlyMap<string, string | null> }>();
+function shapeBaseline(c: ShapeCell, mode: Mode): { status: number | null; stdout: string; bytes: ReadonlyMap<string, string | null> } {
+  const id = `${c.pos.base} ${c.pos.runnable} ${mode}`;
+  const cached = shapeBaselines.get(id);
+  if (cached !== undefined) return cached;
+  const { root, js } = shapeFixture(c);
+  // A mode's baseline follows the modes before it on the same tree, as a cell runs them.
+  for (const m of c.pos.modes) {
+    const r = runIn(js, root, MODE_ARGS[m]);
+    shapeBaselines.set(`${c.pos.base} ${c.pos.runnable} ${m}`, { status: r.status, stdout: r.stdout, bytes: writtenBytes(root, c.pos.runnable) });
+  }
+  return shapeBaselines.get(id) as { status: number | null; stdout: string; bytes: ReadonlyMap<string, string | null> };
+}
+
+/** The state-check finding lines of a run, and whether one is the expected kind naming `named`. */
+function namedFinding(stdout: string, code: string, named: string): boolean {
+  return stdout.split("\n").some((l) => /^FINDING /.test(l) && l.includes(code) && l.includes(named));
+}
+
+/** The shapes that are a dangling link at the position, or at the dot-named entry a listing cell plants. */
+const DANGLING_SHAPES: ReadonlySet<ShapeName> = new Set<ShapeName>(["dangling link", ".gitkeep as a dangling link"]);
+
+/** The owner's reason for a link whose target cannot be reached, at the path or at an ancestor (plans 37-28, 37-29). */
+const OWNER_UNREACHABLE_LINK = /symbolic link .*target (that )?cannot be reached/;
+
+let shapeCellsRun = 0;
+let shapeCellsSkipped = 0;
+
+/**
+ * Run one cell in every mode its position lists, on one planted tree, and assert its kind's outcome. A refused
+ * cell's runs never write, so the modes share the tree; a follow or keeper cell's runs equal the unplanted runs.
+ */
+function runShapeCell(c: ShapeCell): void {
+  shapeCellsRun += 1;
+  const { root, js } = shapeFixture(c);
+  const writtenBefore = writtenBytes(root, c.pos.runnable);
+  const skip = plantShape(c, root, js);
+  if (skip !== null) {
+    shapeCellsSkipped += 1;
+    console.warn(skip);
+    return;
+  }
+  const planted = treeDigest(root);
+  const named = c.pos.base === "host" ? c.path : plantedRel(c);
+  for (const mode of c.pos.modes) {
+    const r = runIn(js, root, MODE_ARGS[mode]);
+    const all = `${cellId(c)}, ${mode}\nstatus ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(hasNodeStack(r.stderr), `no Node stack trace\n${all}`).toBe(false);
+    expect(r.stderr, `never the unexpected-throw backstop\n${all}`).not.toContain("stopped unexpectedly (");
+    if (c.expect === "refused") {
+      expect(treeDigest(root), `nothing was written, changed or removed\n${all}`).toEqual(planted);
+      // A dangling link is refused for the owner's reason, never as something absent that a later check then
+      // happens to refuse ("does not exist", "listed and is no longer there"): the reason is where the defect shows.
+      if (DANGLING_SHAPES.has(c.shape)) {
+        expect(`${r.stdout}\n${r.stderr}`, `a dangling link is refused for the owner's reason\n${all}`).toMatch(OWNER_UNREACHABLE_LINK);
+      }
+      if (c.pos.runnable === "state-check") {
+        if (c.pos.kind === "program") {
+          // A sibling program is not a trace position: the trace may be fresh beside the skew finding.
+          expect(r.status, all).toBe(1);
+          expect(namedFinding(r.stdout, "runnable-version-skew", named), `a runnable-version-skew finding names ${named}\n${all}`).toBe(true);
+          continue;
+        }
+        expect(r.stdout, `a refused trace position is never fresh\n${all}`).not.toContain("The trace is fresh");
+        if (r.status === 2) {
+          expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
+          expect(r.stderr, `exit 2 names ${named}\n${all}`).toContain(named);
+        } else {
+          expect(r.status, `exit 1 with a trace-not-compared finding, or exit 2\n${all}`).toBe(1);
+          expect(namedFinding(r.stdout, "trace-not-compared", named), `a trace-not-compared finding names ${named}\n${all}`).toBe(true);
+        }
+      } else {
+        expect(r.status, all).toBe(2);
+        expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
+        expect(r.stderr, `exit 2 names ${named}\n${all}`).toContain(named);
+        if (c.pos.runnable === "state-roll") expect(r.stderr, all).toContain("Nothing was rolled.");
+      }
+    } else {
+      const base = shapeBaseline(c, mode);
+      expect(r.status, `a ${c.expect} cell exits as the unplanted run\n${all}`).toBe(base.status);
+      expect(r.stdout, `a ${c.expect} cell prints what the unplanted run prints\n${all}`).toBe(base.stdout);
+      expect(writtenBytes(root, c.pos.runnable), `a ${c.expect} cell leaves the bytes the unplanted run leaves\n${all}`).toEqual(base.bytes);
+      if (c.pos.runnable !== "state-roll") {
+        expect(writtenBytes(root, c.pos.runnable), `the trace is byte-identical to the unlinked render\n${all}`).toEqual(writtenBefore);
+      }
+    }
+  }
+}
+
+describe("READ-1 shapes (plan 37-31, D-18): every read position, derived from the owner's callers, refuses a non-error shape by name or reads through", () => {
+  it("tracer: trace-render write mode, a rendered repository whose taskA notes directory is then a dangling link: exit 2 naming the task, nothing written", () => {
+    const root = shapeTraceRepo(false);
+    const notes = join(root, ...`${TASK_A_REL}/notes`.split("/"));
+    moveAside(root, notes, `${TASK_A_REL}/notes`);
+    const skipped = stageSymlinkOrSkip(
+      join(root, "shape-no-such-target"),
+      notes,
+      "dangling symlink (its target does not exist)",
+      "scripts/runnable-ref/read-sites.test.ts: the READ-1 shapes tracer (plan 37-31)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the CR-03 rows of trace-render.test.ts"));
+      return;
+    }
+    const before = treeDigest(root);
+    expect([...before.keys()], "PREMISE: the render wrote ABC-001.md").toContain(ABC_001_TRACE);
+    const r = runIn(HOST["trace-render"], root, []);
+    const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(r.status, all).toBe(2);
+    expect(r.stdout, all).toBe("");
+    expect(r.stderr, all).toContain(`UNREADABLE TASK ${TASK_A_REL}`);
+    expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+    expect(treeDigest(root), "nothing was written, changed or removed").toEqual(before);
+  });
+
+  for (const name of RUNNABLES) {
+    it(`${name}: the owner's calling call expressions are derived and their count is pinned`, () => {
+      const callers = ownerCallers(name);
+      console.log(`OWNER_CALLERS ${name}: ${callers.length} (${callers.join(", ")})`);
+      expect(callers.length).toBe(OWNER_CALLER_PINS[name]);
+    });
+
+    it(`${name}: SHAPE_POSITIONS covers exactly the derived (runnable, via) set, both ways`, () => {
+      const derived = new Set(ownerCallers(name));
+      const claimed = new Set(SHAPE_POSITIONS.filter((p) => p.runnable === name).map((p) => p.via));
+      expect([...derived].filter((v) => !claimed.has(v)), "derived callers SHAPE_POSITIONS leaves out").toEqual([]);
+      expect([...claimed].filter((v) => !derived.has(v)), "SHAPE_POSITIONS vias no caller derives").toEqual([]);
+      for (const p of SHAPE_POSITIONS.filter((q) => q.runnable === name)) {
+        expect(p.paths.length, `${p.via} ${p.position} names its concrete paths`).toBeGreaterThan(0);
+        for (const m of p.modes) expect(MODES[name], `${p.via} ${m}`).toContain(m);
+      }
+    });
+  }
+
+  it("the cell count is pinned and equals the count computed from the positions and the shapes of each kind", () => {
+    const computed = SHAPE_POSITIONS.reduce((n, p) => n + p.paths.length * SHAPES_BY_KIND[p.kind].length, 0);
+    console.log(`SHAPE_ROW_COUNT: ${SHAPE_ROWS.length} (computed ${computed}, pinned ${SHAPE_ROW_COUNT})`);
+    expect(SHAPE_ROWS.length).toBe(computed);
+    expect(SHAPE_ROWS.length).toBe(SHAPE_ROW_COUNT);
+    expect(new Set(SHAPE_ROWS.map(cellId)).size, "no cell is listed twice").toBe(SHAPE_ROWS.length);
+  });
+
+  for (const c of SHAPE_ROWS) {
+    it(`${cellId(c)} -> ${c.expect}, ${c.pos.modes.join(" and ")}`, () => {
+      runShapeCell(c);
+    });
+  }
+
+  it("every cell ran, and the skipped ones printed a platform reason", () => {
+    console.log(`SHAPE cells run: ${shapeCellsRun} of ${SHAPE_ROW_COUNT}; skipped for the platform: ${shapeCellsSkipped}`);
+    expect(shapeCellsRun).toBe(SHAPE_ROW_COUNT);
   });
 });
