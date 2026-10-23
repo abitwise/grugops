@@ -5,15 +5,15 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-27-PLAN.md
-last_updated: "2026-10-23T17:26:16.956Z"
+stopped_at: Planned gap round 2 (37-28..37-32)
+last_updated: "2026-10-23T20:02:57.861Z"
 last_activity: 2026-10-23
-last_activity_desc: Phase 37 execution started
-state_head: b9c872d08d724bf7380d928ebe2ceb1c3beb6dc3
+last_activity_desc: Planned gap round 2 (37-28..37-32, D-18: one lstat-based absent owner for CR-03/CR-04/IN-06/IN-10, READ-1 shape rows, WR-08 scan, WR-09 rewording); checker passed iteration 2
+state_head: eebc621a35c89516ac3fa1c08fd658d19a04744b
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 42
+  total_plans: 47
   completed_plans: 42
   percent: 22
 ---
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 
 ## Current Position
 
-Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 27 of 27
-Status: All 27 plans executed (gap round 1 closed by 37-27); awaiting code review, regression and verification
-Last activity: 2026-10-23 — Phase 37 execution started
+Phase: 37 (Overview board, per-file records and budgets) — READY TO EXECUTE
+Plan: 27 of 32
+Status: Ready to execute (gap round 2 of 4: 37-28..37-32, sequential, waves 28-32)
+Last activity: 2026-10-23 — Planned gap round 2 (37-28..37-32, D-18: one lstat-based absent owner for CR-03/CR-04/IN-06/IN-10, READ-1 shape rows, WR-08 scan, WR-09 rewording); checker passed iteration 2
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
