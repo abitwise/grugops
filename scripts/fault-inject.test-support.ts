@@ -24,12 +24,24 @@
 // (`nodeFs.readdirSync`) and a named-import call (`readdirSync`) both reach the wrapper.
 //
 // BOUNDED. Every run has a 30 s timeout, and treeDigest never opens anything that is not a regular file (DC-3).
+//
+// WHERE THE READ SITES COME FROM (plan 37-25, D-17, READ-1). deriveReadSites parses a committed .js with the
+// TypeScript compiler (createSourceFile only: no program, no type checker) and returns every call whose callee
+// resolves through the file's OWN node:fs import bindings to a member of FS_READ_FNS: a namespace member
+// (`nodeFs.readdirSync`) or a named import (`readdirSync`, an alias resolved to its imported name). A site's line
+// is the line of the callee's name token, which is where V8 reports the frame. callingSites says through which
+// call expressions control enters a function, so a shared reader can be failed under every caller (the `via`
+// half of a fault). Both refuse, by throwing with the file and line, any shape they cannot account for: a
+// namespace used as a value, a read function used as a value, or a function reference that is neither a call nor
+// a call argument. A new indirection therefore fails red until the derivation handles it, and is never dropped.
+// The compiler is a dev dependency; this module is never emitted, so no host ever loads it.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import ts from "typescript";
 
 /** The node:fs functions READ-1 treats as reads. Plans 37-25 and 37-26 import this list. */
 export const FS_READ_FNS = Object.freeze([
@@ -47,6 +59,305 @@ export const FS_READ_FNS = Object.freeze([
 
 /** One node:fs read function. */
 export type FsReadFn = (typeof FS_READ_FNS)[number];
+
+/**
+ * The node:fs names the three state runnables use that are not reads (plan 37-25). Every node:fs name a runnable
+ * uses is in FS_READ_FNS or here, and every name here is used by at least one runnable: read-sites.test.ts holds
+ * both directions, so a new read function cannot sit outside the read table.
+ */
+export const FS_OTHER_FNS = Object.freeze([
+  "closeSync", // releases a descriptor
+  "constants", // flag values
+  "mkdirSync", // creates
+  "renameSync", // moves
+  "rmdirSync", // removes
+  "unlinkSync", // removes
+  "writeFileSync", // writes
+] as const);
+
+/** One read call of a program: its node:fs function, its line, its enclosing function and its stable key. */
+export interface ReadSite {
+  /** `<enclosing>:<fn>#<ordinal>`, the ordinal counted among the same enclosing and fn in source order. */
+  readonly key: string;
+  readonly fn: FsReadFn;
+  /** The 1-based line of the callee's name token, where V8 reports the frame. */
+  readonly line: number;
+  /** The nearest named function, `<object variable>.<property>`, `<Class>.<method>`, or `<top>`. */
+  readonly enclosing: string;
+}
+
+/** One call expression through which control enters a function. */
+export interface CallingSite {
+  /** The enclosing name of the call, by the rule ReadSite.enclosing uses. */
+  readonly scope: string;
+  /** The 1-based line V8 reports for the frame of `scope` while the function runs. */
+  readonly line: number;
+  /** `direct`: the call's callee names the function; `passed`: the function is an argument value of the call. */
+  readonly kind: "direct" | "passed";
+}
+
+/** The parsed program text of a .js file, for the derivations below. */
+function parseJs(jsPath: string): ts.SourceFile {
+  return ts.createSourceFile(jsPath, readFileSync(jsPath, "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+}
+
+/** The 1-based line of a node's first token. */
+function lineOf(sf: ts.SourceFile, node: ts.Node): number {
+  return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+}
+
+/** A derivation refusal: the file, the line and the shape it cannot account for. */
+function refuse(what: string, sf: ts.SourceFile, node: ts.Node, shape: string): never {
+  throw new Error(`${what}: ${sf.fileName}:${lineOf(sf, node)}: ${shape}; add the shape to the derivation`);
+}
+
+/** The text of a property or method name, or null for a computed one. */
+function nameText(name: ts.PropertyName): string | null {
+  return ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isPrivateIdentifier(name) ? name.text : null;
+}
+
+/** The name of the variable an object literal is bound to, or null. */
+function objectVariable(obj: ts.ObjectLiteralExpression): string | null {
+  const q = obj.parent;
+  return ts.isVariableDeclaration(q) && q.initializer === obj && ts.isIdentifier(q.name) ? q.name.text : null;
+}
+
+/** The name an arrow or function expression is bound to, or null when it is not bound (an argument value). */
+function boundName(fn: ts.ArrowFunction | ts.FunctionExpression): string | null {
+  if (ts.isFunctionExpression(fn) && fn.name !== undefined) return fn.name.text;
+  const q = fn.parent;
+  if (ts.isVariableDeclaration(q) && q.initializer === fn && ts.isIdentifier(q.name)) return q.name.text;
+  if (ts.isPropertyAssignment(q) && q.initializer === fn && ts.isObjectLiteralExpression(q.parent)) {
+    const holder = objectVariable(q.parent);
+    const prop = nameText(q.name);
+    if (holder !== null && prop !== null) return `${holder}.${prop}`;
+  }
+  return null;
+}
+
+/** The name of a method or constructor: `<object variable>.<name>` or `<Class>.<name>`, or null. */
+function methodName(m: ts.MethodDeclaration | ts.ConstructorDeclaration): string | null {
+  const own = ts.isConstructorDeclaration(m) ? "constructor" : nameText(m.name);
+  if (own === null) return null;
+  const holder = ts.isClassLike(m.parent)
+    ? (m.parent.name?.text ?? null)
+    : ts.isObjectLiteralExpression(m.parent)
+      ? objectVariable(m.parent)
+      : null;
+  return holder === null ? null : `${holder}.${own}`;
+}
+
+/**
+ * The enclosing name of `node`: the nearest named function declaration, the name an arrow or function expression
+ * is bound to, `<object variable>.<property>` for a function in an object literal, `<Class>.<method>`, or `<top>`.
+ * An unbound arrow (an argument value such as a `.map` callback) is passed through to the scope around it.
+ */
+export function enclosingName(node: ts.Node): string {
+  for (let p = node.parent; p !== undefined; p = p.parent) {
+    if (ts.isFunctionDeclaration(p) && p.name !== undefined) return p.name.text;
+    if (ts.isArrowFunction(p) || ts.isFunctionExpression(p)) {
+      const bound = boundName(p);
+      if (bound !== null) return bound;
+    }
+    if (ts.isMethodDeclaration(p) || ts.isConstructorDeclaration(p)) {
+      const m = methodName(p);
+      if (m !== null) return m;
+    }
+  }
+  return "<top>";
+}
+
+/** A file's node:fs import bindings: namespace local names, and named locals mapped to their imported names. */
+interface FsBindings {
+  readonly namespaces: ReadonlySet<string>;
+  readonly named: ReadonlyMap<string, string>;
+}
+
+/** The node:fs import bindings of `sf`; a promises import or a require/dynamic import of node:fs is refused. */
+function fsBindings(sf: ts.SourceFile): FsBindings {
+  const namespaces = new Set<string>();
+  const named = new Map<string, string>();
+  const isFs = (s: string): boolean => s === "node:fs" || s === "fs";
+  const isFsPromises = (s: string): boolean => s === "node:fs/promises" || s === "fs/promises";
+  const visit = (n: ts.Node): void => {
+    if (ts.isImportDeclaration(n) && ts.isStringLiteral(n.moduleSpecifier)) {
+      const spec = n.moduleSpecifier.text;
+      if (isFsPromises(spec)) refuse("fsBindings", sf, n, `an import of ${spec}`);
+      if (isFs(spec) && n.importClause !== undefined) {
+        const c = n.importClause;
+        if (c.name !== undefined) namespaces.add(c.name.text);
+        const b = c.namedBindings;
+        if (b !== undefined && ts.isNamespaceImport(b)) namespaces.add(b.name.text);
+        if (b !== undefined && ts.isNamedImports(b)) {
+          for (const e of b.elements) named.set(e.name.text, (e.propertyName ?? e.name).text);
+        }
+      }
+    }
+    if (ts.isCallExpression(n) && n.arguments.length > 0) {
+      const a = n.arguments[0] as ts.Expression;
+      const callee = n.expression;
+      const loads =
+        callee.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(callee) && callee.text === "require");
+      if (loads && ts.isStringLiteral(a) && (isFs(a.text) || isFsPromises(a.text))) {
+        refuse("fsBindings", sf, n, `a ${ts.isIdentifier(callee) ? "require" : "dynamic import"} of ${a.text}`);
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return { namespaces, named };
+}
+
+/** True when `id` is the callee of the call expression around it. */
+function isCallee(id: ts.Node): boolean {
+  return ts.isCallExpression(id.parent) && id.parent.expression === id;
+}
+
+/**
+ * Every node:fs use of `sf`, as [imported name, the node that names it, whether it is a callee]. A namespace
+ * binding used other than as `<ns>.<member>`, or as `<ns>[...]`, is refused: a read could escape the derivation.
+ */
+function fsUses(sf: ts.SourceFile): { name: string; node: ts.Node; called: boolean }[] {
+  const { namespaces, named } = fsBindings(sf);
+  const out: { name: string; node: ts.Node; called: boolean }[] = [];
+  const inImport = (n: ts.Node): boolean => {
+    for (let p: ts.Node | undefined = n; p !== undefined; p = p.parent) if (ts.isImportDeclaration(p)) return true;
+    return false;
+  };
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n) && !inImport(n)) {
+      const p = n.parent;
+      const isMemberName = ts.isPropertyAccessExpression(p) && p.name === n;
+      const isKey = (ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p)) && p.name === n;
+      if (namespaces.has(n.text) && !isMemberName && !isKey) {
+        if (!ts.isPropertyAccessExpression(p) || p.expression !== n) {
+          refuse("deriveReadSites", sf, n, `the node:fs namespace ${n.text} is used as a value (${ts.SyntaxKind[p.kind]})`);
+        }
+        out.push({ name: p.name.text, node: p.name, called: isCallee(p) });
+      } else if (named.has(n.text) && !isMemberName && !isKey) {
+        out.push({ name: named.get(n.text) as string, node: n, called: isCallee(n) });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** True when `name` is one of FS_READ_FNS. */
+function isReadFn(name: string): name is FsReadFn {
+  return (FS_READ_FNS as readonly string[]).includes(name);
+}
+
+/**
+ * Every read site of the .js at `jsPath`: one per call whose callee resolves through the file's own node:fs
+ * import bindings to a member of FS_READ_FNS, in source order. A read function used other than as a callee (passed,
+ * stored) is refused by line, because a call through that value would be a site the derivation cannot see.
+ */
+export function deriveReadSites(jsPath: string): readonly ReadSite[] {
+  const sf = parseJs(jsPath);
+  const ordinals = new Map<string, number>();
+  const sites: ReadSite[] = [];
+  for (const use of fsUses(sf)) {
+    if (!isReadFn(use.name)) continue;
+    if (!use.called) refuse("deriveReadSites", sf, use.node, `the read function ${use.name} is used as a value`);
+    const enclosing = enclosingName(use.node);
+    const stem = `${enclosing}:${use.name}`;
+    const ordinal = ordinals.get(stem) ?? 0;
+    ordinals.set(stem, ordinal + 1);
+    sites.push({ key: `${stem}#${ordinal}`, fn: use.name, line: lineOf(sf, use.node), enclosing });
+  }
+  return sites;
+}
+
+/** Every node:fs name the .js at `jsPath` uses (imported or referenced), sorted, each once. */
+export function classifiedFsCalls(jsPath: string): readonly string[] {
+  const sf = parseJs(jsPath);
+  const { named } = fsBindings(sf);
+  const names = new Set<string>([...named.values(), ...fsUses(sf).map((u) => u.name)]);
+  return [...names].sort();
+}
+
+/** The line V8 reports for the frame of the scope that runs `call`: the line of its callee's name token. */
+function calleeNameLine(sf: ts.SourceFile, call: ts.CallExpression): number {
+  const c = call.expression;
+  if (ts.isIdentifier(c)) return lineOf(sf, c);
+  if (ts.isPropertyAccessExpression(c)) return lineOf(sf, c.name);
+  return refuse("callingSites", sf, call, `a call whose callee is a ${ts.SyntaxKind[c.kind]}`);
+}
+
+/** The call expression `obj` is an argument value of, or null. */
+function callTakingArgument(obj: ts.Node): ts.CallExpression | null {
+  const p = obj.parent;
+  return ts.isCallExpression(p) && p.arguments.some((a) => a === obj) ? p : null;
+}
+
+/**
+ * Every call expression through which control enters the function `name` in the .js at `jsPath`, in source order.
+ * `direct`: the call's callee is the identifier `name`, or a property access whose name is `name` (an `io.readText`
+ * call into a function handed on as an object property); `line` is the line of that callee's name token. `passed`:
+ * `name` is an argument value of a call, directly or as a property (shorthand or not) of an object literal argument;
+ * `line` is the line of that outer call's callee name token. The function's own declaration and its self-calls are
+ * not entries. Any other reference to `name` (stored, assigned, returned, exported), a property read of a member
+ * called `name` that is not a call, or a second declaration of `name`, throws naming the file and the line.
+ */
+export function callingSites(jsPath: string, name: string): readonly CallingSite[] {
+  const sf = parseJs(jsPath);
+  const declarations: (ts.FunctionDeclaration | ts.VariableDeclaration)[] = [];
+  const visitDecl = (n: ts.Node): void => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === name) declarations.push(n);
+    if (
+      ts.isVariableDeclaration(n) &&
+      ts.isIdentifier(n.name) &&
+      n.name.text === name &&
+      n.initializer !== undefined &&
+      (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))
+    ) {
+      declarations.push(n);
+    }
+    ts.forEachChild(n, visitDecl);
+  };
+  visitDecl(sf);
+  if (declarations.length !== 1) {
+    throw new Error(
+      `callingSites: ${jsPath}: ${name} has ${declarations.length} function declaration(s)` +
+        `${declarations.length === 0 ? "" : ` (lines ${declarations.map((d) => lineOf(sf, d)).join(", ")})`}; ` +
+        "it must have exactly one",
+    );
+  }
+  const decl = declarations[0] as ts.FunctionDeclaration | ts.VariableDeclaration;
+  const declName = decl.name as ts.Identifier;
+  const body = ts.isFunctionDeclaration(decl) ? decl.body : (decl.initializer as ts.ArrowFunction | ts.FunctionExpression).body;
+  const insideOwnBody = (n: ts.Node): boolean =>
+    body !== undefined && n.getStart(sf) >= body.getStart(sf) && n.getEnd() <= body.getEnd();
+  const out: CallingSite[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n) && n.text === name && n !== declName) {
+      const p = n.parent;
+      if (ts.isPropertyAccessExpression(p) && p.name === n) {
+        if (!isCallee(p)) refuse("callingSites", sf, n, `a property read of a member named ${name} that is not a call`);
+        out.push({ scope: enclosingName(p), line: lineOf(sf, n), kind: "direct" });
+      } else if ((ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p)) && p.name === n) {
+        // A property key, not a reference to the binding.
+      } else if (isCallee(n)) {
+        if (!insideOwnBody(n)) out.push({ scope: enclosingName(n), line: lineOf(sf, n), kind: "direct" });
+      } else {
+        const call =
+          callTakingArgument(n) ??
+          ((ts.isShorthandPropertyAssignment(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.initializer === n)
+            ? ts.isObjectLiteralExpression(p.parent)
+              ? callTakingArgument(p.parent)
+              : null
+            : null);
+        if (call === null) refuse("callingSites", sf, n, `${name} is referenced as a ${ts.SyntaxKind[p.kind]}, not a call or a call argument`);
+        out.push({ scope: enclosingName(call), line: calleeNameLine(sf, call), kind: "passed" });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
 
 /** A frame position: the script's file URL (as V8 prints it) and a 1-based line. */
 export interface FrameSite {
