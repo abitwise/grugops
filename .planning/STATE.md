@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-19-PLAN.md
-last_updated: "2026-10-23T12:19:19.236Z"
-last_activity: 2026-10-22
-last_activity_desc: Completed 37-19 (own board, NFR catalog and progress file on the v3 seed forms with nothing lost; own layout marker at memory-bank/plans/.layout; a copy of the own state grown past BUDGETS.boardBytes makes the validator exit 1; CI runs state-check on the own tree; final full run shows only the 20 baseline failures and every plan gate exits 0)
-state_head: 7b7b8f6353dc1f512597c5d802d1895e72fdc62e
+stopped_at: Completed 37-20-PLAN.md
+last_updated: "2026-10-23T13:13:36.325Z"
+last_activity: 2026-10-23
+last_activity_desc: Phase 37 execution started
+state_head: 0304268b851dd3c2ac745b919bd3826080e39e87
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 42
-  completed_plans: 34
+  completed_plans: 35
   percent: 22
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 
 ## Current Position
 
-Phase: 37 (Overview board, per-file records and budgets) — READY TO EXECUTE
-Plan: 19 of 19
+Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
+Plan: 21 of 27
 Status: Ready to execute
-Last activity: 2026-10-22 — Completed 37-19 (own board, NFR catalog and progress file on the v3 seed forms with nothing lost; own layout marker at memory-bank/plans/.layout; a copy of the own state grown past BUDGETS.boardBytes makes the validator exit 1; CI runs state-check on the own tree; final full run shows only the 20 baseline failures and every plan gate exits 0)
+Last activity: 2026-10-23 — Phase 37 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -748,6 +748,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P17 | 10 min | 2 tasks | 9 files |
 | Phase 37 P18 | 39min | 3 tasks | 11 files |
 | Phase 37 P19 | 47min | 2 tasks | 9 files |
+| Phase 37 P20 | 26 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -2055,6 +2056,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-18: scripts/trace-instructions.test.ts imports HAND_TRACE_PATTERNS from trace-model.ts and counts its git ls-files scan set against a per-directory second listing; Publish stays out of the approved step-verb set (WF03 keeps Record)
 - [Phase 37]: 37-19: grugops's own layout marker sits at LAYOUT_MARKER_REL (memory-bank/plans/.layout, D-14 option a), placed after state-check reported no finding; the own tree now runs the validator and state-check in FAIL mode, and CI runs both
 - [Phase 37]: 37-19: the own-state migration moved no state (0 board rows, 0 NFR rows, 0 progress entries); check-diff-disposition stays at 707 findings, unchanged by 37-19, for a human to decide
+- [Phase 37]: 37-20: state-roll's unexpected-throw line names every roll written and proven by surface (not only Done via doneStands), and every handler line ends with the runnable's own sentence; none says nothing was rolled or written
 
 ### Pending Todos
 
@@ -2386,8 +2388,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-22T19:56:44.964Z
-Stopped at: Completed 37-19-PLAN.md
+Last session: 2026-10-23T13:13:36.040Z
+Stopped at: Completed 37-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
