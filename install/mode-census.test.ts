@@ -102,9 +102,12 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * scripts/trace-model.test.ts, which has no chmod call and reads no `.mode` (it calls pure functions only).
  * SCRIPTS_TEST_FILE_COUNT 78 -> 79 (2026-10-22, plan 37-18, re-derived by listing scripts/, not incremented) for
  * scripts/trace-instructions.test.ts, which has no chmod call and reads no `.mode` (it lists tracked files with git
- * and reads their text). */
+ * and reads their text).
+ * SCRIPTS_TEST_FILE_COUNT 79 -> 80 (2026-10-23, plan 37-26, re-derived by listing scripts/, not incremented) for
+ * scripts/validate-read-sites.test.ts, which has no chmod call and reads no `.mode` (it fails the validator's reads
+ * with an injected EIO through the fault-injection preload). */
 const INSTALL_TEST_FILE_COUNT = 39;
-const SCRIPTS_TEST_FILE_COUNT = 79;
+const SCRIPTS_TEST_FILE_COUNT = 80;
 const SOURCE_FILE_COUNT = 10;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial

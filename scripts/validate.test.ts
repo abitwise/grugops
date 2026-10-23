@@ -3993,3 +3993,42 @@ describe("IN-03: an unreachable state directory or layout marker is a named find
     }
   });
 });
+
+// ── READ-1 outside the budget pass: a read the checks could not make is an ERROR by path (plan 37-26, D-17) ──
+//
+// Before plan 37-26 the helpers caught every read error to an empty list or null: an unlistable tickets directory was
+// zero tickets (checkTickets passed vacuously, D-43), and an unreadable role file was skipped by its section check.
+// These are not budget facts, so they are ERRORS whatever the layout marker says; the trees below carry no marker.
+
+describe("READ-1: an unlistable tickets directory and an unreadable role file are ERRORS by path, never skipped (plan 37-26, D-17)", () => {
+  it("a tickets directory at mode 000: exit 1, an ERROR saying the directory could not be listed (EACCES)", () => {
+    const skip = mode000SkipReason();
+    if (skip !== null) {
+      console.warn(`SKIPPED (plan 37-26 READ-1): ${skip}`);
+      return;
+    }
+    const d = budgetTree();
+    writeFileSync(join(d, TICKETS_REL, "ABC-001.md"), READY_TICKET);
+    const r = withMode000(join(d, TICKETS_REL), () => runFixture(d));
+    expect(r.status, out(r)).toBe(1);
+    const errs = tagged(r, "ERROR").filter((l) => untagged(l) === `${TICKETS_REL}: the directory could not be listed (EACCES)`);
+    expect(errs, out(r)).toHaveLength(1);
+    expect(r.stdout ?? "", out(r)).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("a role file at mode 000 in a scratch kit: exit 1, an ERROR saying it exists but could not be read (EACCES)", () => {
+    const skip = mode000SkipReason();
+    if (skip !== null) {
+      console.warn(`SKIPPED (plan 37-26 READ-1): ${skip}`);
+      return;
+    }
+    const kit = copyGoodKit(true);
+    const rel = "agent-factory/roles/qe-e2e.md";
+    expect(existsSync(join(kit, rel)), "PREMISE: the good kit carries the role file").toBe(true);
+    const r = withMode000(join(kit, rel), () => runSplit(kit, kit));
+    expect(r.status, out(r)).toBe(1);
+    const errs = tagged(r, "ERROR").filter((l) => untagged(l) === `${rel}: exists but could not be read (EACCES)`);
+    expect(errs, out(r)).toHaveLength(1);
+    expect(r.stdout ?? "", out(r)).not.toContain("ALL CHECKS PASSED");
+  });
+});

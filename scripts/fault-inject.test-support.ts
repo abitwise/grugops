@@ -463,13 +463,15 @@ export interface FaultedRun {
 
 /**
  * Run `node --import <preload> <js> ...args` with `spec` injected. `opts.scratch` is an mkdtempSync directory
- * that holds the preload and a per-run log; `opts.cwd` defaults to it.
+ * that holds the preload and a per-run log; `opts.cwd` defaults to it. `opts.env` adds to the inherited environment
+ * (plan 37-26: the validator takes its two roots from VALIDATE_KIT_ROOT and VALIDATE_ROOT); the two fault names
+ * are set last, so `opts.env` cannot replace them.
  */
 export function runFaulted(
   js: string,
   args: readonly string[],
   spec: FaultSpec,
-  opts: { readonly scratch: string; readonly cwd?: string },
+  opts: { readonly scratch: string; readonly cwd?: string; readonly env?: Readonly<Record<string, string>> },
 ): FaultedRun {
   const preload = writeFaultPreload(opts.scratch);
   const logDir = mkdtempSync(join(opts.scratch, "fault-log-"));
@@ -479,7 +481,7 @@ export function runFaulted(
     encoding: "utf8",
     cwd: opts.cwd ?? opts.scratch,
     timeout: 30_000,
-    env: { ...process.env, [FAULT_SPEC_ENV]: JSON.stringify(spec), [FAULT_LOG_ENV]: logPath },
+    env: { ...process.env, ...opts.env, [FAULT_SPEC_ENV]: JSON.stringify(spec), [FAULT_LOG_ENV]: logPath },
   });
   const lines = readFileSync(logPath, "utf8").split("\n").filter((l) => l !== "");
   const summary = lines.find((l) => l.startsWith("summary site-not-via "));

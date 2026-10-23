@@ -51,7 +51,7 @@
 // try/catch so a missing or garbled file becomes a finding, never an unhandled throw
 // (T-06-01/T-06-03, mirrors the MCP admission gate's and install.ts's fail-closed posture).
 
-import { readFileSync, existsSync, lstatSync, readdirSync, realpathSync, statSync, type Stats } from "node:fs";
+import { readFileSync, lstatSync, readdirSync, realpathSync, statSync, type Stats } from "node:fs";
 import { join, resolve, sep } from "node:path";
 // Phase 27 (KIT-02): the role and workflow name sets are DERIVED here, never hand-listed.
 // kit-model.ts is the single authority for "which roles and workflows exist" (KIT-01). It reads NO
@@ -232,37 +232,57 @@ function recordReadFailure(abs: string, message: string): void {
   err(message);
 }
 
-// ── Safe filesystem helpers, forked per root (try/catch → null/false/[]; never throw) ────────
-// kit* resolve under KIT_ROOT; state* resolve under STATE_ROOT. Each keeps the fail-closed
-// posture verbatim so a missing/garbled file becomes a finding, never an unhandled throw.
-const kitExists = (rel: string): boolean => existsSync(join(KIT_ROOT, rel));
-const kitRead = (rel: string): string | null => {
-  try {
-    return readFileSync(join(KIT_ROOT, rel), "utf8");
-  } catch {
-    return null;
+// ── The recording helpers, forked per root (never throw) ──────────────────────────────────────
+// kit* resolve under KIT_ROOT; state* resolve under STATE_ROOT. (Plan 37-26, D-17, READ-1) They used to catch every
+// read error to false, null or an empty list, so an unreadable role file skipped its section check and an unlistable
+// tickets directory was zero tickets. Now ENOENT alone is absence (false, null, []), and any other failure is recorded
+// as one ERROR naming the path and the code, whatever the layout marker says: these are not budget facts. An existence
+// test that fails answers "present", so the caller goes on to read the path; that read fails too and is not recorded
+// a second time.
+
+/** Whether the stat'ed path exists; a failure is recorded and answers present. */
+function presentOrRecorded(abs: string, rel: string, st: ReadResult<Stats>): boolean {
+  if (st.kind === "failed") {
+    recordReadFailure(abs, `${rel}: could not be inspected (${st.code}), so it was not checked`);
+    return true;
   }
+  return st.kind === "ok";
+}
+
+/** The read text, or null; a failure is recorded. */
+function textOrRecorded(abs: string, rel: string, text: ReadResult<string>): string | null {
+  if (text.kind === "failed") recordReadFailure(abs, `${rel}: exists but could not be read (${text.code})`);
+  return text.kind === "ok" ? text.value : null;
+}
+
+const kitExists = (rel: string): boolean => {
+  const abs = join(KIT_ROOT, rel);
+  return presentOrRecorded(abs, rel, statAt(abs));
+};
+const kitRead = (rel: string): string | null => {
+  const abs = join(KIT_ROOT, rel);
+  return textOrRecorded(abs, rel, textAt(abs));
 };
 // (27-53, IN-01) THE KIT-SIDE LIST HELPER IS GONE. Its callers left with the kit sets when those
 // moved to scripts/kit-model.ts (KIT-01), and it was this repository's ONLY `--noUnusedLocals`
 // error — the single thing standing between the tree and two compiler flags that keep the next
-// migration's residue from surviving silently. The `readdirSync` import STAYS: `stateListDir`
-// below still uses it, confirmed by reading rather than assumed.
+// migration's residue from surviving silently. (Plan 37-26) The `readdirSync` import stays for
+// `namesAt`, the one directory read; `stateListDir` below reads through it.
 
-const stateExists = (rel: string): boolean => existsSync(join(STATE_ROOT, rel));
-const stateRead = (rel: string): string | null => {
-  try {
-    return readFileSync(join(STATE_ROOT, rel), "utf8");
-  } catch {
-    return null;
-  }
+const stateExists = (rel: string): boolean => {
+  const abs = join(STATE_ROOT, rel);
+  return presentOrRecorded(abs, rel, statAt(abs));
 };
+const stateRead = (rel: string): string | null => {
+  const abs = join(STATE_ROOT, rel);
+  return textOrRecorded(abs, rel, textAt(abs));
+};
+/** The directory's entry names; an absent directory is none, and a directory that cannot be listed is recorded. */
 const stateListDir = (rel: string): string[] => {
-  try {
-    return existsSync(join(STATE_ROOT, rel)) ? readdirSync(join(STATE_ROOT, rel)) : [];
-  } catch {
-    return [];
-  }
+  const abs = join(STATE_ROOT, rel);
+  const names = namesAt(abs);
+  if (names.kind === "failed") recordReadFailure(abs, `${rel}: the directory could not be listed (${names.code})`);
+  return names.kind === "ok" ? names.value : [];
 };
 
 // ── Derived name lists (KIT-02, Phase 27 — the frozen arrays are DELETED) ────────────────────
@@ -436,7 +456,7 @@ function checkRoleSections(): void {
   for (const r of ROLES) {
     const rel = `agent-factory/roles/${r}.md`;
     const text = kitRead(rel);
-    if (text === null) continue; // missing-file already reported by checkRequiredFiles
+    if (text === null) continue; // absent: checkRequiredFiles reports it; unreadable: kitRead recorded it
     checkSections(rel, text, ROLE_SECTIONS, "role");
   }
 }
@@ -446,7 +466,7 @@ function checkWorkflowSections(): void {
   for (const w of WORKFLOWS) {
     const rel = `agent-factory/workflows/${w}.md`;
     const text = kitRead(rel);
-    if (text === null) continue;
+    if (text === null) continue; // absent: checkRequiredFiles reports it; unreadable: kitRead recorded it
     checkSections(rel, text, WORKFLOW_SECTIONS, "workflow");
   }
 }
@@ -551,11 +571,17 @@ const governanceBaseContributions: number[] = [];
  * SCOPE line double-list the same file. Resolving the BASE (which exists, or the run has already
  * failed elsewhere) rather than each candidate keeps this out of the throwing path that
  * `V-30-10-04` item 1 records as the reason the dedupe was left spelling-based.
+ *
+ * (Plan 37-26, D-17, READ-1) A base that does not exist (ENOENT) falls back to its spelling silently, as before. Any
+ * other failure is recorded as an ERROR naming the base and falls back too, so the run goes on to check what it can
+ * and cannot pass.
  */
 function canonicalBase(base: string): string {
   try {
     return realpathSync(base);
-  } catch {
+  } catch (e) {
+    const code = errnoCode(e);
+    if (code !== "ENOENT") recordReadFailure(base, `${base}: could not be resolved (${code})`);
     return resolve(base);
   }
 }
@@ -591,21 +617,24 @@ function checkConfig(): void {
       governanceBaseContributions[b] += 1;
       // ABSENT is the documented lean default and never a finding (SC4 / AUTO-07). A missing in-kit
       // config is separately reported by the required-file check, so absence stays silent here.
-      if (!existsSync(abs)) continue;
-      let raw: string | null;
-      try {
-        raw = readFileSync(abs, "utf8");
-      } catch {
-        raw = null;
-      }
+      // (Plan 37-26, READ-1) Only ENOENT is absent: a position that cannot be inspected (EACCES on a
+      // parent, EIO) is an ERROR, never the lean default.
+      const st = statAt(abs);
+      if (st.kind === "absent") continue;
       const label = relativeToBase(base, abs);
       governanceExamined.push(label);
-      if (raw === null) {
-        // It EXISTS and could not be read. The reader calls that `unreadable` and fails closed on
-        // it; this gate says so rather than passing over a file it could not examine.
-        err(`${label}: exists but could not be read`);
+      if (st.kind === "failed") {
+        recordReadFailure(abs, `${label}: could not be inspected (${st.code}), so it was not checked`);
         continue;
       }
+      const text = textAt(abs);
+      if (text.kind !== "ok") {
+        // It EXISTS and could not be read. The reader calls that `unreadable` and fails closed on
+        // it; this gate says so rather than passing over a file it could not examine.
+        recordReadFailure(abs, `${label}: exists but could not be read (${codeOf(text)})`);
+        continue;
+      }
+      const raw = text.value;
       // THE REQUIRED-KEY LOOP RUNS ONLY WHERE THOSE KEYS ARE READ (round 3, reviewer 4 obs. 4).
       //
       // F1 applied the WHOLE per-file predicate at a position that previously had no predicate, so
@@ -839,7 +868,7 @@ function checkTickets(): void {
   for (const f of ticketFiles) {
     const rel = `${TICKETS_REL}/${f}`;
     const text = stateRead(rel);
-    if (text === null) continue;
+    if (text === null) continue; // vanished since the listing, or unreadable: stateRead recorded it
     // A TICKET'S FRONTMATTER IS ASKED OF THE GRAMMAR, NOT RE-READ HERE (DASH-01 / D-06, plan 32-12).
     // This file used to carry its own `^column:` / `^status:` regex pair, which made the validator
     // a SECOND authority on what a ticket says. The two readers disagreed by construction on three
@@ -1118,7 +1147,7 @@ function checkRoleSwitchProtocol(): void {
   }
   const orchRel = "agent-factory/roles/orchestrator.md";
   const orch = kitRead(orchRel);
-  if (orch === null) return; // missing-file already reported by checkRequiredFiles
+  if (orch === null) return; // absent: checkRequiredFiles reports it; unreadable: kitRead recorded it
   if (!orch.includes("_role-switch-protocol")) {
     err(`${orchRel}: does not reference the role-switch protocol (_role-switch-protocol)`);
   }
@@ -1139,7 +1168,7 @@ function checkWorkflowCommit(): void {
   for (const w of WORKFLOWS) {
     const rel = `agent-factory/workflows/${w}.md`;
     const text = kitRead(rel);
-    if (text === null) continue; // missing-file already reported by checkRequiredFiles
+    if (text === null) continue; // absent: checkRequiredFiles reports it; unreadable: kitRead recorded it
     const hasCommit = text.split("\n").some((l) => l.startsWith("## Commit"));
     if (!hasCommit) {
       err(`${rel}: missing required "## Commit" section`);
