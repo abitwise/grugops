@@ -113,6 +113,10 @@ export type EmbedSpec = {
  * Plan 37-24 (2026-10-23) adds scripts/runnable-stamp.ts readRunnableStamp to the state checker's row (D-17, WR-05,
  * AUTH-1): state-check reads the build stamp of trace-render.js and state-roll.js beside it with the one reader of
  * the stamp line's shape, and reports runnable-version-skew when a stamp differs from its own.
+ * Plan 37-28 (2026-10-23) adds scripts/context-io.ts entryPresence to the context-io roots of the state checker's
+ * row and the trace renderer's row (D-18, CR-03, READ-1 round 2): the one absence owner, under which only an lstat
+ * ENOENT is "nothing there", so a dangling `notes` link is a failed task in both runnables, never a task with no
+ * notes.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -186,7 +190,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
       },
       {
         module: "scripts/context-io.ts",
-        roots: ["readRegularFileOrNull", "readRawNotesWithSkips", "recordFromParsed", "NOTE_SKIP_ARMS"],
+        roots: ["readRegularFileOrNull", "readRawNotesWithSkips", "recordFromParsed", "NOTE_SKIP_ARMS", "entryPresence"],
       },
       { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },
     ],
@@ -224,7 +228,14 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
       },
       {
         module: "scripts/context-io.ts",
-        roots: ["readRawNotesWithSkips", "recordFromParsed", "readRegularFileOrNull", "atomicWrite", "NOTE_SKIP_ARMS"],
+        roots: [
+          "readRawNotesWithSkips",
+          "recordFromParsed",
+          "readRegularFileOrNull",
+          "atomicWrite",
+          "NOTE_SKIP_ARMS",
+          "entryPresence",
+        ],
       },
     ],
   },

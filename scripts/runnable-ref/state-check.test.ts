@@ -21,6 +21,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -1284,6 +1285,49 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
         }
       },
     );
+  }
+
+  // Plan 37-28 (D-18, CR-03, READ-1 round 2): a dangling `notes` link is a failed task, never a task with no notes.
+  // The link's target is renamed after the render, so the link dangles; only an lstat ENOENT is absence (the
+  // embedded entryPresence), so the task is one trace-not-compared finding by name, with and without the marker,
+  // in both context roots (D-03), and no TRACE line says fresh.
+  for (const contextRel of [CONTEXT_REL, CONTEXT_ARCHIVE_REL] as const) {
+    it(`CR-03: ${contextRel}: a dangling notes link is trace-not-compared naming the task, with and without the D-14 marker, never fresh`, () => {
+      for (const marker of [LAYOUT_MARKER_CONTENT, undefined]) {
+        const root = cleanRepo(marker);
+        const taskDir = join(root, ...contextRel.split("/"), "taskA");
+        plant(root, `${contextRel}/taskA/real-notes/n1.md`, noteText("n1", ["ABC-001", "src/a.ts"]));
+        const skipped = stageSymlinkOrSkip(
+          join(taskDir, "real-notes"),
+          join(taskDir, "notes"),
+          "symlink to a directory inside the repository root",
+          `scripts/runnable-ref/state-check.test.ts: the CR-03 dangling notes link (plan 37-28, ${contextRel})`,
+        );
+        if (skipped !== null) {
+          console.warn(skipLine(skipped, "the CR-01 rows of this describe (the same failed-task rule)"));
+          return;
+        }
+        renderOk(root);
+        expect(lstatSync(join(root, ...TRACE_DIR_REL.split("/"), "ABC-001.md")).isFile(), "PREMISE: ABC-001.md was rendered").toBe(true);
+        renameSync(join(taskDir, "real-notes"), join(taskDir, "moved-notes"));
+        expect(lstatSync(join(taskDir, "notes")).isSymbolicLink(), "PREMISE: notes is still a link").toBe(true);
+        const text = run(root);
+        const j = runJson(root);
+        const expected = marker === undefined ? 0 : 1;
+        expect(text.status, `${text.stdout} ${text.stderr}`).toBe(expected);
+        expect(text.stdout).not.toContain("The trace is fresh");
+        expect(traceReportLines(text.stdout)).toEqual([]);
+        const lines = traceLines(text.stdout);
+        expect(lines).toHaveLength(1);
+        const rel = `${contextRel}/taskA`.replace(/[.]/g, "\\.");
+        expect(lines[0]).toMatch(new RegExp(`^${marker === undefined ? "WARN {5}" : "FINDING {2}"}${rel}: .*\\(trace-not-compared\\)$`));
+        expect(j.status).toBe(expected);
+        expect(j.report.trace.compared).toBe(false);
+        expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-not-compared|${contextRel}/taskA`]);
+        expect(j.report.trace.findings[0]?.note).toContain("this task's notes could not be read (");
+        expect(j.report.trace.findings[0]?.note).toContain("symbolic link");
+      }
+    });
   }
 
   it("the embedded region carries the comparison and no writer: compareTraceTree once, atomicWrite never", () => {

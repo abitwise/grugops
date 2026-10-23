@@ -109,9 +109,9 @@ import * as nodePath from "node:path";
 
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 import { createHash } from "node:crypto";
-import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:4f9ef10f423294e9367c9eb9bc11c072e09505f6b221144ed646bb9539466581";
+import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { join, parse, resolve, sep } from "node:path";
+export const RUNNABLE_SET_STAMP = "sha256:ba6f9060c83ef007879f977837a929d6b9815bd1299f4a11be694a11e47fa2a6";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
@@ -1598,16 +1598,89 @@ interface RawNoteRead {
   readonly notes: RawNote[];
   readonly skipped: SkippedNoteEntry[];
 }
-function readRawNotesWithSkips(task: string, contextRoot: string): RawNoteRead {
+export type EntryPresence =
+  | { readonly kind: "absent" }
+  | { readonly kind: "unreadable"; readonly code: string; readonly reason: string }
+  | { readonly kind: "present"; readonly entry: Stats; readonly target: Stats; readonly real: string };
+function presenceCode(e: unknown): string {
+  const code = (e as NodeJS.ErrnoException | null)?.code;
+  return typeof code === "string" && code !== "" ? code : "unknown";
+}
+export function entryPresence(path: string): EntryPresence {
+  const full = resolve(path);
+  const top = parse(full).root;
+  // Every prefix from the filesystem root to the path itself, so one lstat, one stat and one realpath answer for
+  // every component.
+  const prefixes: string[] = [top];
+  for (const name of full.slice(top.length).split(sep)) {
+    if (name !== "") prefixes.push(join(prefixes[prefixes.length - 1] as string, name));
+  }
+  for (let i = 0; ; i += 1) {
+    const at = prefixes[i] as string;
+    const last = i === prefixes.length - 1;
+    let entry: Stats;
+    try {
+      entry = lstatSync(at);
+    } catch (e) {
+      const code = presenceCode(e);
+      if (code === "ENOENT") return { kind: "absent" };
+      return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})` };
+    }
+    let target = entry;
+    if (entry.isSymbolicLink()) {
+      try {
+        target = statSync(at);
+      } catch (e) {
+        const code = presenceCode(e);
+        return {
+          kind: "unreadable",
+          code,
+          reason: last
+            ? `it is a symbolic link whose target cannot be reached (${code})`
+            : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+        };
+      }
+    }
+    if (!last) {
+      if (!target.isDirectory()) {
+        return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)` };
+      }
+      continue;
+    }
+    let real: string;
+    try {
+      real = realpathSync(at);
+    } catch (e) {
+      const code = presenceCode(e);
+      return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})` };
+    }
+    return { kind: "present", entry, target, real };
+  }
+}
+function codedError(message: string, code: string): Error {
+  const err = new Error(message) as NodeJS.ErrnoException;
+  err.code = code;
+  return err;
+}
+function readRawNotesWithSkips(task: string, contextRoot: string, boundary: string | null = null): RawNoteRead {
   assertSafeTask(task);
   const notesDir = join(contextRoot, task, "notes");
-  // ONLY ENOENT IS ABSENCE (plan 37-21, D-17, READ-1 of the phase-37 gap-planning brief). The existence test
-  // this replaced answered false for EACCES on a parent as well as for ENOENT, so a task whose directory could
-  // not be searched read as a task with no notes, and the trace render then removed that ticket's trace file
-  // (CR-01). `throwIfNoEntry: false` answers undefined for a missing path only; any other failure throws and
-  // reaches the trace model as a failed task. A present non-directory goes on to readdirSync, which throws
-  // ENOTDIR.
-  if (statSync(notesDir, { throwIfNoEntry: false }) === undefined) return { notes: [], skipped: [] };
+  // ONLY AN LSTAT ENOENT IS ABSENCE (plan 37-28, D-18, CR-03, IN-06). The question is entryPresence's, the one
+  // owner: a missing notes directory is a task with no notes, and anything else that stops the read throws and
+  // reaches the trace model as a failed task. The stat this replaced (plan 37-21) answered undefined for ENOTDIR
+  // and for a dangling link as well as for ENOENT, so its premise ("a missing path only") was false (IN-06), and a
+  // dangling `notes` link read as a task with no notes (CR-03).
+  const presence = entryPresence(notesDir);
+  if (presence.kind === "absent") return { notes: [], skipped: [] };
+  if (presence.kind === "unreadable") {
+    throw codedError(`context-io: the notes directory "${notesDir}" could not be read: ${presence.reason}`, presence.code);
+  }
+  if (!presence.target.isDirectory()) {
+    throw codedError(`context-io: the notes directory "${notesDir}" is not a directory (ENOTDIR)`, "ENOTDIR");
+  }
+  if (boundary !== null && presence.real !== boundary && !presence.real.startsWith(boundary + sep)) {
+    throw new Error("its notes directory resolves outside the repository root, so it was not read");
+  }
   const skipped: SkippedNoteEntry[] = [];
   const out: RawNote[] = [];
   for (const file of readdirSync(notesDir)) {

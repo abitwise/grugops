@@ -79,7 +79,7 @@ import * as nodePath from "node:path";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 import { randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-export const RUNNABLE_SET_STAMP = "sha256:4f9ef10f423294e9367c9eb9bc11c072e09505f6b221144ed646bb9539466581";
+export const RUNNABLE_SET_STAMP = "sha256:ba6f9060c83ef007879f977837a929d6b9815bd1299f4a11be694a11e47fa2a6";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "state-roll.js";
 // from install/state-layout.ts

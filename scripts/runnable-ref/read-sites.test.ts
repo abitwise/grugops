@@ -90,9 +90,13 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * The derived read-site counts of the committed runnables, embedded region included.
  * 2026-10-23, plan 37-25: 16, 19 and 11 read sites, measured after plans 37-20 to 37-24; at d9fa837c 16, 18 and
  * 11. state-check gained the realpath of its own directory in plan 37-24 (runnableSkewFindings).
+ * 2026-10-23, plan 37-28 (Task 1): 18, 21 and 11 read sites. In trace-render and state-check the walk's
+ * `readRawNotesWithSkips:statSync#0` (the stat with throwIfNoEntry false, CR-03) is gone and the one absence
+ * owner's three sites take its place: `entryPresence:lstatSync#0`, `entryPresence:statSync#0` and
+ * `entryPresence:realpathSync#0` (net +2 each). state-roll does not embed the walk.
  */
-const TRACE_RENDER_READ_SITES = 16;
-const STATE_CHECK_READ_SITES = 19;
+const TRACE_RENDER_READ_SITES = 18;
+const STATE_CHECK_READ_SITES = 21;
 const STATE_ROLL_READ_SITES = 11;
 const PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_READ_SITES,
@@ -132,8 +136,12 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "readRegularFileOrNull:openSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
   ...rows("trace-render", TR, "readRegularFileOrNull:fstatSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
   ...rows("trace-render", TR, "readRegularFileOrNull:readSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
-  ...rows("trace-render", TR, "readRawNotesWithSkips:statSync#0"),
   ...rows("trace-render", TR, "readRawNotesWithSkips:readdirSync#0"),
+  // trace-render: the one absence owner (plan 37-28, D-18), asked by the walk; the notes link of the fixture
+  // reaches its stat.
+  ...rows("trace-render", TR, "entryPresence:lstatSync#0"),
+  ...rows("trace-render", TR, "entryPresence:statSync#0"),
+  ...rows("trace-render", TR, "entryPresence:realpathSync#0"),
   // trace-render: the root, realDirectoryOrNull (the context-root map, the state directory, the trace directory).
   ...rows("trace-render", TR, "<top>:realpathSync#0"),
   ...rows("trace-render", TR, "<top>:statSync#0"),
@@ -167,8 +175,11 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
     "readTraceText#0",
     "runnableSkewFindings#0",
   ]),
-  ...rows("state-check", SC, "readRawNotesWithSkips:statSync#0"),
   ...rows("state-check", SC, "readRawNotesWithSkips:readdirSync#0"),
+  // state-check: the one absence owner (plan 37-28, D-18), asked by the walk.
+  ...rows("state-check", SC, "entryPresence:lstatSync#0"),
+  ...rows("state-check", SC, "entryPresence:statSync#0"),
+  ...rows("state-check", SC, "entryPresence:realpathSync#0"),
   // state-check: the root, locate under each caller, and the hand-written readers.
   ...rows("state-check", SC, "<top>:realpathSync#0"),
   ...rows("state-check", SC, "<top>:statSync#0"),
@@ -348,14 +359,15 @@ function linkOrSkip(target: string, at: string, position: string): string | null
  * trace-render's repository: a sealed note in the live context root and one in the archive context root, rendered.
  * Three paths are symbolic links to directories inside the root, so every branch of realDirectoryOrNull runs
  * under each of its three calls: the archive context root, `memory-bank/plans` (the state directory) and the trace
- * directory inside it. After the render, the trace directory gains a generated trace file the plan no longer holds
+ * directory inside it. A fourth, taskA's `notes` (plan 37-28), reaches the absence owner's stat of a link. After the render, the trace directory gains a generated trace file the plan no longer holds
  * (ABC-099.md, a copy of ABC-001.md): the trace model reads it as an extra file, which reaches its second readText
  * call, and the write mode would remove it, the CR-01 shape. So the unfaulted write mode removes one file and the
  * unfaulted --check is exit 1 with one EXTRA line.
  */
 function traceRenderRepo(): string | { readonly skip: string } {
   const root = mkTmp("grugops-read-sites-trace-repo-");
-  plant(root, `${CONTEXT_REL}/taskA/notes/n1.md`, noteText("n1", ["ABC-001", "src/a.ts"]));
+  // Plan 37-28: taskA's `notes` is a link to `real-notes`, so the absence owner's stat of a link is reached.
+  plant(root, `${CONTEXT_REL}/taskA/real-notes/n1.md`, noteText("n1", ["ABC-001", "src/a.ts"]));
   plant(root, `archive-context-real/taskB/notes/n2.md`, noteText("n2", ["ABC-002", "#41"]));
   mkdirSync(join(root, ...dirname(CONTEXT_ARCHIVE_REL).split("/")), { recursive: true });
   mkdirSync(join(root, "plans-real"));
@@ -367,6 +379,7 @@ function traceRenderRepo(): string | { readonly skip: string } {
     [join(root, "archive-context-real"), join(root, ...CONTEXT_ARCHIVE_REL.split("/"))],
     [join(root, "plans-real"), join(root, ...stateDirRel.split("/"))],
     [join(root, "trace-real"), join(root, ...TRACE_DIR_REL.split("/"))],
+    [join(root, ...CONTEXT_REL.split("/"), "taskA", "real-notes"), join(root, ...CONTEXT_REL.split("/"), "taskA", "notes")],
   ] as const) {
     const skip = linkOrSkip(target, at, position);
     if (skip !== null) return { skip };
@@ -393,14 +406,21 @@ const PROGRESS_OVER_BUDGET =
  * line; a trace rendered from both context roots; a progress file over budget with a dated entry; the queue-done
  * and decision folders with their archive folders. The siblings sit beside the state-check copy.
  */
-function stateCheckRepo(): string {
+function stateCheckRepo(): string | { readonly skip: string } {
   const root = mkTmp("grugops-read-sites-check-repo-");
   plant(root, LAYOUT_MARKER_REL, `${LAYOUT_MARKER_CONTENT}\n`);
   plant(root, BOARD_REL, "# Board\n\n## Ready (WIP unlimited)\n\n- [ABC-001] a ready ticket\n\n## Done (WIP unlimited)\n\n- [ABC-002] a done ticket\n");
   plant(root, `${TICKETS_REL}/ABC-001.md`, "# ABC-001\n");
   plant(root, NFR_CATALOG_REL, `# NFR catalog\n\n${NFR_LINE_001}`);
   plant(root, `${NFR_DIR_REL}/NFR-001.md`, "# NFR-001\n");
-  plant(root, `${CONTEXT_REL}/taskA/notes/n1.md`, noteText("n1", ["ABC-001", "NFR-001", "src/a.ts"]));
+  // Plan 37-28: taskA's `notes` is a link to `real-notes`, so the absence owner's stat of a link is reached.
+  plant(root, `${CONTEXT_REL}/taskA/real-notes/n1.md`, noteText("n1", ["ABC-001", "NFR-001", "src/a.ts"]));
+  const skip = linkOrSkip(
+    join(root, ...CONTEXT_REL.split("/"), "taskA", "real-notes"),
+    join(root, ...CONTEXT_REL.split("/"), "taskA", "notes"),
+    "scripts/runnable-ref/read-sites.test.ts: state-check's repository (plan 37-28)",
+  );
+  if (skip !== null) return { skip };
   plant(root, `${CONTEXT_ARCHIVE_REL}/taskB/notes/n2.md`, noteText("n2", ["ABC-002", "#41"]));
   mkdirSync(join(root, ...TRACE_DIR_REL.split("/")), { recursive: true });
   plant(root, PROGRESS_REL, PROGRESS_OVER_BUDGET);

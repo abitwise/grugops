@@ -22,6 +22,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   truncateSync,
   writeFileSync,
@@ -999,4 +1000,111 @@ describe("WR-01 call order: trace-render checks every planned file name before t
     expect(identifiersIn(guard.expression).has("CHECK")).toBe(false);
     expect(callsOutsideDeclarations(guard.thenStatement)).toContain("couldNotRun");
   });
+});
+
+// ── Plan 37-28 (D-18, CR-03, READ-1 round 2): a dangling notes link is a failed task, never a task with no notes ──
+// Round 1 closed the error-code form of CR-01. A link whose target is gone raises no error at the place that
+// decided absence (realpath ENOENT, and a stat with throwIfNoEntry false, both answered "absent"), so the task
+// read as zero notes and the write mode removed its trace file with exit 0. Only an lstat ENOENT is absence now
+// (scripts/context-io.ts entryPresence); a link whose target cannot be reached is a failed task by name.
+
+const CR03_POSITION = "scripts/runnable-ref/trace-render.test.ts: the CR-03 dangling notes link (plan 37-28)";
+const CONTEXT_ROOT_RELS = [CONTEXT_REL, CONTEXT_ARCHIVE_REL] as const;
+
+/** A repository state-check finds clean apart from its notes: the board, the NFR catalog, the progress file, the marker. */
+function stateBaseRepo(marker: boolean): string {
+  const root = repo();
+  plantFile(root, BOARD_REL, "# Board\n\n## Ready (WIP unlimited)\n\n## Done (WIP unlimited)\n");
+  plantFile(root, NFR_CATALOG_REL, "# NFR catalog\n");
+  plantFile(root, PROGRESS_REL, "# Progress\n");
+  if (marker) plantFile(root, LAYOUT_MARKER_REL, LAYOUT_MARKER_CONTENT);
+  return root;
+}
+
+/** The four runs of one CR sequence: the write mode, --check, state-check --json and state-check text. */
+type SequenceRuns = {
+  write: { status: number | null; stdout: string; stderr: string };
+  check: { status: number | null; stdout: string; stderr: string };
+  json: { status: number | null; trace: TraceJson; raw: string };
+  text: { status: number | null; stdout: string; stderr: string };
+};
+
+/** Run the write mode, --check and state-check (JSON and text) on `root`, in that order. */
+function sequenceRuns(root: string): SequenceRuns {
+  return { write: run(root), check: run(root, "--check"), json: stateCheckTrace(root), text: stateCheck(root) };
+}
+
+/**
+ * The outcome every refused task entry must have (D-18, 33.1 DC-2): the write mode exits 2 with an empty stdout,
+ * names the task on stderr and changes no byte; --check exits 2; state-check with the marker exits 1 with exactly
+ * one trace-not-compared finding naming the task and never says fresh.
+ */
+function expectRefusedTask(
+  root: string,
+  runs: SequenceRuns,
+  taskRel: string,
+  before: ReadonlyMap<string, string>,
+  indexBefore: string,
+): void {
+  const { write, check, json, text } = runs;
+  expect(write.status, write.stdout + write.stderr).toBe(2);
+  expect(write.stdout).toBe("");
+  expect(write.stderr).toContain(`UNREADABLE TASK ${taskRel}: `);
+  expect(write.stderr).toContain("nothing was written or removed");
+  expect(write.stderr).not.toMatch(V8_FRAME);
+  expect(treeDigest(root)).toEqual(before);
+  expect(readFileSync(join(root, TRACEABILITY_REL), "utf8")).toBe(indexBefore);
+  expect(check.status, check.stdout + check.stderr).toBe(2);
+  expect(check.stdout).toBe("");
+  expect(check.stderr).toContain(`UNREADABLE TASK ${taskRel}: `);
+  expect(json.status, json.raw).toBe(1);
+  expect(json.trace.compared).toBe(false);
+  expect(json.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-not-compared|${taskRel}`]);
+  expect(text.status, text.stdout + text.stderr).toBe(1);
+  for (const out of [write.stdout, check.stdout, json.raw, text.stdout]) expect(out).not.toContain("The trace is fresh");
+}
+
+describe("CR-03: a dangling notes link is a failed task, never a task with no notes", () => {
+  for (const rootRel of CONTEXT_ROOT_RELS) {
+    it(`${rootRel}: render, rename the link's target, render again: exit 2 naming the task and the link, nothing removed, never fresh`, () => {
+      const root = stateBaseRepo(true);
+      const taskDir = join(root, ...rootRel.split("/"), "taskA");
+      mkdirSync(join(taskDir, "real-notes"), { recursive: true });
+      writeFileSync(join(taskDir, "real-notes", "n1.md"), noteText("n1", ["ABC-1", "src/a.ts"]));
+      const skip = stageSymlinkOrSkip(
+        join(taskDir, "real-notes"),
+        join(taskDir, "notes"),
+        "symlink to a directory inside the repository root",
+        `${CR03_POSITION} (${rootRel})`,
+      );
+      if (skip !== null) {
+        console.warn(skipLine(skip, "the CR-01 rows of this file (the same failed-task rule)"));
+        return;
+      }
+      const first = run(root);
+      expect(first.status, `PREMISE: the linked notes render: ${first.stdout}${first.stderr}`).toBe(0);
+      expect(existsSync(join(root, TRACE_DIR_REL, "ABC-1.md")), "PREMISE: ABC-1.md was rendered").toBe(true);
+      const premise = stateCheckTrace(root);
+      expect(premise.status, `PREMISE: the rendered repository is clean: ${premise.raw}`).toBe(0);
+      expect(premise.trace).toEqual({ compared: true, findings: [] });
+      renameSync(join(taskDir, "real-notes"), join(taskDir, "moved-notes"));
+      expect(lstatSync(join(taskDir, "notes")).isSymbolicLink(), "PREMISE: notes is still a link").toBe(true);
+      expect(existsSync(join(taskDir, "notes")), "PREMISE: the link dangles").toBe(false);
+      const before = treeDigest(root);
+      const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+      expect(indexBefore).toContain("| ABC-1 | [ABC-1](traceability/ABC-1.md) |\n");
+      const runs = sequenceRuns(root);
+      expectRefusedTask(root, runs, `${rootRel}/taskA`, before, indexBefore);
+      expect(runs.write.stderr).toContain("symbolic link");
+      expect(runs.json.trace.findings[0]?.note).toContain("this task's notes could not be read");
+      expect(runs.text.stdout).toMatch(new RegExp(`^FINDING {2}${rootRel.replace(/[.]/g, "\\.")}/taskA: .*\\(trace-not-compared\\)$`, "m"));
+      // Without the D-14 marker, state-check warns and still never says fresh.
+      rmSync(join(root, ...LAYOUT_MARKER_REL.split("/")));
+      const warn = stateCheck(root);
+      expect(warn.status, warn.stdout + warn.stderr).toBe(0);
+      expect(warn.stdout).toMatch(new RegExp(`^WARN {5}${rootRel.replace(/[.]/g, "\\.")}/taskA: .*\\(trace-not-compared\\)$`, "m"));
+      expect(warn.stdout).not.toContain("The trace is fresh");
+      expect(treeDigest(root).get(`${TRACE_DIR_REL}/ABC-1.md`)).toBe(before.get(`${TRACE_DIR_REL}/ABC-1.md`));
+    });
+  }
 });

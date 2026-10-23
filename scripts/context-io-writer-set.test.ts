@@ -2466,7 +2466,13 @@ describe("31-05 — the reachability remainder is written down", () => {
       // directory entry, so it is a WRITE primitive and joined FS_WRITE_PRIMITIVES in the same
       // change; it does not block on a FIFO (link(2) never opens either path), so the read-site
       // axis is unaffected by it.
-    ).toBe(15);
+      //
+      // 15 -> 17 (2026-10-23, plan 37-28, D-18 / CR-03), CLASSIFIED rather than bumped: `lstatSync`
+      // and the type-only `Stats` were ADDED for `entryPresence`, the one absence owner. `lstatSync`
+      // is a READ: it inspects a directory entry and creates, moves, removes and modifies nothing, so
+      // it does not enter FS_WRITE_PRIMITIVES, and it never opens the path, so it cannot block on a
+      // FIFO. `Stats` is a type and reaches nothing at run time.
+    ).toBe(17);
   });
 });
 

@@ -18100,3 +18100,144 @@ describe("readContext: an unreadable task directory throws, a missing task reads
     expect((thrown as NodeJS.ErrnoException).code).toBe("EACCES");
   });
 });
+
+// ── Plan 37-28 (D-18, CR-03, IN-06, READ-1 round 2): only an lstat ENOENT is absence ──────────────────────────
+// The walk's earlier stat with throwIfNoEntry false answered undefined for a dangling link and for ENOTDIR as well
+// as for ENOENT, so a task whose `notes` link dangled read as a task with no notes (CR-03), and a task path that
+// was a regular file did too (IN-06). entryPresence is the one owner now; the walk asks it and nothing else.
+
+/** Throw-capture: the thrown value, or null when `f` returned. */
+function thrownBy(f: () => unknown): unknown {
+  try {
+    f();
+  } catch (e) {
+    return e;
+  }
+  return null;
+}
+
+const P3728 = "scripts/context-io.test.ts: plan 37-28 walk case";
+
+describe("readContext: a link or a non-directory at the task or notes position is a read failure, never no notes (plan 37-28, D-18)", () => {
+  it("a missing task returns []; a task under a missing context root returns []", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-missing-");
+    expect(mod.readContext("taskMissing", ctx)).toEqual([]);
+    expect(mod.readContext("taskA", join(ctx, "no-such-root"))).toEqual([]);
+  });
+
+  it("a dangling notes link throws, naming the link", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-dangling-");
+    mkdirSync(join(ctx, "taskA"), { recursive: true });
+    const skipped = stageSymlinkOrSkip(join(ctx, "taskA", "gone"), join(ctx, "taskA", "notes"), "dangling symlink", P3728);
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the CR-03 rows of scripts/runnable-ref/trace-render.test.ts"));
+      return;
+    }
+    const thrown = thrownBy(() => mod.readContext("taskA", ctx));
+    expect(thrown, "readContext read a dangling notes link as a task with no notes").toBeInstanceOf(Error);
+    expect((thrown as NodeJS.ErrnoException).code).toBe("ENOENT");
+    expect((thrown as Error).message).toContain("symbolic link whose target cannot be reached");
+  });
+
+  it("a notes entry that is a regular file throws with code ENOTDIR", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-notesfile-");
+    mkdirSync(join(ctx, "taskA"), { recursive: true });
+    writeFileSync(join(ctx, "taskA", "notes"), "not a directory\n");
+    const thrown = thrownBy(() => mod.readContext("taskA", ctx));
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as NodeJS.ErrnoException).code).toBe("ENOTDIR");
+  });
+
+  it("a task path that is a regular file throws with code ENOTDIR (IN-06)", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-taskfile-");
+    writeFileSync(join(ctx, "taskA"), "not a task directory\n");
+    const thrown = thrownBy(() => mod.readContext("taskA", ctx));
+    expect(thrown, "readContext read a task path that is a regular file as a task with no notes").toBeInstanceOf(Error);
+    expect((thrown as NodeJS.ErrnoException).code).toBe("ENOTDIR");
+  });
+
+  it("a notes link to a readable directory returns that directory's notes", () => {
+    const ctx = freshTmp("grugops-ctxio-3728-livelink-");
+    mkdirSync(join(ctx, "taskA", "real-notes"), { recursive: true });
+    writeFileSync(join(ctx, "taskA", "real-notes", "n1.md"), sealed(goodNoteText()));
+    const skipped = stageSymlinkOrSkip(
+      join(ctx, "taskA", "real-notes"),
+      join(ctx, "taskA", "notes"),
+      "symlink to a directory inside the repository root",
+      P3728,
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the walk's plain-directory cases"));
+      return;
+    }
+    const notes = mod.readContext("taskA", ctx);
+    expect(notes.map((n) => n.id)).toEqual(["n1"]);
+    expect(notes[0]?.refs).toEqual(["AUTH-01"]);
+  });
+});
+
+describe("entryPresence: the one absence owner (plan 37-28, D-18)", () => {
+  it("a missing path, and a path under a missing directory, are absent", () => {
+    const d = freshTmp("grugops-ctxio-3728-presence-absent-");
+    expect(mod.entryPresence(join(d, "nothing"))).toEqual({ kind: "absent" });
+    expect(mod.entryPresence(join(d, "nothing", "under", "it"))).toEqual({ kind: "absent" });
+  });
+
+  it("a dangling link is unreadable with code ENOENT; a path under a dangling ancestor link is unreadable", () => {
+    const d = freshTmp("grugops-ctxio-3728-presence-dangling-");
+    const skipped = stageSymlinkOrSkip(join(d, "gone"), join(d, "link"), "dangling symlink", P3728);
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the CR-03 rows of scripts/runnable-ref/trace-render.test.ts"));
+      return;
+    }
+    const self = mod.entryPresence(join(d, "link"));
+    expect(self.kind).toBe("unreadable");
+    expect(self.kind === "unreadable" ? self.code : "").toBe("ENOENT");
+    expect(self.kind === "unreadable" ? self.reason : "").toContain("symbolic link whose target cannot be reached");
+    const under = mod.entryPresence(join(d, "link", "notes"));
+    expect(under.kind).toBe("unreadable");
+    expect(under.kind === "unreadable" ? under.code : "").toBe("ENOENT");
+    expect(under.kind === "unreadable" ? under.reason : "").toContain("a symbolic link on the path has a target that cannot be reached");
+  });
+
+  it("a path under a regular file is unreadable with code ENOTDIR", () => {
+    const d = freshTmp("grugops-ctxio-3728-presence-enotdir-");
+    writeFileSync(join(d, "file"), "x");
+    const r = mod.entryPresence(join(d, "file", "notes"));
+    expect(r.kind).toBe("unreadable");
+    expect(r.kind === "unreadable" ? r.code : "").toBe("ENOTDIR");
+  });
+
+  it("a live link to a directory is present: entry is the link, target the directory, real the target's realpath", () => {
+    const d = freshTmp("grugops-ctxio-3728-presence-live-");
+    mkdirSync(join(d, "dir"));
+    const skipped = stageSymlinkOrSkip(join(d, "dir"), join(d, "link"), "symlink to a directory inside the repository root", P3728);
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the plain-file presence case"));
+      return;
+    }
+    const r = mod.entryPresence(join(d, "link"));
+    expect(r.kind).toBe("present");
+    if (r.kind !== "present") return;
+    expect(r.entry.isSymbolicLink()).toBe(true);
+    expect(r.target.isDirectory()).toBe(true);
+    expect(r.real).toBe(realpathSync(join(d, "dir")));
+  });
+
+  it("a plain file is present with entry and target both regular files", () => {
+    const d = freshTmp("grugops-ctxio-3728-presence-file-");
+    writeFileSync(join(d, "file"), "x");
+    const r = mod.entryPresence(join(d, "file"));
+    expect(r.kind).toBe("present");
+    if (r.kind !== "present") return;
+    expect(r.entry.isFile()).toBe(true);
+    expect(r.target.isFile()).toBe(true);
+    expect(r.real).toBe(realpathSync(join(d, "file")));
+  });
+
+  it("a relative path is resolved against the working directory", () => {
+    const r = mod.entryPresence("scripts/context-io.ts");
+    expect(r.kind).toBe("present");
+    expect(r.kind === "present" ? r.real : "").toBe(realpathSync(join(process.cwd(), "scripts", "context-io.ts")));
+  });
+});
