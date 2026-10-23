@@ -2380,8 +2380,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 108 with this module tracked (2026-10-22, plan 37-10).
+ *
+ * 108 -> 109 (plan 37-20, D-17 EXIT-1), ONE MODULE:
+ *   - `scripts/fault-inject.test-support.ts` — the one fault-injection harness: it writes a test preload that
+ *     makes one node:fs call or the stdout write throw, loaded with `node --import` outside the program under
+ *     test. It is a TEST-ONLY module counted here for the reason recorded at 83 -> 85: this corpus is
+ *     enumerated by file shape. It is excluded from emit (tsconfig.json), so it has no `.js` twin.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no
+ *     `new RegExp`, reads no grant and renders no spawn verdict.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 109 with this module tracked (2026-10-23, plan 37-20).
  */
-const NON_TEST_MODULE_COUNT = 108;
+const NON_TEST_MODULE_COUNT = 109;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -3004,7 +3014,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // all, so it contributes three empty comparisons and cannot make the agreement above vacuous on its own
     // (`scripts/runnable-ref/trace-render.ts` is outside this scoped walk). Re-derived: the scoped walk over
     // `scripts/` minus tests reports 69 with the module tracked (2026-10-22).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(69);
+    // 69 → 70 (plan 37-20, D-17 EXIT-1): `scripts/fault-inject.test-support.ts`, the fault-injection harness, a
+    // TEST-ONLY module counted by file shape like the two 32.1-01 harnesses. It imports only `node:child_process`,
+    // `node:crypto`, `node:fs`, `node:path` and `node:url` and none of the three specs compared below, so it
+    // contributes three empty comparisons and cannot make the agreement above vacuous on its own. Re-derived: the
+    // scoped walk over `scripts/` minus tests reports 70 with the module tracked (2026-10-23).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(70);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3038,7 +3053,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 62 → 63 (plan 34.1-02): `host-entries-freshness.ts`, three specs per module as ever.
     // 63 → 64 (plan 36-01, task 3): `state-path-scan.ts`, three specs per module as ever.
     // 65 → 66 (plan 37-02, task 1): `state-rules.ts`, three specs per module as ever (2026-10-22).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(69 * 3);
+    // 69 → 70 (plan 37-20): `fault-inject.test-support.ts`, three specs per module as ever (2026-10-23).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(70 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3268,7 +3284,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // `ls scripts/*.ts` minus the tests reports 68 (2026-10-22).
       // 68 → 69 (plan 37-06): `trace-model.ts`, the same module the flat reader gained; both pins move in
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 69 (2026-10-22).
-    ).toBe(69);
+      // 69 → 70 (plan 37-20): `fault-inject.test-support.ts`, the same module the flat reader gained; both pins
+      // move in one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 70
+      // (2026-10-23).
+    ).toBe(70);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against

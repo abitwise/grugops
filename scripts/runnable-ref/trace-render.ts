@@ -818,7 +818,14 @@ function realDirectoryOrNull(path: string, what: string): string | null {
     couldNotRun(`${what} cannot be resolved (${codeOf(e)}).`);
   }
   if (!insideRoot(real)) couldNotRun(`${what} resolves outside the repository root, so it was not used.`);
-  if (st.isSymbolicLink()) st = nodeFs.statSync(real);
+  if (st.isSymbolicLink()) {
+    // TR-6 (plan 37-20): the follow-up stat of a link's target is a read like any other, refused by name.
+    try {
+      st = nodeFs.statSync(real);
+    } catch (e) {
+      couldNotRun(`${what} cannot be inspected (${codeOf(e)}).`);
+    }
+  }
   if (!st.isDirectory()) couldNotRun(`${what} is not a directory.`);
   return real;
 }

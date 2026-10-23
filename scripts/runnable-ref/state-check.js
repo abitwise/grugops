@@ -11,8 +11,10 @@
 // THE D-12 CONTRACT.
 //   exit 0 → no enforced finding: none at all, or only warnings because the layout marker is not valid
 //   exit 1 → the layout marker is valid and at least one finding exists (the gate blocks)
-//   exit 2 → the check could not run: a bad argument, a root that is not a readable directory, or a required
-//            file that is present and cannot be read. Exit 2 is never a pass: it prints nothing on stdout.
+//   exit 2 → the check could not run: a bad argument, a root that is not a readable directory, a required
+//            file that is present and cannot be read, or an unexpected error, reported on stderr by name and
+//            never surfacing as Node's own exit 1 (plan 37-20). Exit 2 is never a pass: it prints nothing on
+//            stdout.
 // With `--json`, stdout carries exactly one JSON document, `{ ok, marker, enforced, findings, rollable,
 // moveOnly, trace }`, where `ok` is
 // false exactly when the exit code is 1, `marker` is "absent", "valid" or "invalid", and `enforced` is true
@@ -1246,6 +1248,15 @@ export function normalizeKind(raw) {
 }
 // </runnable-embeds>
 // ── The hand-written part: argv, the reads, the routing and the exit code ─────────────────────────────
+// EXIT-1 (plan 37-20, D-12, D-17): a throw that escapes every inner catch, the output tail after the main try
+// included, is could-not-run, never the finding code. Registered before argv is read.
+process.on("uncaughtException", (e) => stoppedUnexpectedly(e));
+/** The check stopped on an unexpected throw: one sanitized line on stderr, nothing on stdout, exit 2. */
+function stoppedUnexpectedly(e) {
+    const message = e instanceof Error ? e.message : String(e);
+    process.stderr.write(`Error: the state check stopped unexpectedly (${printable(message)}). The state check did not run.\n`);
+    process.exit(2);
+}
 /**
  * The largest state file this checker reads, in bytes. This is a reader ceiling, not a budget: a state file
  * larger than this is refused rather than read, and the check reports that it could not run (exit 2).

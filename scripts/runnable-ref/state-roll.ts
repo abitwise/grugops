@@ -30,7 +30,11 @@
 //            holds, mixed line endings, an ambiguous entry), a file that changed after it was read, or a
 //            rollback that could not be completed. Every refusal a planner can find is found before the first
 //            write. Exit 2 is never a pass: it prints nothing on stdout, and when a Done roll had already been
-//            written and proven, stderr says so.
+//            written and proven, stderr says so. An unexpected error is exit 2 too, reported on stderr by name and
+//            never surfacing as Node's own exit 1 (plan 37-20): that line names each roll already written and
+//            proven, names a roll that had started without a reported outcome with the version-control remedy,
+//            and says no roll had started only when none had. A refusal after this run created the archive
+//            directory removes it first.
 //
 // THE PROOF (D-08). The rules are scripts/state-rules.ts's planners, assembleRoll, checkConservation and
 // executeRoll, embedded below. executeRoll writes the archive first and the source second, re-reads both and
@@ -1286,6 +1290,39 @@ export function readRegularFileOrNull(
 
 // ── The hand-written part: argv, the boundary checks, the reads, the plans, the io and the report ─────────
 
+/** The rolls written and proven so far, read by the unexpected-throw handler below (plan 37-20). */
+const proven: { readonly surface: string; readonly what: string; readonly moved: string }[] = [];
+/** The roll executeRoll is running, or whose outcome is being reported; null between rolls. */
+let rollInFlight: { readonly surface: string; readonly files: string } | null = null;
+
+// EXIT-1 (plan 37-20, D-12, D-17): a throw that escapes every inner catch is could-not-run, never the finding code.
+// Registered before argv is read, and every binding the handler reads is declared above it.
+process.on("uncaughtException", (e) => stoppedUnexpectedly(e));
+
+/**
+ * The roll stopped on an unexpected throw: one sanitized line on stderr, nothing on stdout, exit 2. executeRoll
+ * contains every throw of a roll's own reads, writes, proof and restore, so a throw reaches here only before the
+ * rolls or while an outcome is reported. The handler cannot know whether a started roll was undone, so it never
+ * says that nothing was rolled or written: it names each roll already written and proven, names a roll that had
+ * started without a reported outcome with the version-control remedy, and says no roll had started only when none
+ * had.
+ */
+function stoppedUnexpectedly(e: unknown): never {
+  const message = e instanceof Error ? e.message : String(e);
+  const stands = proven.map((p) => ` The ${p.surface} roll was written and proven and stays: ${p.what} (${p.moved}).`);
+  const started =
+    rollInFlight === null
+      ? ""
+      : ` The ${rollInFlight.surface} roll had started and its outcome was not reported: compare ` +
+        `${rollInFlight.files} with version control before anything else writes them.`;
+  const none = proven.length === 0 && rollInFlight === null ? " No roll had started." : "";
+  process.stderr.write(
+    `Error: the roll stopped unexpectedly (${printable(message)}).${printable(stands.join(""))}` +
+      `${printable(started)}${none} The roll did not finish.\n`,
+  );
+  process.exit(2);
+}
+
 /**
  * The largest state file this roll reads, in bytes. This is a reader ceiling, not a budget: a larger file is
  * refused rather than read, and the roll does not run (exit 2).
@@ -1629,21 +1666,6 @@ if (done === null && progress === null) {
 // ── The rolls: Done first, then progress, each atomic on its own ─────────────────────────────────────
 
 let createdDir = false;
-if (archiveDirReal === null) {
-  try {
-    nodeFs.mkdirSync(archiveDirPath);
-  } catch (e) {
-    couldNotRun(`the archive directory ${ARCHIVE_REL} cannot be created (${codeOf(e)}).`);
-  }
-  createdDir = true;
-  let made: string;
-  try {
-    made = nodeFs.realpathSync(archiveDirPath);
-  } catch (e) {
-    couldNotRun(`the archive directory ${ARCHIVE_REL} cannot be resolved after it was created (${codeOf(e)}).`);
-  }
-  if (!insideRoot(made)) couldNotRun(`the archive directory ${ARCHIVE_REL} resolves outside the repository root.`);
-}
 
 /** Remove the archive directory this run created, when it is empty again. A failure leaves it in place. */
 function removeCreatedDir(): void {
@@ -1652,6 +1674,27 @@ function removeCreatedDir(): void {
     nodeFs.rmdirSync(archiveDirPath);
   } catch {
     /* not empty or not removable: an empty directory is not state, and a non-empty one is never removed */
+  }
+}
+
+if (archiveDirReal === null) {
+  try {
+    nodeFs.mkdirSync(archiveDirPath);
+  } catch (e) {
+    couldNotRun(`the archive directory ${ARCHIVE_REL} cannot be created (${codeOf(e)}).`);
+  }
+  createdDir = true;
+  // SR-8 (plan 37-20): a refusal after the directory was created removes it first, so the tree is unchanged.
+  let made: string;
+  try {
+    made = nodeFs.realpathSync(archiveDirPath);
+  } catch (e) {
+    removeCreatedDir();
+    couldNotRun(`the archive directory ${ARCHIVE_REL} cannot be resolved after it was created (${codeOf(e)}).`);
+  }
+  if (!insideRoot(made)) {
+    removeCreatedDir();
+    couldNotRun(`the archive directory ${ARCHIVE_REL} resolves outside the repository root.`);
   }
 }
 
@@ -1688,15 +1731,20 @@ function doneStands(): string {
 
 /** Run one planned roll and handle every outcome but success. `surface` names it in a message. */
 function runRoll(p: Planned, surface: string): void {
-  const outcome = executeRoll(p.plan, io);
   const files = `${p.plan.sourceRel} and ${p.plan.archiveRel}`;
+  // Set before the roll starts and cleared only once its outcome line is written (plan 37-20).
+  rollInFlight = { surface, files };
+  const outcome = executeRoll(p.plan, io);
   if (outcome.ok) {
     written.push(...p.movedLines, `Rolled ${p.what}; the move was proven line for line.`);
+    proven.push({ surface, what: p.what, moved: p.movedLines.map((l) => l.slice("MOVED   ".length)).join(", ") });
+    rollInFlight = null;
     return;
   }
   if (outcome.stage === "changed") {
     removeCreatedDir();
     process.stderr.write(`Error: ${printable(outcome.reason)}. The ${surface} roll wrote nothing.${printable(doneStands())}\n`);
+    rollInFlight = null;
     process.exit(2);
   }
   if (outcome.stage === "restore-failed") {
@@ -1704,6 +1752,7 @@ function runRoll(p: Planned, surface: string): void {
       `Error: ${printable(outcome.reason)}. The ${surface} roll failed and could not be fully undone: compare ` +
         `${files} with version control before anything else writes them.${printable(doneStands())}\n`,
     );
+    rollInFlight = null;
     process.exit(2);
   }
   removeCreatedDir();
@@ -1716,6 +1765,7 @@ function runRoll(p: Planned, surface: string): void {
         `${p.created ? ", and the archive this run created was removed" : ""}.${rest}`,
     ].join("\n")}\n`,
   );
+  rollInFlight = null;
   process.exit(1);
 }
 
