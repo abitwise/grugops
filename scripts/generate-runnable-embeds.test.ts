@@ -16,6 +16,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import ts from "typescript";
 import { ciWorkflow, ubuntuBlockCommands } from "./ci-workflow.testkit.js";
 import {
   EMBED_CLOSE,
@@ -311,6 +312,140 @@ describe("regionSpans and rewriteRunnable", () => {
     writeFileSync(join(mirror, ...spec.target.split("/")), committed);
     const ok = spawnSync(process.execPath, [join(mirror, "scripts", "runnable-embeds-freshness.js")], { encoding: "utf8" });
     expect(ok.status, ok.stdout + ok.stderr).toBe(0);
+  });
+});
+
+// ── The stamp is computed over the whole set and kept fresh (plan 37-24, D-17, WR-05, AUTH-1) ──────────────
+
+/** Every target and every authority, as text, for a temporary mirror of the repository. */
+function mirrorFiles(): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const s of EMBED_SPECS) {
+    for (const a of s.authorities) files[a.module] = readFileSync(join(ROOT, a.module), "utf8");
+    files[s.target] = readFileSync(join(ROOT, s.target), "utf8");
+  }
+  return files;
+}
+
+/** The one stamp inside a region's text. */
+function stampOf(regionText: string): string {
+  const read = readRunnableStamp(regionText);
+  if (read.kind !== "stamp") throw new Error(`PREMISE: the region carries one stamp, not ${read.kind}`);
+  return read.stamp;
+}
+
+/** A region's text with its stamp line removed. */
+function withoutStampLine(regionText: string): string {
+  return regionText
+    .split("\n")
+    .filter((l) => !RUNNABLE_STAMP_LINE.test(l))
+    .join("\n");
+}
+
+/** The text of the one region in a committed target. */
+function committedRegion(target: string): string {
+  const text = readFileSync(join(ROOT, target), "utf8");
+  const [a, b] = regionSpans(text)[0] as readonly [number, number];
+  return text.slice(a, b);
+}
+
+describe("the build stamp moves with every authority and cannot be hand-written (plan 37-24, D-17, WR-05)", () => {
+  const STATE_CHECK = "scripts/runnable-ref/state-check.ts";
+
+  it("one character changed inside a declaration only state-check embeds moves the stamp of all three regions (temporary mirror)", () => {
+    // PREMISE: boardBudgetFindings is embedded by the state checker's region alone.
+    for (const s of EMBED_SPECS) {
+      expect(committedRegion(s.target).includes("export function boardBudgetFindings("), s.target).toBe(s.target === STATE_CHECK);
+    }
+    const files = mirrorFiles();
+    const rules = files["scripts/state-rules.ts"] as string;
+    const fnAt = rules.indexOf("export function boardBudgetFindings(");
+    const fnEnd = rules.indexOf("\n}\n", fnAt);
+    const site = rules.indexOf("updatedAt.push(i + 1)", fnAt);
+    expect(fnAt, "PREMISE: the declaration was found").toBeGreaterThan(-1);
+    expect(site > fnAt && site < fnEnd, "PREMISE: the edit site lies inside boardBudgetFindings").toBe(true);
+    files["scripts/state-rules.ts"] = rules.slice(0, site) + "updatedAt.push(i + 2)" + rules.slice(site + "updatedAt.push(i + 1)".length);
+    const mirror = fixtureRoot(files, join(ROOT, ".temp"));
+
+    const committed = stampOf(committedRegion(STATE_CHECK));
+    const derived = EMBED_SPECS.map((s) => deriveRegion(s, mirror, EMBED_SPECS));
+    const stamps = derived.map(stampOf);
+    for (const [i, s] of EMBED_SPECS.entries()) {
+      expect(stamps[i], `${s.target}: the stamp moved`).not.toBe(committed);
+    }
+    expect(new Set(stamps).size, "the three moved stamps are still equal").toBe(1);
+    // Only the stamp moved in the two regions that do not embed the edited declaration.
+    for (const [i, s] of EMBED_SPECS.entries()) {
+      if (s.target === STATE_CHECK) continue;
+      expect(withoutStampLine(derived[i] as string), `${s.target}: nothing but the stamp changed`).toBe(withoutStampLine(committedRegion(s.target)));
+    }
+  });
+
+  it("one hex digit of a region's stamp changed by hand makes the freshness gate exit 1 naming that target (temporary mirror)", () => {
+    const files = mirrorFiles();
+    const edited = "scripts/runnable-ref/trace-render.ts";
+    const text = files[edited] as string;
+    const stamp = stampOf(text);
+    const digit = stamp.charAt("sha256:".length);
+    const forged = `sha256:${digit === "a" ? "b" : "a"}${stamp.slice("sha256:".length + 1)}`;
+    files[edited] = text.replace(`"${stamp}"`, `"${forged}"`);
+    expect(stampOf(files[edited] as string), "PREMISE: the copy carries the hand-edited stamp").toBe(forged);
+    const mirror = fixtureRoot(files, join(ROOT, ".temp"));
+    mkdirSync(join(mirror, "scripts"), { recursive: true });
+    for (const js of GATE_SCRIPTS) copyFileSync(join(ROOT, "scripts", js), join(mirror, "scripts", js));
+    writeFileSync(join(mirror, "package.json"), JSON.stringify({ type: "module" }));
+    const r = spawnSync(process.execPath, [join(mirror, "scripts", "runnable-embeds-freshness.js")], { encoding: "utf8" });
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain("FAILED");
+    expect(r.stdout).toContain(edited);
+    for (const other of EMBED_SPECS) {
+      if (other.target !== edited) expect(r.stdout, "an unedited target is not reported").not.toContain(other.target);
+    }
+    // Control: the same mirror with the committed text is fresh.
+    writeFileSync(join(mirror, ...edited.split("/")), text);
+    const ok = spawnSync(process.execPath, [join(mirror, "scripts", "runnable-embeds-freshness.js")], { encoding: "utf8" });
+    expect(ok.status, ok.stdout + ok.stderr).toBe(0);
+  });
+
+  it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 3", () => {
+    // The RUNNABLES rows are read from install/install.ts's syntax tree: the array literal bound to `RUNNABLES`.
+    // install.ts runs on import, so it is never imported here.
+    const installTs = join(ROOT, "install", "install.ts");
+    const sf = ts.createSourceFile(installTs, readFileSync(installTs, "utf8"), ts.ScriptTarget.ES2022, true);
+    const literals: ts.ArrayLiteralExpression[] = [];
+    const visit = (n: ts.Node): void => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "RUNNABLES") {
+        if (n.initializer !== undefined && ts.isArrayLiteralExpression(n.initializer)) literals.push(n.initializer);
+      }
+      n.forEachChild(visit);
+    };
+    visit(sf);
+    expect(literals, "exactly one RUNNABLES array literal in install/install.ts").toHaveLength(1);
+    const rows = (literals[0] as ts.ArrayLiteralExpression).elements.map((e) => {
+      if (!ts.isArrayLiteralExpression(e) || e.elements.length !== 2) throw new Error(`a RUNNABLES row is not a pair: ${e.getText(sf)}`);
+      const [src, dest] = e.elements;
+      if (src === undefined || dest === undefined || !ts.isStringLiteral(src) || !ts.isStringLiteral(dest)) {
+        throw new Error(`a RUNNABLES row is not two string literals: ${e.getText(sf)}`);
+      }
+      return [src.text, dest.text] as const;
+    });
+    expect(rows.length, "PREMISE: the rows were read").toBeGreaterThan(3);
+    const sources = new Set(EMBED_SPECS.map((s) => s.target.replace(/\.ts$/, ".js")));
+    const installed = rows.filter(([src]) => sources.has(src)).map(([, dest]) => dest.split("/").pop() as string);
+    expect(rows.filter(([src]) => sources.has(src)).map(([src]) => src).sort(), "every target's .js is installed").toEqual([...sources].sort());
+
+    for (const s of EMBED_SPECS) {
+      const line = committedRegion(s.target)
+        .split("\n")
+        .filter((l) => l.startsWith("export const RUNNABLE_SET = "));
+      expect(line, s.target).toHaveLength(1);
+      const m = /^export const RUNNABLE_SET = Object\.freeze\((\[.*\]) as const\);$/.exec(line[0] as string);
+      expect(m, s.target).not.toBeNull();
+      const set = JSON.parse((m as RegExpExecArray)[1] as string) as string[];
+      expect(set).toHaveLength(3);
+      expect([...set].sort(), `${s.target}: RUNNABLE_SET against the installer`).toEqual([...installed].sort());
+      expect([...installed].sort(), "the other direction").toEqual([...set].sort());
+    }
   });
 });
 

@@ -16,6 +16,7 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -1437,6 +1438,75 @@ describe("state-check.js — a sibling built from other authorities is runnable-
     const lines = skewLines(r.stdout);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatch(/^WARN {5}.*trace-render\.js: it was built from different authorities/);
+  });
+
+  // READ-1 (DC-3): a sibling that is present and cannot be read is a named finding, in bounded time, never a pass.
+  it("a sibling at mode 000 is runnable-version-skew naming `unopenable`, never a pass", () => {
+    const dir = siblingHost();
+    const at = join(dir, "trace-render.js");
+    expect(lstatSync(at).isFile(), "PREMISE: the sibling is a regular file").toBe(true);
+    if (process.platform === "win32" || process.getuid?.() === 0) {
+      console.warn(
+        `skipped: a mode-000 sibling (plan 37-24): ${process.platform === "win32" ? "chmod 000 does not deny a read on win32" : "root reads a mode-000 file"}`,
+      );
+      return;
+    }
+    chmodSync(at, 0o000);
+    let r: { status: number | null; stdout: string; stderr: string };
+    let j: { status: number | null; stdout: string; stderr: string };
+    try {
+      let readable = true;
+      try {
+        readFileSync(at);
+      } catch {
+        readable = false;
+      }
+      expect(readable, "PREMISE: mode 000 denies this account a read").toBe(false);
+      const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+      r = runSiblings(dir, root);
+      j = runSiblings(dir, root, "--json");
+    } finally {
+      chmodSync(at, 0o644);
+    }
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("trace-render.js: it could not be read (unopenable), so its build could not be compared with state-check.js");
+    expect(j.status).toBe(1);
+    const skew = (JSON.parse(j.stdout) as JsonReport).findings.filter((f) => f.key === "runnable-version-skew");
+    expect(skew).toHaveLength(1);
+  });
+
+  it("a FIFO at a sibling path is runnable-version-skew naming `not-a-regular-file`, in bounded time", () => {
+    const dir = siblingHost();
+    const at = join(dir, "state-roll.js");
+    rmSync(at);
+    const skipped = stageShapeOrSkip("FIFO", at, "scripts/runnable-ref/state-check.test.ts: a FIFO at a sibling path (plan 37-24)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the mode-000 sibling case beside this one (the same reader)"));
+      return;
+    }
+    expect(lstatSync(at).isFIFO(), "PREMISE: the planted path is a FIFO").toBe(true);
+    const r = runSiblings(dir, cleanRepo(LAYOUT_MARKER_CONTENT));
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("state-roll.js: it could not be read (not-a-regular-file)");
+  });
+
+  it("a sibling copy holding two stamp lines: the finding says it carries 2 build stamps", () => {
+    const dir = siblingHost();
+    editCopy(dir, "trace-render.js", (text) => {
+      const line = text.split("\n").find((l) => RUNNABLE_STAMP_LINE.test(l)) as string;
+      return text.replace(`${line}\n`, `${line}\n${line}\n`);
+    });
+    expect(lstatSync(join(dir, "trace-render.js")).isFile()).toBe(true);
+    expect(readRunnableStamp(readFileSync(join(dir, "trace-render.js"), "utf8"))).toEqual({ kind: "ambiguous", count: 2 });
+    const r = runSiblings(dir, cleanRepo(LAYOUT_MARKER_CONTENT));
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("trace-render.js: it carries 2 build stamps");
   });
 
   it("programs installed under the repository root are named by their path under the root (tools/grugops/)", () => {

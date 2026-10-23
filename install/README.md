@@ -414,7 +414,12 @@ are written only when that agent is chosen.
   - `tools/grugops/state-roll.js` moves older Done rows and dated progress entries into archive files
 
   Install never overwrites a copy that is already there, so an updated program reaches your
-  repository only after you remove the old copy and install again
+  repository only after you remove the old copy and install again.
+  The three state programs are built together from one copy of the state model and carry one
+  build stamp, so update them together: remove `state-check.js`, `trace-render.js` and
+  `state-roll.js`, then install again. When the build stamp of `trace-render.js` or
+  `state-roll.js` differs from the stamp of `state-check.js`, or is missing, state-check reports a
+  `runnable-version-skew` finding that names the program
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `memory-bank/plans/`, and `memory-bank/`
 - `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is
