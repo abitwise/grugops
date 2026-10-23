@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-30-PLAN.md
-last_updated: "2026-10-23T22:08:59.397Z"
+stopped_at: Completed 37-31-PLAN.md
+last_updated: "2026-10-23T22:46:05.148Z"
 last_activity: 2026-10-23
 last_activity_desc: Phase 37 execution started
-state_head: 7144eb71595146c6ad88020cb9141633f22c075b
+state_head: 26efe405e2afa22274adfc3f47e7ac519ba28c01
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 47
-  completed_plans: 45
+  completed_plans: 46
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 31 of 32
+Plan: 32 of 32
 Status: Ready to execute
 Last activity: 2026-10-23 — Phase 37 execution started
 
@@ -759,6 +759,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P28 | 47 min | 2 tasks | 21 files |
 | Phase 37 P29 | 30 min | 2 tasks | 8 files |
 | Phase 37 P30 | 30 min | 2 tasks | 14 files |
+| Phase 37 P31 | 28 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -2080,6 +2081,9 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-29: a context root entryPresence refuses (dangling link at it or an ancestor) is trace-not-compared in state-check and exit 2 in trace-render; ENOENT is compared only in entryPresence and readRegularFileOrNull in both runnables (census pinned 2 and 2)
 - [Phase 37]: 37-30: state-roll's realDirectoryOrNull and readTextOrThrow ask the generated entryPresence; a dangling state path or ancestor is a refusal with the owner's reason, and the ENOENT census covers all three runnables (2, 2, 2)
 - [Phase 37]: 37-30: the roll's re-read position keeps its own EIO row (owner lstat with io.read's derived call line on the stack), because the owner's rows are keyed by its direct caller
+- [Phase 37]: 37-31: the READ-1 rule refuses an added trace difference (MISSING, EXTRA, CHANGED, trace-stale) for EIO and ENOENT alike; a difference means the failed read was compared as data or as nothing
+- [Phase 37]: 37-31: ENOENT_EXEMPT is the owner's lstat under the 9 callers whose positions may be absent by design, decided before any row ran; no row through readTaskNoteRefs or listContextTasks is exempt
+- [Phase 37]: 37-31: state-check's layout marker is a file-follow position (readState follows an in-root link to a regular file, plan 37-04); readText's own position is an extra trace file, since the pre-write check refuses planned paths first
 
 ### Pending Todos
 
@@ -2411,8 +2415,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-23T22:08:59.101Z
-Stopped at: Completed 37-30-PLAN.md
+Last session: 2026-10-23T22:46:04.590Z
+Stopped at: Completed 37-31-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
