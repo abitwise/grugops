@@ -10046,7 +10046,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // `git ls-files` and counted a second way, with the two patterns imported from scripts/trace-model.ts. The pin moved
 // because a module landed, not to make a red go away. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 79 on this tree (2026-10-22, plan 37-18).
-const TRIPWIRE_MODULES = 79;
+//
+// 79 -> 80 (plan 37-26, task 2): ONE test module, `scripts/validate-read-sites.test.ts` — READ-1 over the structure
+// validator: its read sites derived from the committed .js and pinned, the table held equal to the derived (site, via)
+// pairs both ways, and every pair failed with an injected EIO. The pin moved because a module landed, not to make a red
+// go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 80 on this tree (2026-10-23, plan
+// 37-26).
+const TRIPWIRE_MODULES = 80;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
