@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-21-PLAN.md
-last_updated: "2026-10-23T13:46:17.168Z"
+stopped_at: Completed 37-22-PLAN.md
+last_updated: "2026-10-23T14:13:13.724Z"
 last_activity: 2026-10-23
 last_activity_desc: Phase 37 execution started
-state_head: c1fc6c5e76d37972d822154bef77053f3900fe82
+state_head: 81a3329693b943385ba742d571c664023058f3ef
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 42
-  completed_plans: 36
+  completed_plans: 37
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 22 of 27
+Plan: 23 of 27
 Status: Ready to execute
 Last activity: 2026-10-23 — Phase 37 execution started
 
@@ -750,6 +750,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P19 | 47min | 2 tasks | 9 files |
 | Phase 37 P20 | 26 min | 2 tasks | 12 files |
 | Phase 37 P21 | 30 min | 2 tasks | 17 files |
+| Phase 37 P22 | 24 min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -2059,6 +2060,8 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-19: the own-state migration moved no state (0 board rows, 0 NFR rows, 0 progress entries); check-diff-disposition stays at 707 findings, unchanged by 37-19, for a human to decide
 - [Phase 37]: 37-20: state-roll's unexpected-throw line names every roll written and proven by surface (not only Done via doneStands), and every handler line ends with the runnable's own sentence; none says nothing was rolled or written
 - [Phase 37]: 37-21: planCompleteTraceTree is the one trace completeness predicate; only unparseable and unsealed are trust skips, every other reader arm and every failed task stops trace-render (exit 2) and is trace-not-compared in state-check
+- [Phase 37]: 37-22: the board grammar's isTicketId (scripts/board-model.ts) is the one ticket answer; the import-free trace model takes it as a TicketIdTest parameter and both trace runnables pass their generated copy (WR-01, AUTH-1)
+- [Phase 37]: 37-22: trace-render checks every planned trace file name (traceFileNameRefusals, TRACE_FILE_NAME_MAX_BYTES 255) before its first lstat or write, in both modes; refs the board refuses (utf-8, abc-1, over-long) are no longer tickets but stay Requirement links on a ticket's trace
 
 ### Pending Todos
 
@@ -2390,8 +2393,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-23T13:46:16.868Z
-Stopped at: Completed 37-21-PLAN.md
+Last session: 2026-10-23T14:13:13.432Z
+Stopped at: Completed 37-22-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
