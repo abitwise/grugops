@@ -10,9 +10,10 @@
 // pattern of the per-runnable tests) and run with a test preload from scripts/fault-inject.test-support.ts, loaded
 // with `node --import`, outside the program. A stdout write that throws synchronously reaches each runnable's last
 // statement, past every inner catch. Two further rows inject an EIO at one node:fs call by line: the symbolic-link
-// follow-up statSync in trace-render's realDirectoryOrNull (TR-6), and the realpathSync after state-roll creates
-// its archive directory (SR-8). Both sites are found by their derived keys (plan 37-25: deriveReadSites over the
-// copied .js), never by a line or a text lookup.
+// follow-up statSync of a context root (TR-6; since plan 37-29 the absence owner's stat, entryPresence:statSync#0,
+// entered from realDirectoryOrNull), and the realpathSync after state-roll creates its archive directory (SR-8).
+// Both sites are found by their derived keys (plan 37-25: deriveReadSites over the copied .js, and callingSites for
+// TR-6's caller), never by a line or a text lookup.
 //
 // THE MESSAGE NEVER DENIES A WRITE. state-roll names a roll already written and proven, and says `No roll had
 // started.` only when none had; trace-render names the files it wrote and removed before it stopped.
@@ -41,6 +42,7 @@ import {
   FAULT_LOG_ENV,
   FAULT_SPEC_ENV,
   INJECTED_STDOUT_MESSAGE,
+  callingSites,
   hasNodeStack,
   runFaulted,
   deriveReadSites,
@@ -235,6 +237,9 @@ describe("EXIT-1: a failing follow-up read after a symbolic link or a created di
     const target = join(root, "elsewhere-context");
     mkdirSync(target);
     rmSync(join(root, CONTEXT_ARCHIVE_REL), { recursive: true });
+    // Plan 37-29: the owner stats the last component of every path, so the live root is removed and the first stat
+    // realDirectoryOrNull's owner call makes is the archive link's follow-up stat.
+    rmSync(join(root, CONTEXT_REL), { recursive: true });
     const skipped = stageSymlinkOrSkip(
       target,
       join(root, CONTEXT_ARCHIVE_REL),
@@ -245,15 +250,20 @@ describe("EXIT-1: a failing follow-up read after a symbolic link or a created di
       console.warn(skipLine(skipped, "the CR-02 cases in scripts/runnable-ref/trace-render.test.ts (the same couldNotRun)"));
       return;
     }
-    const site = { url: scriptUrl(HOST["trace-render"]), line: siteLine("trace-render", "realDirectoryOrNull:statSync#0") };
+    const url = scriptUrl(HOST["trace-render"]);
+    const site = { url, line: siteLine("trace-render", "entryPresence:statSync#0") };
+    const callers = callingSites(HOST["trace-render"], "entryPresence").filter((c) => c.scope === "realDirectoryOrNull");
+    expect(callers.map((c) => c.scope), "PREMISE: realDirectoryOrNull asks the absence owner once").toEqual(["realDirectoryOrNull"]);
+    const via = { url, line: (callers[0] as { readonly line: number }).line };
     const before = treeDigest(root);
-    const r = runWith("trace-render", [root], { kind: "fs", fn: "statSync", site, code: "EIO" });
+    const r = runWith("trace-render", [root], { kind: "fs", fn: "statSync", site, via, code: "EIO" });
     const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
     expect(r.fired, `PREMISE: the fault fired (site-not-via ${r.siteNotVia})\n${all}`).toBeGreaterThan(0);
     expect(r.status, all).toBe(2);
     expect(r.stdout, all).toBe("");
     expect(hasNodeStack(r.stderr), all).toBe(false);
-    expect(r.stderr, all).toContain(`the context root ${CONTEXT_ARCHIVE_REL} cannot be inspected (EIO)`);
+    expect(r.stderr, all).toContain(`the context root ${CONTEXT_ARCHIVE_REL} cannot be inspected: `);
+    expect(r.stderr, all).toContain("(EIO)");
     expect(treeDigest(root)).toEqual(before);
   });
 

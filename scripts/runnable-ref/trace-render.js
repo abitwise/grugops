@@ -17,7 +17,9 @@
 //            line is not the generated header), or two ticket identifiers whose file names fold to one name on
 //            a case-insensitive disk. Under --check also: each missing, extra or changed file, named.
 //   exit 2 → the run could not run: a bad argument, a root that is not a readable directory, a context root
-//            that cannot be listed, a path that resolves outside the repository root, a missing state directory,
+//            that cannot be listed, a context root, state directory or trace directory that cannot be inspected
+//            (a symbolic link whose target cannot be reached, at the path or at an ancestor of it, plan 37-29,
+//            IN-10), a path that resolves outside the repository root, a missing state directory,
 //            an entry at a compared path that is not a regular file, a file the reader refuses, or an unexpected
 //            error, which is reported on stderr by name (with the files already written and removed, when the
 //            write section had started) and never surfaces as Node's own exit 1 (plan 37-20). In both modes
@@ -53,8 +55,11 @@
 // directory is created only when absent and a trace file is to be written, after its parent's realpath is
 // confirmed inside the root. Every compared path is lstat'ed before it is opened, so a FIFO is never opened. The
 // task position never follows a link: a context-root entry that is a symbolic link is a failed task (plan 37-28,
-// CR-04). Whether a task or its notes are present is the generated entryPresence's answer, through the generated
-// readTaskNoteRefs and listContextTasks; only an lstat ENOENT is absence (D-18).
+// CR-04). Absence is the generated entryPresence's answer and no other (D-18): only an lstat ENOENT on a component
+// is absent. Whether a task or its notes are present is asked through the generated readTaskNoteRefs and
+// listContextTasks, and whether a context root, the state directory or the trace directory is present is asked of
+// the owner directly (plan 37-29, IN-10), so a dangling link at any of them or at an ancestor of one is refused by
+// name (exit 2) and never read as an absent root.
 //
 // EVERY WRITE IS ATOMIC. Each file goes through the embedded atomicWrite (a temp sibling, then a rename), so an
 // interrupted render leaves each file either its old or its new bytes. Two renders over the same notes produce
@@ -896,41 +901,23 @@ function abs(rel) {
     return nodePath.join(root, ...rel.split("/"));
 }
 /**
- * The real path of an existing directory, or null when nothing is there. Anything else is refused by name:
- * a path that resolves outside the root, a present entry that is not a directory, or one that cannot be
- * resolved. `what` names the path in the refusal.
+ * The real path of an existing directory, or null when nothing is there. Whether anything is there is the generated
+ * entryPresence's answer (plan 37-29, D-18, IN-10): only an lstat ENOENT on a component is absence, so a dangling
+ * link at the path or at any ancestor of it is refused by name with the owner's reason, never read as absent.
+ * Anything else is refused by name too: a path that resolves outside the root, or a present entry that is not a
+ * directory. `what` names the path in the refusal.
  */
 function realDirectoryOrNull(path, what) {
-    let st;
-    try {
-        st = nodeFs.lstatSync(path);
-    }
-    catch (e) {
-        if (codeOf(e) === "ENOENT")
-            return null;
-        couldNotRun(`${what} cannot be inspected (${codeOf(e)}).`);
-    }
-    let real;
-    try {
-        real = nodeFs.realpathSync(path);
-    }
-    catch (e) {
-        couldNotRun(`${what} cannot be resolved (${codeOf(e)}).`);
-    }
-    if (!insideRoot(real))
+    const presence = entryPresence(path);
+    if (presence.kind === "absent")
+        return null;
+    if (presence.kind === "unreadable")
+        couldNotRun(`${what} cannot be inspected: ${presence.reason}.`);
+    if (!insideRoot(presence.real))
         couldNotRun(`${what} resolves outside the repository root, so it was not used.`);
-    if (st.isSymbolicLink()) {
-        // TR-6 (plan 37-20): the follow-up stat of a link's target is a read like any other, refused by name.
-        try {
-            st = nodeFs.statSync(real);
-        }
-        catch (e) {
-            couldNotRun(`${what} cannot be inspected (${codeOf(e)}).`);
-        }
-    }
-    if (!st.isDirectory())
+    if (!presence.target.isDirectory())
         couldNotRun(`${what} is not a directory.`);
-    return real;
+    return presence.real;
 }
 /** The context roots in reading order: the live root, then the archive root. An absent root is empty. */
 const CONTEXT_ROOTS = [CONTEXT_REL, CONTEXT_ARCHIVE_REL].map((rel) => ({ rel, real: realDirectoryOrNull(abs(rel), `the context root ${rel}`) }));

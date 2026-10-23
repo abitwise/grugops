@@ -1698,3 +1698,93 @@ describe("state-check — grugops's own tree runs it in CI (plan 37-19, SPLIT-05
     expect(report.findings).toEqual([]);
   });
 });
+
+// ── Plan 37-29 (D-18, IN-10, READ-1 round 2): a dangling link at a state path is never absent ───────────────
+// Before this plan `locate` read a realpath ENOENT as absent, so any dangling link at a state path was "nothing
+// there": a dangling layout marker dropped a migrated repository to WARN, a dangling progress file or folder was
+// silently clean, and a dangling trace file read as missing while the renderer refused it. locate now asks the
+// generated entryPresence, where only an lstat ENOENT is absence.
+
+/** The absence owner's reason for a link, at the path or on it, whose target cannot be reached. */
+const UNREACHABLE_LINK = /symbolic link .*target (that )?cannot be reached/;
+
+const DANGLING_POSITION = "scripts/runnable-ref/state-check.test.ts: READ-1 round 2, a dangling state path (plan 37-29)";
+
+/**
+ * One state path made a dangling link, and what state-check must do: exit 2 naming it (a required file or a
+ * trace position), or exit 1 with a FINDING naming it under `key`. `setup` adds what the row needs first.
+ */
+type DanglingRow = {
+  readonly rel: string;
+  readonly outcome: "could-not-run" | "finding";
+  readonly key?: string;
+  readonly setup?: (root: string) => void;
+};
+const DANGLING_STATE_ROWS: readonly DanglingRow[] = [
+  { rel: LAYOUT_MARKER_REL, outcome: "could-not-run" },
+  { rel: BOARD_REL, outcome: "could-not-run" },
+  { rel: TRACEABILITY_REL, outcome: "could-not-run" },
+  { rel: NFR_CATALOG_REL, outcome: "could-not-run" },
+  { rel: PROGRESS_REL, outcome: "finding", key: "(BUDGETS.progressBytes)" },
+  { rel: `${TICKETS_REL}/ABC-001.md`, outcome: "finding", key: "(BUDGETS.ticketBytes)" },
+  {
+    rel: `${NFR_DIR_REL}/NFR-001.md`,
+    outcome: "finding",
+    key: "(BUDGETS.nfrBytes)",
+    setup: (root) => {
+      plant(root, `${NFR_DIR_REL}/NFR-001.md`, "# NFR-001\n");
+      appendTo(root, NFR_CATALOG_REL, NFR_LINE_001);
+    },
+  },
+  { rel: TICKETS_REL, outcome: "finding", key: "(BUDGETS.ticketBytes)" },
+  { rel: NFR_DIR_REL, outcome: "finding", key: "(BUDGETS.nfrBytes)" },
+  { rel: QUEUE_DONE_REL, outcome: "finding", key: "(move-only-unlisted)" },
+  { rel: QUEUE_DONE_ARCHIVE_REL, outcome: "finding", key: "(move-only-unlisted)" },
+  { rel: DECISIONS_REL, outcome: "finding", key: "(move-only-unlisted)" },
+  { rel: DECISIONS_ARCHIVE_REL, outcome: "finding", key: "(move-only-unlisted)" },
+  { rel: `${TRACE_DIR_REL}/ABC-001.md`, outcome: "could-not-run" },
+  { rel: TRACE_DIR_REL, outcome: "could-not-run" },
+];
+
+let danglingRowsRun = 0;
+
+describe("READ-1 round 2: a dangling link at a state path is never absent (plan 37-29, D-18, IN-10)", () => {
+  for (const row of DANGLING_STATE_ROWS) {
+    it(`${row.rel} a dangling link: ${row.outcome === "could-not-run" ? "exit 2 naming it" : `exit 1 with a FINDING naming it ${row.key ?? ""}`}`, () => {
+      danglingRowsRun += 1;
+      const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+      row.setup?.(root);
+      const premise = run(root);
+      expect(premise.status, `PREMISE: the repository is clean\n${premise.stdout}${premise.stderr}`).toBe(0);
+      expect(premise.stdout).toContain("No findings.");
+      const at = join(root, ...row.rel.split("/"));
+      rmSync(at, { recursive: true, force: true });
+      mkdirSync(dirname(at), { recursive: true });
+      const skip = stageSymlinkOrSkip(join(root, "gone"), at, "dangling symlink (its target does not exist)", `${DANGLING_POSITION} (${row.rel})`);
+      if (skip !== null) {
+        console.warn(skipLine(skip, "the CR-03 rows of trace-render.test.ts (the same absence owner)"));
+        return;
+      }
+      expect(lstatSync(at).isSymbolicLink(), "PREMISE: the position is a link").toBe(true);
+      const r = run(root);
+      const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+      if (row.outcome === "could-not-run") {
+        expect(r.status, all).toBe(2);
+        expect(r.stdout, all).toBe("");
+        expect(r.stderr, all).toContain(row.rel);
+        expect(r.stderr, all).toMatch(UNREACHABLE_LINK);
+        expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+        return;
+      }
+      expect(r.status, all).toBe(1);
+      const named = r.stdout.split("\n").filter((l) => l.startsWith(`FINDING  ${row.rel}: `) && l.includes(row.key ?? ""));
+      expect(named, all).toHaveLength(1);
+      expect(named[0], all).toMatch(UNREACHABLE_LINK);
+    });
+  }
+
+  it("the table ran one row per state path", () => {
+    expect(DANGLING_STATE_ROWS).toHaveLength(15);
+    expect(danglingRowsRun).toBe(DANGLING_STATE_ROWS.length);
+  });
+});

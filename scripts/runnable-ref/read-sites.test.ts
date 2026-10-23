@@ -99,9 +99,13 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * `readTraceTask:realpathSync#0` and `listTasks:readdirSync#0`; the generated `listContextTasks:readdirSync#0`
  * takes the listings' place (net -1 each). The owner's three sites are now entered from three callers, the walk,
  * listContextTasks (a keeper's presence) and readTaskNoteRefs (the task entry), so each is one row per caller.
+ * 2026-10-24, plan 37-29 (Task 1): 14, 19 and 11 read sites. trace-render's realDirectoryOrNull asks the absence
+ * owner (IN-10), so its own `realDirectoryOrNull:{lstatSync,realpathSync,statSync}#0` are gone (net -3), and
+ * state-check's locate does too, so `locate:realpathSync#0` is gone (net -1). The owner's three sites gain a fourth
+ * caller in each: `realDirectoryOrNull#0` and `locate#0`.
  */
-const TRACE_RENDER_READ_SITES = 17;
-const STATE_CHECK_READ_SITES = 20;
+const TRACE_RENDER_READ_SITES = 14;
+const STATE_CHECK_READ_SITES = 19;
 const STATE_ROLL_READ_SITES = 11;
 const PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_READ_SITES,
@@ -136,6 +140,10 @@ function rows(runnable: Runnable, modes: readonly Mode[], key: string, vias?: re
   return vias === undefined ? [{ runnable, key, modes }] : vias.map((via) => ({ runnable, key, via, modes }));
 }
 
+/** The callers of the absence owner in each trace runnable (plan 37-28; realDirectoryOrNull and locate, plan 37-29). */
+const TR_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "realDirectoryOrNull#0"];
+const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "locate#0"];
+
 const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   // trace-render: the embedded non-blocking reader (via readText and via the note walk) and the note walk.
   ...rows("trace-render", TR, "readRegularFileOrNull:openSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
@@ -143,19 +151,18 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "readRegularFileOrNull:readSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
   ...rows("trace-render", TR, "readRawNotesWithSkips:readdirSync#0"),
   // trace-render: the one absence owner (plan 37-28, D-18), under each caller: the walk (the notes directory),
-  // listContextTasks (the fixture's `.gitkeep` keepers) and readTaskNoteRefs (each task entry).
-  ...rows("trace-render", TR, "entryPresence:lstatSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
-  ...rows("trace-render", TR, "entryPresence:statSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
-  ...rows("trace-render", TR, "entryPresence:realpathSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  // listContextTasks (the fixture's `.gitkeep` keepers), readTaskNoteRefs (each task entry) and, since plan 37-29
+  // (IN-10), realDirectoryOrNull (the context roots, the state directory and the trace directory).
+  ...rows("trace-render", TR, "entryPresence:lstatSync#0", TR_PRESENCE_CALLERS),
+  ...rows("trace-render", TR, "entryPresence:statSync#0", TR_PRESENCE_CALLERS),
+  ...rows("trace-render", TR, "entryPresence:realpathSync#0", TR_PRESENCE_CALLERS),
   // trace-render: the generated context-root listing (plan 37-28, CR-04), entered only from the hand-written listTasks.
   ...rows("trace-render", TR, "listContextTasks:readdirSync#0"),
-  // trace-render: the root, realDirectoryOrNull (the context-root map, the state directory, the trace directory).
+  // trace-render: the root. realDirectoryOrNull makes no read of its own since plan 37-29: its rows are the owner's
+  // under realDirectoryOrNull#0 above.
   ...rows("trace-render", TR, "<top>:realpathSync#0"),
   ...rows("trace-render", TR, "<top>:statSync#0"),
   ...rows("trace-render", TR, "<top>:accessSync#0"),
-  ...rows("trace-render", TR, "realDirectoryOrNull:lstatSync#0", ["<top>#0", "<top>#1", "<top>#2"]),
-  ...rows("trace-render", TR, "realDirectoryOrNull:realpathSync#0", ["<top>#0", "<top>#1", "<top>#2"]),
-  ...rows("trace-render", TR, "realDirectoryOrNull:statSync#0", ["<top>#0", "<top>#1", "<top>#2"]),
   // trace-render: the pre-write loop and the trace directory reader (the task lister and reader handed to the trace
   // model are thin wrappers over the generated listContextTasks and readTaskNoteRefs since plan 37-28).
   ...rows("trace-render", TR, "<top>:lstatSync#0"),
@@ -183,21 +190,15 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ]),
   ...rows("state-check", SC, "readRawNotesWithSkips:readdirSync#0"),
   // state-check: the one absence owner (plan 37-28, D-18), under each caller, and the generated listing.
-  ...rows("state-check", SC, "entryPresence:lstatSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
-  ...rows("state-check", SC, "entryPresence:statSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
-  ...rows("state-check", SC, "entryPresence:realpathSync#0", ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"]),
+  // Since plan 37-29 (IN-10) locate asks the owner too, so every state path reaches it under locate#0.
+  ...rows("state-check", SC, "entryPresence:lstatSync#0", SC_PRESENCE_CALLERS),
+  ...rows("state-check", SC, "entryPresence:statSync#0", SC_PRESENCE_CALLERS),
+  ...rows("state-check", SC, "entryPresence:realpathSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "listContextTasks:readdirSync#0"),
-  // state-check: the root, locate under each caller, and the hand-written readers.
+  // state-check: the root and the hand-written readers (locate makes no read of its own since plan 37-29).
   ...rows("state-check", SC, "<top>:realpathSync#0"),
   ...rows("state-check", SC, "<top>:statSync#0"),
   ...rows("state-check", SC, "<top>:accessSync#0"),
-  ...rows("state-check", SC, "locate:realpathSync#0", [
-    "readState#0",
-    "sizeFinding#0",
-    "listDirectory#0",
-    "traceDirectory#0",
-    "readTraceText#0",
-  ]),
   ...rows("state-check", SC, "readState:statSync#0", ["readMarker#0", "boardFindings#0", "progressReport#0", "<top>#0", "<top>#1"]),
   ...rows("state-check", SC, "sizeFinding:lstatSync#0", ["directoryFindings#0", "progressReport#0"]),
   ...rows("state-check", SC, "listDirectory:readdirSync#0", [

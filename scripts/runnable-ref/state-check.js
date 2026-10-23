@@ -59,7 +59,10 @@
 // a task, a keeper (a regular file whose name begins with `.`, never read or counted) or a failed task, so a
 // symbolic link of any kind, a regular file, a FIFO or a vanished entry at a task position, and a `notes` link
 // whose target cannot be reached, are each one trace-not-compared finding by name; only an lstat ENOENT is absence. A FIFO, a link or anything else that is not a regular
-// file at a compared path is could-not-run (exit 2).
+// file at a compared path is could-not-run (exit 2). A context root that is, or sits under, a link whose target
+// cannot be reached is one trace-not-compared finding naming the root, never an absent root, so state-check and
+// the renderer give one answer to "is this context root present" (plan 37-29, D-18, IN-10); the renderer refuses
+// the same root with exit 2.
 //
 // SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js and state-roll.js are installed
 // side by side and never updated in place, and each embeds its own generated copy of shared authorities (the trace
@@ -79,7 +82,12 @@
 //
 // THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and a path that resolves
 // outside realpath(root) is a finding by name and is never read, listed or measured
-// (agent-factory/contracts/board.md, `## Staleness`). A path that does not exist is absent.
+// (agent-factory/contracts/board.md, `## Staleness`). Whether a path exists is the generated entryPresence's
+// answer, the one absence owner the renderer asks too (plan 37-29, D-18, IN-10): only an lstat ENOENT on a
+// component is absent. A path that is, or sits under, a symbolic link whose target cannot be reached is never
+// absent: at a required file (the layout marker, the board, an index) or a trace position it is exit 2 naming it,
+// at a measured file it is an unmeasured finding, and at a listed folder it is an unlisted finding, so a dangling
+// marker never turns a migrated repository's findings into warnings.
 //
 // OUTPUT IS SANITIZED. Every value read from the repository (a path, a file name) and every diagnostic has
 // each C0, C1 and DEL code point removed by the embedded stripControlChars before it is printed or
@@ -1575,23 +1583,21 @@ catch (e) {
     couldNotRun(`the repository root ${rootArg} is not a readable directory (${codeOf(e)}).`);
 }
 /**
- * Resolve `rel` under the root with realpath, following every link in the path, and say whether it lands
- * inside realpath(root). Only ENOENT is absent; any other failure is an error the caller reports.
+ * Resolve `rel` under the root and say whether it lands inside realpath(root). Whether anything is there is the
+ * generated entryPresence's answer (plan 37-29, D-18, IN-10), the one absence owner the renderer asks too: only an
+ * lstat ENOENT on a component is absent. A link at the path or at any ancestor whose target cannot be reached, or
+ * any other failure, is an error with the owner's reason, which every caller reports by name.
  */
 function locate(rel) {
     const abs = nodePath.join(root, ...rel.split("/"));
-    let real;
-    try {
-        real = nodeFs.realpathSync(abs);
-    }
-    catch (e) {
-        const code = codeOf(e);
-        return code === "ENOENT" ? { kind: "absent" } : { kind: "error", code };
-    }
-    const prefix = root.endsWith(nodePath.sep) ? root : `${root}${nodePath.sep}`;
-    if (real !== root && !real.startsWith(prefix))
+    const presence = entryPresence(abs);
+    if (presence.kind === "absent")
+        return { kind: "absent" };
+    if (presence.kind === "unreadable")
+        return { kind: "error", code: presence.code, reason: presence.reason };
+    if (!insideRoot(presence.real))
         return { kind: "outside" };
-    return { kind: "inside", abs, real };
+    return { kind: "inside", abs, real: presence.real, entry: presence.entry, target: presence.target };
 }
 /**
  * The text of the state file at `rel`, or that it is absent or outside the root.
@@ -1604,7 +1610,7 @@ function locate(rel) {
 function readState(rel, what) {
     const at = locate(rel);
     if (at.kind === "error")
-        couldNotRun(`cannot resolve the ${what} ${rel} (${at.code}).`);
+        couldNotRun(`cannot resolve the ${what} ${rel}: ${at.reason}.`);
     if (at.kind !== "inside")
         return at;
     let st;
@@ -1678,7 +1684,7 @@ function sizeFinding(rel, key, missingIsClean) {
         return missingIsClean ? [] : [unmeasuredFinding(rel, key, BUDGETS, "its size could not be read (ENOENT)")];
     }
     if (at.kind === "error")
-        return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read (${at.code})`)];
+        return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read: ${at.reason}`)];
     if (at.kind === "outside")
         return [unmeasuredFinding(rel, key, BUDGETS, OUTSIDE_ROOT)];
     let st;
@@ -1705,7 +1711,7 @@ function listDirectory(dirRel) {
     if (at.kind === "absent")
         return at;
     if (at.kind === "error")
-        return { kind: "unlisted", note: `the directory could not be resolved (${at.code})` };
+        return { kind: "unlisted", note: `the directory could not be resolved: ${at.reason}` };
     if (at.kind === "outside")
         return { kind: "unlisted", note: OUTSIDE_ROOT_DIR };
     try {
@@ -1825,15 +1831,17 @@ function insideRoot(real) {
     return real === root || real.startsWith(prefix);
 }
 /**
- * Resolve the directory at `rel` with realpath before it is used. A present entry that is not a directory, or a
- * path that cannot be resolved or inspected, is could-not-run (exit 2), naming it.
+ * Resolve the directory at `rel` before it is used. A path the absence owner refuses (a link at it or at an
+ * ancestor whose target cannot be reached, or one that cannot be inspected) is `refused` with the owner's reason,
+ * and the caller decides its outcome (plan 37-29, IN-10): it is never absent. A present entry that is not a
+ * directory, or one whose stat fails, is could-not-run (exit 2), naming it.
  */
 function traceDirectory(rel, what) {
     const at = locate(rel);
     if (at.kind === "absent" || at.kind === "outside")
         return at;
     if (at.kind === "error")
-        couldNotRun(`cannot resolve ${what} ${rel} (${at.code}).`);
+        return { kind: "refused", reason: at.reason };
     let st;
     try {
         st = nodeFs.statSync(at.real);
@@ -1865,7 +1873,7 @@ function readTraceText(path) {
     if (at.kind === "absent")
         return null;
     if (at.kind === "error")
-        couldNotRun(`cannot resolve the trace file ${rel} (${at.code}).`);
+        couldNotRun(`cannot resolve the trace file ${rel}: ${at.reason}.`);
     if (at.kind === "outside")
         couldNotRun(`the trace file ${rel} resolves outside the repository root, so it was not read.`);
     let st;
@@ -1910,11 +1918,18 @@ function traceReport(index) {
     if (traceDir.kind === "outside") {
         return traceNotCompared(TRACE_DIR_REL, "the trace directory resolves outside the repository root");
     }
+    // A trace directory the absence owner refuses is could-not-run, as plan 37-25's table pinned for its errors.
+    if (traceDir.kind === "refused")
+        couldNotRun(`cannot resolve the trace directory ${TRACE_DIR_REL}: ${traceDir.reason}.`);
     const contextRoots = [];
     for (const rel of [CONTEXT_REL, CONTEXT_ARCHIVE_REL]) {
         const dir = traceDirectory(rel, "the context root");
         if (dir.kind === "outside")
             return traceNotCompared(rel, "the context root resolves outside the repository root");
+        // A context root the owner refuses (a dangling link at it or at an ancestor, IN-10) is never an absent root:
+        // the trace is not compared, named by the root, the way an outside root is (plan 37-29, D-18).
+        if (dir.kind === "refused")
+            return traceNotCompared(rel, `the context root cannot be used: ${dir.reason}; the render refuses to run until it can`);
         if (dir.kind === "dir")
             contextRoots.push({ rel, real: dir.real });
     }
