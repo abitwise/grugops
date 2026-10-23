@@ -10,6 +10,10 @@
 // case-fold collision groups (caseFoldCollisions), the generated-header test (isGeneratedTraceText) and the
 // tree comparison (compareTraceTree), which takes the text reader and the directory lister as parameters.
 //
+// Plan 37-21 adds the one completeness predicate (traceReadFailures, TRACE_TRUST_SKIP_ARMS) and the gated plan
+// (planCompleteTraceTree): a plan exists only for a complete note read, so a failed task or a note skipped
+// under an I/O arm stops the render and the compare instead of reading as a ticket with no notes (CR-01).
+//
 // WHO USES IT. It is embedded, by scripts/generate-runnable-embeds.ts, into the host runnable
 // scripts/runnable-ref/trace-render.ts (this plan) and into state-check (plan 37-09), so the render and the
 // freshness comparison run the same code. scripts/trace-render.ts imports it for its own monolithic render
@@ -226,6 +230,10 @@ export interface TraceCollection {
  * Read every task under every context root, in the order given (the live root, then the archive root). A task
  * whose read throws is caught, counted and named in failedTasks, never swallowed; every skip the reader reports
  * is kept with its root and task. How a root is listed, and what an absent root lists, is the caller's io.
+ *
+ * A failed task is a read failure that stops the render (plan 37-21, D-17, CR-01): it is never read as a task
+ * with no notes. The collection reports what was read; whether it is complete enough to plan from is decided
+ * by traceReadFailures and planCompleteTraceTree below, the one predicate every caller asks.
  */
 export function collectTraceNotes(contextRoots: readonly string[], io: TraceNoteIo): TraceCollection {
   const notes: { readonly refs: readonly string[] }[] = [];
@@ -264,6 +272,72 @@ export function planTraceTree(
   const sorted = [...rows].sort((a, b) => compareCodeUnits(a.id, b.id));
   for (const row of sorted) plan.set(`${traceDirRel}/${traceFileName(row.id)}`, renderTicketTrace(row));
   return plan;
+}
+
+// ── Was the note read complete? One predicate for every caller (plan 37-21, D-17, READ-1, 33.1 DC-2) ─────────
+// A trace file is removed only when a COMPLETE read shows its ticket has no published refs, never because a
+// read produced nothing. So the render's write mode, its --check mode and state-check all obtain their plan
+// from planCompleteTraceTree, and none of them derives completeness from the counts.
+
+/**
+ * The two reader skip arms that are trust decisions: the file is not a sealed note (`unsealed`) or not a note at
+ * all (`unparseable`), so leaving it out of the trace is the correct answer, not a gap in the read. Every other
+ * reader arm (unopenable, not-a-regular-file, above-ceiling, vanished) is an I/O arm, and every failed task is a
+ * failure too: what the note says is unknown, so the read was not complete. An arm missing from this list is a
+ * read failure by default, so a new reader arm can never become a silent skip.
+ */
+export const TRACE_TRUST_SKIP_ARMS: readonly string[] = Object.freeze(["unparseable", "unsealed"]);
+
+/**
+ * One reason the note read was not complete: a task that could not be read (`file` and `arm` null), or a note
+ * skipped under an arm that is not a trust arm (`file` and `arm` named). `reason` is the reader's own words.
+ */
+export interface TraceReadFailure {
+  readonly root: string;
+  readonly task: string;
+  readonly file: string | null;
+  readonly arm: string | null;
+  readonly reason: string;
+}
+
+/**
+ * Every read failure of a collection, in collection order: each failed task first, then each skipped note whose
+ * arm is not in TRACE_TRUST_SKIP_ARMS. Empty exactly when the read was complete.
+ */
+export function traceReadFailures(collection: TraceCollection): TraceReadFailure[] {
+  const failures: TraceReadFailure[] = collection.failedTasks.map((f) => ({
+    root: f.root,
+    task: f.task,
+    file: null,
+    arm: null,
+    reason: f.reason,
+  }));
+  for (const s of collection.skipped) {
+    if (TRACE_TRUST_SKIP_ARMS.includes(s.arm)) continue;
+    const reason = s.detail !== "" ? s.detail : `the reader could not read it (${s.arm})`;
+    failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason });
+  }
+  return failures;
+}
+
+/** A plan only from a complete read: either the failures and no plan, or the rows and the planned tree. */
+export type CompleteTracePlan =
+  | { readonly complete: false; readonly failures: readonly TraceReadFailure[] }
+  | { readonly complete: true; readonly rows: TraceRow[]; readonly plan: Map<string, string> };
+
+/**
+ * The plan of the rendered tree, given only when the note read was complete (traceReadFailures is empty).
+ * With any failure there is no plan, so no caller can compare, write or remove from a partial read.
+ */
+export function planCompleteTraceTree(
+  collection: TraceCollection,
+  traceabilityRel: string,
+  traceDirRel: string,
+): CompleteTracePlan {
+  const failures = traceReadFailures(collection);
+  if (failures.length > 0) return { complete: false, failures };
+  const rows = buildTraceRows(collection.notes);
+  return { complete: true, rows, plan: planTraceTree(rows, traceabilityRel, traceDirRel) };
 }
 
 // ── The owned tree, collisions and the comparison (plan 37-07, D-01, D-02, research Pitfalls 5 and 11) ──────

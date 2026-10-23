@@ -48,8 +48,12 @@
 // fold to one file name, and a path that stops the compare are findings too, all under the marker's severity.
 // A hand-written index means the repository's trace is not rendered yet: it is one finding by name and nothing
 // is compared. A `TRACE` line, printed only after a compare, is the renderer's own --check summary with its read
-// and skip counts, and one `UNREADABLE TASK` line follows per task whose read failed, as the renderer prints
-// them. A FIFO, a link or anything else that is not a regular file at a compared path is could-not-run (exit 2).
+// and skip counts. A note read that was not complete is never compared (plan 37-21, D-17, CR-01): the embedded
+// planCompleteTraceTree, the one predicate the renderer asks too, gives no plan when a task could not be read or
+// a note was skipped under an I/O arm (only the trust arms unparseable and unsealed are skips), and each such
+// task or note is one `trace-not-compared` finding by name, under the marker's severity, with no TRACE line, so
+// the trace is never reported fresh from a partial read. A FIFO, a link or anything else that is not a regular
+// file at a compared path is could-not-run (exit 2).
 //
 // WHAT IT MEASURES IS DECIDED BY THE RULES, NOT HERE. Which directory entries count is the embedded
 // budgetEntryNames, given the raw listing; this file filters no name itself (D-11). A record's size is its
@@ -1110,6 +1114,42 @@ export function planTraceTree(
   for (const row of sorted) plan.set(`${traceDirRel}/${traceFileName(row.id)}`, renderTicketTrace(row));
   return plan;
 }
+export const TRACE_TRUST_SKIP_ARMS: readonly string[] = Object.freeze(["unparseable", "unsealed"]);
+export interface TraceReadFailure {
+  readonly root: string;
+  readonly task: string;
+  readonly file: string | null;
+  readonly arm: string | null;
+  readonly reason: string;
+}
+export function traceReadFailures(collection: TraceCollection): TraceReadFailure[] {
+  const failures: TraceReadFailure[] = collection.failedTasks.map((f) => ({
+    root: f.root,
+    task: f.task,
+    file: null,
+    arm: null,
+    reason: f.reason,
+  }));
+  for (const s of collection.skipped) {
+    if (TRACE_TRUST_SKIP_ARMS.includes(s.arm)) continue;
+    const reason = s.detail !== "" ? s.detail : `the reader could not read it (${s.arm})`;
+    failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason });
+  }
+  return failures;
+}
+export type CompleteTracePlan =
+  | { readonly complete: false; readonly failures: readonly TraceReadFailure[] }
+  | { readonly complete: true; readonly rows: TraceRow[]; readonly plan: Map<string, string> };
+export function planCompleteTraceTree(
+  collection: TraceCollection,
+  traceabilityRel: string,
+  traceDirRel: string,
+): CompleteTracePlan {
+  const failures = traceReadFailures(collection);
+  if (failures.length > 0) return { complete: false, failures };
+  const rows = buildTraceRows(collection.notes);
+  return { complete: true, rows, plan: planTraceTree(rows, traceabilityRel, traceDirRel) };
+}
 export const TRACE_FILE_MAX_BYTES = 8 * 1024 * 1024;
 export function ownedTraceEntries(names: readonly string[]): string[] {
   return names.filter((n) => !n.startsWith(".")).sort(compareCodeUnits);
@@ -1930,8 +1970,8 @@ function traceDirectory(rel: string, what: string): TraceDir {
 
 /**
  * One task's notes, read as the renderer reads them: through the embedded walk (its skip arms and its seal
- * check) and the embedded record projection. A notes directory that resolves outside the root throws, so the
- * trace model counts the task by name as unreadable.
+ * check) and the embedded record projection. A notes directory that resolves outside the root, or that cannot be
+ * resolved, throws, so the task is a read failure by name and the trace is not compared (plan 37-21).
  */
 function readTraceTask(task: string, contextReal: string): TraceTaskRead {
   assertSafeTask(task);
@@ -2035,8 +2075,28 @@ function traceReport(index: StateText): TraceReport {
     contextRoots.map((r) => r.real),
     { listTasks, readTask: readTraceTask },
   );
-  const rows = buildTraceRows(collection.notes);
-  const plan = planTraceTree(rows, TRACEABILITY_REL, TRACE_DIR_REL);
+  // The one completeness predicate the renderer asks too (plan 37-21, D-17, CR-01, READ-1): a plan exists only
+  // for a complete read. A partial read is never compared, so no trace-stale finding and no fresh line comes
+  // from it; each task or note that could not be read is one trace-not-compared finding by name.
+  const complete = planCompleteTraceTree(collection, TRACEABILITY_REL, TRACE_DIR_REL);
+  if (!complete.complete) {
+    return {
+      compared: false,
+      findings: complete.failures.map((f) => {
+        const at = `${relOfRoot(f.root)}/${f.task}`;
+        const rel = f.file === null ? at : `${at}/notes/${f.file}`;
+        const reason = f.arm === null ? f.reason : `${f.arm}: ${f.reason}`;
+        return integrityFinding(
+          rel,
+          "trace-not-compared",
+          `the trace was not compared: this task's notes could not be read (${reason}); the render refuses to run ` +
+            "until they can be read",
+        );
+      }),
+      lines: [],
+    };
+  }
+  const { rows, plan } = complete;
   const diff = compareTraceTree(plan, root, { readText: readTraceText, listDir }, TRACEABILITY_REL, TRACE_DIR_REL);
 
   const findings: StateFinding[] = [
@@ -2063,12 +2123,8 @@ function traceReport(index: StateText): TraceReport {
     findings.length === 0
       ? `The trace is fresh: ${counts}.`
       : `The trace is not fresh: ${findings.length} difference(s); ${counts}.`;
-  const lines = [
-    `TRACE    ${summary}`,
-    ...collection.failedTasks.map(
-      (f) => `UNREADABLE TASK ${printable(relOfRoot(f.root))}/${printable(f.task)}: ${printable(f.reason)}`,
-    ),
-  ];
+  // A complete read has no failed task, so no UNREADABLE TASK line follows the summary any more (plan 37-21).
+  const lines = [`TRACE    ${summary}`];
   return { compared: true, findings, lines };
 }
 

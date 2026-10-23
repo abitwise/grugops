@@ -66,6 +66,9 @@ export const EMBED_CLOSE = "// </runnable-embeds>";
  * byte measure from scripts/state-rules.ts; and scripts/frontmatter.ts's sectionEndIndex, the one section-extent
  * owner (LANG-07), whose generated copy answers where a progress entry ends (D-16). The move-only surfaces
  * (.grugops/queue/done/ and memory-bank/50-decisions/) are not roots: the roll never reaches them (v3.0 D-7).
+ * Plan 37-21 (2026-10-23) adds planCompleteTraceTree to the trace-model roots of the state checker's row and the
+ * trace renderer's row (D-17, CR-01, READ-1): the one predicate that says the note read was complete, and the
+ * plan given only for a complete read, so the render's two modes and state-check ask the same question.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -126,6 +129,7 @@ export const EMBED_SPECS = Object.freeze([
                     "buildTraceRows",
                     "collectTraceNotes",
                     "planTraceTree",
+                    "planCompleteTraceTree",
                     "caseFoldCollisions",
                     "isGeneratedTraceText",
                     "compareTraceTree",
@@ -158,6 +162,7 @@ export const EMBED_SPECS = Object.freeze([
                     "traceFileName",
                     "collectTraceNotes",
                     "planTraceTree",
+                    "planCompleteTraceTree",
                     "compareCodeUnits",
                     "ownedTraceEntries",
                     "caseFoldCollisions",

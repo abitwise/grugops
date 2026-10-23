@@ -1198,6 +1198,49 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
     }
   });
 
+  // Plan 37-21 (D-17 Gap 1, CR-01, READ-1): a task whose notes cannot be read is never a task with no notes.
+  // The trace is not compared (trace.compared false), each unreadable task is one trace-not-compared finding by
+  // name under the marker's severity, and no TRACE line says fresh. Both shapes: the task's notes directory at
+  // mode 000, and the task directory itself (the realpath arm).
+  for (const shape of [
+    { name: "the notes directory", rel: `${CONTEXT_REL}/taskA/notes` },
+    { name: "the task directory", rel: `${CONTEXT_REL}/taskA` },
+  ] as const) {
+    it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+      `CR-01: ${shape.name} at mode 000 is trace-not-compared naming the task, with and without the D-14 marker, never fresh`,
+      () => {
+        for (const marker of [LAYOUT_MARKER_CONTENT, undefined]) {
+          const root = tracedRepo(marker);
+          const at = join(root, ...shape.rel.split("/"));
+          expect(statSync(at).isDirectory(), "PREMISE: the target is a real directory").toBe(true);
+          chmodSync(at, 0o000);
+          let text: { status: number | null; stdout: string; stderr: string };
+          let j: { status: number | null; report: JsonReport; stdout: string; stderr: string };
+          try {
+            text = run(root);
+            j = runJson(root);
+          } finally {
+            chmodSync(at, 0o755);
+          }
+          const expected = marker === undefined ? 0 : 1;
+          expect(text.status, `${text.stdout} ${text.stderr}`).toBe(expected);
+          expect(text.stdout).not.toContain("The trace is fresh");
+          expect(traceReportLines(text.stdout)).toEqual([]);
+          const lines = traceLines(text.stdout);
+          expect(lines).toHaveLength(1);
+          expect(lines[0]).toMatch(
+            new RegExp(`^${marker === undefined ? "WARN {5}" : "FINDING {2}"}\\.grugops/context/taskA: .*\\(trace-not-compared\\)$`),
+          );
+          expect(j.status).toBe(expected);
+          expect(j.report.trace.compared).toBe(false);
+          expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-not-compared|${CONTEXT_REL}/taskA`]);
+          expect(j.report.trace.findings[0]?.note).toContain("this task's notes could not be read (");
+          expect(j.report.trace.findings[0]?.note).toContain("the render refuses to run until they can be read");
+        }
+      },
+    );
+  }
+
   it("the embedded region carries the comparison and no writer: compareTraceTree once, atomicWrite never", () => {
     const source = readFileSync(CHECK_TS, "utf8");
     expect(source.match(/export function compareTraceTree\b/g) ?? []).toHaveLength(1);

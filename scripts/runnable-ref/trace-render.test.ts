@@ -30,12 +30,18 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import {
+  BOARD_REL,
   CONTEXT_ARCHIVE_REL,
   CONTEXT_REL,
+  LAYOUT_MARKER_CONTENT,
+  LAYOUT_MARKER_REL,
+  NFR_CATALOG_REL,
+  PROGRESS_REL,
   TRACE_DIR_REL,
   TRACEABILITY_REL,
 } from "../../install/state-layout.js";
 import { TRACE_GENERATED_HEADER } from "../trace-model.js";
+import { treeDigest } from "../fault-inject.test-support.js";
 
 const RENDER_JS = join(import.meta.dirname, "trace-render.js");
 const ctxio: typeof import("../context-io.js") = await import(
@@ -204,8 +210,12 @@ describe("trace-render.js — skipped notes and unreadable tasks are counted and
     expect(readFileSync(join(root, TRACEABILITY_REL), "utf8")).not.toContain("ABC-003");
   });
 
-  it("a task whose name the reader refuses is counted and named on its own line, with control characters removed", () => {
-    const root = twoRootRepo();
+  // Plan 37-21 (CR-01): rewritten, not deleted. It asserted exit 0 with the refused task named on stdout and the
+  // rest rendered; a refused task is now a read failure that stops the render, named on stderr.
+  it("a task whose name the reader refuses stops the render: exit 2, named on stderr with control characters removed, the earlier render unchanged", () => {
+    const root = renderedRepo();
+    const earlier = readFileSync(join(root, TRACE_DIR_REL, "ABC-001.md"), "utf8");
+    const before = treeDigest(root);
     const bad = `bad${"\u001b"}[31mtask${"\u0007"}`;
     const skipped = stageNameOrSkip(
       () => plant(root, CONTEXT_REL, bad, "n9", noteText("n9", ["ABC-009"])),
@@ -215,13 +225,17 @@ describe("trace-render.js — skipped notes and unreadable tasks are counted and
       console.warn(skipLine(skipped, "scripts/trace-model.test.ts's failing-task case (the same catch)"));
       return;
     }
+    const planted = treeDigest(root);
     const r = run(root);
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toContain("unreadable tasks 1");
-    expect(r.stdout).toContain(`UNREADABLE TASK ${CONTEXT_REL}/bad[31mtask: `);
-    expect(C0_C1_DEL_EXCEPT_NEWLINE.test(r.stdout), JSON.stringify(r.stdout)).toBe(false);
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain("(1 task(s) and 0 note(s) could not be read)");
+    expect(r.stderr).toContain(`UNREADABLE TASK ${CONTEXT_REL}/bad[31mtask: `);
+    expect(C0_C1_DEL_EXCEPT_NEWLINE.test(r.stderr), JSON.stringify(r.stderr)).toBe(false);
     expect(existsSync(join(root, TRACE_DIR_REL, "ABC-009.md"))).toBe(false);
-    expect(existsSync(join(root, TRACE_DIR_REL, "ABC-001.md"))).toBe(true);
+    expect(readFileSync(join(root, TRACE_DIR_REL, "ABC-001.md"), "utf8")).toBe(earlier);
+    expect(treeDigest(root)).toEqual(planted);
+    expect([...planted.keys()].filter((k) => !before.has(k)).every((k) => k.startsWith(`${CONTEXT_REL}/`))).toBe(true);
   });
 });
 
@@ -391,24 +405,32 @@ describe("trace-render.js --check — read-only: 0 fresh, 1 naming each differen
     }
   });
 
-  it("an unsealed note and a refused task name are counted and named, and --check still exits 0", () => {
+  // Plan 37-21 (CR-01): rewritten and retitled, not deleted. It asserted --check exit 0 with the refused task
+  // named on stdout; a compare over a partial read is not a compare (D-12), so --check now exits 2, named on
+  // stderr. The unsealed note stays a trust skip, counted on stdout by the render before the bad task exists.
+  it("an unsealed note and a refused task name are counted and named, and --check exits 2", () => {
     const root = twoRootRepo();
     plant(root, CONTEXT_REL, "taskC", "hand", noteText("hand", ["ABC-003"], false));
+    const rendered = run(root);
+    expect(rendered.status, rendered.stdout + rendered.stderr).toBe(0);
+    expect(rendered.stdout).toContain("unsealed 1");
     const bad = `bad${"\u001b"}task`;
     const skipped = stageNameOrSkip(
       () => plant(root, CONTEXT_REL, bad, "n9", noteText("n9", ["ABC-009"])),
       "scripts/runnable-ref/trace-render.test.ts: a refused task name under --check (plan 37-07)",
     );
-    expect(run(root).status).toBe(0);
     const r = run(root, "--check");
-    expect(r.status, r.stdout + r.stderr).toBe(0);
-    expect(r.stdout).toContain("unsealed 1");
     if (skipped !== null) {
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(r.stdout).toContain("unsealed 1");
       console.warn(skipLine(skipped, "the write-mode refused-task case above (the same catch)"));
       return;
     }
-    expect(r.stdout).toContain("unreadable tasks 1");
-    expect(r.stdout).toContain(`UNREADABLE TASK ${CONTEXT_REL}/badtask: `);
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toContain("(1 task(s) and 0 note(s) could not be read)");
+    expect(r.stderr).toContain(`UNREADABLE TASK ${CONTEXT_REL}/badtask: `);
+    expect(r.stderr).not.toContain("UNREADABLE NOTE");
   });
 
   it("a FIFO at a planned trace file path makes --check exit 2 naming it, and it is never opened", () => {
@@ -547,5 +569,133 @@ describe("CR-02: an unreadable context root is could-not-run (exit 2), in both m
       expect(r.stderr).not.toMatch(V8_FRAME);
       if (mode === "write") expect(snapshotWithTimes(root)).toEqual(before);
     });
+  }
+});
+
+// ── Plan 37-21 (D-17 Gap 1, CR-01, READ-1): an incomplete note read never removes a trace file ─────────────
+// A task whose notes cannot be read is not a task with no notes. The renderer refuses to run (exit 2, nothing
+// written or removed) in both modes, and state-check reports `trace-not-compared` naming the task, never a
+// fresh trace. The state-check half runs the COMMITTED state-check.js, copied alone into its own directory.
+
+const CHECK_HOST_JS = (() => {
+  const host = mkTmp("grugops-trace-render-check-host-");
+  const js = join(host, "state-check.js");
+  copyFileSync(join(import.meta.dirname, "state-check.js"), js);
+  return js;
+})();
+
+/** The committed state checker on a repository, as a host runs it. */
+function stateCheck(...args: string[]): { status: number | null; stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [CHECK_HOST_JS, ...args], { encoding: "utf8", cwd: dirname(CHECK_HOST_JS) });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+type TraceJson = { compared: boolean; findings: { key: string; rel: string; note: string | null }[] };
+
+/** state-check --json's trace block, with the run's status. */
+function stateCheckTrace(root: string): { status: number | null; trace: TraceJson; raw: string } {
+  const r = stateCheck(root, "--json");
+  const lines = r.stdout.split("\n").filter((l) => l.length > 0);
+  expect(lines, `stdout: ${r.stdout} stderr: ${r.stderr}`).toHaveLength(1);
+  return { status: r.status, trace: (JSON.parse(lines[0] ?? "") as { trace: TraceJson }).trace, raw: r.stdout };
+}
+
+/** Write `text` at the repository-relative `rel`, creating its parents. */
+function plantFile(root: string, rel: string, text: string): void {
+  const p = join(root, ...rel.split("/"));
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, text);
+}
+
+/**
+ * A repository state-check finds clean, with one sealed note naming ABC-1 in the live task `taskA`, rendered
+ * by the committed renderer. With `marker`, the D-14 layout marker is planted, so findings are enforced.
+ */
+function stateCleanRepo(marker: boolean): string {
+  const root = repo();
+  plantFile(root, BOARD_REL, "# Board\n\n## Ready (WIP unlimited)\n\n## Done (WIP unlimited)\n");
+  plantFile(root, NFR_CATALOG_REL, "# NFR catalog\n");
+  plantFile(root, PROGRESS_REL, "# Progress\n");
+  if (marker) plantFile(root, LAYOUT_MARKER_REL, LAYOUT_MARKER_CONTENT);
+  plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
+  const r = run(root);
+  expect(r.status, r.stdout + r.stderr).toBe(0);
+  return root;
+}
+
+/** The two CR-01 shapes: the task's notes directory at mode 000, and the task directory itself (the realpath arm). */
+const CR01_SHAPES = [
+  { name: "the notes directory", rel: `${CONTEXT_REL}/taskA/notes` },
+  { name: "the task directory", rel: `${CONTEXT_REL}/taskA` },
+] as const;
+
+describe("CR-01: an incomplete read never removes a trace file", () => {
+  for (const shape of CR01_SHAPES) {
+    it.skipIf(CR02_SKIP !== null)(
+      `${shape.name} at mode 000: write exit 2 with nothing removed, --check exit 2, state-check trace-not-compared, never fresh`,
+      () => {
+        const root = stateCleanRepo(true);
+        const premise = stateCheckTrace(root);
+        expect(premise.status, `PREMISE: the rendered repository is clean: ${premise.raw}`).toBe(0);
+        expect(premise.trace).toEqual({ compared: true, findings: [] });
+        const at = join(root, ...shape.rel.split("/"));
+        expect(lstatSync(at).isDirectory(), "PREMISE: the target is a real directory").toBe(true);
+        const before = treeDigest(root);
+        expect(before.has(`${TRACE_DIR_REL}/ABC-1.md`), "PREMISE: ABC-1.md was rendered").toBe(true);
+        const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+        expect(indexBefore).toContain("| ABC-1 | [ABC-1](traceability/ABC-1.md) |\n");
+        chmodSync(at, 0o000);
+        let write: { status: number | null; stdout: string; stderr: string };
+        let check: { status: number | null; stdout: string; stderr: string };
+        let json: { status: number | null; trace: TraceJson; raw: string };
+        let text: { status: number | null; stdout: string; stderr: string };
+        try {
+          write = run(root);
+          check = run(root, "--check");
+          json = stateCheckTrace(root);
+          text = stateCheck(root);
+        } finally {
+          chmodSync(at, 0o755);
+        }
+        // The write mode: exit 2, nothing on stdout, the task named on stderr, every byte unchanged.
+        expect(write.status, write.stdout + write.stderr).toBe(2);
+        expect(write.stdout).toBe("");
+        expect(write.stderr).toContain(`UNREADABLE TASK ${CONTEXT_REL}/taskA: `);
+        expect(write.stderr).toContain("nothing was written or removed");
+        expect(write.stderr).not.toMatch(V8_FRAME);
+        expect(treeDigest(root)).toEqual(before);
+        expect(readFileSync(join(root, TRACEABILITY_REL), "utf8")).toBe(indexBefore);
+        // --check: a compare over a partial read is not a compare (D-12): exit 2, never 0 or 1.
+        expect(check.status, check.stdout + check.stderr).toBe(2);
+        expect(check.stdout).toBe("");
+        expect(check.stderr).toContain(`UNREADABLE TASK ${CONTEXT_REL}/taskA: `);
+        // state-check with the marker: exit 1, one trace-not-compared finding naming the task, never fresh.
+        expect(json.status, json.raw).toBe(1);
+        expect(json.trace.compared).toBe(false);
+        expect(json.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-not-compared|${CONTEXT_REL}/taskA`]);
+        expect(json.trace.findings[0]?.note).toContain("this task's notes could not be read");
+        expect(text.status, text.stdout + text.stderr).toBe(1);
+        expect(text.stdout).not.toContain("The trace is fresh");
+        expect(text.stdout).toMatch(/^FINDING {2}\.grugops\/context\/taskA: .*\(trace-not-compared\)$/m);
+      },
+    );
+
+    it.skipIf(CR02_SKIP !== null)(
+      `${shape.name} at mode 000 without a layout marker: state-check warns trace-not-compared and never says fresh`,
+      () => {
+        const root = stateCleanRepo(false);
+        const at = join(root, ...shape.rel.split("/"));
+        chmodSync(at, 0o000);
+        let text: { status: number | null; stdout: string; stderr: string };
+        try {
+          text = stateCheck(root);
+        } finally {
+          chmodSync(at, 0o755);
+        }
+        expect(text.status, text.stdout + text.stderr).toBe(0);
+        expect(text.stdout).toMatch(/^WARN {5}\.grugops\/context\/taskA: .*\(trace-not-compared\)$/m);
+        expect(text.stdout).not.toContain("The trace is fresh");
+      },
+    );
   }
 });
