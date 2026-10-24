@@ -46,6 +46,36 @@ write the trace by hand": a write verb aimed at "the trace" in any spelling is a
 sentence in 37-REVIEW.md WR-08's table is a `KNOWN_VIOLATIONS` row. A site outside D-18's scope is
 listed with "out of round 2 scope, see 37-REVIEW-DISPOSITION.md", not dropped.
 
+### 1.2 Round 3 addendum (2026-10-24, scope D-19, approach D-20)
+
+READ-1 recurred a third time (CR-05): the one absence owner from round 2 answers "absent" for a path
+beneath a followed link that leaves the root, and the callers check the boundary only on "present".
+Every round so far closed the shapes it was shown and the next review found one more. Round 3 stops
+reasoning about where followed links lead and uses a canonical form (D-20):
+
+- **Links refused on the root chain.** Below the real repository root, every component on the path
+  to a context root, the trace directory and each state-roll directory is checked with `lstat`; a
+  symbolic link there is a could-not-run, whatever it points to and whether or not it resolves. Only
+  then is an ENOENT absence. One owner decides this (in `context-io`, embedded into all three
+  runnables); no caller follows a link on that chain or calls `realpathSync` to decide absence.
+- **One boundary predicate (IN-13).** The trace-render, state-roll and state-check `insideRoot` copies
+  are deleted; each calls the embedded owner. A test covers a root ending in a separator.
+- **The table plants links on the chain.** For every root-chain position (each ancestor from the real
+  root down to the root itself, for each root kind), rows plant: a link to an empty directory outside
+  the root, a link to an outside directory that holds the child, a link to an in-root directory, and a
+  dangling link. Every row asserts exit 2, the old trace files and index lines kept (content digests
+  before/after), and state-check `trace-not-compared`. A control row with no link anywhere and an
+  absent root asserts the absence outcome. The position list is derived from the owner's chain, and its
+  count asserted.
+- **Exempt rows prove their outcome (IN-12).** An ENOENT-exempt row compares its exit status and
+  written bytes with a run on a fixture where the path is really absent. Skipped shape cells are
+  counted apart from run cells, and on darwin and linux the skip count is asserted to be 0.
+
+SCAN-1 recurred too (WR-11). The pattern set must catch, as positive rows, every sentence the
+verifier's 14-sentence reproduction lets through (determiner-less, possessive, adjective, plural,
+gerund, copy/paste verbs, "by hand" phrasing), plus the five it caught; the rendered-from-refs
+wording stays a negative row. Each new shape gets a mutation proof.
+
 ## 2. Required in every gap-round plan set
 
 ### 2.1 Tests that catch any member of the class

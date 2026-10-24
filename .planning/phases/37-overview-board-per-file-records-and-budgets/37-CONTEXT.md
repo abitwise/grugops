@@ -171,6 +171,34 @@ not this phase.
   The CI-reachability human item is not in this round. Agents follow 37-GAP-PLANNING-BRIEF.md. —
   **Reversibility:** reversible (scope only).
 
+### Recorded before gap round 3
+- **D-19:** Gap round 3 (of 4) covers exactly these items, chosen by the human on 2026-10-24 from
+  37-VERIFICATION.md (re-verification after round 2, `gaps_found` 11/13) and 37-REVIEW.md (round-2
+  review): CR-05 (an absent context root beneath a link that leaves the repository root reads as "no
+  tasks", and the render removes trace files with exit 0), the same shape in state-roll's
+  `realDirectoryOrNull`, IN-13 (four hand copies of the repository boundary; one owner, the others
+  deleted), IN-12 (the ENOENT-exempt rows and the shape-cell counter in `read-sites.test.ts` are looser
+  than the rules they state), IN-11 (a stray non-directory entry in a context root gets its own remedy
+  wording), WR-11 (the hand-trace scan misses determiner-less, possessive, adjective, plural and gerund
+  spellings and copy/paste verbs) and the WR-09 remainder at WF03:46 (the Done condition omits the
+  ticket identifier). WR-03, WR-04, WR-06, WR-07, WR-10, IN-01, IN-02, IN-04, IN-05, IN-07, IN-08 and
+  IN-09 stay open in 37-REVIEW-DISPOSITION.md. The CI-reachability human item is not in this round. —
+  **Reversibility:** reversible (scope only).
+- **D-20:** CR-05 is closed by a canonical form, not by a wider absence answer (human, 2026-10-24).
+  The repository root is resolved to its real path once. Below that real root, no component of the path
+  to a context root, to the trace directory, or to any directory state-roll reads or writes may be a
+  symbolic link; a link at any of those positions, present or dangling, whatever its target, is a
+  could-not-run (exit 2 in the renderer and state-roll, a named `trace-not-compared` finding in
+  state-check), and nothing is written or removed. Only an lstat ENOENT on a component whose parents
+  are all real directories inside the real root is absence. This reverses the round-2 planner's flagged
+  assumption that links are followed at the root, state and trace-directory positions. Links in the
+  path above the repository root (for example macOS `/tmp` -> `/private/tmp`) are not affected.
+  Positions below a context root (task, notes) keep the round-2 rules (a link there is already
+  refused or checked inside the root); a plan that finds a position where that does not hold flags it
+  for the human rather than widening D-20. — **Reversibility:** costly (a host that symlinks
+  `.grugops` or `memory-bank` starts getting exit 2; the own repo has no such links, checked
+  2026-10-24).
+
 </decisions>
 
 <canonical_refs>
