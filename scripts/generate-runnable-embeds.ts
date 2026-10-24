@@ -133,7 +133,9 @@ export type EmbedSpec = {
  * context-io roots of the state roll's row (D-20, CR-05, READ-1 round 3): state-roll's realDirectoryOrNull asks the
  * root-chain owner with leaf `directory`, so no component of the path to the state directory, the archive directory
  * or the memory bank directory below the real repository root is followed if it is a symbolic link, and a link there
- * is a refusal by name and never an absent directory.
+ * is a refusal by name and never an absent directory. The same plan (Task 2) removes scripts/context-io.ts
+ * entryPresence from the state roll's row (D-20, IN-13): readTextOrThrow asks the root-chain owner with leaf `entry`,
+ * so no hand-written caller of the round-2 owner is left in state-roll and its region no longer declares it.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -299,7 +301,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
       { module: "scripts/frontmatter.ts", roots: ["sectionEndIndex"] },
       {
         module: "scripts/context-io.ts",
-        roots: ["readRegularFileOrNull", "atomicWrite", "entryPresence", "rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL"],
+        roots: ["readRegularFileOrNull", "atomicWrite", "rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL"],
       },
     ],
   },

@@ -47,6 +47,7 @@ import { parseBoard } from "../board-model.js";
 import { DONE_ARCHIVE_HEADING, PROGRESS_ARCHIVE_TITLE } from "../state-rules.js";
 import { treeDigest } from "../fault-inject.test-support.js";
 import { ROOT_CHAIN_LINK_REFUSAL, rootChainOf } from "../context-io.js";
+import { EMBED_CLOSE } from "../generate-runnable-embeds.js";
 
 const ROLL_TS = join(import.meta.dirname, "state-roll.ts");
 const ROLL_JS = join(import.meta.dirname, "state-roll.js");
@@ -879,7 +880,7 @@ describe("D-20: a state-roll directory beneath a root-chain link is refused, not
 
   for (const mode of ROLL_LINK_MODES) {
     const label = mode.length === 0 ? "write mode" : "--dry-run";
-    it(`CONTROL: no link anywhere and no archive directory, ${label}: the roll ${mode.length === 0 ? "creates the archive directory and rolls" : "plans"} (exit 0)`, () => {
+    it(`CONTROL: no link anywhere and no archive directory, ${label}: the roll ${mode.length === 0 ? "creates the archive directory and rolls" : "is planned and nothing is written"} (exit 0)`, () => {
       const root = repoWith(boardText(KEEP + 5), PROGRESS_17K);
       expect(existsSync(join(root, ARCHIVE_REL)), "PREMISE: no archive directory").toBe(false);
       const r = run(root, ...mode);
@@ -902,5 +903,169 @@ describe("D-20: a state-roll directory beneath a root-chain link is refused, not
     console.log(`D-20 state-roll link cells run: ${rollLinkCellsRun}; skipped for the platform: ${rollLinkCellsSkipped}`);
     expect(rollLinkCellsRun).toBe(ROLL_CHAIN.length * ROLL_LINK_SHAPES.length * ROLL_LINK_MODES.length);
     if (process.platform === "darwin" || process.platform === "linux") expect(rollLinkCellsSkipped).toBe(0);
+  });
+});
+
+// ── Plan 37-36 (D-20): a link above the repository root is never seen ──────────────────────────────────────────
+
+/** A scratch directory holding `real/repo`, a repository with both rolls planned and an archive directory. */
+function aboveRootRoll(): { readonly scratch: string; readonly realRoot: string } {
+  const scratch = mkTmp("grugops-state-roll-above-");
+  const realRoot = join(scratch, "real", "repo");
+  plant(realRoot, BOARD_REL, boardText(KEEP + 5));
+  plant(realRoot, PROGRESS_REL, PROGRESS_17K);
+  mkdirSync(join(realRoot, ARCHIVE_REL));
+  return { scratch, realRoot };
+}
+
+/** `<scratch>/alias`, a link to `<scratch>/real`, or the printed skip reason. */
+function aliasOf(scratch: string): string | { readonly skip: string } {
+  const alias = join(scratch, "alias");
+  const skipped = stageSymlinkOrSkip(
+    join(scratch, "real"),
+    alias,
+    "symlink to a directory outside the repository root",
+    "scripts/runnable-ref/state-roll.test.ts: a link above the repository root (plan 37-36)",
+  );
+  if (skipped !== null) return { skip: skipLine(skipped, "every state-roll case given a real root path") };
+  if (!lstatSync(alias).isSymbolicLink()) throw new Error("PREMISE: the alias is a link above the root");
+  return join(alias, "repo");
+}
+
+describe("D-20: a root path through a link above the repository root still rolls (plan 37-36)", () => {
+  it("--dry-run given <scratch>/alias/repo plans as the run given <scratch>/real/repo: the same status and stdout, nothing written", () => {
+    const { scratch, realRoot } = aboveRootRoll();
+    const aliasRoot = aliasOf(scratch);
+    if (typeof aliasRoot !== "string") {
+      console.warn(aliasRoot.skip);
+      return;
+    }
+    const before = treeDigest(realRoot);
+    const viaAlias = run(aliasRoot, "--dry-run");
+    const viaReal = run(realRoot, "--dry-run");
+    const all = `alias ${viaAlias.status}\n${viaAlias.stdout}${viaAlias.stderr}\nreal ${viaReal.status}\n${viaReal.stdout}${viaReal.stderr}`;
+    expect(viaReal.status, all).toBe(0);
+    expect(viaReal.stdout, all).toContain("Dry run: 5 Done row(s) would move from");
+    expect(viaAlias, all).toEqual(viaReal);
+    expect(treeDigest(realRoot), "a dry run writes nothing").toEqual(before);
+  });
+
+  it("write mode given <scratch>/alias/repo rolls as the run given <scratch>/real/repo on a fresh copy: the same status, stdout and written bytes", () => {
+    const aliased = aboveRootRoll();
+    const aliasRoot = aliasOf(aliased.scratch);
+    if (typeof aliasRoot !== "string") {
+      console.warn(aliasRoot.skip);
+      return;
+    }
+    const plain = aboveRootRoll();
+    expect(treeDigest(aliased.realRoot), "PREMISE: the two copies start equal").toEqual(treeDigest(plain.realRoot));
+    const viaAlias = run(aliasRoot);
+    const viaReal = run(plain.realRoot);
+    const all = `alias ${viaAlias.status}\n${viaAlias.stdout}${viaAlias.stderr}\nreal ${viaReal.status}\n${viaReal.stdout}${viaReal.stderr}`;
+    expect(viaReal.status, all).toBe(0);
+    expect(viaReal.stderr, all).toBe("");
+    expect(viaReal.stdout, all).toContain("Rolled 5 Done row(s)");
+    expect(viaReal.stdout, all).toContain("progress entry(ies)");
+    expect(viaAlias, all).toEqual(viaReal);
+    expect(treeDigest(aliased.realRoot), `the roll through the alias wrote the same bytes\n${all}`).toEqual(treeDigest(plain.realRoot));
+    expect(bytesAt(aliased.realRoot, BOARD_DONE_ARCHIVE_REL), all).not.toBeNull();
+  });
+});
+
+// ── Plan 37-36 (IN-13, D-20): state-roll keeps no hand-written boundary copy and no round-2 owner ─────────────
+
+/** The hand-written part of the committed state-roll.ts (after EMBED_CLOSE), as a syntax tree. */
+function handWrittenRoll(): ts.SourceFile {
+  const lines = readFileSync(ROLL_TS, "utf8").split("\n");
+  const close = lines.indexOf(EMBED_CLOSE);
+  expect(close, "PREMISE: state-roll.ts carries the region's close line").toBeGreaterThan(0);
+  return ts.createSourceFile("state-roll.ts", lines.slice(close + 1).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+}
+
+/** Every identifier node named `name` in a tree, by line and its parent's text. Comments are not nodes. */
+function identifierNodes(source: ts.SourceFile, name: string): string[] {
+  const out: string[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n) && n.text === name) {
+      const { line } = source.getLineAndCharacterOfPosition(n.getStart(source));
+      out.push(`line ${line + 1}: ${n.parent.getText(source).slice(0, 80)}`);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(source);
+  return out;
+}
+
+/** Every call expression in a subtree. */
+function callsOf(n: ts.Node, out: ts.CallExpression[] = []): ts.CallExpression[] {
+  if (ts.isCallExpression(n)) out.push(n);
+  ts.forEachChild(n, (c) => {
+    callsOf(c, out);
+  });
+  return out;
+}
+
+/** The called name of a call: `f(...)` or `x.f(...)`. */
+function calledName(call: ts.CallExpression): string | null {
+  if (ts.isIdentifier(call.expression)) return call.expression.text;
+  if (ts.isPropertyAccessExpression(call.expression)) return call.expression.name.text;
+  return null;
+}
+
+/** The name of the function declaration a node sits in, or `<top>`. */
+function enclosingDeclaration(n: ts.Node): string {
+  for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) {
+    if (ts.isFunctionDeclaration(p) && p.name !== undefined) return p.name.text;
+  }
+  return "<top>";
+}
+
+/** Every identifier text under a node. */
+function identifierTextsOf(n: ts.Node, out: Set<string> = new Set()): Set<string> {
+  if (ts.isIdentifier(n)) out.add(n.text);
+  ts.forEachChild(n, (c) => {
+    identifierTextsOf(c, out);
+  });
+  return out;
+}
+
+describe("IN-13 census: state-roll keeps no hand-written boundary copy (plan 37-36)", () => {
+  // Each clause is a soft expectation, so one run names every clause the source breaks.
+  it("over the hand-written part of state-roll.ts (syntax tree): no insideRoot node, no entryPresence node, every rootChainPresence call passes root first, no startsWith call mentions root, the check after the archive directory is created calls isWithin", () => {
+    const source = handWrittenRoll();
+    expect.soft(identifierNodes(source, "insideRoot"), "an identifier named insideRoot (a declaration, a call or any other reference)").toEqual([]);
+    expect.soft(identifierNodes(source, "entryPresence"), "an identifier named entryPresence (the round-2 owner)").toEqual([]);
+
+    const calls = callsOf(source);
+    const owner = calls.filter((c) => calledName(c) === "rootChainPresence");
+    expect(owner.length, "PREMISE: state-roll calls the root-chain owner").toBeGreaterThan(0);
+    for (const c of owner) {
+      const first = c.arguments[0];
+      expect.soft(first !== undefined && ts.isIdentifier(first) && first.text === "root", `${c.getText(source)} passes root first`).toBe(true);
+    }
+    expect.soft(owner.map(enclosingDeclaration).sort(), "state-roll's root-chain positions: readTextOrThrow and realDirectoryOrNull").toEqual([
+      "readTextOrThrow",
+      "realDirectoryOrNull",
+    ]);
+
+    const rootPrefix = calls.filter((c) => calledName(c) === "startsWith" && c.arguments.some((a) => identifierTextsOf(a).has("root")));
+    expect.soft(rootPrefix.map((c) => c.getText(source)), "a startsWith call whose argument mentions root").toEqual([]);
+
+    // The block that creates the archive directory: the top-level `if` whose body calls mkdirSync.
+    const creating = source.statements.filter(
+      (st) => ts.isIfStatement(st) && callsOf(st.thenStatement).some((c) => calledName(c) === "mkdirSync"),
+    );
+    expect(creating, "PREMISE: one top-level block creates the archive directory").toHaveLength(1);
+    const createCalls = callsOf(creating[0] as ts.Node).map(calledName);
+    expect.soft(createCalls, "the check after the archive directory is created asks the generated isWithin").toContain("isWithin");
+  });
+
+  it("over the WHOLE committed state-roll.js (syntax tree, generated region included): no identifier named entryPresence, though a generated comment names it", () => {
+    const text = readFileSync(ROLL_JS, "utf8");
+    // PREMISE, by text: the comment the generator copies from context-io.ts readRegularFileOrNull names the round-2
+    // owner. It is a comment, not a node, so the census below neither counts it nor can be defeated by it.
+    expect(text, "PREMISE: the generated readRegularFileOrNull comment names entryPresence").toContain("asks entryPresence first");
+    const sf = ts.createSourceFile(ROLL_JS, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+    expect(identifierNodes(sf, "entryPresence"), "an identifier named entryPresence anywhere in state-roll.js").toEqual([]);
   });
 });

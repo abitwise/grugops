@@ -48,15 +48,18 @@
 // names them, because moving them again would double them in the archive; the board reader reports the overlap
 // as ticket-duplicated meanwhile (plan 37-12).
 //
-// THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and one that resolves outside
-// realpath(root) is refused by name. Whether a state directory or a state file is there is answered by the embedded
-// entryPresence, the one absence owner of the three runnables (plan 37-30, D-18): only an lstat ENOENT on the path
-// or one of its components is "absent". A dangling link at the path or at an ancestor, a component that is not a
-// directory, or any other failure to reach the path is a refusal by name that carries the owner's reason, never
-// "nothing there". The owner's lstat comes before any open, so a FIFO is never opened and a symbolic link is never
-// replaced by a file; a reader that finds nothing after the owner said "present" is a refusal (the file vanished),
-// never absence. The archive directory is created only when it is absent and a roll is to be written, after its
-// parent's realpath is confirmed inside the root.
+// THE ROOT IS A BOUNDARY. The root is resolved once, with realpath, before any state read, so a symbolic link above
+// the root (macOS /tmp to /private/tmp) is never seen. Below it, no component of the path to the state directory,
+// the archive directory or the memory bank directory is followed if it is a symbolic link: every state path is asked
+// of the embedded rootChainPresence, the root-chain owner of the three runnables (plan 37-36, D-20), which lstats each
+// component, and a link there, present or dangling, wherever it points, is exit 2 by name with nothing rolled. Only an
+// lstat ENOENT beneath real directories is "absent"; a component that is not a directory, or any other failure to
+// reach the path, is a refusal by name that carries the owner's reason, never "nothing there". A state file is asked
+// with the leaf rule `entry`, and its own lstat comes before any open, so a FIFO is never opened and a symbolic link
+// at a state file is refused, never replaced by a file; a reader that finds nothing after the owner said "present"
+// is a refusal (the file vanished), never absence. A real path outside the root is refused by name. The archive
+// directory is created only when it is absent and a roll is to be written, and the created directory's real path is
+// checked with the embedded isWithin, the one boundary predicate (IN-13).
 //
 // EVERY WRITE IS ATOMIC. Each file goes through the embedded atomicWrite (a temp sibling, then a rename), so an
 // interrupted roll leaves each file either its old or its new bytes.
@@ -82,8 +85,8 @@ import * as nodePath from "node:path";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 import { randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:889b34f15c85328f4bbb9c2fae7951a4adfe78aca7421626693b92fc1394b066";
+import { join, sep } from "node:path";
+export const RUNNABLE_SET_STAMP = "sha256:8a7c66faa77e75ce1f6cb7b3fa76113bd6585a951fbc282c101287ef2ad5e1a1";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "state-roll.js";
 // from install/state-layout.ts
@@ -1070,66 +1073,6 @@ function presenceCode(e) {
     const code = e?.code;
     return typeof code === "string" && code !== "" ? code : "unknown";
 }
-export function entryPresence(path) {
-    const full = resolve(path);
-    const top = parse(full).root;
-    // Every prefix from the filesystem root to the path itself, so one lstat, one stat and one realpath answer for
-    // every component.
-    const prefixes = [top];
-    for (const name of full.slice(top.length).split(sep)) {
-        if (name !== "")
-            prefixes.push(join(prefixes[prefixes.length - 1], name));
-    }
-    for (let i = 0;; i += 1) {
-        const at = prefixes[i];
-        const last = i === prefixes.length - 1;
-        let entry;
-        try {
-            entry = lstatSync(at);
-        }
-        catch (e) {
-            const code = presenceCode(e);
-            if (code === "ENOENT")
-                return { kind: "absent" };
-            return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})` };
-        }
-        // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
-        // path names, and the one stat site is reached under every caller.
-        let target = entry;
-        if (entry.isSymbolicLink() || last) {
-            try {
-                target = statSync(at);
-            }
-            catch (e) {
-                const code = presenceCode(e);
-                return {
-                    kind: "unreadable",
-                    code,
-                    reason: !entry.isSymbolicLink()
-                        ? `"${at}" cannot be inspected (${code})`
-                        : last
-                            ? `it is a symbolic link whose target cannot be reached (${code})`
-                            : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
-                };
-            }
-        }
-        if (!last) {
-            if (!target.isDirectory()) {
-                return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)` };
-            }
-            continue;
-        }
-        let real;
-        try {
-            real = realpathSync(at);
-        }
-        catch (e) {
-            const code = presenceCode(e);
-            return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})` };
-        }
-        return { kind: "present", entry, target, real };
-    }
-}
 export function isWithin(real, boundary) {
     const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
     return real === boundary || real.startsWith(prefix);
@@ -1297,10 +1240,6 @@ try {
 catch (e) {
     couldNotRun(`the repository root ${rootArg} is not a readable${DRY_RUN ? "" : " and writable"} directory (${codeOf(e)}).`);
 }
-/** True when an already-resolved absolute path is the root or lies under it. */
-function insideRoot(real) {
-    return real === root || real.startsWith(root + nodePath.sep);
-}
 /** The repository-relative parent of a repository-relative path. */
 function relParent(rel) {
     return rel.slice(0, rel.lastIndexOf("/"));
@@ -1333,21 +1272,27 @@ function realDirectoryOrNull(rel, what) {
     return presence.real;
 }
 /**
- * The text of the file at `path` (`rel` names it), or null when nothing is there. The embedded entryPresence answers
- * whether anything is (plan 37-30, D-18): absent is null, and unreadable (a dangling link, a dangling ancestor, any
- * other failure to reach the path) is refused with the owner's reason. A present entry is judged by its own lstat,
- * so a symbolic link, a FIFO, a device or a directory is refused by name and never opened; then the file is read
- * through the embedded non-blocking reader under the read ceiling. A reader that finds nothing after the owner said
- * "present" is refused (the path vanished), never read as absent. A text holding U+FFFD is refused too: a roll
- * writes text, so a byte the decoder replaced would not be written back as it was. Every refusal THROWS, so the
- * executor can still restore both files when a re-read during the roll is refused.
+ * The text of the file at `path` (`rel` names it), or null when nothing is there. The embedded rootChainPresence, the
+ * root-chain owner, answers with leaf `entry` (plan 37-36, D-20): absent (an lstat ENOENT beneath real directories) is
+ * null; unreadable (a dangling link at the file, a component that is not a directory, any other failure to reach it)
+ * is refused with the owner's reason; a symbolic link on the path above the file is refused as a link; a real path
+ * outside the root is refused. A present entry is judged by its own lstat, so a symbolic link, a FIFO, a device or a
+ * directory is refused by name and never opened; then the file is read through the embedded non-blocking reader under
+ * the read ceiling. A reader that finds nothing after the owner said "present" is refused (the path vanished), never
+ * read as absent. A text holding U+FFFD is refused too: a roll writes text, so a byte the decoder replaced would not
+ * be written back as it was. Every refusal THROWS, so the executor can still restore both files when a re-read during
+ * the roll is refused.
  */
 function readTextOrThrow(rel, path) {
-    const presence = entryPresence(path);
+    const presence = rootChainPresence(root, rel, "entry");
     if (presence.kind === "absent")
         return null;
     if (presence.kind === "unreadable")
         throw new Error(`${rel} cannot be inspected: ${presence.reason}`);
+    if (presence.kind === "link")
+        throw new Error(`${rel} cannot be used: ${presence.reason}`);
+    if (presence.kind === "outside")
+        throw new Error(`${rel} resolves outside the repository root, so it was not read`);
     if (presence.entry.isSymbolicLink()) {
         throw new Error(`${rel} is a symbolic link, and a roll would replace the link with a file`);
     }
@@ -1553,7 +1498,7 @@ if (archiveDirReal === null) {
         removeCreatedDir();
         couldNotRun(`the archive directory ${ARCHIVE_REL} cannot be resolved after it was created (${codeOf(e)}).`);
     }
-    if (!insideRoot(made)) {
+    if (!isWithin(made, root)) {
         removeCreatedDir();
         couldNotRun(`the archive directory ${ARCHIVE_REL} resolves outside the repository root.`);
     }
