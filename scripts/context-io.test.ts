@@ -18311,3 +18311,206 @@ describe("listContextTasks and readTaskNoteRefs: every entry is a task, a keeper
     expect(mod.readTaskNoteRefs("taskA", join(repo, "ctx"), "/").notes).toEqual([]);
   });
 });
+
+// ── Plan 37-33 (D-20, CR-05, READ-1 round 3): the root-chain owner's own contract ───────────────────────────
+// rootChainPresence decides, for a repository-relative state path below an already-real root, whether the path is
+// absent, present, outside, beneath or at a symbolic link, or unreadable. Each case below plants one shape in a
+// synthetic tree whose root is the realpath of an mkdtempSync directory; the runnables embed the same function
+// (EMBED_SPECS), and their CR-05 sequences live in scripts/runnable-ref/trace-render.test.ts.
+
+const P3733 = "scripts/context-io.test.ts: plan 37-33 root-chain owner case";
+let rootChainSkips = 0;
+
+/** A fresh real root for one case. */
+function realTmpRoot(prefix: string): string {
+  return realpathSync(freshTmp(prefix));
+}
+
+/** Stage a link, or print the platform reason and count the skip; true when staged. */
+function rootChainLink(target: string, at: string, shape: string): boolean {
+  const skipped = stageSymlinkOrSkip(target, at, shape, P3733);
+  if (skipped === null) return true;
+  rootChainSkips += 1;
+  console.warn(skipLine(skipped, "the CR-05 rows of scripts/runnable-ref/trace-render.test.ts"));
+  return false;
+}
+
+describe("rootChainPresence: the root-chain owner (plan 37-33, D-20)", () => {
+  const LEAVES = ["directory", "entry"] as const;
+
+  it("rootChainOf gives the cumulative prefixes in walk order", () => {
+    expect(mod.rootChainOf("a/b/c")).toEqual(["a", "a/b", "a/b/c"]);
+    expect(mod.rootChainOf(".grugops/archive/context")).toEqual([".grugops", ".grugops/archive", ".grugops/archive/context"]);
+    expect(mod.rootChainOf("memory-bank")).toEqual(["memory-bank"]);
+  });
+
+  it("rootChainOf refuses a path that breaks the state-layout ENCODING rule, naming the value", () => {
+    for (const bad of ["", "a//b", "a/./b", "a/../b", ".", "..", "/a", "a/", "a\\b"]) {
+      expect(() => mod.rootChainOf(bad), JSON.stringify(bad)).toThrow(JSON.stringify(bad));
+    }
+  });
+
+  it("a missing first component is absent, for either leaf", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-absent-first-");
+    for (const leaf of LEAVES) expect(mod.rootChainPresence(root, "a/b/c", leaf), leaf).toEqual({ kind: "absent" });
+  });
+
+  it("a missing leaf under real directories is absent, for either leaf", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-absent-leaf-");
+    mkdirSync(join(root, "a", "b"), { recursive: true });
+    for (const leaf of LEAVES) expect(mod.rootChainPresence(root, "a/b/c", leaf), leaf).toEqual({ kind: "absent" });
+  });
+
+  // The three link shapes a middle component can be, and for each the target it points at.
+  const MIDDLE_LINKS: readonly { readonly label: string; readonly shape: string; readonly target: (root: string) => string }[] = [
+    {
+      label: "a live link to an in-root directory holding the child",
+      shape: "symlink to a directory inside the repository root",
+      target: (root) => {
+        mkdirSync(join(root, "real-b", "c"), { recursive: true });
+        return join(root, "real-b");
+      },
+    },
+    {
+      label: "a live link to an outside directory holding the child",
+      shape: "symlink to a directory outside the repository root",
+      target: () => {
+        const outside = realTmpRoot("grugops-ctxio-3733-outside-");
+        mkdirSync(join(outside, "c"));
+        return outside;
+      },
+    },
+    {
+      label: "a live link to an empty outside directory (the CR-05 shape)",
+      shape: "symlink to a directory outside the repository root",
+      target: () => realTmpRoot("grugops-ctxio-3733-outside-empty-"),
+    },
+    {
+      label: "a dangling link",
+      shape: "dangling symlink (its target does not exist)",
+      target: (root) => join(root, "no-such-target"),
+    },
+    {
+      label: "a link to a regular file",
+      shape: "symlink to a regular file",
+      target: (root) => {
+        writeFileSync(join(root, "a-file"), "x\n");
+        return join(root, "a-file");
+      },
+    },
+  ];
+
+  for (const link of MIDDLE_LINKS) {
+    it(`a middle component that is ${link.label} is \`link\` naming that component, for either leaf`, () => {
+      const root = realTmpRoot("grugops-ctxio-3733-middle-");
+      mkdirSync(join(root, "a"));
+      if (!rootChainLink(link.target(root), join(root, "a", "b"), link.shape)) return;
+      for (const leaf of LEAVES) {
+        expect(mod.rootChainPresence(root, "a/b/c", leaf), leaf).toEqual({
+          kind: "link",
+          rel: "a/b",
+          reason: `a/b ${mod.ROOT_CHAIN_LINK_REFUSAL}`,
+        });
+      }
+    });
+  }
+
+  for (const link of MIDDLE_LINKS) {
+    it(`a last component that is ${link.label} is \`link\` for a directory query`, () => {
+      const root = realTmpRoot("grugops-ctxio-3733-last-dir-");
+      mkdirSync(join(root, "a", "b"), { recursive: true });
+      if (!rootChainLink(link.target(root), join(root, "a", "b", "c"), link.shape)) return;
+      expect(mod.rootChainPresence(root, "a/b/c", "directory")).toEqual({
+        kind: "link",
+        rel: "a/b/c",
+        reason: `a/b/c ${mod.ROOT_CHAIN_LINK_REFUSAL}`,
+      });
+    });
+  }
+
+  it("an entry query: a live in-root link at the last component is present, entry the link, real the target", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-entry-live-");
+    mkdirSync(join(root, "a"));
+    writeFileSync(join(root, "target.md"), "x\n");
+    if (!rootChainLink(join(root, "target.md"), join(root, "a", "c"), "symlink to a regular file")) return;
+    const r = mod.rootChainPresence(root, "a/c", "entry");
+    expect(r.kind).toBe("present");
+    if (r.kind !== "present") return;
+    expect(r.entry.isSymbolicLink()).toBe(true);
+    expect(r.target.isFile()).toBe(true);
+    expect(r.real).toBe(join(root, "target.md"));
+  });
+
+  it("an entry query: a dangling link at the last component is unreadable, its target cannot be reached (ENOENT)", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-entry-dangling-");
+    mkdirSync(join(root, "a"));
+    if (!rootChainLink(join(root, "gone"), join(root, "a", "c"), "dangling symlink (its target does not exist)")) return;
+    expect(mod.rootChainPresence(root, "a/c", "entry")).toEqual({
+      kind: "unreadable",
+      code: "ENOENT",
+      reason: "it is a symbolic link whose target cannot be reached (ENOENT)",
+    });
+  });
+
+  it("an entry query: a link at the last component to a target outside the root is outside", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-entry-outside-");
+    const outside = realTmpRoot("grugops-ctxio-3733-entry-outside-target-");
+    writeFileSync(join(outside, "elsewhere.md"), "x\n");
+    mkdirSync(join(root, "a"));
+    if (!rootChainLink(join(outside, "elsewhere.md"), join(root, "a", "c"), "symlink to a regular file outside the repository root")) return;
+    expect(mod.rootChainPresence(root, "a/c", "entry")).toEqual({ kind: "outside", real: join(outside, "elsewhere.md") });
+  });
+
+  it("a regular file at a middle component is unreadable with code ENOTDIR, for either leaf", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-enotdir-");
+    mkdirSync(join(root, "a"));
+    writeFileSync(join(root, "a", "b"), "not a directory\n");
+    for (const leaf of LEAVES) {
+      expect(mod.rootChainPresence(root, "a/b/c", leaf), leaf).toEqual({
+        kind: "unreadable",
+        code: "ENOTDIR",
+        reason: '"a/b" on the path is not a directory (ENOTDIR)',
+      });
+    }
+  });
+
+  it("a plain directory is present for either leaf, with real equal to the joined path", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-plain-dir-");
+    mkdirSync(join(root, "a", "b", "c"), { recursive: true });
+    for (const leaf of LEAVES) {
+      const r = mod.rootChainPresence(root, "a/b/c", leaf);
+      expect(r.kind, leaf).toBe("present");
+      if (r.kind !== "present") continue;
+      expect(r.entry.isDirectory()).toBe(true);
+      expect(r.target.isDirectory()).toBe(true);
+      expect(r.real).toBe(join(root, "a", "b", "c"));
+    }
+  });
+
+  it("a plain file is present for an entry query; a directory query sees a present entry that is not a directory", () => {
+    const root = realTmpRoot("grugops-ctxio-3733-plain-file-");
+    mkdirSync(join(root, "a"));
+    writeFileSync(join(root, "a", "c"), "x\n");
+    for (const leaf of LEAVES) {
+      const r = mod.rootChainPresence(root, "a/c", leaf);
+      expect(r.kind, leaf).toBe("present");
+      if (r.kind !== "present") continue;
+      expect(r.entry.isFile()).toBe(true);
+      expect(r.target.isFile()).toBe(true);
+      expect(r.real).toBe(join(root, "a", "c"));
+    }
+  });
+
+  it("isWithin: a root ending in the separator is its own prefix; a sibling sharing a prefix is not within", () => {
+    expect(mod.isWithin("/r/a", "/r")).toBe(true);
+    expect(mod.isWithin("/r", "/r")).toBe(true);
+    expect(mod.isWithin("/ra", "/r")).toBe(false);
+    expect(mod.isWithin("/r/a", `/r${sep}`)).toBe(true);
+    expect(mod.isWithin("/a", sep)).toBe(true);
+  });
+
+  it("the skip count is printed (0 on a host that can stage symbolic links)", () => {
+    console.log(`rootChainPresence cases skipped for the platform: ${rootChainSkips}`);
+    if (process.platform === "darwin" || process.platform === "linux") expect(rootChainSkips).toBe(0);
+  });
+});
