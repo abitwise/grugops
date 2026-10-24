@@ -1,273 +1,154 @@
 ---
 phase: 37-overview-board-per-file-records-and-budgets
-reviewed: 2026-10-23T23:51:03Z
+reviewed: 2026-10-24T15:49:57Z
 depth: standard
-files_reviewed: 25
+files_reviewed: 17
 files_reviewed_list:
-  - agent-factory/workflows/02-idea-to-epics.md
   - agent-factory/workflows/03-epic-to-tickets.md
-  - hooks/hook-entry.js
   - hooks/hook-entry.ts
-  - scripts/context-io-writer-set.test.ts
-  - scripts/context-io.js
-  - scripts/context-io.test.ts
+  - install/mode-census.test.ts
   - scripts/context-io.ts
-  - scripts/generate-runnable-embeds.js
+  - scripts/context-io.test.ts
   - scripts/generate-runnable-embeds.ts
   - scripts/runnable-ref/read-sites.test.ts
   - scripts/runnable-ref/runnable-exit-contract.test.ts
-  - scripts/runnable-ref/state-check.js
-  - scripts/runnable-ref/state-check.test.ts
   - scripts/runnable-ref/state-check.ts
-  - scripts/runnable-ref/state-roll.js
-  - scripts/runnable-ref/state-roll.test.ts
+  - scripts/runnable-ref/state-check.test.ts
   - scripts/runnable-ref/state-roll.ts
-  - scripts/runnable-ref/trace-render.js
-  - scripts/runnable-ref/trace-render.test.ts
+  - scripts/runnable-ref/state-roll.test.ts
   - scripts/runnable-ref/trace-render.ts
+  - scripts/runnable-ref/trace-render.test.ts
   - scripts/trace-instructions.test.ts
-  - scripts/trace-model.js
-  - scripts/trace-model.test.ts
   - scripts/trace-model.ts
+  - scripts/trace-model.test.ts
 findings:
-  critical: 1
-  warning: 1
-  info: 3
-  total: 5
+  critical: 0
+  warning: 3
+  info: 1
+  total: 4
 status: issues_found
 ---
 
-# Phase 37: Code Review Report (gap round 2)
+# Phase 37: Code Review Report (gap round 3, diff e82bd43f..HEAD)
 
-**Reviewed:** 2026-10-23T23:51:03Z
+**Reviewed:** 2026-10-24T15:49:57Z
 **Depth:** standard
-**Files Reviewed:** 25
+**Files Reviewed:** 17
 **Status:** issues_found
 
 ## Summary
 
-This review covers gap round 2 (plans 37-28 to 37-32, scope D-18), diffed against a98ae51c, at HEAD 3c9e5f9f.
-It re-checks the round-1 findings in D-18's scope and asks the brief's four class questions (READ-1, EXIT-1,
-AUTH-1, SCAN-1) of every change.
+Scope: the round-3 diff (`git diff e82bd43f HEAD`): the D-20 root-chain owner, the IN-11 stray-entry remedy, the IN-13 single boundary predicate, and the WR-11 widening of hand-trace pattern 4. New IDs start at WR-12 and IN-14, so none collides with the 37-REVIEW-DISPOSITION.md ledger (CR-01..CR-05, WR-01..WR-11, IN-01..IN-13).
 
-How the repros ran: the committed `.js` of the three runnables were copied into a scratch host directory and run
-against scratch repositories under the session scratchpad. No installer was run and no tracked file was changed.
-The harness is
-`/private/tmp/claude-501/-Users-olgeroeselg-Projects-public-grugops/58363b4a-5d6f-4c33-9956-bf1876318d31/scratchpad/repro.mjs`,
-with the probe modules `p2.mjs` to `p5.mjs` and the scan probes `scan.mjs` to `scan4.mjs` in the same directory.
+**D-20 core: no defect found.** `rootChainPresence` (scripts/context-io.ts:2340-2385) lstat's every component of a validated repository-relative path below the already-real root. It refuses a link before the last component (and at the last component for leaf `directory`) from the lstat alone, and answers `absent` only on an lstat ENOENT beneath components it has seen as real directories. I traced every hand-written read and write site of the three runnables:
 
-These checks were green at HEAD:
+- trace-render: `realDirectoryOrNull` covers both context roots, the state directory and the trace directory. The pre-write loop and `readText` cover each planned path and each listed extra. The removals, the trace-directory `mkdirSync` and the writes act only on paths the owner already answered.
+- state-check: `locate` (marker, board, indexes, measured files, folders, trace files) and `traceDirectory` (context roots, trace directory).
+- state-roll: `realDirectoryOrNull` (state, archive and memory-bank directories) and `readTextOrThrow` (planning reads and the reads during the roll).
 
-- `node scripts/freshness.js`, `runnable-embeds-freshness.js`, `hook-manifest-freshness.js`,
-  `adapters-freshness.js`, `skill-twins-freshness.js` and `catalog-freshness.js`, after a `tsc --outDir .tmp-build`;
-- `npx vitest run scripts/trace-instructions.test.ts scripts/trace-model.test.ts` (116 tests).
+Only two raw fs reads remain off the owner, and neither is a D-20 position:
+- state-check `confirmListed` (state-check.ts:2246), a post-listing lstat beneath a folder the owner already cleared;
+- `runnableSkewFindings`, which reads the tools directory and not a state path.
 
-`read-sites.test.ts` and the other runnable tests were read, not run.
+Every link refusal comes before the first write or removal. I ran adversarial reproductions against the committed `trace-render.js` in scratch fixtures with HOME and GRUGOPS_HOME pointed at a temp dir:
+- `.grugops` linked to an empty directory outside the root;
+- a dangling `.grugops/context`;
+- `.grugops/archive` linked to an in-root directory;
+- the trace directory linked to an in-root directory;
+- `.grugops` as a regular file.
 
-**What holds.** The one absence owner (`entryPresence`) is sound for every shape round 1 named:
+Each case exited 2 by name, and the existing generated trace file survived. Only the really-absent baseline removed it, as D-20 defines.
 
-- A dangling `notes` link, a symlinked task entry, a dangling context root and a dangling ancestor (`.grugops`)
-  all exit 2 in the renderer, with the old trace file kept. `state-check` reports `trace-not-compared` for each.
-- Dangling links at a ticket record, the progress file and the two move-only folders become named unmeasured or
-  unlisted findings in `state-check`.
-- After this round, ENOENT is compared only inside `entryPresence` and `readRegularFileOrNull` in all three
-  runnables.
+The `entryPresence` `link` field, the `remedy` plumbing through the trace model, and the generator rows check out. The hook manifest hash matches `sha256(scripts/context-io.js)`. The census arithmetic adds up (10+22+2+3+6+2+2 = 47).
 
-**What does not hold:**
-
-- **CR-05.** The owner's `absent` is answered beneath a link that leaves the repository root. That is the one
-  boundary the runnables' headers promise to refuse. The render then removes a ticket's trace file with exit 0.
-- **WR-11.** SCAN-1 recurs. Pattern 4 accepts only eleven determiners directly before the word `trace`, and the
-  verb list has no `-ing` forms. So plain wordings such as "Edit trace files by hand" and "Keep updating the
-  trace file by hand" pass.
-- **WR-09 is only partly closed.** WF03's Done condition still leaves out the ticket identifier (see the prior
-  findings section).
-
-WR-07, WR-10, IN-07, IN-08 and IN-09 stay open outside D-18's scope, as 37-CONTEXT.md D-18 records. They are not
-re-reported.
-
-## Prior findings re-checked
-
-| ID | Status | Evidence |
-|----|--------|----------|
-| CR-03 | closed | Repro `dangling-notes`: render 1 writes `ABC-1.md`. Renaming the link target makes `--check` and the write mode exit 2 with `UNREADABLE TASK .grugops/context/taskA: ... it is a symbolic link whose target cannot be reached (ENOENT)`, and `ABC-1.md` survives. `state-check` exits 1 with a `trace-not-compared` finding naming the task. |
-| CR-04 | closed | Repro `symlink-task`: the symlinked `taskA` is `UNREADABLE TASK ... it is a symbolic link, and a symbolic link is never read as a task`. Exit 2, nothing removed, and `state-check` reports `trace-not-compared`. |
-| IN-06 | closed | The walk no longer calls `statSync(..., { throwIfNoEntry: false })`. `context-io.ts:2274-2290` asks `entryPresence`, and a task path that is a regular file throws ENOTDIR (context-io.test.ts). The comment premise is corrected, and `readRegularFileOrNull`'s comment now says that its null does not prove absence. |
-| IN-10 | closed for the reported shape | Repros `dangling-root` and `dangling-grugops`: the renderer exits 2 naming the root. `state-check` reports `trace-not-compared` naming the same root with the same owner reason. Both now also agree on the CR-05 case, but there they are both wrong (see CR-05). |
-| WR-08 | closed for its table | Every sentence in WR-08's table, including the path-dot case, now matches (KNOWN_VIOLATIONS rows, green). The class recurs in shapes the table did not list: WR-11. |
-| WR-09 | **partly closed** | WF02:41 and WF03:9 are fixed. The adapters, catalog and skill twins are fresh. One position is still unfixed in the same file: `agent-factory/workflows/03-epic-to-tickets.md:46`, the Done condition, says "Its epic, feature and NFR ids are published as refs on a note." It leaves out the condition that Step 8 (line 30) and Trace updates (line 37) state: "The ticket identifier is among the refs". An agent that checks the Done condition literally can publish `[EPIC-1, FEAT-2, NFR-3]` and get no trace file. **Fix:** "Its epic, feature and NFR ids are published, with the ticket identifier, as refs on a note." Then regenerate the adapters, catalog and skill twins. |
-
-## Critical Issues
-
-### CR-05: An absent context root under a link that leaves the repository root reads as "no tasks", so the render removes the tickets' trace files (exit 0); with the folder present, the same link is refused as outside the root
-
-**File:** `scripts/context-io.ts:2194-2211` (`entryPresence`, the `absent` return), `scripts/runnable-ref/trace-render.ts:1028-1040` (`realDirectoryOrNull`, `CONTEXT_ROOTS`), `scripts/runnable-ref/state-check.ts:1954-1961` (`locate`), `:2225-2231` (`traceDirectory`)
-
-**Issue:** `entryPresence` returns `absent` as soon as an lstat of any path component gives ENOENT. It follows
-every link on the way down and never asks where the followed prefix resolved. So a missing path beneath an
-ancestor link that leaves the root is `absent`.
-
-Every caller checks `insideRoot` only on a `present` answer. The renderer's `realDirectoryOrNull` and
-state-check's `locate` therefore return "absent" for such a context root. An absent root holds no tasks, and the
-render removes every trace file whose notes lived there.
-
-The same link with the folder present is refused as "resolves outside the repository root" (exit 2). The answer
-to "may this root be used" therefore depends on what sits outside the root, the place the header says is never
-read ("THE ROOT IS A BOUNDARY").
-
-This breaks 33.1 DC-2. A trace file is removed because a read at a refused position produced nothing, not
-because a complete read showed that no note names the ticket. The trigger is an ancestor link that leaves the
-root and whose target lacks the child. One example is `.grugops/archive` linked to external storage whose mount
-point is empty while the volume is unmounted. Another is a half-done move. The effect is CR-01's.
-
-Reproduced with the committed `.js` (`p4.mjs`):
-
-1. A repository with `.grugops/context/taskA` naming ABC-1 and `.grugops/archive/context/taskB` naming ABC-2.
-   The render exits 0 and writes `ABC-1.md,ABC-2.md`.
-2. Move `.grugops/archive` away, and make `.grugops/archive` a link to an empty directory outside the root.
-3. `trace-render.js --check` exits 1 with `EXTRA memory-bank/plans/traceability/ABC-2.md: a fresh render removes it.`
-   It reports `1 task(s) ... unreadable tasks 0`.
-4. `state-check.js` exits 1 with `trace-stale` "extra: a fresh render removes it; run node tools/grugops/trace-render.js <root>".
-   Its remedy is the deletion.
-5. `trace-render.js` exits 0 with `REMOVED memory-bank/plans/traceability/ABC-2.md`, and only `ABC-1.md` remains.
-6. Control: put a `context/` folder inside the outside target. `--check` then exits 2 with
-   `the context root .grugops/archive/context resolves outside the repository root, so it was not used.`
-
-The read-sites ENOENT table cannot see this case. It lists `trace-render ... via realDirectoryOrNull#0` and
-`state-check ... via locate#0` as exempt, on the grounds that an absent root "holds no task". The shape table
-plants a link only to an in-root directory, so no row ever links outside the root.
-
-**Fix:** have the owner report where the deepest present component resolved. Then a caller that enforces the
-boundary refuses an absent answer beneath an outside link, as it refuses a present one:
-
-```ts
-// context-io.ts
-export type EntryPresence =
-  | { readonly kind: "absent"; readonly realParent: string }   // realpath of the last present component
-  | ...;
-// in the loop, before `return { kind: "absent" }`:
-//   const realParent = i === 0 ? at : realpathSync(prefixes[i - 1]);   // a failure here is `unreadable`
-//   return { kind: "absent", realParent };
-
-// trace-render.ts realDirectoryOrNull, state-check.ts locate, state-roll.ts realDirectoryOrNull:
-if (presence.kind === "absent") {
-  if (!insideRoot(presence.realParent)) couldNotRun(`${what} resolves outside the repository root, so it was not used.`);
-  return null;
-}
-```
-
-Add two READ-1 shape rows for every directory-follow position: an ancestor linked outside the root with the child
-present, and with the child absent. Both must be refused, with the old trace file and index line kept. Keep the
-in-root absent case exempt.
+**Defects found.** The round-3 WR-11 fix created a new bypass of the hand-trace scan (WR-12). The scan is still a hand-enumerated verb and noun list, the same class as WR-11 (WR-13). The IN-11 remedy contract is false for one reachable arm of the union (WR-14).
 
 ## Warnings
 
-### WR-11: SCAN-1 recurs: pattern 4 needs one of eleven determiners directly before `trace`, and the shared verb list has no `-ing` forms, so plain hand-write instructions pass
+### WR-12: Pattern 4's comma-list and `per Workflow 16` exclusions reach the whole 120-character run, so a plain list of objects aimed at the trace passes (created by the round-3 WR-11 fix)
 
-**File:** `scripts/trace-model.ts:49-72` (`HAND_TRACE_WRITE_VERBS`), `:86-108` (`PATTERN_4`, the determiner list at line 103), `scripts/trace-instructions.test.ts` (`KNOWN_VIOLATIONS`)
+**File:** `scripts/trace-model.ts:122-133` (the `(?!\bper Workflow 16\b)` and `(?!, ${LIST_ITEM_DETERMINER}\b)` lookaheads inside pattern 4's bounded run)
 
-**Issue:** The brief's truth for this scan is "a write verb aimed at 'the trace' in any spelling is a positive"
-(37-GAP-PLANNING-BRIEF.md §1.1). Pattern 4 stops short of that in two ways:
+**Issue:** The two exclusions plan 37-39 added are checked at every step of the lazy `{0,120}?` run between the verb and the trace. Any `, the` / `, its` / `, each` … or any `per Workflow 16` anywhere between the verb and the trace therefore stops the match, wherever it sits. The intended scope was the end of a commit-convention artifact list. The commonest shape of a hand-trace instruction is a verb with several objects, and it now matches no pattern. Run against the committed `scripts/trace-model.js`, each of these matches none of the four `HAND_TRACE_PATTERNS`:
 
-- It needs exactly one of `the|a|an|its|this|that|each|every|ticket|tickets|ticket's`, then whitespace, then
-  `trace`.
-- Patterns 1 and 4 share a verb list that holds only base, `-s` and past forms.
+- `Append the PR link, the test path and the release to the trace.`
+- `Add the PR link, the test path and the release note to each ticket's trace file.`
+- `Update the PR link, its tests and the release in the trace file.`
+- `Append, per Workflow 16, the PR link to the trace file.`
 
-I ran each of these sentences against the committed `scripts/trace-model.js` (`scan.mjs`, `scan2.mjs`,
-`scan4.mjs`). Each tells an agent to write the trace by hand, and each matches no pattern:
+Before plan 37-39, pattern 4 caught the first three. This is the "fix created the bypass" class: the exclusion was reasoned from the false hit it removes (the 06/10 commit-convention lines) but not from the union of sentences it admits. Removing each exclusion in isolation shows what it actually exempts in the live scan set: only the `rendered trace files` commit lines in workflows 01, 02, 03, 06, 10, 14 and 15.
 
-| Sentence | Shape that escapes |
-|----------|--------------------|
-| "Edit trace files by hand when the render is late." | no determiner (the artifact's own name, "trace files") |
-| "Update trace files directly." | no determiner |
-| "Update your trace file." / "Append the PR link to our trace." / "... to their trace." | a possessive the list leaves out |
-| "Append the PR link to the generated trace file." | an adjective between the determiner and `trace` |
-| "Record the release in the matching trace file." / "Write the release id into the ticket's own trace." | the same |
-| "Update the ticket traces by hand." / "Edit these traces." | the plural `traces` (`trace\b` fails before the `s`) |
-| "Keep updating the trace file by hand." / "Finish by adding the PR link to the trace." | the gerund of a listed verb |
-| "Start by appending the PR link to traceability.md." | the gerund, in pattern 1 too |
+**Fix:** Delete both lookaheads and exempt the real false hit at the noun instead. A determiner phrase whose word just before `trace` is `rendered` names the render's output, the same reasoning the determiner-less alternative already uses:
 
-None of these is among the three shapes that the 37-32 entry in deferred-items.md records: the note/ref stop, a
-ticket id as the determiner, and verbs outside the list (copy, paste).
+```ts
+// in PATTERN_4, drop:
+//   String.raw`(?!\bper Workflow 16\b)`,
+//   String.raw`(?!, ${LIST_ITEM_DETERMINER}\b)`,
+// and in the determiner alternative:
+String.raw`\b${TRACE_DETERMINER}\s+(?:(?!(?:and|or|but|nor)\b)[\w'-]+\s+){0,2}?(?<!\brendered )traces?\b`,
+```
 
-No live kit sentence has these shapes today. I ran a widened grep over the 77-file scan set, and the only near
-hits are prohibitions ("No step edits a trace file") and observability "traces". This is the shape WR-08 had: a
-scan built from the spellings it was shown, not from the truth.
+Checked in a scratch copy of the patterns: with this change the live scan set has 0 line hits and the four sentences above are hits. Re-point the two `EXCLUSION_CONTROLS` rows (trace-instructions.test.ts:385-397) at the `rendered` rule. Add the four sentences to `KNOWN_VIOLATIONS`, and re-run the paragraph scanner.
 
-**Fix:**
+### WR-13: The hand-trace scan still enumerates its verbs and nouns by hand, so common write verbs and determiner-less shapes pass (same defect class as WR-11, one register over)
 
-- Allow an optional run of up to two words between the determiner and `trace`, add the possessives `your|our|their`,
-  accept `traces?`, and allow a bare plural `\btrace files?\b` without a determiner.
-- Add the `-ing` form of every member of `HAND_TRACE_WRITE_VERBS`: generate it (`append` gives `appending`,
-  `write` gives `writing`, `put` gives `putting`), or list each one. Hold the list complete with a test that each
-  base verb has its gerund.
-- Add every sentence above to `KNOWN_VIOLATIONS`.
-- Where a widened shape needs an exclusion, add it as an `EXCLUSION_CONTROLS` row (negative plus control). Example:
-  "this workflow feeds the trace rather than editing it" in `16-context-read-write.md:78`.
+**File:** `scripts/trace-model.ts:50-74` (`HAND_TRACE_VERB_GROUPS`), `:104` (`TRACE_DETERMINER`), `:139-147` (the two noun alternatives)
+
+**Issue:** WR-11 was closed by adding forms (gerunds, `copy`, `paste`) and determiners to hand-written lists. The truth the scan guards ("no kit file tells an agent to write the trace by hand") is not bounded by those lists. Each of these matches none of the four patterns in the committed `trace-model.js`:
+
+- missing verbs: `Note the release in the trace file.`, `Commit the PR link to the trace file.`, `Store …`, `Save …`, `Set …`, `Mark …`, `Type the PR link into the trace file.`
+- three describing words between determiner and noun (the `{0,2}` cap): `Append the PR link to the newly generated ABC-1 trace.`
+- determiner-less `trace` without a listed artifact noun: `Append the PR link to trace ABC-1.`
+- a colon clause bound before the object clause: `Record the release: the trace file gets the PR link.`
+
+This is the P29 lesson recorded for this repo: a seven-stem verb list let `increases/raises/aids` through. The structural move is to stop enumerating the verb.
+
+**Fix:** Invert pattern 4's anchor. Flag any sentence that names a trace artifact (determiner phrase or `trace file/index/entry/line`) as the object of a preposition of placement (`to|into|in|on|onto` + optional determiner + up to N words + `trace`). Keep the existing reasoned exclusions (negation, `render` subject, copula, `rendered`, `trace back/forward`). If the verb list stays, derive its completeness check from an external lexicon rather than the scan's own corpus, and at least add `note`, `commit`, `store`, `save`, `set`, `mark` and `type` with their forms. Raise the `{0,2}` cap to match the 120-character bound, or replace it with "any words not crossing a conjunction". Add each sentence above to `KNOWN_VIOLATIONS`.
+
+### WR-14: The stray-entry remedy is not decided by the entry's own lstat: a non-directory context-root entry whose name falls outside the task grammar gets no remedy (IN-11 union arm)
+
+**File:** `scripts/context-io.ts:2616-2626` (`readTaskNoteRefs`: `assertSafeTask(task)` runs before `entryPresence`); the claim is stated at `scripts/context-io.ts:2600-2609`, `scripts/runnable-ref/trace-render.ts:57-64` and `scripts/runnable-ref/state-check.ts:61-68`
+
+**Issue:** The docblocks state that whether a failed read carries `STRAY_CONTEXT_ENTRY_REMEDY` "is decided by the entry's own lstat, never by a reason text". They also state that every entry that is not a task directory "as the entry's own lstat shows (a regular file, a FIFO, a symbolic link of any kind …)" is named with the remedy. `assertSafeTask` throws first, so any stray entry whose name fails `^[A-Za-z0-9._-]+$` never reaches the lstat. A Finder or editor artefact (`foo bar.txt`, `notes (1).md`, `Icon\r`), a FIFO or a symbolic link with such a name gets the bare `invalid task name` refusal and no remedy. Reproduced against the committed `trace-render.js` with two regular files in `.grugops/context`:
+
+```
+UNREADABLE TASK .grugops/context/foo bar.txt: context-io: invalid task name "foo bar.txt" — must match ^[A-Za-z0-9._-]+$ (...)
+UNREADABLE TASK .grugops/context/foo.txt: it is not a directory, so it is not a task; move it out of the context root or remove it: ...
+```
+
+Both entries are regular files and both stop every render. Only one is told how to unblock it, and the documented union ("decided by the entry's lstat") is false for the other. The IN-09 carve-out ("a task directory whose name the sanctioned writer never creates keeps its own wording") covers directories only, not this arm. No test plants a non-directory entry with an out-of-grammar name.
+
+**Fix:** Ask the entry's lstat before the name rule. Keep the name refusal for directories (the IN-09 arm) only:
+
+```ts
+export function readTaskNoteRefs(task, contextRoot, boundary) {
+  const presence = entryPresence(join(contextRoot, task)); // task comes from readdir, so it holds no separator
+  if (presence.kind === "absent") throw new Error("it was listed and is no longer there");
+  if (presence.kind === "unreadable") {
+    if (presence.link) throw strayEntryError(presence.reason, presence.code);
+    throw codedError(presence.reason, presence.code);
+  }
+  if (presence.entry.isSymbolicLink()) throw strayEntryError("it is a symbolic link, and a symbolic link is never read as a task", null);
+  if (!presence.entry.isDirectory()) throw strayEntryError("it is not a directory, so it is not a task", null);
+  assertSafeTask(task); // IN-09 arm: a directory the writer never creates
+  ...
+}
+```
+
+If `assertSafeTask` must stay first, because `task` could hold `..` or a separator from a non-readdir caller, run the lstat only when `task` holds no `/` or NUL. Then add a context-io.test.ts row for a regular file, a FIFO and a link, each with an out-of-grammar name.
 
 ## Info
 
-### IN-11: A stray regular file or FIFO at the top of a context root now blocks every render, and the remedy text names the wrong fix
+### IN-14: The three runnables answer "may this state file be used" differently at the leaf, so state-check can point at a command that exits 2
 
-**File:** `scripts/context-io.ts:2424-2434` (`listContextTasks`), `:2449-2459` (`readTaskNoteRefs`), `scripts/runnable-ref/state-check.ts:2343-2344`
+**File:** `scripts/runnable-ref/state-check.ts:2078` (`locate` defaults to leaf `entry` and `readState` reads `at.real`), compared with `scripts/runnable-ref/state-roll.ts:1508-1510` (`readTextOrThrow` refuses a leaf link) and `scripts/runnable-ref/trace-render.ts:1265-1273` (`regularFileAt` refuses a leaf link)
 
-**Issue:** Since plan 37-28, every non-keeper entry of a context root is a task or a failed task. A regular file
-whose name does not start with `.` (for example `.grugops/context/README.md`) cannot hold a ticket's notes, yet
-it stops the render on every run. Reproduced (`p5.mjs`):
+**Issue:** An in-root symbolic link at `memory-bank/plans/board.md` is followed by state-check (board findings, a `ROLLABLE … run node tools/grugops/state-roll.js` line) and refused by state-roll with exit 2. An in-root link at `memory-bank/plans/traceability.md` is read as the index by state-check's `readState`, then refused by its own `readTraceText` (exit 2) and by trace-render (exit 2). This predates round 3. However, plan 37-35 re-stated it as intended ("The file leaf rules are unchanged: the marker, the board and the indexes follow an in-root link"), and D-20's stated aim is that the runnables give one answer to "may this path be used".
 
-- the render exits 2 with `UNREADABLE TASK .grugops/context/README.md: it is not a directory, so it is not a task`;
-- `state-check` reports `trace-not-compared`: "this task's notes could not be read (...); the render refuses to run
-  until they can be read".
-
-The brief asks for this (a wrong-type entry is a failed read), and refusing is safe because nothing is removed.
-Two problems remain:
-
-- **IN-09's blast radius has widened.** Before, only a directory with a refused name could block the gate. Now any
-  stray file in the context root can.
-- **The remedy text is wrong for this case.** "until they can be read" tells a human to make a file readable,
-  when the fix is to move it out of the context root.
-
-**Fix:** give non-directory entries their own remedy wording, for example "remove or move it out of the context
-root; only task directories and dot-named keepers belong there". Record the wider block in the header next to
-IN-09.
-
-### IN-12: Two read-sites assertions are looser than the rules they state
-
-**File:** `scripts/runnable-ref/read-sites.test.ts:888-893` and `:967-977` (ENOENT-exempt rows), `:1656` and `:1771-1774` (`shapeCellsRun`)
-
-**Issue:**
-
-- **ENOENT-exempt rows.** The comment says an exempt row's program "must answer it as absence". The test asserts
-  only that the fault fired, with no stack trace and no unexpected-throw line. It never checks that the outcome
-  equals the outcome for a truly absent path. A program that answered an exempt ENOENT with a pass for some other
-  reason (for example, by exiting 0 before the read) would stay green.
-- **Shape-cell counter.** `shapeCellsRun` is incremented before the platform-skip test. So "every cell ran" holds
-  even if every symlink and FIFO cell was skipped.
-
-**Fix:**
-
-- For each exempt row, compare the faulted run's exit status and written bytes with a run on a fixture where the
-  path is really absent.
-- Count skipped cells apart from run cells, and assert on darwin and linux that `shapeCellsSkipped === 0`.
-
-### IN-13: The repository boundary has four hand copies that disagree on a root ending in the separator
-
-**File:** `scripts/context-io.ts` (`isWithin`, embedded into trace-render and state-check by this round), `scripts/runnable-ref/trace-render.ts:1012-1014`, `scripts/runnable-ref/state-roll.ts:1455-1457`, `scripts/runnable-ref/state-check.ts:2204-2207`
-
-**Issue:** The question "is this real path inside the root" now has four implementations. `isWithin` and
-state-check's `insideRoot` treat a boundary that ends in `/` as its own prefix. The `insideRoot` copies in
-trace-render and state-roll build `root + sep`. For a root of `/`, these give `//` and refuse every path, while
-the embedded walk's `isWithin` admits the same paths.
-
-This is benign today: it refuses, and a repository at `/` is unrealistic. It is still an AUTH-1 split that this
-round widened rather than closed: it added a generated boundary predicate beside the three hand-written ones
-instead of making those call it.
-
-**Fix:** have the three hand-written parts call the embedded `isWithin(real, root)`, and delete their
-`insideRoot` copies.
+**Fix:** Either refuse a leaf link at the board and the indexes in state-check too (in `readState`, check `at.entry.isSymbolicLink()` the way `sizeFinding` and `readTraceText` already do), or record the asymmetry as a flagged decision beside the `.grugops/queue` flag.
 
 ---
 
-_Reviewed: 2026-10-23T23:51:03Z_
+_Reviewed: 2026-10-24T15:49:57Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
