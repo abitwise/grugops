@@ -1847,6 +1847,18 @@ describe("D-20: a root path through a link above the repository root still rende
     expect(aliasState.stdout).toContain("The trace is fresh");
     expect(aliasState).toEqual(realState);
 
+    // Plan 37-35 (D-20): state-check's every state path is on the root-chain owner now, and the link above the root
+    // is still resolved with the root and never seen: --json exit 0, the trace compared, no finding.
+    const realJson = stateCheck(realRoot, "--json");
+    const aliasJson = stateCheck(aliasRoot, "--json");
+    const json = `alias ${aliasJson.status}\n${aliasJson.stdout}${aliasJson.stderr}\nreal ${realJson.status}\n${realJson.stdout}${realJson.stderr}`;
+    expect(aliasJson.status, json).toBe(0);
+    expect(aliasJson.stderr, json).toBe("");
+    const aliasReport = JSON.parse(aliasJson.stdout) as { findings: unknown[]; trace: { compared: boolean; findings: unknown[] } };
+    expect(aliasReport.findings, json).toEqual([]);
+    expect(aliasReport.trace, json).toEqual({ compared: true, findings: [] });
+    expect(aliasJson, json).toEqual(realJson);
+
     expect(treeDigest(realRoot), "no run after the first render wrote, changed or removed anything").toEqual(rendered);
   });
 });

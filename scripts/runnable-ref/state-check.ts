@@ -65,8 +65,9 @@
 // trace-not-compared finding naming that context root or the trace directory, decided by lstat, and a component
 // that cannot be inspected is the same finding for a context root (plan 37-29, IN-10). Neither is ever an absent
 // root, so state-check and the renderer give one answer to "may this directory be used"; the renderer refuses the
-// same directory with exit 2. Only an lstat ENOENT on a component whose earlier components are real directories is
-// an absent root.
+// same directory with exit 2. A link at `memory-bank` or `memory-bank/plans`, the trace directory's ancestors above the
+// layout marker, stops the check at the marker first (exit 2, plan 37-35). Only an lstat ENOENT on a component whose
+// earlier components are real directories is an absent root.
 //
 // SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js and state-roll.js are installed
 // side by side and never updated in place, and each embeds its own generated copy of shared authorities (the trace
@@ -85,14 +86,23 @@
 // budgetEntryNames, given the raw listing; this file filters no name itself (D-11). A record's size is its
 // lstat size, so a record is never opened, and an entry that is not a regular file is a finding by name.
 //
-// THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and a path that resolves
-// outside realpath(root) is a finding by name and is never read, listed or measured
-// (agent-factory/contracts/board.md, `## Staleness`). Whether a path exists is the generated entryPresence's
-// answer, the one absence owner the renderer asks too (plan 37-29, D-18, IN-10): only an lstat ENOENT on a
-// component is absent. A path that is, or sits under, a symbolic link whose target cannot be reached is never
-// absent: at a required file (the layout marker, the board, an index) or a trace position it is exit 2 naming it,
-// at a measured file it is an unmeasured finding, and at a listed folder it is an unlisted finding, so a dangling
-// marker never turns a migrated repository's findings into warnings.
+// THE ROOT IS A BOUNDARY (plan 37-35, D-20, CR-05, IN-13). The root is resolved with realpath once, before any
+// state read, so a symbolic link above it (macOS `/tmp` to `/private/tmp`) is resolved with the root and never seen.
+// Every state path is then asked of the generated rootChainPresence, the root-chain owner the renderer asks too:
+// below the real root no component of a state path's parent chain is followed if it is a symbolic link, present or
+// dangling, whatever it points to; the link is refused from its lstat, by name. Only an lstat ENOENT on a component
+// whose earlier components are real directories is absent. So a link at a context root, the trace directory or an
+// ancestor of one is trace-not-compared (exit 2 when it sits above the layout marker, which is read first: the marker
+// beneath a link is never read and never absent, so it can never turn a migrated repository's findings into
+// warnings), and a link on the chain of a required file (the layout marker, the board, an index) is exit 2 naming it,
+// of a measured file an unmeasured finding, and of a listed folder an unlisted finding. The file leaf rules are
+// unchanged: the marker, the board and the indexes follow an in-root link to a regular file, and a measured file never
+// follows a link. Every folder this file lists is asked with leaf `directory`, so a link AT a folder is refused as the
+// folder and nothing beneath it is listed, measured, counted or compared (a leaf-rule change past D-20's list, flagged
+// for the human beside `.grugops/queue`, whose link now refuses the queue-done folder beneath it). A path whose real
+// path lands outside realpath(root) is a finding by name and is never read, listed or measured
+// (agent-factory/contracts/board.md, `## Staleness`). Whether a path is within the root is the embedded isWithin's
+// answer, the one boundary predicate; this file keeps no copy of its own.
 //
 // OUTPUT IS SANITIZED. Every value read from the repository (a path, a file name) and every diagnostic has
 // each C0, C1 and DEL code point removed by the embedded stripControlChars before it is printed or
@@ -2295,12 +2305,6 @@ function traceNotCompared(rel: string, why: string): TraceReport {
   };
 }
 
-/** True when an already-resolved real path is the root or lies under it. */
-function insideRoot(real: string): boolean {
-  const prefix = root.endsWith(nodePath.sep) ? root : `${root}${nodePath.sep}`;
-  return real === root || real.startsWith(prefix);
-}
-
 /**
  * A directory the trace check reads: absent, outside the root, refused by the root-chain owner (with its reason),
  * beneath or at a symbolic link on the root chain (with the owner's reason), or its real path.
@@ -2347,7 +2351,10 @@ function readTraceTask(task: string, contextReal: string): TraceTaskRead {
  * reader then cannot find vanished, and is refused, never missing. Every refusal is could-not-run.
  */
 function readTraceText(path: string): string | null {
-  const rel = path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+  // The trace model composes `<root>/<rel>`; the embedded isWithin, the one boundary predicate, decides that it is
+  // below the root (IN-13, plan 37-35), and the repository-relative path is `/`-joined for the root-chain owner.
+  if (!isWithin(path, root) || path === root) couldNotRun(`the trace file ${path} is not below the repository root, so it was not read.`);
+  const rel = nodePath.relative(root, path).split(nodePath.sep).join("/");
   const at = locate(rel);
   if (at.kind === "absent") return null;
   if (at.kind === "error") couldNotRun(`cannot resolve the trace file ${rel}: ${at.reason}.`);
@@ -2527,7 +2534,7 @@ function runnableSkewFindings(): StateFinding[] {
     if (name === RUNNABLE_SELF) continue;
     const abs = nodePath.join(here, name);
     const rel =
-      hereReal !== null && insideRoot(hereReal)
+      hereReal !== null && isWithin(hereReal, root)
         ? nodePath.relative(root, nodePath.join(hereReal, name)).split(nodePath.sep).join("/")
         : abs;
     // Whether the sibling is present is the absence owner's answer (plan 37-29, D-18): only its absent is "this file

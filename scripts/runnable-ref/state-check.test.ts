@@ -32,6 +32,7 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip, type SkipEntry } from "../check-platform-shapes.js";
 import {
+  ARCHIVE_REL,
   BOARD_REL,
   BUDGET_COUNT,
   CONTEXT_ARCHIVE_REL,
@@ -39,12 +40,15 @@ import {
   BUDGETS,
   DECISIONS_ARCHIVE_REL,
   DECISIONS_REL,
+  GRUGOPS_ARCHIVE_REL,
+  GRUGOPS_DIR_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   MEMORY_BANK_REL,
   NFR_CATALOG_REL,
   NFR_DIR_REL,
   PROGRESS_REL,
+  QUEUE_REL,
   QUEUE_DONE_ARCHIVE_REL,
   QUEUE_DONE_REL,
   STATE_ROOT_REL,
@@ -55,6 +59,7 @@ import {
 import { renderTraceIndex } from "../trace-model.js";
 import { RUNNABLE_STAMP_LINE, readRunnableStamp } from "../runnable-stamp.js";
 import { ciWorkflow, ubuntuBlockCommands } from "../ci-workflow.testkit.js";
+import { EMBED_CLOSE } from "../generate-runnable-embeds.js";
 
 /**
  * The zero-row generated index (plan 37-09): a repository with no published note renders exactly this, so a
@@ -1989,5 +1994,381 @@ describe.skipIf(process.platform === "win32")("a state path name the state layou
     expect(r.stderr, all).toContain("holds a backslash");
     expect(r.stderr, all).not.toContain("failed unexpectedly");
     expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+  });
+});
+
+// ── Plan 37-35 Task 2 (D-20, IN-13): the root-chain position table as state-check sees it, the flagged folder and
+// queue rows, and the census that holds state-check to one boundary predicate ───────────────────────────────────
+
+/** A finding of the --json document with its note. */
+type NotedFinding = JsonFinding & { note: string | null };
+
+/** `key|rel` of each finding, sorted: the identity a row compares. */
+function findingIds(report: JsonReport): string[] {
+  return report.findings.map((f) => `${f.key}|${f.rel}`).sort();
+}
+
+/**
+ * A migrated, rendered repository holding a note in each context root and a `.gitkeep` in the queue-done and
+ * decisions folders and their archives, so every root-chain position below the root is a real directory.
+ */
+function positionRepo(): string {
+  const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+  plantNote(root, CONTEXT_REL, "taskA", "n1", ["ABC-001", "src/a.ts"]);
+  plantNote(root, CONTEXT_ARCHIVE_REL, "taskB", "n2", ["ABC-002", "src/b.ts"]);
+  for (const dir of [QUEUE_DONE_REL, QUEUE_DONE_ARCHIVE_REL, DECISIONS_REL, DECISIONS_ARCHIVE_REL]) plant(root, `${dir}/.gitkeep`, "");
+  renderOk(root);
+  return root;
+}
+
+/**
+ * Every root-chain position state-check asks below the root, other than the two above the layout marker (the marker
+ * describe holds those): the union of the owner's chains over both context roots, the trace directory and the
+ * decisions archive's parent.
+ */
+const D20_POSITIONS: readonly string[] = [
+  ...new Set(
+    [CONTEXT_REL, CONTEXT_ARCHIVE_REL, TRACE_DIR_REL, ARCHIVE_REL, dirname(DECISIONS_ARCHIVE_REL)].flatMap((rel) => ctxio.rootChainOf(rel)),
+  ),
+].filter((p) => !MARKER_CHAIN.includes(p));
+
+/**
+ * The findings a link at each position gives, by `key|rel`: a trace-not-compared finding for the context root or the
+ * trace directory at or beneath the link (the first one traceReport reaches), a move-only-unlisted finding for each
+ * move-only folder beneath it, and the trace directory's byte-budget finding when the link is at it.
+ */
+const D20_EXPECTED: Readonly<Record<string, readonly string[]>> = {
+  [GRUGOPS_DIR_REL]: [`move-only-unlisted|${QUEUE_DONE_ARCHIVE_REL}`, `move-only-unlisted|${QUEUE_DONE_REL}`, `trace-not-compared|${CONTEXT_REL}`],
+  [CONTEXT_REL]: [`trace-not-compared|${CONTEXT_REL}`],
+  [GRUGOPS_ARCHIVE_REL]: [`move-only-unlisted|${QUEUE_DONE_ARCHIVE_REL}`, `trace-not-compared|${CONTEXT_ARCHIVE_REL}`],
+  [CONTEXT_ARCHIVE_REL]: [`trace-not-compared|${CONTEXT_ARCHIVE_REL}`],
+  [TRACE_DIR_REL]: [`trace-not-compared|${TRACE_DIR_REL}`, `traceBytes|${TRACE_DIR_REL}`],
+  [ARCHIVE_REL]: [`move-only-unlisted|${DECISIONS_ARCHIVE_REL}`],
+};
+
+/**
+ * The one position whose link leaves the trace compared: the decisions archive's parent holds no trace path, so the
+ * trace is compared and fresh beside its move-only-unlisted finding (see the 37-35 SUMMARY, deviation 1).
+ */
+const TRACE_COMPARED_POSITIONS: ReadonlySet<string> = new Set([ARCHIVE_REL]);
+
+let positionCellsRun = 0;
+let positionCellsSkipped = 0;
+
+describe("D-20: every root-chain position as state-check sees it (plan 37-35)", () => {
+  it("the position list is derived from the owner's chains, its size is 6, and the expected table covers exactly it", () => {
+    expect([...D20_POSITIONS].sort()).toEqual(
+      [GRUGOPS_DIR_REL, CONTEXT_REL, GRUGOPS_ARCHIVE_REL, CONTEXT_ARCHIVE_REL, TRACE_DIR_REL, ARCHIVE_REL].sort(),
+    );
+    expect(D20_POSITIONS).toHaveLength(6);
+    expect(Object.keys(D20_EXPECTED).sort()).toEqual([...D20_POSITIONS].sort());
+  });
+
+  for (const position of D20_POSITIONS) {
+    for (const shape of CHAIN_LINK_SHAPES) {
+      it(`${position} a link to ${shape}: named findings with the root-chain reason, exit 1 with the marker and WARN with exit 0 without it`, () => {
+        positionCellsRun += 1;
+        const root = positionRepo();
+        const premise = run(root);
+        expect(premise.status, `PREMISE: the repository is clean\n${premise.stdout}${premise.stderr}`).toBe(0);
+        expect(premise.stdout).toContain("No findings.");
+        if (!linkChainPosition(root, position, shape, `the D-20 position ${position} (${shape})`)) {
+          positionCellsSkipped += 1;
+          return;
+        }
+        const expected = D20_EXPECTED[position] ?? [];
+        const compared = TRACE_COMPARED_POSITIONS.has(position);
+
+        const j = runJson(root);
+        const r = run(root);
+        const all = `json: status ${j.status}\n${j.stdout}\n${j.stderr}\ntext: status ${r.status}\n${r.stdout}\n${r.stderr}`;
+        expect(j.status, all).toBe(1);
+        expect(findingIds(j.report), all).toEqual(expected);
+        for (const f of j.report.findings as NotedFinding[]) {
+          expect(f.note, `${f.key}|${f.rel} carries the root-chain reason\n${all}`).toContain(`${position} ${ROOT_CHAIN_LINK_REFUSAL}`);
+        }
+        expect(j.report.trace.compared, all).toBe(compared);
+        expect(j.report.trace.findings.map((f) => f.key).filter((k) => k === "trace-stale"), all).toEqual([]);
+        expect(r.status, all).toBe(1);
+        expect(r.stdout.split("\n").filter((l) => l.startsWith("FINDING  ")), all).toHaveLength(expected.length);
+        for (const text of [r.stdout, r.stderr]) {
+          expect(text, all).not.toContain("trace-stale");
+          expect(text, all).not.toContain("No findings.");
+          if (!compared) expect(text, all).not.toContain("The trace is fresh");
+        }
+        if (compared) expect(r.stdout, all).toContain("The trace is fresh");
+
+        rmSync(join(root, ...LAYOUT_MARKER_REL.split("/")));
+        const w = run(root);
+        const wall = `no marker: status ${w.status}\n${w.stdout}\n${w.stderr}`;
+        expect(w.status, wall).toBe(0);
+        expect(w.stdout.split("\n").filter((l) => l.startsWith("WARN     ")), wall).toHaveLength(expected.length);
+        expect(w.stdout, wall).not.toContain("FINDING");
+        expect(w.stdout, wall).not.toContain("No findings.");
+        expect(w.stdout, wall).not.toContain("trace-stale");
+        expect(w.stdout, wall).toContain(`LAYOUT   no layout marker at ${LAYOUT_MARKER_REL}`);
+        if (!compared) expect(w.stdout, wall).not.toContain("The trace is fresh");
+      });
+    }
+  }
+
+  it("CONTROL, file leaf rule kept: an in-root link to a regular file holding the marker is read through, and the marker is valid", () => {
+    const root = positionRepo();
+    const at = join(root, ...LAYOUT_MARKER_REL.split("/"));
+    const target = join(root, "marker-target");
+    renameSync(at, target);
+    const skipped = stageSymlinkOrSkip(target, at, "symlink to a regular file", "scripts/runnable-ref/state-check.test.ts: the marker as an in-root link (plan 37-35)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the file-follow shape cells of read-sites.test.ts"));
+      return;
+    }
+    const j = runJson(root);
+    expect(j.status, j.stdout + j.stderr).toBe(0);
+    expect(j.report).toMatchObject({ marker: "valid", enforced: true, findings: [] });
+    expect(j.report.trace).toEqual({ compared: true, findings: [] });
+  });
+
+  it("CONTROL, file leaf rule kept: a link at a ticket file is still an unmeasured finding naming it, not a root-chain refusal", () => {
+    const root = positionRepo();
+    const at = join(root, ...TICKETS_REL.split("/"), "ABC-011.md");
+    const skipped = stageSymlinkOrSkip(
+      join(root, ...TICKETS_REL.split("/"), "ABC-001.md"),
+      at,
+      "symlink to a regular file",
+      "scripts/runnable-ref/state-check.test.ts: a ticket file as an in-root link (plan 37-35)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the plan 37-04 in-root ticket-entry control"));
+      return;
+    }
+    const j = runJson(root);
+    expect(j.status, j.stdout + j.stderr).toBe(1);
+    expect(findingIds(j.report)).toEqual([`ticketBytes|${TICKETS_REL}/ABC-011.md`]);
+    const note = (j.report.findings[0] as NotedFinding).note ?? "";
+    expect(note).toContain("not a regular file");
+    expect(note).not.toContain(ROOT_CHAIN_LINK_REFUSAL);
+  });
+
+  it("every position cell ran, and none was skipped on darwin or linux", () => {
+    expect(positionCellsRun).toBe(D20_POSITIONS.length * CHAIN_LINK_SHAPES.length);
+    if (process.platform === "darwin" || process.platform === "linux") expect(positionCellsSkipped).toBe(0);
+  });
+});
+
+/** The hand-written part of the committed state-check.ts (after EMBED_CLOSE), as a syntax tree. */
+function handWrittenCheck(): ts.SourceFile {
+  const lines = readFileSync(CHECK_TS, "utf8").split("\n");
+  const close = lines.indexOf(EMBED_CLOSE);
+  expect(close, "PREMISE: state-check.ts carries the region's close line").toBeGreaterThan(0);
+  return ts.createSourceFile("state-check.ts", lines.slice(close + 1).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+}
+
+/** Every call expression in a subtree. */
+function callsUnder(n: ts.Node, out: ts.CallExpression[] = []): ts.CallExpression[] {
+  if (ts.isCallExpression(n)) out.push(n);
+  ts.forEachChild(n, (c) => {
+    callsUnder(c, out);
+  });
+  return out;
+}
+
+/** The called name of a call: `f(...)` or `x.f(...)`. */
+function calleeName(call: ts.CallExpression): string | null {
+  if (ts.isIdentifier(call.expression)) return call.expression.text;
+  if (ts.isPropertyAccessExpression(call.expression)) return call.expression.name.text;
+  return null;
+}
+
+/** Every identifier text in a subtree. */
+function identifierTexts(n: ts.Node, out: Set<string> = new Set()): Set<string> {
+  if (ts.isIdentifier(n)) out.add(n.text);
+  ts.forEachChild(n, (c) => {
+    identifierTexts(c, out);
+  });
+  return out;
+}
+
+/** The name of the function a node sits in (a declaration, or a const holding an arrow or function), or `<top>`. */
+function enclosingFunction(n: ts.Node): string {
+  for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) {
+    if (ts.isFunctionDeclaration(p) && p.name !== undefined) return p.name.text;
+    if ((ts.isArrowFunction(p) || ts.isFunctionExpression(p)) && ts.isVariableDeclaration(p.parent) && ts.isIdentifier(p.parent.name)) {
+      return p.parent.name.text;
+    }
+  }
+  return "<top>";
+}
+
+/** The folders state-check lists, other than the trace directory (a D-20 position already), by their constant. */
+const LISTED_FOLDERS = [TICKETS_REL, NFR_DIR_REL, QUEUE_DONE_REL, QUEUE_DONE_ARCHIVE_REL, DECISIONS_REL, DECISIONS_ARCHIVE_REL] as const;
+const LISTED_FOLDER_NAMES = ["TICKETS_REL", "NFR_DIR_REL", "QUEUE_DONE_REL", "QUEUE_DONE_ARCHIVE_REL", "DECISIONS_REL", "DECISIONS_ARCHIVE_REL"];
+
+/** The byte-budget key a linked folder's one finding carries; a move-only folder's is move-only-unlisted. */
+function folderKey(folder: string): string {
+  if (folder === TICKETS_REL) return "ticketBytes";
+  if (folder === NFR_DIR_REL) return "nfrBytes";
+  return "move-only-unlisted";
+}
+
+const OVER_BUDGET_TICKET = `${TICKETS_REL}/ABC-2.md`;
+
+/**
+ * A migrated, rendered repository with real record files in every listed folder: two tickets (ABC-2.md one byte
+ * over BUDGETS.ticketBytes), one NFR file the catalog indexes, and two records in each move-only folder.
+ */
+function folderRepo(): string {
+  const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+  plant(root, `${TICKETS_REL}/ABC-1.md`, "# ABC-1\n");
+  plant(root, OVER_BUDGET_TICKET, paddedTo("# ABC-2\n", BUDGETS.ticketBytes + 1));
+  plant(root, `${NFR_DIR_REL}/NFR-001.md`, "# NFR-001\n");
+  appendTo(root, NFR_CATALOG_REL, NFR_LINE_001);
+  const records: Readonly<Record<string, readonly string[]>> = {
+    [QUEUE_DONE_REL]: ["T-1.md", "T-2.md"],
+    [QUEUE_DONE_ARCHIVE_REL]: ["T-3.md", "T-4.md"],
+    [DECISIONS_REL]: ["ADR-001.md", "ADR-002.md"],
+    [DECISIONS_ARCHIVE_REL]: ["ADR-003.md", "ADR-004.md"],
+  };
+  for (const [dir, names] of Object.entries(records)) for (const name of names) plant(root, `${dir}/${name}`, `# ${name}\n`);
+  return root;
+}
+
+/** The folder rows: an in-root link at each listed folder, and the tickets folder under the three other link shapes. */
+const FOLDER_ROWS: readonly { readonly folder: string; readonly shape: ChainLinkShape }[] = [
+  ...LISTED_FOLDERS.map((folder) => ({ folder, shape: "the moved content in-root" as const })),
+  ...CHAIN_LINK_SHAPES.filter((s) => s !== "the moved content in-root").map((shape) => ({ folder: TICKETS_REL, shape })),
+];
+
+let folderRowsRun = 0;
+let folderRowsSkipped = 0;
+
+describe("flagged: a link at a listed folder is the folder's one finding, and no file beneath it is read (plan 37-35)", () => {
+  it("LISTED_FOLDERS has 6 members, and each is a listDirectory or moveOnlyReport argument in the committed state-check.ts", () => {
+    expect(LISTED_FOLDERS).toHaveLength(6);
+    const source = handWrittenCheck();
+    const args = new Set(
+      callsUnder(source)
+        .filter((c) => calleeName(c) === "listDirectory" || calleeName(c) === "moveOnlyReport")
+        .flatMap((c) => c.arguments.filter(ts.isIdentifier).map((a) => a.text)),
+    );
+    for (const name of LISTED_FOLDER_NAMES) expect(args.has(name), `${name} is listed by state-check`).toBe(true);
+    expect(args.has("TRACE_DIR_REL"), "the trace directory is listed too (a D-20 position)").toBe(true);
+  });
+
+  it("CONTROL: the same files in the real folders with no link: ABC-2.md is its ticketBytes finding, every other file is measured clean, both move-only counts are 2", () => {
+    const root = folderRepo();
+    const j = runJson(root);
+    const all = `status ${j.status}\n${j.stdout}\n${j.stderr}`;
+    expect(j.status, all).toBe(1);
+    expect(findingIds(j.report), all).toEqual([`ticketBytes|${OVER_BUDGET_TICKET}`]);
+    expect(j.report.findings[0]?.measured, all).toBe(BUDGETS.ticketBytes + 1);
+    expect(j.report.moveOnly, all).toEqual([
+      { live: QUEUE_DONE_REL, archive: QUEUE_DONE_ARCHIVE_REL, liveCount: 2, archivedCount: 2 },
+      { live: DECISIONS_REL, archive: DECISIONS_ARCHIVE_REL, liveCount: 2, archivedCount: 2 },
+    ]);
+    expect(j.report.trace).toEqual({ compared: true, findings: [] });
+  });
+
+  for (const row of FOLDER_ROWS) {
+    it(`${row.folder} a link to ${row.shape}: exactly the folder's one finding with the root-chain reason, nothing beneath it, the trace fresh`, () => {
+      folderRowsRun += 1;
+      const root = folderRepo();
+      if (!linkChainPosition(root, row.folder, row.shape, `a link at the listed folder ${row.folder} (${row.shape})`)) {
+        folderRowsSkipped += 1;
+        return;
+      }
+      const j = runJson(root);
+      const all = `status ${j.status}\n${j.stdout}\n${j.stderr}`;
+      expect(j.status, all).toBe(1);
+      const own = `${folderKey(row.folder)}|${row.folder}`;
+      const expected = row.folder === TICKETS_REL ? [own] : [own, `ticketBytes|${OVER_BUDGET_TICKET}`].sort();
+      expect(findingIds(j.report), all).toEqual(expected);
+      const folderFinding = (j.report.findings as NotedFinding[]).find((f) => f.rel === row.folder);
+      expect(folderFinding?.note ?? "", all).toContain(`${row.folder} ${ROOT_CHAIN_LINK_REFUSAL}`);
+      expect(j.report.findings.filter((f) => f.rel.startsWith(`${row.folder}/`)), `no finding names a file beneath ${row.folder}\n${all}`).toEqual([]);
+      const surface = j.report.moveOnly.find((m) => m.live === row.folder || m.archive === row.folder);
+      if (surface !== undefined) {
+        expect(surface.live === row.folder ? surface.liveCount : surface.archivedCount, `the linked side's count is null\n${all}`).toBeNull();
+      }
+      expect(j.report.trace, all).toEqual({ compared: true, findings: [] });
+
+      rmSync(join(root, ...LAYOUT_MARKER_REL.split("/")));
+      const w = run(root);
+      const wall = `no marker: status ${w.status}\n${w.stdout}\n${w.stderr}`;
+      expect(w.status, wall).toBe(0);
+      const named = w.stdout.split("\n").filter((l) => l.startsWith(`WARN     ${row.folder}: `));
+      expect(named, wall).toHaveLength(1);
+      expect(named[0], wall).toContain(ROOT_CHAIN_LINK_REFUSAL);
+      expect(w.stdout, wall).not.toContain("No findings.");
+      expect(w.stdout, wall).not.toContain("FINDING");
+    });
+  }
+
+  it("every folder row ran, and none was skipped on darwin or linux", () => {
+    expect(FOLDER_ROWS).toHaveLength(9);
+    expect(folderRowsRun).toBe(FOLDER_ROWS.length);
+    if (process.platform === "darwin" || process.platform === "linux") expect(folderRowsSkipped).toBe(0);
+  });
+});
+
+describe("flagged: a link at .grugops/queue (plan 37-35)", () => {
+  it("an in-root link at .grugops/queue is exactly one move-only-unlisted finding naming .grugops/queue/done, exit 1, the trace fresh", () => {
+    expect(dirname(QUEUE_DONE_REL), "PREMISE: .grugops/queue is the parent of the queue-done folder").toBe(QUEUE_REL);
+    expect(D20_POSITIONS.includes(QUEUE_REL), "PREMISE: .grugops/queue is not a D-20 position").toBe(false);
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${QUEUE_DONE_REL}/T-1.md`, "# T-1\n");
+    const premise = runJson(root);
+    expect(premise.status, premise.stdout + premise.stderr).toBe(0);
+    expect(premise.report.moveOnly[0]?.liveCount).toBe(1);
+    if (!linkChainPosition(root, QUEUE_REL, "the moved content in-root", "a link at .grugops/queue")) return;
+    const j = runJson(root);
+    const r = run(root);
+    const all = `json: status ${j.status}\n${j.stdout}\n${j.stderr}\ntext: status ${r.status}\n${r.stdout}\n${r.stderr}`;
+    expect(j.status, all).toBe(1);
+    expect(findingIds(j.report), all).toEqual([`move-only-unlisted|${QUEUE_DONE_REL}`]);
+    expect((j.report.findings[0] as NotedFinding).note ?? "", all).toContain(`${QUEUE_REL} ${ROOT_CHAIN_LINK_REFUSAL}`);
+    expect(j.report.moveOnly[0], all).toEqual({ live: QUEUE_DONE_REL, archive: QUEUE_DONE_ARCHIVE_REL, liveCount: null, archivedCount: 0 });
+    expect(j.report.trace, all).toEqual({ compared: true, findings: [] });
+    expect(r.status, all).toBe(1);
+    expect(r.stdout, all).toContain("The trace is fresh");
+  });
+});
+
+describe("IN-13 census: state-check keeps no hand-written boundary copy (plan 37-35)", () => {
+  // Each clause is a soft expectation, so one run names every clause the source breaks.
+  it("over the hand-written part of state-check.ts (syntax tree): no insideRoot node, entryPresence only in runnableSkewFindings, every rootChainPresence call passes root first, no startsWith call mentions root, runnableSkewFindings and readTraceText call isWithin", () => {
+    const source = handWrittenCheck();
+    const insideRootNodes: string[] = [];
+    const visit = (n: ts.Node): void => {
+      if (ts.isIdentifier(n) && n.text === "insideRoot") {
+        const { line } = source.getLineAndCharacterOfPosition(n.getStart(source));
+        insideRootNodes.push(`line ${line + 1}: ${n.parent.getText(source).slice(0, 80)}`);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(source);
+    expect.soft(insideRootNodes, "an identifier named insideRoot (a declaration, a call or any other reference)").toEqual([]);
+
+    const calls = callsUnder(source);
+    expect.soft(
+      calls.filter((c) => calleeName(c) === "entryPresence").map(enclosingFunction),
+      "entryPresence is called only by runnableSkewFindings (a sibling program, not a state path)",
+    ).toEqual(["runnableSkewFindings"]);
+
+    const owner = calls.filter((c) => calleeName(c) === "rootChainPresence");
+    expect(owner.length, "PREMISE: state-check calls the root-chain owner").toBeGreaterThan(0);
+    for (const c of owner) {
+      const first = c.arguments[0];
+      expect.soft(first !== undefined && ts.isIdentifier(first) && first.text === "root", `${c.getText(source)} passes root first`).toBe(true);
+    }
+    expect.soft(owner.map(enclosingFunction).sort(), "state-check's root-chain positions: locate and traceDirectory").toEqual(["locate", "traceDirectory"]);
+
+    const rootPrefix = calls.filter((c) => calleeName(c) === "startsWith" && c.arguments.some((a) => identifierTexts(a).has("root")));
+    expect.soft(rootPrefix.map((c) => c.getText(source)), "a startsWith call whose argument mentions root").toEqual([]);
+
+    for (const fn of ["runnableSkewFindings", "readTraceText"]) {
+      const named = calls.filter((c) => enclosingFunction(c) === fn).map(calleeName);
+      expect(named.length, `PREMISE: ${fn} is in the hand-written part`).toBeGreaterThan(0);
+      expect.soft(named, `${fn} asks the generated isWithin`).toContain("isWithin");
+    }
   });
 });
