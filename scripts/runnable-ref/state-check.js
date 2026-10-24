@@ -143,7 +143,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:d3c3bc3cc3b231f6efc89a218b03e0f9c775e4f3965c4d3aeb0642a6a1f1fbd1";
+export const RUNNABLE_SET_STAMP = "sha256:5c5f097cf8ae9e8a5eca50a54be40eb3002d961c667375c20cfba47d1c0b84b4";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
@@ -1475,7 +1475,10 @@ function readRawNotesWithSkips(task, contextRoot, boundary = null) {
         throw codedError(`context-io: the notes directory "${notesDir}" is not a directory (ENOTDIR)`, "ENOTDIR");
     }
     if (boundary !== null && !isWithin(presence.real, boundary)) {
-        throw new Error("its notes directory resolves outside the repository root, so it was not read");
+        // Plan 37-38 (D-20): the refusal names the notes directory, as every other refusal of this walk does; until then
+        // it said only "its notes directory", so a reader saw the task and not the position (the READ-1 shape table's
+        // outside-link cells found it).
+        throw new Error(`context-io: the notes directory "${notesDir}" resolves outside the repository root, so it was not read`);
     }
     const skipped = [];
     const out = [];

@@ -2126,7 +2126,10 @@ function readRawNotesWithSkips(task, contextRoot, boundary = null) {
         throw codedError(`context-io: the notes directory "${notesDir}" is not a directory (ENOTDIR)`, "ENOTDIR");
     }
     if (boundary !== null && !isWithin(presence.real, boundary)) {
-        throw new Error("its notes directory resolves outside the repository root, so it was not read");
+        // Plan 37-38 (D-20): the refusal names the notes directory, as every other refusal of this walk does; until then
+        // it said only "its notes directory", so a reader saw the task and not the position (the READ-1 shape table's
+        // outside-link cells found it).
+        throw new Error(`context-io: the notes directory "${notesDir}" resolves outside the repository root, so it was not read`);
     }
     const skipped = [];
     const out = [];

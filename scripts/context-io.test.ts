@@ -18304,8 +18304,9 @@ describe("listContextTasks and readTaskNoteRefs: every entry is a task, a keeper
       console.warn(skipLine(skip, "the in-root rows of this describe"));
       return;
     }
+    // Plan 37-38 (D-20): the refusal names the notes directory (it said only "its notes directory" until then).
     expect(() => mod.readTaskNoteRefs("taskA", join(repo, "ctx"), realpathSync(repo))).toThrow(
-      "its notes directory resolves outside the repository root, so it was not read",
+      `context-io: the notes directory "${join(repo, "ctx", "taskA", "notes")}" resolves outside the repository root, so it was not read`,
     );
     // The same link inside a boundary that holds it is read through (the notes position follows an in-root link).
     expect(mod.readTaskNoteRefs("taskA", join(repo, "ctx"), "/").notes).toEqual([]);
