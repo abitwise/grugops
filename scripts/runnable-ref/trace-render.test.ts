@@ -1783,3 +1783,70 @@ describe("IN-13 census: trace-render keeps no hand-written boundary copy", () =>
     expect.soft(callsIn(relOfPath[0] as ts.Node).map(calledName), "relOfPath asks the generated isWithin").toContain("isWithin");
   });
 });
+
+// ── Plan 37-34 (D-20): links above the repository root keep working ──────────────────────────────────────────────
+// Every runnable resolves the root once, with realpath, before any state read, and the root-chain owner walks only the
+// components below that real root. So a link above the root (macOS `/tmp` to `/private/tmp`, or a user's alias to the
+// directory holding the repository) is resolved with the root and never refused. This is the control D-20 asks for.
+
+const ABOVE_ROOT_POSITION = "scripts/runnable-ref/trace-render.test.ts: D-20, a link above the repository root (plan 37-34)";
+
+/** `<scratch>/real/repo`: the board, the NFR catalog, the progress file, the marker and a note in each context root. */
+function aboveRootRepo(): { scratch: string; realRoot: string } {
+  const scratch = mkTmp("grugops-above-root-");
+  mkdirSync(join(scratch, "real"));
+  const realRoot = join(scratch, "real", "repo");
+  renameSync(stateBaseRepo(true), realRoot);
+  plant(realRoot, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
+  plant(realRoot, CONTEXT_ARCHIVE_REL, "taskB", "n1", noteText("n1", ["ABC-2", "src/b.ts"]));
+  return { scratch, realRoot };
+}
+
+describe("D-20: a root path through a link above the repository root still renders", () => {
+  it("trace-render given <scratch>/alias/repo (alias a link to <scratch>/real) renders 0, --check 0 fresh, state-check 0 fresh, each output equal to the run given the real path", () => {
+    const { scratch, realRoot } = aboveRootRepo();
+    const alias = join(scratch, "alias");
+    const skip = stageSymlinkOrSkip(join(scratch, "real"), alias, "symlink to a directory outside the repository root", ABOVE_ROOT_POSITION);
+    if (skip !== null) {
+      console.warn(skipLine(skip, "the trace-render cases given a real root path (every other case of this file)"));
+      return;
+    }
+    const aliasRoot = join(alias, "repo");
+    expect(lstatSync(alias).isSymbolicLink(), "PREMISE: the alias is a link above the root").toBe(true);
+    // A twin repository rendered through its real path: the first render through the alias must write the same.
+    const twin = aboveRootRepo().realRoot;
+
+    const aliasFirst = run(aliasRoot);
+    const twinFirst = run(twin);
+    const first = `alias ${aliasFirst.status}\n${aliasFirst.stdout}${aliasFirst.stderr}\ntwin ${twinFirst.status}\n${twinFirst.stdout}${twinFirst.stderr}`;
+    expect(aliasFirst.status, first).toBe(0);
+    expect(aliasFirst.stderr, first).toBe("");
+    expect(aliasFirst.stdout, first).toContain("Rendered the trace: 2 task(s)");
+    expect(aliasFirst, first).toEqual(twinFirst);
+    expect(treeDigest(realRoot), "the render through the alias wrote the same tree as the real-path render").toEqual(treeDigest(twin));
+    for (const id of ["ABC-1", "ABC-2"]) expect(existsSync(join(realRoot, TRACE_DIR_REL, `${id}.md`)), `${id}.md was rendered`).toBe(true);
+    const rendered = treeDigest(realRoot);
+
+    const realWrite = run(realRoot);
+    const aliasWrite = run(aliasRoot);
+    expect(realWrite.status, realWrite.stdout + realWrite.stderr).toBe(0);
+    expect(realWrite.stdout).toContain("0 file(s) written, 0 file(s) removed");
+    expect(aliasWrite).toEqual(realWrite);
+
+    const realCheck = run(realRoot, "--check");
+    const aliasCheck = run(aliasRoot, "--check");
+    expect(realCheck.status, realCheck.stdout + realCheck.stderr).toBe(0);
+    expect(aliasCheck.status, aliasCheck.stdout + aliasCheck.stderr).toBe(0);
+    expect(aliasCheck.stdout).toContain("The trace is fresh");
+    expect(aliasCheck).toEqual(realCheck);
+
+    const realState = stateCheck(realRoot);
+    const aliasState = stateCheck(aliasRoot);
+    expect(realState.status, realState.stdout + realState.stderr).toBe(0);
+    expect(aliasState.status, aliasState.stdout + aliasState.stderr).toBe(0);
+    expect(aliasState.stdout).toContain("The trace is fresh");
+    expect(aliasState).toEqual(realState);
+
+    expect(treeDigest(realRoot), "no run after the first render wrote, changed or removed anything").toEqual(rendered);
+  });
+});
