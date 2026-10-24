@@ -240,7 +240,7 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 35/39 plans executed
+**Plans**: 36/39 plans executed
 
 Plans:
 **Wave 1**
@@ -355,7 +355,7 @@ Gap round 3 of 4 (D-19 scope, D-20 canonical form; sequential on main; 37-GAP-PL
 - [x] 37-35-PLAN.md — state-check's every state path on the owner; the marker behind a root-chain link is exit 2, never WARN mode; a link at a listed folder is the folder's one finding (flagged); IN-13 for state-check
 
 **Wave 36** *(blocked on Wave 35 completion)*
-- [ ] 37-36-PLAN.md — state-roll's directories and files on the owner (the CR-05 shape in state-roll); IN-13 for state-roll
+- [x] 37-36-PLAN.md — state-roll's directories and files on the owner (the CR-05 shape in state-roll); IN-13 for state-roll
 
 **Wave 37** *(blocked on Wave 36 completion)*
 - [ ] 37-37-PLAN.md — IN-11: a stray context-root entry, a dangling or looping link included, is named with its own remedy, from one owner; the wider block recorded beside IN-09
@@ -474,7 +474,7 @@ Gap round 3 of 4 (D-19 scope, D-20 canonical form; sequential on main; 37-GAP-PL
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
-| 37. Overview board, per-file records and budgets | v3.0 | 35/39 | In Progress | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 36/39 | In Progress | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
