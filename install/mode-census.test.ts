@@ -160,8 +160,14 @@ const USER_MODE_EDIT_CHMOD_COUNT = 1;
  * validate.test.ts's withMode000 puts a directory at mode 000 so the validator's read behind it fails EACCES, and gives
  * the permissions back in a `finally` (the cases are skipped with a printed reason on win32 and as root). An access
  * denial and a restore; neither sets a mode as evidence. Per file now: board-read 10, context-io 14,
- * generate-skill-twins 2, kit-model 3, skill-twins-freshness 6, trace-freshness 2, validate 2. */
-const SCRIPTS_CHMOD_COUNT = 39;
+ * generate-skill-twins 2, kit-model 3, skill-twins-freshness 6, trace-freshness 2, validate 2.
+ * 39 -> 47 on 2026-10-24 (plan 37-37, D-19, IN-11), measured per file by this census's own failure message:
+ * context-io.test.ts gained four mode cases, each one denial and its restore in a `finally` (a link target's directory
+ * at mode 000, a directory at mode 0444 twice, a notes directory at mode 000), so the entry's lstat or the notes read
+ * fails EACCES; all are skipped with a printed reason on win32 and as root. None sets a mode as evidence. Per file
+ * now: board-read 10, context-io 22, generate-skill-twins 2, kit-model 3, skill-twins-freshness 6, trace-freshness 2,
+ * validate 2. */
+const SCRIPTS_CHMOD_COUNT = 47;
 
 /** Rule (d): the expected-mode literals allowed on a `mode-census: row-315` line. */
 const ROW_315_LITERAL_EXPECTATION_COUNT = 2;
