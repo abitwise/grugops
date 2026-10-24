@@ -43,7 +43,7 @@ Record `Throughput` in `memory-bank/plans/metrics.md` as tickets are created.
 - A ticket is sized `XL` — `SPLIT_REQUIRED`; route it back to BA/PM for splitting before it enters `Ready for Dev`.
 
 ## Done condition
-Each ticket has user value, scope, acceptance criteria, test notes, security/NFR triggers, a size and a priority. Its epic, feature and NFR ids are published as refs on a note. Tickets are written to `memory-bank/plans/tickets/`.
+Each ticket has user value, scope, acceptance criteria, test notes, security/NFR triggers, a size and a priority. Its epic, feature and NFR ids are published, with the ticket identifier, as refs on a note. Tickets are written to `memory-bank/plans/tickets/`.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/epic-to-tickets-<id>`), then `type(scope): summary`. The artifacts are the tickets, the board moves, the system-analysis notes recorded per Workflow 16 when produced, and the rendered trace files. Never merge, never deploy; humans hold both.
