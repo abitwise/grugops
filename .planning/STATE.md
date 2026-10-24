@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-37-PLAN.md
-last_updated: "2026-10-24T13:48:30.310Z"
+stopped_at: Completed 37-38-PLAN.md
+last_updated: "2026-10-24T14:33:00.000Z"
 last_activity: 2026-10-24
 last_activity_desc: Phase 37 execution started
-state_head: f9b20972892eb4c74b5dd611aed13ad69f797dc1
+state_head: 7008866fa82d85d65b0b8fa9fd476c4c0913fa26
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 54
-  completed_plans: 52
+  completed_plans: 53
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 38 of 39
+Plan: 39 of 39
 Status: Ready to execute
 Last activity: 2026-10-24 — Phase 37 execution started
 
@@ -766,6 +766,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P35 | 34min | 2 tasks | 5 files |
 | Phase 37 P36 | 35min | 2 tasks | 10 files |
 | Phase 37 P37 | 35min | 2 tasks | 17 files |
+| Phase 37 P38 | 39min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -2094,6 +2095,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-34: trace-render's pre-write check and readText ask rootChainPresence(root, rel, "entry") each, through one mapping regularFileAt; relOfPath asks the generated isWithin; a listed trace name rootChainOf refuses (backslash) is exit 2 by name (flag for 37-39 deferred-items: state-check still reads it until 37-35)
 - [Phase 37]: 37-36: state-roll's realDirectoryOrNull asks rootChainPresence(root, rel, "directory") and readTextOrThrow asks it with "entry"; insideRoot and abs() deleted, the post-mkdir check asks isWithin; entryPresence left state-roll's EMBED_SPECS row, so all three runnables ask the root-chain owner for every state path
 - [Phase 37]: 37-37: STRAY_CONTEXT_ENTRY_REMEDY owned by context-io and carried as an own remedy property on readTaskNoteRefs's three non-task refusals; entryPresence's unreadable answer gains link (the path's own lstat showed a symbolic link), so a dangling or looping stray link gets the remedy and an uninspectable entry does not; the trace model carries remedy, the runnables print it
+- [Phase 37]: 37-38: READ-1 table in D-20 canonical form: root-chain positions derived from rootChainOf over CHAIN_ROOT_KINDS (7, 7, 3), two outside link shapes, SHAPE_ROW_COUNT 235, one derived state-check outcome per cell; a regular file at a state-check root kind is exit 2 (plan derived exit 1; flagged for human in 37-39 deferred-items); ENOENT-exempt rows compared with a really absent fixture (IN-12); IN-13 and realpath censuses; the walk's outside-boundary refusal now names the notes directory (e6143a42)
 
 ### Pending Todos
 
@@ -2425,8 +2427,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-24T13:48:29.991Z
-Stopped at: Completed 37-37-PLAN.md
+Last session: 2026-10-24T14:33:00.000Z
+Stopped at: Completed 37-38-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
