@@ -139,6 +139,11 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * trace-render's realDirectoryOrNull no longer asks entryPresence, so the owner's three rows under
  * `realDirectoryOrNull#0` are gone (sites unchanged, pairs -3); state-check's locate still asks entryPresence for the
  * state files, so its rows stay. state-roll's region changed only its stamp line.
+ * 2026-10-24, plan 37-34 (D-20, IN-13): 15, 18 and 10 read sites, unchanged. trace-render's pre-write check (`<top>`)
+ * and readText ask the root-chain owner instead of entryPresence; no read site arrives or leaves, only the pairs move:
+ * entryPresence's rows under `<top>#0` and `readText#0` are gone (pairs -6), and rootChainPresence, now entered from
+ * three calling call expressions, is one row per caller (`realDirectoryOrNull#0`, `<top>#0`, `readText#0`; pairs
+ * +6, its three via-less rows replaced by nine).
  */
 const TRACE_RENDER_READ_SITES = 15;
 const STATE_CHECK_READ_SITES = 18;
@@ -180,9 +185,16 @@ function rows(runnable: Runnable, modes: readonly Mode[], key: string, vias?: re
  * The callers of the absence owner in each trace runnable: the walk, listContextTasks and readTaskNoteRefs (plan
  * 37-28); realDirectoryOrNull and locate (plan 37-29, Task 1); the pre-write check, readText and runnableSkewFindings
  * (plan 37-29, Task 2). Plan 37-33 (D-20): trace-render's realDirectoryOrNull asks the root-chain owner instead, so it
- * left this list; its rows are rootChainPresence's below.
+ * left this list; its rows are rootChainPresence's below. Plan 37-34 (D-20): the pre-write check (`<top>#0`) and
+ * readText (`readText#0`) left it too, for TR_ROOT_CHAIN_CALLERS.
  */
-const TR_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "<top>#0", "readText#0"];
+const TR_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0"];
+/**
+ * The callers of the root-chain owner in trace-render: realDirectoryOrNull (plan 37-33: the context roots, the state
+ * directory and the trace directory), the pre-write check (`<top>#0`, each planned path) and readText (each compared
+ * path), both since plan 37-34 (D-20).
+ */
+const TR_ROOT_CHAIN_CALLERS = ["realDirectoryOrNull#0", "<top>#0", "readText#0"];
 const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "locate#0", "runnableSkewFindings#0"];
 /** The callers of the absence owner in state-roll (plan 37-30): realDirectoryOrNull and readTextOrThrow. */
 const SR_PRESENCE_CALLERS = ["realDirectoryOrNull#0", "readTextOrThrow#0"];
@@ -194,17 +206,18 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "readRegularFileOrNull:readSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
   ...rows("trace-render", TR, "readRawNotesWithSkips:readdirSync#0"),
   // trace-render: the one absence owner (plan 37-28, D-18), under each caller: the walk (the notes directory),
-  // listContextTasks (the fixture's `.gitkeep` keepers), readTaskNoteRefs (each task entry) and, since plan 37-29,
-  // the pre-write check (`<top>#0`) and readText (each compared path).
+  // listContextTasks (the fixture's `.gitkeep` keepers) and readTaskNoteRefs (each task entry). The pre-write check
+  // and readText asked it from plan 37-29 to plan 37-34; they ask the root-chain owner below.
   ...rows("trace-render", TR, "entryPresence:lstatSync#0", TR_PRESENCE_CALLERS),
   ...rows("trace-render", TR, "entryPresence:statSync#0", TR_PRESENCE_CALLERS),
   ...rows("trace-render", TR, "entryPresence:realpathSync#0", TR_PRESENCE_CALLERS),
-  // trace-render: the root-chain owner (plan 37-33, D-20, CR-05), entered only from realDirectoryOrNull (the context
-  // roots, the state directory and the trace directory), so derivedPairs names its rows without a via. The fixture's
-  // directories are real, so the stat and the realpath of the last component are reached on the first call.
-  ...rows("trace-render", TR, "rootChainPresence:lstatSync#0"),
-  ...rows("trace-render", TR, "rootChainPresence:statSync#0"),
-  ...rows("trace-render", TR, "rootChainPresence:realpathSync#0"),
+  // trace-render: the root-chain owner (plan 37-33, D-20, CR-05), under each caller: realDirectoryOrNull (the context
+  // roots, the state directory and the trace directory) and, since plan 37-34, the pre-write check (`<top>#0`, each
+  // planned path) and readText (each compared path). The fixture's directories and rendered files are real, so the
+  // stat and the realpath of the last component are reached on each caller's first call.
+  ...rows("trace-render", TR, "rootChainPresence:lstatSync#0", TR_ROOT_CHAIN_CALLERS),
+  ...rows("trace-render", TR, "rootChainPresence:statSync#0", TR_ROOT_CHAIN_CALLERS),
+  ...rows("trace-render", TR, "rootChainPresence:realpathSync#0", TR_ROOT_CHAIN_CALLERS),
   // trace-render: the generated context-root listing (plan 37-28, CR-04), entered only from the hand-written listTasks.
   ...rows("trace-render", TR, "listContextTasks:readdirSync#0"),
   // trace-render: the root. realDirectoryOrNull makes no read of its own since plan 37-29: its rows are the
@@ -214,7 +227,7 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "<top>:accessSync#0"),
   // trace-render: the trace directory reader (the task lister and reader handed to the trace model are thin wrappers
   // over the generated listContextTasks and readTaskNoteRefs since plan 37-28; the pre-write check and readText ask
-  // the owner since plan 37-29).
+  // the root-chain owner since plan 37-34).
   ...rows("trace-render", TR, "listDir:readdirSync#0", ["compareTraceTree#0", "<top>#0"]),
 
   // state-check: the embedded reader (the state reader, the trace reader, the note walk, the sibling stamp read).
@@ -909,15 +922,18 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
   ],
   [
     // Plan 37-33 (D-20): was "trace-render entryPresence:lstatSync#0 via realDirectoryOrNull#0".
-    "trace-render rootChainPresence:lstatSync#0",
+    // Plan 37-34: was "trace-render rootChainPresence:lstatSync#0" (one caller then, so no via).
+    "trace-render rootChainPresence:lstatSync#0 via realDirectoryOrNull#0",
     "a context root, the state directory and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet (plan 37-29); the root-chain owner answers absent only beneath real directories (plan 37-33)",
   ],
   [
-    "trace-render entryPresence:lstatSync#0 via <top>#0",
+    // Plan 37-34 (D-20): was "trace-render entryPresence:lstatSync#0 via <top>#0".
+    "trace-render rootChainPresence:lstatSync#0 via <top>#0",
     "a planned trace file or index may be absent before its first render: the pre-write check passes an absent path (plan 37-29)",
   ],
   [
-    "trace-render entryPresence:lstatSync#0 via readText#0",
+    // Plan 37-34 (D-20): was "trace-render entryPresence:lstatSync#0 via readText#0".
+    "trace-render rootChainPresence:lstatSync#0 via readText#0",
     "a planned trace file or index may be absent: the compare reports it missing, and the write mode writes it (plan 37-29)",
   ],
   [
@@ -950,6 +966,8 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
  * The exemption count. 2026-10-24, plan 37-31: 9 (trace-render 4, state-check 3, state-roll 2).
  * 2026-10-24, plan 37-33: 10 (trace-render 4, state-check 4, state-roll 2). trace-render's realDirectoryOrNull row
  * moved to the root-chain owner's lstat; state-check gained the root-chain owner's lstat under traceDirectory.
+ * 2026-10-24, plan 37-34: 10, unchanged. trace-render's `<top>#0` and `readText#0` keys moved from entryPresence's lstat
+ * to the root-chain owner's, with the same reasons, and its realDirectoryOrNull key gained its via.
  */
 const ENOENT_EXEMPT_SIZE = 10;
 
@@ -1442,6 +1460,9 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
  * 2026-10-24, plan 37-33: 6, 6 and 2, over both owners. trace-render: entryPresence's five (realDirectoryOrNull left
  * it) and rootChainPresence's realDirectoryOrNull. state-check: entryPresence's five and rootChainPresence's
  * traceDirectory. state-roll: unchanged.
+ * 2026-10-24, plan 37-34: 6, 6 and 2, unchanged. trace-render: entryPresence's three (the walk, listContextTasks,
+ * readTaskNoteRefs) and rootChainPresence's three (realDirectoryOrNull, the pre-write check `<top>`, readText); the
+ * distinct (runnable, via) set, and so SHAPE_POSITIONS, is the same.
  */
 const TRACE_RENDER_OWNER_CALLERS = 6;
 const STATE_CHECK_OWNER_CALLERS = 6;

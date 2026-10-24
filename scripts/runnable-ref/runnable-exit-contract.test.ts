@@ -244,10 +244,15 @@ describe("EXIT-1: a failing follow-up read after a symbolic link or a created di
     const url = scriptUrl(HOST["trace-render"]);
     const site = { url, line: siteLine("trace-render", "rootChainPresence:statSync#0") };
     const callers = callingSites(HOST["trace-render"], "rootChainPresence");
-    expect(callers.map((c) => c.scope), "PREMISE: realDirectoryOrNull asks the root-chain owner, and nothing else does").toEqual([
-      "realDirectoryOrNull",
-    ]);
-    const via = { url, line: (callers[0] as { readonly line: number }).line };
+    // Plan 37-34 (D-20): the pre-write check (`<top>`) and readText ask the root-chain owner too; the fault stays
+    // scoped to realDirectoryOrNull's call, the one that serves the context roots.
+    expect(
+      callers.map((c) => c.scope).sort(),
+      "PREMISE: realDirectoryOrNull, the pre-write check and readText ask the root-chain owner, and nothing else does",
+    ).toEqual(["<top>", "readText", "realDirectoryOrNull"]);
+    const directories = callers.filter((c) => c.scope === "realDirectoryOrNull");
+    expect(directories, "PREMISE: realDirectoryOrNull asks the root-chain owner once").toHaveLength(1);
+    const via = { url, line: (directories[0] as { readonly line: number }).line };
     const before = treeDigest(root);
     const r = runWith("trace-render", [root], { kind: "fs", fn: "statSync", site, via, code: "EIO" });
     const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;

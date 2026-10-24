@@ -20,7 +20,10 @@
 //            that cannot be listed, a context root, state directory or trace directory that cannot be inspected,
 //            a symbolic link at a context root, the state directory or the trace directory or at any component of
 //            the path to one below the repository root, present or dangling, whatever its target (plan 37-33,
-//            D-20, CR-05), a path that resolves outside the repository root, a missing state directory,
+//            D-20, CR-05), a symbolic link at any component of the path to a trace file or the index below the
+//            repository root, present or dangling, whatever its target (plan 37-34, D-20), a path that resolves
+//            outside the repository root, a listed trace-directory name the state layout cannot hold (a
+//            backslash in it), a missing state directory,
 //            an entry at a compared path that is not a regular file, a file the reader refuses, or an unexpected
 //            error, which is reported on stderr by name (with the files already written and removed, when the
 //            write section had started) and never surfaces as Node's own exit 1 (plan 37-20). In both modes
@@ -51,20 +54,23 @@
 // keepers (a regular file whose name begins with `.`, such as `.gitkeep`) are the one entry kind that is neither a
 // task nor a failure, and they are never read or counted (plan 37-28, D-18).
 //
-// THE ROOT IS A BOUNDARY. Every path is resolved with realpath before it is used, and a context root, a task's
-// notes directory or the trace directory that resolves outside realpath(root) is refused by name. The trace
-// directory is created only when absent and a trace file is to be written, after its parent's realpath is
-// confirmed inside the root. Every compared path is lstat'ed before it is opened, so a FIFO is never opened. The
-// task position never follows a link: a context-root entry that is a symbolic link is a failed task (plan 37-28,
-// CR-04). The root is resolved to its real path once, before any state read, and below it the context roots, the
-// state directory and the trace directory are asked of the generated rootChainPresence (plan 37-33, D-20, CR-05):
-// every component of the path to one is lstat'ed, a symbolic link at any of them is refused by name (exit 2) from
-// the lstat alone, whatever it points to and whether or not it resolves, and only an lstat ENOENT on a component
-// whose earlier components are real directories is absence, so a context root beneath a link is never read as an
-// absent root and no trace file is removed because of one. Links above the root are not seen. Below a context root,
-// absence stays the generated entryPresence's answer (D-18): whether a task or its notes are present is asked
-// through the generated readTaskNoteRefs and listContextTasks. The planned trace files and the index are still asked
-// of entryPresence beneath the directories verified above.
+// THE ROOT IS A BOUNDARY. The root is resolved once, with realpath, before any state read; every other position is
+// repository-relative below it. Below the real root, no component of the path to a context root, the state
+// directory, the trace directory, a trace file or the index is followed if it is a symbolic link: each is asked of the
+// generated rootChainPresence (plans 37-33 and 37-34, D-20, CR-05), which lstat's every component, so a link there,
+// present or dangling, whatever its target, inside the root or outside it, is refused by name (exit 2) from the lstat
+// alone, and nothing is written or removed. A trace file or the index is asked with leaf `entry`: a link at it is a
+// present entry that is not a regular file, refused by name (a dangling one because its target cannot be reached).
+// Only an lstat ENOENT on a component whose earlier components are real directories is absence, so a context root
+// beneath a link is never read as an absent root and no trace file is removed because of one. A path whose real path
+// is outside the root is refused by name. A link above the root (macOS `/tmp` to `/private/tmp`) is resolved with the
+// root and never seen. Which composed path is under the root is the generated isWithin's answer, the one boundary
+// predicate (37-REVIEW.md IN-13): this file keeps no boundary test of its own. The trace directory is created only
+// when absent and a trace file is to be written, after it and its parents were verified above. Every compared path is
+// lstat'ed before it is opened, so a FIFO is never opened. Below a context root, the task and notes positions keep
+// plan 37-28's rules (D-18): the task position never follows a link (a context-root entry that is a symbolic link is
+// a failed task, CR-04), absence there is the generated entryPresence's answer, asked through the generated
+// readTaskNoteRefs and listContextTasks, and a task's notes directory that resolves outside the root is refused.
 //
 // EVERY WRITE IS ATOMIC. Each file goes through the embedded atomicWrite (a temp sibling, then a rename), so an
 // interrupted render leaves each file either its old or its new bytes. Two renders over the same notes produce
@@ -1081,36 +1087,63 @@ const traceDirReal = realDirectoryOrNull(TRACE_DIR_REL, `the trace directory ${T
 function notRegular(rel) {
     couldNotRun(`${rel} is present and is not a regular file, so nothing was written.`);
 }
-// Whether a planned path is present is the absence owner's answer (plan 37-29, D-18): absent passes, a path the
-// owner refuses (a dangling link at it or on it, or one that cannot be inspected) is refused by name, and a present
-// entry that is not a regular file (a link of any kind, a FIFO, a directory) is never opened or replaced.
-for (const rel of plan.keys()) {
-    const presence = entryPresence(abs(rel));
+/**
+ * What a trace file or the index at the repository-relative `rel` is, from the generated rootChainPresence's answer
+ * with leaf `entry` (plan 37-34, D-20, CR-05): absent is false; a component of its path that cannot be inspected, a
+ * symbolic link on its path below the root (present or dangling, whatever its target), a link at it whose target
+ * cannot be reached, and a path that resolves outside the root are each refused by name; and a present entry that is
+ * not a regular file (a link of any kind, a FIFO, a directory) is never opened or replaced. True means a regular file
+ * is there. Each position asks the owner itself, so every caller passes the root it resolved once.
+ */
+function regularFileAt(rel, presence) {
+    if (presence.kind === "absent")
+        return false;
     if (presence.kind === "unreadable")
         couldNotRun(`${rel} cannot be inspected: ${presence.reason}.`);
-    if (presence.kind === "present" && !presence.entry.isFile())
+    if (presence.kind === "link")
+        couldNotRun(`${rel} cannot be used: ${presence.reason}.`);
+    if (presence.kind === "outside")
+        couldNotRun(`${rel} resolves outside the repository root, so nothing was written.`);
+    if (!presence.entry.isFile())
         notRegular(rel);
+    return true;
 }
-/** The repository-relative form of a path the trace model composed as `<root>/<rel>`. */
+// Every planned path (each trace file and the index) is asked of the root-chain owner before the first write, in
+// both modes (plan 37-34, D-20): absent passes, and anything regularFileAt refuses stops the run by name.
+for (const rel of plan.keys())
+    regularFileAt(rel, rootChainPresence(root, rel, "entry"));
+/**
+ * The repository-relative form, with `/` separators, of a path the trace model composed under the root. Whether it
+ * is under the root is the generated isWithin's answer, the one boundary predicate (37-REVIEW.md IN-13, plan 37-34):
+ * the renderer keeps no boundary test of its own. A path that is not under the root, or is the root itself, is
+ * could-not-run by name: the trace model only composes paths below the root, so this never decides a pass. A listed
+ * name the state layout cannot hold (a backslash in it) is could-not-run by name too, on the generated rootChainOf's
+ * own rule, so it never reaches the owner as an unexpected throw.
+ */
 function relOfPath(path) {
-    return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+    if (!isWithin(path, root) || path === root)
+        couldNotRun(`the path ${path} is not below the repository root.`);
+    const rel = nodePath.relative(root, path).split(nodePath.sep).join("/");
+    try {
+        rootChainOf(rel);
+    }
+    catch (e) {
+        couldNotRun(`${rel} cannot be used: ${e instanceof Error ? e.message : String(e)}.`);
+    }
+    return rel;
 }
 /**
- * The text reader the trace model compares with. Whether the path is present is the absence owner's answer (plan
- * 37-29, D-18): absent is null, a path it refuses is refused by name, and a present entry that is not a regular
- * file (a FIFO, a link, a directory) is refused by name and never opened; then the embedded non-blocking reader
- * under the trace-file ceiling. A file the owner reported present that the reader then cannot find vanished: it is
- * refused too, never missing. Any refusal is could-not-run (exit 2), never a difference and never a pass.
+ * The text reader the trace model compares with (the planned paths and an extra trace file). Whether the path is
+ * present is the root-chain owner's answer through regularFileAt (plan 37-34, D-20): absent is null, a path it refuses
+ * is refused by name, and a present entry that is not a regular file (a FIFO, a link, a directory) is refused by name
+ * and never opened; then the embedded non-blocking reader under the trace-file ceiling. A file the owner reported
+ * present that the reader then cannot find vanished: it is refused too, never missing. Any refusal is could-not-run
+ * (exit 2), never a difference and never a pass.
  */
 function readText(path) {
     const rel = relOfPath(path);
-    const presence = entryPresence(path);
-    if (presence.kind === "absent")
+    if (!regularFileAt(rel, rootChainPresence(root, rel, "entry")))
         return null;
-    if (presence.kind === "unreadable")
-        couldNotRun(`${rel} cannot be inspected: ${presence.reason}.`);
-    if (!presence.entry.isFile())
-        notRegular(rel);
     let text;
     try {
         text = readRegularFileOrNull(path, TRACE_FILE_MAX_BYTES, "trace file");

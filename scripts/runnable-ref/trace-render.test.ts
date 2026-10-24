@@ -1665,3 +1665,121 @@ describe("READ-1 round 2: a dangling link at a planned trace file or at the inde
     });
   }
 });
+
+// ── Plan 37-34 (D-19, D-20, CR-05, IN-13): the renderer's file positions on the root-chain owner ─────────────────
+// Plan 37-33 put the context roots, the state directory and the trace directory on the generated rootChainPresence.
+// This plan moves the planned trace files, the index and an extra trace file there too (leaf `entry`: a link at the
+// last component is answered present with its lstat, so the existing not-a-regular-file refusal holds), and deletes
+// the renderer's own root-prefix boundary test (37-REVIEW.md IN-13): relOfPath asks the generated isWithin.
+
+const TRACER_REL = `${TRACE_DIR_REL}/ABC-1.md`;
+
+describe("READ-1 round 2: the tracer row on the root-chain owner (plan 37-34, D-20)", () => {
+  it(`${TRACER_REL} a dangling link after a render: write and --check exit 2, stdout empty, stderr names it with the owner's reason, nothing written or removed`, () => {
+    const root = stateBaseRepo(true);
+    plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
+    const first = run(root);
+    expect(first.status, `PREMISE: the note renders: ${first.stdout}${first.stderr}`).toBe(0);
+    const at = join(root, ...TRACER_REL.split("/"));
+    rmSync(at);
+    const skip = stageSymlinkOrSkip(join(root, "gone"), at, "dangling symlink (its target does not exist)", `${CR05_POSITION} (tracer, ${TRACER_REL})`);
+    if (skip !== null) {
+      console.warn(skipLine(skip, "the FIFO rows of this file (the same not-a-regular-file refusal)"));
+      return;
+    }
+    const before = treeDigest(root);
+    const write = run(root);
+    const check = run(root, "--check");
+    const all = `write ${write.status}\n${write.stdout}${write.stderr}\ncheck ${check.status}\n${check.stdout}${check.stderr}`;
+    console.log(`tracer row (plan 37-34):\n${all}`);
+    const expected =
+      `Error: ${TRACER_REL} cannot be inspected: it is a symbolic link whose target cannot be reached (ENOENT). ` +
+      "The trace render did not run.\n";
+    for (const r of [write, check]) {
+      expect(r.status, all).toBe(2);
+      expect(r.stdout, all).toBe("");
+      expect(r.stderr, all).toBe(expected);
+    }
+    expect(treeDigest(root), "nothing was written, changed or removed").toEqual(before);
+  });
+});
+
+describe("READ-1 round 2: a listed trace-directory name the state layout cannot hold is refused by name (plan 37-34)", () => {
+  // relOfPath hands readText's repository-relative path to the root-chain owner, whose rootChainOf refuses a backslash
+  // (the state-layout ENCODING rule). Before this case the throw reached the unexpected-throw backstop; now relOfPath
+  // refuses it by name first, on the owner's own rule.
+  it("an extra generated trace file named `a\\b.md`: write and --check exit 2 naming it, never the unexpected-throw backstop, nothing written or removed", () => {
+    if (process.platform === "win32") {
+      console.warn("SKIP: a backslash is a path separator on win32 (Windows is out of scope)");
+      return;
+    }
+    const root = stateBaseRepo(true);
+    plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
+    const first = run(root);
+    expect(first.status, `PREMISE: the note renders: ${first.stdout}${first.stderr}`).toBe(0);
+    const name = "a\\b.md";
+    writeFileSync(join(root, TRACE_DIR_REL, name), readFileSync(join(root, TRACE_DIR_REL, "ABC-1.md"), "utf8"), "utf8");
+    expect(readdirSync(join(root, TRACE_DIR_REL)), "PREMISE: the name holds a backslash").toContain(name);
+    const before = treeDigest(root);
+    const write = run(root);
+    const check = run(root, "--check");
+    const all = `write ${write.status}\n${write.stdout}${write.stderr}\ncheck ${check.status}\n${check.stdout}${check.stderr}`;
+    for (const r of [write, check]) {
+      expect(r.status, all).toBe(2);
+      expect(r.stdout, all).toBe("");
+      expect(r.stderr, all).toContain(`Error: ${TRACE_DIR_REL}/${name} cannot be used: `);
+      expect(r.stderr, all).toContain("it holds a backslash");
+      expect(r.stderr, all).not.toContain("stopped unexpectedly");
+      expect(r.stderr, all).not.toMatch(V8_FRAME);
+    }
+    expect(treeDigest(root), "nothing was written, changed or removed").toEqual(before);
+  });
+});
+
+describe("IN-13 census: trace-render keeps no hand-written boundary copy", () => {
+  // Each clause is a soft expectation, so one run names every clause the source breaks.
+  it("over the hand-written part of trace-render.ts (syntax tree): no insideRoot node, no entryPresence call, every rootChainPresence call passes root first, no startsWith call mentions root, relOfPath calls isWithin", () => {
+    const source = handWritten("trace-render.ts");
+    const insideRootNodes: string[] = [];
+    const visit = (n: ts.Node): void => {
+      if (ts.isIdentifier(n) && n.text === "insideRoot") {
+        const { line } = source.getLineAndCharacterOfPosition(n.getStart(source));
+        insideRootNodes.push(`line ${line + 1}: ${n.parent.getText(source).slice(0, 80)}`);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(source);
+    expect.soft(insideRootNodes, "an identifier named insideRoot (a declaration, a call or any other reference)").toEqual([]);
+
+    const calls = callsIn(source);
+    expect.soft(calls.filter((c) => calledName(c) === "entryPresence").map((c) => c.getText(source)), "a call of the round-2 owner").toEqual([]);
+
+    /** The name of the function a node sits in, or `<top>`. */
+    const enclosing = (n: ts.Node): string => {
+      for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) {
+        if (ts.isFunctionDeclaration(p) && p.name !== undefined) return p.name.text;
+        if ((ts.isArrowFunction(p) || ts.isFunctionExpression(p)) && ts.isVariableDeclaration(p.parent) && ts.isIdentifier(p.parent.name)) {
+          return p.parent.name.text;
+        }
+      }
+      return "<top>";
+    };
+    const owner = calls.filter((c) => calledName(c) === "rootChainPresence");
+    for (const c of owner) {
+      const first = c.arguments[0];
+      expect.soft(first !== undefined && ts.isIdentifier(first) && first.text === "root", `${c.getText(source)} passes root first`).toBe(true);
+    }
+    expect.soft(owner.map(enclosing).sort(), "the renderer's root-chain positions: the directories, the pre-write check and readText").toEqual(
+      ["<top>", "readText", "realDirectoryOrNull"],
+    );
+
+    const rootPrefix = calls.filter(
+      (c) => calledName(c) === "startsWith" && c.arguments.some((a) => identifiersIn(a).has("root")),
+    );
+    expect.soft(rootPrefix.map((c) => c.getText(source)), "a startsWith call whose argument mentions root").toEqual([]);
+
+    const relOfPath = functionsNamed(source, "relOfPath");
+    expect(relOfPath, "PREMISE: one hand-written relOfPath").toHaveLength(1);
+    expect.soft(callsIn(relOfPath[0] as ts.Node).map(calledName), "relOfPath asks the generated isWithin").toContain("isWithin");
+  });
+});
