@@ -254,9 +254,45 @@ describe("collectTraceNotes and planTraceTree: two roots, a failing task, the pl
     expect(c.tasks).toBe(4);
     expect(c.notes.map((n) => n.refs[0])).toEqual(["ABC-1", "ABC-2", "ARC-9"]);
     expect(c.skipped).toEqual([{ root: "live", task: "t1", file: "x.md", arm: "unsealed", detail: "absent" }]);
-    expect(c.failedTasks).toEqual([{ root: "live", task: "bad", reason: "task name refused" }]);
+    expect(c.failedTasks).toEqual([{ root: "live", task: "bad", reason: "task name refused", remedy: null }]);
     // A ticket whose notes sit only in the archive root still gets a row.
     expect(buildTraceRows(c.notes, isTicketId).map((r) => r.id)).toEqual(["ABC-1", "ABC-2", "ARC-9"]);
+  });
+
+  it("collectTraceNotes records a thrown value's own string remedy, and null for any other thrown value (plan 37-37, IN-11)", () => {
+    const withRemedy = Object.assign(new Error("it is not a directory, so it is not a task"), { remedy: "move it" });
+    const emptyRemedy = Object.assign(new Error("empty"), { remedy: "" });
+    const numberRemedy = Object.assign(new Error("number"), { remedy: 7 });
+    const inherited = Object.create(Object.assign(new Error("proto"), { remedy: "from the prototype" })) as Error;
+    const thrown: Record<string, unknown> = {
+      a: withRemedy,
+      b: new Error("EACCES: permission denied"),
+      c: emptyRemedy,
+      d: numberRemedy,
+      e: "a string",
+      f: inherited,
+    };
+    const io = {
+      listTasks: () => Object.keys(thrown),
+      readTask: (task: string): never => {
+        throw thrown[task];
+      },
+    };
+    const c = collectTraceNotes(["live"], io);
+    expect(c.failedTasks.map((f) => `${f.task}:${f.remedy === null ? "null" : f.remedy}`)).toEqual([
+      "a:move it",
+      "b:null",
+      "c:null",
+      "d:null",
+      "e:null",
+      "f:null",
+    ]);
+    expect(c.failedTasks[0]).toEqual({
+      root: "live",
+      task: "a",
+      reason: "it is not a directory, so it is not a task",
+      remedy: "move it",
+    });
   });
 
   it("plans the index first, then one file per ticket under the trace directory, in code-unit order", () => {
@@ -436,9 +472,11 @@ describe("traceReadFailures and planCompleteTraceTree: an incomplete read gives 
     expect(model.traceReadFailures(base)).toEqual([]);
     const failed = model.traceReadFailures({
       ...base,
-      failedTasks: [{ root: "live", task: "bad", reason: "EACCES: permission denied" }],
+      failedTasks: [{ root: "live", task: "bad", reason: "EACCES: permission denied", remedy: null }],
     });
-    expect(failed).toEqual([{ root: "live", task: "bad", file: null, arm: null, reason: "EACCES: permission denied" }]);
+    expect(failed).toEqual([
+      { root: "live", task: "bad", file: null, arm: null, reason: "EACCES: permission denied", remedy: null },
+    ]);
     for (const arm of IO_ARMS) {
       const got = model.traceReadFailures({
         ...base,
@@ -463,6 +501,23 @@ describe("traceReadFailures and planCompleteTraceTree: an incomplete read gives 
     expect(unknown.map((f) => f.arm)).toEqual(["future-arm"]);
   });
 
+  it("traceReadFailures passes a failed task's remedy through and gives null for a skipped note (plan 37-37, IN-11)", () => {
+    const got = model.traceReadFailures({
+      tasks: 2,
+      notes: [],
+      skipped: [{ root: "live", task: "a", file: "1.md", arm: "unopenable", detail: "EACCES" }],
+      failedTasks: [
+        { root: "live", task: "README.md", reason: "it is not a directory, so it is not a task", remedy: "move it" },
+        { root: "archive", task: "b", reason: "EACCES", remedy: null },
+      ],
+    });
+    expect(got).toEqual([
+      { root: "live", task: "README.md", file: null, arm: null, reason: "it is not a directory, so it is not a task", remedy: "move it" },
+      { root: "archive", task: "b", file: null, arm: null, reason: "EACCES", remedy: null },
+      { root: "live", task: "a", file: "1.md", arm: "unopenable", reason: "EACCES", remedy: null },
+    ]);
+  });
+
   it("failures come in collection order: every failed task, then every non-trust skip", () => {
     const got = model.traceReadFailures({
       tasks: 3,
@@ -472,7 +527,7 @@ describe("traceReadFailures and planCompleteTraceTree: an incomplete read gives 
         { root: "live", task: "a", file: "2.md", arm: "unsealed", detail: "absent" },
         { root: "archive", task: "c", file: "3.md", arm: "unopenable", detail: "EACCES" },
       ],
-      failedTasks: [{ root: "archive", task: "b", reason: "refused" }],
+      failedTasks: [{ root: "archive", task: "b", reason: "refused", remedy: null }],
     });
     expect(got.map((f) => `${f.root}/${f.task}/${f.file ?? "-"}`)).toEqual(["archive/b/-", "live/a/1.md", "archive/c/3.md"]);
   });
@@ -486,7 +541,7 @@ describe("traceReadFailures and planCompleteTraceTree: an incomplete read gives 
     expect(done.rows).toEqual(rows);
     expect([...done.plan]).toEqual([...planTraceTree(rows, TRACEABILITY_REL, TRACE_DIR_REL)]);
     const partial = model.planCompleteTraceTree(
-      { ...c, failedTasks: [{ root: "live", task: "t9", reason: "EACCES" }] },
+      { ...c, failedTasks: [{ root: "live", task: "t9", reason: "EACCES", remedy: null }] },
       isTicketId,
       TRACEABILITY_REL,
       TRACE_DIR_REL,

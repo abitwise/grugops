@@ -2159,13 +2159,18 @@ interface RawNoteRead {
  * a link to one. Nothing is there, so nothing is under it.
  * `unreadable`: anything else that stops the path being reached, with its errno code. A component that is a
  * symbolic link whose target cannot be reached, a component before the last that is not a directory (ENOTDIR),
- * and any other lstat, stat or realpath failure.
+ * and any other lstat, stat or realpath failure. `link` reports what the path's own lstat showed (plan 37-37,
+ * IN-11): true only when the lstat of the last component succeeded and showed a symbolic link, so the failure is the
+ * stat through that link or its realpath; false for every lstat failure, for ENOTDIR, for a link before the last
+ * component whose target cannot be reached, and for a stat or realpath failure of a last component that is not a
+ * link. A caller can therefore tell a link whose target cannot be reached from an entry it could not inspect without
+ * reading the reason text.
  * `present`: `entry` is the lstat of the path itself, `target` the stat of what it names (for an entry that is not
  * a link, the stat of the entry itself), and `real` its realpath.
  */
 export type EntryPresence =
   | { readonly kind: "absent" }
-  | { readonly kind: "unreadable"; readonly code: string; readonly reason: string }
+  | { readonly kind: "unreadable"; readonly code: string; readonly reason: string; readonly link: boolean }
   | { readonly kind: "present"; readonly entry: Stats; readonly target: Stats; readonly real: string };
 
 /** The errno code of a thrown value, or `unknown` when it carries none. */
@@ -2210,7 +2215,7 @@ export function entryPresence(path: string): EntryPresence {
     } catch (e) {
       const code = presenceCode(e);
       if (code === "ENOENT") return { kind: "absent" };
-      return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})` };
+      return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})`, link: false };
     }
     // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
     // path names, and the one stat site is reached under every caller.
@@ -2228,12 +2233,14 @@ export function entryPresence(path: string): EntryPresence {
             : last
               ? `it is a symbolic link whose target cannot be reached (${code})`
               : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+          // The path's own lstat showed a link only when this is the last component and it is one (IN-11).
+          link: last && entry.isSymbolicLink(),
         };
       }
     }
     if (!last) {
       if (!target.isDirectory()) {
-        return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)` };
+        return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)`, link: false };
       }
       continue;
     }
@@ -2242,7 +2249,7 @@ export function entryPresence(path: string): EntryPresence {
       real = realpathSync(at);
     } catch (e) {
       const code = presenceCode(e);
-      return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})` };
+      return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})`, link: entry.isSymbolicLink() };
     }
     return { kind: "present", entry, target, real };
   }
@@ -2558,6 +2565,23 @@ export function listContextTasks(contextRoot: string): string[] {
 }
 
 /**
+ * The one remedy wording for a context-root entry a human must move (plan 37-37, D-19, 37-REVIEW.md IN-11). A
+ * context-root entry that is not a task directory cannot hold a ticket's notes, yet it stops every render; the fix
+ * is to move it, never to make it readable. readTaskNoteRefs attaches it, as a `remedy` property on the thrown
+ * Error, to exactly its three refusals of a non-task entry; the trace model carries it and the runnables print it,
+ * and none of them spells it.
+ */
+export const STRAY_CONTEXT_ENTRY_REMEDY =
+  "move it out of the context root or remove it: a context root holds only task directories and dot-named keeper files such as .gitkeep";
+
+/** An Error carrying the stray-entry remedy (IN-11), and the owner's errno code when there is one. */
+function strayEntryError(message: string, code: string | null): Error {
+  const err = (code === null ? new Error(message) : codedError(message, code)) as Error & { remedy?: string };
+  err.remedy = STRAY_CONTEXT_ENTRY_REMEDY;
+  return err;
+}
+
+/**
  * One task's notes as the trace reads them: each published note's refs, and the walk's skip list (plan 37-28,
  * D-18, CR-04). Both runnables call this generated copy, so neither decides by hand whether a task or its notes
  * are present.
@@ -2569,6 +2593,17 @@ export function listContextTasks(contextRoot: string): string[] {
  * notes with `boundary` (the repository root), so a notes directory whose real path leaves it throws. Every throw
  * reaches the trace model as a failed task, named on stderr by the renderer and as a `trace-not-compared` finding
  * by state-check, so no trace file is removed while a refused entry could have held its ticket's notes (33.1 DC-2).
+ *
+ * THE STRAY-ENTRY REMEDY (plan 37-37, IN-11). STRAY_CONTEXT_ENTRY_REMEDY is the one wording for an entry a human
+ * must move, owned here. Three refusals carry it, as a `remedy` property on the thrown Error: an `unreadable` answer
+ * whose `link` is true (the entry's own lstat showed a symbolic link whose target cannot be reached: dangling,
+ * looping, or beneath something that cannot be searched; it keeps the owner's reason and code, because a link at the
+ * task position is never a task, whatever its target), a present symbolic link, and a present entry that is not a
+ * directory. Which failed reads carry it is decided by the entry's own lstat, never by a reason text. Every other
+ * throw carries none: an entry that vanished after the listing, an `unreadable` answer whose `link` is false (an
+ * ancestor or the entry itself could not be inspected, or the entry is not a link and its stat or realpath failed:
+ * it may be a task whose read failed), assertSafeTask's refusal of a name the writer never creates (IN-09), and
+ * every failure of the notes walk.
  */
 export function readTaskNoteRefs(
   task: string,
@@ -2578,9 +2613,14 @@ export function readTaskNoteRefs(
   assertSafeTask(task);
   const presence = entryPresence(join(contextRoot, task));
   if (presence.kind === "absent") throw new Error("it was listed and is no longer there");
-  if (presence.kind === "unreadable") throw codedError(presence.reason, presence.code);
-  if (presence.entry.isSymbolicLink()) throw new Error("it is a symbolic link, and a symbolic link is never read as a task");
-  if (!presence.entry.isDirectory()) throw new Error("it is not a directory, so it is not a task");
+  if (presence.kind === "unreadable") {
+    if (presence.link) throw strayEntryError(presence.reason, presence.code);
+    throw codedError(presence.reason, presence.code);
+  }
+  if (presence.entry.isSymbolicLink()) {
+    throw strayEntryError("it is a symbolic link, and a symbolic link is never read as a task", null);
+  }
+  if (!presence.entry.isDirectory()) throw strayEntryError("it is not a directory, so it is not a task", null);
   const read = readRawNotesWithSkips(task, contextRoot, boundary);
   return {
     notes: read.notes.map((raw) => ({ refs: recordFromParsed(raw.parsed, raw.id).refs })),

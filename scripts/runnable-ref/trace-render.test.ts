@@ -53,7 +53,7 @@ import {
 } from "../../install/state-layout.js";
 import ts from "typescript";
 import { TRACE_GENERATED_HEADER, TRACE_TRUST_SKIP_ARMS } from "../trace-model.js";
-import { EMBED_CLOSE } from "../generate-runnable-embeds.js";
+import { EMBED_CLOSE, EMBED_OPEN } from "../generate-runnable-embeds.js";
 import { treeDigest } from "../fault-inject.test-support.js";
 
 const RENDER_JS = join(import.meta.dirname, "trace-render.js");
@@ -1861,4 +1861,119 @@ describe("D-20: a root path through a link above the repository root still rende
 
     expect(treeDigest(realRoot), "no run after the first render wrote, changed or removed anything").toEqual(rendered);
   });
+});
+
+// ── Plan 37-37 (D-19 IN-11): a stray context-root entry is named with its own remedy ─────────────────────────
+// Since plan 37-28 every entry of a context root that is not a keeper is a task or a failed task, so a stray
+// `README.md` stops every render. That stays (nothing is removed), but the state-check note told a human to make
+// the task's notes readable, when the fix is to move the entry out (37-REVIEW.md IN-11). The remedy comes from one
+// owner, scripts/context-io.ts STRAY_CONTEXT_ENTRY_REMEDY, carried as data through the trace model.
+
+const IN11_POSITION = "scripts/runnable-ref/trace-render.test.ts: a stray context-root entry (plan 37-37, IN-11)";
+
+/** The one remedy wording, read from its owner (scripts/context-io.ts). */
+const STRAY_REMEDY: string = ctxio.STRAY_CONTEXT_ENTRY_REMEDY;
+
+/** A stray shape planted beside a rendered taskA: its entry name, the reason the owner gives, and its staging. */
+type StrayShape = {
+  readonly label: string;
+  readonly name: string;
+  readonly reason: string;
+  readonly stage: (root: string, at: string, position: string) => SkipEntry | null;
+};
+
+const NOT_A_DIRECTORY = "it is not a directory, so it is not a task";
+
+/** Every stray shape of a context-root entry that is not a task directory (D-19 IN-11). */
+const STRAY_SHAPES: readonly StrayShape[] = [
+  {
+    label: "a regular file README.md",
+    name: "README.md",
+    reason: NOT_A_DIRECTORY,
+    stage: (_root, at) => {
+      writeFileSync(at, "# Notes about this context root\n");
+      return null;
+    },
+  },
+];
+let strayRowsRun = 0;
+
+/**
+ * The outcome of a stray entry: refused as a failed task (expectRefusedTask), the renderer's line in both modes is
+ * `UNREADABLE TASK <at>: <reason>; <remedy>`, and state-check's one finding says the entry is not a task and carries
+ * the remedy, never the notes wording.
+ */
+function expectStrayEntry(
+  root: string,
+  runs: SequenceRuns,
+  entryRel: string,
+  reason: string,
+  before: ReadonlyMap<string, string>,
+  indexBefore: string,
+): void {
+  expectRefusedTask(root, runs, entryRel, before, indexBefore);
+  const line = `UNREADABLE TASK ${entryRel}: ${reason}; ${STRAY_REMEDY}`;
+  expect(runs.write.stderr.split("\n"), runs.write.stderr).toContain(line);
+  expect(runs.check.stderr.split("\n"), runs.check.stderr).toContain(line);
+  const note = runs.json.trace.findings[0]?.note ?? "";
+  expect(note).toContain("is not a task");
+  expect(note).toContain(reason);
+  expect(note).toContain(STRAY_REMEDY);
+  expect(note).not.toContain("until they can be read");
+}
+
+describe("IN-11: a stray context-root entry is named with its own remedy", () => {
+  for (const rootRel of CONTEXT_ROOT_RELS) {
+    for (const shape of STRAY_SHAPES) {
+      it(`${rootRel}: ${shape.label} beside a rendered taskA is refused with the stray-entry remedy, in both programs`, () => {
+        strayRowsRun += 1;
+        const { root, rootDir } = renderedTaskRepo(rootRel);
+        const skip = shape.stage(root, join(rootDir, shape.name), `${IN11_POSITION} (${shape.label}, ${rootRel})`);
+        if (skip !== null) {
+          console.warn(skipLine(skip, "the other stray-shape rows of this describe (the same remedy rule)"));
+          return;
+        }
+        const before = treeDigest(root);
+        const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+        expectStrayEntry(root, sequenceRuns(root), `${rootRel}/${shape.name}`, shape.reason, before, indexBefore);
+      });
+    }
+  }
+
+  for (const rel of ["trace-render", "state-check"] as const) {
+    it(`${rel}: the generated region of the committed .js declares STRAY_CONTEXT_ENTRY_REMEDY as the owner's string, and the hand-written part never names it`, () => {
+      const lines = readFileSync(join(import.meta.dirname, `${rel}.js`), "utf8").split("\n");
+      const open = lines.indexOf(EMBED_OPEN);
+      const close = lines.indexOf(EMBED_CLOSE);
+      expect(open, `PREMISE: ${rel}.js carries the region's open line`).toBeGreaterThanOrEqual(0);
+      expect(close, `PREMISE: ${rel}.js carries the region's close line`).toBeGreaterThan(open);
+      const region = ts.createSourceFile(`${rel}.js`, lines.slice(open + 1, close).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+      const declared: string[] = [];
+      const visit = (n: ts.Node): void => {
+        if (
+          ts.isVariableDeclaration(n) &&
+          ts.isIdentifier(n.name) &&
+          n.name.text === "STRAY_CONTEXT_ENTRY_REMEDY" &&
+          n.initializer !== undefined &&
+          ts.isStringLiteral(n.initializer)
+        ) {
+          declared.push(n.initializer.text);
+        }
+        ts.forEachChild(n, visit);
+      };
+      visit(region);
+      expect(declared).toEqual([STRAY_REMEDY]);
+      const hand = handWritten(`${rel}.ts`);
+      const named: string[] = [];
+      const reads: string[] = [];
+      const scan = (n: ts.Node): void => {
+        if (ts.isIdentifier(n) && n.text === "STRAY_CONTEXT_ENTRY_REMEDY") named.push(n.text);
+        if (ts.isPropertyAccessExpression(n) && n.name.text === "remedy") reads.push(n.getText(hand));
+        ts.forEachChild(n, scan);
+      };
+      scan(hand);
+      expect(named, "the hand-written part reads the carried remedy, never the constant").toEqual([]);
+      expect(reads.length, "the hand-written part reads the carried `remedy` field").toBeGreaterThan(0);
+    });
+  }
 });

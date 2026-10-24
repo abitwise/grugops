@@ -332,11 +332,16 @@ export interface TraceNoteSkip {
   readonly detail: string;
 }
 
-/** One task whose read threw: an unsafe task name, or a notes directory that could not be read. */
+/**
+ * One task whose read threw: an unsafe task name, or a notes directory that could not be read. `remedy` is the
+ * thrown value's own string `remedy` property when it carries a non-empty one (the reader's stray-entry remedy,
+ * plan 37-37, IN-11), else null. The model copies it and composes no wording of its own.
+ */
 export interface TraceTaskFailure {
   readonly root: string;
   readonly task: string;
   readonly reason: string;
+  readonly remedy: string | null;
 }
 
 /** What the reader returns for one task: the notes it read and the entries it skipped, each with its arm. */
@@ -357,6 +362,13 @@ export interface TraceCollection {
   readonly notes: { readonly refs: readonly string[] }[];
   readonly skipped: TraceNoteSkip[];
   readonly failedTasks: TraceTaskFailure[];
+}
+
+/** A thrown value's own `remedy` property when it is a non-empty string, else null (plan 37-37, IN-11). */
+function remedyOf(e: unknown): string | null {
+  if (typeof e !== "object" || e === null || !Object.hasOwn(e, "remedy")) return null;
+  const remedy = (e as { remedy?: unknown }).remedy;
+  return typeof remedy === "string" && remedy !== "" ? remedy : null;
 }
 
 /**
@@ -381,7 +393,7 @@ export function collectTraceNotes(contextRoots: readonly string[], io: TraceNote
       try {
         read = io.readTask(task, root);
       } catch (e) {
-        failedTasks.push({ root, task, reason: e instanceof Error ? e.message : String(e) });
+        failedTasks.push({ root, task, reason: e instanceof Error ? e.message : String(e), remedy: remedyOf(e) });
         continue;
       }
       for (const note of read.notes) notes.push(note);
@@ -424,6 +436,8 @@ export const TRACE_TRUST_SKIP_ARMS: readonly string[] = Object.freeze(["unparsea
 /**
  * One reason the note read was not complete: a task that could not be read (`file` and `arm` null), or a note
  * skipped under an arm that is not a trust arm (`file` and `arm` named). `reason` is the reader's own words.
+ * `remedy` is the failed task's carried remedy (plan 37-37, IN-11), null for a skipped note and for a task that
+ * carried none; the model composes no wording, the runnables print what is carried.
  */
 export interface TraceReadFailure {
   readonly root: string;
@@ -431,6 +445,7 @@ export interface TraceReadFailure {
   readonly file: string | null;
   readonly arm: string | null;
   readonly reason: string;
+  readonly remedy: string | null;
 }
 
 /**
@@ -444,11 +459,12 @@ export function traceReadFailures(collection: TraceCollection): TraceReadFailure
     file: null,
     arm: null,
     reason: f.reason,
+    remedy: f.remedy,
   }));
   for (const s of collection.skipped) {
     if (TRACE_TRUST_SKIP_ARMS.includes(s.arm)) continue;
     const reason = s.detail !== "" ? s.detail : `the reader could not read it (${s.arm})`;
-    failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason });
+    failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason, remedy: null });
   }
   return failures;
 }

@@ -18514,3 +18514,199 @@ describe("rootChainPresence: the root-chain owner (plan 37-33, D-20)", () => {
     if (process.platform === "darwin" || process.platform === "linux") expect(rootChainSkips).toBe(0);
   });
 });
+
+// ── Plan 37-37 (D-19, IN-11): entryPresence's `link` and the stray-entry remedy ─────────────────────────────
+// A context-root entry that is not a task directory is refused with STRAY_CONTEXT_ENTRY_REMEDY, carried as a
+// `remedy` property on the thrown Error. Which failed reads carry it is decided by the entry's own lstat
+// (entryPresence's `link`), never by a reason text: a notes failure, an entry that could not be inspected and a
+// vanished entry carry none.
+
+const P3737 = "scripts/context-io.test.ts: plan 37-37 stray-entry case";
+
+/** chmod cannot deny root, and Windows has no POSIX mode bits: the mode cases need neither. */
+const IN11_MODE_SKIP =
+  process.platform === "win32"
+    ? "Windows has no POSIX mode bits"
+    : process.getuid?.() === 0
+      ? "running as root, which chmod cannot deny"
+      : null;
+if (IN11_MODE_SKIP !== null) console.warn(`SKIP scripts/context-io.test.ts plan 37-37 mode cases: ${IN11_MODE_SKIP}.`);
+
+/** The value `fn` throws; a test fails if it returns. */
+function strayThrow(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (e) {
+    return e;
+  }
+  throw new Error("expected a throw, and nothing was thrown");
+}
+
+/** The own `remedy` property of a thrown value, or undefined when it has none. */
+function remedyOf(e: unknown): unknown {
+  return typeof e === "object" && e !== null && Object.hasOwn(e, "remedy") ? (e as { remedy: unknown }).remedy : undefined;
+}
+
+/** Stage a link, or print the platform reason; true when staged. */
+function in11Link(target: string, at: string, shape: string): boolean {
+  const skipped = stageSymlinkOrSkip(target, at, shape, P3737);
+  if (skipped === null) return true;
+  console.warn(skipLine(skipped, "the IN-11 rows of scripts/runnable-ref/trace-render.test.ts"));
+  return false;
+}
+
+describe("entryPresence `link`: what the path's own lstat showed (plan 37-37, IN-11)", () => {
+  it("a dangling link at the last component is unreadable with link true (ENOENT)", () => {
+    const d = freshTmp("grugops-ctxio-3737-dangling-");
+    if (!in11Link(join(d, "gone"), join(d, "link"), "dangling symlink")) return;
+    expect(mod.entryPresence(join(d, "link"))).toEqual({
+      kind: "unreadable",
+      code: "ENOENT",
+      reason: "it is a symbolic link whose target cannot be reached (ENOENT)",
+      link: true,
+    });
+  });
+
+  it("a link to itself at the last component is unreadable with link true (ELOOP)", () => {
+    const d = freshTmp("grugops-ctxio-3737-loop-");
+    if (!in11Link(join(d, "self"), join(d, "self"), "symlink to itself")) return;
+    expect(mod.entryPresence(join(d, "self"))).toEqual({
+      kind: "unreadable",
+      code: "ELOOP",
+      reason: "it is a symbolic link whose target cannot be reached (ELOOP)",
+      link: true,
+    });
+  });
+
+  it.skipIf(IN11_MODE_SKIP !== null)("a link whose target sits in a mode-000 directory is unreadable with link true (EACCES)", () => {
+    const d = freshTmp("grugops-ctxio-3737-locked-target-");
+    mkdirSync(join(d, "locked"));
+    writeFileSync(join(d, "locked", "target"), "x");
+    if (!in11Link(join(d, "locked", "target"), join(d, "link"), "symlink to a regular file")) return;
+    chmodSync(join(d, "locked"), 0o000);
+    let r: ReturnType<typeof mod.entryPresence>;
+    try {
+      r = mod.entryPresence(join(d, "link"));
+    } finally {
+      chmodSync(join(d, "locked"), 0o755);
+    }
+    expect(r).toEqual({
+      kind: "unreadable",
+      code: "EACCES",
+      reason: "it is a symbolic link whose target cannot be reached (EACCES)",
+      link: true,
+    });
+  });
+
+  it("a path beneath a dangling ancestor link is unreadable with link false: the path's own lstat was never reached", () => {
+    const d = freshTmp("grugops-ctxio-3737-under-dangling-");
+    if (!in11Link(join(d, "gone"), join(d, "link"), "dangling symlink")) return;
+    const r = mod.entryPresence(join(d, "link", "notes"));
+    expect(r.kind).toBe("unreadable");
+    expect(r.kind === "unreadable" ? [r.code, r.link] : []).toEqual(["ENOENT", false]);
+  });
+
+  it("a path beneath a regular file is unreadable with code ENOTDIR and link false", () => {
+    const d = freshTmp("grugops-ctxio-3737-enotdir-");
+    writeFileSync(join(d, "file"), "x");
+    const r = mod.entryPresence(join(d, "file", "notes"));
+    expect(r.kind).toBe("unreadable");
+    expect(r.kind === "unreadable" ? [r.code, r.link] : []).toEqual(["ENOTDIR", false]);
+  });
+
+  it.skipIf(IN11_MODE_SKIP !== null)("an entry of a mode-0444 directory is unreadable with link false: its own lstat fails EACCES", () => {
+    const d = freshTmp("grugops-ctxio-3737-0444-");
+    mkdirSync(join(d, "ctx", "taskA"), { recursive: true });
+    chmodSync(join(d, "ctx"), 0o444);
+    let listed: string[];
+    let r: ReturnType<typeof mod.entryPresence>;
+    try {
+      listed = readdirSync(join(d, "ctx"));
+      r = mod.entryPresence(join(d, "ctx", "taskA"));
+    } finally {
+      chmodSync(join(d, "ctx"), 0o755);
+    }
+    expect(listed, "PREMISE: the directory can be listed").toEqual(["taskA"]);
+    expect(r.kind).toBe("unreadable");
+    expect(r.kind === "unreadable" ? [r.code, r.link] : []).toEqual(["EACCES", false]);
+  });
+});
+
+describe("readTaskNoteRefs: STRAY_CONTEXT_ENTRY_REMEDY on exactly the non-task refusals (plan 37-37, IN-11)", () => {
+  it("the remedy is one exported sentence naming the move", () => {
+    expect(mod.STRAY_CONTEXT_ENTRY_REMEDY).toBe(
+      "move it out of the context root or remove it: a context root holds only task directories and dot-named keeper files such as .gitkeep",
+    );
+  });
+
+  it("a dangling link and a link to itself throw the owner's reason and code, with the remedy", () => {
+    const ctx = freshTmp("grugops-ctxio-3737-stray-links-");
+    const boundary = realpathSync(ctx);
+    const cases: [string, string, string][] = [];
+    if (in11Link(join(ctx, "gone"), join(ctx, "taskD"), "dangling symlink")) cases.push(["taskD", "ENOENT", "dangling"]);
+    if (in11Link(join(ctx, "taskE"), join(ctx, "taskE"), "symlink to itself")) cases.push(["taskE", "ELOOP", "loop"]);
+    for (const [task, code, label] of cases) {
+      const e = strayThrow(() => mod.readTaskNoteRefs(task, ctx, boundary));
+      expect(e, label).toBeInstanceOf(Error);
+      expect((e as Error).message, label).toBe(`it is a symbolic link whose target cannot be reached (${code})`);
+      expect((e as NodeJS.ErrnoException).code, label).toBe(code);
+      expect(remedyOf(e), label).toBe(mod.STRAY_CONTEXT_ENTRY_REMEDY);
+    }
+  });
+
+  it("a regular file and a live link throw their reasons with the remedy", () => {
+    const ctx = freshTmp("grugops-ctxio-3737-stray-present-");
+    const boundary = realpathSync(ctx);
+    writeFileSync(join(ctx, "README.md"), "stray\n");
+    const file = strayThrow(() => mod.readTaskNoteRefs("README.md", ctx, boundary));
+    expect((file as Error).message).toBe("it is not a directory, so it is not a task");
+    expect(remedyOf(file)).toBe(mod.STRAY_CONTEXT_ENTRY_REMEDY);
+    mkdirSync(join(ctx, "real", "notes"), { recursive: true });
+    if (!in11Link(join(ctx, "real"), join(ctx, "taskL"), "symlink to a directory inside the repository root")) return;
+    const link = strayThrow(() => mod.readTaskNoteRefs("taskL", ctx, boundary));
+    expect((link as Error).message).toBe("it is a symbolic link, and a symbolic link is never read as a task");
+    expect(remedyOf(link)).toBe(mod.STRAY_CONTEXT_ENTRY_REMEDY);
+  });
+
+  it("a vanished entry and a refused name carry no remedy", () => {
+    const ctx = freshTmp("grugops-ctxio-3737-no-remedy-");
+    const boundary = realpathSync(ctx);
+    const gone = strayThrow(() => mod.readTaskNoteRefs("taskGone", ctx, boundary));
+    expect((gone as Error).message).toBe("it was listed and is no longer there");
+    expect(remedyOf(gone)).toBeUndefined();
+    const refused = strayThrow(() => mod.readTaskNoteRefs("my task", ctx, boundary));
+    expect((refused as Error).message).toMatch(/invalid task name/);
+    expect(remedyOf(refused)).toBeUndefined();
+  });
+
+  it.skipIf(IN11_MODE_SKIP !== null)("an entry of a mode-0444 context root carries no remedy: its lstat failed, so it may be a task", () => {
+    const ctx = freshTmp("grugops-ctxio-3737-0444-root-");
+    const boundary = realpathSync(ctx);
+    mkdirSync(join(ctx, "taskA", "notes"), { recursive: true });
+    chmodSync(ctx, 0o444);
+    let e: unknown;
+    try {
+      e = strayThrow(() => mod.readTaskNoteRefs("taskA", ctx, boundary));
+    } finally {
+      chmodSync(ctx, 0o755);
+    }
+    expect((e as NodeJS.ErrnoException).code).toBe("EACCES");
+    expect((e as Error).message).toContain("cannot be inspected (EACCES)");
+    expect(remedyOf(e)).toBeUndefined();
+  });
+
+  it.skipIf(IN11_MODE_SKIP !== null)("a task whose notes directory is at mode 000 carries no remedy: it is a notes failure", () => {
+    const ctx = freshTmp("grugops-ctxio-3737-notes-000-");
+    const boundary = realpathSync(ctx);
+    mkdirSync(join(ctx, "taskA", "notes"), { recursive: true });
+    chmodSync(join(ctx, "taskA", "notes"), 0o000);
+    let e: unknown;
+    try {
+      e = strayThrow(() => mod.readTaskNoteRefs("taskA", ctx, boundary));
+    } finally {
+      chmodSync(join(ctx, "taskA", "notes"), 0o755);
+    }
+    expect((e as NodeJS.ErrnoException).code).toBe("EACCES");
+    expect(remedyOf(e)).toBeUndefined();
+  });
+});

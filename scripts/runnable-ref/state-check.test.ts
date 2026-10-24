@@ -1417,7 +1417,11 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
           expect(j.status).toBe(expected);
           expect(j.report.trace.compared).toBe(false);
           expect(j.report.trace.findings.map((f) => `${f.key}|${f.rel}`)).toEqual([`trace-not-compared|${contextRel}/${shape.name}`]);
-          expect(j.report.trace.findings[0]?.note).toContain("this task's notes could not be read (");
+          // Plan 37-37 (IN-11): a context-root entry that is not a task says so and carries the stray-entry remedy,
+          // never the notes wording.
+          expect(j.report.trace.findings[0]?.note).toContain("this context-root entry is not a task (");
+          expect(j.report.trace.findings[0]?.note).toContain(ctxio.STRAY_CONTEXT_ENTRY_REMEDY);
+          expect(j.report.trace.findings[0]?.note).not.toContain("until they can be read");
         }
       });
     }

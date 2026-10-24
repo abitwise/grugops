@@ -95,7 +95,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:8a7c66faa77e75ce1f6cb7b3fa76113bd6585a951fbc282c101287ef2ad5e1a1";
+export const RUNNABLE_SET_STAMP = "sha256:d3c3bc3cc3b231f6efc89a218b03e0f9c775e4f3965c4d3aeb0642a6a1f1fbd1";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "trace-render.js";
 // from install/state-layout.ts
@@ -217,6 +217,12 @@ export function renderTraceIndex(rows) {
         lines.push(`| ${row.id} | [${row.id}](${TRACE_LINK_DIR}/${traceFileName(row.id)}) |`);
     return `${lines.join("\n")}\n`;
 }
+function remedyOf(e) {
+    if (typeof e !== "object" || e === null || !Object.hasOwn(e, "remedy"))
+        return null;
+    const remedy = e.remedy;
+    return typeof remedy === "string" && remedy !== "" ? remedy : null;
+}
 export function collectTraceNotes(contextRoots, io) {
     const notes = [];
     const skipped = [];
@@ -231,7 +237,7 @@ export function collectTraceNotes(contextRoots, io) {
                 read = io.readTask(task, root);
             }
             catch (e) {
-                failedTasks.push({ root, task, reason: e instanceof Error ? e.message : String(e) });
+                failedTasks.push({ root, task, reason: e instanceof Error ? e.message : String(e), remedy: remedyOf(e) });
                 continue;
             }
             for (const note of read.notes)
@@ -258,12 +264,13 @@ export function traceReadFailures(collection) {
         file: null,
         arm: null,
         reason: f.reason,
+        remedy: f.remedy,
     }));
     for (const s of collection.skipped) {
         if (TRACE_TRUST_SKIP_ARMS.includes(s.arm))
             continue;
         const reason = s.detail !== "" ? s.detail : `the reader could not read it (${s.arm})`;
-        failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason });
+        failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason, remedy: null });
     }
     return failures;
 }
@@ -631,7 +638,7 @@ export function entryPresence(path) {
             const code = presenceCode(e);
             if (code === "ENOENT")
                 return { kind: "absent" };
-            return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})` };
+            return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})`, link: false };
         }
         // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
         // path names, and the one stat site is reached under every caller.
@@ -650,12 +657,14 @@ export function entryPresence(path) {
                         : last
                             ? `it is a symbolic link whose target cannot be reached (${code})`
                             : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+                    // The path's own lstat showed a link only when this is the last component and it is one (IN-11).
+                    link: last && entry.isSymbolicLink(),
                 };
             }
         }
         if (!last) {
             if (!target.isDirectory()) {
-                return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)` };
+                return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)`, link: false };
             }
             continue;
         }
@@ -665,7 +674,7 @@ export function entryPresence(path) {
         }
         catch (e) {
             const code = presenceCode(e);
-            return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})` };
+            return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})`, link: entry.isSymbolicLink() };
         }
         return { kind: "present", entry, target, real };
     }
@@ -896,17 +905,27 @@ export function listContextTasks(contextRoot) {
     }
     return out;
 }
+export const STRAY_CONTEXT_ENTRY_REMEDY = "move it out of the context root or remove it: a context root holds only task directories and dot-named keeper files such as .gitkeep";
+function strayEntryError(message, code) {
+    const err = (code === null ? new Error(message) : codedError(message, code));
+    err.remedy = STRAY_CONTEXT_ENTRY_REMEDY;
+    return err;
+}
 export function readTaskNoteRefs(task, contextRoot, boundary) {
     assertSafeTask(task);
     const presence = entryPresence(join(contextRoot, task));
     if (presence.kind === "absent")
         throw new Error("it was listed and is no longer there");
-    if (presence.kind === "unreadable")
+    if (presence.kind === "unreadable") {
+        if (presence.link)
+            throw strayEntryError(presence.reason, presence.code);
         throw codedError(presence.reason, presence.code);
-    if (presence.entry.isSymbolicLink())
-        throw new Error("it is a symbolic link, and a symbolic link is never read as a task");
+    }
+    if (presence.entry.isSymbolicLink()) {
+        throw strayEntryError("it is a symbolic link, and a symbolic link is never read as a task", null);
+    }
     if (!presence.entry.isDirectory())
-        throw new Error("it is not a directory, so it is not a task");
+        throw strayEntryError("it is not a directory, so it is not a task", null);
     const read = readRawNotesWithSkips(task, contextRoot, boundary);
     return {
         notes: read.notes.map((raw) => ({ refs: recordFromParsed(raw.parsed, raw.id).refs })),
@@ -1052,8 +1071,10 @@ function couldNotRunIncomplete(failures) {
             "the trace was not compared or rendered and nothing was written or removed. The trace render did not run.",
         ...failures.map((f) => {
             const at = `${printable(relOfRoot(f.root))}/${printable(f.task)}`;
+            // A failed task that carries the reader's stray-entry remedy (plan 37-37, IN-11) names it after the reason.
+            const remedy = f.remedy === null ? "" : `; ${printable(f.remedy)}`;
             return f.file === null
-                ? `UNREADABLE TASK ${at}: ${printable(f.reason)}`
+                ? `UNREADABLE TASK ${at}: ${printable(f.reason)}${remedy}`
                 : `UNREADABLE NOTE ${at}/notes/${printable(f.file)} (${printable(f.arm ?? "")}): ${printable(f.reason)}`;
         }),
     ];

@@ -282,6 +282,13 @@ export function renderTraceIndex(rows) {
         lines.push(`| ${row.id} | [${row.id}](${TRACE_LINK_DIR}/${traceFileName(row.id)}) |`);
     return `${lines.join("\n")}\n`;
 }
+/** A thrown value's own `remedy` property when it is a non-empty string, else null (plan 37-37, IN-11). */
+function remedyOf(e) {
+    if (typeof e !== "object" || e === null || !Object.hasOwn(e, "remedy"))
+        return null;
+    const remedy = e.remedy;
+    return typeof remedy === "string" && remedy !== "" ? remedy : null;
+}
 /**
  * Read every task under every context root, in the order given (the live root, then the archive root). A task
  * whose read throws is caught, counted and named in failedTasks, never swallowed; every skip the reader reports
@@ -305,7 +312,7 @@ export function collectTraceNotes(contextRoots, io) {
                 read = io.readTask(task, root);
             }
             catch (e) {
-                failedTasks.push({ root, task, reason: e instanceof Error ? e.message : String(e) });
+                failedTasks.push({ root, task, reason: e instanceof Error ? e.message : String(e), remedy: remedyOf(e) });
                 continue;
             }
             for (const note of read.notes)
@@ -351,12 +358,13 @@ export function traceReadFailures(collection) {
         file: null,
         arm: null,
         reason: f.reason,
+        remedy: f.remedy,
     }));
     for (const s of collection.skipped) {
         if (TRACE_TRUST_SKIP_ARMS.includes(s.arm))
             continue;
         const reason = s.detail !== "" ? s.detail : `the reader could not read it (${s.arm})`;
-        failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason });
+        failures.push({ root: s.root, task: s.task, file: s.file, arm: s.arm, reason, remedy: null });
     }
     return failures;
 }
