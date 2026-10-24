@@ -83,7 +83,7 @@ import * as nodePath from "node:path";
 import { randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:e76831e9cdbdd113841a3290ac4457e5aa0c52f7a95e52dfbe8c797f095bf6b5";
+export const RUNNABLE_SET_STAMP = "sha256:889b34f15c85328f4bbb9c2fae7951a4adfe78aca7421626693b92fc1394b066";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "state-roll.js";
 // from install/state-layout.ts
@@ -1130,6 +1130,86 @@ export function entryPresence(path) {
         return { kind: "present", entry, target, real };
     }
 }
+export function isWithin(real, boundary) {
+    const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
+    return real === boundary || real.startsWith(prefix);
+}
+export const ROOT_CHAIN_LINK_REFUSAL = "is a symbolic link, and no symbolic link below the repository root is followed on the way to a state path";
+export function rootChainOf(rel) {
+    const refuse = (why) => {
+        throw new Error(`context-io: the state path ${JSON.stringify(rel)} is not a repository-relative path: ${why}`);
+    };
+    if (rel === "")
+        refuse("it is empty");
+    if (rel.includes("\\"))
+        refuse("it holds a backslash");
+    if (rel.startsWith("/"))
+        refuse("it has a leading slash");
+    if (rel.endsWith("/"))
+        refuse("it has a trailing slash");
+    const segments = rel.split("/");
+    const out = [];
+    for (const segment of segments) {
+        if (segment === "")
+            refuse("it has an empty segment");
+        if (segment === "." || segment === "..")
+            refuse(`it has a ${JSON.stringify(segment)} segment`);
+        out.push(out.length === 0 ? segment : `${out[out.length - 1]}/${segment}`);
+    }
+    return out;
+}
+export function rootChainPresence(realRoot, rel, leaf) {
+    const chain = rootChainOf(rel);
+    for (let i = 0;; i += 1) {
+        const prefix = chain[i];
+        const at = join(realRoot, ...prefix.split("/"));
+        const last = i === chain.length - 1;
+        let entry;
+        try {
+            entry = lstatSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            if (code === "ENOENT")
+                return { kind: "absent" };
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be inspected (${code})` };
+        }
+        if (entry.isSymbolicLink() && (!last || leaf === "directory")) {
+            return { kind: "link", rel: prefix, reason: `${prefix} ${ROOT_CHAIN_LINK_REFUSAL}` };
+        }
+        if (!last) {
+            if (!entry.isDirectory()) {
+                return { kind: "unreadable", code: "ENOTDIR", reason: `"${prefix}" on the path is not a directory (ENOTDIR)` };
+            }
+            continue;
+        }
+        let target;
+        try {
+            target = statSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return {
+                kind: "unreadable",
+                code,
+                reason: entry.isSymbolicLink()
+                    ? `it is a symbolic link whose target cannot be reached (${code})`
+                    : `"${prefix}" cannot be inspected (${code})`,
+            };
+        }
+        let real;
+        try {
+            real = realpathSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be resolved (${code})` };
+        }
+        if (!isWithin(real, realRoot))
+            return { kind: "outside", real };
+        return { kind: "present", entry, target, real };
+    }
+}
 // </runnable-embeds>
 // ── The hand-written part: argv, the boundary checks, the reads, the plans, the io and the report ─────────
 /** The rolls written and proven so far, read by the unexpected-throw handler below (plan 37-20). */
@@ -1221,10 +1301,6 @@ catch (e) {
 function insideRoot(real) {
     return real === root || real.startsWith(root + nodePath.sep);
 }
-/** The absolute path of a repository-relative path with `/` separators. */
-function abs(rel) {
-    return nodePath.join(root, ...rel.split("/"));
-}
 /** The repository-relative parent of a repository-relative path. */
 function relParent(rel) {
     return rel.slice(0, rel.lastIndexOf("/"));
@@ -1234,19 +1310,23 @@ function relBase(rel) {
     return rel.slice(rel.lastIndexOf("/") + 1);
 }
 /**
- * The real path of the directory at `rel`, or null when nothing is there. The embedded entryPresence answers
- * whether anything is (plan 37-30, D-18), with the same mapping as trace-render's: absent is null; unreadable (a
- * dangling link at the path or at an ancestor, a component that is not a directory, any other failure) is refused
- * by name with the owner's reason; a path that resolves outside the root, or a present entry that is not a
- * directory, is refused as before.
+ * The real path of the directory at `rel`, or null when nothing is there. The embedded rootChainPresence, the
+ * root-chain owner, answers with leaf `directory` (plan 37-36, D-20): every component of `rel` below the real root is
+ * lstat'ed, and a symbolic link anywhere on the path, the directory itself included, is refused by name whatever it
+ * points to, so a link to an empty directory outside the root never reads as "nothing there" and an in-root link is
+ * never rolled through. Absent (an lstat ENOENT beneath real directories) is null; unreadable is refused with the
+ * owner's reason; a link is refused as a link; a real path outside the root, or a present entry that is not a
+ * directory, is refused by name.
  */
 function realDirectoryOrNull(rel, what) {
-    const presence = entryPresence(abs(rel));
+    const presence = rootChainPresence(root, rel, "directory");
     if (presence.kind === "absent")
         return null;
     if (presence.kind === "unreadable")
         couldNotRun(`${what} ${rel} cannot be inspected: ${presence.reason}.`);
-    if (!insideRoot(presence.real))
+    if (presence.kind === "link")
+        couldNotRun(`${what} ${rel} cannot be used: ${presence.reason}.`);
+    if (presence.kind === "outside")
         couldNotRun(`${what} ${rel} resolves outside the repository root, so it was not used.`);
     if (!presence.target.isDirectory())
         couldNotRun(`${what} ${rel} is not a directory.`);

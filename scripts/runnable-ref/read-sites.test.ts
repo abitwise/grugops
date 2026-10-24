@@ -148,10 +148,14 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * owner instead of entryPresence; no read site arrives or leaves, only the pairs move: entryPresence's rows under
  * `locate#0` are gone (pairs -3), and rootChainPresence, now entered from two calling call expressions in state-check,
  * is one row per caller (`traceDirectory#0`, `locate#0`; pairs +3, its three via-less rows replaced by six).
+ * 2026-10-24, plan 37-36 (Task 1, D-20, CR-05): 15, 18 and 13 read sites. state-roll embeds the root-chain owner, and
+ * its realDirectoryOrNull asks it, so `rootChainPresence:{lstatSync,statSync,realpathSync}#0` arrive (net +3), each
+ * entered from one calling call expression and so named without a via. entryPresence's three sites stay, entered now
+ * only from readTextOrThrow, so their rows lose the via (pairs: six become three).
  */
 const TRACE_RENDER_READ_SITES = 15;
 const STATE_CHECK_READ_SITES = 18;
-const STATE_ROLL_READ_SITES = 10;
+const STATE_ROLL_READ_SITES = 13;
 const PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_READ_SITES,
   "state-check": STATE_CHECK_READ_SITES,
@@ -211,8 +215,6 @@ const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "r
  * progress file, each listed folder, each measured record and each compared trace file).
  */
 const SC_ROOT_CHAIN_CALLERS = ["traceDirectory#0", "locate#0"];
-/** The callers of the absence owner in state-roll (plan 37-30): realDirectoryOrNull and readTextOrThrow. */
-const SR_PRESENCE_CALLERS = ["realDirectoryOrNull#0", "readTextOrThrow#0"];
 
 const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   // trace-render: the embedded non-blocking reader (via readText and via the note walk) and the note walk.
@@ -299,13 +301,19 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("state-roll", SR, "<top>:realpathSync#0"),
   ...rows("state-roll", SR, "<top>:statSync#0"),
   ...rows("state-roll", SR, "<top>:accessSync#0"),
-  // state-roll: the one absence owner (plan 37-30, D-18), under its two callers. realDirectoryOrNull (the state
-  // directory, the archive directory, the memory bank directory) and readTextOrThrow (the planning reads through
-  // readText, and the roll's re-reads through io.read) make no read of their own since plan 37-30. The first call
-  // of each caller (the state directory, the board) reaches all three owner sites in every mode.
-  ...rows("state-roll", SR, "entryPresence:lstatSync#0", SR_PRESENCE_CALLERS),
-  ...rows("state-roll", SR, "entryPresence:statSync#0", SR_PRESENCE_CALLERS),
-  ...rows("state-roll", SR, "entryPresence:realpathSync#0", SR_PRESENCE_CALLERS),
+  // state-roll: the one absence owner (plan 37-30, D-18), under its one caller since plan 37-36: readTextOrThrow (the
+  // planning reads through readText, and the roll's re-reads through io.read), which makes no read of its own. Its
+  // first call (the board) reaches all three owner sites in every mode. realDirectoryOrNull asked it from plan 37-30
+  // to plan 37-36; it asks the root-chain owner below.
+  ...rows("state-roll", SR, "entryPresence:lstatSync#0"),
+  ...rows("state-roll", SR, "entryPresence:statSync#0"),
+  ...rows("state-roll", SR, "entryPresence:realpathSync#0"),
+  // state-roll: the root-chain owner (plan 37-36, D-20, CR-05), under its one caller, realDirectoryOrNull (the state
+  // directory, the archive directory, the memory bank directory). Its first call (the state directory, a real
+  // directory) reaches the stat and the realpath of the last component in every mode.
+  ...rows("state-roll", SR, "rootChainPresence:lstatSync#0"),
+  ...rows("state-roll", SR, "rootChainPresence:statSync#0"),
+  ...rows("state-roll", SR, "rootChainPresence:realpathSync#0"),
   // The realpath after the roll creates the archive directory: only a repository without one reaches it.
   ...rows("state-roll", ["write-new-archive"], "<top>:realpathSync#1"),
 ];
@@ -970,11 +978,13 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
     "a sibling program may be absent: state-check then runs alone and reports no skew (plan 37-24, plan 37-29)",
   ],
   [
-    "state-roll entryPresence:lstatSync#0 via realDirectoryOrNull#0",
-    "the archive directory and the memory bank directory may be absent (a roll creates the first, the second holds no progress file); an absent state directory is could-not-run by its caller (plan 37-30)",
+    // Plan 37-36 (D-20): was "state-roll entryPresence:lstatSync#0 via realDirectoryOrNull#0".
+    "state-roll rootChainPresence:lstatSync#0",
+    "the archive directory and the memory bank directory may be absent (a roll creates the first, the second holds no progress file); an absent state directory is could-not-run by its caller (plan 37-30); the root-chain owner answers absent only beneath real directories (plan 37-36)",
   ],
   [
-    "state-roll entryPresence:lstatSync#0 via readTextOrThrow#0",
+    // Plan 37-36 (Task 1): was "state-roll entryPresence:lstatSync#0 via readTextOrThrow#0" (two callers then).
+    "state-roll entryPresence:lstatSync#0",
     "the Done archive, the progress file and the progress archive may be absent; an absent board is could-not-run by its caller (plan 37-30)",
   ],
 ]);
@@ -987,6 +997,9 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
  * to the root-chain owner's, with the same reasons, and its realDirectoryOrNull key gained its via.
  * 2026-10-24, plan 37-35: 10, unchanged. state-check's `locate#0` key moved from entryPresence's lstat to the root-chain
  * owner's, with the same reason, and its traceDirectory key gained its via.
+ * 2026-10-24, plan 37-36 (Task 1): 10, unchanged. state-roll's realDirectoryOrNull key moved from entryPresence's lstat
+ * to the root-chain owner's (one caller, so no via), with the same reason; its readTextOrThrow key lost its via
+ * (entryPresence has one caller left).
  */
 const ENOENT_EXEMPT_SIZE = 10;
 
@@ -998,7 +1011,8 @@ describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted wit
     for (const key of ENOENT_EXEMPT.keys()) {
       expect(ids.has(key), `${key} is a row of READ_SITE_ROWS`).toBe(true);
       expect(key, `${key}: only an owner's lstat can answer absence`).toMatch(
-        /^[a-z-]+ (entryPresence:lstatSync#0 via \S+|rootChainPresence:lstatSync#0( via \S+)?)$/,
+        // Plan 37-36 (Task 1): entryPresence may have one caller (state-roll's readTextOrThrow), so its key may lack a via.
+        /^[a-z-]+ (entryPresence:lstatSync#0( via \S+)?|rootChainPresence:lstatSync#0( via \S+)?)$/,
       );
     }
     for (const via of ["readTaskNoteRefs#0", "listContextTasks#0"]) {
@@ -1061,11 +1075,12 @@ const ONE_OWNER_RUNNABLES = ["trace-render", "state-check", "state-roll"] as con
  * 2026-10-24, plan 37-29/37-30: entryPresence and readRegularFileOrNull in all three.
  * 2026-10-24, plan 37-33 (D-20): trace-render and state-check also embed rootChainPresence; state-roll does not yet
  * (plan 37-36).
+ * 2026-10-24, plan 37-36 (Task 1, D-20): state-roll embeds rootChainPresence too.
  */
 const ENOENT_OWNERS: Record<(typeof ONE_OWNER_RUNNABLES)[number], readonly string[]> = {
   "trace-render": ["entryPresence", "readRegularFileOrNull", "rootChainPresence"],
   "state-check": ["entryPresence", "readRegularFileOrNull", "rootChainPresence"],
-  "state-roll": ["entryPresence", "readRegularFileOrNull"],
+  "state-roll": ["entryPresence", "readRegularFileOrNull", "rootChainPresence"],
 };
 
 /**
@@ -1074,11 +1089,12 @@ const ENOENT_OWNERS: Record<(typeof ONE_OWNER_RUNNABLES)[number], readonly strin
  * At 3eded848 trace-render had 6 (realDirectoryOrNull, the pre-write loop, readText and listDir besides the two)
  * and state-check 4 (locate and readTraceText besides the two).
  * 2026-10-24, plan 37-33: 3, 3 and 2 (rootChainPresence's lstat ENOENT in trace-render and state-check).
+ * 2026-10-24, plan 37-36 (Task 1): 3, 3 and 3 (rootChainPresence's lstat ENOENT in state-roll).
  */
 const ENOENT_COMPARISONS: Record<(typeof ONE_OWNER_RUNNABLES)[number], number> = {
   "trace-render": 3,
   "state-check": 3,
-  "state-roll": 2,
+  "state-roll": 3,
 };
 
 /** The two option names that let a read decide absence or entry type in place of the owner. */
@@ -1213,14 +1229,14 @@ type ShapeExpect = "refused" | "follow" | "keeper";
 
 /**
  * The shapes that apply to each kind, with the outcome each must give.
- * - directory-follow: the notes directory (below a context root) and state-roll's state, memory bank and archive
- *   directories (until plan 37-36). A live in-root link to a directory is read through (plan 37-28's flagged
- *   assumption); a dangling link, a link to a file and a regular file are refused. Until plan 37-33 the trace
- *   runnables' context roots, their ancestors, the state directory, the memory bank and the trace directory were this
- *   kind too; D-20 made them root-chain.
+ * - directory-follow: the notes directory (below a context root). A live in-root link to a directory is read through
+ *   (plan 37-28's flagged assumption); a dangling link, a link to a file and a regular file are refused. Until plan
+ *   37-33 the trace runnables' context roots, their ancestors, the state directory, the memory bank and the trace
+ *   directory were this kind too, and until plan 37-36 state-roll's state, memory bank and archive directories; D-20
+ *   made them root-chain.
  * - directory-refuse: a task entry. The task position never follows a link (37-06 trust decision, CR-04).
  * - root-chain (plan 37-33, D-20, CR-05): a context root, an ancestor of one below the root, the state directory, the
- *   memory bank and the trace directory, asked of the root-chain owner. Every link is refused from its lstat, whatever
+ *   memory bank and the trace directory, and (plan 37-36) state-roll's archive directory, asked of the root-chain owner. Every link is refused from its lstat, whatever
  *   it points to (a dangling link, a link to an in-root directory holding the content, a link to a file), and so is a
  *   regular file; a link cell carries ROOT_CHAIN_LINK_REFUSAL.
  * - listing: a dot-named entry of a context root, asked of the owner by listContextTasks. A regular file is a keeper;
@@ -1442,11 +1458,12 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
     base: "host",
   },
   {
+    // Plan 37-36 (D-20): kind directory-follow until then; realDirectoryOrNull asks the root-chain owner.
     runnable: "state-roll",
     via: "realDirectoryOrNull#0",
     position: "the state directory, the memory bank directory and the archive directory",
     paths: [STATE_ROOT_REL, MEMORY_BANK_REL, ARCHIVE_REL],
-    kind: "directory-follow",
+    kind: "root-chain",
     modes: SR_SHAPE_MODES,
     base: "roll",
   },
@@ -1482,6 +1499,8 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
  * 2026-10-24, plan 37-34: 6, 6 and 2, unchanged. trace-render: entryPresence's three (the walk, listContextTasks,
  * readTaskNoteRefs) and rootChainPresence's three (realDirectoryOrNull, the pre-write check `<top>`, readText); the
  * distinct (runnable, via) set, and so SHAPE_POSITIONS, is the same.
+ * 2026-10-24, plan 37-36 (Task 1): 6, 6 and 2, unchanged. state-roll: entryPresence's readTextOrThrow and
+ * rootChainPresence's realDirectoryOrNull; the distinct (runnable, via) set is the same.
  */
 const TRACE_RENDER_OWNER_CALLERS = 6;
 const STATE_CHECK_OWNER_CALLERS = 6;

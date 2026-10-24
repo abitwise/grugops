@@ -23,6 +23,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   utimesSync,
   writeFileSync,
@@ -45,6 +46,7 @@ import {
 import { parseBoard } from "../board-model.js";
 import { DONE_ARCHIVE_HEADING, PROGRESS_ARCHIVE_TITLE } from "../state-rules.js";
 import { treeDigest } from "../fault-inject.test-support.js";
+import { ROOT_CHAIN_LINK_REFUSAL, rootChainOf } from "../context-io.js";
 
 const ROLL_TS = join(import.meta.dirname, "state-roll.ts");
 const ROLL_JS = join(import.meta.dirname, "state-roll.js");
@@ -271,7 +273,7 @@ describe("state-roll.js — refusals: exit 2, nothing on stdout, nothing written
     expect(rawAt(root, BOARD_REL).equals(raw)).toBe(true);
   });
 
-  it("a symlinked archive directory pointing outside the repository root is refused by name before any write (T-37-18)", () => {
+  it("a symlinked archive directory pointing outside the repository root is refused as a root-chain link before any write (T-37-18; plan 37-36, D-20)", () => {
     const before = boardText(KEEP + 1);
     const root = repo(before);
     const outside = mkTmp("grugops-state-roll-outside-");
@@ -285,7 +287,8 @@ describe("state-roll.js — refusals: exit 2, nothing on stdout, nothing written
       console.warn(skipLine(skipped, "scripts/runnable-ref/trace-render.test.ts's outside-root cases (the same rule)"));
       return;
     }
-    expectRefused(root, before, `the archive directory ${ARCHIVE_REL} resolves outside the repository root`);
+    // Plan 37-36 (D-20): was "resolves outside the repository root"; the link is refused from its lstat, wherever it points.
+    expectRefused(root, before, `the archive directory ${ARCHIVE_REL} cannot be used: ${ARCHIVE_REL} ${ROOT_CHAIN_LINK_REFUSAL}`);
     expect(readdirSync(outside)).toEqual([]);
   });
 
@@ -669,13 +672,23 @@ describe("state-roll.ts imports node: builtins only and carries its rules in the
 /** The shared shape of the owner's reason for a link whose target cannot be reached (the path itself or an ancestor). */
 const UNREACHABLE_LINK = /symbolic link .*target (that )?cannot be reached/;
 
-/** Where a row plants its dangling link, and what the fixture needs besides the board and the progress file. */
-const DANGLING_ROWS: readonly { readonly label: string; readonly rel: string; readonly archiveDir: boolean }[] = [
-  { label: "the archive directory", rel: ARCHIVE_REL, archiveDir: false },
-  { label: "the Done archive", rel: BOARD_DONE_ARCHIVE_REL, archiveDir: true },
-  { label: "the progress file", rel: PROGRESS_REL, archiveDir: false },
-  { label: "the progress archive", rel: PROGRESS_ARCHIVE_REL, archiveDir: true },
-  { label: "the state directory", rel: dirname(BOARD_REL), archiveDir: false },
+/**
+ * Where a row plants its dangling link, what the fixture needs besides the board and the progress file, and the
+ * reason the refusal carries. Plan 37-36 (D-20): a directory position is asked of the root-chain owner, so a dangling
+ * link there is refused as a link on the root chain (`root-chain`); a file position keeps the owner's reason for a
+ * link whose target cannot be reached (`unreachable`).
+ */
+const DANGLING_ROWS: readonly {
+  readonly label: string;
+  readonly rel: string;
+  readonly archiveDir: boolean;
+  readonly reason: "root-chain" | "unreachable";
+}[] = [
+  { label: "the archive directory", rel: ARCHIVE_REL, archiveDir: false, reason: "root-chain" },
+  { label: "the Done archive", rel: BOARD_DONE_ARCHIVE_REL, archiveDir: true, reason: "unreachable" },
+  { label: "the progress file", rel: PROGRESS_REL, archiveDir: false, reason: "unreachable" },
+  { label: "the progress archive", rel: PROGRESS_ARCHIVE_REL, archiveDir: true, reason: "unreachable" },
+  { label: "the state directory", rel: dirname(BOARD_REL), archiveDir: false, reason: "root-chain" },
 ];
 
 const DANGLING_MODES: readonly (readonly string[])[] = [[], ["--dry-run"]];
@@ -719,7 +732,7 @@ describe("state-roll.js — a dangling link at an archive or progress position i
         expect(treeDigest(root)).toEqual(before);
       });
 
-      it(`${row.label} (${row.rel}), ${label}: the refusal carries the owner's reason`, () => {
+      it(`${row.label} (${row.rel}), ${label}: the refusal carries ${row.reason === "root-chain" ? "the root-chain reason (plan 37-36, D-20)" : "the owner's reason"}`, () => {
         const root = danglingRepo(row.rel, row.archiveDir);
         if (typeof root !== "string") {
           console.warn(root.skip);
@@ -727,14 +740,16 @@ describe("state-roll.js — a dangling link at an archive or progress position i
         }
         const r = run(root, ...mode);
         expect(r.status, r.stdout + r.stderr).toBe(2);
-        expect(r.stderr).toMatch(UNREACHABLE_LINK);
+        // Plan 37-36 (D-20): a directory row's reason was the unreachable-target reason; it is now the root-chain one.
+        if (row.reason === "root-chain") expect(r.stderr).toContain(`${row.rel} ${ROOT_CHAIN_LINK_REFUSAL}`);
+        else expect(r.stderr).toMatch(UNREACHABLE_LINK);
       });
     }
   }
 
   for (const mode of DANGLING_MODES) {
     const label = mode.length === 0 ? "write mode" : "--dry-run";
-    it(`a dangling ${MEMORY_BANK_REL} (an ancestor of every state path), ${label}: exit 2 by the link, never "does not exist"`, () => {
+    it(`a dangling ${MEMORY_BANK_REL} (an ancestor of every state path), ${label}: exit 2 by the link with the root-chain reason, never "does not exist"`, () => {
       const root = danglingRepo(MEMORY_BANK_REL, false);
       if (typeof root !== "string") {
         console.warn(root.skip);
@@ -744,9 +759,148 @@ describe("state-roll.js — a dangling link at an archive or progress position i
       const r = run(root, ...mode);
       expect(r.status, r.stdout + r.stderr).toBe(2);
       expect(r.stdout).toBe("");
-      expect(r.stderr).toMatch(UNREACHABLE_LINK);
+      // Plan 37-36 (D-20): was the unreachable-target reason; the memory bank is on the root chain of every state path.
+      expect(r.stderr).toContain(`${MEMORY_BANK_REL} ${ROOT_CHAIN_LINK_REFUSAL}`);
       expect(r.stderr).not.toContain("does not exist");
       expect(treeDigest(root)).toEqual(before);
     });
   }
+});
+
+// ── Plan 37-36 (D-19, D-20, CR-05, READ-1 round 3): a state-roll directory beneath a root-chain link ─────────
+//
+// Below the real repository root, no component of the path to the state directory, the archive directory or the
+// memory bank directory may be a symbolic link, whatever it points to (D-20). Each position on the chain gets four
+// links: to an empty directory outside the root (the CR-05 shape: the directory's content moved away, so a followed
+// link reads as "nothing there"), to the moved content outside the root, to the moved content in the root, and a
+// dangling link. Every run is exit 2 naming the link with ROOT_CHAIN_LINK_REFUSAL and writes nothing, inside the root
+// or at the link's target.
+
+/** The root-chain positions of the state-roll directories, derived from the owner's chain of the deepest one. */
+const ROLL_CHAIN: readonly string[] = rootChainOf(ARCHIVE_REL);
+
+/** The four links a position gets. */
+const ROLL_LINK_SHAPES = [
+  "a link to an empty directory outside the root",
+  "a link to the moved content outside the root",
+  "a link to the moved content in the root",
+  "a dangling link",
+] as const;
+type RollLinkShape = (typeof ROLL_LINK_SHAPES)[number];
+
+const ROLL_LINK_MODES: readonly (readonly string[])[] = [["--dry-run"], []];
+
+let rollLinkCellsRun = 0;
+let rollLinkCellsSkipped = 0;
+
+/**
+ * A repository where both rolls are planned (a Done column over BUDGETS.doneRows, a progress file over budget with
+ * dated entries, an archive directory), with the directory at `position` moved and a link of `shape` in its place.
+ * Returns the root and the outside directory holding whatever moved out of the root, or the printed skip reason.
+ */
+function rootChainLinkRepo(
+  position: string,
+  shape: RollLinkShape,
+): { readonly root: string; readonly outside: string } | { readonly skip: string } {
+  const root = repoWith(boardText(KEEP + 5), PROGRESS_17K);
+  mkdirSync(join(root, ARCHIVE_REL));
+  const outside = mkTmp("grugops-state-roll-chain-outside-");
+  const at = join(root, position);
+  const flat = position.split("/").join("__");
+  const movedOutside = join(outside, `moved-${flat}`);
+  const movedInRoot = join(root, `moved-${flat}`);
+  let target: string;
+  switch (shape) {
+    case "a link to an empty directory outside the root":
+      renameSync(at, movedOutside);
+      target = join(outside, "empty");
+      mkdirSync(target);
+      break;
+    case "a link to the moved content outside the root":
+      renameSync(at, movedOutside);
+      target = movedOutside;
+      break;
+    case "a link to the moved content in the root":
+      renameSync(at, movedInRoot);
+      target = movedInRoot;
+      break;
+    case "a dangling link":
+      renameSync(at, movedOutside);
+      target = join(outside, "no-such-target");
+      break;
+  }
+  const skipped = stageSymlinkOrSkip(
+    target,
+    at,
+    shape === "a dangling link" ? "dangling symlink (its target does not exist)" : "symlink to a directory",
+    `scripts/runnable-ref/state-roll.test.ts: ${shape} at ${position} (plan 37-36)`,
+  );
+  if (skipped !== null) return { skip: skipLine(skipped, "the root-chain rows of trace-render.test.ts and state-check.test.ts") };
+  if (!lstatSync(at).isSymbolicLink()) throw new Error(`PREMISE: ${position} is a link`);
+  return { root, outside };
+}
+
+describe("D-20: a state-roll directory beneath a root-chain link is refused, nothing rolled (plan 37-36, CR-05)", () => {
+  it("PREMISE: the positions are the owner's chain of the archive directory: the memory bank, the state directory, the archive directory", () => {
+    expect(ROLL_CHAIN).toEqual([MEMORY_BANK_REL, dirname(BOARD_REL), ARCHIVE_REL]);
+    expect(ROLL_CHAIN).toHaveLength(3);
+    expect(ROLL_CHAIN).toContain(dirname(PROGRESS_REL));
+  });
+
+  for (const position of ROLL_CHAIN) {
+    for (const shape of ROLL_LINK_SHAPES) {
+      for (const mode of ROLL_LINK_MODES) {
+        const label = mode.length === 0 ? "write mode" : "--dry-run";
+        it(`${position} as ${shape}, ${label}: exit 2 naming ${position} with the root-chain reason, nothing written`, () => {
+          rollLinkCellsRun += 1;
+          const fixture = rootChainLinkRepo(position, shape);
+          if ("skip" in fixture) {
+            rollLinkCellsSkipped += 1;
+            console.warn(fixture.skip);
+            return;
+          }
+          const { root, outside } = fixture;
+          const before = treeDigest(root);
+          const outsideBefore = treeDigest(outside);
+          const r = run(root, ...mode);
+          const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+          expect(r.status, all).toBe(2);
+          expect(r.stdout, all).toBe("");
+          expect(r.stderr, all).toContain(`${position} ${ROOT_CHAIN_LINK_REFUSAL}`);
+          expect(r.stderr, all).toContain("Nothing was rolled.");
+          expect(r.stderr, all).not.toContain("install grugops first");
+          expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+          expect(treeDigest(root), `nothing was written in the root, at the link or through it\n${all}`).toEqual(before);
+          expect(treeDigest(outside), `nothing was written outside the root\n${all}`).toEqual(outsideBefore);
+        });
+      }
+    }
+  }
+
+  for (const mode of ROLL_LINK_MODES) {
+    const label = mode.length === 0 ? "write mode" : "--dry-run";
+    it(`CONTROL: no link anywhere and no archive directory, ${label}: the roll ${mode.length === 0 ? "creates the archive directory and rolls" : "plans"} (exit 0)`, () => {
+      const root = repoWith(boardText(KEEP + 5), PROGRESS_17K);
+      expect(existsSync(join(root, ARCHIVE_REL)), "PREMISE: no archive directory").toBe(false);
+      const r = run(root, ...mode);
+      const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+      expect(r.status, all).toBe(0);
+      expect(r.stderr, all).toBe("");
+      if (mode.length === 0) {
+        expect(lstatSync(join(root, ARCHIVE_REL)).isDirectory(), all).toBe(true);
+        expect(r.stdout, all).toContain(`Rolled 5 Done row(s)`);
+        expect(doneIds(bytesAt(root, BOARD_DONE_ARCHIVE_REL) ?? "")).toHaveLength(5);
+        expect(bytesAt(root, PROGRESS_ARCHIVE_REL)).not.toBeNull();
+      } else {
+        expect(existsSync(join(root, ARCHIVE_REL)), all).toBe(false);
+        expect(r.stdout, all).toContain("Dry run: 5 Done row(s) would move from");
+      }
+    });
+  }
+
+  it("every linked cell ran, and on darwin and linux none was skipped", () => {
+    console.log(`D-20 state-roll link cells run: ${rollLinkCellsRun}; skipped for the platform: ${rollLinkCellsSkipped}`);
+    expect(rollLinkCellsRun).toBe(ROLL_CHAIN.length * ROLL_LINK_SHAPES.length * ROLL_LINK_MODES.length);
+    if (process.platform === "darwin" || process.platform === "linux") expect(rollLinkCellsSkipped).toBe(0);
+  });
 });
