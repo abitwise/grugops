@@ -933,7 +933,7 @@ function aliasOf(scratch: string): string | { readonly skip: string } {
 }
 
 describe("D-20: a root path through a link above the repository root still rolls (plan 37-36)", () => {
-  it("--dry-run given <scratch>/alias/repo plans as the run given <scratch>/real/repo: the same status and stdout, nothing written", () => {
+  it("--dry-run given <scratch>/alias/repo plans as the run given <scratch>/real/repo: the same exit code and stdout, nothing written", () => {
     const { scratch, realRoot } = aboveRootRoll();
     const aliasRoot = aliasOf(scratch);
     if (typeof aliasRoot !== "string") {
@@ -950,7 +950,7 @@ describe("D-20: a root path through a link above the repository root still rolls
     expect(treeDigest(realRoot), "a dry run writes nothing").toEqual(before);
   });
 
-  it("write mode given <scratch>/alias/repo rolls as the run given <scratch>/real/repo on a fresh copy: the same status, stdout and written bytes", () => {
+  it("write mode given <scratch>/alias/repo rolls as the run given <scratch>/real/repo on a fresh copy: the same exit code, stdout and written bytes", () => {
     const aliased = aboveRootRoll();
     const aliasRoot = aliasOf(aliased.scratch);
     if (typeof aliasRoot !== "string") {
