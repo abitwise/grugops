@@ -295,6 +295,8 @@ describe("trace-render.js — could not run: exit 2, nothing on stdout, nothing 
     expectRefused(root, [root], `${TRACEABILITY_REL} is present and is not a regular file`);
   });
 
+  // Plan 37-33 (D-20): rewritten, not deleted. It expected "resolves outside the repository root"; a link at the
+  // trace directory is now refused from its lstat, whatever it points to, with the root-chain reason.
   it("a symlinked trace directory pointing outside the repository root is refused by name", () => {
     const root = twoRootRepo();
     const outside = mkTmp("grugops-trace-render-outside-");
@@ -308,11 +310,13 @@ describe("trace-render.js — could not run: exit 2, nothing on stdout, nothing 
       console.warn(skipLine(skipped, "scripts/runnable-ref/state-check.test.ts's outside-root cases (the same locate rule)"));
       return;
     }
-    expectRefused(null, [root], `the trace directory ${TRACE_DIR_REL} resolves outside the repository root`);
+    expectRefused(null, [root], `the trace directory ${TRACE_DIR_REL} cannot be used: ${TRACE_DIR_REL} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
     expect(readdirSync(outside)).toEqual([]);
     expect(existsSync(join(root, TRACEABILITY_REL))).toBe(false);
   });
 
+  // Plan 37-33 (D-20): rewritten, not deleted. It expected "resolves outside the repository root"; a link at the
+  // context root is now refused from its lstat, whatever it points to, with the root-chain reason.
   it("a symlinked context root pointing outside the repository root is refused by name", () => {
     const root = repo();
     const outside = mkTmp("grugops-trace-render-outside-ctx-");
@@ -327,7 +331,7 @@ describe("trace-render.js — could not run: exit 2, nothing on stdout, nothing 
       console.warn(skipLine(skipped, "the trace-directory case beside this one (the same locate rule)"));
       return;
     }
-    expectRefused(root, [root], `the context root ${CONTEXT_REL} resolves outside the repository root`);
+    expectRefused(root, [root], `the context root ${CONTEXT_REL} cannot be used: ${CONTEXT_REL} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
   });
 });
 
@@ -1360,14 +1364,16 @@ const IN10_ROWS = [
   { link: GRUGOPS_ARCHIVE_REL, noteRoot: CONTEXT_ARCHIVE_REL, refused: CONTEXT_ARCHIVE_REL },
 ] as const;
 
-/** The absence owner's reason for a link, at the path or on it, whose target cannot be reached. */
-const UNREACHABLE_LINK = /symbolic link .*target (that )?cannot be reached/;
 
 /** `rel` as a regular-expression literal. */
 function reLiteral(rel: string): string {
   return rel.replace(/[.]/g, "\\.");
 }
 
+// Plan 37-33 (D-20, CR-05): the rows are rewritten, not deleted. They expected the round-2 reason (a symbolic link
+// whose target cannot be reached); a link at a root-chain position is now refused from its lstat with the root-chain
+// reason naming the link, whatever its target. The live-link CONTROL expected an in-root link at the archive context
+// root to be followed (render 0, fresh); under D-20 it is the same refusal.
 describe("IN-10: a dangling context root or ancestor is never an absent root", () => {
   for (const row of IN10_ROWS) {
     it(`${row.link} made a dangling link after a render: write and --check exit 2 naming ${row.refused}, nothing removed; state-check trace-not-compared, never fresh`, () => {
@@ -1400,7 +1406,7 @@ describe("IN-10: a dangling context root or ancestor is never an absent root", (
       expect(write.status, all).toBe(2);
       expect(write.stdout, all).toBe("");
       expect(write.stderr, all).toContain(`the context root ${row.refused} `);
-      expect(write.stderr, all).toMatch(UNREACHABLE_LINK);
+      expect(write.stderr, all).toContain(`${row.link} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
       expect(write.stderr, all).not.toMatch(V8_FRAME);
       expect(treeDigest(root), "nothing was written, changed or removed").toEqual(before);
       expect(readFileSync(join(root, TRACEABILITY_REL), "utf8")).toBe(indexBefore);
@@ -1410,7 +1416,7 @@ describe("IN-10: a dangling context root or ancestor is never an absent root", (
       expect(json.status, json.raw).toBe(1);
       expect(json.trace.compared, json.raw).toBe(false);
       expect(json.trace.findings.map((f) => `${f.key}|${f.rel}`), json.raw).toEqual([`trace-not-compared|${row.refused}`]);
-      expect(json.trace.findings[0]?.note, json.raw).toMatch(UNREACHABLE_LINK);
+      expect(json.trace.findings[0]?.note, json.raw).toContain(`${row.link} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
       // The two runnables agree: the renderer refuses exactly when state-check does not compare.
       expect(write.status === 2, "trace-render refuses exactly when state-check does not compare").toBe(!json.trace.compared);
       expect(text.status, text.stdout + text.stderr).toBe(1);
@@ -1425,7 +1431,7 @@ describe("IN-10: a dangling context root or ancestor is never an absent root", (
     });
   }
 
-  it(`CONTROL ${CONTEXT_ARCHIVE_REL}: a live link to a directory inside the root still reads through: render 0, --check 0, state-check fresh`, () => {
+  it(`${CONTEXT_ARCHIVE_REL}: a live link to a directory inside the root is refused like a dangling one (D-20): write and --check exit 2, nothing written; state-check trace-not-compared, never fresh`, () => {
     const root = stateBaseRepo(true);
     plant(root, "archive-context-real", "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
     mkdirSync(join(root, ...GRUGOPS_ARCHIVE_REL.split("/")), { recursive: true });
@@ -1433,22 +1439,191 @@ describe("IN-10: a dangling context root or ancestor is never an absent root", (
       join(root, "archive-context-real"),
       join(root, ...CONTEXT_ARCHIVE_REL.split("/")),
       "symlink to a directory inside the repository root",
-      `${IN10_POSITION} (the live-link control)`,
+      `${IN10_POSITION} (the live in-root link, plan 37-33)`,
     );
     if (skip !== null) {
       console.warn(skipLine(skip, "the dangling rows of this describe"));
       return;
     }
+    const before = treeDigest(root);
+    const { write, check, json, text } = sequenceRuns(root);
+    const all = `write ${write.status}\n${write.stdout}${write.stderr}\ncheck ${check.status}\n${check.stdout}${check.stderr}`;
+    expect(write.status, all).toBe(2);
+    expect(write.stdout, all).toBe("");
+    expect(write.stderr, all).toContain(`the context root ${CONTEXT_ARCHIVE_REL} cannot be used: ${CONTEXT_ARCHIVE_REL} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
+    expect(treeDigest(root), "nothing was written, changed or removed").toEqual(before);
+    expect(existsSync(join(root, TRACE_DIR_REL, "ABC-1.md")), "the note behind the link was not rendered").toBe(false);
+    expect(check.status, all).toBe(2);
+    expect(check.stdout, all).toBe("");
+    expect(json.status, json.raw).toBe(1);
+    expect(json.trace.compared, json.raw).toBe(false);
+    expect(json.trace.findings.map((f) => `${f.key}|${f.rel}`), json.raw).toEqual([`trace-not-compared|${CONTEXT_ARCHIVE_REL}`]);
+    expect(json.trace.findings[0]?.note, json.raw).toContain(ctxio.ROOT_CHAIN_LINK_REFUSAL);
+    expect(write.status === 2, "trace-render refuses exactly when state-check does not compare").toBe(!json.trace.compared);
+    expect(text.status, text.stdout + text.stderr).toBe(1);
+    for (const out of [write.stdout, check.stdout, json.raw, text.stdout]) expect(out).not.toContain("The trace is fresh");
+  });
+});
+
+// ── Plan 37-33 (D-19, D-20, CR-05, READ-1 round 3): a context root beneath a symbolic link is refused ──────────
+// Round 2's absence owner answered "absent" for a path beneath a followed link that leaves the root, and the callers
+// asked where a path resolved only when it was present, so a context root missing beneath such a link read as "no
+// tasks" and the write mode removed its tickets' trace files with exit 0 (37-REVIEW.md CR-05, 37-VERIFICATION.md gap
+// truth 10). D-20 stops asking where a link leads: below the real repository root, no component of the path to a
+// context root, the state directory or the trace directory may be a symbolic link, whatever it points to and whether
+// or not it resolves. The generated rootChainPresence decides this by lstat in both runnables.
+
+const CR05_POSITION = "scripts/runnable-ref/trace-render.test.ts: CR-05, a symbolic link on a context root's path (plan 37-33)";
+
+/** The reason a link on the root chain carries: the owner's exported phrase (scripts/context-io.ts, plan 37-33). */
+const ROOT_CHAIN_LINK_REFUSAL: string = ctxio.ROOT_CHAIN_LINK_REFUSAL;
+
+/** The two CR-05 sequences: where the link is planted, the notes rendered before it, and the root both refuse. */
+const CR05_SEQUENCES = [
+  {
+    name: "CR-05b",
+    link: GRUGOPS_DIR_REL,
+    notes: [{ rootRel: CONTEXT_REL, task: "taskA", id: "ABC-1" }],
+    refused: CONTEXT_REL,
+    kept: ["ABC-1"],
+  },
+  {
+    name: "CR-05a",
+    link: GRUGOPS_ARCHIVE_REL,
+    notes: [
+      { rootRel: CONTEXT_REL, task: "taskA", id: "ABC-1" },
+      { rootRel: CONTEXT_ARCHIVE_REL, task: "taskB", id: "ABC-2" },
+    ],
+    refused: CONTEXT_ARCHIVE_REL,
+    kept: ["ABC-1", "ABC-2"],
+  },
+] as const;
+
+/**
+ * The four link targets D-20 gives one answer for: an empty directory outside the root, an outside directory holding
+ * the moved content, an in-root directory holding it, and nothing (a dangling link). `stage` moves what sits at `at`
+ * and returns the link target; every outside directory is a sibling scratch directory, never under the root.
+ */
+const CR05_TARGETS: readonly { readonly label: string; readonly shape: string; readonly stage: (root: string, at: string) => string }[] = [
+  {
+    label: "an empty directory outside the root",
+    shape: "symlink to a directory outside the repository root",
+    stage: (_root, at) => {
+      renameSync(at, join(mkTmp("grugops-cr05-moved-"), "moved"));
+      return mkTmp("grugops-cr05-empty-outside-");
+    },
+  },
+  {
+    label: "an outside directory holding the moved content",
+    shape: "symlink to a directory outside the repository root",
+    stage: (_root, at) => {
+      const target = join(mkTmp("grugops-cr05-outside-"), "moved");
+      renameSync(at, target);
+      return target;
+    },
+  },
+  {
+    label: "an in-root directory holding the moved content",
+    shape: "symlink to a directory inside the repository root",
+    stage: (root, at) => {
+      const target = join(root, "cr05-moved-in-root");
+      renameSync(at, target);
+      return target;
+    },
+  },
+  {
+    label: "nothing (a dangling link)",
+    shape: "dangling symlink (its target does not exist)",
+    stage: (root, at) => {
+      renameSync(at, join(mkTmp("grugops-cr05-moved-"), "moved"));
+      return join(root, "cr05-no-such-target");
+    },
+  },
+];
+
+describe("CR-05: a context root beneath a symbolic link below the repository root is refused, never an absent root", () => {
+  for (const seq of CR05_SEQUENCES) {
+    for (const target of CR05_TARGETS) {
+      it(`${seq.name}: ${seq.link} made a link to ${target.label} after a render: exit 2 naming ${seq.refused}, every trace file kept; state-check trace-not-compared, never fresh`, () => {
+        const root = stateBaseRepo(true);
+        for (const n of seq.notes) plant(root, n.rootRel, n.task, "n1", noteText("n1", [n.id, "src/a.ts"]));
+        const first = run(root);
+        expect(first.status, `PREMISE: the notes render: ${first.stdout}${first.stderr}`).toBe(0);
+        for (const id of seq.kept) expect(existsSync(join(root, TRACE_DIR_REL, `${id}.md`)), `PREMISE: ${id}.md was rendered`).toBe(true);
+        const premise = stateCheckTrace(root);
+        expect(premise.status, `PREMISE: the rendered repository is clean: ${premise.raw}`).toBe(0);
+        expect(premise.trace).toEqual({ compared: true, findings: [] });
+        const at = join(root, ...seq.link.split("/"));
+        const linkTarget = target.stage(root, at);
+        const skip = stageSymlinkOrSkip(linkTarget, at, target.shape, `${CR05_POSITION} (${seq.name}, ${target.label})`);
+        if (skip !== null) {
+          console.warn(skipLine(skip, "the IN-10 rows of this file (the same root-chain owner)"));
+          return;
+        }
+        expect(lstatSync(at).isSymbolicLink(), "PREMISE: the position is a link").toBe(true);
+        const before = treeDigest(root);
+        const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+        for (const id of seq.kept) expect(indexBefore, `PREMISE: the index names ${id}`).toContain(`| ${id} | [${id}](traceability/${id}.md) |\n`);
+        const { write, check, json, text } = sequenceRuns(root);
+        const all =
+          `write ${write.status}\n${write.stdout}${write.stderr}\ncheck ${check.status}\n${check.stdout}${check.stderr}\n` +
+          `json ${json.status}\n${json.raw}\ntext ${text.status}\n${text.stdout}${text.stderr}`;
+        expect(write.status, all).toBe(2);
+        expect(write.stdout, all).toBe("");
+        expect(write.stderr, all).toContain(`the context root ${seq.refused} `);
+        expect(write.stderr, all).toContain(ROOT_CHAIN_LINK_REFUSAL);
+        expect(write.stderr, all).not.toMatch(V8_FRAME);
+        expect(treeDigest(root), `nothing was written, changed or removed\n${all}`).toEqual(before);
+        expect(readFileSync(join(root, TRACEABILITY_REL), "utf8"), all).toBe(indexBefore);
+        for (const id of seq.kept) expect(existsSync(join(root, TRACE_DIR_REL, `${id}.md`)), `${id}.md is kept\n${all}`).toBe(true);
+        expect(check.status, all).toBe(2);
+        expect(check.stdout, all).toBe("");
+        expect(check.stderr, all).toContain(`the context root ${seq.refused} `);
+        expect(check.stderr, all).toContain(ROOT_CHAIN_LINK_REFUSAL);
+        expect(json.status, all).toBe(1);
+        expect(json.trace.compared, all).toBe(false);
+        expect(json.trace.findings.map((f) => `${f.key}|${f.rel}`), all).toEqual([`trace-not-compared|${seq.refused}`]);
+        expect(json.trace.findings[0]?.note, all).toContain(ROOT_CHAIN_LINK_REFUSAL);
+        expect(write.status === 2, "trace-render refuses exactly when state-check does not compare").toBe(!json.trace.compared);
+        expect(text.status, all).toBe(1);
+        expect(text.stdout, all).toMatch(new RegExp(`^FINDING {2}${reLiteral(seq.refused)}: .*\\(trace-not-compared\\)$`, "m"));
+        for (const out of [write.stdout, write.stderr, check.stdout, check.stderr, json.raw, text.stdout]) {
+          expect(out, all).not.toContain("The trace is fresh");
+          expect(out, all).not.toContain("REMOVED");
+          expect(out, all).not.toContain("trace-stale");
+        }
+        // Without the D-14 marker, state-check warns and still never says fresh.
+        rmSync(join(root, ...LAYOUT_MARKER_REL.split("/")));
+        const warn = stateCheck(root);
+        const warnAll = `${warn.stdout}${warn.stderr}`;
+        expect(warn.status, warnAll).toBe(0);
+        expect(warn.stdout, warnAll).toMatch(new RegExp(`^WARN {5}${reLiteral(seq.refused)}: .*\\(trace-not-compared\\)$`, "m"));
+        expect(warn.stdout, warnAll).not.toContain("The trace is fresh");
+        expect(warn.stdout, warnAll).not.toContain("trace-stale");
+        for (const id of seq.kept) {
+          expect(treeDigest(root).get(`${TRACE_DIR_REL}/${id}.md`), `${id}.md is unchanged`).toBe(before.get(`${TRACE_DIR_REL}/${id}.md`));
+        }
+      });
+    }
+  }
+
+  it("CONTROL: an absent archive context root with real ancestors and no link anywhere is still absence: render 0 removes ABC-2.md, state-check fresh", () => {
+    const root = stateBaseRepo(true);
+    plant(root, CONTEXT_REL, "taskA", "n1", noteText("n1", ["ABC-1", "src/a.ts"]));
+    plant(root, CONTEXT_ARCHIVE_REL, "taskB", "n1", noteText("n1", ["ABC-2", "src/b.ts"]));
+    const first = run(root);
+    expect(first.status, `PREMISE: the notes render: ${first.stdout}${first.stderr}`).toBe(0);
+    expect(existsSync(join(root, TRACE_DIR_REL, "ABC-2.md")), "PREMISE: ABC-2.md was rendered").toBe(true);
+    rmSync(join(root, ...CONTEXT_ARCHIVE_REL.split("/")), { recursive: true });
+    expect(lstatSync(join(root, ...GRUGOPS_ARCHIVE_REL.split("/"))).isDirectory(), "PREMISE: the parent is a real directory").toBe(true);
     const write = run(root);
     expect(write.status, write.stdout + write.stderr).toBe(0);
-    expect(existsSync(join(root, TRACE_DIR_REL, "ABC-1.md")), "the archive-root note was rendered").toBe(true);
-    const check = run(root, "--check");
-    expect(check.status, check.stdout + check.stderr).toBe(0);
-    expect(check.stdout).toContain("The trace is fresh: 1 task(s)");
+    expect(write.stdout).toContain("1 file(s) removed");
+    expect(existsSync(join(root, TRACE_DIR_REL, "ABC-2.md")), "a complete read of an absent root removes ABC-2.md").toBe(false);
+    expect(existsSync(join(root, TRACE_DIR_REL, "ABC-1.md")), "ABC-1.md is kept").toBe(true);
     const json = stateCheckTrace(root);
     expect(json.status, json.raw).toBe(0);
     expect(json.trace).toEqual({ compared: true, findings: [] });
-    expect(write.status === 2, "trace-render refuses exactly when state-check does not compare").toBe(!json.trace.compared);
     const text = stateCheck(root);
     expect(text.status, text.stdout + text.stderr).toBe(0);
     expect(text.stdout).toContain("TRACE    The trace is fresh: 1 task(s)");

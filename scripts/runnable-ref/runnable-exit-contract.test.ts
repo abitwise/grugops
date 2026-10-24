@@ -27,7 +27,6 @@ import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { skipLine, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import {
   BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
@@ -232,28 +231,22 @@ describe("EXIT-1: an unexpected throw past every inner catch is exit 2 in every 
 });
 
 describe("EXIT-1: a failing follow-up read after a symbolic link or a created directory is exit 2 by name", () => {
-  it("TR-6: an EIO at the follow-up statSync of a symbolic-link context root is exit 2 naming the root", () => {
+  // Plan 37-33 (D-20, CR-05): rewritten, not deleted. TR-6 failed the follow-up stat of a symbolic-link archive
+  // context root (`entryPresence:statSync#0` via realDirectoryOrNull); a link at a context root is now refused from its
+  // lstat before any stat, so the follow-up stat of a link is no longer reached there. The row keeps its question (a
+  // failing follow-up read at a context root is exit 2 by name) on the root-chain owner's stat of the last component,
+  // which runs on every call: a plain archive context root, with the live root removed, so the first stat the owner
+  // makes is the archive root's.
+  it("TR-6: an EIO at the root-chain owner's statSync of a plain archive context root is exit 2 naming the root", () => {
     const root = twoRootRepo();
-    const target = join(root, "elsewhere-context");
-    mkdirSync(target);
-    rmSync(join(root, CONTEXT_ARCHIVE_REL), { recursive: true });
-    // Plan 37-29: the owner stats the last component of every path, so the live root is removed and the first stat
-    // realDirectoryOrNull's owner call makes is the archive link's follow-up stat.
     rmSync(join(root, CONTEXT_REL), { recursive: true });
-    const skipped = stageSymlinkOrSkip(
-      target,
-      join(root, CONTEXT_ARCHIVE_REL),
-      "symlink to a directory inside the repository root",
-      "scripts/runnable-ref/runnable-exit-contract.test.ts: TR-6, a symbolic-link archive context root (plan 37-20)",
-    );
-    if (skipped !== null) {
-      console.warn(skipLine(skipped, "the CR-02 cases in scripts/runnable-ref/trace-render.test.ts (the same couldNotRun)"));
-      return;
-    }
+    expect(lstatSync(join(root, CONTEXT_ARCHIVE_REL)).isDirectory(), "PREMISE: the archive context root is a real directory").toBe(true);
     const url = scriptUrl(HOST["trace-render"]);
-    const site = { url, line: siteLine("trace-render", "entryPresence:statSync#0") };
-    const callers = callingSites(HOST["trace-render"], "entryPresence").filter((c) => c.scope === "realDirectoryOrNull");
-    expect(callers.map((c) => c.scope), "PREMISE: realDirectoryOrNull asks the absence owner once").toEqual(["realDirectoryOrNull"]);
+    const site = { url, line: siteLine("trace-render", "rootChainPresence:statSync#0") };
+    const callers = callingSites(HOST["trace-render"], "rootChainPresence");
+    expect(callers.map((c) => c.scope), "PREMISE: realDirectoryOrNull asks the root-chain owner, and nothing else does").toEqual([
+      "realDirectoryOrNull",
+    ]);
     const via = { url, line: (callers[0] as { readonly line: number }).line };
     const before = treeDigest(root);
     const r = runWith("trace-render", [root], { kind: "fs", fn: "statSync", site, via, code: "EIO" });

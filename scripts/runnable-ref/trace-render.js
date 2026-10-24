@@ -17,9 +17,10 @@
 //            line is not the generated header), or two ticket identifiers whose file names fold to one name on
 //            a case-insensitive disk. Under --check also: each missing, extra or changed file, named.
 //   exit 2 → the run could not run: a bad argument, a root that is not a readable directory, a context root
-//            that cannot be listed, a context root, state directory or trace directory that cannot be inspected
-//            (a symbolic link whose target cannot be reached, at the path or at an ancestor of it, plan 37-29,
-//            IN-10), a path that resolves outside the repository root, a missing state directory,
+//            that cannot be listed, a context root, state directory or trace directory that cannot be inspected,
+//            a symbolic link at a context root, the state directory or the trace directory or at any component of
+//            the path to one below the repository root, present or dangling, whatever its target (plan 37-33,
+//            D-20, CR-05), a path that resolves outside the repository root, a missing state directory,
 //            an entry at a compared path that is not a regular file, a file the reader refuses, or an unexpected
 //            error, which is reported on stderr by name (with the files already written and removed, when the
 //            write section had started) and never surfaces as Node's own exit 1 (plan 37-20). In both modes
@@ -55,11 +56,15 @@
 // directory is created only when absent and a trace file is to be written, after its parent's realpath is
 // confirmed inside the root. Every compared path is lstat'ed before it is opened, so a FIFO is never opened. The
 // task position never follows a link: a context-root entry that is a symbolic link is a failed task (plan 37-28,
-// CR-04). Absence is the generated entryPresence's answer and no other (D-18): only an lstat ENOENT on a component
-// is absent. Whether a task or its notes are present is asked through the generated readTaskNoteRefs and
-// listContextTasks, and whether a context root, the state directory or the trace directory is present is asked of
-// the owner directly (plan 37-29, IN-10), so a dangling link at any of them or at an ancestor of one is refused by
-// name (exit 2) and never read as an absent root.
+// CR-04). The root is resolved to its real path once, before any state read, and below it the context roots, the
+// state directory and the trace directory are asked of the generated rootChainPresence (plan 37-33, D-20, CR-05):
+// every component of the path to one is lstat'ed, a symbolic link at any of them is refused by name (exit 2) from
+// the lstat alone, whatever it points to and whether or not it resolves, and only an lstat ENOENT on a component
+// whose earlier components are real directories is absence, so a context root beneath a link is never read as an
+// absent root and no trace file is removed because of one. Links above the root are not seen. Below a context root,
+// absence stays the generated entryPresence's answer (D-18): whether a task or its notes are present is asked
+// through the generated readTaskNoteRefs and listContextTasks. The planned trace files and the index are still asked
+// of entryPresence beneath the directories verified above.
 //
 // EVERY WRITE IS ATOMIC. Each file goes through the embedded atomicWrite (a temp sibling, then a rename), so an
 // interrupted render leaves each file either its old or its new bytes. Two renders over the same notes produce
@@ -84,7 +89,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:fea4446350aa8464a82883044551713a6c3a95b45485f15589d75160c4587e20";
+export const RUNNABLE_SET_STAMP = "sha256:e76831e9cdbdd113841a3290ac4457e5aa0c52f7a95e52dfbe8c797f095bf6b5";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "trace-render.js";
 // from install/state-layout.ts
@@ -659,9 +664,85 @@ export function entryPresence(path) {
         return { kind: "present", entry, target, real };
     }
 }
-function isWithin(real, boundary) {
+export function isWithin(real, boundary) {
     const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
     return real === boundary || real.startsWith(prefix);
+}
+export const ROOT_CHAIN_LINK_REFUSAL = "is a symbolic link, and no symbolic link below the repository root is followed on the way to a state path";
+export function rootChainOf(rel) {
+    const refuse = (why) => {
+        throw new Error(`context-io: the state path ${JSON.stringify(rel)} is not a repository-relative path: ${why}`);
+    };
+    if (rel === "")
+        refuse("it is empty");
+    if (rel.includes("\\"))
+        refuse("it holds a backslash");
+    if (rel.startsWith("/"))
+        refuse("it has a leading slash");
+    if (rel.endsWith("/"))
+        refuse("it has a trailing slash");
+    const segments = rel.split("/");
+    const out = [];
+    for (const segment of segments) {
+        if (segment === "")
+            refuse("it has an empty segment");
+        if (segment === "." || segment === "..")
+            refuse(`it has a ${JSON.stringify(segment)} segment`);
+        out.push(out.length === 0 ? segment : `${out[out.length - 1]}/${segment}`);
+    }
+    return out;
+}
+export function rootChainPresence(realRoot, rel, leaf) {
+    const chain = rootChainOf(rel);
+    for (let i = 0;; i += 1) {
+        const prefix = chain[i];
+        const at = join(realRoot, ...prefix.split("/"));
+        const last = i === chain.length - 1;
+        let entry;
+        try {
+            entry = lstatSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            if (code === "ENOENT")
+                return { kind: "absent" };
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be inspected (${code})` };
+        }
+        if (entry.isSymbolicLink() && (!last || leaf === "directory")) {
+            return { kind: "link", rel: prefix, reason: `${prefix} ${ROOT_CHAIN_LINK_REFUSAL}` };
+        }
+        if (!last) {
+            if (!entry.isDirectory()) {
+                return { kind: "unreadable", code: "ENOTDIR", reason: `"${prefix}" on the path is not a directory (ENOTDIR)` };
+            }
+            continue;
+        }
+        let target;
+        try {
+            target = statSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return {
+                kind: "unreadable",
+                code,
+                reason: entry.isSymbolicLink()
+                    ? `it is a symbolic link whose target cannot be reached (${code})`
+                    : `"${prefix}" cannot be inspected (${code})`,
+            };
+        }
+        let real;
+        try {
+            real = realpathSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be resolved (${code})` };
+        }
+        if (!isWithin(real, realRoot))
+            return { kind: "outside", real };
+        return { kind: "present", entry, target, real };
+    }
 }
 function codedError(message, code) {
     const err = new Error(message);
@@ -897,35 +978,35 @@ try {
 catch (e) {
     couldNotRun(`the repository root ${rootArg} is not a readable${CHECK ? "" : " and writable"} directory (${codeOf(e)}).`);
 }
-/** True when an already-resolved absolute path is the root or lies under it. */
-function insideRoot(real) {
-    return real === root || real.startsWith(root + nodePath.sep);
-}
 /** The absolute path of a repository-relative path with `/` separators. */
 function abs(rel) {
     return nodePath.join(root, ...rel.split("/"));
 }
 /**
- * The real path of an existing directory, or null when nothing is there. Whether anything is there is the generated
- * entryPresence's answer (plan 37-29, D-18, IN-10): only an lstat ENOENT on a component is absence, so a dangling
- * link at the path or at any ancestor of it is refused by name with the owner's reason, never read as absent.
- * Anything else is refused by name too: a path that resolves outside the root, or a present entry that is not a
+ * The real path of an existing directory at the repository-relative `rel`, or null when nothing is there. Whether
+ * anything is there is the generated rootChainPresence's answer (plan 37-33, D-20, CR-05): below the real root, a
+ * symbolic link at the path or at any component above it is refused by name, whatever it points to and whether or
+ * not it resolves, and only an lstat ENOENT on a component whose earlier components are real directories is
+ * absence, so a context root beneath a link is never read as an absent root. Anything else is refused by name too:
+ * a component that cannot be inspected, a path that resolves outside the root, or a present entry that is not a
  * directory. `what` names the path in the refusal.
  */
-function realDirectoryOrNull(path, what) {
-    const presence = entryPresence(path);
+function realDirectoryOrNull(rel, what) {
+    const presence = rootChainPresence(root, rel, "directory");
     if (presence.kind === "absent")
         return null;
     if (presence.kind === "unreadable")
         couldNotRun(`${what} cannot be inspected: ${presence.reason}.`);
-    if (!insideRoot(presence.real))
+    if (presence.kind === "link")
+        couldNotRun(`${what} cannot be used: ${presence.reason}.`);
+    if (presence.kind === "outside")
         couldNotRun(`${what} resolves outside the repository root, so it was not used.`);
     if (!presence.target.isDirectory())
         couldNotRun(`${what} is not a directory.`);
     return presence.real;
 }
 /** The context roots in reading order: the live root, then the archive root. An absent root is empty. */
-const CONTEXT_ROOTS = [CONTEXT_REL, CONTEXT_ARCHIVE_REL].map((rel) => ({ rel, real: realDirectoryOrNull(abs(rel), `the context root ${rel}`) }));
+const CONTEXT_ROOTS = [CONTEXT_REL, CONTEXT_ARCHIVE_REL].map((rel) => ({ rel, real: realDirectoryOrNull(rel, `the context root ${rel}`) }));
 /** The repository-relative name of a context root, for the report. */
 function relOfRoot(real) {
     return CONTEXT_ROOTS.find((r) => r.real === real)?.rel ?? real;
@@ -991,12 +1072,11 @@ if (refusedNames.length > 0) {
 }
 // ── Every refusal runs before the first write, in both modes ──────────────────────────────────────────
 const traceDirAbs = abs(TRACE_DIR_REL);
-const stateDirAbs = nodePath.dirname(traceDirAbs);
 const stateDirRel = TRACE_DIR_REL.slice(0, TRACE_DIR_REL.lastIndexOf("/"));
-const stateDirReal = realDirectoryOrNull(stateDirAbs, `the state directory ${stateDirRel}`);
+const stateDirReal = realDirectoryOrNull(stateDirRel, `the state directory ${stateDirRel}`);
 if (stateDirReal === null)
     couldNotRun(`the state directory ${stateDirRel} does not exist; install grugops first.`);
-const traceDirReal = realDirectoryOrNull(traceDirAbs, `the trace directory ${TRACE_DIR_REL}`);
+const traceDirReal = realDirectoryOrNull(TRACE_DIR_REL, `the trace directory ${TRACE_DIR_REL}`);
 /** The refusal for a present entry that is not a regular file: it is never opened, never replaced. */
 function notRegular(rel) {
     couldNotRun(`${rel} is present and is not a regular file, so nothing was written.`);

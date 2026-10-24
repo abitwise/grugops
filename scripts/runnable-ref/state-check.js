@@ -59,10 +59,14 @@
 // a task, a keeper (a regular file whose name begins with `.`, never read or counted) or a failed task, so a
 // symbolic link of any kind, a regular file, a FIFO or a vanished entry at a task position, and a `notes` link
 // whose target cannot be reached, are each one trace-not-compared finding by name; only an lstat ENOENT is absence. A FIFO, a link or anything else that is not a regular
-// file at a compared path is could-not-run (exit 2). A context root that is, or sits under, a link whose target
-// cannot be reached is one trace-not-compared finding naming the root, never an absent root, so state-check and
-// the renderer give one answer to "is this context root present" (plan 37-29, D-18, IN-10); the renderer refuses
-// the same root with exit 2.
+// file at a compared path is could-not-run (exit 2). The two context roots and the trace directory are asked of the
+// generated rootChainPresence, the renderer's own owner (plan 37-33, D-20, CR-05): below the real root, a symbolic
+// link at one of them or at any component of the path to one, present or dangling, whatever its target, is one
+// trace-not-compared finding naming that context root or the trace directory, decided by lstat, and a component
+// that cannot be inspected is the same finding for a context root (plan 37-29, IN-10). Neither is ever an absent
+// root, so state-check and the renderer give one answer to "may this directory be used"; the renderer refuses the
+// same directory with exit 2. Only an lstat ENOENT on a component whose earlier components are real directories is
+// an absent root.
 //
 // SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js and state-roll.js are installed
 // side by side and never updated in place, and each embeds its own generated copy of shared authorities (the trace
@@ -122,7 +126,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:fea4446350aa8464a82883044551713a6c3a95b45485f15589d75160c4587e20";
+export const RUNNABLE_SET_STAMP = "sha256:e76831e9cdbdd113841a3290ac4457e5aa0c52f7a95e52dfbe8c797f095bf6b5";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
@@ -1342,9 +1346,85 @@ export function entryPresence(path) {
         return { kind: "present", entry, target, real };
     }
 }
-function isWithin(real, boundary) {
+export function isWithin(real, boundary) {
     const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
     return real === boundary || real.startsWith(prefix);
+}
+export const ROOT_CHAIN_LINK_REFUSAL = "is a symbolic link, and no symbolic link below the repository root is followed on the way to a state path";
+export function rootChainOf(rel) {
+    const refuse = (why) => {
+        throw new Error(`context-io: the state path ${JSON.stringify(rel)} is not a repository-relative path: ${why}`);
+    };
+    if (rel === "")
+        refuse("it is empty");
+    if (rel.includes("\\"))
+        refuse("it holds a backslash");
+    if (rel.startsWith("/"))
+        refuse("it has a leading slash");
+    if (rel.endsWith("/"))
+        refuse("it has a trailing slash");
+    const segments = rel.split("/");
+    const out = [];
+    for (const segment of segments) {
+        if (segment === "")
+            refuse("it has an empty segment");
+        if (segment === "." || segment === "..")
+            refuse(`it has a ${JSON.stringify(segment)} segment`);
+        out.push(out.length === 0 ? segment : `${out[out.length - 1]}/${segment}`);
+    }
+    return out;
+}
+export function rootChainPresence(realRoot, rel, leaf) {
+    const chain = rootChainOf(rel);
+    for (let i = 0;; i += 1) {
+        const prefix = chain[i];
+        const at = join(realRoot, ...prefix.split("/"));
+        const last = i === chain.length - 1;
+        let entry;
+        try {
+            entry = lstatSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            if (code === "ENOENT")
+                return { kind: "absent" };
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be inspected (${code})` };
+        }
+        if (entry.isSymbolicLink() && (!last || leaf === "directory")) {
+            return { kind: "link", rel: prefix, reason: `${prefix} ${ROOT_CHAIN_LINK_REFUSAL}` };
+        }
+        if (!last) {
+            if (!entry.isDirectory()) {
+                return { kind: "unreadable", code: "ENOTDIR", reason: `"${prefix}" on the path is not a directory (ENOTDIR)` };
+            }
+            continue;
+        }
+        let target;
+        try {
+            target = statSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return {
+                kind: "unreadable",
+                code,
+                reason: entry.isSymbolicLink()
+                    ? `it is a symbolic link whose target cannot be reached (${code})`
+                    : `"${prefix}" cannot be inspected (${code})`,
+            };
+        }
+        let real;
+        try {
+            real = realpathSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be resolved (${code})` };
+        }
+        if (!isWithin(real, realRoot))
+            return { kind: "outside", real };
+        return { kind: "present", entry, target, real };
+    }
 }
 function codedError(message, code) {
     const err = new Error(message);
@@ -1825,17 +1905,22 @@ function insideRoot(real) {
     return real === root || real.startsWith(prefix);
 }
 /**
- * Resolve the directory at `rel` before it is used. A path the absence owner refuses (a link at it or at an
- * ancestor whose target cannot be reached, or one that cannot be inspected) is `refused` with the owner's reason,
- * and the caller decides its outcome (plan 37-29, IN-10): it is never absent. A present entry that is not a
- * directory is could-not-run (exit 2), naming it.
+ * Resolve the directory at `rel` before it is used, by the generated rootChainPresence (plan 37-33, D-20, CR-05):
+ * below the real root, a symbolic link at the path or at any component above it is `linked`, decided from the lstat
+ * whatever it points to, so a context root beneath a link is never an absent root. A component that cannot be
+ * inspected is `refused` with the owner's reason (plan 37-29, IN-10), and the caller decides both outcomes; neither
+ * is ever absent. A present entry that is not a directory is could-not-run (exit 2), naming it.
  */
 function traceDirectory(rel, what) {
-    const at = locate(rel);
-    if (at.kind === "absent" || at.kind === "outside")
-        return at;
-    if (at.kind === "error")
+    const at = rootChainPresence(root, rel, "directory");
+    if (at.kind === "absent")
+        return { kind: "absent" };
+    if (at.kind === "outside")
+        return { kind: "outside" };
+    if (at.kind === "unreadable")
         return { kind: "refused", reason: at.reason };
+    if (at.kind === "link")
+        return { kind: "linked", reason: at.reason };
     if (!at.target.isDirectory())
         couldNotRun(`${what} ${rel} is present and is not a directory.`);
     return { kind: "dir", real: at.real };
@@ -1902,7 +1987,13 @@ function traceReport(index) {
     if (traceDir.kind === "outside") {
         return traceNotCompared(TRACE_DIR_REL, "the trace directory resolves outside the repository root");
     }
-    // A trace directory the absence owner refuses is could-not-run, as plan 37-25's table pinned for its errors.
+    // A trace directory at or beneath a symbolic link on the root chain is not compared, named by the directory (plan
+    // 37-33, D-20): the renderer refuses the same directory with exit 2.
+    if (traceDir.kind === "linked") {
+        return traceNotCompared(TRACE_DIR_REL, `the trace directory cannot be used: ${traceDir.reason}; the render refuses to run until it can`);
+    }
+    // A trace directory the owner refuses for any other reason is could-not-run, as plan 37-25's table pinned for its
+    // errors.
     if (traceDir.kind === "refused")
         couldNotRun(`cannot resolve the trace directory ${TRACE_DIR_REL}: ${traceDir.reason}.`);
     const contextRoots = [];
@@ -1910,9 +2001,10 @@ function traceReport(index) {
         const dir = traceDirectory(rel, "the context root");
         if (dir.kind === "outside")
             return traceNotCompared(rel, "the context root resolves outside the repository root");
-        // A context root the owner refuses (a dangling link at it or at an ancestor, IN-10) is never an absent root:
-        // the trace is not compared, named by the root, the way an outside root is (plan 37-29, D-18).
-        if (dir.kind === "refused")
+        // A context root the owner refuses (a component that cannot be inspected, IN-10) or that sits at or beneath a
+        // symbolic link on the root chain (plan 37-33, D-20, CR-05) is never an absent root: the trace is not compared,
+        // named by the root, the way an outside root is (plan 37-29, D-18).
+        if (dir.kind === "refused" || dir.kind === "linked")
             return traceNotCompared(rel, `the context root cannot be used: ${dir.reason}; the render refuses to run until it can`);
         if (dir.kind === "dir")
             contextRoots.push({ rel, real: dir.real });

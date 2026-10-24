@@ -132,9 +132,16 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * realDirectoryOrNull asks it and `realDirectoryOrNull:{lstatSync,realpathSync,statSync}#0` are gone (net -3), and
  * readTextOrThrow asks it and `readTextOrThrow:lstatSync#0` is gone (net -1); the owner's three sites arrive (net
  * +3), each entered from two callers, `realDirectoryOrNull#0` and `readTextOrThrow#0`.
+ * 2026-10-24, plan 37-33 (Task 1): 15, 18 and 10 read sites. trace-render and state-check embed the root-chain owner
+ * (D-20, CR-05), so its three sites arrive in each, `rootChainPresence:lstatSync#0`, `rootChainPresence:statSync#0`
+ * and `rootChainPresence:realpathSync#0` (net +3 each). Each is entered from one calling call expression,
+ * realDirectoryOrNull in trace-render and traceDirectory in state-check, so derivedPairs names them without a via.
+ * trace-render's realDirectoryOrNull no longer asks entryPresence, so the owner's three rows under
+ * `realDirectoryOrNull#0` are gone (sites unchanged, pairs -3); state-check's locate still asks entryPresence for the
+ * state files, so its rows stay. state-roll's region changed only its stamp line.
  */
-const TRACE_RENDER_READ_SITES = 12;
-const STATE_CHECK_READ_SITES = 15;
+const TRACE_RENDER_READ_SITES = 15;
+const STATE_CHECK_READ_SITES = 18;
 const STATE_ROLL_READ_SITES = 10;
 const PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_READ_SITES,
@@ -172,16 +179,10 @@ function rows(runnable: Runnable, modes: readonly Mode[], key: string, vias?: re
 /**
  * The callers of the absence owner in each trace runnable: the walk, listContextTasks and readTaskNoteRefs (plan
  * 37-28); realDirectoryOrNull and locate (plan 37-29, Task 1); the pre-write check, readText and runnableSkewFindings
- * (plan 37-29, Task 2).
+ * (plan 37-29, Task 2). Plan 37-33 (D-20): trace-render's realDirectoryOrNull asks the root-chain owner instead, so it
+ * left this list; its rows are rootChainPresence's below.
  */
-const TR_PRESENCE_CALLERS = [
-  "readRawNotesWithSkips#0",
-  "listContextTasks#0",
-  "readTaskNoteRefs#0",
-  "realDirectoryOrNull#0",
-  "<top>#0",
-  "readText#0",
-];
+const TR_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "<top>#0", "readText#0"];
 const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "locate#0", "runnableSkewFindings#0"];
 /** The callers of the absence owner in state-roll (plan 37-30): realDirectoryOrNull and readTextOrThrow. */
 const SR_PRESENCE_CALLERS = ["realDirectoryOrNull#0", "readTextOrThrow#0"];
@@ -193,16 +194,21 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("trace-render", TR, "readRegularFileOrNull:readSync#0", ["readRawNotesWithSkips#0", "readText#0"]),
   ...rows("trace-render", TR, "readRawNotesWithSkips:readdirSync#0"),
   // trace-render: the one absence owner (plan 37-28, D-18), under each caller: the walk (the notes directory),
-  // listContextTasks (the fixture's `.gitkeep` keepers), readTaskNoteRefs (each task entry) and, since plan 37-29
-  // (IN-10), realDirectoryOrNull (the context roots, the state directory and the trace directory), the pre-write
-  // check (`<top>#0`) and readText (each compared path).
+  // listContextTasks (the fixture's `.gitkeep` keepers), readTaskNoteRefs (each task entry) and, since plan 37-29,
+  // the pre-write check (`<top>#0`) and readText (each compared path).
   ...rows("trace-render", TR, "entryPresence:lstatSync#0", TR_PRESENCE_CALLERS),
   ...rows("trace-render", TR, "entryPresence:statSync#0", TR_PRESENCE_CALLERS),
   ...rows("trace-render", TR, "entryPresence:realpathSync#0", TR_PRESENCE_CALLERS),
+  // trace-render: the root-chain owner (plan 37-33, D-20, CR-05), entered only from realDirectoryOrNull (the context
+  // roots, the state directory and the trace directory), so derivedPairs names its rows without a via. The fixture's
+  // directories are real, so the stat and the realpath of the last component are reached on the first call.
+  ...rows("trace-render", TR, "rootChainPresence:lstatSync#0"),
+  ...rows("trace-render", TR, "rootChainPresence:statSync#0"),
+  ...rows("trace-render", TR, "rootChainPresence:realpathSync#0"),
   // trace-render: the generated context-root listing (plan 37-28, CR-04), entered only from the hand-written listTasks.
   ...rows("trace-render", TR, "listContextTasks:readdirSync#0"),
-  // trace-render: the root. realDirectoryOrNull makes no read of its own since plan 37-29: its rows are the owner's
-  // under realDirectoryOrNull#0 above.
+  // trace-render: the root. realDirectoryOrNull makes no read of its own since plan 37-29: its rows are the
+  // root-chain owner's above (plan 37-33).
   ...rows("trace-render", TR, "<top>:realpathSync#0"),
   ...rows("trace-render", TR, "<top>:statSync#0"),
   ...rows("trace-render", TR, "<top>:accessSync#0"),
@@ -238,6 +244,11 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ...rows("state-check", SC, "entryPresence:statSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "entryPresence:realpathSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "listContextTasks:readdirSync#0"),
+  // state-check: the root-chain owner (plan 37-33, D-20, CR-05), entered only from traceDirectory (the trace directory
+  // and the two context roots), so derivedPairs names its rows without a via.
+  ...rows("state-check", SC, "rootChainPresence:lstatSync#0"),
+  ...rows("state-check", SC, "rootChainPresence:statSync#0"),
+  ...rows("state-check", SC, "rootChainPresence:realpathSync#0"),
   // state-check: the root and the hand-written readers (locate makes no read of its own since plan 37-29).
   ...rows("state-check", SC, "<top>:realpathSync#0"),
   ...rows("state-check", SC, "<top>:statSync#0"),
@@ -400,10 +411,11 @@ function linkOrSkip(target: string, at: string, position: string): string | null
 
 /**
  * trace-render's repository: a sealed note in the live context root and one in the archive context root, rendered.
- * Three paths are symbolic links to directories inside the root, so every branch of realDirectoryOrNull runs
- * under each of its three calls: the archive context root, `memory-bank/plans` (the state directory) and the trace
- * directory inside it. A fourth, taskA's `notes` (plan 37-28), reaches the absence owner's stat of a link, and a
- * regular `.gitkeep` in each context root reaches the owner under listContextTasks. After the render, the trace directory gains a generated trace file the plan no longer holds
+ * The archive context root, `memory-bank/plans` (the state directory) and the trace directory are real directories:
+ * until plan 37-33 each was a symbolic link to an in-root directory, so the round-2 owner's follow branch ran, and
+ * under D-20 a link there is a refusal, so the fixture no longer plants one (the root-chain shapes below plant them).
+ * taskA's `notes` (plan 37-28) stays a link, below a context root, so the absence owner's stat of a link is reached,
+ * and a regular `.gitkeep` in each context root reaches the owner under listContextTasks. After the render, the trace directory gains a generated trace file the plan no longer holds
  * (ABC-099.md, a copy of ABC-001.md): the trace model reads it as an extra file, which reaches its second readText
  * call, and the write mode would remove it, the CR-01 shape. So the unfaulted write mode removes one file and the
  * unfaulted --check is exit 1 with one EXTRA line.
@@ -412,27 +424,19 @@ function traceRenderRepo(): string | { readonly skip: string } {
   const root = mkTmp("grugops-read-sites-trace-repo-");
   // Plan 37-28: taskA's `notes` is a link to `real-notes`, so the absence owner's stat of a link is reached.
   plant(root, `${CONTEXT_REL}/taskA/real-notes/n1.md`, noteText("n1", ["ABC-001", "src/a.ts"]));
-  plant(root, `archive-context-real/taskB/notes/n2.md`, noteText("n2", ["ABC-002", "#41"]));
+  plant(root, `${CONTEXT_ARCHIVE_REL}/taskB/notes/n2.md`, noteText("n2", ["ABC-002", "#41"]));
   // Plan 37-28: a regular `.gitkeep` keeper in each context root, so listContextTasks asks the absence owner.
   plant(root, `${CONTEXT_REL}/.gitkeep`, "");
-  plant(root, "archive-context-real/.gitkeep", "");
-  mkdirSync(join(root, ...dirname(CONTEXT_ARCHIVE_REL).split("/")), { recursive: true });
-  mkdirSync(join(root, "plans-real"));
-  mkdirSync(join(root, "trace-real"));
-  const stateDirRel = dirname(TRACE_DIR_REL);
-  mkdirSync(join(root, ...dirname(stateDirRel).split("/")), { recursive: true });
-  const position = "scripts/runnable-ref/read-sites.test.ts: trace-render's repository (plan 37-25)";
-  for (const [target, at] of [
-    [join(root, "archive-context-real"), join(root, ...CONTEXT_ARCHIVE_REL.split("/"))],
-    [join(root, "plans-real"), join(root, ...stateDirRel.split("/"))],
-    [join(root, "trace-real"), join(root, ...TRACE_DIR_REL.split("/"))],
-    [join(root, ...CONTEXT_REL.split("/"), "taskA", "real-notes"), join(root, ...CONTEXT_REL.split("/"), "taskA", "notes")],
-  ] as const) {
-    const skip = linkOrSkip(target, at, position);
-    if (skip !== null) return { skip };
-  }
+  plant(root, `${CONTEXT_ARCHIVE_REL}/.gitkeep`, "");
+  mkdirSync(join(root, ...TRACE_DIR_REL.split("/")), { recursive: true });
+  const skip = linkOrSkip(
+    join(root, ...CONTEXT_REL.split("/"), "taskA", "real-notes"),
+    join(root, ...CONTEXT_REL.split("/"), "taskA", "notes"),
+    "scripts/runnable-ref/read-sites.test.ts: trace-render's repository (plan 37-25)",
+  );
+  if (skip !== null) return { skip };
   renderOk(root);
-  copyFileSync(join(root, "trace-real", "ABC-001.md"), join(root, "trace-real", "ABC-099.md"));
+  copyFileSync(join(root, ...TRACE_DIR_REL.split("/"), "ABC-001.md"), join(root, ...TRACE_DIR_REL.split("/"), "ABC-099.md"));
   return root;
 }
 
@@ -904,8 +908,9 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
     "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
   ],
   [
-    "trace-render entryPresence:lstatSync#0 via realDirectoryOrNull#0",
-    "a context root, the state directory and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet (plan 37-29)",
+    // Plan 37-33 (D-20): was "trace-render entryPresence:lstatSync#0 via realDirectoryOrNull#0".
+    "trace-render rootChainPresence:lstatSync#0",
+    "a context root, the state directory and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet (plan 37-29); the root-chain owner answers absent only beneath real directories (plan 37-33)",
   ],
   [
     "trace-render entryPresence:lstatSync#0 via <top>#0",
@@ -924,6 +929,10 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
     "every state path locate serves may be absent: the layout marker (no marker is WARN mode), the board and the indexes (an absent finding), the progress file, the folders and the trace positions (plan 37-29)",
   ],
   [
+    "state-check rootChainPresence:lstatSync#0",
+    "a context root and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet; the root-chain owner answers absent only beneath real directories (plan 37-33)",
+  ],
+  [
     "state-check entryPresence:lstatSync#0 via runnableSkewFindings#0",
     "a sibling program may be absent: state-check then runs alone and reports no skew (plan 37-24, plan 37-29)",
   ],
@@ -937,8 +946,12 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
   ],
 ]);
 
-/** The exemption count. 2026-10-24, plan 37-31: 9 (trace-render 4, state-check 3, state-roll 2). */
-const ENOENT_EXEMPT_SIZE = 9;
+/**
+ * The exemption count. 2026-10-24, plan 37-31: 9 (trace-render 4, state-check 3, state-roll 2).
+ * 2026-10-24, plan 37-33: 10 (trace-render 4, state-check 4, state-roll 2). trace-render's realDirectoryOrNull row
+ * moved to the root-chain owner's lstat; state-check gained the root-chain owner's lstat under traceDirectory.
+ */
+const ENOENT_EXEMPT_SIZE = 10;
 
 describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted with ENOENT, is could-not-run or a named finding unless absence is the correct answer there", () => {
   it("ENOENT_EXEMPT is printed, its size is pinned, and every key is a real row whose site is the owner's lstat", () => {
@@ -947,7 +960,9 @@ describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted wit
     const ids = new Set(READ_SITE_ROWS.map(rowId));
     for (const key of ENOENT_EXEMPT.keys()) {
       expect(ids.has(key), `${key} is a row of READ_SITE_ROWS`).toBe(true);
-      expect(key, `${key}: only the owner's lstat can answer absence`).toMatch(/^[a-z-]+ entryPresence:lstatSync#0 via /);
+      expect(key, `${key}: only an owner's lstat can answer absence`).toMatch(
+        /^[a-z-]+ (entryPresence:lstatSync#0 via \S+|rootChainPresence:lstatSync#0( via \S+)?)$/,
+      );
     }
     for (const via of ["readTaskNoteRefs#0", "listContextTasks#0"]) {
       expect([...ENOENT_EXEMPT.keys()].filter((k) => k.endsWith(` via ${via}`)), `a row through ${via} is never exempt`).toEqual([]);
@@ -1003,18 +1018,29 @@ describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted wit
 /** The runnables the census covers: trace-render and state-check since plan 37-29, state-roll since plan 37-30. */
 const ONE_OWNER_RUNNABLES = ["trace-render", "state-check", "state-roll"] as const;
 
-/** The only functions in which a runnable may compare a code with the string literal ENOENT. */
-const ENOENT_OWNERS = ["entryPresence", "readRegularFileOrNull"] as const;
+/**
+ * The presence owners each runnable embeds: the functions in which it may compare a code with the string literal
+ * ENOENT, and whose calling call expressions are the read positions of the shape table below.
+ * 2026-10-24, plan 37-29/37-30: entryPresence and readRegularFileOrNull in all three.
+ * 2026-10-24, plan 37-33 (D-20): trace-render and state-check also embed rootChainPresence; state-roll does not yet
+ * (plan 37-36).
+ */
+const ENOENT_OWNERS: Record<(typeof ONE_OWNER_RUNNABLES)[number], readonly string[]> = {
+  "trace-render": ["entryPresence", "readRegularFileOrNull", "rootChainPresence"],
+  "state-check": ["entryPresence", "readRegularFileOrNull", "rootChainPresence"],
+  "state-roll": ["entryPresence", "readRegularFileOrNull"],
+};
 
 /**
- * The ENOENT comparisons of each committed runnable, all inside ENOENT_OWNERS.
+ * The ENOENT comparisons of each committed runnable, all inside its ENOENT_OWNERS.
  * 2026-10-24, plan 37-29: 2 and 2 (entryPresence's lstat ENOENT and readRegularFileOrNull's open ENOENT, one each).
  * At 3eded848 trace-render had 6 (realDirectoryOrNull, the pre-write loop, readText and listDir besides the two)
  * and state-check 4 (locate and readTraceText besides the two).
+ * 2026-10-24, plan 37-33: 3, 3 and 2 (rootChainPresence's lstat ENOENT in trace-render and state-check).
  */
 const ENOENT_COMPARISONS: Record<(typeof ONE_OWNER_RUNNABLES)[number], number> = {
-  "trace-render": 2,
-  "state-check": 2,
+  "trace-render": 3,
+  "state-check": 3,
   "state-roll": 2,
 };
 
@@ -1068,17 +1094,17 @@ function parsedJs(name: Runnable): ts.SourceFile {
   return ts.createSourceFile(js, readFileSync(js, "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
 }
 
-describe("READ-1 one owner (plan 37-29, D-18): ENOENT is compared only inside entryPresence and readRegularFileOrNull", () => {
+describe("READ-1 one owner (plan 37-29, D-18; plan 37-33, D-20): ENOENT is compared only inside the presence owners and readRegularFileOrNull", () => {
   for (const name of ONE_OWNER_RUNNABLES) {
     it(`${name}.js: every ENOENT comparison sits in an owner, and the count is pinned`, () => {
       const found = enoentComparisons(parsedJs(name));
       console.log(`ENOENT_COMPARISONS ${name}: ${found.length} (${found.map((c) => `${c.enclosing}:${c.line}`).join(", ")})`);
       expect(
-        found.filter((c) => !(ENOENT_OWNERS as readonly string[]).includes(c.enclosing)).map((c) => `${c.enclosing}:${c.line}`),
+        found.filter((c) => !ENOENT_OWNERS[name].includes(c.enclosing)).map((c) => `${c.enclosing}:${c.line}`),
         `${name}.js decides absence outside the owner`,
       ).toEqual([]);
       expect(found.length).toBe(ENOENT_COMPARISONS[name]);
-      expect(new Set(found.map((c) => c.enclosing)), "each owner holds its comparison").toEqual(new Set(ENOENT_OWNERS));
+      expect(new Set(found.map((c) => c.enclosing)), "each owner holds its comparison").toEqual(new Set(ENOENT_OWNERS[name]));
     });
 
     it(`${name}.js: no object literal names throwIfNoEntry or withFileTypes`, () => {
@@ -1129,7 +1155,7 @@ describe("READ-1 one owner (plan 37-29, D-18): ENOENT is compared only inside en
 // owner never turned a present entry into absence.
 
 /** The kind of a read position: what it expects there and whether it follows an in-root link. */
-type ShapeKind = "directory-follow" | "directory-refuse" | "listing" | "file" | "file-follow" | "program";
+type ShapeKind = "directory-follow" | "directory-refuse" | "root-chain" | "listing" | "file" | "file-follow" | "program";
 
 /** One shape a cell plants. The `dot-` and `keeper-` shapes are planted as an entry inside a context root. */
 type ShapeName =
@@ -1150,10 +1176,16 @@ type ShapeExpect = "refused" | "follow" | "keeper";
 
 /**
  * The shapes that apply to each kind, with the outcome each must give.
- * - directory-follow: the notes directory, a context root or an ancestor of one, the state directory, the memory
- *   bank, the trace directory, the archive directory. A live in-root link to a directory is read through (plan
- *   37-28's flagged assumption); a dangling link, a link to a file and a regular file are refused.
+ * - directory-follow: the notes directory (below a context root) and state-roll's state, memory bank and archive
+ *   directories (until plan 37-36). A live in-root link to a directory is read through (plan 37-28's flagged
+ *   assumption); a dangling link, a link to a file and a regular file are refused. Until plan 37-33 the trace
+ *   runnables' context roots, their ancestors, the state directory, the memory bank and the trace directory were this
+ *   kind too; D-20 made them root-chain.
  * - directory-refuse: a task entry. The task position never follows a link (37-06 trust decision, CR-04).
+ * - root-chain (plan 37-33, D-20, CR-05): a context root, an ancestor of one below the root, the state directory, the
+ *   memory bank and the trace directory, asked of the root-chain owner. Every link is refused from its lstat, whatever
+ *   it points to (a dangling link, a link to an in-root directory holding the content, a link to a file), and so is a
+ *   regular file; a link cell carries ROOT_CHAIN_LINK_REFUSAL.
  * - listing: a dot-named entry of a context root, asked of the owner by listContextTasks. A regular file is a keeper;
  *   a dot-named link or FIFO is a failed task, never dropped.
  * - file: a trace file, the index, an extra trace file, a state file state-roll rolls. Refuses every link.
@@ -1166,6 +1198,12 @@ const SHAPES_BY_KIND: Record<ShapeKind, readonly { readonly shape: ShapeName; re
   "directory-follow": [
     { shape: "dangling link", expect: "refused" },
     { shape: "link to a directory", expect: "follow" },
+    { shape: "link to a regular file", expect: "refused" },
+    { shape: "regular file", expect: "refused" },
+  ],
+  "root-chain": [
+    { shape: "dangling link", expect: "refused" },
+    { shape: "link to a directory", expect: "refused" },
     { shape: "link to a regular file", expect: "refused" },
     { shape: "regular file", expect: "refused" },
   ],
@@ -1240,9 +1278,10 @@ const TASK_A_REL = `${CONTEXT_REL}/taskA`;
 const TASK_B_REL = `${CONTEXT_ARCHIVE_REL}/taskB`;
 
 /**
- * Every directory the trace runnables resolve through the owner before the note read: each context root and each
- * ancestor of one, the memory bank and the state directory (ancestors of the trace directory), and the trace
- * directory. trace-render reaches them through realDirectoryOrNull, state-check through locate.
+ * Every directory the trace runnables resolve through the root-chain owner before the note read: each context root
+ * and each ancestor of one, the memory bank and the state directory (ancestors of the trace directory), and the trace
+ * directory. trace-render reaches them through realDirectoryOrNull, state-check through traceDirectory (plan 37-33;
+ * through locate until then).
  */
 const TRACE_DIRECTORIES: readonly string[] = [
   GRUGOPS_DIR_REL,
@@ -1294,7 +1333,7 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
     via: "realDirectoryOrNull#0",
     position: "a context root, an ancestor of one, the state directory or the trace directory",
     paths: TRACE_DIRECTORIES,
-    kind: "directory-follow",
+    kind: "root-chain",
     modes: TR_SHAPE_MODES,
     base: "trace",
   },
@@ -1320,11 +1359,12 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
   },
   ...sharedTracePositions("state-check", SC),
   {
+    // Plan 37-33 (D-20): was locate#0, kind directory-follow; traceDirectory asks the root-chain owner.
     runnable: "state-check",
-    via: "locate#0",
+    via: "traceDirectory#0",
     position: "a context root, an ancestor of one, the state directory or the trace directory",
     paths: TRACE_DIRECTORIES,
-    kind: "directory-follow",
+    kind: "root-chain",
     modes: SC,
     base: "trace",
   },
@@ -1394,14 +1434,17 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
 ];
 
 /**
- * The calling call expressions of the generated entryPresence in each committed runnable (callingSites).
+ * The calling call expressions of the generated presence owners in each committed runnable (callingSites).
  * 2026-10-24, plan 37-31: 6, 5 and 2, measured after plans 37-28 to 37-30. trace-render: readRawNotesWithSkips,
  * listContextTasks, readTaskNoteRefs, realDirectoryOrNull, the pre-write check (`<top>`) and readText. state-check:
  * readRawNotesWithSkips, listContextTasks, readTaskNoteRefs, locate and runnableSkewFindings. state-roll:
  * realDirectoryOrNull and readTextOrThrow.
+ * 2026-10-24, plan 37-33: 6, 6 and 2, over both owners. trace-render: entryPresence's five (realDirectoryOrNull left
+ * it) and rootChainPresence's realDirectoryOrNull. state-check: entryPresence's five and rootChainPresence's
+ * traceDirectory. state-roll: unchanged.
  */
 const TRACE_RENDER_OWNER_CALLERS = 6;
-const STATE_CHECK_OWNER_CALLERS = 5;
+const STATE_CHECK_OWNER_CALLERS = 6;
 const STATE_ROLL_OWNER_CALLERS = 2;
 const OWNER_CALLER_PINS: Record<Runnable, number> = {
   "trace-render": TRACE_RENDER_OWNER_CALLERS,
@@ -1409,14 +1452,20 @@ const OWNER_CALLER_PINS: Record<Runnable, number> = {
   "state-roll": STATE_ROLL_OWNER_CALLERS,
 };
 
-/** The owner's calling call expressions of a committed runnable, named `<scope>#<ordinal>` as derivedPairs does. */
+/** The presence owners' calling call expressions of a committed runnable, named `<scope>#<ordinal>` as derivedPairs does. */
 function ownerCallers(name: Runnable): string[] {
-  const ordinals = new Map<string, number>();
-  return callingSites(committed(name), "entryPresence").map((c) => {
-    const ordinal = ordinals.get(c.scope) ?? 0;
-    ordinals.set(c.scope, ordinal + 1);
-    return `${c.scope}#${ordinal}`;
-  });
+  // The presence owners a runnable embeds are its ENOENT owners less the non-blocking reader (plan 37-33): one table
+  // says which owners each runnable has, and each owner's callers are numbered on their own, as derivedPairs does.
+  return ENOENT_OWNERS[name]
+    .filter((owner) => owner !== "readRegularFileOrNull")
+    .flatMap((owner) => {
+      const ordinals = new Map<string, number>();
+      return callingSites(committed(name), owner).map((c) => {
+        const ordinal = ordinals.get(c.scope) ?? 0;
+        ordinals.set(c.scope, ordinal + 1);
+        return `${c.scope}#${ordinal}`;
+      });
+    });
 }
 
 /** One cell: a position, one of its paths, and one shape its kind applies. */
@@ -1645,6 +1694,21 @@ const DANGLING_SHAPES: ReadonlySet<ShapeName> = new Set<ShapeName>(["dangling li
 /** The owner's reason for a link whose target cannot be reached, at the path or at an ancestor (plans 37-28, 37-29). */
 const OWNER_UNREACHABLE_LINK = /symbolic link .*target (that )?cannot be reached/;
 
+/** The shapes that are a symbolic link at the position: at a root-chain position each is refused from its lstat. */
+const LINK_SHAPES: ReadonlySet<ShapeName> = new Set<ShapeName>(["dangling link", "link to a directory", "link to a regular file"]);
+
+/** The root-chain owner's reason for a link on the chain (plan 37-33, D-20), from the committed context-io.js. */
+const ROOT_CHAIN_LINK_REFUSAL: string = ctxio.ROOT_CHAIN_LINK_REFUSAL;
+
+/**
+ * The root-chain positions above state-check's layout marker (memory-bank/plans/.layout). state-check reads the
+ * marker first, and until plan 37-35 puts that read on the root-chain owner it follows the chain, so a link cell here
+ * may stop at the marker (exit 2 naming the position, with entryPresence's reason) or reach traceDirectory
+ * (trace-not-compared with ROOT_CHAIN_LINK_REFUSAL), depending on the link's shape; plan 37-31's state-check rule
+ * accepts both, and never a pass. Plans 37-35 and 37-38 assert the one final outcome per position.
+ */
+const MARKER_FIRST_POSITIONS: ReadonlySet<string> = new Set([MEMORY_BANK_REL, STATE_ROOT_REL]);
+
 let shapeCellsRun = 0;
 let shapeCellsSkipped = 0;
 
@@ -1671,9 +1735,19 @@ function runShapeCell(c: ShapeCell): void {
     expect(r.stderr, `never the unexpected-throw backstop\n${all}`).not.toContain("stopped unexpectedly (");
     if (c.expect === "refused") {
       expect(treeDigest(root), `nothing was written, changed or removed\n${all}`).toEqual(planted);
-      // A dangling link is refused for the owner's reason, never as something absent that a later check then
-      // happens to refuse ("does not exist", "listed and is no longer there"): the reason is where the defect shows.
-      if (DANGLING_SHAPES.has(c.shape)) {
+      // A link at a root-chain position is refused for the root-chain reason, whatever it points to (plan 37-33,
+      // D-20); state-check's marker-first positions may instead stop at the marker by name until plan 37-35.
+      // Elsewhere a dangling link is refused for the owner's reason, never as something absent that a later check
+      // then happens to refuse ("does not exist", "listed and is no longer there"): the reason is where the defect
+      // shows.
+      if (c.pos.kind === "root-chain" && LINK_SHAPES.has(c.shape)) {
+        const markerFirst = c.pos.runnable === "state-check" && MARKER_FIRST_POSITIONS.has(c.path) && r.status === 2;
+        if (!markerFirst) {
+          expect(`${r.stdout}\n${r.stderr}`, `a link on the root chain is refused for the root-chain reason\n${all}`).toContain(
+            `${c.path} ${ROOT_CHAIN_LINK_REFUSAL}`,
+          );
+        }
+      } else if (DANGLING_SHAPES.has(c.shape)) {
         expect(`${r.stdout}\n${r.stderr}`, `a dangling link is refused for the owner's reason\n${all}`).toMatch(OWNER_UNREACHABLE_LINK);
       }
       if (c.pos.runnable === "state-check") {

@@ -1712,11 +1712,12 @@ const DANGLING_POSITION = "scripts/runnable-ref/state-check.test.ts: READ-1 roun
 
 /**
  * One state path made a dangling link, and what state-check must do: exit 2 naming it (a required file or a
- * trace position), or exit 1 with a FINDING naming it under `key`. `setup` adds what the row needs first.
+ * trace position), exit 1 with a FINDING naming it under `key`, or (plan 37-33, D-20) exit 1 with a
+ * trace-not-compared FINDING naming it with the root-chain reason. `setup` adds what the row needs first.
  */
 type DanglingRow = {
   readonly rel: string;
-  readonly outcome: "could-not-run" | "finding";
+  readonly outcome: "could-not-run" | "finding" | "trace-not-compared";
   readonly key?: string;
   readonly setup?: (root: string) => void;
 };
@@ -1743,14 +1744,23 @@ const DANGLING_STATE_ROWS: readonly DanglingRow[] = [
   { rel: DECISIONS_REL, outcome: "finding", key: "(move-only-unlisted)" },
   { rel: DECISIONS_ARCHIVE_REL, outcome: "finding", key: "(move-only-unlisted)" },
   { rel: `${TRACE_DIR_REL}/ABC-001.md`, outcome: "could-not-run" },
-  { rel: TRACE_DIR_REL, outcome: "could-not-run" },
+  // Plan 37-33 (D-20, CR-05): rewritten, not deleted. Plan 37-29 made a dangling trace directory exit 2 with the
+  // unreachable-target reason; a symbolic link at the trace directory, present or dangling, is now the root-chain
+  // owner's `link` answer, which state-check reports as trace-not-compared naming the directory.
+  { rel: TRACE_DIR_REL, outcome: "trace-not-compared" },
 ];
 
 let danglingRowsRun = 0;
 
 describe("READ-1 round 2: a dangling link at a state path is never absent (plan 37-29, D-18, IN-10)", () => {
   for (const row of DANGLING_STATE_ROWS) {
-    it(`${row.rel} a dangling link: ${row.outcome === "could-not-run" ? "exit 2 naming it" : `exit 1 with a FINDING naming it ${row.key ?? ""}`}`, () => {
+    const title =
+      row.outcome === "could-not-run"
+        ? "exit 2 naming it"
+        : row.outcome === "trace-not-compared"
+          ? "exit 1 with a trace-not-compared FINDING naming it with the root-chain reason"
+          : `exit 1 with a FINDING naming it ${row.key ?? ""}`;
+    it(`${row.rel} a dangling link: ${title}`, () => {
       danglingRowsRun += 1;
       const root = tracedRepo(LAYOUT_MARKER_CONTENT);
       row.setup?.(root);
@@ -1774,6 +1784,14 @@ describe("READ-1 round 2: a dangling link at a state path is never absent (plan 
         expect(r.stderr, all).toContain(row.rel);
         expect(r.stderr, all).toMatch(UNREACHABLE_LINK);
         expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+        return;
+      }
+      if (row.outcome === "trace-not-compared") {
+        expect(r.status, all).toBe(1);
+        const named = r.stdout.split("\n").filter((l) => l.startsWith(`FINDING  ${row.rel}: `) && l.endsWith("(trace-not-compared)"));
+        expect(named, all).toHaveLength(1);
+        expect(named[0], all).toContain(`${row.rel} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
+        expect(r.stdout, all).not.toContain("The trace is fresh");
         return;
       }
       expect(r.status, all).toBe(1);

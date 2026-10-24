@@ -233,7 +233,7 @@ const DECIDER_MANIFEST = {
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "ac33078d59949033e57a365bc7174b440202bd456f6b75e22f6c47339a3998a3",
         "scripts/checkpoints.js": "42e6e4de5cab8be40843e5c4d02b7cd9f29630a9fb80a86e31846d389a932b5a",
-        "scripts/context-io.js": "6e7e9ef872929fd9dfc25415747219d2f288fa2ef06896f2ef0986a5184c9126",
+        "scripts/context-io.js": "4a52268a8158cc863b2de939ebda424d0939e239263f658eb8fe672b28f4aff3",
         "scripts/dead-vocabulary.js": "30bcf47c67b0713c3d1fd42aff76cf60cd74ece10b6cd2c7490602ce7eaf37bc",
         "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
         "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",

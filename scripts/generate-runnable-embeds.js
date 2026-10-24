@@ -103,6 +103,12 @@ export const EMBED_CLOSE = "// </runnable-embeds>";
  * (D-18, READ-1 round 2): state-roll's realDirectoryOrNull and readTextOrThrow ask the one absence owner, so a
  * dangling archive, progress or state-directory link (or a dangling ancestor) is a refusal by name and never absent,
  * and "is this path present" has one answer in all three runnables.
+ * Plan 37-33 (2026-10-24) adds scripts/context-io.ts rootChainPresence, isWithin and ROOT_CHAIN_LINK_REFUSAL to the
+ * context-io roots of the state checker's row and the trace renderer's row (D-20, CR-05, READ-1 round 3): the
+ * root-chain owner, under which no component of the path to a context root, the state directory or the trace
+ * directory below the real repository root may be a symbolic link, decided by lstat whatever the link points to, so
+ * a context root beneath a link is a refusal by name in both runnables and never an absent root; isWithin is the one
+ * boundary predicate the owner and the walk ask.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -184,6 +190,9 @@ export const EMBED_SPECS = Object.freeze([
                     "entryPresence",
                     "readTaskNoteRefs",
                     "listContextTasks",
+                    "rootChainPresence",
+                    "isWithin",
+                    "ROOT_CHAIN_LINK_REFUSAL",
                 ],
             },
             { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },
@@ -231,6 +240,9 @@ export const EMBED_SPECS = Object.freeze([
                     "entryPresence",
                     "readTaskNoteRefs",
                     "listContextTasks",
+                    "rootChainPresence",
+                    "isWithin",
+                    "ROOT_CHAIN_LINK_REFUSAL",
                 ],
             },
         ],

@@ -40,7 +40,8 @@ readdirSync, renameSync,
 // occupies the final path, where a rename would replace it. See `publishNoteExclusive`.
 linkSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, realpathSync, 
 // `lstatSync` is the one absence question (plan 37-28, D-18): `entryPresence` asks it of every component of a
-// path, so only an lstat ENOENT is "nothing there". See `entryPresence`.
+// path, so only an lstat ENOENT is "nothing there". See `entryPresence`. `rootChainPresence` (plan 37-33, D-20)
+// asks it of every component of a repository-relative state path and refuses a symbolic link there.
 lstatSync, constants as fsConstants, } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
@@ -1971,10 +1972,124 @@ export function entryPresence(path) {
         return { kind: "present", entry, target, real };
     }
 }
-/** True when `real` is `boundary` or under it. A boundary that ends in the separator (`/`) is its own prefix. */
-function isWithin(real, boundary) {
+/**
+ * True when `real` is `boundary` or under it. A boundary that ends in the separator (`/`) is its own prefix. The one
+ * boundary predicate (IN-13): the walk asks it of a notes directory, rootChainPresence of the last component of a
+ * state path, and the runnables embed it (plan 37-33).
+ */
+export function isWithin(real, boundary) {
     const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
     return real === boundary || real.startsWith(prefix);
+}
+/** The reason phrase a symbolic link on the root chain carries (plan 37-33, D-20, CR-05). */
+export const ROOT_CHAIN_LINK_REFUSAL = "is a symbolic link, and no symbolic link below the repository root is followed on the way to a state path";
+/**
+ * The prefixes of a repository-relative state path, in the order the root-chain owner walks them: `a/b/c` gives
+ * `a`, `a/b`, `a/b/c`. The path must follow the state-layout ENCODING rule (install/state-layout.ts): POSIX-relative,
+ * no leading or trailing slash, no empty, `.` or `..` segment, and no backslash. Anything else throws, naming the
+ * value, so a caller can never ask about a path above the root or one spelled two ways.
+ */
+export function rootChainOf(rel) {
+    const refuse = (why) => {
+        throw new Error(`context-io: the state path ${JSON.stringify(rel)} is not a repository-relative path: ${why}`);
+    };
+    if (rel === "")
+        refuse("it is empty");
+    if (rel.includes("\\"))
+        refuse("it holds a backslash");
+    if (rel.startsWith("/"))
+        refuse("it has a leading slash");
+    if (rel.endsWith("/"))
+        refuse("it has a trailing slash");
+    const segments = rel.split("/");
+    const out = [];
+    for (const segment of segments) {
+        if (segment === "")
+            refuse("it has an empty segment");
+        if (segment === "." || segment === "..")
+            refuse(`it has a ${JSON.stringify(segment)} segment`);
+        out.push(out.length === 0 ? segment : `${out[out.length - 1]}/${segment}`);
+    }
+    return out;
+}
+/**
+ * THE ROOT-CHAIN OWNER (D-20, CR-05).
+ *
+ * Round 2's entryPresence follows every link on the way down and answers `absent` at the first ENOENT, without
+ * asking where the followed prefix resolved, so a context root missing beneath a link that leaves the repository
+ * root read as "no tasks", and the render removed its tickets' trace files with exit 0 (CR-05). D-20 stops asking
+ * where a link leads. `realRoot` is already a real path (the runnable resolved the root once, with realpath, before
+ * any state read), so a link above the root (macOS `/tmp` to `/private/tmp`) is never seen here. For each prefix in
+ * rootChainOf(rel) order, the component `join(realRoot, ...prefix)` is lstat'ed:
+ *
+ * - ENOENT is `absent`: every earlier component was lstat'ed as a real directory, so nothing is there and nothing
+ *   is under it. Any other lstat error is `unreadable`, with the reason `"<prefix>" cannot be inspected (<code>)`.
+ * - A symbolic link before the last component, or at the last when `leaf` is `directory`, is `link`, with `rel` the
+ *   prefix and the reason `<prefix> <ROOT_CHAIN_LINK_REFUSAL>`. It is decided from the lstat alone, so a live link,
+ *   a dangling link and a link to anything, inside the root or outside it, give one answer.
+ * - A component before the last that is not a directory is `unreadable` with code ENOTDIR and the reason
+ *   `"<prefix>" on the path is not a directory (ENOTDIR)`.
+ * - For the last component, statSync and realpathSync run on every call, so both read sites are reached under every
+ *   caller without a planted link. A stat failure is `unreadable` (`it is a symbolic link whose target cannot be
+ *   reached (<code>)` for a link, which only an `entry` query reaches, else `"<prefix>" cannot be inspected
+ *   (<code>)`); a realpath failure is `unreadable` (`"<prefix>" cannot be resolved (<code>)`); a real path for
+ *   which isWithin(real, realRoot) is false is `outside`; otherwise `present`.
+ *
+ * The literal ENOENT is compared here, in entryPresence and in readRegularFileOrNull, and nowhere else. Every
+ * repository-relative state path of the three runnables is asked here; positions below a context root (a task, its
+ * notes, a dot-named entry) stay entryPresence's, under the round-2 rules (D-20).
+ */
+export function rootChainPresence(realRoot, rel, leaf) {
+    const chain = rootChainOf(rel);
+    for (let i = 0;; i += 1) {
+        const prefix = chain[i];
+        const at = join(realRoot, ...prefix.split("/"));
+        const last = i === chain.length - 1;
+        let entry;
+        try {
+            entry = lstatSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            if (code === "ENOENT")
+                return { kind: "absent" };
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be inspected (${code})` };
+        }
+        if (entry.isSymbolicLink() && (!last || leaf === "directory")) {
+            return { kind: "link", rel: prefix, reason: `${prefix} ${ROOT_CHAIN_LINK_REFUSAL}` };
+        }
+        if (!last) {
+            if (!entry.isDirectory()) {
+                return { kind: "unreadable", code: "ENOTDIR", reason: `"${prefix}" on the path is not a directory (ENOTDIR)` };
+            }
+            continue;
+        }
+        let target;
+        try {
+            target = statSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return {
+                kind: "unreadable",
+                code,
+                reason: entry.isSymbolicLink()
+                    ? `it is a symbolic link whose target cannot be reached (${code})`
+                    : `"${prefix}" cannot be inspected (${code})`,
+            };
+        }
+        let real;
+        try {
+            real = realpathSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return { kind: "unreadable", code, reason: `"${prefix}" cannot be resolved (${code})` };
+        }
+        if (!isWithin(real, realRoot))
+            return { kind: "outside", real };
+        return { kind: "present", entry, target, real };
+    }
 }
 /** An Error carrying an errno-style `code`, so a caller that asserts the code (plan 37-21) still can. */
 function codedError(message, code) {
