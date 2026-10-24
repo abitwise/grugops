@@ -3,6 +3,22 @@ phase: 37
 review: 37-REVIEW.md
 titles: json
 findings:
+  - id: WR-12
+    severity: warning
+    disposition: open
+    title: "Pattern 4's comma-list and `per Workflow 16` exclusions reach the whole 120-character run, so a plain list of objects aimed at the trace passes (created by the round-3 WR-11 fix)"
+  - id: WR-13
+    severity: warning
+    disposition: open
+    title: "The hand-trace scan still enumerates its verbs and nouns by hand, so common write verbs and determiner-less shapes pass (same defect class as WR-11, one register over)"
+  - id: WR-14
+    severity: warning
+    disposition: open
+    title: "The stray-entry remedy is not decided by the entry's own lstat: a non-directory context-root entry whose name falls outside the task grammar gets no remedy (IN-11 union arm)"
+  - id: IN-14
+    severity: info
+    disposition: open
+    title: "The three runnables answer \"may this state file be used\" differently at the leaf, so state-check can point at a command that exits 2"
   - id: CR-05
     severity: critical
     disposition: open
@@ -119,20 +135,24 @@ findings:
     severity: info
     disposition: open
     title: "state-check and trace-render disagree on a dangling context-root link"
-open: 23
-total: 29
-recorded: 2026-10-23T23:53:08.428Z
+open: 27
+total: 33
+recorded: 2026-10-24T15:51:45.705Z
 ---
 
 # Phase 37: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-05 | critical | open | - |
-| WR-11 | warning | open | - |
-| IN-11 | info | open | - |
-| IN-12 | info | open | - |
-| IN-13 | info | open | - |
+| WR-12 | warning | open | - |
+| WR-13 | warning | open | - |
+| WR-14 | warning | open | - |
+| IN-14 | info | open | - |
+| CR-05 | critical | open | - (not in the current review) |
+| WR-11 | warning | open | - (not in the current review) |
+| IN-11 | info | open | - (not in the current review) |
+| IN-12 | info | open | - (not in the current review) |
+| IN-13 | info | open | - (not in the current review) |
 | CR-01 | critical | fixed | round 0; fixed by gap round 1 plan 37-21, closure confirmed by the round-1 review (not in the current review) |
 | CR-02 | critical | fixed | round 0; fixed by gap round 1 plan 37-20, closure confirmed by the round-1 review (not in the current review) |
 | WR-01 | warning | fixed | round 0; fixed by gap round 1 plan 37-22, closure confirmed by the round-1 review (not in the current review) |
