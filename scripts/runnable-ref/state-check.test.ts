@@ -41,11 +41,13 @@ import {
   DECISIONS_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
+  MEMORY_BANK_REL,
   NFR_CATALOG_REL,
   NFR_DIR_REL,
   PROGRESS_REL,
   QUEUE_DONE_ARCHIVE_REL,
   QUEUE_DONE_REL,
+  STATE_ROOT_REL,
   TICKETS_REL,
   TRACE_DIR_REL,
   TRACEABILITY_REL,
@@ -544,7 +546,9 @@ describe("state-check.js — a path that resolves outside the root is refused by
     return skipped === null;
   }
 
-  it("a symlinked ticket directory pointing outside the repository root is reported as outside the root", () => {
+  // Plan 37-35 (D-20, flagged folder rule): rewritten, not deleted. Plan 37-04 expected "outside the repository root":
+  // a link AT a listed folder is now refused from its lstat as a link on the root chain, whatever it points to.
+  it("a symlinked ticket directory pointing outside the repository root is refused as a root-chain link and never listed (plan 37-35)", () => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);
     const outside = mkTmp("grugops-state-check-outside-");
     writeFileSync(join(outside, "ABC-009.md"), paddedTo("# ABC-009\n", BUDGETS.ticketBytes + 1));
@@ -553,7 +557,7 @@ describe("state-check.js — a path that resolves outside the root is refused by
     const r = run(root);
     expect(r.status, r.stderr).toBe(1);
     expect(r.stdout).toContain(`FINDING  ${TICKETS_REL}: not measured`);
-    expect(r.stdout).toContain("outside the repository root");
+    expect(r.stdout).toContain(`${TICKETS_REL} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
     expect(r.stdout).not.toContain("ABC-009");
     expect(r.stdout).not.toContain("65,537");
   });
@@ -1719,6 +1723,11 @@ type DanglingRow = {
   readonly rel: string;
   readonly outcome: "could-not-run" | "finding" | "trace-not-compared";
   readonly key?: string;
+  /**
+   * Plan 37-35 (D-20, the flagged folder rule): a listed folder is asked with leaf `directory`, so a link AT it,
+   * dangling or not, is refused from its lstat with the root-chain reason, not the unreachable-target reason.
+   */
+  readonly reason?: "root-chain";
   readonly setup?: (root: string) => void;
 };
 const DANGLING_STATE_ROWS: readonly DanglingRow[] = [
@@ -1737,12 +1746,14 @@ const DANGLING_STATE_ROWS: readonly DanglingRow[] = [
       appendTo(root, NFR_CATALOG_REL, NFR_LINE_001);
     },
   },
-  { rel: TICKETS_REL, outcome: "finding", key: "(BUDGETS.ticketBytes)" },
-  { rel: NFR_DIR_REL, outcome: "finding", key: "(BUDGETS.nfrBytes)" },
-  { rel: QUEUE_DONE_REL, outcome: "finding", key: "(move-only-unlisted)" },
-  { rel: QUEUE_DONE_ARCHIVE_REL, outcome: "finding", key: "(move-only-unlisted)" },
-  { rel: DECISIONS_REL, outcome: "finding", key: "(move-only-unlisted)" },
-  { rel: DECISIONS_ARCHIVE_REL, outcome: "finding", key: "(move-only-unlisted)" },
+  // Plan 37-35 (D-20, flagged folder rule): the six folder rows below are rewritten, not deleted. Plan 37-29 expected
+  // the unreachable-target reason; a link at a listed folder is now the root-chain owner's `link` answer.
+  { rel: TICKETS_REL, outcome: "finding", key: "(BUDGETS.ticketBytes)", reason: "root-chain" },
+  { rel: NFR_DIR_REL, outcome: "finding", key: "(BUDGETS.nfrBytes)", reason: "root-chain" },
+  { rel: QUEUE_DONE_REL, outcome: "finding", key: "(move-only-unlisted)", reason: "root-chain" },
+  { rel: QUEUE_DONE_ARCHIVE_REL, outcome: "finding", key: "(move-only-unlisted)", reason: "root-chain" },
+  { rel: DECISIONS_REL, outcome: "finding", key: "(move-only-unlisted)", reason: "root-chain" },
+  { rel: DECISIONS_ARCHIVE_REL, outcome: "finding", key: "(move-only-unlisted)", reason: "root-chain" },
   { rel: `${TRACE_DIR_REL}/ABC-001.md`, outcome: "could-not-run" },
   // Plan 37-33 (D-20, CR-05): rewritten, not deleted. Plan 37-29 made a dangling trace directory exit 2 with the
   // unreachable-target reason; a symbolic link at the trace directory, present or dangling, is now the root-chain
@@ -1759,7 +1770,7 @@ describe("READ-1 round 2: a dangling link at a state path is never absent (plan 
         ? "exit 2 naming it"
         : row.outcome === "trace-not-compared"
           ? "exit 1 with a trace-not-compared FINDING naming it with the root-chain reason"
-          : `exit 1 with a FINDING naming it ${row.key ?? ""}`;
+          : `exit 1 with a FINDING naming it ${row.key ?? ""}${row.reason === "root-chain" ? " with the root-chain reason" : ""}`;
     it(`${row.rel} a dangling link: ${title}`, () => {
       danglingRowsRun += 1;
       const root = tracedRepo(LAYOUT_MARKER_CONTENT);
@@ -1797,7 +1808,8 @@ describe("READ-1 round 2: a dangling link at a state path is never absent (plan 
       expect(r.status, all).toBe(1);
       const named = r.stdout.split("\n").filter((l) => l.startsWith(`FINDING  ${row.rel}: `) && l.includes(row.key ?? ""));
       expect(named, all).toHaveLength(1);
-      expect(named[0], all).toMatch(UNREACHABLE_LINK);
+      if (row.reason === "root-chain") expect(named[0], all).toContain(`${row.rel} ${ctxio.ROOT_CHAIN_LINK_REFUSAL}`);
+      else expect(named[0], all).toMatch(UNREACHABLE_LINK);
     });
   }
 
@@ -1825,5 +1837,157 @@ describe("READ-1 round 2: a dangling link at a state path is never absent (plan 
   it("the table ran one row per state path", () => {
     expect(DANGLING_STATE_ROWS).toHaveLength(15);
     expect(danglingRowsRun).toBe(DANGLING_STATE_ROWS.length);
+  });
+});
+
+// ── Plan 37-35 (D-19 CR-05, D-20): every state path state-check reads is asked of the root-chain owner ──────────
+// Until this plan locate asked entryPresence, which follows every link on the way down. A migrated repository whose
+// `memory-bank` was moved away and replaced by a link to an empty directory outside the root read its layout marker
+// as absent, so state-check ran in WARN mode and exited 0 (the CR-05 shape at the one file that decides severity).
+// locate now asks the generated rootChainPresence: below the real root a symbolic link on the parent chain of any
+// state path is refused from its lstat, whatever it points to.
+
+/** The root-chain owner's reason for a link on the chain (plan 37-33, D-20), from the committed context-io.js. */
+const ROOT_CHAIN_LINK_REFUSAL: string = ctxio.ROOT_CHAIN_LINK_REFUSAL;
+
+/** The four link shapes D-20 names: whatever a root-chain link points to, the answer is the same. */
+const CHAIN_LINK_SHAPES = ["an empty outside directory", "the moved content outside the root", "the moved content in-root", "dangling"] as const;
+type ChainLinkShape = (typeof CHAIN_LINK_SHAPES)[number];
+
+/**
+ * Replace the directory at `rel` with a symbolic link of `shape`: the original moves to a sibling scratch directory
+ * outside the root (and the link names an empty outside directory, the moved content, or nothing), or to an in-root
+ * sibling the checker never reads. Returns false, with a printed skip line, when the host cannot make a link.
+ */
+function linkChainPosition(root: string, rel: string, shape: ChainLinkShape, position: string): boolean {
+  const at = join(root, ...rel.split("/"));
+  expect(lstatSync(at).isDirectory(), `PREMISE: ${rel} is a real directory before the link`).toBe(true);
+  const outside = mkTmp("grugops-state-check-chain-outside-");
+  let target: string;
+  let described: string;
+  if (shape === "the moved content in-root") {
+    target = join(root, `moved-${rel.split("/").join("__")}`);
+    renameSync(at, target);
+    described = "symlink to a directory inside the repository root";
+  } else if (shape === "the moved content outside the root") {
+    target = join(outside, "moved");
+    renameSync(at, target);
+    described = "symlink leaving the repository root";
+  } else if (shape === "an empty outside directory") {
+    renameSync(at, join(outside, "moved"));
+    target = join(outside, "empty");
+    mkdirSync(target);
+    described = "symlink leaving the repository root";
+  } else {
+    renameSync(at, join(outside, "moved"));
+    target = join(outside, "no-such-target");
+    described = "dangling symlink (its target does not exist)";
+  }
+  const skipped = stageSymlinkOrSkip(target, at, described, `scripts/runnable-ref/state-check.test.ts: ${position} (plan 37-35)`);
+  if (skipped !== null) {
+    console.warn(skipLine(skipped, "the CR-05 rows of trace-render.test.ts (the same root-chain owner)"));
+    return false;
+  }
+  expect(lstatSync(at).isSymbolicLink(), `PREMISE: ${rel} is a link`).toBe(true);
+  return true;
+}
+
+/** The two root-chain positions above the layout marker (memory-bank/plans/.layout), derived from the owner's chain. */
+const MARKER_CHAIN = ctxio.rootChainOf(LAYOUT_MARKER_REL).slice(0, -1);
+
+let markerCellsRun = 0;
+let markerCellsSkipped = 0;
+
+describe("D-20: the layout marker behind a root-chain link is never read and never absent (plan 37-35, CR-05)", () => {
+  it("PREMISE: the positions above the marker are memory-bank and memory-bank/plans", () => {
+    expect(MARKER_CHAIN).toEqual([MEMORY_BANK_REL, STATE_ROOT_REL]);
+  });
+
+  for (const position of MARKER_CHAIN) {
+    for (const shape of CHAIN_LINK_SHAPES) {
+      it(`${position} a link to ${shape}: exit 2 naming the layout marker and ${position} with the root-chain reason, never WARN mode`, () => {
+        markerCellsRun += 1;
+        const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+        const premise = run(root);
+        expect(premise.status, `PREMISE: the repository is clean\n${premise.stdout}${premise.stderr}`).toBe(0);
+        expect(premise.stdout).toContain("No findings.");
+        if (!linkChainPosition(root, position, shape, `the layout marker behind a link at ${position} (${shape})`)) {
+          markerCellsSkipped += 1;
+          return;
+        }
+        const r = run(root);
+        const j = run(root, "--json");
+        const all = `text: status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}\njson: status ${j.status}\nstdout:\n${j.stdout}\nstderr:\n${j.stderr}`;
+        expect(r.status, all).toBe(2);
+        expect(r.stdout, all).toBe("");
+        expect(r.stderr, all).toContain("layout marker");
+        expect(r.stderr, all).toContain(LAYOUT_MARKER_REL);
+        expect(r.stderr, all).toContain(`${position} ${ROOT_CHAIN_LINK_REFUSAL}`);
+        expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+        expect(j.status, all).toBe(2);
+        expect(j.stdout, all).toBe("");
+        for (const text of [r.stdout, r.stderr, j.stdout, j.stderr]) {
+          expect(text, all).not.toContain("no layout marker");
+          expect(text, all).not.toContain("WARN");
+          expect(text, all).not.toContain("No findings.");
+          expect(text, all).not.toContain("The trace is fresh");
+        }
+      });
+    }
+  }
+
+  it("CONTROL: with no link anywhere the repository exits 0 with `No findings.`; with the marker really removed it runs in WARN mode as before", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    const clean = run(root);
+    expect(clean.status, clean.stdout + clean.stderr).toBe(0);
+    expect(withoutCounts(clean.stdout)).toBe("No findings.\n");
+    rmSync(join(root, ...LAYOUT_MARKER_REL.split("/")));
+    planters.ticketBytes(root);
+    const warn = run(root);
+    expect(warn.status, warn.stdout + warn.stderr).toBe(0);
+    expect(warn.stdout).toMatch(/^WARN {5}.*\(BUDGETS\.ticketBytes\)$/m);
+    expect(warn.stdout).toContain(`LAYOUT   no layout marker at ${LAYOUT_MARKER_REL}`);
+    expect(warn.stdout).not.toContain("FINDING");
+    const j = runJson(root);
+    expect(j.status).toBe(0);
+    expect(j.report).toMatchObject({ ok: true, marker: "absent", enforced: false });
+  });
+
+  it("every marker cell ran, and none was skipped on darwin or linux", () => {
+    expect(markerCellsRun).toBe(MARKER_CHAIN.length * CHAIN_LINK_SHAPES.length);
+    if (process.platform === "darwin" || process.platform === "linux") expect(markerCellsSkipped).toBe(0);
+  });
+});
+
+// Plan 37-35 (Rule 1, the 37-34 backslash handover): locate hands every state path to the root-chain owner, whose
+// rootChainOf refuses a name holding a backslash (the state-layout ENCODING rule). Such a name is refused by name,
+// never through the unexpected-throw backstop: a record in a listed folder is an unmeasured finding naming it, and a
+// file in the trace directory is exit 2 naming it, the answer trace-render gives the same file since plan 37-34.
+// Skipped on win32, where a backslash is a path separator (Windows is out of scope).
+describe.skipIf(process.platform === "win32")("a state path name the state layout cannot hold is refused by name (plan 37-35)", () => {
+  const BACKSLASH_NAME = "a\\b.md";
+
+  it("a ticket file whose name holds a backslash is one unmeasured finding naming it, exit 1 with the marker", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${TICKETS_REL}/${BACKSLASH_NAME}`, "# ticket\n");
+    const j = runJson(root);
+    const all = `status ${j.status}\n${j.stdout}\n${j.stderr}`;
+    expect(j.status, all).toBe(1);
+    expect(j.report.findings.map((f) => `${f.key}|${f.rel}`), all).toEqual([`ticketBytes|${TICKETS_REL}/${BACKSLASH_NAME}`]);
+    expect((j.report.findings[0] as JsonFinding & { note: string | null }).note, all).toContain("holds a backslash");
+    expect(j.stderr, all).toBe("");
+  });
+
+  it("a trace-directory file whose name holds a backslash is exit 2 naming it, never the unexpected-throw backstop", () => {
+    const root = tracedRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${TRACE_DIR_REL}/${BACKSLASH_NAME}`, readFileSync(join(root, ...`${TRACE_DIR_REL}/ABC-001.md`.split("/")), "utf8"));
+    const r = run(root);
+    const all = `status ${r.status}\n${r.stdout}\n${r.stderr}`;
+    expect(r.status, all).toBe(2);
+    expect(r.stdout, all).toBe("");
+    expect(r.stderr, all).toContain(`the trace file ${TRACE_DIR_REL}/${BACKSLASH_NAME}`);
+    expect(r.stderr, all).toContain("holds a backslash");
+    expect(r.stderr, all).not.toContain("failed unexpectedly");
+    expect(r.stderr, all).not.toContain("stopped unexpectedly (");
   });
 });

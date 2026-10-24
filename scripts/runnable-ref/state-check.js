@@ -1669,27 +1669,40 @@ catch (e) {
     couldNotRun(`the repository root ${rootArg} is not a readable directory (${codeOf(e)}).`);
 }
 /**
- * Resolve `rel` under the root and say whether it lands inside realpath(root). Whether anything is there is the
- * generated entryPresence's answer (plan 37-29, D-18, IN-10), the one absence owner the renderer asks too: only an
- * lstat ENOENT on a component is absent. A link at the path or at any ancestor whose target cannot be reached, or
- * any other failure, is an error with the owner's reason, which every caller reports by name.
+ * Resolve `rel` under the root by the generated rootChainPresence (plan 37-35, D-20, CR-05), the root-chain owner
+ * the renderer asks too. Below the real root every component of the path is lstat'ed: a symbolic link before the last
+ * component, or at the last when `leaf` is `directory`, is `link`, decided from the lstat whatever it points to, so no
+ * state path is ever reached through a link on its parent chain and nothing beneath such a link is ever absent. Only
+ * an lstat ENOENT beneath real directories is absent. Any other failure is an error with the owner's reason, and a
+ * real path outside the root is the owner's `outside`; every caller reports each by name. A name the state layout
+ * cannot hold (a backslash, which the owner's rootChainOf refuses) is an error by name too, never the unexpected-throw
+ * backstop.
  */
-function locate(rel) {
-    const abs = nodePath.join(root, ...rel.split("/"));
-    const presence = entryPresence(abs);
+function locate(rel, leaf = "entry") {
+    try {
+        rootChainOf(rel);
+    }
+    catch (e) {
+        return { kind: "error", code: "ENCODING", reason: e instanceof Error ? e.message : String(e) };
+    }
+    const presence = rootChainPresence(root, rel, leaf);
     if (presence.kind === "absent")
         return { kind: "absent" };
     if (presence.kind === "unreadable")
         return { kind: "error", code: presence.code, reason: presence.reason };
-    if (!insideRoot(presence.real))
+    if (presence.kind === "link")
+        return { kind: "link", reason: presence.reason };
+    if (presence.kind === "outside")
         return { kind: "outside" };
+    const abs = nodePath.join(root, ...rel.split("/"));
     return { kind: "inside", abs, real: presence.real, entry: presence.entry, target: presence.target };
 }
 /**
  * The text of the state file at `rel`, or that it is absent or outside the root.
  *
- * Whether it is present is the absence owner's answer, through locate (plan 37-29, D-18): a path the owner refuses
- * is exit 2 naming it. What the path names is the owner's stat, so a path that is present and is not a regular file
+ * Whether it is present is the root-chain owner's answer, through locate (plan 37-35, D-20): a path the owner refuses,
+ * a symbolic link on its parent chain below the root included, is exit 2 naming it, so the layout marker beneath a
+ * link is never read and never absent. What the path names is the owner's stat, so a path that is present and is not a regular file
  * (a FIFO, a device, a socket, a directory) is refused without being opened. The read goes through the embedded
  * non-blocking reader, which checks the shape again on the open descriptor. A file that is present and cannot be
  * read, or that the reader can no longer find (it vanished), is never treated as absent: it is exit 2, naming it.
@@ -1698,6 +1711,8 @@ function readState(rel, what) {
     const at = locate(rel);
     if (at.kind === "error")
         couldNotRun(`cannot resolve the ${what} ${rel}: ${at.reason}.`);
+    if (at.kind === "link")
+        couldNotRun(`cannot use the ${what} ${rel}: ${at.reason}.`);
     if (at.kind !== "inside")
         return at;
     if (!at.target.isFile())
@@ -1753,10 +1768,10 @@ function indexFindings(rel, index) {
     return indexLineFindings(rel, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS);
 }
 /**
- * The byte finding of one file, measured from its lstat size without opening it: the absence owner's lstat of the
- * entry, through locate (plan 37-29, D-18). A FIFO, a directory or a link at the path is not a regular file: it is
- * reported by name and never measured. A path that resolves outside the root, or that the owner refuses (a link at
- * it or on it whose target cannot be reached), is reported too, so no file is dropped. `missingIsClean` is for the
+ * The byte finding of one file, measured from its lstat size without opening it: the root-chain owner's lstat of the
+ * entry, through locate (plan 37-35, D-20). A FIFO, a directory or a link at the path is not a regular file: it is
+ * reported by name and never measured. A path that resolves outside the root, or that the owner refuses (a symbolic
+ * link on its parent chain, or a link at it whose target cannot be reached), is reported too, so no file is dropped. `missingIsClean` is for the
  * progress file, which may be absent: only the owner's absent is missing.
  */
 function sizeFinding(rel, key, missingIsClean) {
@@ -1766,6 +1781,8 @@ function sizeFinding(rel, key, missingIsClean) {
     }
     if (at.kind === "error")
         return [unmeasuredFinding(rel, key, BUDGETS, `its size could not be read: ${at.reason}`)];
+    if (at.kind === "link")
+        return [unmeasuredFinding(rel, key, BUDGETS, `its size was not read: ${at.reason}`)];
     if (at.kind === "outside")
         return [unmeasuredFinding(rel, key, BUDGETS, OUTSIDE_ROOT)];
     if (!at.entry.isFile())
@@ -1778,14 +1795,19 @@ const OUTSIDE_ROOT_DIR = "it resolves outside the repository root, so it was not
 /**
  * The raw listing of the directory at `dirRel`, each directory listed once per run so every rule that reads it
  * sees the same names. A directory that does not exist is absent. One that resolves outside the root, or
- * cannot be resolved or listed, is unlisted with the reason, which the caller reports by name.
+ * cannot be resolved or listed, is unlisted with the reason, which the caller reports by name. Every folder is asked
+ * with leaf `directory` (plan 37-35, flagged for the human): a symbolic link AT the folder, present or dangling,
+ * whatever its target, is refused from its lstat like a link on its parent chain, so the folder is one unlisted
+ * finding and no file beneath it is listed, measured, counted or compared.
  */
 function listDirectory(dirRel) {
-    const at = locate(dirRel);
+    const at = locate(dirRel, "directory");
     if (at.kind === "absent")
         return at;
     if (at.kind === "error")
         return { kind: "unlisted", note: `the directory could not be resolved: ${at.reason}` };
+    if (at.kind === "link")
+        return { kind: "unlisted", note: `the directory was not listed: ${at.reason}` };
     if (at.kind === "outside")
         return { kind: "unlisted", note: OUTSIDE_ROOT_DIR };
     try {
@@ -1936,8 +1958,8 @@ function readTraceTask(task, contextReal) {
 }
 /**
  * The text the trace model compares with, at a path it composed as `<root>/<rel>`, or null when nothing is
- * there. Whether anything is there is the absence owner's answer, through locate (plan 37-29, D-18), and its lstat
- * of the entry decides the shape, so a link, a FIFO or a directory is refused by name and never opened; then the
+ * there. Whether anything is there is the root-chain owner's answer, through locate (plan 37-35, D-20; a symbolic
+ * link on the parent chain is refused by name), and its lstat of the entry decides the shape, so a link, a FIFO or a directory is refused by name and never opened; then the
  * embedded non-blocking reader under the model's trace-file ceiling. A file the owner reported present that the
  * reader then cannot find vanished, and is refused, never missing. Every refusal is could-not-run.
  */
@@ -1948,6 +1970,8 @@ function readTraceText(path) {
         return null;
     if (at.kind === "error")
         couldNotRun(`cannot resolve the trace file ${rel}: ${at.reason}.`);
+    if (at.kind === "link")
+        couldNotRun(`cannot use the trace file ${rel}: ${at.reason}.`);
     if (at.kind === "outside")
         couldNotRun(`the trace file ${rel} resolves outside the repository root, so it was not read.`);
     if (!at.entry.isFile())

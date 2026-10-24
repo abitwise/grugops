@@ -144,6 +144,10 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * entryPresence's rows under `<top>#0` and `readText#0` are gone (pairs -6), and rootChainPresence, now entered from
  * three calling call expressions, is one row per caller (`realDirectoryOrNull#0`, `<top>#0`, `readText#0`; pairs
  * +6, its three via-less rows replaced by nine).
+ * 2026-10-24, plan 37-35 (D-20, CR-05): 15, 18 and 10 read sites, unchanged. state-check's locate asks the root-chain
+ * owner instead of entryPresence; no read site arrives or leaves, only the pairs move: entryPresence's rows under
+ * `locate#0` are gone (pairs -3), and rootChainPresence, now entered from two calling call expressions in state-check,
+ * is one row per caller (`traceDirectory#0`, `locate#0`; pairs +3, its three via-less rows replaced by six).
  */
 const TRACE_RENDER_READ_SITES = 15;
 const STATE_CHECK_READ_SITES = 18;
@@ -195,7 +199,18 @@ const TR_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "r
  * path), both since plan 37-34 (D-20).
  */
 const TR_ROOT_CHAIN_CALLERS = ["realDirectoryOrNull#0", "<top>#0", "readText#0"];
-const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "locate#0", "runnableSkewFindings#0"];
+/**
+ * The callers of the absence owner in state-check: the walk, listContextTasks and readTaskNoteRefs (plan 37-28) and
+ * runnableSkewFindings (each sibling program, plan 37-29). Plan 37-35 (D-20): locate left this list for
+ * SC_ROOT_CHAIN_CALLERS.
+ */
+const SC_PRESENCE_CALLERS = ["readRawNotesWithSkips#0", "listContextTasks#0", "readTaskNoteRefs#0", "runnableSkewFindings#0"];
+/**
+ * The callers of the root-chain owner in state-check: traceDirectory (plan 37-33: the trace directory and the two
+ * context roots) and locate (plan 37-35: every other state path, the layout marker, the board, both indexes, the
+ * progress file, each listed folder, each measured record and each compared trace file).
+ */
+const SC_ROOT_CHAIN_CALLERS = ["traceDirectory#0", "locate#0"];
 /** The callers of the absence owner in state-roll (plan 37-30): realDirectoryOrNull and readTextOrThrow. */
 const SR_PRESENCE_CALLERS = ["realDirectoryOrNull#0", "readTextOrThrow#0"];
 
@@ -251,17 +266,17 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ]),
   ...rows("state-check", SC, "readRawNotesWithSkips:readdirSync#0"),
   // state-check: the one absence owner (plan 37-28, D-18), under each caller, and the generated listing.
-  // Since plan 37-29 (IN-10) locate asks the owner too, so every state path reaches it under locate#0, and so does
-  // runnableSkewFindings for each sibling program.
+  // runnableSkewFindings asks it for each sibling program (plan 37-29). locate asked it from plan 37-29 to plan 37-35;
+  // it asks the root-chain owner below.
   ...rows("state-check", SC, "entryPresence:lstatSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "entryPresence:statSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "entryPresence:realpathSync#0", SC_PRESENCE_CALLERS),
   ...rows("state-check", SC, "listContextTasks:readdirSync#0"),
-  // state-check: the root-chain owner (plan 37-33, D-20, CR-05), entered only from traceDirectory (the trace directory
-  // and the two context roots), so derivedPairs names its rows without a via.
-  ...rows("state-check", SC, "rootChainPresence:lstatSync#0"),
-  ...rows("state-check", SC, "rootChainPresence:statSync#0"),
-  ...rows("state-check", SC, "rootChainPresence:realpathSync#0"),
+  // state-check: the root-chain owner (plan 37-33, D-20, CR-05), under each caller: traceDirectory (the trace directory
+  // and the two context roots) and, since plan 37-35, locate (every other state path).
+  ...rows("state-check", SC, "rootChainPresence:lstatSync#0", SC_ROOT_CHAIN_CALLERS),
+  ...rows("state-check", SC, "rootChainPresence:statSync#0", SC_ROOT_CHAIN_CALLERS),
+  ...rows("state-check", SC, "rootChainPresence:realpathSync#0", SC_ROOT_CHAIN_CALLERS),
   // state-check: the root and the hand-written readers (locate makes no read of its own since plan 37-29).
   ...rows("state-check", SC, "<top>:realpathSync#0"),
   ...rows("state-check", SC, "<top>:statSync#0"),
@@ -941,11 +956,13 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
     "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
   ],
   [
-    "state-check entryPresence:lstatSync#0 via locate#0",
-    "every state path locate serves may be absent: the layout marker (no marker is WARN mode), the board and the indexes (an absent finding), the progress file, the folders and the trace positions (plan 37-29)",
+    // Plan 37-35 (D-20): was "state-check entryPresence:lstatSync#0 via locate#0".
+    "state-check rootChainPresence:lstatSync#0 via locate#0",
+    "every state path locate serves may be absent: the layout marker (no marker is WARN mode), the board and the indexes (an absent finding), the progress file, the folders and the trace positions (plan 37-29); the root-chain owner answers absent only beneath real directories (plan 37-35)",
   ],
   [
-    "state-check rootChainPresence:lstatSync#0",
+    // Plan 37-35: was "state-check rootChainPresence:lstatSync#0" (one caller then, so no via).
+    "state-check rootChainPresence:lstatSync#0 via traceDirectory#0",
     "a context root and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet; the root-chain owner answers absent only beneath real directories (plan 37-33)",
   ],
   [
@@ -968,6 +985,8 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
  * moved to the root-chain owner's lstat; state-check gained the root-chain owner's lstat under traceDirectory.
  * 2026-10-24, plan 37-34: 10, unchanged. trace-render's `<top>#0` and `readText#0` keys moved from entryPresence's lstat
  * to the root-chain owner's, with the same reasons, and its realDirectoryOrNull key gained its via.
+ * 2026-10-24, plan 37-35: 10, unchanged. state-check's `locate#0` key moved from entryPresence's lstat to the root-chain
+ * owner's, with the same reason, and its traceDirectory key gained its via.
  */
 const ENOENT_EXEMPT_SIZE = 10;
 
@@ -1721,14 +1740,8 @@ const LINK_SHAPES: ReadonlySet<ShapeName> = new Set<ShapeName>(["dangling link",
 /** The root-chain owner's reason for a link on the chain (plan 37-33, D-20), from the committed context-io.js. */
 const ROOT_CHAIN_LINK_REFUSAL: string = ctxio.ROOT_CHAIN_LINK_REFUSAL;
 
-/**
- * The root-chain positions above state-check's layout marker (memory-bank/plans/.layout). state-check reads the
- * marker first, and until plan 37-35 puts that read on the root-chain owner it follows the chain, so a link cell here
- * may stop at the marker (exit 2 naming the position, with entryPresence's reason) or reach traceDirectory
- * (trace-not-compared with ROOT_CHAIN_LINK_REFUSAL), depending on the link's shape; plan 37-31's state-check rule
- * accepts both, and never a pass. Plans 37-35 and 37-38 assert the one final outcome per position.
- */
-const MARKER_FIRST_POSITIONS: ReadonlySet<string> = new Set([MEMORY_BANK_REL, STATE_ROOT_REL]);
+/** The root-chain positions above state-check's layout marker, derived from the owner's chain (plan 37-35). */
+const MARKER_CHAIN: readonly string[] = ctxio.rootChainOf(LAYOUT_MARKER_REL).slice(0, -1);
 
 let shapeCellsRun = 0;
 let shapeCellsSkipped = 0;
@@ -1757,16 +1770,23 @@ function runShapeCell(c: ShapeCell): void {
     if (c.expect === "refused") {
       expect(treeDigest(root), `nothing was written, changed or removed\n${all}`).toEqual(planted);
       // A link at a root-chain position is refused for the root-chain reason, whatever it points to (plan 37-33,
-      // D-20); state-check's marker-first positions may instead stop at the marker by name until plan 37-35.
-      // Elsewhere a dangling link is refused for the owner's reason, never as something absent that a later check
+      // D-20). Plan 37-35 removed the marker-first allowance: state-check's marker read asks the root-chain owner, so a
+      // link at memory-bank or memory-bank/plans stops at the marker with that reason too. Elsewhere a dangling link is refused for the owner's reason, never as something absent that a later check
       // then happens to refuse ("does not exist", "listed and is no longer there"): the reason is where the defect
       // shows.
       if (c.pos.kind === "root-chain" && LINK_SHAPES.has(c.shape)) {
-        const markerFirst = c.pos.runnable === "state-check" && MARKER_FIRST_POSITIONS.has(c.path) && r.status === 2;
-        if (!markerFirst) {
-          expect(`${r.stdout}\n${r.stderr}`, `a link on the root chain is refused for the root-chain reason\n${all}`).toContain(
-            `${c.path} ${ROOT_CHAIN_LINK_REFUSAL}`,
-          );
+        expect(`${r.stdout}\n${r.stderr}`, `a link on the root chain is refused for the root-chain reason\n${all}`).toContain(
+          `${c.path} ${ROOT_CHAIN_LINK_REFUSAL}`,
+        );
+        // One outcome per state-check position (plan 37-35): above the layout marker, the marker read stops the check
+        // (exit 2 naming the marker); at every other root-chain position the trace is not compared (exit 1).
+        if (c.pos.runnable === "state-check") {
+          if (MARKER_CHAIN.includes(c.path)) {
+            expect(r.status, `a link above the layout marker is exit 2 at the marker\n${all}`).toBe(2);
+            expect(r.stderr, all).toContain(LAYOUT_MARKER_REL);
+          } else {
+            expect(r.status, `a link at a trace root-chain position is exit 1, trace-not-compared\n${all}`).toBe(1);
+          }
         }
       } else if (DANGLING_SHAPES.has(c.shape)) {
         expect(`${r.stdout}\n${r.stderr}`, `a dangling link is refused for the owner's reason\n${all}`).toMatch(OWNER_UNREACHABLE_LINK);
