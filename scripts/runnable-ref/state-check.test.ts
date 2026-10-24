@@ -1422,6 +1422,9 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
           expect(j.report.trace.findings[0]?.note).toContain("this context-root entry is not a task (");
           expect(j.report.trace.findings[0]?.note).toContain(ctxio.STRAY_CONTEXT_ENTRY_REMEDY);
           expect(j.report.trace.findings[0]?.note).not.toContain("until they can be read");
+          // Text mode carries the remedy on the entry's own line, FINDING with the marker and WARN without it.
+          expect(lines[0]).toContain(`: the trace was not compared: this context-root entry is not a task (`);
+          expect(lines[0]).toContain(`; ${ctxio.STRAY_CONTEXT_ENTRY_REMEDY} (trace-not-compared)`);
         }
       });
     }
@@ -1441,6 +1444,21 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
       expect(j.report.trace).toEqual({ compared: true, findings: [] });
     });
   }
+
+  it("IN-11 text mode: a stray README.md in the live context root prints one FINDING line ending in the stray-entry remedy (plan 37-37)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plantNote(root, CONTEXT_REL, "taskA", "n1", ["ABC-001", "src/a.ts"]);
+    renderOk(root);
+    writeFileSync(join(root, ...CONTEXT_REL.split("/"), "README.md"), "# About this directory\n");
+    const text = run(root);
+    expect(text.status, `${text.stdout} ${text.stderr}`).toBe(1);
+    expect(text.stdout).not.toContain("The trace is fresh");
+    expect(traceLines(text.stdout)).toEqual([
+      `FINDING  ${CONTEXT_REL}/README.md: the trace was not compared: this context-root entry is not a task ` +
+        `(it is not a directory, so it is not a task); ${ctxio.STRAY_CONTEXT_ENTRY_REMEDY} (trace-not-compared)`,
+    ]);
+    expect(text.stdout).not.toContain("until they can be read");
+  });
 
   it("the embedded region carries the comparison and no writer: compareTraceTree once, atomicWrite never", () => {
     const source = readFileSync(CHECK_TS, "utf8");

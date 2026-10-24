@@ -54,6 +54,15 @@
 // keepers (a regular file whose name begins with `.`, such as `.gitkeep`) are the one entry kind that is neither a
 // task nor a failure, and they are never read or counted (plan 37-28, D-18).
 //
+// ONE STRAY ENTRY STOPS EVERY RENDER (IN-09, IN-11). Two kinds of context-root entry are failed tasks, so the render
+// and `--check` exit 2 on every run until a human moves the entry, and nothing is removed meanwhile: an entry that is
+// not a task directory, as the entry's own lstat shows (a regular file, a FIFO, a symbolic link of any kind, live,
+// dangling or looping, a dot-named entry that is not a regular file), and a task directory whose name the sanctioned
+// writer never creates. The first kind is named with the remedy the context-io owner gives (the embedded
+// STRAY_CONTEXT_ENTRY_REMEDY, carried as the failed task's `remedy` and printed after its reason; plan 37-37, IN-11).
+// The second keeps its own wording, and IN-09 (whether it should be a counted trust arm instead) stays open in
+// 37-REVIEW-DISPOSITION.md.
+//
 // THE ROOT IS A BOUNDARY. The root is resolved once, with realpath, before any state read; every other position is
 // repository-relative below it. Below the real root, no component of the path to a context root, the state
 // directory, the trace directory, a trace file or the index is followed if it is a symbolic link: each is asked of the

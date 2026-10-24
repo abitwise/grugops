@@ -58,7 +58,14 @@
 // generated listContextTasks and readTaskNoteRefs (plan 37-28, D-18, CR-03, CR-04): every context-root entry is
 // a task, a keeper (a regular file whose name begins with `.`, never read or counted) or a failed task, so a
 // symbolic link of any kind, a regular file, a FIFO or a vanished entry at a task position, and a `notes` link
-// whose target cannot be reached, are each one trace-not-compared finding by name; only an lstat ENOENT is absence. A FIFO, a link or anything else that is not a regular
+// whose target cannot be reached, are each one trace-not-compared finding by name; only an lstat ENOENT is absence.
+// One stray entry therefore stops every trace compare (IN-09, IN-11): an entry that is not a task directory, as the
+// entry's own lstat shows (a regular file, a FIFO, a symbolic link of any kind, live, dangling or looping, a
+// dot-named entry that is not a regular file), and a task directory whose name the sanctioned writer never creates
+// are each one trace-not-compared finding on every run until a human moves the entry, and nothing is removed
+// meanwhile. The first kind's note says the entry is not a task and gives the remedy the context-io owner carries
+// (the failed task's `remedy`, plan 37-37, IN-11) instead of asking for the notes to be made readable; the second
+// keeps its own wording, and IN-09 stays open in 37-REVIEW-DISPOSITION.md. A FIFO, a link or anything else that is not a regular
 // file at a compared path is could-not-run (exit 2). The two context roots and the trace directory are asked of the
 // generated rootChainPresence, the renderer's own owner (plan 37-33, D-20, CR-05): below the real root, a symbolic
 // link at one of them or at any component of the path to one, present or dangling, whatever its target, is one

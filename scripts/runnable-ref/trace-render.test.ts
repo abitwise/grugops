@@ -1883,8 +1883,17 @@ type StrayShape = {
 };
 
 const NOT_A_DIRECTORY = "it is not a directory, so it is not a task";
+const A_LINK = "it is a symbolic link, and a symbolic link is never read as a task";
+const UNREACHABLE = (code: string): string => `it is a symbolic link whose target cannot be reached (${code})`;
 
-/** Every stray shape of a context-root entry that is not a task directory (D-19 IN-11). */
+/** The notes-failure wording state-check keeps for every failure that carries no remedy. */
+const NOTES_REMEDY_TAIL = "the render refuses to run until they can be read";
+
+/**
+ * Every stray shape of a context-root entry that is not a task directory (D-19 IN-11): a regular file, a FIFO, a
+ * link to a regular file, a link to an in-root directory holding a note (CR-04), a dangling link, a link to itself
+ * (ELOOP), and the dot-named shapes that are not keepers (a live link, a dangling link and a FIFO named .gitkeep).
+ */
 const STRAY_SHAPES: readonly StrayShape[] = [
   {
     label: "a regular file README.md",
@@ -1895,8 +1904,68 @@ const STRAY_SHAPES: readonly StrayShape[] = [
       return null;
     },
   },
+  {
+    label: "a FIFO taskC",
+    name: "taskC",
+    reason: NOT_A_DIRECTORY,
+    stage: (_root, at, position) => stageShapeOrSkip("FIFO", at, position),
+  },
+  {
+    label: "a symbolic link taskL to a regular file",
+    name: "taskL",
+    reason: A_LINK,
+    stage: (root, at, position) => {
+      writeFileSync(join(root, "a-regular-file.txt"), "x\n");
+      return stageSymlinkOrSkip(join(root, "a-regular-file.txt"), at, "symlink to a regular file", position);
+    },
+  },
+  {
+    label: "a symbolic link taskK to an in-root directory holding a sealed note (CR-04)",
+    name: "taskK",
+    reason: A_LINK,
+    stage: (root, at, position) => {
+      const notes = join(root, "elsewhere-task", "notes");
+      mkdirSync(notes, { recursive: true });
+      writeFileSync(join(notes, "n2.md"), noteText("n2", ["ABC-2"]));
+      return stageSymlinkOrSkip(join(root, "elsewhere-task"), at, "symlink to a directory inside the repository root", position);
+    },
+  },
+  {
+    label: "a dangling symbolic link taskD",
+    name: "taskD",
+    reason: UNREACHABLE("ENOENT"),
+    stage: (root, at, position) => stageSymlinkOrSkip(join(root, "no-such-target"), at, "dangling symlink", position),
+  },
+  {
+    label: "a symbolic link taskE to itself (ELOOP)",
+    name: "taskE",
+    reason: UNREACHABLE("ELOOP"),
+    stage: (_root, at, position) => stageSymlinkOrSkip(at, at, "symlink to itself", position),
+  },
+  {
+    label: "a .gitkeep that is a live symbolic link",
+    name: ".gitkeep",
+    reason: A_LINK,
+    stage: (root, at, position) => {
+      writeFileSync(join(root, "a-keeper-target.txt"), "");
+      return stageSymlinkOrSkip(join(root, "a-keeper-target.txt"), at, "symlink to a regular file", position);
+    },
+  },
+  {
+    label: "a .gitkeep that is a dangling symbolic link",
+    name: ".gitkeep",
+    reason: UNREACHABLE("ENOENT"),
+    stage: (root, at, position) => stageSymlinkOrSkip(join(root, "no-keeper-target"), at, "dangling symlink", position),
+  },
+  {
+    label: "a .gitkeep that is a FIFO",
+    name: ".gitkeep",
+    reason: NOT_A_DIRECTORY,
+    stage: (_root, at, position) => stageShapeOrSkip("FIFO", at, position),
+  },
 ];
 let strayRowsRun = 0;
+let strayRowsSkipped = 0;
 
 /**
  * The outcome of a stray entry: refused as a failed task (expectRefusedTask), the renderer's line in both modes is
@@ -1922,6 +1991,14 @@ function expectStrayEntry(
   expect(note).not.toContain("until they can be read");
 }
 
+/** A control's outcome: no output carries the remedy, and state-check's note keeps the notes wording. */
+function expectNoRemedy(runs: SequenceRuns): void {
+  for (const out of [runs.write.stderr, runs.check.stderr, runs.json.raw, runs.text.stdout]) expect(out).not.toContain(STRAY_REMEDY);
+  const note = runs.json.trace.findings[0]?.note ?? "";
+  expect(note).toContain("this task's notes could not be read (");
+  expect(note.endsWith(NOTES_REMEDY_TAIL), note).toBe(true);
+}
+
 describe("IN-11: a stray context-root entry is named with its own remedy", () => {
   for (const rootRel of CONTEXT_ROOT_RELS) {
     for (const shape of STRAY_SHAPES) {
@@ -1930,6 +2007,7 @@ describe("IN-11: a stray context-root entry is named with its own remedy", () =>
         const { root, rootDir } = renderedTaskRepo(rootRel);
         const skip = shape.stage(root, join(rootDir, shape.name), `${IN11_POSITION} (${shape.label}, ${rootRel})`);
         if (skip !== null) {
+          strayRowsSkipped += 1;
           console.warn(skipLine(skip, "the other stray-shape rows of this describe (the same remedy rule)"));
           return;
         }
@@ -1938,7 +2016,82 @@ describe("IN-11: a stray context-root entry is named with its own remedy", () =>
         expectStrayEntry(root, sequenceRuns(root), `${rootRel}/${shape.name}`, shape.reason, before, indexBefore);
       });
     }
+
+    // CONTROLS: a real notes failure and an entry that could not be inspected keep the notes wording, no remedy.
+    it.skipIf(CR02_SKIP !== null)(`CONTROL ${rootRel}: taskA's notes directory at mode 000 keeps the notes wording and carries no remedy`, () => {
+      const { root, rootDir } = renderedTaskRepo(rootRel);
+      const notes = join(rootDir, "taskA", "notes");
+      const before = treeDigest(root);
+      const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+      chmodSync(notes, 0o000);
+      let runs: SequenceRuns;
+      try {
+        runs = sequenceRuns(root);
+      } finally {
+        chmodSync(notes, 0o755);
+      }
+      expectRefusedTask(root, runs, `${rootRel}/taskA`, before, indexBefore);
+      expectNoRemedy(runs);
+    });
+
+    it.skipIf(CR02_SKIP !== null)(`CONTROL ${rootRel}: a context root at mode 0444 (entries listed, their lstat EACCES) keeps the notes wording and carries no remedy`, () => {
+      const { root, rootDir } = renderedTaskRepo(rootRel);
+      const before = treeDigest(root);
+      const indexBefore = readFileSync(join(root, TRACEABILITY_REL), "utf8");
+      chmodSync(rootDir, 0o444);
+      let runs: SequenceRuns;
+      let listed: string[];
+      try {
+        listed = readdirSync(rootDir);
+        runs = sequenceRuns(root);
+      } finally {
+        chmodSync(rootDir, 0o755);
+      }
+      expect(listed, "PREMISE: the context root can be listed").toEqual(["taskA"]);
+      expectRefusedTask(root, runs, `${rootRel}/taskA`, before, indexBefore);
+      expect(runs.write.stderr).toContain("cannot be inspected (EACCES)");
+      expectNoRemedy(runs);
+    });
+
+    it(`CONTROL ${rootRel}: a directory "my task" (a name the writer never creates, IN-09) keeps its wording byte for byte`, () => {
+      const { root, rootDir } = renderedTaskRepo(rootRel);
+      mkdirSync(join(rootDir, "my task"));
+      const before = treeDigest(root);
+      const runs = sequenceRuns(root);
+      // Recorded from the plan 37-36 build (74ab9e0d) before this plan changed any wording.
+      const refusal = 'context-io: invalid task name "my task" — must match ^[A-Za-z0-9._-]+$ (no path separators, no .., no absolute paths)';
+      const stderr =
+        "Error: the notes could not be read completely (1 task(s) and 0 note(s) could not be read), so the trace was " +
+        "not compared or rendered and nothing was written or removed. The trace render did not run.\n" +
+        `UNREADABLE TASK ${rootRel}/my task: ${refusal}\n`;
+      const note = `the trace was not compared: this task's notes could not be read (${refusal}); ${NOTES_REMEDY_TAIL}`;
+      expect(runs.write).toEqual({ status: 2, stdout: "", stderr });
+      expect(runs.check).toEqual({ status: 2, stdout: "", stderr });
+      expect(runs.json.status).toBe(1);
+      expect(runs.json.trace).toEqual({
+        compared: false,
+        findings: [
+          { rel: `${rootRel}/my task`, key: "trace-not-compared", measured: null, budget: null, unit: null, line: null, note },
+        ],
+      });
+      expect(runs.text).toEqual({
+        status: 1,
+        stdout:
+          `FINDING  ${rootRel}/my task: ${note} (trace-not-compared)\n` +
+          "MOVE-ONLY .grugops/queue/done: 0 live, 0 archived\n" +
+          "MOVE-ONLY memory-bank/50-decisions: 0 live, 0 archived\n",
+        stderr: "",
+      });
+      expect(treeDigest(root)).toEqual(before);
+    });
   }
+
+  it("the stray-shape table ran every shape in both roots, and none was skipped on darwin or linux", () => {
+    expect(STRAY_SHAPES).toHaveLength(9);
+    expect(strayRowsRun).toBe(STRAY_SHAPES.length * CONTEXT_ROOT_RELS.length);
+    console.log(`IN-11 stray-shape rows skipped for the platform: ${strayRowsSkipped}`);
+    if (process.platform === "darwin" || process.platform === "linux") expect(strayRowsSkipped).toBe(0);
+  });
 
   for (const rel of ["trace-render", "state-check"] as const) {
     it(`${rel}: the generated region of the committed .js declares STRAY_CONTEXT_ENTRY_REMEDY as the owner's string, and the hand-written part never names it`, () => {
