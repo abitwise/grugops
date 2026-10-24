@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-33-PLAN.md
-last_updated: "2026-10-24T11:16:30.740Z"
+stopped_at: Completed 37-34-PLAN.md
+last_updated: "2026-10-24T11:46:50.507Z"
 last_activity: 2026-10-24
 last_activity_desc: Phase 37 execution started
-state_head: c8959edc3a55098e5184b74e7b15fb2cc92cac48
+state_head: 8235a70a4c0836240a7fe48d53526c4a4892325a
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 54
-  completed_plans: 48
+  completed_plans: 49
   percent: 22
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 34 of 39
+Plan: 35 of 39
 Status: Ready to execute
 Last activity: 2026-10-24 — Phase 37 execution started
 
@@ -762,6 +762,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P31 | 28 min | 2 tasks | 1 files |
 | Phase 37 P32 | 43min | 3 tasks | 7 files |
 | Phase 37 P33 | 47min | 2 tasks | 17 files |
+| Phase 37 P34 | 26min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2087,6 +2088,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-31: ENOENT_EXEMPT is the owner's lstat under the 9 callers whose positions may be absent by design, decided before any row ran; no row through readTaskNoteRefs or listContextTasks is exempt
 - [Phase 37]: 37-31: state-check's layout marker is a file-follow position (readState follows an in-root link to a regular file, plan 37-04); readText's own position is an extra trace file, since the pre-write check refuses planned paths first
 - [Phase 37]: Plan 37-32: HAND_TRACE_PATTERNS widened to four patterns from one HAND_TRACE_WRITE_VERBS list (WR-08); WF03:9 condition split into its own sentence to satisfy WP-03 (WR-09); pattern-4 blind spots deferred to triage
+- [Phase 37]: 37-34: trace-render's pre-write check and readText ask rootChainPresence(root, rel, "entry") each, through one mapping regularFileAt; relOfPath asks the generated isWithin; a listed trace name rootChainOf refuses (backslash) is exit 2 by name (flag for 37-39 deferred-items: state-check still reads it until 37-35)
 
 ### Pending Todos
 
@@ -2418,8 +2420,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-24T11:16:30.401Z
-Stopped at: Completed 37-33-PLAN.md
+Last session: 2026-10-24T11:46:50.189Z
+Stopped at: Completed 37-34-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

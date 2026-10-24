@@ -240,7 +240,7 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 33/39 plans executed
+**Plans**: 34/39 plans executed
 
 Plans:
 **Wave 1**
@@ -349,7 +349,7 @@ Gap round 3 of 4 (D-19 scope, D-20 canonical form; sequential on main; 37-GAP-PL
 - [x] 37-33-PLAN.md — CR-05: one root-chain owner (rootChainPresence); trace-render's directories and state-check's trace directories on it; no link below the root on the chain is followed; the owner's unit contract
 
 **Wave 34** *(blocked on Wave 33 completion)*
-- [ ] 37-34-PLAN.md — trace-render's file positions (pre-write check, readText) on the owner; IN-13 for trace-render; links above the root still render
+- [x] 37-34-PLAN.md — trace-render's file positions (pre-write check, readText) on the owner; IN-13 for trace-render; links above the root still render
 
 **Wave 35** *(blocked on Wave 34 completion)*
 - [ ] 37-35-PLAN.md — state-check's every state path on the owner; the marker behind a root-chain link is exit 2, never WARN mode; a link at a listed folder is the folder's one finding (flagged); IN-13 for state-check
@@ -474,7 +474,7 @@ Gap round 3 of 4 (D-19 scope, D-20 canonical form; sequential on main; 37-GAP-PL
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
-| 37. Overview board, per-file records and budgets | v3.0 | 33/39 | In Progress | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 34/39 | In Progress | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
