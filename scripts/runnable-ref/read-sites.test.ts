@@ -38,7 +38,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
@@ -1226,10 +1226,16 @@ describe("READ-1 one owner (plan 37-29, D-18; plan 37-33, D-20): ENOENT is compa
 /** The kind of a read position: what it expects there and whether it follows an in-root link. */
 type ShapeKind = "directory-follow" | "directory-refuse" | "root-chain" | "listing" | "file" | "file-follow" | "program";
 
-/** One shape a cell plants. The `dot-` and `keeper-` shapes are planted as an entry inside a context root. */
+/**
+ * One shape a cell plants. The `dot-` and `keeper-` shapes are planted as an entry inside a context root. The two
+ * outside shapes (plan 37-38, D-20) link to a sibling mkdtempSync directory, never one under the repository root:
+ * an empty one, or one the original was moved into, so the link holds the position's children (the CR-05 shape).
+ */
 type ShapeName =
   | "dangling link"
   | "link to a directory"
+  | "link to an empty directory outside the root"
+  | "link to an outside directory holding the child"
   | "link to a regular file"
   | "regular file"
   | "directory"
@@ -1250,11 +1256,16 @@ type ShapeExpect = "refused" | "follow" | "keeper";
  *   37-33 the trace runnables' context roots, their ancestors, the state directory, the memory bank and the trace
  *   directory were this kind too, and until plan 37-36 state-roll's state, memory bank and archive directories; D-20
  *   made them root-chain.
- * - directory-refuse: a task entry. The task position never follows a link (37-06 trust decision, CR-04).
+ *   Plan 37-38 (D-20): below a context root D-20 keeps round 2's rules, and the two outside shapes prove they hold:
+ *   the walk's boundary refuses a notes link that leaves the root, whether its target is empty or holds the notes.
+ * - directory-refuse: a task entry. The task position never follows a link (37-06 trust decision, CR-04). Plan 37-38
+ *   adds the two outside shapes here too.
  * - root-chain (plan 37-33, D-20, CR-05): a context root, an ancestor of one below the root, the state directory, the
- *   memory bank and the trace directory, and (plan 37-36) state-roll's archive directory, asked of the root-chain owner. Every link is refused from its lstat, whatever
- *   it points to (a dangling link, a link to an in-root directory holding the content, a link to a file), and so is a
- *   regular file; a link cell carries ROOT_CHAIN_LINK_REFUSAL.
+ *   memory bank and the trace directory, and (plan 37-36) state-roll's archive directory, asked of the root-chain
+ *   owner. The positions are derived from the owner's own chain (CHAIN_ROOT_KINDS, plan 37-38). Every link is refused
+ *   from its lstat, whatever it points to (a dangling link, a link to an in-root directory holding the content, a link
+ *   to a file, and since plan 37-38 a link to an empty directory outside the root and a link to an outside directory
+ *   holding the child), and so is a regular file; a link cell carries ROOT_CHAIN_LINK_REFUSAL.
  * - listing: a dot-named entry of a context root, asked of the owner by listContextTasks. A regular file is a keeper;
  *   a dot-named link or FIFO is a failed task, never dropped.
  * - file: a trace file, the index, an extra trace file, a state file state-roll rolls. Refuses every link.
@@ -1267,18 +1278,24 @@ const SHAPES_BY_KIND: Record<ShapeKind, readonly { readonly shape: ShapeName; re
   "directory-follow": [
     { shape: "dangling link", expect: "refused" },
     { shape: "link to a directory", expect: "follow" },
+    { shape: "link to an empty directory outside the root", expect: "refused" },
+    { shape: "link to an outside directory holding the child", expect: "refused" },
     { shape: "link to a regular file", expect: "refused" },
     { shape: "regular file", expect: "refused" },
   ],
   "root-chain": [
     { shape: "dangling link", expect: "refused" },
     { shape: "link to a directory", expect: "refused" },
+    { shape: "link to an empty directory outside the root", expect: "refused" },
+    { shape: "link to an outside directory holding the child", expect: "refused" },
     { shape: "link to a regular file", expect: "refused" },
     { shape: "regular file", expect: "refused" },
   ],
   "directory-refuse": [
     { shape: "dangling link", expect: "refused" },
     { shape: "link to a directory", expect: "refused" },
+    { shape: "link to an empty directory outside the root", expect: "refused" },
+    { shape: "link to an outside directory holding the child", expect: "refused" },
     { shape: "link to a regular file", expect: "refused" },
     { shape: "regular file", expect: "refused" },
     { shape: "FIFO", expect: "refused" },
@@ -1347,20 +1364,35 @@ const TASK_A_REL = `${CONTEXT_REL}/taskA`;
 const TASK_B_REL = `${CONTEXT_ARCHIVE_REL}/taskB`;
 
 /**
- * Every directory the trace runnables resolve through the root-chain owner before the note read: each context root
- * and each ancestor of one, the memory bank and the state directory (ancestors of the trace directory), and the trace
- * directory. trace-render reaches them through realDirectoryOrNull, state-check through traceDirectory (plan 37-33;
- * through locate until then).
+ * The root kinds each runnable asks the root-chain owner about with a `directory` leaf (plan 37-38, D-19, D-20), from
+ * the install/state-layout.ts constants: trace-render's realDirectoryOrNull asks both context roots, the state
+ * directory and the trace directory; state-check's traceDirectory asks both context roots and the trace directory;
+ * state-roll's realDirectoryOrNull asks the state directory, the archive directory and the memory bank directory.
+ * Until plan 37-38 the chain positions were a hand-listed TRACE_DIRECTORIES and a hand-listed state-roll list.
  */
-const TRACE_DIRECTORIES: readonly string[] = [
-  GRUGOPS_DIR_REL,
-  GRUGOPS_ARCHIVE_REL,
-  CONTEXT_REL,
-  CONTEXT_ARCHIVE_REL,
-  MEMORY_BANK_REL,
-  STATE_ROOT_REL,
-  TRACE_DIR_REL,
-];
+const CHAIN_ROOT_KINDS: Record<Runnable, readonly string[]> = {
+  "trace-render": [CONTEXT_REL, CONTEXT_ARCHIVE_REL, STATE_ROOT_REL, TRACE_DIR_REL],
+  "state-check": [CONTEXT_REL, CONTEXT_ARCHIVE_REL, TRACE_DIR_REL],
+  "state-roll": [STATE_ROOT_REL, ARCHIVE_REL, MEMORY_BANK_REL],
+};
+
+/** The root-chain positions of a runnable: the union of the owner's own rootChainOf over its root kinds, in order. */
+function chainPositions(name: Runnable): readonly string[] {
+  return [...new Set(CHAIN_ROOT_KINDS[name].flatMap((rel) => ctxio.rootChainOf(rel)))];
+}
+
+/**
+ * The derived root-chain position counts.
+ * 2026-10-24, plan 37-38: 7, 7 and 3. trace-render and state-check: `.grugops`, `.grugops/context`, `.grugops/archive`,
+ * `.grugops/archive/context`, `memory-bank`, `memory-bank/plans`, `memory-bank/plans/traceability` (state-check's
+ * three kinds give the same seven: the state directory is on the trace directory's chain). state-roll: `memory-bank`,
+ * `memory-bank/plans`, `memory-bank/plans/archive`.
+ */
+const CHAIN_POSITION_COUNTS: Record<Runnable, number> = {
+  "trace-render": 7,
+  "state-check": 7,
+  "state-roll": 3,
+};
 
 /** The note-walk, listing and task positions both trace runnables share, through the generated walk. */
 function sharedTracePositions(runnable: "trace-render" | "state-check", modes: readonly Mode[]): ShapePosition[] {
@@ -1401,7 +1433,8 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
     runnable: "trace-render",
     via: "realDirectoryOrNull#0",
     position: "a context root, an ancestor of one, the state directory or the trace directory",
-    paths: TRACE_DIRECTORIES,
+    // Plan 37-38: derived from the owner's chain (was the hand-listed TRACE_DIRECTORIES).
+    paths: chainPositions("trace-render"),
     kind: "root-chain",
     modes: TR_SHAPE_MODES,
     base: "trace",
@@ -1432,7 +1465,8 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
     runnable: "state-check",
     via: "traceDirectory#0",
     position: "a context root, an ancestor of one, the state directory or the trace directory",
-    paths: TRACE_DIRECTORIES,
+    // Plan 37-38: derived from the owner's chain (was the hand-listed TRACE_DIRECTORIES).
+    paths: chainPositions("state-check"),
     kind: "root-chain",
     modes: SC,
     base: "trace",
@@ -1478,7 +1512,8 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
     runnable: "state-roll",
     via: "realDirectoryOrNull#0",
     position: "the state directory, the memory bank directory and the archive directory",
-    paths: [STATE_ROOT_REL, MEMORY_BANK_REL, ARCHIVE_REL],
+    // Plan 37-38: derived from the owner's chain (was the hand-listed state, memory bank and archive directories).
+    paths: chainPositions("state-roll"),
     kind: "root-chain",
     modes: SR_SHAPE_MODES,
     base: "roll",
@@ -1562,8 +1597,13 @@ const SHAPE_ROWS: readonly ShapeCell[] = SHAPE_POSITIONS.flatMap((pos) =>
  * 7x4, planned paths 2x5, the extra trace file 1x5) + state-check 82 (the same 28 shared cells, directories 7x4,
  * the index and a trace file 2x5, the extra trace file 1x5, the marker 1x5, siblings 2x3) + state-roll 32
  * (directories 3x4, files 4x5).
+ * 2026-10-24, plan 37-38 (D-19, D-20): 235 = trace-render 93 (notes 2x6, listing 2x5, task 2x7, root chain 7x6,
+ * planned paths 2x5, the extra trace file 1x5) + state-check 104 (the same 36 shared cells, root chain 7x6, the index
+ * and a trace file 2x5, the extra trace file 1x5, the marker 1x5, siblings 2x3) + state-roll 38 (root chain 3x6,
+ * files 4x5). The two outside link shapes joined the root-chain, notes and task kinds; the root-chain positions are
+ * derived (CHAIN_POSITION_COUNTS).
  */
-const SHAPE_ROW_COUNT = 185;
+const SHAPE_ROW_COUNT = 235;
 
 /** `<runnable> <via> <path>: <shape>`, one cell's identity. */
 function cellId(c: ShapeCell): string {
@@ -1722,6 +1762,19 @@ function plantShape(c: ShapeCell, root: string, js: string): string | null {
       else mkdirSync(target);
       return link(target, "symlink to a directory inside the repository root");
     }
+    case "link to an empty directory outside the root":
+      // Plan 37-38 (D-20): the original moves aside, and the link leaves the root for an empty sibling directory.
+      moveAside(root, at, rel);
+      return link(mkTmp("grugops-read-shapes-outside-empty-"), "symlink to a directory outside the repository root");
+    case "link to an outside directory holding the child": {
+      // Plan 37-38 (D-20, the CR-05 shape): the original moves into a fresh sibling mkdtempSync directory (a rename
+      // onto the empty directory), which is the target, so the link outside the root holds the position's children.
+      const outside = mkTmp("grugops-read-shapes-outside-child-");
+      const moved = moveAside(root, at, rel);
+      expect(moved !== null && lstatSync(moved).isDirectory(), `PREMISE: ${rel} is a directory in the base fixture`).toBe(true);
+      renameSync(moved as string, outside);
+      return link(outside, "symlink to a directory outside the repository root");
+    }
     case "link to a regular file": {
       // At a file position the original moves to the target, so the link holds the same bytes; at a directory
       // position the target is a regular file.
@@ -1772,13 +1825,26 @@ const DANGLING_SHAPES: ReadonlySet<ShapeName> = new Set<ShapeName>(["dangling li
 const OWNER_UNREACHABLE_LINK = /symbolic link .*target (that )?cannot be reached/;
 
 /** The shapes that are a symbolic link at the position: at a root-chain position each is refused from its lstat. */
-const LINK_SHAPES: ReadonlySet<ShapeName> = new Set<ShapeName>(["dangling link", "link to a directory", "link to a regular file"]);
+const LINK_SHAPES: ReadonlySet<ShapeName> = new Set<ShapeName>([
+  "dangling link",
+  "link to a directory",
+  "link to an empty directory outside the root",
+  "link to an outside directory holding the child",
+  "link to a regular file",
+]);
 
 /** The root-chain owner's reason for a link on the chain (plan 37-33, D-20), from the committed context-io.js. */
 const ROOT_CHAIN_LINK_REFUSAL: string = ctxio.ROOT_CHAIN_LINK_REFUSAL;
 
-/** The root-chain positions above state-check's layout marker, derived from the owner's chain (plan 37-35). */
-const MARKER_CHAIN: readonly string[] = ctxio.rootChainOf(LAYOUT_MARKER_REL).slice(0, -1);
+/**
+ * The positions where a refused state-check cell stops at the layout marker (plan 37-38, D-20): rootChainOf of the
+ * marker's directory, because the marker is read first and asks the root-chain owner (plan 37-35). Asserted equal to
+ * `memory-bank` and `memory-bank/plans`. Plan 37-35 named it MARKER_CHAIN (the marker's chain less the marker).
+ */
+const STATE_CHECK_MARKER_POSITIONS: readonly string[] = ctxio.rootChainOf(posix.dirname(LAYOUT_MARKER_REL));
+
+/** The kinds whose refused state-check cells have one derived outcome (plan 37-38): the marker's, or trace-not-compared. */
+const ONE_OUTCOME_KINDS: ReadonlySet<ShapeKind> = new Set<ShapeKind>(["root-chain", "directory-follow", "directory-refuse"]);
 
 let shapeCellsRun = 0;
 let shapeCellsSkipped = 0;
@@ -1815,16 +1881,6 @@ function runShapeCell(c: ShapeCell): void {
         expect(`${r.stdout}\n${r.stderr}`, `a link on the root chain is refused for the root-chain reason\n${all}`).toContain(
           `${c.path} ${ROOT_CHAIN_LINK_REFUSAL}`,
         );
-        // One outcome per state-check position (plan 37-35): above the layout marker, the marker read stops the check
-        // (exit 2 naming the marker); at every other root-chain position the trace is not compared (exit 1).
-        if (c.pos.runnable === "state-check") {
-          if (MARKER_CHAIN.includes(c.path)) {
-            expect(r.status, `a link above the layout marker is exit 2 at the marker\n${all}`).toBe(2);
-            expect(r.stderr, all).toContain(LAYOUT_MARKER_REL);
-          } else {
-            expect(r.status, `a link at a trace root-chain position is exit 1, trace-not-compared\n${all}`).toBe(1);
-          }
-        }
       } else if (DANGLING_SHAPES.has(c.shape)) {
         expect(`${r.stdout}\n${r.stderr}`, `a dangling link is refused for the owner's reason\n${all}`).toMatch(OWNER_UNREACHABLE_LINK);
       }
@@ -1836,6 +1892,33 @@ function runShapeCell(c: ShapeCell): void {
           continue;
         }
         expect(r.stdout, `a refused trace position is never fresh\n${all}`).not.toContain("The trace is fresh");
+        if (ONE_OUTCOME_KINDS.has(c.pos.kind)) {
+          // ONE OUTCOME PER POSITION (plan 37-38, D-20), derived, never an either-or: at a position on the layout
+          // marker's directory chain the marker is read first, so the check stops there (exit 2 naming the marker and
+          // the position); at every other root-chain, notes or task position the trace base carries the marker, and
+          // the trace is not compared (exit 1, a finding naming the position).
+          if (STATE_CHECK_MARKER_POSITIONS.includes(c.path)) {
+            expect(r.status, `a refused cell on the marker's chain is exit 2 at the layout marker\n${all}`).toBe(2);
+            expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
+            expect(r.stderr, `exit 2 names the layout marker\n${all}`).toContain("layout marker");
+            expect(r.stderr, `exit 2 names ${named}\n${all}`).toContain(named);
+          } else if (c.pos.kind === "root-chain" && c.shape === "regular file" && CHAIN_ROOT_KINDS["state-check"].includes(c.path)) {
+            // A regular file AT a root kind traceDirectory asks (a context root, the trace directory) is a present
+            // entry that is not a directory: the owner answers `present`, and traceDirectory's leaf-type rule makes it
+            // could-not-run (plan 37-33: "refused at the trace directory stays could-not-run"). Derived from
+            // CHAIN_ROOT_KINDS and the shape, never an either-or: plan 37-38 Task 1 first derived exit 1 here, and the
+            // committed runnable answered exit 2 at all three leaves (recorded in 37-38-SUMMARY.md).
+            expect(r.status, `a regular file at a state-check root kind is exit 2, the leaf is not a directory\n${all}`).toBe(2);
+            expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
+            expect(r.stderr, `exit 2 names ${named} as not a directory\n${all}`).toContain(`${named} is present and is not a directory`);
+          } else {
+            expect(r.status, `a refused cell off the marker's chain is exit 1, trace-not-compared\n${all}`).toBe(1);
+            expect(namedFinding(r.stdout, "trace-not-compared", named), `a trace-not-compared finding names ${named}\n${all}`).toBe(true);
+          }
+          continue;
+        }
+        // The file, listing and file-follow kinds keep plan 37-31's either-or: round 3 does not change their outcomes,
+        // so exit 2 by name and exit 1 with a trace-not-compared finding are both accepted there.
         if (r.status === 2) {
           expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
           expect(r.stderr, `exit 2 names ${named}\n${all}`).toContain(named);
@@ -1861,7 +1944,53 @@ function runShapeCell(c: ShapeCell): void {
   }
 }
 
-describe("READ-1 shapes (plan 37-31, D-18): every read position, derived from the owner's callers, refuses a non-error shape by name or reads through", () => {
+describe("READ-1 shapes (plan 37-31, D-18; plan 37-38, D-20): every read position, derived from the callers of entryPresence and rootChainPresence, refuses a non-error shape by name or reads through", () => {
+  it(`tracer (plan 37-38, D-20): trace-render, a rendered two-root repository whose ${GRUGOPS_ARCHIVE_REL} is then a link to an empty directory outside the root: --check and write exit 2 naming ${CONTEXT_ARCHIVE_REL} with the root-chain reason, nothing written`, () => {
+    const root = shapeTraceRepo(false);
+    const at = join(root, ...GRUGOPS_ARCHIVE_REL.split("/"));
+    moveAside(root, at, GRUGOPS_ARCHIVE_REL);
+    const skipped = stageSymlinkOrSkip(
+      mkTmp("grugops-read-shapes-tracer-outside-"),
+      at,
+      "symlink to a directory outside the repository root",
+      "scripts/runnable-ref/read-sites.test.ts: the D-20 root-chain tracer (plan 37-38)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the CR-05 rows of trace-render.test.ts"));
+      return;
+    }
+    const before = treeDigest(root);
+    expect([...before.keys()], "PREMISE: the render wrote ABC-002.md, the archive root's ticket").toContain(`${TRACE_DIR_REL}/ABC-002.md`);
+    for (const mode of TR_SHAPE_MODES) {
+      const r = runIn(HOST["trace-render"], root, MODE_ARGS[mode]);
+      const all = `${mode}\nstatus ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+      expect(r.status, all).toBe(2);
+      expect(r.stdout, all).toBe("");
+      expect(r.stderr, all).toContain(CONTEXT_ARCHIVE_REL);
+      expect(r.stderr, all).toContain(`${GRUGOPS_ARCHIVE_REL} ${ROOT_CHAIN_LINK_REFUSAL}`);
+      expect(r.stderr, all).not.toContain("stopped unexpectedly (");
+      expect(hasNodeStack(r.stderr), all).toBe(false);
+      expect(treeDigest(root), `nothing was written, changed or removed\n${all}`).toEqual(before);
+    }
+  });
+
+  for (const name of RUNNABLES) {
+    it(`${name}: the root-chain positions are derived from rootChainOf over its root kinds, counted, and equal SHAPE_POSITIONS' root-chain paths both ways`, () => {
+      const derived = chainPositions(name);
+      console.log(`CHAIN_POSITION_COUNTS ${name}: ${derived.length} (${derived.join(", ")})`);
+      expect(derived.length).toBe(CHAIN_POSITION_COUNTS[name]);
+      const claimed = new Set(SHAPE_POSITIONS.filter((p) => p.runnable === name && p.kind === "root-chain").flatMap((p) => p.paths));
+      expect(derived.filter((p) => !claimed.has(p)), "derived chain positions SHAPE_POSITIONS leaves out").toEqual([]);
+      expect([...claimed].filter((p) => !derived.includes(p)), "SHAPE_POSITIONS root-chain paths the chain does not derive").toEqual([]);
+    });
+  }
+
+  it("STATE_CHECK_MARKER_POSITIONS is rootChainOf of the layout marker's directory: memory-bank and memory-bank/plans", () => {
+    console.log(`STATE_CHECK_MARKER_POSITIONS: ${STATE_CHECK_MARKER_POSITIONS.join(", ")}`);
+    expect(STATE_CHECK_MARKER_POSITIONS).toEqual(["memory-bank", "memory-bank/plans"]);
+    expect(STATE_CHECK_MARKER_POSITIONS.every((p) => chainPositions("state-check").includes(p)), "each is a state-check chain position").toBe(true);
+  });
+
   it("tracer: trace-render write mode, a rendered repository whose taskA notes directory is then a dangling link: exit 2 naming the task, nothing written", () => {
     const root = shapeTraceRepo(false);
     const notes = join(root, ...`${TASK_A_REL}/notes`.split("/"));
@@ -1923,5 +2052,79 @@ describe("READ-1 shapes (plan 37-31, D-18): every read position, derived from th
   it("every cell ran, and the skipped ones printed a platform reason", () => {
     console.log(`SHAPE cells run: ${shapeCellsRun} of ${SHAPE_ROW_COUNT}; skipped for the platform: ${shapeCellsSkipped}`);
     expect(shapeCellsRun).toBe(SHAPE_ROW_COUNT);
+  });
+});
+
+// ── D-20 control: absence is still absence (plan 37-38, D-19, D-20) ─────────────────────────────────────────
+//
+// The root-chain owner refuses every link on the chain, so a table of refusals alone cannot tell it from an owner
+// that refuses everything. These controls hold the other side: with no link anywhere on a runnable's chain and a root
+// (or the archive directory) really absent, the program answers as for an absent root.
+
+/** PREMISE of a control: no component of `name`'s chain is a link (each is a real directory or absent). */
+function assertNoChainLink(root: string, name: Runnable): void {
+  for (const rel of chainPositions(name)) {
+    let isLink = false;
+    try {
+      isLink = lstatSync(join(root, ...rel.split("/"))).isSymbolicLink();
+    } catch {
+      isLink = false;
+    }
+    expect(isLink, `PREMISE: ${rel} on ${name}'s chain is not a symbolic link`).toBe(false);
+  }
+}
+
+/** True when the repository-relative `rel` is absent under `root` (lstat ENOENT). */
+function absentAt(root: string, rel: string): boolean {
+  try {
+    lstatSync(join(root, ...rel.split("/")));
+    return false;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "ENOENT";
+  }
+}
+
+describe("D-20 control: an absent root with no link on its chain is still an absent root (plan 37-38)", () => {
+  it(`trace-render and state-check: ${CONTEXT_ARCHIVE_REL} really removed from a rendered repository: state-check reports ABC-002.md trace-stale, --check reports it EXTRA, and the write removes it (exit 0)`, () => {
+    const root = shapeTraceRepo(false);
+    rmSync(join(root, ...CONTEXT_ARCHIVE_REL.split("/")), { recursive: true });
+    assertNoChainLink(root, "trace-render");
+    assertNoChainLink(root, "state-check");
+    expect(absentAt(root, CONTEXT_ARCHIVE_REL), `PREMISE: ${CONTEXT_ARCHIVE_REL} is absent`).toBe(true);
+    expect(lstatSync(join(root, ...GRUGOPS_ARCHIVE_REL.split("/"))).isDirectory(), `PREMISE: ${GRUGOPS_ARCHIVE_REL} is a real directory`).toBe(true);
+    expect(lstatSync(join(root, ...GRUGOPS_DIR_REL.split("/"))).isDirectory(), `PREMISE: ${GRUGOPS_DIR_REL} is a real directory`).toBe(true);
+    const abc002 = `${TRACE_DIR_REL}/ABC-002.md`;
+    expect(absentAt(root, abc002), `PREMISE: the render wrote ${abc002}`).toBe(false);
+
+    const check = runIn(HOST["state-check"], root, []);
+    const checkAll = `state-check\nstatus ${check.status}\nstdout:\n${check.stdout}\nstderr:\n${check.stderr}`;
+    expect(check.status, checkAll).toBe(1);
+    expect(namedFinding(check.stdout, "trace-stale", "ABC-002.md"), `a trace-stale finding names ABC-002.md\n${checkAll}`).toBe(true);
+    expect(check.stdout, checkAll).not.toContain("trace-not-compared");
+
+    const compare = runIn(HOST["trace-render"], root, ["--check"]);
+    const compareAll = `--check\nstatus ${compare.status}\nstdout:\n${compare.stdout}\nstderr:\n${compare.stderr}`;
+    expect(compare.status, compareAll).toBe(1);
+    expect(compare.stdout, compareAll).toMatch(/^EXTRA .*ABC-002\.md/m);
+
+    const write = runIn(HOST["trace-render"], root, []);
+    const writeAll = `write\nstatus ${write.status}\nstdout:\n${write.stdout}\nstderr:\n${write.stderr}`;
+    expect(write.status, writeAll).toBe(0);
+    expect(absentAt(root, abc002), `the write removed ${abc002}\n${writeAll}`).toBe(true);
+    expect(absentAt(root, ABC_001_TRACE), `the write kept ${ABC_001_TRACE}\n${writeAll}`).toBe(false);
+  });
+
+  it(`state-roll: a rollable repository with no ${ARCHIVE_REL} creates it and rolls (exit 0)`, () => {
+    const root = stateRollRepo(false);
+    assertNoChainLink(root, "state-roll");
+    expect(absentAt(root, ARCHIVE_REL), `PREMISE: ${ARCHIVE_REL} is absent`).toBe(true);
+    expect(lstatSync(join(root, ...STATE_ROOT_REL.split("/"))).isDirectory(), `PREMISE: ${STATE_ROOT_REL} is a real directory`).toBe(true);
+    const r = runIn(HOST["state-roll"], root, []);
+    const all = `state-roll write\nstatus ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(r.status, all).toBe(0);
+    expect(lstatSync(join(root, ...ARCHIVE_REL.split("/"))).isDirectory(), `the roll created ${ARCHIVE_REL}\n${all}`).toBe(true);
+    for (const rel of [BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL]) {
+      expect(lstatSync(join(root, ...rel.split("/"))).isFile(), `the roll wrote ${rel}\n${all}`).toBe(true);
+    }
   });
 });
