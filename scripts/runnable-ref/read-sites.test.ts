@@ -81,6 +81,7 @@ import {
   type FaultedRun,
   type ReadSite,
 } from "../fault-inject.test-support.js";
+import { EMBED_CLOSE } from "../generate-runnable-embeds.js";
 
 const HERE = import.meta.dirname;
 const RUNNABLES = ["trace-render", "state-check", "state-roll"] as const;
@@ -157,6 +158,8 @@ const MODE_ARGS: Record<Mode, readonly string[]> = {
  * `entryPresence:{lstatSync,statSync,realpathSync}#0` are gone (net -3). rootChainPresence, now entered from two
  * calling call expressions, is one row per caller (`realDirectoryOrNull#0`, `readTextOrThrow#0`; its three via-less
  * rows replaced by six).
+ * 2026-10-24, plan 37-38: 15, 18 and 10, unchanged. The walk's outside-boundary refusal now names the notes directory
+ * (a message, regenerated into trace-render and state-check); no read site arrives or leaves.
  */
 const TRACE_RENDER_READ_SITES = 15;
 const STATE_CHECK_READ_SITES = 18;
@@ -938,7 +941,8 @@ describe("READ-1 table: the roll's re-reads under the root-chain owner (plan 37-
 // answered in exactly one place: the lstat inside entryPresence. Where that lstat's caller serves a position that may
 // be absent by design, ENOENT there is a correct "absent", and the program must answer it as absence; that is not a
 // defect. Each such row is decided here from the owner rule, before any row runs, and still runs: it must fire its
-// fault, and its outcome is printed. A row reached after a listing named the entry (readTaskNoteRefs, the keeper test
+// fault, and its outcome is printed. Since plan 37-38 (IN-12) it must also prove that outcome: the same exit status,
+// and the same writes outside its `absent` paths, as an unfaulted run on a fixture where those paths are really gone. A row reached after a listing named the entry (readTaskNoteRefs, the keeper test
 // of listContextTasks) is never exempt, and neither is any other site: an ENOENT there is a path that vanished.
 
 /** `<runnable> <key> via <via>` (or `<runnable> <key>`): one row's identity across the three runnables. */
@@ -946,57 +950,127 @@ function rowId(row: ReadSiteRow): string {
   return `${row.runnable} ${pairId(row.key, row.via)}`;
 }
 
-/** The rows where an ENOENT is a correct absence, each with the position and the owner rule that make it so. */
-const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
+/**
+ * One exempt row: the owner rule that makes an ENOENT there a correct absence, and (plan 37-38, IN-12) the positions
+ * its caller asks in the row's base fixture, which the comparison really removes. `absent` is repository-relative,
+ * or, with `in: "host"`, names in the directory of the state-check copy. The lists were written from the owner rule
+ * (each caller's leaf positions in the fixture, read off a probe of the committed runnables that logged every
+ * question the caller asked) before the comparison first ran.
+ */
+interface ExemptRow {
+  readonly reason: string;
+  readonly absent: readonly string[];
+  readonly in?: "host";
+}
+
+/** The trace runnables' notes directories, one per task, in their fixtures. */
+const FIXTURE_NOTES: readonly string[] = [`${CONTEXT_REL}/taskA/notes`, `${CONTEXT_ARCHIVE_REL}/taskB/notes`];
+/** The paths trace-render plans in traceRenderRepo: the index and the trace file of each ticket the notes name. */
+const FIXTURE_PLANNED: readonly string[] = [TRACEABILITY_REL, `${TRACE_DIR_REL}/ABC-001.md`, `${TRACE_DIR_REL}/ABC-002.md`];
+
+/** The rows where an ENOENT is a correct absence, each with the position, the owner rule and the really-absent paths. */
+const ENOENT_EXEMPT: ReadonlyMap<string, ExemptRow> = new Map<string, ExemptRow>([
   [
     "trace-render entryPresence:lstatSync#0 via readRawNotesWithSkips#0",
-    "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
+    {
+      reason: "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
+      absent: FIXTURE_NOTES,
+    },
   ],
   [
     // Plan 37-33 (D-20): was "trace-render entryPresence:lstatSync#0 via realDirectoryOrNull#0".
     // Plan 37-34: was "trace-render rootChainPresence:lstatSync#0" (one caller then, so no via).
     "trace-render rootChainPresence:lstatSync#0 via realDirectoryOrNull#0",
-    "a context root, the state directory and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet (plan 37-29); the root-chain owner answers absent only beneath real directories (plan 37-33)",
+    {
+      reason:
+        "a context root, the state directory and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet (plan 37-29); the root-chain owner answers absent only beneath real directories (plan 37-33)",
+      absent: [CONTEXT_REL, CONTEXT_ARCHIVE_REL, STATE_ROOT_REL, TRACE_DIR_REL],
+    },
   ],
   [
     // Plan 37-34 (D-20): was "trace-render entryPresence:lstatSync#0 via <top>#0".
     "trace-render rootChainPresence:lstatSync#0 via <top>#0",
-    "a planned trace file or index may be absent before its first render: the pre-write check passes an absent path (plan 37-29)",
+    {
+      reason: "a planned trace file or index may be absent before its first render: the pre-write check passes an absent path (plan 37-29)",
+      absent: FIXTURE_PLANNED,
+    },
   ],
   [
     // Plan 37-34 (D-20): was "trace-render entryPresence:lstatSync#0 via readText#0".
     "trace-render rootChainPresence:lstatSync#0 via readText#0",
-    "a planned trace file or index may be absent: the compare reports it missing, and the write mode writes it (plan 37-29)",
+    {
+      reason: "a planned trace file or index may be absent: the compare reports it missing, and the write mode writes it (plan 37-29)",
+      absent: [...FIXTURE_PLANNED, `${TRACE_DIR_REL}/ABC-099.md`],
+    },
   ],
   [
     "state-check entryPresence:lstatSync#0 via readRawNotesWithSkips#0",
-    "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
+    {
+      reason: "a task's notes directory may be absent: the owner's absent is a task with no notes (plan 37-28)",
+      absent: FIXTURE_NOTES,
+    },
   ],
   [
     // Plan 37-35 (D-20): was "state-check entryPresence:lstatSync#0 via locate#0".
     "state-check rootChainPresence:lstatSync#0 via locate#0",
-    "every state path locate serves may be absent: the layout marker (no marker is WARN mode), the board and the indexes (an absent finding), the progress file, the folders and the trace positions (plan 37-29); the root-chain owner answers absent only beneath real directories (plan 37-35)",
+    {
+      reason:
+        "every state path locate serves may be absent: the layout marker (no marker is WARN mode), the board and the indexes (an absent finding), the progress file, the folders and the trace positions (plan 37-29); the root-chain owner answers absent only beneath real directories (plan 37-35)",
+      absent: [
+        LAYOUT_MARKER_REL,
+        BOARD_REL,
+        TRACEABILITY_REL,
+        NFR_CATALOG_REL,
+        TICKETS_REL,
+        `${TICKETS_REL}/ABC-001.md`,
+        NFR_DIR_REL,
+        `${NFR_DIR_REL}/NFR-001.md`,
+        TRACE_DIR_REL,
+        `${TRACE_DIR_REL}/ABC-001.md`,
+        `${TRACE_DIR_REL}/ABC-002.md`,
+        PROGRESS_REL,
+        QUEUE_DONE_REL,
+        QUEUE_DONE_ARCHIVE_REL,
+        DECISIONS_REL,
+        DECISIONS_ARCHIVE_REL,
+      ],
+    },
   ],
   [
     // Plan 37-35: was "state-check rootChainPresence:lstatSync#0" (one caller then, so no via).
     "state-check rootChainPresence:lstatSync#0 via traceDirectory#0",
-    "a context root and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet; the root-chain owner answers absent only beneath real directories (plan 37-33)",
+    {
+      reason:
+        "a context root and the trace directory may be absent: an absent root holds no task and an absent trace directory has no file yet; the root-chain owner answers absent only beneath real directories (plan 37-33)",
+      absent: [CONTEXT_REL, CONTEXT_ARCHIVE_REL, TRACE_DIR_REL],
+    },
   ],
   [
     "state-check entryPresence:lstatSync#0 via runnableSkewFindings#0",
-    "a sibling program may be absent: state-check then runs alone and reports no skew (plan 37-24, plan 37-29)",
+    {
+      reason: "a sibling program may be absent: state-check then runs alone and reports no skew (plan 37-24, plan 37-29)",
+      absent: ["state-roll.js", "trace-render.js"],
+      in: "host",
+    },
   ],
   [
     // Plan 37-36 (D-20): was "state-roll entryPresence:lstatSync#0 via realDirectoryOrNull#0"; in Task 1
     // "state-roll rootChainPresence:lstatSync#0" (one caller then, so no via).
     "state-roll rootChainPresence:lstatSync#0 via realDirectoryOrNull#0",
-    "the archive directory and the memory bank directory may be absent (a roll creates the first, the second holds no progress file); an absent state directory is could-not-run by its caller (plan 37-30); the root-chain owner answers absent only beneath real directories (plan 37-36)",
+    {
+      reason:
+        "the archive directory and the memory bank directory may be absent (a roll creates the first, the second holds no progress file); an absent state directory is could-not-run by its caller (plan 37-30); the root-chain owner answers absent only beneath real directories (plan 37-36)",
+      absent: [STATE_ROOT_REL, ARCHIVE_REL, MEMORY_BANK_REL],
+    },
   ],
   [
     // Plan 37-36 (D-20): was "state-roll entryPresence:lstatSync#0 via readTextOrThrow#0"; in Task 1
     // "state-roll entryPresence:lstatSync#0" (one caller then, so no via).
     "state-roll rootChainPresence:lstatSync#0 via readTextOrThrow#0",
-    "the Done archive, the progress file and the progress archive may be absent; an absent board is could-not-run by its caller (plan 37-30)",
+    {
+      reason: "the Done archive, the progress file and the progress archive may be absent; an absent board is could-not-run by its caller (plan 37-30)",
+      absent: [BOARD_REL, PROGRESS_REL, BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL],
+    },
   ],
 ]);
 
@@ -1013,19 +1087,85 @@ const ENOENT_EXEMPT: ReadonlyMap<string, string> = new Map([
  * (entryPresence has one caller left).
  * 2026-10-24, plan 37-36 (Task 2): 10, unchanged. state-roll's readTextOrThrow key moved from entryPresence's lstat to
  * the root-chain owner's, with the same reason, and its realDirectoryOrNull key gained its via.
+ * 2026-10-24, plan 37-38 (IN-12): 10, unchanged (trace-render 4, state-check 4, state-roll 2). Each entry gained its
+ * `absent` list, and each row now proves its outcome against a really absent fixture.
  */
 const ENOENT_EXEMPT_SIZE = 10;
 
+/**
+ * The positions a row's `absent` list names that its base fixture is built without, by `<runnable> <mode>` (plan
+ * 37-38). stateRollRepo plants no Done archive and no progress archive (a first roll writes them), and in
+ * `write-new-archive` no archive directory; the caller still asks each, so it stays on the list, and the PREMISE
+ * asserts it absent in the base fixture instead of present.
+ */
+const FIXTURE_WITHOUT: Readonly<Record<string, readonly string[]>> = {
+  "state-roll write": [BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL],
+  "state-roll dry-run": [BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL],
+  "state-roll write-new-archive": [ARCHIVE_REL, BOARD_DONE_ARCHIVE_REL, PROGRESS_ARCHIVE_REL],
+};
+
+/** True when `rel` is one of `absent` or lies beneath one. */
+function underAny(rel: string, absent: readonly string[]): boolean {
+  return absent.some((a) => rel === a || rel.startsWith(`${a}/`));
+}
+
+/** The paths created, changed or removed between two digests (by content digest), outside `absent`, sorted. */
+function writesOutside(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>, absent: readonly string[]): string[] {
+  const keys = new Set([...before.keys(), ...after.keys()]);
+  return [...keys].filter((k) => before.get(k) !== after.get(k) && !underAny(k, absent)).sort();
+}
+
+/**
+ * The unfaulted run of `row` in `mode` on a fresh base fixture with the row's `absent` paths really removed (IN-12).
+ * PREMISE: each absent path is present in the base fixture, or one FIXTURE_WITHOUT names for this mode (then absent).
+ */
+function reallyAbsentRun(
+  row: ReadSiteRow,
+  mode: Mode,
+  exempt: ExemptRow,
+): { status: number | null; writes: string[]; all: string } | { skip: string } {
+  const root = fixture(row.runnable, mode);
+  if (typeof root !== "string") return root;
+  const js = exempt.in === "host" ? freshHost() : HOST[row.runnable];
+  const at = (rel: string): string => (exempt.in === "host" ? join(dirname(js), rel) : join(root, ...rel.split("/")));
+  const without = exempt.in === "host" ? [] : (FIXTURE_WITHOUT[`${row.runnable} ${mode}`] ?? []);
+  const exists = (p: string): boolean => {
+    try {
+      lstatSync(p);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (const rel of exempt.absent) {
+    expect(exists(at(rel)), `PREMISE: ${rel} is ${without.includes(rel) ? "absent from" : "present in"} the base fixture of ${row.runnable} ${mode}`).toBe(
+      !without.includes(rel),
+    );
+  }
+  for (const rel of exempt.absent) rmSync(at(rel), { recursive: true, force: true });
+  for (const rel of exempt.absent) expect(exists(at(rel)), `PREMISE: ${rel} is really absent`).toBe(false);
+  const before = treeDigest(root);
+  const r = runIn(js, root, MODE_ARGS[mode]);
+  const after = treeDigest(root);
+  const writes = writesOutside(before, after, exempt.in === "host" ? [] : exempt.absent);
+  return { status: r.status, writes, all: `really absent, ${row.runnable} ${mode}\nstatus ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}` };
+}
+
 describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted with ENOENT, is could-not-run or a named finding unless absence is the correct answer there", () => {
   it("ENOENT_EXEMPT is printed, its size is pinned, and every key is a real row whose site is the owner's lstat", () => {
-    console.log(`ENOENT_EXEMPT (${ENOENT_EXEMPT.size}):\n${[...ENOENT_EXEMPT].map(([k, v]) => `  ${k}: ${v}`).join("\n")}`);
+    console.log(
+      `ENOENT_EXEMPT (${ENOENT_EXEMPT.size}):\n${[...ENOENT_EXEMPT]
+        .map(([k, v]) => `  ${k}: ${v.reason}; absent${v.in === "host" ? " (host)" : ""}: ${v.absent.join(", ")}`)
+        .join("\n")}`,
+    );
     expect(ENOENT_EXEMPT.size).toBe(ENOENT_EXEMPT_SIZE);
     const ids = new Set(READ_SITE_ROWS.map(rowId));
-    for (const key of ENOENT_EXEMPT.keys()) {
+    for (const [key, v] of ENOENT_EXEMPT) {
       expect(ids.has(key), `${key} is a row of READ_SITE_ROWS`).toBe(true);
       expect(key, `${key}: only an owner's lstat can answer absence`).toMatch(
         /^[a-z-]+ (entryPresence:lstatSync#0 via \S+|rootChainPresence:lstatSync#0( via \S+)?)$/,
       );
+      expect(v.absent.length, `${key} names the positions it makes really absent`).toBeGreaterThan(0);
     }
     for (const via of ["readTaskNoteRefs#0", "listContextTasks#0"]) {
       expect([...ENOENT_EXEMPT.keys()].filter((k) => k.endsWith(` via ${via}`)), `a row through ${via} is never exempt`).toEqual([]);
@@ -1035,7 +1175,7 @@ describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted wit
   for (const row of READ_SITE_ROWS) {
     for (const mode of row.modes) {
       const exempt = ENOENT_EXEMPT.get(rowId(row));
-      it(`${row.runnable} ${mode}: ${pairId(row.key, row.via)}, ENOENT${exempt === undefined ? "" : " (exempt)"}`, () => {
+      it(`${row.runnable} ${mode}: ${pairId(row.key, row.via)}, ENOENT${exempt === undefined ? "" : " (exempt, compared with a really absent fixture)"}`, () => {
         const base = baselineStdout(row.runnable, mode);
         const run = runPair(row.runnable, pairOf(row), mode, "ENOENT");
         if (typeof base !== "string" || "skip" in run) {
@@ -1047,11 +1187,25 @@ describe("READ-1 ENOENT (plan 37-31, D-18): every derived read site, faulted wit
           return;
         }
         const { r, all } = run;
-        console.log(`${rowId(row)} ${mode}: exempt (${exempt}) exit ${r.status}`);
         expect(r.fired, `an exempt row still fires its fault\n${all}`).toBeGreaterThan(0);
         expect(r.signal, all).toBeNull();
         expect(hasNodeStack(r.stderr), `no Node stack trace\n${all}`).toBe(false);
         expect(r.stderr, `never the unexpected-throw backstop\n${all}`).not.toContain("stopped unexpectedly (");
+        // IN-12 (plan 37-38): the program must answer the ENOENT as it answers a really absent path. The same exit
+        // status, and the same paths created, changed or removed outside the absent ones (stdout is not compared: a
+        // faulted run read files the really absent run never sees, so its counts line differs).
+        const real = reallyAbsentRun(row, mode, exempt);
+        if ("skip" in real) {
+          console.warn(real.skip);
+          return;
+        }
+        const faultedWrites = writesOutside(run.before, run.after, exempt.in === "host" ? [] : exempt.absent);
+        console.log(
+          `${rowId(row)} ${mode}: exempt, faulted exit ${r.status}, really absent exit ${real.status}; writes outside the absent paths: ` +
+            `faulted [${faultedWrites.join(", ")}], really absent [${real.writes.join(", ")}]`,
+        );
+        expect(r.status, `the faulted run exits as the really absent run\n${all}\n${real.all}`).toBe(real.status);
+        expect(faultedWrites, `the faulted run writes outside the absent paths what the really absent run writes\n${all}\n${real.all}`).toEqual(real.writes);
       });
     }
   }
@@ -1106,6 +1260,8 @@ const ENOENT_OWNERS: Record<(typeof ONE_OWNER_RUNNABLES)[number], readonly strin
  * 2026-10-24, plan 37-36 (Task 1): 3, 3 and 3 (rootChainPresence's lstat ENOENT in state-roll).
  * 2026-10-24, plan 37-36 (Task 2): 3, 3 and 2 (state-roll: rootChainPresence and readRegularFileOrNull; entryPresence
  * is no longer embedded there).
+ * 2026-10-24, plan 37-38: 3, 3 and 2, re-checked and unchanged; each inside its runnable's ENOENT_OWNERS. The plan's
+ * one runnable change (the walk's outside-boundary refusal names the notes directory) compares no code.
  */
 const ENOENT_COMPARISONS: Record<(typeof ONE_OWNER_RUNNABLES)[number], number> = {
   "trace-render": 3,
@@ -1854,7 +2010,6 @@ let shapeCellsSkipped = 0;
  * cell's runs never write, so the modes share the tree; a follow or keeper cell's runs equal the unplanted runs.
  */
 function runShapeCell(c: ShapeCell): void {
-  shapeCellsRun += 1;
   const { root, js } = shapeFixture(c);
   const writtenBefore = writtenBytes(root, c.pos.runnable);
   const skip = plantShape(c, root, js);
@@ -1863,6 +2018,9 @@ function runShapeCell(c: ShapeCell): void {
     console.warn(skip);
     return;
   }
+  // IN-12 (plan 37-38): a cell counts as run only once its shape was planted; until then it was counted before the
+  // platform-skip test, so "every cell ran" held even if every link and FIFO cell had been skipped.
+  shapeCellsRun += 1;
   const planted = treeDigest(root);
   const named = c.pos.base === "host" ? c.path : plantedRel(c);
   for (const mode of c.pos.modes) {
@@ -2049,9 +2207,12 @@ describe("READ-1 shapes (plan 37-31, D-18; plan 37-38, D-20): every read positio
     });
   }
 
-  it("every cell ran, and the skipped ones printed a platform reason", () => {
+  it("every cell ran or was skipped for the platform, counted apart, and on darwin and linux none was skipped", () => {
     console.log(`SHAPE cells run: ${shapeCellsRun} of ${SHAPE_ROW_COUNT}; skipped for the platform: ${shapeCellsSkipped}`);
-    expect(shapeCellsRun).toBe(SHAPE_ROW_COUNT);
+    expect(shapeCellsRun + shapeCellsSkipped, "every cell either ran or printed a platform reason").toBe(SHAPE_ROW_COUNT);
+    if (process.platform === "darwin" || process.platform === "linux") {
+      expect(shapeCellsSkipped, "a host that can stage links and FIFOs skips no cell (IN-12)").toBe(0);
+    }
   });
 });
 
@@ -2127,4 +2288,137 @@ describe("D-20 control: an absent root with no link on its chain is still an abs
       expect(lstatSync(join(root, ...rel.split("/"))).isFile(), `the roll wrote ${rel}\n${all}`).toBe(true);
     }
   });
+});
+
+// ── IN-13: one boundary predicate across the three runnables (plan 37-38, D-19, D-20) ──────────────────────────
+//
+// "Is this real path inside the root" had four hand copies (37-REVIEW.md IN-13): the generated isWithin and an
+// insideRoot in each runnable, two of which refused every path for a root of `/`. Plans 37-34 to 37-36 deleted the
+// copies one runnable at a time, each with a census over its own file. This census holds the whole class at once:
+// the hand-written part of every committed runnable (the .ts after the generated region's close line, as a syntax
+// tree, so a comment is not a node) asks the one generated isWithin, at pinned positions, and nothing else.
+
+/** The hand-written part of a committed runnable .ts (after EMBED_CLOSE), as a syntax tree. */
+function handWrittenPart(name: Runnable): ts.SourceFile {
+  const rel = `${name}.ts`;
+  const lines = readFileSync(join(HERE, rel), "utf8").split("\n");
+  const close = lines.indexOf(EMBED_CLOSE);
+  expect(close, `PREMISE: ${rel} carries the region's close line`).toBeGreaterThan(0);
+  return ts.createSourceFile(rel, lines.slice(close + 1).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+}
+
+/** Every node of a subtree, in visit order. */
+function nodesIn(n: ts.Node, out: ts.Node[] = []): ts.Node[] {
+  out.push(n);
+  ts.forEachChild(n, (c) => {
+    nodesIn(c, out);
+  });
+  return out;
+}
+
+/** The name a call expression calls: the identifier, or the property of a member access; else null. */
+function calleeName(c: ts.CallExpression): string | null {
+  if (ts.isIdentifier(c.expression)) return c.expression.text;
+  if (ts.isPropertyAccessExpression(c.expression)) return c.expression.name.text;
+  return null;
+}
+
+/** The calls named `name` in `sf`, each as `<enclosing scope>:<argument texts joined by a comma>`, in source order. */
+function callsNamed(sf: ts.SourceFile, name: string): string[] {
+  return nodesIn(sf)
+    .filter((n): n is ts.CallExpression => ts.isCallExpression(n) && calleeName(n) === name)
+    .map((c) => `${enclosingName(c)}:${c.arguments.map((a) => a.getText(sf)).join(",")}`);
+}
+
+/**
+ * The calls of the generated isWithin in each runnable's hand-written part, `<scope>:<arguments>`.
+ * 2026-10-24, plan 37-38: trace-render 1 (relOfPath, plan 37-34), state-check 2 (readTraceText and
+ * runnableSkewFindings, plan 37-35), state-roll 1 (the check after the roll creates the archive directory, at the top
+ * level, plan 37-36).
+ */
+const ISWITHIN_CALLS: Record<Runnable, readonly string[]> = {
+  "trace-render": ["relOfPath:path,root"],
+  "state-check": ["readTraceText:path,root", "runnableSkewFindings:hereReal,root"],
+  "state-roll": ["<top>:made,root"],
+};
+
+describe("IN-13: one boundary predicate across the three runnables (plan 37-38, D-19)", () => {
+  for (const name of RUNNABLES) {
+    it(`${name}: the hand-written part has no insideRoot identifier, no root-prefix startsWith, and calls isWithin only at the pinned positions`, () => {
+      const sf = handWrittenPart(name);
+      const nodes = nodesIn(sf);
+      expect(
+        nodes.filter((n) => ts.isIdentifier(n) && n.text === "insideRoot").map((n) => `line ${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`),
+        `${name}.ts names insideRoot (a declaration or a call) after the generated region`,
+      ).toEqual([]);
+      const rootPrefix = nodes
+        .filter((n): n is ts.CallExpression => ts.isCallExpression(n) && calleeName(n) === "startsWith" && ts.isPropertyAccessExpression(n.expression))
+        .filter((c) =>
+          [(c.expression as ts.PropertyAccessExpression).expression, ...c.arguments].some((part) =>
+            nodesIn(part).some((n) => ts.isIdentifier(n) && n.text === "root"),
+          ),
+        )
+        .map((c) => c.getText(sf));
+      expect(rootPrefix, `${name}.ts decides a boundary with a root-prefix startsWith`).toEqual([]);
+      const calls = callsNamed(sf, "isWithin");
+      console.log(`ISWITHIN_CALLS ${name}: ${calls.length} (${calls.join("; ")})`);
+      expect(calls).toEqual(ISWITHIN_CALLS[name]);
+    });
+
+    it(`${name}.js defines isWithin exactly once (the generated one)`, () => {
+      const defs = nodesIn(parsedJs(name)).filter((n) => ts.isFunctionDeclaration(n) && n.name?.text === "isWithin");
+      expect(defs).toHaveLength(1);
+    });
+  }
+
+  it("the census reads the syntax tree: a comment naming insideRoot is not a node, and a root-prefix startsWith is caught in either place", () => {
+    const sf = ts.createSourceFile(
+      "synth.ts",
+      [
+        "// insideRoot(p) was the old boundary test",
+        "const a = p.startsWith(root + sep);",
+        "const b = `${root}/x`.startsWith(p);",
+        'const c = arg.startsWith("--");',
+        "isWithin(p, root);",
+        "",
+      ].join("\n"),
+      ts.ScriptTarget.ES2022,
+      true,
+      ts.ScriptKind.TS,
+    );
+    expect(nodesIn(sf).filter((n) => ts.isIdentifier(n) && n.text === "insideRoot")).toEqual([]);
+    const caught = nodesIn(sf)
+      .filter((n): n is ts.CallExpression => ts.isCallExpression(n) && calleeName(n) === "startsWith" && ts.isPropertyAccessExpression(n.expression))
+      .filter((c) =>
+        [(c.expression as ts.PropertyAccessExpression).expression, ...c.arguments].some((part) =>
+          nodesIn(part).some((n) => ts.isIdentifier(n) && n.text === "root"),
+        ),
+      )
+      .map((c) => c.getText(sf));
+    expect(caught).toEqual(["p.startsWith(root + sep)", "`${root}/x`.startsWith(p)"]);
+    expect(callsNamed(sf, "isWithin")).toEqual(["<top>:p,root"]);
+  });
+});
+
+/**
+ * The realpathSync calls in each runnable's hand-written part, `<scope>:<argument>` (plan 37-38, D-20). After the
+ * generated region a realpath may resolve only the repository root (each runnable, once, before any state read),
+ * state-check's own directory (the sibling stamp read, plan 37-24) and the archive directory state-roll has just
+ * created; every other path is asked of the root-chain owner, which never follows a link on the chain.
+ * 2026-10-24, plan 37-38: trace-render 1, state-check 2, state-roll 2.
+ */
+const REALPATH_CALLS: Record<Runnable, readonly string[]> = {
+  "trace-render": ["<top>:rootArg"],
+  "state-check": ["<top>:rootArg", "runnableSkewFindings:here"],
+  "state-roll": ["<top>:rootArg", "<top>:archiveDirPath"],
+};
+
+describe("D-20: realpathSync after the generated region is called only at the pinned positions (plan 37-38)", () => {
+  for (const name of RUNNABLES) {
+    it(`${name}: realpathSync is called for the root${name === "trace-render" ? "" : name === "state-check" ? " and state-check's own directory" : " and the created archive directory"} only`, () => {
+      const calls = callsNamed(handWrittenPart(name), "realpathSync");
+      console.log(`REALPATH_CALLS ${name}: ${calls.length} (${calls.join("; ")})`);
+      expect(calls).toEqual(REALPATH_CALLS[name]);
+    });
+  }
 });

@@ -18510,6 +18510,23 @@ describe("rootChainPresence: the root-chain owner (plan 37-33, D-20)", () => {
     expect(mod.isWithin("/a", sep)).toBe(true);
   });
 
+  it("isWithin and rootChainPresence on a root of `/` (plan 37-38, IN-13): the root is its own prefix, and a real directory under it is present with no doubled separator", () => {
+    expect(mod.isWithin("/", "/")).toBe(true);
+    expect(mod.isWithin("/a", "/")).toBe(true);
+    expect(mod.isWithin("/a/b", "/a")).toBe(true);
+    expect(mod.isWithin("/ab", "/a")).toBe(false);
+    const real = realTmpRoot("grugops-ctxio-3738-root-slash-");
+    expect(real.startsWith("/"), `PREMISE: ${real} is an absolute POSIX path`).toBe(true);
+    const rel = real.slice(1);
+    for (const leaf of LEAVES) {
+      const r = mod.rootChainPresence("/", rel, leaf);
+      expect(r.kind, `${leaf}: ${JSON.stringify(r)}`).toBe("present");
+      if (r.kind !== "present") continue;
+      expect(r.real, leaf).toBe(real);
+      expect(r.real, leaf).not.toContain("//");
+    }
+  });
+
   it("the skip count is printed (0 on a host that can stage symbolic links)", () => {
     console.log(`rootChainPresence cases skipped for the platform: ${rootChainSkips}`);
     if (process.platform === "darwin" || process.platform === "linux") expect(rootChainSkips).toBe(0);
