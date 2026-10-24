@@ -4,16 +4,16 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
-status: gaps_found
-stopped_at: Re-verified after gap round 2 (gaps_found 11/13)
-last_updated: "2026-10-23T23:36:32.392Z"
+status: executing
+stopped_at: Planned gap round 3 (37-33..37-39)
+last_updated: "2026-10-24T09:51:52.796Z"
 last_activity: 2026-10-24
-last_activity_desc: Gap round 2 executed (37-28..37-32), re-verified gaps_found 11/13: CR-05 dangling-outside-root absent bypass; WR-11 scan; WF03:46
-state_head: aaf1d075
+last_activity_desc: "Planned gap round 3 (37-33..37-39, D-19 scope, D-20 canonical form: no symbolic link on the root chain below the real repository root; IN-11/12/13, WR-11 scan, WF03:46); checker passed iteration 3"
+state_head: 7af85b8a897caadb95ef02fac316c76ff4c52c25
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 47
+  total_plans: 54
   completed_plans: 47
   percent: 22
 ---
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 
 ## Current Position
 
-Phase: 37 (Overview board, per-file records and budgets) — GAPS FOUND
-Plan: 32 of 32
-Status: Gaps found (round 2 of 4 done); next /gsd-plan-phase 37 --gaps
-Last activity: 2026-10-24 — Gap round 2 executed (37-28..37-32), re-verified gaps_found 11/13: CR-05 dangling-outside-root absent bypass; WR-11 scan; WF03:46
+Phase: 37 (Overview board, per-file records and budgets) — READY TO EXECUTE
+Plan: 32 of 39
+Status: Ready to execute (gap round 3 of 4: 37-33..37-39, sequential, waves 33-39)
+Last activity: 2026-10-24 — Planned gap round 3 (37-33..37-39, D-19 scope, D-20 canonical form: no symbolic link on the root chain below the real repository root; IN-11/12/13, WR-11 scan, WF03:46); checker passed iteration 3
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
