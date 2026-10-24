@@ -240,7 +240,7 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 32/38 plans executed
+**Plans**: 32/39 plans executed
 
 Plans:
 **Wave 1**
@@ -346,22 +346,25 @@ Gap round 2 of 4 (D-18; sequential on main; 37-GAP-PLANNING-BRIEF.md §1.1):
 Gap round 3 of 4 (D-19 scope, D-20 canonical form; sequential on main; 37-GAP-PLANNING-BRIEF.md §1.2):
 
 **Wave 33** *(blocked on Wave 32 completion)*
-- [ ] 37-33-PLAN.md — CR-05: one root-chain owner (rootChainPresence); trace-render's directories and file positions and state-check's trace directories on it; no link below the root on the chain is followed; IN-13 for trace-render
+- [ ] 37-33-PLAN.md — CR-05: one root-chain owner (rootChainPresence); trace-render's directories and state-check's trace directories on it; no link below the root on the chain is followed; the owner's unit contract
 
 **Wave 34** *(blocked on Wave 33 completion)*
-- [ ] 37-34-PLAN.md — state-check's every state path on the owner; the marker behind a root-chain link is exit 2, never WARN mode; IN-13 for state-check
+- [ ] 37-34-PLAN.md — trace-render's file positions (pre-write check, readText) on the owner; IN-13 for trace-render; links above the root still render
 
 **Wave 35** *(blocked on Wave 34 completion)*
-- [ ] 37-35-PLAN.md — state-roll's directories and files on the owner (the CR-05 shape in state-roll); IN-13 for state-roll
+- [ ] 37-35-PLAN.md — state-check's every state path on the owner; the marker behind a root-chain link is exit 2, never WARN mode; a link at a listed folder is the folder's one finding (flagged); IN-13 for state-check
 
 **Wave 36** *(blocked on Wave 35 completion)*
-- [ ] 37-36-PLAN.md — IN-11: a stray context-root entry is named with its own remedy, from one owner; the wider block recorded beside IN-09
+- [ ] 37-36-PLAN.md — state-roll's directories and files on the owner (the CR-05 shape in state-roll); IN-13 for state-roll
 
 **Wave 37** *(blocked on Wave 36 completion)*
-- [ ] 37-37-PLAN.md — READ-1 class table for D-20 (chain positions derived from the owner, every link shape), IN-12 exempt rows and shape counter, IN-13 census over all three runnables
+- [ ] 37-37-PLAN.md — IN-11: a stray context-root entry, a dangling or looping link included, is named with its own remedy, from one owner; the wider block recorded beside IN-09
 
 **Wave 38** *(blocked on Wave 37 completion)*
-- [ ] 37-38-PLAN.md — WR-11 hand-trace scan widened from the reproductions, WR-09 remainder at WF03:46; gap round 3 full regression
+- [ ] 37-38-PLAN.md — READ-1 class table for D-20 (chain positions derived from the owner, every link shape, one state-check outcome per position), IN-12 exempt rows and shape counter, IN-13 census over all three runnables
+
+**Wave 39** *(blocked on Wave 38 completion)*
+- [ ] 37-39-PLAN.md — WR-11 hand-trace scan widened from the reproductions, WR-09 remainder at WF03:46; gap round 3 full regression
 
 **Cross-cutting constraints:**
 - The edits are the mechanical minimum (the full prose rewrite is Phase 40): no role gains a new section, and every role stays within its existing size budget
