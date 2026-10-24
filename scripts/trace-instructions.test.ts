@@ -47,7 +47,7 @@ import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { HAND_TRACE_PATTERNS, renderTraceIndex } from "./trace-model.js";
+import { HAND_TRACE_PATTERNS, HAND_TRACE_VERB_GROUPS, HAND_TRACE_WRITE_VERBS, renderTraceIndex } from "./trace-model.js";
 import {
   listRoles,
   listWorkflows,
@@ -214,6 +214,32 @@ const KNOWN_VIOLATIONS: readonly string[] = [
   "Record the release in each ticket's trace.",
   "Edit the trace index by hand.",
   "Update its trace file.",
+  // WR-11 (plan 37-39, D-19): the nine sentences of 37-VERIFICATION.md's SCAN-1 reproduction that matched no pattern,
+  // verbatim. Shapes: no determiner, a possessive, an adjective, a plural, a gerund, a verb outside the list, and a
+  // note as the object rather than the route.
+  "Edit trace files by hand when the render is late.",
+  "Update trace files directly.",
+  "Update your trace file.",
+  "Append the PR link to the generated trace file.",
+  "Update the ticket traces by hand.",
+  "Keep updating the trace file by hand.",
+  "Finish by adding the PR link to the trace.",
+  "Copy the PR link into the trace.",
+  "Add a note to the trace file by hand.",
+  // WR-11: the six further sentences of 37-REVIEW.md WR-11's table, verbatim (the `... to their trace.` row is
+  // written out with the sentence it abbreviates).
+  "Append the PR link to our trace.",
+  "Append the PR link to their trace.",
+  "Record the release in the matching trace file.",
+  "Write the release id into the ticket's own trace.",
+  "Edit these traces.",
+  "Start by appending the PR link to traceability.md.",
+  // WR-11: the four plan 37-32 sentences of deferred-items.md, verbatim (the note or ref stop, a ticket id as the
+  // determiner, a verb outside the list).
+  "Update the release refs in the trace file.",
+  "Write the PR link into ABC-1's trace.",
+  "Update the ticket ABC-1 trace file.",
+  "Paste the release id into the trace file.",
 ];
 
 /** The sentence line of the rendered index: the one line that is no header, heading, blank or table row. */
@@ -244,6 +270,10 @@ const RENDERED_WORDING: readonly string[] = [
   "feed the trace",
   "the rendered trace",
   "with trace ids on refs",
+  // WR-11 (plan 37-39): the review's own example of wording a wider pattern 4 must keep negative.
+  "this workflow feeds the trace rather than editing it",
+  // WR-09 remainder (plan 37-39): agent-factory/workflows/03-epic-to-tickets.md:46, the Done condition.
+  "Its epic, feature and NFR ids are published, with the ticket identifier, as refs on a note.",
 ];
 
 /**
@@ -349,6 +379,55 @@ const EXCLUSION_CONTROLS: readonly ExclusionControl[] = [
     source: null,
     negative: "Update the trace render step before the release.",
     control: "Update the trace before the release.",
+  },
+  // WR-11 (plan 37-39, D-19): the exclusions the wider pattern 4 needs, each a family of false hits the planning trial
+  // found in the kit.
+  {
+    reason: "`per Workflow 16` names the sanctioned route between the verb and the trace",
+    source: "agent-factory/workflows/02-idea-to-epics.md",
+    negative:
+      "The artifacts are the epics, the board update, the product notes recorded per Workflow 16 and the rendered trace files.",
+    control: "The artifacts are the epics and the product notes recorded in the rendered trace files.",
+  },
+  {
+    reason: "a comma and a determiner start a new list item, so the verb's object ends before it",
+    source: "agent-factory/workflows/06-uat-pack.md",
+    negative:
+      "The artifacts are the UAT pack notes recorded per Workflow 16, the recorded human signoff, the board move, the metrics and the rendered trace files.",
+    control: "The artifacts are the recorded human signoff and the rendered trace files.",
+  },
+  {
+    reason: "a conjunction is never one of the words between a determiner and the trace",
+    source: "agent-factory/contracts/board.md",
+    negative:
+      "**Which directory entries are records.** The rule covers the NFR and trace directories and the move-only surfaces.",
+    control: "Update the NFR trace directories.",
+  },
+  {
+    reason: "`rendered` before a determiner-less `trace files` names the render's output",
+    source: "agent-factory/_commit-convention.md",
+    negative: "grug write the trail down — tickets, board, rendered trace files, metrics, and context notes",
+    control: "grug write the trail down — tickets, board, trace files, metrics, and context notes",
+  },
+  {
+    reason: "a colon followed by a space is a clause bound: the verb's object sits in the clause before it",
+    source: "agent-factory/workflows/16-context-read-write.md",
+    negative:
+      "So this workflow feeds the trace rather than editing it: an `artifact-ref` note carries the trace ids, and the render picks them up.",
+    control:
+      "So this workflow feeds the trace rather than editing it and an `artifact-ref` note carries the trace ids, and the render picks them up.",
+  },
+  {
+    reason: "`trace back` (or `trace forward`) is the verb trace, not the trace as an object",
+    source: null,
+    negative: "Update the board so every ticket traces back to its epic.",
+    control: "Update the board so every ticket trace is current.",
+  },
+  {
+    reason: "the note stop is the route wording only: a note as the place written is no route",
+    source: null,
+    negative: "Record the PR link as refs on a note, so the trace is rendered from it.",
+    control: "Record the PR link in a note, so the trace is rendered from it.",
   },
 ];
 
@@ -467,9 +546,54 @@ describe("the four hand-trace patterns (imported from scripts/trace-model.ts) ca
     },
   );
 
+  it("HAND_TRACE_VERB_GROUPS is one grouped authority: each group a base with its forms and one `-ing` form, flattened into HAND_TRACE_WRITE_VERBS (plan 37-39, WR-11)", () => {
+    expect(Object.isFrozen(HAND_TRACE_VERB_GROUPS)).toBe(true);
+    expect(HAND_TRACE_VERB_GROUPS.length, "there are no verb groups, so every check below is vacuous").toBeGreaterThan(0);
+    const seen = new Set<string>();
+    for (const group of HAND_TRACE_VERB_GROUPS) {
+      expect(Object.isFrozen(group), `group ${group[0]} is not frozen`).toBe(true);
+      const [base, ...forms] = group;
+      expect(base, "a group is empty").toBeDefined();
+      // The base comes first (it is no `-ing` form and no member is shorter), and every form is the same verb (it
+      // shares the base's first two letters: `write` and `wrote`, `copy` and `copies`).
+      expect(base!.endsWith("ing"), `group ${base} starts with a gerund, not its base`).toBe(false);
+      for (const f of forms) {
+        expect(f.length, `${f} is shorter than its base ${base}`).toBeGreaterThanOrEqual(base!.length);
+        expect(f.slice(0, 2), `${f} is not a form of ${base}`).toBe(base!.slice(0, 2));
+      }
+      const gerunds = group.filter((v) => v.endsWith("ing"));
+      expect(gerunds, `group ${base} must hold exactly one -ing form`).toHaveLength(1);
+      expect(forms.length, `group ${base} has no forms beyond its base`).toBeGreaterThan(0);
+      for (const v of group) {
+        expect(seen.has(v), `${v} is in two groups`).toBe(false);
+        seen.add(v);
+      }
+    }
+    expect([...HAND_TRACE_WRITE_VERBS], "HAND_TRACE_WRITE_VERBS is not the groups flattened in order").toEqual(
+      HAND_TRACE_VERB_GROUPS.flat(),
+    );
+    // The plan 37-32 list (scripts/trace-model.ts at 8ff39ab5), copied as a historical floor the groups may only
+    // widen. It is a floor, not a pattern: the patterns are still imported.
+    const plan3732 = [
+      "append", "appends", "appended", "add", "adds", "added", "write", "writes", "wrote", "written", "fill",
+      "fills", "filled", "update", "updates", "updated", "record", "records", "recorded", "edit", "edits",
+      "edited", "hand-edit", "hand-edits", "hand-edited", "modify", "modifies", "modified", "insert", "inserts",
+      "inserted", "put", "puts", "enter", "enters", "entered", "log", "logs", "logged", "maintain", "maintains",
+      "maintained", "amend", "amends", "amended", "change", "changes", "changed", "extend", "extends", "extended",
+      "rewrite", "rewrites", "rewrote", "rewritten", "replace", "replaces", "replaced", "remove", "removes",
+      "removed", "delete", "deletes", "deleted",
+    ];
+    expect(plan3732.filter((v) => !HAND_TRACE_WRITE_VERBS.includes(v)), "a plan 37-32 verb was dropped").toEqual([]);
+    // Copy and paste joined the list in plan 37-39 (deferred-items.md, plan 37-32 entry).
+    for (const base of ["copy", "paste"]) {
+      expect(HAND_TRACE_VERB_GROUPS.some((g) => g[0] === base), `no ${base} group`).toBe(true);
+    }
+  });
+
   it("each pattern returns in under RUNTIME_CEILING_MS on 20,000-character adversarial inputs, line and paragraph", () => {
-    // Neither input holds the word trace, so every pattern fails; a backtracking pattern fails slowly.
-    const inputs = ["add ".repeat(5000), "add the ".repeat(2500)];
+    // No input holds the word trace, so every pattern fails; a backtracking pattern fails slowly. `the a ` and
+    // `ticket's ` (plan 37-39) are runs of pattern 4's determiners, where its determiner and two-word run start.
+    const inputs = ["add ".repeat(5000), "add the ".repeat(2500), "the a ".repeat(3334), "ticket's ".repeat(2223)];
     for (const input of inputs) {
       expect(input.length).toBeGreaterThanOrEqual(20000);
       for (const p of HAND_TRACE_PATTERNS) {

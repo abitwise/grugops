@@ -154,6 +154,8 @@ describe("HAND_TRACE_PATTERNS: the one home of the hand-trace scan patterns (pla
     expect(toTheTrace.test("Append the PR link to the trace.")).toBe(true);
     expect(toTheTrace.test("Update its trace file.")).toBe(true);
     expect(toTheTrace.test("No step edits a trace file or the index by hand.")).toBe(false);
+    // Plan 37-39 (D-19, WR-11): the `-ing` form of a listed verb is a write verb too.
+    expect(toTheTrace.test("Keep updating the trace file by hand.")).toBe(true);
     // Pattern 1's bound crosses a path's dot and stops at a sentence end.
     expect(handEdit.test("Add the test path to ./memory-bank/plans/traceability.md.")).toBe(true);
     expect(handEdit.test("Add the test path. The traceability index is rendered.")).toBe(false);
