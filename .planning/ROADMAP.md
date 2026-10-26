@@ -593,3 +593,11 @@ Plans:
 - [ ] Three layers (unit, integration, e2e), each with its own npm script; e2e only once after the other layers pass; plain `npm test` never starts the live lane
 - [ ] Executor testing approach: related subset while coding, then unit, then integration, then e2e; write it into the executor brief or a project skill
 - [ ] Fix or quarantine the flaky `scripts/board-watch-live.test.ts`, and clear the 20-21 stale base failures
+
+### Phase 999.12: Follow-up — Phase 37 deferred UAT follow-up: Test 1 (BACKLOG)
+
+**Goal:** Resolve the UAT checkpoint deferred during Phase 37 verification
+**Source phase:** 37
+**Deferred at:** 2026-10-26 during /gsd-verify-work 37 session completion
+**Follow-ups:**
+- [ ] Test 1: Unblock CI so a push reaches state-check.js . and the validator: re-point the 19 archive-path tests to .planning/milestones/v2.1-phases/; re-base or retire the GAP-D1 flip manifest (check-flip-manifest.ts:66 plus 6 stale derivations); human review of the 31 FROZEN diff-disposition clauses, then a recorded decision on the 690 others (write rows, move base 4d2b8f0, or retire the gate). (deferred 2026-10-24)

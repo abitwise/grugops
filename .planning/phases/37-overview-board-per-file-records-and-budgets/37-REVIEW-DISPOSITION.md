@@ -9,7 +9,7 @@ findings:
     title: "Pattern 4's comma-list and `per Workflow 16` exclusions reach the whole 120-character run, so a plain list of objects aimed at the trace passes (created by the round-3 WR-11 fix)"
   - id: WR-13
     severity: warning
-    disposition: open
+    disposition: deferred
     title: "The hand-trace scan still enumerates its verbs and nouns by hand, so common write verbs and determiner-less shapes pass (same defect class as WR-11, one register over)"
   - id: WR-14
     severity: warning
@@ -135,7 +135,7 @@ findings:
     severity: info
     disposition: open
     title: "state-check and trace-render disagree on a dangling context-root link"
-open: 27
+open: 26
 total: 33
 recorded: 2026-10-24T15:51:45.705Z
 ---
@@ -145,7 +145,7 @@ recorded: 2026-10-24T15:51:45.705Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | WR-12 | warning | open | - |
-| WR-13 | warning | open | - |
+| WR-13 | warning | deferred | accepted by the human 2026-10-26 (/gsd-verify-work 37, test 4): the hand-trace scan is a heuristic over an open set, which D-59 holds as content with a disclosed backstop, not a mechanism; the live 77-file scan set has 0 hits; no round-4 fix. WR-12, WR-14 and IN-14 go to gap round 4 (UAT gap G-37-4) |
 | WR-14 | warning | open | - |
 | IN-14 | info | open | - |
 | CR-05 | critical | open | - (not in the current review) |
