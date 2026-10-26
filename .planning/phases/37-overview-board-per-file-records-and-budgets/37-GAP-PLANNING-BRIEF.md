@@ -76,6 +76,41 @@ verifier's 14-sentence reproduction lets through (determiner-less, possessive, a
 gerund, copy/paste verbs, "by hand" phrasing), plus the five it caught; the rendered-from-refs
 wording stays a negative row. Each new shape gets a mutation proof.
 
+### 1.3 Round 4 addendum (2026-10-26, scope D-21, the last round on the cap)
+
+EXIT-1 recurred at module-load time (G-37-2). A materialized program that Node cannot load as an ES
+module throws before its first line runs, so no top-level try can map the throw to exit 2, and Node's
+uncaught-error code is 1, the finding code. Reproduced at planning on Node 26.11.1: an install into a
+host whose package.json says `"type": "commonjs"` gives exit 1 and `Cannot use import statement
+outside a module` for all seven programs; with `tools/grugops/package.json` holding
+`{"type":"module"}` each runs its own body (state-check, trace-render and `state-roll --dry-run` exit
+0). Round 4 removes that cause only. Every other load-time failure (an older Node, a preload that
+throws) still exits 1; the round gate records it in deferred-items.md for the human, beside the open
+"EXIT-1 siblings outside phase 37" entry.
+
+Rules for round 4:
+
+- **Derive the program set.** The programs come from the installer's RUNNABLES (its `.js` rows), never
+  a hand list. The commonjs-host regression runs every one, and its invocation table is checked
+  two-sided against that set.
+- **A planted host proves its own premise.** The same host with `tools/grugops/package.json` removed
+  must still reproduce exit 1 and the SyntaxError, or the test proves nothing.
+- **AUTH-1.** `{"type":"module"}` plus one LF is spelled twice in install/: `MIRROR_PACKAGE_JSON` (the
+  generator's temp mirror) and the kit file the new RUNNABLES row copies. A test holds the two equal.
+  `scripts/host-entries-freshness.ts` spells its own copy for a grugops-only CI mirror; it is not a host
+  file and stays out of D-21.
+- **SCAN-1 (WR-12, created by the 37-39 fix).** An exclusion checked at every step of pattern 4's
+  bounded run reaches the whole run. For each exclusion inside the run, state what it admits (the
+  union of sentences it lets through), not only the false hit it removes. The four WR-12 sentences
+  become KNOWN_VIOLATIONS rows. WR-13 is accepted, so a further heuristic shape found in round 4 goes to
+  deferred-items.md, not into the round.
+- **D-20's one answer (WR-14, IN-14).** The entry's own lstat decides the stray-entry remedy before
+  any name rule; the name rule stays for directories (IN-09). No runnable reads a state file through a
+  symbolic link at its own position, except where a recorded rule says so (the layout marker, plan
+  37-04's file-follow rule, kept and flagged for the human).
+- **Last round.** A new finding during execution is recorded in the plan's SUMMARY and written to
+  deferred-items.md by the round gate (plan 37-42). No plan widens its scope past D-21.
+
 ## 2. Required in every gap-round plan set
 
 ### 2.1 Tests that catch any member of the class

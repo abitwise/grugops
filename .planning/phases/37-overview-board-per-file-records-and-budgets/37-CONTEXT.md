@@ -199,6 +199,30 @@ not this phase.
   `.grugops` or `memory-bank` starts getting exit 2; the own repo has no such links, checked
   2026-10-24).
 
+### Recorded before gap round 4
+- **D-21:** Gap round 4 (of 4, the last on the cap) covers exactly these items, chosen by the human on
+  2026-10-26 in /gsd-verify-work 37 from 37-UAT.md (gaps G-37-2 and G-37-4): G-37-2 (on a host whose
+  package.json says `"type": "commonjs"`, the npm 11 `npm init -y` default, every program under
+  `tools/grugops/` stops at its first import with a SyntaxError and exit 1, the finding code; the
+  installer writes `tools/grugops/package.json` holding `{"type":"module"}` under the installer
+  contract: idempotent, additive, dry-run-capable, reversible, recorded in the install ledger, removed
+  by uninstall, never written over a user's file, and reported by `--check` where the other runnables
+  are; plus a regression test with a planted commonjs host), and G-37-4: WR-12 (the hand-trace scan's
+  comma-list and `per Workflow 16` exclusions reach the whole run; fix per 37-REVIEW.md), WR-14 (a
+  non-directory context-root entry whose name falls outside the task grammar gets no remedy; ask the
+  entry's lstat first) and IN-14 (state-check follows an in-root link at the board and the indexes,
+  which state-roll and trace-render refuse). Nothing else. WR-13 is accepted and recorded in
+  37-REVIEW-DISPOSITION.md (an open-set heuristic, held as content, not mechanism; the live scan set
+  has 0 hits). The five round-3 rule changes the human kept (37-UAT.md test 3) stand. WR-03, WR-04,
+  WR-06, WR-07, WR-10, IN-01, IN-02, IN-04, IN-05, IN-07, IN-08 and IN-09 stay open in
+  37-REVIEW-DISPOSITION.md. The CI-reachability item (37-UAT.md test 1) is deferred to backlog 999.12
+  and is not in this round. Agents follow 37-GAP-PLANNING-BRIEF.md §1.3. — **Reversibility:**
+  reversible (scope only).
+  Planning note (the planner's, not part of the decision): `install.js --check` reports no runnable
+  today, so there is no runnable line to sit beside; plan 37-40 adds one doctor line for this file as
+  its own task (Task 3), which can be dropped if the human reads the clause as "the same treatment as
+  the other runnables, which is none".
+
 </decisions>
 
 <canonical_refs>
