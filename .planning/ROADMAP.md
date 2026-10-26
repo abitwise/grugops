@@ -369,13 +369,13 @@ Gap round 3 of 4 (D-19 scope, D-20 canonical form; sequential on main; 37-GAP-PL
 Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequential on main; 37-GAP-PLANNING-BRIEF.md §1.3):
 
 **Wave 40** *(blocked on Wave 39 completion)*
-- [ ] 37-40-PLAN.md — G-37-2: install writes tools/grugops/package.json (`"type": "module"`) by the RUNNABLES rule, so every program runs on a commonjs host; commonjs-host regression with its premise control; installer-contract cases; `--check` line
+- [ ] 37-40-PLAN.md — G-37-2: install writes tools/grugops/package.json (`"type": "module"`) by the RUNNABLES rule, so every program runs on a commonjs host; commonjs-host regression with its premise control; installer-contract cases (no `--check` line: dropped by the human 2026-10-26)
 
 **Wave 41** *(blocked on Wave 40 completion)*
 - [ ] 37-41-PLAN.md — WR-14: the stray-entry remedy decided by the entry's lstat before its name; IN-14: state-check reads no state file through a leaf link except the flagged marker rule, so the three programs agree
 
 **Wave 42** *(blocked on Wave 41 completion)*
-- [ ] 37-42-PLAN.md — WR-12: the two run-wide scan exclusions removed, `rendered` exempted at the noun; gap round 4 full regression, reproductions and deferred items
+- [ ] 37-42-PLAN.md — WR-12: the two run-wide scan exclusions removed, `rendered` exempted at the noun; the G-37-2 install guide and changelog text; gap round 4 full regression, reproductions and deferred items
 
 **Cross-cutting constraints:**
 - The edits are the mechanical minimum (the full prose rewrite is Phase 40): no role gains a new section, and every role stays within its existing size budget

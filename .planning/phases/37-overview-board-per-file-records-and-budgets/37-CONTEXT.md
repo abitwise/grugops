@@ -206,8 +206,8 @@ not this phase.
   `tools/grugops/` stops at its first import with a SyntaxError and exit 1, the finding code; the
   installer writes `tools/grugops/package.json` holding `{"type":"module"}` under the installer
   contract: idempotent, additive, dry-run-capable, reversible, recorded in the install ledger, removed
-  by uninstall, never written over a user's file, and reported by `--check` where the other runnables
-  are; plus a regression test with a planted commonjs host), and G-37-4: WR-12 (the hand-trace scan's
+  by uninstall and never written over a user's file; plus a regression test with a planted commonjs
+  host), and G-37-4: WR-12 (the hand-trace scan's
   comma-list and `per Workflow 16` exclusions reach the whole run; fix per 37-REVIEW.md), WR-14 (a
   non-directory context-root entry whose name falls outside the task grammar gets no remedy; ask the
   entry's lstat first) and IN-14 (state-check follows an in-root link at the board and the indexes,
@@ -218,10 +218,10 @@ not this phase.
   37-REVIEW-DISPOSITION.md. The CI-reachability item (37-UAT.md test 1) is deferred to backlog 999.12
   and is not in this round. Agents follow 37-GAP-PLANNING-BRIEF.md §1.3. — **Reversibility:**
   reversible (scope only).
-  Planning note (the planner's, not part of the decision): `install.js --check` reports no runnable
-  today, so there is no runnable line to sit beside; plan 37-40 adds one doctor line for this file as
-  its own task (Task 3), which can be dropped if the human reads the clause as "the same treatment as
-  the other runnables, which is none".
+  Amended by the human on 2026-10-26, before execution: the `--check` line for
+  `tools/grugops/package.json` is dropped. `--check` reports no runnable, and a re-run of the
+  installer materializes the file. (The scope as first recorded also asked for the file to be
+  "reported by `--check` where the other runnables are".)
 
 </decisions>
 
