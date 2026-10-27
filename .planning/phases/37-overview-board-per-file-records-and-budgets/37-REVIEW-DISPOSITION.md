@@ -3,6 +3,22 @@ phase: 37
 review: 37-REVIEW.md
 titles: json
 findings:
+  - id: WR-15
+    severity: warning
+    disposition: open
+    title: "state-check still prints ROLLABLE for a board that state-roll refuses (IN-14 fixed for one refusal of several)"
+  - id: WR-16
+    severity: warning
+    disposition: open
+    title: "a file already at tools/grugops/package.json silently disables every installed program (G-37-2 still reachable, install exits 0)"
+  - id: IN-15
+    severity: info
+    disposition: open
+    title: "state-check's new leaf-link refusal says state-roll and trace-render refuse the NFR catalog, but neither reads it"
+  - id: IN-16
+    severity: info
+    disposition: open
+    title: "the \"not one path component\" test proves step 1 for only two of its six names"
   - id: WR-12
     severity: warning
     disposition: open
@@ -135,19 +151,23 @@ findings:
     severity: info
     disposition: open
     title: "state-check and trace-render disagree on a dangling context-root link"
-open: 26
-total: 33
-recorded: 2026-10-24T15:51:45.705Z
+open: 30
+total: 37
+recorded: 2026-10-27T10:01:39.687Z
 ---
 
 # Phase 37: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-12 | warning | open | - |
-| WR-13 | warning | deferred | accepted by the human 2026-10-26 (/gsd-verify-work 37, test 4): the hand-trace scan is a heuristic over an open set, which D-59 holds as content with a disclosed backstop, not a mechanism; the live 77-file scan set has 0 hits; no round-4 fix. WR-12, WR-14 and IN-14 go to gap round 4 (UAT gap G-37-4) |
-| WR-14 | warning | open | - |
-| IN-14 | info | open | - |
+| WR-15 | warning | open | - |
+| WR-16 | warning | open | - |
+| IN-15 | info | open | - |
+| IN-16 | info | open | - |
+| WR-12 | warning | open | - (not in the current review) |
+| WR-13 | warning | deferred | accepted by the human 2026-10-26 (/gsd-verify-work 37, test 4): the hand-trace scan is a heuristic over an open set, which D-59 holds as content with a disclosed backstop, not a mechanism; the live 77-file scan set has 0 hits; no round-4 fix. WR-12, WR-14 and IN-14 go to gap round 4 (UAT gap G-37-4) (not in the current review) |
+| WR-14 | warning | open | - (not in the current review) |
+| IN-14 | info | open | - (not in the current review) |
 | CR-05 | critical | open | - (not in the current review) |
 | WR-11 | warning | open | - (not in the current review) |
 | IN-11 | info | open | - (not in the current review) |
