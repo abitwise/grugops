@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
 status: executing
-stopped_at: Completed 37-39-PLAN.md
-last_updated: "2026-10-24T15:45:00.000Z"
-last_activity: 2026-10-24
+stopped_at: Completed 37-40-PLAN.md
+last_updated: "2026-10-27T07:38:16.082Z"
+last_activity: 2026-10-27
 last_activity_desc: Phase 37 execution started
-state_head: e938bdd7fbab37f7dcbaef42ea0094eb950a76b1
+state_head: a7397c408ad1a2ffaa921466b2255df31171f094
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 54
-  completed_plans: 54
+  total_plans: 57
+  completed_plans: 55
   percent: 22
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 ## Current Position
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 39 of 39
-Status: All 39 plans executed; gap round 3 closed (37-39); ready for phase verification
-Last activity: 2026-10-24 — Phase 37 execution started
+Plan: 41 of 42
+Status: Ready to execute
+Last activity: 2026-10-27 — Phase 37 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -768,6 +768,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P37 | 35min | 2 tasks | 17 files |
 | Phase 37 P38 | 39min | 2 tasks | 12 files |
 | Phase 37 P39 | 65min | 3 tasks | 6 files |
+| Phase 37 P40 | 73 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -2097,6 +2098,7 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-36: state-roll's realDirectoryOrNull asks rootChainPresence(root, rel, "directory") and readTextOrThrow asks it with "entry"; insideRoot and abs() deleted, the post-mkdir check asks isWithin; entryPresence left state-roll's EMBED_SPECS row, so all three runnables ask the root-chain owner for every state path
 - [Phase 37]: 37-37: STRAY_CONTEXT_ENTRY_REMEDY owned by context-io and carried as an own remedy property on readTaskNoteRefs's three non-task refusals; entryPresence's unreadable answer gains link (the path's own lstat showed a symbolic link), so a dangling or looping stray link gets the remedy and an uninspectable entry does not; the trace model carries remedy, the runnables print it
 - [Phase 37]: 37-38: READ-1 table in D-20 canonical form: root-chain positions derived from rootChainOf over CHAIN_ROOT_KINDS (7, 7, 3), two outside link shapes, SHAPE_ROW_COUNT 235, one derived state-check outcome per cell; a regular file at a state-check root kind is exit 2 (plan derived exit 1; flagged for human in 37-39 deferred-items); ENOENT-exempt rows compared with a really absent fixture (IN-12); IN-13 and realpath censuses; the walk's outside-boundary refusal now names the notes directory (e6143a42)
+- [Phase 37]: G-37-2 closed per D-21: install writes tools/grugops/package.json ({"type":"module"} + LF) through one RUNNABLES row under the license rule; no --check line; WF05/WF09 unchanged
 
 ### Pending Todos
 
@@ -2428,8 +2430,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-24T14:33:00.000Z
-Stopped at: Completed 37-38-PLAN.md
+Last session: 2026-10-27T07:38:15.414Z
+Stopped at: Completed 37-40-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
