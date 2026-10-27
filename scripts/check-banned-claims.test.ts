@@ -3313,7 +3313,9 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     // renderedEntryRels(), which adds Antigravity CLI's launch agent `.agents/agents/grugops-orchestrator.md`.
     // 12 -> 15 on 2026-10-18 (quick task 261018-hs8, Task 2): renderedEntryRels() gained the OpenCode, Copilot CLI and
     // Pi launch agents (residue measured 0 with countBannedClaimOccurrences on each; Codex CLI has none).
-    expect(exact.length).toBe(15);
+    // 15 -> 16 on 2026-10-27 (plan 37-42): install/runnable-package.json, the kit source of tools/grugops/package.json
+    // that plan 37-40 added (G-37-2), dispositioned by name in the block above (a module-type marker with no free text).
+    expect(exact.length).toBe(16);
     expect(seg.length + root.length + exact.length).toBe(
       BANNED_CLAIM_EXCLUDED_LOCATIONS.length,
     );

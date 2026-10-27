@@ -701,6 +701,11 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 //                                     its header explains a build decision to a maintainer, which
 //                                     is the same standing as its two siblings.)
 //   hooks/hooks.json                  TOOL CONFIGURATION. The Claude Code hook wiring.
+//   install/runnable-package.json     MODULE-TYPE MARKER (plan 37-40, G-37-2, D-21; dispositioned by
+//                                     plan 37-42). The kit source of the host's
+//                                     tools/grugops/package.json. It holds only `{"type":"module"}`
+//                                     and one LF, so the programs beside it load as ES modules; it
+//                                     has no free-text field and makes no claim a reader meets.
 //   agent-factory/config/factory.config.json          KIT CONFIGURATION DATA. The dial. Keys and
 //   agent-factory/seed/.grugops/factory.config.json   enum values, not prose a reader meets.
 //   .planning/**, scripts/**          Already covered by the segment classes above.
@@ -813,6 +818,7 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS = [
     // The generated host entries, derived from the generator's rendered list (quick task 261018-hs8, PD-2).
     ...renderedEntryRels(),
     "hooks/hooks.json",
+    "install/runnable-package.json",
     "package-lock.json",
     "package.json",
     "tsconfig.fixtures.json",
