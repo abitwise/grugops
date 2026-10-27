@@ -186,6 +186,7 @@ This is a largely **introspective** milestone: most work improves grugops's own 
 
 - ✓ Graph-memory decision — not adopted, nothing built; user/role posture, `verified_by` stamp rule and an event-based revisit trigger recorded in `35-DECISION.md` — v3.0 Phase 35 (GRAPH-01, GRAPH-02)
 - ✓ State-layout authority — planning state under `memory-bank/plans/` named by one constants-only module (`install/state-layout.ts`), an old-spelling gate with a derived allow-list, `STATE_ROOTS` protecting state from prune and uninstall, and a pre-v3 repo kept working (install refuses and names `--migrate`; roles fall back to `plans/`, confirmed live on Claude Code) — v3.0 Phase 36 (LAYOUT-01..05)
+- ✓ Overview board, per-file records and budgets — `board.md` is a one-line-per-ticket overview with detail in the ticket body; NFRs and traceability are one file per record with one-line indexes (trace files rendered from published note refs); per-file byte budgets warn on an unmigrated repo and fail on a migrated one; a host-repo `tools/grugops/state-check.js` runnable called from the PR gate and daily sweep; `60-progress.md` rolls into an archive and `queue/done/`/`50-decisions/` may only be moved — v3.0 Phase 37 (SPLIT-01..07)
 
 ### Active
 
@@ -329,6 +330,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-10-27 after Phase 37 — **Phase 37 (Overview board, per-file records and budgets) complete** (42/42 plans incl. gap-closure rounds 1–4; verification 15/16, human_needed → passed after UAT 4/4; security 41/42 threats closed, 1 open below the blocking threshold). SPLIT-01..07 validated. Accepted open at UAT: WR-15 (state-check prints ROLLABLE for a board that state-roll refuses; not a regression) and WR-16 (a pre-existing non-module `tools/grugops/package.json` is kept and install exits 0); CI reachability of the own-tree gates stays deferred to backlog 999.12; the live commonjs-host workflow run was confirmed. Next: Phase 38.*
+
 *Last updated: 2026-10-21 after Phase 36 — **Phase 36 (State-layout authority, path move and protection) complete** (14/14 plans; verification 4/5 + 1 behavior item, human_needed → passed after UAT 2/2, the live pre-v3 fallback run on Claude Code 2.1.304; security 29/29 closed). LAYOUT-01..05 validated. WR-04 (two-root `--migrate` dead end) pinned to Phase 38 SC 6 / MIGRATE-04; WR-01..03 and IN-01..04 open in 36-REVIEW-DISPOSITION.md. Next: Phase 37.*
 
 *Last updated: 2026-10-20 after Phase 35 — **Phase 35 (Graph-memory decision record) complete** (1/1 plan; verification 12/12, human_needed → passed after UAT 2/2; security 7/7 closed). [v3.0, D-10] recorded: graph memory not adopted, nothing built. GRAPH-01 and GRAPH-02 validated. Next: Phase 36.*

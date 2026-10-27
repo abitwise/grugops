@@ -115,7 +115,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
 
 - [x] **Phase 35: Graph-memory decision record** - one recorded decision: graph memory is not adopted, nothing is built, what a user may do with such a tool themselves, and when to revisit (completed 2026-10-20)
 - [x] **Phase 36: State-layout authority, path move and protection** - planning state moves under `memory-bank/plans/` behind one constants-only path authority, protected from prune and uninstall, with old-layout repos still working (completed 2026-10-21)
-- [ ] **Phase 37: Overview board, per-file records and budgets** - the board becomes a one-line-per-ticket overview, NFRs and traceability become one file per record with indexes, and byte budgets are checked in grugops and in host repos
+- [x] **Phase 37: Overview board, per-file records and budgets** - the board becomes a one-line-per-ticket overview, NFRs and traceability become one file per record with indexes, and byte budgets are checked in grugops and in host repos (completed 2026-10-27)
 - [ ] **Phase 38: install --migrate v3** - an old-layout repo moves to the v3 layout with one command that keeps every original, proves line conservation and re-runs as a no-op (the data-loss surface, in its own phase)
 - [ ] **Phase 39: Role machinery: engineer levels, Tech Lead and Designer roles, skills key** - a Tech Lead scores and pre-plans, one engineer role yields junior/mid/senior adapters on Claude Code, a Designer role exists, roles can declare skills, and every role and adapter set stays derived
 - [ ] **Phase 40: Plain-language role rewrite** - caveman retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English within 67,383 bytes, every load-bearing rule kept, "do less" rules added
@@ -240,7 +240,7 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 42/42 plans executed
+**Plans**: 42/42 plans complete
 
 Plans:
 **Wave 1**
@@ -485,7 +485,7 @@ Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequent
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
-| 37. Overview board, per-file records and budgets | v3.0 | 42/42 | In Progress | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |

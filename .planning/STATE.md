@@ -2,37 +2,37 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: 37
-current_phase_name: Overview board, per-file records and budgets
-status: verifying
-stopped_at: Completed 37-42-PLAN.md
-last_updated: "2026-10-27T09:53:09.123Z"
+current_phase: 38
+current_phase_name: install --migrate v3
+status: planning
+stopped_at: Phase 37 complete, ready to plan Phase 38
+last_updated: "2026-10-27T13:19:36.263Z"
 last_activity: 2026-10-27
-last_activity_desc: Phase 37 execution started
-state_head: 2d16796cd52af6d5a44efcd6db7f3431b2441007
+last_activity_desc: Phase 37 complete, transitioned to Phase 38
+state_head: f9218e8a4265b8420ecdfb31fcf5476ee3db0892
 progress:
   total_phases: 9
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 57
   completed_plans: 57
-  percent: 22
+  percent: 33
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
+See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 37 — Overview board, per-file records and budgets
+**Current focus:** Phase 38 — install --migrate v3
 
 ## Current Position
 
-Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
-Plan: 42 of 42
-Status: Phase complete — ready for verification
-Last activity: 2026-10-27 — Phase 37 execution started
+Phase: 38 — install --migrate v3
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-27 — Phase 37 complete, transitioned to Phase 38
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 410
+- Total plans completed: 452
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -143,6 +143,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 33.1 | 43 | - | - |
 | 35 | 1 | - | - |
 | 36 | 14 | - | - |
+| 37 | 42 | - | - |
 
 **Recent Trend:**
 
@@ -2121,6 +2122,7 @@ None yet.
 
 **Open — carried into the next milestone:**
 
+- **[Phase 37] Open code-review warnings, accepted at UAT (2026-10-27)** — WR-15 (state-check prints ROLLABLE for a board that state-roll refuses: a non-UTF-8 board or an in-root `archive/board-done.md` link; not a regression) and WR-16 (a pre-existing `tools/grugops/package.json` without `"type":"module"` is kept, install exits 0, every program then fails to load). Both stay open in 37-REVIEW-DISPOSITION.md. CI reachability of the own-tree gates stays deferred to backlog 999.12.
 - **[Phase 36] Open code-review warnings** — WR-01 (old-spelling gate misses end-of-path and `_plans` forms), WR-02 (`check-state-paths` passes vacuously from a subdirectory), WR-03 (uninstall banner lists `.grugops/` as preserved, then removes `.grugops/install.json`), plus IN-01..04, all open in `36-REVIEW-DISPOSITION.md`. WR-04 (two-root `--migrate` dead end) is pinned to Phase 38 SC 6 / MIGRATE-04. 36-VALIDATION.md is still draft (Nyquist audit not run).
 - **[v2.0] `windows-latest` CI leg is RED** on 3 test files (9 failures). 7 are harness/fixture artifacts (path-separator assertions, a CRLF token, a symlink-privilege fixture, an unbuildable old-layout fixture cascading into 2 more); 2 are a real Windows limitation of the ubuntu-scoped freshness mirror-rebuild. **Zero failures in the v2.0 substrate.** MIGR-04's Windows case is *unverified, not disproven* — its test fails as a cascade of the unbuildable fixture (empty output = the migrate never ran). The cross-platform-including-Windows constraint makes fixing this a standing obligation, not optional.
 - **[v2.0] `orchestrator.md` is 7562B against a 7165B `guard_role_size` WARN threshold and grows every phase** — it is the PAR-01..04 coordinator spine, so accretion is structural, not incidental. Five other roles (brownfield-mapper, frontend-ui, greenfield-mapper, qe-e2e, security-nfr) also sit near the ceiling. Advisory today (`check-foundation-guards` exits 0); a hard FAIL on the current trajectory. Trim or split **before** adding to it.
@@ -2436,8 +2438,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-27T09:53:08.119Z
-Stopped at: Completed 37-42-PLAN.md
+Last session: 2026-10-27T13:20:16.000Z
+Stopped at: Phase 37 complete, ready to plan Phase 38
 Resume file: None
 
 ## Operator Next Steps

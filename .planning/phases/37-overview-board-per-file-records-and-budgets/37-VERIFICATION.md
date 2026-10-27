@@ -1,7 +1,7 @@
 ---
 phase: 37-overview-board-per-file-records-and-budgets
 verified: 2026-10-27T12:30:00Z
-status: human_needed
+status: passed
 score: 15/16 must-haves verified
 covered_files:
   - ".planning/phases/37-overview-board-per-file-records-and-budgets/37-01-PLAN.md"
