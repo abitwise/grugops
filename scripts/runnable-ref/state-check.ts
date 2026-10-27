@@ -103,9 +103,11 @@
 // ancestor of one is trace-not-compared (exit 2 when it sits above the layout marker, which is read first: the marker
 // beneath a link is never read and never absent, so it can never turn a migrated repository's findings into
 // warnings), and a link on the chain of a required file (the layout marker, the board, an index) is exit 2 naming it,
-// of a measured file an unmeasured finding, and of a listed folder an unlisted finding. The file leaf rules are
-// unchanged: the marker, the board and the indexes follow an in-root link to a regular file, and a measured file never
-// follows a link. Every folder this file lists is asked with leaf `directory`, so a link AT a folder is refused as the
+// of a measured file an unmeasured finding, and of a listed folder an unlisted finding. The file leaf rules: only the
+// layout marker follows an in-root link to a regular file (plan 37-04's file-follow rule, the one member of
+// LEAF_LINK_READ_THROUGH, kept by D-21 and flagged for the human); a link at the board, the trace index or the NFR
+// catalog is exit 2 naming it, as state-roll and trace-render refuse it (plan 37-41, D-21, IN-14), and a measured file
+// never follows a link. Every folder this file lists is asked with leaf `directory`, so a link AT a folder is refused as the
 // folder and nothing beneath it is listed, measured, counted or compared (a leaf-rule change past D-20's list, flagged
 // for the human beside `.grugops/queue`, whose link now refuses the queue-done folder beneath it). A path whose real
 // path lands outside realpath(root) is a finding by name and is never read, listed or measured
@@ -2098,6 +2100,15 @@ function locate(rel: string, leaf: "directory" | "entry" = "entry"): Located {
   return { kind: "inside", abs, real: presence.real, entry: presence.entry, target: presence.target };
 }
 
+/**
+ * The state files read through a symbolic link at their own position (plan 37-41, D-21, IN-14): the layout marker
+ * alone. Plan 37-04's file-follow rule for the marker is kept by D-21, because IN-14 names the board and the indexes
+ * and the marker is read by no other runnable; the rule is flagged for the human. Every other state file readState
+ * reads (the board, the trace index, the NFR catalog, and the progress file) is refused at a leaf link, as state-roll
+ * and trace-render refuse the same paths.
+ */
+const LEAF_LINK_READ_THROUGH: ReadonlySet<string> = new Set([LAYOUT_MARKER_REL]);
+
 /** A required state file's text, or why there is none. */
 type StateText = { readonly kind: "absent" } | { readonly kind: "outside" } | { readonly kind: "text"; readonly text: string };
 
@@ -2106,7 +2117,13 @@ type StateText = { readonly kind: "absent" } | { readonly kind: "outside" } | { 
  *
  * Whether it is present is the root-chain owner's answer, through locate (plan 37-35, D-20): a path the owner refuses,
  * a symbolic link on its parent chain below the root included, is exit 2 naming it, so the layout marker beneath a
- * link is never read and never absent. What the path names is the owner's stat, so a path that is present and is not a regular file
+ * link is never read and never absent. A symbolic link at the path itself, live and inside the root, is exit 2 naming
+ * it unless the path is in LEAF_LINK_READ_THROUGH (the layout marker alone; plan 37-41, D-21, IN-14), so state-check
+ * never reads the board or an index through a link that state-roll and trace-render refuse, and never prints a
+ * ROLLABLE line pointing at a roll that would refuse the same board. The decision is the owner's lstat of the entry.
+ * The progress file reaches this function only after sizeFinding's lstat measured it as a regular file, so a link there
+ * is that not-measured finding; the rule still applies if the file changes between the two reads. What the path names
+ * is the owner's stat, so a path that is present and is not a regular file
  * (a FIFO, a device, a socket, a directory) is refused without being opened. The read goes through the embedded
  * non-blocking reader, which checks the shape again on the open descriptor. A file that is present and cannot be
  * read, or that the reader can no longer find (it vanished), is never treated as absent: it is exit 2, naming it.
@@ -2116,6 +2133,12 @@ function readState(rel: string, what: string): StateText {
   if (at.kind === "error") couldNotRun(`cannot resolve the ${what} ${rel}: ${at.reason}.`);
   if (at.kind === "link") couldNotRun(`cannot use the ${what} ${rel}: ${at.reason}.`);
   if (at.kind !== "inside") return at;
+  if (at.entry.isSymbolicLink() && !LEAF_LINK_READ_THROUGH.has(rel)) {
+    couldNotRun(
+      `cannot use the ${what} ${rel}: it is a symbolic link, and state-check reads no state file through a link at its ` +
+        "own path (state-roll and trace-render refuse it too); replace the link with the file it points to.",
+    );
+  }
   if (!at.target.isFile()) couldNotRun(`the ${what} ${rel} is present and is not a regular file, so it was not opened.`);
   let text: string | null;
   try {

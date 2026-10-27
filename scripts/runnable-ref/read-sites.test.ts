@@ -1583,6 +1583,25 @@ function sharedTracePositions(runnable: "trace-render" | "state-check", modes: r
   ];
 }
 
+/**
+ * state-check's readState files (plan 37-41, D-21, IN-14): the board, the trace index and the NFR catalog. readState
+ * refuses every shape of the `file` kind at them, a live in-root link to a regular file included, with exit 2 naming
+ * the path, so the runner gives these cells one outcome (IN-12's rule), not plan 37-31's either-or. Until this plan
+ * the trace index sat in the `the index and a trace file` position, and the board and the NFR catalog in none.
+ */
+const STATE_CHECK_READ_STATE_POSITION: ShapePosition = {
+  runnable: "state-check",
+  via: "locate#0",
+  position: "the board, the trace index and the NFR catalog (readState)",
+  paths: [BOARD_REL, TRACEABILITY_REL, NFR_CATALOG_REL],
+  kind: "file",
+  modes: SC,
+  base: "trace",
+};
+
+/** The paths whose state-check `file` cells are exit 2 by name, read off the position above (never a second list). */
+const STATE_CHECK_READ_STATE_PATHS: ReadonlySet<string> = new Set(STATE_CHECK_READ_STATE_POSITION.paths);
+
 const SHAPE_POSITIONS: readonly ShapePosition[] = [
   ...sharedTracePositions("trace-render", TR_SHAPE_MODES),
   {
@@ -1627,15 +1646,18 @@ const SHAPE_POSITIONS: readonly ShapePosition[] = [
     modes: SC,
     base: "trace",
   },
+  // Plan 37-41 (D-21, IN-14): the trace index moved from this position to readState's, below; this one keeps the
+  // trace file (readTraceText), so each path sits in exactly one state-check position.
   {
     runnable: "state-check",
     via: "locate#0",
-    position: "the index and a trace file",
-    paths: [TRACEABILITY_REL, ABC_001_TRACE],
+    position: "a trace file",
+    paths: [ABC_001_TRACE],
     kind: "file",
     modes: SC,
     base: "trace",
   },
+  STATE_CHECK_READ_STATE_POSITION,
   {
     runnable: "state-check",
     via: "locate#0",
@@ -1758,8 +1780,11 @@ const SHAPE_ROWS: readonly ShapeCell[] = SHAPE_POSITIONS.flatMap((pos) =>
  * and a trace file 2x5, the extra trace file 1x5, the marker 1x5, siblings 2x3) + state-roll 38 (root chain 3x6,
  * files 4x5). The two outside link shapes joined the root-chain, notes and task kinds; the root-chain positions are
  * derived (CHAIN_POSITION_COUNTS).
+ * 2026-10-27, plan 37-41 (D-21, IN-14): 245 = trace-render 93 (unchanged) + state-check 114 (the same 36 shared
+ * cells, root chain 7x6, a trace file 1x5 (the index left it: -5), readState's board, trace index and NFR catalog
+ * 3x5 (+15), the extra trace file 1x5, the marker 1x5, siblings 2x3) + state-roll 38 (unchanged); +10 net.
  */
-const SHAPE_ROW_COUNT = 235;
+const SHAPE_ROW_COUNT = 245;
 
 /** `<runnable> <via> <path>: <shape>`, one cell's identity. */
 function cellId(c: ShapeCell): string {
@@ -2075,8 +2100,16 @@ function runShapeCell(c: ShapeCell): void {
           }
           continue;
         }
-        // The file, listing and file-follow kinds keep plan 37-31's either-or: round 3 does not change their outcomes,
-        // so exit 2 by name and exit 1 with a trace-not-compared finding are both accepted there.
+        if (c.pos.kind === "file" && STATE_CHECK_READ_STATE_PATHS.has(c.path)) {
+          // ONE OUTCOME (plan 37-41, D-21, IN-14): readState refuses every shape at the board, the trace index and the
+          // NFR catalog, so exit 1 there is red.
+          expect(r.status, `a refused readState cell is exit 2\n${all}`).toBe(2);
+          expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
+          expect(r.stderr, `exit 2 names ${named}\n${all}`).toContain(named);
+          continue;
+        }
+        // The other file cells, and the listing and file-follow kinds, keep plan 37-31's either-or: round 3 does not
+        // change their outcomes, so exit 2 by name and exit 1 with a trace-not-compared finding are both accepted there.
         if (r.status === 2) {
           expect(r.stdout, `exit 2 has an empty stdout\n${all}`).toBe("");
           expect(r.stderr, `exit 2 names ${named}\n${all}`).toContain(named);

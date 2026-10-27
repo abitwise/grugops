@@ -19,7 +19,9 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -2429,5 +2431,168 @@ describe("IN-13 census: state-check keeps no hand-written boundary copy (plan 37
       expect(named.length, `PREMISE: ${fn} is in the hand-written part`).toBeGreaterThan(0);
       expect.soft(named, `${fn} asks the generated isWithin`).toContain("isWithin");
     }
+  });
+});
+
+// ── Plan 37-41 (D-21, IN-14): state-check reads no state file through a link at its own position ──────────────
+// Until this plan state-check followed an in-root link at the board, the trace index and the NFR catalog, which
+// state-roll and trace-render refuse with exit 2, so state-check could print `ROLLABLE ... run node
+// tools/grugops/state-roll.js`, a command that then exits 2 (37-REVIEW.md IN-14). readState now refuses a leaf link
+// at every state file except the layout marker, the one member of state-check's read-through list (plan 37-04's
+// file-follow rule, kept by D-21 and flagged for the human). The progress file keeps its earlier refusal: sizeFinding's
+// lstat reports a link there as a not-measured finding before readState is reached.
+
+const IN14_POSITION = "scripts/runnable-ref/state-check.test.ts: a state file as an in-root link (plan 37-41, IN-14)";
+
+/** A committed sibling program, copied alone into its own empty directory, as a host runs it. */
+function in14Host(name: "state-roll.js" | "trace-render.js"): string {
+  const host = mkTmp(`grugops-state-check-in14-${name.replace(".js", "")}-`);
+  const js = join(host, name);
+  copyFileSync(join(import.meta.dirname, name), js);
+  return js;
+}
+const IN14_ROLL_JS = in14Host("state-roll.js");
+const IN14_RENDER_JS = in14Host("trace-render.js");
+
+function in14Run(js: string, ...args: string[]): { status: number | null; stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [js, ...args], { encoding: "utf8", cwd: dirname(js) });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+/** Every entry under `root` with its kind and content (a link by its target text), so a run's writes are visible. */
+function in14Digest(root: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const rel of (readdirSync(root, { recursive: true }) as string[]).sort()) {
+    const p = join(root, rel);
+    const st = lstatSync(p);
+    out.set(rel, st.isSymbolicLink() ? `link ${readlinkSync(p)}` : st.isFile() ? `file ${readFileSync(p, "base64")}` : st.isDirectory() ? "dir" : "other");
+  }
+  return out;
+}
+
+/**
+ * A migrated repository with both rolls due: the D-14 marker, a Done column one row over BUDGETS.doneRows, and a
+ * progress file one byte over BUDGETS.progressBytes holding two dated entries.
+ */
+function in14Repo(): string {
+  const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+  addDoneRows(root, BUDGETS.doneRows + 1);
+  plant(root, PROGRESS_REL, PROGRESS_TWO_DATED);
+  return root;
+}
+
+let in14LinksStaged = 0;
+let in14LinksSkipped = 0;
+
+/** Move the file at `rel` to an in-root target beside the state tree and put a link to it in its place; false on a skip. */
+function in14Link(root: string, rel: string): boolean {
+  const at = join(root, ...rel.split("/"));
+  const target = join(root, `in14-target-${rel.split("/").join("-")}`);
+  renameSync(at, target);
+  const skipped = stageSymlinkOrSkip(target, at, "symlink to a regular file", `${IN14_POSITION} (${rel})`);
+  if (skipped !== null) {
+    in14LinksSkipped += 1;
+    console.warn(skipLine(skipped, "the IN-14 cells of scripts/runnable-ref/read-sites.test.ts (the same leaf rule)"));
+    return false;
+  }
+  in14LinksStaged += 1;
+  return true;
+}
+
+/** state-check's could-not-run for a leaf link: exit 2 in text and --json, an empty stdout, stderr naming `rel`. */
+function expectLeafLinkRefused(root: string, rel: string): void {
+  for (const args of [[root], [root, "--json"]]) {
+    const r = run(...args);
+    const all = `${args.join(" ")}: status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(r.status, all).toBe(2);
+    expect(r.stdout, all).toBe("");
+    expect(r.stderr, all).toContain(`${rel}: it is a symbolic link`);
+    expect(r.stderr, all).toContain("replace the link with the file it points to");
+    expect(`${r.stdout}${r.stderr}`, all).not.toContain("ROLLABLE");
+  }
+}
+
+describe("IN-14 (plan 37-41, D-21): state-check refuses a leaf link at the board and the indexes, as state-roll and trace-render do", () => {
+  it("IN-14 CONTROL: with no link, the over-budget repository prints a ROLLABLE line for done and for progress, exit 1", () => {
+    const root = in14Repo();
+    const r = run(root);
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+    expect(rollableLines(r.stdout).map((l) => l.split(":")[0])).toEqual(["ROLLABLE  done", "ROLLABLE  progress"]);
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    expect(j.report.rollable).toEqual(["done", "progress"]);
+  });
+
+  it("IN-14: the board as an in-root link to a regular file holding it: state-check exit 2 naming it and no ROLLABLE line; state-roll exit 2 naming it", () => {
+    const root = in14Repo();
+    if (!in14Link(root, BOARD_REL)) return;
+    const before = in14Digest(root);
+    expectLeafLinkRefused(root, BOARD_REL);
+    const roll = in14Run(IN14_ROLL_JS, root);
+    expect(roll.status, roll.stderr).toBe(2);
+    expect(roll.stderr).toContain(`${BOARD_REL} is a symbolic link`);
+    expect(in14Digest(root)).toEqual(before);
+  });
+
+  it("IN-14: the trace index as an in-root link: state-check exit 2 naming it; trace-render --check and write exit 2; every trace file and the index target kept", () => {
+    const root = in14Repo();
+    plantNote(root, CONTEXT_REL, "taskA", "n1", ["ABC-001", "src/a.ts"]);
+    renderOk(root);
+    if (!in14Link(root, TRACEABILITY_REL)) return;
+    const before = in14Digest(root);
+    expect(before.get(join(...TRACE_DIR_REL.split("/"), "ABC-001.md")), "PREMISE: a rendered trace file").toMatch(/^file /);
+    expectLeafLinkRefused(root, TRACEABILITY_REL);
+    for (const args of [[root, "--check"], [root]]) {
+      const r = in14Run(IN14_RENDER_JS, ...args);
+      expect(r.status, `${args.join(" ")}: ${r.stdout}${r.stderr}`).toBe(2);
+      expect(r.stderr).toContain(TRACEABILITY_REL);
+    }
+    expect(in14Digest(root)).toEqual(before);
+  });
+
+  it("IN-14: the NFR catalog as an in-root link: state-check exit 2 naming it", () => {
+    const root = in14Repo();
+    if (!in14Link(root, NFR_CATALOG_REL)) return;
+    const before = in14Digest(root);
+    expectLeafLinkRefused(root, NFR_CATALOG_REL);
+    expect(in14Digest(root)).toEqual(before);
+  });
+
+  it("IN-14: the progress file as an in-root link: state-check exit 1 with one not-measured finding naming it and no ROLLABLE progress line; state-roll exit 2 naming it", () => {
+    const root = in14Repo();
+    if (!in14Link(root, PROGRESS_REL)) return;
+    const before = in14Digest(root);
+    const r = run(root);
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+    expect(rollableLines(r.stdout).filter((l) => l.startsWith("ROLLABLE  progress"))).toEqual([]);
+    const j = runJson(root);
+    expect(j.status).toBe(1);
+    expect(j.report.rollable).not.toContain("progress");
+    const progress = j.report.findings.filter((f) => f.rel === PROGRESS_REL);
+    expect(progress.map((f) => [f.key, f.measured])).toEqual([["progressBytes", null]]);
+    expect((progress[0] as NotedFinding).note).toContain("not a regular file, so it was not measured");
+    const roll = in14Run(IN14_ROLL_JS, root);
+    expect(roll.status, roll.stderr).toBe(2);
+    expect(roll.stderr).toContain(PROGRESS_REL);
+    expect(in14Digest(root)).toEqual(before);
+  });
+
+  it("IN-14 CONTROL: the layout marker as an in-root link to a regular file holding it is still read through (marker valid, exit 0)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    if (!in14Link(root, LAYOUT_MARKER_REL)) return;
+    const j = runJson(root);
+    expect(j.status, j.stdout + j.stderr).toBe(0);
+    expect(j.report).toMatchObject({ marker: "valid", enforced: true, findings: [] });
+  });
+
+  it("IN-14: the read-through list holds the layout marker alone, declared once in the hand-written part", () => {
+    const source = readFileSync(CHECK_TS, "utf8");
+    const decl = source.match(/^const LEAF_LINK_READ_THROUGH: ReadonlySet<string> = new Set\(\[(.*)\]\);$/gm) ?? [];
+    expect(decl).toEqual(["const LEAF_LINK_READ_THROUGH: ReadonlySet<string> = new Set([LAYOUT_MARKER_REL]);"]);
+  });
+
+  it("IN-14: every link row staged its link, and none was skipped on darwin or linux", () => {
+    expect(in14LinksStaged + in14LinksSkipped).toBe(5);
+    if (process.platform === "darwin" || process.platform === "linux") expect(in14LinksSkipped).toBe(0);
   });
 });
