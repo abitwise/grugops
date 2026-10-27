@@ -6540,10 +6540,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // while it holds what install wrote, never written over a user's file. NOTICE is not copied into the
   // repository, and no other license file is. These runs set HOME as well as GRUGOPS_HOME to scratch
   // directories.
-  const licenseInstall = (target: string, home: string, scratchHome: string) =>
+  // `dryRun` (plan 37-40, the package-file DRY_RUN case) sets DRY_RUN=1; every other caller leaves it off.
+  const licenseInstall = (target: string, home: string, scratchHome: string, dryRun = false) =>
     spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags([])], {
       encoding: "utf8",
-      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, HOME: scratchHome, TARGET: target, DRY_RUN: "" },
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, HOME: scratchHome, TARGET: target, DRY_RUN: dryRun ? "1" : "" },
     });
   const licenseUninstall = (target: string, home: string, scratchHome: string) =>
     spawnSync("node", [UNINSTALL_JS], {
@@ -6713,6 +6714,135 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(target, PACKAGE_REL))).toBe(false);
     expect(u.stdout).toContain(`${PACKAGE_REL} (recorded in the install ledger)`);
     expect(readFileSync(join(target, "package.json"), "utf8")).toBe(COMMONJS_HOST);
+  });
+
+  // ── tools/grugops/package.json: the installer contract, one case per clause (plan 37-40 Task 2, D-21) ─────────
+  // Idempotent, additive, dry-run-capable, reversible, recorded, never written over a user's file: the rules every
+  // file install writes into a user's repository follows (CLAUDE.md "Installers"), here for the package file. The
+  // report wording is materializeRunnable's (install.ts) and reportUnrecordedFile's (uninstall.ts), read from runs.
+  /** The report lines of install's `-- runnables --` section (from its heading to the next blank line). */
+  function runnablesSection(stdout: string): string[] {
+    const lines = stdout.split("\n");
+    const start = lines.indexOf("-- runnables --");
+    if (start === -1) throw new Error(`the install run printed no "-- runnables --" section:\n${stdout}`);
+    const end = lines.findIndex((l, i) => i > start && l.trim() === "");
+    return lines.slice(start + 1, end === -1 ? undefined : end);
+  }
+  /** Rewrite `target`'s install marker without the ledger entry for `rel` (the shape of an install that never recorded it). */
+  function dropLedgerEntry(target: string, rel: string): void {
+    const markerPath = join(target, ".grugops", "install.json");
+    const marker = readMarkerObject(target);
+    const before = markerLedger(target).filter((e) => e.path === rel).length;
+    expect(before, `premise: the ledger records ${rel} once`).toBe(1);
+    writeFileSync(markerPath, JSON.stringify(withLedger(marker, (l) => l.filter((e) => e.path !== rel)), null, 2) + "\n");
+    expect(markerLedger(target).filter((e) => e.path === rel)).toEqual([]);
+  }
+
+  it("tools/grugops/package.json: a user's own file at that path is left byte for byte, is reported left untouched, gets no ledger entry, and survives uninstall", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const scratchHome = mkTmp();
+    writeFileSync(join(target, "package.json"), COMMONJS_HOST);
+    mkdirSync(join(target, "tools", "grugops"), { recursive: true });
+    const mine = '{"type":"commonjs","private":true}\n';
+    writeFileSync(join(target, PACKAGE_REL), mine);
+    const r = licenseInstall(target, home, scratchHome);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(readFileSync(join(target, PACKAGE_REL), "utf8")).toBe(mine);
+    expect(r.stdout).toContain(`${PACKAGE_REL} (a file that differs from this kit version's is already there — left untouched, never-overwrite)`);
+    expect(markerLedger(target).filter((e) => e.path === PACKAGE_REL)).toEqual([]);
+    const u = licenseUninstall(target, home, scratchHome);
+    expect(u.status, `${u.stdout}\n${u.stderr}`).toBe(0);
+    expect(readFileSync(join(target, PACKAGE_REL), "utf8")).toBe(mine);
+    expect(readFileSync(join(target, "package.json"), "utf8")).toBe(COMMONJS_HOST);
+  });
+
+  it("tools/grugops/package.json: install records it once, kind file, kit false, with its sha256 content record", () => {
+    const { target } = installedHost(COMMONJS_HOST);
+    const entries = markerLedger(target).filter((e) => e.path === PACKAGE_REL);
+    expect(entries.length, JSON.stringify(entries)).toBe(1);
+    expect(entries[0]).toMatchObject({ kind: "file", kit: false });
+    expect(String(entries[0].content)).toMatch(/^sha256:[0-9a-f]{64};mode=/);
+    const digest = createHash("sha256").update(readFileSync(join(REPO_ROOT, PACKAGE_KIT_REL))).digest("hex");
+    expect(String(entries[0].content)).toContain(`sha256:${digest};`);
+  });
+
+  it("tools/grugops/package.json: a second install reports it already there and changes neither its bytes nor its mtime", () => {
+    const { target, home, scratchHome } = installedHost(COMMONJS_HOST);
+    const at = join(target, PACKAGE_REL);
+    const bytes = readFileSync(at);
+    const mtimeMs = statSync(at).mtimeMs;
+    const r = licenseInstall(target, home, scratchHome);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(runnablesSection(r.stdout ?? "")).toContain(`  ${"skipped".padEnd(14)} ${PACKAGE_REL} (target already has it)`);
+    expect(readFileSync(at).equals(bytes)).toBe(true);
+    expect(statSync(at).mtimeMs).toBe(mtimeMs);
+  });
+
+  it("tools/grugops/package.json: DRY_RUN=1 on a fresh target prints a would-add line for it and writes nothing there", () => {
+    const target = mkTmp();
+    writeFileSync(join(target, "package.json"), COMMONJS_HOST);
+    const r = licenseInstall(target, mkTmp(), mkTmp(), true);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(runnablesSection(r.stdout ?? "")).toContain(`  ${"would-add".padEnd(14)} ${PACKAGE_REL}`);
+    expect(existsSync(join(target, PACKAGE_REL))).toBe(false);
+    expect(existsSync(join(target, "tools"))).toBe(false);
+    expect(readFileSync(join(target, "package.json"), "utf8")).toBe(COMMONJS_HOST);
+  });
+
+  it("tools/grugops/package.json: a copy the ledger does not record survives uninstall and is reported left, with the reason", () => {
+    const { target, home, scratchHome } = installedHost(COMMONJS_HOST);
+    dropLedgerEntry(target, PACKAGE_REL);
+    const u = licenseUninstall(target, home, scratchHome);
+    expect(u.status, `${u.stdout}\n${u.stderr}`).toBe(0);
+    expect(readFileSync(join(target, PACKAGE_REL)).equals(readFileSync(join(REPO_ROOT, PACKAGE_KIT_REL)))).toBe(true);
+    const left = (u.stdout ?? "").split("\n").filter((l) => l.startsWith(`  ${"left".padEnd(14)} ${PACKAGE_REL} `));
+    expect(left, u.stdout).toEqual([
+      `  ${"left".padEnd(14)} ${PACKAGE_REL} (it is byte-identical to its source, but install has no record of writing it — it is not in the install ledger; left in place)`,
+    ]);
+    expect(readFileSync(join(target, "package.json"), "utf8")).toBe(COMMONJS_HOST);
+  });
+
+  it("tools/grugops/package.json: a plain re-run over a pre-fix install creates it, and only it among the RUNNABLES rows, records it, and every program then runs its own body", () => {
+    const { target, home, scratchHome } = installedHost(COMMONJS_HOST);
+    // The shape an install from before this fix leaves: the seven programs and the license, no package file, no record.
+    rmSync(join(target, PACKAGE_REL));
+    dropLedgerEntry(target, PACKAGE_REL);
+    const premise = runPrograms(target);
+    for (const run of premise) expect(run.status, `premise: ${run.rel} loads on the pre-fix shape\n${run.out}`).toBe(1);
+    const r = licenseInstall(target, home, scratchHome);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    const section = runnablesSection(r.stdout ?? "");
+    const expected = parseMapping("install.ts", "RUNNABLES").map(([, dest]) =>
+      dest === PACKAGE_REL ? `  ${"created".padEnd(14)} ${dest}` : `  ${"skipped".padEnd(14)} ${dest} (target already has it)`,
+    );
+    expect(section, r.stdout).toEqual(expected);
+    expect(markerLedger(target).filter((e) => e.path === PACKAGE_REL && e.kind === "file").length).toBe(1);
+    for (const run of runPrograms(target)) {
+      const row = OWN_BODY[run.name];
+      expect(run.status, `${run.rel}\n${run.out}`).toBe(row.status);
+      expect(run.out, run.rel).toContain(row.text);
+      for (const failure of LOAD_FAILURES) expect(run.out, `${run.rel} printed ${failure}`).not.toContain(failure);
+    }
+  });
+
+  it("tools/grugops/package.json: AUTH-1: install.ts's MIRROR_PACKAGE_JSON and install/runnable-package.json spell the same bytes, `{\"type\":\"module\"}` and one LF", () => {
+    // `{"type":"module"}` plus one LF is spelled twice in install/: MIRROR_PACKAGE_JSON (the generator's temp mirror)
+    // and the kit file the RUNNABLES row copies. This case holds the two equal (37-GAP-PLANNING-BRIEF.md §1.3).
+    // scripts/host-entries-freshness.ts spells its own copy for a grugops-only CI mirror; it is not a host file and
+    // stays outside D-21, so it is not held here.
+    const source = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    const decls = [...source.matchAll(/^const MIRROR_PACKAGE_JSON = '([^'\n]*)';$/gm)];
+    if (decls.length !== 1) {
+      throw new Error(`install.ts: expected exactly one single-quoted \`const MIRROR_PACKAGE_JSON = '...';\` declaration, found ${decls.length}`);
+    }
+    const mirror = decls[0][1].replaceAll("\\n", "\n");
+    const kit = readFileSync(join(REPO_ROOT, PACKAGE_KIT_REL), "utf8");
+    expect(mirror).toBe(kit);
+    expect(JSON.parse(kit)).toEqual({ type: "module" });
+    expect(Object.keys(JSON.parse(kit) as object)).toEqual(["type"]);
+    expect(kit.endsWith("\n") && !kit.endsWith("\n\n")).toBe(true);
+    expect(kit.split("\n").length).toBe(2);
   });
 
   it("source derivation: an UNREADABLE source skill directory is reported and no completion is claimed", () => {
