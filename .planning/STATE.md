@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 37
 current_phase_name: Overview board, per-file records and budgets
-status: executing
-stopped_at: Completed 37-41-PLAN.md
-last_updated: "2026-10-27T08:32:48.783Z"
+status: verifying
+stopped_at: Completed 37-42-PLAN.md
+last_updated: "2026-10-27T09:53:09.123Z"
 last_activity: 2026-10-27
 last_activity_desc: Phase 37 execution started
-state_head: ee16f1f89f61868ea7418fc9d7223b3f0fcc92dc
+state_head: 2d16796cd52af6d5a44efcd6db7f3431b2441007
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 57
-  completed_plans: 56
+  completed_plans: 57
   percent: 22
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-21 after Phase 36)
 
 Phase: 37 (Overview board, per-file records and budgets) — EXECUTING
 Plan: 42 of 42
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-27 — Phase 37 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -770,6 +770,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P39 | 65min | 3 tasks | 6 files |
 | Phase 37 P40 | 73 min | 2 tasks | 12 files |
 | Phase 37 P41 | 50min | 2 tasks | 14 files |
+| Phase 37 P42 | 76 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -2102,6 +2103,8 @@ Recent decisions affecting current work:
 - [Phase 37]: G-37-2 closed per D-21: install writes tools/grugops/package.json ({"type":"module"} + LF) through one RUNNABLES row under the license rule; no --check line; WF05/WF09 unchanged
 - [Phase 37]: 37-41 WR-14: readTaskNoteRefs refuses a non-one-component name before any join, then entryPresence decides the stray remedy whatever the name; the name rule refuses only directories (IN-09 unchanged)
 - [Phase 37]: 37-41 IN-14: state-check readState refuses a live in-root leaf link at the board, trace index and NFR catalog (exit 2); LEAF_LINK_READ_THROUGH = {LAYOUT_MARKER_REL} keeps the marker file-follow rule, flagged for the human
+- [Phase 37]: 37-42: WR-12 closed with the reviewer's fix (run-wide lookaheads deleted, rendered at the noun); the rendered rule newly admits 'Edit the rendered trace files by hand.', recorded in deferred-items.md for the human
+- [Phase 37]: 37-42: install/runnable-package.json (plan 37-40) dispositioned by name in check-banned-claims as a module-type marker (exact-path pin 15 -> 16)
 
 ### Pending Todos
 
@@ -2433,8 +2436,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-27T08:32:47.812Z
-Stopped at: Completed 37-41-PLAN.md
+Last session: 2026-10-27T09:53:08.119Z
+Stopped at: Completed 37-42-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
