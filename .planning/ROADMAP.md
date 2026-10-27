@@ -240,7 +240,7 @@ Plans:
   4. A host repo has a `tools/grugops/state-check.js` runnable, with budgets generated from the layout module and freshness-gated, that checks budgets and index↔file integrity, and the PR gate and daily-sweep workflows call it (SPLIT-05)
   5. When `60-progress.md` goes over budget, older entries roll into an archive file; `queue/done/` and `50-decisions/` can only be moved to an archive folder, and nothing squashes or prunes them (SPLIT-06)
 
-**Plans**: 40/42 plans executed
+**Plans**: 41/42 plans executed
 
 Plans:
 **Wave 1**
@@ -372,7 +372,7 @@ Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequent
 - [x] 37-40-PLAN.md — G-37-2: install writes tools/grugops/package.json (`"type": "module"`) by the RUNNABLES rule, so every program runs on a commonjs host; commonjs-host regression with its premise control; installer-contract cases (no `--check` line: dropped by the human 2026-10-26)
 
 **Wave 41** *(blocked on Wave 40 completion)*
-- [ ] 37-41-PLAN.md — WR-14: the stray-entry remedy decided by the entry's lstat before its name; IN-14: state-check reads no state file through a leaf link except the flagged marker rule, so the three programs agree
+- [x] 37-41-PLAN.md — WR-14: the stray-entry remedy decided by the entry's lstat before its name; IN-14: state-check reads no state file through a leaf link except the flagged marker rule, so the three programs agree
 
 **Wave 42** *(blocked on Wave 41 completion)*
 - [ ] 37-42-PLAN.md — WR-12: the two run-wide scan exclusions removed, `rendered` exempted at the noun; the G-37-2 install guide and changelog text; gap round 4 full regression, reproductions and deferred items
@@ -485,7 +485,7 @@ Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequent
 |-------|-----------|----------------|--------|-----------|
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
-| 37. Overview board, per-file records and budgets | v3.0 | 40/42 | In Progress | - |
+| 37. Overview board, per-file records and budgets | v3.0 | 41/42 | In Progress | - |
 | 38. install --migrate v3 | v3.0 | 0/TBD | Not started | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
