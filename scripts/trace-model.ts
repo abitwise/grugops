@@ -92,14 +92,9 @@ const WRITE_VERB = `(?:${HAND_TRACE_WRITE_VERBS.join("|")})`;
 const PATTERN_1_BOUND = String.raw`(?:[^.]|\.(?=\S)){0,120}`;
 
 /**
- * The determiners after which a comma starts a new list item (plan 37-39): ", the board move" begins a new object, so
- * a verb before the comma does not reach a trace named after it.
- */
-const LIST_ITEM_DETERMINER = "(?:the|a|an|its|this|that|these|those|each|every|your|our|their)";
-
-/**
- * The words that can stand before the trace's noun phrase (plan 37-39, WR-11): the list-item determiners, `my`, a
- * ticket (`ticket`, `tickets`), or any word ending in `'s` (a possessive, a ticket id: "ABC-1's trace").
+ * The words that can stand before the trace's noun phrase (plan 37-39, WR-11): `the`, `a`, `an`, `its`, `this`,
+ * `that`, `these`, `those`, `each`, `every`, `your`, `our`, `their`, `my`, a ticket (`ticket`, `tickets`), or any word
+ * ending in `'s` (a possessive, a ticket id: "ABC-1's trace").
  */
 const TRACE_DETERMINER = String.raw`(?:the|a|an|its|this|that|these|those|each|every|your|our|their|my|ticket|tickets|[\w-]+'s)`;
 
@@ -123,13 +118,8 @@ const PATTERN_4 = [
   //   note"). Only the route wording stops the reach; a note as the place written ("Add a note to the trace file") does
   //   not;
   String.raw`(?!\bas (?:typed |published )?(?:notes?|refs?)\b)(?!\bon (?:a|the|each) (?:[\w-]+ )?notes?\b)`,
-  //   `per Workflow 16`, the workflow that names the sanctioned route ("notes recorded per Workflow 16");
-  String.raw`(?!\bper Workflow 16\b)`,
-  //   `because`, a reason clause that says what a thing is;
+  //   `because`, a reason clause that says what a thing is.
   String.raw`(?!\bbecause\b)`,
-  //   a comma, a space and a determiner, which start a new list item and so a new object ("the recorded human
-  //   signoff, the board move, ... the rendered trace files").
-  String.raw`(?!, ${LIST_ITEM_DETERMINER}\b)`,
   //   And none is a newline or a semicolon, or a dot or a colon unless a non-space character follows it: a sentence
   //   end and a colon before a new clause bound the reach, a path's dot does not.
   String.raw`(?:[^\n;.:]|[.:](?=\S))`,
@@ -140,9 +130,12 @@ const PATTERN_4 = [
   //   a determiner, then up to two words, then the trace: "your trace file", "the generated trace file", "the ticket
   //   ABC-1 trace file", "these traces". A conjunction is never one of the two words, because it joins a second noun
   //   to the first rather than describing the trace ("the NFR and trace directories");
-  String.raw`\b${TRACE_DETERMINER}\s+(?:(?!(?:and|or|but|nor)\b)[\w'-]+\s+){0,2}?traces?\b`,
-  //   or, with no determiner, the trace artifact by its own name: "trace files", "trace index". After `rendered` it
-  //   names the render's output, not a file to write ("tickets, board, rendered trace files").
+  String.raw`\b${TRACE_DETERMINER}\s+(?:(?!(?:and|or|but|nor)\b)[\w'-]+\s+){0,2}?(?<!\brendered )traces?\b`,
+  //   or, with no determiner, the trace artifact by its own name: "trace files", "trace index".
+  //   In both alternatives, `rendered` right before `trace` names the render's output, not a file to write, in a
+  //   determiner phrase ("the rendered trace files") as without one ("tickets, board, rendered trace files"). The
+  //   check sits at the noun, so it reaches only the one word before `trace` and never the run before it (plan 37-42,
+  //   37-REVIEW.md WR-12).
   String.raw`|(?<!\brendered )\btraces?\s(?:files?|index|indexes|entry|entries|lines?)\b`,
   String.raw`)`,
   // "the trace render" names the renderer, not the trace.
@@ -154,11 +147,15 @@ const PATTERN_4 = [
 /**
  * The four hand-trace scan patterns, stated once (plan 37-18 imports them from here and keeps no copy).
  *
- * They are derived from the truth they guard (SPLIT-03, D-02; plans 37-27, 37-32 and 37-39, SCAN-1): no kit file tells an
- * agent to write the trace by hand. They are not derived from the first sentences a scan caught, which is how the
+ * They are derived from the truth they guard (SPLIT-03, D-02; plans 37-27, 37-32, 37-39 and 37-42, SCAN-1): no kit
+ * file tells an agent to write the trace by hand. They are not derived from the first sentences a scan caught, which is how the
  * earlier pair came to need the word "traceability" (37-VERIFICATION.md Gap 3), and how the three patterns still let
  * "Append the PR link to the trace." through (37-REVIEW.md WR-08), and how pattern 4 then let "Update your trace
- * file." and "Keep updating the trace file by hand." through (37-REVIEW.md WR-11).
+ * file." and "Keep updating the trace file by hand." through (37-REVIEW.md WR-11), and how pattern 4's plan 37-39
+ * exclusions (`per Workflow 16`, and a comma followed by a determiner) were checked at every step of the run between
+ * the verb and the trace, so they reached the whole run and let a comma list of objects through ("Append the PR link,
+ * the test path and the release to the trace."; 37-REVIEW.md WR-12). Plan 37-42 deleted both and exempts the false
+ * hit they were added for, `the rendered trace files`, at the noun.
  *   1. a write verb (HAND_TRACE_WRITE_VERBS) aimed at traceability: "Append to traceability.md the PR link",
  *      "Add the test path to ./memory-bank/plans/traceability.md". Its bound crosses a dot that a non-space character
  *      follows, so a path's dot no longer stops it; a sentence end still does;
@@ -185,20 +182,27 @@ const PATTERN_4 = [
  *     `as typed refs`, `on a note`, `on the note`, `on each note`, one word allowed before `note`) is the sanctioned
  *     write: a typed note whose refs the render reads. Only the route wording stops the reach: a note or refs named
  *     as the thing written ("Add a note to the trace file", "Update the release refs in the trace file") is a hand
- *     write (plan 37-39);
- *   - `per Workflow 16` between the verb and the trace names the same sanctioned route ("the product notes recorded
- *     per Workflow 16 and the rendered trace files");
- *   - a comma, a space and a determiner start a new list item, so the verb's object ends before them ("the recorded
- *     human signoff, the board move, the metrics and the rendered trace files");
+ *     write (plan 37-39). It is checked at every step of the run, so what it removes and what it admits are the same
+ *     set: every sentence whose run from the verb to the trace holds the route wording anywhere. That includes the
+ *     sanctioned write it is reasoned from ("Record what changed as typed notes for the shared context and the
+ *     trace.") and also a hand write that names the route on the way ("Add the PR link as refs to the trace file by
+ *     hand."), which passes;
  *   - a clause bound between the verb and the trace (a newline, a semicolon, a sentence-ending dot, a colon followed
  *     by a space, or `because`) keeps a verb from reaching an object in another clause ("rather than editing it: an
- *     `artifact-ref` note carries the trace ids");
+ *     `artifact-ref` note carries the trace ids"). `because` is checked at every step of the run too, so it removes
+ *     the reason clauses it is reasoned from ("written in clear professional voice because it describes a trace
+ *     surface") and also admits a hand write with a reason clause between the verb and the trace ("Append, because
+ *     the render is late, the PR link to the trace."), which passes;
  *   - the trace after `is`, `are`, `be`, `been` or `being` is a classification ("it is a trace surface"), not an
  *     object;
  *   - a conjunction (`and`, `or`, `but`, `nor`) is never one of the words between the determiner and the trace: it
  *     joins a second noun rather than describing the trace ("the NFR and trace directories");
- *   - `rendered` before a determiner-less `trace files` names the render's output ("tickets, board, rendered trace
- *     files");
+ *   - `rendered` right before `trace` names the render's output, in both noun alternatives: a determiner phrase ("the
+ *     product notes recorded per Workflow 16 and the rendered trace files") and the determiner-less artifact name
+ *     ("tickets, board, rendered trace files"). It is checked at the noun only (plan 37-42, WR-12), so it reaches no
+ *     word of the run before the noun. What it admits is every sentence that names the trace as `rendered`, and a
+ *     hand write of the rendered files is among them ("Edit the rendered trace files by hand.", which passes in both
+ *     alternatives);
  *   - `the trace render` (or `trace-render`) names the renderer, not the trace;
  *   - `trace back` or `trace forward` is the verb trace ("every ticket traces back to its epic"), not the trace as an
  *     object.

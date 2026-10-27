@@ -35,6 +35,11 @@
 // so "Append the PR link to the trace." passed. Pattern 4 aims a write verb at the trace in any spelling, and each of
 // its exclusions is reasoned from the same truth and held here by a negative and a control (EXCLUSION_CONTROLS).
 //
+// Round 4 (plan 37-42, D-21, WR-12): plan 37-39's two run-wide exclusions (`per Workflow 16`, and a comma followed by a
+// determiner) reached the whole run between the verb and the trace, so a comma list of objects aimed at the trace
+// passed. Both were removed; the false hit they were added for, `the rendered trace files`, is now exempted at the noun,
+// and the two EXCLUSION_CONTROLS rows that held them are re-pointed at that `rendered` rule.
+//
 // Why the rule exists: the trace is rendered by tools/grugops/trace-render.js from published note refs, and the
 // render overwrites hand edits. A kit sentence that tells an agent to add a line to the trace by hand would send it
 // to write a file the next render throws away.
@@ -240,6 +245,11 @@ const KNOWN_VIOLATIONS: readonly string[] = [
   "Write the PR link into ABC-1's trace.",
   "Update the ticket ABC-1 trace file.",
   "Paste the release id into the trace file.",
+  // WR-12 (plan 37-42, D-21): the four sentences of 37-REVIEW.md WR-12, verbatim; each passed the 37-39 scan
+  "Append the PR link, the test path and the release to the trace.",
+  "Add the PR link, the test path and the release note to each ticket's trace file.",
+  "Update the PR link, its tests and the release in the trace file.",
+  "Append, per Workflow 16, the PR link to the trace file.",
 ];
 
 /** The sentence line of the rendered index: the one line that is no header, heading, blank or table row. */
@@ -383,18 +393,19 @@ const EXCLUSION_CONTROLS: readonly ExclusionControl[] = [
   // WR-11 (plan 37-39, D-19): the exclusions the wider pattern 4 needs, each a family of false hits the planning trial
   // found in the kit.
   {
-    reason: "`per Workflow 16` names the sanctioned route between the verb and the trace",
+    reason: "`rendered` before a determiner phrase's `trace files` names the render's output (WF02 artifact list)",
     source: "agent-factory/workflows/02-idea-to-epics.md",
     negative:
       "The artifacts are the epics, the board update, the product notes recorded per Workflow 16 and the rendered trace files.",
-    control: "The artifacts are the epics and the product notes recorded in the rendered trace files.",
+    control: "The artifacts are the epics, the board update, the product notes recorded per Workflow 16 and the trace files.",
   },
   {
-    reason: "a comma and a determiner start a new list item, so the verb's object ends before it",
+    reason: "`rendered` before a determiner phrase's `trace files` names the render's output (WF06 artifact list)",
     source: "agent-factory/workflows/06-uat-pack.md",
     negative:
       "The artifacts are the UAT pack notes recorded per Workflow 16, the recorded human signoff, the board move, the metrics and the rendered trace files.",
-    control: "The artifacts are the recorded human signoff and the rendered trace files.",
+    control:
+      "The artifacts are the UAT pack notes recorded per Workflow 16, the recorded human signoff, the board move, the metrics and the trace files.",
   },
   {
     reason: "a conjunction is never one of the words between a determiner and the trace",
