@@ -56,12 +56,13 @@
 //
 // ONE STRAY ENTRY STOPS EVERY RENDER (IN-09, IN-11). Two kinds of context-root entry are failed tasks, so the render
 // and `--check` exit 2 on every run until a human moves the entry, and nothing is removed meanwhile: an entry that is
-// not a task directory, as the entry's own lstat shows (a regular file, a FIFO, a symbolic link of any kind, live,
-// dangling or looping, a dot-named entry that is not a regular file), and a task directory whose name the sanctioned
-// writer never creates. The first kind is named with the remedy the context-io owner gives (the embedded
-// STRAY_CONTEXT_ENTRY_REMEDY, carried as the failed task's `remedy` and printed after its reason; plan 37-37, IN-11).
-// The second keeps its own wording, and IN-09 (whether it should be a counted trust arm instead) stays open in
-// 37-REVIEW-DISPOSITION.md.
+// not a task directory, as the entry's own lstat shows, whatever its name (a regular file, a FIFO, a symbolic link of
+// any kind, live, dangling or looping, a dot-named entry that is not a regular file), and a task directory whose name
+// the sanctioned writer never creates. The lstat is asked before the name rule, and the name rule is asked only of a
+// directory (plan 37-41, D-21, WR-14), so `foo bar.txt` and `foo.txt` get one answer. The first kind is named with the
+// remedy the context-io owner gives (the embedded STRAY_CONTEXT_ENTRY_REMEDY, carried as the failed task's `remedy`
+// and printed after its reason; plan 37-37, IN-11). The second keeps its own wording, and IN-09 (whether it should be
+// a counted trust arm instead) stays open in 37-REVIEW-DISPOSITION.md.
 //
 // THE ROOT IS A BOUNDARY. The root is resolved once, with realpath, before any state read; every other position is
 // repository-relative below it. Below the real root, no component of the path to a context root, the state
@@ -106,7 +107,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:5c5f097cf8ae9e8a5eca50a54be40eb3002d961c667375c20cfba47d1c0b84b4";
+export const RUNNABLE_SET_STAMP = "sha256:d09e3b1bc49de37edf833538e7dc739bc78e68602704dfaddfbf0cac38f23e9e";
 export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "trace-render.js";
 // from install/state-layout.ts
@@ -1029,7 +1030,12 @@ export function readTaskNoteRefs(
   contextRoot: string,
   boundary: string,
 ): { notes: { refs: string[] }[]; skipped: SkippedNoteEntry[] } {
-  assertSafeTask(task);
+  // Step 1: a name that is not one path component never reaches a join or the filesystem; assertSafeTask throws for
+  // every such name.
+  if (task === "" || task === "." || task === ".." || task.includes("/") || task.includes(sep) || task.includes("\0")) {
+    assertSafeTask(task);
+  }
+  // Step 2: the entry's own lstat decides, whatever its name.
   const presence = entryPresence(join(contextRoot, task));
   if (presence.kind === "absent") throw new Error("it was listed and is no longer there");
   if (presence.kind === "unreadable") {
@@ -1040,6 +1046,8 @@ export function readTaskNoteRefs(
     throw strayEntryError("it is a symbolic link, and a symbolic link is never read as a task", null);
   }
   if (!presence.entry.isDirectory()) throw strayEntryError("it is not a directory, so it is not a task", null);
+  // Step 3: a directory whose name the writer never creates keeps the IN-09 refusal.
+  assertSafeTask(task);
   const read = readRawNotesWithSkips(task, contextRoot, boundary);
   return {
     notes: read.notes.map((raw) => ({ refs: recordFromParsed(raw.parsed, raw.id).refs })),

@@ -1385,10 +1385,37 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
         return stageSymlinkOrSkip(join(root, "a-keeper-target.txt"), at, "symlink to a regular file", position);
       },
     },
+    // 2026-10-27, plan 37-41 (D-21, WR-14): the same shapes under names outside the task grammar carry the remedy,
+    // because the entry's own lstat decides before the name rule.
+    {
+      label: "a regular file foo bar.txt (WR-14)",
+      name: "foo bar.txt",
+      stage: (_r, _c, at) => {
+        writeFileSync(at, "an editor artefact\n");
+        return null;
+      },
+    },
+    { label: "a FIFO notes (1).md (WR-14)", name: "notes (1).md", stage: (_r, _c, at, position) => stageShapeOrSkip("FIFO", at, position) },
+    {
+      label: "a symbolic link my link to an in-root directory (WR-14)",
+      name: "my link",
+      stage: (root, _c, at, position) => {
+        mkdirSync(join(root, "elsewhere-task", "notes"), { recursive: true });
+        return stageSymlinkOrSkip(join(root, "elsewhere-task"), at, "symlink to a directory inside the repository root", position);
+      },
+    },
+    {
+      label: "a dangling symbolic link gone link (WR-14)",
+      name: "gone link",
+      stage: (root, _c, at, position) => stageSymlinkOrSkip(join(root, "no-such-target"), at, "dangling symlink", position),
+    },
   ];
+  let cr04RowsRun = 0;
+  let cr04RowsSkipped = 0;
   for (const contextRel of [CONTEXT_REL, CONTEXT_ARCHIVE_REL] as const) {
     for (const shape of CR04_SHAPES) {
       it(`CR-04: ${contextRel}: ${shape.label} is trace-not-compared naming the entry, with and without the D-14 marker, never fresh`, () => {
+        cr04RowsRun += 1;
         for (const marker of [LAYOUT_MARKER_CONTENT, undefined]) {
           const root = cleanRepo(marker);
           plantNote(root, contextRel, "taskA", "n1", ["ABC-001", "src/a.ts"]);
@@ -1401,6 +1428,7 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
             `scripts/runnable-ref/state-check.test.ts: CR-04 ${shape.label} (plan 37-28, ${contextRel})`,
           );
           if (skipped !== null) {
+            cr04RowsSkipped += 1;
             console.warn(skipLine(skipped, "the other CR-04 rows of this describe (the same failed-task rule)"));
             return;
           }
@@ -1412,7 +1440,8 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
           expect(traceReportLines(text.stdout)).toEqual([]);
           const lines = traceLines(text.stdout);
           expect(lines).toHaveLength(1);
-          const rel = `${contextRel}/${shape.name}`.replace(/[.]/g, "\\.");
+          // Plan 37-41 (WR-14): every regex metacharacter is escaped, since the new names hold spaces and parentheses.
+          const rel = `${contextRel}/${shape.name}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           expect(lines[0]).toMatch(new RegExp(`^${marker === undefined ? "WARN {5}" : "FINDING {2}"}${rel}: .*\\(trace-not-compared\\)$`));
           expect(j.status).toBe(expected);
           expect(j.report.trace.compared).toBe(false);
@@ -1444,6 +1473,14 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
       expect(j.report.trace).toEqual({ compared: true, findings: [] });
     });
   }
+
+  it("the CR-04 shape table ran every shape in both roots, and none was skipped on darwin or linux (plan 37-41)", () => {
+    // 2026-10-27, plan 37-41 (D-21, WR-14): 6 -> 10, the four out-of-grammar shapes.
+    expect(CR04_SHAPES).toHaveLength(10);
+    expect(cr04RowsRun).toBe(CR04_SHAPES.length * 2);
+    console.log(`CR-04 shape rows skipped for the platform: ${cr04RowsSkipped}`);
+    if (process.platform === "darwin" || process.platform === "linux") expect(cr04RowsSkipped).toBe(0);
+  });
 
   it("IN-11 text mode: a stray README.md in the live context root prints one FINDING line ending in the stray-entry remedy (plan 37-37)", () => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);

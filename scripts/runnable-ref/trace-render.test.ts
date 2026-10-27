@@ -1963,6 +1963,40 @@ const STRAY_SHAPES: readonly StrayShape[] = [
     reason: NOT_A_DIRECTORY,
     stage: (_root, at, position) => stageShapeOrSkip("FIFO", at, position),
   },
+  // 2026-10-27, plan 37-41 (D-21, WR-14): the same shapes under names outside the task grammar. The entry's own lstat
+  // decides the remedy before the name rule, so each is named with the remedy, not the bare invalid-task-name refusal.
+  {
+    label: "a regular file foo bar.txt (a name outside the task grammar, WR-14)",
+    name: "foo bar.txt",
+    reason: NOT_A_DIRECTORY,
+    stage: (_root, at) => {
+      writeFileSync(at, "an editor artefact\n");
+      return null;
+    },
+  },
+  {
+    label: "a FIFO notes (1).md (a name outside the task grammar, WR-14)",
+    name: "notes (1).md",
+    reason: NOT_A_DIRECTORY,
+    stage: (_root, at, position) => stageShapeOrSkip("FIFO", at, position),
+  },
+  {
+    label: "a symbolic link my link to an in-root directory holding a sealed note (a name outside the task grammar, WR-14)",
+    name: "my link",
+    reason: A_LINK,
+    stage: (root, at, position) => {
+      const notes = join(root, "elsewhere-task", "notes");
+      mkdirSync(notes, { recursive: true });
+      writeFileSync(join(notes, "n2.md"), noteText("n2", ["ABC-2"]));
+      return stageSymlinkOrSkip(join(root, "elsewhere-task"), at, "symlink to a directory inside the repository root", position);
+    },
+  },
+  {
+    label: "a dangling symbolic link gone link (a name outside the task grammar, WR-14)",
+    name: "gone link",
+    reason: UNREACHABLE("ENOENT"),
+    stage: (root, at, position) => stageSymlinkOrSkip(join(root, "no-such-target"), at, "dangling symlink", position),
+  },
 ];
 let strayRowsRun = 0;
 let strayRowsSkipped = 0;
@@ -2087,7 +2121,9 @@ describe("IN-11: a stray context-root entry is named with its own remedy", () =>
   }
 
   it("the stray-shape table ran every shape in both roots, and none was skipped on darwin or linux", () => {
-    expect(STRAY_SHAPES).toHaveLength(9);
+    // 2026-10-27, plan 37-41 (D-21, WR-14): 9 -> 13, the four out-of-grammar shapes (foo bar.txt, notes (1).md,
+    // my link, gone link); the row count follows as 13 shapes x 2 context roots.
+    expect(STRAY_SHAPES).toHaveLength(13);
     expect(strayRowsRun).toBe(STRAY_SHAPES.length * CONTEXT_ROOT_RELS.length);
     console.log(`IN-11 stray-shape rows skipped for the platform: ${strayRowsSkipped}`);
     if (process.platform === "darwin" || process.platform === "linux") expect(strayRowsSkipped).toBe(0);

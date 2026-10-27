@@ -34,6 +34,7 @@ import {
   cpSync,
   chmodSync,
   statSync,
+  lstatSync,
   realpathSync,
   copyFileSync,
   openSync,
@@ -18291,7 +18292,12 @@ describe("listContextTasks and readTaskNoteRefs: every entry is a task, a keeper
       expect(() => mod.readTaskNoteRefs("taskFifo", ctx, boundary)).toThrow("it is not a directory, so it is not a task");
     } else console.warn(skipLine(fifoSkip, "the regular-file and vanished rows of this case"));
     expect(() => mod.readTaskNoteRefs("taskGone", ctx, boundary)).toThrow("it was listed and is no longer there");
+    // 2026-10-27, plan 37-41 (D-21, WR-14): the entry's own lstat now decides before the name rule, so an
+    // out-of-grammar name with nothing on disk reads as vanished; the name refusal is asked of a planted directory
+    // (the IN-09 arm), and the absent out-of-grammar name is kept as a vanished row.
+    mkdirSync(join(ctx, "bad name"));
     expect(() => mod.readTaskNoteRefs("bad name", ctx, boundary)).toThrow(/invalid task name/);
+    expect(() => mod.readTaskNoteRefs("gone name", ctx, boundary)).toThrow("it was listed and is no longer there");
   });
 
   it("readTaskNoteRefs refuses a notes directory that resolves outside the boundary", () => {
@@ -18540,6 +18546,7 @@ describe("rootChainPresence: the root-chain owner (plan 37-33, D-20)", () => {
 // vanished entry carry none.
 
 const P3737 = "scripts/context-io.test.ts: plan 37-37 stray-entry case";
+const P3741 = "scripts/context-io.test.ts: plan 37-41 out-of-grammar stray-entry case";
 
 /** chmod cannot deny root, and Windows has no POSIX mode bits: the mode cases need neither. */
 const IN11_MODE_SKIP =
@@ -18692,9 +18699,74 @@ describe("readTaskNoteRefs: STRAY_CONTEXT_ENTRY_REMEDY on exactly the non-task r
     const gone = strayThrow(() => mod.readTaskNoteRefs("taskGone", ctx, boundary));
     expect((gone as Error).message).toBe("it was listed and is no longer there");
     expect(remedyOf(gone)).toBeUndefined();
+    // 2026-10-27, plan 37-41 (D-21, WR-14): the name rule now runs after the entry's lstat, so the refused name is
+    // planted as a directory (the IN-09 arm); "my task" with nothing on disk would read as vanished.
+    mkdirSync(join(ctx, "my task"));
     const refused = strayThrow(() => mod.readTaskNoteRefs("my task", ctx, boundary));
-    expect((refused as Error).message).toMatch(/invalid task name/);
+    expect((refused as Error).message).toBe(
+      'context-io: invalid task name "my task" — must match ^[A-Za-z0-9._-]+$ (no path separators, no .., no absolute paths)',
+    );
     expect(remedyOf(refused)).toBeUndefined();
+  });
+
+  // ── Plan 37-41 (D-21, WR-14): the entry's own lstat decides the remedy before the name rule ──────────────────
+  it("WR-14: a regular file, a FIFO, a live link and a dangling link with out-of-grammar names carry the remedy", () => {
+    const ctx = freshTmp("grugops-ctxio-3741-stray-names-");
+    const boundary = realpathSync(ctx);
+    const cases: [string, string, string | undefined][] = [];
+    writeFileSync(join(ctx, "foo bar.txt"), "stray\n");
+    cases.push(["foo bar.txt", "it is not a directory, so it is not a task", undefined]);
+    const fifoSkip = stageShapeOrSkip("FIFO", join(ctx, "notes (1).md"), P3741);
+    if (fifoSkip === null) cases.push(["notes (1).md", "it is not a directory, so it is not a task", undefined]);
+    else console.warn(skipLine(fifoSkip, "the other WR-14 rows of this case"));
+    mkdirSync(join(ctx, "real", "notes"), { recursive: true });
+    if (in11Link(join(ctx, "real"), join(ctx, "my link"), "symlink to a directory inside the repository root")) {
+      cases.push(["my link", "it is a symbolic link, and a symbolic link is never read as a task", undefined]);
+    }
+    if (in11Link(join(ctx, "no-such-target"), join(ctx, "gone link"), "dangling symlink")) {
+      cases.push(["gone link", "it is a symbolic link whose target cannot be reached (ENOENT)", "ENOENT"]);
+    }
+    if (process.platform === "darwin" || process.platform === "linux") expect(cases).toHaveLength(4);
+    for (const [task, reason, code] of cases) {
+      const e = strayThrow(() => mod.readTaskNoteRefs(task, ctx, boundary));
+      expect((e as Error).message, task).toBe(reason);
+      expect((e as NodeJS.ErrnoException).code, task).toBe(code);
+      expect(remedyOf(e), task).toBe(mod.STRAY_CONTEXT_ENTRY_REMEDY);
+    }
+  });
+
+  it("WR-14: a directory with an out-of-grammar name keeps the IN-09 refusal with no remedy", () => {
+    const ctx = freshTmp("grugops-ctxio-3741-dir-name-");
+    mkdirSync(join(ctx, "my task", "notes"), { recursive: true });
+    const e = strayThrow(() => mod.readTaskNoteRefs("my task", ctx, realpathSync(ctx)));
+    expect((e as Error).message).toBe(
+      'context-io: invalid task name "my task" — must match ^[A-Za-z0-9._-]+$ (no path separators, no .., no absolute paths)',
+    );
+    expect(remedyOf(e)).toBeUndefined();
+  });
+
+  it("WR-14: a name that is not one path component is refused by name before any filesystem call", () => {
+    const ctx = freshTmp("grugops-ctxio-3741-components-");
+    const boundary = realpathSync(ctx);
+    // PREMISE: a regular file sits at <ctx>/a/b, so an lstat of the joined path would answer "not a directory" with
+    // the remedy; the name refusal with no remedy proves the name rule ran first.
+    mkdirSync(join(ctx, "a"));
+    writeFileSync(join(ctx, "a", "b"), "a regular file\n");
+    expect(lstatSync(join(ctx, "a", "b")).isFile(), "PREMISE: a regular file at <ctx>/a/b").toBe(true);
+    for (const task of ["a/b", "..", ".", "", "nul\u0000name", `a${sep}b`]) {
+      const e = strayThrow(() => mod.readTaskNoteRefs(task, ctx, boundary));
+      expect((e as Error).message, JSON.stringify(task)).toBe(
+        `context-io: invalid task name "${task}" — must match ^[A-Za-z0-9._-]+$ (no path separators, no .., no absolute paths)`,
+      );
+      expect(remedyOf(e), JSON.stringify(task)).toBeUndefined();
+    }
+  });
+
+  it("WR-14: an out-of-grammar name with nothing on disk reads as vanished, with no remedy", () => {
+    const ctx = freshTmp("grugops-ctxio-3741-vanished-name-");
+    const e = strayThrow(() => mod.readTaskNoteRefs("foo bar.txt", ctx, realpathSync(ctx)));
+    expect((e as Error).message).toBe("it was listed and is no longer there");
+    expect(remedyOf(e)).toBeUndefined();
   });
 
   it.skipIf(IN11_MODE_SKIP !== null)("an entry of a mode-0444 context root carries no remedy: its lstat failed, so it may be a task", () => {

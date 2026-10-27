@@ -2589,31 +2589,48 @@ function strayEntryError(message: string, code: string | null): Error {
  * D-18, CR-04). Both runnables call this generated copy, so neither decides by hand whether a task or its notes
  * are present.
  *
- * The task position never follows a link (the 37-06 trust decision): the entry is asked of entryPresence, the one
- * absence owner, and it throws when the entry is absent after the listing named it (`it was listed and is no
- * longer there`, a vanished entry is a read failure), when it cannot be reached (the owner's reason), when it is a
- * symbolic link of any kind, and when it is not a directory (a regular file, a FIFO). Then the walk reads the
- * notes with `boundary` (the repository root), so a notes directory whose real path leaves it throws. Every throw
- * reaches the trace model as a failed task, named on stderr by the renderer and as a `trace-not-compared` finding
- * by state-check, so no trace file is removed while a refused entry could have held its ticket's notes (33.1 DC-2).
+ * The order (plan 37-41, D-21, WR-14): first the name's shape, then the entry's own lstat, then the name rule.
+ *
+ * 1. A name that is not exactly one path component (empty, `.`, `..`, or holding `/`, the platform separator or a
+ *    NUL) is refused by assertSafeTask before any path is joined or any filesystem call is made, so no caller can
+ *    reach an entry outside the context root through this function. The guard asks only "one component"; the task
+ *    grammar (TASK_NAME_RE) stays in assertSafeTask alone.
+ * 2. The task position never follows a link (the 37-06 trust decision): the entry is asked of entryPresence, the one
+ *    absence owner, and it throws when the entry is absent after the listing named it (`it was listed and is no
+ *    longer there`, a vanished entry is a read failure), when it cannot be reached (the owner's reason), when it is a
+ *    symbolic link of any kind, and when it is not a directory (a regular file, a FIFO). This is decided whatever the
+ *    entry's name, so `foo bar.txt` and `foo.txt` get the same answer.
+ * 3. Only a directory reaches the name rule: assertSafeTask refuses a directory whose name the sanctioned writer
+ *    never creates (IN-09), with its own wording.
+ *
+ * Then the walk reads the notes with `boundary` (the repository root), so a notes directory whose real path leaves
+ * it throws. Every throw reaches the trace model as a failed task, named on stderr by the renderer and as a
+ * `trace-not-compared` finding by state-check, so no trace file is removed while a refused entry could have held its
+ * ticket's notes (33.1 DC-2).
  *
  * THE STRAY-ENTRY REMEDY (plan 37-37, IN-11). STRAY_CONTEXT_ENTRY_REMEDY is the one wording for an entry a human
  * must move, owned here. Three refusals carry it, as a `remedy` property on the thrown Error: an `unreadable` answer
  * whose `link` is true (the entry's own lstat showed a symbolic link whose target cannot be reached: dangling,
  * looping, or beneath something that cannot be searched; it keeps the owner's reason and code, because a link at the
  * task position is never a task, whatever its target), a present symbolic link, and a present entry that is not a
- * directory. Which failed reads carry it is decided by the entry's own lstat, never by a reason text. Every other
- * throw carries none: an entry that vanished after the listing, an `unreadable` answer whose `link` is false (an
+ * directory. Which failed reads carry it is decided by the entry's own lstat, whatever the entry's name, never by a
+ * reason text (plan 37-41: the lstat is asked before the name rule). Every other throw carries none: a name that is
+ * not one path component, an entry that vanished after the listing, an `unreadable` answer whose `link` is false (an
  * ancestor or the entry itself could not be inspected, or the entry is not a link and its stat or realpath failed:
- * it may be a task whose read failed), assertSafeTask's refusal of a name the writer never creates (IN-09), and
- * every failure of the notes walk.
+ * it may be a task whose read failed), assertSafeTask's refusal of a directory whose name the writer never creates
+ * (IN-09), and every failure of the notes walk.
  */
 export function readTaskNoteRefs(
   task: string,
   contextRoot: string,
   boundary: string,
 ): { notes: { refs: string[] }[]; skipped: SkippedNoteEntry[] } {
-  assertSafeTask(task);
+  // Step 1: a name that is not one path component never reaches a join or the filesystem; assertSafeTask throws for
+  // every such name.
+  if (task === "" || task === "." || task === ".." || task.includes("/") || task.includes(sep) || task.includes("\0")) {
+    assertSafeTask(task);
+  }
+  // Step 2: the entry's own lstat decides, whatever its name.
   const presence = entryPresence(join(contextRoot, task));
   if (presence.kind === "absent") throw new Error("it was listed and is no longer there");
   if (presence.kind === "unreadable") {
@@ -2624,6 +2641,8 @@ export function readTaskNoteRefs(
     throw strayEntryError("it is a symbolic link, and a symbolic link is never read as a task", null);
   }
   if (!presence.entry.isDirectory()) throw strayEntryError("it is not a directory, so it is not a task", null);
+  // Step 3: a directory whose name the writer never creates keeps the IN-09 refusal.
+  assertSafeTask(task);
   const read = readRawNotesWithSkips(task, contextRoot, boundary);
   return {
     notes: read.notes.map((raw) => ({ refs: recordFromParsed(raw.parsed, raw.id).refs })),
