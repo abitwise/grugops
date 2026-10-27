@@ -408,6 +408,10 @@ are written only when that agent is chosen.
   `tools/grugops/host-protection.js` (§5), and `tools/grugops/LICENSE`, the MIT license for the
   programs copied there. The license is recorded and removed like them, and a file you already have
   at that path is never written. Install writes no `NOTICE` and no other license file into your repo.
+  `tools/grugops/package.json` holds only `"type": "module"`, so the programs beside it run as ES
+  modules whatever your own `package.json` says (npm 11's `npm init -y` writes `"type": "commonjs"`,
+  which otherwise stops each program at its first import); like the license, it is recorded, removed
+  with the programs, and never written over a file you already have at that path.
   Three of the programs work on the planning state:
   - `tools/grugops/state-check.js` checks the state budgets and indexes and changes no file
   - `tools/grugops/trace-render.js` renders the per-ticket trace files and the trace index
@@ -1044,8 +1048,8 @@ record first, as described below.
   it, even while Codex CLI stays installed; `--codex` leaves it. `--opencode`, `--copilot` and `--pi`
   each remove only their own launch file.
 - **The shared files go only with a flag-less uninstall, or when you remove the last installed
-  agent.** These are the kit's `AGENTS.md` copy, the runnables under `tools/grugops/` and
-  `tools/grugops/LICENSE`, the install marker, and the Gemini settings change an install made
+  agent.** These are the kit's `AGENTS.md` copy, the runnables under `tools/grugops/`,
+  `tools/grugops/LICENSE` and `tools/grugops/package.json`, the install marker, and the Gemini settings change an install made
   before 34.1 D-12.
 - **The marker is kept and lists the agents that stay.** The entries this run removed leave the
   install ledger in `.grugops/install.json`, and its `agents` list drops the agents you removed. The
@@ -1087,13 +1091,13 @@ install is reversed from any checkout: the record keeps each link's own target.
 A file is deleted only on install's own record. Install records in the install ledger in
 `.grugops/install.json` each file it created where nothing was before: `CLAUDE.md` and
 `.github/copilot-instructions.md` when it created them to hold its pointer block, the `AGENTS.md`
-it copied or linked in, the runnables under `tools/grugops/` and `tools/grugops/LICENSE`, and each
-whole-file host entry and launch file it wrote. The uninstaller deletes `CLAUDE.md`
+it copied or linked in, the runnables under `tools/grugops/`, `tools/grugops/LICENSE` and
+`tools/grugops/package.json`, and each whole-file host entry and launch file it wrote. The uninstaller deletes `CLAUDE.md`
 or the Copilot file only when that record lists it, it removed the grugops block from it in this
 run, and the file is blank afterwards. It deletes `AGENTS.md` or a runnable only when the record
 lists it and it is still the copy (or, for `AGENTS.md`, the link) install made, and
-`tools/grugops/LICENSE`, a whole-file host entry or a launch file only when the record lists it and
-it still holds what install wrote. The record decides
+`tools/grugops/LICENSE`, `tools/grugops/package.json`, a whole-file host entry or a launch file only
+when the record lists it and it still holds what install wrote. The record decides
 every file alone: one that still holds what install wrote is removed even when the checkout you run the
 uninstaller from no longer ships it or ships other bytes, and one that does not is left. The record keeps
 what install wrote to each file (a sha256 of the bytes and the file's mode as install left it, or the

@@ -32,6 +32,14 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   failure) for the pre-v3 layout, which names `install --migrate`, or for a repository with both
   boards. See [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
 
+### Fixed
+
+- On a repository whose `package.json` says `"type": "commonjs"`, every program install copies to
+  `tools/grugops/` stopped at its first import with exit `1`. Install now writes
+  `tools/grugops/package.json` with `"type": "module"` beside them; it is recorded, removed by
+  uninstall, and never written over a file you already have at that path. A repository installed
+  before this fix gets the file by running install again.
+
 ### Deprecated
 
 - The pre-v3 `plans/` state layout. Agents fall back to it with a one-line notice to run
