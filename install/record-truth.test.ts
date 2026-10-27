@@ -357,8 +357,11 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * 41 -> 44 on 2026-10-22 (plan 37-13, SPLIT-05): `tools/grugops/state-check.js`, `tools/grugops/trace-render.js` and
  * `tools/grugops/state-roll.js` entered, because install materializes the three state runnables (three more RUNNABLES
  * rows) and records each; measured by this test's printed listing.
+ * 44 -> 45 on 2026-10-27, plan 37-40 (D-21, G-37-2): `tools/grugops/package.json` entered, because install copies
+ * install/runnable-package.json beside the programs (a ninth RUNNABLES row) and records it; measured by this test's
+ * failing run (expected 45).
  */
-const REMOVABLE_COUNT = 44;
+const REMOVABLE_COUNT = 45;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a

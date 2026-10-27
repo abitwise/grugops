@@ -50,9 +50,12 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // 39 -> 42 on 2026-10-22 (plan 37-13, SPLIT-05): install materializes the three state runnables
 // `tools/grugops/state-check.js`, `tools/grugops/trace-render.js` and `tools/grugops/state-roll.js` (three more
 // RUNNABLES rows) and records each, so the runnables part reads 7 (measured: the case printed 42).
-const RECORDED_FILE_COUNT = 42;
+// 42 -> 43 on 2026-10-27, plan 37-40 (D-21, G-37-2): install copies install/runnable-package.json to
+// `tools/grugops/package.json` beside the programs (a ninth RUNNABLES row), so Node loads them as ES modules on a
+// commonjs host, and records it (measured: the case printed 43).
+const RECORDED_FILE_COUNT = 43;
 const RECORDED_FILE_COUNT_WHY =
-  "17 adapters + 7 skills + AGENTS.md + 7 runnables + tools/grugops/LICENSE + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
+  "17 adapters + 7 skills + AGENTS.md + 7 runnables + tools/grugops/LICENSE + tools/grugops/package.json + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
 
 let SCRATCH = "";
 beforeAll(() => {

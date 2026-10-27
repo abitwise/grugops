@@ -127,8 +127,12 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * `memory-bank/plans/traceability` and `memory-bank/plans/archive` as directories, in every variant (each variant
  * installs into a target with no planning state, so the marker is seeded). Measured by this test's printed union.
  * 107 -> 114.
+ * 75 files and links + 40 directories on 2026-10-27, plan 37-40 (D-21, G-37-2): `tools/grugops/package.json` entered as
+ * a file, in every variant, because install copies install/runnable-package.json beside the programs (a ninth
+ * RUNNABLES row) so Node loads them as ES modules on a commonjs host; `tools/grugops` was already a directory.
+ * Measured by this test's failing run (expected 115). 114 -> 115.
  */
-const WRITE_PATH_COUNT = 114;
+const WRITE_PATH_COUNT = 115;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

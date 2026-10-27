@@ -161,8 +161,12 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * the layout marker `memory-bank/plans/.layout` (each variant installs into a target with no planning state, so the
  * marker is seeded); an edit to any of them is left byte for byte by uninstall. Measured by this test's printed
  * INSTALLED_FILES. 67 -> 74.
+ * 75 on 2026-10-27, plan 37-40 (D-21, G-37-2): `tools/grugops/package.json` entered as a file, because install copies
+ * install/runnable-package.json beside the programs (a ninth RUNNABLES row) so Node loads them as ES modules on a
+ * commonjs host; an edit to it is left byte for byte by uninstall. Measured by this test's failing run (expected 75).
+ * 74 -> 75.
  */
-const INSTALLED_FILE_COUNT = 74;
+const INSTALLED_FILE_COUNT = 75;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

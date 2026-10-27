@@ -119,7 +119,11 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // destination through readForWrite, and the marker's skipped line on a non-fresh layout asks it the same way); 74 files
 // and links written, plus the two read-only inputs. A FIFO and a directory are planted at each by derivation.
 // Measured by this test's printed READ_PATHS. 69 -> 76.
-const READ_PATH_COUNT = 76;
+// 77 on 2026-10-27, plan 37-40 (D-21, G-37-2): `tools/grugops/package.json` entered (75 files and links written, plus
+// the two read-only inputs), because install copies install/runnable-package.json beside the programs (a ninth
+// RUNNABLES row) and asks its destination through readForWrite; a FIFO and a directory are planted at it by
+// derivation. Measured by this test's failing run (expected 77). 76 -> 77.
+const READ_PATH_COUNT = 77;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

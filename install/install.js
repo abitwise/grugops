@@ -5085,8 +5085,9 @@ function skipLayoutMarker(dest) {
 // write). It writes ONLY under tools/grugops/ — it never touches a protected dir (T-15-05-EoP).
 // Report strings are CLEAR PROFESSIONAL VOICE.
 //
-// RUNNABLES: each entry is [source-relative-to-GRUGOPS_SRC, dest-relative-to-TARGET]. Every row but one
-// is a kit-shipped runnable program; the one other row is the license text for those programs.
+// RUNNABLES: each entry is [source-relative-to-GRUGOPS_SRC, dest-relative-to-TARGET]. Every row but two
+// is a kit-shipped runnable program; the two other rows are the license text for those programs and the
+// package file that makes Node load them as ES modules (plan 37-40, D-21).
 //
 // REVERSAL COUNTERPART (WR-04, plan 27-13): this mapping is MIRRORED by RUNNABLES_MIRROR in
 // install/uninstall.ts, in the "removing grugops runnables" pass. Every file this loop writes into
@@ -5110,6 +5111,16 @@ const RUNNABLES = [
     // So the license goes next to them, by the same rule (quick task 261018-hs8, Task 4). NOTICE is not
     // copied here: MIT does not ask for it, and it travels with the kit.
     ["LICENSE", "tools/grugops/LICENSE"],
+    // The programs above are ES modules with a bare `.js` name, and Node takes their module type from the
+    // nearest package.json. A host whose own package.json says `"type": "commonjs"` (what `npm init -y` writes
+    // on npm 11) makes Node parse each program as CommonJS: it throws at its first import, before any of its
+    // own code runs, and exits 1, the finding code, so WF05 and WF09 read a program that never ran as a
+    // finding or a refusal (37-UAT.md G-37-2, decision D-21, plan 37-40, 2026-10-27). This file beside them
+    // is the nearer package.json, and it holds only `{"type":"module"}` and one LF (the same bytes as
+    // MIRROR_PACKAGE_JSON above; install.test.ts holds the two equal). Same rule as the license: written only
+    // where nothing is, recorded, removed by its record, never written over a user's file. The kit source is
+    // not named package.json, so no tool in grugops's own tree reads it as a package scope.
+    ["install/runnable-package.json", "tools/grugops/package.json"],
 ];
 function materializeRunnable() {
     for (const [srcRel, destRel] of RUNNABLES) {

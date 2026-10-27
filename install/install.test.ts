@@ -6255,6 +6255,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // license row neither stands in for a program nor drops out of the whole-mapping cases.
   const PROGRAM_RELS = RUNNABLE_RELS.filter((rel) => rel.endsWith(".js"));
   const LICENSE_REL = "tools/grugops/LICENSE";
+  // The package file that makes Node load the programs above as ES modules whatever the host's own package.json
+  // says (plan 37-40, D-21, G-37-2); the second non-program row.
+  const PACKAGE_REL = "tools/grugops/package.json";
 
   it("runnable removal: the installer's RUNNABLES and the uninstaller's RUNNABLES_MIRROR are the same mapping", () => {
     const mirror = mappingDests("uninstall.ts", "RUNNABLES_MIRROR");
@@ -6264,8 +6267,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // host-protection, the read-only git-host check (Phase 33.1, D-19), plus, since quick task
     // 261018-hs8 (Task 4, 2026-10-18), the MIT license for them: 4 -> 5. 5 -> 8 on 2026-10-22 (plan 37-13,
     // SPLIT-05): the three state runnables state-check, trace-render and state-roll, so seven programs.
-    expect(RUNNABLE_RELS.length).toBe(8);
-    expect(mirror.length).toBe(8);
+    // 8 -> 9 on 2026-10-27, plan 37-40 (D-21, G-37-2): tools/grugops/package.json, the `{"type":"module"}`
+    // file that lets Node load the programs on a commonjs host. Still seven programs; two non-program rows.
+    expect(RUNNABLE_RELS.length).toBe(9);
+    expect(mirror.length).toBe(9);
     expect(PROGRAM_RELS.length).toBe(7);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
     // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
@@ -6273,17 +6278,22 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const srcSideInstall = mappingSources("install.ts", "RUNNABLES");
     const srcSideUninstall = mappingSources("uninstall.ts", "RUNNABLES_MIRROR");
     expect(srcSideUninstall).toEqual(srcSideInstall);
-    expect(srcSideInstall.length).toBe(8);
+    // 8 -> 9 on 2026-10-27, plan 37-40 (D-21, G-37-2): the package file's kit source install/runnable-package.json.
+    expect(srcSideInstall.length).toBe(9);
     // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
     // explicit assertions so routing both halves through one parser lost none of what it checked:
     // every program source lives under the runnable reference directory and every dest under the one
-    // directory grugops owns inside the user's repo. The one non-program row is pinned exactly: the
-    // root LICENSE, copied to tools/grugops/LICENSE (quick task 261018-hs8, Task 4).
+    // directory grugops owns inside the user's repo. The two non-program rows are pinned exactly: the
+    // root LICENSE, copied to tools/grugops/LICENSE (quick task 261018-hs8, Task 4), and, since plan 37-40
+    // (2026-10-27, D-21), install/runnable-package.json, copied to tools/grugops/package.json.
     const rows = parseMapping("install.ts", "RUNNABLES");
     const programRows = rows.filter(([, d]) => d.endsWith(".js"));
     expect(programRows.length).toBe(7);
     for (const [s] of programRows) expect(s.startsWith("scripts/runnable-ref/")).toBe(true);
-    expect(rows.filter(([, d]) => !d.endsWith(".js"))).toEqual([["LICENSE", LICENSE_REL]]);
+    expect(rows.filter(([, d]) => !d.endsWith(".js")).sort()).toEqual([
+      ["LICENSE", LICENSE_REL],
+      ["install/runnable-package.json", PACKAGE_REL],
+    ]);
     for (const d of RUNNABLE_RELS) expect(d.startsWith("tools/grugops/")).toBe(true);
   });
 
@@ -6604,6 +6614,105 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(licenseLikeFiles(target)).toEqual([LICENSE_REL]);
     expect(existsSync(join(target, "NOTICE"))).toBe(false);
     expect(existsSync(join(target, "LICENSE"))).toBe(false);
+  });
+
+  // ── tools/grugops/package.json (phase 37, plan 37-40, 2026-10-27, D-21, G-37-2) ─────────────────────
+  // The programs install copies into tools/grugops/ are ES modules with a bare `.js` name. Node takes a bare
+  // `.js` file's module type from the nearest package.json, so a host whose own package.json says
+  // `"type": "commonjs"` (what `npm init -y` writes on npm 11) makes Node parse each program as CommonJS. The
+  // program then throws at its first import, before any of its own code runs, and Node exits 1: the finding
+  // code, so WF05 and WF09 read a program that never ran as a finding or a refusal (37-UAT.md G-37-2). The
+  // fix is one more RUNNABLES row: install/runnable-package.json, `{"type":"module"}` and one LF, copied to
+  // tools/grugops/package.json beside the programs, under the same rule as the license (written only where
+  // nothing is, recorded, removed by record, never written over a user's file).
+  //
+  // THE TABLE IS MEASURED, NOT GUESSED. Each row is the program's own-body outcome on a freshly installed,
+  // otherwise empty target (Node 26.11.1, measured at planning and again on 2026-10-27): the four checkers
+  // that need an input reach their own usage or could-not-run line (exit 2), and the three state programs
+  // run to their success line (exit 0). The keys are checked two-sided against PROGRAM_RELS, so a new program
+  // without a row is red, and so is a stale row.
+  const PACKAGE_KIT_REL = "install/runnable-package.json";
+  const COMMONJS_HOST = '{"name":"host","version":"1.0.0","type":"commonjs"}\n';
+  const TYPELESS_HOST = '{"name":"host","version":"1.0.0"}\n';
+  const LOAD_FAILURES = ["SyntaxError", "Cannot use import statement outside a module", "MODULE_TYPELESS_PACKAGE_JSON", "ERR_REQUIRE_ESM"] as const;
+  const OWN_BODY: Record<string, { args: (target: string) => string[]; status: number; text: string }> = {
+    "reference-check.js": { args: () => [], status: 2, text: "no input file path was provided" },
+    "test-skip-integrity.js": { args: () => [], status: 2, text: "no registry file path was provided" },
+    "uat-spec-integrity.js": { args: (t) => [t], status: 2, text: "ZERO uat specs were visited" },
+    // Refused before any gh call: an unknown argument is bad usage.
+    "host-protection.js": { args: () => ["--brnach", "x"], status: 2, text: "unknown argument: --brnach" },
+    "state-check.js": { args: (t) => [t], status: 0, text: "No findings." },
+    "trace-render.js": { args: (t) => [t], status: 0, text: "Rendered the trace" },
+    "state-roll.js": { args: (t) => [t, "--dry-run"], status: 0, text: "Nothing to roll" },
+  };
+  /** Each program of PROGRAM_RELS run with Node alone (cwd the target, PATH only), in the table's order. */
+  function runPrograms(target: string): Array<{ rel: string; name: string; status: number | null; out: string }> {
+    return PROGRAM_RELS.map((rel) => {
+      const name = basename(rel);
+      const row = OWN_BODY[name];
+      if (row === undefined) throw new Error(`${rel}: no row in OWN_BODY, so this program's own-body outcome is not asserted`);
+      const r = runNode([join(target, ...rel.split("/")), ...row.args(target)], target);
+      expect(r.error, rel).toBeUndefined();
+      return { rel, name, status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
+    });
+  }
+  /** An empty target (mkTmp, not makeFixture: its planted `user board` is not a v3 board) holding `hostJson` as its own package.json, installed. */
+  function installedHost(hostJson: string): { target: string; home: string; scratchHome: string; install: { status: number | null; stdout: string } } {
+    const target = mkTmp();
+    const home = mkTmp();
+    const scratchHome = mkTmp();
+    writeFileSync(join(target, "package.json"), hostJson);
+    const r = licenseInstall(target, home, scratchHome);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    return { target, home, scratchHome, install: { status: r.status, stdout: r.stdout ?? "" } };
+  }
+
+  it("tools/grugops/package.json: the invocation table has one row per program of RUNNABLES, two-sided", () => {
+    expect(Object.keys(OWN_BODY).sort()).toEqual(PROGRAM_RELS.map((rel) => basename(rel)).sort());
+    expect(PROGRAM_RELS.length).toBe(7);
+  });
+
+  it("tools/grugops/package.json: an install into a commonjs host writes the kit file there, leaves the host's package.json byte for byte, and every program runs its own body (D-21, G-37-2)", () => {
+    const { target } = installedHost(COMMONJS_HOST);
+    expect(readFileSync(join(target, PACKAGE_REL)).equals(readFileSync(join(REPO_ROOT, PACKAGE_KIT_REL))), "tools/grugops/package.json is not the kit file").toBe(true);
+    for (const run of runPrograms(target)) {
+      const row = OWN_BODY[run.name];
+      expect(run.status, `${run.rel}\n${run.out}`).toBe(row.status);
+      expect(run.out, run.rel).toContain(row.text);
+      for (const failure of LOAD_FAILURES) expect(run.out, `${run.rel} printed ${failure}`).not.toContain(failure);
+    }
+    expect(readFileSync(join(target, "package.json"), "utf8")).toBe(COMMONJS_HOST);
+  });
+
+  it("tools/grugops/package.json: premise: the same commonjs host with the package file removed reproduces the crash, exit 1, for every program", () => {
+    const { target } = installedHost(COMMONJS_HOST);
+    rmSync(join(target, PACKAGE_REL));
+    for (const run of runPrograms(target)) {
+      expect(run.status, `${run.rel}\n${run.out}`).toBe(1);
+      expect(run.out, run.rel).toContain("Cannot use import statement outside a module");
+    }
+  });
+
+  it("tools/grugops/package.json: on a host whose package.json has no type field, no program prints MODULE_TYPELESS_PACKAGE_JSON while the file is there, and each does without it", () => {
+    const { target } = installedHost(TYPELESS_HOST);
+    for (const run of runPrograms(target)) {
+      expect(run.status, `${run.rel}\n${run.out}`).toBe(OWN_BODY[run.name].status);
+      expect(run.out, run.rel).not.toContain("MODULE_TYPELESS_PACKAGE_JSON");
+    }
+    // The premise: Node does warn on this host when the package file is not there.
+    rmSync(join(target, PACKAGE_REL));
+    for (const run of runPrograms(target)) expect(run.out, run.rel).toContain("MODULE_TYPELESS_PACKAGE_JSON");
+    expect(readFileSync(join(target, "package.json"), "utf8")).toBe(TYPELESS_HOST);
+  });
+
+  it("tools/grugops/package.json: uninstall removes it by its record and leaves the host's own package.json byte for byte", () => {
+    const { target, home, scratchHome } = installedHost(COMMONJS_HOST);
+    expect(existsSync(join(target, PACKAGE_REL))).toBe(true);
+    const u = licenseUninstall(target, home, scratchHome);
+    expect(u.status, `${u.stdout}\n${u.stderr}`).toBe(0);
+    expect(existsSync(join(target, PACKAGE_REL))).toBe(false);
+    expect(u.stdout).toContain(`${PACKAGE_REL} (recorded in the install ledger)`);
+    expect(readFileSync(join(target, "package.json"), "utf8")).toBe(COMMONJS_HOST);
   });
 
   it("source derivation: an UNREADABLE source skill directory is reported and no completion is claimed", () => {
@@ -7542,7 +7651,10 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // beside the runnables (a fifth RUNNABLES row), so it entered the derived list; the plant takes its exact bytes too.
     // 15 -> 18 on 2026-10-22 (plan 37-13, SPLIT-05): the three state runnables `tools/grugops/state-check.js`,
     // `tools/grugops/trace-render.js` and `tools/grugops/state-roll.js` entered the derived list; the plant takes their bytes too.
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(18);
+    // 18 -> 19 on 2026-10-27, plan 37-40 (D-21, G-37-2): install copies install/runnable-package.json to
+    // `tools/grugops/package.json` beside the programs (a ninth RUNNABLES row), so it entered the derived list; the plant
+    // takes its exact bytes too.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(19);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {

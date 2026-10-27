@@ -2548,6 +2548,8 @@ const RUNNABLES_MIRROR = [
     ["scripts/runnable-ref/state-roll.js", "tools/grugops/state-roll.js"],
     // The MIT license for the programs above, copied beside them (quick task 261018-hs8, Task 4).
     ["LICENSE", "tools/grugops/LICENSE"],
+    // The `{"type":"module"}` package file that lets Node load the programs above on a commonjs host (plan 37-40, D-21).
+    ["install/runnable-package.json", "tools/grugops/package.json"],
 ];
 // reportUnrecordedRunnables (report only): a runnable path with no ledger file entry is left, and the line
 // says only what this run saw (red-team B2 of plan 33.1-34: a user's link there, or a `tools` that is a
