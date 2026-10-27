@@ -21,6 +21,7 @@ node_modules/
 # GSD runtime artifacts (derived/run-scoped, never source of truth)
 .gsd/
 .planning/state.json
+.planning/research/.cache/
 
 # GSD runtime lock — per-session, never committed
 .planning/milestone.lock
