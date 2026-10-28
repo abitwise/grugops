@@ -102,7 +102,7 @@ import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerm
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, kindAt, isRecordedAbsolute, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, sameRecordedPath, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, kindAt, isRecordedAbsolute, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, TREE_MAX_ENTRIES, USER_FILE_MAX_BYTES, realTargetPath, realPathThroughExisting, sameRecordedPath, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -2681,6 +2681,8 @@ if (!ALLOW_SELF) {
 // --migrate skips it (the migrate arm is the remedy; plan 36-13 makes its seed skip a pre-v3 board). --check,
 // --update and --prune-old-kit branch off above and never reach it. A `both` layout (D-02) is the v3 layout and is
 // not refused. The wording is final now although the state-moving migrate arm lands in Phase 38 (D-06).
+/** The file in the staging directory that lists the commit's renames, in order (runStateMigrate writes it). */
+const MIGRATE_COMMIT_PLAN_NAME = "commit-plan.txt";
 if (!MIGRATE) {
     const layout = stateLayout();
     let refusal = null;
@@ -2695,6 +2697,33 @@ if (!MIGRATE) {
         refusal =
             `install.js: the state layout could not be read (${layout.unreadable}: ${layout.code}), so it cannot be shown ` +
                 `that this repository is not on the pre-v3 layout. Nothing was written.`;
+    }
+    else {
+        // A LEFTOVER STAGING DIRECTORY (plan 38-08, MIGRATE-04, MIGRATE-02): an entry of any kind at MIGRATE_STAGING_REL,
+        // asked by lstat (a link is not followed), means an earlier --migrate stopped before it finished, and its commit
+        // plan may list renames that were made. A plain install over that state would seed and refresh beside a half-moved
+        // tree, so it is refused here, before any write, with the same exit. The directory is never removed by the
+        // installer: it sits inside the protected memory-bank root, which uninstall and --prune-old-kit leave alone too.
+        const staging = join(TARGET, ...MIGRATE_STAGING_REL.split("/"));
+        let code = null;
+        try {
+            lstatSync(staging);
+        }
+        catch (e) {
+            code = errCode(e);
+        }
+        if (code !== null && code !== "ENOENT" && code !== "ENOTDIR") {
+            refusal =
+                `install.js: ${staging} could not be asked about (${code}), so it cannot be shown that no earlier ` +
+                    "`install --migrate` left its staging directory there. Nothing was written.";
+        }
+        else if (code === null) {
+            refusal =
+                `install.js: an earlier \`install --migrate\` stopped before it finished: its staging directory and ` +
+                    `${MIGRATE_COMMIT_PLAN_NAME} are at ${staging}. Read ${join(staging, MIGRATE_COMMIT_PLAN_NAME)} and put back ` +
+                    `any rename it lists that was made, then remove the directory once its contents are not needed and run ` +
+                    `\`${migrateCommand(HOST_TOOLS.filter((h) => SELECTED_BY_FLAG.has(h.id)))}\` again. Nothing was written.`;
+        }
     }
     if (refusal !== null) {
         process.stderr.write(`${refusal}\n`);
@@ -5805,56 +5834,6 @@ function refuseOverMarker(read, remedy, named) {
 }
 if (INSTALL_REFUSAL !== null)
     refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL, SELECTION_NAMED_BY_USER ? SELECTION : []);
-// ── THE V3 STATE MIGRATE (phase 38, plan 38-03, 2026-10-28, D-07, D-10, D-11, D-17, D-21) ──────────────────────────
-// A --migrate on a repository whose planning state is still in the pre-v3 layout (stateLayout() answers `pre-v3`)
-// moves that state to the v3 layout in the same run. It is not run on an installed two-root repository (isMigrated):
-// that one still stops at the already-migrated arm (plan 38-07 changes that gate).
-//
-// READ ONCE, BEFORE THE PRE-CHECK (readMigrateInputs). The pre-v3 root is walked with lstatSync and readdirSync only,
-// following no link. Every regular file is read through readUserFile. A link, a special file or an entry that cannot
-// be read is a refusal naming its path. The walk records treeRecord of the whole root and of each file, the progress
-// file's bytes, the kit seed's NFR catalog and traceability bytes (from the kit source, the bytes copyKit puts at
-// KIT_ROOT/seed), and the migration date, the UTC date of this run.
-//
-// ONE PRE-CHECK (D-11). planStateMigrate plans the split. Its refusals, its proof's reasons, an entry already at
-// STATE_ROOT_REL and an existing staging directory join the --migrate pre-check, beside the vendored-kit arm's config
-// carry and kit plan, so every refusal of either arm is found before the first change.
-//
-// STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK (runStateMigrate, in the install run before the state seed, D-10, D-17):
-//   (a) MEMORY_BANK_REL is made when absent, then MIGRATE_STAGING_REL with a non-recursive mkdir, so an existing
-//       staging directory stops the run;
-//   (b) each planned write is written inside the staging directory with an exclusive create;
-//   (c) each staged file is read back through readUserFile and proveStateMigrate runs over the bytes read back;
-//   (d) the pre-v3 root's treeRecord and the progress bytes are taken again, and a difference from the first read
-//       stops the run;
-//   (e) the staging directory gets MIGRATE_COMMIT_PLAN_NAME, one `{from} TAB {to}` line per rename, in commit order;
-//   (f) the commit: the whole pre-v3 root is renamed to STATE_ROOT_REL, then each archive move, then each staged
-//       write to its path, one call per step class so a failure names its class (plan 38-06). Every rename first asks lstat that its destination is absent (a POSIX rename replaces what
-//       is there), and every directory and rename is recorded, in order, in the journal;
-//   (g) the post-commit proof: every original file's content record, taken before the commit, equals the record at
-//       the home the plan gives it (a `prefix` home begins with the original's bytes), and every written file holds
-//       the planned bytes;
-//   (g2) the trace render (plan 38-06, D-18, amending D-05): renderMigratedTrace runs the KIT-SOURCE trace renderer,
-//       the RUNNABLES row whose destination is tools/grugops/trace-render.js joined to GRUGOPS_SRC, never the
-//       repository's own copy (a file the repository controls, T-38-13), with process.execPath, the argument array
-//       [script, TARGET] and no shell, against the committed target (trace-render reads only fixed folders under the
-//       root and refuses links on them, so it cannot run against the staging directory). Only exit 0 is a pass. Exit 1
-//       (a finding: the index would not be fresh), exit 2, a signal or a spawn error is a failure that undoes the
-//       commit like any other in (f) to (h); the files the render added to TRACE_DIR_REL, and that directory when the
-//       render made it, are taken away first, so the undo finds the tree as the commit left it. After a pass, every trace file budgetEntryNames keeps is measured
-//       against BUDGETS.traceBytes and joins the D-07 closing list;
-//   (h) LAYOUT_MARKER_REL is written with LAYOUT_MARKER_CONTENT and one LF, exclusive create, last;
-//   (i) the commit plan file and the empty staging directories are taken away; anything left is a note, never an
-//       undo.
-// A failure in (a) to (d) takes away only the staging directory (and MEMORY_BANK_REL when this run made it). A
-// failure in (f) to (h) undoes the journal in reverse (each rename back, each directory it made), then takes away the
-// staging directory. Either is a verify naming the step and the reason, and no marker is written. An undo step that
-// fails is its own verify naming both paths, and the staging directory with its commit plan is left for the human. A
-// failed arm never exits: the run goes on, the state seed finds the pre-v3 layout again and seeds nothing beside it,
-// and the closing is INCOMPLETE. No state file is recorded in the install ledger (the state seed records none either;
-// uninstall keeps MEMORY_BANK_REL).
-/** The file in the staging directory that lists the commit's renames, in order. */
-const MIGRATE_COMMIT_PLAN_NAME = "commit-plan.txt";
 /** The planned v3 state migrate: made by the --migrate pre-check, executed by the install run (runStateMigrate). */
 let STATE_MIGRATE = null;
 /** `text` safe in one printed line: control characters taken out. */
@@ -5867,6 +5846,14 @@ function readMigrateInputs() {
     const legacy = [];
     const records = new Map();
     const rootAbs = targetPath(LEGACY_STATE_ROOT_REL);
+    // THE BOUNDS (plan 38-08, T-38-21). The walk counts every entry below the pre-v3 root, as treeRecord does, and stops
+    // with one refusal naming the bound once the count passes TREE_MAX_ENTRIES, because treeRecord could not record
+    // such a tree and nothing past it is read. A regular file whose lstat size is over USER_FILE_MAX_BYTES is refused by
+    // name with the bound before it is opened (readUserFile's own too-large answer is the backstop). An entry that is
+    // neither a regular file nor a directory (a link, a FIFO, a socket, a device) is refused by its lstat kind and never
+    // opened, so a FIFO cannot hang the run.
+    let entries = 0;
+    let overBound = false;
     const walk = (rel) => {
         const abs = targetPath(rel);
         let names;
@@ -5878,9 +5865,28 @@ function readMigrateInputs() {
             return;
         }
         for (const name of names) {
+            if (overBound)
+                return;
+            entries += 1;
+            if (entries > TREE_MAX_ENTRIES) {
+                overBound = true;
+                refusals.push(`${rootAbs} holds more than ${TREE_MAX_ENTRIES} entries (the walk stopped at entry ${entries}), over the bound ` +
+                    `of ${TREE_MAX_ENTRIES} entries the state migrate can record and prove; move the bulk of it out of ` +
+                    `${LEGACY_STATE_ROOT_REL}/ first`);
+                return;
+            }
             const childRel = `${rel}/${name}`;
             const childAbs = join(abs, name);
-            const kind = kindAt(childAbs);
+            let size = 0;
+            let kind;
+            try {
+                const st = lstatSync(childAbs);
+                size = st.size;
+                kind = st.isDirectory() ? "directory" : st.isFile() ? "regular file" : kindAt(childAbs);
+            }
+            catch {
+                kind = null;
+            }
             if (kind === "directory") {
                 walk(childRel);
                 continue;
@@ -5888,6 +5894,12 @@ function readMigrateInputs() {
             if (kind !== "regular file") {
                 refusals.push(`${oneLine(childAbs)} is ${kind === null ? "an entry that could not be asked about" : `a ${kind}`}; the state ` +
                     "migrate moves only regular files and directories and follows no link");
+                continue;
+            }
+            if (size > USER_FILE_MAX_BYTES) {
+                refusals.push(`${oneLine(childAbs)} is ${size} bytes, over the size bound of ${USER_FILE_MAX_BYTES} bytes for a file ` +
+                    "read from the repository, so it cannot be moved with a proof; move it out of " +
+                    `${LEGACY_STATE_ROOT_REL}/ first`);
                 continue;
             }
             const r = readUserFile(childAbs);
@@ -5950,6 +5962,35 @@ function readMigrateInputs() {
             walk(LEGACY_STATE_ROOT_REL);
         else
             refusals.push(`${rootAbs} is not a directory the state migrate can rename`);
+    }
+    // ONE FILESYSTEM (plan 38-08, T-38-22). Every commit step is a rename, and a rename cannot cross filesystems, so the
+    // pre-v3 root and MEMORY_BANK_REL (when it exists: the staging directory and the v3 state root are made in it) must be
+    // on the filesystem of the target directory. A difference is refused here; the commit never falls back to copy and
+    // delete, and an EXDEV at commit time is an I/O failure that undoes the journal. The target is asked with statSync
+    // (the directory the roots are entries of); each root with lstatSync, after the root pass above found it a real
+    // directory.
+    let targetDev = null;
+    try {
+        targetDev = statSync(TARGET).dev;
+    }
+    catch (e) {
+        refusals.push(`${TARGET} could not be asked about (${errCode(e)}), so it cannot be shown that the commit renames stay on one filesystem`);
+    }
+    for (const [rel, blocked] of [[LEGACY_STATE_ROOT_REL, rootBlocked], [MEMORY_BANK_REL, refusedAt.has(targetPath(MEMORY_BANK_REL))]]) {
+        if (blocked || targetDev === null)
+            continue;
+        const abs = targetPath(rel);
+        let dev;
+        try {
+            dev = lstatSync(abs).dev;
+        }
+        catch {
+            continue; // absent: nothing there to rename across
+        }
+        if (dev !== targetDev) {
+            refusals.push(`${abs} is on another filesystem than ${TARGET} (device ${dev}, not ${targetDev}), so the state migrate cannot ` +
+                "rename it in one step, and it never copies and deletes instead; put it on the target's filesystem first");
+        }
     }
     const treeBefore = rootBlocked ? null : treeRecord(TARGET, LEGACY_STATE_ROOT_REL);
     // A walk refusal already names why the root cannot be recorded (an entry it could not read), so this one is added
@@ -6098,6 +6139,8 @@ function stateMigrateRefusals(read, plan) {
         if (plan.refusals.length === 0 && !plan.proof.ok) {
             out.push(...plan.proof.reasons.map((r) => `the planned split of ${LEGACY_BOARD_REL} failed its proof: ${r}`));
         }
+        if (plan.refusals.length === 0)
+            out.push(...migratePathLimitRefusals(read, plan));
     }
     // MEMORY_BANK_REL (a link or a non-directory there) is asked by readMigrateInputs with the other roots (plan 38-08).
     const root = occupiedEntry(STATE_ROOT_REL);
@@ -6111,6 +6154,35 @@ function stateMigrateRefusals(read, plan) {
     const staging = stagingRefusal();
     if (staging !== null)
         out.push(staging);
+    return out;
+}
+// migratePathLimitRefusals (plan 38-08, MIGRATE-04): every path the migrate will create, asked of pathLimitProblem
+// before the first write, because a path over this platform's limit fails with ENAMETOOLONG only once the run has
+// started. The v3 state root is longer than the pre-v3 root, so an original that is under the limit where it is can be
+// over it where the whole-root rename puts it. Asked: each original's moved path (movedRel), each archive move's
+// destination, each planned write's destination and the path it is staged at inside MIGRATE_STAGING_REL. Each path is
+// named once. Nothing here writes.
+function migratePathLimitRefusals(read, plan) {
+    const staging = targetPath(MIGRATE_STAGING_REL);
+    const asked = [];
+    for (const f of read.inputs.legacy)
+        asked.push([targetPath(movedRel(f.rel)), `the new path of ${targetPath(f.rel)} after ${LEGACY_STATE_ROOT_REL}/ is renamed to ${STATE_ROOT_REL}/`]);
+    for (const m of plan.archiveMoves)
+        asked.push([targetPath(m.to), `the archive path of ${targetPath(m.from)}`]);
+    for (const w of plan.writes) {
+        asked.push([targetPath(w.rel), `a file the state migrate writes`]);
+        asked.push([join(staging, ...w.rel.split("/")), `the staged copy of ${targetPath(w.rel)}`]);
+    }
+    const out = [];
+    const seen = new Set();
+    for (const [p, what] of asked) {
+        if (seen.has(p))
+            continue;
+        seen.add(p);
+        const tooLong = pathLimitProblem(p);
+        if (tooLong !== null)
+            out.push(`${oneLine(p)} (${what}) ${tooLong}; shorten the path under ${LEGACY_STATE_ROOT_REL}/ first`);
+    }
     return out;
 }
 // stagingRefusal: an entry at MIGRATE_STAGING_REL means another --migrate is running here, or one was interrupted. Plan

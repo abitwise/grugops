@@ -365,6 +365,8 @@ const COMMAND_TABLE: readonly Row[] = [
   ["install.ts", "install.js: the kit home", "message prefix", "the install.js: prefix of a refusal before any agent is chosen"],
   ["install.ts", "install.js: this repository keeps its planning state in the pre-v3 layout (", "builder in the same expression", "the pre-v3 state-layout refusal of a plain install, before any agent is chosen: it prints migrateCommand() over the agents named by flag in the same expression (plan 36-12, 2026-10-21, D-05, D-06)"],
   ["install.ts", "install.js: the state layout could not be read (", "message prefix", "the install.js: prefix of the unreadable state-layout refusal, before any agent is chosen; it prints no command (plan 36-12, 2026-10-21, D-05)"],
+  ["install.ts", "install.js: an earlier `install --migrate` stopped before it finished: its staging directory and", "builder in the same expression", "the leftover-staging-directory refusal of a plain install, before any agent is chosen: it prints migrateCommand() over the agents named by flag in the same expression (plan 38-08, 2026-10-28, MIGRATE-04)"],
+  ["install.ts", "install.js:", "message prefix", "the install.js: prefix of the plain install's refusal when the staging directory cannot be asked about; it prints no command (plan 38-08, 2026-10-28, MIGRATE-04)"],
   ["install.ts", "install.js", "builder argument", "the route note for a carrier no writer of this run visited (D-26, WR-17)"],
   ["install.ts", "kit version to keep, so the version of the kit files in .claude is not known (install.js --check warns)", "note naming a mode", "says what --check does about it, asks for nothing"],
   ["install.ts", "install.js:", "message prefix", "the install.js: prefix of the selection refusal; its example is agentCommand"],
@@ -520,7 +522,9 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // reuses the carrier lines' remedy (one const, ownStaleRemedy), so it adds no fragment.
     // Plan 36-12 (2026-10-21, D-05): the pre-v3 state-layout refusal and the unreadable-layout refusal, each headed by
     // the install.js: prefix: install.ts 41 + 2 = 43.
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 43, "kit-source.ts": 1, "uninstall.ts": 8 });
+    // Plan 38-08 (2026-10-28, MIGRATE-04): the plain install's leftover-staging-directory refusal and its cannot-be-asked
+    // refusal, each headed by the install.js: prefix: install.ts 43 + 2 = 45.
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 45, "kit-source.ts": 1, "uninstall.ts": 8 });
     // THE CLASSES (plan 34.1-28, D-33, brief §4): a fragment that names a binary is a builder argument (or the builder's
     // own signature), sits in an expression that prints a built command, or is one of the non-command classes, each
     // held by its own rule below. Plan 34.1-28 split the former "names no agent flag" (12, of which the --update hint
@@ -530,12 +534,14 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // install command is gone, "builder in the same expression" 14 -> 13. Quick task 261018-hs8 fix pass (2026-10-18,
     // D-06): the launch-file WARN's remedy, 13 -> 14. Plan 36-12 (2026-10-21, D-05): the pre-v3 state-layout refusal,
     // which prints migrateCommand() in the same expression, 14 -> 15, and the unreadable-layout refusal's install.js:
-    // prefix, "message prefix" 6 -> 7.
+    // prefix, "message prefix" 6 -> 7. Plan 38-08 (2026-10-28, MIGRATE-04): the leftover-staging-directory refusal,
+    // which prints migrateCommand() in the same expression, 15 -> 16, and its cannot-be-asked refusal's install.js:
+    // prefix, "message prefix" 7 -> 8.
     expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({
       "builder argument": 30,
-      "builder in the same expression": 15,
+      "builder in the same expression": 16,
       "file text": 1,
-      "message prefix": 7,
+      "message prefix": 8,
       "note naming a mode": 1,
       path: 1,
       "section heading": 1,
@@ -605,7 +611,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
       }
     }
     // 12 -> 13 on 2026-10-21 (plan 36-12, D-05): the unreadable state-layout refusal's install.js: prefix ("message prefix").
-    expect(rowCount, "premise: the non-command rows").toBe(13);
+    // 13 -> 14 on 2026-10-28 (plan 38-08, MIGRATE-04): the staging-directory cannot-be-asked refusal's install.js: prefix.
+    expect(rowCount, "premise: the non-command rows").toBe(14);
     expect(read.size, "premise: one fragment was read for each non-command row").toBe(rowCount);
     expect(off, "a row classed as a non-command class that is not what its class says").toEqual([]);
   });

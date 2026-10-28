@@ -265,6 +265,8 @@ import {
   gone,
   pathLimitProblem,
   writeAccessProblem,
+  TREE_MAX_ENTRIES,
+  USER_FILE_MAX_BYTES,
   realTargetPath,
   realPathThroughExisting,
   sameRecordedPath,
@@ -3043,6 +3045,8 @@ if (!ALLOW_SELF) {
 // --migrate skips it (the migrate arm is the remedy; plan 36-13 makes its seed skip a pre-v3 board). --check,
 // --update and --prune-old-kit branch off above and never reach it. A `both` layout (D-02) is the v3 layout and is
 // not refused. The wording is final now although the state-moving migrate arm lands in Phase 38 (D-06).
+/** The file in the staging directory that lists the commit's renames, in order (runStateMigrate writes it). */
+const MIGRATE_COMMIT_PLAN_NAME = "commit-plan.txt";
 if (!MIGRATE) {
   const layout = stateLayout();
   let refusal: string | null = null;
@@ -3056,6 +3060,30 @@ if (!MIGRATE) {
     refusal =
       `install.js: the state layout could not be read (${layout.unreadable}: ${layout.code}), so it cannot be shown ` +
       `that this repository is not on the pre-v3 layout. Nothing was written.`;
+  } else {
+    // A LEFTOVER STAGING DIRECTORY (plan 38-08, MIGRATE-04, MIGRATE-02): an entry of any kind at MIGRATE_STAGING_REL,
+    // asked by lstat (a link is not followed), means an earlier --migrate stopped before it finished, and its commit
+    // plan may list renames that were made. A plain install over that state would seed and refresh beside a half-moved
+    // tree, so it is refused here, before any write, with the same exit. The directory is never removed by the
+    // installer: it sits inside the protected memory-bank root, which uninstall and --prune-old-kit leave alone too.
+    const staging = join(TARGET, ...MIGRATE_STAGING_REL.split("/"));
+    let code: string | null = null;
+    try {
+      lstatSync(staging);
+    } catch (e) {
+      code = errCode(e);
+    }
+    if (code !== null && code !== "ENOENT" && code !== "ENOTDIR") {
+      refusal =
+        `install.js: ${staging} could not be asked about (${code}), so it cannot be shown that no earlier ` +
+        "`install --migrate` left its staging directory there. Nothing was written.";
+    } else if (code === null) {
+      refusal =
+        `install.js: an earlier \`install --migrate\` stopped before it finished: its staging directory and ` +
+        `${MIGRATE_COMMIT_PLAN_NAME} are at ${staging}. Read ${join(staging, MIGRATE_COMMIT_PLAN_NAME)} and put back ` +
+        `any rename it lists that was made, then remove the directory once its contents are not needed and run ` +
+        `\`${migrateCommand(HOST_TOOLS.filter((h) => SELECTED_BY_FLAG.has(h.id)))}\` again. Nothing was written.`;
+    }
   }
   if (refusal !== null) {
     process.stderr.write(`${refusal}\n`);
@@ -6600,8 +6628,7 @@ if (INSTALL_REFUSAL !== null) refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REF
 // and the closing is INCOMPLETE. No state file is recorded in the install ledger (the state seed records none either;
 // uninstall keeps MEMORY_BANK_REL).
 
-/** The file in the staging directory that lists the commit's renames, in order. */
-const MIGRATE_COMMIT_PLAN_NAME = "commit-plan.txt";
+// MIGRATE_COMMIT_PLAN_NAME is declared above the plain-install refusal, which names it too (plan 38-08).
 
 /** What readMigrateInputs read, once, before the pre-check. */
 type MigrateRead = {
@@ -6630,6 +6657,14 @@ function readMigrateInputs(): MigrateRead {
   const legacy: LegacyFile[] = [];
   const records = new Map<string, string | null>();
   const rootAbs = targetPath(LEGACY_STATE_ROOT_REL);
+  // THE BOUNDS (plan 38-08, T-38-21). The walk counts every entry below the pre-v3 root, as treeRecord does, and stops
+  // with one refusal naming the bound once the count passes TREE_MAX_ENTRIES, because treeRecord could not record
+  // such a tree and nothing past it is read. A regular file whose lstat size is over USER_FILE_MAX_BYTES is refused by
+  // name with the bound before it is opened (readUserFile's own too-large answer is the backstop). An entry that is
+  // neither a regular file nor a directory (a link, a FIFO, a socket, a device) is refused by its lstat kind and never
+  // opened, so a FIFO cannot hang the run.
+  let entries = 0;
+  let overBound = false;
   const walk = (rel: string): void => {
     const abs = targetPath(rel);
     let names: string[];
@@ -6640,9 +6675,28 @@ function readMigrateInputs(): MigrateRead {
       return;
     }
     for (const name of names) {
+      if (overBound) return;
+      entries += 1;
+      if (entries > TREE_MAX_ENTRIES) {
+        overBound = true;
+        refusals.push(
+          `${rootAbs} holds more than ${TREE_MAX_ENTRIES} entries (the walk stopped at entry ${entries}), over the bound ` +
+            `of ${TREE_MAX_ENTRIES} entries the state migrate can record and prove; move the bulk of it out of ` +
+            `${LEGACY_STATE_ROOT_REL}/ first`,
+        );
+        return;
+      }
       const childRel = `${rel}/${name}`;
       const childAbs = join(abs, name);
-      const kind = kindAt(childAbs);
+      let size = 0;
+      let kind: string | null;
+      try {
+        const st = lstatSync(childAbs);
+        size = st.size;
+        kind = st.isDirectory() ? "directory" : st.isFile() ? "regular file" : kindAt(childAbs);
+      } catch {
+        kind = null;
+      }
       if (kind === "directory") {
         walk(childRel);
         continue;
@@ -6651,6 +6705,14 @@ function readMigrateInputs(): MigrateRead {
         refusals.push(
           `${oneLine(childAbs)} is ${kind === null ? "an entry that could not be asked about" : `a ${kind}`}; the state ` +
             "migrate moves only regular files and directories and follows no link",
+        );
+        continue;
+      }
+      if (size > USER_FILE_MAX_BYTES) {
+        refusals.push(
+          `${oneLine(childAbs)} is ${size} bytes, over the size bound of ${USER_FILE_MAX_BYTES} bytes for a file ` +
+            "read from the repository, so it cannot be moved with a proof; move it out of " +
+            `${LEGACY_STATE_ROOT_REL}/ first`,
         );
         continue;
       }
@@ -6709,6 +6771,34 @@ function readMigrateInputs(): MigrateRead {
   if (!rootBlocked) {
     if (kindAt(rootAbs) === "directory") walk(LEGACY_STATE_ROOT_REL);
     else refusals.push(`${rootAbs} is not a directory the state migrate can rename`);
+  }
+  // ONE FILESYSTEM (plan 38-08, T-38-22). Every commit step is a rename, and a rename cannot cross filesystems, so the
+  // pre-v3 root and MEMORY_BANK_REL (when it exists: the staging directory and the v3 state root are made in it) must be
+  // on the filesystem of the target directory. A difference is refused here; the commit never falls back to copy and
+  // delete, and an EXDEV at commit time is an I/O failure that undoes the journal. The target is asked with statSync
+  // (the directory the roots are entries of); each root with lstatSync, after the root pass above found it a real
+  // directory.
+  let targetDev: number | null = null;
+  try {
+    targetDev = statSync(TARGET).dev;
+  } catch (e) {
+    refusals.push(`${TARGET} could not be asked about (${errCode(e)}), so it cannot be shown that the commit renames stay on one filesystem`);
+  }
+  for (const [rel, blocked] of [[LEGACY_STATE_ROOT_REL, rootBlocked], [MEMORY_BANK_REL, refusedAt.has(targetPath(MEMORY_BANK_REL))]] as const) {
+    if (blocked || targetDev === null) continue;
+    const abs = targetPath(rel);
+    let dev: number;
+    try {
+      dev = lstatSync(abs).dev;
+    } catch {
+      continue; // absent: nothing there to rename across
+    }
+    if (dev !== targetDev) {
+      refusals.push(
+        `${abs} is on another filesystem than ${TARGET} (device ${dev}, not ${targetDev}), so the state migrate cannot ` +
+          "rename it in one step, and it never copies and deletes instead; put it on the target's filesystem first",
+      );
+    }
   }
   const treeBefore = rootBlocked ? null : treeRecord(TARGET, LEGACY_STATE_ROOT_REL);
   // A walk refusal already names why the root cannot be recorded (an entry it could not read), so this one is added
@@ -6863,6 +6953,7 @@ function stateMigrateRefusals(read: MigrateRead, plan: MigratePlan): string[] {
     if (plan.refusals.length === 0 && !plan.proof.ok) {
       out.push(...plan.proof.reasons.map((r) => `the planned split of ${LEGACY_BOARD_REL} failed its proof: ${r}`));
     }
+    if (plan.refusals.length === 0) out.push(...migratePathLimitRefusals(read, plan));
   }
   // MEMORY_BANK_REL (a link or a non-directory there) is asked by readMigrateInputs with the other roots (plan 38-08).
   const root = occupiedEntry(STATE_ROOT_REL);
@@ -6876,6 +6967,32 @@ function stateMigrateRefusals(read: MigrateRead, plan: MigratePlan): string[] {
   if (claim !== null) out.push(claim);
   const staging = stagingRefusal();
   if (staging !== null) out.push(staging);
+  return out;
+}
+
+// migratePathLimitRefusals (plan 38-08, MIGRATE-04): every path the migrate will create, asked of pathLimitProblem
+// before the first write, because a path over this platform's limit fails with ENAMETOOLONG only once the run has
+// started. The v3 state root is longer than the pre-v3 root, so an original that is under the limit where it is can be
+// over it where the whole-root rename puts it. Asked: each original's moved path (movedRel), each archive move's
+// destination, each planned write's destination and the path it is staged at inside MIGRATE_STAGING_REL. Each path is
+// named once. Nothing here writes.
+function migratePathLimitRefusals(read: MigrateRead, plan: MigratePlan): string[] {
+  const staging = targetPath(MIGRATE_STAGING_REL);
+  const asked: Array<readonly [string, string]> = [];
+  for (const f of read.inputs.legacy) asked.push([targetPath(movedRel(f.rel)), `the new path of ${targetPath(f.rel)} after ${LEGACY_STATE_ROOT_REL}/ is renamed to ${STATE_ROOT_REL}/`]);
+  for (const m of plan.archiveMoves) asked.push([targetPath(m.to), `the archive path of ${targetPath(m.from)}`]);
+  for (const w of plan.writes) {
+    asked.push([targetPath(w.rel), `a file the state migrate writes`]);
+    asked.push([join(staging, ...w.rel.split("/")), `the staged copy of ${targetPath(w.rel)}`]);
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const [p, what] of asked) {
+    if (seen.has(p)) continue;
+    seen.add(p);
+    const tooLong = pathLimitProblem(p);
+    if (tooLong !== null) out.push(`${oneLine(p)} (${what}) ${tooLong}; shorten the path under ${LEGACY_STATE_ROOT_REL}/ first`);
+  }
   return out;
 }
 
