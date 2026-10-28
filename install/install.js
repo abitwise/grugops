@@ -6238,6 +6238,20 @@ function traceBudgetFindings() {
     }
     return findings;
 }
+// noteMovedBackups (plan 38-07): a backup an earlier run recorded under the pre-v3 root (a handoffs backup, made by an
+// already-migrated --migrate) moved with the state when the commit renamed the root. writeMarker keeps only the
+// recorded backups whose path still holds something (carriedBackups), so the entry is no longer recorded; one note per
+// entry names where it is now. Its new path is under the memory-bank root, which uninstall and --prune-old-kit never
+// touch, so leaving it unrecorded changes nothing either does. Printed values pass through stripControlChars (oneLine).
+function noteMovedBackups() {
+    for (const e of entriesOfKind(PREVIOUS_LEDGER, "backup")) {
+        if (!e.path.startsWith(`${LEGACY_STATE_ROOT_REL}/`))
+            continue;
+        report("note", `${oneLine(e.path)}: a backup an earlier run recorded; it moved with the state to ${oneLine(movedRel(e.path))}. ` +
+            `It is no longer recorded in ${MARKER_REL}, and uninstall never touches the ${MEMORY_BANK_REL}/ root, so it stays ` +
+            "where it is");
+    }
+}
 // runStateMigrate: see STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK above. Returns true when the state is on the v3
 // layout and the marker is written (under DRY_RUN: when the plan would run).
 function runStateMigrate(plan, read) {
@@ -6465,11 +6479,14 @@ if (MIGRATE) {
     // the old layout, so fixing what the verify lines name and re-running --migrate performs the whole
     // migration. Before, a refused kit plan still moved the config, renamed agent-factory/ and wrote the
     // marker, and the next --migrate said "already migrated. Nothing to do" over install's own links.
-    // THE V3 STATE ARM (phase 38, plan 38-03, D-11): a repository not yet installed two-root whose planning state is in the
-    // pre-v3 layout moves that state in this run. Its inputs are read and its plan made here, and its refusals join the
-    // one pre-check below, so a refusal of either arm stops the run before any write. An installed two-root repository
-    // (isMigrated) still stops at the already-migrated arm below (plan 38-07).
-    const v3State = !layout.isMigrated && stateLayout() === "pre-v3";
+    // THE V3 STATE ARM (phase 38, plan 38-03, D-11): a repository whose planning state is in the pre-v3 layout moves that
+    // state in this run. Its inputs are read and its plan made here, and its refusals join the one pre-check below, so a
+    // refusal of any arm stops the run before any write. Plan 38-07 (D-19, Phase 36 WR-04): this holds for an installed
+    // two-root repository (isMigrated) too. Every v2.x install seeded the pre-v3 board, so the already-migrated arm below
+    // answers only a state layout that is not pre-v3; on a pre-v3 one the kit plan is built here as well and the run
+    // continues into the install run, which refreshes the kit and the runnables to read the new layout.
+    const state = stateLayout();
+    const v3State = state === "pre-v3";
     if (layout.isOldLayout || v3State) {
         const refusals = [];
         if (layout.isOldLayout) {
@@ -6534,7 +6551,7 @@ if (MIGRATE) {
     // When the v3 arm will move the pre-v3 root (plan 38-03), the legacy handoffs directory inside it moves with it,
     // unchanged, so it is not backed up: one ok line says so.
     const handoffsBackedUp = STATE_MIGRATE === null ? migrateHandoffs() : noteHandoffsMove();
-    if (layout.isMigrated) {
+    if (layout.isMigrated && state !== "pre-v3") {
         // Plan 33.1-40: this arm writes no marker, so the backup it may have made is recorded here.
         const handoffsRecorded = recordBackupsInMarker();
         // THE CLOSING (plan 34-26, D-25, the 27-13 class rule): built from what this arm did (the handoffs
@@ -7839,7 +7856,8 @@ function agentClosingLines() {
 // seed, so the seed finds the v3 layout when it succeeded and the pre-v3 layout again when it failed.
 if (STATE_MIGRATE !== null) {
     console.log("\n-- state migrate --");
-    runStateMigrate(STATE_MIGRATE.plan, STATE_MIGRATE.read);
+    if (runStateMigrate(STATE_MIGRATE.plan, STATE_MIGRATE.read) && !DRY_RUN)
+        noteMovedBackups();
 }
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
 console.log("\n-- state seed --");
