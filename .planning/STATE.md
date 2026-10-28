@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-08-PLAN.md
-last_updated: "2026-10-28T15:47:00.337Z"
+stopped_at: Completed 38-09-PLAN.md
+last_updated: "2026-10-28T16:38:38.100Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: 51b10d31eeeb13bb98063ab446cacc4a57634308
+state_head: c58d6c58b78e77c28a6031165db7a6fa7e1a440c
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 65
+  completed_plans: 66
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 9 of 11
+Plan: 10 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -780,6 +780,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P06 | 40 min | 2 tasks | 8 files |
 | Phase 38 P07 | 55 min | 2 tasks | 8 files |
 | Phase 38 P08 | 44 min | 2 tasks | 7 files |
+| Phase 38 P09 | 49 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2141,6 +2142,8 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-08: the migrate roots pass asks each root's entry by lstat as well as the way by wayTo; a progress file that is a link was read through before
 - [Phase 38]: 38-08: the device comparison covers MEMORY_BANK_REL as well as the pre-v3 root
 - [Phase 38]: 38-08: the plain-install staging refusal says put back what commit-plan.txt lists, remove the directory, then run --migrate (running --migrate with it still there would refuse)
+- [Phase 38]: 38-09: --dry-run is the argument spelling of DRY_RUN=1 for every install.js mode (a closing-claims modifier row); the --migrate preview is migrateListing(plan), a pure function whose lines install.ts prints unchanged, in commit order with paths in code-unit order
+- [Phase 38]: 38-09: whole-stdout determinism of two dry runs is asserted with the adapter render's per-run mkdtemp name replaced; the state migrate section is compared exactly
 
 ### Pending Todos
 
@@ -2473,8 +2476,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T15:46:59.826Z
-Stopped at: Completed 38-08-PLAN.md
+Last session: 2026-10-28T16:38:37.589Z
+Stopped at: Completed 38-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
