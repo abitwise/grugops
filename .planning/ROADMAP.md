@@ -395,7 +395,41 @@ Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequent
   5. With the opt-in flag, finished-ticket `.grugops/context/` folders are moved, not changed, into a separate archive folder and trace rendering still reads them; the whole migration has been run on a copy of `cli-chess-example` under a scratch `GRUGOPS_HOME` with before/after sizes recorded (MIGRATE-06, MIGRATE-07)
   6. On an installed v2.x two-root repo that still holds the pre-v3 board (`plans/board.md`, no `memory-bank/plans/board.md`), `install --migrate` moves it to the v3 layout; the v2.x arm's "already migrated to the two-root layout ... Nothing to do." short-circuit no longer answers that layout, and a test pins it (MIGRATE-04; carried from Phase 36 WR-04 by UAT decision 2026-10-21)
 
-**Plans**: TBD
+**Plans**: 11 plans
+
+Plans:
+**Wave 1**
+- [ ] 38-01-PLAN.md — Chess copy path and ticket-original decision (checkpoints), shape census, frozen pre-v3 fixture, failure baseline
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 38-02-PLAN.md — State constants, `module` embed kind, pure planner for the board split (Board notes, orphans, updates) and the stage-A proof
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 38-03-PLAN.md — install --migrate v3 arm end to end: one pre-check, staging, undoable commit journal, per-original proof, marker last
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 38-04-PLAN.md — NFR catalog split with notes residue and new index; traceability archived unsplit
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 38-05-PLAN.md — Done and progress rollover inside the plan (parity with state-roll.js), progress original archived, budget closing
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 38-06-PLAN.md — Kit-source trace render before the marker; fault-injected rollback at every commit step; changed-after-read stop
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 38-07-PLAN.md — State machine: WR-04 and D-19 kit refresh, both/claimed/unreadable refusals, neither, current with or without marker
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 38-08-PLAN.md — Hazard refusals: links, special files, bounds, path limits, second filesystem, leftover staging under plain install
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 38-09-PLAN.md — `--dry-run` flag and the complete, ordered per-file listing
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 38-10-PLAN.md — Queue-stage decision (checkpoint) and the opt-in `--archive-done-context` move
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 38-11-PLAN.md — Dogfood on a scratch copy of cli-chess-example, user docs and changelog, phase gate
 **Research flag**: plan with `--research-phase` (migrate state machine, trace-render over two roots, the shapes found in real hand-written boards for the conservation proof).
 **Notes**: The first operation that rewrites user state (D-8). A frozen pre-v3 fixture comes first. Budget extra gap rounds under the four-round cap.
 
