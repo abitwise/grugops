@@ -5876,6 +5876,8 @@ let CONTEXT_MOVED = 0;
 let STATE_MIGRATE = null;
 /** `text` safe in one printed line: control characters taken out. */
 const oneLine = (text) => stripControlChars(text, false);
+/** A C0 or C1 control character, or DEL: a pre-v3 entry whose name holds one is refused by readMigrateInputs. */
+const CONTROL_CHAR_IN_NAME = /[\u0000-\u001f\u007f-\u009f]/;
 /** The absolute path of a target-relative POSIX path. */
 const targetPath = (rel) => join(TARGET, ...rel.split("/"));
 // readMigrateInputs: see READ ONCE, BEFORE THE PRE-CHECK above. It writes nothing.
@@ -5915,6 +5917,13 @@ function readMigrateInputs() {
             }
             const childRel = `${rel}/${name}`;
             const childAbs = join(abs, name);
+            // A name with a control character (a TAB, a line break, an escape) is refused and not read: the commit plan lists
+            // one `{from} TAB {to}` line per rename for the human to follow, and a printed path must not drive the terminal.
+            if (CONTROL_CHAR_IN_NAME.test(name)) {
+                refusals.push(`${oneLine(childAbs)} has a control character in its name, so the state migrate cannot list or print its ` +
+                    `path unambiguously; rename it first (the path is shown with that character taken out)`);
+                continue;
+            }
             let size = 0;
             let kind;
             try {
@@ -6260,12 +6269,12 @@ function migrateMkdirs(journal, dir) {
         if (state === "fine")
             continue;
         if (state !== "absent")
-            return `${cur} ${state}`;
+            return `${oneLine(cur)} ${state}`;
         try {
             mkdirSync(cur);
         }
         catch (e) {
-            return `${cur} could not be made (${errCode(e)})`;
+            return `${oneLine(cur)} could not be made (${errCode(e)})`;
         }
         journal.push({ kind: "mkdir", path: cur });
     }
@@ -6279,17 +6288,17 @@ function migrateRename(journal, from, to) {
         return why;
     try {
         lstatSync(to);
-        return `${to} already exists, and the rename of ${from} would replace it`;
+        return `${oneLine(to)} already exists, and the rename of ${oneLine(from)} would replace it`;
     }
     catch (e) {
         if (errCode(e) !== "ENOENT")
-            return `${to} could not be asked about (${errCode(e)})`;
+            return `${oneLine(to)} could not be asked about (${errCode(e)})`;
     }
     try {
         renameSync(from, to);
     }
     catch (e) {
-        return `${from} could not be renamed to ${to} (${errCode(e)})`;
+        return `${oneLine(from)} could not be renamed to ${oneLine(to)} (${errCode(e)})`;
     }
     journal.push({ kind: "rename", from, to });
     return null;
@@ -6304,7 +6313,7 @@ function undoStateMigrate(journal) {
                 rmdirSync(j.path);
             }
             catch (e) {
-                failed.push(`${j.path}, a directory this run made, could not be taken away (${errCode(e)}); it was left`);
+                failed.push(`${oneLine(j.path)}, a directory this run made, could not be taken away (${errCode(e)}); it was left`);
             }
             continue;
         }
@@ -6316,14 +6325,15 @@ function undoStateMigrate(journal) {
             free = errCode(e) === "ENOENT";
         }
         if (!free) {
-            failed.push(`${j.to} was not renamed back to ${j.from}, because something is at ${j.from} now; rename it back by hand`);
+            failed.push(`${oneLine(j.to)} was not renamed back to ${oneLine(j.from)}, because something is at ${oneLine(j.from)} now; ` +
+                "rename it back by hand");
             continue;
         }
         try {
             renameSync(j.to, j.from);
         }
         catch (e) {
-            failed.push(`${j.to} could not be renamed back to ${j.from} (${errCode(e)}); rename it back by hand`);
+            failed.push(`${oneLine(j.to)} could not be renamed back to ${oneLine(j.from)} (${errCode(e)}); rename it back by hand`);
         }
     }
     return failed;
@@ -6336,7 +6346,7 @@ function discardMigrateStaging(staging) {
         return null;
     }
     catch (e) {
-        return `${staging} could not be taken away (${errCode(e)})`;
+        return `${oneLine(staging)} could not be taken away (${errCode(e)})`;
     }
 }
 // clearEmptyMigrateDirs: take away the directories under (and including) `dir` that hold nothing once the commit has
@@ -6736,7 +6746,7 @@ function runStateMigrate(plan, read, context) {
             writeFileSync(p, w.bytes, { flag: "wx" });
         }
         catch (e) {
-            return stageFailed("staging", `${p} could not be written (${errCode(e)})`);
+            return stageFailed("staging", `${oneLine(p)} could not be written (${errCode(e)})`);
         }
     }
     // (c)
@@ -6744,7 +6754,7 @@ function runStateMigrate(plan, read, context) {
     for (const w of plan.writes) {
         const r = readUserFile(stagedAt(w.rel));
         if (r.state !== "ok" || !r.bytes.equals(w.bytes)) {
-            return stageFailed("staged proof", `${stagedAt(w.rel)} does not read back as the bytes staged`);
+            return stageFailed("staged proof", `${oneLine(stagedAt(w.rel))} does not read back as the bytes staged`);
         }
         readBack.set(w.rel, r.bytes);
     }
@@ -6784,7 +6794,7 @@ function runStateMigrate(plan, read, context) {
     const commitFailed = (step, why) => {
         const failed = [...discardRenderedTrace(rendered), ...undoStateMigrate(journal)];
         for (const f of failed)
-            verify(`state migrate (undo): ${f}. ${staging} and ${commitPlan} were left for you.`);
+            verify(`state migrate (undo): ${f}. ${oneLine(staging)} and ${oneLine(commitPlan)} were left for you.`);
         let left = failed.length > 0;
         if (!left) {
             const s = discardMigrateStaging(staging);
@@ -6825,20 +6835,20 @@ function runStateMigrate(plan, read, context) {
         if (h.match === "identical") {
             const before = read.records.get(h.original);
             if (before === undefined || before === null || treeRecord(TARGET, h.at) !== before) {
-                homeProblems.push(`${at} is not ${oneLine(h.original)} unchanged`);
+                homeProblems.push(`${oneLine(at)} is not ${oneLine(h.original)} unchanged`);
             }
             continue;
         }
         const original = read.inputs.legacy.find((f) => f.rel === h.original);
         const now = readUserFile(at);
         if (original === undefined || now.state !== "ok" || !now.bytes.subarray(0, original.bytes.length).equals(original.bytes)) {
-            homeProblems.push(`${at} does not begin with the bytes of ${oneLine(h.original)}`);
+            homeProblems.push(`${oneLine(at)} does not begin with the bytes of ${oneLine(h.original)}`);
         }
     }
     for (const w of plan.writes) {
         const now = readUserFile(targetPath(w.rel));
         if (now.state !== "ok" || !now.bytes.equals(w.bytes))
-            homeProblems.push(`${targetPath(w.rel)} does not hold the planned bytes`);
+            homeProblems.push(`${oneLine(targetPath(w.rel))} does not hold the planned bytes`);
     }
     if (homeProblems.length > 0)
         return commitFailed("post-commit proof", homeProblems.join("; "));
@@ -6870,7 +6880,7 @@ function runStateMigrate(plan, read, context) {
     }
     const left = clearEmptyMigrateDirs(staging);
     if (left.length > 0)
-        report("note", `the staging directory ${staging} was left, holding ${left.join(", ")}`);
+        report("note", `the staging directory ${staging} was left, holding ${left.map(oneLine).join(", ")}`);
     report("moved", `${LEGACY_STATE_ROOT_REL}/ → ${STATE_ROOT_REL}/ (${read.inputs.legacy.length} file(s), unchanged)`);
     const sizeOf = new Map(read.inputs.legacy.map((f) => [movedRel(f.rel), f.bytes.length]));
     if (read.inputs.progress !== null)

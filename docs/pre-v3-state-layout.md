@@ -80,6 +80,9 @@ The state move is refused when:
 - **a link or a special file is in the way:** a symbolic link, a FIFO, a socket or a device under
   `plans/`, or a link at or on the way to `plans/`, `memory-bank/`, the progress file
   `memory-bank/60-progress.md` or `.grugops/context/`. The state move follows no link;
+- **a file name holds a control character:** a name under `plans/` with a TAB, a line break, an
+  escape or another control character, because `commit-plan.txt` lists one tab-separated rename per
+  line for you to follow, and a printed path must not change your terminal. Rename the file first;
 - **a size bound is passed:** a file over the size bound for one file, or a `plans/` tree with more
   entries than the move can record and prove;
 - **the move would cross filesystems:** `plans/` or `memory-bank/` is on another filesystem than the

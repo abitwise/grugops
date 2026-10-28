@@ -99,6 +99,18 @@ const LINK_SKIP: string | null = process.platform === "win32" ? "win32: a symbol
 if (LINK_SKIP !== null) console.log(`SKIP 4 link cases (H1, H2, H2b, H2c) of migrate-v3-hazards.test.ts — ${LINK_SKIP}`);
 
 describe("hazards of a real repository refuse --migrate before any write (plan 38-08, MIGRATE-04)", () => {
+  it.skipIf(process.platform === "win32")("a pre-v3 file whose name holds a control character is a pre-check refusal, printed without it", () => {
+    const w = preV3World();
+    const name = "ABC-997-a\u001b[31mred\tname.md";
+    writeFileSync(at(w.target, `${PRE_V3_TICKETS_DIR_REL}/${name}`), "# a ticket with a control character in its name\n");
+    const r = migrate(w);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(3);
+    const verifies = labelled(r.stdout, "verify");
+    expect(verifies.filter((l) => l.includes("ABC-997-a") && l.includes("control character")), r.stdout).toHaveLength(1);
+    expect(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/.test(r.stdout), "stdout carries no control character").toBe(false);
+    expect(existsSync(at(w.target, MIGRATE_STAGING_REL)), "nothing was staged").toBe(false);
+  });
+
   it.skipIf(LINK_SKIP !== null)("(H1) a link under the pre-v3 tickets directory, to a file outside the target, is a pre-check refusal naming the link", () => {
     const w = preV3World();
     const outside = join(w.root, "outside.md");
