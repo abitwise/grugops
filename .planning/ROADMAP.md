@@ -395,7 +395,7 @@ Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequent
   5. With the opt-in flag, finished-ticket `.grugops/context/` folders are moved, not changed, into a separate archive folder and trace rendering still reads them; the whole migration has been run on a copy of `cli-chess-example` under a scratch `GRUGOPS_HOME` with before/after sizes recorded (MIGRATE-06, MIGRATE-07)
   6. On an installed v2.x two-root repo that still holds the pre-v3 board (`plans/board.md`, no `memory-bank/plans/board.md`), `install --migrate` moves it to the v3 layout; the v2.x arm's "already migrated to the two-root layout ... Nothing to do." short-circuit no longer answers that layout, and a test pins it (MIGRATE-04; carried from Phase 36 WR-04 by UAT decision 2026-10-21)
 
-**Plans**: 3/11 plans executed
+**Plans**: 4/11 plans executed
 
 Plans:
 **Wave 1**
@@ -408,7 +408,7 @@ Plans:
 - [x] 38-03-PLAN.md — install --migrate v3 arm end to end: one pre-check, staging, undoable commit journal, per-original proof, marker last
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 38-04-PLAN.md — NFR catalog split with notes residue and new index; traceability archived unsplit
+- [x] 38-04-PLAN.md — NFR catalog split with notes residue and new index; traceability archived unsplit
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 38-05-PLAN.md — Done and progress rollover inside the plan (parity with state-roll.js), progress original archived, budget closing
@@ -521,7 +521,7 @@ Plans:
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
-| 38. install --migrate v3 | v3.0 | 3/11 | In Progress | - |
+| 38. install --migrate v3 | v3.0 | 4/11 | In Progress | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |

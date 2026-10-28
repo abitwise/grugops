@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-03-PLAN.md
-last_updated: "2026-10-28T11:50:37.666Z"
+stopped_at: Completed 38-04-PLAN.md
+last_updated: "2026-10-28T12:35:38.815Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: b6b3099785e7e7bc3a4ebec890f3a9f97642112b
+state_head: d2dd7ff6aabef841261565835a36a7feefddb936
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 60
+  completed_plans: 61
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 4 of 11
+Plan: 5 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -775,6 +775,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P01 | 1h 17m | 3 tasks | 45 files |
 | Phase 38 P02 | 1h 15m | 2 tasks | 14 files |
 | Phase 38 P03 | 45min | 2 tasks | 7 files |
+| Phase 38 P04 | 40min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -2118,6 +2119,10 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-03: the D-21 option-b set-aside removal is not built (D-21 is option-a); the arm never deletes a user file, and leftovers in staging are named in a note
 - [Phase 38]: 38-03: MEMORY_BANK_REL made by the state migrate is tracked outside the commit journal and taken away after the staging directory on failure
 - [Phase 38]: 38-03: the post-commit proof also requires every written file to hold its planned bytes
+- [Phase 38]: 38-04: NFR table rows are the contiguous run of pipe lines after the separator in the comment-blanked text; a row touching an HTML comment goes to the notes file
+- [Phase 38]: 38-04: a catalog line goes to one place: rows, then single-ID sections; header and separator lines always go to nfr-notes.md
+- [Phase 38]: 38-04: the stage-A proof keeps one multiset per original (board, NFR catalog), binds each generated kind to its file and lines, and anchors each NFR file's line 3 to its own row
+- [Phase 38]: 38-04: a non-UTF-8 or mixed-ending NFR catalog is refused, as the board is
 
 ### Pending Todos
 
@@ -2450,8 +2455,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T11:50:37.175Z
-Stopped at: Completed 38-03-PLAN.md
+Last session: 2026-10-28T12:35:38.322Z
+Stopped at: Completed 38-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
