@@ -478,3 +478,31 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
     expect([...done].sort()).toEqual([...would].sort());
   });
 });
+
+// ── The `--dry-run` argument (plan 38-09, MIGRATE-01): the argument spelling of DRY_RUN=1, for every mode ─────
+describe("--dry-run is DRY_RUN=1 spelled as an argument (plan 38-09)", () => {
+  it("a plain install with --dry-run writes nothing and prints the stdout DRY_RUN=1 prints", () => {
+    const target = makeFixture();
+    const kitHome = join(mkTmp(), "home-never-created");
+    const home = mkTmp();
+    const byArgument = expectDryRunUnchanged(
+      target,
+      kitHome,
+      () => spawnBin(INSTALL_JS, ["--yes", ...withAgentFlags(["--dry-run"])], target, kitHome, { home }),
+      0,
+      INSTALL_BANNER,
+    );
+    const byEnvironment = expectDryRunUnchanged(
+      target,
+      kitHome,
+      () => spawnBin(INSTALL_JS, ["--yes", ...withAgentFlags([])], target, kitHome, { home, dryRun: true }),
+      0,
+      INSTALL_BANNER,
+    );
+    // The adapter render runs in a fresh mkdtemp mirror each run and its `render` line names it; that one name is
+    // replaced, and every other byte is compared as printed.
+    const sameRun = (out: string): string => out.replace(/grugops-install-render-[A-Za-z0-9]{6}/g, "grugops-install-render-XXXXXX");
+    expect(sameRun(byArgument.stdout)).toBe(sameRun(byEnvironment.stdout));
+    expect(existsSync(kitHome)).toBe(false);
+  });
+});

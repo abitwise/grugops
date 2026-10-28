@@ -16,7 +16,12 @@
 //        own `##` section become nfr/NFR-xxx.md, the new catalog is the kit seed plus one index line per row, the
 //        original catalog and traceability file are archived unchanged, the traceability file is the kit seed, and
 //        the proof covers the catalog; then the whole NFR rule (plan 38-04 Task 2): the notes residue, the header
-//        lookup by cell name, the refusals, the budgets, the proof's failure cases and the absent-file arms.
+//        lookup by cell name, the refusals, the budgets, the proof's failure cases and the absent-file arms;
+//   (S11) the dry-run listing (plan 38-09, MIGRATE-01): migrateListing holds a line of every step class (moved file,
+//        archive move, new file, ticket append with its board lines, each orphan row by ID and board line, the
+//        `_Updated:` count and bytes, an NFR file, the Done roll, the progress roll, the render, the marker, each
+//        over-budget finding), in commit order with paths in code-unit order within a group, the same on every call,
+//        and with no control character from a path, an ID or a note.
 //
 // The planner does no I/O, so these cases read the fixture once and pass its bytes in. A shape the fixture lacks
 // (CRLF, a byte-order mark, an orphan of its own, invalid UTF-8) is made here by mutating a copy of the inputs, never
@@ -33,6 +38,7 @@ import {
   BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
   BUDGETS,
+  LAYOUT_MARKER_REL,
   LEGACY_BOARD_REL,
   LEGACY_STATE_ROOT_REL,
   NFR_CATALOG_REL,
@@ -60,6 +66,8 @@ import {
   ORPHAN_NOTES_TITLE,
   cutRow,
   doneArchiveSkeleton,
+  formatFinding,
+  migrateListing,
   normalizeDocument,
   parseBoard,
   sortFindings,
@@ -1250,5 +1258,178 @@ describe("(S10) the proof fails, naming the file and line, on every mutation of 
     };
     const reasons = reasonsOf(proveStateMigrate(inputs, failed, writesOf(plan)));
     expect(reasons.some((r) => r.includes("stage B") && r.includes("rolled-back") && r.includes("the archive differs")), reasons.join("\n")).toBe(true);
+  });
+});
+
+// ── (S11) the dry-run listing (plan 38-09, MIGRATE-01) ─────────────────────────────────────────────────────────
+
+/** The listing lines printed under `label` (the installer's `  <label padded to 14> <text>` shape), text only. */
+function listed(lines: readonly string[], label: string): string[] {
+  const head = `  ${label.padEnd(14)} `;
+  return lines.filter((l) => l.startsWith(head)).map((l) => l.slice(head.length));
+}
+
+/** The commit-order group of one listing line (see migrateListing). */
+function groupOf(line: string): number {
+  const groups = ["would-move", "would-archive", "would-write|would-append", "would-orphan", "would-split", "would-roll"];
+  const label = line.slice(2, 16).trim();
+  const g = groups.findIndex((x) => x.split("|").includes(label));
+  if (g >= 0) return g;
+  if (label === "note") return line.includes("over budget") || line.includes("over a state budget") ? 9 : 6;
+  if (label === "would-run") return 7;
+  if (label === "would-create") return 8;
+  if (label === "dry-run") return 10;
+  throw new Error(`a listing line with an unknown label: ${line}`);
+}
+
+/** The path a step line leads with: its text up to ` → ` or ` (`. */
+function leadPath(text: string): string {
+  const arrow = text.indexOf(" → ");
+  const paren = text.indexOf(" (");
+  return text.slice(0, arrow >= 0 && (paren < 0 || arrow < paren) ? arrow : paren);
+}
+
+const CHESS_LISTING = migrateListing(CHESS_PLAN);
+
+describe("(S11) migrateListing: every planned move and split, with bytes (plan 38-09, MIGRATE-01)", () => {
+  it("one move line per pre-v3 file, naming its moved path and its bytes", () => {
+    const moves = listed(CHESS_LISTING, "would-move");
+    for (const f of CHESS.legacy) {
+      expect(moves.filter((l) => l.startsWith(`${f.rel} → ${movedRel(f.rel)} (${f.bytes.length} bytes`)), f.rel).toHaveLength(1);
+    }
+    expect(moves).toHaveLength(CHESS.legacy.length);
+  });
+
+  it("one archive line per archive move, with the original's bytes", () => {
+    const lines = listed(CHESS_LISTING, "would-archive");
+    expect(lines).toHaveLength(CHESS_PLAN.archiveMoves.length);
+    for (const m of CHESS_PLAN.archiveMoves) {
+      const bytes = legacyBytes(CHESS, m.from.replace(`${STATE_ROOT_REL}/`, `${LEGACY_STATE_ROOT_REL}/`)).length;
+      expect(lines.filter((l) => l.startsWith(`${m.from} → ${m.to} (${bytes} bytes`)), m.from).toHaveLength(1);
+    }
+  });
+
+  it("one write line per new file (an NFR file among them), with its bytes and its source", () => {
+    const lines = listed(CHESS_LISTING, "would-write");
+    const appendedRels = new Set(CHESS_PLAN.appended.map((a) => a.rel));
+    const fresh = CHESS_PLAN.writes.filter((w) => !appendedRels.has(w.rel));
+    expect(fresh.some((w) => w.rel.startsWith(`${NFR_DIR_REL}/`)), "PREMISE: the plan writes NFR files").toBe(true);
+    for (const w of fresh) {
+      expect(lines.filter((l) => l.startsWith(`${w.rel} (${w.bytes.length} bytes; `) && l.includes(w.source)), w.rel).toHaveLength(1);
+    }
+    expect(lines).toHaveLength(fresh.length);
+  });
+
+  it("one append line per ticket that receives Board notes: the bytes added and every board line its notes come from", () => {
+    const lines = listed(CHESS_LISTING, "would-append");
+    expect(lines).toHaveLength(CHESS_PLAN.appended.length);
+    for (const a of CHESS_PLAN.appended) {
+      const added = (CHESS_PLAN.writes.find((w) => w.rel === a.rel)?.bytes.length ?? 0) - legacyBytes(CHESS, a.original).length;
+      const line = lines.find((l) => l.startsWith(`${a.rel} (${added} bytes`));
+      expect(line, `${a.rel}: ${added} bytes added\n${lines.join("\n")}`).toBeDefined();
+      for (const c of CHESS_PLAN.cuts.filter((x) => x.noteRel === a.rel)) {
+        expect(line, `${a.rel} names board line ${c.boardLine}`).toContain(`line ${c.boardLine} of ${LEGACY_BOARD_REL}`);
+      }
+    }
+  });
+
+  it("D-03: each orphan row is its own line, by ID and board line, in board order", () => {
+    const orphanOf = (plan: MigratePlan) => plan.cuts.filter((c) => c.noteRel === PRE_V3_ORPHAN_NOTES_REL);
+    expect(orphanOf(CHESS_PLAN), "PREMISE: the fixture has an orphan row").toHaveLength(1);
+    // A second orphan: the ticket file of ABC-074 left out, so its row's trailer has no ticket to go to.
+    const inputs = { ...CHESS, legacy: CHESS.legacy.filter((f) => f.rel !== ticketRel(CHESS, "ABC-074")) };
+    const plan = planStateMigrate(inputs);
+    const orphans = orphanOf(plan);
+    expect(orphans.length, "PREMISE: two orphan rows").toBe(2);
+    const lines = listed(migrateListing(plan), "would-orphan");
+    expect(lines).toHaveLength(2);
+    orphans.forEach((c, k) => {
+      expect(lines[k], lines.join("\n")).toContain(`[${c.id}]`);
+      expect(lines[k]).toContain(`line ${c.boardLine} of ${LEGACY_BOARD_REL}`);
+      expect(lines[k]).toContain(PRE_V3_ORPHAN_NOTES_REL);
+    });
+  });
+
+  it("D-04: one line gives the `_Updated:` line count and the bytes of those lines", () => {
+    const at = updateLines(BOARD_TEXT);
+    expect(at.length, "PREMISE: the fixture board has `_Updated:` lines").toBeGreaterThan(0);
+    const raw = BOARD_TEXT.split("\n");
+    const bytes = at.reduce((n, i) => n + enc.encode((raw[i - 1] as string).replace(/\r$/, "")).length, 0);
+    const lines = listed(CHESS_LISTING, "would-split");
+    expect(lines, CHESS_LISTING.join("\n")).toHaveLength(1);
+    expect(lines[0]).toContain(`${at.length} \`_Updated:\` line(s)`);
+    expect(lines[0]).toContain(`(${bytes} bytes`);
+    expect(lines[0]).toContain(PRE_V3_BOARD_UPDATES_REL);
+  });
+
+  it("one line per roll surface: nothing rolls on the fixture; the rolling variants name the rows and entries moved", () => {
+    const rolls = listed(CHESS_LISTING, "would-roll");
+    expect(rolls, CHESS_LISTING.join("\n")).toHaveLength(2);
+    expect(rolls[0]).toContain(`the Done column of ${BOARD_REL}`);
+    expect(rolls[0]).toContain("nothing rolls");
+    expect(rolls[1]).toContain(PROGRESS_REL);
+    expect(rolls[1]).toContain("nothing rolls");
+    const { plan } = bothRolls();
+    const both = listed(migrateListing(plan), "would-roll");
+    const moved = doneRowCount(dec.decode(plan.beforeRoll ?? new Uint8Array())) - BUDGETS.doneRows;
+    expect(both[0]).toContain(`${moved} Done row(s)`);
+    expect(both[0]).toContain(BOARD_DONE_ARCHIVE_REL);
+    expect(both[1]).toContain(`${DATED_HEADINGS.length} dated progress entry(ies)`);
+    expect(both[1]).toContain(PROGRESS_ARCHIVE_REL);
+  });
+
+  it("the render line, the marker line, one line per over-budget finding, and last the line that nothing was written", () => {
+    const run = listed(CHESS_LISTING, "would-run");
+    expect(run).toHaveLength(1);
+    expect(run[0]).toContain("cannot be previewed");
+    expect(listed(CHESS_LISTING, "would-create").filter((l) => l.startsWith(LAYOUT_MARKER_REL))).toHaveLength(1);
+    const over = listed(CHESS_LISTING, "note").filter((l) => l.startsWith("over budget: "));
+    expect(over).toEqual(CHESS_PLAN.overBudget.map((f) => `over budget: ${formatFinding(f)}`));
+    expect(CHESS_LISTING.at(-1)).toContain("nothing was written");
+  });
+
+  it("commit order: moves, archive moves, writes, the splits and rolls, notes, render, marker, budgets; paths in code-unit order within a group", () => {
+    for (const listing of [CHESS_LISTING, migrateListing(bothRolls().plan)]) {
+      const groups = listing.map(groupOf);
+      for (let k = 1; k < groups.length; k++) {
+        expect(groups[k] as number, `${listing[k - 1]}\n${listing[k]}`).toBeGreaterThanOrEqual(groups[k - 1] as number);
+      }
+      for (const labels of [["would-move"], ["would-archive"], ["would-write", "would-append"]]) {
+        const paths = listing.filter((l) => labels.includes(l.slice(2, 16).trim())).map((l) => leadPath(l.slice(17)));
+        expect(paths, labels.join("|")).toEqual([...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+      }
+    }
+  });
+
+  it("deterministic: two calls on one plan, and a second plan of the same inputs, give the same lines", () => {
+    expect(migrateListing(CHESS_PLAN)).toEqual(CHESS_LISTING);
+    expect(migrateListing(planStateMigrate(chessInputs()))).toEqual(CHESS_LISTING);
+  });
+
+  it("a ticket file name carrying ESC is listed without it", () => {
+    const rel = ticketRel(CHESS, "ABC-074");
+    const escaped = rel.replace("ABC-074-", "ABC-074-\x1b[31m-");
+    const inputs = withFile({ ...CHESS, legacy: CHESS.legacy.filter((f) => f.rel !== rel) }, escaped, legacyBytes(CHESS, rel));
+    const plan = planStateMigrate(inputs);
+    expect(plan.refusals).toEqual([]);
+    const listing = migrateListing(plan);
+    expect(listing.filter((l) => /[\x00-\x1f\x7f-\x9f]/.test(l))).toEqual([]);
+    const shownRel = movedRel(escaped).replace("\x1b", "");
+    expect(listed(listing, "would-move").some((l) => l.includes(shownRel))).toBe(true);
+    expect(listed(listing, "would-append").some((l) => l.startsWith(shownRel))).toBe(true);
+  });
+
+  it("a ticket ID and a path carrying ESC in a plan are listed without it", () => {
+    const first = CHESS_PLAN.steps[0];
+    if (first === undefined) throw new Error("PREMISE: the plan has steps");
+    const plan: MigratePlan = {
+      ...CHESS_PLAN,
+      notes: [...CHESS_PLAN.notes, "the row of ABC-1\x1b[2J at line 3 has no ticket file"],
+      steps: [{ ...first, to: `${first.to}\x1b]0;title\x07` }, ...CHESS_PLAN.steps.slice(1)],
+    };
+    const listing = migrateListing(plan);
+    expect(listing.filter((l) => /[\x00-\x1f\x7f-\x9f]/.test(l))).toEqual([]);
+    expect(listing.some((l) => l.includes("ABC-1[2J at line 3"))).toBe(true);
+    expect(listing.some((l) => l.includes(`${first.to}]0;title`))).toBe(true);
   });
 });
