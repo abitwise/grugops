@@ -166,11 +166,11 @@ import {
   FEATURES_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
-  LEGACY_BOARD_REL,
   LEGACY_HANDOFFS_REL,
   LEGACY_STATE_ROOT_REL,
   METRICS_REL,
   NFR_DIR_REL,
+  PRE_V3_BOARD_REL,
   STATE_ROOT_REL,
   TRACE_DIR_REL,
   NFR_CATALOG_REL,
@@ -919,7 +919,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expectOneMarkerSkip(again.stdout);
   });
 
-  it("layout marker: a both layout and a pre-v3 --migrate run never write the marker (T-37-21)", () => {
+  // Plan 38-03 (2026-10-28, D-07, D-17): the pre-v3 half used to assert that a --migrate run over the pre-v3 layout
+  // never writes the marker (the run then left the state where it was). The v3 state migrate now moves that state, and
+  // the marker is written once, by the state migrate after its proofs, never by the seed, which finds it there.
+  it("layout marker: a both layout never writes the marker, and a pre-v3 --migrate writes it only through the state migrate (T-37-21)", () => {
     const both = makeFixture();
     makePreV3StateFixture(both);
     const b = markerRun(both, mkTmp());
@@ -931,10 +934,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     makePreV3StateFixture(preV3);
     const m = markerRun(preV3, mkTmp(), ["--migrate", "--backup-edited-kit"]);
     expect(m.status, m.stdout + m.stderr).toBe(0);
-    expect(existsSync(markerAt(preV3))).toBe(false);
-    expect(existsSync(join(preV3, STATE_ROOT_REL))).toBe(false);
-    expect(readFileSync(join(preV3, LEGACY_BOARD_REL), "utf8")).toContain("USER PRE-V3 BOARD");
-    expectOneMarkerSkip(m.stdout);
+    expect(readFileSync(markerAt(preV3), "utf8")).toBe(`${LAYOUT_MARKER_CONTENT}\n`);
+    expect(existsSync(join(preV3, LEGACY_STATE_ROOT_REL))).toBe(false);
+    expect(readFileSync(join(preV3, ...PRE_V3_BOARD_REL.split("/")), "utf8")).toContain("USER PRE-V3 BOARD");
+    expect(labelledLines(m.stdout, "created").filter((l) => l.includes(LAYOUT_MARKER_REL)), m.stdout).toEqual([
+      `  ${"created".padEnd(14)} ${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT})`,
+    ]);
+    expect(labelledLines(m.stdout, "skipped").filter((l) => l.includes(LAYOUT_MARKER_REL)), m.stdout).toEqual([
+      `  ${"skipped".padEnd(14)} ${LAYOUT_MARKER_REL} (target already has it)`,
+    ]);
   });
 
   it("layout marker: a second install over a fresh-installed target changes no seed byte (never-overwrite)", () => {

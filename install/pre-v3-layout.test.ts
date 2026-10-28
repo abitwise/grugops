@@ -14,21 +14,24 @@
 //       the same way, naming the path and the error code, and writes nothing. Skipped on win32 and as root, where a
 //       directory mode does not stop a read.
 // Plan 36-13 (2026-10-21, D-02, D-05, D-06, D-07, LAYOUT-04) closes the other entry points:
-//   (e) --migrate on a v1.0 vendored-kit repository that also holds the pre-v3 board seeds nothing under
-//       STATE_ROOT_REL, keeps the pre-v3 board and ticket byte-identical and reports one `skipped` line naming them;
+//   (e) --migrate on a v1.0 vendored-kit repository that also holds the pre-v3 board migrates that state in the same
+//       run (plan 38-03, 2026-10-28, D-11, D-17): the two-root steps run, then the state migrate; the pre-v3 root is
+//       gone, BOARD_REL and LAYOUT_MARKER_REL exist, PRE_V3_BOARD_REL holds PRE_V3_BOARD_TEXT, and the pre-v3 ticket is
+//       byte-identical at its moved path. Until plan 38-03 this run seeded nothing and reported one `skipped` line;
 //   (f) a repository with both boards installs normally on the v3 layout with exactly one stale `note`, no verify,
 //       and both boards byte-identical (nothing merged or deleted, D-02);
 //   (g) a fresh repository installs with no layout note; (h) a regular file at the pre-v3 root (ENOTDIR) is not
 //       pre-v3 and installs normally;
 //   (i) --migrate over an unreadable pre-v3 root seeds nothing under STATE_ROOT_REL and reports a verify naming the
 //       path and the code (skipped on win32 and as root, as case (d) is);
-//   (j) --check after (e): exit 0, one state-layout WARN naming the pre-v3 board and --migrate, no FAIL; --strict
-//       exits 1 by design; a second --check prints the same WARN;
+//   (j) --check after (e): exit 0, one ok state-layout line naming STATE_ROOT_REL, no pre-v3 WARN and no FAIL; a
+//       second --check prints the same line (plan 38-03; before it, the line was a WARN naming --migrate);
 //   (k) --check on a both repository WARNs once that the pre-v3 root is stale; on a current install it prints one ok
 //       state-layout line;
 //   (l) --update into a scratch kit home leaves a pre-v3 repository byte-identical, and the kit home's Orchestrator
 //       carries LEGACY_FALLBACK_CLAUSE (the copy an unmigrated repository's Orchestrator reads);
-//   (m) uninstall on the migrated pre-v3 repository of (e) is not refused by the layout and keeps the pre-v3 state.
+//   (m) uninstall on the migrated repository of (e) is not refused by the layout and keeps every file under
+//       STATE_ROOT_REL byte-identical (plan 38-03; before it, the kept state was the pre-v3 root).
 //
 // Hermetic: every run goes through runInstall with GRUGOPS_HOME and HOME inside a scratch directory removed after
 // the file; the real repository and the real ~/.grugops are never targeted. It drives the COMMITTED install/install.js
@@ -37,8 +40,16 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { BOARD_REL, LEGACY_BOARD_REL, LEGACY_FALLBACK_CLAUSE, LEGACY_STATE_ROOT_REL, STATE_ROOT_REL } from "./state-layout.js";
+import { join, relative } from "node:path";
+import {
+  BOARD_REL,
+  LAYOUT_MARKER_REL,
+  LEGACY_BOARD_REL,
+  LEGACY_FALLBACK_CLAUSE,
+  LEGACY_STATE_ROOT_REL,
+  PRE_V3_BOARD_REL,
+  STATE_ROOT_REL,
+} from "./state-layout.js";
 import {
   ALL_AGENT_FLAGS,
   PRE_V3_BOARD_TEXT,
@@ -214,30 +225,44 @@ function expectPreV3StateKept(target: string): void {
   expect(readFileSync(join(target, PRE_V3_TICKET_REL), "utf8")).toBe(PRE_V3_TICKET_TEXT);
 }
 
-/** Run --migrate on oldLayoutPreV3() and assert it seeded nothing under STATE_ROOT_REL (case (e)'s core). */
+/** The pre-v3 ticket's path once the state migrate renamed the pre-v3 root to STATE_ROOT_REL (D-17). */
+const MOVED_TICKET_REL = join(STATE_ROOT_REL, relative(LEGACY_STATE_ROOT_REL, PRE_V3_TICKET_REL));
+
+/**
+ * Run --migrate on oldLayoutPreV3() and assert it migrated the pre-v3 state in the same run (case (e)'s core, plan
+ * 38-03, D-11, D-17): the pre-v3 root is gone, the v3 board and the layout marker exist, the original board is archived
+ * unchanged, and the ticket is byte-identical at its moved path.
+ */
 function migratedPreV3(): { target: string; kitHome: string; home: string; r: Run } {
   const w = oldLayoutPreV3();
   const r = runInstall(w.target, w.kitHome, ["--migrate", "--backup-edited-kit"], { home: w.home });
   expect(r.error).toBeUndefined();
   expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
-  expect(existsSync(join(w.target, STATE_ROOT_REL)), "nothing is seeded under the v3 state root").toBe(false);
-  expectPreV3StateKept(w.target);
+  expect(existsSync(join(w.target, LEGACY_STATE_ROOT_REL)), "the pre-v3 root is gone").toBe(false);
+  expect(existsSync(join(w.target, BOARD_REL)), "the v3 board exists").toBe(true);
+  expect(readFileSync(join(w.target, LAYOUT_MARKER_REL), "utf8")).toBe("layout: v3\n");
+  expect(readFileSync(join(w.target, PRE_V3_BOARD_REL), "utf8")).toBe(PRE_V3_BOARD_TEXT);
+  expect(readFileSync(join(w.target, MOVED_TICKET_REL), "utf8")).toBe(PRE_V3_TICKET_TEXT);
   return { ...w, r };
 }
 
+/** Every file and directory under STATE_ROOT_REL in `target`, by snapshotTree. */
+const stateSnapshot = (target: string): string => snapshotTree(join(target, STATE_ROOT_REL));
+
 describe("the other entry points on the pre-v3 state layout never fork state (plan 36-13, D-02, D-05, D-06, D-07, LAYOUT-04)", () => {
-  it("(e) --migrate on a v1.0 vendored-kit repository holding the pre-v3 board seeds nothing under the v3 state root and reports one skipped line", () => {
+  it("(e) --migrate on a v1.0 vendored-kit repository holding the pre-v3 board runs the two-root steps, then moves the state to the v3 layout", () => {
     const { target, r } = migratedPreV3();
-    const skipped = labelled(r.stdout, "skipped").filter((l) => l.includes(`${STATE_ROOT_REL}/ seed`));
-    expect(skipped, r.stdout).toHaveLength(1);
-    expect(skipped[0]).toContain(`${LEGACY_STATE_ROOT_REL}/`);
-    expect(skipped[0]).toContain("pre-v3 layout");
-    expect(skipped[0]).toContain("nothing was seeded beside it");
-    // No seed line created or would-add any path under the v3 state root.
-    const seededThere = r.stdout.split("\n").filter((l) => (l.includes("created") || l.includes("would-add")) && l.includes(`${STATE_ROOT_REL}/`));
-    expect(seededThere, r.stdout).toEqual([]);
+    // The two-root steps ran: the pre-steps section, and the in-repo kit is no longer live in the target.
+    expect(r.stdout).toContain("-- migrate pre-steps --");
+    expect(existsSync(join(target, "agent-factory", "roles", "orchestrator.md")), "the in-repo kit was moved aside").toBe(false);
+    // Then the state migrate, before the state seed, which no longer skips the v3 state root.
+    const at = r.stdout.indexOf("-- state migrate --");
+    expect(at, r.stdout).toBeGreaterThan(r.stdout.indexOf("-- migrate pre-steps --"));
+    expect(at).toBeLessThan(r.stdout.indexOf("-- state seed --"));
+    const moved = labelled(r.stdout, "moved").filter((l) => l.includes(`${LEGACY_STATE_ROOT_REL}/ → ${STATE_ROOT_REL}/`));
+    expect(moved, r.stdout).toHaveLength(1);
+    expect(labelled(r.stdout, "skipped").filter((l) => l.includes(`${STATE_ROOT_REL}/ seed`)), r.stdout).toEqual([]);
     expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
-    expect(snapshotTree(target)).not.toContain(`${STATE_ROOT_REL}/`);
   });
 
   it("(f) a repository with both boards installs on the v3 layout with exactly one stale note, no verify, and both boards byte-identical", () => {
@@ -304,28 +329,20 @@ describe("the other entry points on the pre-v3 state layout never fork state (pl
     },
   );
 
-  it("(j) --check after (e) WARNs once on the pre-v3 layout, names --migrate, never FAILs on it, and says the same twice", () => {
+  it("(j) --check after (e) prints one ok state-layout line naming the v3 state root, no pre-v3 WARN and no FAIL, and says the same twice", () => {
     const { target, kitHome, home } = migratedPreV3();
+    const before = snapshotTree(target);
     const check = runInstall(target, kitHome, ["--check"], { home });
     expect(check.error).toBeUndefined();
     expect(check.status, check.stdout).toBe(0);
     expect(labelled(check.stdout, "FAIL"), check.stdout).toEqual([]);
     const lines = layoutLines(check.stdout);
-    expect(lines, check.stdout).toHaveLength(1);
-    expect(labelled(check.stdout, "WARN")).toContain(lines[0]);
-    expect(lines[0]).toContain("state layout: pre-v3 (");
-    expect(lines[0]).toContain(LEGACY_BOARD_REL);
-    expect(lines[0]).toContain(BOARD_REL);
-    expect(printedCommand(lines[0])).toContain("--migrate");
-    // The board stat ran on the pre-v3 board, which is there (an ok line names it).
-    expect(labelled(check.stdout, "ok").some((l) => lineNamesPath(l, join(target, LEGACY_BOARD_REL))), check.stdout).toBe(true);
-    const strict = runInstall(target, kitHome, ["--check", "--strict"], { home });
-    expect(strict.status, strict.stdout).toBe(1);
+    expect(lines, check.stdout).toEqual([`  ${"ok".padEnd(14)} state layout: ${STATE_ROOT_REL}/`]);
+    expect(labelled(check.stdout, "WARN").filter((l) => l.includes("pre-v3")), check.stdout).toEqual([]);
     const again = runInstall(target, kitHome, ["--check"], { home });
     expect(again.status, again.stdout).toBe(0);
     expect(layoutLines(again.stdout)).toEqual(lines);
-    expectPreV3StateKept(target);
-    expect(existsSync(join(target, STATE_ROOT_REL))).toBe(false);
+    expect(snapshotTree(target), "--check writes nothing in the target").toBe(before);
   });
 
   it("(k) --check WARNs once that the pre-v3 root is stale on a both repository, and prints one ok layout line on a current install", () => {
@@ -357,13 +374,14 @@ describe("the other entry points on the pre-v3 state layout never fork state (pl
     expect(readFileSync(join(kitHome, "agent-factory", "roles", "orchestrator.md"), "utf8")).toContain(LEGACY_FALLBACK_CLAUSE);
   });
 
-  it("(m) uninstall on the migrated pre-v3 repository of (e) is not refused by the layout and keeps the pre-v3 state", () => {
+  it("(m) uninstall on the migrated repository of (e) is not refused by the layout and keeps every file under the v3 state root", () => {
     const { target, kitHome, home } = migratedPreV3();
+    const before = stateSnapshot(target);
+    expect(before).toContain("board.md ");
     const r = runUninstall(target, kitHome, { home });
     expect(r.error).toBeUndefined();
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(r.stderr).not.toContain("pre-v3 layout");
-    expectPreV3StateKept(target);
-    expect(existsSync(join(target, STATE_ROOT_REL))).toBe(false);
+    expect(stateSnapshot(target)).toBe(before);
   });
 });
