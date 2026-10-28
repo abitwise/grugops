@@ -158,7 +158,17 @@ import {
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 import { USER_FILE_MAX_BYTES } from "./user-file.js";
 // Phase 36 (D-13 step 2, plan 36-03): the legacy handoffs directory is named only through the state path authority.
-import { LEGACY_HANDOFFS_REL } from "./state-layout.js";
+import {
+  BOARD_REL,
+  LAYOUT_MARKER_CONTENT,
+  LAYOUT_MARKER_REL,
+  LEGACY_BOARD_REL,
+  LEGACY_HANDOFFS_REL,
+  LEGACY_STATE_ROOT_REL,
+  PRE_V3_BOARD_REL,
+  STATE_ROOT_REL,
+} from "./state-layout.js";
+import { movedRel } from "./state-migrate.js";
 import { memberNamed, readJsonText } from "./json-text.js";
 import { skipLine, stageShapeOrSkip, type SkipEntry } from "../scripts/check-platform-shapes.js";
 
@@ -904,6 +914,39 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
     expect(JSON.stringify(agentsOf(w)), r.stdout).toBe(agentsBefore);
     expect(holding(w), r.stdout).toBe(holdingBefore);
     expect(nonBackup(w), "an entry that is not a backup changed").toBe(nonBackupBefore);
+    expectInvariant(w, ids("claude", "codex"), r.stdout);
+  });
+
+  // WR-04 (phase 36 review, carried into phase 38 as roadmap criterion 6; plan 38-07, D-19). R17's repository holds
+  // the legacy handoffs directory and no board at LEGACY_BOARD_REL, so its state layout is `current` and the
+  // already-migrated arm answers it. This repository is installed two-root too, but its planning state is still on
+  // the pre-v3 layout: the already-migrated arm must not answer it. The v3 state arm moves the state, then the run
+  // continues into the install run, which refreshes the kit and the runnables.
+  it("WR-04 (already installed two-root, state still pre-v3): --migrate moves the state and runs the install run, never \"Nothing to do.\"", () => {
+    const w = world("wr04");
+    install(w, [flag("claude"), flag("codex")]);
+    rmSync(at(w.target, STATE_ROOT_REL), { recursive: true, force: true });
+    const ticketRel = `${LEGACY_STATE_ROOT_REL}/tickets/T-001-wr04.md`;
+    const boardText = "# Board\n\nA user's pre-v3 board, planted after a two-root install.\n";
+    const ticketText = "# T-001\n\nA user's pre-v3 ticket.\n";
+    mkdirSync(dirname(at(w.target, ticketRel)), { recursive: true });
+    writeFileSync(at(w.target, LEGACY_BOARD_REL), boardText);
+    writeFileSync(at(w.target, ticketRel), ticketText);
+    expect(existsSync(at(w.target, MARKER_REL)), "PREMISE: the target is installed two-root").toBe(true);
+    expect(existsSync(at(w.target, BOARD_REL)), "PREMISE: no board at the v3 path").toBe(false);
+    const r = install(w, [flag("claude"), flag("codex"), "--migrate"]);
+    expect(r.stdout).not.toContain("already migrated to the two-root layout");
+    expect(r.stdout).not.toContain("Nothing to do.");
+    expect(r.stdout, "the install run's banner").toContain("== grugops install ==");
+    expect(r.stdout).toContain("-- state migrate --");
+    expect(existsSync(at(w.target, BOARD_REL)), r.stdout).toBe(true);
+    expect(readFileSync(at(w.target, PRE_V3_BOARD_REL), "utf8"), r.stdout).toBe(boardText);
+    expect(readFileSync(at(w.target, LAYOUT_MARKER_REL), "utf8"), r.stdout).toBe(`${LAYOUT_MARKER_CONTENT}\n`);
+    expect(existsSync(at(w.target, LEGACY_STATE_ROOT_REL)), "the pre-v3 root is gone").toBe(false);
+    expect(readFileSync(at(w.target, movedRel(ticketRel)), "utf8"), "the ticket at its moved path").toBe(ticketText);
+    // The runnables were refreshed by the install run: the materialized renderer is the kit source's bytes.
+    const kitRenderer = readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "trace-render.js"));
+    expect(readFileSync(at(w.target, "tools/grugops/trace-render.js")).equals(kitRenderer), "trace-render.js is the kit source's").toBe(true);
     expectInvariant(w, ids("claude", "codex"), r.stdout);
   });
 });
