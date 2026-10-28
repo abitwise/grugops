@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-05-PLAN.md
-last_updated: "2026-10-28T13:16:24.798Z"
+stopped_at: Completed 38-06-PLAN.md
+last_updated: "2026-10-28T14:02:19.070Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: c100ce6858c1066a912f0852d3944c8c2a4f0a9e
+state_head: eb0b321ab327fcecb25a2f7e8b3b3b960e11d084
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 62
+  completed_plans: 63
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 6 of 11
+Plan: 7 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -777,6 +777,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P03 | 45min | 2 tasks | 7 files |
 | Phase 38 P04 | 40min | 2 tasks | 4 files |
 | Phase 38 P05 | 34 min | 2 tasks | 6 files |
+| Phase 38 P06 | 40 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2128,6 +2129,9 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-05: the frozen fixture rolls nothing (18 Done ticket rows, 0 dated progress entries); roll tests add the shape at test time, never in the fixture
 - [Phase 38]: 38-05: the progress original is an identical OriginalHome at PRE_V3_PROGRESS_REL; install.ts records its treeRecord so the post-commit check proves it
 - [Phase 38]: 38-05: a refused roll, an archive path the pre-v3 tree already holds, or a non-UTF-8 progress file skips that roll with one note naming state-roll, never a refusal
+- [Phase 38]: 38-06: the migrate runs the kit-source trace-render.js (RUNNABLES row joined to GRUGOPS_SRC, process.execPath, no shell) after the post-commit proof and before the marker; only exit 0 passes, any other outcome undoes the commit
+- [Phase 38]: 38-06: the render makes TRACE_DIR_REL itself, so an undo after the render takes away the files it added and that directory before the journal is undone
+- [Phase 38]: 38-06: the commit runs as three calls (root rename, archive moves, staged writes) so a failure names its step class; a failure inside the undo is reviewed by reading, not tested
 
 ### Pending Todos
 
@@ -2460,8 +2464,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T13:16:24.314Z
-Stopped at: Completed 38-05-PLAN.md
+Last session: 2026-10-28T14:02:18.567Z
+Stopped at: Completed 38-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
