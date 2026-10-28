@@ -5,39 +5,39 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Moving an `_Updated:` line that opens an HTML comment uncomments board lines and turns them into live ticket rows"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The pre-check misses destination collisions the planner can already see, so they fail mid-commit"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "An undo after the trace render leaves rendered files behind, so the repository is not as it was"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The context archive moves the live folder of a reopened ticket"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "After an incomplete undo, the same run keeps seeding and installing into the half-moved tree"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "User file names reach the terminal unsanitized on the commit, undo and staging failure paths"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "After a successful run, the leftover-staging note says \"nothing reads it\", but the directory blocks every later run"
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The printed re-run command drops `--archive-done-context`"
   - id: WR-08
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The docs claim a failed migrate leaves the repository as it was, and that no layout marker is written"
   - id: IN-01
     severity: info
@@ -59,24 +59,24 @@ findings:
     severity: info
     disposition: open
     title: "Duplicate refusal for a linked `.grugops/context/` with `--archive-done-context`"
-open: 14
+open: 5
 total: 14
-recorded: 2026-10-28T19:47:02.819Z
+recorded: 2026-10-28T20:49:31.810Z
 ---
 
 # Phase 38: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
-| WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
-| WR-07 | warning | open | - |
-| WR-08 | warning | open | - |
+| CR-01 | critical | fixed | 38-REVIEW-FIX.md |
+| WR-01 | warning | fixed | 38-REVIEW-FIX.md |
+| WR-02 | warning | fixed | 38-REVIEW-FIX.md |
+| WR-03 | warning | fixed | 38-REVIEW-FIX.md |
+| WR-04 | warning | fixed | 38-REVIEW-FIX.md |
+| WR-05 | warning | fixed | 38-REVIEW-FIX.md |
+| WR-06 | warning | fixed | 38-REVIEW-FIX.md |
+| WR-07 | warning | fixed | 38-REVIEW-FIX.md |
+| WR-08 | warning | fixed | 38-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
