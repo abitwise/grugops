@@ -52,7 +52,10 @@
 //        trace-render.js --check on the migrated target exits 0;
 //   (M9) a regular file planted directly under the context root is a stray entry the renderer refuses with exit 2:
 //        --migrate exits 3 with one verify naming the render and its exit 2, the pre-v3 root and the progress file are
-//        byte-identical to before, and neither LAYOUT_MARKER_REL nor MIGRATE_STAGING_REL exists.
+//        byte-identical to before, and neither LAYOUT_MARKER_REL nor MIGRATE_STAGING_REL exists;
+//   (M10) with one sealed note naming one ticket and a hundred long code paths planted under the context root, the
+//        rendered trace file of that ticket is over BUDGETS.traceBytes, and the closing lists it as over budget (D-07)
+//        while the marker is still written.
 //
 // THE INSTALLED WORLD. The doctor refuses a repository with no install marker before it reads the layout ("grugops not
 // installed", one FAIL), so (F2) needs what the copy itself is: a repository a v2.x grugops install already serves,
@@ -96,6 +99,7 @@ import {
   TRACE_DIR_REL,
 } from "./state-layout.js";
 import { parseNfrIndex } from "../scripts/state-rules.js";
+import { NOTE_SEAL_KEY, noteSeal } from "../scripts/context-io.js";
 import { normalizeDocument, stripHtmlComments } from "../scripts/board-model.js";
 import { BOARD_NOTES_HEADING, cutRow } from "./state-migrate.js";
 import {
@@ -467,5 +471,31 @@ describe("install --migrate v3 (phase 38)", () => {
     expect(existsSync(join(target, LAYOUT_MARKER_REL)), "no layout marker").toBe(false);
     expect(existsSync(join(target, MIGRATE_STAGING_REL)), "no staging directory").toBe(false);
     expect(existsSync(join(target, STATE_ROOT_REL, "archive", "pre-v3")), "no pre-v3 archive was left").toBe(false);
+  });
+
+  it("(M10) a rendered trace file over BUDGETS.traceBytes is listed in the closing, and the marker is still written", () => {
+    const { target, kitHome, home } = emptyWorld();
+    makePreV3ChessFixture(target);
+    const notes = join(target, CONTEXT_REL, "trace-budget-ABC-115", "notes");
+    mkdirSync(notes, { recursive: true });
+    // One sealed note naming ABC-115 and one hundred long code paths: the trace file lists every co-ref.
+    const id = "20261027T100000Z-engineer-artifact-ref-0a1b2c3d";
+    const paths = Array.from({ length: 100 }, (_, k) => `src/trace-budget-case/a-deliberately-long-directory-name/module-${String(k).padStart(3, "0")}-of-the-budget-case.ts`);
+    const fence =
+      `id: ${id}\nkind: artifact-ref\nby: engineer\nat: 2026-10-27T10:00:00Z\nverified_by: \nconfidence: high\n` +
+      `refs:\n  - ABC-115\n${paths.map((p) => `  - ${p}\n`).join("")}supersedes: \n`;
+    const rest = "---\n\nan artifact-ref note planted for the trace budget case.\n";
+    writeFileSync(join(notes, `${id}.md`), `---\n${fence}${NOTE_SEAL_KEY}: ${noteSeal(`---\n${fence}${rest}`)}\n${rest}`);
+    const r = runInstall(target, kitHome, ["--migrate"], { home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
+    const traceRel = `${TRACE_DIR_REL}/ABC-115.md`;
+    const bytes = readFileSync(join(target, traceRel)).length;
+    expect(bytes, "PREMISE: the planted notes make the trace file over budget").toBeGreaterThan(BUDGETS.traceBytes);
+    const over = labelled(r.stdout, "note").filter((l) => l.includes(`over budget: ${traceRel}:`));
+    expect(over, r.stdout).toHaveLength(1);
+    expect(over[0]).toContain("BUDGETS.traceBytes");
+    expect(readFileSync(join(target, LAYOUT_MARKER_REL), "utf8")).toBe("layout: v3\n");
   });
 });

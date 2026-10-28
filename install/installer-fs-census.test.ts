@@ -178,6 +178,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:6811 takes away MIGRATE_STAGING_REL, the directory runStateMigrate made with a non-recursive mkdir in this run and which holds only what it staged and its commit plan. Its callers are runStateMigrate's stageFailed and commitFailed, both after the `if (DRY_RUN)` return at :6873",
   },
   {
+    // Plan 38-06 (D-18): the files the trace render added are taken away before an undo of the commit.
+    site: "install.ts:discardRenderedTrace:unlinkSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6970 takes away a regular file (kindAt asked first) that renderMigratedTrace found added to TRACE_DIR_REL by this run's trace render, a directory inside the committed state; nothing a user had is named. Its one caller is runStateMigrate's commitFailed (:7104), after the `if (DRY_RUN)` return at :7002",
+  },
+  {
     site: "install.ts:clearEmptyMigrateDirs:rmdirSync",
     count: 1,
     gate: "helper-gated",

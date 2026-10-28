@@ -85,10 +85,10 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, } from "./state-layout.js";
+import { BOARD_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
 // Phase 38 (plan 38-03, D-09, D-10, D-17): the v3 state migrate's planner and its proof. Pure functions over bytes the
 // installer reads; the module imports nothing outside install/ and node:, so this edge keeps install/ free of scripts/.
-import { formatFinding, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
+import { budgetEntryNames, fileBytesFinding, formatFinding, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -5834,6 +5834,15 @@ if (INSTALL_REFUSAL !== null)
 //   (g) the post-commit proof: every original file's content record, taken before the commit, equals the record at
 //       the home the plan gives it (a `prefix` home begins with the original's bytes), and every written file holds
 //       the planned bytes;
+//   (g2) the trace render (plan 38-06, D-18, amending D-05): renderMigratedTrace runs the KIT-SOURCE trace renderer,
+//       the RUNNABLES row whose destination is tools/grugops/trace-render.js joined to GRUGOPS_SRC, never the
+//       repository's own copy (a file the repository controls, T-38-13), with process.execPath, the argument array
+//       [script, TARGET] and no shell, against the committed target (trace-render reads only fixed folders under the
+//       root and refuses links on them, so it cannot run against the staging directory). Only exit 0 is a pass. Exit 1
+//       (a finding: the index would not be fresh), exit 2, a signal or a spawn error is a failure that undoes the
+//       commit like any other in (f) to (h); the files the render added to TRACE_DIR_REL are taken away first, so the
+//       directory the journal made is empty again. After a pass, every trace file budgetEntryNames keeps is measured
+//       against BUDGETS.traceBytes and joins the D-07 closing list;
 //   (h) LAYOUT_MARKER_REL is written with LAYOUT_MARKER_CONTENT and one LF, exclusive create, last;
 //   (i) the commit plan file and the empty staging directories are taken away; anything left is a note, never an
 //       undo.
@@ -6112,12 +6121,109 @@ function noteHandoffsMove() {
     }
     return false;
 }
-/** The D-07 closing: every planned over-budget finding, and that budgets do not block this migration. */
-function printMigrateBudgets(plan) {
-    for (const f of plan.overBudget)
+/**
+ * The D-07 closing: every planned over-budget finding, each rendered trace file over BUDGETS.traceBytes (`rendered`,
+ * plan 38-06), and that budgets do not block this migration.
+ */
+function printMigrateBudgets(plan, rendered = []) {
+    const all = [...plan.overBudget, ...rendered];
+    for (const f of all)
         report("note", `over budget: ${oneLine(formatFinding(f))}`);
-    report("note", `${plan.overBudget.length} planned file(s) or row(s) are over a state budget; budgets do not block this migration, ` +
+    report("note", `${all.length} planned or rendered file(s) or row(s) are over a state budget; budgets do not block this migration, ` +
         `and ${LAYOUT_MARKER_REL} is written whatever the sizes (\`node tools/grugops/state-check.js\` reports them later)`);
+}
+/** The materialized path of the trace renderer; its RUNNABLES row names the kit source the migrate runs (D-18). */
+const TRACE_RENDER_DEST_REL = "tools/grugops/trace-render.js";
+/** The kit-source trace renderer: the RUNNABLES row whose destination is TRACE_RENDER_DEST_REL, joined to GRUGOPS_SRC. */
+function kitTraceRenderer() {
+    const row = RUNNABLES.find(([, dest]) => dest === TRACE_RENDER_DEST_REL);
+    return row === undefined ? null : join(GRUGOPS_SRC, row[0]);
+}
+/** The names directly under TRACE_DIR_REL, sorted; [] when it is absent, null when it cannot be listed. */
+function traceDirNames() {
+    try {
+        return readdirSync(targetPath(TRACE_DIR_REL)).sort();
+    }
+    catch (e) {
+        return errCode(e) === "ENOENT" ? [] : null;
+    }
+}
+/** Up to this many of the renderer's stderr lines go into the verify of a render that did not pass. */
+const TRACE_RENDER_STDERR_LINES = 20;
+// renderMigratedTrace: step (g2) above. It runs the kit-source renderer once and reports what it did; it undoes
+// nothing itself. `added` names the entries the run left in TRACE_DIR_REL that were not there before it, so the
+// caller can take them away when the commit is undone. A render that could not run is never a pass.
+function renderMigratedTrace() {
+    const script = kitTraceRenderer();
+    if (script === null) {
+        return { ok: false, why: `no kit runnable is mapped to ${TRACE_RENDER_DEST_REL}, so the trace render could not run`, added: [] };
+    }
+    const before = traceDirNames();
+    const child = spawnSync(process.execPath, [script, TARGET], { encoding: "utf8" });
+    const after = traceDirNames();
+    const added = before === null || after === null ? [] : after.filter((n) => !before.includes(n));
+    const outcome = child.error !== undefined
+        ? `could not be run (${errCode(child.error)})`
+        : child.signal !== null
+            ? `was stopped by the signal ${child.signal}`
+            : child.status !== 0
+                ? `exited ${String(child.status)}`
+                : null;
+    if (outcome === null) {
+        const summary = (child.stdout ?? "").split("\n").map((l) => oneLine(l).trim()).find((l) => l !== "") ?? "";
+        return { ok: true, summary: summary === "" ? "the renderer printed no summary line" : summary, added };
+    }
+    const lines = (child.stderr ?? "").split("\n").map((l) => oneLine(l).trim()).filter((l) => l !== "");
+    const shown = lines.slice(0, TRACE_RENDER_STDERR_LINES);
+    const stderr = lines.length === 0
+        ? "it printed nothing on stderr"
+        : `its stderr: ${shown.join(" | ")}${lines.length > shown.length ? ` (and ${lines.length - shown.length} more line(s))` : ""}`;
+    return {
+        ok: false,
+        why: `the kit-source trace renderer ${script} ${outcome}, and only exit 0 is a pass, so the trace was not rendered; ${stderr}`,
+        added,
+    };
+}
+// discardRenderedTrace: take away the regular files the render added to TRACE_DIR_REL (renderMigratedTrace's
+// `added`), so the undo finds the directory the journal made empty. Returns one sentence per entry it left. Reached
+// only from runStateMigrate's commitFailed, after the `if (DRY_RUN)` return.
+function discardRenderedTrace(added) {
+    const left = [];
+    for (const name of added) {
+        const p = join(targetPath(TRACE_DIR_REL), name);
+        if (kindAt(p) !== "regular file") {
+            left.push(`${oneLine(p)}, which the trace render left, is not a regular file and was not taken away`);
+            continue;
+        }
+        try {
+            unlinkSync(p);
+        }
+        catch (e) {
+            left.push(`${oneLine(p)}, written by the trace render, could not be taken away (${errCode(e)})`);
+        }
+    }
+    return left;
+}
+/** Each rendered trace file that budgetEntryNames keeps and that is over BUDGETS.traceBytes (D-07). */
+function traceBudgetFindings() {
+    const findings = [];
+    const names = traceDirNames();
+    if (names === null) {
+        report("note", `${targetPath(TRACE_DIR_REL)} could not be listed, so the rendered trace files were not measured`);
+        return findings;
+    }
+    for (const name of budgetEntryNames(names)) {
+        const rel = `${TRACE_DIR_REL}/${name}`;
+        const r = readUserFile(targetPath(rel));
+        if (r.state !== "ok") {
+            report("note", `${oneLine(targetPath(rel))} ${r.state === "absent" ? "was gone when it was measured" : unreadState(r)}, so it was not measured`);
+            continue;
+        }
+        const finding = fileBytesFinding(rel, r.bytes.length, "traceBytes", BUDGETS);
+        if (finding !== null)
+            findings.push(finding);
+    }
+    return findings;
 }
 // runStateMigrate: see STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK above. Returns true when the state is on the v3
 // layout and the marker is written (under DRY_RUN: when the plan would run).
@@ -6126,7 +6232,9 @@ function runStateMigrate(plan, read) {
         for (const s of plan.steps) {
             report(`would-${s.verb}`, `${oneLine(s.from === null ? s.to : `${s.from} → ${s.to}`)} (${s.bytes} bytes; ${oneLine(s.note)})`);
         }
-        report("would-create", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT}), once the staged files and every original's new home are proven`);
+        report("would-run", `the kit-source trace renderer ${kitTraceRenderer() ?? `(no kit runnable is mapped to ${TRACE_RENDER_DEST_REL})`} ` +
+            "against the target, after the move and before the marker; a render that does not exit 0 undoes the move");
+        report("would-create", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT}), once the staged files and every original's new home are proven and the trace is rendered`);
         printMigrateBudgets(plan);
         return true;
     }
@@ -6221,8 +6329,10 @@ function runStateMigrate(plan, read) {
     }
     // (f) to (h). A failure undoes the journal in reverse, then takes away the staging directory.
     const journal = [];
+    // The entries the trace render (g2) added to TRACE_DIR_REL, taken away before the journal is undone.
+    let rendered = [];
     const commitFailed = (step, why) => {
-        const failed = undoStateMigrate(journal);
+        const failed = [...discardRenderedTrace(rendered), ...undoStateMigrate(journal)];
         for (const f of failed)
             verify(`state migrate (undo): ${f}. ${staging} and ${commitPlan} were left for you.`);
         let left = failed.length > 0;
@@ -6270,6 +6380,11 @@ function runStateMigrate(plan, read) {
     }
     if (homeProblems.length > 0)
         return commitFailed("post-commit proof", homeProblems.join("; "));
+    // (g2)
+    const render = renderMigratedTrace();
+    rendered = render.added;
+    if (!render.ok)
+        return commitFailed("trace render", render.why);
     // (h)
     const marker = targetPath(LAYOUT_MARKER_REL);
     try {
@@ -6298,8 +6413,9 @@ function runStateMigrate(plan, read) {
         report("created", `${oneLine(w.rel)} (${w.bytes.length} bytes; ${oneLine(w.source)})`);
     for (const n of plan.notes)
         report("note", oneLine(n));
+    report("ok", `trace render: ${render.summary}`);
     report("created", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT})`);
-    printMigrateBudgets(plan);
+    printMigrateBudgets(plan, traceBudgetFindings());
     return true;
 }
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
