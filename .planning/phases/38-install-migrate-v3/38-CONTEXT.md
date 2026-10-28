@@ -118,6 +118,39 @@ Not in this phase: moving standing directives out of `60-progress.md`, archiving
 - **D-16:** MIGRATE-07 runs on that local copy, never the original, under a scratch `GRUGOPS_HOME`. It
   records before and after sizes per state file.
 
+### Decided after research (2026-10-28, answers to 38-RESEARCH.md A1, A2, A4, A5)
+- **D-17 (refines D-10, replaces research A1):** `plans/` is renamed whole to `memory-bank/plans/` in one
+  step. Inside it, only the monolith files that are split (board, traceability, NFR) move unchanged to
+  `memory-bank/plans/archive/pre-v3/` (flat, for example `archive/pre-v3/board.md`), and the split files
+  are written as new files. Ticket files and every other file are moved, never copied, so there is no
+  `archive/pre-v3/plans/` folder and no second copy of any ticket. Split outputs are still built and
+  proven in staging before the first rename (D-10). The commit renames are recorded in order and undone
+  in reverse on any failure, so a failed run still leaves the repo exactly as before. The proof covers
+  every original file: its bytes are either identical in `archive/pre-v3/` or identical at its new
+  path. **Why:** `memory-bank/plans/archive/pre-v3/plans/...` counts as a legacy path in
+  `scripts/state-path-scan.ts` (`legacyPathHit`, checked 2026-10-28) and would need allow-list entries
+  in every later doc and test that names it. A whole-folder copy also leaves duplicate tickets that an
+  agent can find and edit, and doubles ticket bytes (about 6 MB on chess).
+- **D-18 (amends D-05, accepts research A2):** Trace render runs against the target root after the
+  commit renames and before the marker, using the kit-source `trace-render.js`. It does not run
+  "against the staged tree", because `trace-render` reads only fixed folders under the root and refuses
+  symlinks on those paths. A render failure rolls the commit back (D-17) and writes no marker.
+- **D-19 (accepts research A4):** A v2.x two-root repo that still holds the pre-v3 board does not stop at
+  "Nothing to do." It runs the v3 state arm and then continues into the normal install run, so the kit
+  and runnables are refreshed to read the new layout. The kit plan is part of the single pre-check
+  (D-11), as the existing old-layout path already does, so a kit problem refuses before any write.
+- **D-20 (refines D-14, accepts research A5):** A context folder is matched to tickets by its name only,
+  never by note references. A ticket ID is matched as a delimited token in the folder name, ignoring
+  case (for example `abc-104-implement` matches `ABC-104`). A folder moves only when:
+  - it names at least one ticket ID, and every ID it names is Done (in a Done column or in
+    `archive/board-done.md` after migration);
+  - no `.grugops/queue/` entry names it;
+  - `.grugops/archive/context/<folder>` does not exist;
+  - it is a real directory, not a link.
+
+  Every other folder stays where it is. Dry-run lists every folder it would move and every folder it
+  leaves, each with its reason.
+
 ### Claude's Discretion
 - The opt-in flag name (research proposes `--archive-done-context`).
 - The staging directory name and location, as long as it sits on the same filesystem as the target so
