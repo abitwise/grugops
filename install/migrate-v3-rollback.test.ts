@@ -58,7 +58,7 @@ import {
   STATE_ROOT_REL,
   TRACE_DIR_REL,
 } from "./state-layout.js";
-import { INSTALL_JS, REPO_ROOT, makePreV3ChessFixture, withAgentFlags } from "./installer-paths.test-support.js";
+import { INSTALL_JS, REPO_ROOT, lineNamesPath, makePreV3ChessFixture, withAgentFlags } from "./installer-paths.test-support.js";
 import {
   callingSites,
   deriveFsCallSites,
@@ -272,6 +272,24 @@ describe("install --migrate v3 rollback (phase 38, plan 38-06)", () => {
       expect(existsSync(join(w.target, ...rel.split("/"))), `${rel} does not exist`).toBe(false);
     }
     expect(readFileSync(join(w.target, ...PROGRESS_REL.split("/"))).length, "the progress file is still there").toBeGreaterThan(0);
+  });
+
+  it("after a successful migrate, a commit plan that cannot be taken away gets a note that the migrate completed and the staging directory must be removed by hand", () => {
+    const w = world();
+    const spec: FaultSpec = { kind: "fs", fn: "unlinkSync", site: fsSite("unlinkSync", "runStateMigrate", "commitPlan"), code: "EIO" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    const out = `${r.stdout}\n${r.stderr}`;
+    expect(r.fired, `the fault fired exactly once (site matched but not via: ${r.siteNotVia})\n${out}`).toBe(1);
+    expect(r.status, out).toBe(0);
+    expect(readFileSync(join(w.target, LAYOUT_MARKER_REL), "utf8"), "the migrate completed").toBe("layout: v3\n");
+    const staging = join(w.target, ...MIGRATE_STAGING_REL.split("/"));
+    expect(existsSync(staging), "PREMISE: the staging directory was left").toBe(true);
+    const notes = labelled(r.stdout, "note").filter((l) => lineNamesPath(l, staging));
+    expect(notes.some((l) => l.includes("nothing reads it")), r.stdout).toBe(false);
+    expect(
+      notes.some((l) => l.includes("The migrate completed") && l.includes("remove it by hand before the next install")),
+      r.stdout,
+    ).toBe(true);
   });
 
   it("rollback (R8) an undo that cannot rename the state root back: the run seeds nothing into the half-moved memory bank", () => {

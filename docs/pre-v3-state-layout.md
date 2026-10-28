@@ -190,6 +190,10 @@ file and row that is still over a state budget, with its size and its budget, an
 do not block the migration. From then on, `node tools/grugops/state-check.js` reports those budget
 findings and exits `1` until they are fixed.
 
+After the marker, the run takes away `commit-plan.txt` and the staging directory. If it cannot, a
+`note` names what was left and says that the migrate completed. Remove the staging directory by hand
+before the next install: while it exists, a plain install and every `--migrate` refuse.
+
 ### The second run
 
 `--migrate` on a repository that is already on the v3 layout, with a valid marker, prints one `ok`

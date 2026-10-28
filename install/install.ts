@@ -7738,10 +7738,19 @@ function runStateMigrate(plan: MigratePlan, read: MigrateRead, context: ContextA
   try {
     unlinkSync(commitPlan);
   } catch (e) {
-    report("note", `${commitPlan} could not be taken away (${errCode(e)}); it only lists this run's renames, and nothing reads it`);
+    report("note", `${commitPlan} could not be taken away (${errCode(e)}); it only lists this run's renames, none of which needs putting back`);
   }
+  // A staging directory left after the marker blocks every later run: a plain install and every --migrate refuse while
+  // anything is at MIGRATE_STAGING_REL. The note says the migrate completed and that the directory goes by hand.
   const left = clearEmptyMigrateDirs(staging);
-  if (left.length > 0) report("note", `the staging directory ${staging} was left, holding ${left.map(oneLine).join(", ")}`);
+  if (left.length > 0) {
+    report(
+      "note",
+      `the staging directory ${staging} was left, holding ${left.map(oneLine).join(", ")}. The migrate completed and ` +
+        "nothing in that directory is needed, but every later install and --migrate refuses while it exists: remove it " +
+        "by hand before the next install",
+    );
+  }
   report("moved", `${LEGACY_STATE_ROOT_REL}/ → ${STATE_ROOT_REL}/ (${read.inputs.legacy.length} file(s), unchanged)`);
   const sizeOf = new Map(read.inputs.legacy.map((f) => [movedRel(f.rel), f.bytes.length] as const));
   if (read.inputs.progress !== null) sizeOf.set(PROGRESS_REL, read.inputs.progress.length);
