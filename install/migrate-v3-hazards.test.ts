@@ -18,7 +18,9 @@
 //   (H7) a staging directory left by an interrupted migrate, then a PLAIN install: exit 1, stdout empty, one stderr
 //        sentence naming the directory and how to finish or remove it, nothing written;
 //   (H8) a staging directory with a file inside, on a migrated repository, then --prune-old-kit and uninstall: the
-//        directory and its file are byte-identical after each (it sits inside the protected memory-bank root).
+//        directory and its file are byte-identical after each (it sits inside the protected memory-bank root);
+//   (H9) a file under the pre-v3 root whose moved path would pass this platform's path limit: exit 3, one verify
+//        naming that path and the limit (pathLimitProblem), nothing written.
 // In every refusal case the target is byte-identical afterwards (snapshotTree) and nothing reached the kit home. A
 // second filesystem (the device comparison) has no case here: it needs a mount; plan 38-06's EXDEV fault case is the
 // commit-time proof.
@@ -29,11 +31,22 @@
 // surface (no refusal may follow a write).
 
 import { afterAll, describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CONTEXT_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, PROGRESS_REL, TICKETS_REL } from "./state-layout.js";
-import { lineNamesPath, makePreV3ChessFixture, runInstall, snapshotTree, type Run } from "./installer-paths.test-support.js";
+import { skipLine, stageShapeOrSkip } from "../scripts/check-platform-shapes.js";
+import {
+  CONTEXT_REL,
+  LAYOUT_MARKER_REL,
+  LEGACY_BOARD_REL,
+  LEGACY_STATE_ROOT_REL,
+  MIGRATE_STAGING_REL,
+  PROGRESS_REL,
+  STATE_ROOT_REL,
+  TICKETS_REL,
+} from "./state-layout.js";
+import { PATH_MAX_BYTES, TREE_MAX_ENTRIES, USER_FILE_MAX_BYTES } from "./user-file.js";
+import { lineNamesPath, makePreV3ChessFixture, runInstall, runUninstall, snapshotTree, type Run } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-migrate-hazards-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -137,5 +150,119 @@ describe("hazards of a real repository refuse --migrate before any write (plan 3
     expect(lineNamesPath(v, context), v).toBe(true);
     expect(v).toContain("symbolic link");
     expect(snapshotTree(outside), "nothing was written through the link").toBe(outsideBefore);
+  });
+
+  it.skipIf(process.platform === "win32")("(H3) a FIFO under the pre-v3 root is a pre-check refusal naming it, and the run does not hang", () => {
+    const w = preV3World();
+    const fifo = at(w.target, `${LEGACY_STATE_ROOT_REL}/notes.fifo`);
+    const skip = stageShapeOrSkip("FIFO", fifo, "migrate-v3-hazards (H3)");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the special-file kind check of readMigrateInputs, read by review"));
+      return;
+    }
+    // A run that opened the FIFO for reading would block until the 60 s timeout, and r.error would be set.
+    const v = expectRefusal(w, snapshotTree(w.target), 60_000);
+    expect(lineNamesPath(v, fifo), v).toBe(true);
+    expect(v).toContain("fifo");
+  });
+
+  it("(H4) a file over USER_FILE_MAX_BYTES under the pre-v3 root is a pre-check refusal naming the file and the bound", () => {
+    const w = preV3World();
+    const big = at(w.target, `${PRE_V3_TICKETS_DIR_REL}/ABC-998-too-large.md`);
+    writeFileSync(big, "");
+    truncateSync(big, USER_FILE_MAX_BYTES + 1); // sparse: no byte is written one by one
+    const v = expectRefusal(w, snapshotTree(w.target));
+    expect(lineNamesPath(v, big), v).toBe(true);
+    expect(v).toContain(`${USER_FILE_MAX_BYTES + 1} bytes`);
+    expect(v).toContain(`${USER_FILE_MAX_BYTES} bytes`);
+  });
+
+  it("(H5) a pre-v3 tree of more than TREE_MAX_ENTRIES entries is a pre-check refusal naming the count and the bound", () => {
+    const w = preV3World();
+    const bulk = at(w.target, `${LEGACY_STATE_ROOT_REL}/bulk/notes`);
+    mkdirSync(bulk, { recursive: true });
+    for (let i = 0; i <= TREE_MAX_ENTRIES; i++) writeFileSync(join(bulk, `n${String(i).padStart(5, "0")}.md`), "");
+    const v = expectRefusal(w, snapshotTree(w.target));
+    expect(lineNamesPath(v, at(w.target, LEGACY_STATE_ROOT_REL)), v).toBe(true);
+    expect(v).toContain(`${TREE_MAX_ENTRIES + 1}`);
+    expect(v).toContain(`bound of ${TREE_MAX_ENTRIES} entries`);
+  }, 300_000);
+
+  it("(H6) a board with one CRLF line among LF lines is a pre-check refusal naming the board and its mixed line endings", () => {
+    const w = preV3World();
+    const board = at(w.target, LEGACY_BOARD_REL);
+    const text = readFileSync(board, "utf8");
+    const nl = text.indexOf("\n");
+    expect(nl, "PREMISE: the fixture board has an LF line").toBeGreaterThan(0);
+    expect(text.includes("\r"), "PREMISE: the fixture board has no CR").toBe(false);
+    writeFileSync(board, `${text.slice(0, nl)}\r${text.slice(nl)}`);
+    const v = expectRefusal(w, snapshotTree(w.target));
+    expect(v).toContain(LEGACY_BOARD_REL);
+    expect(v).toContain("mixes LF and CRLF line endings");
+  });
+
+  it("(H7) a staging directory left by an interrupted migrate refuses a plain install: exit 1, one stderr sentence, nothing written", () => {
+    const w = preV3World();
+    const m = migrate(w);
+    expect(m.status, `${m.stdout}\n${m.stderr}`).toBe(0);
+    const staging = at(w.target, MIGRATE_STAGING_REL);
+    mkdirSync(staging);
+    writeFileSync(join(staging, "commit-plan.txt"), "the commit plan an interrupted run left\n");
+    const before = snapshotTree(w.target);
+    const kitBefore = snapshotTree(w.kitHome);
+    const r = runInstall(w.target, w.kitHome, [], { home: w.home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(1);
+    expect(r.stdout, "nothing on stdout").toBe("");
+    const lines = r.stderr.split("\n").filter((l) => l.trim() !== "");
+    expect(lines, r.stderr).toHaveLength(1);
+    const line = lines[0] as string;
+    expect(lineNamesPath(line, staging), line).toBe(true);
+    expect(line).toContain("commit-plan.txt");
+    expect(line).toContain("--migrate");
+    expect(line).toContain("remove");
+    expect(snapshotTree(w.target), "the target is byte-identical").toBe(before);
+    expect(snapshotTree(w.kitHome), "the kit home is byte-identical").toBe(kitBefore);
+  });
+
+  it("(H8) --prune-old-kit and uninstall leave a leftover staging directory and its file byte-identical", () => {
+    const w = preV3World();
+    const m = migrate(w);
+    expect(m.status, `${m.stdout}\n${m.stderr}`).toBe(0);
+    expect(existsSync(at(w.target, LAYOUT_MARKER_REL)), "PREMISE: the state was migrated").toBe(true);
+    const staging = at(w.target, MIGRATE_STAGING_REL);
+    mkdirSync(staging);
+    writeFileSync(join(staging, "commit-plan.txt"), "the commit plan an interrupted run left\n");
+    const stagingBefore = snapshotTree(staging);
+    expect(stagingBefore).toContain("commit-plan.txt");
+    const prune = runInstall(w.target, w.kitHome, ["--prune-old-kit"], { home: w.home, timeoutMs: 180_000 });
+    expect(prune.error).toBeUndefined();
+    expect([0, 3], `${prune.stdout}\n${prune.stderr}`).toContain(prune.status);
+    expect(snapshotTree(staging), "--prune-old-kit left the staging directory as it was").toBe(stagingBefore);
+    const un = runUninstall(w.target, w.kitHome, { home: w.home, timeoutMs: 180_000 });
+    expect(un.error).toBeUndefined();
+    expect([0, 3], `${un.stdout}\n${un.stderr}`).toContain(un.status);
+    expect(snapshotTree(staging), "uninstall left the staging directory as it was").toBe(stagingBefore);
+    expect(existsSync(at(w.target, `${STATE_ROOT_REL}`)), "uninstall kept the migrated state").toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")("(H9) a moved path past this platform's path limit is a pre-check refusal naming it and the limit", () => {
+    const w = preV3World();
+    // A file under the pre-v3 root whose own path is under the limit, but whose path after the root is renamed to
+    // STATE_ROOT_REL is at or over it: the moved path is longer by the length difference of the two roots.
+    const grow = STATE_ROOT_REL.length - LEGACY_STATE_ROOT_REL.length;
+    expect(grow, "PREMISE: the v3 state root is longer than the pre-v3 root").toBeGreaterThan(0);
+    const want = PATH_MAX_BYTES - 1 - Math.floor(grow / 2); // the source path's byte length: under the limit
+    let dir = at(w.target, `${LEGACY_STATE_ROOT_REL}/deep`);
+    while (want - dir.length > 250) dir = join(dir, "d".repeat(200));
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, "f".repeat(want - dir.length - 1));
+    expect(Buffer.byteLength(file), "PREMISE: the source path is under the limit").toBeLessThan(PATH_MAX_BYTES);
+    writeFileSync(file, "a note kept deep in the tree\n");
+    const moved = at(w.target, STATE_ROOT_REL) + file.slice(at(w.target, LEGACY_STATE_ROOT_REL).length);
+    expect(Buffer.byteLength(moved), "PREMISE: the moved path is at or over the limit").toBeGreaterThanOrEqual(PATH_MAX_BYTES);
+    const v = expectRefusal(w, snapshotTree(w.target));
+    expect(lineNamesPath(v, moved), v).toBe(true);
+    expect(v).toContain(`path limit of ${PATH_MAX_BYTES - 1} bytes`);
   });
 });
