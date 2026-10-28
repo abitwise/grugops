@@ -1465,6 +1465,12 @@ export { TASK_NAME_RE };
 /** The ticket body heading the cut trailers go under (agent-factory/contracts/board.md § Ticket body sections). */
 export const BOARD_NOTES_HEADING = "## Board notes";
 
+/** The first line of PRE_V3_BOARD_UPDATES_REL (D-04). */
+export const BOARD_UPDATES_TITLE = "# Board updates from the pre-v3 board";
+
+/** The first line of PRE_V3_ORPHAN_NOTES_REL (D-03). */
+export const ORPHAN_NOTES_TITLE = "# Board notes of rows with no ticket file";
+
 /**
  * The closed, named set of line kinds migrate generates (D-09). The proof removes a generated line only by its
  * declared position, and only when the line there equals its kind's template, so an original line can never be
