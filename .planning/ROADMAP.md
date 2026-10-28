@@ -116,7 +116,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
 - [x] **Phase 35: Graph-memory decision record** - one recorded decision: graph memory is not adopted, nothing is built, what a user may do with such a tool themselves, and when to revisit (completed 2026-10-20)
 - [x] **Phase 36: State-layout authority, path move and protection** - planning state moves under `memory-bank/plans/` behind one constants-only path authority, protected from prune and uninstall, with old-layout repos still working (completed 2026-10-21)
 - [x] **Phase 37: Overview board, per-file records and budgets** - the board becomes a one-line-per-ticket overview, NFRs and traceability become one file per record with indexes, and byte budgets are checked in grugops and in host repos (completed 2026-10-27)
-- [ ] **Phase 38: install --migrate v3** - an old-layout repo moves to the v3 layout with one command that keeps every original, proves line conservation and re-runs as a no-op (the data-loss surface, in its own phase)
+- [x] **Phase 38: install --migrate v3** - an old-layout repo moves to the v3 layout with one command that keeps every original, proves line conservation and re-runs as a no-op (the data-loss surface, in its own phase) (completed 2026-10-28)
 - [ ] **Phase 39: Role machinery: engineer levels, Tech Lead and Designer roles, skills key** - a Tech Lead scores and pre-plans, one engineer role yields junior/mid/senior adapters on Claude Code, a Designer role exists, roles can declare skills, and every role and adapter set stays derived
 - [ ] **Phase 40: Plain-language role rewrite** - caveman retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English within 67,383 bytes, every load-bearing rule kept, "do less" rules added
 - [ ] **Phase 41: Orchestrator flow guidance** - the Orchestrator reads running work from disk, refills free capacity on each completion, knows when to start a fresh session, and the same guidance works on all six hosts
@@ -395,7 +395,7 @@ Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequent
   5. With the opt-in flag, finished-ticket `.grugops/context/` folders are moved, not changed, into a separate archive folder and trace rendering still reads them; the whole migration has been run on a copy of `cli-chess-example` under a scratch `GRUGOPS_HOME` with before/after sizes recorded (MIGRATE-06, MIGRATE-07)
   6. On an installed v2.x two-root repo that still holds the pre-v3 board (`plans/board.md`, no `memory-bank/plans/board.md`), `install --migrate` moves it to the v3 layout; the v2.x arm's "already migrated to the two-root layout ... Nothing to do." short-circuit no longer answers that layout, and a test pins it (MIGRATE-04; carried from Phase 36 WR-04 by UAT decision 2026-10-21)
 
-**Plans**: 11/11 plans executed
+**Plans**: 11/11 plans complete
 
 Plans:
 **Wave 1**
@@ -521,7 +521,7 @@ Plans:
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
-| 38. install --migrate v3 | v3.0 | 11/11 | In Progress | - |
+| 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |

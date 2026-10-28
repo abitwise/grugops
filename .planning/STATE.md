@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: 38
-current_phase_name: install --migrate v3
-status: verifying
-stopped_at: Completed 38-11-PLAN.md
-last_updated: "2026-10-28T19:23:00.539Z"
+current_phase: 39
+current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
+status: planning
+stopped_at: Phase 38 complete, ready to plan Phase 39
+last_updated: "2026-10-28T21:17:49.397Z"
 last_activity: 2026-10-28
-last_activity_desc: Phase 38 execution started
-state_head: 5c32d2b9b6a8a1760e13bed8f59a9f2c02e65481
+last_activity_desc: Phase 38 complete, transitioned to Phase 39
+state_head: 28b295a02d5ab4b5c03677868b8fd0e0820072b6
 progress:
   total_phases: 9
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 68
   completed_plans: 68
-  percent: 33
+  percent: 44
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 
 ## Current Position
 
-Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 11 of 11
-Status: Phase complete — ready for verification
-Last activity: 2026-10-28 — Phase 38 execution started
+Phase: 39 — Role machinery: engineer levels, Tech Lead and Designer roles, skills key
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-28 — Phase 38 complete, transitioned to Phase 39
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 452
+- Total plans completed: 463
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -144,6 +144,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 35 | 1 | - | - |
 | 36 | 14 | - | - |
 | 37 | 42 | - | - |
+| 38 | 11 | - | - |
 
 **Recent Trend:**
 
@@ -2484,7 +2485,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-10-28T19:22:59.944Z
-Stopped at: Completed 38-11-PLAN.md
+Stopped at: Phase 38 complete, ready to plan Phase 39
 Resume file: None
 
 ## Operator Next Steps
