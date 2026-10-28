@@ -151,6 +151,19 @@ Not in this phase: moving standing directives out of `60-progress.md`, archiving
   Every other folder stays where it is. Dry-run lists every folder it would move and every folder it
   leaves, each with its reason.
 
+### Recorded at plan 38-01 checkpoints
+- **D-21:** option-a, chosen by the human on 2026-10-28, settles D-02 versus D-17. A ticket that receives a
+  `## Board notes` section keeps its original. Migrate renames the original file unchanged to
+  `memory-bank/plans/archive/pre-v3/tickets/{file name}` and writes the ticket with the notes appended as
+  a new file at `memory-bank/plans/tickets/{file name}`. A ticket that receives no notes is moved, never
+  copied (D-17). The proof rule: every original file's bytes are identical either in
+  `memory-bank/plans/archive/pre-v3/` (the board, traceability, NFR catalog and every ticket that got
+  notes) or at its new path (every other file). For a ticket that got notes, the live file equals the
+  original bytes followed by the new `## Board notes` section. Nothing is deleted or rewritten in place,
+  and the commit undoes every step by renaming back. The cost is accepted: each ticket with notes exists
+  twice, outside every budget and every reader's fixed paths. Plan 38-02 implements this option.
+  Reversibility: costly.
+
 ### Claude's Discretion
 - The opt-in flag name (research proposes `--archive-done-context`).
 - The staging directory name and location, as long as it sits on the same filesystem as the target so
