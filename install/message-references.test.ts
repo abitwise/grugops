@@ -88,8 +88,10 @@ afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
 
 /** The product modules counted when this census landed (plan 34.1-15): agent-picker, checkpoint-ask-rules, host-tools,
  *  install-marker, install, json-text, kit-source, uninstall, user-file. 10 since 2026-10-21, plan 36-01 added
- *  state-layout (constants only; it prints nothing). Re-derived from `git ls-files -- install`, not incremented. */
-const PRODUCT_MODULE_COUNT = 10;
+ *  state-layout (constants only; it prints nothing). Re-derived from `git ls-files -- install`, not incremented.
+ *  11 since 2026-10-28, plan 38-02 added state-migrate (the pure migrate planner; its fragments pass every rule below).
+ *  Re-derived from `git ls-files -- install`, not incremented. */
+const PRODUCT_MODULE_COUNT = 11;
 
 /** Every tracked install/*.ts that is not a test, test-support or declaration file, from git. */
 function productModules(): string[] {

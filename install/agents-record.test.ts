@@ -87,7 +87,7 @@
 //     rule only. R48a-e follow the reader's remaining states as printed (not an object, a 0xff byte, a retired record, a
 //     field install never writes, a link at the marker path). The widened removal-matcher census asks MARKER_REMOVAL_ANY
 //     of every reading of every product module: zero offers to delete, remove or erase the marker, and every other hit
-//     in REMOVAL_EXEMPT (85 rows, 131 hits) with the object it removes.
+//     in REMOVAL_EXEMPT (88 rows, 135 hits) with the object it removes.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -1852,8 +1852,11 @@ function productModules(): string[] {
  * The number of product modules the census premises below read (plan 34.1). 9 -> 10 on 2026-10-21, plan 36-01:
  * install/state-layout.ts, constants only. It prints nothing, reads no environment variable and names no marker, so no
  * census below gains a site from it. Re-derived from `git ls-files -- install`, not incremented.
+ * 10 -> 11 on 2026-10-28, plan 38-02: install/state-migrate.ts, the pure migrate planner. Its generated region carries
+ * two state-roll refusal sentences that tell the user to delete a duplicated row by hand (classed in REMOVAL_EXEMPT);
+ * it names no marker and reads no environment variable. Re-derived from `git ls-files -- install`, not incremented.
  */
-const PRODUCT_MODULE_COUNT = 10;
+const PRODUCT_MODULE_COUNT = 11;
 /** The census: every variant of every maximal string expression that touches the marker, its ledger or `agents`. */
 function remedyCensus(): CensusSite[] {
   const out: CensusSite[] = [];
@@ -4771,6 +4774,10 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
   ["uninstall.ts", "<module>", "removes and edits nothing here", 2, "nothing, negated: this run removes and edits nothing on a marker it cannot use"],
   ["uninstall.ts", "keepWithoutRecord", "delete ${marker}", 4, "the marker, negated: \"never delete\" it (it is still the record of the agents staying)"],
   ["uninstall.ts", "<module>", "remove or restore what the `left` lines name, then run `${finishCommand", 2, "what the `left` lines name"],
+  // Plan 38-02 (2026-10-28): the generated region of install/state-migrate.ts carries scripts/state-rules.ts's two roll
+  // refusals verbatim; each removes a duplicated copy of a row or entry, never the marker.
+  ["state-migrate.ts", "planProgressAppend", "delete the progress file's copy by hand and run state-roll again", 1, "a progress entry's copy that is already in the progress archive"],
+  ["state-migrate.ts", "doneDuplicateRefusal", "delete the board's row by hand and run state-roll again", 1, "a Done row's board copy that is already in the Done archive"],
 ];
 const removalKey = (module: string, fn: string, clause: string): string => `${module} :: ${fn} :: ${clause}`;
 
@@ -4816,9 +4823,17 @@ describe("D-37: the widened removal-matcher census, by search over every printed
     // wording has two readings (with and without "; then <step>"), each negated.
     // 132 -> 133, table 85 -> 86, install.ts 47 -> 48 (plan 36-13, 2026-10-21, D-02): seedState's stale note on a
     // repository holding both boards says this run "merges or deletes nothing", negated.
-    expect(hits.length, "the hit count moved").toBe(133);
-    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(86);
-    expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({ "checkpoint-ask-rules.ts": 1, "install-marker.ts": 2, "install.ts": 48, "uninstall.ts": 82 });
+    // 133 -> 135, table 86 -> 88 (plan 38-02, 2026-10-28): the two state-roll refusals in install/state-migrate.ts's
+    // generated region, each removing a duplicated row or entry copy.
+    expect(hits.length, "the hit count moved").toBe(135);
+    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(88);
+    expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({
+      "checkpoint-ask-rules.ts": 1,
+      "install-marker.ts": 2,
+      "install.ts": 48,
+      "state-migrate.ts": 2,
+      "uninstall.ts": 82,
+    });
   });
 });
 
