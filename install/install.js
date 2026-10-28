@@ -86,10 +86,10 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, CONTEXT_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
+import { BOARD_REL, CONTEXT_ARCHIVE_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, CONTEXT_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
 // Phase 38 (plan 38-03, D-09, D-10, D-17): the v3 state migrate's planner and its proof. Pure functions over bytes the
 // installer reads; the module imports nothing outside install/ and node:, so this edge keeps install/ free of scripts/.
-import { budgetEntryNames, fileBytesFinding, formatFinding, markerState, migrateListing, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
+import { budgetEntryNames, contextFolderRel, fileBytesFinding, formatFinding, markerState, migrateListing, migratedContextTicketIds, movedRel, planContextArchive, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -127,6 +127,10 @@ let BACKUP_EDITED_KIT = false;
 // (install, --migrate, --update, --prune-old-kit, --check), so `install --migrate --dry-run` previews the migrate and
 // writes nothing. It is not an agent flag.
 let ARG_DRY_RUN = false;
+// Plan 38-10 (MIGRATE-06, D-14, D-20, D-22): `--archive-done-context` is the opt-in move of finished tickets' context
+// folders from CONTEXT_REL to CONTEXT_ARCHIVE_REL, by rename only. It is part of a migrate, so it is valid only with
+// --migrate; without it no context folder is listed or moved.
+let ARCHIVE_DONE_CONTEXT = false;
 // A VALUE-TAKING FLAG WITH NO VALUE IS BAD USAGE (red-team L4 of plan 33.1-34). `--target` is the one
 // value-taking flag. With no value (the last argument, `--target=`, or followed by another flag) it used
 // to leave ARG_TARGET empty, and resolveTarget then fell back to TARGET or the current directory: the
@@ -180,6 +184,9 @@ for (let i = 0; i < argv.length; i++) {
     else if (a === "--dry-run") {
         ARG_DRY_RUN = true;
     }
+    else if (a === "--archive-done-context") {
+        ARCHIVE_DONE_CONTEXT = true;
+    }
     else if ((flagHost = hostForFlag(a)) !== null) {
         SELECTED_BY_FLAG.add(flagHost.id);
     }
@@ -200,6 +207,11 @@ if (USAGE_ERROR === null && SELECTED_BY_FLAG.size > 0 && (CHECK || UPDATE || PRU
         `agent flags (${given}) cannot be combined with ${modes}: agent flags choose what install writes, and ${modes} ` +
             `writes no agent's files` +
             (CHECK ? `; --check reads the agents from the install record (${MARKER_REL}), not from flags` : "");
+}
+if (USAGE_ERROR === null && ARCHIVE_DONE_CONTEXT && !MIGRATE) {
+    USAGE_ERROR =
+        "--archive-done-context is valid only with --migrate: it moves finished tickets' context folders as part of a " +
+            "migrate, and without --migrate there is no migrate to be part of";
 }
 if (USAGE_ERROR !== null) {
     process.stderr.write(`install.js: ${USAGE_ERROR}\n`);
@@ -6467,9 +6479,111 @@ function noteMovedBackups() {
             "where it is");
     }
 }
+// contextDirNames: the names directly under the target-relative directory `rel`, sorted; [] when nothing is there. A
+// link or a non-directory on the way or at `rel`, or a listing that fails, is a refusal naming `what` the run then
+// cannot show, and the answer is null. Nothing here writes.
+function contextDirNames(rel, what, refusals) {
+    const abs = targetPath(rel);
+    const way = wayTo(TARGET, abs);
+    if (way === "absent")
+        return [];
+    if (way !== null) {
+        refusals.push(`${blockedAt(way, abs)}, so ${what} cannot be shown; the context archive reads and renames nothing through it`);
+        return null;
+    }
+    let isDirectory;
+    try {
+        isDirectory = lstatSync(abs).isDirectory();
+    }
+    catch (e) {
+        const code = errCode(e);
+        if (code === "ENOENT")
+            return [];
+        refusals.push(`${abs} could not be asked about (${code}), so ${what} cannot be shown`);
+        return null;
+    }
+    if (!isDirectory) {
+        refusals.push(`${abs} is a ${kindAt(abs) ?? "entry that could not be asked about"}, not a real directory, so ${what} cannot be ` +
+            "shown; the context archive follows no link");
+        return null;
+    }
+    try {
+        return readdirSync(abs).sort();
+    }
+    catch (e) {
+        refusals.push(`${abs} could not be listed (${errCode(e)}), so ${what} cannot be shown`);
+        return null;
+    }
+}
+/** The lstat kind of an entry under CONTEXT_REL in planContextArchive's words, or null when it cannot be asked. */
+function contextEntryKind(abs) {
+    const kind = kindAt(abs);
+    if (kind === null)
+        return null;
+    return kind === "directory" || kind === "symbolic link" || kind === "regular file" ? kind : "special file";
+}
+// readContextArchive: READ above, for the ticket IDs `ids`. Nothing here writes.
+function readContextArchive(ids) {
+    const refusals = [];
+    const names = contextDirNames(CONTEXT_REL, "which task folders are there", refusals);
+    const archived = contextDirNames(CONTEXT_ARCHIVE_REL, "which task folders are archived already", refusals);
+    const pending = contextDirNames(QUEUE_PENDING_REL, "that no queued task names a folder", refusals);
+    const claimed = contextDirNames(QUEUE_CLAIMED_REL, "that no claimed task names a folder", refusals);
+    const folders = [];
+    for (const name of names ?? []) {
+        const abs = join(targetPath(CONTEXT_REL), name);
+        const kind = contextEntryKind(abs);
+        if (kind === null) {
+            refusals.push(`${oneLine(abs)} could not be asked about, so whether it moves to ${CONTEXT_ARCHIVE_REL}/ cannot be shown`);
+            continue;
+        }
+        folders.push({ name, kind });
+    }
+    const plan = planContextArchive({
+        folders,
+        knownIds: ids.known,
+        doneIds: ids.done,
+        queue: { pending: pending ?? [], claimed: claimed ?? [] },
+        archived: new Set(archived ?? []),
+    });
+    const records = new Map();
+    for (const m of plan.moves) {
+        const record = treeRecord(TARGET, contextFolderRel(m.name, false));
+        if (record === null) {
+            refusals.push(`${targetPath(contextFolderRel(m.name, false))} could not be recorded whole, so it cannot be shown unchanged after ` +
+                `the move to ${CONTEXT_ARCHIVE_REL}/`);
+        }
+        else {
+            records.set(m.name, record);
+        }
+    }
+    return { plan, records, refusals };
+}
+// moveContextFolders: MOVE above. Returns null when every selected folder moved and is unchanged at its new path, or
+// the reason the first one did not; the caller undoes the journal. Reached only after a DRY_RUN return.
+function moveContextFolders(journal, run) {
+    for (const m of run.plan.moves) {
+        const from = targetPath(contextFolderRel(m.name, false));
+        const to = targetPath(contextFolderRel(m.name, true));
+        const why = migrateRename(journal, from, to);
+        if (why !== null)
+            return why;
+        if (treeRecord(TARGET, contextFolderRel(m.name, true)) !== run.records.get(m.name)) {
+            return `${to} is not ${from} unchanged: its content record differs from the one taken before the move`;
+        }
+    }
+    return null;
+}
+/** The lines of a context archive that ran: one per moved folder, and how many stayed. */
+function reportContextArchive(run) {
+    for (const m of run.plan.moves) {
+        report("moved", `${contextFolderRel(m.name, false)} → ${contextFolderRel(m.name, true)} (unchanged; it names ${m.ids.join(", ")}, each Done)`);
+    }
+    report("ok", `context archive: ${run.plan.moves.length} folder(s) moved, ${run.plan.kept.length} left in ${CONTEXT_REL}/`);
+}
 // runStateMigrate: see STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK above. Returns true when the state is on the v3
 // layout and the marker is written (under DRY_RUN: when the plan would run).
-function runStateMigrate(plan, read) {
+function runStateMigrate(plan, read, context) {
     // Plan 38-09 (MIGRATE-01): the preview is migrateListing's lines, printed as they are, and nothing else. The listing
     // is built from the plan the real run executes, so the two cannot disagree. Nothing below this return runs.
     if (DRY_RUN) {
@@ -6556,7 +6670,12 @@ function runStateMigrate(plan, read) {
     const rootRename = { from: targetPath(LEGACY_STATE_ROOT_REL), to: targetPath(STATE_ROOT_REL) };
     const archiveMoves = plan.archiveMoves.map((m) => ({ from: targetPath(m.from), to: targetPath(m.to) }));
     const stagedWrites = plan.writes.map((w) => ({ from: stagedAt(w.rel), to: targetPath(w.rel) }));
-    const renames = [rootRename, ...archiveMoves, ...stagedWrites];
+    // Plan 38-10: the context archive's moves come after the staged writes, in the order they run.
+    const contextMoves = (context?.plan.moves ?? []).map((m) => ({
+        from: targetPath(contextFolderRel(m.name, false)),
+        to: targetPath(contextFolderRel(m.name, true)),
+    }));
+    const renames = [rootRename, ...archiveMoves, ...stagedWrites, ...contextMoves];
     const commitPlan = join(staging, MIGRATE_COMMIT_PLAN_NAME);
     try {
         writeFileSync(commitPlan, renames.map((r) => `${r.from}\t${r.to}\n`).join(""), { flag: "wx" });
@@ -6627,6 +6746,12 @@ function runStateMigrate(plan, read) {
     }
     if (homeProblems.length > 0)
         return commitFailed("post-commit proof", homeProblems.join("; "));
+    // (g1) Plan 38-10: the context archive's moves, journaled with the commit, so a failed render undoes them too.
+    if (context !== null) {
+        const contextWhy = moveContextFolders(journal, context);
+        if (contextWhy !== null)
+            return commitFailed("context archive", contextWhy);
+    }
     // (g2)
     const render = renderMigratedTrace();
     rendered = render;
@@ -6660,6 +6785,8 @@ function runStateMigrate(plan, read) {
         report("created", `${oneLine(w.rel)} (${w.bytes.length} bytes; ${oneLine(w.source)})`);
     for (const n of plan.notes)
         report("note", oneLine(n));
+    if (context !== null)
+        reportContextArchive(context);
     report("ok", `trace render: ${render.summary}`);
     report("created", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT})`);
     printMigrateBudgets(plan, traceBudgetFindings());
@@ -6715,7 +6842,13 @@ if (MIGRATE) {
             const read = readMigrateInputs();
             const plan = planStateMigrate(read.inputs);
             refusals.push(...stateMigrateRefusals(read, plan));
-            STATE_MIGRATE = { plan, read };
+            // Plan 38-10: the context archive's read and selection, over the ticket IDs of the state this migrate leaves.
+            let context = null;
+            if (ARCHIVE_DONE_CONTEXT && plan.refusals.length === 0) {
+                context = readContextArchive(migratedContextTicketIds(read.inputs, plan));
+                refusals.push(...context.refusals);
+            }
+            STATE_MIGRATE = { plan, read, context };
         }
         // The kit plan and its KIT_WRITE decision only when Claude Code is chosen (plan 34.1-08, D-06): a --migrate for
         // other agents writes no Claude Code kit file, so it neither builds a kit plan nor asks for kit consent; the
@@ -8092,7 +8225,7 @@ function agentClosingLines() {
 // seed, so the seed finds the v3 layout when it succeeded and the pre-v3 layout again when it failed.
 if (STATE_MIGRATE !== null) {
     console.log("\n-- state migrate --");
-    if (runStateMigrate(STATE_MIGRATE.plan, STATE_MIGRATE.read) && !DRY_RUN)
+    if (runStateMigrate(STATE_MIGRATE.plan, STATE_MIGRATE.read, STATE_MIGRATE.context) && !DRY_RUN)
         noteMovedBackups();
 }
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.

@@ -650,6 +650,7 @@ const MODE_TABLE: Readonly<Record<string, { readonly cls: ModeClass; readonly re
   "install.ts --symlink": { cls: "modifier", reason: "chooses the install mode of the default install" },
   "install.ts --backup-edited-kit": { cls: "modifier", reason: "consent to back up edited kit files during an install or --migrate" },
   "install.ts --dry-run": { cls: "modifier", reason: "the argument spelling of DRY_RUN=1: whichever mode runs is previewed and nothing is written (plan 38-09)" },
+  "install.ts --archive-done-context": { cls: "modifier", reason: "with --migrate, also moves finished tickets' context folders to the context archive, by rename only; without --migrate it is bad usage, exit 2 (plan 38-10)" },
   "uninstall.ts --target": { cls: "modifier", reason: "names the target of the uninstall" },
   "uninstall.ts --target=": { cls: "modifier", reason: "the inline-value spelling of --target" },
   "uninstall.ts --allow-self": { cls: "modifier", reason: "overrides the self-checkout guard" },
@@ -674,8 +675,8 @@ const MODE_TABLE: Readonly<Record<string, { readonly cls: ModeClass; readonly re
     ]),
   ),
 };
-/** 18 typed rows (17 until plan 38-09 added --dry-run), plus one derived row per registry agent for each binary (phase 34.1, D-01, D-05). */
-const MODE_TABLE_COUNT = 18 + 2 * HOST_TOOL_COUNT;
+/** 19 typed rows (17 until plan 38-09 added --dry-run, 18 until plan 38-10 added --archive-done-context), plus one derived row per registry agent for each binary (phase 34.1, D-01, D-05). */
+const MODE_TABLE_COUNT = 19 + 2 * HOST_TOOL_COUNT;
 
 /**
  * The literals the argv loop of `file` compares its argument with (`a === "..."`, `a.startsWith("...")`),

@@ -32,7 +32,7 @@
 //
 // Voice: clear professional voice (CLAUDE.md hard rule). This is the first grugops operation that rewrites user
 // state, and every printed user value passes through the embedded stripControlChars.
-import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, BUDGETS, DECISIONS_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, NFR_CATALOG_REL, NFR_DIR_REL, PRE_V3_BOARD_REL, PRE_V3_BOARD_UPDATES_REL, PRE_V3_NFR_CATALOG_REL, PRE_V3_NFR_NOTES_REL, PRE_V3_ORPHAN_NOTES_REL, PRE_V3_PROGRESS_REL, PRE_V3_TICKETS_REL, PRE_V3_TRACEABILITY_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, PROGRESS_ARCHIVE_REL, PROGRESS_REL, STATE_ROOT_REL, TICKETS_REL, TRACEABILITY_REL, TRACE_DIR_REL, } from "./state-layout.js";
+import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, BUDGETS, CONTEXT_ARCHIVE_REL, CONTEXT_REL, DECISIONS_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, NFR_CATALOG_REL, NFR_DIR_REL, PRE_V3_BOARD_REL, PRE_V3_BOARD_UPDATES_REL, PRE_V3_NFR_CATALOG_REL, PRE_V3_NFR_NOTES_REL, PRE_V3_ORPHAN_NOTES_REL, PRE_V3_PROGRESS_REL, PRE_V3_TICKETS_REL, PRE_V3_TRACEABILITY_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, PROGRESS_ARCHIVE_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, TICKETS_REL, TRACEABILITY_REL, TRACE_DIR_REL, } from "./state-layout.js";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 // from scripts/board-model.ts
 export const LARGE_BOARD_BYTES = 1_048_576;
@@ -2500,4 +2500,152 @@ export function migrateListing(plan) {
         : `Dry run: the state migrate was planned${plan.proof.ok ? " and proven in memory" : ", and its in-memory proof failed"}; ` +
             "nothing was written."));
     return lines;
+}
+/** True when `ch` is an ASCII letter or digit (a folder name past the task-name rule holds only ASCII). */
+function isAsciiAlphanumeric(ch) {
+    const c = ch.charCodeAt(0);
+    return (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
+}
+/** The ticket ID a ticket file name begins with (its text up to the first hyphen and the digits after it), or null. */
+function leadingTicketId(name) {
+    const dash = name.indexOf("-");
+    if (dash < 1)
+        return null;
+    let end = dash + 1;
+    while (end < name.length && name.charCodeAt(end) >= 0x30 && name.charCodeAt(end) <= 0x39)
+        end += 1;
+    const id = name.slice(0, end);
+    return isTicketId(id) ? id : null;
+}
+/**
+ * The known ticket IDs `name` names (D-20): an ID matches when it occurs in the name, ignoring case, with a character
+ * that is not a letter or a digit, or the name's edge, on both sides. `abc-104-implement` names ABC-104; `abc-1041` and
+ * `xabc-104` do not. The answer is in code-unit order, each ID once, spelled as it is known.
+ */
+export function folderTicketIds(name, knownIds) {
+    const lower = name.toLowerCase();
+    const found = [];
+    for (const id of knownIds) {
+        const needle = id.toLowerCase();
+        for (let at = lower.indexOf(needle); at !== -1; at = lower.indexOf(needle, at + 1)) {
+            const before = at === 0 ? "" : lower[at - 1];
+            const after = lower[at + needle.length] ?? "";
+            if (!isAsciiAlphanumeric(before) && !isAsciiAlphanumeric(after)) {
+                found.push(id);
+                break;
+            }
+        }
+    }
+    return [...new Set(found)].sort(byCodeUnits);
+}
+/**
+ * The ticket IDs of a v3 state (D-20): known IDs are the ticket rows of `board` (every column) and of `doneArchive`
+ * (BOARD_DONE_ARCHIVE_REL, null when there is none), and the ID each ticket file name in `ticketNames` begins with;
+ * Done IDs are the ticket rows of the board's Done columns and every ticket row of the Done archive.
+ */
+export function contextTicketIds(board, doneArchive, ticketNames) {
+    const known = new Set();
+    const done = new Set();
+    for (const column of parseBoard(board).columns) {
+        for (const row of column.rows) {
+            if (!isTicketId(row.id))
+                continue;
+            known.add(row.id);
+            if (column.name === DONE_COLUMN)
+                done.add(row.id);
+        }
+    }
+    if (doneArchive !== null) {
+        for (const column of parseBoard(doneArchive).columns) {
+            for (const row of column.rows) {
+                if (!isTicketId(row.id))
+                    continue;
+                known.add(row.id);
+                done.add(row.id);
+            }
+        }
+    }
+    for (const name of ticketNames) {
+        const id = leadingTicketId(name);
+        if (id !== null)
+            known.add(id);
+    }
+    return { known, done };
+}
+/**
+ * The ticket IDs of the state a migrate plan leaves: the planned board, the planned (or moved) Done archive, and the
+ * ticket files directly under TICKETS_REL after the move. Pure: it reads the inputs and the plan only.
+ */
+export function migratedContextTicketIds(inputs, plan) {
+    const at = new Map();
+    for (const f of inputs.legacy)
+        if (f.rel.startsWith(LEGACY_PREFIX))
+            at.set(movedRel(f.rel), f.bytes);
+    for (const m of plan.archiveMoves) {
+        const bytes = at.get(m.from);
+        at.delete(m.from);
+        if (bytes !== undefined)
+            at.set(m.to, bytes);
+    }
+    for (const w of plan.writes)
+        at.set(w.rel, w.bytes);
+    const board = at.get(BOARD_REL);
+    const archive = at.get(BOARD_DONE_ARCHIVE_REL);
+    const prefix = `${TICKETS_REL}/`;
+    const names = [...at.keys()]
+        .filter((rel) => rel.startsWith(prefix) && !rel.slice(prefix.length).includes("/"))
+        .map((rel) => rel.slice(prefix.length))
+        .sort(byCodeUnits);
+    return contextTicketIds(board === undefined ? "" : decodeText(board), archive === undefined ? null : decodeText(archive), names);
+}
+/** The selection (see WHAT MOVES above). Every folder is either moved or kept with its reason, never both. */
+export function planContextArchive(input) {
+    const moves = [];
+    const kept = [];
+    const pending = new Set(input.queue.pending);
+    const claimed = new Set(input.queue.claimed);
+    for (const folder of [...input.folders].sort((a, b) => byCodeUnits(a.name, b.name))) {
+        const { name } = folder;
+        const keep = (reason, why) => {
+            kept.push({ name, reason, why });
+        };
+        if (!TASK_NAME_RE.test(name) || name === "." || name === "..") {
+            keep("name-rule", `its name is outside the task-name rule ${TASK_NAME_RE.source}, so it is never joined into an archive path`);
+            continue;
+        }
+        if (folder.kind !== "directory") {
+            keep("not-a-directory", `it is a ${folder.kind}, not a real directory; the context archive moves only real directories and follows no link`);
+            continue;
+        }
+        const ids = folderTicketIds(name, input.knownIds);
+        if (ids.length === 0) {
+            keep("no-ticket-id", `its name names no known ticket ID (a ticket row of ${BOARD_REL} or ${BOARD_DONE_ARCHIVE_REL}, or a ticket file ` +
+                "name), so no finished ticket owns it");
+            continue;
+        }
+        const notDone = ids.filter((id) => !input.doneIds.has(id));
+        if (notDone.length > 0) {
+            keep("not-done", `it names ${notDone.join(", ")}, ${notDone.length === 1 ? "which has" : "which have"} no row in a Done column of ` +
+                `${BOARD_REL} or in ${BOARD_DONE_ARCHIVE_REL}`);
+            continue;
+        }
+        const entries = [
+            ...(pending.has(`${name}.md`) || pending.has(name) ? [`${QUEUE_PENDING_REL}/${pending.has(`${name}.md`) ? `${name}.md` : name}`] : []),
+            ...(claimed.has(name) ? [`${QUEUE_CLAIMED_REL}/${name}`] : []),
+        ];
+        if (entries.length > 0) {
+            keep("queued", `a live queue entry names it (${entries.join(", ")}), so its task is still queued or claimed`);
+            continue;
+        }
+        if (input.archived.has(name)) {
+            keep("archived", `${CONTEXT_ARCHIVE_REL}/${name} already exists, and a move never replaces what is there`);
+            continue;
+        }
+        moves.push({ name, ids });
+    }
+    return { moves, kept };
+}
+/** The target-relative path of a context folder, live or archived. */
+export function contextFolderRel(name, archived) {
+    return `${archived ? CONTEXT_ARCHIVE_REL : CONTEXT_REL}/${name}`;
 }

@@ -151,13 +151,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:migrateMkdirs:mkdirSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:6739 makes one missing directory on the way to a commit rename's destination, non-recursive, after directoryComponent answered absent, and journals it. Its one caller is migrateRename (:6760), whose one caller is runStateMigrate's commit loop (:6987), after the `if (DRY_RUN)` return at :6873",
+    why: "install.ts:6739 makes one missing directory on the way to a commit rename's destination, non-recursive, after directoryComponent answered absent, and journals it. Its one caller is migrateRename (:6760), whose callers are runStateMigrate's commit loop (:6987) and moveContextFolders (plan 38-10), which runStateMigrate calls after its post-commit proof; both after the `if (DRY_RUN)` return at :6873",
   },
   {
     site: "install.ts:migrateRename:renameSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:6759 renames only after lstat shows the destination absent (T-38-07) and journals the rename. Its one caller is runStateMigrate's commit loop (:6987), after the `if (DRY_RUN)` return at :6873",
+    why: "install.ts:6759 renames only after lstat shows the destination absent (T-38-07) and journals the rename. Its callers are runStateMigrate's commit loop (:6987) and moveContextFolders (plan 38-10, the context archive's moves, which runStateMigrate calls after its post-commit proof), both after the `if (DRY_RUN)` return at :6873",
   },
   {
     site: "install.ts:undoStateMigrate:renameSync",
