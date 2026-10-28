@@ -1614,6 +1614,23 @@ describe("(S12) the context archive selection (plan 38-10, MIGRATE-06, D-14, D-2
     expect([...contextTicketIds(board, null, []).done]).toEqual(["ABC-104"]);
   });
 
+  it("contextTicketIds: a ticket rolled to the Done archive and then reopened (a row in a non-Done column) is not Done, so its folder stays", () => {
+    const board = ["# Board", "", "## In Progress (WIP 1/3)", "- [ABC-5] Reopened  (owner: x)", "", "## Done (WIP unlimited)", ""].join("\n");
+    const archive = ["# Done archive", "", "## Done (WIP unlimited)", "- [ABC-5] Rolled earlier  (merged: 2026-01-01)", ""].join("\n");
+    const ids = contextTicketIds(board, archive, []);
+    expect(ids.known.has("ABC-5")).toBe(true);
+    expect(ids.done.has("ABC-5")).toBe(false);
+    const plan = planContextArchive({
+      folders: [{ name: "abc-5-work", kind: "directory" }],
+      knownIds: ids.known,
+      doneIds: ids.done,
+      queue: { pending: [], claimed: [] },
+      archived: new Set<string>(),
+    });
+    expect(plan.moves).toEqual([]);
+    expect(plan.kept.map((k) => [k.name, k.reason])).toEqual([["abc-5-work", "not-done"]]);
+  });
+
   it("migratedContextTicketIds on the fixture: the planned board's Done rows are Done, ABC-209 (In Review) is known and not Done", () => {
     const ids = migratedContextTicketIds(CHESS, CHESS_PLAN);
     expect(ids.known.has("ABC-209")).toBe(true);

@@ -2572,11 +2572,13 @@ export function folderTicketIds(name, knownIds) {
 /**
  * The ticket IDs of a v3 state (D-20): known IDs are the ticket rows of `board` (every column) and of `doneArchive`
  * (BOARD_DONE_ARCHIVE_REL, null when there is none), and the ID each ticket file name in `ticketNames` begins with;
- * Done IDs are the ticket rows of the board's Done columns and every ticket row of the Done archive.
+ * Done IDs are the ticket rows of the board's Done columns and every ticket row of the Done archive, less every ticket
+ * that also has a row in a non-Done column of the board (a ticket rolled to the archive and then reopened is live).
  */
 export function contextTicketIds(board, doneArchive, ticketNames) {
     const known = new Set();
     const done = new Set();
+    const live = new Set();
     for (const column of parseBoard(board).columns) {
         for (const row of column.rows) {
             if (!isTicketId(row.id))
@@ -2584,6 +2586,8 @@ export function contextTicketIds(board, doneArchive, ticketNames) {
             known.add(row.id);
             if (column.name === DONE_COLUMN)
                 done.add(row.id);
+            else
+                live.add(row.id);
         }
     }
     if (doneArchive !== null) {
@@ -2601,6 +2605,8 @@ export function contextTicketIds(board, doneArchive, ticketNames) {
         if (id !== null)
             known.add(id);
     }
+    for (const id of live)
+        done.delete(id);
     return { known, done };
 }
 /**
@@ -2656,8 +2662,8 @@ export function planContextArchive(input) {
         }
         const notDone = ids.filter((id) => !input.doneIds.has(id));
         if (notDone.length > 0) {
-            keep("not-done", `it names ${notDone.join(", ")}, ${notDone.length === 1 ? "which has" : "which have"} no row in a Done column of ` +
-                `${BOARD_REL} or in ${BOARD_DONE_ARCHIVE_REL}`);
+            keep("not-done", `it names ${notDone.join(", ")}, ${notDone.length === 1 ? "which is" : "which are"} not finished: a finished ticket ` +
+                `has a row in a Done column of ${BOARD_REL} or in ${BOARD_DONE_ARCHIVE_REL}, and no row in another column of ${BOARD_REL}`);
             continue;
         }
         const entries = [

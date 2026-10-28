@@ -3117,7 +3117,7 @@ export function migrateListing(plan: MigratePlan, context: ContextArchivePlan | 
 //     into a path; a name outside it is never joined into one;
 //   - lstat finds a real directory there (a link is never followed, a file is not a task folder);
 //   - its name names at least one known ticket ID (folderTicketIds) and every ID it names is Done: a row in a Done
-//     column of the migrated board, or a row of BOARD_DONE_ARCHIVE_REL;
+//     column of the migrated board, or a row of BOARD_DONE_ARCHIVE_REL, and no row in another column of the board;
 //   - no live queue entry names it: neither QUEUE_PENDING_REL/{name}.md nor QUEUE_CLAIMED_REL/{name} (D-22: a done
 //     entry is the proof the task finished, so it does not keep the folder);
 //   - nothing is at CONTEXT_ARCHIVE_REL/{name} already.
@@ -3204,16 +3204,19 @@ export function folderTicketIds(name: string, knownIds: Iterable<string>): strin
 /**
  * The ticket IDs of a v3 state (D-20): known IDs are the ticket rows of `board` (every column) and of `doneArchive`
  * (BOARD_DONE_ARCHIVE_REL, null when there is none), and the ID each ticket file name in `ticketNames` begins with;
- * Done IDs are the ticket rows of the board's Done columns and every ticket row of the Done archive.
+ * Done IDs are the ticket rows of the board's Done columns and every ticket row of the Done archive, less every ticket
+ * that also has a row in a non-Done column of the board (a ticket rolled to the archive and then reopened is live).
  */
 export function contextTicketIds(board: string, doneArchive: string | null, ticketNames: readonly string[]): ContextTicketIds {
   const known = new Set<string>();
   const done = new Set<string>();
+  const live = new Set<string>();
   for (const column of parseBoard(board).columns) {
     for (const row of column.rows) {
       if (!isTicketId(row.id)) continue;
       known.add(row.id);
       if (column.name === DONE_COLUMN) done.add(row.id);
+      else live.add(row.id);
     }
   }
   if (doneArchive !== null) {
@@ -3229,6 +3232,7 @@ export function contextTicketIds(board: string, doneArchive: string | null, tick
     const id = leadingTicketId(name);
     if (id !== null) known.add(id);
   }
+  for (const id of live) done.delete(id);
   return { known, done };
 }
 
@@ -3291,8 +3295,8 @@ export function planContextArchive(input: ContextArchiveInputs): ContextArchiveP
     if (notDone.length > 0) {
       keep(
         "not-done",
-        `it names ${notDone.join(", ")}, ${notDone.length === 1 ? "which has" : "which have"} no row in a Done column of ` +
-          `${BOARD_REL} or in ${BOARD_DONE_ARCHIVE_REL}`,
+        `it names ${notDone.join(", ")}, ${notDone.length === 1 ? "which is" : "which are"} not finished: a finished ticket ` +
+          `has a row in a Done column of ${BOARD_REL} or in ${BOARD_DONE_ARCHIVE_REL}, and no row in another column of ${BOARD_REL}`,
       );
       continue;
     }

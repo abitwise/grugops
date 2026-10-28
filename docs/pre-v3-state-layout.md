@@ -206,7 +206,8 @@ ticket ID counts when it is a delimited token in the folder name, in any case (f
 `abc-104-implement` names `ABC-104`). A folder moves only when all of these hold:
 
 - it names at least one known ticket ID, and every ticket ID it names has a row in the Done column of
-  the board or in `memory-bank/plans/archive/board-done.md`;
+  the board or in `memory-bank/plans/archive/board-done.md`, and no row in another column of the board.
+  A ticket that was rolled to `board-done.md` and later reopened is live, so its folder stays;
 - no live queue entry names it: a pending entry `.grugops/queue/pending/{task}.md` or a claimed entry
   `.grugops/queue/claimed/{task}/` keeps the folder in place. A done entry in `.grugops/queue/done/`
   does not, because it is the record that the task finished;
