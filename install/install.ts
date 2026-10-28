@@ -212,6 +212,7 @@ import {
   LEGACY_HANDOFFS_REL,
   LEGACY_STATE_ROOT_REL,
   MEMORY_BANK_REL,
+  CONTEXT_REL,
   MIGRATE_STAGING_REL,
   NFR_CATALOG_REL,
   PROGRESS_REL,
@@ -6664,14 +6665,60 @@ function readMigrateInputs(): MigrateRead {
       records.set(childRel, record);
     }
   };
-  const rootKind = kindAt(rootAbs);
-  if (rootKind === "directory") walk(LEGACY_STATE_ROOT_REL);
-  else refusals.push(`${rootAbs} is ${rootKind === null ? "an entry that could not be asked about" : `a ${rootKind}`}, not a directory the state migrate can rename`);
-  const treeBefore = treeRecord(TARGET, LEGACY_STATE_ROOT_REL);
-  if (treeBefore === null) refusals.push(`${rootAbs} could not be recorded whole, so it cannot be shown unchanged before the commit`);
+  // THE ROOTS FIRST (plan 38-08, MIGRATE-04, T-38-20). Every root the migrate reads, renames or writes under is asked
+  // before anything under it is read: the pre-v3 root, MEMORY_BANK_REL (the staging directory and the v3 state root
+  // are made inside it), the progress file, and CONTEXT_REL. wayTo answers for the directories on the way (a link or a
+  // non-directory there is refused in blockedAt's words), then lstat answers for the entry itself, which must be absent
+  // or a real directory (a regular file for the progress file). A link is never followed, so no read and no rename is
+  // carried out of the target. A root on the way to another is asked first, and a later root blocked at a path already
+  // refused gets no second refusal. A refused root is not read.
+  const refusedAt = new Set<string>();
+  const rootRefused = (rel: string, want: "directory" | "regular file"): boolean => {
+    const abs = targetPath(rel);
+    const way = wayTo(TARGET, abs);
+    if (way === "absent") return false;
+    if (way !== null) {
+      if (!refusedAt.has(way.at)) refusals.push(`${blockedAt(way, abs)}; the state migrate reads and renames nothing through it`);
+      refusedAt.add(way.at);
+      return true;
+    }
+    let kind: string;
+    try {
+      const st = lstatSync(abs);
+      if (want === "directory" ? st.isDirectory() : st.isFile()) return false;
+      kind = kindAt(abs) ?? "entry that could not be asked about";
+    } catch (e) {
+      const code = errCode(e);
+      if (code === "ENOENT") return false;
+      refusals.push(`${abs} could not be asked about (${code}), so the state migrate cannot show what it would read there`);
+      refusedAt.add(abs);
+      return true;
+    }
+    refusals.push(
+      `${abs} is a ${kind}, not ${want === "directory" ? "a real directory" : "a regular file"}; the state migrate ` +
+        "follows no link and reads only regular files and directories",
+    );
+    refusedAt.add(abs);
+    return true;
+  };
+  const rootBlocked = rootRefused(LEGACY_STATE_ROOT_REL, "directory");
+  rootRefused(MEMORY_BANK_REL, "directory");
+  const progressBlocked = rootRefused(PROGRESS_REL, "regular file");
+  rootRefused(CONTEXT_REL, "directory");
+
+  if (!rootBlocked) {
+    if (kindAt(rootAbs) === "directory") walk(LEGACY_STATE_ROOT_REL);
+    else refusals.push(`${rootAbs} is not a directory the state migrate can rename`);
+  }
+  const treeBefore = rootBlocked ? null : treeRecord(TARGET, LEGACY_STATE_ROOT_REL);
+  // A walk refusal already names why the root cannot be recorded (an entry it could not read), so this one is added
+  // only when nothing else was refused: the reason is printed once.
+  if (treeBefore === null && refusals.length === 0) {
+    refusals.push(`${rootAbs} could not be recorded whole, so it cannot be shown unchanged before the commit`);
+  }
 
   const progressPath = targetPath(PROGRESS_REL);
-  const progress = readUserFile(progressPath);
+  const progress: UserFileRead = progressBlocked ? { state: "absent" } : readUserFile(progressPath);
   if (progress.state !== "ok" && progress.state !== "absent") {
     refusals.push(`${progressPath} ${unreadState(progress)}, so it cannot be shown unchanged before the commit`);
   }
@@ -6817,8 +6864,7 @@ function stateMigrateRefusals(read: MigrateRead, plan: MigratePlan): string[] {
       out.push(...plan.proof.reasons.map((r) => `the planned split of ${LEGACY_BOARD_REL} failed its proof: ${r}`));
     }
   }
-  const mb = directoryComponent(targetPath(MEMORY_BANK_REL));
-  if (mb !== "fine" && mb !== "absent") out.push(`${targetPath(MEMORY_BANK_REL)} ${mb}, so the v3 state root cannot be made inside it`);
+  // MEMORY_BANK_REL (a link or a non-directory there) is asked by readMigrateInputs with the other roots (plan 38-08).
   const root = occupiedEntry(STATE_ROOT_REL);
   if (root !== null) {
     out.push(

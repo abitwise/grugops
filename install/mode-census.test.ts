@@ -118,8 +118,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * sha256, never by mode; the faults come from the fault-injection preload).
  * 2026-10-28, plan 38-07 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 42 -> 43 for
  * migrate-v3-states.test.ts, whose one chmod pair (an access denial and its restore) is counted in TAG_KIND_COUNTS
- * below; it renders or compares no mode. */
-const INSTALL_TEST_FILE_COUNT = 43;
+ * below; it renders or compares no mode.
+ * 2026-10-28, plan 38-08 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 43 -> 44 for
+ * migrate-v3-hazards.test.ts, which has no chmod call and no expected mode (it plants links, a FIFO, an oversized file
+ * and a large tree, and compares snapshotTree manifests and printed lines). */
+const INSTALL_TEST_FILE_COUNT = 44;
 const SCRIPTS_TEST_FILE_COUNT = 80;
 const SOURCE_FILE_COUNT = 11;
 
