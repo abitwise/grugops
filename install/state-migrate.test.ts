@@ -15,7 +15,8 @@
 //   (S8) the NFR catalog and the traceability file (plan 38-04, D-05 archive half, D-06, D-09): each NFR row and its
 //        own `##` section become nfr/NFR-xxx.md, the new catalog is the kit seed plus one index line per row, the
 //        original catalog and traceability file are archived unchanged, the traceability file is the kit seed, and
-//        the proof covers the catalog.
+//        the proof covers the catalog; then the whole NFR rule (plan 38-04 Task 2): the notes residue, the header
+//        lookup by cell name, the refusals, the budgets, the proof's failure cases and the absent-file arms.
 //
 // The planner does no I/O, so these cases read the fixture once and pass its bytes in. A shape the fixture lacks
 // (CRLF, a byte-order mark, an orphan of its own, invalid UTF-8) is made here by mutating a copy of the inputs, never
@@ -49,6 +50,7 @@ import {
   BOARD_NOTES_HEADING,
   BOARD_UPDATES_TITLE,
   MIGRATE_GENERATED_LINE_KINDS,
+  NFR_NOTES_TITLE,
   ORPHAN_NOTES_TITLE,
   cutRow,
   normalizeDocument,
@@ -707,6 +709,194 @@ describe("(S8) one NFR row and its own section become nfr/NFR-xxx.md and an inde
     const trace = CHESS_PLAN.writes.find((w) => w.rel === TRACEABILITY_REL)?.bytes ?? new Uint8Array();
     expect(Buffer.from(trace).equals(Buffer.from(CHESS.seedTraceability))).toBe(true);
     expect(CHESS_PLAN.writes.some((w) => w.rel === PRE_V3_NFR_NOTES_REL), "the notes file is planned").toBe(true);
+  });
+});
+
+describe("(S8) the whole NFR rule: notes residue, header lookup, refusals, budgets and proof failures (plan 38-04 Task 2)", () => {
+  const CATALOG_TEXT = dec.decode(legacyBytes(CHESS, LEGACY_NFR_CATALOG_REL));
+  const lines = catalogLines();
+  const headerAt = lines.findIndex((l) => l.startsWith("| ID |"));
+  const nfrFiles = (plan: MigratePlan): string[] => plan.writes.filter((w) => w.rel.startsWith(`${NFR_DIR_REL}/`)).map((w) => w.rel);
+  const withCatalog = (text: string, base: MigrateInputs = CHESS): MigrateInputs => withFile(base, LEGACY_NFR_CATALOG_REL, enc.encode(text));
+  /** `lines` with `block` inserted before the zero-based line `at`, joined with LF and one final LF. */
+  const inserted = (at: number, block: readonly string[]): string => [...lines.slice(0, at), ...block, ...lines.slice(at)].join("\n") + "\n";
+  /** A small catalog: a title, the given header and rows, then the given tail. */
+  const small = (header: string, rows: readonly string[], tail: readonly string[] = []): string =>
+    ["# NFR Catalog", "", header, header.replace(/[^|]+/g, "---"), ...rows, "", ...tail].join("\n") + "\n";
+
+  it("PREMISE: the fixture catalog's lines end with LF and no table line touches a comment", () => {
+    expect(CATALOG_TEXT.endsWith("\n")).toBe(true);
+    expect(CATALOG_TEXT.includes("\r")).toBe(false);
+    expect(headerAt).toBeGreaterThan(0);
+  });
+
+  it("NFR notes: a section naming no NFR ID and a section naming two IDs go to the notes file verbatim, in catalog order", () => {
+    const none = catalogSection(lines, "## `RISK-003`");
+    const two = catalogSection(lines, "## `NFR-003` AND `NFR-006`");
+    const notes = writeText(CHESS_PLAN, PRE_V3_NFR_NOTES_REL).split("\n");
+    const a = notes.indexOf(none[0] as string);
+    const b = notes.indexOf(two[0] as string);
+    expect(a, "the no-ID section is in the notes file").toBeGreaterThan(0);
+    expect(b, "the two-ID section comes later in the notes file").toBeGreaterThan(a);
+    expect(notes.slice(a, a + none.length)).toEqual(none);
+    expect(notes.slice(b, b + two.length)).toEqual(two);
+    for (const rel of nfrFiles(CHESS_PLAN)) {
+      const file = writeText(CHESS_PLAN, rel).split("\n");
+      expect(file, rel).not.toContain(none[0]);
+      expect(file, rel).not.toContain(two[0]);
+    }
+  });
+
+  it("NFR notes: the notes file holds its title and provenance line, then the title, `_Updated:` lines, comment block, header and separator, verbatim and in order", () => {
+    const notes = writeText(CHESS_PLAN, PRE_V3_NFR_NOTES_REL).split("\n");
+    expect(notes[0]).toBe(NFR_NOTES_TITLE);
+    expect(notes[2]).toBe(provenanceLine(null, DATE, "nfr-catalog"));
+    expect(notes[2]).toContain(LEGACY_NFR_CATALOG_REL);
+    expect(notes.slice(4, 4 + headerAt + 2)).toEqual(lines.slice(0, headerAt + 2));
+    expect(lines.slice(0, headerAt).some((l) => l.startsWith("_Updated:"))).toBe(true);
+    expect(lines.slice(0, headerAt).some((l) => l.startsWith("<!--"))).toBe(true);
+  });
+
+  it("NFR: a `###` heading inside a one-ID section stays in that NFR's file, and no line of it is in the notes file", () => {
+    const at = lines.findIndex((l) => l.startsWith("## `NFR-003` NO LONGER NAMES")) + 1;
+    const plan = planStateMigrate(withCatalog(inserted(at, ["", "### A sub-part of the NFR-003 section", "", "Its own sub-part text."])));
+    expect(plan.refusals).toEqual([]);
+    const file = writeText(plan, `${NFR_DIR_REL}/NFR-003.md`).split("\n");
+    expect(file).toContain("### A sub-part of the NFR-003 section");
+    expect(file).toContain("Its own sub-part text.");
+    expect(writeText(plan, PRE_V3_NFR_NOTES_REL).split("\n")).not.toContain("Its own sub-part text.");
+    expect(plan.proof).toEqual({ ok: true });
+  });
+
+  it("NFR: a commented example row is no row: no NFR file is planned for it and the commented lines go to the notes file verbatim", () => {
+    const block = ["<!--", "| ID | Category | Target |", "|---|---|---|", "| NFR-099 | Example | not a live row |", "-->", ""];
+    const plan = planStateMigrate(withCatalog(inserted(headerAt, block)));
+    expect(plan.refusals).toEqual([]);
+    expect(nfrFiles(plan)).not.toContain(`${NFR_DIR_REL}/NFR-099.md`);
+    expect(nfrFiles(plan).length).toBe(CHESS_PLAN.writes.filter((w) => w.rel.startsWith(`${NFR_DIR_REL}/`)).length);
+    const notes = writeText(plan, PRE_V3_NFR_NOTES_REL).split("\n");
+    const at = notes.indexOf("| NFR-099 | Example | not a live row |");
+    expect(notes.slice(at - 3, at + 2)).toEqual(block.slice(0, 5));
+    expect(writeText(plan, NFR_CATALOG_REL)).not.toContain("NFR-099");
+    expect(plan.proof).toEqual({ ok: true });
+  });
+
+  it("NFR: a header with Target before Category gives index lines with the right cells, read by header name", () => {
+    const text = small("| ID | Target | Applies to | category |", ["| NFR-001 | p95 < 300 ms | reads | Performance |", "| NFR-002 | <= 1 MB | book | Cost |"]);
+    const plan = planStateMigrate(withCatalog(text));
+    expect(plan.refusals).toEqual([]);
+    const index = writeText(plan, NFR_CATALOG_REL).split("\n").filter((l) => l.startsWith("- [NFR-"));
+    expect(index).toEqual(["- [NFR-001](nfr/NFR-001.md) Performance: p95 < 300 ms", "- [NFR-002](nfr/NFR-002.md) Cost: <= 1 MB"]);
+    expect(plan.proof).toEqual({ ok: true });
+  });
+
+  it("NFR: a cell holding an escaped pipe keeps it verbatim in the index line", () => {
+    const text = small("| ID | Category | Target |", ["| NFR-001 | Perf \\| speed | `a \\| b` under 2 s |"]);
+    const plan = planStateMigrate(withCatalog(text));
+    expect(plan.refusals).toEqual([]);
+    expect(writeText(plan, NFR_CATALOG_REL).split("\n")).toContain("- [NFR-001](nfr/NFR-001.md) Perf \\| speed: `a \\| b` under 2 s");
+    expect(plan.proof).toEqual({ ok: true });
+  });
+
+  it("NFR refusal: a table header with no cell named Category is refused naming the file and the line, and nothing is planned", () => {
+    const plan = planStateMigrate(withCatalog(small("| ID | Kind | Target |", ["| NFR-001 | Perf | fast |"])));
+    expect(plan.refusals.some((r) => r.includes(LEGACY_NFR_CATALOG_REL) && r.includes("line 3") && r.includes("Category")), plan.refusals.join("\n")).toBe(true);
+    expect(plan.writes).toEqual([]);
+    expect(plan.archiveMoves).toEqual([]);
+  });
+
+  it("NFR refusal: a table header with no cell named Target is refused naming the file and the line", () => {
+    const plan = planStateMigrate(withCatalog(small("| ID | Category | Goal |", ["| NFR-001 | Perf | fast |"])));
+    expect(plan.refusals.some((r) => r.includes(LEGACY_NFR_CATALOG_REL) && r.includes("line 3") && r.includes("Target")), plan.refusals.join("\n")).toBe(true);
+    expect(plan.writes).toEqual([]);
+  });
+
+  it("NFR refusal: two table rows with one NFR ID are refused, both lines named", () => {
+    const plan = planStateMigrate(withCatalog(small("| ID | Category | Target |", ["| NFR-001 | Perf | fast |", "| NFR-002 | Cost | small |", "| NFR-001 | Perf | faster |"])));
+    expect(
+      plan.refusals.some((r) => r.includes(LEGACY_NFR_CATALOG_REL) && r.includes("NFR-001") && r.includes("lines 5 and 7")),
+      plan.refusals.join("\n"),
+    ).toBe(true);
+    expect(plan.writes).toEqual([]);
+  });
+
+  it("NFR refusal: a planned NFR file whose path already exists in the pre-v3 tree is refused by name", () => {
+    const existing = `${LEGACY_STATE_ROOT_REL}/nfr/NFR-001.md`;
+    const plan = planStateMigrate(withFile(CHESS, existing, enc.encode("# NFR-001\n")));
+    expect(plan.refusals.some((r) => r.includes(existing) && r.includes(`${NFR_DIR_REL}/NFR-001.md`)), plan.refusals.join("\n")).toBe(true);
+    expect(plan.writes).toEqual([]);
+  });
+
+  it("NFR refusal: a catalog that is not valid UTF-8, or mixes LF and CRLF, is refused by name", () => {
+    const bad = planStateMigrate(withFile(CHESS, LEGACY_NFR_CATALOG_REL, new Uint8Array([0x23, 0x20, 0xff, 0x0a])));
+    expect(bad.refusals.some((r) => r.includes(LEGACY_NFR_CATALOG_REL) && r.includes("UTF-8")), bad.refusals.join("\n")).toBe(true);
+    const mixed = planStateMigrate(withCatalog(CATALOG_TEXT.replace("\n", "\r\n")));
+    expect(mixed.refusals.some((r) => r.includes(LEGACY_NFR_CATALOG_REL) && r.includes("mixes LF and CRLF")), mixed.refusals.join("\n")).toBe(true);
+    expect(mixed.writes).toEqual([]);
+  });
+
+  it("NFR budgets: overBudget names every index line over BUDGETS.indexEntryBytes and every NFR file over BUDGETS.nfrBytes; no index line is shortened", () => {
+    const catalog = writeText(CHESS_PLAN, NFR_CATALOG_REL).split("\n");
+    const long = catalog.flatMap((l, i) => (l.startsWith("- [NFR-") && enc.encode(l).length > BUDGETS.indexEntryBytes ? [[NFR_CATALOG_REL, i + 1, enc.encode(l).length]] : []));
+    expect(long.length, "PREMISE: the fixture gives index lines over the index budget").toBeGreaterThan(0);
+    expect(CHESS_PLAN.overBudget.filter((f) => f.key === "indexEntryBytes").map((f) => [f.rel, f.line, f.measured])).toEqual(long);
+    const big = CHESS_PLAN.writes
+      .filter((w) => w.rel.startsWith(`${NFR_DIR_REL}/`) && w.bytes.length > BUDGETS.nfrBytes)
+      .map((w) => [w.rel, w.bytes.length]);
+    expect(big.length, "PREMISE: the fixture gives NFR files over the NFR budget").toBeGreaterThan(0);
+    expect(CHESS_PLAN.overBudget.filter((f) => f.key === "nfrBytes").map((f) => [f.rel, f.measured])).toEqual(big);
+    expect(CHESS_PLAN.overBudget).toEqual(sortFindings(CHESS_PLAN.overBudget));
+    const rows = lines.filter((l) => /^\| NFR-[0-9]+ \|/.test(l));
+    for (const r of rows) {
+      const c = cellsOf(r);
+      expect(catalog, c[0]).toContain(`- [${c[0]}](nfr/${c[0]}.md) ${c[1]}: ${c[2]}`);
+    }
+  });
+
+  it("NFR proof: a dropped section is named by its catalog line", () => {
+    const heading = lines.find((l) => l.startsWith("## `NFR-005` IS MEASURED")) as string;
+    const out = editWritten(writesOf(CHESS_PLAN), `${NFR_DIR_REL}/NFR-005.md`, (t) => t.split("\n").filter((l) => l !== heading).join("\n"));
+    const r = reasonsOf(proveStateMigrate(CHESS, CHESS_PLAN, out));
+    expect(r).toContain(`line ${lines.indexOf(heading) + 1} of the pre-v3 NFR catalog ${LEGACY_NFR_CATALOG_REL} is in no split output: "${heading.slice(0, 120)}…"`);
+  });
+
+  it("NFR proof: a row duplicated into a second NFR file is named in that file", () => {
+    const row = lines.find((l) => l.startsWith("| NFR-006 |")) as string;
+    const rel = `${NFR_DIR_REL}/NFR-002.md`;
+    const out = editWritten(writesOf(CHESS_PLAN), rel, (t) => `${t}${row}\n`);
+    const n = dec.decode(out.get(rel) as Uint8Array).split("\n").length - 1;
+    const r = reasonsOf(proveStateMigrate(CHESS, CHESS_PLAN, out));
+    expect(r.some((x) => x.startsWith(`line ${n} of ${rel} is not a line of the pre-v3 NFR catalog ${LEGACY_NFR_CATALOG_REL}`)), r.join("\n")).toBe(true);
+  });
+
+  it("NFR proof: a header copy that differs from the original header is named by its file and line", () => {
+    const rel = `${NFR_DIR_REL}/NFR-001.md`;
+    const out = editWritten(writesOf(CHESS_PLAN), rel, (t) => t.replace("| ID | Category |", "| ID | Kategory |"));
+    const r = reasonsOf(proveStateMigrate(CHESS, CHESS_PLAN, out));
+    expect(r.some((x) => x.startsWith(`line 1 of ${rel} is declared generated (nfr-table-header-copy)`)), r.join("\n")).toBe(true);
+  });
+
+  it("NFR proof: an index line declared over an original line fails, naming the file and line", () => {
+    const forged: MigratePlan = {
+      ...CHESS_PLAN,
+      generated: [...CHESS_PLAN.generated, { rel: PRE_V3_NFR_NOTES_REL, line: 5, kind: "nfr-index-line", boardLine: null, id: "NFR-001" }],
+    };
+    const r = reasonsOf(proveStateMigrate(CHESS, forged, writesOf(CHESS_PLAN)));
+    expect(r.some((x) => x.startsWith(`line 5 of ${PRE_V3_NFR_NOTES_REL} is declared generated (nfr-index-line)`)), r.join("\n")).toBe(true);
+  });
+
+  it("NFR absent: a pre-v3 tree with no catalog plans no NFR write and no notes file; one with no traceability file plans no trace move", () => {
+    const noCatalog = { ...CHESS, legacy: CHESS.legacy.filter((f) => f.rel !== LEGACY_NFR_CATALOG_REL) };
+    const a = planStateMigrate(noCatalog);
+    expect(a.refusals).toEqual([]);
+    expect(a.writes.filter((w) => w.rel.startsWith(`${NFR_DIR_REL}/`) || w.rel === PRE_V3_NFR_NOTES_REL || w.rel === NFR_CATALOG_REL)).toEqual([]);
+    expect(a.archiveMoves.some((m) => m.to === PRE_V3_NFR_CATALOG_REL)).toBe(false);
+    expect(a.proof).toEqual({ ok: true });
+    const noTrace = { ...CHESS, legacy: CHESS.legacy.filter((f) => f.rel !== LEGACY_TRACEABILITY_REL) };
+    const b = planStateMigrate(noTrace);
+    expect(b.archiveMoves.some((m) => m.to === PRE_V3_TRACEABILITY_REL)).toBe(false);
+    expect(b.writes.some((w) => w.rel === TRACEABILITY_REL)).toBe(false);
+    expect(b.proof).toEqual({ ok: true });
   });
 });
 
