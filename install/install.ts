@@ -6828,16 +6828,25 @@ function stateMigrateRefusals(read: MigrateRead, plan: MigratePlan): string[] {
   }
   const claim = claimedQueueRefusal();
   if (claim !== null) out.push(claim);
-  const staging = occupiedEntry(MIGRATE_STAGING_REL);
-  if (staging !== null) {
-    out.push(
-      `${staging}: another --migrate is running here, or one was interrupted. Its renames, if it got that far, are listed ` +
-        `in ${join(targetPath(MIGRATE_STAGING_REL), MIGRATE_COMMIT_PLAN_NAME)}. Once no migrate is running, put back what ` +
-        "that list moved and move the staging directory aside",
-    );
-  }
+  const staging = stagingRefusal();
+  if (staging !== null) out.push(staging);
   return out;
 }
+
+// stagingRefusal: an entry at MIGRATE_STAGING_REL means another --migrate is running here, or one was interrupted. Plan
+// 38-07 (MIGRATE-01): asked on every state layout, not only a pre-v3 one, because a migrate interrupted after its first
+// commit rename leaves the state looking current (or both) while its staging directory and commit plan remain; such a
+// run is refused, never answered "already on the v3 layout". Nothing here writes.
+function stagingRefusal(): string | null {
+  const staging = occupiedEntry(MIGRATE_STAGING_REL);
+  if (staging === null) return null;
+  return (
+    `${staging}: another --migrate is running here, or one was interrupted. Its renames, if it got that far, are listed ` +
+    `in ${join(targetPath(MIGRATE_STAGING_REL), MIGRATE_COMMIT_PLAN_NAME)}. Once no migrate is running, put back what ` +
+    "that list moved and move the staging directory aside"
+  );
+}
+
 /** One entry of the commit journal: a directory this run made, or a rename it made. */
 type MigrateJournalEntry =
   | { readonly kind: "mkdir"; readonly path: string }
@@ -7340,8 +7349,10 @@ if (MIGRATE) {
   // continues into the install run, which refreshes the kit and the runnables to read the new layout.
   const state = stateLayout();
   const v3State = state === "pre-v3";
-  // Plan 38-07 (MIGRATE-04): a both or an unreadable state layout is refused on every kit arm, in the same pre-check.
-  const layoutRefusal = migrateLayoutRefusal(state);
+  // Plan 38-07 (MIGRATE-04, MIGRATE-01): a both or an unreadable state layout, and on a layout the v3 arm does not move a
+  // staging directory left by another migrate, are refused on every kit arm, in the same pre-check. (When the v3 arm
+  // runs, stateMigrateRefusals asks for the staging directory itself.)
+  const layoutRefusal = migrateLayoutRefusal(state) ?? (v3State ? null : stagingRefusal());
   if (layout.isOldLayout || v3State || layoutRefusal !== null) {
     const refusals: string[] = [];
     if (layoutRefusal !== null) refusals.push(layoutRefusal);
