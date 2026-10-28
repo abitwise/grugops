@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-09-PLAN.md
-last_updated: "2026-10-28T16:38:38.100Z"
+stopped_at: Completed 38-10-PLAN.md
+last_updated: "2026-10-28T17:37:35.179Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: c58d6c58b78e77c28a6031165db7a6fa7e1a440c
+state_head: f9facc63dfdb5871f3f84bfb4782884a7d953922
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 66
+  completed_plans: 67
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 10 of 11
+Plan: 11 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -781,6 +781,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P07 | 55 min | 2 tasks | 8 files |
 | Phase 38 P08 | 44 min | 2 tasks | 7 files |
 | Phase 38 P09 | 49 min | 2 tasks | 10 files |
+| Phase 38 P10 | 50 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -2144,6 +2145,8 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-08: the plain-install staging refusal says put back what commit-plan.txt lists, remove the directory, then run --migrate (running --migrate with it still there would refuse)
 - [Phase 38]: 38-09: --dry-run is the argument spelling of DRY_RUN=1 for every install.js mode (a closing-claims modifier row); the --migrate preview is migrateListing(plan), a pure function whose lines install.ts prints unchanged, in commit order with paths in code-unit order
 - [Phase 38]: 38-09: whole-stdout determinism of two dry runs is asserted with the adapter render's per-run mkdtemp name replaced; the state migrate section is compared exactly
+- [Phase 38]: D-22 (human, option-a): pending and claimed queue entries keep a finished ticket's context folder in place; a done entry does not
+- [Phase 38]: --archive-done-context matches folders by name only against known IDs (board rows, Done archive rows, ticket file leading IDs); moves are journaled with the migrate commit after the post-commit proof and before the render; on a marked v3 layout it runs alone with no render and no marker
 
 ### Pending Todos
 
@@ -2476,8 +2479,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T16:38:37.589Z
-Stopped at: Completed 38-09-PLAN.md
+Last session: 2026-10-28T17:37:34.650Z
+Stopped at: Completed 38-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
