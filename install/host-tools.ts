@@ -641,8 +641,11 @@ export function scriptCommand(binary: "install.js" | "uninstall.js", ctx: Comman
   return [home, mode, src, "node", script].join(" ");
 }
 
-/** The install.js modes a printed command may carry after its agent flags (D-33). */
-export type CommandMode = "--check" | "--migrate" | "--prune-old-kit";
+/**
+ * The install.js modes a printed command may carry after its agent flags (D-33), and `--archive-done-context`, the one
+ * modifier a printed --migrate command carries after its mode when the run was given it.
+ */
+export type CommandMode = "--check" | "--migrate" | "--prune-old-kit" | "--archive-done-context";
 
 /**
  * agentCommand (phase 34.1, D-26, D-33; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names agents.

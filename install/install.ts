@@ -653,10 +653,15 @@ function doctorCheckCommand(): string {
  * `agents` (plan 34.1-61, 2026-10-17, D-47, WR-43): the handoffs backup's abort and the migrate arms pass SELECTION; the
  * pre-write refusal of a --migrate run passes only the agents the user named (by flag or at the agent list), and none
  * otherwise, which gives the --migrate command with no agent flag. It takes them as a parameter and reads no selection
- * const, so it may run from inside the selection (refuseSelection).
+ * const, so it may run from inside the selection (refuseSelection). It reads one argv flag, ARCHIVE_DONE_CONTEXT, which
+ * the argument parse assigns before any caller runs: a run given `--archive-done-context` prints it after `--migrate`,
+ * so the command run as printed archives the context folders too.
  */
 function migrateCommand(agents: readonly HostTool[]): string {
-  return agentCommand("install.js", TARGET, agents, COMMAND_CONTEXT, ["--migrate"]);
+  return agentCommand("install.js", TARGET, agents, COMMAND_CONTEXT, [
+    "--migrate",
+    ...(ARCHIVE_DONE_CONTEXT ? (["--archive-done-context"] as const) : []),
+  ]);
 }
 
 // DOCTOR_NO_FLAG_CLAUSE: what install does with no agent flag, printed after doctorInstallCommand() by the remedies

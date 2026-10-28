@@ -156,6 +156,12 @@ describe("install --migrate --archive-done-context: the context archive (plan 38
     const verifies = labelled(r.stdout, "verify");
     expect(verifies.filter((l) => lineNamesPath(l, at(w.target, QUEUE_CLAIMED_REL))), r.stdout).toHaveLength(1);
     expect(snapshotTree(w.target), "nothing was written").toBe(before);
+    // The re-run command the banner prints keeps the flag this run was given, so running it as printed archives too.
+    const lines = r.stdout.split("\n");
+    const banner = lines.findIndex((l) => l.startsWith("== migrate INCOMPLETE — "));
+    expect(banner, r.stdout).toBeGreaterThan(-1);
+    const again = /`([^`]*)`/.exec(lines[banner + 1] ?? "")?.[1] ?? "";
+    expect(again.split(" ").slice(-2), lines[banner + 1]).toEqual(["--migrate", "--archive-done-context"]);
   });
 
   it("(C3) a failed render with the flag undoes the folder moves: exit 3, CONTEXT_REL unchanged, no archive root, no marker", () => {
