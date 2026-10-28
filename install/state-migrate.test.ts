@@ -23,11 +23,14 @@
 // by editing the fixture (D-15). Clear professional voice: this module guards the first grugops operation that
 // rewrites user state.
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import ts from "typescript";
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import {
+  BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
   BUDGETS,
   LEGACY_BOARD_REL,
@@ -41,6 +44,7 @@ import {
   PRE_V3_ORPHAN_NOTES_REL,
   PRE_V3_TICKETS_REL,
   PRE_V3_TRACEABILITY_REL,
+  PROGRESS_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
   TRACEABILITY_REL,
@@ -53,6 +57,7 @@ import {
   NFR_NOTES_TITLE,
   ORPHAN_NOTES_TITLE,
   cutRow,
+  doneArchiveSkeleton,
   normalizeDocument,
   parseBoard,
   sortFindings,
@@ -616,9 +621,12 @@ describe("(S7) determinism and the closed generated-line set", () => {
       "nfr-table-separator-copy",
       "nfr-index-line",
       "kit-seed-line",
+      "done-archive-skeleton",
     ]);
     expect(Object.isFrozen(MIGRATE_GENERATED_LINE_KINDS)).toBe(true);
-    const kinds = new Set(CHESS_PLAN.generated.map((g) => g.kind));
+    // Plan 38-05 (D-08): the frozen fixture's Done column is within BUDGETS.doneRows, so the roll kinds come from the
+    // rolling variant of the fixture (S9), whose plan generates every kind the fixture's does.
+    const kinds = new Set([...CHESS_PLAN.generated, ...rollingPlan().generated].map((g) => g.kind));
     for (const k of MIGRATE_GENERATED_LINE_KINDS) expect(kinds, k).toContain(k);
   });
 });
@@ -913,3 +921,146 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
   return out;
 }
 
+
+// ── (S9) the Done roll inside the migrate plan (plan 38-05, D-08, D-09) ─────────────────────────────────────────
+
+const STATE_ROLL_JS = join(ROOT, "scripts", "runnable-ref", "state-roll.js");
+const ROLL_SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-state-migrate-roll-")));
+afterAll(() => rmSync(ROLL_SCRATCH, { recursive: true, force: true }));
+let rollSeq = 0;
+
+/**
+ * The fixture board with `n` rows added at the top of its Done column (newest first). The frozen fixture's Done
+ * column holds 18 ticket rows (its six epic rows are not ticket rows), within BUDGETS.doneRows, so a roll needs more:
+ * a shape the copy lacks is made here by mutating the inputs, never the fixture (D-15). Each added row ends with its
+ * parenthetical, so it has no trailer to cut.
+ */
+function withDoneRows(text: string, n: number): string {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("## Done "));
+  if (at < 0) throw new Error("PREMISE: the board has a Done column");
+  const added = Array.from({ length: n }, (_, k) => `- [ABC-${900 + k}] A Done row added for the roll test ${k}  (merged: 2026-10-2${k})`);
+  return [...lines.slice(0, at + 1), ...added, ...lines.slice(at + 1)].join("\n");
+}
+
+/** The number of ticket rows under the Done column of `text`. */
+function doneRowCount(text: string): number {
+  return parseBoard(text)
+    .columns.filter((c) => c.name === "Done")
+    .reduce((n, c) => n + c.rows.length, 0);
+}
+
+/** The fixture inputs with five Done rows added, and their plan (computed once). */
+let ROLLING: { inputs: MigrateInputs; plan: MigratePlan } | null = null;
+function rolling(): { inputs: MigrateInputs; plan: MigratePlan } {
+  if (ROLLING === null) {
+    const inputs = withBoard(withDoneRows(BOARD_TEXT, 5));
+    ROLLING = { inputs, plan: planStateMigrate(inputs) };
+  }
+  return ROLLING;
+}
+function rollingPlan(): MigratePlan {
+  return rolling().plan;
+}
+
+/**
+ * Run the committed state-roll.js on a scratch v3 tree holding `board` at BOARD_REL and `progress` (when not null) at
+ * PROGRESS_REL, and return the files it leaves at BOARD_REL, BOARD_DONE_ARCHIVE_REL, PROGRESS_REL and
+ * PROGRESS_ARCHIVE_REL (null when absent), with its exit status and output.
+ */
+function stateRoll(board: Uint8Array, progress: Uint8Array | null, rels: readonly string[]): {
+  status: number | null;
+  out: string;
+  files: Map<string, Buffer | null>;
+} {
+  const root = join(ROLL_SCRATCH, `r${++rollSeq}`);
+  const put = (rel: string, bytes: Uint8Array): void => {
+    const p = join(root, ...rel.split("/"));
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, bytes);
+  };
+  put(BOARD_REL, board);
+  if (progress !== null) put(PROGRESS_REL, progress);
+  const r = spawnSync(process.execPath, [STATE_ROLL_JS, root], { encoding: "utf8", timeout: 60_000 });
+  const files = new Map<string, Buffer | null>();
+  for (const rel of rels) {
+    try {
+      files.set(rel, readFileSync(join(root, ...rel.split("/"))));
+    } catch {
+      files.set(rel, null);
+    }
+  }
+  rmSync(root, { recursive: true, force: true });
+  return { status: r.status, out: `${r.stdout}\n${r.stderr}`, files };
+}
+
+/** The bytes of one planned write, or null when the plan does not write `rel`. */
+function writeBytes(plan: MigratePlan, rel: string): Buffer | null {
+  const w = plan.writes.find((x) => x.rel === rel);
+  return w === undefined ? null : Buffer.from(w.bytes);
+}
+
+describe("(S9) the Done roll runs inside the migrate plan, with the embedded state rules (plan 38-05 tracer)", () => {
+  it("PREMISE: the frozen fixture's Done column holds BUDGETS.doneRows or fewer ticket rows; the rolling variant holds more", () => {
+    expect(doneRowCount(writeText(CHESS_PLAN, BOARD_REL))).toBeLessThanOrEqual(BUDGETS.doneRows);
+    expect(doneRowCount(dec.decode(rollingPlan().beforeRoll ?? new Uint8Array()))).toBeGreaterThan(BUDGETS.doneRows);
+    expect(rollingPlan().refusals).toEqual([]);
+  });
+
+  it("the frozen fixture's plan rolls nothing: no Done archive is written and the board is the split board", () => {
+    expect(writeBytes(CHESS_PLAN, BOARD_DONE_ARCHIVE_REL)).toBeNull();
+    expect(Buffer.from(CHESS_PLAN.beforeRoll ?? []).equals(writeBytes(CHESS_PLAN, BOARD_REL) ?? Buffer.alloc(1))).toBe(true);
+  });
+
+  it("the rolling plan's board keeps BUDGETS.doneRows Done rows, and the older rows sit in BOARD_DONE_ARCHIVE_REL under its one heading", () => {
+    const plan = rollingPlan();
+    const board = writeText(plan, BOARD_REL);
+    expect(doneRowCount(board)).toBe(BUDGETS.doneRows);
+    const archive = writeText(plan, BOARD_DONE_ARCHIVE_REL);
+    const before = dec.decode(plan.beforeRoll ?? new Uint8Array());
+    const moved = doneRowCount(before) - BUDGETS.doneRows;
+    expect(archive.split("\n")[0]).toBe(doneArchiveSkeleton([]).replace(/\n$/, ""));
+    expect(parseBoard(archive).columns.flatMap((c) => c.rows)).toHaveLength(moved);
+    expect(plan.steps.some((s) => s.verb === "write" && s.to === BOARD_DONE_ARCHIVE_REL && s.note.includes(`${moved} Done row(s)`))).toBe(true);
+  });
+
+  it("parity: the planned board and Done archive equal what the committed state-roll.js writes over the split board", () => {
+    const plan = rollingPlan();
+    expect(plan.beforeRoll, "the plan keeps the split board before the roll").toBeInstanceOf(Uint8Array);
+    const r = stateRoll(plan.beforeRoll as Uint8Array, rolling().inputs.progress, [BOARD_REL, BOARD_DONE_ARCHIVE_REL]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.files.get(BOARD_REL)?.equals(writeBytes(plan, BOARD_REL) ?? Buffer.alloc(0)), "the board").toBe(true);
+    expect(r.files.get(BOARD_DONE_ARCHIVE_REL)?.equals(writeBytes(plan, BOARD_DONE_ARCHIVE_REL) ?? Buffer.alloc(0)), "the Done archive").toBe(true);
+  });
+
+  it("the proof covers the rolled board: the skeleton line is declared by position, a cut row rolled to the archive rejoins there, and the plan proves", () => {
+    const plan = rollingPlan();
+    expect(plan.generated).toContainEqual({ rel: BOARD_DONE_ARCHIVE_REL, line: 1, kind: "done-archive-skeleton", boardLine: null, id: null });
+    const rolledCut = plan.cuts.find((c) => c.keptRel === BOARD_DONE_ARCHIVE_REL);
+    expect(rolledCut, "PREMISE: a cut row is among the rolled rows").toBeDefined();
+    const archive = writeText(plan, BOARD_DONE_ARCHIVE_REL).split("\n");
+    const note = writeText(plan, (rolledCut as { noteRel: string }).noteRel).split("\n");
+    const c = rolledCut as { keptLine: number; noteLine: number; boardLine: number };
+    const original = dec.decode(legacyBytes(rolling().inputs, LEGACY_BOARD_REL)).split("\n")[c.boardLine - 1];
+    expect((archive[c.keptLine - 1] as string) + (note[c.noteLine - 1] as string)).toBe(original);
+    expect(plan.proof).toEqual({ ok: true });
+    expect(proveStateMigrate(rolling().inputs, plan, writesOf(plan))).toEqual({ ok: true });
+  });
+
+  it("proof: a rolled Done row dropped from the archive is named by its pre-v3 board line", () => {
+    const plan = rollingPlan();
+    const archive = writeText(plan, BOARD_DONE_ARCHIVE_REL).split("\n");
+    const n = archive.findIndex((l, i) => i > 0 && l.startsWith("- [") && !plan.cuts.some((c) => c.keptRel === BOARD_DONE_ARCHIVE_REL && c.keptLine === i + 1)) + 1;
+    expect(n, "PREMISE: an uncut rolled row").toBeGreaterThan(1);
+    const reasons = reasonsOf(proveStateMigrate(rolling().inputs, plan, editWritten(writesOf(plan), BOARD_DONE_ARCHIVE_REL, (t) => dropLine(t, n))));
+    expect(reasons.some((r) => r.includes(LEGACY_BOARD_REL) && r.includes("is in no split output")), reasons.join("\n")).toBe(true);
+  });
+
+  it("proof: an altered Done archive heading is named by its file and line", () => {
+    const plan = rollingPlan();
+    const reasons = reasonsOf(
+      proveStateMigrate(rolling().inputs, plan, editWritten(writesOf(plan), BOARD_DONE_ARCHIVE_REL, (t) => t.replace("## Done (WIP unlimited)", "## Done (WIP 0/9)"))),
+    );
+    expect(reasons.some((r) => r.includes(`line 1 of ${BOARD_DONE_ARCHIVE_REL}`) && r.includes("done-archive-skeleton")), reasons.join("\n")).toBe(true);
+  });
+});

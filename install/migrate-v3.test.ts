@@ -35,6 +35,12 @@
 //        parseNfrIndex over the comment-blanked new catalog gives exactly one entry per NFR file and no malformed
 //        line; the catalog and the traceability file sit unchanged in the pre-v3 archive; TRACEABILITY_REL holds the
 //        kit seed's bytes; and the kit-source state-check.js --json reports no NFR index or NFR file finding.
+// Plan 38-05 (D-08, D-09) adds the Done and progress rolls inside the plan. The frozen fixture's Done column holds 18
+// ticket rows (within BUDGETS.doneRows) and its progress file holds no dated entry, so each roll case adds the shape it
+// needs to the materialized fixture:
+//   (M6) with five Done rows added at the top of the Done column, --migrate writes BOARD_DONE_ARCHIVE_REL, the board
+//        keeps BUDGETS.doneRows Done rows, and the kit-source state-roll.js --dry-run on the migrated target exits 0
+//        and says nothing would move for the Done column.
 //
 // THE INSTALLED WORLD. The doctor refuses a repository with no install marker before it reads the layout ("grugops not
 // installed", one FAIL), so (F2) needs what the copy itself is: a repository a v2.x grugops install already serves,
@@ -55,7 +61,9 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
+  BUDGETS,
   CONTEXT_REL,
   LAYOUT_MARKER_REL,
   LEGACY_BOARD_REL,
@@ -317,5 +325,36 @@ describe("install --migrate v3 (phase 38)", () => {
     expect([0, 1], `${check.stdout}\n${check.stderr}`).toContain(check.status);
     const doc = JSON.parse(check.stdout) as { findings: { key: string; rel: string }[] };
     expect(doc.findings.filter((f) => f.key.startsWith("nfr-"))).toEqual([]);
+  });
+
+  it("(M6) --migrate rolls the Done column with the state rules: BOARD_DONE_ARCHIVE_REL holds the older rows and state-roll --dry-run moves nothing more", () => {
+    const { target, kitHome, home } = emptyWorld();
+    makePreV3ChessFixture(target);
+    const boardPath = join(target, LEGACY_BOARD_REL);
+    const lines = readFileSync(boardPath, "utf8").split("\n");
+    const at = lines.findIndex((l) => l.startsWith("## Done "));
+    expect(at, "PREMISE: the fixture board has a Done column").toBeGreaterThan(-1);
+    const added = Array.from({ length: 5 }, (_, k) => `- [ABC-${900 + k}] A Done row added for the roll case ${k}  (merged: 2026-10-2${k})`);
+    writeFileSync(boardPath, [...lines.slice(0, at + 1), ...added, ...lines.slice(at + 1)].join("\n"));
+    const r = runInstall(target, kitHome, ["--migrate"], { home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
+    expect(existsSync(join(target, BOARD_DONE_ARCHIVE_REL)), "the Done archive is written").toBe(true);
+    const doneRows = (text: string): number => {
+      const ls = text.split("\n");
+      const start = ls.findIndex((l) => l.startsWith("## Done "));
+      const end = ls.findIndex((l, i) => i > start && l.startsWith("## "));
+      return ls.slice(start + 1, end < 0 ? undefined : end).filter((l) => /^- \[ABC-[0-9]+\] /.test(l)).length;
+    };
+    expect(doneRows(readFileSync(join(target, BOARD_REL), "utf8"))).toBe(BUDGETS.doneRows);
+    const roll = spawnSync(process.execPath, [join(import.meta.dirname, "..", "scripts", "runnable-ref", "state-roll.js"), target, "--dry-run"], {
+      encoding: "utf8",
+      timeout: 120_000,
+    });
+    expect(roll.error).toBeUndefined();
+    expect(roll.status, `${roll.stdout}\n${roll.stderr}`).toBe(0);
+    expect(roll.stdout).toContain(`Nothing to roll: the Done column of ${BOARD_REL} holds ${BUDGETS.doneRows} row(s)`);
+    expect(roll.stdout).not.toContain("PLAN    done");
   });
 });
