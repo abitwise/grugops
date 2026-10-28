@@ -44,6 +44,15 @@
 //   (M7) with three dated `## YYYY-MM-DD` entries added to the progress file, --migrate moves that file unchanged to
 //        PRE_V3_PROGRESS_REL, writes PROGRESS_ARCHIVE_REL holding the dated entries and a new PROGRESS_REL holding the
 //        standing sections only, and state-roll --dry-run then says nothing would move.
+// Plan 38-06 (D-05 render half as amended by D-18, D-07) runs the kit-source trace renderer against the target after
+// the commit renames and before the marker; (M5) now finds the traceability file rendered, beginning with the
+// generated header, not the kit seed's bytes:
+//   (M8) after --migrate on the fixture, TRACE_DIR_REL holds one generated trace file per ticket the fixture's
+//        published notes reference, TRACEABILITY_REL begins with the generated header, and the kit-source
+//        trace-render.js --check on the migrated target exits 0;
+//   (M9) a regular file planted directly under the context root is a stray entry the renderer refuses with exit 2:
+//        --migrate exits 3 with one verify naming the render and its exit 2, the pre-v3 root and the progress file are
+//        byte-identical to before, and neither LAYOUT_MARKER_REL nor MIGRATE_STAGING_REL exists.
 //
 // THE INSTALLED WORLD. The doctor refuses a repository with no install marker before it reads the layout ("grugops not
 // installed", one FAIL), so (F2) needs what the copy itself is: a repository a v2.x grugops install already serves,
@@ -84,6 +93,7 @@ import {
   STATE_ROOT_REL,
   TICKETS_REL,
   TRACEABILITY_REL,
+  TRACE_DIR_REL,
 } from "./state-layout.js";
 import { parseNfrIndex } from "../scripts/state-rules.js";
 import { normalizeDocument, stripHtmlComments } from "../scripts/board-model.js";
@@ -153,6 +163,25 @@ function fixtureDigest(dir: string): string {
     h.update(Buffer.from([0]));
   }
   return h.digest("hex");
+}
+
+/** The first line of every file the trace renderer owns: the first line of the kit seed's traceability index. */
+const GENERATED_TRACE_HEADER = readFileSync(
+  join(import.meta.dirname, "..", "agent-factory", "seed", ...TRACEABILITY_REL.split("/")),
+  "utf8",
+).split("\n")[0] as string;
+
+/** The kit-source trace renderer, the program the migrate runs (D-18). */
+const KIT_TRACE_RENDER = join(import.meta.dirname, "..", "scripts", "runnable-ref", "trace-render.js");
+
+/** Every ticket ID (`ABC-<digits>`) named in any file under the fixture's context root. */
+function fixtureNoteTicketIds(): Set<string> {
+  const ctx = join(PRE_V3_CHESS_DIR, "context");
+  const ids = new Set<string>();
+  for (const rel of fixtureFiles(ctx)) {
+    for (const m of readFileSync(join(ctx, ...rel.split("/")), "utf8").matchAll(/\bABC-[0-9]+\b/g)) ids.add(m[0]);
+  }
+  return ids;
 }
 
 /** The doctor's state-layout lines in `out`. */
@@ -319,8 +348,8 @@ describe("install --migrate v3 (phase 38)", () => {
     for (const e of index.entries) expect(e.target, e.id).toBe(`nfr/${e.id}.md`);
     expect(readFileSync(join(target, PRE_V3_NFR_CATALOG_REL)).equals(catalog), "the catalog is archived unchanged").toBe(true);
     expect(readFileSync(join(target, PRE_V3_TRACEABILITY_REL)).equals(readFileSync(join(root, "traceability.md")))).toBe(true);
-    const seedTrace = readFileSync(join(import.meta.dirname, "..", "agent-factory", "seed", ...TRACEABILITY_REL.split("/")));
-    expect(readFileSync(join(target, TRACEABILITY_REL)).equals(seedTrace), "the traceability file is the kit seed").toBe(true);
+    // Plan 38-06 (D-18): the render replaces the seed index; its first line is the seed's, the generated header.
+    expect(readFileSync(join(target, TRACEABILITY_REL), "utf8").split("\n")[0], "the traceability file is rendered").toBe(GENERATED_TRACE_HEADER);
     // The kit-source state-check: exit 0 or 1 (budget findings are observations, D-07), never 2, and no NFR finding.
     const check = spawnSync(process.execPath, [join(import.meta.dirname, "..", "scripts", "runnable-ref", "state-check.js"), target, "--json"], {
       encoding: "utf8",
@@ -395,5 +424,48 @@ describe("install --migrate v3 (phase 38)", () => {
     expect(roll.error).toBeUndefined();
     expect(roll.status, `${roll.stdout}\n${roll.stderr}`).toBe(0);
     expect(roll.stdout).toContain("Dry run: nothing would move; nothing was written.");
+  });
+
+  it("(M8) --migrate renders a fresh trace tree with the kit-source renderer: one trace file per referenced ticket, the generated index, and --check exits 0", () => {
+    const { target, kitHome, home } = emptyWorld();
+    makePreV3ChessFixture(target);
+    const r = runInstall(target, kitHome, ["--migrate"], { home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
+    const traces = readdirSync(join(target, TRACE_DIR_REL)).filter((n) => !n.startsWith(".")).sort();
+    expect(traces.length, "the render wrote trace files").toBeGreaterThan(0);
+    const referenced = fixtureNoteTicketIds();
+    for (const name of traces) {
+      expect(name, name).toMatch(/^ABC-[0-9]+\.md$/);
+      expect(referenced.has(name.slice(0, -".md".length)), `${name}: its ticket is named in a fixture note`).toBe(true);
+      expect(readFileSync(join(target, TRACE_DIR_REL, name), "utf8").split("\n")[0], name).toBe(GENERATED_TRACE_HEADER);
+    }
+    expect(readFileSync(join(target, TRACEABILITY_REL), "utf8").split("\n")[0]).toBe(GENERATED_TRACE_HEADER);
+    expect(readFileSync(join(target, LAYOUT_MARKER_REL), "utf8")).toBe("layout: v3\n");
+    const check = spawnSync(process.execPath, [KIT_TRACE_RENDER, target, "--check"], { encoding: "utf8", timeout: 120_000 });
+    expect(check.error).toBeUndefined();
+    expect(check.status, `${check.stdout}\n${check.stderr}`).toBe(0);
+  });
+
+  it("(M9) a render the kit-source renderer refuses with exit 2 undoes the commit: exit 3, one verify naming exit 2, the pre-v3 root and the progress file unchanged, no marker, no staging", () => {
+    const { target, kitHome, home } = emptyWorld();
+    makePreV3ChessFixture(target);
+    writeFileSync(join(target, CONTEXT_REL, "stray-entry.txt"), "a regular file directly under the context root\n");
+    const rootBefore = snapshotTree(join(target, LEGACY_STATE_ROOT_REL));
+    const progressBefore = readFileSync(join(target, PROGRESS_REL));
+    expect(rootBefore, "PREMISE: the pre-v3 root is materialized").not.toBe("");
+    const r = runInstall(target, kitHome, ["--migrate"], { home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(3);
+    const verifies = labelled(r.stdout, "verify");
+    expect(verifies, r.stdout).toHaveLength(1);
+    expect(verifies[0]).toContain("trace render");
+    expect(verifies[0]).toContain("exited 2");
+    expect(snapshotTree(join(target, LEGACY_STATE_ROOT_REL)), "the pre-v3 root is unchanged").toBe(rootBefore);
+    expect(readFileSync(join(target, PROGRESS_REL)).equals(progressBefore), "the progress file is unchanged").toBe(true);
+    expect(existsSync(join(target, LAYOUT_MARKER_REL)), "no layout marker").toBe(false);
+    expect(existsSync(join(target, MIGRATE_STAGING_REL)), "no staging directory").toBe(false);
+    expect(existsSync(join(target, STATE_ROOT_REL, "archive", "pre-v3")), "no pre-v3 archive was left").toBe(false);
   });
 });
