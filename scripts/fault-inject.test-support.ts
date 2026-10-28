@@ -31,7 +31,9 @@
 // (`nodeFs.readdirSync`) or a named import (`readdirSync`, an alias resolved to its imported name). A site's line
 // is the line of the callee's name token, which is where V8 reports the frame. callingSites says through which
 // call expressions control enters a function, so a shared reader can be failed under every caller (the `via`
-// half of a fault). Both refuse, by throwing with the file and line, any shape they cannot account for: a
+// half of a fault). Plan 38-06 widens a fault to the mutators of FS_OTHER_FNS (renameSync, mkdirSync, writeFileSync,
+// rmdirSync, unlinkSync) and adds deriveFsCallSites, the same derivation for one named function, so a commit step of
+// the installer can be failed at its own call. Both refuse, by throwing with the file and line, any shape they cannot account for: a
 // namespace used as a value, a read function used as a value, or a function reference that is neither a call nor
 // a call argument. A new indirection therefore fails red until the derivation handles it, and is never dropped.
 // The compiler is a dev dependency; this module is never emitted, so no host ever loads it.
@@ -74,6 +76,15 @@ export const FS_OTHER_FNS = Object.freeze([
   "unlinkSync", // removes
   "writeFileSync", // writes
 ] as const);
+
+/** One node:fs name of FS_OTHER_FNS. */
+export type FsOtherFn = (typeof FS_OTHER_FNS)[number];
+
+/**
+ * A node:fs function a fault can fail (plan 38-06): a read of FS_READ_FNS or a mutator of FS_OTHER_FNS. `constants`
+ * and `closeSync` are in the second list too; a fault on `constants` is refused by the preload (not a function).
+ */
+export type FsFaultFn = FsReadFn | FsOtherFn;
 
 /** One read call of a program: its node:fs function, its line, its enclosing function and its stable key. */
 export interface ReadSite {
@@ -270,6 +281,37 @@ export function deriveReadSites(jsPath: string): readonly ReadSite[] {
   return sites;
 }
 
+/** One call of a node:fs function of FsFaultFn: its line, its enclosing function and its stable key. */
+export interface FsCallSite {
+  /** `<enclosing>:<fn>#<ordinal>`, the ordinal counted among the same enclosing and fn in source order. */
+  readonly key: string;
+  readonly fn: FsFaultFn;
+  /** The 1-based line of the callee's name token, where V8 reports the frame. */
+  readonly line: number;
+  readonly enclosing: string;
+}
+
+/**
+ * Every call of the node:fs function `fn` in the .js at `jsPath`, by the rules of deriveReadSites (plan 38-06: a
+ * mutator such as renameSync or writeFileSync too, so a fault can fail one write step of a commit). `fn` used other
+ * than as a callee is refused by line.
+ */
+export function deriveFsCallSites(jsPath: string, fn: FsFaultFn): readonly FsCallSite[] {
+  const sf = parseJs(jsPath);
+  const ordinals = new Map<string, number>();
+  const sites: FsCallSite[] = [];
+  for (const use of fsUses(sf)) {
+    if (use.name !== fn) continue;
+    if (!use.called) refuse("deriveFsCallSites", sf, use.node, `the node:fs function ${use.name} is used as a value`);
+    const enclosing = enclosingName(use.node);
+    const stem = `${enclosing}:${use.name}`;
+    const ordinal = ordinals.get(stem) ?? 0;
+    ordinals.set(stem, ordinal + 1);
+    sites.push({ key: `${stem}#${ordinal}`, fn, line: lineOf(sf, use.node), enclosing });
+  }
+  return sites;
+}
+
 /** Every node:fs name the .js at `jsPath` uses (imported or referenced), sorted, each once. */
 export function classifiedFsCalls(jsPath: string): readonly string[] {
   const sf = parseJs(jsPath);
@@ -368,7 +410,7 @@ export interface FrameSite {
 /** What the preload injects: a throwing stdout write, or one failing node:fs call at one site. */
 export type FaultSpec =
   | { readonly kind: "stdout-throw" }
-  | { readonly kind: "fs"; readonly fn: FsReadFn; readonly site: FrameSite; readonly via?: FrameSite; readonly code: string };
+  | { readonly kind: "fs"; readonly fn: FsFaultFn; readonly site: FrameSite; readonly via?: FrameSite; readonly code: string };
 
 /** The environment name the preload reads its spec from (JSON). Never read by a shipped program. */
 export const FAULT_SPEC_ENV = "GRUGOPS_FAULT_SPEC";
