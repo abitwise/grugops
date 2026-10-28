@@ -85,10 +85,10 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
+import { BOARD_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
 // Phase 38 (plan 38-03, D-09, D-10, D-17): the v3 state migrate's planner and its proof. Pure functions over bytes the
 // installer reads; the module imports nothing outside install/ and node:, so this edge keeps install/ free of scripts/.
-import { budgetEntryNames, fileBytesFinding, formatFinding, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
+import { budgetEntryNames, fileBytesFinding, formatFinding, markerState, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -5966,6 +5966,83 @@ function occupiedEntry(rel) {
     }
     return `${p} already exists (a ${kind}${held})`;
 }
+// claimedQueueRefusal (plan 38-07, MIGRATE-04, MIGRATE-01): an entry in QUEUE_CLAIMED_REL is a task an agent has
+// claimed and is working on, against the planning state, so the v3 arm does not move that state under it. The
+// directory is asked by lstat first: an absent one holds no claim; a link or anything but a real directory there is a
+// refusal too (the state migrate follows no link, and what it points at is not this repository's queue); an entry that
+// cannot be asked about or listed is never read as empty. An empty directory holds no claim. Nothing here writes.
+function claimedQueueRefusal() {
+    const p = targetPath(QUEUE_CLAIMED_REL);
+    const unknown = "so it cannot be shown that no agent holds a claim on queued work";
+    let isDirectory;
+    try {
+        isDirectory = lstatSync(p).isDirectory();
+    }
+    catch (e) {
+        const code = errCode(e);
+        return code === "ENOENT" || code === "ENOTDIR" ? null : `${p} could not be asked about (${code}), ${unknown}`;
+    }
+    if (!isDirectory) {
+        return `${p} is a ${kindAt(p) ?? "entry that could not be asked about"}, not a directory, ${unknown}; the state migrate follows no link`;
+    }
+    let names;
+    try {
+        names = readdirSync(p).sort();
+    }
+    catch (e) {
+        return `${p} could not be listed (${errCode(e)}), ${unknown}`;
+    }
+    if (names.length === 0)
+        return null;
+    return (`${p} holds ${names.slice(0, 10).map(oneLine).join(", ")}${names.length > 10 ? ` and ${names.length - 10} more` : ""}: ` +
+        "an agent holds a claim on queued work, and the state migrate does not move the planning state while a task is " +
+        `working on it. Let the claimed work finish, so that the directory is empty, or return it to ${QUEUE_PENDING_REL}/ ` +
+        "once no agent is running");
+}
+// migrateLayoutRefusal (plan 38-07, MIGRATE-04): a state layout --migrate cannot move from, refused on every kit arm in
+// the one pre-check. `both`: a board at each path, and the run cannot choose which is the user's state. `unreadable`:
+// a board path could not be asked about, so the layout is unknown and nothing that cannot be read is moved. Every other
+// layout is null. Nothing here writes.
+function migrateLayoutRefusal(state) {
+    if (state === "both") {
+        return (`${targetPath(BOARD_REL)} and ${targetPath(LEGACY_BOARD_REL)} both exist, so the planning state is in two layouts ` +
+            "and this run cannot choose between them. --migrate moves only a repository whose board is at one of the two " +
+            `paths; move aside the one you do not use (a plain install uses ${BOARD_REL} and leaves ${LEGACY_STATE_ROOT_REL}/ ` +
+            "as it is)");
+    }
+    if (typeof state === "object") {
+        return (`the state layout could not be read (${oneLine(state.unreadable)}: ${state.code}), so it cannot be shown which ` +
+            "layout this repository's planning state is on, and --migrate moves nothing it cannot read. Make that path " +
+            "readable to your user account");
+    }
+    return null;
+}
+// currentLayoutNote (plan 38-07, MIGRATE-04): a --migrate over planning state already on the v3 layout (stateLayout()
+// answers current) moves nothing. The layout marker is read through readUserFile and asked markerState: a valid marker
+// gets one ok line; an absent or an invalid one gets one note and no marker is written, because this run did not
+// migrate that state and the marker turns its budget findings into failures. The marker's content passes through
+// stripControlChars (oneLine) before it is printed. Nothing here writes.
+function currentLayoutNote() {
+    const r = readUserFile(targetPath(LAYOUT_MARKER_REL));
+    const tail = "This run does not mark state it did not migrate, so no marker was written and budget findings stay warnings";
+    if (r.state !== "ok" && r.state !== "absent") {
+        report("note", `${LAYOUT_MARKER_REL} ${unreadState(r)}, so whether the planning state is marked is unknown. ${tail}`);
+        return;
+    }
+    const text = r.state === "ok" ? r.bytes.toString("utf8") : null;
+    const m = markerState(text, LAYOUT_MARKER_CONTENT);
+    if (m.state === "valid") {
+        report("ok", `${STATE_ROOT_REL}/: the planning state is already on the v3 layout (${LAYOUT_MARKER_REL}); the state migrate has nothing to move`);
+    }
+    else if (m.state === "absent" || text === null) {
+        report("note", `${LAYOUT_MARKER_REL} is absent: the planning state is at ${BOARD_REL}, on the v3 layout, and nothing marks it as migrated. ${tail}`);
+    }
+    else {
+        const shown = oneLine(text.length > 200 ? `${text.slice(0, 200)}...` : text);
+        report("note", `${LAYOUT_MARKER_REL} holds ${JSON.stringify(shown)}, which is not recognized as a layout marker: ${m.reason}. ` +
+            `${tail}, and the file was left as it is`);
+    }
+}
 // stateMigrateRefusals: the v3 arm's part of the one --migrate pre-check (D-11). Nothing here writes.
 function stateMigrateRefusals(read, plan) {
     const out = [...read.refusals];
@@ -5983,6 +6060,9 @@ function stateMigrateRefusals(read, plan) {
         out.push(`${root}: the state migrate renames ${LEGACY_STATE_ROOT_REL}/ to ${STATE_ROOT_REL}/ whole, and a rename never ` +
             `replaces what is there. Move it aside, or merge it into ${LEGACY_STATE_ROOT_REL}/ by hand`);
     }
+    const claim = claimedQueueRefusal();
+    if (claim !== null)
+        out.push(claim);
     const staging = occupiedEntry(MIGRATE_STAGING_REL);
     if (staging !== null) {
         out.push(`${staging}: another --migrate is running here, or one was interrupted. Its renames, if it got that far, are listed ` +
@@ -6487,8 +6567,12 @@ if (MIGRATE) {
     // continues into the install run, which refreshes the kit and the runnables to read the new layout.
     const state = stateLayout();
     const v3State = state === "pre-v3";
-    if (layout.isOldLayout || v3State) {
+    // Plan 38-07 (MIGRATE-04): a both or an unreadable state layout is refused on every kit arm, in the same pre-check.
+    const layoutRefusal = migrateLayoutRefusal(state);
+    if (layout.isOldLayout || v3State || layoutRefusal !== null) {
         const refusals = [];
+        if (layoutRefusal !== null)
+            refusals.push(layoutRefusal);
         if (layout.isOldLayout) {
             MIGRATE_CARRY_PENDING = true;
             refusals.push(...planConfigCarry().refusals);
@@ -6503,7 +6587,7 @@ if (MIGRATE) {
         // other agents writes no Claude Code kit file, so it neither builds a kit plan nor asks for kit consent; the
         // config carry and the in-repo kit backup run as they always did. When the v3 arm runs, the kit plan is built here
         // too (D-11, D-19), so a kit refusal stops the state move before any write.
-        if (SELECTED_KINDS.has("claude-kit")) {
+        if ((layout.isOldLayout || v3State) && SELECTED_KINDS.has("claude-kit")) {
             MIGRATE_KIT_PLAN = buildKitPlan();
             if (!MIGRATE_KIT_PLAN.ok)
                 refusals.push(...MIGRATE_KIT_PLAN.refusals);
@@ -6516,7 +6600,9 @@ if (MIGRATE) {
         if (refusals.length > 0) {
             console.log(v3State
                 ? `== grugops migrate (pre-v3 state ${LEGACY_STATE_ROOT_REL}/ → ${STATE_ROOT_REL}/${layout.isOldLayout ? "; old in-repo layout → two-root" : ""}) ==`
-                : "== grugops migrate (old in-repo layout → two-root) ==");
+                : layout.isOldLayout
+                    ? "== grugops migrate (old in-repo layout → two-root) =="
+                    : "== grugops migrate ==");
             console.log(`target: ${TARGET}`);
             if (DRY_RUN)
                 console.log("mode:   DRY_RUN (no filesystem changes)");
@@ -6530,10 +6616,15 @@ if (MIGRATE) {
                     (layout.isOldLayout ? "no configuration was moved, agent-factory/ was not backed up, " : "") +
                     `no skill or adapter was written, linked or unlinked, and no marker was written: ${TARGET} is still on ` +
                     `the pre-v3 layout. Resolve each verify above and re-run --migrate.`
-                : `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
-                    `--migrate changes a target whole or not at all. No configuration was moved, agent-factory/ was not ` +
-                    `backed up, ${LEGACY_HANDOFFS_REL}/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
-                    `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`);
+                : !layout.isOldLayout
+                    ? `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
+                        "--migrate changes a target whole or not at all. No planning state was moved, no skill or adapter was " +
+                        "written, linked or unlinked, and no marker was written: " +
+                        `${TARGET} is as it was. Resolve each verify above and re-run --migrate.`
+                    : `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
+                        `--migrate changes a target whole or not at all. No configuration was moved, agent-factory/ was not ` +
+                        `backed up, ${LEGACY_HANDOFFS_REL}/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
+                        `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`);
             printMigrateIncomplete(true, SELECTION);
             // A MID-SCRIPT EXIT, the seventh of the pinned count: the run must stop before the handoffs
             // backup and the install run below. Its output is a few kilobytes.
@@ -6551,6 +6642,17 @@ if (MIGRATE) {
     // When the v3 arm will move the pre-v3 root (plan 38-03), the legacy handoffs directory inside it moves with it,
     // unchanged, so it is not backed up: one ok line says so.
     const handoffsBackedUp = STATE_MIGRATE === null ? migrateHandoffs() : noteHandoffsMove();
+    // Plan 38-07 (MIGRATE-04): on a fresh or a current state layout the v3 arm has nothing to move. Its one line (fresh)
+    // or the marker's line (current) is printed here, and the state is not written; the arms below run as before.
+    if (state === "fresh" || state === "current") {
+        console.log("\n-- state migrate --");
+        if (state === "fresh") {
+            report("ok", `no planning state to migrate: there is no board at ${BOARD_REL} or at ${LEGACY_BOARD_REL}, so the state migrate has nothing to move`);
+        }
+        else {
+            currentLayoutNote();
+        }
+    }
     if (layout.isMigrated && state !== "pre-v3") {
         // Plan 33.1-40: this arm writes no marker, so the backup it may have made is recorded here.
         const handoffsRecorded = recordBackupsInMarker();

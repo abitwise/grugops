@@ -22,8 +22,10 @@
 //       and both boards byte-identical (nothing merged or deleted, D-02);
 //   (g) a fresh repository installs with no layout note; (h) a regular file at the pre-v3 root (ENOTDIR) is not
 //       pre-v3 and installs normally;
-//   (i) --migrate over an unreadable pre-v3 root seeds nothing under STATE_ROOT_REL and reports a verify naming the
-//       path and the code (skipped on win32 and as root, as case (d) is);
+//   (i) --migrate over an unreadable pre-v3 root is a pre-check refusal (plan 38-07, 2026-10-28, MIGRATE-04): exit 3,
+//       one verify naming the path and the code, and the target byte-identical and the kit home absent, so the two-root
+//       steps do not run either (skipped on win32 and as root, as case (d) is). Until plan 38-07 the run went on into
+//       the install run and its state seed reported the verify;
 //   (j) --check after (e): exit 0, one ok state-layout line naming STATE_ROOT_REL, no pre-v3 WARN and no FAIL; a
 //       second --check prints the same line (plan 38-03; before it, the line was a WARN naming --migrate);
 //   (k) --check on a both repository WARNs once that the pre-v3 root is stale; on a current install it prints one ok
@@ -307,10 +309,11 @@ describe("the other entry points on the pre-v3 state layout never fork state (pl
   });
 
   it.skipIf(CHMOD_SKIP !== null)(
-    "(i) --migrate over an unreadable pre-v3 root (EACCES) seeds nothing under the v3 state root and reports a verify naming the path and the code",
+    "(i) --migrate over an unreadable pre-v3 root (EACCES) is a pre-check refusal naming the path and the code, and writes nothing",
     () => {
       const { target, kitHome, home } = oldLayoutPreV3();
       const legacyRoot = join(target, LEGACY_STATE_ROOT_REL);
+      const before = snapshotTree(target);
       let r: Run;
       chmodSync(legacyRoot, 0o000); // mode-census: access-denial
       try {
@@ -320,11 +323,18 @@ describe("the other entry points on the pre-v3 state layout never fork state (pl
       }
       expect(r.error).toBeUndefined();
       expect(existsSync(join(target, STATE_ROOT_REL)), "nothing is seeded under the v3 state root").toBe(false);
-      const named = labelled(r.stdout, "verify").filter((l) => lineNamesPath(l, join(target, LEGACY_BOARD_REL)) && l.includes(": EACCES"));
+      expect(r.stdout).toContain("-- migrate pre-check (before any change) --");
+      const verifies = labelled(r.stdout, "verify");
+      expect(verifies, r.stdout).toHaveLength(1);
+      const named = verifies.filter((l) => lineNamesPath(l, join(target, LEGACY_BOARD_REL)) && l.includes(": EACCES"));
       expect(named, r.stdout).toHaveLength(1);
-      expect(named[0]).toContain(`${STATE_ROOT_REL}/ seed`);
-      // A counted verify ends the run INCOMPLETE (exit 3), never a silent pass.
+      expect(named[0]).toContain("the state layout could not be read");
+      // A counted verify ends the run INCOMPLETE (exit 3), never a silent pass. The pre-check stops it before any write:
+      // the two-root steps did not run, the in-repo kit and the configuration are where they were.
       expect(r.status, r.stdout).toBe(3);
+      expect(r.stdout).not.toContain("-- migrate pre-steps --");
+      expect(snapshotTree(target), "the target is byte-identical").toBe(before);
+      expect(snapshotTree(kitHome), "nothing was copied to the kit home").toBe("");
       expectPreV3StateKept(target);
     },
   );

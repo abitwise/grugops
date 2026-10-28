@@ -115,8 +115,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * planner, which does no I/O and renders or compares no mode.
  * 2026-10-28, plan 38-06 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 41 -> 42 for
  * migrate-v3-rollback.test.ts, which has no chmod call and no expected mode (treeDigest records each file by size and
- * sha256, never by mode; the faults come from the fault-injection preload). */
-const INSTALL_TEST_FILE_COUNT = 42;
+ * sha256, never by mode; the faults come from the fault-injection preload).
+ * 2026-10-28, plan 38-07 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 42 -> 43 for
+ * migrate-v3-states.test.ts, whose one chmod pair (an access denial and its restore) is counted in TAG_KIND_COUNTS
+ * below; it renders or compares no mode. */
+const INSTALL_TEST_FILE_COUNT = 43;
 const SCRIPTS_TEST_FILE_COUNT = 80;
 const SOURCE_FILE_COUNT = 11;
 
@@ -150,10 +153,14 @@ const SOURCE_FILE_COUNT = 11;
  * (i) makes the pre-v3 state root mode 000 before a --migrate run, so the seed's layout probe answers EACCES (nothing
  * is seeded under the v3 state root and a verify names the path), and gives the permissions back in a `finally`; the
  * case is skipped with a printed reason on win32 and as root.
+ * access-denial 18 -> 19 and restore 27 -> 28 on 2026-10-28 (plan 38-07, MIGRATE-04): migrate-v3-states.test.ts case
+ * (S6) makes the pre-v3 state root mode 000 before a --migrate run, so the layout probe answers EACCES (a pre-check
+ * refusal naming the path, nothing written), and gives the permissions back in a `finally`; the case is skipped with a
+ * printed reason on win32 and as root. pre-v3-layout.test.ts case (i) keeps its pair; only its expectation changed.
  * Measured per file and kind by this census's own failure message. */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 18,
-  restore: 27,
+  "access-denial": 19,
+  restore: 28,
   "row-315": 7,
   "posix-bits": 2,
 };
