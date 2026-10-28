@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-04-PLAN.md
-last_updated: "2026-10-28T12:35:38.815Z"
+stopped_at: Completed 38-05-PLAN.md
+last_updated: "2026-10-28T13:16:24.798Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: d2dd7ff6aabef841261565835a36a7feefddb936
+state_head: c100ce6858c1066a912f0852d3944c8c2a4f0a9e
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 61
+  completed_plans: 62
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 5 of 11
+Plan: 6 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -776,6 +776,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P02 | 1h 15m | 2 tasks | 14 files |
 | Phase 38 P03 | 45min | 2 tasks | 7 files |
 | Phase 38 P04 | 40min | 2 tasks | 4 files |
+| Phase 38 P05 | 34 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2123,6 +2124,10 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-04: a catalog line goes to one place: rows, then single-ID sections; header and separator lines always go to nfr-notes.md
 - [Phase 38]: 38-04: the stage-A proof keeps one multiset per original (board, NFR catalog), binds each generated kind to its file and lines, and anchors each NFR file's line 3 to its own row
 - [Phase 38]: 38-04: a non-UTF-8 or mixed-ending NFR catalog is refused, as the board is
+- [Phase 38]: 38-05: migrate runs the Done and progress rolls in memory through the embedded state-rules planners and executeRoll (Done first, then progress); executeRoll's outcome is stage B, recorded in plan.rolls and checked by proveStateMigrate
+- [Phase 38]: 38-05: the frozen fixture rolls nothing (18 Done ticket rows, 0 dated progress entries); roll tests add the shape at test time, never in the fixture
+- [Phase 38]: 38-05: the progress original is an identical OriginalHome at PRE_V3_PROGRESS_REL; install.ts records its treeRecord so the post-commit check proves it
+- [Phase 38]: 38-05: a refused roll, an archive path the pre-v3 tree already holds, or a non-UTF-8 progress file skips that roll with one note naming state-roll, never a refusal
 
 ### Pending Todos
 
@@ -2455,8 +2460,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T12:35:38.322Z
-Stopped at: Completed 38-04-PLAN.md
+Last session: 2026-10-28T13:16:24.314Z
+Stopped at: Completed 38-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
