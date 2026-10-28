@@ -22,10 +22,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
+See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 38 — install --migrate v3
+**Current focus:** Phase 39 — Role machinery: engineer levels, Tech Lead and Designer roles, skills key
 
 ## Current Position
 
@@ -2168,6 +2168,9 @@ None yet.
 
 **Open — carried into the next milestone:**
 
+- **[Phase 38] Board stays over budget on a migrated real repository** — a code span holding `<!-- RUN -->` in Done row ABC-109 is read by the phase 37 state rules as an HTML comment, so the Done roll is skipped (`install --migrate` notes it, `state-roll.js` exits 2); the board stays at 221,821 bytes against 24,576, and leftover header comment blocks plus 190 long rows keep it over budget even after a roll. Whether a code span counts as a comment is `UNKNOWN - verify`. Logged open in `deferred-items.md` (finding C of 38-DOGFOOD.md).
+- **[Phase 38] Trace order depends on which context root holds a task** — `collectTraceNotes` reads the live root, then the archive root, so a move between roots can reorder a trace file; every install arm that moves a folder now renders the trace afterwards, but a move by hand or by a later tool leaves it stale until the next render (`state-check` reports `trace-stale`). Order-independence changes the phase 37 trace model; logged open in `deferred-items.md` (finding B).
+- **[Phase 38] Five open Info review findings** (38-REVIEW-DISPOSITION.md): IN-01 `parseNfrIndex` embedded but unused, IN-02 a literal U+FEFF in the source, IN-03 docs say the traceability matrix is "split" while the code archives it and renders a fresh trace, IN-04 removing a trailing `_Updated:` line drops the board's final newline, IN-05 duplicate refusal for a linked `.grugops/context/` with `--archive-done-context`.
 - **[Phase 37] Open code-review warnings, accepted at UAT (2026-10-27)** — WR-15 (state-check prints ROLLABLE for a board that state-roll refuses: a non-UTF-8 board or an in-root `archive/board-done.md` link; not a regression) and WR-16 (a pre-existing `tools/grugops/package.json` without `"type":"module"` is kept, install exits 0, every program then fails to load). Both stay open in 37-REVIEW-DISPOSITION.md. CI reachability of the own-tree gates stays deferred to backlog 999.12.
 - **[Phase 36] Open code-review warnings** — WR-01 (old-spelling gate misses end-of-path and `_plans` forms), WR-02 (`check-state-paths` passes vacuously from a subdirectory), WR-03 (uninstall banner lists `.grugops/` as preserved, then removes `.grugops/install.json`), plus IN-01..04, all open in `36-REVIEW-DISPOSITION.md`. WR-04 (two-root `--migrate` dead end) is pinned to Phase 38 SC 6 / MIGRATE-04. 36-VALIDATION.md is still draft (Nyquist audit not run).
 - **[v2.0] `windows-latest` CI leg is RED** on 3 test files (9 failures). 7 are harness/fixture artifacts (path-separator assertions, a CRLF token, a symlink-privilege fixture, an unbuildable old-layout fixture cascading into 2 more); 2 are a real Windows limitation of the ubuntu-scoped freshness mirror-rebuild. **Zero failures in the v2.0 substrate.** MIGR-04's Windows case is *unverified, not disproven* — its test fails as a cascade of the unbuildable fixture (empty output = the migrate never ran). The cross-platform-including-Windows constraint makes fixing this a standing obligation, not optional.
@@ -2484,7 +2487,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T19:22:59.944Z
+Last session: 2026-10-28
 Stopped at: Phase 38 complete, ready to plan Phase 39
 Resume file: None
 
