@@ -1824,17 +1824,31 @@ export function planStateMigrate(inputs) {
             from: null,
             to: rel,
             bytes: added.length,
-            note: `${list.length} Board notes section(s) appended to the ticket ${shown(id)}`,
+            note: `${list.length} Board notes section(s) appended to the ticket ${shown(id)}, from ` +
+                list.map((x) => `line ${x.boardLine} of ${LEGACY_BOARD_REL}`).join(", "),
         });
     }
-    // The two archive-only outputs (D-03, D-04), each planned only when it has something to hold.
+    // The two archive-only outputs (D-03, D-04), each planned only when it has something to hold. splitSteps lists each
+    // orphan row (its own line, D-03) and the `_Updated:` lines as one count with their bytes (D-04).
     const extraWrites = [];
+    const splitSteps = [];
     if (updateAt.size > 0) {
         const lines = [BOARD_UPDATES_TITLE, "", provenanceLine(null, inputs.date), ""];
         generated.push({ rel: PRE_V3_BOARD_UPDATES_REL, line: 1, kind: "updates-title", boardLine: null, id: null });
         generated.push({ rel: PRE_V3_BOARD_UPDATES_REL, line: 3, kind: "provenance", boardLine: null, id: null });
-        for (const i of [...updateAt].sort((a, b) => a - b))
-            lines.push(withoutCr(rawLines[i]));
+        let updateBytes = 0;
+        for (const i of [...updateAt].sort((a, b) => a - b)) {
+            const line = withoutCr(rawLines[i]);
+            lines.push(line);
+            updateBytes += ENCODER.encode(line).length;
+        }
+        splitSteps.push({
+            verb: "split",
+            from: BOARD_REL,
+            to: PRE_V3_BOARD_UPDATES_REL,
+            bytes: updateBytes,
+            note: `${updateAt.size} \`_Updated:\` line(s) leave the board, verbatim and in order; the bytes count their text, not their line endings`,
+        });
         extraWrites.push({
             rel: PRE_V3_BOARD_UPDATES_REL,
             bytes: ENCODER.encode(lines.join(boardEol) + boardEol),
@@ -1853,6 +1867,13 @@ export function planStateMigrate(inputs) {
             lines.push("", provenanceLine(o.boardLine, inputs.date));
             generated.push({ rel: PRE_V3_ORPHAN_NOTES_REL, line: lines.length, kind: "provenance", boardLine: o.boardLine, id: o.id });
             lines.push("", o.trailer);
+            splitSteps.push({
+                verb: "orphan",
+                from: BOARD_REL,
+                to: PRE_V3_ORPHAN_NOTES_REL,
+                bytes: ENCODER.encode(o.trailer).length,
+                note: `the trailer of the row [${shown(o.id)}] at line ${o.boardLine} of ${LEGACY_BOARD_REL}; that row has no ticket file, so no ticket is created`,
+            });
             cuts.push({
                 id: o.id,
                 boardLine: o.boardLine,
@@ -1908,6 +1929,22 @@ export function planStateMigrate(inputs) {
     const doneRoll = planMigrateDoneRoll(plannedBoard, movedPaths);
     if (doneRoll.kind === "skip")
         notes.push(skippedRollNote(`the Done column of ${BOARD_REL}`, doneRoll.reason));
+    // One roll step per surface (D-08), whatever the roll does, so the listing always says what moves.
+    const rollSteps = [];
+    // `from` is the file rolled, `to` its archive; the note names the surface and what moves.
+    const rollStep = (from, to, surface, note, bytes = 0) => ({
+        verb: "roll",
+        from,
+        to,
+        bytes,
+        note: `${surface}: ${note}`,
+    });
+    const doneSurface = `the Done column of ${BOARD_REL}`;
+    const doneStep = (note, bytes = 0) => rollStep(BOARD_REL, BOARD_DONE_ARCHIVE_REL, doneSurface, note, bytes);
+    if (doneRoll.kind === "none")
+        rollSteps.push(doneStep("nothing rolls; no Done row needs to move"));
+    if (doneRoll.kind === "skip")
+        rollSteps.push(doneStep(`not rolled (${shown(doneRoll.reason)}); the migrate writes everything else`));
     if (doneRoll.kind === "roll") {
         const rp = doneRoll.plan;
         const outcome = executeRoll(rp, io);
@@ -1921,11 +1958,16 @@ export function planStateMigrate(inputs) {
                 cuts[k] = { ...c, keptRel: at.rel, keptLine: at.line };
             }
             generated.push(...skeletonGenerated(rp, "done-archive-skeleton"));
+            const archiveBytes = ENCODER.encode(files.get(BOARD_DONE_ARCHIVE_REL));
             rollWrites.push({
                 rel: BOARD_DONE_ARCHIVE_REL,
-                bytes: ENCODER.encode(files.get(BOARD_DONE_ARCHIVE_REL)),
+                bytes: archiveBytes,
                 source: `${doneMoved} Done row(s), the oldest of the board's Done column, rolled as state-roll rolls them (a new file)`,
             });
+            rollSteps.push(doneStep(`${doneMoved} Done row(s), the oldest, roll to ${BOARD_DONE_ARCHIVE_REL} (a new file of ${archiveBytes.length} bytes)`, archiveBytes.length));
+        }
+        else {
+            rollSteps.push(doneStep(`the roll did not complete in memory (${outcome.stage}), so the proof fails`));
         }
     }
     // The progress roll (D-08, research A9), after the Done roll, over the same map. When it moves entries, the original
@@ -1937,6 +1979,13 @@ export function planStateMigrate(inputs) {
     const progressRoll = planMigrateProgressRoll(inputs.progress, movedPaths);
     if (progressRoll.kind === "skip")
         notes.push(skippedRollNote(`the progress file ${PROGRESS_REL}`, progressRoll.reason));
+    const progressSurface = `the progress file ${PROGRESS_REL}`;
+    const progressStep = (note, bytes = 0) => rollStep(PROGRESS_REL, PROGRESS_ARCHIVE_REL, progressSurface, note, bytes);
+    if (progressRoll.kind === "none") {
+        rollSteps.push(progressStep(inputs.progress === null ? "nothing rolls; there is no progress file" : "nothing rolls; no dated entry would move"));
+    }
+    if (progressRoll.kind === "skip")
+        rollSteps.push(progressStep(`not rolled (${shown(progressRoll.reason)}); the migrate writes everything else`));
     if (progressRoll.kind === "roll") {
         const rp = progressRoll.plan;
         files.set(PROGRESS_REL, rp.before.source);
@@ -1959,6 +2008,12 @@ export function planStateMigrate(inputs) {
                 bytes: ENCODER.encode(files.get(PROGRESS_ARCHIVE_REL)),
                 source: `${entries} dated progress entry(ies), oldest first, rolled as state-roll rolls them (a new file)`,
             });
+            const archiveBytes = ENCODER.encode(files.get(PROGRESS_ARCHIVE_REL)).length;
+            rollSteps.push(progressStep(`${entries} dated progress entry(ies), the oldest, roll to ${PROGRESS_ARCHIVE_REL} (a new file of ${archiveBytes} ` +
+                `bytes); its standing sections stay, and the original is archived unchanged at ${PRE_V3_PROGRESS_REL}`, archiveBytes));
+        }
+        else {
+            rollSteps.push(progressStep(`the roll did not complete in memory (${outcome.stage}), so the proof fails`));
         }
     }
     cuts.sort((a, b) => a.boardLine - b.boardLine);
@@ -1969,12 +2024,13 @@ export function planStateMigrate(inputs) {
     generated.sort((a, b) => byCodeUnits(a.rel, b.rel) || a.line - b.line);
     const beforeRoll = ENCODER.encode(plannedBoard);
     const boardBytes = ENCODER.encode(rolledBoard);
+    const boardSource = "the pre-v3 board without its trailers and its `_Updated:` lines" +
+        (doneMoved > 0 ? `, and without the ${doneMoved} Done row(s) rolled to ${BOARD_DONE_ARCHIVE_REL}` : "");
     const writes = [
         {
             rel: BOARD_REL,
             bytes: boardBytes,
-            source: "the pre-v3 board without its trailers and its `_Updated:` lines" +
-                (doneMoved > 0 ? `, and without the ${doneMoved} Done row(s) rolled to ${BOARD_DONE_ARCHIVE_REL}` : ""),
+            source: boardSource,
         },
         ...ticketWrites,
         ...extraWrites,
@@ -2014,12 +2070,13 @@ export function planStateMigrate(inputs) {
             from: null,
             to: BOARD_REL,
             bytes: boardBytes.length,
-            note: `${cuts.length} trailer(s) cut and ${updateAt.size} \`_Updated:\` line(s) moved` +
-                (doneMoved > 0 ? `, ${doneMoved} Done row(s) rolled` : ""),
+            note: `${boardSource}: ${cuts.length} trailer(s) cut and ${updateAt.size} \`_Updated:\` line(s) moved`,
         },
         ...appendSteps,
         ...[...extraWrites, ...lateWrites].map((w) => ({ verb: "write", from: null, to: w.rel, bytes: w.bytes.length, note: w.source })),
         ...rollWrites.map((w) => ({ verb: "write", from: null, to: w.rel, bytes: w.bytes.length, note: w.source })),
+        ...splitSteps,
+        ...rollSteps,
     ];
     const provable = { originals, generated, cuts, appended, rolls };
     const written = new Map(writes.map((w) => [w.rel, w.bytes]));
@@ -2386,19 +2443,44 @@ function prefixMismatch(prefix, bytes) {
 function listingLine(label, text) {
     return stripControlChars(`  ${label.padEnd(14)} ${text}`, false);
 }
+/** One step as a listing line: `from → to (bytes; note)`, a write or append as `to (bytes; note)`, a roll as its note. */
+function stepLine(s) {
+    if (s.verb === "roll")
+        return listingLine("would-roll", s.note);
+    return listingLine(`would-${s.verb}`, `${s.from === null ? s.to : `${s.from} → ${s.to}`} (${s.bytes} bytes; ${s.note})`);
+}
 /**
  * The dry-run listing of a plan: every line `install --migrate --dry-run` prints for the state migrate, and nothing
  * the installer adds. Pure: it reads only the plan, so the preview and the real run cannot disagree. Every line passes
  * through stripControlChars, so a path, a ticket ID or a heading from the user's files cannot carry a terminal control
  * sequence into the listing.
+ *
+ * The lines follow the commit (MIGRATE-01 edge ordering): each file moved with the pre-v3 root, each archive move,
+ * each write and ticket append (the staged writes), then what the board split and the rolls put into those writes
+ * (each orphan row by ID and board line, the `_Updated:` count and bytes, one line per roll surface), the plan's
+ * notes, the trace render, the marker, the over-budget list, and last one line that nothing was written. Within the
+ * move, archive and write groups the paths are in code-unit order; orphans keep board order and rolls keep the order
+ * state-roll runs them (Done, then progress).
  */
 export function migrateListing(plan) {
     const lines = [];
     for (const r of plan.refusals)
         lines.push(listingLine("refused", r));
-    for (const s of plan.steps) {
-        lines.push(listingLine(`would-${s.verb}`, `${s.from === null ? s.to : `${s.from} → ${s.to}`} (${s.bytes} bytes; ${s.note})`));
-    }
+    const of = (verbs) => plan.steps.filter((s) => verbs.includes(s.verb));
+    const byFrom = (a, b) => byCodeUnits(a.from ?? a.to, b.from ?? b.to);
+    const byTo = (a, b) => byCodeUnits(a.to, b.to);
+    for (const s of of(["move"]).sort(byFrom))
+        lines.push(stepLine(s));
+    for (const s of of(["archive"]).sort(byFrom))
+        lines.push(stepLine(s));
+    for (const s of of(["write", "append"]).sort(byTo))
+        lines.push(stepLine(s));
+    for (const s of of(["orphan"]))
+        lines.push(stepLine(s));
+    for (const s of of(["split"]))
+        lines.push(stepLine(s));
+    for (const s of of(["roll"]))
+        lines.push(stepLine(s));
     for (const n of plan.notes)
         lines.push(listingLine("note", n));
     if (plan.refusals.length === 0) {

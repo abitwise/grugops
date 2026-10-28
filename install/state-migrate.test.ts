@@ -1378,6 +1378,14 @@ describe("(S11) migrateListing: every planned move and split, with bytes (plan 3
     expect(both[1]).toContain(PROGRESS_ARCHIVE_REL);
   });
 
+  it("a roll the embedded planner refuses is its one roll line, saying it is not rolled and why", () => {
+    const board = withDoneRows(BOARD_TEXT, 5).replace(/^## Done \(WIP unlimited\)$/m, "## Done (WIP unlimited)\nA line of prose under the Done column.");
+    const rolls = listed(migrateListing(planStateMigrate(withBoard(board))), "would-roll");
+    expect(rolls).toHaveLength(2);
+    expect(rolls[0]).toContain(`the Done column of ${BOARD_REL}: not rolled (`);
+    expect(rolls[0]).toContain("not ticket rows");
+  });
+
   it("the render line, the marker line, one line per over-budget finding, and last the line that nothing was written", () => {
     const run = listed(CHESS_LISTING, "would-run");
     expect(run).toHaveLength(1);
