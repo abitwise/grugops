@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-06-PLAN.md
-last_updated: "2026-10-28T14:02:19.070Z"
+stopped_at: Completed 38-07-PLAN.md
+last_updated: "2026-10-28T15:00:41.547Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: eb0b321ab327fcecb25a2f7e8b3b3b960e11d084
+state_head: c7cdd3798d10e5bcf05d8ba357837da9b4dbf33a
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 63
+  completed_plans: 64
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 7 of 11
+Plan: 8 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -778,6 +778,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P04 | 40min | 2 tasks | 4 files |
 | Phase 38 P05 | 34 min | 2 tasks | 6 files |
 | Phase 38 P06 | 40 min | 2 tasks | 8 files |
+| Phase 38 P07 | 55 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2132,6 +2133,10 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-06: the migrate runs the kit-source trace-render.js (RUNNABLES row joined to GRUGOPS_SRC, process.execPath, no shell) after the post-commit proof and before the marker; only exit 0 passes, any other outcome undoes the commit
 - [Phase 38]: 38-06: the render makes TRACE_DIR_REL itself, so an undo after the render takes away the files it added and that directory before the journal is undone
 - [Phase 38]: 38-06: the commit runs as three calls (root rename, archive moves, staged writes) so a failure names its step class; a failure inside the undo is reviewed by reading, not tested
+- [Phase 38]: 38-07: the already-migrated arm answers only layout.isMigrated && state !== pre-v3; an installed two-root repository with pre-v3 state runs the v3 arm with the kit plan in the one pre-check, then the install run (WR-04, D-19)
+- [Phase 38]: 38-07: both, unreadable, a held queue claim (or a link at the claim directory) and a staging directory are --migrate pre-check refusals; staging is asked on every state layout
+- [Phase 38]: 38-07: fresh prints one line and current a marker ok line or note; the fresh row is asserted on an installed two-root repository, and a clean target's --migrate still seeds and marks the state it creates
+- [Phase 38]: 38-07: recorded backups under the pre-v3 root are not re-pathed; one note per entry after a successful migrate
 
 ### Pending Todos
 
@@ -2464,8 +2469,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T14:02:18.567Z
-Stopped at: Completed 38-06-PLAN.md
+Last session: 2026-10-28T15:00:41.030Z
+Stopped at: Completed 38-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
