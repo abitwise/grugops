@@ -1664,9 +1664,10 @@ function seedLines(rel, seed) {
  * provenance line; two rows of one ticket give two sections, in board order (D-02). When it does not, the trailer
  * goes to PRE_V3_ORPHAN_NOTES_REL under one `## [ID]` heading per row, and no ticket is created (D-03). Every line
  * that begins `_Updated:` outside HTML comments goes, verbatim and in order, to PRE_V3_BOARD_UPDATES_REL, and the
- * board keeps none (D-04). A row whose line touches an HTML comment is not cut (moving a comment's opener off the
- * board would uncomment the lines after it), and the plan says so in `notes`. Ticket identity is the admitted `id`,
- * else the file stem, over the `.md` files directly under the tickets directory whose name does not begin with `.`.
+ * board keeps none (D-04). A row, or an `_Updated:` line, whose line touches an HTML comment is not moved (moving a
+ * comment's opener off the board would uncomment the lines after it), and the plan says so in `notes`. Ticket identity
+ * is the admitted `id`, else the file stem, over the `.md` files directly under the tickets directory whose name does
+ * not begin with `.`.
  *
  * Refusals are collected, never thrown, and a refused plan has no writes: a board, or a ticket that would receive
  * an append, that is not valid UTF-8 or mixes LF and CRLF; two ticket files with one identity. overBudget lists every
@@ -1730,10 +1731,17 @@ export function planStateMigrate(inputs) {
         tickets.set(id, files[0]);
     }
     // The update lines (D-04): the lines of the comment-blanked text that begin `_Updated:`, as the budget rule finds them.
+    // One that touches an HTML comment stays on the board, as a row does: moving a comment's opener off the board would
+    // uncomment the lines after it, and commented-out rows would become live ones.
     const updateAt = new Set();
     blankedLines.forEach((l, i) => {
-        if (l.startsWith(UPDATED_PREFIX))
-            updateAt.add(i);
+        if (!l.startsWith(UPDATED_PREFIX))
+            return;
+        if (l !== normalizedLines[i]) {
+            notes.push(`line ${i + 1} of ${LEGACY_BOARD_REL} is an \`_Updated:\` line that touches an HTML comment, so it stays on the board`);
+            return;
+        }
+        updateAt.add(i);
     });
     // The cuts, in board order.
     const boardOut = [...rawLines];

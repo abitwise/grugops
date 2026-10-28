@@ -359,6 +359,25 @@ describe("(S7) D-04: every `_Updated:` line outside a comment goes to the update
     expect(plan.writes.map((w) => w.rel)).not.toContain(PRE_V3_BOARD_UPDATES_REL);
     expect(plan.proof).toEqual({ ok: true });
   });
+
+  it("an `_Updated:` line that opens an HTML comment stays on the board, so the commented-out rows after it stay commented out", () => {
+    const opener = "_Updated: 2026-01-01 by me <!-- example rows below, not real:";
+    const board = ["## Ready (WIP 0/5)", "- [ABC-1] One  (size: S) trailer one", opener, "- [ABC-2] Ghost  (size: S)", "-->", ""].join(
+      "\n",
+    );
+    const plan = planStateMigrate(smallInputs(board, ["ABC-1"]));
+    expect(plan.refusals).toEqual([]);
+    const ids = (text: string): string[] => parseBoard(text).columns.flatMap((c) => c.rows.map((r) => r.id));
+    expect(ids(board), "PREMISE: the pre-v3 board has one live row").toEqual(["ABC-1"]);
+    const planned = writeText(plan, BOARD_REL);
+    expect(ids(planned)).toEqual(["ABC-1"]);
+    expect(planned.split("\n")).toContain(opener);
+    expect(plan.writes.map((w) => w.rel)).not.toContain(PRE_V3_BOARD_UPDATES_REL);
+    expect(plan.notes.some((n) => n.startsWith(`line 3 of ${LEGACY_BOARD_REL} is an \`_Updated:\` line`)), plan.notes.join("\n")).toBe(
+      true,
+    );
+    expect(plan.proof).toEqual({ ok: true });
+  });
 });
 
 describe("(S7) D-03: a row whose ticket file is absent is cut, and its trailer goes to the orphan file", () => {
