@@ -2,12 +2,13 @@
 // (phase 38, plan 38-02, MIGRATE-02, MIGRATE-03, MIGRATE-05).
 //
 // WHAT THIS OWNS. planStateMigrate turns the bytes of a pre-v3 planning root into the v3 board, the `## Board notes`
-// sections appended to tickets, and the archive moves and writes that place every original (D-01, D-02, D-17,
-// D-21 option-a). proveStateMigrate is the D-09 stage-A proof over those outputs: the multiset of non-blank original
-// board lines equals the multiset of output lines once the generated lines are removed BY POSITION (each asserted
-// equal to its kind's template, MIGRATE_GENERATED_LINE_KINDS being the one closed set) and each cut row is rejoined
-// with its trailer. It takes the written bytes as a parameter, so the same function proves the plan in memory and
-// proves the bytes the installer re-reads from its staging directory.
+// sections appended to tickets, the board-updates file, the orphan-notes file, and the archive moves and writes that
+// place every original (D-01 to D-04, D-17, D-21 option-a), with the refusals a planner can find and the budgets the
+// planned state still breaks. proveStateMigrate is the D-09 stage-A proof over those outputs: the multiset of
+// non-blank original board lines equals the multiset of output lines once the generated lines are removed BY
+// POSITION (each asserted equal to its kind's template, MIGRATE_GENERATED_LINE_KINDS being the one closed set) and
+// each cut row is rejoined with its trailer. It takes the written bytes as a parameter, so the same function proves
+// the plan in memory and proves the bytes the installer re-reads from its staging directory.
 //
 // PURE. No function here reads a file, a clock or the environment: the installer (plan 38-03) reads every input
 // through readUserFile, passes the migration date in, and executes the plan.
@@ -27,9 +28,12 @@
 
 import {
   BOARD_REL,
+  BUDGETS,
   LEGACY_BOARD_REL,
   LEGACY_STATE_ROOT_REL,
   PRE_V3_BOARD_REL,
+  PRE_V3_BOARD_UPDATES_REL,
+  PRE_V3_ORPHAN_NOTES_REL,
   PRE_V3_TICKETS_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
@@ -1476,9 +1480,19 @@ export const ORPHAN_NOTES_TITLE = "# Board notes of rows with no ticket file";
  * declared position, and only when the line there equals its kind's template, so an original line can never be
  * hidden by calling it generated.
  *   - `board-notes-heading`: BOARD_NOTES_HEADING, opening each appended section;
- *   - `provenance`: provenanceLine, naming the pre-v3 board, the board line and the migration date.
+ *   - `provenance`: provenanceLine, naming the pre-v3 board, the board line (or none, for a whole file) and the
+ *     migration date; it follows each Board notes heading, each orphan heading and each archive-only file's title;
+ *   - `updates-title`: BOARD_UPDATES_TITLE, line 1 of PRE_V3_BOARD_UPDATES_REL;
+ *   - `orphan-title`: ORPHAN_NOTES_TITLE, line 1 of PRE_V3_ORPHAN_NOTES_REL;
+ *   - `orphan-heading`: `## [ID]`, one per orphan row in PRE_V3_ORPHAN_NOTES_REL.
  */
-export const MIGRATE_GENERATED_LINE_KINDS = Object.freeze(["board-notes-heading", "provenance"] as const);
+export const MIGRATE_GENERATED_LINE_KINDS = Object.freeze([
+  "board-notes-heading",
+  "provenance",
+  "updates-title",
+  "orphan-title",
+  "orphan-heading",
+] as const);
 
 /** One member of MIGRATE_GENERATED_LINE_KINDS. */
 export type GeneratedKind = (typeof MIGRATE_GENERATED_LINE_KINDS)[number];
@@ -1613,9 +1627,23 @@ function byCodeUnits(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** UTF-8 text of `bytes`, a leading byte-order mark kept as content. */
+/** UTF-8 text of `bytes`, a leading byte-order mark kept as content; an invalid sequence decodes to U+FFFD. */
 function decodeText(bytes: Uint8Array): string {
   return new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes);
+}
+
+/** UTF-8 text of `bytes`, a leading byte-order mark kept as content, or null when `bytes` is not valid UTF-8. */
+function strictText(bytes: Uint8Array): string | null {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+/** `line` without one trailing CR. */
+function withoutCr(line: string): string {
+  return line.endsWith("\r") ? line.slice(0, -1) : line;
 }
 
 /** The lines of `text`, each without its LF or CRLF terminator. */
@@ -1656,6 +1684,8 @@ type TicketFile = {
   readonly id: string;
   readonly bytes: Uint8Array;
   readonly text: string;
+  /** True when `bytes` is valid UTF-8 (`text` is then exact). */
+  readonly utf8: boolean;
 };
 
 /** A refused plan: the refusals, and nothing to execute. */
@@ -1676,14 +1706,20 @@ function refusedPlan(refusals: readonly string[], notes: readonly string[]): Mig
 }
 
 /**
- * Plan the board split (D-01, D-02, D-17, D-21 option-a). Pure: every byte comes from `inputs`.
+ * Plan the board split (D-01 to D-04, D-17, D-21 option-a). Pure: every byte comes from `inputs`.
  *
- * Each ticket row parseBoard admits is cut by cutRow over its RAW line. A row whose ticket file exists keeps its
- * kept row on the board, and its trailer is appended to that ticket as a new `## Board notes` section, after the
- * provenance line; two rows of one ticket give two sections, in board order. A row whose line touches an HTML
- * comment is not cut (moving a comment's opener off the board would uncomment the lines after it), and the plan
- * says so in `notes`. Ticket identity is the admitted `id`, else the file stem, over the `.md` files directly under
- * the tickets directory whose name does not begin with `.`.
+ * Each ticket row parseBoard admits is cut by cutRow over its RAW line, and the kept row stays on the board. When
+ * the row's ticket file exists, its trailer is appended to that ticket as a new `## Board notes` section after the
+ * provenance line; two rows of one ticket give two sections, in board order (D-02). When it does not, the trailer
+ * goes to PRE_V3_ORPHAN_NOTES_REL under one `## [ID]` heading per row, and no ticket is created (D-03). Every line
+ * that begins `_Updated:` outside HTML comments goes, verbatim and in order, to PRE_V3_BOARD_UPDATES_REL, and the
+ * board keeps none (D-04). A row whose line touches an HTML comment is not cut (moving a comment's opener off the
+ * board would uncomment the lines after it), and the plan says so in `notes`. Ticket identity is the admitted `id`,
+ * else the file stem, over the `.md` files directly under the tickets directory whose name does not begin with `.`.
+ *
+ * Refusals are collected, never thrown, and a refused plan has no writes: a board, or a ticket that would receive
+ * an append, that is not valid UTF-8 or mixes LF and CRLF; two ticket files with one identity. overBudget lists every
+ * budget the planned board and the planned tickets still break (D-01, D-07); it never stops the plan.
  */
 export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
   const refusals: string[] = [];
@@ -1700,7 +1736,17 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
   }
   if (refusals.length > 0 || boardFile === undefined) return refusedPlan(refusals, notes);
 
-  const boardText = decodeText(boardFile.bytes);
+  const boardText = strictText(boardFile.bytes);
+  if (boardText === null) {
+    return refusedPlan([`${LEGACY_BOARD_REL} is not valid UTF-8, so it was not split; save it as UTF-8 first`], notes);
+  }
+  if (lineEndings(boardText) === "mixed") {
+    return refusedPlan(
+      [`${LEGACY_BOARD_REL} mixes LF and CRLF line endings, so it was not split; give it one line ending first`],
+      notes,
+    );
+  }
+  const boardEol = lineEndings(boardText) === "crlf" ? "\r\n" : "\n";
   const rawLines = boardText.split("\n");
   const normalized = normalizeDocument(boardText);
   const normalizedLines = normalized.split("\n");
@@ -1708,23 +1754,41 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
   const model = parseBoard(boardText);
   const rows = model.columns.flatMap((c) => c.rows).sort((a, b) => a.line - b.line);
 
-  // The tickets, by identity.
-  const tickets = new Map<string, TicketFile>();
+  // The tickets, by identity; two files with one identity are refused, every file named.
+  const byId = new Map<string, TicketFile[]>();
   for (const f of legacy) {
     const moved = movedRel(f.rel);
     if (!moved.startsWith(`${TICKETS_REL}/`)) continue;
     const name = moved.slice(TICKETS_REL.length + 1);
     if (name.includes("/") || name.startsWith(".") || !name.endsWith(".md")) continue;
-    const text = decodeText(f.bytes);
+    const strict = strictText(f.bytes);
+    const text = strict ?? decodeText(f.bytes);
     const admitted = parseTicketDocument(text);
     const declared = admitted.ok ? admitted.value.id : null;
     const id = declared !== null && declared !== "" ? declared : ticketStem(name);
-    if (!tickets.has(id)) tickets.set(id, { rel: f.rel, name, id, bytes: f.bytes, text });
+    byId.set(id, [...(byId.get(id) ?? []), { rel: f.rel, name, id, bytes: f.bytes, text, utf8: strict !== null }]);
   }
+  const tickets = new Map<string, TicketFile>();
+  for (const [id, files] of byId) {
+    if (files.length > 1) {
+      refusals.push(
+        `the ticket identity ${shown(id)} is declared by ${files.length} files (${files.map((t) => shown(t.rel)).join(", ")}), ` +
+          "so which one receives its Board notes is a guess; give each ticket one file",
+      );
+    }
+    tickets.set(id, files[0] as TicketFile);
+  }
+
+  // The update lines (D-04): the lines of the comment-blanked text that begin `_Updated:`, as the budget rule finds them.
+  const updateAt = new Set<number>();
+  blankedLines.forEach((l, i) => {
+    if (l.startsWith(UPDATED_PREFIX)) updateAt.add(i);
+  });
 
   // The cuts, in board order.
   const boardOut = [...rawLines];
   const sections = new Map<string, { readonly boardLine: number; readonly trailer: string }[]>();
+  const orphans: { readonly id: string; readonly boardLine: number; readonly trailer: string }[] = [];
   for (const row of rows) {
     const i = row.line - 1;
     const raw = rawLines[i] as string;
@@ -1737,10 +1801,40 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
     const bom = i === 0 && raw.startsWith("﻿") ? "﻿" : "";
     const cut = cutRow(raw.slice(bom.length));
     if (cut === null) continue;
-    if (!tickets.has(row.id)) continue;
     boardOut[i] = bom + cut.kept;
-    sections.set(row.id, [...(sections.get(row.id) ?? []), { boardLine: row.line, trailer: cut.trailer }]);
+    if (tickets.has(row.id)) {
+      sections.set(row.id, [...(sections.get(row.id) ?? []), { boardLine: row.line, trailer: cut.trailer }]);
+    } else {
+      orphans.push({ id: row.id, boardLine: row.line, trailer: cut.trailer });
+      notes.push(
+        `the row of ${shown(row.id)} at line ${row.line} of ${LEGACY_BOARD_REL} has no ticket file, so its trailer goes ` +
+          `to ${PRE_V3_ORPHAN_NOTES_REL} and no ticket is created`,
+      );
+    }
   }
+
+  // Every ticket that receives an append must be UTF-8 with one line ending.
+  for (const id of sections.keys()) {
+    const t = tickets.get(id) as TicketFile;
+    if (!t.utf8) {
+      refusals.push(`${shown(t.rel)} is not valid UTF-8, so its Board notes could not be appended; save it as UTF-8 first`);
+    } else if (lineEndings(t.text) === "mixed") {
+      refusals.push(
+        `${shown(t.rel)} mixes LF and CRLF line endings, so its Board notes could not be appended; give it one line ending first`,
+      );
+    }
+  }
+  if (refusals.length > 0) return refusedPlan(refusals, notes);
+
+  // The planned board: the kept rows, without the update lines. keptAt maps an original line index to its new line.
+  const keptAt = new Map<number, number>();
+  const boardLines: string[] = [];
+  boardOut.forEach((l, i) => {
+    if (updateAt.has(i)) return;
+    boardLines.push(l);
+    keptAt.set(i, boardLines.length);
+  });
+  const plannedBoard = boardLines.join("\n");
 
   const generated: GeneratedLine[] = [];
   const cuts: BoardCut[] = [];
@@ -1759,7 +1853,7 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
       parts.push(eol, BOARD_NOTES_HEADING, eol, eol, provenanceLine(s.boardLine, inputs.date), eol, eol, s.trailer, eol);
       generated.push({ rel, line: next + 1, kind: "board-notes-heading", boardLine: s.boardLine, id });
       generated.push({ rel, line: next + 3, kind: "provenance", boardLine: s.boardLine, id });
-      cuts.push({ id, boardLine: s.boardLine, keptLine: s.boardLine, noteRel: rel, noteLine: next + 5 });
+      cuts.push({ id, boardLine: s.boardLine, keptLine: keptAt.get(s.boardLine - 1) as number, noteRel: rel, noteLine: next + 5 });
       next += 6;
     }
     const added = ENCODER.encode(parts.join(""));
@@ -1780,16 +1874,58 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
       note: `${list.length} Board notes section(s) appended to the ticket ${shown(id)}`,
     });
   }
+
+  // The two archive-only outputs (D-03, D-04), each planned only when it has something to hold.
+  const extraWrites: MigrateWrite[] = [];
+  if (updateAt.size > 0) {
+    const lines = [BOARD_UPDATES_TITLE, "", provenanceLine(null, inputs.date), ""];
+    generated.push({ rel: PRE_V3_BOARD_UPDATES_REL, line: 1, kind: "updates-title", boardLine: null, id: null });
+    generated.push({ rel: PRE_V3_BOARD_UPDATES_REL, line: 3, kind: "provenance", boardLine: null, id: null });
+    for (const i of [...updateAt].sort((a, b) => a - b)) lines.push(withoutCr(rawLines[i] as string));
+    extraWrites.push({
+      rel: PRE_V3_BOARD_UPDATES_REL,
+      bytes: ENCODER.encode(lines.join(boardEol) + boardEol),
+      source: `the ${updateAt.size} \`_Updated:\` line(s) of the pre-v3 board, verbatim and in order`,
+    });
+  }
+  if (orphans.length > 0) {
+    const lines = [ORPHAN_NOTES_TITLE, "", provenanceLine(null, inputs.date), ""];
+    generated.push({ rel: PRE_V3_ORPHAN_NOTES_REL, line: 1, kind: "orphan-title", boardLine: null, id: null });
+    generated.push({ rel: PRE_V3_ORPHAN_NOTES_REL, line: 3, kind: "provenance", boardLine: null, id: null });
+    orphans.forEach((o, k) => {
+      if (k > 0) lines.push("");
+      lines.push(`## [${o.id}]`);
+      generated.push({ rel: PRE_V3_ORPHAN_NOTES_REL, line: lines.length, kind: "orphan-heading", boardLine: null, id: o.id });
+      lines.push("", provenanceLine(o.boardLine, inputs.date));
+      generated.push({ rel: PRE_V3_ORPHAN_NOTES_REL, line: lines.length, kind: "provenance", boardLine: o.boardLine, id: o.id });
+      lines.push("", o.trailer);
+      cuts.push({
+        id: o.id,
+        boardLine: o.boardLine,
+        keptLine: keptAt.get(o.boardLine - 1) as number,
+        noteRel: PRE_V3_ORPHAN_NOTES_REL,
+        noteLine: lines.length,
+      });
+    });
+    extraWrites.push({
+      rel: PRE_V3_ORPHAN_NOTES_REL,
+      bytes: ENCODER.encode(lines.join(boardEol) + boardEol),
+      source: `the trailers of ${orphans.length} board row(s) whose ticket file is absent, verbatim`,
+    });
+  }
+
   cuts.sort((a, b) => a.boardLine - b.boardLine);
   ticketWrites.sort((a, b) => byCodeUnits(a.rel, b.rel));
   appended.sort((a, b) => byCodeUnits(a.rel, b.rel));
   ticketMoves.sort((a, b) => byCodeUnits(a.from, b.from));
   appendSteps.sort((a, b) => byCodeUnits(a.to, b.to));
+  generated.sort((a, b) => byCodeUnits(a.rel, b.rel) || a.line - b.line);
 
-  const boardBytes = ENCODER.encode(boardOut.join("\n"));
+  const boardBytes = ENCODER.encode(plannedBoard);
   const writes: MigrateWrite[] = [
-    { rel: BOARD_REL, bytes: boardBytes, source: "the pre-v3 board with every cut trailer removed" },
+    { rel: BOARD_REL, bytes: boardBytes, source: "the pre-v3 board without its trailers and its `_Updated:` lines" },
     ...ticketWrites,
+    ...extraWrites,
   ];
   const archiveMoves: ArchiveMove[] = [{ from: BOARD_REL, to: PRE_V3_BOARD_REL }, ...ticketMoves];
   archivedAt.set(LEGACY_BOARD_REL, PRE_V3_BOARD_REL);
@@ -1798,7 +1934,7 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
     at: archivedAt.get(f.rel) ?? movedRel(f.rel),
     match: "identical" as const,
   }));
-  const sizeOf = new Map(legacy.map((f) => [f.rel, f.bytes.length] as const));
+  const sizeOf = new Map(legacy.map((f) => [movedRel(f.rel), f.bytes.length] as const));
   const steps: MigrateStep[] = [
     ...legacy.map((f) => ({
       verb: "move" as const,
@@ -1807,18 +1943,22 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
       bytes: f.bytes.length,
       note: "renamed with the pre-v3 root, unchanged",
     })),
-    ...archiveMoves.map((m) => {
-      const original = legacy.find((f) => movedRel(f.rel) === m.from)?.rel ?? m.from;
-      return {
-        verb: "archive" as const,
-        from: m.from,
-        to: m.to,
-        bytes: sizeOf.get(original) ?? 0,
-        note: "the original, renamed unchanged into the pre-v3 archive",
-      };
-    }),
-    { verb: "write", from: null, to: BOARD_REL, bytes: boardBytes.length, note: `${cuts.length} trailer(s) cut` },
+    ...archiveMoves.map((m) => ({
+      verb: "archive" as const,
+      from: m.from,
+      to: m.to,
+      bytes: sizeOf.get(m.from) ?? 0,
+      note: "the original, renamed unchanged into the pre-v3 archive",
+    })),
+    {
+      verb: "write",
+      from: null,
+      to: BOARD_REL,
+      bytes: boardBytes.length,
+      note: `${cuts.length} trailer(s) cut and ${updateAt.size} \`_Updated:\` line(s) moved`,
+    },
     ...appendSteps,
+    ...extraWrites.map((w) => ({ verb: "write" as const, from: null, to: w.rel, bytes: w.bytes.length, note: w.source })),
   ];
 
   const provable: ProvablePlan = { originals, generated, cuts, appended };
@@ -1832,10 +1972,46 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
     generated,
     cuts,
     appended,
-    overBudget: [],
+    overBudget: plannedBudgetFindings(plannedBoard, legacy, ticketWrites),
     steps,
     proof: proveStateMigrate(inputs, provable, written),
   };
+}
+
+/**
+ * Every budget the planned state still breaks (D-01, D-07), through the embedded rules: the planned board's bytes,
+ * each ticket row over BUDGETS.boardRowChars (named by its ID), its `_Updated:` lines, and each ticket record directly
+ * under the tickets directory over BUDGETS.ticketBytes, appended or moved unchanged. Sorted with sortFindings.
+ */
+function plannedBudgetFindings(
+  plannedBoard: string,
+  legacy: readonly LegacyFile[],
+  ticketWrites: readonly MigrateWrite[],
+): StateFinding[] {
+  const normalizedBoard = normalizeDocument(plannedBoard);
+  const model = parseBoard(plannedBoard);
+  const idAt = new Map(model.columns.flatMap((c) => c.rows).map((r) => [r.line, r.id] as const));
+  const findings: StateFinding[] = boardBudgetFindings(
+    BOARD_REL,
+    { raw: plannedBoard, normalized: normalizedBoard, blanked: stripHtmlComments(normalizedBoard) },
+    model,
+    BUDGETS,
+  ).map((f) => {
+    const id = f.key === "boardRowChars" && f.line !== undefined ? idAt.get(f.line) : undefined;
+    return id === undefined ? f : { ...f, note: `the row of ${shown(id)}, after its trailer was cut` };
+  });
+  const planned = new Map(ticketWrites.map((w) => [w.rel, w.bytes.length] as const));
+  const sizes = new Map<string, number>();
+  for (const f of legacy) {
+    const moved = movedRel(f.rel);
+    if (!moved.startsWith(`${TICKETS_REL}/`) || moved.slice(TICKETS_REL.length + 1).includes("/")) continue;
+    sizes.set(moved.slice(TICKETS_REL.length + 1), planned.get(moved) ?? f.bytes.length);
+  }
+  for (const name of budgetEntryNames([...sizes.keys()])) {
+    const finding = fileBytesFinding(`${TICKETS_REL}/${name}`, sizes.get(name) as number, "ticketBytes", BUDGETS);
+    if (finding !== null) findings.push(finding);
+  }
+  return sortFindings(findings);
 }
 
 /** The template a generated line of `g`'s kind must equal, or null for a kind outside the closed set. */
@@ -1845,6 +2021,12 @@ function generatedTemplate(g: GeneratedLine, date: string): string | null {
       return BOARD_NOTES_HEADING;
     case "provenance":
       return provenanceLine(g.boardLine, date);
+    case "updates-title":
+      return BOARD_UPDATES_TITLE;
+    case "orphan-title":
+      return ORPHAN_NOTES_TITLE;
+    case "orphan-heading":
+      return g.id === null ? null : `## [${g.id}]`;
     default:
       return null;
   }
@@ -1855,7 +2037,8 @@ type ProofPart = { readonly rel: string; readonly lines: readonly string[]; read
 
 /**
  * The D-09 stage-A proof. The originals are the non-blank lines of the pre-v3 board (a line is its text without
- * the LF or CRLF terminator). The outputs are the written board and the appended part of every appended ticket,
+ * the LF or CRLF terminator). The outputs are the written board, the updates file, the orphan notes file and the
+ * appended part of every appended ticket,
  * after the generated lines are removed BY POSITION (each must equal its kind's template) and each cut is rejoined
  * (the kept row plus its trailer must equal its original line). The two multisets must then be equal. Each
  * appended ticket must also begin with its original bytes, and every original home that `written` holds must
@@ -1876,6 +2059,10 @@ export function proveStateMigrate(
   const board = written.get(BOARD_REL);
   if (board === undefined) reasons.push(`${BOARD_REL} is not among the written files, so the board split cannot be proven`);
   else parts.set(BOARD_REL, { rel: BOARD_REL, lines: linesOf(decodeText(board)), first: 1 });
+  for (const rel of [PRE_V3_BOARD_UPDATES_REL, PRE_V3_ORPHAN_NOTES_REL]) {
+    const bytes = written.get(rel);
+    if (bytes !== undefined) parts.set(rel, { rel, lines: linesOf(decodeText(bytes)), first: 1 });
+  }
 
   for (const a of plan.appended) {
     const bytes = written.get(a.rel);
