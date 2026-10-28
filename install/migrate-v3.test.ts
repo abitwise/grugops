@@ -40,7 +40,10 @@
 // needs to the materialized fixture:
 //   (M6) with five Done rows added at the top of the Done column, --migrate writes BOARD_DONE_ARCHIVE_REL, the board
 //        keeps BUDGETS.doneRows Done rows, and the kit-source state-roll.js --dry-run on the migrated target exits 0
-//        and says nothing would move for the Done column.
+//        and says nothing would move for the Done column;
+//   (M7) with three dated `## YYYY-MM-DD` entries added to the progress file, --migrate moves that file unchanged to
+//        PRE_V3_PROGRESS_REL, writes PROGRESS_ARCHIVE_REL holding the dated entries and a new PROGRESS_REL holding the
+//        standing sections only, and state-roll --dry-run then says nothing would move.
 //
 // THE INSTALLED WORLD. The doctor refuses a repository with no install marker before it reads the layout ("grugops not
 // installed", one FAIL), so (F2) needs what the copy itself is: a repository a v2.x grugops install already serves,
@@ -73,8 +76,10 @@ import {
   NFR_DIR_REL,
   PRE_V3_BOARD_REL,
   PRE_V3_NFR_CATALOG_REL,
+  PRE_V3_PROGRESS_REL,
   PRE_V3_TICKETS_REL,
   PRE_V3_TRACEABILITY_REL,
+  PROGRESS_ARCHIVE_REL,
   PROGRESS_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
@@ -356,5 +361,39 @@ describe("install --migrate v3 (phase 38)", () => {
     expect(roll.status, `${roll.stdout}\n${roll.stderr}`).toBe(0);
     expect(roll.stdout).toContain(`Nothing to roll: the Done column of ${BOARD_REL} holds ${BUDGETS.doneRows} row(s)`);
     expect(roll.stdout).not.toContain("PLAN    done");
+  });
+
+  it("(M7) --migrate rolls the dated progress entries: the original sits unchanged at PRE_V3_PROGRESS_REL and PROGRESS_ARCHIVE_REL holds the entries", () => {
+    const { target, kitHome, home } = emptyWorld();
+    makePreV3ChessFixture(target);
+    const progressPath = join(target, PROGRESS_REL);
+    const lines = readFileSync(progressPath, "utf8").split("\n");
+    const at = lines.findIndex((l) => l.startsWith("## "));
+    expect(at, "PREMISE: the fixture progress file has a `##` section").toBeGreaterThan(-1);
+    const dates = ["2026-07-01", "2026-07-02", "2026-07-03"];
+    const entries = dates.flatMap((d, k) => [`## ${d} — status entry ${k} added for the roll case`, "", `- what moved on ${d}.`, ""]);
+    writeFileSync(progressPath, [...lines.slice(0, at), ...entries, ...lines.slice(at)].join("\n"));
+    const original = readFileSync(progressPath);
+    const r = runInstall(target, kitHome, ["--migrate"], { home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
+    expect(existsSync(join(target, PRE_V3_PROGRESS_REL)), "the progress original is archived").toBe(true);
+    expect(readFileSync(join(target, PRE_V3_PROGRESS_REL)).equals(original), "the progress original is archived unchanged").toBe(true);
+    expect(existsSync(join(target, PROGRESS_ARCHIVE_REL)), "the progress archive is written").toBe(true);
+    const archive = readFileSync(join(target, PROGRESS_ARCHIVE_REL), "utf8");
+    const progress = readFileSync(progressPath, "utf8");
+    for (const d of dates) {
+      expect(archive, d).toContain(`## ${d} `);
+      expect(progress, d).not.toContain(`## ${d} `);
+    }
+    for (const h of original.toString("utf8").split("\n").filter((l) => l.startsWith("## Standing"))) expect(progress.split("\n"), h).toContain(h);
+    const roll = spawnSync(process.execPath, [join(import.meta.dirname, "..", "scripts", "runnable-ref", "state-roll.js"), target, "--dry-run"], {
+      encoding: "utf8",
+      timeout: 120_000,
+    });
+    expect(roll.error).toBeUndefined();
+    expect(roll.status, `${roll.stdout}\n${roll.stderr}`).toBe(0);
+    expect(roll.stdout).toContain("Dry run: nothing would move; nothing was written.");
   });
 });

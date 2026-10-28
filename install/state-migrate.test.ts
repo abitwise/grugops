@@ -42,8 +42,10 @@ import {
   PRE_V3_NFR_CATALOG_REL,
   PRE_V3_NFR_NOTES_REL,
   PRE_V3_ORPHAN_NOTES_REL,
+  PRE_V3_PROGRESS_REL,
   PRE_V3_TICKETS_REL,
   PRE_V3_TRACEABILITY_REL,
+  PROGRESS_ARCHIVE_REL,
   PROGRESS_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
@@ -622,11 +624,12 @@ describe("(S7) determinism and the closed generated-line set", () => {
       "nfr-index-line",
       "kit-seed-line",
       "done-archive-skeleton",
+      "progress-archive-skeleton",
     ]);
     expect(Object.isFrozen(MIGRATE_GENERATED_LINE_KINDS)).toBe(true);
     // Plan 38-05 (D-08): the frozen fixture's Done column is within BUDGETS.doneRows, so the roll kinds come from the
     // rolling variant of the fixture (S9), whose plan generates every kind the fixture's does.
-    const kinds = new Set([...CHESS_PLAN.generated, ...rollingPlan().generated].map((g) => g.kind));
+    const kinds = new Set([...CHESS_PLAN.generated, ...rollingPlan().generated, ...bothRolls().plan.generated].map((g) => g.kind));
     for (const k of MIGRATE_GENERATED_LINE_KINDS) expect(kinds, k).toContain(k);
   });
 });
@@ -1062,5 +1065,190 @@ describe("(S9) the Done roll runs inside the migrate plan, with the embedded sta
       proveStateMigrate(rolling().inputs, plan, editWritten(writesOf(plan), BOARD_DONE_ARCHIVE_REL, (t) => t.replace("## Done (WIP unlimited)", "## Done (WIP 0/9)"))),
     );
     expect(reasons.some((r) => r.includes(`line 1 of ${BOARD_DONE_ARCHIVE_REL}`) && r.includes("done-archive-skeleton")), reasons.join("\n")).toBe(true);
+  });
+});
+
+// ── (S10) the progress roll, refused rolls, budget findings and roll proof failures (plan 38-05 Task 2) ───────────
+
+const PROGRESS_TEXT = dec.decode(CHESS.progress ?? new Uint8Array());
+
+/**
+ * The fixture progress file with three dated `## YYYY-MM-DD` entries added before its first `##` section. The frozen
+ * fixture's progress file holds no dated entry (its two `##` sections are standing), so a progress roll needs them:
+ * made here, never in the fixture (D-15). The entries are not in date order, so the roll's oldest-first order shows.
+ */
+function withDatedEntries(text: string): string {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("## "));
+  if (at < 0) throw new Error("PREMISE: the progress file has a `##` section");
+  const entry = (date: string, k: number): string[] => [
+    `## ${date} — status entry ${k} added for the roll test`,
+    "",
+    `- what moved on ${date}: the status of entry ${k}, kept whole by the roll.`,
+    "",
+  ];
+  return [...lines.slice(0, at), ...entry("2026-07-03", 1), ...entry("2026-07-01", 2), ...entry("2026-07-02", 3), ...lines.slice(at)].join("\n");
+}
+
+/** The headings of the dated entries withDatedEntries adds. */
+const DATED_HEADINGS = ["2026-07-01", "2026-07-02", "2026-07-03"];
+
+/** The rolling fixture variant with dated progress entries too: both rolls run (computed once). */
+let BOTH: { inputs: MigrateInputs; plan: MigratePlan } | null = null;
+function bothRolls(): { inputs: MigrateInputs; plan: MigratePlan } {
+  if (BOTH === null) {
+    const inputs = { ...rolling().inputs, progress: enc.encode(withDatedEntries(PROGRESS_TEXT)) };
+    BOTH = { inputs, plan: planStateMigrate(inputs) };
+  }
+  return BOTH;
+}
+
+describe("(S10) the progress roll, with its original archived unchanged (plan 38-05 Task 2, D-08, research A9)", () => {
+  it("PREMISE: the fixture progress file is over BUDGETS.progressBytes and holds no dated entry", () => {
+    expect(enc.encode(PROGRESS_TEXT).length).toBeGreaterThan(BUDGETS.progressBytes);
+    expect(PROGRESS_TEXT.split("\n").some((l) => /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/.test(l))).toBe(false);
+  });
+
+  it("progress: the dated entries roll to PROGRESS_ARCHIVE_REL oldest first, the standing sections stay, the original moves unchanged to PRE_V3_PROGRESS_REL, and PROGRESS_REL is a new write", () => {
+    const { plan } = bothRolls();
+    expect(plan.refusals).toEqual([]);
+    expect(plan.archiveMoves).toContainEqual({ from: PROGRESS_REL, to: PRE_V3_PROGRESS_REL });
+    expect(plan.originals).toContainEqual({ original: PROGRESS_REL, at: PRE_V3_PROGRESS_REL, match: "identical" });
+    const progress = writeText(plan, PROGRESS_REL).split("\n");
+    const archive = writeText(plan, PROGRESS_ARCHIVE_REL).split("\n");
+    for (const d of DATED_HEADINGS) {
+      expect(progress.some((l) => l.startsWith(`## ${d}`)), d).toBe(false);
+      expect(archive.some((l) => l.startsWith(`## ${d}`)), d).toBe(true);
+    }
+    const order = DATED_HEADINGS.map((d) => archive.findIndex((l) => l.startsWith(`## ${d}`)));
+    expect([...order].sort((a, b) => a - b), "oldest first").toEqual(order);
+    for (const h of PROGRESS_TEXT.split("\n").filter((l) => l.startsWith("## "))) expect(progress, h).toContain(h);
+    expect(plan.rolls.map((r) => [r.surface, r.outcome.ok])).toEqual([
+      ["done", true],
+      ["progress", true],
+    ]);
+    expect(plan.steps.some((s) => s.verb === "archive" && s.from === PROGRESS_REL && s.to === PRE_V3_PROGRESS_REL)).toBe(true);
+  });
+
+  it("progress parity: state-roll.js over the split board and the original progress file writes the same four files", () => {
+    const { inputs, plan } = bothRolls();
+    const rels = [BOARD_REL, BOARD_DONE_ARCHIVE_REL, PROGRESS_REL, PROGRESS_ARCHIVE_REL];
+    const r = stateRoll(plan.beforeRoll as Uint8Array, inputs.progress, rels);
+    expect(r.status, r.out).toBe(0);
+    for (const rel of rels) expect(r.files.get(rel)?.equals(writeBytes(plan, rel) ?? Buffer.alloc(0)), rel).toBe(true);
+  });
+
+  it("progress: the proof covers the progress original, its skeleton lines are declared by position, and the plan proves", () => {
+    const { inputs, plan } = bothRolls();
+    const skeleton = plan.generated.filter((g) => g.kind === "progress-archive-skeleton");
+    expect(skeleton.map((g) => [g.rel, g.line])).toEqual([
+      [PROGRESS_ARCHIVE_REL, 1],
+      [PROGRESS_ARCHIVE_REL, 3],
+    ]);
+    expect(plan.proof).toEqual({ ok: true });
+    expect(proveStateMigrate(inputs, plan, writesOf(plan))).toEqual({ ok: true });
+  });
+
+  it("progress: a progress file within budget, or absent, or over budget with no dated entry plans no progress write and no PRE_V3_PROGRESS_REL move", () => {
+    const small = enc.encode(["# Progress", "", "## 2026-07-01 a small entry", "", "- one line", ""].join("\n"));
+    for (const [what, progress] of [
+      ["within budget", small],
+      ["absent", null],
+      ["over budget with no dated entry (the frozen fixture)", CHESS.progress],
+    ] as const) {
+      const plan = planStateMigrate({ ...rolling().inputs, progress });
+      expect(plan.refusals, what).toEqual([]);
+      expect(plan.writes.some((w) => w.rel === PROGRESS_REL || w.rel === PROGRESS_ARCHIVE_REL), what).toBe(false);
+      expect(plan.archiveMoves.some((m) => m.from === PROGRESS_REL), what).toBe(false);
+      expect(plan.originals.some((o) => o.original === PROGRESS_REL), what).toBe(false);
+      expect(plan.proof, what).toEqual({ ok: true });
+    }
+  });
+
+  it("progress: a progress file that is not valid UTF-8 is not rolled, with one note naming it and state-roll, and the migrate is not refused", () => {
+    const bad = concat(enc.encode(withDatedEntries(PROGRESS_TEXT)), new Uint8Array([0xff, 0x0a]));
+    const plan = planStateMigrate({ ...rolling().inputs, progress: bad });
+    expect(plan.refusals).toEqual([]);
+    expect(plan.writes.some((w) => w.rel === PROGRESS_REL)).toBe(false);
+    const notes = plan.notes.filter((n) => n.includes("node tools/grugops/state-roll.js"));
+    expect(notes, plan.notes.join("\n")).toHaveLength(1);
+    expect(notes[0]).toContain(PROGRESS_REL);
+  });
+});
+
+describe("(S10) a roll the embedded planner refuses is a note, never a migrate refusal (research A6)", () => {
+  it("A6: a Done column holding a line that is not a row is not rolled: no refusal, no Done archive, one note naming the reason and state-roll, and overBudget holds the doneRows finding", () => {
+    const board = withDoneRows(BOARD_TEXT, 5).replace(/^## Done \(WIP unlimited\)$/m, "## Done (WIP unlimited)\nA line of prose under the Done column.");
+    const plan = planStateMigrate(withBoard(board));
+    expect(plan.refusals).toEqual([]);
+    expect(plan.writes.some((w) => w.rel === BOARD_DONE_ARCHIVE_REL)).toBe(false);
+    expect(plan.rolls.some((r) => r.surface === "done")).toBe(false);
+    const notes = plan.notes.filter((n) => n.includes("node tools/grugops/state-roll.js"));
+    expect(notes, plan.notes.join("\n")).toHaveLength(1);
+    expect(notes[0]).toContain("not ticket rows");
+    expect(notes[0]).toContain(BOARD_REL);
+    expect(plan.overBudget.some((f) => f.key === "doneRows" && f.rel === BOARD_REL)).toBe(true);
+    expect(plan.proof).toEqual({ ok: true });
+  });
+});
+
+describe("(S10) overBudget holds the Done-row and progress-bytes findings over the planned state (D-07)", () => {
+  it("the frozen fixture: the progress file is named over BUDGETS.progressBytes with its bytes, its note naming the standing sections; no doneRows finding", () => {
+    const f = CHESS_PLAN.overBudget.find((x) => x.key === "progressBytes");
+    expect(f?.rel).toBe(PROGRESS_REL);
+    expect(f?.measured).toBe(CHESS.progress?.length);
+    expect(f?.note ?? "").toContain("standing sections");
+    expect(CHESS_PLAN.overBudget.some((x) => x.key === "doneRows")).toBe(false);
+  });
+
+  it("after both rolls: the board holds no doneRows finding, and the progress finding measures the rolled progress file", () => {
+    const { plan } = bothRolls();
+    expect(plan.overBudget.some((x) => x.key === "doneRows")).toBe(false);
+    const f = plan.overBudget.find((x) => x.key === "progressBytes");
+    expect(f?.measured).toBe(writeBytes(plan, PROGRESS_REL)?.length);
+  });
+});
+
+describe("(S10) the proof fails, naming the file and line, on every mutation of the rolled outputs", () => {
+  it("proof: a progress entry duplicated in the progress archive is named in that file", () => {
+    const { inputs, plan } = bothRolls();
+    const line = `- what moved on 2026-07-01: the status of entry 2, kept whole by the roll.`;
+    const reasons = reasonsOf(proveStateMigrate(inputs, plan, editWritten(writesOf(plan), PROGRESS_ARCHIVE_REL, (t) => `${t}${line}\n`)));
+    expect(reasons.some((r) => r.includes(PROGRESS_ARCHIVE_REL) && r.includes("is not a line of")), reasons.join("\n")).toBe(true);
+  });
+
+  it("proof: a progress line dropped from the rolled progress file is named by its line in the progress original", () => {
+    const { inputs, plan } = bothRolls();
+    const text = writeText(plan, PROGRESS_REL);
+    const n = text.split("\n").findIndex((l) => l.startsWith("## Standing")) + 1;
+    const reasons = reasonsOf(proveStateMigrate(inputs, plan, editWritten(writesOf(plan), PROGRESS_REL, (t) => dropLine(t, n))));
+    expect(reasons.some((r) => r.includes(PROGRESS_REL) && r.includes("is in no split output")), reasons.join("\n")).toBe(true);
+  });
+
+  it("proof: an altered progress archive skeleton line is named by its file and line", () => {
+    const { inputs, plan } = bothRolls();
+    const reasons = reasonsOf(
+      proveStateMigrate(inputs, plan, editWritten(writesOf(plan), PROGRESS_ARCHIVE_REL, (t) => t.replace("# Progress archive", "# Progress archive (edited)"))),
+    );
+    expect(reasons.some((r) => r.includes(`line 1 of ${PROGRESS_ARCHIVE_REL}`) && r.includes("progress-archive-skeleton")), reasons.join("\n")).toBe(true);
+  });
+
+  it("proof: a rolled Done row dropped from the archive in the two-roll plan is named by its pre-v3 board line", () => {
+    const { inputs, plan } = bothRolls();
+    const archive = writeText(plan, BOARD_DONE_ARCHIVE_REL).split("\n");
+    const n = archive.findIndex((l, i) => i > 0 && l.startsWith("- [ABC-00")) + 1;
+    expect(n, "PREMISE: a rolled ABC-00x row").toBeGreaterThan(1);
+    const reasons = reasonsOf(proveStateMigrate(inputs, plan, editWritten(writesOf(plan), BOARD_DONE_ARCHIVE_REL, (t) => dropLine(t, n))));
+    expect(reasons.some((r) => r.includes(LEGACY_BOARD_REL) && r.includes("is in no split output")), reasons.join("\n")).toBe(true);
+  });
+
+  it("proof: a roll whose stage-B outcome is not ok fails the proof with its stage and reason", () => {
+    const { inputs, plan } = bothRolls();
+    const failed = {
+      ...plan,
+      rolls: [{ surface: "progress" as const, moved: 3, outcome: { ok: false as const, stage: "rolled-back" as const, reason: "the archive differs" } }],
+    };
+    const reasons = reasonsOf(proveStateMigrate(inputs, failed, writesOf(plan)));
+    expect(reasons.some((r) => r.includes("stage B") && r.includes("rolled-back") && r.includes("the archive differs")), reasons.join("\n")).toBe(true);
   });
 });
