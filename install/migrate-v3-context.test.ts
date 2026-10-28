@@ -51,7 +51,16 @@ import {
   TRACEABILITY_REL,
   TRACE_DIR_REL,
 } from "./state-layout.js";
-import { PRE_V3_CHESS_DIR, lineNamesPath, makePreV3ChessFixture, runInstall, snapshotTree } from "./installer-paths.test-support.js";
+import {
+  INSTALL_JS,
+  PRE_V3_CHESS_DIR,
+  lineNamesPath,
+  makePreV3ChessFixture,
+  runInstall,
+  snapshotTree,
+  withAgentFlags,
+} from "./installer-paths.test-support.js";
+import { deriveFsCallSites, runFaulted, scriptUrl, writeFaultPreload, type FaultSpec } from "../scripts/fault-inject.test-support.js";
 import { NOTE_SEAL_KEY, noteSeal } from "../scripts/context-io.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-migrate-context-")));
@@ -293,5 +302,52 @@ describe("install --migrate --archive-done-context: the context archive (plan 38
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(labelled(r.stdout, "note").filter((l) => l.includes("--archive-done-context")), r.stdout).toHaveLength(1);
     expect(existsSync(at(w.target, CONTEXT_ARCHIVE_REL))).toBe(false);
+  });
+
+  it("(C7) a render that fails in its write phase, after it removed a trace file: the undo puts the trace back as it was", () => {
+    const w = fixtureWorld(["ABC-168"]);
+    // As in (C6): a folder with no ticket ID whose note names ABC-168, so moving the Done folder changes ABC-168's trace
+    // file and the render reaches its write phase.
+    const notes = at(w.target, `${CONTEXT_REL}/zz-co-refs/notes`);
+    mkdirSync(notes, { recursive: true });
+    const id = "20261028T120000Z-orchestrator-decision-0c1d2e3f";
+    const fence =
+      `id: ${id}\nkind: decision\nby: orchestrator\nat: 2026-10-28T12:00:00Z\nverified_by: \nconfidence: high\n` +
+      "refs:\n  - ABC-168\n  - EPIC-099\nsupersedes: \n";
+    const rest = "---\n\na decision note planted for the trace undo case.\n";
+    writeFileSync(join(notes, `${id}.md`), `---\n${fence}${NOTE_SEAL_KEY}: ${noteSeal(`---\n${fence}${rest}`)}\n${rest}`);
+    const first = runInstall(w.target, w.kitHome, ["--migrate"], { home: w.home, timeoutMs: 180_000 });
+    expect(first.status, `${first.stdout}\n${first.stderr}`).toBe(0);
+    // A generated trace file no note names: the render removes it before it writes anything.
+    const extra = at(w.target, `${TRACE_DIR_REL}/ABC-998.md`);
+    writeFileSync(extra, readFileSync(at(w.target, `${TRACE_DIR_REL}/ABC-168.md`)));
+    const traceBefore = snapshotTree(at(w.target, TRACE_DIR_REL));
+    const indexBefore = readFileSync(at(w.target, TRACEABILITY_REL));
+    const contextBefore = snapshotTree(at(w.target, CONTEXT_REL));
+
+    // The renderer's first write fails, in the renderer's own process: NODE_OPTIONS carries the fault preload into it.
+    const scratch = join(w.home, "..", "scratch");
+    mkdirSync(scratch, { recursive: true });
+    const site = deriveFsCallSites(KIT_TRACE_RENDER, "writeFileSync").filter((x) => x.enclosing === "atomicWrite");
+    expect(site, "PREMISE: one writeFileSync in the renderer's atomicWrite").toHaveLength(1);
+    const spec: FaultSpec = { kind: "fs", fn: "writeFileSync", site: { url: scriptUrl(KIT_TRACE_RENDER), line: (site[0] as { line: number }).line }, code: "EIO" };
+    const r = runFaulted(INSTALL_JS, ["--yes", ...withAgentFlags(["--migrate", "--archive-done-context"])], spec, {
+      scratch,
+      env: {
+        INSTALL_MODE: "copy",
+        GRUGOPS_SRC: join(import.meta.dirname, ".."),
+        GRUGOPS_HOME: w.kitHome,
+        HOME: w.home,
+        TARGET: w.target,
+        NODE_OPTIONS: `--import ${writeFaultPreload(scratch)}`,
+      },
+    });
+    const out = `${r.stdout}\n${r.stderr}`;
+    expect(r.fired, out).toBe(1);
+    expect(r.status, out).toBe(3);
+    expect(labelled(r.stdout, "verify").some((l) => l.includes("trace render") && l.includes("exited 2")), r.stdout).toBe(true);
+    expect(snapshotTree(at(w.target, TRACE_DIR_REL)), "the trace files are as they were, the removed one included").toBe(traceBefore);
+    expect(readFileSync(at(w.target, TRACEABILITY_REL)).equals(indexBefore), "the trace index is as it was").toBe(true);
+    expect(snapshotTree(at(w.target, CONTEXT_REL)), "every moved folder is back").toBe(contextBefore);
   });
 });

@@ -6416,6 +6416,8 @@ function traceDirNames() {
         return errCode(e) === "ENOENT" ? [] : null;
     }
 }
+/** A RenderedTrace for a render that never ran: nothing to undo. */
+const NO_RENDER = { added: [], madeDir: false, before: new Map(), unread: [] };
 /** Up to this many of the renderer's stderr lines go into the verify of a render that did not pass. */
 const TRACE_RENDER_STDERR_LINES = 20;
 // renderMigratedTrace: step (g2) above. It runs the kit-source renderer once and reports what it did; it undoes
@@ -6424,11 +6426,32 @@ const TRACE_RENDER_STDERR_LINES = 20;
 function renderMigratedTrace() {
     const script = kitTraceRenderer();
     if (script === null) {
-        return { ok: false, why: `no kit runnable is mapped to ${TRACE_RENDER_DEST_REL}, so the trace render could not run`, added: [], madeDir: false };
+        return { ok: false, why: `no kit runnable is mapped to ${TRACE_RENDER_DEST_REL}, so the trace render could not run`, ...NO_RENDER };
     }
     const traceDir = targetPath(TRACE_DIR_REL);
     const dirBefore = kindAt(traceDir) !== null;
     const before = traceDirNames();
+    // The bytes the render may change or remove, read just before it runs, so a failed render can be undone whole: the
+    // index, and each regular file already in the trace directory (the renderer rewrites changed ones and removes extra
+    // ones). A file that cannot be read here is named in `unread`.
+    const snapshot = new Map();
+    const unread = [];
+    const indexPath = targetPath(TRACEABILITY_REL);
+    for (const p of [indexPath, ...(before ?? []).map((n) => join(traceDir, n))]) {
+        const kind = kindAt(p);
+        if (kind === null) {
+            if (p === indexPath)
+                snapshot.set(p, null);
+            continue;
+        }
+        if (kind !== "regular file")
+            continue;
+        const r = readUserFile(p);
+        if (r.state === "ok")
+            snapshot.set(p, { bytes: r.bytes, mode: r.mode & 0o777 });
+        else
+            unread.push(p);
+    }
     const child = spawnSync(process.execPath, [script, TARGET], { encoding: "utf8" });
     const after = traceDirNames();
     const added = before === null || after === null ? [] : after.filter((n) => !before.includes(n));
@@ -6442,7 +6465,7 @@ function renderMigratedTrace() {
                 : null;
     if (outcome === null) {
         const summary = (child.stdout ?? "").split("\n").map((l) => oneLine(l).trim()).find((l) => l !== "") ?? "";
-        return { ok: true, summary: summary === "" ? "the renderer printed no summary line" : summary, added, madeDir };
+        return { ok: true, summary: summary === "" ? "the renderer printed no summary line" : summary, added, madeDir, before: snapshot, unread };
     }
     const lines = (child.stderr ?? "").split("\n").map((l) => oneLine(l).trim()).filter((l) => l !== "");
     const shown = lines.slice(0, TRACE_RENDER_STDERR_LINES);
@@ -6454,14 +6477,45 @@ function renderMigratedTrace() {
         why: `the kit-source trace renderer ${script} ${outcome}, and only exit 0 is a pass, so the trace was not rendered; ${stderr}`,
         added,
         madeDir,
+        before: snapshot,
+        unread,
     };
 }
 // discardRenderedTrace: take away the regular files the render added to TRACE_DIR_REL (renderMigratedTrace's
-// `added`), then TRACE_DIR_REL itself when the render made it (rmdirSync, so only when it is empty again), so the undo
-// finds the tree as the commit left it. Returns one sentence per entry it left. Reached only from runStateMigrate's
-// commitFailed and runContextArchive's undo (plan 38-11), each after its `if (DRY_RUN)` return.
+// `added`), put back each file of `before` the render changed, removed or created (the index it created when there was
+// none is taken away), then take away TRACE_DIR_REL itself when the render made it (rmdirSync, so only when it is empty
+// again), so the undo finds the tree as the commit left it. A file is put back by taking away what is there (a regular
+// file, asked by kindAt) and creating it again with an exclusive create, so no link is written through. Returns one
+// sentence per entry it left. Reached only from runStateMigrate's commitFailed and runContextArchive's undo (plan
+// 38-11), each after its `if (DRY_RUN)` return.
 function discardRenderedTrace(rendered) {
     const left = [];
+    for (const [p, was] of rendered.before) {
+        const kind = kindAt(p);
+        if (kind === null && was === null)
+            continue;
+        if (kind !== null && kind !== "regular file") {
+            left.push(`${oneLine(p)}, which the trace render left, is not a regular file and was not put back`);
+            continue;
+        }
+        if (kind !== null && was !== null) {
+            const now = readUserFile(p);
+            if (now.state === "ok" && now.bytes.equals(was.bytes))
+                continue;
+        }
+        try {
+            if (kind !== null)
+                unlinkSync(p);
+            if (was !== null)
+                writeFileSync(p, was.bytes, { flag: "wx", mode: was.mode });
+        }
+        catch (e) {
+            left.push(`${oneLine(p)}, changed by the trace render, could not be put back as it was (${errCode(e)})`);
+        }
+    }
+    for (const p of rendered.unread) {
+        left.push(`${oneLine(p)} could not be read before the trace render, so it was not put back if the render changed it`);
+    }
     for (const name of rendered.added) {
         const p = join(targetPath(TRACE_DIR_REL), name);
         if (kindAt(p) !== "regular file") {
@@ -6641,8 +6695,8 @@ function currentContextTicketIds(refusals) {
     return contextTicketIds(board.state === "ok" ? board.bytes.toString("utf8") : "", archive.state === "ok" ? archive.bytes.toString("utf8") : null, tickets);
 }
 // runContextArchive: the context archive alone, on a state already on the v3 layout with a valid marker (plan 38-10):
-// the moves, journaled, then the kit-source trace render, and on any failure the render's added files taken away and
-// the journal undone. No marker is written. Returns how many folders moved, or would move under DRY_RUN.
+// the moves, journaled, then the kit-source trace render, and on any failure the render's changes undone
+// (discardRenderedTrace: its added files taken away, the files it changed or removed put back) and the journal undone. No marker is written. Returns how many folders moved, or would move under DRY_RUN.
 // The render runs because the rendered trace depends on which root holds a task: the renderer reads the live root,
 // then the archive root, and lists each ticket's refs in the order it first reads them. The plan 38-11 dogfood found
 // it on the real repository: with no render here, 58 trace files differed from a fresh render after the moves, and
@@ -6668,7 +6722,7 @@ function runContextArchive(run) {
     };
     const why = moveContextFolders(journal, run);
     if (why !== null)
-        return undone(why, { added: [], madeDir: false });
+        return undone(why, NO_RENDER);
     if (run.plan.moves.length === 0) {
         reportContextArchive(run);
         return 0;
@@ -6790,7 +6844,7 @@ function runStateMigrate(plan, read, context) {
     // (f) to (h). A failure undoes the journal in reverse, then takes away the staging directory.
     const journal = [];
     // What the trace render (g2) added to TRACE_DIR_REL, taken away before the journal is undone.
-    let rendered = { added: [], madeDir: false };
+    let rendered = NO_RENDER;
     const commitFailed = (step, why) => {
         const failed = [...discardRenderedTrace(rendered), ...undoStateMigrate(journal)];
         for (const f of failed)

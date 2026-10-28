@@ -209,6 +209,18 @@ describe("install --migrate v3 rollback (phase 38, plan 38-06)", () => {
     expectRolledBack(w, before, r, "marker", "EIO");
   });
 
+  it("rollback (R6b) the layout marker write fails on a pre-v3 tree with no traceability.md: the index the render created goes too", () => {
+    const w = world();
+    const legacyTrace = join(w.target, LEGACY_STATE_ROOT_REL, "traceability.md");
+    expect(existsSync(legacyTrace), "PREMISE: the fixture holds a traceability.md to take out").toBe(true);
+    rmSync(legacyTrace);
+    const before = stateDigest(w.target);
+    const spec: FaultSpec = { kind: "fs", fn: "writeFileSync", site: fsSite("writeFileSync", "runStateMigrate", "marker"), code: "EIO" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    expectRolledBack(w, before, r, "marker", "EIO");
+    expect(existsSync(legacyTrace), "no traceability.md was carried into the pre-v3 root").toBe(false);
+  });
+
   it("rollback (R6) premise: without a fault the same world migrates and the render writes trace files before the marker", () => {
     const w = world();
     const r = spawnSync(process.execPath, [INSTALL_JS, "--yes", ...withAgentFlags(["--migrate"])], { encoding: "utf8", env: { ...process.env, ...installEnv(w) }, timeout: 120_000 });

@@ -180,9 +180,16 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
   {
     // Plan 38-06 (D-18): the files the trace render added are taken away before an undo of the commit.
     site: "install.ts:discardRenderedTrace:unlinkSync",
+    count: 2,
+    gate: "helper-gated",
+    why: "install.ts:6980 takes away a regular file (kindAt asked first) that renderMigratedTrace found added to TRACE_DIR_REL by this run's trace render, a directory inside the committed state; nothing a user had is named. The second call (the phase-38 code review fix, WR-02) takes away a regular file (kindAt asked first) of renderMigratedTrace's `before` snapshot (TRACEABILITY_REL, or a file directly in TRACE_DIR_REL) that the render changed or created, before it is created again with the bytes read just before the render. Its callers are runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019, and runContextArchive's undo (plan 38-11), after the `if (DRY_RUN)` return at its top",
+  },
+  {
+    // The phase-38 code review fix (WR-02): a failed trace render's changes are put back from the snapshot.
+    site: "install.ts:discardRenderedTrace:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:6980 takes away a regular file (kindAt asked first) that renderMigratedTrace found added to TRACE_DIR_REL by this run's trace render, a directory inside the committed state; nothing a user had is named. Its callers are runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019, and runContextArchive's undo (plan 38-11), after the `if (DRY_RUN)` return at its top",
+    why: "creates, with flag \"wx\" (so no link is written through and nothing there is replaced), a file of renderMigratedTrace's `before` snapshot (TRACEABILITY_REL, or a file directly in TRACE_DIR_REL) that the failed render changed or removed, holding the bytes and mode read just before the render. Its callers are runStateMigrate's commitFailed, after its `if (DRY_RUN)` return, and runContextArchive's undo (plan 38-11), after the `if (DRY_RUN)` return at its top",
   },
   {
     site: "install.ts:discardRenderedTrace:rmdirSync",

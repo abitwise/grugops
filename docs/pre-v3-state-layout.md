@@ -179,8 +179,9 @@ run `--migrate` again.
 After the renames and before the marker, `--migrate` runs the kit's `trace-render.js` against the
 repository. It writes `memory-bank/plans/traceability.md` as a fresh index and one trace file per
 ticket under `memory-bank/plans/traceability/`, built from the references in sealed notes. Only exit
-`0` from the renderer counts as a pass. If the render fails, the move is undone and no marker is
-written.
+`0` from the renderer counts as a pass. If the render fails, or a later step fails, the trace files
+and the index it added are taken away, the ones it changed or removed are put back as they were, the
+move is undone, and no marker is written.
 
 ### The marker, written last
 
@@ -232,7 +233,8 @@ On a pre-v3 repository, the folder moves are part of the state move: they are pl
 pre-check, run after the other renames and before the trace render, and are undone with them. On a
 repository already on the v3 layout with a valid marker, the flag moves the folders on its own and
 then renders the trace again, because the order in which the renderer reads the two places can change
-a trace file. If that render fails, the files it added are taken away and the folders are moved back.
+a trace file. If that render fails, the trace files it added are taken away, the ones it changed or
+removed are put back as they were, and the folders are moved back.
 A run that moves nothing renders nothing. On a repository with no board, or a v3 layout without a valid
 marker, the flag moves nothing and says so. A second run moves nothing.
 
