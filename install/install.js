@@ -6086,6 +6086,10 @@ function occupiedEntry(rel) {
 // directory is asked by lstat first: an absent one holds no claim; a link or anything but a real directory there is a
 // refusal too (the state migrate follows no link, and what it points at is not this repository's queue); an entry that
 // cannot be asked about or listed is never read as empty. An empty directory holds no claim. Nothing here writes.
+// A keeper (a name that begins with `.` and is a regular file, not a link, such as git's `.gitkeep`) is not a claim:
+// that is the keeper rule the context and record listings already use, and a claim is a task directory. The plan
+// 38-11 dogfood found it: a real repository keeps `.gitkeep` in the claimed directory, and every run was refused. A
+// dot-named entry that is a directory or a link, or one that cannot be asked about, still counts as a claim.
 function claimedQueueRefusal() {
     const p = targetPath(QUEUE_CLAIMED_REL);
     const unknown = "so it cannot be shown that no agent holds a claim on queued work";
@@ -6107,6 +6111,16 @@ function claimedQueueRefusal() {
     catch (e) {
         return `${p} could not be listed (${errCode(e)}), ${unknown}`;
     }
+    names = names.filter((n) => {
+        if (!n.startsWith("."))
+            return true;
+        try {
+            return !lstatSync(join(p, n)).isFile();
+        }
+        catch {
+            return true;
+        }
+    });
     if (names.length === 0)
         return null;
     return (`${p} holds ${names.slice(0, 10).map(oneLine).join(", ")}${names.length > 10 ? ` and ${names.length - 10} more` : ""}: ` +

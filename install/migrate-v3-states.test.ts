@@ -156,6 +156,25 @@ describe("the --migrate state machine (plan 38-07, MIGRATE-04)", () => {
     expect(existsSync(at(w.target, LEGACY_STATE_ROOT_REL)), "the pre-v3 root is gone").toBe(false);
   });
 
+  // Found by the plan 38-11 dogfood: the real repository keeps git's `.gitkeep` in the claimed directory, and every
+  // --migrate was refused as if an agent held a claim. A keeper is not a claim; a claim beside it still refuses.
+  it("(S3b) a keeper file in the claimed directory is not a claim; a task directory beside it still refuses", () => {
+    const w = emptyWorld();
+    makePreV3ChessFixture(w.target);
+    mkdirSync(at(w.target, QUEUE_CLAIMED_REL), { recursive: true });
+    writeFileSync(at(w.target, `${QUEUE_CLAIMED_REL}/.gitkeep`), "");
+    mkdirSync(at(w.target, `${QUEUE_CLAIMED_REL}/.held-task`), { recursive: true });
+    const v = expectRefusal(w, snapshotTree(w.target));
+    expect(v).toContain(".held-task");
+    expect(v).not.toContain(".gitkeep");
+    rmSync(at(w.target, `${QUEUE_CLAIMED_REL}/.held-task`), { recursive: true });
+    const r = migrate(w);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
+    expect(readFileSync(at(w.target, LAYOUT_MARKER_REL), "utf8")).toBe(`${LAYOUT_MARKER_CONTENT}\n`);
+    expect(readFileSync(at(w.target, `${QUEUE_CLAIMED_REL}/.gitkeep`), "utf8"), "the keeper is untouched").toBe("");
+  });
+
   it.skipIf(LINK_SKIP !== null)("(S4) a link at the claimed directory is a pre-check refusal naming it, nothing written", () => {
     const w = emptyWorld();
     makePreV3ChessFixture(w.target);
