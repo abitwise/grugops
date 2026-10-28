@@ -63,6 +63,7 @@ import {
   scriptUrl,
   treeDigest,
   type FaultSpec,
+  type FaultedRun,
   type FsFaultFn,
 } from "../scripts/fault-inject.test-support.js";
 
@@ -81,12 +82,13 @@ function world(): { target: string; kitHome: string; home: string; scratch: stri
   const scratch = join(root, "scratch");
   for (const d of [target, home, scratch]) mkdirSync(d, { recursive: true });
   makePreV3ChessFixture(target);
-  const seedBank = join(REPO_ROOT, "agent-factory", "seed", ...MEMORY_BANK_REL.split("/"));
-  cpSync(seedBank, join(target, MEMORY_BANK_REL), {
+  const seed = join(REPO_ROOT, "agent-factory", "seed");
+  const seedStateRoot = join(seed, ...STATE_ROOT_REL.split("/"));
+  cpSync(join(seed, ...MEMORY_BANK_REL.split("/")), join(target, MEMORY_BANK_REL), {
     recursive: true,
     force: false,
     errorOnExist: false,
-    filter: (src) => src !== join(seedBank, "plans") && !src.startsWith(join(seedBank, "plans") + sep),
+    filter: (src) => src !== seedStateRoot && !src.startsWith(seedStateRoot + sep),
   });
   return { target, kitHome: join(root, "kit-home"), home, scratch };
 }
@@ -131,81 +133,78 @@ function callSite(fn: string, scope: string, text: string): { url: string; line:
 /** The rename of migrateRename, the one rename of every commit step. */
 const RENAME = (): { url: string; line: number } => fsSite("renameSync", "migrateRename");
 
-type Case = {
-  readonly name: string;
-  readonly spec: () => FaultSpec;
-  /** Text the one verify holds: the step it names. */
-  readonly step: string;
-  readonly code: string;
-  /** A fact the case needs the target to hold before the run, or null. */
-  readonly premise?: (target: string) => void;
-};
+/** The `via` frame of migrateRename's call in runStateMigrate for one commit step class, named by its loop variable. */
+const VIA = (step: "rootRename" | "archiveMove" | "stagedWrite"): { url: string; line: number } =>
+  callSite("migrateRename", "runStateMigrate", step);
 
-const CASES: readonly Case[] = [
-  {
-    name: "(R1) the state root rename fails with EIO",
-    spec: () => ({ kind: "fs", fn: "renameSync", site: RENAME(), via: callSite("migrateRename", "runStateMigrate", "rootRename"), code: "EIO" }),
-    step: "state migrate (commit, the state root rename)",
-    code: "EIO",
-  },
-  {
-    name: "(R2) the state root rename fails with EXDEV, which is undone like EIO, with no copy-and-delete fallback",
-    spec: () => ({ kind: "fs", fn: "renameSync", site: RENAME(), via: callSite("migrateRename", "runStateMigrate", "rootRename"), code: "EXDEV" }),
-    step: "state migrate (commit, the state root rename)",
-    code: "EXDEV",
-  },
-  {
-    name: "(R3) an archive move fails with EIO",
-    spec: () => ({ kind: "fs", fn: "renameSync", site: RENAME(), via: callSite("migrateRename", "runStateMigrate", "archiveMove"), code: "EIO" }),
-    step: "state migrate (commit, an archive move)",
-    code: "EIO",
-  },
-  {
-    name: "(R4) a commit mkdir on the way to an archive move fails with EIO",
-    spec: () => ({
-      kind: "fs",
-      fn: "mkdirSync",
-      site: fsSite("mkdirSync", "migrateMkdirs"),
-      via: callSite("migrateRename", "runStateMigrate", "archiveMove"),
-      code: "EIO",
-    }),
-    step: "state migrate (commit, an archive move)",
-    code: "EIO",
-  },
-  {
-    name: "(R5) a staged write's rename fails with EIO",
-    spec: () => ({ kind: "fs", fn: "renameSync", site: RENAME(), via: callSite("migrateRename", "runStateMigrate", "stagedWrite"), code: "EIO" }),
-    step: "state migrate (commit, a staged write)",
-    code: "EIO",
-  },
-  {
-    name: "(R6) the layout marker write fails with EIO, after the trace render wrote its files",
-    spec: () => ({ kind: "fs", fn: "writeFileSync", site: fsSite("writeFileSync", "runStateMigrate", "marker"), code: "EIO" }),
-    step: "state migrate (marker)",
-    code: "EIO",
-  },
-];
+/** A world the faulted run starts from, and its state digest before the run. */
+function faultWorld(): { w: ReturnType<typeof world>; before: string } {
+  const w = world();
+  return { w, before: stateDigest(w.target) };
+}
+
+/**
+ * The rollback contract of one faulted run: the fault fired exactly once, exit 3, exactly one verify naming `step`
+ * and `code`, every rename undone, the state digest as before, and no state root, marker or staging directory.
+ */
+function expectRolledBack(w: ReturnType<typeof world>, before: string, r: FaultedRun, step: string, code: string): void {
+  const out = `${r.stdout}\n${r.stderr}`;
+  expect(r.fired, `the fault fired exactly once (site matched but not via: ${r.siteNotVia})\n${out}`).toBe(1);
+  expect(r.status, out).toBe(3);
+  const verifies = labelled(r.stdout, "verify");
+  expect(verifies, r.stdout).toHaveLength(1);
+  expect(verifies[0]).toContain(`state migrate (${step})`);
+  expect(verifies[0]).toContain(code);
+  expect(verifies[0]).toContain("Every rename was undone");
+  expect(stateDigest(w.target), "the pre-v3 root, the memory bank and the context root are as they were").toBe(before);
+  for (const rel of [STATE_ROOT_REL, LAYOUT_MARKER_REL, MIGRATE_STAGING_REL]) {
+    expect(existsSync(join(w.target, ...rel.split("/"))), `${rel} does not exist`).toBe(false);
+  }
+}
 
 describe("install --migrate v3 rollback (phase 38, plan 38-06)", () => {
-  for (const c of CASES) {
-    it(`rollback ${c.name}: exit 3, one verify naming the step, the state byte-identical, no state root, marker or staging`, () => {
-      const w = world();
-      const before = stateDigest(w.target);
-      const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, c.spec(), { scratch: w.scratch, env: installEnv(w) });
-      const out = `${r.stdout}\n${r.stderr}`;
-      expect(r.fired, `the fault fired exactly once (site matched but not via: ${r.siteNotVia})\n${out}`).toBe(1);
-      expect(r.status, out).toBe(3);
-      const verifies = labelled(r.stdout, "verify");
-      expect(verifies, r.stdout).toHaveLength(1);
-      expect(verifies[0]).toContain(c.step);
-      expect(verifies[0]).toContain(c.code);
-      expect(verifies[0]).toContain("Every rename was undone");
-      expect(stateDigest(w.target), "the pre-v3 root, the memory bank and the context root are as they were").toBe(before);
-      for (const rel of [STATE_ROOT_REL, LAYOUT_MARKER_REL, MIGRATE_STAGING_REL]) {
-        expect(existsSync(join(w.target, ...rel.split("/"))), `${rel} does not exist`).toBe(false);
-      }
-    });
-  }
+  it("rollback (R1) the state root rename fails with EIO: the state is byte-identical, no state root, marker or staging", () => {
+    const { w, before } = faultWorld();
+    const spec: FaultSpec = { kind: "fs", fn: "renameSync", site: RENAME(), via: VIA("rootRename"), code: "EIO" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    expectRolledBack(w, before, r, "commit, the state root rename", "EIO");
+  });
+
+  it("rollback (R2) the state root rename fails with EXDEV: undone like EIO, no copy-and-delete fallback, nothing under the state root", () => {
+    const { w, before } = faultWorld();
+    const spec: FaultSpec = { kind: "fs", fn: "renameSync", site: RENAME(), via: VIA("rootRename"), code: "EXDEV" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    expectRolledBack(w, before, r, "commit, the state root rename", "EXDEV");
+  });
+
+  it("rollback (R3) an archive move fails with EIO: the root rename before it is undone too", () => {
+    const { w, before } = faultWorld();
+    const spec: FaultSpec = { kind: "fs", fn: "renameSync", site: RENAME(), via: VIA("archiveMove"), code: "EIO" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    expectRolledBack(w, before, r, "commit, an archive move", "EIO");
+  });
+
+  it("rollback (R4) a commit mkdir on the way to an archive move fails with EIO: the directories made before it are taken away", () => {
+    const { w, before } = faultWorld();
+    const spec: FaultSpec = { kind: "fs", fn: "mkdirSync", site: fsSite("mkdirSync", "migrateMkdirs"), via: VIA("archiveMove"), code: "EIO" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    expectRolledBack(w, before, r, "commit, an archive move", "EIO");
+    expect(labelled(r.stdout, "verify")[0]).toContain("could not be made");
+  });
+
+  it("rollback (R5) a staged write's rename fails with EIO: every archive move and the root rename are undone", () => {
+    const { w, before } = faultWorld();
+    const spec: FaultSpec = { kind: "fs", fn: "renameSync", site: RENAME(), via: VIA("stagedWrite"), code: "EIO" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    expectRolledBack(w, before, r, "commit, a staged write", "EIO");
+  });
+
+  it("rollback (R6) the layout marker write fails with EIO after the trace render wrote its files: the rendered files go too", () => {
+    const { w, before } = faultWorld();
+    const spec: FaultSpec = { kind: "fs", fn: "writeFileSync", site: fsSite("writeFileSync", "runStateMigrate", "marker"), code: "EIO" };
+    const r = runFaulted(INSTALL_JS, MIGRATE_ARGS, spec, { scratch: w.scratch, env: installEnv(w) });
+    expectRolledBack(w, before, r, "marker", "EIO");
+  });
 
   it("rollback (R6) premise: without a fault the same world migrates and the render writes trace files before the marker", () => {
     const w = world();

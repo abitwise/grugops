@@ -182,7 +182,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:discardRenderedTrace:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:6970 takes away a regular file (kindAt asked first) that renderMigratedTrace found added to TRACE_DIR_REL by this run's trace render, a directory inside the committed state; nothing a user had is named. Its one caller is runStateMigrate's commitFailed (:7104), after the `if (DRY_RUN)` return at :7002",
+    why: "install.ts:6980 takes away a regular file (kindAt asked first) that renderMigratedTrace found added to TRACE_DIR_REL by this run's trace render, a directory inside the committed state; nothing a user had is named. Its one caller is runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019",
+  },
+  {
+    site: "install.ts:discardRenderedTrace:rmdirSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6987 takes away TRACE_DIR_REL only when renderMigratedTrace saw that this run's trace render made it (absent by kindAt before the render, a directory after) and every file the render added was taken away; rmdirSync takes away only an empty directory. Its one caller is runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019",
   },
   {
     site: "install.ts:clearEmptyMigrateDirs:rmdirSync",

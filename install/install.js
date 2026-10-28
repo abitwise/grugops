@@ -5829,7 +5829,7 @@ if (INSTALL_REFUSAL !== null)
 //       stops the run;
 //   (e) the staging directory gets MIGRATE_COMMIT_PLAN_NAME, one `{from} TAB {to}` line per rename, in commit order;
 //   (f) the commit: the whole pre-v3 root is renamed to STATE_ROOT_REL, then each archive move, then each staged
-//       write to its path. Every rename first asks lstat that its destination is absent (a POSIX rename replaces what
+//       write to its path, one call per step class so a failure names its class (plan 38-06). Every rename first asks lstat that its destination is absent (a POSIX rename replaces what
 //       is there), and every directory and rename is recorded, in order, in the journal;
 //   (g) the post-commit proof: every original file's content record, taken before the commit, equals the record at
 //       the home the plan gives it (a `prefix` home begins with the original's bytes), and every written file holds
@@ -5840,8 +5840,8 @@ if (INSTALL_REFUSAL !== null)
 //       [script, TARGET] and no shell, against the committed target (trace-render reads only fixed folders under the
 //       root and refuses links on them, so it cannot run against the staging directory). Only exit 0 is a pass. Exit 1
 //       (a finding: the index would not be fresh), exit 2, a signal or a spawn error is a failure that undoes the
-//       commit like any other in (f) to (h); the files the render added to TRACE_DIR_REL are taken away first, so the
-//       directory the journal made is empty again. After a pass, every trace file budgetEntryNames keeps is measured
+//       commit like any other in (f) to (h); the files the render added to TRACE_DIR_REL, and that directory when the
+//       render made it, are taken away first, so the undo finds the tree as the commit left it. After a pass, every trace file budgetEntryNames keeps is measured
 //       against BUDGETS.traceBytes and joins the D-07 closing list;
 //   (h) LAYOUT_MARKER_REL is written with LAYOUT_MARKER_CONTENT and one LF, exclusive create, last;
 //   (i) the commit plan file and the empty staging directories are taken away; anything left is a note, never an
@@ -6156,12 +6156,15 @@ const TRACE_RENDER_STDERR_LINES = 20;
 function renderMigratedTrace() {
     const script = kitTraceRenderer();
     if (script === null) {
-        return { ok: false, why: `no kit runnable is mapped to ${TRACE_RENDER_DEST_REL}, so the trace render could not run`, added: [] };
+        return { ok: false, why: `no kit runnable is mapped to ${TRACE_RENDER_DEST_REL}, so the trace render could not run`, added: [], madeDir: false };
     }
+    const traceDir = targetPath(TRACE_DIR_REL);
+    const dirBefore = kindAt(traceDir) !== null;
     const before = traceDirNames();
     const child = spawnSync(process.execPath, [script, TARGET], { encoding: "utf8" });
     const after = traceDirNames();
     const added = before === null || after === null ? [] : after.filter((n) => !before.includes(n));
+    const madeDir = !dirBefore && kindAt(traceDir) === "directory";
     const outcome = child.error !== undefined
         ? `could not be run (${errCode(child.error)})`
         : child.signal !== null
@@ -6171,7 +6174,7 @@ function renderMigratedTrace() {
                 : null;
     if (outcome === null) {
         const summary = (child.stdout ?? "").split("\n").map((l) => oneLine(l).trim()).find((l) => l !== "") ?? "";
-        return { ok: true, summary: summary === "" ? "the renderer printed no summary line" : summary, added };
+        return { ok: true, summary: summary === "" ? "the renderer printed no summary line" : summary, added, madeDir };
     }
     const lines = (child.stderr ?? "").split("\n").map((l) => oneLine(l).trim()).filter((l) => l !== "");
     const shown = lines.slice(0, TRACE_RENDER_STDERR_LINES);
@@ -6182,14 +6185,16 @@ function renderMigratedTrace() {
         ok: false,
         why: `the kit-source trace renderer ${script} ${outcome}, and only exit 0 is a pass, so the trace was not rendered; ${stderr}`,
         added,
+        madeDir,
     };
 }
 // discardRenderedTrace: take away the regular files the render added to TRACE_DIR_REL (renderMigratedTrace's
-// `added`), so the undo finds the directory the journal made empty. Returns one sentence per entry it left. Reached
-// only from runStateMigrate's commitFailed, after the `if (DRY_RUN)` return.
-function discardRenderedTrace(added) {
+// `added`), then TRACE_DIR_REL itself when the render made it (rmdirSync, so only when it is empty again), so the undo
+// finds the tree as the commit left it. Returns one sentence per entry it left. Reached only from runStateMigrate's
+// commitFailed, after the `if (DRY_RUN)` return.
+function discardRenderedTrace(rendered) {
     const left = [];
-    for (const name of added) {
+    for (const name of rendered.added) {
         const p = join(targetPath(TRACE_DIR_REL), name);
         if (kindAt(p) !== "regular file") {
             left.push(`${oneLine(p)}, which the trace render left, is not a regular file and was not taken away`);
@@ -6200,6 +6205,14 @@ function discardRenderedTrace(added) {
         }
         catch (e) {
             left.push(`${oneLine(p)}, written by the trace render, could not be taken away (${errCode(e)})`);
+        }
+    }
+    if (rendered.madeDir && left.length === 0) {
+        try {
+            rmdirSync(targetPath(TRACE_DIR_REL));
+        }
+        catch (e) {
+            left.push(`${oneLine(targetPath(TRACE_DIR_REL))}, a directory the trace render made, could not be taken away (${errCode(e)})`);
         }
     }
     return left;
@@ -6314,12 +6327,10 @@ function runStateMigrate(plan, read) {
         : progressNow.state === "ok" && progressNow.bytes.equals(read.progressBefore);
     if (!progressSame)
         return stageFailed("staged proof", `${targetPath(PROGRESS_REL)} changed after it was read`);
-    // (e)
-    const renames = [
-        { from: targetPath(LEGACY_STATE_ROOT_REL), to: targetPath(STATE_ROOT_REL) },
-        ...plan.archiveMoves.map((m) => ({ from: targetPath(m.from), to: targetPath(m.to) })),
-        ...plan.writes.map((w) => ({ from: stagedAt(w.rel), to: targetPath(w.rel) })),
-    ];
+    const rootRename = { from: targetPath(LEGACY_STATE_ROOT_REL), to: targetPath(STATE_ROOT_REL) };
+    const archiveMoves = plan.archiveMoves.map((m) => ({ from: targetPath(m.from), to: targetPath(m.to) }));
+    const stagedWrites = plan.writes.map((w) => ({ from: stagedAt(w.rel), to: targetPath(w.rel) }));
+    const renames = [rootRename, ...archiveMoves, ...stagedWrites];
     const commitPlan = join(staging, MIGRATE_COMMIT_PLAN_NAME);
     try {
         writeFileSync(commitPlan, renames.map((r) => `${r.from}\t${r.to}\n`).join(""), { flag: "wx" });
@@ -6329,8 +6340,8 @@ function runStateMigrate(plan, read) {
     }
     // (f) to (h). A failure undoes the journal in reverse, then takes away the staging directory.
     const journal = [];
-    // The entries the trace render (g2) added to TRACE_DIR_REL, taken away before the journal is undone.
-    let rendered = [];
+    // What the trace render (g2) added to TRACE_DIR_REL, taken away before the journal is undone.
+    let rendered = { added: [], madeDir: false };
     const commitFailed = (step, why) => {
         const failed = [...discardRenderedTrace(rendered), ...undoStateMigrate(journal)];
         for (const f of failed)
@@ -6351,10 +6362,20 @@ function runStateMigrate(plan, read) {
             (failed.length === 0 ? `Every rename was undone; ${notMoved}.` : `${notMoved}, and the undo is incomplete: each undo step that failed has its own verify line.`));
         return false;
     };
-    for (const r of renames) {
-        const why = migrateRename(journal, r.from, r.to);
-        if (why !== null)
-            return commitFailed("commit", why);
+    // (f) One call per step class, so a failed rename names the class of its step: the state root, then each archive
+    // move, then each staged write.
+    const rootWhy = migrateRename(journal, rootRename.from, rootRename.to);
+    if (rootWhy !== null)
+        return commitFailed("commit, the state root rename", rootWhy);
+    for (const archiveMove of archiveMoves) {
+        const moveWhy = migrateRename(journal, archiveMove.from, archiveMove.to);
+        if (moveWhy !== null)
+            return commitFailed("commit, an archive move", moveWhy);
+    }
+    for (const stagedWrite of stagedWrites) {
+        const writeWhy = migrateRename(journal, stagedWrite.from, stagedWrite.to);
+        if (writeWhy !== null)
+            return commitFailed("commit, a staged write", writeWhy);
     }
     // (g)
     const homeProblems = [];
@@ -6382,7 +6403,7 @@ function runStateMigrate(plan, read) {
         return commitFailed("post-commit proof", homeProblems.join("; "));
     // (g2)
     const render = renderMigratedTrace();
-    rendered = render.added;
+    rendered = render;
     if (!render.ok)
         return commitFailed("trace render", render.why);
     // (h)
