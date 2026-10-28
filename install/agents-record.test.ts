@@ -87,7 +87,7 @@
 //     rule only. R48a-e follow the reader's remaining states as printed (not an object, a 0xff byte, a retired record, a
 //     field install never writes, a link at the marker path). The widened removal-matcher census asks MARKER_REMOVAL_ANY
 //     of every reading of every product module: zero offers to delete, remove or erase the marker, and every other hit
-//     in REMOVAL_EXEMPT (88 rows, 135 hits) with the object it removes.
+//     in REMOVAL_EXEMPT (90 rows, 137 hits since plan 38-08) with the object it removes.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -4821,6 +4821,11 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
   // refusals verbatim; each removes a duplicated copy of a row or entry, never the marker.
   ["state-migrate.ts", "planProgressAppend", "delete the progress file's copy by hand and run state-roll again", 1, "a progress entry's copy that is already in the progress archive"],
   ["state-migrate.ts", "doneDuplicateRefusal", "delete the board's row by hand and run state-roll again", 1, "a Done row's board copy that is already in the Done archive"],
+  // Plan 38-08 (2026-10-28, MIGRATE-04): the plain install's leftover-staging-directory refusal tells the user to remove
+  // that directory once its contents are not needed, and the migrate pre-check's device refusal says the commit never
+  // copies and deletes; neither names the marker.
+  ["install.ts", "<module>", "remove the directory once its contents are not needed and run `${migrateCommand", 1, "the staging directory an interrupted --migrate left inside the memory-bank root"],
+  ["install.ts", "readMigrateInputs", "deletes instead", 1, "nothing, negated: the state migrate \"never copies and deletes\" across filesystems (a statement)"],
 ];
 const removalKey = (module: string, fn: string, clause: string): string => `${module} :: ${fn} :: ${clause}`;
 
@@ -4868,12 +4873,14 @@ describe("D-37: the widened removal-matcher census, by search over every printed
     // repository holding both boards says this run "merges or deletes nothing", negated.
     // 133 -> 135, table 86 -> 88 (plan 38-02, 2026-10-28): the two state-roll refusals in install/state-migrate.ts's
     // generated region, each removing a duplicated row or entry copy.
-    expect(hits.length, "the hit count moved").toBe(135);
-    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(88);
+    // 135 -> 137, table 88 -> 90, install.ts 48 -> 50 (plan 38-08, 2026-10-28): the staging-directory refusal of a plain
+    // install and the device refusal's "never copies and deletes".
+    expect(hits.length, "the hit count moved").toBe(137);
+    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(90);
     expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({
       "checkpoint-ask-rules.ts": 1,
       "install-marker.ts": 2,
-      "install.ts": 48,
+      "install.ts": 50,
       "state-migrate.ts": 2,
       "uninstall.ts": 82,
     });
