@@ -172,7 +172,7 @@ describe("the --migrate state machine (plan 38-07, MIGRATE-04)", () => {
     const w = emptyWorld();
     makePreV3ChessFixture(w.target);
     mkdirSync(at(w.target, MIGRATE_STAGING_REL), { recursive: true });
-    writeFileSync(at(w.target, `${MIGRATE_STAGING_REL}/commit-plan.txt`), "rename plans -> memory-bank/plans\n");
+    writeFileSync(at(w.target, `${MIGRATE_STAGING_REL}/commit-plan.txt`), "the commit plan an interrupted run left\n");
     const v = expectRefusal(w, snapshotTree(w.target));
     expect(lineNamesPath(v, at(w.target, MIGRATE_STAGING_REL)), v).toBe(true);
     expect(lineNamesPath(v, join(at(w.target, MIGRATE_STAGING_REL), "commit-plan.txt")), v).toBe(true);
@@ -181,7 +181,7 @@ describe("the --migrate state machine (plan 38-07, MIGRATE-04)", () => {
   it("(S5b) a staging directory left by an interrupted migrate is a refusal on a current layout too, never \"already on the v3 layout\"", () => {
     const w = installedWorld();
     mkdirSync(at(w.target, MIGRATE_STAGING_REL), { recursive: true });
-    writeFileSync(at(w.target, `${MIGRATE_STAGING_REL}/commit-plan.txt`), "rename plans -> memory-bank/plans\n");
+    writeFileSync(at(w.target, `${MIGRATE_STAGING_REL}/commit-plan.txt`), "the commit plan an interrupted run left\n");
     const v = expectRefusal(w, snapshotTree(w.target), [], snapshotTree(w.kitHome));
     expect(lineNamesPath(v, at(w.target, MIGRATE_STAGING_REL)), v).toBe(true);
     expect(lineNamesPath(v, join(at(w.target, MIGRATE_STAGING_REL), "commit-plan.txt")), v).toBe(true);
