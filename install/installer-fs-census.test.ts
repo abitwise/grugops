@@ -124,6 +124,65 @@ interface ClassifiedSite {
 // row was classified (plan 33.1-18 Task 3). A line number that has since moved does not fail this
 // file; a call that moved to another scope, or a count that changed, does.
 const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
+  // Plan 38-03 (2026-10-28, D-10, D-17): the v3 state migrate. Every call below is reached only from runStateMigrate's
+  // real run: its `if (DRY_RUN)` at :6873-6880 lists the plan's steps and returns before its first mutation, and its
+  // only caller is the install run's `-- state migrate --` section (STATE_MIGRATE !== null). Nothing here is recorded
+  // in the install ledger, and nothing removes a file the user had: the removals are this run's own staging directory,
+  // its commit plan and directories the journal made.
+  {
+    site: "install.ts:runStateMigrate:mkdirSync",
+    count: 3,
+    gate: "dry-run-return-above",
+    why: "install.ts:6873 `if (DRY_RUN)` returns before :6901 (MEMORY_BANK_REL, only when directoryComponent answered absent), :6910 (MIGRATE_STAGING_REL, non-recursive, so an existing staging directory stops the run with EEXIST) and :6926 (a staged write's parents, recursive, only inside the staging directory this run just made)",
+  },
+  {
+    site: "install.ts:runStateMigrate:writeFileSync",
+    count: 3,
+    gate: "dry-run-return-above",
+    why: "install.ts:6873 `if (DRY_RUN)` returns before :6927 (each planned write inside the staging directory, flag \"wx\"), :6961 (the staging directory's commit-plan.txt, flag \"wx\") and :7015 (LAYOUT_MARKER_REL, flag \"wx\", only after the staged proof and the post-commit proof passed)",
+  },
+  {
+    site: "install.ts:runStateMigrate:unlinkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:6873 `if (DRY_RUN)` returns before :7021, which takes away the staging directory's commit-plan.txt, a file this run wrote with an exclusive create at :6961, once the marker is written",
+  },
+  {
+    site: "install.ts:migrateMkdirs:mkdirSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6739 makes one missing directory on the way to a commit rename's destination, non-recursive, after directoryComponent answered absent, and journals it. Its one caller is migrateRename (:6760), whose one caller is runStateMigrate's commit loop (:6987), after the `if (DRY_RUN)` return at :6873",
+  },
+  {
+    site: "install.ts:migrateRename:renameSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6759 renames only after lstat shows the destination absent (T-38-07) and journals the rename. Its one caller is runStateMigrate's commit loop (:6987), after the `if (DRY_RUN)` return at :6873",
+  },
+  {
+    site: "install.ts:undoStateMigrate:renameSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6779 renames a journaled rename back, only after lstat shows its old path absent. Its callers are runStateMigrate's stageFailed and commitFailed (:6887, :6968), both after the `if (DRY_RUN)` return at :6873",
+  },
+  {
+    site: "install.ts:undoStateMigrate:rmdirSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6779 takes away a directory the journal says this run made; rmdirSync takes away only an empty one. Its callers are runStateMigrate's stageFailed and commitFailed, both after the `if (DRY_RUN)` return at :6873",
+  },
+  {
+    site: "install.ts:discardMigrateStaging:rmSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6811 takes away MIGRATE_STAGING_REL, the directory runStateMigrate made with a non-recursive mkdir in this run and which holds only what it staged and its commit plan. Its callers are runStateMigrate's stageFailed and commitFailed, both after the `if (DRY_RUN)` return at :6873",
+  },
+  {
+    site: "install.ts:clearEmptyMigrateDirs:rmdirSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:6822 takes away only empty directories under the staging directory, bottom-up, and never a file; its one caller is runStateMigrate after the marker is written (:7025), after the `if (DRY_RUN)` return at :6873; it calls itself for a subdirectory",
+  },
   {
     site: "install.ts:backupDir:renameSync",
     count: 1,

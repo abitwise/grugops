@@ -85,7 +85,10 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, STATE_ROOT_REL, STATE_ROOTS, } from "./state-layout.js";
+import { BOARD_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, } from "./state-layout.js";
+// Phase 38 (plan 38-03, D-09, D-10, D-17): the v3 state migrate's planner and its proof. Pure functions over bytes the
+// installer reads; the module imports nothing outside install/ and node:, so this edge keeps install/ free of scripts/.
+import { formatFinding, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -5802,6 +5805,493 @@ function refuseOverMarker(read, remedy, named) {
 }
 if (INSTALL_REFUSAL !== null)
     refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL, SELECTION_NAMED_BY_USER ? SELECTION : []);
+// ── THE V3 STATE MIGRATE (phase 38, plan 38-03, 2026-10-28, D-07, D-10, D-11, D-17, D-21) ──────────────────────────
+// A --migrate on a repository whose planning state is still in the pre-v3 layout (stateLayout() answers `pre-v3`)
+// moves that state to the v3 layout in the same run. It is not run on an installed two-root repository (isMigrated):
+// that one still stops at the already-migrated arm (plan 38-07 changes that gate).
+//
+// READ ONCE, BEFORE THE PRE-CHECK (readMigrateInputs). The pre-v3 root is walked with lstatSync and readdirSync only,
+// following no link. Every regular file is read through readUserFile. A link, a special file or an entry that cannot
+// be read is a refusal naming its path. The walk records treeRecord of the whole root and of each file, the progress
+// file's bytes, the kit seed's NFR catalog and traceability bytes (from the kit source, the bytes copyKit puts at
+// KIT_ROOT/seed), and the migration date, the UTC date of this run.
+//
+// ONE PRE-CHECK (D-11). planStateMigrate plans the split. Its refusals, its proof's reasons, an entry already at
+// STATE_ROOT_REL and an existing staging directory join the --migrate pre-check, beside the vendored-kit arm's config
+// carry and kit plan, so every refusal of either arm is found before the first change.
+//
+// STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK (runStateMigrate, in the install run before the state seed, D-10, D-17):
+//   (a) MEMORY_BANK_REL is made when absent, then MIGRATE_STAGING_REL with a non-recursive mkdir, so an existing
+//       staging directory stops the run;
+//   (b) each planned write is written inside the staging directory with an exclusive create;
+//   (c) each staged file is read back through readUserFile and proveStateMigrate runs over the bytes read back;
+//   (d) the pre-v3 root's treeRecord and the progress bytes are taken again, and a difference from the first read
+//       stops the run;
+//   (e) the staging directory gets MIGRATE_COMMIT_PLAN_NAME, one `{from} TAB {to}` line per rename, in commit order;
+//   (f) the commit: the whole pre-v3 root is renamed to STATE_ROOT_REL, then each archive move, then each staged
+//       write to its path. Every rename first asks lstat that its destination is absent (a POSIX rename replaces what
+//       is there), and every directory and rename is recorded, in order, in the journal;
+//   (g) the post-commit proof: every original file's content record, taken before the commit, equals the record at
+//       the home the plan gives it (a `prefix` home begins with the original's bytes), and every written file holds
+//       the planned bytes;
+//   (h) LAYOUT_MARKER_REL is written with LAYOUT_MARKER_CONTENT and one LF, exclusive create, last;
+//   (i) the commit plan file and the empty staging directories are taken away; anything left is a note, never an
+//       undo.
+// A failure in (a) to (d) takes away only the staging directory (and MEMORY_BANK_REL when this run made it). A
+// failure in (f) to (h) undoes the journal in reverse (each rename back, each directory it made), then takes away the
+// staging directory. Either is a verify naming the step and the reason, and no marker is written. An undo step that
+// fails is its own verify naming both paths, and the staging directory with its commit plan is left for the human. A
+// failed arm never exits: the run goes on, the state seed finds the pre-v3 layout again and seeds nothing beside it,
+// and the closing is INCOMPLETE. No state file is recorded in the install ledger (the state seed records none either;
+// uninstall keeps MEMORY_BANK_REL).
+/** The file in the staging directory that lists the commit's renames, in order. */
+const MIGRATE_COMMIT_PLAN_NAME = "commit-plan.txt";
+/** The planned v3 state migrate: made by the --migrate pre-check, executed by the install run (runStateMigrate). */
+let STATE_MIGRATE = null;
+/** `text` safe in one printed line: control characters taken out. */
+const oneLine = (text) => stripControlChars(text, false);
+/** The absolute path of a target-relative POSIX path. */
+const targetPath = (rel) => join(TARGET, ...rel.split("/"));
+// readMigrateInputs: see READ ONCE, BEFORE THE PRE-CHECK above. It writes nothing.
+function readMigrateInputs() {
+    const refusals = [];
+    const legacy = [];
+    const records = new Map();
+    const rootAbs = targetPath(LEGACY_STATE_ROOT_REL);
+    const walk = (rel) => {
+        const abs = targetPath(rel);
+        let names;
+        try {
+            names = readdirSync(abs).sort();
+        }
+        catch (e) {
+            refusals.push(`${oneLine(abs)} could not be listed (${errCode(e)}), so the pre-v3 state cannot be read whole`);
+            return;
+        }
+        for (const name of names) {
+            const childRel = `${rel}/${name}`;
+            const childAbs = join(abs, name);
+            const kind = kindAt(childAbs);
+            if (kind === "directory") {
+                walk(childRel);
+                continue;
+            }
+            if (kind !== "regular file") {
+                refusals.push(`${oneLine(childAbs)} is ${kind === null ? "an entry that could not be asked about" : `a ${kind}`}; the state ` +
+                    "migrate moves only regular files and directories and follows no link");
+                continue;
+            }
+            const r = readUserFile(childAbs);
+            if (r.state !== "ok") {
+                refusals.push(`${oneLine(childAbs)} ${r.state === "absent" ? "was gone when it was read" : unreadState(r)}, so it cannot be moved with a proof`);
+                continue;
+            }
+            const record = treeRecord(TARGET, childRel);
+            if (record === null)
+                refusals.push(`${oneLine(childAbs)} could not be recorded, so its new home cannot be proven`);
+            legacy.push({ rel: childRel, bytes: r.bytes });
+            records.set(childRel, record);
+        }
+    };
+    const rootKind = kindAt(rootAbs);
+    if (rootKind === "directory")
+        walk(LEGACY_STATE_ROOT_REL);
+    else
+        refusals.push(`${rootAbs} is ${rootKind === null ? "an entry that could not be asked about" : `a ${rootKind}`}, not a directory the state migrate can rename`);
+    const treeBefore = treeRecord(TARGET, LEGACY_STATE_ROOT_REL);
+    if (treeBefore === null)
+        refusals.push(`${rootAbs} could not be recorded whole, so it cannot be shown unchanged before the commit`);
+    const progressPath = targetPath(PROGRESS_REL);
+    const progress = readUserFile(progressPath);
+    if (progress.state !== "ok" && progress.state !== "absent") {
+        refusals.push(`${progressPath} ${unreadState(progress)}, so it cannot be shown unchanged before the commit`);
+    }
+    const seedBytes = (rel) => {
+        const p = join(KIT_COPY_SOURCE, "seed", ...rel.split("/"));
+        const r = readUserFile(p);
+        if (r.state === "ok")
+            return r.bytes;
+        refusals.push(`the kit seed ${p} ${r.state === "absent" ? "is missing" : unreadState(r)}, so the state migrate cannot be planned`);
+        return Buffer.alloc(0);
+    };
+    const inputs = {
+        date: new Date().toISOString().slice(0, 10),
+        legacy,
+        progress: progress.state === "ok" ? progress.bytes : null,
+        seedNfrCatalog: seedBytes(NFR_CATALOG_REL),
+        seedTraceability: seedBytes(TRACEABILITY_REL),
+    };
+    return { inputs, treeBefore, records, progressBefore: progress.state === "ok" ? progress.bytes : null, refusals };
+}
+/** An entry at `rel`, with up to ten of its entries named, or null when nothing is there. */
+function occupiedEntry(rel) {
+    const p = targetPath(rel);
+    try {
+        lstatSync(p);
+    }
+    catch (e) {
+        const code = errCode(e);
+        return code === "ENOENT" || code === "ENOTDIR" ? null : `${p} could not be asked about (${code})`;
+    }
+    const kind = kindAt(p) ?? "entry";
+    let held = "";
+    if (kind === "directory") {
+        try {
+            const names = readdirSync(p).sort();
+            held =
+                names.length === 0
+                    ? ", empty"
+                    : `, holding ${names.slice(0, 10).map(oneLine).join(", ")}${names.length > 10 ? ` and ${names.length - 10} more` : ""}`;
+        }
+        catch (e) {
+            held = `, which could not be listed (${errCode(e)})`;
+        }
+    }
+    return `${p} already exists (a ${kind}${held})`;
+}
+// stateMigrateRefusals: the v3 arm's part of the one --migrate pre-check (D-11). Nothing here writes.
+function stateMigrateRefusals(read, plan) {
+    const out = [...read.refusals];
+    if (read.refusals.length === 0) {
+        out.push(...plan.refusals);
+        if (plan.refusals.length === 0 && !plan.proof.ok) {
+            out.push(...plan.proof.reasons.map((r) => `the planned split of ${LEGACY_BOARD_REL} failed its proof: ${r}`));
+        }
+    }
+    const mb = directoryComponent(targetPath(MEMORY_BANK_REL));
+    if (mb !== "fine" && mb !== "absent")
+        out.push(`${targetPath(MEMORY_BANK_REL)} ${mb}, so the v3 state root cannot be made inside it`);
+    const root = occupiedEntry(STATE_ROOT_REL);
+    if (root !== null) {
+        out.push(`${root}: the state migrate renames ${LEGACY_STATE_ROOT_REL}/ to ${STATE_ROOT_REL}/ whole, and a rename never ` +
+            `replaces what is there. Move it aside, or merge it into ${LEGACY_STATE_ROOT_REL}/ by hand`);
+    }
+    const staging = occupiedEntry(MIGRATE_STAGING_REL);
+    if (staging !== null) {
+        out.push(`${staging}: another --migrate is running here, or one was interrupted. Its renames, if it got that far, are listed ` +
+            `in ${join(targetPath(MIGRATE_STAGING_REL), MIGRATE_COMMIT_PLAN_NAME)}. Once no migrate is running, put back what ` +
+            "that list moved and move the staging directory aside");
+    }
+    return out;
+}
+// migrateMkdirs: make each missing directory on the way to `dir` (inside TARGET), one non-recursive mkdir each, and
+// journal each. A component that is not a real directory stops it. Reached only from runStateMigrate's real run.
+function migrateMkdirs(journal, dir) {
+    const rel = relative(TARGET, dir);
+    let cur = TARGET;
+    for (const part of rel === "" ? [] : rel.split(sep)) {
+        cur = join(cur, part);
+        const state = directoryComponent(cur);
+        if (state === "fine")
+            continue;
+        if (state !== "absent")
+            return `${cur} ${state}`;
+        try {
+            mkdirSync(cur);
+        }
+        catch (e) {
+            return `${cur} could not be made (${errCode(e)})`;
+        }
+        journal.push({ kind: "mkdir", path: cur });
+    }
+    return null;
+}
+// migrateRename: one commit rename, journaled. Its destination must be absent by lstat first (a POSIX rename replaces
+// what is there, T-38-07). Reached only from runStateMigrate's real run.
+function migrateRename(journal, from, to) {
+    const why = migrateMkdirs(journal, dirname(to));
+    if (why !== null)
+        return why;
+    try {
+        lstatSync(to);
+        return `${to} already exists, and the rename of ${from} would replace it`;
+    }
+    catch (e) {
+        if (errCode(e) !== "ENOENT")
+            return `${to} could not be asked about (${errCode(e)})`;
+    }
+    try {
+        renameSync(from, to);
+    }
+    catch (e) {
+        return `${from} could not be renamed to ${to} (${errCode(e)})`;
+    }
+    journal.push({ kind: "rename", from, to });
+    return null;
+}
+// undoStateMigrate: undo the journal in reverse: each rename back (its old path asked absent first), each directory
+// it made with rmdirSync (which takes away only an empty directory). Returns one sentence per step that failed.
+function undoStateMigrate(journal) {
+    const failed = [];
+    for (const j of [...journal].reverse()) {
+        if (j.kind === "mkdir") {
+            try {
+                rmdirSync(j.path);
+            }
+            catch (e) {
+                failed.push(`${j.path}, a directory this run made, could not be taken away (${errCode(e)}); it was left`);
+            }
+            continue;
+        }
+        let free = false;
+        try {
+            lstatSync(j.from);
+        }
+        catch (e) {
+            free = errCode(e) === "ENOENT";
+        }
+        if (!free) {
+            failed.push(`${j.to} was not renamed back to ${j.from}, because something is at ${j.from} now; rename it back by hand`);
+            continue;
+        }
+        try {
+            renameSync(j.to, j.from);
+        }
+        catch (e) {
+            failed.push(`${j.to} could not be renamed back to ${j.from} (${errCode(e)}); rename it back by hand`);
+        }
+    }
+    return failed;
+}
+// discardMigrateStaging: take away this run's staging directory, which it made with a non-recursive mkdir and which
+// holds only the files it staged and its commit plan. Reached only from runStateMigrate's real run.
+function discardMigrateStaging(staging) {
+    try {
+        rmSync(staging, { recursive: true });
+        return null;
+    }
+    catch (e) {
+        return `${staging} could not be taken away (${errCode(e)})`;
+    }
+}
+// clearEmptyMigrateDirs: take away the directories under (and including) `dir` that hold nothing once the commit has
+// renamed every staged file out. Only rmdirSync, so a file is never taken away; each entry left is returned.
+function clearEmptyMigrateDirs(dir) {
+    let names;
+    try {
+        names = readdirSync(dir);
+    }
+    catch (e) {
+        return [`${dir} (${errCode(e)})`];
+    }
+    const left = [];
+    for (const name of names) {
+        const p = join(dir, name);
+        if (kindAt(p) === "directory")
+            left.push(...clearEmptyMigrateDirs(p));
+        else
+            left.push(p);
+    }
+    if (left.length === 0) {
+        try {
+            rmdirSync(dir);
+        }
+        catch (e) {
+            left.push(`${dir} (${errCode(e)})`);
+        }
+    }
+    return left;
+}
+// noteHandoffsMove: the handoffs step of a --migrate whose v3 arm will move the pre-v3 root. Nothing is backed up and
+// nothing is written; one ok line says where the legacy handoffs directory goes. Returns false (no backup was made).
+function noteHandoffsMove() {
+    if (kindAt(targetPath(LEGACY_HANDOFFS_REL)) === null) {
+        report("ok", `${LEGACY_HANDOFFS_REL}/ (nothing to migrate — no ${targetPath(LEGACY_HANDOFFS_REL)})`);
+    }
+    else {
+        report("ok", `${LEGACY_HANDOFFS_REL}/ is not backed up: it moves with the state, unchanged, to ${movedRel(LEGACY_HANDOFFS_REL)}/ ` +
+            "by this run's state migrate");
+    }
+    return false;
+}
+/** The D-07 closing: every planned over-budget finding, and that budgets do not block this migration. */
+function printMigrateBudgets(plan) {
+    for (const f of plan.overBudget)
+        report("note", `over budget: ${oneLine(formatFinding(f))}`);
+    report("note", `${plan.overBudget.length} planned file(s) or row(s) are over a state budget; budgets do not block this migration, ` +
+        `and ${LAYOUT_MARKER_REL} is written whatever the sizes (\`node tools/grugops/state-check.js\` reports them later)`);
+}
+// runStateMigrate: see STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK above. Returns true when the state is on the v3
+// layout and the marker is written (under DRY_RUN: when the plan would run).
+function runStateMigrate(plan, read) {
+    if (DRY_RUN) {
+        for (const s of plan.steps) {
+            report(`would-${s.verb}`, `${oneLine(s.from === null ? s.to : `${s.from} → ${s.to}`)} (${s.bytes} bytes; ${oneLine(s.note)})`);
+        }
+        report("would-create", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT}), once the staged files and every original's new home are proven`);
+        printMigrateBudgets(plan);
+        return true;
+    }
+    const staging = targetPath(MIGRATE_STAGING_REL);
+    const memoryBank = targetPath(MEMORY_BANK_REL);
+    const notMoved = `${LEGACY_STATE_ROOT_REL}/ was not moved and no layout marker was written`;
+    let madeMemoryBank = false;
+    let madeStaging = false;
+    // A failure before the commit: only the staging directory (and MEMORY_BANK_REL when this run made it) is taken away.
+    const stageFailed = (step, why) => {
+        const left = [];
+        if (madeStaging) {
+            const s = discardMigrateStaging(staging);
+            if (s !== null)
+                left.push(s);
+        }
+        if (madeMemoryBank && left.length === 0)
+            left.push(...undoStateMigrate([{ kind: "mkdir", path: memoryBank }]));
+        verify(`state migrate (${step}): ${why}. ${notMoved}; ${left.length === 0 ? "the target is as it was" : `left: ${left.join("; ")}`}.`);
+        return false;
+    };
+    // (a)
+    const mb = directoryComponent(memoryBank);
+    if (mb === "absent") {
+        try {
+            mkdirSync(memoryBank);
+            madeMemoryBank = true;
+        }
+        catch (e) {
+            return stageFailed("staging", `${memoryBank} could not be made (${errCode(e)})`);
+        }
+    }
+    else if (mb !== "fine") {
+        return stageFailed("staging", `${memoryBank} ${mb}`);
+    }
+    try {
+        mkdirSync(staging);
+        madeStaging = true;
+    }
+    catch (e) {
+        const code = errCode(e);
+        return stageFailed("staging", code === "EEXIST"
+            ? `${staging} already exists: another --migrate is running here, or one was interrupted`
+            : `${staging} could not be made (${code})`);
+    }
+    // (b)
+    const stagedAt = (rel) => join(staging, ...rel.split("/"));
+    for (const w of plan.writes) {
+        const p = stagedAt(w.rel);
+        try {
+            mkdirSync(dirname(p), { recursive: true });
+            writeFileSync(p, w.bytes, { flag: "wx" });
+        }
+        catch (e) {
+            return stageFailed("staging", `${p} could not be written (${errCode(e)})`);
+        }
+    }
+    // (c)
+    const readBack = new Map();
+    for (const w of plan.writes) {
+        const r = readUserFile(stagedAt(w.rel));
+        if (r.state !== "ok" || !r.bytes.equals(w.bytes)) {
+            return stageFailed("staged proof", `${stagedAt(w.rel)} does not read back as the bytes staged`);
+        }
+        readBack.set(w.rel, r.bytes);
+    }
+    const staged = proveStateMigrate(read.inputs, plan, readBack);
+    if (!staged.ok)
+        return stageFailed("staged proof", `the staged files failed the proof: ${staged.reasons.join("; ")}`);
+    // (d)
+    if (treeRecord(TARGET, LEGACY_STATE_ROOT_REL) !== read.treeBefore) {
+        return stageFailed("staged proof", `${targetPath(LEGACY_STATE_ROOT_REL)} changed after it was read`);
+    }
+    const progressNow = readUserFile(targetPath(PROGRESS_REL));
+    const progressSame = read.progressBefore === null
+        ? progressNow.state === "absent"
+        : progressNow.state === "ok" && progressNow.bytes.equals(read.progressBefore);
+    if (!progressSame)
+        return stageFailed("staged proof", `${targetPath(PROGRESS_REL)} changed after it was read`);
+    // (e)
+    const renames = [
+        { from: targetPath(LEGACY_STATE_ROOT_REL), to: targetPath(STATE_ROOT_REL) },
+        ...plan.archiveMoves.map((m) => ({ from: targetPath(m.from), to: targetPath(m.to) })),
+        ...plan.writes.map((w) => ({ from: stagedAt(w.rel), to: targetPath(w.rel) })),
+    ];
+    const commitPlan = join(staging, MIGRATE_COMMIT_PLAN_NAME);
+    try {
+        writeFileSync(commitPlan, renames.map((r) => `${r.from}\t${r.to}\n`).join(""), { flag: "wx" });
+    }
+    catch (e) {
+        return stageFailed("staging", `${commitPlan} could not be written (${errCode(e)})`);
+    }
+    // (f) to (h). A failure undoes the journal in reverse, then takes away the staging directory.
+    const journal = [];
+    const commitFailed = (step, why) => {
+        const failed = undoStateMigrate(journal);
+        for (const f of failed)
+            verify(`state migrate (undo): ${f}. ${staging} and ${commitPlan} were left for you.`);
+        let left = failed.length > 0;
+        if (!left) {
+            const s = discardMigrateStaging(staging);
+            if (s !== null) {
+                verify(`state migrate (undo): ${s}; it was left.`);
+                left = true;
+            }
+            else if (madeMemoryBank) {
+                for (const f of undoStateMigrate([{ kind: "mkdir", path: memoryBank }]))
+                    verify(`state migrate (undo): ${f}.`);
+            }
+        }
+        verify(`state migrate (${step}): ${why}. ` +
+            (failed.length === 0 ? `Every rename was undone; ${notMoved}.` : `${notMoved}, and the undo is incomplete: each undo step that failed has its own verify line.`));
+        return false;
+    };
+    for (const r of renames) {
+        const why = migrateRename(journal, r.from, r.to);
+        if (why !== null)
+            return commitFailed("commit", why);
+    }
+    // (g)
+    const homeProblems = [];
+    for (const h of plan.originals) {
+        const at = targetPath(h.at);
+        if (h.match === "identical") {
+            const before = read.records.get(h.original);
+            if (before === undefined || before === null || treeRecord(TARGET, h.at) !== before) {
+                homeProblems.push(`${at} is not ${oneLine(h.original)} unchanged`);
+            }
+            continue;
+        }
+        const original = read.inputs.legacy.find((f) => f.rel === h.original);
+        const now = readUserFile(at);
+        if (original === undefined || now.state !== "ok" || !now.bytes.subarray(0, original.bytes.length).equals(original.bytes)) {
+            homeProblems.push(`${at} does not begin with the bytes of ${oneLine(h.original)}`);
+        }
+    }
+    for (const w of plan.writes) {
+        const now = readUserFile(targetPath(w.rel));
+        if (now.state !== "ok" || !now.bytes.equals(w.bytes))
+            homeProblems.push(`${targetPath(w.rel)} does not hold the planned bytes`);
+    }
+    if (homeProblems.length > 0)
+        return commitFailed("post-commit proof", homeProblems.join("; "));
+    // (h)
+    const marker = targetPath(LAYOUT_MARKER_REL);
+    try {
+        writeFileSync(marker, `${LAYOUT_MARKER_CONTENT}\n`, { flag: "wx" });
+    }
+    catch (e) {
+        return commitFailed("marker", `${marker} could not be written (${errCode(e)})`);
+    }
+    // (i) Nothing here is undone: the state is on the v3 layout and marked.
+    try {
+        unlinkSync(commitPlan);
+    }
+    catch (e) {
+        report("note", `${commitPlan} could not be taken away (${errCode(e)}); it only lists this run's renames, and nothing reads it`);
+    }
+    const left = clearEmptyMigrateDirs(staging);
+    if (left.length > 0)
+        report("note", `the staging directory ${staging} was left, holding ${left.join(", ")}`);
+    report("moved", `${LEGACY_STATE_ROOT_REL}/ → ${STATE_ROOT_REL}/ (${read.inputs.legacy.length} file(s), unchanged)`);
+    const sizeOf = new Map(read.inputs.legacy.map((f) => [movedRel(f.rel), f.bytes.length]));
+    for (const m of plan.archiveMoves)
+        report("archived", `${oneLine(m.from)} → ${oneLine(m.to)} (${sizeOf.get(m.from) ?? 0} bytes, unchanged)`);
+    for (const w of plan.writes)
+        report("created", `${oneLine(w.rel)} (${w.bytes.length} bytes; ${oneLine(w.source)})`);
+    for (const n of plan.notes)
+        report("note", oneLine(n));
+    report("created", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT})`);
+    printMigrateBudgets(plan);
+    return true;
+}
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
 // install run below executes it instead of building a second one (there is one render per run).
 let MIGRATE_KIT_PLAN = null;
@@ -5828,13 +6318,27 @@ if (MIGRATE) {
     // the old layout, so fixing what the verify lines name and re-running --migrate performs the whole
     // migration. Before, a refused kit plan still moved the config, renamed agent-factory/ and wrote the
     // marker, and the next --migrate said "already migrated. Nothing to do" over install's own links.
-    if (layout.isOldLayout) {
-        MIGRATE_CARRY_PENDING = true;
-        const carry = planConfigCarry();
+    // THE V3 STATE ARM (phase 38, plan 38-03, D-11): a repository not yet installed two-root whose planning state is in the
+    // pre-v3 layout moves that state in this run. Its inputs are read and its plan made here, and its refusals join the
+    // one pre-check below, so a refusal of either arm stops the run before any write. An installed two-root repository
+    // (isMigrated) still stops at the already-migrated arm below (plan 38-07).
+    const v3State = !layout.isMigrated && stateLayout() === "pre-v3";
+    if (layout.isOldLayout || v3State) {
+        const refusals = [];
+        if (layout.isOldLayout) {
+            MIGRATE_CARRY_PENDING = true;
+            refusals.push(...planConfigCarry().refusals);
+        }
+        if (v3State) {
+            const read = readMigrateInputs();
+            const plan = planStateMigrate(read.inputs);
+            refusals.push(...stateMigrateRefusals(read, plan));
+            STATE_MIGRATE = { plan, read };
+        }
         // The kit plan and its KIT_WRITE decision only when Claude Code is chosen (plan 34.1-08, D-06): a --migrate for
         // other agents writes no Claude Code kit file, so it neither builds a kit plan nor asks for kit consent; the
-        // config carry and the in-repo kit backup run as they always did.
-        const refusals = [...carry.refusals];
+        // config carry and the in-repo kit backup run as they always did. When the v3 arm runs, the kit plan is built here
+        // too (D-11, D-19), so a kit refusal stops the state move before any write.
         if (SELECTED_KINDS.has("claude-kit")) {
             MIGRATE_KIT_PLAN = buildKitPlan();
             if (!MIGRATE_KIT_PLAN.ok)
@@ -5846,17 +6350,26 @@ if (MIGRATE) {
             }
         }
         if (refusals.length > 0) {
-            console.log("== grugops migrate (old in-repo layout → two-root) ==");
+            console.log(v3State
+                ? `== grugops migrate (pre-v3 state ${LEGACY_STATE_ROOT_REL}/ → ${STATE_ROOT_REL}/${layout.isOldLayout ? "; old in-repo layout → two-root" : ""}) ==`
+                : "== grugops migrate (old in-repo layout → two-root) ==");
             console.log(`target: ${TARGET}`);
             if (DRY_RUN)
                 console.log("mode:   DRY_RUN (no filesystem changes)");
             console.log("\n-- migrate pre-check (before any change) --");
             for (const why of refusals)
                 verify(why);
-            report("migrate", `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
-                `--migrate changes a target whole or not at all. No configuration was moved, agent-factory/ was not ` +
-                `backed up, ${LEGACY_HANDOFFS_REL}/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
-                `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`);
+            report("migrate", v3State
+                ? `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
+                    `--migrate changes a target whole or not at all. ${LEGACY_STATE_ROOT_REL}/ was not moved to ` +
+                    `${STATE_ROOT_REL}/, ` +
+                    (layout.isOldLayout ? "no configuration was moved, agent-factory/ was not backed up, " : "") +
+                    `no skill or adapter was written, linked or unlinked, and no marker was written: ${TARGET} is still on ` +
+                    `the pre-v3 layout. Resolve each verify above and re-run --migrate.`
+                : `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
+                    `--migrate changes a target whole or not at all. No configuration was moved, agent-factory/ was not ` +
+                    `backed up, ${LEGACY_HANDOFFS_REL}/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
+                    `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`);
             printMigrateIncomplete(true, SELECTION);
             // A MID-SCRIPT EXIT, the seventh of the pinned count: the run must stop before the handoffs
             // backup and the install run below. Its output is a few kilobytes.
@@ -5871,7 +6384,9 @@ if (MIGRATE) {
     // idempotent) and aborts without clobbering on a backup-name collision (D-18). It runs BEFORE the
     // isMigrated early-exit so an already-migrated repo still gets its handoffs backed up.
     console.log("\n-- handoffs backup (MIGR-04) --");
-    const handoffsBackedUp = migrateHandoffs();
+    // When the v3 arm will move the pre-v3 root (plan 38-03), the legacy handoffs directory inside it moves with it,
+    // unchanged, so it is not backed up: one ok line says so.
+    const handoffsBackedUp = STATE_MIGRATE === null ? migrateHandoffs() : noteHandoffsMove();
     if (layout.isMigrated) {
         // Plan 33.1-40: this arm writes no marker, so the backup it may have made is recorded here.
         const handoffsRecorded = recordBackupsInMarker();
@@ -7172,6 +7687,12 @@ function agentClosingLines() {
             `to take one out of the record: ${nothingInstalled.map((h) => `\`${agentCommand("uninstall.js", TARGET, [h], COMMAND_CONTEXT)}\` (${h.name})`).join("; ")}.`);
     }
     return out;
+}
+// 6b. The v3 state migrate (phase 38, plan 38-03, D-10, D-17), planned by the --migrate pre-check. Before the state
+// seed, so the seed finds the v3 layout when it succeeded and the pre-v3 layout again when it failed.
+if (STATE_MIGRATE !== null) {
+    console.log("\n-- state migrate --");
+    runStateMigrate(STATE_MIGRATE.plan, STATE_MIGRATE.read);
 }
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
 console.log("\n-- state seed --");

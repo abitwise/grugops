@@ -278,6 +278,9 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["install.ts", "; see the verify line above)", "printed reference", "writeMarker (step 8): askRulesStep's never-remove verify for the marker (step 7c, every run). Re-pinned by plan 34.1-44 (2026-10-13, D-37, 34.1 review CR-05, IN-33): one line for every unreadable read, which never says the marker is not install's (it had three, split on the jsonObject flag and the owner's well-formed-ledger answer), and whose cause clause is install-marker.ts markerDefectText of the read's defect"],
   ["install.ts", "refusal(s) above were found before the first change, and", "printed reference", "--migrate pre-check: its verify(why) loop, printed just before"],
   ["install.ts", "is still the old layout. Resolve each verify above and re-run --migrate.", "printed reference", "--migrate pre-check: its verify(why) loop, printed just before"],
+  // Plan 38-03 (2026-10-28, D-11): the pre-check's report when the v3 state arm is involved (the same report call).
+  ["install.ts", "refusal(s) above were found before the first change, and", "printed reference", "--migrate pre-check (v3 state arm): its verify(why) loop, printed just before"],
+  ["install.ts", "the pre-v3 layout. Resolve each verify above and re-run --migrate.", "printed reference", "--migrate pre-check (v3 state arm): its verify(why) loop, printed just before"],
   ["install.ts", "/ (see the would-backup line above). Nothing was changed.", "printed reference", "--migrate handoffs backup: its would-backup line, printed just before (2026-10-21, plan 36-03: the line is a template literal built from LEGACY_HANDOFFS_REL, so the fragment is its tail; the printed line and the count are unchanged)"],
   ["install.ts", "(see the backed-up line above)", "printed reference", "--migrate handoffs backup: its backed-up line, printed just before"],
   ["install.ts", "(see the note above); uninstall and --prune-old-kit leave it.", "printed reference", "--migrate handoffs backup: its note, printed just before"],
@@ -422,6 +425,7 @@ const RERUN_TABLE: readonly RerunRow[] = [
   ["install.ts", "re-run with --backup-edited-kit to back them up and refresh the whole kit, or restore them first", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT); the verify names --backup-edited-kit itself", "kitWriteDecision"],
   ["install.ts", "(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT); the verify names --backup-edited-kit itself", "verify"],
   ["install.ts", "is still the old layout. Resolve each verify above and re-run --migrate.", "same-run command (a migrate banner)", "the --migrate pre-check's report, right after its verify loop; the migrate INCOMPLETE banner after it prints migrateCommand() (plan 34.1-28, D-31, DI-09)", "report"],
+  ["install.ts", "the pre-v3 layout. Resolve each verify above and re-run --migrate.", "same-run command (a migrate banner)", "the --migrate pre-check's report when the v3 state arm is involved (plan 38-03, D-11), right after its verify loop; the migrate INCOMPLETE banner after it prints migrateCommand()", "report"],
   ["install.ts", "unknown. No skill was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
   ["install.ts", "unknown. No adapter was installed. Re-run the installer from a complete kit checkout.", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
   ["install.ts", "as it was. Re-run the installer from a complete kit checkout whose adapter directory", "same-run command", "a counted verify of the install mode about Claude Code's kit, adapters or ask rules; the install INCOMPLETE banner prints agentCommand(\"install.js\", TARGET, SELECTION, COMMAND_CONTEXT)", "refusals.push"],
@@ -484,8 +488,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // Plan 34.1-45 (2026-10-13, D-37, 34.1 review IN-34): reportUnrecordedSettings' ask-rules arm over an unusable marker
     // is a `left` line pointing at the module-top verify (it was a second verify), so uninstall.ts 23 -> 24 and "printed
     // reference" 44 -> 45; noBlockRecordReason's two unusable arms keep their pointer and lose the by-hand removal.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 25, "uninstall.ts": 24 });
-    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 45, "same block": 1 });
+    // Plan 38-03 (2026-10-28, D-11): the --migrate pre-check's report has a v3 state arm reading, whose two fragments
+    // point at the verify loop just before it, so install.ts 25 -> 27 and "printed reference" 45 -> 47.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 27, "uninstall.ts": 24 });
+    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 47, "same block": 1 });
   });
 
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
@@ -656,7 +662,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // Plan 34.1-59 (2026-10-14, D-45, DI-25): refuseOverMarker's "re-run the installer" argument to markerFixText,
     // 63 + 1 = 64.
     // Quick task 261018-hs8 fix pass (2026-10-18, D-06): the launch-file WARN's by-hand remedy, 64 + 1 = 65.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 65, "user-file.ts": 2 });
+    // Plan 38-03 (2026-10-28, D-11): the --migrate pre-check report's v3 state arm reading, 65 + 1 = 66.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 66, "user-file.ts": 2 });
     // Plan 34.1-27 (DI-08): the stale-adapter WARN's re-run fragment moves from "agent-independent: doctor, recorded
     // agents" (12 -> 11) to "builder in the same expression" (1): the WARN prints doctorInstallCommand().
     // Plan 34.1-27 task 2 (D-33): every other doctor remedy (D1-D14, D16, D17) prints its command in the same expression,
@@ -690,7 +697,8 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
       "no command: a re-run does not finish it (DI-13)": 1,
       "not a remedy": 4,
       "same-run command": 22,
-      "same-run command (a migrate banner)": 3,
+      // Plan 38-03 (2026-10-28, D-11): 3 + 1 = 4, the pre-check report's v3 state arm reading.
+      "same-run command (a migrate banner)": 4,
     });
   });
 
@@ -789,7 +797,7 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     expect(texts[0], "the pre-check's report follows its verify loop").toMatch(/^report\(\s*"migrate"/);
     expect(texts[1], "then the migrate INCOMPLETE banner and its command line, by their one owner, for this run's agents").toBe("printMigrateIncomplete(true, SELECTION);");
     const rows = RERUN_TABLE.filter((r) => r[2] === "same-run command (a migrate banner)");
-    expect(rows.length, "premise: the class has rows").toBe(3);
+    expect(rows.length, "premise: the class has rows").toBe(4);
     const found = fragmentsOf(["install.ts"]).filter((f) => RERUN.test(f.text));
     for (const r of rows) {
       const hits = found.filter((x) => norm(x.text) === norm(r[1]));
