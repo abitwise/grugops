@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
-status: executing
-stopped_at: Completed 38-10-PLAN.md
-last_updated: "2026-10-28T17:37:35.179Z"
+status: verifying
+stopped_at: Completed 38-11-PLAN.md
+last_updated: "2026-10-28T19:23:00.539Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: f9facc63dfdb5871f3f84bfb4782884a7d953922
+state_head: 5c32d2b9b6a8a1760e13bed8f59a9f2c02e65481
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 67
+  completed_plans: 68
   percent: 33
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 
 Phase: 38 (install --migrate v3) — EXECUTING
 Plan: 11 of 11
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-28 — Phase 38 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -782,6 +782,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P08 | 44 min | 2 tasks | 7 files |
 | Phase 38 P09 | 49 min | 2 tasks | 10 files |
 | Phase 38 P10 | 50 min | 3 tasks | 11 files |
+| Phase 38 P11 | 81min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2147,6 +2148,9 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-09: whole-stdout determinism of two dry runs is asserted with the adapter render's per-run mkdtemp name replaced; the state migrate section is compared exactly
 - [Phase 38]: D-22 (human, option-a): pending and claimed queue entries keep a finished ticket's context folder in place; a done entry does not
 - [Phase 38]: --archive-done-context matches folders by name only against known IDs (board rows, Done archive rows, ticket file leading IDs); moves are journaled with the migrate commit after the post-commit proof and before the render; on a marked v3 layout it runs alone with no render and no marker
+- [Phase 38]: 38-11: a dot-named regular file (e.g. .gitkeep) in .grugops/queue/claimed/ is a keeper, not a claim (fix 6cbaa209)
+- [Phase 38]: 38-11 reverses a 38-10 decision: --archive-done-context on a v3 repository renders the trace after its moves and undoes them if the render fails (fix 2f8f8b65)
+- [Phase 38]: 38-11: board stays over budget after migrate on the real repository (finding C: a code-span <!-- RUN --> in Done row ABC-109 blocks the Done roll), deferred to the phase 37 state rules
 
 ### Pending Todos
 
@@ -2479,8 +2483,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T17:37:34.650Z
-Stopped at: Completed 38-10-PLAN.md
+Last session: 2026-10-28T19:22:59.944Z
+Stopped at: Completed 38-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
