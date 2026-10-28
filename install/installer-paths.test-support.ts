@@ -64,7 +64,7 @@ import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readd
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
-import { BOARD_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL } from "./state-layout.js";
+import { BOARD_REL, CONTEXT_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, PROGRESS_REL } from "./state-layout.js";
 import { HOST_TOOLS, agentFlag, commandContextFromRecord, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -163,6 +163,33 @@ export function makePreV3StateFixture(d: string): string {
   mkdirSync(dirname(join(d, PRE_V3_TICKET_REL)), { recursive: true });
   writeFileSync(join(d, LEGACY_BOARD_REL), PRE_V3_BOARD_TEXT);
   writeFileSync(join(d, PRE_V3_TICKET_REL), PRE_V3_TICKET_TEXT);
+  return d;
+}
+
+/** The frozen pre-v3 fixture trimmed from a real repository (phase 38, plan 38-01, D-15). */
+export const PRE_V3_CHESS_DIR = join(import.meta.dirname, "fixtures", "pre-v3-chess");
+
+/**
+ * THE FROZEN PRE-V3 FIXTURE (phase 38, plan 38-01, 2026-10-28, D-15): a real-shaped repository still on the pre-v3
+ * state layout, in `d`. It copies PRE_V3_CHESS_DIR's three parts to the paths the state-layout constants name, creating
+ * parents: `board-root/` to LEGACY_STATE_ROOT_REL, `progress.md` to PROGRESS_REL and `context/` to CONTEXT_REL. No
+ * tracked directory is named for the pre-v3 root; the paths are built here at run time. Copying refuses to write over
+ * an existing file, so a fixture planted on top of other state is a loud error, never a merge. The bytes are pinned by
+ * install/migrate-v3.test.ts (F1); a shape the copy lacks is made by a test mutating the materialized copy, never by
+ * editing the fixture. Not to be confused with makePreV3StateFixture above (two planted files) or makeOldLayoutFixture
+ * below (the v1.0 vendored-kit layout).
+ */
+export function makePreV3ChessFixture(d: string): string {
+  const parts: ReadonlyArray<readonly [string, string]> = [
+    ["board-root", LEGACY_STATE_ROOT_REL],
+    ["progress.md", PROGRESS_REL],
+    ["context", CONTEXT_REL],
+  ];
+  for (const [from, to] of parts) {
+    const dest = join(d, to);
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(join(PRE_V3_CHESS_DIR, from), dest, { recursive: true, force: false, errorOnExist: true });
+  }
   return d;
 }
 

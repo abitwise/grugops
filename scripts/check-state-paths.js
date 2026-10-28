@@ -50,6 +50,10 @@ export const ALLOW_LIST = Object.freeze([
         glob: "docs/pre-v3-state-layout.md",
         reason: "the user doc for the pre-v3 layout a repository may carry until v4.0 (D-04)",
     },
+    {
+        glob: "install/fixtures/pre-v3-chess/**",
+        reason: "the frozen pre-v3 fixture trimmed from a real repository, verbatim (D-15)",
+    },
 ]);
 /** True when `glob` has a shape this gate reads: an exact path, or a directory followed by `/**`. */
 export function isReadableGlob(glob) {
