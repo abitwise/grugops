@@ -237,3 +237,24 @@ archived) and `memory-bank/50-decisions` (51 entries, 0 archived).
   so). Six edited skills needed `--backup-edited-kit`; their backups sit next to them.
 - **H:** `factory.config.json` carries the retired `autonomy` key; the runnables step names it and leaves the file
   alone, as before this phase.
+
+## Phase gate
+
+Run on 2026-10-28 at commit `9ae115fb` (the Task 2 docs commit; no code changed after it), on Node v26.12.1, branch
+`main`.
+
+| Gate | Result |
+| --- | --- |
+| `npx vitest run --exclude '**/scripts/e2e/**'`, with `GRUGOPS_HOME` and `HOME` set to a scratch directory | exit 1: Test Files 6 failed, 130 passed (136); Tests 20 failed, 10,429 passed, 2 skipped (10,451); 1,367 s. The 20 failures are exactly the 20 tests in the 6 files that 38-BASELINE.md lists, by file and test name. No other test failed |
+| `npm run build` | exit 0; no committed `.js` changed |
+| `npm run typecheck` | exit 0 |
+| `npm run freshness` and `freshness:runnable-embeds`, `:adapters`, `:catalog`, `:context`, `:guarantees`, `:hook-manifest`, `:host-entries`, `:skill-twins`, `:traceability` | exit 0 each |
+| `npm run check:build-parity` | exit 0 |
+| `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js --strict` | exit 0, "ALL CHECKS PASSED" |
+| `check-audit-register`, `check-banned-claims`, `check-claim-anchors`, `check-foundation-guards`, `check-imperative-lexicon`, `check-kit-refs`, `check-nul-bytes`, `check-platform-shapes`, `check-public-docs-vocabulary`, `check-residual-citations`, `check-state-paths` | exit 0 each |
+| `check-diff-disposition` | exit 1: 721 findings over 40 elements since base `4d2b8f0`, the same count recorded at the end of phase 37. Phase 38 changed no file under `agent-factory/` (`git diff --stat bdac8848 HEAD -- agent-factory/` is empty), so none of these findings is from this phase. Pre-existing, logged open in phase 37's deferred items; the disposition decision is a human's |
+| `check-flip-manifest` | exit 1: the manifest `.planning/phases/33-live-capture-windows-portability/33-FLIP-MANIFEST.md` left `.planning/phases/` when v2.1 was archived, so no verdict is reported. Pre-existing, logged in phase 36's deferred items |
+
+The plan's gate loop over the check scripts therefore stops at `FAIL check-diff-disposition`. Both red gates were red
+before phase 38 began, and phase 38 did not change their count or their input. They are recorded here as known and are
+not marked passing.
