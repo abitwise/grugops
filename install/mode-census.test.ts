@@ -121,8 +121,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * below; it renders or compares no mode.
  * 2026-10-28, plan 38-08 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 43 -> 44 for
  * migrate-v3-hazards.test.ts, which has no chmod call and no expected mode (it plants links, a FIFO, an oversized file
- * and a large tree, and compares snapshotTree manifests and printed lines). */
-const INSTALL_TEST_FILE_COUNT = 44;
+ * and a large tree, and compares snapshotTree manifests and printed lines).
+ * 2026-10-28, plan 38-09 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 44 -> 45 for
+ * migrate-v3-dryrun.test.ts, which has no chmod call and no expected mode (it compares snapshotTree manifests and
+ * printed lines of a dry run). */
+const INSTALL_TEST_FILE_COUNT = 45;
 const SCRIPTS_TEST_FILE_COUNT = 80;
 const SOURCE_FILE_COUNT = 11;
 

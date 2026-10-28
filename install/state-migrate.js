@@ -32,7 +32,7 @@
 //
 // Voice: clear professional voice (CLAUDE.md hard rule). This is the first grugops operation that rewrites user
 // state, and every printed user value passes through the embedded stripControlChars.
-import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, BUDGETS, DECISIONS_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, NFR_CATALOG_REL, NFR_DIR_REL, PRE_V3_BOARD_REL, PRE_V3_BOARD_UPDATES_REL, PRE_V3_NFR_CATALOG_REL, PRE_V3_NFR_NOTES_REL, PRE_V3_ORPHAN_NOTES_REL, PRE_V3_PROGRESS_REL, PRE_V3_TICKETS_REL, PRE_V3_TRACEABILITY_REL, PROGRESS_ARCHIVE_REL, PROGRESS_REL, STATE_ROOT_REL, TICKETS_REL, TRACEABILITY_REL, } from "./state-layout.js";
+import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, BUDGETS, DECISIONS_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, NFR_CATALOG_REL, NFR_DIR_REL, PRE_V3_BOARD_REL, PRE_V3_BOARD_UPDATES_REL, PRE_V3_NFR_CATALOG_REL, PRE_V3_NFR_NOTES_REL, PRE_V3_ORPHAN_NOTES_REL, PRE_V3_PROGRESS_REL, PRE_V3_TICKETS_REL, PRE_V3_TRACEABILITY_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, PROGRESS_ARCHIVE_REL, PROGRESS_REL, STATE_ROOT_REL, TICKETS_REL, TRACEABILITY_REL, TRACE_DIR_REL, } from "./state-layout.js";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 // from scripts/board-model.ts
 export const LARGE_BOARD_BYTES = 1_048_576;
@@ -2380,4 +2380,42 @@ function prefixMismatch(prefix, bytes) {
         if (bytes[i] !== prefix[i])
             return i;
     return null;
+}
+// ── The dry-run listing (plan 38-09, MIGRATE-01) ─────────────────────────────────────────────────────────────────
+/** One printed line in the installer's report shape: two spaces, the label padded to 14 columns, a space, the text. */
+function listingLine(label, text) {
+    return stripControlChars(`  ${label.padEnd(14)} ${text}`, false);
+}
+/**
+ * The dry-run listing of a plan: every line `install --migrate --dry-run` prints for the state migrate, and nothing
+ * the installer adds. Pure: it reads only the plan, so the preview and the real run cannot disagree. Every line passes
+ * through stripControlChars, so a path, a ticket ID or a heading from the user's files cannot carry a terminal control
+ * sequence into the listing.
+ */
+export function migrateListing(plan) {
+    const lines = [];
+    for (const r of plan.refusals)
+        lines.push(listingLine("refused", r));
+    for (const s of plan.steps) {
+        lines.push(listingLine(`would-${s.verb}`, `${s.from === null ? s.to : `${s.from} → ${s.to}`} (${s.bytes} bytes; ${s.note})`));
+    }
+    for (const n of plan.notes)
+        lines.push(listingLine("note", n));
+    if (plan.refusals.length === 0) {
+        lines.push(listingLine("would-run", `the kit's trace renderer against the target, after the move and before the marker. What it writes under ` +
+            `${TRACE_DIR_REL}/ and to ${TRACEABILITY_REL} cannot be previewed: it reads the moved state, which a dry run ` +
+            "does not make. A render that does not exit 0 undoes the move"));
+        lines.push(listingLine("would-create", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT}), once the staged files and every original's new home are ` +
+            "proven and the trace is rendered"));
+        for (const f of plan.overBudget)
+            lines.push(listingLine("note", `over budget: ${formatFinding(f)}`));
+        lines.push(listingLine("note", `${plan.overBudget.length} planned file(s) or row(s) are over a state budget; the rendered trace files are ` +
+            `measured after the render, so a real run may list more. Budgets do not block this migration, and ` +
+            `${LAYOUT_MARKER_REL} is written whatever the sizes (\`node tools/grugops/state-check.js\` reports them later)`));
+    }
+    lines.push(listingLine("dry-run", plan.refusals.length > 0
+        ? "Dry run: the state migrate was refused; nothing was written."
+        : `Dry run: the state migrate was planned${plan.proof.ok ? " and proven in memory" : ", and its in-memory proof failed"}; ` +
+            "nothing was written."));
+    return lines;
 }

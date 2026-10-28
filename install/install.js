@@ -32,6 +32,7 @@
 //   node install/install.js --target /path/to/repo
 //   node install/install.js --yes
 //   DRY_RUN=1 node install/install.js
+//   node install/install.js --dry-run              (the same preview as DRY_RUN=1, for every mode)
 //   INSTALL_MODE=symlink node install/install.js   (copy is the default, D-05; --symlink also opts in)
 //   node install/install.js --allow-self            (override the D-07 self-checkout guard)
 //   node install/install.js --check                 (doctor: verify a target install, mutate nothing)
@@ -88,7 +89,7 @@ import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTE
 import { BOARD_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, CONTEXT_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
 // Phase 38 (plan 38-03, D-09, D-10, D-17): the v3 state migrate's planner and its proof. Pure functions over bytes the
 // installer reads; the module imports nothing outside install/ and node:, so this edge keeps install/ free of scripts/.
-import { budgetEntryNames, fileBytesFinding, formatFinding, markerState, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
+import { budgetEntryNames, fileBytesFinding, formatFinding, markerState, migrateListing, movedRel, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -122,6 +123,10 @@ let PRUNE_OLD_KIT = false;
 // user edited and then refresh the whole kit. `--yes` is NOT this consent: it answers the target
 // question, never the question of whether a user's edit may be overwritten.
 let BACKUP_EDITED_KIT = false;
+// Plan 38-09 (MIGRATE-01): `--dry-run` is the argument spelling of DRY_RUN=1. It sets DRY_RUN below for every mode
+// (install, --migrate, --update, --prune-old-kit, --check), so `install --migrate --dry-run` previews the migrate and
+// writes nothing. It is not an agent flag.
+let ARG_DRY_RUN = false;
 // A VALUE-TAKING FLAG WITH NO VALUE IS BAD USAGE (red-team L4 of plan 33.1-34). `--target` is the one
 // value-taking flag. With no value (the last argument, `--target=`, or followed by another flag) it used
 // to leave ARG_TARGET empty, and resolveTarget then fell back to TARGET or the current directory: the
@@ -172,6 +177,9 @@ for (let i = 0; i < argv.length; i++) {
     else if (a === "--backup-edited-kit") {
         BACKUP_EDITED_KIT = true;
     }
+    else if (a === "--dry-run") {
+        ARG_DRY_RUN = true;
+    }
     else if ((flagHost = hostForFlag(a)) !== null) {
         SELECTED_BY_FLAG.add(flagHost.id);
     }
@@ -202,7 +210,8 @@ const SCRIPT_DIR = import.meta.dirname;
 const GRUGOPS_SRC = process.env.GRUGOPS_SRC
     ? resolve(process.env.GRUGOPS_SRC)
     : resolve(SCRIPT_DIR, "..");
-const DRY_RUN = process.env.DRY_RUN === "1";
+// The argument loop above has run, so `--dry-run` (ARG_DRY_RUN) and DRY_RUN=1 set the one preview flag alike.
+const DRY_RUN = process.env.DRY_RUN === "1" || ARG_DRY_RUN;
 // D-05: default to COPY (symlink is opt-in via --symlink / INSTALL_MODE=symlink). Copy is the
 // only mode that behaves identically on every platform; symlinks broke the dogfood.
 //
@@ -6461,14 +6470,11 @@ function noteMovedBackups() {
 // runStateMigrate: see STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK above. Returns true when the state is on the v3
 // layout and the marker is written (under DRY_RUN: when the plan would run).
 function runStateMigrate(plan, read) {
+    // Plan 38-09 (MIGRATE-01): the preview is migrateListing's lines, printed as they are, and nothing else. The listing
+    // is built from the plan the real run executes, so the two cannot disagree. Nothing below this return runs.
     if (DRY_RUN) {
-        for (const s of plan.steps) {
-            report(`would-${s.verb}`, `${oneLine(s.from === null ? s.to : `${s.from} → ${s.to}`)} (${s.bytes} bytes; ${oneLine(s.note)})`);
-        }
-        report("would-run", `the kit-source trace renderer ${kitTraceRenderer() ?? `(no kit runnable is mapped to ${TRACE_RENDER_DEST_REL})`} ` +
-            "against the target, after the move and before the marker; a render that does not exit 0 undoes the move");
-        report("would-create", `${LAYOUT_MARKER_REL} (${LAYOUT_MARKER_CONTENT}), once the staged files and every original's new home are proven and the trace is rendered`);
-        printMigrateBudgets(plan);
+        for (const line of migrateListing(plan))
+            console.log(line);
         return true;
     }
     const staging = targetPath(MIGRATE_STAGING_REL);
