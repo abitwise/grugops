@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-01-PLAN.md
-last_updated: "2026-10-28T09:39:30.302Z"
+stopped_at: Completed 38-02-PLAN.md
+last_updated: "2026-10-28T11:03:13.243Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: f5ec84ccaa0799979a78baddea5d2f3cc005e119
+state_head: a4b944cccbf8be0450ba5d11754daa85adcedb1e
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 58
+  completed_plans: 59
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 2 of 11
+Plan: 3 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -773,6 +773,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P41 | 50min | 2 tasks | 14 files |
 | Phase 37 P42 | 76 min | 3 tasks | 9 files |
 | Phase 38 P01 | 1h 17m | 3 tasks | 45 files |
+| Phase 38 P02 | 1h 15m | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -2109,6 +2110,9 @@ Recent decisions affecting current work:
 - [Phase 37]: 37-42: install/runnable-package.json (plan 37-40) dispositioned by name in check-banned-claims as a module-type marker (exact-path pin 15 -> 16)
 - [Phase 38]: D-21: option-a. A ticket that receives Board notes keeps its original renamed unchanged to memory-bank/plans/archive/pre-v3/tickets/{file name}; the ticket with notes is a new file at memory-bank/plans/tickets/{file name}
 - [Phase 38]: 38-01: install/fixtures/pre-v3-chess/ excluded by name from check-banned-claims as another repository's runtime state (0 occurrences measured); human to confirm against the plan's no-widened-exclusion rule
+- [Phase 38]: 38-02: a board row whose line touches an HTML comment is not cut; the plan notes it
+- [Phase 38]: 38-02: MigratePlan adds cuts and appended, which the proof and plan 38-03 need
+- [Phase 38]: 38-02: a census over install/ sources reads a fresh EMBED_SPECS generated region as blank; a stale one is read whole
 
 ### Pending Todos
 
@@ -2441,8 +2445,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T09:39:29.755Z
-Stopped at: Completed 38-01-PLAN.md
+Last session: 2026-10-28T11:03:12.735Z
+Stopped at: Completed 38-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

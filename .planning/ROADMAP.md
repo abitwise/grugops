@@ -395,14 +395,14 @@ Gap round 4 of 4, the last on the cap (D-21; UAT gaps G-37-2 and G-37-4; sequent
   5. With the opt-in flag, finished-ticket `.grugops/context/` folders are moved, not changed, into a separate archive folder and trace rendering still reads them; the whole migration has been run on a copy of `cli-chess-example` under a scratch `GRUGOPS_HOME` with before/after sizes recorded (MIGRATE-06, MIGRATE-07)
   6. On an installed v2.x two-root repo that still holds the pre-v3 board (`plans/board.md`, no `memory-bank/plans/board.md`), `install --migrate` moves it to the v3 layout; the v2.x arm's "already migrated to the two-root layout ... Nothing to do." short-circuit no longer answers that layout, and a test pins it (MIGRATE-04; carried from Phase 36 WR-04 by UAT decision 2026-10-21)
 
-**Plans**: 1/11 plans executed
+**Plans**: 2/11 plans executed
 
 Plans:
 **Wave 1**
 - [x] 38-01-PLAN.md — Chess copy path and ticket-original decision (checkpoints), shape census, frozen pre-v3 fixture, failure baseline
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 38-02-PLAN.md — State constants, `module` embed kind, pure planner for the board split (Board notes, orphans, updates) and the stage-A proof
+- [x] 38-02-PLAN.md — State constants, `module` embed kind, pure planner for the board split (Board notes, orphans, updates) and the stage-A proof
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 38-03-PLAN.md — install --migrate v3 arm end to end: one pre-check, staging, undoable commit journal, per-original proof, marker last
@@ -521,7 +521,7 @@ Plans:
 | 35. Graph-memory decision record | v3.0 | 1/1 | Complete    | 2026-10-20 |
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
-| 38. install --migrate v3 | v3.0 | 1/11 | In Progress | - |
+| 38. install --migrate v3 | v3.0 | 2/11 | In Progress | - |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |

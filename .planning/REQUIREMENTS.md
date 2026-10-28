@@ -37,7 +37,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 - [ ] **MIGRATE-02**: Migration keeps the original monolith files unchanged in `memory-bank/plans/archive/pre-v3/` (outside every budget) and writes the split files as new files; nothing is deleted or rewritten in place
 - [ ] **MIGRATE-03**: Migration proves line conservation (every original line appears in the split output or the archive) and rolls the split back if the proof fails
 - [ ] **MIGRATE-04**: Migration detects old / new / both / neither layouts, refuses the "both" state and a non-empty `queue/claimed/`, writes a layout marker, and a second run is a byte-identical no-op; an installed v2.x two-root repo still holding the pre-v3 board counts as old, never "already migrated ... Nothing to do." (Phase 36 WR-04)
-- [ ] **MIGRATE-05**: Board row trailers (blocked reasons, notes) are copied verbatim into ticket bodies, never reinterpreted
+- [x] **MIGRATE-05**: Board row trailers (blocked reasons, notes) are copied verbatim into ticket bodies, never reinterpreted
 - [ ] **MIGRATE-06**: An opt-in flag moves finished-ticket `.grugops/context/` folders to a separate archive folder (move only; trace rendering still reads them)
 - [ ] **MIGRATE-07**: Migration is dogfooded on a copy of `cli-chess-example` under a scratch `GRUGOPS_HOME`, with before/after sizes recorded
 
@@ -133,7 +133,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MIGRATE-02 | Phase 38 | Pending |
 | MIGRATE-03 | Phase 38 | Pending |
 | MIGRATE-04 | Phase 38 | Pending |
-| MIGRATE-05 | Phase 38 | Pending |
+| MIGRATE-05 | Phase 38 | Complete |
 | MIGRATE-06 | Phase 38 | Pending |
 | MIGRATE-07 | Phase 38 | Pending |
 | TIER-01 | Phase 39 | Pending |
