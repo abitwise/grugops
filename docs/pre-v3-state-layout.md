@@ -10,8 +10,9 @@ The pre-v3 layout is supported through v3.x and **removed in v4.0** (see "When t
 
 ## How the layout is decided
 
-grugops decides the layout from where the board is. Nothing else is read, and no layout marker is
-written:
+grugops decides the layout from where the board is, and from nothing else. The layout marker
+`memory-bank/plans/.layout`, which `install --migrate` writes once it has moved the state (see "The
+marker, written last" below), does not decide it:
 
 | `memory-bank/plans/board.md` | `plans/board.md` | Layout |
 |---|---|---|
@@ -55,8 +56,9 @@ On a pre-v3 repository, `install --migrate` moves the planning state from `plans
 `memory-bank/plans/`, splits the three files that grew too large to read whole (the board, the
 traceability matrix and the NFR catalog), and keeps every original file. It then continues into the
 normal install run, so the kit, the adapters and the kit tools are refreshed to read the new layout.
-The steps below run in this order. If any step fails, the repository is left as it was before the
-run.
+The steps below run in this order. If a step of the state move fails, the state move is undone and
+the planning state is left as it was before the run (see "The undo" below). The kit refresh steps of
+the same run are not undone.
 
 ### The pre-check
 
@@ -161,9 +163,16 @@ file must begin with the original bytes.
 ### The undo
 
 Each rename is recorded, in order, in `commit-plan.txt` inside the staging directory. If a rename, the
-check after the renames or the trace render fails, the renames are undone in reverse order, the files
-the run added are taken away, and the repository is as it was before the run. The run names the step
-that failed and exits `3`.
+check after the renames, the trace render or the marker write fails, the renames are undone in reverse
+order, the files the state move added are taken away, the trace files it changed are put back, and
+`plans/` and `memory-bank/` are as they were before the state move. The run names the step that
+failed, and it ends INCOMPLETE with exit `3`.
+
+Only the state move is undone. The steps of the same run before it (the kit copy, the adapters and, on
+a v1.0 repository, the move to the shared kit home) are not undone, and the steps after it still run:
+the state seed finds the pre-v3 layout again and seeds nothing under `memory-bank/plans/` (it adds a
+missing standing file elsewhere under `memory-bank/`), and the kit tools, the ask rules and
+`.grugops/install.json` are written as on any install.
 
 If a step of the undo itself fails, each failed step has its own `verify` line, and the staging
 directory and its `commit-plan.txt` are left for you. The rest of that run then seeds nothing under

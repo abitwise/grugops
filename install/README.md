@@ -1426,7 +1426,8 @@ matrix and the NFR catalog into smaller files, and keeps every original file unc
 `memory-bank/plans/archive/pre-v3/`. It rolls older Done rows and dated progress entries into
 `memory-bank/plans/archive/` (a roll the state rules refuse is skipped with a note), renders the trace, and writes the layout marker
 `memory-bank/plans/.layout` last. The whole move is planned and proven before the first write. If
-any step fails, the move is undone and the repository is left as it was. A second run moves nothing.
+a step of the move fails, the move is undone and the planning state is left as it was; the kit
+refresh steps of the same run are not undone. A second run moves nothing.
 [docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md) describes each step, where every
 original goes, each refusal and the undo.
 

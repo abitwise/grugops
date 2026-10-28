@@ -33,7 +33,8 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   `memory-bank/plans/`, keeping the originals in `memory-bank/plans/archive/pre-v3/`. It splits the
   board, the traceability matrix and the NFR catalog, rolls older Done rows and dated progress
   entries, renders the trace and writes the layout marker last. The move is proven before the first
-  write and undone on any failure. See [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
+  write, and a failed move is undone, leaving the planning state as it was; the kit refresh steps of
+  the same run are not undone. See [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
 - Per-repository planning state (the board, the ticket, epic, feature, sprint, release and UAT trees,
   the NFR catalog, the traceability matrix and the metrics file) now lives under `memory-bank/plans/`
   instead of the top-level `plans/` directory.
