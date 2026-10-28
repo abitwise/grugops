@@ -86,10 +86,10 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
-import { BOARD_REL, CONTEXT_ARCHIVE_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, CONTEXT_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
+import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, CONTEXT_ARCHIVE_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, CONTEXT_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TICKETS_REL, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
 // Phase 38 (plan 38-03, D-09, D-10, D-17): the v3 state migrate's planner and its proof. Pure functions over bytes the
 // installer reads; the module imports nothing outside install/ and node:, so this edge keeps install/ free of scripts/.
-import { budgetEntryNames, contextFolderRel, fileBytesFinding, formatFinding, markerState, migrateListing, migratedContextTicketIds, movedRel, planContextArchive, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
+import { budgetEntryNames, contextArchiveListing, contextFolderRel, contextTicketIds, fileBytesFinding, formatFinding, markerState, migrateListing, migratedContextTicketIds, movedRel, planContextArchive, planStateMigrate, proveStateMigrate, stripControlChars, } from "./state-migrate.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
 import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
@@ -5855,6 +5855,12 @@ function refuseOverMarker(read, remedy, named) {
 }
 if (INSTALL_REFUSAL !== null)
     refuseOverMarker(PREVIOUS_MARKER_READ, INSTALL_REFUSAL, SELECTION_NAMED_BY_USER ? SELECTION : []);
+/**
+ * The context archive alone (plan 38-10): planned by the --migrate pre-check on a state already on the v3 layout with a
+ * valid marker, run in the state migrate section (runContextArchive). CONTEXT_MOVED counts the folders it moved.
+ */
+let CONTEXT_ARCHIVE = null;
+let CONTEXT_MOVED = 0;
 /** The planned v3 state migrate: made by the --migrate pre-check, executed by the install run (runStateMigrate). */
 let STATE_MIGRATE = null;
 /** `text` safe in one printed line: control characters taken out. */
@@ -6574,12 +6580,56 @@ function moveContextFolders(journal, run) {
     }
     return null;
 }
-/** The lines of a context archive that ran: one per moved folder, and how many stayed. */
+/** The lines of a context archive that ran: one per folder, moved or kept with its reason, then the count. */
 function reportContextArchive(run) {
-    for (const m of run.plan.moves) {
-        report("moved", `${contextFolderRel(m.name, false)} → ${contextFolderRel(m.name, true)} (unchanged; it names ${m.ids.join(", ")}, each Done)`);
+    for (const line of contextArchiveListing(run.plan, true))
+        console.log(line);
+}
+// layoutMarkerValid: LAYOUT_MARKER_REL holds the v3 layout marker, read through readUserFile and asked markerState, as
+// currentLayoutNote reads it. Nothing here writes.
+function layoutMarkerValid() {
+    const r = readUserFile(targetPath(LAYOUT_MARKER_REL));
+    return r.state === "ok" && markerState(r.bytes.toString("utf8"), LAYOUT_MARKER_CONTENT).state === "valid";
+}
+// currentContextTicketIds: the ticket IDs of a state already on the v3 layout (plan 38-10), from the files on disk:
+// BOARD_REL, BOARD_DONE_ARCHIVE_REL (absent is no archive) and the names directly under TICKETS_REL. A board or an
+// archive that cannot be read, or a tickets directory that cannot be listed, is a refusal. Nothing here writes.
+function currentContextTicketIds(refusals) {
+    const why = "so which tickets are Done cannot be shown";
+    const board = readUserFile(targetPath(BOARD_REL));
+    if (board.state !== "ok")
+        refusals.push(`${targetPath(BOARD_REL)} ${board.state === "absent" ? "is absent" : unreadState(board)}, ${why}`);
+    const archive = readUserFile(targetPath(BOARD_DONE_ARCHIVE_REL));
+    if (archive.state !== "ok" && archive.state !== "absent")
+        refusals.push(`${targetPath(BOARD_DONE_ARCHIVE_REL)} ${unreadState(archive)}, ${why}`);
+    const tickets = contextDirNames(TICKETS_REL, "which ticket files there are", refusals) ?? [];
+    return contextTicketIds(board.state === "ok" ? board.bytes.toString("utf8") : "", archive.state === "ok" ? archive.bytes.toString("utf8") : null, tickets);
+}
+// runContextArchive: the context archive alone, on a state already on the v3 layout with a valid marker (plan 38-10):
+// the moves, journaled, and on any failure the journal undone. No trace render runs (the renderer reads both context
+// roots, so the rendered trace does not change) and no marker is written. Returns how many folders moved, or would
+// move under DRY_RUN.
+function runContextArchive(run) {
+    if (DRY_RUN) {
+        for (const line of contextArchiveListing(run.plan, false))
+            console.log(line);
+        report("dry-run", "Dry run: the context archive was planned; nothing was written.");
+        return run.plan.moves.length;
     }
-    report("ok", `context archive: ${run.plan.moves.length} folder(s) moved, ${run.plan.kept.length} left in ${CONTEXT_REL}/`);
+    const journal = [];
+    const why = moveContextFolders(journal, run);
+    if (why !== null) {
+        const failed = undoStateMigrate(journal);
+        for (const f of failed)
+            verify(`context archive (undo): ${f}.`);
+        verify(`context archive: ${why}. ` +
+            (failed.length === 0
+                ? `Every move was undone; the context folders are where they were in ${CONTEXT_REL}/.`
+                : "The undo is incomplete: each undo step that failed has its own verify line."));
+        return 0;
+    }
+    reportContextArchive(run);
+    return run.plan.moves.length;
 }
 // runStateMigrate: see STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK above. Returns true when the state is on the v3
 // layout and the marker is written (under DRY_RUN: when the plan would run).
@@ -6587,7 +6637,7 @@ function runStateMigrate(plan, read, context) {
     // Plan 38-09 (MIGRATE-01): the preview is migrateListing's lines, printed as they are, and nothing else. The listing
     // is built from the plan the real run executes, so the two cannot disagree. Nothing below this return runs.
     if (DRY_RUN) {
-        for (const line of migrateListing(plan))
+        for (const line of migrateListing(plan, context?.plan ?? null))
             console.log(line);
         return true;
     }
@@ -6830,10 +6880,21 @@ if (MIGRATE) {
     // staging directory left by another migrate, are refused on every kit arm, in the same pre-check. (When the v3 arm
     // runs, stateMigrateRefusals asks for the staging directory itself.)
     const layoutRefusal = migrateLayoutRefusal(state) ?? (v3State ? null : stagingRefusal());
-    if (layout.isOldLayout || v3State || layoutRefusal !== null) {
+    // Plan 38-10 (MIGRATE-06): on a state already on the v3 layout with a valid marker, --archive-done-context runs the
+    // context archive alone. Its read, its selection and its refusals (a held claim among them, D-13) join this pre-check.
+    const currentArchive = ARCHIVE_DONE_CONTEXT && state === "current" && layoutMarkerValid();
+    if (layout.isOldLayout || v3State || layoutRefusal !== null || currentArchive) {
         const refusals = [];
         if (layoutRefusal !== null)
             refusals.push(layoutRefusal);
+        if (currentArchive && layoutRefusal === null) {
+            const ids = currentContextTicketIds(refusals);
+            CONTEXT_ARCHIVE = readContextArchive(ids);
+            refusals.push(...CONTEXT_ARCHIVE.refusals);
+            const claim = claimedQueueRefusal();
+            if (claim !== null)
+                refusals.push(claim);
+        }
         if (layout.isOldLayout) {
             MIGRATE_CARRY_PENDING = true;
             refusals.push(...planConfigCarry().refusals);
@@ -6919,6 +6980,17 @@ if (MIGRATE) {
         else {
             currentLayoutNote();
         }
+        // Plan 38-10: the context archive alone (a valid marker), or one line that the flag moves nothing here.
+        if (CONTEXT_ARCHIVE !== null) {
+            CONTEXT_MOVED = runContextArchive(CONTEXT_ARCHIVE);
+        }
+        else if (ARCHIVE_DONE_CONTEXT) {
+            report("note", `--archive-done-context moves nothing here: ` +
+                (state === "fresh"
+                    ? "there is no planning state, so no ticket is Done"
+                    : `the planning state is on the v3 layout but ${LAYOUT_MARKER_REL} does not mark it as migrated`) +
+                `, and the context archive runs only with a state migrate or on state that marker marks`);
+        }
     }
     if (layout.isMigrated && state !== "pre-v3") {
         // Plan 33.1-40: this arm writes no marker, so the backup it may have made is recorded here.
@@ -6944,12 +7016,19 @@ if (MIGRATE) {
                         ? `recorded the backup in ${MARKER_REL}.`
                         : `did not record the backup in ${MARKER_REL} (see the note above); uninstall and --prune-old-kit leave it.`));
             }
+            // Plan 38-10: the context archive moved (or, under DRY_RUN, would move) folders, so this run is not a no-op.
+            if (CONTEXT_MOVED > 0) {
+                console.log(DRY_RUN
+                    ? `DRY_RUN: this run would move ${CONTEXT_MOVED} context folder(s) to ${CONTEXT_ARCHIVE_REL}/. Nothing was changed.`
+                    : `This run moved ${CONTEXT_MOVED} context folder(s) to ${CONTEXT_ARCHIVE_REL}/, unchanged.`);
+            }
+            const changed = handoffsBackedUp || CONTEXT_MOVED > 0;
             if (layout.leftoverKit) {
-                console.log(`${handoffsBackedUp ? "" : "Nothing was changed. "}Once you have confirmed the shared kit at ${GRUGOPS_HOME} is in use,`);
+                console.log(`${changed ? "" : "Nothing was changed. "}Once you have confirmed the shared kit at ${GRUGOPS_HOME} is in use,`);
                 console.log("back up and remove the leftover agent-factory/ by hand — prune removes only the backups install");
                 console.log("recorded making, never a live kit, so it cannot clear this one.");
             }
-            else if (!handoffsBackedUp) {
+            else if (!changed) {
                 console.log("Nothing to do.");
             }
         }

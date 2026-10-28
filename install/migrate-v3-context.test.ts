@@ -188,7 +188,7 @@ describe("install --migrate --archive-done-context: the context archive (plan 38
     expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
     expect(existsSync(at(w.target, `${CONTEXT_REL}/${DONE_FOLDER}`)), "the Done folder left the live root").toBe(false);
     expect(snapshotTree(at(w.target, `${CONTEXT_ARCHIVE_REL}/${DONE_FOLDER}`)), "and is unchanged in the archive").toBe(folderBefore);
-    expect(labelled(r.stdout, "context-moved"), r.stdout).toEqual([
+    expect(labelled(r.stdout, "context-moved").map((l) => l.slice(17)), r.stdout).toEqual([
       `${CONTEXT_REL}/${DONE_FOLDER} → ${CONTEXT_ARCHIVE_REL}/${DONE_FOLDER} (unchanged; it names ABC-168, each Done)`,
     ]);
     expect(r.stdout, "no render runs").not.toContain("trace render:");
@@ -212,7 +212,7 @@ describe("install --migrate --archive-done-context: the context archive (plan 38
     expect(dry.error).toBeUndefined();
     expect(dry.status, `${dry.stdout}\n${dry.stderr}`).toBe(0);
     expect(snapshotTree(w.target), "the dry run writes nothing").toBe(before);
-    expect(labelled(dry.stdout, "context-move"), dry.stdout).toEqual([
+    expect(labelled(dry.stdout, "context-move").map((l) => l.slice(17)), dry.stdout).toEqual([
       `${CONTEXT_REL}/${DONE_FOLDER} → ${CONTEXT_ARCHIVE_REL}/${DONE_FOLDER} (unchanged; it names ABC-168, each Done)`,
     ]);
     const kept = labelled(dry.stdout, "context-keep");

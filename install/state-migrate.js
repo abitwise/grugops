@@ -2460,9 +2460,10 @@ function stepLine(s) {
  * (each orphan row by ID and board line, the `_Updated:` count and bytes, one line per roll surface), the plan's
  * notes, the trace render, the marker, the over-budget list, and last one line that nothing was written. Within the
  * move, archive and write groups the paths are in code-unit order; orphans keep board order and rolls keep the order
- * state-roll runs them (Done, then progress).
+ * state-roll runs them (Done, then progress). With `context` (`--archive-done-context`, plan 38-10), the context
+ * archive's lines (contextArchiveListing) come after the notes and before the render, where the moves run.
  */
-export function migrateListing(plan) {
+export function migrateListing(plan, context = null) {
     const lines = [];
     for (const r of plan.refusals)
         lines.push(listingLine("refused", r));
@@ -2484,6 +2485,9 @@ export function migrateListing(plan) {
     for (const n of plan.notes)
         lines.push(listingLine("note", n));
     if (plan.refusals.length === 0) {
+        // Plan 38-10: the context archive's folders, after the post-commit proof and before the render, as the commit runs.
+        if (context !== null)
+            lines.push(...contextArchiveListing(context, false));
         lines.push(listingLine("would-run", `the kit's trace renderer against the target, after the move and before the marker. What it writes under ` +
             `${TRACE_DIR_REL}/ and to ${TRACEABILITY_REL} cannot be previewed: it reads the moved state, which a dry run ` +
             "does not make. A render that does not exit 0 undoes the move"));
@@ -2648,4 +2652,27 @@ export function planContextArchive(input) {
 /** The target-relative path of a context folder, live or archived. */
 export function contextFolderRel(name, archived) {
     return `${archived ? CONTEXT_ARCHIVE_REL : CONTEXT_REL}/${name}`;
+}
+/**
+ * The context archive's lines: one per folder, moved (`context-move`) or kept with its reason (`context-keep`), in
+ * code-unit order of the names, then one count line. `ran` gives the lines of a run that moved the folders
+ * (`context-moved`, `context-kept`) instead of a preview. Every line passes through stripControlChars, so a folder
+ * name cannot carry a terminal control sequence into the listing.
+ */
+export function contextArchiveListing(plan, ran) {
+    const rows = [
+        ...plan.moves.map((m) => ({
+            name: m.name,
+            line: listingLine(ran ? "context-moved" : "context-move", `${contextFolderRel(m.name, false)} → ${contextFolderRel(m.name, true)} (unchanged; it names ${m.ids.join(", ")}, each Done)`),
+        })),
+        ...plan.kept.map((k) => ({
+            name: k.name,
+            line: listingLine(ran ? "context-kept" : "context-keep", `${contextFolderRel(k.name, false)} stays: ${k.why}`),
+        })),
+    ];
+    const lines = rows.sort((a, b) => byCodeUnits(a.name, b.name)).map((r) => r.line);
+    lines.push(ran
+        ? listingLine("ok", `context archive: ${plan.moves.length} folder(s) moved to ${CONTEXT_ARCHIVE_REL}/, ${plan.kept.length} stayed in ${CONTEXT_REL}/`)
+        : listingLine("note", `context archive: ${plan.moves.length} folder(s) would move to ${CONTEXT_ARCHIVE_REL}/, ${plan.kept.length} would stay in ${CONTEXT_REL}/`));
+    return lines;
 }
