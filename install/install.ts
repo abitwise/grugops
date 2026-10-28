@@ -7278,7 +7278,7 @@ function renderMigratedTrace(): TraceRender {
 // discardRenderedTrace: take away the regular files the render added to TRACE_DIR_REL (renderMigratedTrace's
 // `added`), then TRACE_DIR_REL itself when the render made it (rmdirSync, so only when it is empty again), so the undo
 // finds the tree as the commit left it. Returns one sentence per entry it left. Reached only from runStateMigrate's
-// commitFailed, after the `if (DRY_RUN)` return.
+// commitFailed and runContextArchive's undo (plan 38-11), each after its `if (DRY_RUN)` return.
 function discardRenderedTrace(rendered: RenderedTrace): string[] {
   const left: string[] = [];
   for (const name of rendered.added) {
@@ -7491,9 +7491,13 @@ function currentContextTicketIds(refusals: string[]): ContextTicketIds {
 }
 
 // runContextArchive: the context archive alone, on a state already on the v3 layout with a valid marker (plan 38-10):
-// the moves, journaled, and on any failure the journal undone. No trace render runs (the renderer reads both context
-// roots, so the rendered trace does not change) and no marker is written. Returns how many folders moved, or would
-// move under DRY_RUN.
+// the moves, journaled, then the kit-source trace render, and on any failure the render's added files taken away and
+// the journal undone. No marker is written. Returns how many folders moved, or would move under DRY_RUN.
+// The render runs because the rendered trace depends on which root holds a task: the renderer reads the live root,
+// then the archive root, and lists each ticket's refs in the order it first reads them. The plan 38-11 dogfood found
+// it on the real repository: with no render here, 58 trace files differed from a fresh render after the moves, and
+// trace-render --check and state-check both reported the trace stale. Plan 38-10 had left the render out on the
+// premise that the trace does not change, which holds on the frozen fixture only.
 function runContextArchive(run: ContextArchiveRun): number {
   if (DRY_RUN) {
     for (const line of contextArchiveListing(run.plan, false)) console.log(line);
@@ -7501,9 +7505,8 @@ function runContextArchive(run: ContextArchiveRun): number {
     return run.plan.moves.length;
   }
   const journal: MigrateJournalEntry[] = [];
-  const why = moveContextFolders(journal, run);
-  if (why !== null) {
-    const failed = undoStateMigrate(journal);
+  const undone = (why: string, rendered: RenderedTrace): number => {
+    const failed = [...discardRenderedTrace(rendered), ...undoStateMigrate(journal)];
     for (const f of failed) verify(`context archive (undo): ${f}.`);
     verify(
       `context archive: ${why}. ` +
@@ -7512,8 +7515,17 @@ function runContextArchive(run: ContextArchiveRun): number {
           : "The undo is incomplete: each undo step that failed has its own verify line."),
     );
     return 0;
+  };
+  const why = moveContextFolders(journal, run);
+  if (why !== null) return undone(why, { added: [], madeDir: false });
+  if (run.plan.moves.length === 0) {
+    reportContextArchive(run);
+    return 0;
   }
+  const render = renderMigratedTrace();
+  if (!render.ok) return undone(render.why, render);
   reportContextArchive(run);
+  report("ok", `trace render: ${render.summary}`);
   return run.plan.moves.length;
 }
 

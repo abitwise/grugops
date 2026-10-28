@@ -4,7 +4,8 @@
 // WHAT IT HOLDS. With the flag, a task folder directly under CONTEXT_REL whose name names known ticket IDs that are all
 // Done, that no live queue entry names (D-22: pending or claimed; a done entry does not keep it), whose archive path is
 // free and that is a real directory, is renamed unchanged to CONTEXT_ARCHIVE_REL; every other folder stays. The kit's
-// trace renderer reads both context roots, so the rendered trace does not change.
+// trace renderer reads both context roots, the live root first, and lists each ticket's refs in the order it first
+// reads them, so a move can reorder a trace file: every arm that moves a folder renders the trace after the moves.
 //   (C1) on the fixture with one Done row added for ABC-168, the ticket one fixture folder names, a migrate with the flag moves
 //        that folder byte-identical into CONTEXT_ARCHIVE_REL, leaves the other folders in place, and renders a
 //        TRACE_DIR_REL tree and a TRACEABILITY_REL byte-identical to those of a migrate of a second copy without the
@@ -15,10 +16,14 @@
 //        flag undoes the folder moves with the rest: exit 3, CONTEXT_REL byte-identical to before, no
 //        GRUGOPS_ARCHIVE_REL, no marker;
 //   (C4) on the migrated fixture (the v3 layout with a valid marker), `--migrate --archive-done-context` moves the Done
-//        folder, runs no render (the trace tree and the index are unchanged and no render line is printed) and writes
-//        no marker (its bytes are unchanged); a second identical run leaves the target byte-identical;
+//        folder, renders the trace (on this fixture the trace tree and the index come out unchanged) and writes no
+//        marker (its bytes are unchanged); a second identical run moves nothing, renders nothing and leaves the target
+//        byte-identical;
 //   (C5) without the flag CONTEXT_ARCHIVE_REL is never created, by a migrate or a second migrate, and a dry run with
 //        the flag lists each folder that would move and each that would stay with its reason, and writes nothing;
+//   (C6) plan 38-11, found by the dogfood: a live folder that stays and a Done folder that moves both name the same
+//        ticket with different refs; the move reorders that ticket's trace file, so on the v3 layout the flag renders
+//        again and `trace-render.js --check` exits 0 after it;
 //   and `--archive-done-context` without --migrate exits 2 with a usage error, and on a target with no planning state
 //   the flag adds one note that it moves nothing.
 //
@@ -47,6 +52,7 @@ import {
   TRACE_DIR_REL,
 } from "./state-layout.js";
 import { PRE_V3_CHESS_DIR, lineNamesPath, makePreV3ChessFixture, runInstall, snapshotTree } from "./installer-paths.test-support.js";
+import { NOTE_SEAL_KEY, noteSeal } from "../scripts/context-io.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-migrate-context-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -171,7 +177,7 @@ describe("install --migrate --archive-done-context: the context archive (plan 38
     expect(existsSync(at(w.target, LAYOUT_MARKER_REL)), "no layout marker").toBe(false);
   });
 
-  it("(C4) on the v3 layout with a valid marker the flag moves the Done folder with no render and no marker write; a second run writes nothing", () => {
+  it("(C4) on the v3 layout with a valid marker the flag moves the Done folder, renders the trace and writes no marker; a second run writes nothing", () => {
     const w = fixtureWorld(["ABC-168"]);
     const first = runInstall(w.target, w.kitHome, ["--migrate"], { home: w.home, timeoutMs: 180_000 });
     expect(first.status, `${first.stdout}\n${first.stderr}`).toBe(0);
@@ -191,8 +197,8 @@ describe("install --migrate --archive-done-context: the context archive (plan 38
     expect(labelled(r.stdout, "context-moved").map((l) => l.slice(17)), r.stdout).toEqual([
       `${CONTEXT_REL}/${DONE_FOLDER} → ${CONTEXT_ARCHIVE_REL}/${DONE_FOLDER} (unchanged; it names ABC-168, each Done)`,
     ]);
-    expect(r.stdout, "no render runs").not.toContain("trace render:");
-    expect(snapshotTree(at(w.target, TRACE_DIR_REL)), "the trace tree is unchanged").toBe(traceBefore);
+    expect(labelled(r.stdout, "ok").filter((l) => l.includes("trace render:")), r.stdout).toHaveLength(1);
+    expect(snapshotTree(at(w.target, TRACE_DIR_REL)), "on this fixture the rendered trace tree is unchanged").toBe(traceBefore);
     expect(readFileSync(at(w.target, TRACEABILITY_REL)).equals(indexBefore), "the trace index is unchanged").toBe(true);
     expect(readFileSync(at(w.target, LAYOUT_MARKER_REL)).equals(marker), "the marker is not written").toBe(true);
     const check = traceCheck(w.target);
@@ -202,7 +208,40 @@ describe("install --migrate --archive-done-context: the context archive (plan 38
     const again = runInstall(w.target, w.kitHome, ["--migrate", "--archive-done-context"], { home: w.home, timeoutMs: 180_000 });
     expect(again.status, `${again.stdout}\n${again.stderr}`).toBe(0);
     expect(labelled(again.stdout, "context-moved"), again.stdout).toEqual([]);
+    expect(again.stdout, "a run that moves nothing renders nothing").not.toContain("trace render:");
     expect(snapshotTree(w.target), "a second run with the flag writes nothing").toBe(settled);
+  });
+
+  it("(C6) a move that reorders a ticket's trace file: on the v3 layout the flag renders again, and the trace is fresh", () => {
+    const w = fixtureWorld(["ABC-168"]);
+    // A folder that names no ticket ID stays in the live root. Its sealed note names ABC-168 and an epic the Done
+    // folder's note does not, so ABC-168's trace file lists the two notes' refs in the order the renderer reads them.
+    const notes = at(w.target, `${CONTEXT_REL}/zz-co-refs/notes`);
+    mkdirSync(notes, { recursive: true });
+    const id = "20261028T120000Z-orchestrator-decision-0c1d2e3f";
+    const fence =
+      `id: ${id}\nkind: decision\nby: orchestrator\nat: 2026-10-28T12:00:00Z\nverified_by: \nconfidence: high\n` +
+      "refs:\n  - ABC-168\n  - EPIC-099\nsupersedes: \n";
+    const rest = "---\n\na decision note planted for the trace order case.\n";
+    writeFileSync(join(notes, `${id}.md`), `---\n${fence}${NOTE_SEAL_KEY}: ${noteSeal(`---\n${fence}${rest}`)}\n${rest}`);
+    const first = runInstall(w.target, w.kitHome, ["--migrate"], { home: w.home, timeoutMs: 180_000 });
+    expect(first.status, `${first.stdout}\n${first.stderr}`).toBe(0);
+    const traceRel = `${TRACE_DIR_REL}/ABC-168.md`;
+    const before = readFileSync(at(w.target, traceRel), "utf8");
+    expect(before.indexOf("EPIC-007"), "PREMISE: the Done folder's refs come first while both folders are live").toBeLessThan(
+      before.indexOf("EPIC-099"),
+    );
+
+    const r = runInstall(w.target, w.kitHome, ["--migrate", "--archive-done-context"], { home: w.home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
+    expect(existsSync(at(w.target, `${CONTEXT_ARCHIVE_REL}/${DONE_FOLDER}`)), "the Done folder moved").toBe(true);
+    expect(existsSync(at(w.target, `${CONTEXT_REL}/zz-co-refs`)), "the folder with no ticket ID stayed").toBe(true);
+    const after = readFileSync(at(w.target, traceRel), "utf8");
+    expect(after.indexOf("EPIC-099"), "the live folder's refs now come first").toBeLessThan(after.indexOf("EPIC-007"));
+    const check = traceCheck(w.target);
+    expect(check.status, `${String(check.stdout)}\n${String(check.stderr)}`).toBe(0);
   });
 
   it("(C5) without the flag the context archive root is never made, and a dry run with the flag lists every folder and writes nothing", () => {

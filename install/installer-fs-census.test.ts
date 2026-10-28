@@ -182,13 +182,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:discardRenderedTrace:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:6980 takes away a regular file (kindAt asked first) that renderMigratedTrace found added to TRACE_DIR_REL by this run's trace render, a directory inside the committed state; nothing a user had is named. Its one caller is runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019",
+    why: "install.ts:6980 takes away a regular file (kindAt asked first) that renderMigratedTrace found added to TRACE_DIR_REL by this run's trace render, a directory inside the committed state; nothing a user had is named. Its callers are runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019, and runContextArchive's undo (plan 38-11), after the `if (DRY_RUN)` return at its top",
   },
   {
     site: "install.ts:discardRenderedTrace:rmdirSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:6987 takes away TRACE_DIR_REL only when renderMigratedTrace saw that this run's trace render made it (absent by kindAt before the render, a directory after) and every file the render added was taken away; rmdirSync takes away only an empty directory. Its one caller is runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019",
+    why: "install.ts:6987 takes away TRACE_DIR_REL only when renderMigratedTrace saw that this run's trace render made it (absent by kindAt before the render, a directory after) and every file the render added was taken away; rmdirSync takes away only an empty directory. Its callers are runStateMigrate's commitFailed (:7121), after the `if (DRY_RUN)` return at :7019, and runContextArchive's undo (plan 38-11), after the `if (DRY_RUN)` return at its top",
   },
   {
     site: "install.ts:clearEmptyMigrateDirs:rmdirSync",
