@@ -21,7 +21,13 @@
 //        archive move, new file, ticket append with its board lines, each orphan row by ID and board line, the
 //        `_Updated:` count and bytes, an NFR file, the Done roll, the progress roll, the render, the marker, each
 //        over-budget finding), in commit order with paths in code-unit order within a group, the same on every call,
-//        and with no control character from a path, an ID or a note.
+//        and with no control character from a path, an ID or a note;
+//   (S12) the context archive selection (plan 38-10, MIGRATE-06, D-14, D-20, D-22): planContextArchive keeps each
+//        folder with its reason (no ticket ID, a named ticket not Done, two IDs of which one is not Done, a pending or a
+//        claimed queue entry, an archive path that exists, a link or a regular file, a name outside the task-name rule)
+//        and moves a folder whose IDs are all Done; the D-20 name rule; the known and Done IDs of a board, its Done
+//        archive and the ticket file names; and migrateListing with the selection holds one line per folder, moved or
+//        kept with its reason, in code-unit order of the names, with no control character.
 //
 // The planner does no I/O, so these cases read the fixture once and pass its bytes in. A shape the fixture lacks
 // (CRLF, a byte-order mark, an orphan of its own, invalid UTF-8) is made here by mutating a copy of the inputs, never
@@ -38,6 +44,8 @@ import {
   BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
   BUDGETS,
+  CONTEXT_ARCHIVE_REL,
+  CONTEXT_REL,
   LAYOUT_MARKER_REL,
   LEGACY_BOARD_REL,
   LEGACY_STATE_ROOT_REL,
@@ -53,6 +61,8 @@ import {
   PRE_V3_TRACEABILITY_REL,
   PROGRESS_ARCHIVE_REL,
   PROGRESS_REL,
+  QUEUE_CLAIMED_REL,
+  QUEUE_PENDING_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
   TRACEABILITY_REL,
@@ -64,7 +74,12 @@ import {
   MIGRATE_GENERATED_LINE_KINDS,
   NFR_NOTES_TITLE,
   ORPHAN_NOTES_TITLE,
+  TASK_NAME_RE,
+  contextTicketIds,
   cutRow,
+  folderTicketIds,
+  migratedContextTicketIds,
+  planContextArchive,
   doneArchiveSkeleton,
   formatFinding,
   migrateListing,
@@ -76,6 +91,8 @@ import {
   planStateMigrate,
   proveStateMigrate,
   provenanceLine,
+  type ContextArchiveInputs,
+  type ContextFolder,
   type LegacyFile,
   type MigrateInputs,
   type MigratePlan,
@@ -1439,5 +1456,159 @@ describe("(S11) migrateListing: every planned move and split, with bytes (plan 3
     expect(listing.filter((l) => /[\x00-\x1f\x7f-\x9f]/.test(l))).toEqual([]);
     expect(listing.some((l) => l.includes("ABC-1[2J at line 3"))).toBe(true);
     expect(listing.some((l) => l.includes(`${first.to}]0;title`))).toBe(true);
+  });
+});
+
+describe("(S12) the context archive selection (plan 38-10, MIGRATE-06, D-14, D-20, D-22)", () => {
+  const dir = (name: string): ContextFolder => ({ name, kind: "directory" });
+  const inputs = (folders: readonly ContextFolder[], over: Partial<ContextArchiveInputs> = {}): ContextArchiveInputs => ({
+    folders,
+    knownIds: new Set(["ABC-104", "ABC-105", "ABC-200"]),
+    doneIds: new Set(["ABC-104", "ABC-105"]),
+    queue: { pending: [], claimed: [] },
+    archived: new Set<string>(),
+    ...over,
+  });
+  const reasonOf = (input: ContextArchiveInputs, name: string): string | undefined =>
+    planContextArchive(input).kept.find((k) => k.name === name)?.reason;
+
+  it("the name rule: abc-104-implement and ABC-104 name ABC-104; abc-1041 and xabc-104 do not", () => {
+    const known = ["ABC-104"];
+    expect(folderTicketIds("abc-104-implement", known)).toEqual(["ABC-104"]);
+    expect(folderTicketIds("ABC-104", known)).toEqual(["ABC-104"]);
+    expect(folderTicketIds("qe.ABC-104_a2", known)).toEqual(["ABC-104"]);
+    expect(folderTicketIds("abc-1041", known)).toEqual([]);
+    expect(folderTicketIds("xabc-104", known)).toEqual([]);
+    expect(folderTicketIds("abc104", known), "an ID written without its hyphen names nothing").toEqual([]);
+    expect(folderTicketIds("abc-1041-and-abc-104", known), "a later delimited occurrence still matches").toEqual(["ABC-104"]);
+  });
+
+  it("a folder naming one Done ID, and a folder naming two IDs that are both Done, move with their IDs", () => {
+    const plan = planContextArchive(inputs([dir("pair-ABC-105-ABC-104"), dir("scribe-ABC-104")]));
+    expect(plan.moves).toEqual([
+      { name: "pair-ABC-105-ABC-104", ids: ["ABC-104", "ABC-105"] },
+      { name: "scribe-ABC-104", ids: ["ABC-104"] },
+    ]);
+    expect(plan.kept).toEqual([]);
+  });
+
+  it("keeps a folder naming no ID, a ticket that is not Done, or two IDs of which one is not Done", () => {
+    const input = inputs([dir("security-nfr-public-repo"), dir("bapm-ABC-200"), dir("pair-ABC-104-ABC-200"), dir("abc104")]);
+    expect(planContextArchive(input).moves).toEqual([]);
+    expect(reasonOf(input, "security-nfr-public-repo")).toBe("no-ticket-id");
+    expect(reasonOf(input, "abc104")).toBe("no-ticket-id");
+    expect(reasonOf(input, "bapm-ABC-200")).toBe("not-done");
+    expect(reasonOf(input, "pair-ABC-104-ABC-200")).toBe("not-done");
+    expect(planContextArchive(input).kept.find((k) => k.name === "pair-ABC-104-ABC-200")?.why).toContain("ABC-200");
+  });
+
+  it("D-22: a pending or a claimed queue entry keeps the folder; an entry of another name does not", () => {
+    const folders = [dir("scribe-ABC-104"), dir("qe-ABC-105")];
+    const pending = inputs(folders, { queue: { pending: ["scribe-ABC-104.md", "other-task.md"], claimed: [] } });
+    expect(reasonOf(pending, "scribe-ABC-104")).toBe("queued");
+    expect(planContextArchive(pending).kept.find((k) => k.name === "scribe-ABC-104")?.why).toContain(`${QUEUE_PENDING_REL}/scribe-ABC-104.md`);
+    expect(planContextArchive(pending).moves.map((m) => m.name)).toEqual(["qe-ABC-105"]);
+    const claimed = inputs(folders, { queue: { pending: [], claimed: ["qe-ABC-105"] } });
+    expect(reasonOf(claimed, "qe-ABC-105")).toBe("queued");
+    expect(planContextArchive(claimed).kept.find((k) => k.name === "qe-ABC-105")?.why).toContain(`${QUEUE_CLAIMED_REL}/qe-ABC-105`);
+    expect(planContextArchive(claimed).moves.map((m) => m.name)).toEqual(["scribe-ABC-104"]);
+  });
+
+  it("keeps a folder whose archive path exists, a link, a regular file, a special file and a name outside the task-name rule", () => {
+    const input = inputs(
+      [
+        dir("scribe-ABC-104"),
+        { name: "link-ABC-104", kind: "symbolic link" },
+        { name: "file-ABC-104", kind: "regular file" },
+        { name: "fifo-ABC-104", kind: "special file" },
+        dir("bad name ABC-104"),
+        dir(".."),
+      ],
+      { archived: new Set(["scribe-ABC-104"]) },
+    );
+    expect(planContextArchive(input).moves).toEqual([]);
+    expect(reasonOf(input, "scribe-ABC-104")).toBe("archived");
+    expect(planContextArchive(input).kept.find((k) => k.name === "scribe-ABC-104")?.why).toContain(`${CONTEXT_ARCHIVE_REL}/scribe-ABC-104`);
+    expect(reasonOf(input, "link-ABC-104")).toBe("not-a-directory");
+    expect(reasonOf(input, "file-ABC-104")).toBe("not-a-directory");
+    expect(reasonOf(input, "fifo-ABC-104")).toBe("not-a-directory");
+    expect(TASK_NAME_RE.test("bad name ABC-104"), "PREMISE: a space is outside the task-name rule").toBe(false);
+    expect(reasonOf(input, "bad name ABC-104")).toBe("name-rule");
+    expect(reasonOf(input, "..")).toBe("name-rule");
+    for (const k of planContextArchive(input).kept) expect(k.why, k.name).not.toBe("");
+  });
+
+  it("every folder is moved or kept exactly once, in code-unit order of the names", () => {
+    const names = ["b-ABC-104", "B-ABC-105", "a-ABC-200", "_x", "Z"];
+    const plan = planContextArchive(inputs(names.map(dir)));
+    const all = [...plan.moves.map((m) => m.name), ...plan.kept.map((k) => k.name)];
+    expect([...all].sort()).toEqual([...names].sort());
+    const byUnits = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+    expect(plan.moves.map((m) => m.name)).toEqual(plan.moves.map((m) => m.name).sort(byUnits));
+    expect(plan.kept.map((k) => k.name)).toEqual(plan.kept.map((k) => k.name).sort(byUnits));
+  });
+
+  it("contextTicketIds: known IDs are every board ticket row, every Done-archive row and each ticket file's leading ID; Done IDs are the Done columns and the archive", () => {
+    const board = [
+      "# Board",
+      "",
+      "## In Review (WIP 1/3)",
+      "- [ABC-200] Not finished  (owner: x)",
+      "",
+      "## Done (WIP unlimited)",
+      "- [ABC-104] Finished  (merged: 2026-10-01)",
+      "- [EPIC-007] An epic, not a ticket  (owner: x)",
+      "",
+    ].join("\n");
+    const archive = ["# Done archive", "", "## Done (WIP unlimited)", "- [ABC-010] Rolled earlier  (merged: 2026-01-01)", ""].join("\n");
+    const ids = contextTicketIds(board, archive, ["ABC-300-a-ticket-file.md", "ABC-301.md", "notes.md", "ABC-3011x.md"]);
+    expect([...ids.known].sort()).toEqual(["ABC-010", "ABC-104", "ABC-200", "ABC-300", "ABC-301", "ABC-3011"]);
+    expect([...ids.done].sort()).toEqual(["ABC-010", "ABC-104"]);
+    expect([...contextTicketIds(board, null, []).done]).toEqual(["ABC-104"]);
+  });
+
+  it("migratedContextTicketIds on the fixture: the planned board's Done rows are Done, ABC-209 (In Review) is known and not Done", () => {
+    const ids = migratedContextTicketIds(CHESS, CHESS_PLAN);
+    expect(ids.known.has("ABC-209")).toBe(true);
+    expect(ids.done.has("ABC-209")).toBe(false);
+    const doneRows = parseBoard(writeText(CHESS_PLAN, BOARD_REL)).columns.filter((c) => c.name === "Done").flatMap((c) => c.rows);
+    const doneTickets = doneRows.map((r) => r.id).filter((id) => id.startsWith("ABC-"));
+    expect(doneTickets.length, "PREMISE: the fixture's Done column holds ticket rows").toBeGreaterThan(0);
+    for (const id of doneTickets) expect(ids.done.has(id), id).toBe(true);
+  });
+
+  it("migrateListing with the selection: one line per folder, moved or kept with its reason, in code-unit order of the names, before the render line", () => {
+    const selection = planContextArchive(
+      inputs([dir("scribe-ABC-104"), dir("security-nfr-public-repo"), dir("bapm-ABC-200"), { name: "link-ABC-105", kind: "symbolic link" }]),
+    );
+    const listing = migrateListing(CHESS_PLAN, selection);
+    const moved = listed(listing, "context-move");
+    const kept = listed(listing, "context-keep");
+    expect(moved).toEqual([`${CONTEXT_REL}/scribe-ABC-104 → ${CONTEXT_ARCHIVE_REL}/scribe-ABC-104 (unchanged; it names ABC-104, each Done)`]);
+    expect(kept).toHaveLength(3);
+    for (const k of selection.kept) {
+      expect(kept.filter((l) => l === `${CONTEXT_REL}/${k.name} stays: ${k.why}`), k.name).toHaveLength(1);
+    }
+    const folderLines = listing.filter((l) => /^ {2}context-(move|keep) /.test(l));
+    const names = folderLines.map((l) => (l.slice(17).split(" ")[0] as string).slice(CONTEXT_REL.length + 1));
+    expect(names).toEqual(["bapm-ABC-200", "link-ABC-105", "scribe-ABC-104", "security-nfr-public-repo"]);
+    const run = listing.findIndex((l) => l.startsWith("  would-run "));
+    const last = listing.findIndex((l) => l === folderLines.at(-1));
+    expect(last, "the folder lines come before the render line").toBeLessThan(run);
+    expect(listed(listing, "note").filter((l) => l.startsWith("context archive: "))).toEqual([
+      `context archive: 1 folder(s) would move to ${CONTEXT_ARCHIVE_REL}/, 3 would stay in ${CONTEXT_REL}/`,
+    ]);
+  });
+
+  it("without the selection, migrateListing names no context folder", () => {
+    expect(migrateListing(CHESS_PLAN).filter((l) => l.includes(CONTEXT_REL))).toEqual([]);
+  });
+
+  it("a kept name carrying ESC is listed without it", () => {
+    const selection = planContextArchive(inputs([dir("bad\x1b[31m-ABC-104")]));
+    expect(selection.kept.map((k) => k.reason)).toEqual(["name-rule"]);
+    const listing = migrateListing(CHESS_PLAN, selection);
+    expect(listing.filter((l) => /[\x00-\x1f\x7f-\x9f]/.test(l))).toEqual([]);
+    expect(listed(listing, "context-keep").some((l) => l.startsWith(`${CONTEXT_REL}/bad[31m-ABC-104 stays: `))).toBe(true);
   });
 });
