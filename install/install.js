@@ -5906,6 +5906,14 @@ function readMigrateInputs() {
     if (progress.state !== "ok" && progress.state !== "absent") {
         refusals.push(`${progressPath} ${unreadState(progress)}, so it cannot be shown unchanged before the commit`);
     }
+    // Plan 38-05: when the progress roll moves entries, the progress file is an original too, archived unchanged, so its
+    // content record is taken here for the post-commit check of its new home.
+    if (progress.state === "ok") {
+        const record = treeRecord(TARGET, PROGRESS_REL);
+        if (record === null)
+            refusals.push(`${progressPath} could not be recorded, so its new home cannot be proven`);
+        records.set(PROGRESS_REL, record);
+    }
     const seedBytes = (rel) => {
         const p = join(KIT_COPY_SOURCE, "seed", ...rel.split("/"));
         const r = readUserFile(p);
@@ -6282,6 +6290,8 @@ function runStateMigrate(plan, read) {
         report("note", `the staging directory ${staging} was left, holding ${left.join(", ")}`);
     report("moved", `${LEGACY_STATE_ROOT_REL}/ → ${STATE_ROOT_REL}/ (${read.inputs.legacy.length} file(s), unchanged)`);
     const sizeOf = new Map(read.inputs.legacy.map((f) => [movedRel(f.rel), f.bytes.length]));
+    if (read.inputs.progress !== null)
+        sizeOf.set(PROGRESS_REL, read.inputs.progress.length);
     for (const m of plan.archiveMoves)
         report("archived", `${oneLine(m.from)} → ${oneLine(m.to)} (${sizeOf.get(m.from) ?? 0} bytes, unchanged)`);
     for (const w of plan.writes)
