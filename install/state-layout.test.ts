@@ -245,6 +245,34 @@ describe("every *_REL constant is POSIX-relative (LAYOUT-01 encoding)", () => {
     expect(PARENTS.get("BOARD_DONE_ARCHIVE_REL")).toBe("ARCHIVE_REL");
   });
 
+  // 2026-10-28, plan 38-02: the pre-v3 archive, the queue's two live directories and the migrate staging
+  // directory, each named with its declared parent and its one segment, so a renamed segment fails here by name.
+  it("the plan 38-02 paths are each their declared parent plus the one segment the migrate arm names", () => {
+    const expected: ReadonlyArray<readonly [string, string, string]> = [
+      ["PRE_V3_ARCHIVE_REL", "ARCHIVE_REL", "pre-v3"],
+      ["PRE_V3_BOARD_REL", "PRE_V3_ARCHIVE_REL", "board.md"],
+      ["PRE_V3_TRACEABILITY_REL", "PRE_V3_ARCHIVE_REL", "traceability.md"],
+      ["PRE_V3_NFR_CATALOG_REL", "PRE_V3_ARCHIVE_REL", "nfr-catalog.md"],
+      ["PRE_V3_PROGRESS_REL", "PRE_V3_ARCHIVE_REL", "60-progress.md"],
+      ["PRE_V3_BOARD_UPDATES_REL", "PRE_V3_ARCHIVE_REL", "board-updates.md"],
+      ["PRE_V3_ORPHAN_NOTES_REL", "PRE_V3_ARCHIVE_REL", "board-orphan-notes.md"],
+      ["PRE_V3_NFR_NOTES_REL", "PRE_V3_ARCHIVE_REL", "nfr-notes.md"],
+      ["PRE_V3_TICKETS_REL", "PRE_V3_ARCHIVE_REL", "tickets"],
+      ["QUEUE_PENDING_REL", "QUEUE_REL", "pending"],
+      ["QUEUE_CLAIMED_REL", "QUEUE_REL", "claimed"],
+      ["MIGRATE_STAGING_REL", "MEMORY_BANK_REL", ".grugops-migrate-v3"],
+    ];
+    const values = layout as unknown as Record<string, unknown>;
+    for (const [name, parent, segment] of expected) {
+      expect(PARENTS.get(name), `${name}: declared parent`).toBe(parent);
+      expect(values[name], name).toBe(`${values[parent] as string}/${segment}`);
+    }
+    // None of them is built from the pre-v3 root, and the protected roots and budgets did not move.
+    for (const [name] of expected) expect(PARENTS.get(name), name).not.toBe("LEGACY_STATE_ROOT_REL");
+    expect(STATE_ROOTS.length).toBe(STATE_ROOT_COUNT);
+    expect(Object.keys(BUDGETS).length).toBe(BUDGET_COUNT);
+  });
+
   it("the literal roots are exactly the four declared ones, and STATE_ROOT_REL stays one literal under MEMORY_BANK_REL", () => {
     const literal = RELS.filter(([n]) => !PARENTS.has(n)).map(([n]) => n).sort();
     expect(literal).toEqual([...LITERAL_ROOTS].sort());

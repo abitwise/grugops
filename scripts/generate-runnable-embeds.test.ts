@@ -24,14 +24,21 @@ import {
   EMBED_SPECS,
   EMBED_SPEC_COUNT,
   deriveRegion,
+  embedKind,
   regionSpans,
   rewriteRunnable,
   runnableSetStamp,
+  runnableSpecs,
   type EmbedSpec,
 } from "./generate-runnable-embeds.js";
 import { RUNNABLE_STAMP_LINE, readRunnableStamp } from "./runnable-stamp.js";
 
 const ROOT = join(import.meta.dirname, "..");
+
+/** The host runnables among EMBED_SPECS (plan 38-02): the rows the build stamp and RUNNABLE_SET cover. */
+const RUNNABLES = runnableSpecs(EMBED_SPECS);
+/** The module rows among EMBED_SPECS (plan 38-02): generated and fresh, never stamped. */
+const MODULES = EMBED_SPECS.filter((s) => embedKind(s) === "module");
 
 const tmpRoots: string[] = [];
 afterAll(() => {
@@ -211,12 +218,12 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
   };
 
   it("each of the three targets holds exactly one stamp line inside its region, and the three stamps are equal", () => {
-    expect(EMBED_SPECS.map((s) => s.target)).toEqual([
+    expect(RUNNABLES.map((s) => s.target)).toEqual([
       "scripts/runnable-ref/state-check.ts",
       "scripts/runnable-ref/trace-render.ts",
       "scripts/runnable-ref/state-roll.ts",
     ]);
-    const stamps = EMBED_SPECS.map((s) => {
+    const stamps = RUNNABLES.map((s) => {
       const text = readFileSync(join(ROOT, s.target), "utf8");
       const inRegion = regionStamps(text);
       expect(inRegion, `${s.target}: one stamp line inside the region`).toHaveLength(1);
@@ -229,7 +236,7 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
 
   it("each committed .js carries the same stamp, RUNNABLE_SET and its own RUNNABLE_SELF (read as text: a runnable runs on import)", () => {
     const own = runnableSetStamp(EMBED_SPECS, ROOT);
-    for (const s of EMBED_SPECS) {
+    for (const s of RUNNABLES) {
       const js = join(ROOT, s.target.replace(/\.ts$/, ".js"));
       const text = readFileSync(js, "utf8");
       expect(readRunnableStamp(text), js).toEqual({ kind: "stamp", stamp: own });
@@ -353,8 +360,9 @@ describe("the build stamp moves with every authority and cannot be hand-written 
   const STATE_CHECK = "scripts/runnable-ref/state-check.ts";
 
   it("one character changed inside a declaration only state-check embeds moves the stamp of all three regions (temporary mirror)", () => {
-    // PREMISE: boardBudgetFindings is embedded by the state checker's region alone.
-    for (const s of EMBED_SPECS) {
+    // PREMISE: boardBudgetFindings is embedded by the state checker's region alone among the runnables (plan 38-02:
+    // the migrate module embeds it too, and carries no stamp).
+    for (const s of RUNNABLES) {
       expect(committedRegion(s.target).includes("export function boardBudgetFindings("), s.target).toBe(s.target === STATE_CHECK);
     }
     const files = mirrorFiles();
@@ -368,14 +376,14 @@ describe("the build stamp moves with every authority and cannot be hand-written 
     const mirror = fixtureRoot(files, join(ROOT, ".temp"));
 
     const committed = stampOf(committedRegion(STATE_CHECK));
-    const derived = EMBED_SPECS.map((s) => deriveRegion(s, mirror, EMBED_SPECS));
+    const derived = RUNNABLES.map((s) => deriveRegion(s, mirror, EMBED_SPECS));
     const stamps = derived.map(stampOf);
-    for (const [i, s] of EMBED_SPECS.entries()) {
+    for (const [i, s] of RUNNABLES.entries()) {
       expect(stamps[i], `${s.target}: the stamp moved`).not.toBe(committed);
     }
     expect(new Set(stamps).size, "the three moved stamps are still equal").toBe(1);
     // Only the stamp moved in the two regions that do not embed the edited declaration.
-    for (const [i, s] of EMBED_SPECS.entries()) {
+    for (const [i, s] of RUNNABLES.entries()) {
       if (s.target === STATE_CHECK) continue;
       expect(withoutStampLine(derived[i] as string), `${s.target}: nothing but the stamp changed`).toBe(withoutStampLine(committedRegion(s.target)));
     }
@@ -430,11 +438,11 @@ describe("the build stamp moves with every authority and cannot be hand-written 
       return [src.text, dest.text] as const;
     });
     expect(rows.length, "PREMISE: the rows were read").toBeGreaterThan(3);
-    const sources = new Set(EMBED_SPECS.map((s) => s.target.replace(/\.ts$/, ".js")));
+    const sources = new Set(RUNNABLES.map((s) => s.target.replace(/\.ts$/, ".js")));
     const installed = rows.filter(([src]) => sources.has(src)).map(([, dest]) => dest.split("/").pop() as string);
     expect(rows.filter(([src]) => sources.has(src)).map(([src]) => src).sort(), "every target's .js is installed").toEqual([...sources].sort());
 
-    for (const s of EMBED_SPECS) {
+    for (const s of RUNNABLES) {
       const line = committedRegion(s.target)
         .split("\n")
         .filter((l) => l.startsWith("export const RUNNABLE_SET = "));
@@ -446,6 +454,56 @@ describe("the build stamp moves with every authority and cannot be hand-written 
       expect([...set].sort(), `${s.target}: RUNNABLE_SET against the installer`).toEqual([...installed].sort());
       expect([...installed].sort(), "the other direction").toEqual([...set].sort());
     }
+  });
+});
+
+// ── Module rows (plan 38-02, research Pitfall 9) ───────────────────────────────────────────────────────────────
+
+describe("a module row is generated and fresh but never stamped (plan 38-02)", () => {
+  it("EMBED_SPEC_COUNT is 4: three runnables and one module, install/state-migrate.ts", () => {
+    expect(EMBED_SPEC_COUNT).toBe(4);
+    expect(EMBED_SPECS.length).toBe(4);
+    expect(RUNNABLES).toHaveLength(3);
+    expect(MODULES.map((s) => s.target)).toEqual(["install/state-migrate.ts"]);
+  });
+
+  it("the module region is EMBED_OPEN, its import lines, its declarations and EMBED_CLOSE, with no build stamp line", () => {
+    for (const s of MODULES) {
+      const region = committedRegion(s.target);
+      const lines = region.split("\n");
+      expect(lines[0]).toBe(EMBED_OPEN);
+      expect(lines[lines.length - 1]).toBe(EMBED_CLOSE);
+      expect(lines.filter((l) => RUNNABLE_STAMP_LINE.test(l)), s.target).toEqual([]);
+      for (const name of ["RUNNABLE_SET_STAMP", "RUNNABLE_SET", "RUNNABLE_SELF"]) {
+        expect(lines.some((l) => l.startsWith(`export const ${name} =`)), `${s.target}: ${name}`).toBe(false);
+      }
+      expect(region).toBe(deriveRegion(s, ROOT, EMBED_SPECS));
+      // No import line other than a node: builtin, so install/ still imports nothing under scripts/.
+      expect(lines.filter((l) => l.startsWith("import ") && !/ from "node:[^"]+";$/.test(l)), s.target).toEqual([]);
+    }
+  });
+
+  it("the three runnable regions are byte-identical with and without the module row, and the stamp ignores it", () => {
+    for (const s of RUNNABLES) {
+      expect(deriveRegion(s, ROOT, EMBED_SPECS), s.target).toBe(deriveRegion(s, ROOT, RUNNABLES));
+      expect(deriveRegion(s, ROOT, EMBED_SPECS), s.target).toBe(committedRegion(s.target));
+    }
+    expect(runnableSetStamp(EMBED_SPECS, ROOT)).toBe(runnableSetStamp(RUNNABLES, ROOT));
+    for (const s of RUNNABLES) {
+      const set = /^export const RUNNABLE_SET = Object\.freeze\((\[.*\]) as const\);$/m.exec(committedRegion(s.target));
+      expect(JSON.parse(set?.[1] ?? "[]"), s.target).not.toContain("state-migrate.js");
+    }
+  });
+
+  it("a module spec's region carries no stamp even when it is the only row of its set", () => {
+    const root = fixtureRoot({ "lib/a.ts": HELPER_AUTHORITY });
+    const spec: EmbedSpec = { target: "mod.ts", kind: "module", authorities: [{ module: "lib/a.ts", roots: ["rootFn"] }] };
+    const lines = deriveRegion(spec, root, [spec]).split("\n");
+    expect(lines[0]).toBe(EMBED_OPEN);
+    expect(lines[1]).toBe('import { constants as fsConstants, readFileSync } from "node:fs";');
+    expect(lines[2]).toBe("// from lib/a.ts");
+    expect(lines.filter((l) => RUNNABLE_STAMP_LINE.test(l))).toEqual([]);
+    expect(lines[lines.length - 1]).toBe(EMBED_CLOSE);
   });
 });
 
