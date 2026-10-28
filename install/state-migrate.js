@@ -1670,7 +1670,8 @@ function seedLines(rel, seed) {
  * not begin with `.`.
  *
  * Refusals are collected, never thrown, and a refused plan has no writes: a board, or a ticket that would receive
- * an append, that is not valid UTF-8 or mixes LF and CRLF; two ticket files with one identity. overBudget lists every
+ * an append, that is not valid UTF-8 or mixes LF and CRLF; two ticket files with one identity; a pre-v3 file already at
+ * a planned destination (an archive destination, a written file, or the layout marker). overBudget lists every
  * budget the planned board and the planned tickets still break (D-01, D-07); it never stops the plan.
  *
  * After the split, the Done roll and then the progress roll run in memory over one RollIo (D-08, plan 38-05), with the
@@ -2046,6 +2047,24 @@ export function planStateMigrate(inputs) {
         ...rollWrites,
     ];
     const archiveMoves = [{ from: BOARD_REL, to: PRE_V3_BOARD_REL }, ...ticketMoves, ...lateMoves, ...progressMoves];
+    // Every planned destination the pre-v3 tree already holds is refused here, before the first change: an archive
+    // destination, a written file that is not itself moved into the archive first, and the layout marker. Found later,
+    // each would fail mid-commit.
+    const archivedFrom = new Set(archiveMoves.map((m) => m.from));
+    const taken = (rel, what) => `${shown(legacyRelOf(rel))} already exists in the pre-v3 tree, and the migrate ${what}; move or rename that file first`;
+    const collisions = [];
+    for (const m of archiveMoves) {
+        if (movedPaths.has(m.to))
+            collisions.push(taken(m.to, `archives ${shown(m.from)} to ${shown(m.to)}`));
+    }
+    for (const w of writes) {
+        if (!archivedFrom.has(w.rel) && movedPaths.has(w.rel))
+            collisions.push(taken(w.rel, `writes ${shown(w.rel)}`));
+    }
+    if (movedPaths.has(LAYOUT_MARKER_REL))
+        collisions.push(taken(LAYOUT_MARKER_REL, `writes its layout marker ${LAYOUT_MARKER_REL}`));
+    if (collisions.length > 0)
+        return refusedPlan([...new Set(collisions)], notes);
     archivedAt.set(LEGACY_BOARD_REL, PRE_V3_BOARD_REL);
     const originals = [
         ...legacy.map((f) => ({

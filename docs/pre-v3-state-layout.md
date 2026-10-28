@@ -89,6 +89,9 @@ The state move is refused when:
   catalog or ticket that is not valid UTF-8 or mixes LF and CRLF line endings; two ticket files that
   declare the same ticket ID; an NFR with more than one row in the NFR table; an NFR table header with
   no category or target cell; or a file already at a path the NFR split would write;
+- **a planned path is taken in `plans/`:** a file already at a path the move would archive to, under
+  `plans/archive/pre-v3/`, at a path the split would write, or at the layout marker path
+  `plans/.layout`. The `verify` line names the file; move or rename it first;
 - **the planned split fails its proof** (see "The proof" below);
 - **with `--archive-done-context`, a context folder it would move cannot be recorded.**
 

@@ -582,6 +582,34 @@ describe("(S7) refusals, each naming the file, and a refused plan writes nothing
     expect(plan.refusals.some((r) => r.includes(rel) && r.includes(twin) && r.includes("ABC-074")), plan.refusals.join("\n")).toBe(true);
     expect(plan.writes).toEqual([]);
   });
+
+  /** The pre-v3 path that the whole-root rename moves to `rel`. */
+  const legacyOf = (rel: string): string => `${LEGACY_STATE_ROOT_REL}/${rel.slice(STATE_ROOT_REL.length + 1)}`;
+
+  it("a pre-v3 file already at a planned archive destination, written file or the layout marker is refused by name, before any write", () => {
+    const ticketName = ticketRel(CHESS, "ABC-074").slice(`${LEGACY_STATE_ROOT_REL}/tickets/`.length);
+    expect(CHESS_PLAN.archiveMoves.map((m) => m.to), "PREMISE: the fixture archives these").toEqual(
+      expect.arrayContaining([PRE_V3_BOARD_REL, `${PRE_V3_TICKETS_REL}/${ticketName}`, PRE_V3_NFR_CATALOG_REL, PRE_V3_TRACEABILITY_REL]),
+    );
+    expect(CHESS_PLAN.writes.map((w) => w.rel), "PREMISE: the fixture writes the updates file").toContain(PRE_V3_BOARD_UPDATES_REL);
+    for (const taken of [
+      PRE_V3_BOARD_REL,
+      `${PRE_V3_TICKETS_REL}/${ticketName}`,
+      PRE_V3_NFR_CATALOG_REL,
+      PRE_V3_TRACEABILITY_REL,
+      PRE_V3_BOARD_UPDATES_REL,
+      LAYOUT_MARKER_REL,
+    ]) {
+      const legacy = legacyOf(taken);
+      const plan = planStateMigrate(withFile(CHESS, legacy, enc.encode("in the way\n")));
+      expect(
+        plan.refusals.some((r) => r.startsWith(`${legacy} already exists in the pre-v3 tree`) && r.endsWith("move or rename that file first")),
+        `${taken}: ${plan.refusals.join("\n")}`,
+      ).toBe(true);
+      expect(plan.writes, taken).toEqual([]);
+      expect(plan.archiveMoves, taken).toEqual([]);
+    }
+  });
 });
 
 describe("(S7) line endings and the byte-order mark", () => {
