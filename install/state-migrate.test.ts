@@ -11,7 +11,11 @@
 //   (S5) no import or export line of install/state-migrate.ts names scripts/;
 //   (S6) D-21 option-a: the original of every ticket that gets notes is archived unchanged, the board is archived,
 //        every other legacy file is moved, and every original has one declared home;
-//   (S7) the board split, the refusals, the budgets and every proof failure (plan 38-02 Task 2).
+//   (S7) the board split, the refusals, the budgets and every proof failure (plan 38-02 Task 2);
+//   (S8) the NFR catalog and the traceability file (plan 38-04, D-05 archive half, D-06, D-09): each NFR row and its
+//        own `##` section become nfr/NFR-xxx.md, the new catalog is the kit seed plus one index line per row, the
+//        original catalog and traceability file are archived unchanged, the traceability file is the kit seed, and
+//        the proof covers the catalog.
 //
 // The planner does no I/O, so these cases read the fixture once and pass its bytes in. A shape the fixture lacks
 // (CRLF, a byte-order mark, an orphan of its own, invalid UTF-8) is made here by mutating a copy of the inputs, never
@@ -27,12 +31,18 @@ import {
   BUDGETS,
   LEGACY_BOARD_REL,
   LEGACY_STATE_ROOT_REL,
+  NFR_CATALOG_REL,
+  NFR_DIR_REL,
   PRE_V3_BOARD_REL,
   PRE_V3_BOARD_UPDATES_REL,
+  PRE_V3_NFR_CATALOG_REL,
+  PRE_V3_NFR_NOTES_REL,
   PRE_V3_ORPHAN_NOTES_REL,
   PRE_V3_TICKETS_REL,
+  PRE_V3_TRACEABILITY_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
+  TRACEABILITY_REL,
 } from "./state-layout.js";
 import { PRE_V3_CHESS_DIR } from "./installer-paths.test-support.js";
 import {
@@ -596,6 +606,95 @@ describe("(S7) determinism and the closed generated-line set", () => {
     expect(Object.isFrozen(MIGRATE_GENERATED_LINE_KINDS)).toBe(true);
     const kinds = new Set(CHESS_PLAN.generated.map((g) => g.kind));
     for (const k of MIGRATE_GENERATED_LINE_KINDS) expect(kinds, k).toContain(k);
+  });
+});
+
+// ── (S8) the NFR catalog and the traceability file (plan 38-04) ───────────────────────────────────────────────
+
+const LEGACY_NFR_CATALOG_REL = `${LEGACY_STATE_ROOT_REL}/nfr-catalog.md`;
+const LEGACY_TRACEABILITY_REL = `${LEGACY_STATE_ROOT_REL}/traceability.md`;
+
+/** The fixture catalog's lines, each without its terminator. */
+function catalogLines(inputs: MigrateInputs = CHESS): string[] {
+  return dec.decode(legacyBytes(inputs, LEGACY_NFR_CATALOG_REL)).split("\n").map((l) => l.replace(/\r$/, ""));
+}
+
+/** The trimmed cells of a table line, split on pipes not preceded by a backslash (independent of the planner). */
+function cellsOf(line: string): string[] {
+  const parts = line.split(/(?<!\\)\|/);
+  parts.shift();
+  if (/(?<!\\)\|\s*$/.test(line)) parts.pop();
+  return parts.map((c) => c.trim());
+}
+
+/**
+ * The one `##` section of the fixture catalog whose heading begins `start`: its lines from the heading to the line
+ * before the next `#` or `##` heading, trailing blank lines dropped. The fixture's catalog has no fence, so a plain
+ * scan is the section extent.
+ */
+function catalogSection(lines: readonly string[], start: string): string[] {
+  const at = lines.findIndex((l) => l.startsWith(start));
+  if (at < 0) throw new Error(`PREMISE: a catalog heading beginning ${start}`);
+  let end = at + 1;
+  while (end < lines.length && !/^#{1,2} /.test(lines[end] as string)) end++;
+  const out = lines.slice(at, end);
+  while (out.length > 0 && /^[ \t]*$/.test(out[out.length - 1] as string)) out.pop();
+  return out;
+}
+
+describe("(S8) one NFR row and its own section become nfr/NFR-xxx.md and an index line (plan 38-04 tracer)", () => {
+  const lines = catalogLines();
+  const header = lines.find((l) => l.startsWith("| ID |")) as string;
+  const separator = lines[lines.indexOf(header) + 1] as string;
+  const row005 = lines.find((l) => l.startsWith("| NFR-005 |")) as string;
+  const nfr005 = `${NFR_DIR_REL}/NFR-005.md`;
+
+  it("PREMISE: the fixture catalog has a seed-shaped table header, the NFR-005 row and a heading naming NFR-005 alone", () => {
+    expect(header).toBeDefined();
+    expect(cellsOf(header)).toEqual(["ID", "Category", "Target", "Applies to", "Verified by"]);
+    expect(row005).toBeDefined();
+    expect(lines.some((l) => l.startsWith("## `NFR-005` IS MEASURED"))).toBe(true);
+  });
+
+  it("(S8) nfr/NFR-005.md holds the header copy, the separator copy, its row, then its own section verbatim, and the plan proves", () => {
+    expect(CHESS_PLAN.refusals).toEqual([]);
+    const file = writeText(CHESS_PLAN, nfr005).split("\n");
+    expect(file[0]).toBe(header);
+    expect(file[1]).toBe(separator);
+    expect(file[2]).toBe(row005);
+    const section = catalogSection(lines, "## `NFR-005` IS MEASURED");
+    const at = file.indexOf(section[0] as string);
+    expect(at, "the section's heading is in the file").toBeGreaterThan(2);
+    expect(file.slice(at, at + section.length)).toEqual(section);
+    expect(CHESS_PLAN.generated).toContainEqual({ rel: nfr005, line: 1, kind: "nfr-table-header-copy", boardLine: null, id: "NFR-005" });
+    expect(CHESS_PLAN.generated).toContainEqual({ rel: nfr005, line: 2, kind: "nfr-table-separator-copy", boardLine: null, id: "NFR-005" });
+    expect(CHESS_PLAN.proof).toEqual({ ok: true });
+    expect(proveStateMigrate(CHESS, CHESS_PLAN, writesOf(CHESS_PLAN))).toEqual({ ok: true });
+  });
+
+  it("(S8) the new catalog is the kit seed's bytes followed by one index line per row in table order, copying the cells", () => {
+    const seed = CHESS.seedNfrCatalog;
+    const bytes = CHESS_PLAN.writes.find((w) => w.rel === NFR_CATALOG_REL)?.bytes ?? new Uint8Array();
+    expect(Buffer.from(bytes.subarray(0, seed.length)).equals(Buffer.from(seed)), "the catalog begins with the kit seed").toBe(true);
+    const rows = lines.filter((l) => /^\| NFR-[0-9]+ \|/.test(l));
+    expect(rows.length, "PREMISE: the fixture table has rows").toBeGreaterThan(1);
+    const index = dec.decode(bytes.subarray(seed.length)).split("\n").filter((l) => l !== "");
+    expect(index).toEqual(
+      rows.map((r) => {
+        const c = cellsOf(r);
+        return `- [${c[0]}](nfr/${c[0]}.md) ${c[1]}: ${c[2]}`;
+      }),
+    );
+  });
+
+  it("(S8) the original catalog and the traceability file are archived unchanged, and the traceability file is the kit seed", () => {
+    expect(CHESS_PLAN.archiveMoves).toContainEqual({ from: NFR_CATALOG_REL, to: PRE_V3_NFR_CATALOG_REL });
+    expect(CHESS_PLAN.archiveMoves).toContainEqual({ from: TRACEABILITY_REL, to: PRE_V3_TRACEABILITY_REL });
+    expect(CHESS_PLAN.originals).toContainEqual({ original: LEGACY_NFR_CATALOG_REL, at: PRE_V3_NFR_CATALOG_REL, match: "identical" });
+    expect(CHESS_PLAN.originals).toContainEqual({ original: LEGACY_TRACEABILITY_REL, at: PRE_V3_TRACEABILITY_REL, match: "identical" });
+    const trace = CHESS_PLAN.writes.find((w) => w.rel === TRACEABILITY_REL)?.bytes ?? new Uint8Array();
+    expect(Buffer.from(trace).equals(Buffer.from(CHESS.seedTraceability))).toBe(true);
+    expect(CHESS_PLAN.writes.some((w) => w.rel === PRE_V3_NFR_NOTES_REL), "the notes file is planned").toBe(true);
   });
 });
 

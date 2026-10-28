@@ -29,6 +29,12 @@
 //        target unchanged;
 //   (M4) a zero-byte file and an empty subdirectory planted under the pre-v3 root are found unchanged at their moved
 //        paths.
+// Plan 38-04 (2026-10-28, D-05 archive half, D-06) adds the NFR catalog and the traceability file; (M1) now finds the
+// catalog and the traceability file unchanged at PRE_V3_NFR_CATALOG_REL and PRE_V3_TRACEABILITY_REL:
+//   (M5) after --migrate on the fixture, nfr/ holds one NFR-xxx.md per table row of the fixture catalog;
+//        parseNfrIndex over the comment-blanked new catalog gives exactly one entry per NFR file and no malformed
+//        line; the catalog and the traceability file sit unchanged in the pre-v3 archive; TRACEABILITY_REL holds the
+//        kit seed's bytes; and the kit-source state-check.js --json reports no NFR index or NFR file finding.
 //
 // THE INSTALLED WORLD. The doctor refuses a repository with no install marker before it reads the layout ("grugops not
 // installed", one FAIL), so (F2) needs what the copy itself is: a repository a v2.x grugops install already serves,
@@ -43,6 +49,7 @@
 // user state).
 
 import { afterAll, describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -54,12 +61,19 @@ import {
   LEGACY_BOARD_REL,
   LEGACY_STATE_ROOT_REL,
   MIGRATE_STAGING_REL,
+  NFR_CATALOG_REL,
+  NFR_DIR_REL,
   PRE_V3_BOARD_REL,
+  PRE_V3_NFR_CATALOG_REL,
   PRE_V3_TICKETS_REL,
+  PRE_V3_TRACEABILITY_REL,
   PROGRESS_REL,
   STATE_ROOT_REL,
   TICKETS_REL,
+  TRACEABILITY_REL,
 } from "./state-layout.js";
+import { parseNfrIndex } from "../scripts/state-rules.js";
+import { normalizeDocument, stripHtmlComments } from "../scripts/board-model.js";
 import { BOARD_NOTES_HEADING, cutRow } from "./state-migrate.js";
 import {
   PRE_V3_CHESS_DIR,
@@ -174,6 +188,12 @@ describe("install --migrate v3 (phase 38)", () => {
         expect(readFileSync(join(target, PRE_V3_BOARD_REL)).equals(original), "the board is archived unchanged").toBe(true);
         continue;
       }
+      // Plan 38-04 (D-05, D-06): the NFR catalog and the traceability file are archived unchanged; new ones are written.
+      if (rel === "nfr-catalog.md" || rel === "traceability.md") {
+        const archived = rel === "nfr-catalog.md" ? PRE_V3_NFR_CATALOG_REL : PRE_V3_TRACEABILITY_REL;
+        expect(readFileSync(join(target, archived)).equals(original), `${rel} is archived unchanged`).toBe(true);
+        continue;
+      }
       const archived = join(target, PRE_V3_TICKETS_REL, rel.slice("tickets/".length));
       if (rel.startsWith("tickets/") && !rel.slice("tickets/".length).includes("/") && existsSync(archived)) {
         archivedTickets += 1;
@@ -254,5 +274,48 @@ describe("install --migrate v3 (phase 38)", () => {
     const empty = join(target, STATE_ROOT_REL, "empty-dir");
     expect(lstatSync(empty).isDirectory()).toBe(true);
     expect(readdirSync(empty)).toEqual([]);
+  });
+
+  it("(M5) --migrate splits the NFR catalog into one file per row with an index state-check accepts, and archives the catalog and the traceability file unsplit", () => {
+    const { target, kitHome, home } = emptyWorld();
+    makePreV3ChessFixture(target);
+    const r = runInstall(target, kitHome, ["--migrate"], { home, timeoutMs: 180_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
+    const root = join(PRE_V3_CHESS_DIR, "board-root");
+    const catalog = readFileSync(join(root, "nfr-catalog.md"));
+    // The rows of the fixture table: a line that begins `| NFR-<digits> |` (the commented example row is indented).
+    const ids = catalog
+      .toString("utf8")
+      .split("\n")
+      .flatMap((l) => {
+        const m = /^\| (NFR-[0-9]+) \|/.exec(l);
+        return m === null ? [] : [m[1] as string];
+      });
+    expect(ids.length, "PREMISE: the fixture table has rows").toBeGreaterThan(1);
+    const files = readdirSync(join(target, NFR_DIR_REL)).filter((n) => !n.startsWith(".")).sort();
+    expect(files).toEqual(ids.map((id) => `${id}.md`).sort());
+    for (const id of ids) {
+      const text = readFileSync(join(target, NFR_DIR_REL, `${id}.md`), "utf8");
+      expect(text.split("\n")[2]?.startsWith(`| ${id} |`), `${id}: line 3 is its row`).toBe(true);
+    }
+    const index = parseNfrIndex(stripHtmlComments(normalizeDocument(readFileSync(join(target, NFR_CATALOG_REL), "utf8"))));
+    expect(index.malformed).toEqual([]);
+    expect(index.entries.map((e) => e.id).sort()).toEqual([...ids].sort());
+    for (const e of index.entries) expect(e.target, e.id).toBe(`nfr/${e.id}.md`);
+    expect(readFileSync(join(target, PRE_V3_NFR_CATALOG_REL)).equals(catalog), "the catalog is archived unchanged").toBe(true);
+    expect(readFileSync(join(target, PRE_V3_TRACEABILITY_REL)).equals(readFileSync(join(root, "traceability.md")))).toBe(true);
+    const seedTrace = readFileSync(join(import.meta.dirname, "..", "agent-factory", "seed", ...TRACEABILITY_REL.split("/")));
+    expect(readFileSync(join(target, TRACEABILITY_REL)).equals(seedTrace), "the traceability file is the kit seed").toBe(true);
+    // The kit-source state-check: exit 0 or 1 (budget findings are observations, D-07), never 2, and no NFR finding.
+    const check = spawnSync(process.execPath, [join(import.meta.dirname, "..", "scripts", "runnable-ref", "state-check.js"), target, "--json"], {
+      encoding: "utf8",
+      timeout: 120_000,
+    });
+    expect(check.error).toBeUndefined();
+    expect([0, 1], `${check.stdout}\n${check.stderr}`).toContain(check.status);
+    const doc = JSON.parse(check.stdout) as { findings: { key: string; rel: string }[] };
+    expect(doc.findings.filter((f) => f.key.startsWith("nfr-"))).toEqual([]);
   });
 });
