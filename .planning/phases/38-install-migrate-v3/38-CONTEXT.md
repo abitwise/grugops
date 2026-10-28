@@ -164,6 +164,15 @@ Not in this phase: moving standing directives out of `60-progress.md`, archiving
   twice, outside every budget and every reader's fixed paths. Plan 38-02 implements this option.
   Reversibility: costly.
 
+### Recorded at plan 38-10 checkpoint
+- **D-22:** option-a (Recommended), chosen by the human on 2026-10-28, settles which queue entries D-20's
+  "no `.grugops/queue/` entry names it" counts: live stages only. A pending entry
+  (`.grugops/queue/pending/{task}.md`) or a claimed entry (`.grugops/queue/claimed/{task}/`) keeps a
+  finished ticket's context folder in place; a done entry (`.grugops/queue/done/{task}.md`) does not, because a
+  done record is the proof the task finished. A non-empty claimed stage still refuses the whole run (D-13).
+  Reversibility: reversible (a moved folder is a rename inside `.grugops/`, and trace-render reads both
+  context roots).
+
 ### Claude's Discretion
 - The opt-in flag name (research proposes `--archive-done-context`).
 - The staging directory name and location, as long as it sits on the same filesystem as the target so
