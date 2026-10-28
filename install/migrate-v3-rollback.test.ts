@@ -208,7 +208,7 @@ describe("install --migrate v3 rollback (phase 38, plan 38-06)", () => {
 
   it("rollback (R6) premise: without a fault the same world migrates and the render writes trace files before the marker", () => {
     const w = world();
-    const r = spawnSync(process.execPath, [INSTALL_JS, ...MIGRATE_ARGS], { encoding: "utf8", env: { ...process.env, ...installEnv(w) }, timeout: 120_000 });
+    const r = spawnSync(process.execPath, [INSTALL_JS, "--yes", ...withAgentFlags(["--migrate"])], { encoding: "utf8", env: { ...process.env, ...installEnv(w) }, timeout: 120_000 });
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(labelled(r.stdout, "verify"), r.stdout).toEqual([]);
     expect(readFileSync(join(w.target, LAYOUT_MARKER_REL), "utf8")).toBe("layout: v3\n");
@@ -251,7 +251,7 @@ describe("install --migrate v3 rollback (phase 38, plan 38-06)", () => {
     );
     appendFileSync(firedLog, "");
     const boardBefore = readFileSync(board);
-    const r = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href, INSTALL_JS, ...MIGRATE_ARGS], {
+    const r = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href, INSTALL_JS, "--yes", ...withAgentFlags(["--migrate"])], {
       encoding: "utf8",
       cwd: w.scratch,
       timeout: 120_000,

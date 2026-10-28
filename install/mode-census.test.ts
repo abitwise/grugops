@@ -112,8 +112,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * 2026-10-28, plan 38-02 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 40 -> 41 for
  * state-migrate.test.ts, which has no chmod call and no expected mode (it calls the pure planner on the fixture's
  * bytes and parses one tracked source), and SOURCE_FILE_COUNT 10 -> 11 for install/state-migrate.ts, the pure migrate
- * planner, which does no I/O and renders or compares no mode. */
-const INSTALL_TEST_FILE_COUNT = 41;
+ * planner, which does no I/O and renders or compares no mode.
+ * 2026-10-28, plan 38-06 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 41 -> 42 for
+ * migrate-v3-rollback.test.ts, which has no chmod call and no expected mode (treeDigest records each file by size and
+ * sha256, never by mode; the faults come from the fault-injection preload). */
+const INSTALL_TEST_FILE_COUNT = 42;
 const SCRIPTS_TEST_FILE_COUNT = 80;
 const SOURCE_FILE_COUNT = 11;
 
