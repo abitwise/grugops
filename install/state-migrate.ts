@@ -30,6 +30,7 @@
 // state, and every printed user value passes through the embedded stripControlChars.
 
 import {
+  BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
   BUDGETS,
   LEGACY_BOARD_REL,
@@ -1503,7 +1504,9 @@ export const NFR_NOTES_TITLE = "# Lines of the pre-v3 NFR catalog that belong to
  *   - `nfr-table-separator-copy`: line 2 of each nfr/NFR-xxx.md, a copy of the table's separator line;
  *   - `nfr-index-line`: `- [NFR-xxx](nfr/NFR-xxx.md) {category}: {target}` after the kit seed lines of the new
  *     catalog, one per NFR row;
- *   - `kit-seed-line`: a line of the kit seed at its own position, in the new catalog and in the traceability file.
+ *   - `kit-seed-line`: a line of the kit seed at its own position, in the new catalog and in the traceability file;
+ *   - `done-archive-skeleton`: a non-blank line of the embedded doneArchiveSkeleton (the archive's one heading), at its
+ *     position in BOARD_DONE_ARCHIVE_REL when the Done roll created that archive (plan 38-05, D-08).
  * The proof derives the NFR templates from the pre-v3 catalog and the seed templates from the kit seeds, never from
  * the plan, and binds each kind to the file and the lines it may sit on.
  */
@@ -1518,6 +1521,7 @@ export const MIGRATE_GENERATED_LINE_KINDS = Object.freeze([
   "nfr-table-separator-copy",
   "nfr-index-line",
   "kit-seed-line",
+  "done-archive-skeleton",
 ] as const);
 
 /** One member of MIGRATE_GENERATED_LINE_KINDS. */
@@ -1579,12 +1583,14 @@ export type GeneratedLine = {
 };
 
 /**
- * One cut row: board line `boardLine` of the pre-v3 board became the kept row at line `keptLine` of the planned
- * board and the trailer at line `noteLine` of `noteRel`. The proof rejoins the two.
+ * One cut row: board line `boardLine` of the pre-v3 board became the kept row at line `keptLine` of `keptRel` (the
+ * planned board, or BOARD_DONE_ARCHIVE_REL when the Done roll moved the row) and the trailer at line `noteLine` of
+ * `noteRel`. The proof rejoins the two.
  */
 export type BoardCut = {
   readonly id: string;
   readonly boardLine: number;
+  readonly keptRel: string;
   readonly keptLine: number;
   readonly noteRel: string;
   readonly noteLine: number;
@@ -1605,6 +1611,12 @@ export type MigrateStep = {
 /** The proof's verdict. Every reason names a file and a line, with user text passed through stripControlChars. */
 export type ProofResult = { readonly ok: true } | { readonly ok: false; readonly reasons: readonly string[] };
 
+/**
+ * One roll the plan ran in memory (D-08): the surface, how many lines it moved, and executeRoll's outcome, which is
+ * the D-09 stage B of the proof (its own conservation check, derived from the roll's `before` and line positions).
+ */
+export type RollRecord = { readonly surface: RollSurface; readonly moved: number; readonly outcome: RollOutcome };
+
 /** The whole plan. A plan with a refusal has no writes, no moves and no steps. */
 export type MigratePlan = {
   readonly refusals: readonly string[];
@@ -1618,10 +1630,14 @@ export type MigratePlan = {
   readonly overBudget: readonly StateFinding[];
   readonly steps: readonly MigrateStep[];
   readonly proof: ProofResult;
+  /** The split board's bytes before the Done roll (null for a refused plan): what the dry run and parity read. */
+  readonly beforeRoll: Uint8Array | null;
+  /** The rolls run in memory, Done first, in the order state-roll runs them. */
+  readonly rolls: readonly RollRecord[];
 };
 
 /** What proveStateMigrate reads from a plan. */
-export type ProvablePlan = Pick<MigratePlan, "originals" | "generated" | "cuts" | "appended">;
+export type ProvablePlan = Pick<MigratePlan, "originals" | "generated" | "cuts" | "appended" | "rolls">;
 
 const LEGACY_PREFIX = `${LEGACY_STATE_ROOT_REL}/`;
 const ENCODER = new TextEncoder();
@@ -1740,7 +1756,92 @@ function refusedPlan(refusals: readonly string[], notes: readonly string[]): Mig
     overBudget: [],
     steps: [],
     proof: { ok: false, reasons: ["the plan was refused, so there is nothing to prove"] },
+    beforeRoll: null,
+    rolls: [],
   };
+}
+
+// ── The rolls (D-08): the embedded state-rules planners and executeRoll, in the order state-roll.js runs them ───
+
+/** The command a human runs to roll what the migrate could not, named in a note. */
+const STATE_ROLL_COMMAND = "node tools/grugops/state-roll.js <repo-root>";
+
+/** The three forms of a document the roll planners read, as state-roll's formsOf builds them. */
+function formsOf(raw: string): BoardTexts {
+  const normalized = normalizeDocument(raw);
+  return { raw, normalized, blanked: stripHtmlComments(normalized) };
+}
+
+/** A RollIo over a map of rel to text: read gives the text or null, write sets it, remove sets null. */
+function mapIo(files: Map<string, string | null>): RollIo {
+  const known = (rel: string): void => {
+    if (!files.has(rel)) throw new Error(`${rel} is not a file this roll touches`);
+  };
+  return {
+    read: (rel) => {
+      known(rel);
+      return files.get(rel) ?? null;
+    },
+    write: (rel, text) => {
+      known(rel);
+      files.set(rel, text);
+    },
+    remove: (rel) => {
+      known(rel);
+      files.set(rel, null);
+    },
+  };
+}
+
+/** Where one-based line `line` of a roll's source sits once the roll ran: still in the source, or in the archive. */
+function rolledLineAt(plan: RollPlan, line: number): { readonly rel: string; readonly line: number } {
+  const k = plan.lines.indexOf(line);
+  if (k < 0) return { rel: plan.sourceRel, line: line - plan.lines.filter((l) => l < line).length };
+  const order = plan.insertOrder ?? plan.texts.map((_, i) => i);
+  return { rel: plan.archiveRel, line: plan.insertAt + order.indexOf(k) + 1 };
+}
+
+/** The non-blank lines of a created archive's skeleton, by their position once the roll inserted its block. */
+function skeletonGenerated(plan: RollPlan, kind: GeneratedKind): GeneratedLine[] {
+  const n = plan.texts.length;
+  return linesOf(plan.archiveBase).flatMap((l, b) =>
+    isBlankLine(l) ? [] : [{ rel: plan.archiveRel, line: b < plan.insertAt ? b + 1 : b + 1 + n, kind, boardLine: null, id: null }],
+  );
+}
+
+/** A planned roll ready to execute, or the reason it is not run (a note, never a refusal), or nothing to roll. */
+type MigrateRoll = { readonly kind: "none" } | { readonly kind: "skip"; readonly reason: string } | { readonly kind: "roll"; readonly plan: RollPlan };
+
+/**
+ * The Done roll over the split board, planned as state-roll plans it: planDoneRoll with BUDGETS.doneRows, then
+ * planArchiveInsert with no existing archive (STATE_ROOT_REL does not exist before the migrate), doneDuplicateRefusal,
+ * assembleRoll and lineEndingRefusal. A pre-v3 tree that already holds a file at BOARD_DONE_ARCHIVE_REL is not rolled.
+ */
+function planMigrateDoneRoll(board: string, movedPaths: ReadonlySet<string>): MigrateRoll {
+  const texts = formsOf(board);
+  const model = parseBoard(board);
+  const roll = planDoneRoll(texts, model, BUDGETS.doneRows);
+  if (roll.kind === "none") return { kind: "none" };
+  if (roll.kind === "refuse") return { kind: "skip", reason: roll.reason };
+  if (movedPaths.has(BOARD_DONE_ARCHIVE_REL)) {
+    return { kind: "skip", reason: `the pre-v3 tree already holds a file that moves to ${BOARD_DONE_ARCHIVE_REL}` };
+  }
+  const insert = planArchiveInsert(null, roll.texts);
+  if (insert.kind === "refuse") return { kind: "skip", reason: insert.reason };
+  const doubled = doneDuplicateRefusal(roll.ids, null);
+  if (doubled !== null) return { kind: "skip", reason: doubled };
+  const plan = assembleRoll(BOARD_REL, BOARD_DONE_ARCHIVE_REL, { source: board, archive: null }, roll, insert, "done");
+  const endings = lineEndingRefusal(plan);
+  if (endings !== null) return { kind: "skip", reason: endings };
+  return { kind: "roll", plan };
+}
+
+/** The note a roll that is not run leaves: the reason, and the command that rolls it once the cause is fixed. */
+function skippedRollNote(what: string, reason: string): string {
+  return (
+    `${what} was not rolled: ${stripControlChars(reason, false)}. The migrate goes on without that roll and writes ` +
+    `everything else; once the cause is fixed, run \`${STATE_ROLL_COMMAND}\` to roll it`
+  );
 }
 
 // ── The NFR catalog (D-06) ───────────────────────────────────────────────────────────────────────────────────────
@@ -2151,7 +2252,14 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
       parts.push(eol, BOARD_NOTES_HEADING, eol, eol, provenanceLine(s.boardLine, inputs.date), eol, eol, s.trailer, eol);
       generated.push({ rel, line: next + 1, kind: "board-notes-heading", boardLine: s.boardLine, id });
       generated.push({ rel, line: next + 3, kind: "provenance", boardLine: s.boardLine, id });
-      cuts.push({ id, boardLine: s.boardLine, keptLine: keptAt.get(s.boardLine - 1) as number, noteRel: rel, noteLine: next + 5 });
+      cuts.push({
+        id,
+        boardLine: s.boardLine,
+        keptRel: BOARD_REL,
+        keptLine: keptAt.get(s.boardLine - 1) as number,
+        noteRel: rel,
+        noteLine: next + 5,
+      });
       next += 6;
     }
     const added = ENCODER.encode(parts.join(""));
@@ -2200,6 +2308,7 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
       cuts.push({
         id: o.id,
         boardLine: o.boardLine,
+        keptRel: BOARD_REL,
         keptLine: keptAt.get(o.boardLine - 1) as number,
         noteRel: PRE_V3_ORPHAN_NOTES_REL,
         noteLine: lines.length,
@@ -2239,6 +2348,39 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
     generated.push(...seedLines(TRACEABILITY_REL, inputs.seedTraceability));
   }
 
+  // The Done roll (D-08), over the split board, in memory: executeRoll's outcome is the proof's stage B (D-09).
+  const files = new Map<string, string | null>([
+    [BOARD_REL, plannedBoard],
+    [BOARD_DONE_ARCHIVE_REL, null],
+  ]);
+  const io = mapIo(files);
+  const rolls: RollRecord[] = [];
+  const rollWrites: MigrateWrite[] = [];
+  let rolledBoard = plannedBoard;
+  let doneMoved = 0;
+  const doneRoll = planMigrateDoneRoll(plannedBoard, movedPaths);
+  if (doneRoll.kind === "skip") notes.push(skippedRollNote(`the Done column of ${BOARD_REL}`, doneRoll.reason));
+  if (doneRoll.kind === "roll") {
+    const rp = doneRoll.plan;
+    const outcome = executeRoll(rp, io);
+    rolls.push({ surface: "done", moved: rp.lines.length, outcome });
+    if (outcome.ok) {
+      rolledBoard = files.get(BOARD_REL) as string;
+      doneMoved = rp.lines.length;
+      for (let k = 0; k < cuts.length; k++) {
+        const c = cuts[k] as BoardCut;
+        const at = rolledLineAt(rp, c.keptLine);
+        cuts[k] = { ...c, keptRel: at.rel, keptLine: at.line };
+      }
+      generated.push(...skeletonGenerated(rp, "done-archive-skeleton"));
+      rollWrites.push({
+        rel: BOARD_DONE_ARCHIVE_REL,
+        bytes: ENCODER.encode(files.get(BOARD_DONE_ARCHIVE_REL) as string),
+        source: `${doneMoved} Done row(s), the oldest of the board's Done column, rolled as state-roll rolls them (a new file)`,
+      });
+    }
+  }
+
   cuts.sort((a, b) => a.boardLine - b.boardLine);
   ticketWrites.sort((a, b) => byCodeUnits(a.rel, b.rel));
   appended.sort((a, b) => byCodeUnits(a.rel, b.rel));
@@ -2246,12 +2388,20 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
   appendSteps.sort((a, b) => byCodeUnits(a.to, b.to));
   generated.sort((a, b) => byCodeUnits(a.rel, b.rel) || a.line - b.line);
 
-  const boardBytes = ENCODER.encode(plannedBoard);
+  const beforeRoll = ENCODER.encode(plannedBoard);
+  const boardBytes = ENCODER.encode(rolledBoard);
   const writes: MigrateWrite[] = [
-    { rel: BOARD_REL, bytes: boardBytes, source: "the pre-v3 board without its trailers and its `_Updated:` lines" },
+    {
+      rel: BOARD_REL,
+      bytes: boardBytes,
+      source:
+        "the pre-v3 board without its trailers and its `_Updated:` lines" +
+        (doneMoved > 0 ? `, and without the ${doneMoved} Done row(s) rolled to ${BOARD_DONE_ARCHIVE_REL}` : ""),
+    },
     ...ticketWrites,
     ...extraWrites,
     ...lateWrites,
+    ...rollWrites,
   ];
   const archiveMoves: ArchiveMove[] = [{ from: BOARD_REL, to: PRE_V3_BOARD_REL }, ...ticketMoves, ...lateMoves];
   archivedAt.set(LEGACY_BOARD_REL, PRE_V3_BOARD_REL);
@@ -2281,13 +2431,16 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
       from: null,
       to: BOARD_REL,
       bytes: boardBytes.length,
-      note: `${cuts.length} trailer(s) cut and ${updateAt.size} \`_Updated:\` line(s) moved`,
+      note:
+        `${cuts.length} trailer(s) cut and ${updateAt.size} \`_Updated:\` line(s) moved` +
+        (doneMoved > 0 ? `, ${doneMoved} Done row(s) rolled` : ""),
     },
     ...appendSteps,
     ...[...extraWrites, ...lateWrites].map((w) => ({ verb: "write" as const, from: null, to: w.rel, bytes: w.bytes.length, note: w.source })),
+    ...rollWrites.map((w) => ({ verb: "write" as const, from: null, to: w.rel, bytes: w.bytes.length, note: w.source })),
   ];
 
-  const provable: ProvablePlan = { originals, generated, cuts, appended };
+  const provable: ProvablePlan = { originals, generated, cuts, appended, rolls };
   const written = new Map(writes.map((w) => [w.rel, w.bytes] as const));
   return {
     refusals,
@@ -2298,9 +2451,11 @@ export function planStateMigrate(inputs: MigrateInputs): MigratePlan {
     generated,
     cuts,
     appended,
-    overBudget: sortFindings([...plannedBudgetFindings(plannedBoard, legacy, ticketWrites), ...nfrBudgetFindings(nfr?.writes ?? [])]),
+    overBudget: sortFindings([...plannedBudgetFindings(rolledBoard, legacy, ticketWrites), ...nfrBudgetFindings(nfr?.writes ?? [])]),
     steps,
     proof: proveStateMigrate(inputs, provable, written),
+    beforeRoll,
+    rolls,
   };
 }
 
@@ -2407,9 +2562,20 @@ function generatedTemplate(g: GeneratedLine, src: TemplateSource): string | null
       if (g.rel === NFR_CATALOG_REL) return src.seedCatalog[g.line - 1] ?? null;
       if (g.rel === TRACEABILITY_REL) return src.seedTrace[g.line - 1] ?? null;
       return null;
+    case "done-archive-skeleton":
+      return g.rel === BOARD_DONE_ARCHIVE_REL ? skeletonTemplate(doneArchiveSkeleton([]), g.line) : null;
     default:
       return null;
   }
+}
+
+/**
+ * The non-blank line `line` (one-based) of an embedded roll skeleton, or null. The skeleton is created with no rows
+ * inserted yet, so its lines before the insert point keep their positions; a line is compared without its CR.
+ */
+function skeletonTemplate(skeleton: string, line: number): string | null {
+  const text = linesOf(skeleton)[line - 1];
+  return text === undefined || isBlankLine(text) ? null : text;
 }
 
 /**
@@ -2455,7 +2621,7 @@ export function proveStateMigrate(
   const board = written.get(BOARD_REL);
   if (board === undefined) reasons.push(`${BOARD_REL} is not among the written files, so the board split cannot be proven`);
   else parts.set(BOARD_REL, { rel: BOARD_REL, lines: linesOf(decodeText(board)), first: 1, group: "board" });
-  for (const rel of [PRE_V3_BOARD_UPDATES_REL, PRE_V3_ORPHAN_NOTES_REL]) {
+  for (const rel of [PRE_V3_BOARD_UPDATES_REL, PRE_V3_ORPHAN_NOTES_REL, BOARD_DONE_ARCHIVE_REL]) {
     const bytes = written.get(rel);
     if (bytes !== undefined) parts.set(rel, { rel, lines: linesOf(decodeText(bytes)), first: 1, group: "board" });
   }
@@ -2513,13 +2679,14 @@ export function proveStateMigrate(
 
   const joined: { readonly text: string; readonly rel: string; readonly line: number }[] = [];
   for (const c of plan.cuts) {
-    const kept = lineAt(BOARD_REL, c.keptLine);
+    const kept = lineAt(c.keptRel, c.keptLine);
     const trailer = lineAt(c.noteRel, c.noteLine);
     const original = originalLines[c.boardLine - 1];
     const where =
-      `the kept row at line ${c.keptLine} of ${BOARD_REL} and its trailer at line ${c.noteLine} of ` +
+      `the kept row at line ${c.keptLine} of ${shown(c.keptRel)} and its trailer at line ${c.noteLine} of ` +
       `${shown(c.noteRel)} (${shown(c.id)})`;
-    if (kept === null || trailer === null || consumed.has(key(BOARD_REL, c.keptLine)) || consumed.has(key(c.noteRel, c.noteLine))) {
+    const board = parts.get(c.keptRel)?.group === "board";
+    if (!board || kept === null || trailer === null || consumed.has(key(c.keptRel, c.keptLine)) || consumed.has(key(c.noteRel, c.noteLine))) {
       reasons.push(`${where} are not two lines migrate wrote`);
       continue;
     }
@@ -2527,9 +2694,9 @@ export function proveStateMigrate(
       reasons.push(`${where} do not rejoin line ${c.boardLine} of the pre-v3 board ${LEGACY_BOARD_REL}`);
       continue;
     }
-    consumed.add(key(BOARD_REL, c.keptLine));
+    consumed.add(key(c.keptRel, c.keptLine));
     consumed.add(key(c.noteRel, c.noteLine));
-    joined.push({ text: kept + trailer, rel: BOARD_REL, line: c.keptLine });
+    joined.push({ text: kept + trailer, rel: c.keptRel, line: c.keptLine });
   }
 
   // Each NFR file holds its own row at line 3, so a row cannot sit in another NFR's file. A row found there answers
@@ -2586,6 +2753,13 @@ export function proveStateMigrate(
     }
     for (const o of e.out.slice(e.orig.length)) {
       reasons.push(`line ${o.line} of ${shown(o.rel)} is not a line of ${originalName[e.group]}: "${shown(e.text)}"`);
+    }
+  }
+
+  // Stage B (D-09): each roll's own conservation check, run by executeRoll in memory, must have passed.
+  for (const r of plan.rolls) {
+    if (!r.outcome.ok) {
+      reasons.push(`stage B: the ${r.surface} roll did not complete (${r.outcome.stage}): ${shown(r.outcome.reason)}`);
     }
   }
 
