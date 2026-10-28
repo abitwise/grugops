@@ -9,8 +9,9 @@
 //   unreadable                a pre-check refusal naming the path and the error code, nothing written;
 //   pre-v3 + a held claim     a non-empty QUEUE_CLAIMED_REL (an agent holds a claim) is a pre-check refusal naming the
 //                             directory; an empty claimed directory does not refuse; a link there refuses too;
-//   pre-v3 + staging          an existing MIGRATE_STAGING_REL (another migrate running, or one interrupted) is a
-//                             pre-check refusal naming it and its commit-plan.txt;
+//   staging                   an existing MIGRATE_STAGING_REL (another migrate running, or one interrupted) is a
+//                             pre-check refusal naming it and its commit-plan.txt, on a pre-v3 layout and on a
+//                             current one (a migrate interrupted after its first rename leaves the state current);
 //   vendored kit + a refusal  a v3 refusal stops the two-root arm too: agent-factory/ is not backed up and no
 //                             configuration moves (D-11);
 //   fresh                     one line that there is no planning state to migrate; on an installed two-root
@@ -96,17 +97,17 @@ function installedWorld(): World {
 }
 
 /**
- * Run --migrate (with `extra`) and assert a pre-check refusal: exit 3, exactly one verify line (returned), the target byte-identical
- * to `before`, and the kit home absent (nothing was copied to it).
+ * Run --migrate (with `extra`) and assert a pre-check refusal: exit 3, exactly one verify line (returned), the target
+ * byte-identical to `before`, and the kit home as `kitHomeBefore` (absent by default: nothing was copied to it).
  */
-function expectRefusal(w: World, before: string, extra: readonly string[] = []): string {
+function expectRefusal(w: World, before: string, extra: readonly string[] = [], kitHomeBefore = ""): string {
   const r = migrate(w, extra);
   expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(3);
   expect(r.stdout).toContain("-- migrate pre-check (before any change) --");
   const verifies = labelled(r.stdout, "verify");
   expect(verifies, r.stdout).toHaveLength(1);
   expect(snapshotTree(w.target), "the target is byte-identical").toBe(before);
-  expect(snapshotTree(w.kitHome), "nothing was copied to the kit home").toBe("");
+  expect(snapshotTree(w.kitHome), "nothing was written to the kit home").toBe(kitHomeBefore);
   return verifies[0] as string;
 }
 
@@ -173,6 +174,15 @@ describe("the --migrate state machine (plan 38-07, MIGRATE-04)", () => {
     mkdirSync(at(w.target, MIGRATE_STAGING_REL), { recursive: true });
     writeFileSync(at(w.target, `${MIGRATE_STAGING_REL}/commit-plan.txt`), "rename plans -> memory-bank/plans\n");
     const v = expectRefusal(w, snapshotTree(w.target));
+    expect(lineNamesPath(v, at(w.target, MIGRATE_STAGING_REL)), v).toBe(true);
+    expect(lineNamesPath(v, join(at(w.target, MIGRATE_STAGING_REL), "commit-plan.txt")), v).toBe(true);
+  });
+
+  it("(S5b) a staging directory left by an interrupted migrate is a refusal on a current layout too, never \"already on the v3 layout\"", () => {
+    const w = installedWorld();
+    mkdirSync(at(w.target, MIGRATE_STAGING_REL), { recursive: true });
+    writeFileSync(at(w.target, `${MIGRATE_STAGING_REL}/commit-plan.txt`), "rename plans -> memory-bank/plans\n");
+    const v = expectRefusal(w, snapshotTree(w.target), [], snapshotTree(w.kitHome));
     expect(lineNamesPath(v, at(w.target, MIGRATE_STAGING_REL)), v).toBe(true);
     expect(lineNamesPath(v, join(at(w.target, MIGRATE_STAGING_REL), "commit-plan.txt")), v).toBe(true);
   });
