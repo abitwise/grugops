@@ -237,7 +237,7 @@ None. No external service configuration is required.
 
 ## Next Phase Readiness
 
-The pre-check now covers every repository hazard named in the research's Security Domain. The remaining phase 38 plans (38-09 to 38-11) build on a migrate that cannot follow a link or write half a tree. MIGRATE-04 and MIGRATE-02 are marked complete only when every sibling plan that declares them has a SUMMARY.
+The pre-check now covers every repository hazard named in the research's Security Domain. The remaining phase 38 plans (38-09 to 38-11) build on a migrate that cannot follow a link or write half a tree. This plan was the last one that declares MIGRATE-04 and MIGRATE-02, so both are now marked complete in REQUIREMENTS.md.
 
 ## Self-Check: PASSED
 

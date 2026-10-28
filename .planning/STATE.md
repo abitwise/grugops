@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-07-PLAN.md
-last_updated: "2026-10-28T15:00:41.547Z"
+stopped_at: Completed 38-08-PLAN.md
+last_updated: "2026-10-28T15:47:00.337Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: c7cdd3798d10e5bcf05d8ba357837da9b4dbf33a
+state_head: 51b10d31eeeb13bb98063ab446cacc4a57634308
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 64
+  completed_plans: 65
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -779,6 +779,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P05 | 34 min | 2 tasks | 6 files |
 | Phase 38 P06 | 40 min | 2 tasks | 8 files |
 | Phase 38 P07 | 55 min | 2 tasks | 8 files |
+| Phase 38 P08 | 44 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -2137,6 +2138,9 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-07: both, unreadable, a held queue claim (or a link at the claim directory) and a staging directory are --migrate pre-check refusals; staging is asked on every state layout
 - [Phase 38]: 38-07: fresh prints one line and current a marker ok line or note; the fresh row is asserted on an installed two-root repository, and a clean target's --migrate still seeds and marks the state it creates
 - [Phase 38]: 38-07: recorded backups under the pre-v3 root are not re-pathed; one note per entry after a successful migrate
+- [Phase 38]: 38-08: the migrate roots pass asks each root's entry by lstat as well as the way by wayTo; a progress file that is a link was read through before
+- [Phase 38]: 38-08: the device comparison covers MEMORY_BANK_REL as well as the pre-v3 root
+- [Phase 38]: 38-08: the plain-install staging refusal says put back what commit-plan.txt lists, remove the directory, then run --migrate (running --migrate with it still there would refuse)
 
 ### Pending Todos
 
@@ -2469,8 +2473,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T15:00:41.030Z
-Stopped at: Completed 38-07-PLAN.md
+Last session: 2026-10-28T15:46:59.826Z
+Stopped at: Completed 38-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
