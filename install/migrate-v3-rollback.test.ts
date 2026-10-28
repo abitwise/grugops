@@ -13,7 +13,10 @@
 //   (R5) a staged write's rename (a split output moved from staging to its path) fails with EIO;
 //   (R6) the layout marker write fails with EIO, after the trace render wrote its files;
 //   (R7) a change to the pre-v3 board made after the read, while the first staged file is written (a test-only preload),
-//        stops the arm before any commit rename with a verify saying the state changed after it was read.
+//        stops the arm before any commit rename with a verify saying the state changed after it was read;
+//   (R8) a failed marker write whose undo cannot rename the state root back (a test-only preload makes a directory at the
+//        pre-v3 root first): the undo is incomplete, the staging directory is left, and the run seeds nothing under
+//        MEMORY_BANK_REL.
 // For each fault case: the preload reports that it fired exactly once (a case that fires nothing fails), install.js
 // exits 3, exactly one verify names the step and the error code, treeDigest of the pre-v3 root, MEMORY_BANK_REL (which
 // holds PROGRESS_REL) and CONTEXT_REL equals the digest taken before the run, and neither STATE_ROOT_REL,
@@ -27,8 +30,8 @@
 // No line number is typed by hand. install.js reads no switch: the fault comes only from the preload.
 //
 // NOT TESTED HERE. The harness injects one fault per run, so a failure inside the undo itself (a rename back that
-// fails after a commit step failed) cannot be expressed. That path (each failed undo step its own verify, the staging
-// directory and its commit plan left for the human) is reviewed by reading, not claimed as tested.
+// fails after a commit step failed) cannot be expressed with it. R8 covers one such path with a test-only preload (the
+// root rename back finds its old path taken); a rename back that fails with an I/O error is reviewed by reading.
 //
 // THE WORLD. emptyWorld with the fixture materialized (as in migrate-v3.test.ts M1), and MEMORY_BANK_REL holding the
 // kit seed's standing memory-bank files beforehand. A failed state migrate does not stop the install run: the state
@@ -269,5 +272,61 @@ describe("install --migrate v3 rollback (phase 38, plan 38-06)", () => {
       expect(existsSync(join(w.target, ...rel.split("/"))), `${rel} does not exist`).toBe(false);
     }
     expect(readFileSync(join(w.target, ...PROGRESS_REL.split("/"))).length, "the progress file is still there").toBeGreaterThan(0);
+  });
+
+  it("rollback (R8) an undo that cannot rename the state root back: the run seeds nothing into the half-moved memory bank", () => {
+    const w = world();
+    const legacyRoot = join(w.target, ...LEGACY_STATE_ROOT_REL.split("/"));
+    const stateRoot = join(w.target, ...STATE_ROOT_REL.split("/"));
+    const marker = join(w.target, ...LAYOUT_MARKER_REL.split("/"));
+    const firedLog = join(w.scratch, "undo-blocked.log");
+    const preload = join(w.scratch, "undo-blocked.mjs");
+    // Test code only: install.js reads none of these names. When the layout marker is written, the preload makes an empty
+    // directory at the pre-v3 root, so the undo cannot rename the state root back, and fails the write with EIO.
+    writeFileSync(
+      preload,
+      [
+        'import { createRequire, syncBuiltinESMExports } from "node:module";',
+        "const require = createRequire(import.meta.url);",
+        'const fs = require("node:fs");',
+        "const original = fs.writeFileSync;",
+        "const marker = process.env.ROLLBACK_TEST_MARKER;",
+        "const legacy = process.env.ROLLBACK_TEST_LEGACY;",
+        "const log = process.env.ROLLBACK_TEST_LOG;",
+        "const wrapper = function (p, ...rest) {",
+        "  if (p === marker) {",
+        "    fs.mkdirSync(legacy);",
+        '    fs.appendFileSync(log, "fired\\n");',
+        '    const e = new Error("EIO: injected by the test preload");',
+        '    e.code = "EIO";',
+        "    throw e;",
+        "  }",
+        "  return original.call(this, p, ...rest);",
+        "};",
+        "Object.assign(wrapper, original);",
+        "fs.writeFileSync = wrapper;",
+        "syncBuiltinESMExports();",
+        "",
+      ].join("\n"),
+    );
+    appendFileSync(firedLog, "");
+    const filesUnder = (dir: string): string[] => [...treeDigest(dir).keys()].sort();
+    const legacyFiles = filesUnder(legacyRoot);
+    const r = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href, INSTALL_JS, "--yes", ...withAgentFlags(["--migrate"])], {
+      encoding: "utf8",
+      cwd: w.scratch,
+      timeout: 120_000,
+      env: { ...process.env, ...installEnv(w), ROLLBACK_TEST_MARKER: marker, ROLLBACK_TEST_LEGACY: legacyRoot, ROLLBACK_TEST_LOG: firedLog },
+    });
+    const out = `${r.stdout}\n${r.stderr}`;
+    expect(readFileSync(firedLog, "utf8"), `the preload fired once\n${out}`).toBe("fired\n");
+    expect(r.status, out).toBe(3);
+    const verifies = labelled(r.stdout, "verify");
+    expect(verifies.some((l) => l.includes("state migrate (undo)") && l.includes("rename it back by hand")), r.stdout).toBe(true);
+    expect(verifies.some((l) => l.includes("state migrate (marker)") && l.includes("the undo is incomplete")), r.stdout).toBe(true);
+    expect(existsSync(join(w.target, ...MIGRATE_STAGING_REL.split("/"))), "the staging directory is left for the human").toBe(true);
+    // Every rename but the root's was undone, so the state root holds the pre-v3 files and nothing the seed added.
+    expect(filesUnder(stateRoot), "nothing was seeded beside the half-moved state").toEqual(legacyFiles);
+    expect(labelled(r.stdout, "skipped").some((l) => l.includes(`${MEMORY_BANK_REL}/ seed`)), r.stdout).toBe(true);
   });
 });

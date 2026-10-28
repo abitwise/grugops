@@ -162,6 +162,10 @@ check after the renames or the trace render fails, the renames are undone in rev
 the run added are taken away, and the repository is as it was before the run. The run names the step
 that failed and exits `3`.
 
+If a step of the undo itself fails, each failed step has its own `verify` line, and the staging
+directory and its `commit-plan.txt` are left for you. The rest of that run then seeds nothing under
+`memory-bank/`, so no new file takes a path that a rename you put back by hand needs.
+
 If the process is stopped partway (for example, the machine loses power), the staging directory stays
 with its `commit-plan.txt`. The next `--migrate` refuses, and so does a plain install. Once no migrate
 is running, put back each rename that `commit-plan.txt` lists, move the staging directory aside, and

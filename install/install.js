@@ -5088,7 +5088,11 @@ function seedState() {
     }
     const layout = stateLayout();
     const skipStateRoot = layout === "pre-v3" || typeof layout === "object";
-    if (layout === "pre-v3") {
+    if (STATE_MIGRATE_HALF_MOVED) {
+        report("skipped", `${MEMORY_BANK_REL}/ seed (this run's state migrate could not undo every rename; nothing was seeded there, so no ` +
+            `seeded file takes a path that a rename left to put back by hand needs)`);
+    }
+    else if (layout === "pre-v3") {
         report("skipped", `${STATE_ROOT_REL}/ seed (this repository's planning state is still in the pre-v3 layout under ` +
             `${LEGACY_STATE_ROOT_REL}/; nothing was seeded beside it)`);
     }
@@ -5101,6 +5105,8 @@ function seedState() {
             `${STATE_ROOT_REL}/ and merges or deletes nothing`);
     }
     for (const rel of listSeedFiles(seed)) {
+        if (STATE_MIGRATE_HALF_MOVED && (rel === MEMORY_BANK_REL || rel.startsWith(`${MEMORY_BANK_REL}/`)))
+            continue;
         if (rel === LAYOUT_MARKER_REL && layout !== "fresh") {
             skipLayoutMarker(join(TARGET, rel));
             continue;
@@ -6664,6 +6670,11 @@ function runContextArchive(run) {
     report("ok", `trace render: ${render.summary}`);
     return run.plan.moves.length;
 }
+// STATE_MIGRATE_HALF_MOVED: set by runStateMigrate's commitFailed when the undo of a failed commit is incomplete (an
+// undo step failed, or the staging directory could not be taken away). The renames left to put back by hand are listed
+// in the commit plan, so seedState then writes nothing under MEMORY_BANK_REL: a seeded file would sit at a path one of
+// those renames needs, as a plain install refuses to seed beside a leftover staging directory.
+let STATE_MIGRATE_HALF_MOVED = false;
 // runStateMigrate: see STAGE, RE-PROVE, COMMIT, PROVE AGAIN, MARK above. Returns true when the state is on the v3
 // layout and the marker is written (under DRY_RUN: when the plan would run).
 function runStateMigrate(plan, read, context) {
@@ -6786,6 +6797,8 @@ function runStateMigrate(plan, read, context) {
                     verify(`state migrate (undo): ${f}.`);
             }
         }
+        if (left)
+            STATE_MIGRATE_HALF_MOVED = true;
         verify(`state migrate (${step}): ${why}. ` +
             (failed.length === 0 ? `Every rename was undone; ${notMoved}.` : `${notMoved}, and the undo is incomplete: each undo step that failed has its own verify line.`));
         return false;
