@@ -4,7 +4,10 @@
 // WHAT THIS OWNS. planStateMigrate turns the bytes of a pre-v3 planning root into the v3 board, the `## Board notes`
 // sections appended to tickets, the board-updates file, the orphan-notes file, and the archive moves and writes that
 // place every original (D-01 to D-04, D-17, D-21 option-a), with the refusals a planner can find and the budgets the
-// planned state still breaks. proveStateMigrate is the D-09 stage-A proof over those outputs: the multiset of
+// planned state still breaks. Plan 38-04 adds the NFR catalog and the traceability file (D-05 archive half, D-06):
+// each NFR table row and every `##` section naming that NFR alone become nfr/NFR-xxx.md, every other catalog line goes
+// verbatim to the NFR notes file, the new catalog is the kit seed plus one index line per row, the traceability file
+// is the kit seed, and both originals are archived unchanged. proveStateMigrate is the D-09 stage-A proof over those outputs: the multiset of
 // non-blank original board lines equals the multiset of output lines once the generated lines are removed BY
 // POSITION (each asserted equal to its kind's template, MIGRATE_GENERATED_LINE_KINDS being the one closed set) and
 // each cut row is rejoined with its trailer. It takes the written bytes as a parameter, so the same function proves
@@ -25,7 +28,7 @@
 //
 // Voice: clear professional voice (CLAUDE.md hard rule). This is the first grugops operation that rewrites user
 // state, and every printed user value passes through the embedded stripControlChars.
-import { BOARD_REL, BUDGETS, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, PRE_V3_BOARD_REL, PRE_V3_BOARD_UPDATES_REL, PRE_V3_ORPHAN_NOTES_REL, PRE_V3_TICKETS_REL, STATE_ROOT_REL, TICKETS_REL, } from "./state-layout.js";
+import { BOARD_REL, BUDGETS, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, NFR_CATALOG_REL, NFR_DIR_REL, PRE_V3_BOARD_REL, PRE_V3_BOARD_UPDATES_REL, PRE_V3_NFR_CATALOG_REL, PRE_V3_NFR_NOTES_REL, PRE_V3_ORPHAN_NOTES_REL, PRE_V3_TICKETS_REL, PRE_V3_TRACEABILITY_REL, STATE_ROOT_REL, TICKETS_REL, TRACEABILITY_REL, } from "./state-layout.js";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 // from scripts/board-model.ts
 export const LARGE_BOARD_BYTES = 1_048_576;
@@ -1160,6 +1163,8 @@ export const BOARD_NOTES_HEADING = "## Board notes";
 export const BOARD_UPDATES_TITLE = "# Board updates from the pre-v3 board";
 /** The first line of PRE_V3_ORPHAN_NOTES_REL (D-03). */
 export const ORPHAN_NOTES_TITLE = "# Board notes of rows with no ticket file";
+/** The first line of PRE_V3_NFR_NOTES_REL (D-06). */
+export const NFR_NOTES_TITLE = "# Lines of the pre-v3 NFR catalog that belong to no single NFR";
 /**
  * The closed, named set of line kinds migrate generates (D-09). The proof removes a generated line only by its
  * declared position, and only when the line there equals its kind's template, so an original line can never be
@@ -1169,7 +1174,16 @@ export const ORPHAN_NOTES_TITLE = "# Board notes of rows with no ticket file";
  *     migration date; it follows each Board notes heading, each orphan heading and each archive-only file's title;
  *   - `updates-title`: BOARD_UPDATES_TITLE, line 1 of PRE_V3_BOARD_UPDATES_REL;
  *   - `orphan-title`: ORPHAN_NOTES_TITLE, line 1 of PRE_V3_ORPHAN_NOTES_REL;
- *   - `orphan-heading`: `## [ID]`, one per orphan row in PRE_V3_ORPHAN_NOTES_REL.
+ *   - `orphan-heading`: `## [ID]`, one per orphan row in PRE_V3_ORPHAN_NOTES_REL;
+ *   - `nfr-notes-title`: NFR_NOTES_TITLE, line 1 of PRE_V3_NFR_NOTES_REL (its provenance line, line 3, names the
+ *     pre-v3 NFR catalog);
+ *   - `nfr-table-header-copy`: line 1 of each nfr/NFR-xxx.md, a copy of the pre-v3 table's header line;
+ *   - `nfr-table-separator-copy`: line 2 of each nfr/NFR-xxx.md, a copy of the table's separator line;
+ *   - `nfr-index-line`: `- [NFR-xxx](nfr/NFR-xxx.md) {category}: {target}` after the kit seed lines of the new
+ *     catalog, one per NFR row;
+ *   - `kit-seed-line`: a line of the kit seed at its own position, in the new catalog and in the traceability file.
+ * The proof derives the NFR templates from the pre-v3 catalog and the seed templates from the kit seeds, never from
+ * the plan, and binds each kind to the file and the lines it may sit on.
  */
 export const MIGRATE_GENERATED_LINE_KINDS = Object.freeze([
     "board-notes-heading",
@@ -1177,17 +1191,33 @@ export const MIGRATE_GENERATED_LINE_KINDS = Object.freeze([
     "updates-title",
     "orphan-title",
     "orphan-heading",
+    "nfr-notes-title",
+    "nfr-table-header-copy",
+    "nfr-table-separator-copy",
+    "nfr-index-line",
+    "kit-seed-line",
 ]);
 /**
  * The one provenance line: where the text below it came from, in one sentence. `boardLine` is the one-based line of
- * the pre-v3 board, or null for a file that gathers lines from many board lines.
+ * the pre-v3 board, or null for a file that gathers lines from many board lines. `source` names the pre-v3 file the
+ * text came from: the board, or (for PRE_V3_NFR_NOTES_REL) the NFR catalog.
  */
-export function provenanceLine(boardLine, date) {
-    const where = boardLine === null ? "the pre-v3 board" : `line ${boardLine} of the pre-v3 board`;
-    return `Copied verbatim by install --migrate on ${date} from ${where} \`${LEGACY_BOARD_REL}\`.`;
+export function provenanceLine(boardLine, date, source = "board") {
+    const [label, rel] = source === "board" ? ["board", LEGACY_BOARD_REL] : ["NFR catalog", LEGACY_NFR_CATALOG_REL];
+    const where = boardLine === null ? `the pre-v3 ${label}` : `line ${boardLine} of the pre-v3 ${label}`;
+    return `Copied verbatim by install --migrate on ${date} from ${where} \`${rel}\`.`;
 }
 const LEGACY_PREFIX = `${LEGACY_STATE_ROOT_REL}/`;
 const ENCODER = new TextEncoder();
+/** The pre-v3 path of `rel` (a path under STATE_ROOT_REL): the inverse of movedRel, so no state path is respelled. */
+function legacyRelOf(rel) {
+    if (!rel.startsWith(`${STATE_ROOT_REL}/`))
+        throw new Error(`state-migrate: ${rel} is not under the v3 state root`);
+    return `${LEGACY_PREFIX}${rel.slice(STATE_ROOT_REL.length + 1)}`;
+}
+/** The pre-v3 NFR catalog and traceability file, before the whole-root rename. */
+const LEGACY_NFR_CATALOG_REL = legacyRelOf(NFR_CATALOG_REL);
+const LEGACY_TRACEABILITY_REL = legacyRelOf(TRACEABILITY_REL);
 /** The longest piece of user text a reason quotes. */
 const REASON_QUOTE_CHARS = 120;
 /** `rel` (a path under the pre-v3 root) after the whole root is renamed to STATE_ROOT_REL (D-17). */
@@ -1276,6 +1306,187 @@ function refusedPlan(refusals, notes) {
         steps: [],
         proof: { ok: false, reasons: ["the plan was refused, so there is nothing to prove"] },
     };
+}
+// ── The NFR catalog (D-06) ───────────────────────────────────────────────────────────────────────────────────────
+/** A table cell that is an NFR identifier, and an NFR identifier as a delimited token of a heading. */
+const NFR_ID_CELL = /^NFR-[0-9]+$/;
+const NFR_ID_TOKEN = /(?<![A-Za-z0-9])NFR-[0-9]+(?![A-Za-z0-9])/g;
+/** A level-2 heading, never a deeper one. */
+const LEVEL_2_HEADING = /^## /;
+/** The lines of `text` without terminators, and without the empty element after a final LF. */
+function textLines(text) {
+    if (text.length === 0)
+        return [];
+    const lines = text.split("\n").map(withoutCr);
+    if (text.endsWith("\n"))
+        lines.pop();
+    return lines;
+}
+/**
+ * The trimmed cells of a table line: the text between the pipes that are not preceded by a backslash, the empty
+ * text before the first pipe dropped, and the text after a closing pipe dropped. An escaped pipe stays in its cell.
+ */
+function tableCells(line) {
+    const parts = line.split(/(?<!\\)\|/);
+    parts.shift();
+    if (/(?<!\\)\|[ \t]*$/.test(line) && parts.length > 0)
+        parts.pop();
+    return parts.map((c) => c.trim());
+}
+/** A table separator line: every cell is dashes, with an optional colon at either end. */
+function isSeparatorLine(line) {
+    if (!line.startsWith("|"))
+        return false;
+    const cells = tableCells(line);
+    return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
+}
+/**
+ * Read the pre-v3 NFR catalog (D-06). The rule looks only at the comment-blanked text, so an example row inside an
+ * HTML comment is never a row. The header is the first line that starts with `|`, whose first cell is `ID`, and that
+ * is followed by a separator line. The rows are the lines after the separator that start with `|`, up to the first
+ * line that does not, whose first cell is an NFR identifier; a row line that touches an HTML comment is left in the
+ * notes file, and the plan says so. A section is a `##` heading outside every fence and comment, to the line before
+ * the next heading of level 1 or 2 (the embedded sectionEndIndex); it goes to an NFR file only when its heading
+ * names exactly one NFR identifier and that identifier has a row.
+ */
+function readNfrCatalog(text) {
+    const lines = textLines(text);
+    const normalized = normalizeDocument(text);
+    const normalizedLines = normalized.split("\n");
+    const blanked = stripHtmlComments(normalized).split("\n");
+    const notes = [];
+    let header = null;
+    for (let i = 0; i + 1 < lines.length; i++) {
+        const b = blanked[i];
+        if (b.startsWith("|") && tableCells(b)[0] === "ID" && isSeparatorLine(blanked[i + 1])) {
+            header = i;
+            break;
+        }
+    }
+    const rows = [];
+    if (header !== null) {
+        for (let i = header + 2; i < lines.length && blanked[i].startsWith("|"); i++) {
+            const id = tableCells(blanked[i])[0] ?? "";
+            if (!NFR_ID_CELL.test(id))
+                continue;
+            if (blanked[i] !== normalizedLines[i]) {
+                notes.push(`line ${i + 1} of ${LEGACY_NFR_CATALOG_REL} (${shown(id)}) touches an HTML comment, so it is no NFR row and goes ` +
+                    `to ${PRE_V3_NFR_NOTES_REL}`);
+                continue;
+            }
+            const cells = tableCells(normalizedLines[i]);
+            rows.push({ index: i, id, category: cells[1] ?? "", target: cells[2] ?? "" });
+        }
+    }
+    const rowIds = new Set(rows.map((r) => r.id));
+    const flags = blockContextFlags(normalized);
+    const sections = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = normalizedLines[i];
+        if (flags[i] === true || blanked[i] !== line || !LEVEL_2_HEADING.test(line))
+            continue;
+        const ids = new Set(line.match(NFR_ID_TOKEN) ?? []);
+        const id = ids.size === 1 ? [...ids][0] : null;
+        if (id === null || !rowIds.has(id))
+            continue;
+        sections.push({ id, start: i, end: Math.min(sectionEndIndex(normalized, i + 1, 2), lines.length) });
+    }
+    return { lines, header, rows, sections, notes };
+}
+/** The index line of one NFR row (D-06): the cell text copied, never reworded. */
+function nfrIndexLine(row) {
+    return `- [${row.id}](${nfrLinkTarget(row.id)}) ${row.category}: ${row.target}`;
+}
+/** The planned path of the NFR file of `id`. */
+function nfrFileRel(id) {
+    return `${STATE_ROOT_REL}/${nfrLinkTarget(id)}`;
+}
+/**
+ * Plan the NFR split (D-06). Each row gets nfr/NFR-xxx.md: a copy of the header line, a copy of the separator line,
+ * the row, then each of its sections, in catalog order, each after one blank line and without its trailing blank
+ * lines. A line goes to one place only: the header and separator lines and every line no row or section takes go,
+ * verbatim and in catalog order, to PRE_V3_NFR_NOTES_REL after its title and provenance line. The new catalog is the
+ * kit seed's bytes and one index line per row in table order. The outputs use the catalog's own line ending; the
+ * index lines use the seed's.
+ */
+function planNfrSplit(catalog, inputs) {
+    const text = decodeText(catalog.bytes);
+    const read = readNfrCatalog(text);
+    const eol = lineEndings(text) === "crlf" ? "\r\n" : "\n";
+    const lines = read.lines;
+    // `taken`: the line is in an NFR file. The header and separator lines are never taken: they go to the notes file.
+    const taken = new Array(lines.length).fill(false);
+    const tableHead = new Set(read.header === null ? [] : [read.header, read.header + 1]);
+    const generated = [];
+    const files = new Map();
+    for (const r of read.rows) {
+        taken[r.index] = true;
+        const rel = nfrFileRel(r.id);
+        files.set(rel, [lines[read.header], lines[read.header + 1], lines[r.index]]);
+        generated.push({ rel, line: 1, kind: "nfr-table-header-copy", boardLine: null, id: r.id });
+        generated.push({ rel, line: 2, kind: "nfr-table-separator-copy", boardLine: null, id: r.id });
+    }
+    for (const sec of read.sections) {
+        let end = sec.end;
+        while (end > sec.start && isBlankLine(lines[end - 1]))
+            end--;
+        const body = [];
+        for (let k = sec.start; k < end; k++) {
+            if (taken[k] || tableHead.has(k))
+                continue;
+            taken[k] = true;
+            body.push(lines[k]);
+        }
+        if (body.length > 0)
+            files.get(nfrFileRel(sec.id)).push("", ...body);
+    }
+    const notesLines = [NFR_NOTES_TITLE, "", provenanceLine(null, inputs.date, "nfr-catalog"), ""];
+    generated.push({ rel: PRE_V3_NFR_NOTES_REL, line: 1, kind: "nfr-notes-title", boardLine: null, id: null });
+    generated.push({ rel: PRE_V3_NFR_NOTES_REL, line: 3, kind: "provenance", boardLine: null, id: null });
+    lines.forEach((l, k) => {
+        if (!taken[k])
+            notesLines.push(l);
+    });
+    const seedText = decodeText(inputs.seedNfrCatalog);
+    const seedEol = lineEndings(seedText) === "crlf" ? "\r\n" : "\n";
+    const seedCount = textLines(seedText).length;
+    for (let n = 1; n <= seedCount; n++)
+        generated.push({ rel: NFR_CATALOG_REL, line: n, kind: "kit-seed-line", boardLine: null, id: null });
+    const index = read.rows.map(nfrIndexLine);
+    index.forEach((_, k) => {
+        generated.push({ rel: NFR_CATALOG_REL, line: seedCount + 1 + k, kind: "nfr-index-line", boardLine: null, id: read.rows[k].id });
+    });
+    const lead = seedText.length === 0 || seedText.endsWith("\n") ? "" : seedEol;
+    const catalogBytes = concatBytes(inputs.seedNfrCatalog, ENCODER.encode(lead + index.map((l) => l + seedEol).join("")));
+    const nfrWrites = [...files.entries()]
+        .sort((a, b) => byCodeUnits(a[0], b[0]))
+        .map(([rel, body]) => ({
+        rel,
+        bytes: ENCODER.encode(body.join(eol) + eol),
+        source: `the header, the separator and the row of ${shown(rel.slice(rel.lastIndexOf("/") + 1, -".md".length))} from the pre-v3 NFR catalog, and its own sections, verbatim`,
+    }));
+    return {
+        refusals: [],
+        notes: read.notes,
+        writes: [
+            {
+                rel: NFR_CATALOG_REL,
+                bytes: catalogBytes,
+                source: `the kit seed's NFR catalog followed by ${index.length} index line(s), one per NFR row of the pre-v3 catalog`,
+            },
+            ...nfrWrites,
+            {
+                rel: PRE_V3_NFR_NOTES_REL,
+                bytes: ENCODER.encode(notesLines.join(eol) + eol),
+                source: "every line of the pre-v3 NFR catalog that is in no NFR file, verbatim and in order",
+            },
+        ],
+        generated,
+    };
+}
+/** One kit-seed-line per line of `seed` in the file `rel`. */
+function seedLines(rel, seed) {
+    return textLines(decodeText(seed)).map((_, k) => ({ rel, line: k + 1, kind: "kit-seed-line", boardLine: null, id: null }));
 }
 /**
  * Plan the board split (D-01 to D-04, D-17, D-21 option-a). Pure: every byte comes from `inputs`.
@@ -1477,6 +1688,32 @@ export function planStateMigrate(inputs) {
             source: `the trailers of ${orphans.length} board row(s) whose ticket file is absent, verbatim`,
         });
     }
+    // The NFR catalog (D-06) and the traceability file (D-05), each planned only when the pre-v3 tree holds it.
+    const catalogFile = legacy.find((f) => f.rel === LEGACY_NFR_CATALOG_REL);
+    const traceFile = legacy.find((f) => f.rel === LEGACY_TRACEABILITY_REL);
+    const nfr = catalogFile === undefined ? null : planNfrSplit(catalogFile, inputs);
+    if (nfr !== null) {
+        notes.push(...nfr.notes);
+        if (nfr.refusals.length > 0)
+            return refusedPlan(nfr.refusals, notes);
+        generated.push(...nfr.generated);
+    }
+    const lateWrites = [...(nfr?.writes ?? [])];
+    const lateMoves = [];
+    if (nfr !== null) {
+        lateMoves.push({ from: NFR_CATALOG_REL, to: PRE_V3_NFR_CATALOG_REL });
+        archivedAt.set(LEGACY_NFR_CATALOG_REL, PRE_V3_NFR_CATALOG_REL);
+    }
+    if (traceFile !== undefined) {
+        lateMoves.push({ from: TRACEABILITY_REL, to: PRE_V3_TRACEABILITY_REL });
+        archivedAt.set(LEGACY_TRACEABILITY_REL, PRE_V3_TRACEABILITY_REL);
+        lateWrites.push({
+            rel: TRACEABILITY_REL,
+            bytes: inputs.seedTraceability,
+            source: "the kit seed's traceability index; the pre-v3 traceability file is archived unsplit",
+        });
+        generated.push(...seedLines(TRACEABILITY_REL, inputs.seedTraceability));
+    }
     cuts.sort((a, b) => a.boardLine - b.boardLine);
     ticketWrites.sort((a, b) => byCodeUnits(a.rel, b.rel));
     appended.sort((a, b) => byCodeUnits(a.rel, b.rel));
@@ -1488,8 +1725,9 @@ export function planStateMigrate(inputs) {
         { rel: BOARD_REL, bytes: boardBytes, source: "the pre-v3 board without its trailers and its `_Updated:` lines" },
         ...ticketWrites,
         ...extraWrites,
+        ...lateWrites,
     ];
-    const archiveMoves = [{ from: BOARD_REL, to: PRE_V3_BOARD_REL }, ...ticketMoves];
+    const archiveMoves = [{ from: BOARD_REL, to: PRE_V3_BOARD_REL }, ...ticketMoves, ...lateMoves];
     archivedAt.set(LEGACY_BOARD_REL, PRE_V3_BOARD_REL);
     const originals = legacy.map((f) => ({
         original: f.rel,
@@ -1520,7 +1758,7 @@ export function planStateMigrate(inputs) {
             note: `${cuts.length} trailer(s) cut and ${updateAt.size} \`_Updated:\` line(s) moved`,
         },
         ...appendSteps,
-        ...extraWrites.map((w) => ({ verb: "write", from: null, to: w.rel, bytes: w.bytes.length, note: w.source })),
+        ...[...extraWrites, ...lateWrites].map((w) => ({ verb: "write", from: null, to: w.rel, bytes: w.bytes.length, note: w.source })),
     ];
     const provable = { originals, generated, cuts, appended };
     const written = new Map(writes.map((w) => [w.rel, w.bytes]));
@@ -1566,32 +1804,63 @@ function plannedBudgetFindings(plannedBoard, legacy, ticketWrites) {
     }
     return sortFindings(findings);
 }
-/** The template a generated line of `g`'s kind must equal, or null for a kind outside the closed set. */
-function generatedTemplate(g, date) {
+/** A written path under the NFR directory. */
+function isNfrFile(rel) {
+    return rel.startsWith(`${NFR_DIR_REL}/`);
+}
+/**
+ * The template a generated line of `g`'s kind must equal, or null when the kind is outside the closed set or the
+ * line is not one that kind may sit on. Each NFR and seed kind is bound to its file and its lines.
+ */
+function generatedTemplate(g, src) {
+    const catalog = src.catalog;
+    const header = catalog?.header ?? null;
     switch (g.kind) {
         case "board-notes-heading":
             return BOARD_NOTES_HEADING;
         case "provenance":
-            return provenanceLine(g.boardLine, date);
+            if (g.rel !== PRE_V3_NFR_NOTES_REL)
+                return provenanceLine(g.boardLine, src.date);
+            return g.line === 3 && g.boardLine === null ? provenanceLine(null, src.date, "nfr-catalog") : null;
         case "updates-title":
             return BOARD_UPDATES_TITLE;
         case "orphan-title":
             return ORPHAN_NOTES_TITLE;
         case "orphan-heading":
             return g.id === null ? null : `## [${g.id}]`;
+        case "nfr-notes-title":
+            return g.rel === PRE_V3_NFR_NOTES_REL && g.line === 1 ? NFR_NOTES_TITLE : null;
+        case "nfr-table-header-copy":
+            return isNfrFile(g.rel) && g.line === 1 && catalog !== null && header !== null ? catalog.lines[header] : null;
+        case "nfr-table-separator-copy":
+            return isNfrFile(g.rel) && g.line === 2 && catalog !== null && header !== null ? catalog.lines[header + 1] : null;
+        case "nfr-index-line": {
+            if (g.rel !== NFR_CATALOG_REL || g.line <= src.seedCatalog.length || g.id === null || catalog === null)
+                return null;
+            const row = catalog.rows.find((r) => r.id === g.id);
+            return row === undefined ? null : nfrIndexLine(row);
+        }
+        case "kit-seed-line":
+            if (g.rel === NFR_CATALOG_REL)
+                return src.seedCatalog[g.line - 1] ?? null;
+            if (g.rel === TRACEABILITY_REL)
+                return src.seedTrace[g.line - 1] ?? null;
+            return null;
         default:
             return null;
     }
 }
 /**
- * The D-09 stage-A proof. The originals are the non-blank lines of the pre-v3 board (a line is its text without
- * the LF or CRLF terminator). The outputs are the written board, the updates file, the orphan notes file and the
- * appended part of every appended ticket,
- * after the generated lines are removed BY POSITION (each must equal its kind's template) and each cut is rejoined
- * (the kept row plus its trailer must equal its original line). The two multisets must then be equal. Each
- * appended ticket must also begin with its original bytes, and every original home that `written` holds must
- * match its rule. `written` is a parameter, so the proof runs over the plan's own writes or over bytes re-read
- * from disk.
+ * The D-09 stage-A proof. The originals are the non-blank lines of the pre-v3 board and, when the inputs hold one,
+ * of the pre-v3 NFR catalog (a line is its text without the LF or CRLF terminator); each is compared with its own
+ * outputs, never with the other's. The board's outputs are the written board, the updates file, the orphan notes
+ * file and the appended part of every appended ticket; the catalog's are every NFR file, the NFR notes file and the
+ * new catalog. The traceability file answers to no original: every line of it must be a declared kit seed line.
+ * The generated lines are removed BY POSITION (each must equal its kind's template, derived from the inputs) and each
+ * cut is rejoined (the kept row plus its trailer must equal its original line). The multisets must then be equal.
+ * Line 3 of each NFR file must be its own row, each appended ticket must begin with its original bytes, and every
+ * original home that `written` holds must match its rule. `written` is a parameter, so the proof runs over the
+ * plan's own writes or over bytes re-read from disk.
  */
 export function proveStateMigrate(inputs, plan, written) {
     const reasons = [];
@@ -1599,16 +1868,29 @@ export function proveStateMigrate(inputs, plan, written) {
     if (boardFile === undefined)
         return { ok: false, reasons: [`the pre-v3 board ${LEGACY_BOARD_REL} is not among the inputs`] };
     const originalLines = linesOf(decodeText(boardFile.bytes));
+    const catalogFile = inputs.legacy.find((f) => f.rel === LEGACY_NFR_CATALOG_REL);
+    const catalog = catalogFile === undefined ? null : readNfrCatalog(decodeText(catalogFile.bytes));
+    const src = {
+        date: inputs.date,
+        catalog,
+        seedCatalog: textLines(decodeText(inputs.seedNfrCatalog)),
+        seedTrace: textLines(decodeText(inputs.seedTraceability)),
+    };
     const parts = new Map();
     const board = written.get(BOARD_REL);
     if (board === undefined)
         reasons.push(`${BOARD_REL} is not among the written files, so the board split cannot be proven`);
     else
-        parts.set(BOARD_REL, { rel: BOARD_REL, lines: linesOf(decodeText(board)), first: 1 });
+        parts.set(BOARD_REL, { rel: BOARD_REL, lines: linesOf(decodeText(board)), first: 1, group: "board" });
     for (const rel of [PRE_V3_BOARD_UPDATES_REL, PRE_V3_ORPHAN_NOTES_REL]) {
         const bytes = written.get(rel);
         if (bytes !== undefined)
-            parts.set(rel, { rel, lines: linesOf(decodeText(bytes)), first: 1 });
+            parts.set(rel, { rel, lines: linesOf(decodeText(bytes)), first: 1, group: "board" });
+    }
+    for (const [rel, bytes] of written) {
+        const group = isNfrFile(rel) || rel === PRE_V3_NFR_NOTES_REL || rel === NFR_CATALOG_REL ? "nfr" : rel === TRACEABILITY_REL ? "seed" : null;
+        if (group !== null)
+            parts.set(rel, { rel, lines: textLines(decodeText(bytes)), first: 1, group });
     }
     for (const a of plan.appended) {
         const bytes = written.get(a.rel);
@@ -1622,7 +1904,12 @@ export function proveStateMigrate(inputs, plan, written) {
             reasons.push(`${shown(a.rel)} does not begin with the bytes of its original ${shown(a.original)} (they differ at byte ${at})`);
             continue;
         }
-        parts.set(a.rel, { rel: a.rel, lines: linesOf(decodeText(bytes)), first: firstAppendedLine(decodeText(original.bytes)) });
+        parts.set(a.rel, {
+            rel: a.rel,
+            lines: linesOf(decodeText(bytes)),
+            first: firstAppendedLine(decodeText(original.bytes)),
+            group: "board",
+        });
     }
     const consumed = new Set();
     const key = (rel, line) => `${rel}\u0000${line}`;
@@ -1638,7 +1925,7 @@ export function proveStateMigrate(inputs, plan, written) {
             reasons.push(`line ${g.line} of ${shown(g.rel)} is declared generated (${shown(g.kind)}) and is not a line migrate wrote`);
             continue;
         }
-        const template = generatedTemplate(g, inputs.date);
+        const template = generatedTemplate(g, src);
         if (template === null || text !== template) {
             reasons.push(`line ${g.line} of ${shown(g.rel)} is declared generated (${shown(g.kind)}) and reads "${shown(text)}", not its template`);
             continue;
@@ -1668,36 +1955,55 @@ export function proveStateMigrate(inputs, plan, written) {
         consumed.add(key(c.noteRel, c.noteLine));
         joined.push({ text: kept + trailer, rel: BOARD_REL, line: c.keptLine });
     }
-    // The two multisets.
+    // Each NFR file holds its own row at line 3, so a row cannot sit in another NFR's file.
+    for (const part of parts.values()) {
+        if (!isNfrFile(part.rel))
+            continue;
+        const id = part.rel.slice(part.rel.lastIndexOf("/") + 1).replace(/\.md$/, "");
+        const row = catalog?.rows.find((r) => r.id === id);
+        if (row === undefined || part.lines[2] !== catalog?.lines[row.index]) {
+            reasons.push(`line 3 of ${shown(part.rel)} is not the row of ${shown(id)} in the pre-v3 NFR catalog ${LEGACY_NFR_CATALOG_REL}`);
+        }
+    }
     const tally = new Map();
-    const entry = (text) => {
-        let e = tally.get(text);
+    const entry = (group, text) => {
+        const k = `${group}\u0000${text}`;
+        let e = tally.get(k);
         if (e === undefined) {
-            e = { orig: [], out: [] };
-            tally.set(text, e);
+            e = { orig: [], out: [], group, text };
+            tally.set(k, e);
         }
         return e;
     };
     originalLines.forEach((l, i) => {
         if (!isBlankLine(l))
-            entry(l).orig.push(i + 1);
+            entry("board", l).orig.push(i + 1);
+    });
+    catalog?.lines.forEach((l, i) => {
+        if (!isBlankLine(l))
+            entry("nfr", l).orig.push(i + 1);
     });
     for (const part of parts.values()) {
         for (let n = part.first; n <= part.lines.length; n++) {
             const l = part.lines[n - 1];
             if (consumed.has(key(part.rel, n)) || isBlankLine(l))
                 continue;
-            entry(l).out.push({ rel: part.rel, line: n });
+            entry(part.group, l).out.push({ rel: part.rel, line: n });
         }
     }
     for (const j of joined)
-        entry(j.text).out.push({ rel: j.rel, line: j.line });
-    for (const [text, e] of tally) {
+        entry("board", j.text).out.push({ rel: j.rel, line: j.line });
+    const originalName = {
+        board: `the pre-v3 board ${LEGACY_BOARD_REL}`,
+        nfr: `the pre-v3 NFR catalog ${LEGACY_NFR_CATALOG_REL}`,
+        seed: "a kit seed at its declared position",
+    };
+    for (const e of tally.values()) {
         for (const n of e.orig.slice(e.out.length)) {
-            reasons.push(`line ${n} of the pre-v3 board ${LEGACY_BOARD_REL} is in no split output: "${shown(text)}"`);
+            reasons.push(`line ${n} of ${originalName[e.group]} is in no split output: "${shown(e.text)}"`);
         }
         for (const o of e.out.slice(e.orig.length)) {
-            reasons.push(`line ${o.line} of ${shown(o.rel)} is not a line of the pre-v3 board ${LEGACY_BOARD_REL}: "${shown(text)}"`);
+            reasons.push(`line ${o.line} of ${shown(o.rel)} is not a line of ${originalName[e.group]}: "${shown(e.text)}"`);
         }
     }
     // Every original home the written files hold.

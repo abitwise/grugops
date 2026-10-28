@@ -602,7 +602,19 @@ describe("(S7) determinism and the closed generated-line set", () => {
   });
 
   it("MIGRATE_GENERATED_LINE_KINDS is pinned, and every generated kind of the fixture plan is a member", () => {
-    expect([...MIGRATE_GENERATED_LINE_KINDS]).toEqual(["board-notes-heading", "provenance", "updates-title", "orphan-title", "orphan-heading"]);
+    // Plan 38-04 (D-06, D-05) adds the five NFR and kit-seed kinds; the fixture plan still generates every member.
+    expect([...MIGRATE_GENERATED_LINE_KINDS]).toEqual([
+      "board-notes-heading",
+      "provenance",
+      "updates-title",
+      "orphan-title",
+      "orphan-heading",
+      "nfr-notes-title",
+      "nfr-table-header-copy",
+      "nfr-table-separator-copy",
+      "nfr-index-line",
+      "kit-seed-line",
+    ]);
     expect(Object.isFrozen(MIGRATE_GENERATED_LINE_KINDS)).toBe(true);
     const kinds = new Set(CHESS_PLAN.generated.map((g) => g.kind));
     for (const k of MIGRATE_GENERATED_LINE_KINDS) expect(kinds, k).toContain(k);
