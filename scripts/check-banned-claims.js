@@ -660,6 +660,15 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // distinction that keeps .planning/ out. Measured with this gate's own matcher before the exclusion
 // was written: 0 live occurrences across all 13 files.
 //
+// install/fixtures/pre-v3-chess/ (32 files at plan 38-01, 2026-10-28, D-15) is EXCLUDED FOR THE SAME REASON, one level
+// removed: it is another repository's runtime state, trimmed verbatim from a real copy of a host repository that still
+// keeps its planning state in the pre-v3 layout, and frozen as the input install --migrate's tests run against. It is
+// the OUTPUT of using grugops in that repository, written by its agents and its humans, never by this kit, and nothing
+// in it ships to a host: the kit copy materializes agent-factory/ only. Editing a fixture line to satisfy this gate
+// would break the freeze its digest pin (install/migrate-v3.test.ts, F1) exists to hold. Measured with this gate's own
+// matcher (countBannedClaimOccurrences over every tracked file under it) before the exclusion was written: 0
+// occurrences across all 32 files.
+//
 // THE REMEDY IF THAT ARGUMENT EVER STOPS HOLDING, so the next reader is not left to invent one:
 // they enter as a DERIVED PART with their own disk walk, their own vacuity floor and
 // BANNED_CLAIM_SCAN_COUNT moved in the same commit — exactly as install/README.md, skills/ and
@@ -812,6 +821,8 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS = [
     // ROOT DIRECTORIES — excluded at the root only, for the reasons above. (Plan 34.1-04, D-25, deleted the `.gemini/`
     // entry together with this repository's own `.gemini/settings.json`, the one tracked file it covered.)
     "memory-bank/",
+    // Another repository's frozen runtime state, the install --migrate fixture (plan 38-01, D-15; reason above).
+    "install/fixtures/pre-v3-chess/",
     // EXACT PATHS — the tracked non-markdown surfaces dispositioned by name above.
     "agent-factory/config/factory.config.json",
     "agent-factory/seed/.grugops/factory.config.json",

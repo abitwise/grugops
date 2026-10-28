@@ -3304,7 +3304,10 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     // [".gemini/", ...] -> without it (plan 34.1-04, D-25): the entry left with this repository's own .gemini/settings.json.
     // ["memory-bank/", <the pre-v3 state root>] -> ["memory-bank/"] (plan 36-06, 2026-10-21): the repository's
     // state moved under STATE_ROOT_REL, so the pre-v3 root entry covered nothing.
-    expect(root).toEqual(["memory-bank/"]);
+    // ["memory-bank/"] -> ["memory-bank/", "install/fixtures/pre-v3-chess/"] (plan 38-01, 2026-10-28, D-15): the frozen
+    // install --migrate fixture, another repository's runtime state, dispositioned by name in the block above (measured
+    // 0 occurrences with countBannedClaimOccurrences before the exclusion was written).
+    expect(root).toEqual(["memory-bank/", "install/fixtures/pre-v3-chess/"]);
     // 31-06 added tsconfig.fixtures.json, dispositioned by name in the block above.
     // 8 -> 11 (plan 34.1-01): the three generated host entries (.agents/skills/grugops/SKILL.md,
     // .opencode/commands/grugops.md, .pi/prompts/grugops.md), dispositioned by name in the block above

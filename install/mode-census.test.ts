@@ -105,8 +105,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * and reads their text).
  * SCRIPTS_TEST_FILE_COUNT 79 -> 80 (2026-10-23, plan 37-26, re-derived by listing scripts/, not incremented) for
  * scripts/validate-read-sites.test.ts, which has no chmod call and reads no `.mode` (it fails the validator's reads
- * with an injected EIO through the fault-injection preload). */
-const INSTALL_TEST_FILE_COUNT = 39;
+ * with an injected EIO through the fault-injection preload).
+ * 2026-10-28, plan 38-01 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 39 -> 40 for
+ * migrate-v3.test.ts, which has no chmod call and no expected mode (it hashes the frozen fixture's paths and bytes and
+ * matches the doctor's printed lines). */
+const INSTALL_TEST_FILE_COUNT = 40;
 const SCRIPTS_TEST_FILE_COUNT = 80;
 const SOURCE_FILE_COUNT = 10;
 
