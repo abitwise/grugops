@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 38
 current_phase_name: install --migrate v3
 status: executing
-stopped_at: Completed 38-02-PLAN.md
-last_updated: "2026-10-28T11:03:13.243Z"
+stopped_at: Completed 38-03-PLAN.md
+last_updated: "2026-10-28T11:50:37.666Z"
 last_activity: 2026-10-28
 last_activity_desc: Phase 38 execution started
-state_head: a4b944cccbf8be0450ba5d11754daa85adcedb1e
+state_head: b6b3099785e7e7bc3a4ebec890f3a9f97642112b
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 68
-  completed_plans: 59
+  completed_plans: 60
   percent: 33
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-27 after Phase 37)
 ## Current Position
 
 Phase: 38 (install --migrate v3) — EXECUTING
-Plan: 3 of 11
+Plan: 4 of 11
 Status: Ready to execute
 Last activity: 2026-10-28 — Phase 38 execution started
 
@@ -774,6 +774,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 37 P42 | 76 min | 3 tasks | 9 files |
 | Phase 38 P01 | 1h 17m | 3 tasks | 45 files |
 | Phase 38 P02 | 1h 15m | 2 tasks | 14 files |
+| Phase 38 P03 | 45min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -2113,6 +2114,10 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-02: a board row whose line touches an HTML comment is not cut; the plan notes it
 - [Phase 38]: 38-02: MigratePlan adds cuts and appended, which the proof and plan 38-03 need
 - [Phase 38]: 38-02: a census over install/ sources reads a fresh EMBED_SPECS generated region as blank; a stale one is read whole
+- [Phase 38]: 38-03: the v3 state arm runs when the repository is not installed two-root and stateLayout() is pre-v3 (vendored-kit, clean and unmarked shapes); isMigrated still stops at the already-migrated arm until plan 38-07
+- [Phase 38]: 38-03: the D-21 option-b set-aside removal is not built (D-21 is option-a); the arm never deletes a user file, and leftovers in staging are named in a note
+- [Phase 38]: 38-03: MEMORY_BANK_REL made by the state migrate is tracked outside the commit journal and taken away after the staging directory on failure
+- [Phase 38]: 38-03: the post-commit proof also requires every written file to hold its planned bytes
 
 ### Pending Todos
 
@@ -2445,8 +2450,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-28T11:03:12.735Z
-Stopped at: Completed 38-02-PLAN.md
+Last session: 2026-10-28T11:50:37.175Z
+Stopped at: Completed 38-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
