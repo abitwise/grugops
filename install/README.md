@@ -66,6 +66,8 @@ node install/install.js --yes --claude
 
 # Preview first — prints the plan, changes NOTHING on disk (in either root):
 DRY_RUN=1 node install/install.js
+# The same preview as a flag (every install.js mode takes it; uninstall.js does not):
+node install/install.js --dry-run
 
 # Put the shared kit somewhere other than ~/.grugops:
 GRUGOPS_HOME=/opt/grugops node install/install.js --target /path/to/repo
@@ -1412,16 +1414,43 @@ current two-root layout safely and reversibly:
 
 ```sh
 node install/install.js --migrate --target /path/to/repo
-# preview the migrate plan first (changes NOTHING on disk):
-DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
+# preview the migrate plan first (changes NOTHING on disk; DRY_RUN=1 is the same):
+node install/install.js --migrate --dry-run --target /path/to/repo
+# also move finished tickets' context folders to .grugops/archive/context/:
+node install/install.js --migrate --archive-done-context --target /path/to/repo
 ```
+
+**The v3 state move.** On a repository whose planning state is still in the pre-v3 layout,
+`--migrate` also moves that state to `memory-bank/plans/`. It splits the board, the traceability
+matrix and the NFR catalog into smaller files, and keeps every original file unchanged under
+`memory-bank/plans/archive/pre-v3/`. It rolls older Done rows and dated progress entries into
+`memory-bank/plans/archive/` (a roll the state rules refuse is skipped with a note), renders the trace, and writes the layout marker
+`memory-bank/plans/.layout` last. The whole move is planned and proven before the first write. If
+any step fails, the move is undone and the repository is left as it was. A second run moves nothing.
+[docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md) describes each step, where every
+original goes, each refusal and the undo.
+
+Two flags go with `--migrate`:
+
+- **`--dry-run`** previews the migrate, as it previews every `install.js` mode. It is the same as
+  `DRY_RUN=1`: it lists each step and changes nothing on disk.
+- **`--archive-done-context`** is valid only with `--migrate` (alone it is a usage error, exit `2`).
+  It renames the context folder of each finished ticket, unchanged, from `.grugops/context/` to
+  `.grugops/archive/context/`. A folder moves only when every ticket ID its name holds is Done and no
+  pending or claimed queue entry names it. Every other folder stays, and the run lists each folder
+  with its reason. On a repository already on the v3 layout, the flag moves the folders on its own
+  and renders the trace again.
+
+If you edited grugops skills or adapters in the repository, an unattended `--migrate` also needs
+`--backup-edited-kit` (see "Re-installing over an existing install" above).
 
 `--migrate` is additive-then-relocate and **never deletes** your content. It:
 
 - backs up the displaced in-repo `agent-factory/` to a timestamped
   `agent-factory.bak.<ISO>` directory (it is renamed aside, never deleted);
 - backs up the legacy handoffs directory an older release's delivery relay left, if there is one,
-  and never deletes it; [docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md) describes that backup,
+  and never deletes it (when the same run moves the planning state, the directory moves with it,
+  unchanged, and no backup is made); [docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md) describes that backup,
   how uninstall and `--prune-old-kit` treat it, and how to restore it;
 - carries your **edited config forward** to `.grugops/factory.config.json` and leaves the
   original in place renamed to `<original>.bak.<ISO>`. Both legacy config locations are handled —

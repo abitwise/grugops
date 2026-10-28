@@ -18,14 +18,27 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 
 ## [Unreleased]
 
+### Added
+
+- `install.js --dry-run`: the flag form of `DRY_RUN=1` for every `install.js` mode. It prints the plan
+  and changes nothing on disk.
+- `install.js --migrate --archive-done-context`: renames the context folder of each finished ticket,
+  unchanged, from `.grugops/context/` to `.grugops/archive/context/`, and lists each folder it keeps
+  with the reason. Valid only with `--migrate`. See
+  [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
+
 ### Changed
 
+- `install --migrate` now moves a pre-v3 repository's planning state from `plans/` to
+  `memory-bank/plans/`, keeping the originals in `memory-bank/plans/archive/pre-v3/`. It splits the
+  board, the traceability matrix and the NFR catalog, rolls older Done rows and dated progress
+  entries, renders the trace and writes the layout marker last. The move is proven before the first
+  write and undone on any failure. See [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
 - Per-repository planning state (the board, the ticket, epic, feature, sprint, release and UAT trees,
   the NFR catalog, the traceability matrix and the metrics file) now lives under `memory-bank/plans/`
   instead of the top-level `plans/` directory.
 - A plain install on a repository whose planning state is still in the pre-v3 `plans/` layout refuses
-  before it writes anything, exits `1` and names the `install --migrate` command to run. `--migrate`
-  on such a repository seeds nothing under `memory-bank/plans/` beside the existing board. A repository
+  before it writes anything, exits `1` and names the `install --migrate` command to run. A repository
   that holds a board in both layouts installs on `memory-bank/plans/` with one note that `plans/` is
   stale; nothing is merged or deleted.
 - `install --check` prints one `state layout:` line: `ok` for the v3 layout, and a warning (never a
