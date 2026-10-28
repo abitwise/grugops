@@ -8,8 +8,9 @@
 // NFR and trace record directories, the progress file, the decision and queue-done directories, every
 // archive path (the Done archive, the progress and decision archives, the queue-done and context archives),
 // the layout marker path and content (D-04, D-05, D-14), and the nine budgets with their pinned count (D-10).
-// agent-factory/contracts/board.md states the same budgets and marker in prose, and
-// install/state-layout.test.ts compares the two.
+// Since Phase 38 (plan 38-02) it also owns the pre-v3 archive paths, the queue's pending and claimed
+// directories and the migrate staging directory. agent-factory/contracts/board.md states the same budgets and
+// marker in prose, and install/state-layout.test.ts compares the two.
 //
 // A NEW STATE PATH IS ADDED HERE FIRST, as one constant, and every reader, writer, the validator, the
 // installer and the uninstaller import it. A state path spelled anywhere else is the drift the old-spelling
@@ -127,6 +128,39 @@ export const GRUGOPS_ARCHIVE_REL = `${GRUGOPS_DIR_REL}/archive`;
 export const CONTEXT_ARCHIVE_REL = `${GRUGOPS_ARCHIVE_REL}/context`;
 /** The archive folder finished queue tasks move into. */
 export const QUEUE_DONE_ARCHIVE_REL = `${GRUGOPS_ARCHIVE_REL}/queue-done`;
+
+// ── Phase 38 (plan 38-02): the pre-v3 archive, the queue's two live directories and the migrate staging ──
+//
+// The same rule as above: each is its declared parent plus exactly one segment, and none is built from
+// LEGACY_STATE_ROOT_REL. The pre-v3 archive holds the monolith files `install --migrate` splits (D-17), the
+// three board-split outputs that have no live home (D-03, D-04, D-06) and, under D-21 option-a, the original of
+// every ticket that receives a `## Board notes` section. The staging directory sits inside the memory-bank state
+// root, so install pruning and uninstall never treat it as kit content (D-10).
+
+/** The pre-v3 archive: the originals of the split files, kept byte for byte (D-17, D-21). */
+export const PRE_V3_ARCHIVE_REL = `${ARCHIVE_REL}/pre-v3`;
+/** The pre-v3 board, moved unchanged out of the live board's place. */
+export const PRE_V3_BOARD_REL = `${PRE_V3_ARCHIVE_REL}/board.md`;
+/** The pre-v3 hand-appended traceability file, archive-only (D-05). */
+export const PRE_V3_TRACEABILITY_REL = `${PRE_V3_ARCHIVE_REL}/traceability.md`;
+/** The pre-v3 NFR catalog, moved unchanged before it is split (D-06). */
+export const PRE_V3_NFR_CATALOG_REL = `${PRE_V3_ARCHIVE_REL}/nfr-catalog.md`;
+/** The pre-v3 progress file, when the roll archives it. */
+export const PRE_V3_PROGRESS_REL = `${PRE_V3_ARCHIVE_REL}/60-progress.md`;
+/** Every `_Updated:` line the pre-v3 board carried, verbatim and in order (D-04). */
+export const PRE_V3_BOARD_UPDATES_REL = `${PRE_V3_ARCHIVE_REL}/board-updates.md`;
+/** The trailers of rows whose ticket file is absent, one `## [ID]` section per row (D-03). */
+export const PRE_V3_ORPHAN_NOTES_REL = `${PRE_V3_ARCHIVE_REL}/board-orphan-notes.md`;
+/** The NFR catalog lines no single NFR file holds (D-06). */
+export const PRE_V3_NFR_NOTES_REL = `${PRE_V3_ARCHIVE_REL}/nfr-notes.md`;
+/** The original of every ticket that receives a `## Board notes` section (D-21 option-a). */
+export const PRE_V3_TICKETS_REL = `${PRE_V3_ARCHIVE_REL}/tickets`;
+/** The queue directory of tasks not yet claimed. */
+export const QUEUE_PENDING_REL = `${QUEUE_REL}/pending`;
+/** The queue directory of claimed tasks; a non-empty one refuses the migrate (D-13). */
+export const QUEUE_CLAIMED_REL = `${QUEUE_REL}/claimed`;
+/** The migrate staging directory, built and proven before the first rename (D-10). */
+export const MIGRATE_STAGING_REL = `${MEMORY_BANK_REL}/.grugops-migrate-v3`;
 
 /** The layout marker (D-04, D-14): present with valid content, budget findings fail; otherwise they warn. */
 export const LAYOUT_MARKER_REL = `${STATE_ROOT_REL}/.layout`;

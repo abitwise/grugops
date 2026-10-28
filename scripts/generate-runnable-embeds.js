@@ -25,6 +25,11 @@
 //   * a root that is not a top-level declaration of its authority, and an embedded line equal to a marker;
 //   * an authority declaration or import named like one of the three generated build stamp names below.
 //
+// MODULE ROWS (plan 38-02, research Pitfall 9). A row of kind `module` (install/state-migrate.ts) is generated and
+// freshness-checked exactly like a runnable, but it is not a host program: its region carries no build stamp line,
+// and the stamp and RUNNABLE_SET below are computed over the runnable rows alone, so a module row changes no byte
+// of any runnable's region.
+//
 // THE BUILD STAMP (plan 37-24, D-17, WR-05, AUTH-1). The three targets are installed into a host as separate
 // files and never updated in place, so each region also carries three generated lines whose shape
 // scripts/runnable-stamp.ts owns: RUNNABLE_SET_STAMP, a sha256 over every EMBED_SPECS target's generated body
@@ -51,6 +56,14 @@ const ROOT = join(import.meta.dirname, "..");
 export const EMBED_OPEN = "// <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`";
 /** The line that closes a generated region. */
 export const EMBED_CLOSE = "// </runnable-embeds>";
+/** The kind of `spec`, its absence read as `runnable`. */
+export function embedKind(spec) {
+    return spec.kind ?? "runnable";
+}
+/** The rows of `set` the build stamp and RUNNABLE_SET are computed over: its runnable rows, in `set` order. */
+export function runnableSpecs(set) {
+    return set.filter((s) => embedKind(s) === "runnable");
+}
 /**
  * Every generated region in the repository. The first row is the state checker (plans 37-03, 37-04 and 37-05):
  * the budget numbers and every state path it reads from install/state-layout.ts, every budget rule, the record
@@ -116,6 +129,14 @@ export const EMBED_CLOSE = "// </runnable-embeds>";
  * is a refusal by name and never an absent directory. The same plan (Task 2) removes scripts/context-io.ts
  * entryPresence from the state roll's row (D-20, IN-13): readTextOrThrow asks the root-chain owner with leaf `entry`,
  * so no hand-written caller of the round-2 owner is left in state-roll and its region no longer declares it.
+ * Plan 38-02 (2026-10-28) adds the fourth row, the migrate planner install/state-migrate.ts, of kind `module` (it is
+ * not installed into a host, so its region carries no stamp line): the board grammar, the ticket grammar and the
+ * ticket stem from scripts/board-model.ts and scripts/board-read.ts, the one section-extent owner from
+ * scripts/frontmatter.ts, the task-folder name rule from scripts/context-io.ts, and the roll planners, the
+ * conservation proof, the budget and NFR index rules and the output sanitizer from scripts/state-rules.ts. It names
+ * no install/state-layout.ts authority: the hand-written part imports those constants from ./state-layout.js, so
+ * the region declares none of them twice. The roots are the whole set phase 38 needs, so later plans never edit
+ * the row.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -285,6 +306,47 @@ export const EMBED_SPECS = Object.freeze([
             },
         ],
     },
+    {
+        target: "install/state-migrate.ts",
+        kind: "module",
+        authorities: [
+            {
+                module: "scripts/board-model.ts",
+                roots: ["parseBoard", "splitRow", "normalizeDocument", "stripHtmlComments", "isTicketId", "parseTicketDocument"],
+            },
+            { module: "scripts/board-read.ts", roots: ["ticketStem"] },
+            { module: "scripts/frontmatter.ts", roots: ["sectionEndIndex"] },
+            { module: "scripts/context-io.ts", roots: ["TASK_NAME_RE"] },
+            {
+                module: "scripts/state-rules.ts",
+                roots: [
+                    "planDoneRoll",
+                    "planArchiveInsert",
+                    "doneDuplicateRefusal",
+                    "planProgressRoll",
+                    "planProgressAppend",
+                    "assembleRoll",
+                    "checkConservation",
+                    "executeRoll",
+                    "lineEndings",
+                    "lineEndingRefusal",
+                    "utf8Bytes",
+                    "boardBudgetFindings",
+                    "doneRowFindings",
+                    "indexLineFindings",
+                    "fileBytesFinding",
+                    "progressBytesFinding",
+                    "budgetEntryNames",
+                    "parseNfrIndex",
+                    "nfrLinkTarget",
+                    "markerState",
+                    "stripControlChars",
+                    "formatFinding",
+                    "sortFindings",
+                ],
+            },
+        ],
+    },
 ]);
 /**
  * A pinned integer, not a derivation: scripts/generate-runnable-embeds.test.ts asserts it equals
@@ -292,8 +354,9 @@ export const EMBED_SPECS = Object.freeze([
  * 2026-10-22, plan 37-03: one row, the state checker.
  * 2026-10-22, plan 37-06: two rows; the second is the host trace renderer (SPLIT-03, D-01).
  * 2026-10-22, plan 37-10: three rows; the third is the Done roll, scripts/runnable-ref/state-roll.ts (SPLIT-06, D-08).
+ * 2026-10-28, plan 38-02: four rows; the fourth is the migrate planner, install/state-migrate.ts, of kind `module`.
  */
-export const EMBED_SPEC_COUNT = 3;
+export const EMBED_SPEC_COUNT = 4;
 /** Names the generator never embeds, each with the reason it gives. */
 const REFUSED_NAMES = Object.freeze({
     LEGACY_STATE_ROOT_REL: "its quoted value is the spelling the old-state-path gate counts (research Pitfall 2); choose roots whose " +
@@ -616,16 +679,18 @@ function stampOver(set, bodies) {
     return `sha256:${hash.digest("hex")}`;
 }
 /**
- * The build stamp of `set`: `sha256:` and the hex sha256 of, for each spec in `set` order, its target, a NUL byte,
- * its generated body (deriveBody's import lines and declarations, joined by newlines) and a NUL byte. Computed from
- * the authorities, never read from a region, so a hand-edited stamp is stale.
+ * The build stamp of `set`: `sha256:` and the hex sha256 of, for each runnable spec in `set` order (a module row is
+ * skipped, plan 38-02), its target, a NUL byte, its generated body (deriveBody's import lines and declarations,
+ * joined by newlines) and a NUL byte. Computed from the authorities, never read from a region, so a hand-edited
+ * stamp is stale.
  */
 export function runnableSetStamp(set, root = ROOT) {
-    return stampOver(set, set.map((s) => deriveBody(s, root)));
+    const runnables = runnableSpecs(set);
+    return stampOver(runnables, runnables.map((s) => deriveBody(s, root)));
 }
 /**
  * The region a fresh derivation gives for `spec`, markers included: the import lines, the three build stamp lines
- * for `set`, then the declarations. `spec` must be a member of `set` (by identity); the generator and the freshness
+ * for the runnable rows of `set` (none for a module row, plan 38-02), then the declarations. `spec` must be a member of `set` (by identity); the generator and the freshness
  * gate pass EMBED_SPECS. Throws on every refusal the module header lists, and when `spec` is not in `set`.
  */
 export function deriveRegion(spec, root = ROOT, set = EMBED_SPECS) {
@@ -634,9 +699,17 @@ export function deriveRegion(spec, root = ROOT, set = EMBED_SPECS) {
         throw new Error(`generate-runnable-embeds: ${spec.target} is not a member of the spec set its build stamp is computed over, so ` +
             "its region cannot be derived");
     }
-    const bodies = set.map((s) => deriveBody(s, root));
-    const own = bodies[at];
-    const stampLines = formatRunnableStampLines(stampOver(set, bodies), set.map((s) => runnableFileName(s.target)), runnableFileName(spec.target));
+    // A module row's region is its import lines and declarations only (plan 38-02): no stamp line, and the
+    // runnables' stamp and RUNNABLE_SET are computed over the runnable rows alone, so adding a module row changes
+    // no byte of any runnable's region.
+    if (embedKind(spec) === "module") {
+        const own = deriveBody(spec, root);
+        return [EMBED_OPEN, ...own.imports, ...own.declarations, EMBED_CLOSE].join("\n");
+    }
+    const runnables = runnableSpecs(set);
+    const bodies = runnables.map((s) => deriveBody(s, root));
+    const own = bodies[runnables.indexOf(spec)];
+    const stampLines = formatRunnableStampLines(stampOver(runnables, bodies), runnables.map((s) => runnableFileName(s.target)), runnableFileName(spec.target));
     return [EMBED_OPEN, ...own.imports, ...stampLines, ...own.declarations, EMBED_CLOSE].join("\n");
 }
 /**

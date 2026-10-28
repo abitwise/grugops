@@ -2400,8 +2400,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     renders no spawn verdict. Its committed `.js` twin landed in the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 110 with this module tracked (2026-10-23, plan 37-24).
+ *
+ * 110 -> 111 (plan 38-02, phase 38 MIGRATE-03, MIGRATE-05), ONE MODULE:
+ *   - `install/state-migrate.ts` — the pure migrate planner and its stage-A conservation proof. Its region, a
+ *     row of kind `module` in scripts/generate-runnable-embeds.ts EMBED_SPECS, carries generated copies of the
+ *     board and ticket grammars, the section-extent owner (`sectionEndIndex`), the task-folder name rule and the
+ *     state rules; the hand-written part imports only ./state-layout.js.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: its one copy of the section-extent predicate sits inside a fresh generated
+ *     region of an EMBED_SPECS target (admittedGeneratedCopy), it declares no function named for the frontmatter
+ *     parser outside that region, reads no grant and renders no spawn verdict. Its committed `.js` twin landed in
+ *     the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 111 with this module tracked (2026-10-28, plan 38-02).
  */
-const NON_TEST_MODULE_COUNT = 110;
+const NON_TEST_MODULE_COUNT = 111;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

@@ -19,6 +19,7 @@
 // rewrites user state.
 
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -67,7 +68,7 @@ function chessInputs(): MigrateInputs {
     rel: `${LEGACY_STATE_ROOT_REL}/${rel}`,
     bytes: new Uint8Array(readFileSync(join(boardRoot, ...rel.split("/")))),
   }));
-  const seed = join(ROOT, "agent-factory", "seed", "memory-bank", "plans");
+  const seed = join(ROOT, "agent-factory", "seed", ...STATE_ROOT_REL.split("/"));
   return {
     date: DATE,
     legacy,
@@ -184,12 +185,19 @@ describe("(S4)-(S5) the heading and the import edge", () => {
     expect(BOARD_NOTES_HEADING).toBe(spelled?.[1]);
   });
 
-  it("(S5) no import or export line of install/state-migrate.ts names scripts/", () => {
-    const src = readFileSync(join(import.meta.dirname, "state-migrate.ts"), "utf8");
-    const edges = src.split("\n").filter((l) => /^\s*(import|export)\b.*\bfrom\b/.test(l));
-    expect(edges.length, "PREMISE: the module imports the state-layout constants").toBeGreaterThan(0);
-    expect(edges.filter((l) => l.includes("scripts/"))).toEqual([]);
-    expect(edges.filter((l) => !l.includes('"./state-layout.js"') && !l.includes('"node:'))).toEqual([]);
+  it("(S5) no import or export declaration of install/state-migrate.ts names scripts/", () => {
+    const path = join(import.meta.dirname, "state-migrate.ts");
+    const sf = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+    const specifiers = sf.statements.flatMap((st) =>
+      (ts.isImportDeclaration(st) || ts.isExportDeclaration(st)) &&
+      st.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(st.moduleSpecifier)
+        ? [st.moduleSpecifier.text]
+        : [],
+    );
+    expect(specifiers, "PREMISE: the module imports the state-layout constants").toContain("./state-layout.js");
+    expect(specifiers.filter((m) => m.includes("scripts/"))).toEqual([]);
+    expect(specifiers.filter((m) => m !== "./state-layout.js" && !m.startsWith("node:"))).toEqual([]);
   });
 });
 

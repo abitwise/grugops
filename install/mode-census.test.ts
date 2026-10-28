@@ -108,10 +108,14 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * with an injected EIO through the fault-injection preload).
  * 2026-10-28, plan 38-01 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 39 -> 40 for
  * migrate-v3.test.ts, which has no chmod call and no expected mode (it hashes the frozen fixture's paths and bytes and
- * matches the doctor's printed lines). */
-const INSTALL_TEST_FILE_COUNT = 40;
+ * matches the doctor's printed lines).
+ * 2026-10-28, plan 38-02 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 40 -> 41 for
+ * state-migrate.test.ts, which has no chmod call and no expected mode (it calls the pure planner on the fixture's
+ * bytes and parses one tracked source), and SOURCE_FILE_COUNT 10 -> 11 for install/state-migrate.ts, the pure migrate
+ * planner, which does no I/O and renders or compares no mode. */
+const INSTALL_TEST_FILE_COUNT = 41;
 const SCRIPTS_TEST_FILE_COUNT = 80;
-const SOURCE_FILE_COUNT = 10;
+const SOURCE_FILE_COUNT = 11;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
  * 10 -> 9 and restore 18 -> 16 on 2026-10-11 (plan 34.1-03, D-12): settings-json-provenance.test.ts lost B2 (a mode-000
