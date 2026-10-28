@@ -1313,6 +1313,10 @@ const NFR_ID_CELL = /^NFR-[0-9]+$/;
 const NFR_ID_TOKEN = /(?<![A-Za-z0-9])NFR-[0-9]+(?![A-Za-z0-9])/g;
 /** A level-2 heading, never a deeper one. */
 const LEVEL_2_HEADING = /^## /;
+/** `ns` as English: "5", "5 and 7", "5, 7 and 9". */
+function listed(ns) {
+    return ns.length <= 1 ? ns.join("") : `${ns.slice(0, -1).join(", ")} and ${ns[ns.length - 1]}`;
+}
 /** The lines of `text` without terminators, and without the empty element after a final LF. */
 function textLines(text) {
     if (text.length === 0)
@@ -1345,9 +1349,11 @@ function isSeparatorLine(line) {
  * HTML comment is never a row. The header is the first line that starts with `|`, whose first cell is `ID`, and that
  * is followed by a separator line. The rows are the lines after the separator that start with `|`, up to the first
  * line that does not, whose first cell is an NFR identifier; a row line that touches an HTML comment is left in the
- * notes file, and the plan says so. A section is a `##` heading outside every fence and comment, to the line before
- * the next heading of level 1 or 2 (the embedded sectionEndIndex); it goes to an NFR file only when its heading
- * names exactly one NFR identifier and that identifier has a row.
+ * notes file, and the plan says so. The category and the target of a row are its cells under the header cells named
+ * Category and Target (matched case-insensitively), wherever they sit. A section is a `##` heading outside every
+ * fence and comment, to the line before the next heading of level 1 or 2 (the embedded sectionEndIndex); it goes to
+ * an NFR file only when its heading names exactly one NFR identifier and that identifier has a row. A header with no
+ * Category or no Target cell, and two rows with one identifier, are refusals naming the file and the lines.
  */
 function readNfrCatalog(text) {
     const lines = textLines(text);
@@ -1364,7 +1370,17 @@ function readNfrCatalog(text) {
         }
     }
     const rows = [];
+    const refusals = [];
     if (header !== null) {
+        const names = tableCells(blanked[header]).map((c) => c.toLowerCase());
+        const categoryAt = names.indexOf("category");
+        const targetAt = names.indexOf("target");
+        for (const [name, at] of [["Category", categoryAt], ["Target", targetAt]]) {
+            if (at < 0) {
+                refusals.push(`line ${header + 1} of ${LEGACY_NFR_CATALOG_REL}, the NFR table header, has no cell named ${name}, so the index ` +
+                    `lines cannot copy one; name one header cell ${name} first`);
+            }
+        }
         for (let i = header + 2; i < lines.length && blanked[i].startsWith("|"); i++) {
             const id = tableCells(blanked[i])[0] ?? "";
             if (!NFR_ID_CELL.test(id))
@@ -1375,7 +1391,16 @@ function readNfrCatalog(text) {
                 continue;
             }
             const cells = tableCells(normalizedLines[i]);
-            rows.push({ index: i, id, category: cells[1] ?? "", target: cells[2] ?? "" });
+            rows.push({ index: i, id, category: cells[categoryAt] ?? "", target: cells[targetAt] ?? "" });
+        }
+        const byId = new Map();
+        for (const r of rows)
+            byId.set(r.id, [...(byId.get(r.id) ?? []), r.index + 1]);
+        for (const [id, at] of byId) {
+            if (at.length > 1) {
+                refusals.push(`${shown(id)} has ${at.length} rows in the NFR table of ${LEGACY_NFR_CATALOG_REL}, at lines ${listed(at)}, so ` +
+                    "which row its NFR file holds is a guess; give each NFR one row first");
+            }
         }
     }
     const rowIds = new Set(rows.map((r) => r.id));
@@ -1391,7 +1416,7 @@ function readNfrCatalog(text) {
             continue;
         sections.push({ id, start: i, end: Math.min(sectionEndIndex(normalized, i + 1, 2), lines.length) });
     }
-    return { lines, header, rows, sections, notes };
+    return { lines, header, rows, sections, notes, refusals };
 }
 /** The index line of one NFR row (D-06): the cell text copied, never reworded. */
 function nfrIndexLine(row) {
@@ -1409,9 +1434,25 @@ function nfrFileRel(id) {
  * kit seed's bytes and one index line per row in table order. The outputs use the catalog's own line ending; the
  * index lines use the seed's.
  */
-function planNfrSplit(catalog, inputs) {
-    const text = decodeText(catalog.bytes);
+function planNfrSplit(catalog, inputs, movedPaths) {
+    const refuse = (why) => ({ refusals: [why], notes: [], writes: [], generated: [] });
+    const text = strictText(catalog.bytes);
+    if (text === null)
+        return refuse(`${LEGACY_NFR_CATALOG_REL} is not valid UTF-8, so it was not split; save it as UTF-8 first`);
+    if (lineEndings(text) === "mixed") {
+        return refuse(`${LEGACY_NFR_CATALOG_REL} mixes LF and CRLF line endings, so it was not split; give it one line ending first`);
+    }
     const read = readNfrCatalog(text);
+    const refusals = [...read.refusals];
+    for (const r of read.rows) {
+        const rel = nfrFileRel(r.id);
+        if (movedPaths.has(rel)) {
+            refusals.push(`${legacyRelOf(rel)} already exists in the pre-v3 tree, and the NFR split plans ${rel} for ${shown(r.id)}; move or ` +
+                "rename that file first");
+        }
+    }
+    if (refusals.length > 0)
+        return { refusals: [...new Set(refusals)], notes: read.notes, writes: [], generated: [] };
     const eol = lineEndings(text) === "crlf" ? "\r\n" : "\n";
     const lines = read.lines;
     // `taken`: the line is in an NFR file. The header and separator lines are never taken: they go to the notes file.
@@ -1466,7 +1507,7 @@ function planNfrSplit(catalog, inputs) {
         source: `the header, the separator and the row of ${shown(rel.slice(rel.lastIndexOf("/") + 1, -".md".length))} from the pre-v3 NFR catalog, and its own sections, verbatim`,
     }));
     return {
-        refusals: [],
+        refusals,
         notes: read.notes,
         writes: [
             {
@@ -1691,7 +1732,8 @@ export function planStateMigrate(inputs) {
     // The NFR catalog (D-06) and the traceability file (D-05), each planned only when the pre-v3 tree holds it.
     const catalogFile = legacy.find((f) => f.rel === LEGACY_NFR_CATALOG_REL);
     const traceFile = legacy.find((f) => f.rel === LEGACY_TRACEABILITY_REL);
-    const nfr = catalogFile === undefined ? null : planNfrSplit(catalogFile, inputs);
+    const movedPaths = new Set(legacy.map((f) => movedRel(f.rel)));
+    const nfr = catalogFile === undefined ? null : planNfrSplit(catalogFile, inputs, movedPaths);
     if (nfr !== null) {
         notes.push(...nfr.notes);
         if (nfr.refusals.length > 0)
@@ -1771,7 +1813,7 @@ export function planStateMigrate(inputs) {
         generated,
         cuts,
         appended,
-        overBudget: plannedBudgetFindings(plannedBoard, legacy, ticketWrites),
+        overBudget: sortFindings([...plannedBudgetFindings(plannedBoard, legacy, ticketWrites), ...nfrBudgetFindings(nfr?.writes ?? [])]),
         steps,
         proof: proveStateMigrate(inputs, provable, written),
     };
@@ -1803,6 +1845,26 @@ function plannedBudgetFindings(plannedBoard, legacy, ticketWrites) {
             findings.push(finding);
     }
     return sortFindings(findings);
+}
+/**
+ * Every budget the planned NFR state breaks (D-06, D-07), through the embedded rules: each line of the new catalog
+ * over BUDGETS.indexEntryBytes (indexLineFindings, outside HTML comments) and each NFR file over BUDGETS.nfrBytes
+ * (fileBytesFinding). Nothing is shortened to fit: an index line copies its cells whatever their length.
+ */
+function nfrBudgetFindings(writes) {
+    const findings = [];
+    for (const w of writes) {
+        if (w.rel === NFR_CATALOG_REL) {
+            const normalized = normalizeDocument(decodeText(w.bytes));
+            findings.push(...indexLineFindings(NFR_CATALOG_REL, { normalized, blanked: stripHtmlComments(normalized) }, BUDGETS));
+        }
+        else if (isNfrFile(w.rel)) {
+            const finding = fileBytesFinding(w.rel, w.bytes.length, "nfrBytes", BUDGETS);
+            if (finding !== null)
+                findings.push(finding);
+        }
+    }
+    return findings;
 }
 /** A written path under the NFR directory. */
 function isNfrFile(rel) {
@@ -1955,15 +2017,21 @@ export function proveStateMigrate(inputs, plan, written) {
         consumed.add(key(c.noteRel, c.noteLine));
         joined.push({ text: kept + trailer, rel: BOARD_REL, line: c.keptLine });
     }
-    // Each NFR file holds its own row at line 3, so a row cannot sit in another NFR's file.
+    // Each NFR file holds its own row at line 3, so a row cannot sit in another NFR's file. A row found there answers
+    // to its original first, so a copy of it anywhere else is the line named as not an original.
+    const anchored = [];
     for (const part of parts.values()) {
         if (!isNfrFile(part.rel))
             continue;
         const id = part.rel.slice(part.rel.lastIndexOf("/") + 1).replace(/\.md$/, "");
         const row = catalog?.rows.find((r) => r.id === id);
-        if (row === undefined || part.lines[2] !== catalog?.lines[row.index]) {
+        const text = part.lines[2];
+        if (row === undefined || text === undefined || text !== catalog?.lines[row.index] || consumed.has(key(part.rel, 3))) {
             reasons.push(`line 3 of ${shown(part.rel)} is not the row of ${shown(id)} in the pre-v3 NFR catalog ${LEGACY_NFR_CATALOG_REL}`);
+            continue;
         }
+        consumed.add(key(part.rel, 3));
+        anchored.push({ text, rel: part.rel, line: 3 });
     }
     const tally = new Map();
     const entry = (group, text) => {
@@ -1983,6 +2051,8 @@ export function proveStateMigrate(inputs, plan, written) {
         if (!isBlankLine(l))
             entry("nfr", l).orig.push(i + 1);
     });
+    for (const a of anchored)
+        entry("nfr", a.text).out.push({ rel: a.rel, line: a.line });
     for (const part of parts.values()) {
         for (let n = part.first; n <= part.lines.length; n++) {
             const l = part.lines[n - 1];
