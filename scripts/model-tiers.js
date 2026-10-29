@@ -772,7 +772,9 @@ function readAssignmentPayload(dial, payload) {
 // in this kit either writes into the shared verified context or produces an artifact a human signs
 // off on, and the behavior gate catches CORRECTNESS, not JUDGMENT. A thin-model ticket, test plan or UAT pack
 // degrades PAST the one mechanism that would have caught it rather than into it. `haiku` stays a
-// legal alias a user may set per role; the shipped preset simply does not reach for it.
+// legal alias a user may set per role; the shipped preset simply does not reach for it. D-2 amends
+// this rule for one adapter only, the engineer's junior level, which is not a TIERED row: see the
+// D-2 AMENDMENT RECORD above the LEVELS table below.
 //
 // The literal MODEL-03 reading — `opus` on three, `haiku` on three, `sonnet` on eleven — was
 // considered and rejected in D-09: it exercises all three aliases but puts the thinnest tier exactly

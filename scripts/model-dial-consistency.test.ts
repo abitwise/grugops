@@ -1189,7 +1189,10 @@ const EFFORT_SECTION_REQUIRED_TOKENS = [
  * field reference, not in the packaging authority, so UNKNOWN_VERIFY_MARKER_COUNT (which pins the
  * packaging authority's markers) does not move (RESEARCH Pitfall 8).
  */
-const EFFORT_RESIDUAL_ANCHORS = ["the no-effort model behaviour", "the standalone version floor"] as const;
+// (Plan 39-07, D-2, D-22) The first residual's paragraph was replaced by the D-2 record, which keeps the
+// no-effort model case as `UNKNOWN - verify` for Haiku 4.5 (and Sonnet 4.5) on the cloud providers; its
+// anchor moved with it.
+const EFFORT_RESIDUAL_ANCHORS = ["The junior level and its Claude Code floor", "the standalone version floor"] as const;
 
 /** The packaging authority's bullet for the emitted field. */
 const EFFORT_BULLET_MARKER = "- **`effort`**";

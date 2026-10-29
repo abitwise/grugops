@@ -4,7 +4,8 @@
 // D-11, D-31) and agent-factory/roles/tech-lead.md (TIER-01; D-04..D-07, D-10, D-17, D-19, D-21).
 // Plan 39-06 adds the cases for agent-factory/roles/designer.md (TIER-05; D-23..D-27).
 // Plan 39-07 adds the cases for the engineer's `levels:` line and `## Levels` section (TIER-02,
-// TIER-03; D-5, D-10, D-17, D-18, D-31). Later Phase 39 plans add WF04 and WF14.
+// TIER-03; D-5, D-10, D-17, D-18, D-31), and the dial documentation of the D-2 amendment and the
+// level keys (D-2, D-15, D-16, D-22). Later Phase 39 plans add WF04 and WF14.
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -369,5 +370,51 @@ describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D
   it("the role keeps exactly one Workflow 16 and one Workflow 18 reference after the section lands", () => {
     expect(ENGINEER.split("16-context-read-write.md").length - 1).toBe(1);
     expect(ENGINEER.split("18-context-compaction.md").length - 1).toBe(1);
+  });
+});
+
+describe("the level dial documentation (TIER-03; D-2, D-5, D-15, D-16, D-17, D-22)", () => {
+  const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
+  const PACKAGING = readFileSync(join(ROOT, "agent-factory/packaging/subagent.frontmatter.md"), "utf8");
+  const TIERS = readFileSync(join(ROOT, "scripts/model-tiers.ts"), "utf8");
+
+  it("factory.config.md names the three level adapter stems and their D-14 pins", () => {
+    for (const stem of ["software-engineer-junior", "software-engineer-mid", "software-engineer-senior"]) {
+      expect(CONFIG).toContain(`\`${stem}\``);
+    }
+    expect(CONFIG).toContain("junior `haiku` at effort `medium`, mid `sonnet` at effort `medium`, senior `opus` at effort `high`");
+  });
+
+  it("D-15 / D-16: the role-wide key covers all three levels, a level key wins, and no preset changes a level", () => {
+    expect(CONFIG).toContain("The key `software-engineer` applies to all three levels, and a level key wins over it for its own level.");
+    expect(CONFIG).toContain("A `preset`, `none` or `tiered`, never changes a level: only a `roles` entry does.");
+    expect(CONFIG).toContain("nor a level adapter stem");
+  });
+
+  it("D-2 / D-22: the v2.1.293 floor is recorded with its source, and Haiku 4.5 on the cloud providers is `UNKNOWN - verify` for effort", () => {
+    expect(CONFIG).toContain("Claude Code v2.1.293 or later");
+    expect(CONFIG).toContain("does not check the installed Claude Code version");
+    expect(CONFIG).toMatch(/Haiku 4\.5[^\n]*`UNKNOWN - verify`/);
+    expect(TIERS).toContain("v2.1.293");
+    expect(TIERS).toContain("THE D-2 AMENDMENT RECORD");
+  });
+
+  it("D-5 / D-17: the level is guidance on every other host, with no model advice", () => {
+    expect(CONFIG).toContain("**The level is guidance on the other hosts.**");
+    expect(CONFIG).toContain("grugops gives no model advice for those hosts.");
+  });
+
+  it("T-39-11: the three run-time flattening paths are named and no enforcement is claimed", () => {
+    expect(CONFIG).toContain("**A `model` or `effort` parameter on the spawn call.**");
+    expect(CONFIG).toContain("**`CLAUDE_CODE_SUBAGENT_MODEL`.**");
+    expect(CONFIG).toContain("**An `availableModels` restriction.**");
+    expect(CONFIG).toContain("grugops does not enforce the level");
+  });
+
+  it("subagent.frontmatter.md carries no specialist or adapter count, and documents the level adapter's differing lines", () => {
+    expect(PACKAGING).not.toMatch(/\b(16|sixteen) (of them|specialist|adapters)/i);
+    expect(PACKAGING).toContain("### The level adapter");
+    expect(PACKAGING).toContain("`name` is `grugops-<role>-<level>`.");
+    expect(PACKAGING).toContain("ends with ` Level: <level>.` inside its quotes");
   });
 });

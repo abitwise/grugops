@@ -19,8 +19,9 @@ factory's model dial resolved for that role. With no model dial configured — t
 the dial resolves `inherit` for every role, so such a repository keeps the user's session model
 choice exactly as before.
 
-There are exactly two shapes: a **specialist** adapter (16 of them) and the **coordinator**
-adapter (one — the orchestrator). Only the coordinator carries the `coordinator: true` marker
+There are exactly two shapes: a **specialist** adapter (every role but the orchestrator, with
+one adapter per level for a role that declares `levels`) and the **coordinator** adapter (one —
+the orchestrator). Only the coordinator carries the `coordinator: true` marker
 and the enumerated spawn grant; a specialist never spawns, so `Agent` is omitted from its
 `tools` entirely, which is the vendor-documented way to keep a sub-agent from spawning on
 every path.
@@ -41,8 +42,8 @@ model: inherit
 ---
 ```
 
-Body — this is the whole of it, and it is identical for all sixteen specialists apart from
-the one role path:
+Body — this is the whole of it, and it is identical for every specialist apart from the one
+role path (and, for a level adapter, the one level line described below):
 
 ```markdown
 > **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `memory-bank/` (planning state in `memory-bank/plans/`) and `.grugops/` = STATE in this repo. If `memory-bank/plans/board.md` is absent and `plans/board.md` exists, use `plans/` and say once: run `install --migrate`. If both exist, use `memory-bank/plans/` and say once that `plans/` is stale. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
@@ -71,7 +72,23 @@ That is the complete list: the invariant blockquote, the resolver block, "read o
 file and act as that role", the memory sentence, and the echoed hard limit. **Nothing
 role-specific** — no read order, no routing, no responsibilities. The factory read order
 (`.grugops/factory.config.json`, `AGENTS.md`, `memory-bank/plans/board.md`) belongs to the coordinator
-alone and is deliberately not duplicated into sixteen adapters.
+alone and is deliberately not duplicated into every specialist adapter.
+
+### The level adapter
+
+A role whose frontmatter declares `levels` (today only `software-engineer.md`, with
+`levels: junior mid senior`) gets one specialist adapter per level and no base adapter. Each
+level adapter is the specialist adapter above with exactly these differences:
+
+- `name` is `grugops-<role>-<level>`.
+- `description` ends with ` Level: <level>.` inside its quotes.
+- `model` and an `effort` line carry the level's pin from the `LEVELS` table in
+  `scripts/model-tiers.ts`, unless a `models.roles` / `models.effort.roles` entry for the role or
+  the level adapter stem overrides it.
+- After the role-pointer lines, the body carries one more line:
+  ``Work at the `<level>` level: read the `## Levels` section of that role file for its scope.``
+
+Every other byte is the specialist adapter's. The coordinator's grant names each level adapter.
 
 ## The coordinator adapter
 
@@ -138,13 +155,19 @@ already has the `Agent` tool — so it spawns, and the honest thing to report th
 
 **Size budget (measured on the generator's real output, plan 27-07; re-measured in plan 34-07).**
 The coordinator is the largest adapter the generator emits, because only it carries the tier
-announcement and the enumerated grant. With the grant expanded to the real 16 specialist names,
-the zero-config coordinator adapter measures **3013 bytes** against the 3072-byte pointer-size
+announcement and the enumerated grant. When plan 34-07 measured it, with the grant expanded to the
+specialist names of that day, the zero-config coordinator adapter measured **3013 bytes** against the 3072-byte pointer-size
 warn tier and the 4096-byte fail tier — **59 bytes of warn-tier headroom**. A configured effort
 level adds one line; the largest it can add is `effort: medium` and its newline, **15 bytes**,
 which leaves the coordinator at 3028 bytes, under the warn tier. Specialists measure 1541 bytes
 (`grugops-qe-e2e`) to 1901 bytes (`grugops-security-nfr`) at zero config; a specialist's size is
 driven by its derived description, so a longer `## One job` sentence is what moves it.
+
+**Re-measured 2026-10-29 (plan 39-07).** With the Tech Lead, the Designer and the three engineer
+level adapters in the grant, the zero-config coordinator adapter measures **3368 bytes**: past the
+3072-byte warn tier, which `guard_adapter_size` reports as a WARN, and under the 4096-byte fail
+tier. A level adapter measures about 1915 bytes, because it carries the specialist body plus its
+`effort:` line and its level line.
 
 Two things the earlier estimate of 2951 / 1431 did not carry, both now in the measurement: the
 one-line generated-file provenance header, and the `description` emitted as a double-quoted YAML

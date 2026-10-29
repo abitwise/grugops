@@ -983,7 +983,9 @@ function readAssignmentPayload<V extends string>(
 // in this kit either writes into the shared verified context or produces an artifact a human signs
 // off on, and the behavior gate catches CORRECTNESS, not JUDGMENT. A thin-model ticket, test plan or UAT pack
 // degrades PAST the one mechanism that would have caught it rather than into it. `haiku` stays a
-// legal alias a user may set per role; the shipped preset simply does not reach for it.
+// legal alias a user may set per role; the shipped preset simply does not reach for it. D-2 amends
+// this rule for one adapter only, the engineer's junior level, which is not a TIERED row: see the
+// D-2 AMENDMENT RECORD above the LEVELS table below.
 //
 // The literal MODEL-03 reading — `opus` on three, `haiku` on three, `sonnet` on eleven — was
 // considered and rejected in D-09: it exercises all three aliases but puts the thinnest tier exactly
@@ -1458,6 +1460,25 @@ export function tieredCorpusRefusals(
   return findings;
 }
 
+// ── THE D-2 AMENDMENT RECORD (Phase 39, plans 39-01 and 39-07) ─────────────────────────────────
+//
+// D-2 amends the D-09 rule above ("no role is assigned `haiku`") for the engineer's junior level
+// only. The junior level adapter, grugops-software-engineer-junior, pins `haiku` at effort `medium`
+// at zero config (D-3, D-14). It takes only tasks whose plan already fixes what to write, and never
+// security, migration, concurrency or test-integrity work: the complexity rubric's F3 rule makes
+// junior impossible for those, and software-engineer.md's `## Levels` section tells a junior that
+// meets one to stop BLOCKED (D-31). No TIERED row assigns `haiku`, and no preset changes a level
+// (D-16).
+//
+// The Claude Code version floor. code.claude.com/docs/en/model-config (read 2026-10-29) says to use
+// Claude Code v2.1.293 or later with Haiku 5.5, the model the `haiku` alias resolves to on the
+// Anthropic API. The same page says the alias resolves to Haiku 4.5 on Claude Platform on AWS, Amazon
+// Bedrock, Google Cloud's Agent Platform and Microsoft Foundry, and Haiku 4.5 is not in its list of
+// models that support an effort level. What Claude Code does with the junior adapter's
+// `effort: medium` line there is `UNKNOWN - verify`. The floor is documented only, here and in
+// agent-factory/config/factory.config.md: no `claude --version` probe is added (D-22; the doctor
+// work is Phase 42).
+//
 // ── LEVELS — the engineer level pins, one row per level, each row carrying its reason ─────────
 //
 // D-14: junior `haiku` at effort `medium`, mid `sonnet` at `medium`, senior `opus` at `high`. A role
