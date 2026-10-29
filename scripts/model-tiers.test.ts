@@ -55,6 +55,7 @@ import {
   LEVEL_COUNT,
   LEVELS,
   configKeyStems,
+  levelTableRefusals,
   presetGovernedStems,
   resolveAdapterAssignments,
   zeroConfigAssignments,
@@ -82,6 +83,7 @@ import {
   tieredTableRefusals,
   type EffortKey,
   type EffortLevel,
+  type LevelTier,
   type ModelAlias,
   type ModelsKey,
   type ResolveEffortsOptions,
@@ -2790,6 +2792,18 @@ describe("effort `tiered` and its rationale (plan 34-03, D-04, D-05)", () => {
     const offending = TIERED.filter((r) => EFFORT_RATIONALE_BANNED.test(String(r.effortRationale))).map(
       (r) => `${r.stem}: ${String(r.effortRationale).match(EFFORT_RATIONALE_BANNED)?.[0] ?? ""}`,
     );
+    // (Plan 39-01) The same refusal runs over BOTH reasons of every LEVELS row: a level pin argues
+    // quality exactly as a TIERED row does.
+    for (const row of LEVELS) {
+      for (const [field, text] of [
+        ["rationale", row.rationale],
+        ["effortRationale", row.effortRationale],
+      ] as const) {
+        const word = String(text).match(EFFORT_RATIONALE_BANNED)?.[0];
+        if (word !== undefined) offending.push(`LEVELS ${row.level}.${field}: ${word}`);
+      }
+    }
+    expect(LEVELS.length, "the LEVELS half must have had rows to run over").toBe(LEVEL_COUNT);
     expect(offending).toEqual([]);
     // The pattern is not vacuous: it catches each word family it claims to.
     for (const word of ["costs", "Cheaper", "pricing", "tokens", "savings", "limits", "faster"]) {
@@ -2974,5 +2988,267 @@ describe("per-adapter resolution and the level pins (plan 39-01, D-14)", () => {
       effort: { preset: "none", overrides: new Map() },
       source: null,
     }).ok).toBe(true);
+  });
+});
+
+// ── The D-14 / D-15 / D-16 precedence matrix (plan 39-01, Task 2) ─────────────────────────────
+
+/** The three level pins of one resolution, as [model, effort] per level, for literal comparison. */
+const levelPins = (
+  r: ReturnType<typeof resolveAdapterAssignments>,
+): Record<string, [string | undefined, string | undefined]> => {
+  if (!r.ok) throw new Error(`expected a resolution, got a refusal: ${r.reason}`);
+  const out: Record<string, [string | undefined, string | undefined]> = {};
+  for (const stem of ["software-engineer-junior", "software-engineer-mid", "software-engineer-senior"]) {
+    out[stem] = [r.value.models.get(stem), r.value.efforts.get(stem)];
+  }
+  return out;
+};
+
+/** Read a config through readModelsConfig with the derived key set, then resolve every adapter. */
+const resolveMirror = (config: unknown): ReturnType<typeof resolveAdapterAssignments> => {
+  const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+  const c = readModelsConfig(rootWithConfig(config), configKeyStems(specs));
+  if (!c.ok) throw new Error(`expected the config to be read, got: ${c.reason}`);
+  return resolveAdapterAssignments(specs, c.value);
+};
+
+const D14_PINS = {
+  "software-engineer-junior": ["haiku", "medium"],
+  "software-engineer-mid": ["sonnet", "medium"],
+  "software-engineer-senior": ["opus", "high"],
+};
+
+describe("the level precedence matrix (plan 39-01, D-14, D-15, D-16)", () => {
+  it("zero config (no file): the D-14 pins", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    const c = readModelsConfig(scratchRoot(), configKeyStems(specs));
+    expect(c.ok && c.value.source === null).toBe(true);
+    if (!c.ok) return;
+    expect(levelPins(resolveAdapterAssignments(specs, c.value))).toEqual(D14_PINS);
+  });
+
+  it("D-16: an explicit `models.preset: \"none\"` leaves the D-14 pins", () => {
+    expect(levelPins(resolveMirror({ models: { preset: "none" } }))).toEqual(D14_PINS);
+  });
+
+  it("D-16 (assumption A1): `models.preset: \"tiered\"` leaves the D-14 pins and gives every other adapter its TIERED alias", () => {
+    const r = resolveMirror({ models: { preset: "tiered" } });
+    expect(levelPins(r)).toEqual(D14_PINS);
+    if (!r.ok) return;
+    expect(r.value.models.get("orchestrator")).toBe("opus");
+    expect(r.value.models.get("ba-pm")).toBe("sonnet");
+    expect(r.value.efforts.get("orchestrator")).toBe("inherit");
+  });
+
+  it("D-15: `models.roles.software-engineer: opus` moves all three levels to opus and leaves their efforts", () => {
+    expect(levelPins(resolveMirror({ models: { roles: { "software-engineer": "opus" } } }))).toEqual({
+      "software-engineer-junior": ["opus", "medium"],
+      "software-engineer-mid": ["opus", "medium"],
+      "software-engineer-senior": ["opus", "high"],
+    });
+  });
+
+  it("D-15: `models.roles.software-engineer-junior: sonnet` beats `models.roles.software-engineer: opus` for junior only", () => {
+    const r = resolveMirror({
+      models: { roles: { "software-engineer": "opus", "software-engineer-junior": "sonnet" } },
+    });
+    expect(levelPins(r)).toEqual({
+      "software-engineer-junior": ["sonnet", "medium"],
+      "software-engineer-mid": ["opus", "medium"],
+      "software-engineer-senior": ["opus", "high"],
+    });
+  });
+
+  it("D-15: `models.effort.roles.software-engineer: low` moves all three efforts and leaves their models", () => {
+    const r = resolveMirror({ models: { effort: { roles: { "software-engineer": "low" } } } });
+    expect(levelPins(r)).toEqual({
+      "software-engineer-junior": ["haiku", "low"],
+      "software-engineer-mid": ["sonnet", "low"],
+      "software-engineer-senior": ["opus", "low"],
+    });
+  });
+
+  it("D-15: `models.effort.roles.software-engineer-senior: max` beats `models.effort.roles.software-engineer: low` for senior only", () => {
+    const r = resolveMirror({
+      models: {
+        effort: { roles: { "software-engineer": "low", "software-engineer-senior": "max" } },
+      },
+    });
+    expect(levelPins(r)).toEqual({
+      "software-engineer-junior": ["haiku", "low"],
+      "software-engineer-mid": ["sonnet", "low"],
+      "software-engineer-senior": ["opus", "max"],
+    });
+  });
+
+  it("D-16: `models.effort.preset: \"tiered\"` leaves the level efforts and gives every other adapter its computed effort", () => {
+    const r = resolveMirror({ models: { effort: { preset: "tiered" } } });
+    expect(levelPins(r)).toEqual(D14_PINS);
+    if (!r.ok) return;
+    expect(r.value.efforts.get("orchestrator")).toBe("high");
+    expect(r.value.efforts.get("ba-pm")).toBe("medium");
+    expect(r.value.models.get("orchestrator")).toBe("inherit");
+  });
+
+  it("D-15: readModelsConfig over configKeyStems admits software-engineer and software-engineer-junior, -mid and -senior as roles keys", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    for (const key of [
+      "software-engineer",
+      "software-engineer-junior",
+      "software-engineer-mid",
+      "software-engineer-senior",
+    ]) {
+      const c = readModelsConfig(rootWithConfig({ models: { roles: { [key]: "opus" } } }), configKeyStems(specs));
+      expect(c.ok, key).toBe(true);
+      const e = readModelsConfig(
+        rootWithConfig({ models: { effort: { roles: { [key]: "low" } } } }),
+        configKeyStems(specs),
+      );
+      expect(e.ok, `effort ${key}`).toBe(true);
+    }
+  });
+
+  it("D-15: readModelsConfig over configKeyStems REFUSES grugops-software-engineer-junior and software-engineer-intern naming the legal set", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    const legal = configKeyStems(specs);
+    for (const key of ["grugops-software-engineer-junior", "software-engineer-intern"]) {
+      const reason = refusalOrFail(rootWithConfig({ models: { roles: { [key]: "opus" } } }), legal);
+      expect(reason, key).toContain(`"${key}"`);
+      expect(reason, key).toContain(legal.join(", "));
+      const effort = refusalOrFail(rootWithConfig({ models: { effort: { roles: { [key]: "low" } } } }), legal);
+      expect(effort, `effort ${key}`).toContain(legal.join(", "));
+    }
+  });
+
+  it("resolveAdapterAssignments REFUSES a key outside configKeyStems handed to it directly, naming the legal set", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    const r = resolveAdapterAssignments(specs, {
+      preset: "none",
+      overrides: new Map([["software-engineer-intern", "opus"]]),
+      effort: { preset: "none", overrides: new Map() },
+      source: null,
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toContain('"software-engineer-intern"');
+    expect(r.reason).toContain('"software-engineer-junior"');
+  });
+
+  it("resolveAdapterAssignments REFUSES a spec whose level has no LEVELS row, naming the level, the file and the legal levels", () => {
+    const specs = [
+      {
+        name: "grugops-software-engineer-intern",
+        adapterStem: "software-engineer-intern",
+        roleStem: "software-engineer",
+        roleFile: "software-engineer.md",
+        level: "intern",
+      },
+    ];
+    const r = resolveAdapterAssignments(specs, {
+      preset: "none",
+      overrides: new Map(),
+      effort: { preset: "none", overrides: new Map() },
+      source: null,
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toContain('"intern"');
+    expect(r.reason).toContain('"software-engineer.md"');
+    expect(r.reason).toContain('"junior", "mid", "senior"');
+  });
+
+  it("the live tree: resolveAdapterAssignments under every preset pair equals the old resolveModels and resolveEfforts output", () => {
+    const specs = listAgentAdapterSpecs(ROOT);
+    const stems = kitStems();
+    for (const preset of PRESET_NAMES) {
+      for (const effortPreset of EFFORT_PRESET_NAMES) {
+        const r = resolveAdapterAssignments(specs, {
+          preset,
+          overrides: new Map(),
+          effort: { preset: effortPreset, overrides: new Map() },
+          source: null,
+        });
+        const m = resolveModels(stems, { preset });
+        const e = resolveEfforts(stems, { preset: effortPreset });
+        expect(r.ok && m.ok && e.ok, `${preset}/${effortPreset}`).toBe(true);
+        if (!r.ok || !m.ok || !e.ok) continue;
+        expect([...r.value.models], `${preset}/${effortPreset}`).toEqual([...m.value]);
+        expect([...r.value.efforts], `${preset}/${effortPreset}`).toEqual([...e.value]);
+      }
+    }
+  });
+});
+
+// ── levelTableRefusals — the level table's own integrity (plan 39-01, Task 2) ──────────────────
+
+/** The shipped level table with one row's field replaced. */
+const levelsWith = (level: string, patch: Partial<LevelTier>): LevelTier[] =>
+  LEVELS.map((r) => (r.level === level ? { ...r, ...patch } : r));
+
+describe("levelTableRefusals (plan 39-01, MODEL-07)", () => {
+  it("is exported, and the SHIPPED level table carries no finding", () => {
+    expect(typeof levelTableRefusals).toBe("function");
+    expect(levelTableRefusals()).toEqual([]);
+  });
+
+  it("refuses a DIGIT in a rationale and in an effortRationale, naming the level", () => {
+    expect(typeof levelTableRefusals).toBe("function");
+    const r = levelTableRefusals(levelsWith("mid", { rationale: "Better by a factor of 2." }));
+    expect(matching(r, /"mid"/).length).toBe(1);
+    expect(r[0]).toMatch(/rationale that contains a DIGIT/);
+    const e = levelTableRefusals(levelsWith("senior", { effortRationale: "Deeper by 3 steps." }));
+    expect(matching(e, /"senior"/).length).toBe(1);
+    expect(e[0]).toMatch(/effortRationale that contains a DIGIT/);
+  });
+
+  it("refuses an EMPTY or whitespace rationale and effortRationale, naming the level", () => {
+    expect(typeof levelTableRefusals).toBe("function");
+    for (const blank of ["", "  ", "\t\n"]) {
+      const r = levelTableRefusals(levelsWith("junior", { rationale: blank }));
+      expect(matching(r, /EMPTY rationale/).length, JSON.stringify(blank)).toBe(1);
+      const e = levelTableRefusals(levelsWith("junior", { effortRationale: blank }));
+      expect(matching(e, /EMPTY effortRationale/).length, JSON.stringify(blank)).toBe(1);
+    }
+  });
+
+  it("refuses an empty table, a duplicated level, an alias outside MODEL_ALIASES and an effort outside EFFORT_LEVELS", () => {
+    expect(typeof levelTableRefusals).toBe("function");
+    expect(matching(levelTableRefusals([]), /EMPTY/).length).toBe(1);
+    expect(matching(levelTableRefusals([...LEVELS, LEVELS[0]]), /"junior" appears 2 times/).length).toBe(1);
+    const alias = levelTableRefusals(levelsWith("mid", { alias: "gpt" as unknown as ModelAlias }));
+    expect(matching(alias, /"gpt"/).length).toBe(1);
+    const effort = levelTableRefusals(levelsWith("mid", { effort: "MAX" as unknown as EffortLevel }));
+    expect(matching(effort, /"MAX"/).length).toBe(1);
+  });
+
+  it("resolveAdapterAssignments REFUSES rather than pins when the level table is broken", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    const zero = {
+      preset: "none",
+      overrides: new Map(),
+      effort: { preset: "none", overrides: new Map() },
+      source: null,
+    } as const;
+    const broken = levelsWith("junior", { rationale: "Saves 5 percent." });
+    const r = resolveAdapterAssignments(specs, zero, broken);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toMatch(/DIGIT/);
+    expect(resolveAdapterAssignments(specs, zero).ok, "the shipped table resolves").toBe(true);
+  });
+
+  it("no LEVELS rationale or effortRationale contains a DIGIT (MODEL-07; the vocabulary half is the shared case above)", () => {
+    const offending: string[] = [];
+    for (const row of LEVELS) {
+      for (const [field, text] of [
+        ["rationale", row.rationale],
+        ["effortRationale", row.effortRationale],
+      ] as const) {
+        if (/[0-9]/.test(text)) offending.push(`${row.level}.${field}`);
+      }
+    }
+    expect(offending).toEqual([]);
+    expect(LEVELS.length, "the check must have had rows to run over").toBe(LEVEL_COUNT);
   });
 });

@@ -2232,3 +2232,74 @@ describe("kit-model: agent adapter identity (plan 39-01, TIER-02)", () => {
     expect(names).toEqual([...names].sort());
   });
 });
+
+describe("kit-model: every refusal of the levels derivation (plan 39-01, TIER-02, TIER-06)", () => {
+  const SE = "software-engineer.md";
+  const sePath = (root: string): string => join(root, "agent-factory/roles", SE);
+
+  it("levels: a role whose frontmatter carries `levels` twice THROWS naming the file", () => {
+    const root = levelsMirror({ [SE]: ["levels: junior mid senior", "levels: junior"] });
+    expect(() => listAgentAdapterSpecs(root)).toThrow(sePath(root));
+    expect(() => listAgentAdapterSpecs(root)).toThrow(/declares `levels` 2 times/);
+  });
+
+  it("levels: a role whose `levels` value is EMPTY THROWS naming the file", () => {
+    const root = levelsMirror({ [SE]: ["levels:"] });
+    expect(() => listAgentAdapterSpecs(root)).toThrow(sePath(root));
+    expect(() => listAgentAdapterSpecs(root)).toThrow(/EMPTY value/);
+  });
+
+  it("levels: a level repeated inside one value THROWS naming the file and the level", () => {
+    const root = levelsMirror({ [SE]: ["levels: junior junior"] });
+    expect(() => listAgentAdapterSpecs(root)).toThrow(sePath(root));
+    expect(() => listAgentAdapterSpecs(root)).toThrow(/"junior" more than once/);
+  });
+
+  it("levels: a level that is not lower-case kebab THROWS naming the file and the level (upper case, underscore)", () => {
+    for (const bad of ["Junior", "jun_ior"]) {
+      const root = levelsMirror({ [SE]: [`levels: ${bad}`] });
+      expect(() => listAgentAdapterSpecs(root), bad).toThrow(sePath(root));
+      expect(() => listAgentAdapterSpecs(root), bad).toThrow(`"${bad}", which is not lower-case kebab`);
+    }
+  });
+
+  it("levels: an expanded name equal to another role's adapter name THROWS naming BOTH files", () => {
+    const root = levelsMirror(
+      { [SE]: ["levels: junior"] },
+      { "software-engineer-junior.md": "---\nkind: role\n---\n# Role: collision fixture\n" },
+    );
+    const dir = join(root, "agent-factory/roles");
+    expect(() => listAgentAdapterSpecs(root)).toThrow(join(dir, SE));
+    expect(() => listAgentAdapterSpecs(root)).toThrow(join(dir, "software-engineer-junior.md"));
+    expect(() => listAgentAdapterSpecs(root)).toThrow(/"grugops-software-engineer-junior"/);
+  });
+
+  it("levels: the collision check is CASE-FOLDED — a role file differing only in case still collides", () => {
+    const root = levelsMirror(
+      { [SE]: ["levels: junior"] },
+      { "Software-Engineer-Junior.md": "---\nkind: role\n---\n# Role: case fixture\n" },
+    );
+    expect(() => listAgentAdapterSpecs(root)).toThrow(/after lower-casing/);
+    expect(() => listAgentAdapterSpecs(root)).toThrow("Software-Engineer-Junior.md");
+  });
+
+  it("levels: declaration order does not matter — `senior junior mid` and `junior mid senior` give byte-identical specs", () => {
+    const a = listAgentAdapterSpecs(levelsMirror({ [SE]: ["levels: senior junior mid"] }));
+    const b = listAgentAdapterSpecs(levelsMirror({ [SE]: ["levels: junior mid senior"] }));
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it("levels: a role with NO `levels` key yields exactly one spec with level null", () => {
+    const specs = listAgentAdapterSpecs(levelsMirror({ [SE]: ["levels: junior mid senior"] }));
+    const orchestrator = specs.filter((s) => s.roleStem === "orchestrator");
+    expect(orchestrator).toEqual([
+      {
+        name: "grugops-orchestrator",
+        adapterStem: "orchestrator",
+        roleStem: "orchestrator",
+        roleFile: "orchestrator.md",
+        level: null,
+      },
+    ]);
+  });
+});
