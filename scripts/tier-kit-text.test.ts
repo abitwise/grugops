@@ -8,7 +8,9 @@
 // level keys (D-2, D-15, D-16, D-22).
 // Plan 39-08 adds the cases for the Tech Lead in agent-factory/workflows/04-ticket-to-pr.md and the
 // Orchestrator's routing block (TIER-01; D-02, D-05, D-06, D-08, D-17, D-30), and for the WF04
-// escalation path (TIER-04; D-18..D-21). A later Phase 39 plan adds WF14.
+// escalation path (TIER-04; D-18..D-21).
+// Plan 39-09 adds the cases for the Designer in agent-factory/workflows/14-ui-design-to-build.md and
+// for Frontend/UI reading the Designer's tokens (TIER-05; D-23..D-26).
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -589,5 +591,69 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(section(WF04, "Board moves")).toContain(
       "On an escalation the Software Engineer moves the ticket to `Blocked`, and the Tech Lead owns its exit back to `Ready for Dev`.",
     );
+  });
+});
+
+describe("WF14 runs the Designer before Frontend/UI, and Frontend/UI reads the Designer's tokens (TIER-05; D-23..D-26)", () => {
+  const WF14 = readFileSync(join(ROOT, "agent-factory/workflows/14-ui-design-to-build.md"), "utf8");
+  const FRONTEND = readFileSync(join(ROOT, "agent-factory/roles/frontend-ui.md"), "utf8");
+  const steps = numbered(section(WF14, "Steps"));
+  const designerStep = steps.find((s) => s.text.startsWith("Establish the design system once per product (Designer)."));
+  const contractStep = steps.find((s) => s.text.startsWith("Draft the UI/design contract"));
+
+  it("the steps are numbered 1..n with no gap", () => {
+    expect(steps.length).toBeGreaterThan(3);
+    expect(steps.map((s) => s.n)).toEqual(steps.map((_, i) => i + 1));
+  });
+
+  it("D-23: the Designer step comes first, right before the Frontend/UI contract step", () => {
+    expect(designerStep, "no Designer step").toBeDefined();
+    expect(contractStep, "no contract step").toBeDefined();
+    expect(designerStep?.n).toBe(1);
+    expect(contractStep?.text).toContain("(Frontend/UI)");
+    expect(contractStep?.n).toBe((designerStep?.n ?? 0) + 1);
+  });
+
+  it("D-25: the Designer step names the first-UI-work cadence, the empty case and the new-direction re-run", () => {
+    const t = designerStep?.text ?? "";
+    expect(t).toContain("Run this step on the first UI work in a repo.");
+    expect(t).toContain("That includes any UI ticket that arrives with no published guidelines.");
+    expect(t).toContain("Re-run it for a UI epic only when the epic needs a new direction.");
+    expect(t).toContain("Per-ticket UI work skips this step and reads the existing guidelines.");
+  });
+
+  it("D-24 / ordering edge: the guidelines are typed notes, and a newer decision supersedes an older one", () => {
+    const t = designerStep?.text ?? "";
+    expect(t).toContain("Record the guidelines as typed `decision` and `artifact-ref` notes per Workflow 16.");
+    expect(t).toContain("A newer Designer decision supersedes an older one through its `supersedes` field, per Workflow 16.");
+    expect(WF14).not.toMatch(/memory-bank\/[^\s`]*design/i);
+  });
+
+  it("D-26: the contract step reads the tokens from the Designer's notes and keeps the per-ticket work with Frontend/UI", () => {
+    const t = contractStep?.text ?? "";
+    expect(t).toContain("Read the design tokens (palette, type scale, spacing) from the Designer's published notes.");
+    expect(t).toContain("Never name a new token.");
+    expect(t).toContain("The contract names the component inventory.");
+    expect(t).toContain("five states");
+    expect(t).toContain("WCAG 2.2 AA");
+    expect(t).toContain("visual-baseline");
+    expect(WF14).not.toContain("names the design tokens");
+  });
+
+  it("the flow, the agents, the inputs and the board moves name the Designer", () => {
+    expect(section(WF14, "When to use")).toContain("product context -> Designer design system (once per product) -> Frontend/UI design contract");
+    const agents = section(WF14, "Agents involved").split("\n").filter((l) => l.startsWith("- "));
+    expect(agents[0]?.startsWith("- Designer — sets the product-wide design system")).toBe(true);
+    expect(section(WF14, "Inputs required")).toContain("- The Designer's published guidelines, read per Workflow 16 as `decision` and `artifact-ref` notes.");
+    expect(section(WF14, "Board moves")).toContain("The Designer causes no board transition either.");
+  });
+
+  it("D-26: frontend-ui.md reads the Designer's tokens and never tells the role to name them", () => {
+    expect(FRONTEND).not.toContain("Name the design tokens");
+    expect(section(FRONTEND, "Reads")).toContain("- The Designer's published guidelines (pulled per Workflow 16)");
+    const r2 = numbered(section(FRONTEND, "Responsibilities"))[1]?.text ?? "";
+    expect(r2.startsWith("Read the design tokens (palette, type scale, spacing) from the Designer's published notes; never name new ones.")).toBe(true);
+    expect(r2).toContain("Name the component inventory");
+    expect(section(FRONTEND, "Output")).toContain("the token references read from the Designer's notes");
   });
 });

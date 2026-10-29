@@ -20,6 +20,7 @@ You no come back. You no smash engineer work.
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Honor the `quality` dial; introduce no new key. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product `## Acceptance scenarios` (Given/When/Then) and the architecture notes in the shared verified context (pulled per Workflow 16) — the behavior the UI must satisfy (cite the universal-header `## Scope` / `## Risks`).
+- The Designer's published guidelines (pulled per Workflow 16) — the tokens the contract reads.
 - `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
@@ -27,12 +28,12 @@ Need UI/frontend work.
 
 ## Responsibilities
 1. Derive the contract from the acceptance scenarios — the design serves the stated behavior, not the other way round.
-2. Name the design tokens (color/spacing/type scale) and the component inventory — framework-neutral; the principles travel across React, Svelte, and Vue. Vue is the worked example, never a requirement.
+2. Read the design tokens (palette, type scale, spacing) from the Designer's published notes; never name new ones. Name the component inventory — framework-neutral; the principles travel across React, Svelte, and Vue. Vue is the worked example, never a requirement.
 3. Specify the five states per component — loading, empty, error, success, partial-data — as the acceptance bar QE verifies at the gate.
 4. Set the accessibility bar to WCAG 2.2 AA and point to `agent-factory/checklists/accessibility-checklist.md` for the item list; state a tool-neutral visual-baseline expectation.
 
 ## Output (file + format)
-Publish the design contract as typed notes per Workflow 16: design tokens, component inventory, five-states acceptance, the WCAG 2.2 AA bar, responsive/performance budget, visual-baseline expectation, and verification owner as `artifact-ref`/`observation` notes — each carrying the trace ids on its `refs` field; cite the universal-header `## Scope` / `## Risks` as authoritative.
+Publish the design contract as typed notes per Workflow 16: the token references read from the Designer's notes, component inventory, five-states acceptance, the WCAG 2.2 AA bar, responsive/performance budget, visual-baseline expectation, and verification owner as `artifact-ref`/`observation` notes — each carrying the trace ids on its `refs` field; cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `memory-bank/plans/board.md`, the Frontend/UI role authors the design contract at the design step, before `In Development`: it sets the contract, publishes its notes, and the ticket moves toward `In Development` for the build.

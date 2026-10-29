@@ -6,9 +6,10 @@ cadence: both
 # Workflow: UI design to build
 
 ## When to use
-When a ticket needs UI/frontend work — a design contract authored once, then built and verified. grug no guess the look — Frontend/UI names the contract, the engineer builds it, QE breaks it. The change flows product context -> Frontend/UI design contract -> Software Engineer build -> QE/E2E verification at the gate.
+When a ticket needs UI/frontend work — a design contract authored once, then built and verified. grug no guess the look — Frontend/UI names the contract, the engineer builds it, QE breaks it. The change flows product context -> Designer design system (once per product) -> Frontend/UI design contract -> Software Engineer build -> QE/E2E verification at the gate.
 
 ## Agents involved
+- Designer — sets the product-wide design system: principles, the token system, style direction, the WCAG 2.2 AA bar and generated-design tells to avoid.
 - Frontend/UI — authors the UI/design contract once.
 - Software Engineer — builds the components against the contract (see `agent-factory/workflows/04-ticket-to-pr.md`).
 - QE/E2E — verifies the built UI against the contract at the gate (see `agent-factory/workflows/05-pr-quality-gate.md`).
@@ -18,19 +19,21 @@ Each role reads the shared verified context before it works. Each role records i
 ## Inputs required
 - A ready ticket with UI/frontend scope.
 - The product `## Acceptance scenarios`, the implementation-ready context, and the architecture decisions when present. All are read from the shared verified context per Workflow 16, and the contract is authored from them.
+- The Designer's published guidelines, read per Workflow 16 as `decision` and `artifact-ref` notes.
 - `agent-factory/checklists/accessibility-checklist.md` — the accessibility item hub.
 - The `checkpoints` matrix from `.grugops/factory.config.json`.
 
 ## Steps
-1. Draft the UI/design contract from the product `## Acceptance scenarios` and the implementation-ready context (Frontend/UI). Read the architecture decisions too when they are present. Read all of them from the shared verified context per Workflow 16. The contract names the design tokens and the component inventory. It names the five states: loading, empty, error, success and partial-data. It also names the WCAG 2.2 AA accessibility bar and a tool-neutral visual-baseline expectation. Record the contract as a typed note per Workflow 16. One activation; no re-review.
-2. Implement the components against the contract per `agent-factory/workflows/04-ticket-to-pr.md` (Software Engineer). The engineering loop, the inner red-green cycle, and the bounded self-fix live there. This workflow references that build and does not restate it.
-3. Walk the five states — loading, empty, error, success, partial-data — as a practice for each component. The walk is guidance for completeness, not a hard gate.
-4. Meet the accessibility bar. WCAG 2.2 AA is the target standard whenever a ticket changes the user interface. The item-level list lives in `agent-factory/checklists/accessibility-checklist.md`. That list covers semantic structure and labels, keyboard reachability with visible focus, and color contrast. It also covers alt text, and form error and label association. This workflow points to that checklist rather than re-enumerating it.
-5. Establish the visual baseline — a stable reference of the rendered component, described for comparison later. Keep this expectation tool-neutral.
-6. Verify the built UI against the contract per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix, and the terminal result live there. This workflow references that gate and does not restate it. QE/E2E owns the verification; Frontend/UI does not re-activate to review.
+1. Establish the design system once per product (Designer). Run this step on the first UI work in a repo. That includes any UI ticket that arrives with no published guidelines. Re-run it for a UI epic only when the epic needs a new direction. Per-ticket UI work skips this step and reads the existing guidelines. Record the guidelines as typed `decision` and `artifact-ref` notes per Workflow 16. A newer Designer decision supersedes an older one through its `supersedes` field, per Workflow 16.
+2. Draft the UI/design contract from the product `## Acceptance scenarios` and the implementation-ready context (Frontend/UI). Read the architecture decisions too when they are present. Read all of them from the shared verified context per Workflow 16. Read the design tokens (palette, type scale, spacing) from the Designer's published notes. Never name a new token. The contract names the component inventory. It names the five states: loading, empty, error, success and partial-data. It also names the WCAG 2.2 AA accessibility bar and a tool-neutral visual-baseline expectation. Record the contract as a typed note per Workflow 16. One activation; no re-review.
+3. Implement the components against the contract per `agent-factory/workflows/04-ticket-to-pr.md` (Software Engineer). The engineering loop, the inner red-green cycle, and the bounded self-fix live there. This workflow references that build and does not restate it.
+4. Walk the five states — loading, empty, error, success, partial-data — as a practice for each component. The walk is guidance for completeness, not a hard gate.
+5. Meet the accessibility bar. WCAG 2.2 AA is the target standard whenever a ticket changes the user interface. The item-level list lives in `agent-factory/checklists/accessibility-checklist.md`. That list covers semantic structure and labels, keyboard reachability with visible focus, and color contrast. It also covers alt text, and form error and label association. This workflow points to that checklist rather than re-enumerating it.
+6. Establish the visual baseline — a stable reference of the rendered component, described for comparison later. Keep this expectation tool-neutral.
+7. Verify the built UI against the contract per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix, and the terminal result live there. This workflow references that gate and does not restate it. QE/E2E owns the verification; Frontend/UI does not re-activate to review.
 
 ## Board moves
-On `memory-bank/plans/board.md`, the contract is authored before `In Development` (the design step). The build and verification then follow the standard `Ready for Dev -> In Development -> In Review (-> In Security/NFR)` path. The Software Engineer and QE/E2E own it per workflows 04 and 05. Frontend/UI causes no board transition of its own — it writes the contract the engineer pulls from.
+On `memory-bank/plans/board.md`, the contract is authored before `In Development` (the design step). The build and verification then follow the standard `Ready for Dev -> In Development -> In Review (-> In Security/NFR)` path. The Software Engineer and QE/E2E own it per workflows 04 and 05. Frontend/UI causes no board transition of its own — it writes the contract the engineer pulls from. The Designer causes no board transition either. It runs at the design step, before Frontend/UI writes the contract.
 
 ## Trace updates
 Frontend/UI publishes the design-contract link as a ref on a note per Workflow 16. Each note names the ticket identifier among its refs. The referenced build (04) and gate (05) publish the code and test refs. The next trace render turns those refs into the ticket's trace file and index line.
