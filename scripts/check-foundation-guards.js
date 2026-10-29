@@ -39,6 +39,9 @@
 //   guard_role_clause_uniqueness — Phase 29 (LANG-05, D-20/D-21/D-38): no normalized clause repeats
 //                        within a single role file. Intra-file only, deliberately.
 //   guard_role_size    — per-role byte ceiling, locked from the 2026-06-10 baseline (D-07).
+//   guard_role_frontmatter — Phase 39 (TIER-07): every roles-directory file is admitted by the
+//                        canonical grammar under ROLE_SCHEMA (admitRole), and its `skills:` value,
+//                        if any, is read by roleSkillsOf. Red naming the file and the refusal.
 //   guard_context_writes — Phase 20 (SCTX-05): greps shipped role + workflow text for a raw
 //                        context-write TOKEN (writeFileSync/appendFileSync/the `Write` tool/a
 //                        shell `>`/`>>`/`echo` redirect) co-occurring with the `.grugops/context/`
@@ -272,6 +275,9 @@ import { oracleWr05Wording, oracleDualPathEquivalence, uatOracleFails, } from ".
 // kit-model never re-resolves a root of its own and CHECK_ROOT stays the only override this gate
 // honors.
 import { listRoles, listWorkflows, 
+// (Plan 39-04, TIER-07) Every roles-directory entry except the named exemptions, so
+// guard_role_frontmatter admits the same set the raw-membership refusal reads.
+listRoleDirEntries, 
 // (Plan 39-02, TIER-02, TIER-06) THE ADAPTER IDENTITY AUTHORITY. KIT-03 and both value guards key
 // every adapter by the spec derivation, and the agent namespace is declared there, never here.
 listAgentAdapterSpecs, listAgentAdapterNames, AGENT_ADAPTER_PREFIX, LEVELED_ROLE_COUNT, listRoleDisplayNames, listWorkflowDisplayNames, listAgentAdapters, listSkillAdapters, listPluginSkillAdapters, listPluginDefaultComponentFiles, listPluginExemptComponentFiles, pluginForbiddenComponentKeys, partitionPluginComponentClaims, spawnGrantScan, spawnGrantScanPrefix, SPAWN_GRANT_SCAN_PARTS, PLUGIN_MANIFEST_COMPONENT_SCHEMA, PLUGIN_MANIFEST_COMPONENT_COUNT, PLUGIN_COMPONENT_COVERED_ELSEWHERE, PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT, PLUGIN_COMPONENT_EXEMPT_COUNT, PLUGIN_COMPONENT_EXEMPT, ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT, } from "./kit-model.js";
@@ -318,7 +324,10 @@ import { reportMeasured } from "./vacuity.js";
 // founding failure mode of the thing this replaces, and the hand-written parse-failure branch
 // guard_wr05 already carried is the precedent — its wording is kept and now covers the whole refusal
 // vocabulary instead of one parse failure.
-import { admit, admittedHasSpawnGrant, admittedGrantedNames, admittedValuesFor, admittedKeyHasValue, 
+import { admit, 
+// (Plan 39-04, TIER-07) The role entry point and the skills projection: guard_role_frontmatter
+// admits every role-directory file through the same grammar under ROLE_SCHEMA.
+admitRole, roleSkillsOf, admittedHasSpawnGrant, admittedGrantedNames, admittedValuesFor, admittedKeyHasValue, 
 // (Plan 27-20 / 27-REVIEW § WR-05, re-pointed by 27-65) The two key names that grant a tool.
 // IMPORTED, never restated: the tools-key floor in guardWr05() asks "is a tool allow-list DECLARED
 // at all", and that question must be scoped by the same list the grant test reads, or the floor
@@ -3114,6 +3123,51 @@ function guardRoleSize() {
     }
 }
 // ---------------------------------------------------------------------------
+// guard_role_frontmatter — every roles-directory file is admitted under ROLE_SCHEMA (TIER-07).
+//
+// (Plan 39-04, D-28, D-29) A role's frontmatter is read by the same canonical grammar as an
+// adapter's, under the role key set, and its `skills:` declaration by the one projection
+// roleSkillsOf. The scan set is listRoleDirEntries(ROOT) filtered to `.md`, the set the roles
+// directory's raw-membership refusal already reads, so a role file the admission cannot read is red
+// naming the file and the refusal code (or the skills reason) instead of being skipped. A file that
+// cannot be read at all is red naming the read error.
+// ---------------------------------------------------------------------------
+function guardRoleFrontmatter() {
+    process.stdout.write("\n[guard_role_frontmatter] role frontmatter admitted by the canonical grammar under ROLE_SCHEMA (TIER-07)\n");
+    const files = listRoleDirEntries(ROOT)
+        .filter((f) => f.endsWith(".md"))
+        .map((f) => `agent-factory/roles/${f}`);
+    if (files.length === 0) {
+        fail("no roles-directory file to admit — a vacuous scan proves nothing (TIER-07)");
+        return;
+    }
+    let admitted = 0;
+    for (const rel of files) {
+        let text;
+        try {
+            text = readText(rel);
+        }
+        catch (e) {
+            fail(`${rel}: could not be read (${e.message}) — no frontmatter verdict (TIER-07)`);
+            continue;
+        }
+        const a = admitRole(text);
+        if (!a.ok) {
+            fail(`${rel}: role frontmatter refused [${a.code}] ${a.reason} (TIER-07)`);
+            continue;
+        }
+        const s = roleSkillsOf(a.value);
+        if (!s.ok) {
+            fail(`${rel}: role \`skills\` refused — ${s.reason} (TIER-07)`);
+            continue;
+        }
+        admitted += 1;
+    }
+    if (admitted === files.length) {
+        pass(`${admitted} roles-directory file(s) admitted under ROLE_SCHEMA, each skills declaration read (TIER-07)`);
+    }
+}
+// ---------------------------------------------------------------------------
 // guard_context_writes — shared context written ONLY via context-io.ts (SCTX-05, Phase 20).
 //
 // Clone of guardWr05()'s shape (D-09): an explicit SCAN set (NEVER a repo-wide grep), the shared
@@ -3746,6 +3800,7 @@ guardVoice();
 guardCavemanVoice();
 guardRoleClauseUniqueness();
 guardRoleSize();
+guardRoleFrontmatter();
 guardContextWrites();
 // KIT-03 — the three-way set equality.
 //

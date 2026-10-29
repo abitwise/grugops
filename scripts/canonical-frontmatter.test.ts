@@ -32,6 +32,7 @@ import { join } from "node:path";
 
 import {
   listAgentAdapters,
+  listRoleDirEntries,
   listRoles,
   ROLE_COUNT,
   spawnGrantScan,
@@ -41,6 +42,9 @@ import {
 
 import {
   admit,
+  admitRole,
+  roleSkillsOf,
+  ROLE_SCHEMA,
   admittedGrantedNames,
   admittedGrantValues,
   admittedHasSpawnGrant,
@@ -913,5 +917,78 @@ describe("33-28 K1/K2 — the plain-scalar alphabet admits `_` and nothing else 
     console.log(
       `canonical-frontmatter 33-28 K2: ${cases} generated case(s) = ${YAML_SIGNIFICANT_BYTES.length} YAML-significant byte(s) + ${NON_SPACE_WHITESPACE.length} derived non-SPACE whitespace character(s); 0 admitted, 0 in the alphabet; refusal codes: ${[...codes].map(([k, v]) => `${k} ${v}`).join(", ")}; alphabet size ${PLAIN_SCALAR_ALPHABET.size} = 26 + 26 + 10 + 1 + 6 + 1 + 1`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 39-04 (TIER-07, D-28, D-29) — role frontmatter and the `skills` key
+// ---------------------------------------------------------------------------
+//
+// A role file is admitted by the same grammar as an adapter, under ROLE_SCHEMA, through admitRole.
+// Its `skills:` value is read by roleSkillsOf. No shipped role declares a value (D-29), so the
+// declared form is measured on scripts/fixtures/role-skills.md, which is a fixture, not a role.
+
+const ROLE_SKILLS_FIXTURE = "scripts/fixtures/role-skills.md";
+
+// The live roles-directory corpus: every entry listRoleDirEntries returns that ends with `.md`, the
+// same set guard_role_frontmatter admits.
+function liveRoleDirFiles(): { rel: string; text: string }[] {
+  return listRoleDirEntries(ROOT)
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => {
+      const rel = `agent-factory/roles/${f}`;
+      return { rel, text: readFileSync(join(ROOT, rel), "utf8") };
+    });
+}
+
+describe("canonical-frontmatter: role frontmatter and the skills key (TIER-07)", () => {
+  it("skills: the fixture is admitted by admitRole and roleSkillsOf returns its two names in order", () => {
+    const a = admitRole(readFileSync(join(ROOT, ROLE_SKILLS_FIXTURE), "utf8"));
+    expect(a.ok, a.ok ? "" : `[${a.code}] ${a.reason}`).toBe(true);
+    if (!a.ok) return;
+    expect(admittedValuesFor(a.value, "levels")).toEqual(["junior mid senior"]);
+    const s = roleSkillsOf(a.value);
+    expect(s).toEqual({ ok: true, value: ["ui-ux-pro-max", "frontend-design"] });
+  });
+
+  it("skills: every live roles-directory file is admitted by admitRole, and none declares a skills value (D-29)", () => {
+    const files = liveRoleDirFiles();
+    expect(files.length, "the live roles-directory corpus must not be empty").toBeGreaterThanOrEqual(ROLE_COUNT);
+    const refusals: string[] = [];
+    const declaring: string[] = [];
+    for (const f of files) {
+      const a = admitRole(f.text);
+      if (!a.ok) {
+        refusals.push(`${f.rel}: [${a.code}] ${a.reason}`);
+        continue;
+      }
+      const s = roleSkillsOf(a.value);
+      if (!s.ok) refusals.push(`${f.rel}: ${s.reason}`);
+      else if (s.value.length > 0) declaring.push(f.rel);
+    }
+    expect(refusals, `admitRole refused live role file(s):\n${refusals.join("\n")}`).toEqual([]);
+    expect(declaring, "D-29: no shipped role declares a skills value in Phase 39").toEqual([]);
+  });
+
+  it("skills: the role key union over the live roles-directory corpus plus the fixture equals ROLE_SCHEMA, in both directions", () => {
+    const corpus = [
+      ...liveRoleDirFiles(),
+      {
+        rel: ROLE_SKILLS_FIXTURE,
+        text: readFileSync(join(ROOT, ROLE_SKILLS_FIXTURE), "utf8"),
+      },
+    ];
+    const used = new Set<string>();
+    for (const f of corpus) {
+      const a = admitRole(f.text);
+      expect(a.ok, a.ok ? "" : `${f.rel}: [${a.code}] ${a.reason}`).toBe(true);
+      if (a.ok) for (const k of a.value.keys()) used.add(k);
+    }
+    const notInSchema = [...used].filter((k) => !ROLE_SCHEMA.includes(k)).sort();
+    const notInCorpus = ROLE_SCHEMA.filter((k) => !used.has(k));
+    expect(notInSchema, `role file(s) carry key(s) ROLE_SCHEMA does not admit: ${notInSchema.join(", ")}`).toEqual([]);
+    expect(notInCorpus, `ROLE_SCHEMA carries key(s) no role file or fixture uses: ${notInCorpus.join(", ")}`).toEqual([]);
+    expect([...ROLE_SCHEMA]).toEqual([...ROLE_SCHEMA].sort());
+    expect(Object.isFrozen(ROLE_SCHEMA)).toBe(true);
   });
 });

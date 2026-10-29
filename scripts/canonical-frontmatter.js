@@ -130,6 +130,34 @@ export const CANONICAL_SCHEMA = [
     "tier",
     "tools",
 ];
+// THE ROLE KEY SET — PLAN 39-04 (TIER-07, D-28, D-29).
+//
+// A role file in `agent-factory/roles/` is admitted by the SAME grammar as an adapter — the same
+// delimiter rule, the same plain-scalar alphabet, the same refused node sigils, the same refusal
+// vocabulary — through `admitRole` below, under THIS key set instead of `CANONICAL_SCHEMA`. There is
+// still one admission implementation; only the list of keys it is told to accept differs.
+//
+// `CANONICAL_SCHEMA` STAYS THE ADAPTER KEY SET AND DOES NOT GAIN `skills` (D-28). Claude Code reads a
+// sub-agent's `skills:` frontmatter field and preloads that skill text into the sub-agent, which
+// Phase 42 forbids. So a role may DECLARE skills, and an adapter carrying a `skills:` line is still
+// refused `unknown-key` by `admit()`. The generator never writes the key.
+//
+// THE LIST FORM IS ONE PLAIN SCALAR OF SPACE-SEPARATED LOWER-CASE KEBAB NAMES, the same shape as
+// `capabilities`. The grammar refuses flow collections (`[a, b]`) at a node start and has no `:` in
+// its alphabet (Pattern 8 probe, 39-RESEARCH), so neither a flow list nor a plugin-namespaced name
+// (`plugin:skill`) can be admitted. Whether to admit namespaced names is a Phase 42 decision, taken
+// after its evaluation; widening the alphabet per key would be a safety-authority change. No shipped
+// role declares a value yet (D-29); `scripts/fixtures/role-skills.md` is the measured example.
+//
+// Sorted and frozen. Its two-sided measurement is the role key-union case in
+// `scripts/canonical-frontmatter.test.ts`: the live role-directory corpus plus that fixture.
+export const ROLE_SCHEMA = Object.freeze([
+    "capabilities",
+    "kind",
+    "levels",
+    "skills",
+    "tier",
+]);
 // The keys that carry a spawn grant. These are the only keys whose values can move a spawn verdict.
 export const GRANT_KEYS = ["tools", "allowed-tools"];
 // THE ONLY TWO KEYS THAT MAY CARRY A DOUBLE-QUOTED SCALAR, AND THE SECOND DIVERGENCE FROM D-64.
@@ -426,6 +454,17 @@ export function admit(text, options) {
         alphabet: PLAIN_SCALAR_ALPHABET,
     });
 }
+// THE ROLE ADMISSION ENTRY POINT (plan 39-04, TIER-07). The same grammar as `admit` — the same
+// sigil table and the same alphabet, both the module constants — with `ROLE_SCHEMA` as its key set.
+// Like `admit`, it takes no option that could widen the grammar, and it does not touch
+// `CANONICAL_SCHEMA`, so the adapter verdict cannot move through it.
+export function admitRole(text) {
+    return admitAgainst(text, {
+        schema: ROLE_SCHEMA,
+        sigils: REFUSED_NODE_SIGILS,
+        alphabet: PLAIN_SCALAR_ALPHABET,
+    });
+}
 // The admission itself, and the only implementation of it.
 function admitAgainst(text, grammar) {
     const { schema, sigils, alphabet } = grammar;
@@ -632,6 +671,44 @@ export function admittedValuesFor(doc, key) {
     if (v === undefined)
         return [];
     return v.kind === "scalar" ? [v.value] : [...v.items];
+}
+const SKILLS_KEY = "skills";
+const KEBAB_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SKILLS_ACCEPTED_FORM = "the one accepted form is one line, `skills: ` followed by lower-case kebab names separated by single spaces (for example `skills: ui-ux-pro-max frontend-design`)";
+export function roleSkillsOf(doc) {
+    const v = doc.get(SKILLS_KEY);
+    if (v === undefined)
+        return { ok: true, value: [] };
+    if (v.kind !== "scalar") {
+        return {
+            ok: false,
+            reason: `\`skills\` is written as a block sequence; ${SKILLS_ACCEPTED_FORM}`,
+        };
+    }
+    if (v.quoted) {
+        return {
+            ok: false,
+            reason: `\`skills\` is written as a double-quoted scalar; ${SKILLS_ACCEPTED_FORM}`,
+        };
+    }
+    const tokens = v.value.split(" ");
+    const seen = new Set();
+    for (const t of tokens) {
+        if (!KEBAB_NAME.test(t)) {
+            return {
+                ok: false,
+                reason: `\`skills\` carries \`${t}\`, which is not a lower-case kebab name; ${SKILLS_ACCEPTED_FORM}`,
+            };
+        }
+        if (seen.has(t)) {
+            return {
+                ok: false,
+                reason: `\`skills\` names \`${t}\` more than once; a repeated name is refused rather than merged, and ${SKILLS_ACCEPTED_FORM}`,
+            };
+        }
+        seen.add(t);
+    }
+    return { ok: true, value: tokens };
 }
 // Does this admitted document write exactly this value for this key? The admitted counterpart of
 // `keyHasValue` in `scripts/frontmatter.ts`, computed over a value no unadmitted byte can reach.
