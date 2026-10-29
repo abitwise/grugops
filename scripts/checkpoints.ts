@@ -339,8 +339,16 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  *   - the Tech Lead's options are used up: it hands the ticket to a named human with no retry loop,
  *     so it is TAGGED `escalate_unadjudicable_result`.
  * Both tags reuse existing ids, so the roster is unchanged and only site counts move (below).
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (39-09, 2026-10-29): 47 -> 48. Plan `39-09` put the
+ * Designer into `agent-factory/workflows/14-ui-design-to-build.md`, and its `## Stop conditions`
+ * gained one bullet: a ticket needs a token the Designer's guidelines lack, so it stops and goes to
+ * the Designer for a recorded decision, and Frontend/UI never invents a token (D-26). The derivation
+ * printed 48 before this line moved. THE TAGGING LIST WAS RE-WALKED: the bullet hands the ticket to
+ * the Designer, a role, not to a human, so it is UNTAGGED and neither the roster nor any site count
+ * moves.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 47;
+export const WORKFLOW_STOP_BULLET_COUNT = 48;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the

@@ -656,4 +656,19 @@ describe("WF14 runs the Designer before Frontend/UI, and Frontend/UI reads the D
     expect(r2).toContain("Name the component inventory");
     expect(section(FRONTEND, "Output")).toContain("the token references read from the Designer's notes");
   });
+
+  it("D-26 / T-39-17: a token the guidelines lack stops for a Designer decision, untagged, and Frontend/UI never invents one", () => {
+    const stops = section(WF14, "Stop conditions").split("\n").filter((l) => l.startsWith("- "));
+    const b = stops.filter((l) => l.startsWith("- A ticket needs a token the Designer's guidelines lack →"));
+    expect(b).toHaveLength(1);
+    expect(b[0]).toContain("stop and send it to the Designer for a recorded decision.");
+    expect(b[0]).toContain("Frontend/UI never invents a token.");
+    // It hands to a role, not a human, so it carries no checkpoint tag.
+    expect(b[0]).not.toMatch(/checkpoint/i);
+    expect(WF14.split("invents a token").length - 1).toBe(1);
+  });
+
+  it("D-26: the done condition says the contract reads its tokens from the Designer's guidelines", () => {
+    expect(section(WF14, "Done condition")).toContain("The contract reads its tokens from the Designer's guidelines.");
+  });
 });

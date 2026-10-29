@@ -43,9 +43,10 @@ Frontend/UI publishes the design-contract link as a ref on a note per Workflow 1
 - A component cannot meet the WCAG 2.2 AA bar without a product decision → stop and get the decision. The decision may be a contrast change, or a control the design does not have. Never mark the accessibility item passed on an unmet control. `checkpoint: decide_accessibility_exception`
 - The gate (workflow 05) exhausts its bounded self-fix budget against the contract → stop and hand to a human, per that workflow. Never hand-set a green. `checkpoint: exhaust_self_fix_budget`
 - The built UI diverges from the contract and the contract is judged wrong → stop and re-author the contract as a recorded decision. Never let the build silently redefine the contract.
+- A ticket needs a token the Designer's guidelines lack → stop and send it to the Designer for a recorded decision. Frontend/UI never invents a token.
 
 ## Done condition
-The design contract is written, and the components are built per workflow 04. The five states and the WCAG 2.2 AA accessibility bar are met, and the visual baseline is established. The built UI is verified against the contract per workflow 05. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
+The design contract is written, and the components are built per workflow 04. The contract reads its tokens from the Designer's guidelines. The five states and the WCAG 2.2 AA accessibility bar are met, and the visual baseline is established. The built UI is verified against the contract per workflow 05. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/ui-design-to-build-<id>`), then `type(scope): summary`. The artifacts are the board context, the frontend design-contract note recorded per Workflow 16, and the rendered trace files. Never merge, never deploy; humans hold both.
