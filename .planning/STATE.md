@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Completed 39-04-PLAN.md
-last_updated: "2026-10-29T18:08:08.901Z"
+stopped_at: Completed 39-05-PLAN.md
+last_updated: "2026-10-29T19:20:48.320Z"
 last_activity: 2026-10-29
 last_activity_desc: Phase 39 execution started
-state_head: 28063aec60d1e4458bb86c7fe9e832c5968a0d53
+state_head: d5b698192bd1e91d108b9a03f9f27f666640fed6
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 78
-  completed_plans: 72
+  completed_plans: 73
   percent: 44
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
-Plan: 5 of 10
+Plan: 6 of 10
 Status: Ready to execute
 Last activity: 2026-10-29 — Phase 39 execution started
 
@@ -788,6 +788,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P02 | 32 min | 2 tasks | 10 files |
 | Phase 39 P03 | 17min | 3 tasks | 10 files |
 | Phase 39 P04 | 13 min | 2 tasks | 8 files |
+| Phase 39 P05 | 70min | 1 tasks | 55 files |
 
 ## Accumulated Context
 
@@ -2167,6 +2168,8 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-03: baseline short-listing floor is baseline + ADDED - REMOVED == listAgentAdapterNames().length (not ROLE_COUNT, which will exceed the frozen count)
 - [Phase 39]: 39-04: role skills key admitted under a separate ROLE_SCHEMA via admitRole(); CANONICAL_SCHEMA and admit() byte-unchanged so an adapter skills line stays unknown-key (D-28)
 - [Phase 39]: 39-04: the one accepted skills form is one line of single-space-separated lower-case kebab names; plugin-namespaced names stay refused (no ':' in the alphabet) until Phase 42
+- [Phase 39]: 39-05: the Tech Lead's Hard limits end 'Merge and deploy stay with humans.' because a role's Hard-limits clause is frozen kit-wide by normalized text and 'Humans hold merge and deploy.' froze edits in WF04/14/15
+- [Phase 39]: 39-05: new-role measured install pins (WRITE/READ/INSTALLED/REMOVABLE/KIT_PATH/RECORDED_FILE counts) move by one with dated history lines; live-kit counts in tests read the derivations
 
 ### Pending Todos
 
@@ -2502,8 +2505,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-29T18:08:08.360Z
-Stopped at: Completed 39-04-PLAN.md
+Last session: 2026-10-29T19:20:47.760Z
+Stopped at: Completed 39-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
