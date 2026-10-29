@@ -446,7 +446,7 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 5/10 plans executed
+**Plans**: 6/10 plans executed
 
 Plans:
 **Wave 1**
@@ -465,7 +465,7 @@ Plans:
 - [x] 39-05-PLAN.md — Tech Lead role + complexity rubric checklist, derived counts moved once for it (18 roles)
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 39-06-PLAN.md — Designer role, derived counts moved once for it (19 roles)
+- [x] 39-06-PLAN.md — Designer role, derived counts moved once for it (19 roles)
 
 **Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 39-07-PLAN.md — Engineer levels on: `levels: junior mid senior`, `## Levels`, three pinned adapters, base adapter removed, D-2 record and dial docs
@@ -555,7 +555,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
-| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 5/10 | In Progress | - |
+| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 6/10 | In Progress | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
