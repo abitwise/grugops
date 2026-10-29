@@ -124,16 +124,17 @@
 // change or its mirrored generator cannot resolve it.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { listRoles, INVARIANT, RESOLVER } from "./kit-model.js";
+import { listAgentAdapterSpecs, INVARIANT, RESOLVER } from "./kit-model.js";
 import { parseFrontmatter, sectionEndIndex, unfencedHeadingIndex, } from "./frontmatter.js";
-import { readModelsConfig, resolveEfforts, resolveModels, resolvedAssignmentLine, resolvedEffortAssignmentLine, resolvedEffortPresetLine, resolvedPresetLine, } from "./model-tiers.js";
+import { configKeyStems, readModelsConfig, resolveAdapterAssignments, resolvedAssignmentLine, resolvedEffortAssignmentLine, resolvedEffortPresetLine, resolvedPresetLine, } from "./model-tiers.js";
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
 const ROOT = join(import.meta.dirname, "..");
 const ROLES_DIR = join(ROOT, "agent-factory/roles");
 const OUT_DIR = join(ROOT, ".claude/agents");
-// The agent namespace, and the ONE role stem that is the coordinator. The coordinator is located by
-// ROLE basename, never by an adapter filename — a renamed adapter cannot silently become one.
-const AGENT_PREFIX = "grugops-";
+// The ONE role stem that is the coordinator. The coordinator is located by ROLE basename, never by an
+// adapter filename — a renamed adapter cannot silently become one. The agent namespace is not
+// declared here (plan 39-02): every adapter name arrives already built from
+// scripts/kit-model.ts's listAgentAdapterSpecs, the one place an adapter name is made from a stem.
 const COORDINATOR_ROLE = "orchestrator";
 // ── Fail-closed helper (a structural miss is a finding, never an unhandled throw) ──────────────
 // The VARIABLE carries the `=> never` annotation, not just the arrow: TypeScript only lets a
@@ -244,72 +245,60 @@ function yamlQuote(s) {
 // against the committed ones, exiting 0.
 const HARD_LIMIT = "Never merge to a protected branch. Never deploy to prod. Humans always hold merge and deploy.";
 const PROVENANCE = "<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-role-adapters.js -->";
-// THE ONE RULE FOR "what is this role file's stem". Asked by the model resolution below and by the
-// build loop; declared here so the key a map is built with and the key it is read with cannot come
-// apart. A role filename is `.md` by listRoles' own filter, so the suffix is always present.
-const stemOf = (file) => file.replace(/\.md$/, "");
-// ── Read the role corpus through the SHARED authority (never a private readdir) ────────────────
-let roleFiles;
+// ── Read the adapter set through the SHARED derivation (never a private readdir) ───────────────
+// listAgentAdapterSpecs (scripts/kit-model.ts) is the one answer to "which adapters does the role
+// corpus imply": it reads every role's `levels` key and throws, naming the role file, on a malformed
+// declaration or a case-folded name collision. A throw is a finding here, never an unhandled crash.
+let specs;
 try {
-    roleFiles = listRoles(ROOT);
+    specs = listAgentAdapterSpecs(ROOT);
 }
 catch (e) {
     fail(`${e.message}`);
 }
-roleFiles = roleFiles.slice().sort(); // explicit sort before emit (kit-model already sorts)
-// ── Resolve every role's model alias ONCE, here, BEFORE anything is built ──────────────────────
+// ── Resolve every adapter's model alias and effort level ONCE, here, BEFORE anything is built ──
 // Placed at top level rather than inside render() for the T-27-32 reason recorded in the module
 // header: render() runs inside the build-everything loop, so a refusal raised there would abort
 // partway through and could leave a partial adapter directory. Refusing here writes nothing at all.
 //
-// THIS INTRODUCES NO NEW ORDERING AUTHORITY. `roleFiles.slice().sort()` above remains the only sort
-// before emit; the resolved map is consumed by STEM LOOKUP below, never by iteration, so its own
-// insertion order cannot reach an emitted file.
-//
-// AND NO SECOND STEM RULE. `stemOf` is declared once and asked twice — here, to key the resolution,
-// and in the build loop below. Two expressions for "the role's stem" is one expression too many:
-// the map is keyed by one of them and read by the other, so a disagreement would surface as a
-// lookup that quietly found nothing rather than as an error.
+// THIS INTRODUCES NO NEW ORDERING AUTHORITY. The resolved maps are consumed by ADAPTER-STEM LOOKUP
+// below, never by iteration, so their own order cannot reach an emitted file.
 //
 // TWO REFUSALS, IN ORDER, BOTH ABOVE THE LOOP. `readModelsConfig` decides whether the user's file is
-// legal at all — an unknown preset name, an unknown role key, an alias outside the closed set, a
-// degenerate `models` value — and `resolveModels` decides whether the legal block can be applied to
-// this tree's stems. Each returns a VERDICT rather than throwing, and each verdict travels straight
-// to `fail`, so a refusal from either is exit 1 with nothing written and no output directory
-// created. Neither reaches `render()`, and neither can leave a partial adapter directory.
-const stems = roleFiles.map(stemOf);
-const config = readModelsConfig(ROOT, stems);
+// legal at all — an unknown preset name, an unknown role or level key, an alias outside the closed
+// set, a degenerate `models` value — against the key set configKeyStems derives from the specs
+// (D-15). `resolveAdapterAssignments` then decides whether the legal block can be applied to this
+// tree's adapters: non-level adapters through the presets, level adapters through
+// `roles[<role>-<level>]`, then `roles[<role>]`, then the LEVELS pin (D-14, D-16). Each returns a
+// VERDICT rather than throwing, and each verdict travels straight to `fail`, so a refusal from either
+// is exit 1 with nothing written and no output directory created.
+const config = readModelsConfig(ROOT, configKeyStems(specs));
 if (!config.ok)
     fail(config.reason);
 const modelsConfig = config.value;
-const resolution = resolveModels(stems, {
-    preset: modelsConfig.preset,
-    overrides: modelsConfig.overrides,
-});
-if (!resolution.ok)
-    fail(resolution.reason);
-const models = resolution.value;
-// ── Resolve every role's reasoning-effort level, also ONCE and also ABOVE the build loop ────────
-// (plan 34-01, D-02, D-06). The same posture as the model alias directly above, for the same T-27-32
-// reason: `models.effort` was already validated by `readModelsConfig` (the one reader, D-07), and
-// `resolveEfforts` decides whether that legal block applies to this tree's stems. A refusal from it
-// reaches `fail` before a single byte is written. The effort preset handed over is
-// `models.effort.preset`, never `models.preset`: the model preset changes no effort (D-05).
-const effortResolution = resolveEfforts(stems, {
-    preset: modelsConfig.effort.preset,
-    overrides: modelsConfig.effort.overrides,
-});
-if (!effortResolution.ok)
-    fail(effortResolution.reason);
-const efforts = effortResolution.value;
+const assignmentResolution = resolveAdapterAssignments(specs, modelsConfig);
+if (!assignmentResolution.ok)
+    fail(assignmentResolution.reason);
+const models = assignmentResolution.value.models;
+const efforts = assignmentResolution.value.efforts;
 const adapters = [];
 // Adapter name FOLDED TO LOWER CASE -> the role file that claimed it. The fold is the whole point:
-// two roles whose adapter names differ only by case are distinct files on a case-sensitive
-// filesystem and the SAME file on a case-insensitive one (APFS, NTFS), where the second write
-// silently destroys the first and the adapter directory comes up one short with no error anywhere.
-// grugops ships to Windows, so a role set that is only portable to Linux is refused on every
-// platform — including the Linux machine that would otherwise commit it happily.
+// two adapters whose names differ only by case are distinct files on a case-sensitive filesystem and
+// the SAME file on a case-insensitive one (APFS, NTFS), where the second write silently destroys the
+// first and the adapter directory comes up one short with no error anywhere. grugops ships to
+// Windows, so a role set that is only portable to Linux is refused on every platform. The derivation
+// already refuses this; the check stays here so the generator does not rest its writes on it.
 const seenNames = new Map();
+// The specs grouped by role file, in sorted role-file order, so each role file is read once.
+const specsByFile = new Map();
+for (const spec of specs) {
+    const group = specsByFile.get(spec.roleFile);
+    if (group === undefined)
+        specsByFile.set(spec.roleFile, [spec]);
+    else
+        group.push(spec);
+}
+const roleFiles = [...specsByFile.keys()].sort();
 for (const file of roleFiles) {
     // Encoding gate: adapter names are compared by exact string equality by the KIT-03 oracle, and the
     // freshness gate compares BYTES. A non-ASCII filename introduces normalisation ambiguity into
@@ -326,14 +315,6 @@ for (const file of roleFiles) {
     catch {
         fail(`cannot read role file: ${path}`);
     }
-    const stem = stemOf(file);
-    const name = `${AGENT_PREFIX}${stem}`;
-    const folded = name.toLowerCase();
-    const claimed = seenNames.get(folded);
-    if (claimed !== undefined) {
-        fail(`${file}: adapter name "${name}" collides with the one produced by ${claimed} — two roles cannot share one adapter file (names are compared case-insensitively: on a case-insensitive filesystem the second adapter silently overwrites the first)`);
-    }
-    seenNames.set(folded, file);
     // Capabilities → tools, read through the ONE frontmatter authority (WR-03) and validated against
     // the closed vocabulary at BUILD time (T-27-29). Three distinct facts, three distinct findings:
     // an unreadable role file, a role with no capabilities key, and a role declaring the key twice are
@@ -380,7 +361,7 @@ for (const file of roleFiles) {
                 tools.push(tool);
     }
     // Description derivation (D-12): the role's `## One job` first sentence plus its
-    // `## Activates when` line. Both sections already exist in all 17 roles and the activates-when
+    // `## Activates when` line. Both sections already exist in every role and the activates-when
     // line is already phrased as a routing trigger, so this is derivation, not authoring — editing the
     // role updates the adapter and there is nothing to keep in sync by hand.
     const job = sectionBody(text, "One job");
@@ -391,31 +372,50 @@ for (const file of roleFiles) {
     if (act === null || act.trim() === "") {
         fail(`${file}: no \`## Activates when\` section — refusing to emit an adapter with no use-when clause (\`description\` drives auto-routing)`);
     }
-    const description = `${firstSentence(job)} Use when: ${firstSentence(act)}`;
-    // The resolved alias, by STEM LOOKUP rather than by iterating the map — the map's own order is
-    // then irrelevant to the emitted bytes. A miss is impossible by construction (the resolution was
-    // taken over the very set this loop walks) and is still refused BY NAME rather than emitted as an
-    // `undefined` that would reach the frontmatter as the four bytes of a broken adapter.
-    const model = models.get(stem);
-    if (model === undefined) {
-        fail(`${file}: no model alias resolved for the role stem "${stem}" — the resolution was taken over the same role set this loop walks, so a miss means the two derivations have come apart`);
+    const baseDescription = `${firstSentence(job)} Use when: ${firstSentence(act)}`;
+    for (const spec of specsByFile.get(file) ?? []) {
+        const isCoordinator = spec.roleStem === COORDINATOR_ROLE;
+        // The grant and `coordinator: true` belong to exactly ONE adapter. A leveled coordinator would
+        // turn that one adapter into several, each holding the spawn grant, so it is refused by file.
+        if (isCoordinator && spec.level !== null) {
+            fail(`${file}: the coordinator role declares \`levels\` — refusing, because the enumerated spawn grant and \`coordinator: true\` belong to exactly one adapter, and a leveled coordinator would emit one per level. Remedy: remove the \`levels\` key from ${file}.`);
+        }
+        const folded = spec.name.toLowerCase();
+        const claimed = seenNames.get(folded);
+        if (claimed !== undefined) {
+            fail(`${file}: adapter name "${spec.name}" collides with the one produced by ${claimed} — two adapters cannot share one file (names are compared case-insensitively: on a case-insensitive filesystem the second adapter silently overwrites the first)`);
+        }
+        seenNames.set(folded, file);
+        // The resolved alias and effort, by ADAPTER-STEM LOOKUP rather than by iterating the maps — the
+        // maps' own order is then irrelevant to the emitted bytes. A miss is impossible by construction
+        // (the resolution was taken over the very specs this loop walks) and is still refused BY NAME
+        // rather than emitted as an `undefined` that would reach the frontmatter as a broken adapter.
+        const model = models.get(spec.adapterStem);
+        if (model === undefined) {
+            fail(`${file}: no model alias resolved for the adapter stem "${spec.adapterStem}" — the resolution was taken over the same adapter specs this loop walks, so a miss means the two derivations have come apart`);
+        }
+        const effort = efforts.get(spec.adapterStem);
+        if (effort === undefined) {
+            fail(`${file}: no effort level resolved for the adapter stem "${spec.adapterStem}" — the resolution was taken over the same adapter specs this loop walks, so a miss means the two derivations have come apart`);
+        }
+        adapters.push({
+            file,
+            stem: spec.adapterStem,
+            name: spec.name,
+            level: spec.level,
+            // A level adapter says its level in the routing text, so the coordinator and a reader can tell
+            // the three engineer adapters apart from the description alone.
+            description: spec.level === null ? baseDescription : `${baseDescription} Level: ${spec.level}.`,
+            tools,
+            isCoordinator,
+            model,
+            effort,
+        });
     }
-    // The resolved effort level, by the same stem lookup and with the same refusal on a miss.
-    const effort = efforts.get(stem);
-    if (effort === undefined) {
-        fail(`${file}: no effort level resolved for the role stem "${stem}" — the resolution was taken over the same role set this loop walks, so a miss means the two derivations have come apart`);
-    }
-    adapters.push({
-        file,
-        stem,
-        name,
-        description,
-        tools,
-        isCoordinator: stem === COORDINATOR_ROLE,
-        model,
-        effort,
-    });
 }
+// Byte order, never locale order, and never the order `levels` tokens were declared in: the
+// adapter list, and the grant read off it, are sorted by name (TIER-02).
+adapters.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 // ── Coordinator cardinality: exactly one, located by ROLE basename (never a filename) ─────────
 const coordinators = adapters.filter((a) => a.isCoordinator);
 if (coordinators.length !== 1) {
@@ -440,6 +440,13 @@ function specialistBody(a) {
         "",
         `Read \`agent-factory/roles/${a.file}\` now and act as that role. The role file does the`,
         "thinking; this adapter only points at it.",
+        // A level adapter names its level once, and the role file says what that level covers (D-13).
+        ...(a.level === null
+            ? []
+            : [
+                "",
+                `Work at the \`${a.level}\` level: read the \`## Levels\` section of that role file for its scope.`,
+            ]),
         "",
         "Publish your typed notes per `agent-factory/workflows/16-context-read-write.md`. The shared verified context is the only memory — read what earlier roles published, publish your own, and expect nothing to have been passed to you by whoever activated you.",
         "",
@@ -576,8 +583,8 @@ console.log(`generate-role-adapters: wrote ${rendered.length} adapters to ${OUT_
 // drops one `effort:` line, disagrees with the map even when the distinct set is unchanged. That is
 // the case-B reproduction the verifier recorded, and plan 34-20 makes the installer compare each
 // adapter with this map. The map is keyed by adapter name rather than role stem because the readers
-// see only rendered file names; the stem-to-name rule (`AGENT_PREFIX`) stays here. The override
-// counts come from the override maps handed to `resolveModels` and `resolveEfforts`. The two maps
+// see only rendered file names; the stem-to-name rule lives in scripts/kit-model.ts. The override
+// counts come from the override maps handed to `resolveAdapterAssignments`. The two maps
 // are built and checked before the write, beside the render.
 console.log(resolvedPresetLine(modelsConfig.preset));
 console.log(resolvedAssignmentLine(modelByAdapter, modelsConfig.overrides.size));

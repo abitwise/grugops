@@ -278,6 +278,13 @@ import {
 import {
   listRoles,
   listWorkflows,
+  // (Plan 39-02, TIER-02, TIER-06) THE ADAPTER IDENTITY AUTHORITY. KIT-03 and both value guards key
+  // every adapter by the spec derivation, and the agent namespace is declared there, never here.
+  listAgentAdapterSpecs,
+  listAgentAdapterNames,
+  AGENT_ADAPTER_PREFIX,
+  LEVELED_ROLE_COUNT,
+  type AgentAdapterSpec,
   listRoleDisplayNames,
   listWorkflowDisplayNames,
   listAgentAdapters,
@@ -376,17 +383,21 @@ import {
 // that regenerates moves both of its sides together and proves determinism rather than correctness.
 import {
   readModelsConfig,
-  resolveModels,
-  inheritForEveryStem,
   tieredCorpusRefusals,
   TIERED,
   MODEL_TIERS_COUNT,
   type ModelAlias,
   // (Plan 34-05, EFFORT-04) guard_effort_assignment recomputes its expectation from the same reader
-  // and the effort resolver, never from a hand-listed level.
-  resolveEfforts,
-  inheritEffortForEveryStem,
+  // and resolver, never from a hand-listed level.
   type EffortLevel,
+  // (Plan 39-02, D-3, D-14, D-15, D-16) The per-adapter resolver both value guards recompute from,
+  // the config key set it validates against, the stems a preset governs, and the zero-config answer
+  // a refused configuration degrades to.
+  configKeyStems,
+  presetGovernedStems,
+  resolveAdapterAssignments,
+  zeroConfigAssignments,
+  type AdapterAssignments,
 } from "./model-tiers.js";
 
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
@@ -1984,6 +1995,63 @@ function guardKitCounts(): void {
 // VOICE. Clear professional English. A model tier is a money topic and the CLAUDE.md rule is hard.
 // No finding and no comment here asserts a saving, a price or a limit, because none was measured.
 // ---------------------------------------------------------------------------
+// THE EXPECTATION BOTH VALUE GUARDS RECOMPUTE, AND WHAT IT DEGRADES TO (plan 39-02, D-3, D-14-D-16).
+//
+// One reader (`readModelsConfig`, validated against configKeyStems of the specs) and one resolver
+// (`resolveAdapterAssignments`), the same pair the generator uses. A configuration that cannot be
+// READ, or that reads cleanly and cannot be RESOLVED, degrades the expectation to the ZERO-CONFIG
+// answer `zeroConfigAssignments(specs)`: `inherit` for every non-level adapter and its LEVELS pin for
+// every level adapter. Never to a preset tier, because silently upgrading a tree to a model nobody
+// chose is the worse failure; and never to `inherit` on a level adapter, because the level pin IS the
+// zero-config answer for that adapter (D-3), so an inherit-everywhere fallback would report a
+// correctly pinned adapter as wrong. If the zero-config answer itself refuses (a broken LEVELS table,
+// a level with no LEVELS row), the expectation is EMPTY and every adapter is named as assigned
+// nothing — fail-closed, with the refusal printed.
+type AssignmentExpectation =
+  | { readonly kind: "resolved"; readonly value: AdapterAssignments; readonly config: { preset: string; effortPreset: string; source: string | null } }
+  | { readonly kind: "read-refused"; readonly value: AdapterAssignments; readonly reason: string; readonly zeroRefusal: string | null }
+  | {
+      readonly kind: "resolve-refused";
+      readonly value: AdapterAssignments;
+      readonly reason: string;
+      readonly zeroRefusal: string | null;
+      readonly config: { preset: string; effortPreset: string; source: string | null };
+    };
+
+function zeroConfigFallback(specs: readonly AgentAdapterSpec[]): { value: AdapterAssignments; zeroRefusal: string | null } {
+  try {
+    return { value: zeroConfigAssignments(specs), zeroRefusal: null };
+  } catch (e) {
+    return {
+      value: { models: new Map(), efforts: new Map() },
+      zeroRefusal: (e as Error).message,
+    };
+  }
+}
+
+function recomputeAssignmentExpectation(specs: readonly AgentAdapterSpec[]): AssignmentExpectation {
+  const config = readModelsConfig(ROOT, configKeyStems(specs));
+  if (!config.ok) {
+    return { kind: "read-refused", reason: config.reason, ...zeroConfigFallback(specs) };
+  }
+  const labels = {
+    preset: config.value.preset,
+    effortPreset: config.value.effort.preset,
+    source: config.value.source,
+  };
+  const resolution = resolveAdapterAssignments(specs, config.value);
+  if (!resolution.ok) {
+    return { kind: "resolve-refused", reason: resolution.reason, config: labels, ...zeroConfigFallback(specs) };
+  }
+  return { kind: "resolved", value: resolution.value, config: labels };
+}
+
+// The sentence a degraded expectation appends when the zero-config answer itself refused.
+const zeroRefusalNote = (zeroRefusal: string | null): string =>
+  zeroRefusal === null
+    ? ""
+    : ` The zero-config answer ITSELF refused, so the expectation is EMPTY and every adapter below is named as assigned nothing — ${relativeToRoot(zeroRefusal)}`;
+
 function guardModelAssignment(): void {
   process.stdout.write(
     "\n[guard_model_assignment] every committed adapter declares the model alias the configuration resolves for its role (MODEL-03/MODEL-05)\n",
@@ -1998,12 +2066,17 @@ function guardModelAssignment(): void {
   // and cannot be proven by a case — dead code wearing a floor's clothes — and the second call would
   // be a second derivation of a predicate this module already derives once, which is the failure
   // class this milestone exists to delete. One derivation, asked twice.
-  const stems = ROLE_FILES.map((p) => stem(basename(p))).sort();
+  //
+  // (Plan 39-02) The stems are ADAPTER stems now: AGENT_ADAPTER_SPECS is listAgentAdapterSpecs(ROOT),
+  // derived at module scope beside ROLE_FILES with the same fail-closed exit, so a leveled role
+  // contributes one stem per level (`software-engineer-junior`) and no base stem.
+  const specs = AGENT_ADAPTER_SPECS;
+  const stems = specs.map((s) => s.adapterStem).sort();
 
   // The adapter set, from the SAME authority-derived member list the other adapter guards consume.
   const adapterRels = [...AGENT_ADAPTER_RELS].sort();
 
-  // A committed adapter's role stem comes from `roleStemOf` (module scope since plan 34-05, shared
+  // A committed adapter's ADAPTER stem comes from `adapterStemOf` (module scope since plan 34-05, shared
   // with guardEffortAssignment), asked at both of the loops below, so the key the expectation is
   // READ with cannot come apart from the key the membership set is BUILT with.
 
@@ -2016,7 +2089,7 @@ function guardModelAssignment(): void {
   // all, every stem is unbacked and the per-stem loop would print seventeen sentences restating the
   // one fact this sentence already names, so the stems are named HERE instead.
   if (adapterRels.length === 0) {
-    modelFail += `\nmodel assignment: the adapter derivation returned NO committed adapters under ${ADAPTER_DIR}, so this run compared zero model values — an empty adapter set is NEVER "nothing to compare, therefore fine", it is the state in which every configured tier is assigned to nothing on disk. All ${stems.length} role stem(s) are unbacked: ${stems.join(", ")}${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`;
+    modelFail += `\nmodel assignment: the adapter derivation returned NO committed adapters under ${ADAPTER_DIR}, so this run compared zero model values — an empty adapter set is NEVER "nothing to compare, therefore fine", it is the state in which every configured tier is assigned to nothing on disk. All ${stems.length} adapter stem(s) are unbacked: ${stems.join(", ")}${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`;
   }
 
   // ── Floor 2: the element count, DERIVED INDEPENDENTLY of the loop that consumes it. ─────────
@@ -2024,7 +2097,7 @@ function guardModelAssignment(): void {
   // off their own derivations rather than off the comparison loop, so a set that lost one member is
   // named with both numbers instead of producing one fewer green line.
   if (adapterRels.length > 0 && adapterRels.length !== stems.length) {
-    modelFail += `\nmodel assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} against ${stems.length} role stem(s) derived from the role-set authority. The two sets must be the same size before any value comparison means anything: a SHORT adapter set leaves a configured role with nothing on disk to carry its tier, and a LONG one carries a tier for something the role corpus does not know about. Both directions are named below by stem and by filename.`;
+    modelFail += `\nmodel assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} against ${stems.length} adapter stem(s) derived from the adapter-spec authority. The two sets must be the same size before any value comparison means anything: a SHORT adapter set leaves a configured adapter with nothing on disk to carry its tier, and a LONG one carries a tier for something the role corpus does not imply. Both directions are named below by stem and by filename.`;
   }
 
   // ── Floor 3: the preset table's cardinality, adjudicated HERE, where a wrong number stops a
@@ -2035,15 +2108,15 @@ function guardModelAssignment(): void {
   // integer equality, so the pin is TWO-SIDED — sixteen rows fails and eighteen rows fails, and only
   // seventeen passes.
   //
-  // ONE ARM, THREE NUMBERS, AND THE REASON IT IS NOT TWO ARMS. `MODEL_TIERS_COUNT` is TODAY declared
-  // as `export const MODEL_TIERS_COUNT = ROLE_COUNT` (scripts/model-tiers.ts). A second arm comparing
-  // `MODEL_TIERS_COUNT` against `ROLE_COUNT` would therefore be `ROLE_COUNT !== ROLE_COUNT` — a
-  // branch no input can reach, and a gate that prints two sentences for one fact is a gate whose
-  // reader cannot tell how many things went wrong. So the relationship is asserted ONCE and the
-  // message names all three numbers, which keeps the assertion honest on the day that constant
-  // becomes an independent literal.
+  // ONE ARM, FOUR NUMBERS, AND THE REASON IT IS NOT TWO ARMS. `MODEL_TIERS_COUNT` is declared as
+  // `export const MODEL_TIERS_COUNT = ROLE_COUNT - LEVELED_ROLE_COUNT` (scripts/model-tiers.ts, plan
+  // 39-01): a leveled role resolves through the LEVELS table and has no TIERED row (D-16). A second
+  // arm comparing `MODEL_TIERS_COUNT` against that difference would be a branch no input can reach,
+  // and a gate that prints two sentences for one fact is a gate whose reader cannot tell how many
+  // things went wrong. So the relationship is asserted ONCE and the message names every number,
+  // which keeps the assertion honest on the day that constant becomes an independent literal.
   if (TIERED.length !== MODEL_TIERS_COUNT) {
-    modelFail += `\nmodel assignment: the TIERED preset table holds ${TIERED.length} row(s) against MODEL_TIERS_COUNT of ${MODEL_TIERS_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}. The pin is TWO-SIDED — a shorter table leaves a role with no tier and a longer one assigns a tier to something that is not a role — and it is adjudicated here rather than in the library because continuing is safe there while a wrong number must stop a release. Walk every consumer before changing either constant: the TIERED table itself, resolveModels' per-stem coverage check, tieredCorpusRefusals, listRoles and this guard.`;
+    modelFail += `\nmodel assignment: the TIERED preset table holds ${TIERED.length} row(s) against MODEL_TIERS_COUNT of ${MODEL_TIERS_COUNT} (the kit authority's ROLE_COUNT of ${ROLE_COUNT} less its LEVELED_ROLE_COUNT of ${LEVELED_ROLE_COUNT}). The pin is TWO-SIDED — a shorter table leaves a role with no tier and a longer one assigns a tier to something that is not a role — and it is adjudicated here rather than in the library because continuing is safe there while a wrong number must stop a release. Walk every consumer before changing either constant: the TIERED table itself, resolveModels' per-stem coverage check, tieredCorpusRefusals, listRoles and this guard.`;
   }
 
   // ── The EXPECTATION, recomputed on every run from the configuration and the derived stems. ──
@@ -2054,9 +2127,10 @@ function guardModelAssignment(): void {
   // eighteenth role fire this guard: a hand-listed expectation cannot mention a stem no author typed.
   //
   // THE DEGRADING POLICY IS D-11's, AND IT IS REPORTED RATHER THAN SILENT. A configuration this guard
-  // cannot read degrades the WHOLE expectation to `inherit` for every stem — never to a pinned tier,
-  // because silently upgrading a tree to a model nobody chose is the worse failure — through the one
-  // shared `inheritForEveryStem`.
+  // cannot read degrades the WHOLE expectation to the zero-config answer — never to a preset tier,
+  // because silently upgrading a tree to a model nobody chose is the worse failure. Since plan 39-02
+  // that answer is `zeroConfigAssignments(specs)`, through recomputeAssignmentExpectation above:
+  // `inherit` for every non-level adapter and the LEVELS pin for every level adapter (D-3).
   //
   // (PLAN 29.1-09, WR-07) BOTH DEGRADED BRANCHES BLOCK. THEY USED TO ADVISE, AND THAT WAS A FAIL-OPEN.
   //
@@ -2076,7 +2150,7 @@ function guardModelAssignment(): void {
   //
   // WHAT DID NOT CHANGE IS THE DEGRADATION TARGET. D-11 splits by consumer and this guard is a
   // degrading consumer; promoting the REPORT from advisory to blocking says nothing about what the
-  // expectation degrades TO, which is still `inherit` for every stem and never a pinned tier. A
+  // expectation degrades TO, which is still the zero-config answer and never a preset tier. A
   // configuration that cannot be read is a different fact from a configuration that says the lean
   // default, and both branches word it that way.
   //
@@ -2090,13 +2164,13 @@ function guardModelAssignment(): void {
   // arose: `sourceLabel` was initialised to the phrase meaning "there is no configuration anywhere"
   // and reassigned only inside the success branch, so a degraded run whose configuration file EXISTS
   // reported that no configuration existed.
-  let resolved: ReadonlyMap<string, ModelAlias> = new Map();
+  let resolved: ReadonlyMap<string, ModelAlias>;
   let presetLabel: string;
   let sourceLabel: string;
-  const config = readModelsConfig(ROOT, stems);
-  if (!config.ok) {
-    modelFail += `\nmodel assignment: the \`models\` configuration could not be READ, so the expectation DEGRADES to \`inherit\` for every role stem (D-11) rather than to any pinned tier, and the comparison below ran against that fallback — ${relativeToRoot(config.reason)}`;
-    resolved = inheritForEveryStem(stems);
+  const expectation = recomputeAssignmentExpectation(specs);
+  if (expectation.kind === "read-refused") {
+    modelFail += `\nmodel assignment: the \`models\` configuration could not be READ, so the expectation DEGRADES to the zero-config answer (D-3) — \`inherit\` for every non-level adapter and its LEVELS pin for every level adapter — rather than to any preset tier, and the comparison below ran against that fallback — ${relativeToRoot(expectation.reason)}${zeroRefusalNote(expectation.zeroRefusal)}`;
+    resolved = expectation.value.models;
     presetLabel = "none (degraded — the configuration was refused)";
     // NOT "neither standard location", and NOT a claim that a file exists either. The reader returns
     // a refusal and no source, so the only honest statement here is that no source was established;
@@ -2105,26 +2179,22 @@ function guardModelAssignment(): void {
     sourceLabel =
       "no source established — the configuration read was REFUSED, and the refusal is named in the finding above";
   } else {
-    presetLabel = config.value.preset;
+    presetLabel = expectation.config.preset;
     // Assigned ONCE for both of the branches below, so the success path and the resolve-refusal path
     // cannot come apart about how a source is rendered. (IN-02) Rendered relative to the repository
     // root: this guard's header commits to byte-identical output for a given tree, which an absolute
     // path breaks across machines, and a developer home directory in a published continuous-integration
     // log is a disclosure this guard has no reason to make.
     sourceLabel =
-      config.value.source === null
+      expectation.config.source === null
         ? "neither standard location"
-        : relativeToRoot(config.value.source);
-    const resolution = resolveModels(stems, {
-      preset: config.value.preset,
-      overrides: config.value.overrides,
-    });
-    if (!resolution.ok) {
-      modelFail += `\nmodel assignment: the \`models\` configuration read cleanly but could not be RESOLVED against this tree's role stems, so the expectation DEGRADES to \`inherit\` for every stem (D-11) rather than to any pinned tier — ${relativeToRoot(resolution.reason)}`;
-      resolved = inheritForEveryStem(stems);
-      presetLabel = `${config.value.preset} (degraded — the resolution was refused)`;
+        : relativeToRoot(expectation.config.source);
+    if (expectation.kind === "resolve-refused") {
+      modelFail += `\nmodel assignment: the \`models\` configuration read cleanly but could not be RESOLVED against this tree's adapter stems, so the expectation DEGRADES to the zero-config answer (D-3) — \`inherit\` for every non-level adapter and its LEVELS pin for every level adapter — rather than to any preset tier — ${relativeToRoot(expectation.reason)}${zeroRefusalNote(expectation.zeroRefusal)}`;
+      resolved = expectation.value.models;
+      presetLabel = `${expectation.config.preset} (degraded — the resolution was refused)`;
     } else {
-      resolved = resolution.value;
+      resolved = expectation.value.models;
     }
   }
 
@@ -2158,7 +2228,10 @@ function guardModelAssignment(): void {
   //
   // Placed AFTER the configuration block so the finding order reads the way the run happened — what
   // the configuration said, then what the tree says about the table it may point at.
-  for (const finding of tieredCorpusRefusals(stems)) {
+  //
+  // (Plan 39-02, D-16) The table is judged against the PRESET-GOVERNED stems: a leveled role resolves
+  // through the LEVELS table, so it has no TIERED row and is not missing one.
+  for (const finding of tieredCorpusRefusals(presetGovernedStems(specs))) {
     modelFail += `\n${finding}`;
   }
 
@@ -2188,17 +2261,17 @@ function guardModelAssignment(): void {
   for (const rel of adapterRels) {
     const doc = admitted.get(rel);
     if (doc === undefined) continue; // refused above, and already named there.
-    const roleStem = roleStemOf(rel);
-    const expected = resolved.get(roleStem);
+    const adapterStem = adapterStemOf(rel);
+    const expected = resolved.get(adapterStem);
     if (expected === undefined) {
-      modelFail += `\n${ADAPTER_DIR}/${rel}: the resolution assigns NOTHING to role stem "${roleStem}" — this adapter's filename corresponds to no role the role-set authority derived, so whatever model value it declares was chosen by nobody and is compared against nothing.`;
+      modelFail += `\n${ADAPTER_DIR}/${rel}: the resolution assigns NOTHING to adapter stem "${adapterStem}" — this adapter's filename corresponds to no adapter the adapter-spec authority derived, so whatever model value it declares was chosen by nobody and is compared against nothing.`;
       continue;
     }
     const declared = doc.has("model")
       ? admittedValuesFor(doc, "model")
       : undefined;
     if (declared === undefined) {
-      modelFail += `\n${ADAPTER_DIR}/${rel}: carries NO \`model\` key at all — absence is its OWN fact and never a value mismatch. The platform falls back to its session default for an adapter that declares nothing, while the configuration resolves \`${expected}\` for role stem "${roleStem}", so the tier the user set is not the tier that loads and no value anywhere disagrees with anything.`;
+      modelFail += `\n${ADAPTER_DIR}/${rel}: carries NO \`model\` key at all — absence is its OWN fact and never a value mismatch. The platform falls back to its session default for an adapter that declares nothing, while the configuration resolves \`${expected}\` for adapter stem "${adapterStem}", so the tier the user set is not the tier that loads and no value anywhere disagrees with anything.`;
       continue;
     }
     if (declared.length !== 1) {
@@ -2207,11 +2280,11 @@ function guardModelAssignment(): void {
     }
     const value = declared[0] ?? "";
     if (value === "") {
-      modelFail += `\n${ADAPTER_DIR}/${rel}: \`model\` key present with an EMPTY value — emptiness is its OWN fact and never a mismatch, because an empty pin is not a value that disagrees, it is a key that says nothing. The configuration resolves \`${expected}\` for role stem "${roleStem}".`;
+      modelFail += `\n${ADAPTER_DIR}/${rel}: \`model\` key present with an EMPTY value — emptiness is its OWN fact and never a mismatch, because an empty pin is not a value that disagrees, it is a key that says nothing. The configuration resolves \`${expected}\` for adapter stem "${adapterStem}".`;
       continue;
     }
     if (value !== expected) {
-      modelFail += `\n${ADAPTER_DIR}/${rel}: declares \`model: ${value}\`, and the configuration resolves \`${expected}\` for role stem "${roleStem}". The committed bytes are what the platform loads; regenerating them would move BOTH sides of the freshness comparison and settle nothing, so this divergence is reported against the recomputed resolution rather than against another run of the generator.`;
+      modelFail += `\n${ADAPTER_DIR}/${rel}: declares \`model: ${value}\`, and the configuration resolves \`${expected}\` for adapter stem "${adapterStem}". The committed bytes are what the platform loads; regenerating them would move BOTH sides of the freshness comparison and settle nothing, so this divergence is reported against the recomputed resolution rather than against another run of the generator.`;
     }
   }
 
@@ -2223,10 +2296,10 @@ function guardModelAssignment(): void {
   // the case that proves this replaces the resolver with exactly such a list and watches this
   // finding disappear.
   if (adapterRels.length > 0) {
-    const backedStems = new Set(adapterRels.map(roleStemOf));
-    for (const roleStem of [...resolved.keys()].sort()) {
-      if (backedStems.has(roleStem)) continue;
-      modelFail += `\nrole stem "${roleStem}" resolves to \`${resolved.get(roleStem) ?? ""}\` and has NO committed adapter under ${ADAPTER_DIR} — the configuration assigned a tier to a role nothing on disk carries, so that assignment is a value the platform will never load. MODEL-03 exists so that a newly arrived role cannot be silently unassigned; generate its adapter, or remove the role.`;
+    const backedStems = new Set(adapterRels.map(adapterStemOf));
+    for (const adapterStem of [...resolved.keys()].sort()) {
+      if (backedStems.has(adapterStem)) continue;
+      modelFail += `\nadapter stem "${adapterStem}" resolves to \`${resolved.get(adapterStem) ?? ""}\` and has NO committed adapter under ${ADAPTER_DIR} — the configuration assigned a tier to an adapter nothing on disk carries, so that assignment is a value the platform will never load. MODEL-03 exists so that a newly arrived role cannot be silently unassigned; generate its adapter, or remove the role.`;
     }
   }
 
@@ -2324,7 +2397,7 @@ function guardModelAssignment(): void {
   // load-bearing on every path, which is what makes the WR-08 assertion something an input can
   // falsify rather than a phrase that is absent because nothing was printed.
   const aliases = [...new Set(resolved.values())].sort();
-  const runSummary = `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived role stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}; ${nonAgentSurfaces.length - strayPinSkipped.length} of ${nonAgentSurfaces.length} non-agent adapter surface(s) probed for a stray pin, ${strayPins.length === 0 ? "none found" : `${strayPins.length} found and named above`}${strayPinSkipped.length === 0 ? "" : `; ${strayPinSkipped.length} excluded from the probed count as UNADMITTABLE and reported by guard_wr05, not here: ${[...strayPinSkipped].sort().join(", ")}`}`;
+  const runSummary = `model assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against a resolution recomputed for ${stems.length} derived adapter stem(s); preset "${presetLabel}" from ${sourceLabel}; distinct aliases resolved: ${aliases.join(", ")}; ${nonAgentSurfaces.length - strayPinSkipped.length} of ${nonAgentSurfaces.length} non-agent adapter surface(s) probed for a stray pin, ${strayPins.length === 0 ? "none found" : `${strayPins.length} found and named above`}${strayPinSkipped.length === 0 ? "" : `; ${strayPinSkipped.length} excluded from the probed count as UNADMITTABLE and reported by guard_wr05, not here: ${[...strayPinSkipped].sort().join(", ")}`}`;
 
   if (modelFail === "") {
     pass(runSummary);
@@ -2378,8 +2451,9 @@ function guardModelAssignment(): void {
 //
 // BOTH DEGRADED BRANCHES BLOCK (the WR-07 posture `guard_model_assignment` records at length). A
 // configuration this guard cannot READ, and one that reads but cannot be RESOLVED, are each a named
-// finding that fails the run. The expectation then degrades to `inherit` for every stem — never to a
-// pinned level — and the comparison still runs, so a degraded run reports every adapter it could not
+// finding that fails the run. The expectation then degrades to the zero-config answer (plan 39-02,
+// D-3: `inherit` for every non-level adapter, the LEVELS pin for every level adapter) — never to a
+// preset level — and the comparison still runs, so a degraded run reports every adapter it could not
 // vouch for instead of skipping them. There is no `warn()` call in this function.
 //
 // THE BOUND ON THE PREDICATE'S INPUT. D-15 widened the schema for EVERY surface `admit()` reads, not
@@ -2402,53 +2476,50 @@ function guardEffortAssignment(): void {
   );
   let effortFail = "";
 
-  // The role stems, from the module's ONE derivation (ROLE_FILES is `listRoles(ROOT)`, whose throw is
-  // handled at module scope) — never a second `listRoles` call. See guardModelAssignment.
-  const stems = ROLE_FILES.map((p) => stem(basename(p))).sort();
+  // The ADAPTER stems, from the module's ONE spec derivation (AGENT_ADAPTER_SPECS, whose throw is
+  // handled at module scope) — never a second call. See guardModelAssignment (plan 39-02).
+  const specs = AGENT_ADAPTER_SPECS;
+  const stems = specs.map((s) => s.adapterStem).sort();
   // The adapter set, from the same authority-derived member list every adapter guard consumes.
   const adapterRels = [...AGENT_ADAPTER_RELS].sort();
 
   // ── Floor 1: vacuity. Zero adapters compared is the anomaly, never "nothing to check". ───────
   if (adapterRels.length === 0) {
-    effortFail += `\neffort assignment: the adapter derivation returned NO committed adapters under ${ADAPTER_DIR}, so this run compared zero effort values — an empty adapter set is NEVER "nothing to compare, therefore fine". All ${stems.length} role stem(s) are unbacked: ${stems.join(", ")}${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`;
+    effortFail += `\neffort assignment: the adapter derivation returned NO committed adapters under ${ADAPTER_DIR}, so this run compared zero effort values — an empty adapter set is NEVER "nothing to compare, therefore fine". All ${stems.length} adapter stem(s) are unbacked: ${stems.join(", ")}${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`;
   }
 
   // ── Floor 2: the element count, each side read off its OWN derivation. ──────────────────────
   if (adapterRels.length > 0 && adapterRels.length !== stems.length) {
-    effortFail += `\neffort assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} against ${stems.length} role stem(s) derived from the role-set authority. The two sets must be the same size before any effort comparison means anything: a SHORT adapter set leaves a configured role with nothing on disk to carry its level, and a LONG one carries a level for something the role corpus does not know about. Both directions are named below by stem and by filename.`;
+    effortFail += `\neffort assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} against ${stems.length} adapter stem(s) derived from the adapter-spec authority. The two sets must be the same size before any effort comparison means anything: a SHORT adapter set leaves a configured adapter with nothing on disk to carry its level, and a LONG one carries a level for something the role corpus does not imply. Both directions are named below by stem and by filename.`;
   }
 
   // ── The EXPECTATION, recomputed from the configuration and the derived stems. ───────────────
   //
-  // One reader (`readModelsConfig`, D-07) and one resolver (`resolveEfforts`), the same pair the
-  // generator uses, over a DIFFERENT input from the one this guard judges. No level, stem or
+  // One reader (`readModelsConfig`, D-07) and one resolver (`resolveAdapterAssignments`, plan 39-02),
+  // the same pair the generator uses, over a DIFFERENT input from the one this guard judges. No level, stem or
   // expectation is listed in this function.
   let resolved: ReadonlyMap<string, EffortLevel>;
   let presetLabel: string;
   let sourceLabel: string;
-  const config = readModelsConfig(ROOT, stems);
-  if (!config.ok) {
-    effortFail += `\neffort assignment: the \`models\` configuration could not be READ, so the effort expectation DEGRADES to \`inherit\` for every role stem rather than to any pinned level, and the comparison below ran against that fallback — ${relativeToRoot(config.reason)}`;
-    resolved = inheritEffortForEveryStem(stems);
+  const expectation = recomputeAssignmentExpectation(specs);
+  if (expectation.kind === "read-refused") {
+    effortFail += `\neffort assignment: the \`models\` configuration could not be READ, so the effort expectation DEGRADES to the zero-config answer (D-3) — \`inherit\` for every non-level adapter and its LEVELS pin for every level adapter — rather than to any preset level, and the comparison below ran against that fallback — ${relativeToRoot(expectation.reason)}${zeroRefusalNote(expectation.zeroRefusal)}`;
+    resolved = expectation.value.efforts;
     presetLabel = "none (degraded — the configuration was refused)";
     sourceLabel =
       "no source established — the configuration read was REFUSED, and the refusal is named in the finding above";
   } else {
-    presetLabel = config.value.effort.preset;
+    presetLabel = expectation.config.effortPreset;
     sourceLabel =
-      config.value.source === null
+      expectation.config.source === null
         ? "neither standard location"
-        : relativeToRoot(config.value.source);
-    const resolution = resolveEfforts(stems, {
-      preset: config.value.effort.preset,
-      overrides: config.value.effort.overrides,
-    });
-    if (!resolution.ok) {
-      effortFail += `\neffort assignment: the \`models.effort\` configuration read cleanly but could not be RESOLVED against this tree's role stems, so the effort expectation DEGRADES to \`inherit\` for every stem rather than to any pinned level — ${relativeToRoot(resolution.reason)}`;
-      resolved = inheritEffortForEveryStem(stems);
-      presetLabel = `${config.value.effort.preset} (degraded — the resolution was refused)`;
+        : relativeToRoot(expectation.config.source);
+    if (expectation.kind === "resolve-refused") {
+      effortFail += `\neffort assignment: the \`models.effort\` configuration read cleanly but could not be RESOLVED against this tree's adapter stems, so the effort expectation DEGRADES to the zero-config answer (D-3) — \`inherit\` for every non-level adapter and its LEVELS pin for every level adapter — rather than to any preset level — ${relativeToRoot(expectation.reason)}${zeroRefusalNote(expectation.zeroRefusal)}`;
+      resolved = expectation.value.efforts;
+      presetLabel = `${expectation.config.effortPreset} (degraded — the resolution was refused)`;
     } else {
-      resolved = resolution.value;
+      resolved = expectation.value.efforts;
     }
   }
 
@@ -2473,39 +2544,39 @@ function guardEffortAssignment(): void {
   for (const rel of adapterRels) {
     const doc = admitted.get(rel);
     if (doc === undefined) continue; // refused above, and already named there.
-    const roleStem = roleStemOf(rel);
-    const expected = resolved.get(roleStem);
+    const adapterStem = adapterStemOf(rel);
+    const expected = resolved.get(adapterStem);
     if (expected === undefined) {
-      effortFail += `\n${ADAPTER_DIR}/${rel}: the effort resolution assigns NOTHING to role stem "${roleStem}" — this adapter's filename corresponds to no role the role-set authority derived, so whatever effort it declares was chosen by nobody and is compared against nothing.`;
+      effortFail += `\n${ADAPTER_DIR}/${rel}: the effort resolution assigns NOTHING to adapter stem "${adapterStem}" — this adapter's filename corresponds to no adapter the adapter-spec authority derived, so whatever effort it declares was chosen by nobody and is compared against nothing.`;
       continue;
     }
     const declared = admittedValuesFor(doc, "effort");
     if (expected === "inherit") {
       if (declared.length !== 0) {
-        effortFail += `\n${ADAPTER_DIR}/${rel}: declares ${declared.length} \`effort\` value(s) (${shown(declared)}), and the configuration resolves \`inherit\` for role stem "${roleStem}" — expected \`inherit\`, found ${shown(declared)}. An \`inherit\` effort writes NO \`effort:\` line (D-06), so any line here is a level nobody configured.`;
+        effortFail += `\n${ADAPTER_DIR}/${rel}: declares ${declared.length} \`effort\` value(s) (${shown(declared)}), and the configuration resolves \`inherit\` for adapter stem "${adapterStem}" — expected \`inherit\`, found ${shown(declared)}. An \`inherit\` effort writes NO \`effort:\` line (D-06), so any line here is a level nobody configured.`;
       }
       continue;
     }
     if (declared.length === 0) {
-      effortFail += `\n${ADAPTER_DIR}/${rel}: carries NO \`effort\` line, and the configuration resolves \`${expected}\` for role stem "${roleStem}" — expected \`${expected}\`, found no value. Absence is its OWN fact and never agreement: the platform falls back to the session effort for an adapter that declares nothing, so the level the user set is not the level that loads.`;
+      effortFail += `\n${ADAPTER_DIR}/${rel}: carries NO \`effort\` line, and the configuration resolves \`${expected}\` for adapter stem "${adapterStem}" — expected \`${expected}\`, found no value. Absence is its OWN fact and never agreement: the platform falls back to the session effort for an adapter that declares nothing, so the level the user set is not the level that loads.`;
       continue;
     }
     if (declared.length !== 1) {
-      effortFail += `\n${ADAPTER_DIR}/${rel}: declares ${declared.length} \`effort\` values (${shown(declared)}), and the configuration resolves \`${expected}\` for role stem "${roleStem}" — expected exactly one \`${expected}\`. An effort level has ONE answer; reading the first would let a matching decoy hide the value the platform actually loads.`;
+      effortFail += `\n${ADAPTER_DIR}/${rel}: declares ${declared.length} \`effort\` values (${shown(declared)}), and the configuration resolves \`${expected}\` for adapter stem "${adapterStem}" — expected exactly one \`${expected}\`. An effort level has ONE answer; reading the first would let a matching decoy hide the value the platform actually loads.`;
       continue;
     }
     const value = declared[0] ?? "";
     if (value !== expected) {
-      effortFail += `\n${ADAPTER_DIR}/${rel}: declares \`effort: ${value}\`, and the configuration resolves \`${expected}\` for role stem "${roleStem}" — expected \`${expected}\`, found \`${value}\`. The committed bytes are what the platform loads, so this divergence is reported against the recomputed resolution rather than against another run of the generator.`;
+      effortFail += `\n${ADAPTER_DIR}/${rel}: declares \`effort: ${value}\`, and the configuration resolves \`${expected}\` for adapter stem "${adapterStem}" — expected \`${expected}\`, found \`${value}\`. The committed bytes are what the platform loads, so this divergence is reported against the recomputed resolution rather than against another run of the generator.`;
     }
   }
 
   // ── The other direction: a resolved stem with no committed adapter. ─────────────────────────
   if (adapterRels.length > 0) {
-    const backedStems = new Set(adapterRels.map(roleStemOf));
-    for (const roleStem of [...resolved.keys()].sort()) {
-      if (backedStems.has(roleStem)) continue;
-      effortFail += `\nrole stem "${roleStem}" resolves to effort \`${resolved.get(roleStem) ?? ""}\` and has NO committed adapter under ${ADAPTER_DIR} — the configuration assigned a level to a role nothing on disk carries, so that assignment is a value the platform will never load.`;
+    const backedStems = new Set(adapterRels.map(adapterStemOf));
+    for (const adapterStem of [...resolved.keys()].sort()) {
+      if (backedStems.has(adapterStem)) continue;
+      effortFail += `\nadapter stem "${adapterStem}" resolves to effort \`${resolved.get(adapterStem) ?? ""}\` and has NO committed adapter under ${ADAPTER_DIR} — the configuration assigned a level to an adapter nothing on disk carries, so that assignment is a value the platform will never load.`;
     }
   }
 
@@ -2534,7 +2605,7 @@ function guardEffortAssignment(): void {
 
   // The run summary, on BOTH outcomes, so a degraded or shrunken run cannot read as a green one.
   const levels = [...new Set(resolved.values())].sort();
-  const runSummary = `effort assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against an effort resolution recomputed for ${stems.length} derived role stem(s); effort preset "${presetLabel}" from ${sourceLabel}; distinct effort levels resolved: ${levels.join(", ")}; ${nonAgentSurfaces.length - strayEffortSkipped.length} of ${nonAgentSurfaces.length} non-agent adapter surface(s) probed for a stray effort key, ${strayEfforts.length === 0 ? "none found" : `${strayEfforts.length} found and named above`}${strayEffortSkipped.length === 0 ? "" : `; ${strayEffortSkipped.length} excluded from the probed count as UNADMITTABLE and reported by guard_wr05, not here: ${[...strayEffortSkipped].sort().join(", ")}`}`;
+  const runSummary = `effort assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against an effort resolution recomputed for ${stems.length} derived adapter stem(s); effort preset "${presetLabel}" from ${sourceLabel}; distinct effort levels resolved: ${levels.join(", ")}; ${nonAgentSurfaces.length - strayEffortSkipped.length} of ${nonAgentSurfaces.length} non-agent adapter surface(s) probed for a stray effort key, ${strayEfforts.length === 0 ? "none found" : `${strayEfforts.length} found and named above`}${strayEffortSkipped.length === 0 ? "" : `; ${strayEffortSkipped.length} excluded from the probed count as UNADMITTABLE and reported by guard_wr05, not here: ${[...strayEffortSkipped].sort().join(", ")}`}`;
 
   if (effortFail === "") {
     pass(runSummary);
@@ -2726,9 +2797,13 @@ function guardDistributionPair(): void {
 // vacuous PASS, so the gate must stop rather than continue over an empty set.
 let ROLE_FILES!: string[];
 let WORKFLOW_FILES!: string[];
+// (Plan 39-02) The agent adapter specs, derived once here beside the role set and with the same
+// fail-closed exit: a malformed `levels` declaration leaves no adapter set any guard could judge.
+let AGENT_ADAPTER_SPECS!: AgentAdapterSpec[];
 try {
   ROLE_FILES = listRoles(ROOT).map((f) => `agent-factory/roles/${f}`);
   WORKFLOW_FILES = listWorkflows(ROOT);
+  AGENT_ADAPTER_SPECS = listAgentAdapterSpecs(ROOT);
 } catch (e) {
   process.stdout.write(`  FAIL  kit derivation failed: ${(e as Error).message}\n`);
   process.stdout.write("\n== Result ==\n1 CHECK(S) FAILED\n");
@@ -3645,19 +3720,21 @@ function guardContextWrites(): void {
 // relative stem, exactly as before. Only a file whose declared identity disagrees with its own
 // filename is refused here.
 // ---------------------------------------------------------------------------
-// Every role's agent name is its role filename stem under the `grugops-` namespace:
-// `orchestrator.md` -> `grugops-orchestrator`. Comparison is exact JavaScript string equality over
-// these names throughout — no case folding, no normalisation, no substring matching.
-const AGENT_PREFIX = "grugops-";
+// Every agent adapter name comes from scripts/kit-model.ts's listAgentAdapterSpecs (plan 39-02): a
+// role with no `levels` key gives `grugops-<role>`, a role declaring levels gives one
+// `grugops-<role>-<level>` per level. This file never builds a name from a stem. Comparison is exact
+// JavaScript string equality over these names throughout — no case folding, no normalisation, no
+// substring matching.
 const stem = (file: string): string => file.replace(/\.md$/, "");
 
-// A committed adapter's role stem: its filename stem with the agent namespace removed. ONE
-// declaration (plan 34-05 lifted it out of guardModelAssignment), asked by both value guards —
-// guard_model_assignment and guard_effort_assignment — so the two cannot key one adapter to two
-// different roles. A function declaration, so it is hoisted like the guards that call it.
-function roleStemOf(rel: string): string {
+// A committed adapter's ADAPTER stem: its filename stem with the agent namespace removed, which is the
+// key resolveAdapterAssignments answers by (`software-engineer-junior`, never `software-engineer`).
+// ONE declaration, asked by both value guards — guard_model_assignment and guard_effort_assignment —
+// so the two cannot key one adapter two ways. A function declaration, so it is hoisted like the
+// guards that call it.
+function adapterStemOf(rel: string): string {
   const s = stem(basename(rel));
-  return s.startsWith(AGENT_PREFIX) ? s.slice(AGENT_PREFIX.length) : s;
+  return s.startsWith(AGENT_ADAPTER_PREFIX) ? s.slice(AGENT_ADAPTER_PREFIX.length) : s;
 }
 
 // Members of `a` absent from `b`, order-independent and sorted for byte-identical reporting.
@@ -3669,8 +3746,16 @@ function guardReferentialIntegrity(): void {
     "\n[guard_referential_integrity] role corpus == adapter directory == coordinator grant closure (KIT-03, D-09)\n",
   );
 
-  // Set 1 — the role corpus, from the KIT-01 derivation.
-  const roleNames = ROLE_FILES.map((p) => `${AGENT_PREFIX}${stem(basename(p))}`).sort();
+  // Set 1 — the DERIVED ADAPTER NAMES, from the one adapter-identity authority (plan 39-02, D-13):
+  // a role with no `levels` contributes one name, a leveled role one name per level and no base name.
+  // The variable keeps its name so the two directions below still read "role" for the corpus side.
+  let roleNames: string[];
+  try {
+    roleNames = listAgentAdapterNames(ROOT);
+  } catch (e) {
+    fail(`KIT-03: the adapter names could not be derived from the role corpus — ${(e as Error).message}`);
+    return;
+  }
 
   // Set 2 — the adapter set, from the SAME authority-derived member list the other three guards
   // consume. This guard used to run its own non-recursive readdir here, which is what made its
@@ -3772,9 +3857,9 @@ function guardReferentialIntegrity(): void {
   // `parsedAdapters` — the map the loop directly above just built — so there is ONE parse per adapter
   // and ONE grammar; runs before the coordinator lookup so no set comparison can precede it.
   //
-  // The expected name is the adapter's OWN FILENAME STEM. It is not `AGENT_PREFIX` joined to that
+  // The expected name is the adapter's OWN FILENAME STEM. It is not the agent namespace joined to that
   // stem: an adapter filename ALREADY carries the namespace (`grugops-installer.md`, never
-  // `installer.md`) — AGENT_PREFIX is joined once, up at `roleNames`, to the bare ROLE stem, and
+  // `installer.md`) — the namespace is joined once, inside listAgentAdapterSpecs, and
   // `adapterNames` deliberately does not re-join it. (The review's suggested patch joined it a second
   // time; that compares against `grugops-grugops-installer` and would fail all seventeen shipped
   // adapters. Recorded here so the next reader does not "restore" it.)
@@ -3894,7 +3979,7 @@ function guardReferentialIntegrity(): void {
     rolesNoAdapter.length > 0 ||
     adaptersNoRole.length > 0
   ) {
-    riFail += `\n  roles vs adapters: ${roleNames.length} roles, ${adapterNames.length} adapters`;
+    riFail += `\n  derived adapter names vs adapters: ${roleNames.length} derived adapter names, ${adapterNames.length} adapters`;
     if (rolesNoAdapter.length > 0) {
       riFail += `\n    ${rolesNoAdapter.length} role(s) with no adapter file: ${rolesNoAdapter.join(", ")}`;
     }
@@ -3921,7 +4006,7 @@ function guardReferentialIntegrity(): void {
 
   if (riFail === "") {
     pass(
-      `KIT-03: ${roleNames.length} roles == ${adapterNames.length} adapters == ${grantClosure.length} grant-closure names (D-09, no exception list)`,
+      `KIT-03: ${roleNames.length} derived adapter names == ${adapterNames.length} adapters == ${grantClosure.length} grant-closure names (D-09, no exception list)`,
     );
   } else {
     fail(

@@ -90,6 +90,7 @@ import {
   spawnGrantScanPrefix,
   SPAWN_GRANT_SCAN_PARTS,
   ROLE_COUNT,
+  LEVELED_ROLE_COUNT,
   PLUGIN_SKILL_ADAPTER_COUNT,
   PLUGIN_MANIFEST_COMPONENT_COUNT,
 } from "./kit-model.js";
@@ -8485,7 +8486,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(r.status).not.toBe(0);
     const o = out(r);
     // The three set differences, each named by MEMBER and not merely by cardinality.
-    expect(o).toContain("17 roles, 1 adapters");
+    expect(o).toContain("17 derived adapter names, 1 adapters");
     expect(o).toContain("16 role(s) with no adapter file");
     expect(o).toContain("grugops-software-engineer");
     expect(o).toContain("7 granted name(s) resolving to no adapter file");
@@ -8497,7 +8498,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).toBe(0);
     expect(out(r)).toContain(
-      "KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+      "KIT-03: 17 derived adapter names == 17 adapters == 17 grant-closure names",
     );
   });
 
@@ -8548,7 +8549,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 roles, 16 adapters");
+    expect(o).toContain("17 derived adapter names, 16 adapters");
     expect(o).toContain("1 role(s) with no adapter file: grugops-installer");
   });
 
@@ -8558,7 +8559,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 roles, 18 adapters");
+    expect(o).toContain("17 derived adapter names, 18 adapters");
     expect(o).toContain("1 adapter(s) with no role file: grugops-extra");
   });
 
@@ -8570,7 +8571,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 roles, 18 adapters");
+    expect(o).toContain("17 derived adapter names, 18 adapters");
     expect(o).toContain(
       "1 adapter(s) with no role file: extra/grugops-rogue",
     );
@@ -8585,7 +8586,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 roles, 18 adapters");
+    expect(o).toContain("17 derived adapter names, 18 adapters");
     expect(o).toContain(
       "1 adapter(s) with no role file: extra/grugops-installer",
     );
@@ -8626,7 +8627,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // grant, i.e. platform AGENT NAMES. Claude Code takes identity only from frontmatter, and until this
   // round nothing asserted the two namespaces coincide — so the milestone's founding defect (a grant
   // enumerating a name no installed agent carries) reproduced with the oracle printing
-  // "17 roles == 17 adapters == 17 grant-closure names" and exiting 0.
+  // "17 derived adapter names == 17 adapters == 17 grant-closure names" and exiting 0.
   //
   // These three are the fixtures the review found missing. Every one of them fails if the
   // `nameMismatch` block is removed from scripts/check-foundation-guards.ts.
@@ -8673,7 +8674,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain("expected `name: grugops-extra`");
     // The mapping refusal PRECEDES the set comparison, so the 18-vs-17 cardinality is not what is
     // reported here. A mismatch must be fixed before the equality means anything.
-    expect(o).not.toContain("17 roles, 18 adapters");
+    expect(o).not.toContain("17 derived adapter names, 18 adapters");
   });
 
   it("referential integrity RED: an EMPTY `name` value is REFUSED `unrecognized-line`, never read as a match (27-65)", () => {
@@ -8785,7 +8786,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const go = out(gr);
     expect(go).not.toContain("FAIL  KIT-03");
     expect(go).toContain(
-      "PASS  KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+      "PASS  KIT-03: 17 derived adapter names == 17 adapters == 17 grant-closure names",
     );
     expect(gr.status).toBe(0);
   }, 60_000);
@@ -8867,7 +8868,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(detail.map((l) => l.trim().split(":")[0])).toEqual(listRoles());
     // The oracle is not merely silent — it ran and reported the three-way equality it now holds.
     expect(o).toContain(
-      "KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+      "KIT-03: 17 derived adapter names == 17 adapters == 17 grant-closure names",
     );
   });
 
@@ -10531,7 +10532,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const section = modelSection(out(r));
     expect(section, "the guard must emit a banner and a section").not.toBe("");
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived role stem(s)`,
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived adapter stem(s)`,
     );
     expect(section).toContain('preset "none"');
     expect(section).toContain("distinct aliases resolved: inherit");
@@ -10559,7 +10560,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain(".claude/agents/grugops-orchestrator.md");
     expect(section).toContain("declares `model: opus`");
     expect(section).toContain("the configuration resolves `inherit`");
-    expect(section).toContain('role stem "orchestrator"');
+    expect(section).toContain('adapter stem "orchestrator"');
   });
 
   // ── THE FOUR VALUE-SHAPE WORDINGS, NAMED ONCE AND ASSERTED PAIRWISE DISTINCT. ───────────────
@@ -10752,10 +10753,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(roleNamesIn(m).length).toBe(ROLE_COUNT + 1);
 
     const section = modelSection(out(runIn(m)));
-    expect(section).toContain(`role stem "${PLANTED_18TH_STEM}"`);
+    expect(section).toContain(`adapter stem "${PLANTED_18TH_STEM}"`);
     expect(section).toContain("has NO committed adapter under .claude/agents");
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} role stem(s)`,
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} adapter stem(s)`,
     );
   });
 
@@ -10785,7 +10786,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     // The count floor still fires — it reads the role derivation, which the mutation did not touch —
     // so the section is NOT silent, and the discrimination is precisely the stem-naming finding.
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} role stem(s)`,
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} adapter stem(s)`,
     );
     // (Plan 29.1-09) NARROWED FROM "the stem is never mentioned" TO "the RESOLUTION-DERIVED finding
     // does not fire", and the narrowing is a repair rather than a weakening.
@@ -10802,7 +10803,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       section,
       "a hand-listed expectation cannot name a stem no author typed — which is exactly why the guard must not have one",
     ).not.toContain(
-      `role stem "${PLANTED_18TH_STEM}" resolves to`,
+      `adapter stem "${PLANTED_18TH_STEM}" resolves to`,
     );
     // …and the SECOND arm is asserted PRESENT on the same run, so the narrowing above cannot quietly
     // become a case that would pass over a guard with no stem-naming arm at all.
@@ -10839,9 +10840,9 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(r.status).not.toBe(0);
     const section = modelSection(out(r));
     expect(section).toContain(
-      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} role stem(s)`,
+      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} adapter stem(s)`,
     );
-    expect(section).toContain('role stem "factory-coach"');
+    expect(section).toContain('adapter stem "factory-coach"');
     expect(section).toContain("has NO committed adapter under .claude/agents");
   });
 
@@ -10901,8 +10902,8 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(r.status).not.toBe(0);
     const section = modelSection(out(r));
     expect(section).toContain("could not be READ");
-    expect(section).toContain("DEGRADES to `inherit` for every role stem (D-11)");
-    expect(section).toContain("rather than to any pinned tier");
+    expect(section).toContain("DEGRADES to the zero-config answer (D-3)");
+    expect(section).toContain("rather than to any preset tier");
     // The refusal itself is carried, by name, rather than collapsed into "something went wrong".
     expect(section).toContain(
       "is null rather than a JSON object",
@@ -10916,7 +10917,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain("degraded — the configuration was refused");
     // …and the comparison still ran against every adapter rather than being skipped.
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived role stem(s)`,
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived adapter stem(s)`,
     );
     // The degradation TARGET is unchanged: `inherit` for every stem, never a pinned tier.
     expect(section).toContain("distinct aliases resolved: inherit");
@@ -10957,10 +10958,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(r.status).not.toBe(0);
     const section = modelSection(out(r));
     expect(section).toContain(
-      "read cleanly but could not be RESOLVED against this tree's role stems",
+      "read cleanly but could not be RESOLVED against this tree's adapter stems",
     );
-    expect(section).toContain("DEGRADES to `inherit` for every stem (D-11)");
-    expect(section).toContain("rather than to any pinned tier");
+    expect(section).toContain("DEGRADES to the zero-config answer (D-3)");
+    expect(section).toContain("rather than to any preset tier");
     expect(section).toContain('the "tiered" preset assigns nothing to');
     expect(section).not.toContain("  PASS  model assignment");
     // …and this arm's degradation target is the lean default too, not the `tiered` table it failed
@@ -11598,10 +11599,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
       .filter((l) => l.includes(MISMATCH_ANCHOR));
     expect(mismatches).toHaveLength(ROLE_COUNT);
     expect(section).toContain(
-      "declares `model: inherit`, and the configuration resolves `opus` for role stem \"orchestrator\"",
+      "declares `model: inherit`, and the configuration resolves `opus` for adapter stem \"orchestrator\"",
     );
     expect(section).toContain(
-      "declares `model: inherit`, and the configuration resolves `sonnet` for role stem \"qe-e2e\"",
+      "declares `model: inherit`, and the configuration resolves `sonnet` for adapter stem \"qe-e2e\"",
     );
   });
 
@@ -11622,7 +11623,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const r = runScratch(guardJs, mirror());
     expect(r.status).not.toBe(0);
     expect(modelSection(out(r))).toContain(
-      `the TIERED preset table holds ${ROLE_COUNT - 1} row(s) against MODEL_TIERS_COUNT of ${ROLE_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}`,
+      `the TIERED preset table holds ${ROLE_COUNT - LEVELED_ROLE_COUNT - 1} row(s) against MODEL_TIERS_COUNT of ${ROLE_COUNT - LEVELED_ROLE_COUNT} (the kit authority's ROLE_COUNT of ${ROLE_COUNT} less its LEVELED_ROLE_COUNT of ${LEVELED_ROLE_COUNT})`,
     );
   });
 
@@ -11631,7 +11632,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const r = runScratch(guardJs, mirror());
     expect(r.status).not.toBe(0);
     expect(modelSection(out(r))).toContain(
-      `the TIERED preset table holds ${ROLE_COUNT + 1} row(s) against MODEL_TIERS_COUNT of ${ROLE_COUNT} and the kit authority's ROLE_COUNT of ${ROLE_COUNT}`,
+      `the TIERED preset table holds ${ROLE_COUNT - LEVELED_ROLE_COUNT + 1} row(s) against MODEL_TIERS_COUNT of ${ROLE_COUNT - LEVELED_ROLE_COUNT} (the kit authority's ROLE_COUNT of ${ROLE_COUNT} less its LEVELED_ROLE_COUNT of ${LEVELED_ROLE_COUNT})`,
     );
   });
 
@@ -11678,8 +11679,8 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const guarded = scratchGuardFiles({
       "check-foundation-guards.js": (src) =>
         src.replace(
-          "for (const finding of tieredCorpusRefusals(stems))",
-          'for (const finding of (config.ok && config.value.preset === "tiered" ? tieredCorpusRefusals(stems) : []))',
+          "for (const finding of tieredCorpusRefusals(presetGovernedStems(specs)))",
+          'for (const finding of (expectation.kind === "resolved" && expectation.config.preset === "tiered" ? tieredCorpusRefusals(presetGovernedStems(specs)) : []))',
         ),
     });
     const gated = modelSection(out(runScratch(guarded, m)));
@@ -12071,7 +12072,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const section = modelSection(out(r));
     expect(section).toContain("PASS  model assignment:");
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived role stem(s)`,
+      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived adapter stem(s)`,
     );
     expect(section).toContain('preset "none" from neither standard location');
     expect(section).toContain("distinct aliases resolved: inherit");
@@ -14693,7 +14694,7 @@ describe("guard_effort_assignment (plan 34-05)", () => {
     expect(redSection).toContain(`.claude/agents/${adapter}`);
     expect(redSection).toContain("declares `effort: low`");
     expect(redSection).toContain("the configuration resolves `high`");
-    expect(redSection).toContain(`role stem "${first}"`);
+    expect(redSection).toContain(`adapter stem "${first}"`);
     expect(redSection).not.toContain(EFFORT_PASS_MARKER);
   });
 
@@ -15000,7 +15001,7 @@ describe("guard_effort_assignment (plan 34-05)", () => {
     expect(r.status).not.toBe(0);
     const section = effortSection(out(r));
     expect(section).toContain("the adapter derivation returned NO committed adapters");
-    expect(section).toContain(`All ${ROLE_COUNT} role stem(s) are unbacked`);
+    expect(section).toContain(`All ${ROLE_COUNT} adapter stem(s) are unbacked`);
     expect(section).not.toContain(EFFORT_PASS_MARKER);
   });
 
@@ -15012,9 +15013,9 @@ describe("guard_effort_assignment (plan 34-05)", () => {
     expect(r.status).not.toBe(0);
     const section = effortSection(out(r));
     expect(section).toContain(
-      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} role stem(s)`,
+      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} adapter stem(s)`,
     );
-    expect(section).toContain(`role stem "${gone.replace(/\.md$/, "").replace(/^grugops-/, "")}"`);
+    expect(section).toContain(`adapter stem "${gone.replace(/\.md$/, "").replace(/^grugops-/, "")}"`);
     expect(section).not.toContain(EFFORT_PASS_MARKER);
   });
 
@@ -15043,7 +15044,9 @@ describe("guard_effort_assignment (plan 34-05)", () => {
   // committed twin: no advisory helper, one advisory-channel write (the header), the value read
   // through `admittedValuesFor`, the expectation through `resolveEfforts`, no line scan of its own,
   // and no effort level other than `inherit` spelled as a literal.
-  it("STRUCTURE — guardEffortAssignment reads through admit()/resolveEfforts only, and has no warn() and no hand-listed level", () => {
+  // (Plan 39-02) The resolution moved into recomputeAssignmentExpectation, shared with the model
+  // guard, so the guard body names that helper and the helper names the per-adapter resolver.
+  it("STRUCTURE — guardEffortAssignment reads through admit()/resolveAdapterAssignments only, and has no warn() and no hand-listed level", () => {
     const bodies = [
       ["check-foundation-guards.ts", "function guardEffortAssignment(): void {"],
       ["check-foundation-guards.js", "function guardEffortAssignment() {"],
@@ -15059,7 +15062,15 @@ describe("guard_effort_assignment (plan 34-05)", () => {
         .filter((l) => !l.trimStart().startsWith("//"))
         .join("\n");
       expect(code).toContain('admittedValuesFor(doc, "effort")');
-      expect(code).toContain("resolveEfforts(");
+      expect(code).toContain("recomputeAssignmentExpectation(specs)");
+      const helperDecl = rel.endsWith(".ts")
+        ? "function recomputeAssignmentExpectation(specs: readonly AgentAdapterSpec[]): AssignmentExpectation {"
+        : "function recomputeAssignmentExpectation(specs) {";
+      const helperStart = src.indexOf(helperDecl);
+      expect(helperStart, `${rel}: the shared expectation helper must be found`).toBeGreaterThan(-1);
+      expect(src.slice(helperStart, src.indexOf("\n}\n", helperStart))).toContain(
+        "resolveAdapterAssignments(specs, config.value)",
+      );
       expect(code.includes("warn("), `${rel}: no warn() helper call`).toBe(false);
       expect(code.split("process.stdout.write").length - 1, `${rel}: one channel write`).toBe(1);
       expect(code).toContain("[guard_effort_assignment]");

@@ -85,7 +85,7 @@ import { createServer } from "node:net";
 // buys a deliberate exception back is worth nothing once it stops describing the cases that exist.
 // If the locked decision is ever revisited, this import and those cases are what to delete along
 // with the duplicate. Drives the COMMITTED .js — the repo idiom.
-import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
+import { AGENT_ADAPTER_PREFIX, listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
 
 // THE CLOSED ALIAS VOCABULARY, IMPORTED HERE FOR THE SAME REASON AND UNDER THE SAME EXCEPTION
 // (29.2-01). The model-delivery cases below assert that every alias an installed adapter carries is
@@ -2248,7 +2248,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // without one gets no `effort:` line at all.
   //
   // Every expectation is DERIVED: the role stems come from kit-model's listRoles over the real kit,
-  // the adapter-to-stem map from the generator's own AGENT_PREFIX literal, and each adapter's
+  // the adapter-to-stem map from kit-model's AGENT_ADAPTER_PREFIX, and each adapter's
   // expected level from resolveEfforts over those stems. No stem and no level is typed here.
   // ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -2258,14 +2258,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     return listRoles(REPO_ROOT).map((f) => f.slice(0, -".md".length));
   }
 
-  // agentPrefixLiteral — the adapter namespace the GENERATOR declares, read out of its source text
-  // (the module cannot be imported: it writes adapters at load). One reading, so this file holds no
-  // second spelling of the prefix.
+  // agentPrefixLiteral — the adapter namespace, imported from its one declaration in
+  // scripts/kit-model.ts (plan 39-02 deleted the generator's private copy this used to read out of
+  // the generator's source text), so this file holds no second spelling of the prefix.
   function agentPrefixLiteral(): string {
-    const genSrc = readFileSync(join(REPO_ROOT, "scripts", "generate-role-adapters.ts"), "utf8");
-    const m = /const AGENT_PREFIX\s*=\s*"([^"]+)";/.exec(genSrc);
-    if (!m) throw new Error("scripts/generate-role-adapters.ts: could not find the AGENT_PREFIX literal");
-    return m[1];
+    return AGENT_ADAPTER_PREFIX;
   }
 
   // adapterStemMap — every installed adapter mapped to exactly one derived stem, and every stem to

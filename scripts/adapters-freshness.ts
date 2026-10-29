@@ -124,10 +124,9 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listAgentAdapters } from "./kit-model.js";
+import { listAgentAdapters, listAgentAdapterSpecs, type AgentAdapterSpec } from "./kit-model.js";
 import {
-  inheritEffortForEveryStem,
-  inheritForEveryStem,
+  zeroConfigAssignments,
   mirroredResolvedEffortPresetLine,
   mirroredResolvedPresetLine,
   resolvedAssignmentsIn,
@@ -316,13 +315,37 @@ if (announcedPreset !== ZERO_CONFIG_PRESET) {
 // read. A refused payload is deliberately not folded into the absent case: "the run announced
 // nothing" and "the run announced something this gate cannot read" have different remedies.
 //
-// THE REQUIRED ALIAS SET IS DERIVED FROM THE DEGRADING-POLICY AUTHORITY, never spelled here.
-// `inheritForEveryStem` is the one implementation of "what does `inherit` everywhere look like" in
-// this tree, so the alias this gate requires moves with that authority rather than beside it.
-const ZERO_CONFIG_ALIASES = [...new Set(inheritForEveryStem(["any-stem"]).values())].sort();
-if (ZERO_CONFIG_ALIASES.length !== 1) {
+// THE REQUIRED VALUES ARE DERIVED PER ADAPTER FROM THE ZERO-CONFIG AUTHORITY, never spelled here
+// (plan 39-02, D-3, D-14). `zeroConfigAssignments` over the adapter specs of the tree under judgement
+// is the one implementation of "what does nothing configured resolve to": `inherit` for every
+// non-level adapter and the LEVELS pin for every level adapter. There is no longer ONE zero-config
+// alias: a leveled role's adapters are pinned at zero config, so a level adapter carrying `inherit`
+// is stale here, and one carrying its pin is fresh. Keyed by the adapter name the spec derivation
+// built, so this gate never builds a name from a stem.
+let ZERO_CONFIG_SPECS: AgentAdapterSpec[] = [];
+let ZERO_CONFIG_MODEL_BY_ADAPTER: Record<string, string> = {};
+let ZERO_CONFIG_EFFORT_BY_ADAPTER: Record<string, string> = {};
+try {
+  ZERO_CONFIG_SPECS = listAgentAdapterSpecs(KIT_ROOT);
+  const zero = zeroConfigAssignments(ZERO_CONFIG_SPECS);
+  for (const spec of ZERO_CONFIG_SPECS) {
+    const model = zero.models.get(spec.adapterStem);
+    const effort = zero.efforts.get(spec.adapterStem);
+    if (model === undefined || effort === undefined) {
+      throw new Error(`the zero-config answer has no value for the adapter stem "${spec.adapterStem}"`);
+    }
+    ZERO_CONFIG_MODEL_BY_ADAPTER[spec.name] = model;
+    ZERO_CONFIG_EFFORT_BY_ADAPTER[spec.name] = effort;
+  }
+} catch (e) {
   die(
-    `Adapter freshness check FAILED: the zero-config alias set derived from the degrading-policy authority holds ${ZERO_CONFIG_ALIASES.length} member(s) rather than exactly one, so this gate has no single alias to require. This is a defect in scripts/model-tiers.ts, not in the adapters.`,
+    `Adapter freshness check FAILED: the zero-config answer could not be derived for the tree under judgement, so this gate has no value to require of any adapter — ${e instanceof Error ? e.message : String(e)}`,
+  );
+}
+const ZERO_CONFIG_ALIASES = [...new Set(Object.values(ZERO_CONFIG_MODEL_BY_ADAPTER))].sort();
+if (ZERO_CONFIG_ALIASES.length === 0) {
+  die(
+    "Adapter freshness check FAILED: the zero-config alias set derived from the adapter specs is EMPTY, so this gate has no alias to require. This is a defect in scripts/kit-model.ts or scripts/model-tiers.ts, not in the adapters.",
   );
 }
 
@@ -383,16 +406,14 @@ if (
 // asserted with the same discipline: no line, more than one, a refused payload and a wrong value are
 // each their own finding, and an absent line is never read as agreement (DC-1).
 //
-// The required level set is DERIVED from `inheritEffortForEveryStem`, the one implementation of the
-// zero-config effort map, never spelled here. The role-count cross-check sits beside the model one,
-// after the set half below, for the reason recorded there.
+// The required level set is DERIVED from the same per-adapter zero-config answer as the alias set
+// above, never spelled here. The role-count cross-check sits beside the model one, after the set half
+// below, for the reason recorded there.
 const ZERO_CONFIG_EFFORT_PRESET: EffortPresetName = "none";
-const ZERO_CONFIG_EFFORT_LEVELS = [
-  ...new Set(inheritEffortForEveryStem(["any-stem"]).values()),
-].sort();
-if (ZERO_CONFIG_EFFORT_LEVELS.length !== 1) {
+const ZERO_CONFIG_EFFORT_LEVELS = [...new Set(Object.values(ZERO_CONFIG_EFFORT_BY_ADAPTER))].sort();
+if (ZERO_CONFIG_EFFORT_LEVELS.length === 0) {
   die(
-    `Adapter freshness check FAILED: the zero-config effort level set derived from inheritEffortForEveryStem holds ${ZERO_CONFIG_EFFORT_LEVELS.length} member(s) rather than exactly one, so this gate has no single level to require. This is a defect in scripts/model-tiers.ts, not in the adapters.`,
+    "Adapter freshness check FAILED: the zero-config effort level set derived from the adapter specs is EMPTY, so this gate has no level to require. This is a defect in scripts/kit-model.ts or scripts/model-tiers.ts, not in the adapters.",
   );
 }
 
@@ -564,9 +585,11 @@ if (effortAssignment.value.roles !== rebuiltNames.length) {
 //   1. the announced key set equals the names of the adapters this gate compared (the regenerated
 //      listing above, set-equal to the committed one, each name without `.md`) — a map keyed by
 //      anything else, or naming an adapter the run did not write, describes some other artifact;
-//   2. every announced value is the zero-config value this gate already derived
-//      (`ZERO_CONFIG_ALIASES`, `ZERO_CONFIG_EFFORT_LEVELS`) — the list check above sees only the
-//      distinct set, and this is the per-member statement of the same requirement.
+//   2. every announced value is THAT ADAPTER'S OWN zero-config value, which this gate already derived
+//      (`ZERO_CONFIG_MODEL_BY_ADAPTER`, `ZERO_CONFIG_EFFORT_BY_ADAPTER`, plan 39-02) — the list check
+//      above sees only the distinct set, and this is the per-member statement of the same
+//      requirement. A level adapter's zero-config value is its LEVELS pin, so `inherit` there is
+//      stale, and a non-level adapter's is `inherit`, so a pin there is stale.
 //
 // The compared names are derived from the listing this gate already compares, and their count is
 // asserted against it, so the expected key set cannot be shorter than the comparison it stands for.
@@ -580,11 +603,27 @@ if (
   );
 }
 
+// The zero-config record must cover exactly the adapters this gate compared: a spec the generator did
+// not write, or an adapter no spec derives, leaves an adapter with no expected value or an expected
+// value for nothing, and neither is fresh (plan 39-02).
+const zeroConfigNames = Object.keys(ZERO_CONFIG_MODEL_BY_ADAPTER).sort();
+if (
+  zeroConfigNames.length !== comparedAdapterNames.length ||
+  zeroConfigNames.some((n, i) => n !== comparedAdapterNames[i])
+) {
+  die(
+    `Adapter freshness check FAILED: the adapter specs derived from the tree under judgement name ${zeroConfigNames.length} adapter(s), and they are not the ${comparedAdapterNames.length} adapter(s) the mirrored regeneration wrote. The two sets must be equal before any zero-config value means anything.\n` +
+      `  derived:     ${zeroConfigNames.join(", ")}\n` +
+      `  regenerated: ${comparedAdapterNames.join(", ")}\n` +
+      `Run \`${REGEN_CMD}\` and commit the result.`,
+  );
+}
+
 /** The two map findings for one dial. Each mismatch prints both sides. */
 function checkAnnouncedMap(
   dial: "model" | "effort",
   byAdapter: Readonly<Record<string, string>>,
-  zeroConfig: string,
+  zeroConfig: Readonly<Record<string, string>>,
 ): void {
   const announcedNames = Object.keys(byAdapter).sort();
   const onlyAnnounced = announcedNames.filter((n) => !comparedAdapterNames.includes(n));
@@ -603,16 +642,19 @@ function checkAnnouncedMap(
         `${WHY_ZERO_CONFIG}\nRun \`${REGEN_CMD}\` and commit the result.`,
     );
   }
-  const offZero = announcedNames.filter((n) => byAdapter[n] !== zeroConfig);
+  // Every key is in the zero-config record: the key set was proven equal to the compared adapters
+  // just above, and the compared adapters were proven equal to the derived spec names before this
+  // function is called. A missing expectation is still named rather than compared silently.
+  const offZero = announcedNames.filter((n) => byAdapter[n] !== zeroConfig[n]);
   if (offZero.length > 0) {
     die(
-      `Adapter freshness check FAILED: the mirrored regeneration's announced ${dial} map gives ${offZero.length} adapter(s) a value other than "${zeroConfig}": ${offZero.map((n) => `${n}=${JSON.stringify(byAdapter[n])}`).join(", ")}. This gate requires every adapter at "${zeroConfig}".\n` +
+      `Adapter freshness check FAILED: the mirrored regeneration's announced ${dial} map gives ${offZero.length} adapter(s) a value other than its own zero-config value: ${offZero.map((n) => `${n}=${JSON.stringify(byAdapter[n])} (zero-config ${zeroConfig[n] === undefined ? "UNDEFINED — no adapter spec derives this name" : JSON.stringify(zeroConfig[n])})`).join(", ")}. This gate requires every adapter at its own zero-config value: \`inherit\` for a non-level adapter and the LEVELS pin for a level adapter.\n` +
         `${WHY_ZERO_CONFIG}`,
     );
   }
 }
-checkAnnouncedMap("model", assignment.value.byAdapter, ZERO_CONFIG_ALIASES[0]);
-checkAnnouncedMap("effort", effortAssignment.value.byAdapter, ZERO_CONFIG_EFFORT_LEVELS[0]);
+checkAnnouncedMap("model", assignment.value.byAdapter, ZERO_CONFIG_MODEL_BY_ADAPTER);
+checkAnnouncedMap("effort", effortAssignment.value.byAdapter, ZERO_CONFIG_EFFORT_BY_ADAPTER);
 
 // ── Half two: BYTE comparison over the (now provably equal) member set ───────────
 // Both sides are read by the SAME relative path, so a nested member is byte-compared at its own

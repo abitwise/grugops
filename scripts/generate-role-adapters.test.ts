@@ -653,7 +653,10 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
         join(LIVE_ROLES, "qe-e2e.md"),
         join(m, "agent-factory", "roles", "QE-E2E.md"),
       );
-      expectRefusal(m, "collides with the one produced by");
+      // (Plan 39-02) Refused by the adapter-spec derivation, which names both role files.
+      expectRefusal(m, "collides with an adapter name from role file");
+      expectRefusal(m, "QE-E2E.md");
+      expectRefusal(m, "qe-e2e.md");
     },
   );
 
@@ -675,7 +678,10 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     // The whitespace-bearing twin must be there to remove, or the plant is a silent no-op.
     expect(before).toContain("capabilities: read edit shell");
     writeFileSync(p, before.replace(/^capabilities: .*$/m, "capabilities:read edit shell"));
-    expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
+    // (Plan 39-02) The adapter-spec derivation reads every role's frontmatter before the generator's
+    // own parse, so the refusal is now that derivation's sentence, naming the same file.
+    expectRefusal(m, "cannot read the frontmatter of role file");
+    expectRefusal(m, "qe-e2e.md: ");
     expectRefusal(m, "capabilities:read edit shell");
   });
 
@@ -743,7 +749,10 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
       "the two sibling fixtures must be the SAME splice of the SAME source file",
     ).toEqual(lines);
     writeFileSync(p, strip.kept.join("\n"));
-    expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
+    // (Plan 39-02) The adapter-spec derivation reads every role's frontmatter before the generator's
+    // own parse, so the refusal is now that derivation's sentence, naming the same file.
+    expectRefusal(m, "cannot read the frontmatter of role file");
+    expectRefusal(m, "qe-e2e.md: ");
     expectRefusal(m, "is never closed by a `---` delimiter");
     // This case pins the UNTERMINATED diagnosis and NOT the fence one — asserted on the text, so a
     // fixture that silently began exercising the sibling's refusal fails here rather than passing on
@@ -975,7 +984,10 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     const { path: p, lines } = spliceClosingDelimiter(m);
     expect(lines.some((l) => l.startsWith("```"))).toBe(true);
     writeFileSync(p, lines.join("\n"));
-    expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
+    // (Plan 39-02) The adapter-spec derivation reads every role's frontmatter before the generator's
+    // own parse, so the refusal is now that derivation's sentence, naming the same file.
+    expectRefusal(m, "cannot read the frontmatter of role file");
+    expectRefusal(m, "qe-e2e.md: ");
     expectRefusal(m, "carries the code-fence delimiter line");
     expectRefusal(
       m,
@@ -1167,13 +1179,21 @@ function substituteResolver(m: string, body: string): void {
   writeFileSync(twin, `export * from "./model-tiers.real.js";\n${body}`, "utf8");
 }
 
-/** A stub that RESOLVES every stem to one alias. */
+// (Plan 39-02) The generator resolves through `resolveAdapterAssignments`, keyed by adapter stem, so
+// that is the name the stubs override. Overriding `resolveModels` would no longer reach the emit: the
+// real per-adapter resolver calls its own module-local binding.
+
+/** A stub that RESOLVES every adapter to one alias (effort `inherit`, so no effort line moves). */
 const resolverAnswering = (alias: string): string =>
   [
-    "export function resolveModels(stems) {",
-    "  const value = new Map();",
-    "  for (const s of [...stems].sort()) value.set(s, " + JSON.stringify(alias) + ");",
-    "  return { ok: true, value };",
+    "export function resolveAdapterAssignments(specs) {",
+    "  const models = new Map();",
+    "  const efforts = new Map();",
+    "  for (const s of [...specs].map((x) => x.adapterStem).sort()) {",
+    "    models.set(s, " + JSON.stringify(alias) + ");",
+    '    efforts.set(s, "inherit");',
+    "  }",
+    "  return { ok: true, value: { models, efforts } };",
     "}",
     "",
   ].join("\n");
@@ -1181,7 +1201,7 @@ const resolverAnswering = (alias: string): string =>
 /** A stub that REFUSES, so the generator's fail-closed posture can be observed. */
 const resolverRefusing = (reason: string): string =>
   [
-    "export function resolveModels() {",
+    "export function resolveAdapterAssignments() {",
     "  return { ok: false, reason: " + JSON.stringify(reason) + " };",
     "}",
     "",
@@ -2091,5 +2111,104 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
       (f) => readFileSync(join(agentsDir(m), f), "utf8") !== readFileSync(join(LIVE_AGENTS, f), "utf8"),
     );
     expect(differing, "live adapter(s) differ from what the committed generator renders").toEqual([]);
+  });
+});
+
+// ── Engineer levels: one role, several adapters (plan 39-02, TIER-02, TIER-06; D-13, D-14) ──────
+//
+// A mirror whose software-engineer.md declares `levels:` must regenerate one adapter per level, with
+// no base adapter, each carrying its D-14 zero-config pin, the level in its description and body,
+// and a place in the coordinator's grant. The model and effort values are written here as test
+// LITERALS on purpose: they are the D-14 decision, and reading them back from the LEVELS table would
+// make this case agree with whatever the table says.
+
+/** The sample mirror with `levels: <value>` added to software-engineer.md, below `capabilities:`. */
+function levelsScratch(value = "junior mid senior"): string {
+  const m = scratch(SAMPLE_ROLES);
+  const p = join(m, "agent-factory", "roles", "software-engineer.md");
+  const text = readFileSync(p, "utf8");
+  const next = text.replace(/^capabilities: .*$/m, (line) => `${line}\nlevels: ${value}`);
+  if (next === text) {
+    throw new Error("PREMISE: software-engineer.md carries no `capabilities:` line to anchor `levels:` on");
+  }
+  writeFileSync(p, next, "utf8");
+  return m;
+}
+
+const LEVEL_PINS = {
+  junior: { model: "haiku", effort: "medium" },
+  mid: { model: "sonnet", effort: "medium" },
+  senior: { model: "opus", effort: "high" },
+} as const;
+
+describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)", () => {
+  it("levels: a leveled role emits one adapter per level and no base adapter, each pinned, described, pointed and granted", () => {
+    // The unleveled mirror's software-engineer description is the base every level suffixes.
+    const plain = scratch(SAMPLE_ROLES);
+    expect(runIn(plain).status).toBe(0);
+    const baseDescription =
+      fmValue(readFileSync(join(agentsDir(plain), "grugops-software-engineer.md"), "utf8"), "description") ?? "";
+    expect(baseDescription.startsWith('"') && baseDescription.endsWith('"'), baseDescription).toBe(true);
+
+    const m = levelsScratch();
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    const files = readdirSync(agentsDir(m)).sort();
+    expect(files).toContain("grugops-software-engineer-junior.md");
+    expect(files).toContain("grugops-software-engineer-mid.md");
+    expect(files).toContain("grugops-software-engineer-senior.md");
+    expect(files, "a leveled role keeps NO base adapter (D-13)").not.toContain("grugops-software-engineer.md");
+    expect(files).toHaveLength(SAMPLE_ROLES.length - 1 + 3);
+
+    const tools =
+      fmValue(readFileSync(join(agentsDir(plain), "grugops-software-engineer.md"), "utf8"), "tools") ?? "";
+    for (const [level, pin] of Object.entries(LEVEL_PINS)) {
+      const text = readFileSync(join(agentsDir(m), `grugops-software-engineer-${level}.md`), "utf8");
+      expect(fmValue(text, "name")).toBe(`grugops-software-engineer-${level}`);
+      expect(fmValue(text, "tools"), "a level adapter carries the role's tools").toBe(tools);
+      expect(modelLines(text)).toEqual([`model: ${pin.model}`]);
+      expect(effortLines(text)).toEqual([`effort: ${pin.effort}`]);
+      expect(fmValue(text, "description")).toBe(`${baseDescription.slice(0, -1)} Level: ${level}."`);
+      expect(text).toContain(
+        "Read `agent-factory/roles/software-engineer.md` now and act as that role. The role file does the\n" +
+          "thinking; this adapter only points at it.\n\n" +
+          `Work at the \`${level}\` level: read the \`## Levels\` section of that role file for its scope.\n\n`,
+      );
+      expect(fmValue(text, "skills"), "a level adapter never carries a `skills:` line").toBeUndefined();
+      expect(fmValue(text, "coordinator")).toBeUndefined();
+    }
+
+    // The grant is generated from the emitted adapters minus the coordinator, sorted (D-13, TIER-06).
+    const coord = readFileSync(join(agentsDir(m), "grugops-orchestrator.md"), "utf8");
+    const granted = grantNames(coord);
+    const expected = files
+      .map((f) => f.slice(0, -".md".length))
+      .filter((n) => n !== "grugops-orchestrator")
+      .sort();
+    expect(granted).toEqual(expected);
+    for (const level of Object.keys(LEVEL_PINS)) {
+      expect(granted).toContain(`grugops-software-engineer-${level}`);
+    }
+
+    // The announcement carries each level adapter at its pin, and every other adapter at inherit.
+    const a = announcedAssignment(r);
+    expect(a.byAdapter["grugops-software-engineer-junior"]).toBe("haiku");
+    expect(a.byAdapter["grugops-software-engineer-mid"]).toBe("sonnet");
+    expect(a.byAdapter["grugops-software-engineer-senior"]).toBe("opus");
+    expect(a.byAdapter["grugops-orchestrator"]).toBe("inherit");
+    expect(a.overrides).toBe(0);
+  });
+
+  it("levels: the declaration order of `levels` tokens cannot change any emitted byte (TIER-02 ordering)", () => {
+    const sorted = levelsScratch("junior mid senior");
+    const shuffled = levelsScratch("senior junior mid");
+    const rs = runIn(sorted);
+    const rx = runIn(shuffled);
+    expect(rs.status, out(rs)).toBe(0);
+    expect(rx.status, out(rx)).toBe(0);
+    expect(snapshot(agentsDir(shuffled))).toEqual(snapshot(agentsDir(sorted)));
+    // The announcements too, after the run-specific output directory is removed from the summary.
+    const strip = (r: SpawnSyncReturns<string>, m: string): string => (r.stdout ?? "").split(m).join("<mirror>");
+    expect(strip(rx, shuffled)).toBe(strip(rs, sorted));
   });
 });
