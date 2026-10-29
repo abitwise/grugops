@@ -204,8 +204,17 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * repository, and never build one around the bytes — so it hands to no human, carries no
  * `checkpoint:` tag, and the roster is unchanged. It sits beside the three `31-18` added for the
  * same reason and under the same test.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (39-08, 2026-10-29): 43 -> 44. Plan `39-08` put the Tech
+ * Lead into `agent-factory/workflows/04-ticket-to-pr.md`, and its `## Stop conditions` gained one
+ * bullet: the Tech Lead finds the approach not designed (F2 = 2), so the ticket goes back to
+ * `In Design` for the Architect and no engineer is dispatched. The derivation printed 44 before
+ * this line moved. THE TAGGING LIST WAS RE-WALKED: the bullet hands the ticket to the Architect, a
+ * role, not to a human, so it carries no `checkpoint:` tag and the roster is unchanged. The same
+ * plan widened the XL bullet to cover a Tech Lead file plan too large for one PR; that is the same
+ * bullet, so it moves nothing here.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 43;
+export const WORKFLOW_STOP_BULLET_COUNT = 44;
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the
  * scope selector can never come to disagree about which word they are talking about.

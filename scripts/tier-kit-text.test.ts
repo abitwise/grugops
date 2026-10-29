@@ -5,7 +5,10 @@
 // Plan 39-06 adds the cases for agent-factory/roles/designer.md (TIER-05; D-23..D-27).
 // Plan 39-07 adds the cases for the engineer's `levels:` line and `## Levels` section (TIER-02,
 // TIER-03; D-5, D-10, D-17, D-18, D-31), and the dial documentation of the D-2 amendment and the
-// level keys (D-2, D-15, D-16, D-22). Later Phase 39 plans add WF04 and WF14.
+// level keys (D-2, D-15, D-16, D-22).
+// Plan 39-08 adds the cases for the Tech Lead in agent-factory/workflows/04-ticket-to-pr.md and the
+// Orchestrator's routing block (TIER-01; D-02, D-05, D-06, D-08, D-17, D-30). A later Phase 39 plan
+// adds WF14.
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -416,5 +419,99 @@ describe("the level dial documentation (TIER-03; D-2, D-5, D-15, D-16, D-17, D-2
     expect(PACKAGING).toContain("### The level adapter");
     expect(PACKAGING).toContain("`name` is `grugops-<role>-<level>`.");
     expect(PACKAGING).toContain("ends with ` Level: <level>.` inside its quotes");
+  });
+});
+
+describe("WF04 and the Orchestrator route each ticket through the Tech Lead (TIER-01; D-02, D-05, D-06, D-08, D-17, D-30)", () => {
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const ORCH_PATH = join(ROOT, "agent-factory/roles/orchestrator.md");
+  const ORCH = readFileSync(ORCH_PATH, "utf8");
+  const PACKAGING = readFileSync(join(ROOT, "agent-factory/packaging/subagent.frontmatter.md"), "utf8");
+  const steps = numbered(section(WF04, "Steps"));
+
+  it("the steps are numbered 1..n with no gap", () => {
+    expect(steps.length).toBeGreaterThan(3);
+    expect(steps.map((s) => s.n)).toEqual(steps.map((_, i) => i + 1));
+  });
+
+  it("D-06: step 1 is still the Definition of Ready step", () => {
+    expect(steps[0]?.text).toContain("Confirm the ticket against `agent-factory/checklists/definition-of-ready.md` (Orchestrator).");
+  });
+
+  it("D-02: the step right after the Definition of Ready step is the Tech Lead's, and it names complexity-rubric.md", () => {
+    const step = steps[1]?.text ?? "";
+    expect(step.startsWith("Assess the ticket per `agent-factory/checklists/complexity-rubric.md` (Tech Lead).")).toBe(true);
+    expect(step).toContain("a `decision` note per Workflow 16");
+    expect(step).toContain("`## Tech Lead plan` section into the ticket body");
+  });
+
+  it("D-08: the pull into development waits for the plan note, after the Tech Lead step", () => {
+    expect(steps[2]?.text).toContain("Pull the ticket into development once the plan note is published");
+  });
+
+  it("D-17 / T-39-14: the dispatch step spawns the named adapter as a non-fork sub-agent with no `model` or `effort` parameter", () => {
+    const step = steps.find((s) => s.text.startsWith("Create one `pending/` subtask for the exact adapter"));
+    expect(step, "no dispatch step").toBeDefined();
+    const t = (step as { text: string }).text;
+    expect(t).toContain("non-fork sub-agent");
+    expect(t).toContain("Pass no `model` or `effort` parameter on the spawn call.");
+    expect(t).toContain("Never re-decide the level.");
+    expect(t).toContain("reads its level from `## Tech Lead plan`");
+    // The dispatch comes right after the pull and right before the implementation step.
+    const n = (step as { n: number }).n;
+    expect(steps[n - 2]?.text).toContain("Pull the ticket into development");
+    expect(steps[n]?.text.startsWith("Implement the one ticket on a branch")).toBe(true);
+  });
+
+  it("the flow, the agents and the inputs name the Tech Lead and the rubric", () => {
+    expect(section(WF04, "When to use")).toContain("-> Tech Lead plan -> Software Engineer (named level) ->");
+    expect(section(WF04, "Agents involved")).toContain("- Tech Lead — scores the ticket on the complexity rubric");
+    expect(section(WF04, "Agents involved")).toContain("at the level the Tech Lead names");
+    expect(section(WF04, "Inputs required")).toContain("- `agent-factory/checklists/complexity-rubric.md`");
+  });
+
+  it("D-08: the ticket stays in `Ready for Dev` while the Tech Lead plans", () => {
+    const moves = section(WF04, "Board moves");
+    expect(moves).toContain("The ticket stays in `Ready for Dev` while the Tech Lead plans.");
+    expect(moves).toContain("only once the Tech Lead's plan note is published");
+  });
+
+  it("D-05 / D-06: the stop conditions send an undesigned approach to `In Design` and cover a file plan too large for one PR", () => {
+    const stops = section(WF04, "Stop conditions");
+    expect(stops).toContain("(F2 = 2) -> record the gap and send the ticket back to `In Design` for the Architect. Dispatch no engineer.");
+    expect(stops).toContain("the Tech Lead's file plan is too large for one PR -> `SPLIT_REQUIRED`");
+  });
+
+  it("D-30: the Orchestrator routes plan, code and design system to the Tech Lead, the engineer and the Designer", () => {
+    const routing = ORCH.slice(ORCH.indexOf("### Routing matrix"), ORCH.indexOf("### WIP gate"));
+    expect(routing).toContain("plan -> Tech Lead");
+    expect(routing).toContain("code -> Software Engineer (level from Tech Lead)");
+    expect(routing).toContain("design system -> Designer");
+    // Every route the block carried before the rewrite is still there.
+    for (const route of [
+      "product clarity -> BA/PM",
+      "flows/system rules -> System Analyst",
+      "structure/tradeoffs -> Architect",
+      "repo mapping -> Brownfield|Greenfield Mapper",
+      "tests -> QE/E2E",
+      "risk/security/compliance -> Security/NFR (+ Compliance Officer if regime set)",
+      "business acceptance -> UAT Planner",
+      "UI/frontend -> Frontend/UI",
+      "release -> Release Manager (ent.)",
+      "incident -> Incident Responder (ent.)",
+      "sprint end/metrics dip -> Factory Coach (ent.)",
+      "AGENTS.md -> AGENTS.md Scribe",
+      "adapters installed -> Installer",
+    ]) {
+      expect(routing, route).toContain(route);
+    }
+  });
+
+  it("D-30: orchestrator.md did not grow past its 7,359 bytes before plan 39-08", () => {
+    expect(readFileSync(ORCH_PATH).byteLength).toBeLessThanOrEqual(7359);
+  });
+
+  it("the packaging specimen names no retired base engineer adapter", () => {
+    expect(PACKAGING).not.toMatch(/grugops-software-engineer(?![-a-z])/);
   });
 });

@@ -43,18 +43,18 @@ Any incoming request — every `/grugops` starts here.
 ### Routing matrix (subtask → role)
 ```
 product clarity -> BA/PM  flows/system rules -> System Analyst
-structure/tradeoffs -> Architect  repo mapping -> Brownfield|Greenfield Mapper
-code -> Software Engineer  tests -> QE/E2E
+structure/tradeoffs -> Architect  plan -> Tech Lead
+code -> Software Engineer (level from Tech Lead)  tests -> QE/E2E
+design system -> Designer  UI/frontend -> Frontend/UI
 risk/security/compliance -> Security/NFR (+ Compliance Officer if regime set)
-business acceptance -> UAT Planner  UI/frontend -> Frontend/UI
+business acceptance -> UAT Planner  repo mapping -> Brownfield|Greenfield Mapper
 release -> Release Manager (ent.)  incident -> Incident Responder (ent.)
 sprint end/metrics dip -> Factory Coach (ent.)
 AGENTS.md -> AGENTS.md Scribe  adapters installed -> Installer
 ```
 
-### WIP + Definition-of-Ready gate (before pulling work)
+### WIP gate (before pulling work)
 - WIP/width limits come from `#wip_limits` / `#queue.wip_limit`. **Refuse to pull past a WIP limit or exceed width without a written reason** (hard limit 3).
-- **Definition of Ready**: check the ticket against `agent-factory/checklists/definition-of-ready.md`; if not ready, stop and name the missing input.
 
 ### XL-split (`SPLIT_REQUIRED`)
 - Sizing `XS=1 S=2 M=3 L=5 XL=8`. **No XL into dev** — an XL emits `SPLIT_REQUIRED` and routes back to BA/PM.

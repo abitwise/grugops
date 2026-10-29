@@ -6,11 +6,12 @@ cadence: both
 # Workflow: Ticket to PR
 
 ## When to use
-When a ready ticket needs to become a pull request a human can review. grug no rush — the ticket gets a readiness check, then one engineer makes one small change. The change flows ticket -> Orchestrator readiness check -> Software Engineer -> QE/E2E -> Security/NFR (if triggered) -> final implementation packet.
+When a ready ticket needs to become a pull request a human can review. grug no rush — the ticket gets a readiness check, then one engineer makes one small change. The change flows ticket -> Orchestrator readiness check -> Tech Lead plan -> Software Engineer (named level) -> QE/E2E -> Security/NFR (if triggered) -> final implementation packet.
 
 ## Agents involved
 - Orchestrator — checks readiness against the Definition of Ready and pulls the ticket into development.
-- Software Engineer — implements the one ticket on a branch.
+- Tech Lead — scores the ticket on the complexity rubric, names the engineer level, plans the dev tasks and decides the exit of a dev-raised block.
+- Software Engineer — implements the one ticket on a branch, at the level the Tech Lead names.
 - QE/E2E — breaks the feature and reports gaps.
 - Security/NFR — reviews risk if the change is triggered.
 
@@ -19,23 +20,26 @@ Each role reads the shared verified context before it works. Each role records i
 ## Inputs required
 - A ticket with acceptance criteria, size, and priority.
 - `agent-factory/checklists/definition-of-ready.md` — the readiness gate.
+- `agent-factory/checklists/complexity-rubric.md` — the scoring rules the Tech Lead applies.
 - The `checkpoints` matrix from `.grugops/factory.config.json`.
 
 ## Steps
 1. Confirm the ticket against `agent-factory/checklists/definition-of-ready.md` (Orchestrator). Stop and name the missing input when the ticket is not ready.
-2. Pull the ticket into development, respecting WIP limits (Orchestrator).
-3. Implement the one ticket on a branch — a small diff, test-first (Software Engineer).
-4. Run the **inner loop** per unit behavior. Write a FAILING unit test (red), add the minimal code to pass (green), then refactor while it stays green. Repeat per behavior.
-5. Apply the `quality.tdd` dial (`off` / `encouraged` / `required`, default `encouraged`).
-6. Meet the **double-loop rule** (D-08). The outer acceptance scenario is QE-owned and read from the shared verified context per Workflow 16. That scenario stays RED until the inner loop closes it. NO SECOND acceptance scenario goes red before the first is green.
-7. Meet the **contract-vs-logic seam** (D-09). The acceptance scenario asserts the observable business outcome once. The unit tests assert the internal logic and edge cases beneath it. The unit layer never re-asserts the same observable outcome.
-8. Read `agent-factory/checklists/example-mapping.md` for the worked seam example, which this workflow does not restate.
-9. Run the quality gate per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix and the terminal result live there. This workflow references that gate and does not restate it. Mechanical no-second-red / one-behavior-one-layer enforcement is planned for that quality gate; this step does not enforce it.
-10. Assess the feature by trying to break it (QE/E2E). Report the result and the gaps.
-11. Assess the change for risk when a risk-bearing surface is triggered (Security/NFR).
+2. Assess the ticket per `agent-factory/checklists/complexity-rubric.md` (Tech Lead). Record the six scores, sum, level, adapter and dev tasks in a `decision` note per Workflow 16. Write a short `## Tech Lead plan` section into the ticket body.
+3. Pull the ticket into development once the plan note is published, respecting WIP limits (Orchestrator).
+4. Create one `pending/` subtask for the exact adapter the plan note names (Orchestrator). Spawn that adapter by name as a non-fork sub-agent. Pass no `model` or `effort` parameter on the spawn call. Never re-decide the level. One engineer works one ticket. On hosts without the `Agent` tool, the engineer role reads its level from `## Tech Lead plan`.
+5. Implement the one ticket on a branch — a small diff, test-first (Software Engineer).
+6. Run the **inner loop** per unit behavior. Write a FAILING unit test (red), add the minimal code to pass (green), then refactor while it stays green. Repeat per behavior.
+7. Apply the `quality.tdd` dial (`off` / `encouraged` / `required`, default `encouraged`).
+8. Meet the **double-loop rule** (D-08). The outer acceptance scenario is QE-owned and read from the shared verified context per Workflow 16. That scenario stays RED until the inner loop closes it. NO SECOND acceptance scenario goes red before the first is green.
+9. Meet the **contract-vs-logic seam** (D-09). The acceptance scenario asserts the observable business outcome once. The unit tests assert the internal logic and edge cases beneath it. The unit layer never re-asserts the same observable outcome.
+10. Read `agent-factory/checklists/example-mapping.md` for the worked seam example, which this workflow does not restate.
+11. Run the quality gate per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix and the terminal result live there. This workflow references that gate and does not restate it. Mechanical no-second-red / one-behavior-one-layer enforcement is planned for that quality gate; this step does not enforce it.
+12. Assess the feature by trying to break it (QE/E2E). Report the result and the gaps.
+13. Assess the change for risk when a risk-bearing surface is triggered (Security/NFR).
 
 ## Board moves
-On `memory-bank/plans/board.md`, the full path is `Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The Orchestrator owns `Ready for Dev -> In Development`; the Software Engineer owns `In Development -> In Review`; QE/E2E owns the `In Review` exit; Security/NFR owns the `In Security/NFR` exit when triggered.
+On `memory-bank/plans/board.md`, the full path is `Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The ticket stays in `Ready for Dev` while the Tech Lead plans. The Orchestrator owns `Ready for Dev -> In Development`; the Software Engineer owns `In Development -> In Review`; QE/E2E owns the `In Review` exit; Security/NFR owns the `In Security/NFR` exit when triggered. The Orchestrator makes its move only once the Tech Lead's plan note is published.
 
 ## Trace updates
 The Software Engineer publishes the PR and the files changed, and QE/E2E publishes the tests, as refs on notes per Workflow 16. Each note names the ticket identifier among its refs. The trace render in Workflow 05 turns those refs into the ticket's trace file and index line.
@@ -47,7 +51,8 @@ Record `Cycle time` and `WIP` in `memory-bank/plans/metrics.md`.
 
 ## Stop conditions
 - The ticket fails the Definition of Ready -> stop and name the missing input; do not pull it into development.
-- The ticket is XL (too large for one PR) -> `SPLIT_REQUIRED`, routed back to BA/PM for splitting before it can enter `Ready for Dev`.
+- The ticket is XL, or the Tech Lead's file plan is too large for one PR -> `SPLIT_REQUIRED`. It goes back to BA/PM for splitting before it can enter `Ready for Dev`.
+- The Tech Lead finds the approach not designed (F2 = 2) -> record the gap and send the ticket back to `In Design` for the Architect. Dispatch no engineer.
 
 ## Done condition
 Code is changed per the `checkpoints` matrix and tests are added. The gate commands have run. The implementation and QE results are recorded as typed notes per Workflow 16, with the security-nfr result when triggered. The trace is updated. This workflow honors `checkpoints.open_pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.

@@ -102,7 +102,7 @@ with the `model` value shown at its zero-config resolution and changed by a conf
 name: grugops-orchestrator
 description: Single entry point for the grugops software factory. Use for any SDLC delivery request — bootstrap a repo, turn ideas into tickets, implement a ticket, run a quality gate, plan UAT, cut a release. Routes to the specialist factory roles.
 coordinator: true
-tools: Agent(grugops-software-engineer, grugops-qe-e2e, …the other 14 specialist adapters…), Read, Grep, Glob, Edit, Write, Bash
+tools: Agent(grugops-qe-e2e, grugops-software-engineer-mid, …every other specialist adapter…), Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
 ```
