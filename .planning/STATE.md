@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-10-29T17:32:59.574Z"
+stopped_at: Completed 39-03-PLAN.md
+last_updated: "2026-10-29T17:50:49.416Z"
 last_activity: 2026-10-29
 last_activity_desc: Phase 39 execution started
-state_head: fd75968d3e6a55a233ff1ad4b5d431ccf71ede1e
+state_head: 9809fbfd6c8458232ab8e9d719fb34afe0c29247
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 78
-  completed_plans: 70
+  completed_plans: 71
   percent: 44
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
-Plan: 3 of 10
+Plan: 4 of 10
 Status: Ready to execute
 Last activity: 2026-10-29 — Phase 39 execution started
 
@@ -786,6 +786,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P11 | 81min | 3 tasks | 10 files |
 | Phase 39 P01 | 33 min | 3 tasks | 10 files |
 | Phase 39 P02 | 32 min | 2 tasks | 10 files |
+| Phase 39 P03 | 17min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2160,6 +2161,9 @@ Recent decisions affecting current work:
 - [Phase 39]: Guard findings name the ADAPTER stem and the KIT-03 pass line reads 'N derived adapter names'; the old role-stem wording is false for a level adapter
 - [Phase 39]: A refused models configuration degrades both value guards to zeroConfigAssignments (inherit for non-level adapters, the LEVELS pin for level adapters), never inherit everywhere
 - [Phase 39]: The freshness gate keys its per-adapter zero-config record by spec.name, so no module but kit-model builds an adapter name from a stem
+- [Phase 39]: 39-03 D-3: MODEL-01 baseline re-pinned to Phase 39 start commit 8a530552; 6f8411e pin and its three transforms retired; later adapter changes are RECORDED_ADDED / RECORDED_REMOVED literals with reasons
+- [Phase 39]: 39-03: ROLE_CEILINGS values stay measured; its key set is checked against listRoles() both ways, so each new role (39-05, 39-06) must record a measured ceiling
+- [Phase 39]: 39-03: baseline short-listing floor is baseline + ADDED - REMOVED == listAgentAdapterNames().length (not ROLE_COUNT, which will exceed the frozen count)
 
 ### Pending Todos
 
@@ -2495,8 +2499,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-29T17:32:59.017Z
-Stopped at: Completed 39-02-PLAN.md
+Last session: 2026-10-29T17:50:48.858Z
+Stopped at: Completed 39-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
