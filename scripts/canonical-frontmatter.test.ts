@@ -67,8 +67,11 @@ const ROOT = join(import.meta.dirname, "..");
 // while a decoy displaces a real member inside one part, and a swap BETWEEN parts nets out to the
 // right total. `SPAWN_GRANT_SCAN_PARTS` supplies the prefixes so the partition is taken with the
 // same literals the composition was built from.
+//
+// (Plan 39-05, TIER-06) The agent part is asked of the adapter-identity derivation, so a new role moves
+// it with no hand edit; the other three parts stay measured pins.
 const EXPECTED_PART_COUNTS: Readonly<Record<string, number>> = {
-  agent: 17,
+  agent: listAgentAdapterNames(ROOT).length,
   skill: 7,
   "plugin-skill": 7,
   packaging: 2,
@@ -184,7 +187,7 @@ describe("canonical-frontmatter: two-sided cardinality over the live spawn-grant
     );
   });
 
-  it("the composition is 17 + 7 + 7 + 2 = 33, per part and equal to the derived scan length", () => {
+  it("the composition is agents + 7 + 7 + 2 = SPAWN_GRANT_SCAN_COUNT, per part and equal to the derived scan length", () => {
     const breakdown: string[] = [];
     let total = 0;
     for (const part of SPAWN_GRANT_SCAN_PARTS) {

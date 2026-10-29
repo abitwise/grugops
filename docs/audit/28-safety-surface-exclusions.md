@@ -6,7 +6,7 @@
 > npm run generate:safety-surface
 > ```
 
-- **Entries:** 41
+- **Entries:** 42
 - **Derived from:** `docs/audit/28-disposition-register.md` (rows flagged `safety_surface: yes`) ∪ `docs/audit/28-claim-registry.md` (rows with `kind: safety`)
 
 ## What honouring this list means (Phase 29 / LANG-02 and LANG-03)
@@ -21,7 +21,7 @@ a file's absence from a diff that its text was safe to touch.
 
 ## What this list does not settle
 
-**It is not selective, and saying so is part of the measurement.** Every one of the 37 audited
+**It is not selective, and saying so is part of the measurement.** Every one of the 38 audited
 kit files carries permission-bearing or no-fabrication text — every role's `## Hard limits` and
 every workflow's `## Commit` section at minimum — so the register arm flags all of them. The
 list therefore covers the entire audited corpus plus the public documents that host safety
@@ -56,6 +56,7 @@ error.
 | `agent-factory/roles/security-nfr.md` | register row flagged `safety_surface: yes` (`kind: role`) |
 | `agent-factory/roles/software-engineer.md` | register row flagged `safety_surface: yes` (`kind: role`) |
 | `agent-factory/roles/system-analyst.md` | register row flagged `safety_surface: yes` (`kind: role`) |
+| `agent-factory/roles/tech-lead.md` | register row flagged `safety_surface: yes` (`kind: role`) |
 | `agent-factory/roles/uat-planner.md` | register row flagged `safety_surface: yes` (`kind: role`) |
 | `agent-factory/workflows/00-bootstrap-greenfield.md` | register row flagged `safety_surface: yes` (`kind: workflow`) |
 | `agent-factory/workflows/01-bootstrap-brownfield.md` | register row flagged `safety_surface: yes` (`kind: workflow`) |

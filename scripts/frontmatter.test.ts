@@ -6820,7 +6820,7 @@ describe("frontmatter — the grant enumeration's legal character set (D-47 item
     );
   });
 
-  it("D-47 item 2 false-red control — every scoped grant enumeration in ALL 33 spawn-grant scan members still returns its full name list", () => {
+  it("D-47 item 2 false-red control — every scoped grant enumeration in ALL SPAWN_GRANT_SCAN_COUNT spawn-grant scan members still returns its full name list", () => {
     const root = join(import.meta.dirname, "..");
     const members = spawnGrantScan(root);
 
@@ -6890,11 +6890,12 @@ describe("frontmatter — the grant enumeration's legal character set (D-47 item
     const read = `read ${members.length} scan members carrying ${enumerationsFound} scoped grant enumeration(s) across ${filesWithEnumerations} file(s)`;
     expect(refusals, `${read}; the allowlist must cost this repository ZERO false reds`).toEqual([]);
     expect(altered, `${read}; every name list must match the naive reading exactly`).toEqual([]);
-    expect(members.length, `${read}; scan member count`).toBe(33);
+    // (Plan 39-05, TIER-06) The pin, not a typed number (it was the literal 33).
+    expect(members.length, `${read}; scan member count`).toBe(SPAWN_GRANT_SCAN_COUNT);
 
-    // THE MEASURED THINNESS OF THIS CORPUS, PINNED RATHER THAN GLOSSED. Across all 33 scan members
-    // there is exactly ONE scoped grant enumeration — the coordinator's — carrying 16 names. The
-    // other 32 members either grant nothing or grant unscoped, and for them this control asserts the
+    // THE MEASURED THINNESS OF THIS CORPUS, PINNED RATHER THAN GLOSSED. Across all the scan members
+    // there is exactly ONE scoped grant enumeration — the coordinator's — carrying every other adapter name. The
+    // other members either grant nothing or grant unscoped, and for them this control asserts the
     // weaker (still real) fact that `grantedAgentNames` does not refuse and returns an empty list.
     //
     // So "measured zero false reds across 33 members" must not be read as "33 enumerations were

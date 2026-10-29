@@ -108,10 +108,14 @@ import { join } from "node:path";
 // cannot close a cycle.
 import { parseFrontmatter } from "./frontmatter.js";
 
-// The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 16 roles is a
-// failure and 18 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
+// The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 17 roles is a
+// failure and 19 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
 // author to walk every derived consumer first — that walk is the whole point of the constant.
-export const ROLE_COUNT = 17;
+// MOVED 17 -> 18 ON 2026-10-29 BY PLAN 39-05 (TIER-01, TIER-06): the entrant is
+// agent-factory/roles/tech-lead.md. guard_kit_counts printed "derived 18 role files, expected exactly
+// 17" before this number moved, and every consumer it names was walked first (ROLE_CEILINGS row,
+// TIERED row, register row, generated adapter and grant).
+export const ROLE_COUNT = 18;
 export const WORKFLOW_COUNT = 19;
 
 // ── THE RULE THAT DECIDES THE WORKFLOW CORPUS (round 6, IN-01 — plan 29-54) ────────────────────
@@ -158,7 +162,7 @@ export const SKILL_ADAPTER_COUNT = 7;
 // closed. The membership itself is DERIVED by listPluginSkillAdapters() below — never written down.
 export const PLUGIN_SKILL_ADAPTER_COUNT = 7;
 
-// The exact expected cardinality of the SPAWN-GRANT SCAN COMPOSITION below: 17 agent adapters +
+// The exact expected cardinality of the SPAWN-GRANT SCAN COMPOSITION below: 18 agent adapters +
 // 7 standalone skill adapters + 7 plugin-form skill adapters + 2 packaging templates.
 //
 // THIS PIN IS MANDATORY, NOT NICE TO HAVE, AND THE REASON IS SPECIFIC (D-19 / D-20, plan 27-33).
@@ -187,7 +191,11 @@ export const PLUGIN_SKILL_ADAPTER_COUNT = 7;
 // says nothing about the parts already there, so a widening that silently SWAPPED one part for another
 // would keep the total at 33 and pass. That gap is CR-03's own shape and it has now appeared three
 // times in this phase; the four-part assertion is what closes it.
-export const SPAWN_GRANT_SCAN_COUNT = 33;
+//
+// MOVED 33 -> 34 ON 2026-10-29 BY PLAN 39-05 (TIER-06): the agent part moved 17 -> 18 with the
+// generated grugops-tech-lead adapter. guard_kit_counts printed "derived 34 members, expected exactly
+// 33 (derived breakdown: agent 18 + skill 7 + plugin-skill 7 + packaging 2)" before this number moved.
+export const SPAWN_GRANT_SCAN_COUNT = 34;
 
 // MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
 //

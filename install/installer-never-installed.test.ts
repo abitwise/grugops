@@ -131,8 +131,12 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * a file, in every variant, because install copies install/runnable-package.json beside the programs (a ninth
  * RUNNABLES row) so Node loads them as ES modules on a commonjs host; `tools/grugops` was already a directory.
  * Measured by this test's failing run (expected 115). 114 -> 115.
+ * 76 files and links + 40 directories on 2026-10-29, plan 39-05 (TIER-01): `.claude/agents/grugops-tech-lead.md`
+ * entered as a file, in every variant that installs the Claude Code adapters, because the Tech Lead role renders one
+ * more adapter; `.claude/agents` was already a directory. Measured by this test's failing run (expected 116).
+ * 115 -> 116.
  */
-const WRITE_PATH_COUNT = 115;
+const WRITE_PATH_COUNT = 116;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";
@@ -413,8 +417,10 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 const KIT_PATHS: readonly string[] = Object.keys(fileRecords(readMarkerObject(SET.variant("default").target), true)).sort();
-// Pinned: the 7 skills and the 17 rendered adapters of a default install (24, the red-team's count).
-const KIT_PATH_COUNT = 24;
+// Pinned: the 7 skills and the rendered adapters of a default install (24, the red-team's count, at 17 adapters).
+// 24 -> 25 on 2026-10-29, plan 39-05 (TIER-01): the Tech Lead's adapter `.claude/agents/grugops-tech-lead.md`
+// entered; measured by this test's failing run (expected 25).
+const KIT_PATH_COUNT = 25;
 
 describe("an identical copy install did not write is never recorded, and uninstall leaves it (red-team of 33.1-36)", () => {
   it("KIT_PATHS: every kit-true file entry of the default install, count pinned", () => {

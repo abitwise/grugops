@@ -759,7 +759,9 @@ describe("check-imperative-lexicon — exported pins and cost", () => {
     // (Plan 37-13, 2026-10-22) 49 → 48: agent-factory/seed/memory-bank/plans/traceability.md became the
     // trace render's generated zero-note index (SPLIT-03), so it carries the GENERATED marker and leaves
     // the seed part (13 → 12); GENERATED_EXEMPT_COUNT moves 1 → 2 with it.
-    expect(GOVERNED_CORPUS_COUNT).toBe(48);
+    // (Plan 39-05, 2026-10-29) 48 → 49: agent-factory/checklists/complexity-rubric.md, the Tech Lead's
+    // scoring rubric, is a hand-authored checklist and enters the checklists part by existing (14 → 15).
+    expect(GOVERNED_CORPUS_COUNT).toBe(49);
     expect(APPROVED_STEP_VERBS.length).toBe(43);
     expect(PROCEDURAL_SENTENCE_MAX_WORDS).toBe(20);
     expect(DESCRIPTIVE_SENTENCE_MAX_WORDS).toBe(25);

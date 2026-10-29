@@ -121,7 +121,16 @@ type RecordedAdded =
 //     the level body line transformed, each target asserted to occur exactly once before it applies.
 //
 // RECORDED_REMOVED holds adapter names only; each entry carries its reason in a trailing comment.
-const RECORDED_ADDED: readonly RecordedAdded[] = [];
+const RECORDED_ADDED: readonly RecordedAdded[] = [
+  {
+    name: "grugops-tech-lead",
+    kind: "new-role",
+    reason:
+      "Plan 39-05 (TIER-01): the Tech Lead role, agent-factory/roles/tech-lead.md, is new in Phase 39. " +
+      "Its one generated adapter runs on `model: inherit` with no effort line at zero config, like " +
+      "every judgment role (D-03); the coordinator's grant names it.",
+  },
+];
 const RECORDED_REMOVED: readonly string[] = [];
 
 const recordedAddedNames = (): string[] => RECORDED_ADDED.map((r) => r.name).sort();
@@ -338,6 +347,27 @@ describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseli
       differing,
       `the adapter bytes moved against the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the recorded changes. MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator. Record the change with its reason; do not weaken this comparison (D-3)`,
     ).toEqual([]);
+  });
+
+  it("a new-role adapter runs on `model: inherit` with no `effort:` line at zero config (D-03)", () => {
+    const newRoles = RECORDED_ADDED.filter((r) => r.kind === "new-role").map((r) => r.name);
+    expect(newRoles.length, "PREMISE: at least one new-role record, or this case holds over nothing").toBeGreaterThan(0);
+    const working = workingAdapterNames();
+    const findings: string[] = [];
+    for (const name of newRoles) {
+      if (!working.includes(name)) {
+        findings.push(`${name} is recorded as a new-role adapter but the working tree does not carry it`);
+        continue;
+      }
+      const lines = readFileSync(join(ROOT, ADAPTER_DIR, `${name}${MD}`), "utf8").split("\n");
+      const model = lines.filter((l) => l.startsWith(MODEL_LINE_PREFIX));
+      if (model.length !== 1 || model[0] !== `${MODEL_LINE_PREFIX}inherit`) {
+        findings.push(`${name} must carry exactly one \`${MODEL_LINE_PREFIX}inherit\` line, found: ${JSON.stringify(model)}`);
+      }
+      const effort = lines.filter((l) => l.startsWith(EFFORT_LINE_PREFIX));
+      if (effort.length !== 0) findings.push(`${name} carries ${String(effort.length)} \`effort:\` line(s) at zero config`);
+    }
+    expect(findings).toEqual([]);
   });
 
   it("effort, two-sided: exactly the adapters recorded as level adapters carry one `effort:` line equal to the record, and every other adapter carries none (D-06)", () => {

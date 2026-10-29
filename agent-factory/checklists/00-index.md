@@ -20,6 +20,7 @@ Always active.
 | Checklist | Applies at |
 |-----------|------------|
 | `definition-of-ready.md` | before a ticket starts (Definition of Ready) |
+| `complexity-rubric.md` | when the Tech Lead scores a ticket after the Definition of Ready |
 | `definition-of-done.md` | before a ticket closes (lean Definition of Done) |
 | `pr-review-checklist.md` | when reviewing a pull request |
 | `security-nfr-checklist.md` | when auth, data handling, or an NFR is touched |

@@ -764,10 +764,11 @@ function readAssignmentPayload(dial, payload) {
 }
 // ── TIERED — the one shipped preset, one row per role, each row carrying its reason ───────────
 //
-// D-09 assigns `opus` to four roles and `sonnet` to the other thirteen. NO ROLE IS ASSIGNED `haiku`,
-// and that is the load-bearing shape decision rather than an oversight: every role in this kit either
-// writes into the shared verified context or produces an artifact a human signs off on, and the
-// behavior gate catches CORRECTNESS, not JUDGMENT. A thin-model ticket, test plan or UAT pack
+// D-09 assigns `opus` to four roles and `sonnet` to the other thirteen; plan 39-05 (D-03) adds the
+// Tech Lead as a fifth `opus` row, because its level choice is judgment no later gate re-asks. NO ROLE
+// IS ASSIGNED `haiku`, and that is the load-bearing shape decision rather than an oversight: every role
+// in this kit either writes into the shared verified context or produces an artifact a human signs
+// off on, and the behavior gate catches CORRECTNESS, not JUDGMENT. A thin-model ticket, test plan or UAT pack
 // degrades PAST the one mechanism that would have caught it rather than into it. `haiku` stays a
 // legal alias a user may set per role; the shipped preset simply does not reach for it.
 //
@@ -786,12 +787,12 @@ function readAssignmentPayload(dial, payload) {
 // carries a digit and no rationale may carry one — see the paragraph immediately below.
 //
 // NO ROW ARGUES SPEND (D-14 / MODEL-07). Each rationale argues QUALITY: what a thinner model would
-// degrade past rather than into, and — for the four strong roles — the specific harm D-09 records.
+// degrade past rather than into, and — for the strong roles — the specific harm D-09 (and, for the Tech Lead, D-03) records.
 // No rationale asserts a saving, names a price, or contains a digit; scripts/model-tiers.test.ts
 // asserts the digit half of that mechanically, so a percentage cannot be introduced without a red.
 //
 // EVERY ROW ALSO CARRIES AN `effortRationale` (plan 34-03, D-04). The effort `tiered` preset does
-// not store a level per row: it computes one from the row's alias, `high` for the four `opus`
+// not store a level per row: it computes one from the row's alias, `high` for the `opus`
 // judgment roles and `medium` for every other role, so the two presets cannot disagree about which
 // roles are judgment roles. The effort reason argues the same quality case the model reason does,
 // one level down: deeper reasoning where a decision is made that no later gate re-asks (decomposition
@@ -962,6 +963,18 @@ export const TIERED = [
         effortRationale: "Turns an epic into a ready ticket against a stated checklist, and a human reads the ticket " +
             "before any implementation starts. Moderate reasoning depth suits judgment that the checklist " +
             "bounds and a review checks.",
+    },
+    {
+        // (Plan 39-05, D-03) The Tech Lead runs on `inherit` at zero config like every judgment role; this
+        // row only answers for it under the `tiered` preset.
+        stem: "tech-lead",
+        alias: "opus",
+        rationale: "Chooses the engineer level and writes the dev plan that every engineer dispatch builds from. " +
+            "A level chosen too low or a plan framed wrongly is carried out faithfully by the engineer, and " +
+            "no later gate asks again whether the choice was right.",
+        effortRationale: "The level choice and the dev plan decide what every engineer dispatch builds, and no later " +
+            "gate re-asks the choice. Deeper reasoning lets the role weigh each factor against the facts " +
+            "it records before it commits to a level.",
     },
     {
         stem: "uat-planner",

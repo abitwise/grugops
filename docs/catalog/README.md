@@ -1,7 +1,7 @@
 <!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-catalog.js -->
 # grugops Catalog
 
-This is the generated, browsable index of the grugops kit: 17 role personas and
+This is the generated, browsable index of the grugops kit: 18 role personas and
 19 workflows. Each row links to its source file. The catalog is produced by
 `scripts/generate-catalog.js` and is never hand-edited — re-run the generator and commit the
 result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
@@ -21,6 +21,7 @@ result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 | Security/NFR | core | Review a change for security and non-functional risk, and return a result with required fixes and accepted risks. | [agent-factory/roles/security-nfr.md](../../agent-factory/roles/security-nfr.md) |
 | Software Engineer | core | Implement one ticket end to end. | [agent-factory/roles/software-engineer.md](../../agent-factory/roles/software-engineer.md) |
 | System Analyst | core | Map the system behavior a product ticket implies, so the work is design-ready. | [agent-factory/roles/system-analyst.md](../../agent-factory/roles/system-analyst.md) |
+| Tech Lead | core | Score each ticket's complexity, name the engineer level and plan the dev tasks. | [agent-factory/roles/tech-lead.md](../../agent-factory/roles/tech-lead.md) |
 | UAT Planner | core | Plan business acceptance so a named human can accept the work. | [agent-factory/roles/uat-planner.md](../../agent-factory/roles/uat-planner.md) |
 | Compliance Officer | enterprise | Protect people and the audit trail: classify the data a change touches and record the controls and gaps. | [agent-factory/roles/compliance-officer.md](../../agent-factory/roles/compliance-officer.md) |
 | Factory Coach | enterprise | Turn the delivery metrics into improvement tickets for the factory itself. | [agent-factory/roles/factory-coach.md](../../agent-factory/roles/factory-coach.md) |

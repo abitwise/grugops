@@ -123,7 +123,11 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // the two read-only inputs), because install copies install/runnable-package.json beside the programs (a ninth
 // RUNNABLES row) and asks its destination through readForWrite; a FIFO and a directory are planted at it by
 // derivation. Measured by this test's failing run (expected 77). 76 -> 77.
-const READ_PATH_COUNT = 77;
+// 78 on 2026-10-29, plan 39-05 (TIER-01): `.claude/agents/grugops-tech-lead.md` entered (76 files and links written,
+// plus the two read-only inputs), because the Tech Lead role renders one more adapter and install asks its destination
+// through readForWrite; a FIFO and a directory are planted at it by derivation. Measured by this test's failing run
+// (expected 78). 77 -> 78.
+const READ_PATH_COUNT = 78;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

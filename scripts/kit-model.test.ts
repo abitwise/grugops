@@ -268,8 +268,9 @@ describe("kit-model (KIT-01 kit-set derivation authority)", () => {
   });
 
   // ── exported constants + the live tree ────────────────────────────────────────────────────────
-  it("exports the exact expected cardinalities (ROLE_COUNT 17 / WORKFLOW_COUNT 19)", () => {
-    expect(ROLE_COUNT).toBe(17);
+  it("exports the exact expected cardinalities (ROLE_COUNT 18 / WORKFLOW_COUNT 19)", () => {
+    // (Plan 39-05, 2026-10-29) 17 -> 18: the Tech Lead role (TIER-01).
+    expect(ROLE_COUNT).toBe(18);
     expect(WORKFLOW_COUNT).toBe(19);
   });
 
@@ -1889,14 +1890,17 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
   });
 
   it("exports SPAWN_GRANT_SCAN_COUNT and the live tree derives exactly that many, failing in BOTH directions", () => {
-    // D-19 / D-20: two-sided. 32 is a failure and 34 is a failure; only 33 passes. This count is the
+    // D-19 / D-20: two-sided. 33 is a failure and 35 is a failure; only 34 passes. This count is the
     // ONLY signal that can catch a part dropped from the composition, because its two consumers read
     // one object and set equality between them compares an object with itself.
     //
     // (Plan 27-34) RAISED 26 -> 33 in the same edit that folded the plugin-form skill tree in. Raising
     // it is the deliberate act D-20 requires — it obliges the author to walk every consumer before the
     // number moves.
-    expect(SPAWN_GRANT_SCAN_COUNT).toBe(33);
+    //
+    // (Plan 39-05, 2026-10-29) RAISED 33 -> 34: the agent part gains the generated grugops-tech-lead
+    // adapter (TIER-06).
+    expect(SPAWN_GRANT_SCAN_COUNT).toBe(34);
     const live = spawnGrantScan();
     expect(live.length).toBe(SPAWN_GRANT_SCAN_COUNT);
     expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT - 1);
@@ -2207,7 +2211,8 @@ describe("kit-model: agent adapter identity (plan 39-01, TIER-02)", () => {
     expect(names).toContain("grugops-software-engineer-mid");
     expect(names).toContain("grugops-software-engineer-senior");
     expect(names).not.toContain("grugops-software-engineer");
-    expect(names.length).toBe(17 - 1 + 3);
+    // (Plan 39-05, TIER-06) the mirror copies the live role corpus, so its role count is ROLE_COUNT, never a typed number.
+    expect(names.length).toBe(ROLE_COUNT - 1 + 3);
     const levelSpecs = listAgentAdapterSpecs(root).filter((s) => s.level !== null);
     expect(levelSpecs).toEqual([
       {

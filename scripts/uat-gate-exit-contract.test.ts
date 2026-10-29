@@ -58,6 +58,9 @@ import {
 } from "./check-platform-shapes.js";
 // The ONE published-path normalizer (D-15): the scanned document set below is a PUBLISHED set.
 import { toPosixWith } from "./posix-path.js";
+// (Plan 39-05, TIER-06) The watched corpus cardinality is read off the gate's own published pins,
+// never typed: the derived kit floor plus the registry residue.
+import { RESIDUE_FROM_REGISTRY_COUNT, WATCHED_CORPUS_MIN } from "./check-diff-disposition.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const WF05 = join(REPO_ROOT, "agent-factory", "workflows", "05-pr-quality-gate.md");
@@ -644,7 +647,7 @@ describe("the disposition register's measuring stick did not move", () => {
   // Derive-vs-remove was decided as REMOVE: the derivation would be "the global bound", which is
   // already in force, and a per-test number below it would reintroduce the same red on a slower
   // runner. No platform conditional (D-14, D-16).
-  it("the watched corpus is not narrowed — the gate reports its own cardinality, unchanged at 40", () => {
+  it("the watched corpus is not narrowed — the gate reports its own cardinality, the derived kit plus the residue", () => {
     const r = spawnSync("node", [join(REPO_ROOT, "scripts", "check-diff-disposition.js")], {
       cwd: REPO_ROOT,
       encoding: "utf8",
@@ -652,7 +655,10 @@ describe("the disposition register's measuring stick did not move", () => {
     const all = `${r.stdout ?? ""}${r.stderr ?? ""}`;
     const m = all.match(/watched corpus:\s*(\d+)\s*markdown file\(s\)/);
     expect(m).not.toBeNull();
-    expect(Number(m![1])).toBe(40);
+    // (Plan 39-05, TIER-06) Was the literal 40 at 17 roles. The corpus is the derived kit
+    // (ROLE_COUNT + WORKFLOW_COUNT), the registry residue (AGENTS.md, README.md,
+    // agent-factory/README.md) and the one uncounted register row, agent-factory/roles/_role-switch-protocol.md.
+    expect(Number(m![1])).toBe(WATCHED_CORPUS_MIN + RESIDUE_FROM_REGISTRY_COUNT + 1);
   });
 });
 

@@ -1973,7 +1973,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(models.length).toBe(LIVE_ADAPTER_COUNT);
     // Both tallies in ONE assertion so a failure prints both numbers rather than the first to trip.
     const tally = (alias: string): number => models.filter((m) => m === alias).length;
-    expect(`opus=${tally("opus")} sonnet=${tally("sonnet")}`).toBe("opus=4 sonnet=13");
+    // (Plan 39-05, TIER-06) The expected split is the resolver's own answer over the derived role set,
+    // never a typed pair: it was "opus=4 sonnet=13" until the Tech Lead's opus row (D-03). The
+    // composition itself is pinned by name in scripts/model-tiers.test.ts.
+    const wantStems = listRoles(REPO_ROOT).map((f) => f.slice(0, -".md".length));
+    const want = resolveModels(wantStems, { preset: "tiered" });
+    if (!want.ok) throw new Error(want.reason);
+    const wantTally = (alias: string): number => [...want.value.values()].filter((v) => v === alias).length;
+    expect(wantTally("opus"), "PREMISE: the tiered preset assigns opus somewhere").toBeGreaterThan(0);
+    expect(`opus=${tally("opus")} sonnet=${tally("sonnet")}`).toBe(`opus=${String(wantTally("opus"))} sonnet=${String(wantTally("sonnet"))}`);
     expect([...new Set(models)].sort()).toEqual(["opus", "sonnet"]);
     // Every value is a member of the closed vocabulary the resolver owns — never a full model id.
     for (const m of models) {
@@ -3007,7 +3015,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const agentsDir = join(target, ".claude", "agents");
     const before = installedAdapters(target);
-    expect(`installed adapters = ${before.length}`).toBe("installed adapters = 17");
+    // (Plan 39-05, TIER-06) The live adapter count is the derivation's, never a typed number.
+    expect(`installed adapters = ${before.length}`).toBe(`installed adapters = ${String(LIVE_ADAPTER_COUNT)}`);
 
     // MOVE the adapter directory out of the target entirely, then link it back into place — the
     // shape a user produces by pointing `.claude/agents` at a dotfiles repository.
@@ -3300,8 +3309,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const src = makeSyntheticSrc();
     const target = mkTmp();
     writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
-    // The announcement is made to claim sixteen roles while the render still produces seventeen
-    // files. A vacuity floor catches an EMPTY resolution and never a silently SHORT one, which is
+    // The announcement is made to claim one role fewer than the render produces. (Plan 39-05,
+    // TIER-06) Both numbers are read off SYNTH_NAMES, never typed. A vacuity floor catches an EMPTY resolution and never a silently SHORT one, which is
     // why the count is cross-checked against a listing the INSTALLER derived itself.
     patchSyntheticGenerator(
       src,
@@ -3313,8 +3322,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // BOTH NUMBERS AND THE STATUS IN ONE ASSERTION: the announced count and the count this side
     // derived, so a failure prints the whole claim rather than the first half of it to trip.
     const bothNumbers =
-      r.stdout.includes("announced a resolution covering 16 role(s)") &&
-      r.stdout.includes("derived 17 rendered adapter(s)");
+      r.stdout.includes(`announced a resolution covering ${String(SYNTH_NAMES.length - 1)} role(s)`) &&
+      r.stdout.includes(`derived ${String(SYNTH_NAMES.length)} rendered adapter(s)`);
     expect(`status=${r.status} prints both numbers: ${bothNumbers}`).toBe(
       "status=3 prints both numbers: true",
     );
@@ -4203,7 +4212,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // agree with each other while both have drifted away from what the generator actually writes.
     // The adapter set is DERIVED from the directory listing, never named.
     const adapters = listAgentAdapters(REPO_ROOT);
-    expect(`committed adapters: ${adapters.length}`).toBe("committed adapters: 17");
+    // (Plan 39-05, TIER-06) Checked against the adapter-identity derivation, not a typed number.
+    expect(`committed adapters: ${adapters.length}`).toBe(`committed adapters: ${String(LIVE_ADAPTER_COUNT)}`);
     for (const rel of adapters) {
       const lines = readFileSync(join(REPO_ROOT, ".claude", "agents", rel), "utf8").split("\n");
       expect(`${rel}: carries the literal ${lines.filter((l) => l === provenance).length} time(s)`).toBe(
@@ -5551,7 +5561,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).toContain("FLAT BY CONTRACT");
     expect(r.stdout).toContain("NOT installed");
     expect(r.stdout).not.toContain("== install complete");
-    // The flat seventeen still install; only the nested plant is refused, and it never lands.
+    // The flat live adapters still install; only the nested plant is refused, and it never lands.
     expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
     expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     expect(existsSync(join(target, ".claude", "agents", "nested"))).toBe(false);
@@ -5562,7 +5572,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // asserting it here is what stops a future "fix" from quietly installing nested adapters or
     // from teaching the authority to ignore them.
     const authority = listAgentAdapters(src);
-    expect(authority.length).toBe(18);
+    // (Plan 39-05, TIER-06) The live adapters plus the one nested plant; it was the literal 18.
+    expect(authority.length).toBe(LIVE_ADAPTER_COUNT + 1);
     expect(authority.filter((m) => m.includes("/"))).toEqual(["nested/deep-adapter.md"]);
     expect(authority.filter((m) => !m.includes("/"))).toEqual(installedAdapters(target));
   });
@@ -5601,7 +5612,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).toContain("FLAT BY CONTRACT");
     expect(r.stdout).toContain("NOT installed");
     expect(r.stdout).not.toContain("== install complete");
-    // The flat seventeen still install; neither plant lands in the target.
+    // The flat live adapters still install; neither plant lands in the target.
     expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
     expect(existsSync(join(target, ".claude", "agents", "nested"))).toBe(false);
     expect(existsSync(join(target, ".claude", "agents", "linked-nest"))).toBe(false);
@@ -8913,8 +8924,9 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     const r = runInstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const kit = kitFilesIn(target);
-    // 7 skills and 17 adapters today; the set itself comes from the tree.
-    expect(kit.length).toBe(24);
+    // The skills and the agent adapters; the set itself comes from the tree. (Plan 39-05, TIER-06)
+    // The count is read off the derivations too; it was the literal 24 at 17 adapters.
+    expect(kit.length).toBe(LIVE_ADAPTER_COUNT + listSkillAdapters(REPO_ROOT).length);
     const m = readMarkerJson(target);
     expect(Array.isArray(m.ledger), "the marker has no install ledger").toBe(true);
     const rec = fileRecords(m, true);
@@ -9079,7 +9091,8 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     const home = mkTmp();
     expect(runInstall(probe, home).status).toBe(0);
     const paths = Object.keys(fileRecords(readMarkerJson(probe), true));
-    expect(paths.length).toBe(24);
+    // (Plan 39-05, TIER-06) Derived, not typed; it was the literal 24 at 17 adapters.
+    expect(paths.length).toBe(LIVE_ADAPTER_COUNT + listSkillAdapters(REPO_ROOT).length);
     for (const variant of ["user text", "verbatim kit source"] as const) {
       const target = makeFixture();
       for (const rel of paths) {
@@ -9102,7 +9115,8 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const kit = kitFilesIn(target);
-    expect(kit.length).toBe(24);
+    // (Plan 39-05, TIER-06) Derived, not typed; it was the literal 24 at 17 adapters.
+    expect(kit.length).toBe(LIVE_ADAPTER_COUNT + listSkillAdapters(REPO_ROOT).length);
     for (const rel of kit) writeFileSync(at(target, rel), readFileSync(at(target, rel), "utf8") + EDIT);
     const edited = new Map(kit.map((rel) => [rel, readFileSync(at(target, rel))]));
     const r = runUninstall(target, home);

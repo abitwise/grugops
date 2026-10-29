@@ -360,8 +360,10 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * 44 -> 45 on 2026-10-27, plan 37-40 (D-21, G-37-2): `tools/grugops/package.json` entered, because install copies
  * install/runnable-package.json beside the programs (a ninth RUNNABLES row) and records it; measured by this test's
  * failing run (expected 45).
+ * 45 -> 46 on 2026-10-29, plan 39-05 (TIER-01): `.claude/agents/grugops-tech-lead.md` entered, because the Tech Lead
+ * role renders one more adapter and install records it; measured by this test's printed listing.
  */
-const REMOVABLE_COUNT = 45;
+const REMOVABLE_COUNT = 46;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a

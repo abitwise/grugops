@@ -300,7 +300,9 @@ describe("check-audit-register: the green baseline", () => {
     const r = runGate(buildMirror());
     expect(r.out).toContain(String(ROLE_COUNT));
     expect(r.out).toContain(String(WORKFLOW_COUNT));
-    expect(r.out).toMatch(/36/); // counted register rows
+    // (Plan 39-05, TIER-06) The counted register rows are ROLE_COUNT + WORKFLOW_COUNT, read off the
+    // pins rather than typed (it was the literal 36 at 17 roles).
+    expect(r.out).toContain(`${String(ROLE_COUNT + WORKFLOW_COUNT)} counted register row(s)`);
     expect(r.out).toMatch(/uncounted/i); // the uncounted row is named, never invisible
     expect(r.out).toContain(PROTOCOL_FILE);
   });
@@ -391,14 +393,15 @@ describe("check-audit-register: the ADJACENCY pair — the counted filter is loa
     expect(r.out).not.toMatch(/equality one:/);
   });
 
-  it("flipping the protocol row to counted: yes turns equality one RED at 37 against 36", () => {
+  it("flipping the protocol row to counted: yes turns equality one RED at one counted row more than the derived kit", () => {
     const rows = defaultRows().map((r) =>
       r.file === PROTOCOL_FILE ? { ...r, counted: "yes" } : r,
     );
     const r = runGate(buildMirror(rows));
     expect(r.status).toBe(1);
-    expect(r.out).toMatch(/37/);
-    expect(r.out).toMatch(/36/);
+    // (Plan 39-05, TIER-06) The two sides are read off the pins (they were the literals 37 and 36).
+    const kit = ROLE_COUNT + WORKFLOW_COUNT;
+    expect(r.out).toContain(`${String(kit + 1)} counted row(s) against ${String(kit)} derived file(s)`);
     expect(r.out).toContain(PROTOCOL_FILE);
   });
 });

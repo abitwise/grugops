@@ -652,6 +652,12 @@ const COORDINATOR = "grugops-orchestrator";
 // from role file names: a leveled role contributes one name per level and no base name, and a
 // rebuild from role files would keep naming the base adapter the generator no longer writes.
 const roleAgentNames = (root: string): string[] => listAgentAdapterNames(root);
+
+// (Plan 39-05, TIER-06) The live kit's agent and standalone skill adapter counts, asked of their
+// derivations rather than typed. Every mirror below copies the live role corpus, so the counts its
+// guard run reports are these, and a new role moves them with no hand edit here.
+const LIVE_ADAPTERS = listAgentAdapterNames(ROOT).length;
+const LIVE_SKILLS = listSkillAdapters(ROOT).length;
 const adapterPath = (root: string, name: string): string =>
   join(root, ".claude/agents", `${name}.md`);
 
@@ -5295,11 +5301,12 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("ALL CHECKS PASSED");
   });
 
-  // The guard reports WHAT IT CHECKED. 23 = 17 agent adapters + 7 skills - the one coordinator.
-  it("guard_wr05 PASS line reports the non-coordinator bodies checked (23) and the tier beats", () => {
+  // The guard reports WHAT IT CHECKED: the agent adapters + the skills - the one coordinator.
+  // (Plan 39-05, TIER-06) Both parts are derived; the literal was 23 at 17 agent adapters.
+  it("guard_wr05 PASS line reports the non-coordinator bodies checked (agents + skills - coordinator) and the tier beats", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
     const o = out(r);
-    expect(o).toContain("23 non-coordinator adapter bodies");
+    expect(o).toContain(`${String(LIVE_ADAPTERS + LIVE_SKILLS - 1)} non-coordinator adapter bodies`);
     // 6 since plan 27-15 added the reduced-tier command-name beat (was 5).
     expect(o).toContain("all 6 tier-announcement beats");
   });
@@ -5517,10 +5524,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // as the anomaly it is rather than hiding behind the word PASS. (Plan 27-14: the two halves are
   // reported separately — 24 derived adapter bodies and 2 template body shapes — because a run that
   // checked the template alone is precisely the failure the old single total could not show.)
-  it("guard_adapter_body reports both halves (24 adapter bodies = 17 agents + 7 skills, plus 2 template body shapes)", () => {
+  // (Plan 39-05, TIER-06) The adapter-body half is the derived agents + skills; it was 24 at 17 agents.
+  it("guard_adapter_body reports both halves (adapter bodies = agents + skills, plus 2 template body shapes)", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
     expect(out(r)).toContain(
-      "SPAWN-05: 24 adapter bodies + 2 template body shapes checked",
+      `SPAWN-05: ${String(LIVE_ADAPTERS + LIVE_SKILLS)} adapter bodies + 2 template body shapes checked`,
     );
   });
 
@@ -5681,28 +5689,29 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // `fileExists` branches remain in place as TOCTOU defence between readdir and read.
   //
   // These are the TWO SIDES of D-20's exact-count enforcement, and the pair is the point: a `>=`
-  // floor would let 18 through and a `<=` ceiling would let 16 through. Only 17 passes. Both test
-  // names carry the string `kit count` so `vitest -t "kit count"` selects exactly this pair.
-  it("kit count 16 roles (one deleted) → nonzero + names the derived 16 and the expected 17 (D-20 low side)", () => {
+  // floor would let ROLE_COUNT + 1 through and a `<=` ceiling would let ROLE_COUNT - 1 through. Only
+  // ROLE_COUNT passes. Both test names carry the string `kit count` so `vitest -t "kit count"` selects
+  // exactly this pair. (Plan 39-05, TIER-06) The numbers are read off ROLE_COUNT, not typed.
+  it("kit count ROLE_COUNT - 1 roles (one deleted) → nonzero + names the derived count and the expected ROLE_COUNT (D-20 low side)", () => {
     const m = mirror();
     rmSync(rolePath(m, "compliance-officer.md"), { force: true });
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toContain("kit count");
-    expect(out(r)).toContain("derived 16 role files");
-    expect(out(r)).toContain("expected exactly 17");
+    expect(out(r)).toContain(`derived ${String(ROLE_COUNT - 1)} role files`);
+    expect(out(r)).toContain(`expected exactly ${String(ROLE_COUNT)}`);
   });
 
-  it("kit count 18 roles (one planted) → nonzero + names the derived 18 and the expected 17 (D-20 high side)", () => {
+  it("kit count ROLE_COUNT + 1 roles (one planted) → nonzero + names the derived count and the expected ROLE_COUNT (D-20 high side)", () => {
     const m = mirror();
-    // A well-formed 18th role: a byte copy of a real one, so it clears guard_voice and
-    // guard_caveman_preserved. The ONLY reason to reject it is that the corpus is now 18.
+    // A well-formed extra role: a byte copy of a real one, so it clears guard_voice and
+    // guard_caveman_preserved. The ONLY reason to reject it is that the corpus is now ROLE_COUNT + 1.
     cpSync(rolePath(ROOT, "installer.md"), rolePath(m, "zz-planted-role.md"));
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toContain("kit count");
-    expect(out(r)).toContain("derived 18 role files");
-    expect(out(r)).toContain("expected exactly 17");
+    expect(out(r)).toContain(`derived ${String(ROLE_COUNT + 1)} role files`);
+    expect(out(r)).toContain(`expected exactly ${String(ROLE_COUNT)}`);
   });
 
   // D-19 per-consumer derivation proof: ROLE_FILES must be genuinely DERIVED, not re-listed under a
@@ -6926,7 +6935,9 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const rawRed = voiceRedCountIn(raw);
     expect(rawRed).toBeGreaterThan(0);
     expect(rawRed, "the plant must red EVERY role").toBe(ROLE_COUNT);
-    expect(rawRed).toBeLessThanOrEqual(VOICE_RED_BASELINE_29_01);
+    // (Plan 39-05, TIER-06) The plant reds every role once, so its ceiling is the role count. Plan
+    // 29-01's baseline was that count on a 17-role kit; it still bounds the LIVE corpus below.
+    expect(rawRed).toBeLessThanOrEqual(ROLE_COUNT);
     expect(committedRed.status).toBe(1);
     expect(cavemanBlockOf(out(committedRed))).toContain(
       `caveman voice: ${rawRed} finding(s) over ${ROLE_COUNT} elements`,
@@ -8590,25 +8601,26 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // adapters and the live tree has gone green — the RED evidence is a regression test rather than a
   // screenshot pasted into a document that nobody re-runs. (It only earns that description since
   // 27-07 replaced its plain-mirror() fixture with brokenMirror(); see the fixture comment above.)
-  it("referential integrity RED: the pre-27-07 shape (17 roles, 1 adapter, 7 unresolvable grants) fails naming every set difference", () => {
+  it("referential integrity RED: the pre-27-07 shape (every role, 1 adapter, 7 unresolvable grants) fails naming every set difference", () => {
     const m = brokenMirror(); // the pre-27-07 structurally broken shape, re-created explicitly
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
     // The three set differences, each named by MEMBER and not merely by cardinality.
-    expect(o).toContain("17 derived adapter names, 1 adapters");
-    expect(o).toContain("16 role(s) with no adapter file");
+    // (Plan 39-05, TIER-06) Read off the derivation: every derived name but the coordinator is unbacked.
+    expect(o).toContain(`${String(LIVE_ADAPTERS)} derived adapter names, 1 adapters`);
+    expect(o).toContain(`${String(LIVE_ADAPTERS - 1)} role(s) with no adapter file`);
     expect(o).toContain("grugops-software-engineer");
     expect(o).toContain("7 granted name(s) resolving to no adapter file");
     expect(o).toContain("grant ∪ {coordinator} == adapters == roles");
   });
 
-  it("referential integrity GREEN: 17 adapters matching 17 roles with a 16-name grant passes", () => {
+  it("referential integrity GREEN: one adapter per derived name, with a grant of every name but the coordinator, passes", () => {
     const m = consistentMirror();
     const r = runIn(m);
     expect(r.status).toBe(0);
     expect(out(r)).toContain(
-      "KIT-03: 17 derived adapter names == 17 adapters == 17 grant-closure names",
+      `KIT-03: ${String(LIVE_ADAPTERS)} derived adapter names == ${String(LIVE_ADAPTERS)} adapters == ${String(LIVE_ADAPTERS)} grant-closure names`,
     );
   });
 
@@ -8631,7 +8643,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toContain("yielded no adapter files");
-    expect(out(r)).toContain("All 17 role(s) are unbacked");
+    expect(out(r)).toContain(`All ${String(LIVE_ADAPTERS)} role(s) are unbacked`);
     // The authority's own throw is REPORTED, not swallowed — and it names the directory.
     expect(out(r)).toMatch(/refusing to return an empty set/);
   });
@@ -8653,23 +8665,23 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // depths. Every fixture is CONSTRUCTED — none inherits its shape from the live tree, which is the
   // mistake recorded in the fixture comment at the top of this file. ──────────────────────────────
 
-  it("referential integrity fails RED one step BELOW the role cardinality (16 adapters vs 17 roles)", () => {
+  it("referential integrity fails RED one step BELOW the role cardinality (one adapter fewer than the derived names)", () => {
     const m = consistentMirror();
     rmSync(adapterPath(m, "grugops-installer"), { force: true });
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 derived adapter names, 16 adapters");
+    expect(o).toContain(`${String(LIVE_ADAPTERS)} derived adapter names, ${String(LIVE_ADAPTERS - 1)} adapters`);
     expect(o).toContain("1 role(s) with no adapter file: grugops-installer");
   });
 
-  it("referential integrity fails RED one step ABOVE the role cardinality (18 adapters vs 17 roles)", () => {
+  it("referential integrity fails RED one step ABOVE the role cardinality (one adapter more than the derived names)", () => {
     const m = consistentMirror();
     plantPlainAdapter(m, "grugops-extra.md", "grugops-extra");
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 derived adapter names, 18 adapters");
+    expect(o).toContain(`${String(LIVE_ADAPTERS)} derived adapter names, ${String(LIVE_ADAPTERS + 1)} adapters`);
     expect(o).toContain("1 adapter(s) with no role file: grugops-extra");
   });
 
@@ -8681,7 +8693,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 derived adapter names, 18 adapters");
+    expect(o).toContain(`${String(LIVE_ADAPTERS)} derived adapter names, ${String(LIVE_ADAPTERS + 1)} adapters`);
     expect(o).toContain(
       "1 adapter(s) with no role file: extra/grugops-rogue",
     );
@@ -8696,7 +8708,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("17 derived adapter names, 18 adapters");
+    expect(o).toContain(`${String(LIVE_ADAPTERS)} derived adapter names, ${String(LIVE_ADAPTERS + 1)} adapters`);
     expect(o).toContain(
       "1 adapter(s) with no role file: extra/grugops-installer",
     );
@@ -8896,7 +8908,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const go = out(gr);
     expect(go).not.toContain("FAIL  KIT-03");
     expect(go).toContain(
-      "PASS  KIT-03: 17 derived adapter names == 17 adapters == 17 grant-closure names",
+      `PASS  KIT-03: ${String(LIVE_ADAPTERS)} derived adapter names == ${String(LIVE_ADAPTERS)} adapters == ${String(LIVE_ADAPTERS)} grant-closure names`,
     );
     expect(gr.status).toBe(0);
   }, 60_000);
@@ -8964,7 +8976,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     );
     expect(r.status).toBe(0);
     expect(o).toContain("ALL CHECKS PASSED");
-    // The 17 per-block measurement lines are present and in listRoles() sorted order, so the
+    // The ROLE_COUNT per-block measurement lines are present and in listRoles() sorted order, so the
     // transcript embedded in the guard's source header is reproducible byte-for-byte.
     //
     // (Plan 29-14, IN-01 class audit) Deliberately rootless. This case spawns the guard with NO
@@ -8978,7 +8990,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(detail.map((l) => l.trim().split(":")[0])).toEqual(listRoles());
     // The oracle is not merely silent — it ran and reported the three-way equality it now holds.
     expect(o).toContain(
-      "KIT-03: 17 derived adapter names == 17 adapters == 17 grant-closure names",
+      `KIT-03: ${String(LIVE_ADAPTERS)} derived adapter names == ${String(LIVE_ADAPTERS)} adapters == ${String(LIVE_ADAPTERS)} grant-closure names`,
     );
   });
 
@@ -10187,7 +10199,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // pairs both ways, and every pair failed with an injected EIO. The pin moved because a module landed, not to make a red
 // go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 80 on this tree (2026-10-23, plan
 // 37-26).
-const TRIPWIRE_MODULES = 80;
+//
+// 80 -> 81 (plan 39-05, 2026-10-29): ONE test module, `scripts/tier-kit-text.test.ts` — the text assertions over the
+// kit prose Phase 39 writes (the complexity rubric and the Tech Lead role now). The pin moved because a module landed,
+// not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 81 on this tree
+// (2026-10-29, plan 39-05).
+const TRIPWIRE_MODULES = 81;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

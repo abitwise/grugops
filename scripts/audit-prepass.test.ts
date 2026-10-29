@@ -104,7 +104,8 @@ describe("audit-prepass: the derived audit set", () => {
     // constants guard_kit_counts already holds against the tree. `derived === derived` would be a
     // floor written over the wrong quantity, which is worse than no floor.
     expect(AUDIT_SET_COUNT).toBe(ROLE_COUNT + WORKFLOW_COUNT + 1);
-    expect(AUDIT_SET_COUNT).toBe(37);
+    // (Plan 39-05, 2026-10-29) 37 -> 38: the Tech Lead role (TIER-01) is the 18th role.
+    expect(AUDIT_SET_COUNT).toBe(38);
     const live = auditSetFiles();
     expect(live.length).toBe(AUDIT_SET_COUNT);
     expect(live.length).not.toBe(AUDIT_SET_COUNT - 1);
@@ -174,8 +175,9 @@ describe("audit-prepass: the fail-red arms", () => {
     rmSync(join(dir, "agent-factory", "roles", "role-01.md"));
     const r = runJs(dir);
     expect(r.status).not.toBe(0);
-    expect(r.stdout).toMatch(/36/);
-    expect(r.stdout).toMatch(/37/);
+    // (Plan 39-05, TIER-06) Both numbers are read off AUDIT_SET_COUNT (they were the literals 36 and 37).
+    expect(r.stdout).toContain(String(AUDIT_SET_COUNT - 1));
+    expect(r.stdout).toContain(String(AUDIT_SET_COUNT));
   });
 
   it("exits ZERO when it finds evidence — it is a reporter, not a gate", () => {

@@ -347,10 +347,12 @@ const WORKFLOWS = deriveKitNames(listWorkflows, "workflow", "agent-factory/workf
 // asserted separately by checkRoleSwitchProtocol, which is why it must not be a ROLES member).
 const ROLES = deriveKitNames(listRoles, "role", "agent-factory/roles");
 
-// 11 checklist filenames (10 named + 00-index) — existence-only per §18.
+// 12 checklist filenames (11 named + 00-index) — existence-only per §18. (Plan 39-05) complexity-rubric
+// is the Tech Lead's scoring rubric (D-12).
 const CHECKLISTS = [
   "00-index",
   "definition-of-ready",
+  "complexity-rubric",
   "definition-of-done",
   "definition-of-done-enterprise",
   "pr-review-checklist",

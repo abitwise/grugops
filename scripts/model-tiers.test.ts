@@ -40,7 +40,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { listAgentAdapterSpecs, listRoles, ROLE_COUNT } from "./kit-model.js";
+import { listAgentAdapterNames, listAgentAdapterSpecs, listRoles, ROLE_COUNT } from "./kit-model.js";
 import {
   EFFORT_KEYS,
   EFFORT_LEVELS,
@@ -421,10 +421,12 @@ describe("model-tiers: the TIERED preset table (plan 29.1-02, MODEL-03)", () => 
     expect(withDigits).toEqual([]);
   });
 
-  it("assigns `opus` to EXACTLY the four D-09 stems, `sonnet` to the rest, and `haiku` to NOBODY", () => {
-    // The four names are legitimately literal HERE and nowhere else: this assertion is ABOUT them.
+  it("assigns `opus` to EXACTLY the four D-09 stems plus the D-03 Tech Lead, `sonnet` to the rest, and `haiku` to NOBODY", () => {
+    // The five names are legitimately literal HERE and nowhere else: this assertion is ABOUT them.
+    // (Plan 39-05, D-03) `tech-lead` joins the opus bucket: its level choice and dev plan decide what
+    // every engineer dispatch builds, and no later gate re-asks the choice.
     expect(stemsWithAlias("opus")).toEqual(
-      ["architect-design", "compliance-officer", "orchestrator", "security-nfr"].sort(),
+      ["architect-design", "compliance-officer", "orchestrator", "security-nfr", "tech-lead"].sort(),
     );
     expect(stemsWithAlias("haiku"), "no role is assigned the thinnest tier under this preset").toEqual([]);
     // (Plan 39-01) The sonnet bucket is the PRESET-GOVERNED rows less the opus bucket, so dropping a
@@ -2968,10 +2970,12 @@ describe("per-adapter resolution and the level pins (plan 39-01, D-14)", () => {
     expect([...z.models.keys()]).toEqual([...z.models.keys()].sort());
   });
 
-  it("the live tree: zero config resolves inherit/inherit for every one of the 17 adapters", () => {
+  it("the live tree: zero config resolves inherit/inherit for every derived adapter", () => {
     const specs = listAgentAdapterSpecs(ROOT);
     const z = zeroConfigAssignments(specs);
-    expect(z.models.size).toBe(17);
+    // (Plan 39-05, TIER-06) the live adapter count is asked of the derivation, never typed.
+    expect(z.models.size).toBe(specs.length);
+    expect(specs.length, "PREMISE: the adapter-identity derivation agrees with the spec list").toBe(listAgentAdapterNames(ROOT).length);
     expect([...new Set(z.models.values())]).toEqual(["inherit"]);
     expect([...new Set(z.efforts.values())]).toEqual(["inherit"]);
     expect(presetGovernedStems(specs)).toEqual(kitStems());

@@ -1362,8 +1362,19 @@ export function bannedClaimScanOverlap(parts = BANNED_CLAIM_SCAN_PARTS) {
  *         guarantees 1, overlap 2)
  *
  * Measured with this gate's own matcher before the pin moved: 0 occurrences in the entrant.
+ *
+ * MOVED AGAIN 121 → 124 ON 2026-10-29 IN PLAN 39-05, AND THE ENTRANTS ARE NAMED:
+ * `agent-factory/roles/tech-lead.md` and `agent-factory/checklists/complexity-rubric.md` enter
+ * through the `kit` corpus (76 → 78), and the generated `.claude/agents/grugops-tech-lead.md` enters
+ * through `claudeAdapters` (24 → 25). Read off this gate's own refusal, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 124 document(s), expected exactly 121 (kit 78,
+ *         publicDocs 12, installReadme 1, skillSources 7, claudeAdapters 25, pluginManifests 2,
+ *         guarantees 1, overlap 2)
+ *
+ * The same run reported 0 findings over 124/124 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 121;
+export const BANNED_CLAIM_SCAN_COUNT = 124;
 /**
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is

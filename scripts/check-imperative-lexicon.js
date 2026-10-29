@@ -417,8 +417,16 @@ export function governedCorpus() {
  * trace render's zero-note output, SPLIT-03), so the derived exclusion takes it out of the seed part
  * (13 → 12) and GENERATED_EXEMPT_COUNT moves 1 → 2 with it. The pin moved after the gate had derived the
  * smaller corpus and named the leaver in its GENERATED refusal.
+ *
+ * MOVED 48 → 49 ON 2026-10-29 IN PLAN 39-05, AND THE ENTRANT IS NAMED:
+ * `agent-factory/checklists/complexity-rubric.md`, the Tech Lead's scoring rubric (D-12). It is
+ * hand-authored, so it enters the checklists part (14 → 15) and is SCANNED like every other checklist.
+ * The pin moved after the gate had read the new file: the run that moved it reported "derived 49
+ * document(s), expected exactly 48 (workflows 19, checklists 15, seedTemplates 12, contracts 3)" and
+ * zero findings over 49/49 elements for guard_sentence_form, and zero over the unchanged 19/19 for
+ * guard_imperative_lexicon, because the rubric carries no `## Steps` section.
  */
-export const GOVERNED_CORPUS_COUNT = 48;
+export const GOVERNED_CORPUS_COUNT = 49;
 // ---------------------------------------------------------------------------
 // APPROVED_STEP_VERBS — the CLOSED verb set (WP-01).
 //
@@ -818,8 +826,14 @@ export const TECHNICAL_NAMES = technicalNames();
  *     runs report 0 findings for `guard_imperative_lexicon` before and after, so no bullet lost its
  *     exemption.
  *   - the Technical Names PASS line reports the derived count, which is what moved.
+ *
+ * MOVED 76 -> 77 ON 2026-10-29 BY PLAN 39-05, AND THE NEW MEMBER IS NAMED: the role display name
+ * `Tech Lead`, read from the `# Role: Tech Lead` heading of agent-factory/roles/tech-lead.md, so
+ * roleDisplayNames moved 17 -> 18. The gate printed "derived 77 member(s), expected exactly 76
+ * (roleDisplayNames 18, ...)" before this number moved, and guard_sentence_form reported 0 findings
+ * over 49/49 elements on the same run, so no governed sentence crossed a bound.
  */
-export const TECHNICAL_NAMES_COUNT = 76;
+export const TECHNICAL_NAMES_COUNT = 77;
 /**
  * THE WORD COUNT, DECIDED ONCE AND USED EVERYWHERE.
  *

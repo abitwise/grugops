@@ -129,7 +129,9 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * migrate-v3-context.test.ts, which has no chmod call and no expected mode (it compares snapshotTree manifests and
  * printed lines of the context archive). */
 const INSTALL_TEST_FILE_COUNT = 46;
-const SCRIPTS_TEST_FILE_COUNT = 80;
+// SCRIPTS_TEST_FILE_COUNT 80 -> 81 (2026-10-29, plan 39-05, re-derived by listing scripts/, not incremented) for
+// tier-kit-text.test.ts, which has no chmod call and no expected mode (it reads kit markdown and asserts phrases).
+const SCRIPTS_TEST_FILE_COUNT = 81;
 const SOURCE_FILE_COUNT = 11;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
