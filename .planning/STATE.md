@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Phase 39 context gathered
-last_updated: "2026-10-29T15:42:33.939Z"
-last_activity: 2026-10-28
-last_activity_desc: Phase 38 complete, transitioned to Phase 39
-state_head: 3b436180d84aaac4b5c4a7e2d1d54ef33d27500f
+stopped_at: Completed 39-01-PLAN.md
+last_updated: "2026-10-29T16:57:49.706Z"
+last_activity: 2026-10-29
+last_activity_desc: Phase 39 execution started
+state_head: c132fb557af91afded63563161222be031d46526
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 78
-  completed_plans: 68
+  completed_plans: 69
   percent: 44
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 ## Current Position
 
-Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — READY TO EXECUTE
-Plan: Not started
+Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
+Plan: 2 of 10
 Status: Ready to execute
-Last activity: 2026-10-28 — Phase 38 complete, transitioned to Phase 39
+Last activity: 2026-10-29 — Phase 39 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -784,6 +784,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P09 | 49 min | 2 tasks | 10 files |
 | Phase 38 P10 | 50 min | 3 tasks | 11 files |
 | Phase 38 P11 | 81min | 3 tasks | 10 files |
+| Phase 39 P01 | 33 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2152,6 +2153,9 @@ Recent decisions affecting current work:
 - [Phase 38]: 38-11: a dot-named regular file (e.g. .gitkeep) in .grugops/queue/claimed/ is a keeper, not a claim (fix 6cbaa209)
 - [Phase 38]: 38-11 reverses a 38-10 decision: --archive-done-context on a v3 repository renders the trace after its moves and undoes them if the render fails (fix 2f8f8b65)
 - [Phase 38]: 38-11: board stays over budget after migrate on the real repository (finding C: a code-span <!-- RUN --> in Done row ABC-109 blocks the Done roll), deferred to the phase 37 state rules
+- [Phase 39]: 39-01: agent adapter identity is one derived spec list (listAgentAdapterSpecs); level adapters resolve roles[stem-level] ?? roles[stem] ?? LEVELS with no preset, tiered included (A1)
+- [Phase 39]: 39-01: resolveAdapterAssignments refuses override keys outside configKeyStems directly and runs levelTableRefusals on every call
+- [Phase 39]: 39-01: dashboard read-only guard admits Number and RegExp (12 admitted global callees) because kit-model.js now imports frontmatter.js
 
 ### Pending Todos
 
@@ -2487,9 +2491,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-29T08:09:02.042Z
-Stopped at: Phase 39 context gathered
-Resume file: .planning/phases/39-role-machinery-engineer-levels-tech-lead-and-designer-roles/39-CONTEXT.md
+Last session: 2026-10-29T16:57:49.127Z
+Stopped at: Completed 39-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

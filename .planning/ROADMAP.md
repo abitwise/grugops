@@ -446,11 +446,11 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 10 plans
+**Plans**: 1/10 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 39-01-PLAN.md — Adapter-spec derivation (`levels:` via parseFrontmatter), `LEVELS` table, per-adapter model/effort resolution and zero-config map; live tree unchanged
+- [x] 39-01-PLAN.md — Adapter-spec derivation (`levels:` via parseFrontmatter), `LEVELS` table, per-adapter model/effort resolution and zero-config map; live tree unchanged
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 39-02-PLAN.md — Generator 1:N, KIT-03, model/effort guards and freshness gate switched to the derivation; levels mirror green, wrong shapes red
@@ -555,7 +555,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
-| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 0/TBD | Not started | - |
+| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 1/10 | In Progress | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
