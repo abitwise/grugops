@@ -976,7 +976,9 @@ function readAssignmentPayload<V extends string>(
 // ── TIERED — the one shipped preset, one row per role, each row carrying its reason ───────────
 //
 // D-09 assigns `opus` to four roles and `sonnet` to the other thirteen; plan 39-05 (D-03) adds the
-// Tech Lead as a fifth `opus` row, because its level choice is judgment no later gate re-asks. NO ROLE
+// Tech Lead as a fifth `opus` row, because its level choice is judgment no later gate re-asks; plan
+// 39-06 adds the Designer as a sixth (RESEARCH Assumption A7), because its one design direction is
+// inherited by every UI ticket and no later gate re-asks it. NO ROLE
 // IS ASSIGNED `haiku`, and that is the load-bearing shape decision rather than an oversight: every role
 // in this kit either writes into the shared verified context or produces an artifact a human signs
 // off on, and the behavior gate catches CORRECTNESS, not JUDGMENT. A thin-model ticket, test plan or UAT pack
@@ -998,7 +1000,8 @@ function readAssignmentPayload<V extends string>(
 // carries a digit and no rationale may carry one — see the paragraph immediately below.
 //
 // NO ROW ARGUES SPEND (D-14 / MODEL-07). Each rationale argues QUALITY: what a thinner model would
-// degrade past rather than into, and — for the strong roles — the specific harm D-09 (and, for the Tech Lead, D-03) records.
+// degrade past rather than into, and — for the strong roles — the specific harm D-09 (and, for the Tech Lead, D-03;
+// for the Designer, RESEARCH Assumption A7) records.
 // No rationale asserts a saving, names a price, or contains a digit; scripts/model-tiers.test.ts
 // asserts the digit half of that mechanically, so a percentage cannot be introduced without a red.
 //
@@ -1074,6 +1077,21 @@ export const TIERED: readonly RoleTier[] = [
       "Classifying regulated data is a judgment no gate in this kit repeats. Deeper reasoning gives " +
       "the role room to work through the rule, the field and the edge case before it answers, " +
       "because a wrong answer here reaches the user rather than a reviewer.",
+  },
+  {
+    // (Plan 39-06, RESEARCH Assumption A7) The Designer runs on `inherit` at zero config like every
+    // judgment role (D-27); this row only answers for it under the `tiered` preset. One row to change
+    // if `sonnet` is preferred.
+    stem: "designer",
+    alias: "opus",
+    rationale:
+      "Sets the one design direction, the token system and the accessibility bar that every UI ticket " +
+      "builds on. A direction set badly is built faithfully by every later ticket, each of which passes " +
+      "its own gate, and no later gate asks again whether the direction was right.",
+    effortRationale:
+      "The design direction is decided once per product and inherited by every UI ticket, and no later " +
+      "gate re-asks it. Deeper reasoning lets the role weigh the product context and the accessibility " +
+      "bar before it commits to a direction.",
   },
   {
     stem: "factory-coach",

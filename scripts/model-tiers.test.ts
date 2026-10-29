@@ -421,12 +421,15 @@ describe("model-tiers: the TIERED preset table (plan 29.1-02, MODEL-03)", () => 
     expect(withDigits).toEqual([]);
   });
 
-  it("assigns `opus` to EXACTLY the four D-09 stems plus the D-03 Tech Lead, `sonnet` to the rest, and `haiku` to NOBODY", () => {
-    // The five names are legitimately literal HERE and nowhere else: this assertion is ABOUT them.
+  it("assigns `opus` to EXACTLY the four D-09 stems plus the D-03 Tech Lead and the A7 Designer, `sonnet` to the rest, and `haiku` to NOBODY", () => {
+    // The six names are legitimately literal HERE and nowhere else: this assertion is ABOUT them.
     // (Plan 39-05, D-03) `tech-lead` joins the opus bucket: its level choice and dev plan decide what
     // every engineer dispatch builds, and no later gate re-asks the choice.
+    // (Plan 39-06, 2026-10-29, RESEARCH Assumption A7) `designer` joins the opus bucket: its one design
+    // direction is inherited by every UI ticket and no later gate re-asks it. D-27 fixes only the
+    // zero-config `inherit`; this flagged assumption is one row to change if `sonnet` is preferred.
     expect(stemsWithAlias("opus")).toEqual(
-      ["architect-design", "compliance-officer", "orchestrator", "security-nfr", "tech-lead"].sort(),
+      ["architect-design", "compliance-officer", "designer", "orchestrator", "security-nfr", "tech-lead"].sort(),
     );
     expect(stemsWithAlias("haiku"), "no role is assigned the thinnest tier under this preset").toEqual([]);
     // (Plan 39-01) The sonnet bucket is the PRESET-GOVERNED rows less the opus bucket, so dropping a

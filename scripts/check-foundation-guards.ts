@@ -3532,6 +3532,7 @@ const ROLE_CEILINGS: Readonly<Record<string, string>> = {
   "uat-planner.md":        "3540 3350", // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
   "system-analyst.md":     "3170 3000", // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)
   "tech-lead.md":          "3572 3381", // Plan 39-05 (TIER-01), 2026-10-29: measured 3189 B, +12% / +6% rounded up
+  "designer.md":           "3273 3098", // Plan 39-06 (TIER-05), 2026-10-29: measured 2922 B, +12% / +6% rounded up
   "greenfield-mapper.md":  "3045 2882", // +Phase-21 WF16 pointer (baseline 2718 B, +12% / +6%)
   "brownfield-mapper.md":  "2845 2693", // +Phase-21 WF16 pointer (baseline 2540 B, +12% / +6%)
 };

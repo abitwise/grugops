@@ -102,9 +102,11 @@ const AGENTS = "AGENTS.md";
 // Pinned: 7 skills and 17 adapters; 4 runnables. A derivation that loses one fails here.
 // KIT_PATH_COUNT 24 -> 25 on 2026-10-29 (plan 39-05, TIER-01): the Tech Lead's adapter
 // `.claude/agents/grugops-tech-lead.md` entered the derived set (measured: the assertion printed 25).
+// KIT_PATH_COUNT 25 -> 26 on 2026-10-29 (plan 39-06, TIER-05): the Designer's adapter
+// `.claude/agents/grugops-designer.md` entered the derived set (measured: the assertion printed 26).
 // RUNNABLE_PATH_COUNT 4 -> 7 on 2026-10-22 (plan 37-13, SPLIT-05): the three state runnables state-check.js,
 // trace-render.js and state-roll.js entered the derived set (measured: the assertion printed 7).
-const KIT_PATH_COUNT = 25;
+const KIT_PATH_COUNT = 26;
 const RUNNABLE_PATH_COUNT = 7;
 const REMOVED_BY_NAME = [...KIT_PATHS, ...RUNNABLE_PATHS, AGENTS];
 

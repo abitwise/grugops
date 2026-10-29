@@ -1534,8 +1534,19 @@ export function bannedClaimScanOverlap(
  *         guarantees 1, overlap 2)
  *
  * The same run reported 0 findings over 124/124 elements.
+ *
+ * MOVED AGAIN 124 → 126 ON 2026-10-29 IN PLAN 39-06, AND THE ENTRANTS ARE NAMED:
+ * `agent-factory/roles/designer.md` enters through the `kit` corpus (78 → 79), and the generated
+ * `.claude/agents/grugops-designer.md` enters through `claudeAdapters` (25 → 26). Read off this
+ * gate's own refusal, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 126 document(s), expected exactly 124 (kit 79,
+ *         publicDocs 12, installReadme 1, skillSources 7, claudeAdapters 26, pluginManifests 2,
+ *         guarantees 1, overlap 2)
+ *
+ * The same run reported 0 findings over 126/126 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 124;
+export const BANNED_CLAIM_SCAN_COUNT = 126;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.

@@ -99,14 +99,18 @@ import { join } from "node:path";
 // the D-50 IN-05 case in scripts/frontmatter.test.ts. frontmatter.ts imports nothing, so this edge
 // cannot close a cycle.
 import { parseFrontmatter } from "./frontmatter.js";
-// The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 17 roles is a
-// failure and 19 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
+// The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 18 roles is a
+// failure and 20 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
 // author to walk every derived consumer first — that walk is the whole point of the constant.
 // MOVED 17 -> 18 ON 2026-10-29 BY PLAN 39-05 (TIER-01, TIER-06): the entrant is
 // agent-factory/roles/tech-lead.md. guard_kit_counts printed "derived 18 role files, expected exactly
 // 17" before this number moved, and every consumer it names was walked first (ROLE_CEILINGS row,
 // TIERED row, register row, generated adapter and grant).
-export const ROLE_COUNT = 18;
+// MOVED 18 -> 19 ON 2026-10-29 BY PLAN 39-06 (TIER-05, TIER-06): the entrant is
+// agent-factory/roles/designer.md. guard_kit_counts printed "derived 19 role files, expected exactly
+// 18" before this number moved, and every consumer it names was walked first (ROLE_CEILINGS row,
+// TIERED row, register row, generated adapter and grant).
+export const ROLE_COUNT = 19;
 export const WORKFLOW_COUNT = 19;
 // ── THE RULE THAT DECIDES THE WORKFLOW CORPUS (round 6, IN-01 — plan 29-54) ────────────────────
 //
@@ -150,7 +154,7 @@ export const SKILL_ADAPTER_COUNT = 7;
 // drift class is an enumeration consumers read as truth while it rots; a number can only ever fail
 // closed. The membership itself is DERIVED by listPluginSkillAdapters() below — never written down.
 export const PLUGIN_SKILL_ADAPTER_COUNT = 7;
-// The exact expected cardinality of the SPAWN-GRANT SCAN COMPOSITION below: 18 agent adapters +
+// The exact expected cardinality of the SPAWN-GRANT SCAN COMPOSITION below: 19 agent adapters +
 // 7 standalone skill adapters + 7 plugin-form skill adapters + 2 packaging templates.
 //
 // THIS PIN IS MANDATORY, NOT NICE TO HAVE, AND THE REASON IS SPECIFIC (D-19 / D-20, plan 27-33).
@@ -183,7 +187,11 @@ export const PLUGIN_SKILL_ADAPTER_COUNT = 7;
 // MOVED 33 -> 34 ON 2026-10-29 BY PLAN 39-05 (TIER-06): the agent part moved 17 -> 18 with the
 // generated grugops-tech-lead adapter. guard_kit_counts printed "derived 34 members, expected exactly
 // 33 (derived breakdown: agent 18 + skill 7 + plugin-skill 7 + packaging 2)" before this number moved.
-export const SPAWN_GRANT_SCAN_COUNT = 34;
+//
+// MOVED 34 -> 35 ON 2026-10-29 BY PLAN 39-06 (TIER-06): the agent part moved 18 -> 19 with the
+// generated grugops-designer adapter. guard_kit_counts printed "derived 35 members, expected exactly
+// 34 (derived breakdown: agent 19 + skill 7 + plugin-skill 7 + packaging 2)" before this number moved.
+export const SPAWN_GRANT_SCAN_COUNT = 35;
 // MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
 //
 // A SECOND MECHANISM, DELIBERATELY SEPARATE FROM THE CYCLE ANSWER. The `ancestors` stack in

@@ -268,9 +268,10 @@ describe("kit-model (KIT-01 kit-set derivation authority)", () => {
   });
 
   // ── exported constants + the live tree ────────────────────────────────────────────────────────
-  it("exports the exact expected cardinalities (ROLE_COUNT 18 / WORKFLOW_COUNT 19)", () => {
+  it("exports the exact expected cardinalities (ROLE_COUNT 19 / WORKFLOW_COUNT 19)", () => {
     // (Plan 39-05, 2026-10-29) 17 -> 18: the Tech Lead role (TIER-01).
-    expect(ROLE_COUNT).toBe(18);
+    // (Plan 39-06, 2026-10-29) 18 -> 19: the Designer role (TIER-05).
+    expect(ROLE_COUNT).toBe(19);
     expect(WORKFLOW_COUNT).toBe(19);
   });
 
@@ -1890,7 +1891,7 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
   });
 
   it("exports SPAWN_GRANT_SCAN_COUNT and the live tree derives exactly that many, failing in BOTH directions", () => {
-    // D-19 / D-20: two-sided. 33 is a failure and 35 is a failure; only 34 passes. This count is the
+    // D-19 / D-20: two-sided. 34 is a failure and 36 is a failure; only 35 passes. This count is the
     // ONLY signal that can catch a part dropped from the composition, because its two consumers read
     // one object and set equality between them compares an object with itself.
     //
@@ -1900,7 +1901,10 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
     //
     // (Plan 39-05, 2026-10-29) RAISED 33 -> 34: the agent part gains the generated grugops-tech-lead
     // adapter (TIER-06).
-    expect(SPAWN_GRANT_SCAN_COUNT).toBe(34);
+    //
+    // (Plan 39-06, 2026-10-29) RAISED 34 -> 35: the agent part gains the generated grugops-designer
+    // adapter (TIER-06).
+    expect(SPAWN_GRANT_SCAN_COUNT).toBe(35);
     const live = spawnGrantScan();
     expect(live.length).toBe(SPAWN_GRANT_SCAN_COUNT);
     expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT - 1);

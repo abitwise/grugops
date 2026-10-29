@@ -1,7 +1,7 @@
 <!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-catalog.js -->
 # grugops Catalog
 
-This is the generated, browsable index of the grugops kit: 18 role personas and
+This is the generated, browsable index of the grugops kit: 19 role personas and
 19 workflows. Each row links to its source file. The catalog is produced by
 `scripts/generate-catalog.js` and is never hand-edited — re-run the generator and commit the
 result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
@@ -14,6 +14,7 @@ result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 | Architect/Design | core | Make the structure and boundaries the work is built on. | [agent-factory/roles/architect-design.md](../../agent-factory/roles/architect-design.md) |
 | BA/PM | core | Cut a product idea down to a defensible MVP of testable, measurable tickets. | [agent-factory/roles/ba-pm.md](../../agent-factory/roles/ba-pm.md) |
 | Brownfield Mapper | core | Inspect an existing repo and produce a read-only map of it. | [agent-factory/roles/brownfield-mapper.md](../../agent-factory/roles/brownfield-mapper.md) |
+| Designer | core | Set the product-wide design strategy and guidelines every UI ticket builds on. | [agent-factory/roles/designer.md](../../agent-factory/roles/designer.md) |
 | Frontend/UI | core | Author the UI/design contract the engineer builds against and QE verifies. | [agent-factory/roles/frontend-ui.md](../../agent-factory/roles/frontend-ui.md) |
 | Greenfield Mapper | core | Shape empty land into a repo structure, a stack choice, and a first architecture sketch. | [agent-factory/roles/greenfield-mapper.md](../../agent-factory/roles/greenfield-mapper.md) |
 | Orchestrator | core | Decompose each request into subtasks and route each to the right role agent over the shared queue. | [agent-factory/roles/orchestrator.md](../../agent-factory/roles/orchestrator.md) |

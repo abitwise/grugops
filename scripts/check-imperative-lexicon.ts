@@ -894,8 +894,15 @@ export const TECHNICAL_NAMES: readonly string[] = technicalNames();
  * roleDisplayNames moved 17 -> 18. The gate printed "derived 77 member(s), expected exactly 76
  * (roleDisplayNames 18, ...)" before this number moved, and guard_sentence_form reported 0 findings
  * over 49/49 elements on the same run, so no governed sentence crossed a bound.
+ *
+ * MOVED 77 -> 78 ON 2026-10-29 BY PLAN 39-06, AND THE NEW MEMBER IS NAMED: the role display name
+ * `Designer`, read from the `# Role: Designer` heading of agent-factory/roles/designer.md, so
+ * roleDisplayNames moved 18 -> 19. The gate printed "derived 78 member(s), expected exactly 77
+ * (roleDisplayNames 19, workflowDisplayNames 19, configKeys 21, noteKinds 6, boardColumns 13,
+ * deduped)" before this number moved, and guard_sentence_form reported 0 findings over 49/49
+ * elements on the same run, so no governed sentence crossed a bound.
  */
-export const TECHNICAL_NAMES_COUNT = 77;
+export const TECHNICAL_NAMES_COUNT = 78;
 
 /**
  * THE WORD COUNT, DECIDED ONCE AND USED EVERYWHERE.

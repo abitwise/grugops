@@ -2,7 +2,8 @@
 //
 // Plan 39-05 adds the cases for agent-factory/checklists/complexity-rubric.md (TIER-01, TIER-03,
 // D-11, D-31) and agent-factory/roles/tech-lead.md (TIER-01; D-04..D-07, D-10, D-17, D-19, D-21).
-// Later Phase 39 plans add the Designer, the engineer `## Levels` section, WF04 and WF14.
+// Plan 39-06 adds the cases for agent-factory/roles/designer.md (TIER-05; D-23..D-27).
+// Later Phase 39 plans add the engineer `## Levels` section, WF04 and WF14.
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -16,6 +17,7 @@ const ROOT = join(import.meta.dirname, "..");
 const RUBRIC_PATH = "agent-factory/checklists/complexity-rubric.md";
 const RUBRIC = readFileSync(join(ROOT, RUBRIC_PATH), "utf8");
 const TECH_LEAD = readFileSync(join(ROOT, "agent-factory/roles/tech-lead.md"), "utf8");
+const DESIGNER = readFileSync(join(ROOT, "agent-factory/roles/designer.md"), "utf8");
 const CHECKLIST_INDEX = readFileSync(join(ROOT, "agent-factory/checklists/00-index.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
@@ -232,5 +234,80 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     expect(body).toContain("Never escalate a ticket twice.");
     expect(body).toContain("After the options are used up, stop for a named human.");
     expect(body).toContain("Merge and deploy stay with humans.");
+  });
+});
+
+describe("designer.md (TIER-05; D-23..D-27)", () => {
+  it("D-27: core tier, the read edit capabilities, no skills value, and the role heading", () => {
+    expect(DESIGNER.startsWith("---\nkind: role\ntier: core\ncapabilities: read edit\n---\n# Role: Designer\n")).toBe(true);
+    expect(DESIGNER).not.toMatch(/^skills:/m);
+    // T-39-21: never the coordinator-only `admit` capability, and no spawn grant.
+    expect(DESIGNER).not.toMatch(/^capabilities:.*\badmit\b/m);
+    expect(DESIGNER).not.toContain("Agent(");
+  });
+
+  it("its one job is to set the product-wide design strategy every UI ticket builds on", () => {
+    expect(section(DESIGNER, "One job").trim().split("\n")[0]).toBe(
+      "Set the product-wide design strategy and guidelines every UI ticket builds on.",
+    );
+  });
+
+  it("carries exactly one Workflow 16 and one Workflow 18 reference", () => {
+    expect(DESIGNER.split("16-context-read-write").length - 1).toBe(1);
+    expect(DESIGNER.split("18-context-compaction").length - 1).toBe(1);
+  });
+
+  it("reads the product context, the architecture notes, earlier Designer notes and the accessibility checklist", () => {
+    const body = section(DESIGNER, "Reads");
+    expect(body).toContain("The product context and the architecture notes, pulled per Workflow 16.");
+    expect(body).toContain("Any earlier Designer notes");
+    expect(body).toContain("`agent-factory/checklists/accessibility-checklist.md`");
+  });
+
+  it("D-26: it owns the principles, the token system, the style direction, the WCAG 2.2 AA bar and the tells to avoid", () => {
+    const body = section(DESIGNER, "Responsibilities");
+    expect(body).toContain("Set the design principles and the style direction for the product.");
+    expect(body).toContain("Define the token system: the palette, the type scale and the spacing scale.");
+    expect(body).toContain("Set the product-wide accessibility bar at WCAG 2.2 AA.");
+    expect(body).toContain("Name the generated-design tells to avoid");
+  });
+
+  it("D-26: it leaves the per-ticket work to Frontend/UI", () => {
+    expect(section(DESIGNER, "Responsibilities")).toContain(
+      "Leave the component inventory, the five states, per-ticket WCAG application and the visual baseline to Frontend/UI.",
+    );
+    expect(section(DESIGNER, "Hard limits")).toContain("Never author a per-ticket contract, and never write component code.");
+  });
+
+  it("D-25: it runs once per product and re-runs for a UI epic only on a new direction", () => {
+    expect(section(DESIGNER, "Activates when").trim()).toBe(
+      "Need a design system for UI work (the first UI work in a repo, or a UI epic that needs a new direction).",
+    );
+    const body = section(DESIGNER, "Responsibilities");
+    expect(body).toContain("Run once per product.");
+    expect(body).toContain("Re-run for a UI epic only when it needs a new direction; per-ticket UI goes straight to Frontend/UI.");
+  });
+
+  it("D-24: it publishes only typed `decision` and `artifact-ref` notes and no memory-bank master file", () => {
+    const body = section(DESIGNER, "Output");
+    expect(body).toContain("Typed `decision` and `artifact-ref` notes per Workflow 16, each with the trace ids on its refs");
+    expect(body).toContain("No memory-bank master file.");
+    // No other note kind is named as an output.
+    for (const kind of ["`observation`", "`finding`", "`failed-attempt`"]) {
+      expect(body, `the Output names ${kind}`).not.toContain(kind);
+    }
+  });
+
+  it("it causes no column transition and runs at the design step before Frontend/UI", () => {
+    expect(section(DESIGNER, "Board moves")).toContain(
+      "No column transition of its own: the Designer runs at the design step, before Frontend/UI writes the ticket's contract.",
+    );
+  });
+
+  it("Hard limits: the WCAG 2.2 AA bar in clear professional English, no fabrication, merge and deploy with humans", () => {
+    const body = section(DESIGNER, "Hard limits");
+    expect(body).toContain("The accessibility bar is WCAG 2.2 AA, stated in clear professional English.");
+    expect(body).toContain("Never fabricate a guideline or a passing bar; mark anything unverified `UNKNOWN - verify`.");
+    expect(body).toContain("Merge and deploy remain human decisions.");
   });
 });

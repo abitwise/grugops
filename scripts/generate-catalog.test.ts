@@ -81,13 +81,14 @@ const GEN_MODULES = [...importClosure("generate-catalog.js")].sort();
 // `${r.stdout}${r.stderr}` directly, so the helper was dead rather than merely unused-for-now.
 // Removed at its site; no assertion changed.
 
-// The 18 role display names (from each file's `# Role:` H1) — load-bearing literals.
+// The 19 role display names (from each file's `# Role:` H1) — load-bearing literals.
 const ROLE_NAMES = [
   "AGENTS.md Scribe",
   "Architect/Design",
   "BA/PM",
   "Brownfield Mapper",
   "Compliance Officer",
+  "Designer", // (Plan 39-06, TIER-05) the new role's display name, from its `# Role:` heading
   "Factory Coach",
   "Frontend/UI",
   "Greenfield Mapper",

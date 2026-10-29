@@ -448,8 +448,10 @@ const EXCLUSION_CONTROLS: readonly ExclusionControl[] = [
  * History: 2026-10-24, plan 37-32: 77 files; 77 at 45c04b27.
  * 2026-10-29, plan 39-05: 79 files; `agent-factory/roles/tech-lead.md` and `agent-factory/checklists/complexity-rubric.md`
  * entered, and neither tells an agent to edit the trace by hand (measured: the case printed 79).
+ * 2026-10-29, plan 39-06: 80 files; `agent-factory/roles/designer.md` entered, and it does not tell an agent to edit the
+ * trace by hand (measured: the case printed 80).
  */
-const SCAN_SET_SIZE = 79;
+const SCAN_SET_SIZE = 80;
 
 /**
  * The runtime ceiling for one pattern on one adversarial input. The expected time is a few milliseconds; the ceiling

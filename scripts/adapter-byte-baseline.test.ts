@@ -130,6 +130,14 @@ const RECORDED_ADDED: readonly RecordedAdded[] = [
       "Its one generated adapter runs on `model: inherit` with no effort line at zero config, like " +
       "every judgment role (D-03); the coordinator's grant names it.",
   },
+  {
+    name: "grugops-designer",
+    kind: "new-role",
+    reason:
+      "Plan 39-06 (TIER-05): the Designer role, agent-factory/roles/designer.md, is new in Phase 39. " +
+      "Its one generated adapter runs on `model: inherit` with no effort line at zero config, like " +
+      "every judgment role (D-27); the coordinator's grant names it.",
+  },
 ];
 const RECORDED_REMOVED: readonly string[] = [];
 

@@ -168,8 +168,11 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * 76 on 2026-10-29, plan 39-05 (TIER-01): `.claude/agents/grugops-tech-lead.md` entered as a file, because the Tech
  * Lead role renders one more adapter; an edit to it is left byte for byte by uninstall. Measured by this test's
  * failing run (expected 76). 75 -> 76.
+ * 77 on 2026-10-29, plan 39-06 (TIER-05): `.claude/agents/grugops-designer.md` entered as a file, because the
+ * Designer role renders one more adapter; an edit to it is left byte for byte by uninstall. Measured by this test's
+ * failing run (expected 77). 76 -> 77.
  */
-const INSTALLED_FILE_COUNT = 76;
+const INSTALLED_FILE_COUNT = 77;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

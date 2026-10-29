@@ -362,8 +362,10 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * failing run (expected 45).
  * 45 -> 46 on 2026-10-29, plan 39-05 (TIER-01): `.claude/agents/grugops-tech-lead.md` entered, because the Tech Lead
  * role renders one more adapter and install records it; measured by this test's printed listing.
+ * 46 -> 47 on 2026-10-29, plan 39-06 (TIER-05): `.claude/agents/grugops-designer.md` entered, because the Designer
+ * role renders one more adapter and install records it; measured by this test's printed listing (expected 47).
  */
-const REMOVABLE_COUNT = 46;
+const REMOVABLE_COUNT = 47;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a

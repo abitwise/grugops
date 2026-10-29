@@ -127,7 +127,11 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // plus the two read-only inputs), because the Tech Lead role renders one more adapter and install asks its destination
 // through readForWrite; a FIFO and a directory are planted at it by derivation. Measured by this test's failing run
 // (expected 78). 77 -> 78.
-const READ_PATH_COUNT = 78;
+// 79 on 2026-10-29, plan 39-06 (TIER-05): `.claude/agents/grugops-designer.md` entered (77 files and links written,
+// plus the two read-only inputs), because the Designer role renders one more adapter and install asks its destination
+// through readForWrite; a FIFO and a directory are planted at it by derivation. Measured by this test's failing run
+// (expected 79). 78 -> 79.
+const READ_PATH_COUNT = 79;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo
