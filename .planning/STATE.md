@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Completed 39-01-PLAN.md
-last_updated: "2026-10-29T16:57:49.706Z"
+stopped_at: Completed 39-02-PLAN.md
+last_updated: "2026-10-29T17:32:59.574Z"
 last_activity: 2026-10-29
 last_activity_desc: Phase 39 execution started
-state_head: c132fb557af91afded63563161222be031d46526
+state_head: fd75968d3e6a55a233ff1ad4b5d431ccf71ede1e
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 78
-  completed_plans: 69
+  completed_plans: 70
   percent: 44
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
-Plan: 2 of 10
+Plan: 3 of 10
 Status: Ready to execute
 Last activity: 2026-10-29 — Phase 39 execution started
 
@@ -785,6 +785,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 38 P10 | 50 min | 3 tasks | 11 files |
 | Phase 38 P11 | 81min | 3 tasks | 10 files |
 | Phase 39 P01 | 33 min | 3 tasks | 10 files |
+| Phase 39 P02 | 32 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2156,6 +2157,9 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-01: agent adapter identity is one derived spec list (listAgentAdapterSpecs); level adapters resolve roles[stem-level] ?? roles[stem] ?? LEVELS with no preset, tiered included (A1)
 - [Phase 39]: 39-01: resolveAdapterAssignments refuses override keys outside configKeyStems directly and runs levelTableRefusals on every call
 - [Phase 39]: 39-01: dashboard read-only guard admits Number and RegExp (12 admitted global callees) because kit-model.js now imports frontmatter.js
+- [Phase 39]: Guard findings name the ADAPTER stem and the KIT-03 pass line reads 'N derived adapter names'; the old role-stem wording is false for a level adapter
+- [Phase 39]: A refused models configuration degrades both value guards to zeroConfigAssignments (inherit for non-level adapters, the LEVELS pin for level adapters), never inherit everywhere
+- [Phase 39]: The freshness gate keys its per-adapter zero-config record by spec.name, so no module but kit-model builds an adapter name from a stem
 
 ### Pending Todos
 
@@ -2491,8 +2495,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-29T16:57:49.127Z
-Stopped at: Completed 39-01-PLAN.md
+Last session: 2026-10-29T17:32:59.017Z
+Stopped at: Completed 39-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
