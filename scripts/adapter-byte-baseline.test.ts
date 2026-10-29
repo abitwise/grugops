@@ -1,9 +1,8 @@
-// adapter-byte-baseline.test.ts — MODEL-01's pre-phase byte baseline (Phase 29.1, plan 29.1-01).
+// adapter-byte-baseline.test.ts — MODEL-01's byte baseline (Phase 29.1, plan 29.1-01; re-pinned by
+// Phase 39 decision D-3, plan 39-03).
 //
 // MODEL-01 says the zero-config path must emit adapters "byte-identical to today's", not "still
-// working". This file is the only assertion in the repository that can decide that question, and it
-// had to be written and made green BEFORE the generator changed, because after that commit the
-// observation it makes is unobtainable.
+// working". This file is the only assertion in the repository that can decide that question.
 //
 // WHY THE EXISTING GATE IS NOT ENOUGH. `npm run freshness:adapters` mirrors the committed generator
 // into a temp tree, regenerates, and byte-compares the regeneration against the committed adapters.
@@ -13,19 +12,37 @@
 // that cannot move with the generator is a baseline frozen at a commit that predates it, which is
 // what this file holds.
 //
-// THE SET IS DERIVED, NEVER LISTED. The adapter filenames come out of the git object store at the
-// pinned revision. A hand-written list of adapter names in this file would be the set-literal-drift
-// class this milestone exists to delete — and it would be the drift landing inside the case written
-// to catch drift. Two floors sit under the derivation: an EMPTY set throws naming the revision,
-// because a byte comparison over nothing passes without comparing anything; and the derived count is
-// asserted against ROLE_COUNT, which is produced by an authority this file does not consult for the
-// derivation, so a SILENTLY SHORT set is caught as well as an empty one.
+// THE RECORDED DECISION (Phase 39, D-3, plan 39-03): THE BASELINE IS RE-PINNED, ONCE, TO THE TREE
+// PHASE 39 STARTED FROM.
 //
-// RECORDED RESIDUAL, the same one plan 29-39 recorded for its own commit-pinned census: this case
+//   What the pin is. PRE_PHASE_ADAPTER_BASELINE below is the commit Phase 39 started from, recorded
+//   as `plan_head_before` in 39-01-SUMMARY.md and resolved to its full object name with
+//   `git rev-parse`. Its adapter tree was produced by the pre-Phase-39 generator, before any Phase 39
+//   generator change, so it is independent of the generator under test.
+//
+//   The second source. The literal RECORDED_ADDED and RECORDED_REMOVED records below, written by
+//   hand, one per later change, each with its reason. Every adapter name, count and grant this file
+//   expects is the pinned tree moved by those records and nothing else; the generator's output is
+//   never consulted for an expectation.
+//
+//   What is retired. The former pin 6f8411effe80b3f22d0d668e1fa40fa78e3a8088 (taken 2026-08-19, before Phase 29.1) and its three recorded transforms: plan 33-28's scoped admission tool on the coordinator's tools line, read from a held capture; 34-07 D-14's reworded Degraded phrase; and 36-10 D-14's v3 STATE clause with its fallback clause and the coordinator's v3 board path. All three are inside the new baseline tree, so a transform for them would now have no target, and they are deleted with their helpers.
+//
+//   What is NOT loosened. Every byte comparison, set difference, count and effort assertion the
+//   file made still exists, measured against the new tree; the only change is which frozen tree they
+//   are measured against. At the re-pin both records are empty and every adapter is byte-identical
+//   to the pinned tree. A later change to an adapter is a new literal record with its reason, never
+//   a deleted or weakened comparison (D-3).
+//
+// THE SET IS DERIVED, NEVER LISTED. The baseline adapter filenames come out of the git object store
+// at the pinned revision. An EMPTY derivation throws naming the revision, because a byte comparison
+// over nothing passes without comparing anything; and the baseline count moved by the records is
+// asserted against listAgentAdapterNames(), an authority the git listing never consulted, so a
+// SILENTLY SHORT listing is caught as well as an empty one.
+//
+// RECORDED RESIDUAL, the same one plan 29-39 recorded for its own commit-pinned census: this file
 // depends on the pinned commit remaining REACHABLE in this repository. A history rewrite that drops
-// it turns both cases into a named `git ls-tree failed` throw rather than a silent pass — the
-// failure direction is loud, which is what makes the residual acceptable rather than merely
-// disclosed.
+// it turns every case into a named `git ls-tree failed` throw rather than a silent pass — the failure
+// direction is loud, which is what makes the residual acceptable rather than merely disclosed.
 //
 // Node stdlib plus the shared kit authority. Zero npm dependencies. Findings are written in CLEAR
 // PROFESSIONAL VOICE — this is a build-safety surface (CLAUDE.md hard rule), never caveman voice.
@@ -38,14 +55,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { listAgentAdapters, ROLE_COUNT } from "./kit-model.js";
-import {
-  BOARD_REL,
-  LEGACY_BOARD_REL,
-  LEGACY_FALLBACK_CLAUSE,
-  LEGACY_STATE_ROOT_REL,
-  STATE_ROOT_REL,
-} from "../install/state-layout.js";
+import { AGENT_ADAPTER_PREFIX, listAgentAdapterNames, listAgentAdapters } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -53,200 +63,78 @@ const ROOT = join(import.meta.dirname, "..");
 // the path inside the pinned tree object and the path on the working tree, so neither side can be
 // pointed somewhere else.
 const ADAPTER_DIR = ".claude/agents";
+const MD = ".md";
 
 /** The frontmatter line an emitted effort level starts with (D-06: never written for `inherit`). */
 const EFFORT_LINE_PREFIX = "effort: ";
+/** The frontmatter line an emitted model starts with. */
+const MODEL_LINE_PREFIX = "model: ";
+/** The frontmatter line the coordinator's spawn grant sits on. */
+const TOOLS_LINE_PREFIX = "tools: ";
+
+/** The one adapter allowed to hold the spawn grant, named through the kit's one namespace constant. */
+const COORDINATOR = `${AGENT_ADAPTER_PREFIX}orchestrator`;
 
 /**
- * THE PIN — the commit this phase started from, taken 2026-08-19, before any generator change.
+ * THE PIN — the commit Phase 39 started from (39-01-SUMMARY.md, `plan_head_before`), re-pinned by
+ * decision D-3 (see the module header for the decision and its two independent sources).
  *
- * This is the tree whose adapter bytes MODEL-01's "byte-identical to today's" refers to. It is
- * asserted against a git revision rather than against the working tree for the reason the module
- * header states at length: the freshness gate regenerates and byte-compares BOTH SIDES from the same
- * generator, and therefore proves determinism rather than identity-with-yesterday. A frozen
- * revision cannot be moved by editing the working tree, so the comparison has a genuinely
- * independent second opinion on one side of it.
- *
- * RESIDUAL: this case depends on this commit remaining reachable in this repository. If it is ever
- * dropped by a history rewrite, both cases below throw naming the revision — they do not pass.
- *
- * THE FULL FORTY-CHARACTER OBJECT NAME IS PINNED, NOT AN ABBREVIATION (finding IN-06). It was
- * `6f8411e`, a seven-character prefix. An abbreviation is unique only until history grows one that
- * collides with it, and the failure that follows is worse than loud — it is MISLEADING: `git
- * ls-tree` errors on an ambiguous name, and the throw immediately below would report it as "the
- * pinned baseline tree could not be read", sending a reader to look for a lost commit rather than
- * for an ambiguous prefix. The full name was RESOLVED in this repository rather than copied:
- * `git rev-parse 6f8411e` → `6f8411effe80b3f22d0d668e1fa40fa78e3a8088`. A case below asserts this
- * constant's length and character class so an abbreviation cannot return through a later edit.
+ * THE FULL FORTY-CHARACTER OBJECT NAME IS PINNED, NOT AN ABBREVIATION (finding IN-06). An
+ * abbreviation is unique only until history grows one that collides with it, and the failure that
+ * follows is worse than loud — it is MISLEADING: `git ls-tree` errors on an ambiguous name, and the
+ * throw below would report it as "the pinned baseline tree could not be read", sending a reader to
+ * look for a lost commit rather than for an ambiguous prefix. The full name was RESOLVED in this
+ * repository with `git rev-parse` rather than copied. A case below asserts this constant's length and
+ * character class so an abbreviation cannot return through a later edit.
  */
-const PRE_PHASE_ADAPTER_BASELINE = "6f8411effe80b3f22d0d668e1fa40fa78e3a8088";
+const PRE_PHASE_ADAPTER_BASELINE = "8a530552d6c0e815d2959d16a8c06d99cc2d612b";
 
 /**
- * THE ONE RECORDED DIVERGENCE FROM THE BASELINE (plan 33-28, WINDOWS.md row 255, decision
- * D-33-R3-02) — DERIVED FROM A SECOND INDEPENDENT SOURCE, NEVER FROM THE GENERATOR.
- *
- * Plan 33-28 carries the plugin's MCP admission tool in the coordinator adapter's `tools:` grant, so
- * on the `--agent` path the coordinator can reach the sanctioned writer (33-DIAGNOSIS § 1.3 (i):
- * the session's tool list IS the adapter's tools line, B:11). That is a deliberate change to the
- * bytes of exactly ONE adapter on exactly ONE line, and MODEL-01's question — is the zero-config
- * MODEL LINE still byte-identical to the pre-29.1 tree — is unchanged by it. The pin therefore
- * STAYS at the pre-phase commit, and the comparison below admits exactly this divergence and no
- * other: the coordinator's `tools:` line may equal the baseline line with `, <scoped tool>`
- * appended, where the scoped tool name is read out of the ROUND-1 INIT FRAME at its held commit
- * (A:11, `git show c7be6d0d:...`) — the platform's own spelling, from a fixture the generator never
- * produced. Every other byte of every adapter, including every `model:` line, is still compared
- * byte for byte against the baseline.
- *
- * Why not re-pin to a newer commit: a pin moved to a tree that already carries the new grant would
- * be a number bumped to make the gate green, and the second opinion would then have been produced
- * by the generator under test. Two independent fixtures — the pre-phase tree and the held capture —
- * are what keep this file an opinion the generator cannot move.
+ * An adapter the working tree carries and the pinned tree does not, recorded by hand with its
+ * reason. `level`: one adapter of a leveled role (TIER-02), with the role stem it groups under, its
+ * level, and the model and effort literals it must carry. `new-role`: the one adapter of a role the
+ * pinned tree did not have.
  */
-const HELD_CAPTURE_SHA = "c7be6d0d";
-const HELD_CAPTURE_A = ".planning/phases/33-live-capture-windows-portability/33-CAPTURE-A.jsonl";
-const DIVERGING_ADAPTER = "grugops-orchestrator.md";
-const scopedAdmissionToolFromInitFrame = (): string => {
-  const shown = spawnSync("git", ["show", `${HELD_CAPTURE_SHA}:${HELD_CAPTURE_A}`], {
-    cwd: ROOT,
-    encoding: "utf8",
-    input: "",
-    maxBuffer: 64 * 1024 * 1024,
-    timeout: 60_000,
-  });
-  if (shown.status !== 0 || !shown.stdout) {
-    throw new Error(
-      `git show failed for ${HELD_CAPTURE_SHA}:${HELD_CAPTURE_A} (status ${String(shown.status)}) — the held round-1 capture could not be read, so the one admitted divergence could not be derived: ${(shown.stderr ?? "").trim()}`,
-    );
-  }
-  const frame = JSON.parse((shown.stdout as string).split("\n")[10] as string) as {
-    type: string;
-    subtype?: string;
-    tools: string[];
-  };
-  if (frame.type !== "system" || frame.subtype !== "init") {
-    throw new Error(`A:11 is not the system/init frame (type=${frame.type}, subtype=${String(frame.subtype)})`);
-  }
-  const names = frame.tools.filter((t) => /^mcp__.*grugops.*propose_note$/.test(t));
-  if (names.length !== 1) {
-    throw new Error(
-      `A:11 lists ${String(names.length)} grugops propose_note tool name(s), expected exactly one: ${names.join(", ")}`,
-    );
-  }
-  return names[0] as string;
-};
+type RecordedAdded =
+  | {
+      readonly name: string;
+      readonly kind: "level";
+      readonly role: string;
+      readonly level: string;
+      readonly model: string;
+      readonly effort: string;
+      readonly reason: string;
+    }
+  | { readonly name: string; readonly kind: "new-role"; readonly reason: string };
+
+// ── WHERE PLANS 39-05, 39-06 AND 39-07 ADD THEIR RECORDS. ─────────────────────────────────────────
+//
+// Each later adapter change appends a literal entry here, in the same commit as the change, with its
+// reason. Nothing in this file may be deleted or weakened to make that change pass (D-3).
+//
+//   • A new role (39-05 Tech Lead, 39-06 Designer) adds one `new-role` entry to RECORDED_ADDED. The
+//     coordinator's grant then names it, which the grant case below already expects from the record.
+//   • Engineer levels (39-07) add one `level` entry per level adapter, with its role, level, model and
+//     effort literals, and the replaced base adapter's name to RECORDED_REMOVED. 39-07 also adds the
+//     LEVEL TRANSFORM to the byte case: a level adapter equals the baseline BASE adapter of its role
+//     with the `name:` line, the `description:` line, the `model:` line, an inserted `effort:` line and
+//     the level body line transformed, each target asserted to occur exactly once before it applies.
+//
+// RECORDED_REMOVED holds adapter names only; each entry carries its reason in a trailing comment.
+const RECORDED_ADDED: readonly RecordedAdded[] = [];
+const RECORDED_REMOVED: readonly string[] = [];
+
+const recordedAddedNames = (): string[] => RECORDED_ADDED.map((r) => r.name).sort();
+const recordedLevelAdapters = (): Extract<RecordedAdded, { kind: "level" }>[] =>
+  RECORDED_ADDED.filter((r): r is Extract<RecordedAdded, { kind: "level" }> => r.kind === "level");
 
 /**
- * THE SECOND RECORDED DIVERGENCE (plan 34-07, decision D-14) — A STATED TRANSFORM ON THE FROZEN
- * BASELINE LINE, NEVER A HAND-TYPED EXPECTED LINE AND NEVER THE GENERATOR'S OUTPUT.
- *
- * The coordinator body's Degraded tier line named a host count. Phase 34 adds a host, so D-14
- * rewords the phrase to carry no count. The expected working line is the baseline line with the
- * retired phrase replaced by the reworded one: the transform asserts its target occurs exactly once
- * in the baseline before it applies, so a baseline that no longer carries the phrase (or carries it
- * twice) is a named throw rather than a no-op that would hide an unrecorded difference.
- *
- * THE RETIRED PHRASE IS ASSEMBLED FROM PARTS, the count word in its own constant, so that no single
- * source line of this file carries the count phrase that the derived prose scan (plan 34-09)
- * reports. The phrase is still exactly the baseline's bytes: the "real before admitted" case below
- * asserts it occurs once in the frozen coordinator.
- */
-const RETIRED_HOST_COUNT_WORD = "four";
-const DEGRADED_PHRASE_SUBJECT = "non-Claude-Code";
-const RETIRED_DEGRADED_PHRASE = ["the", RETIRED_HOST_COUNT_WORD, DEGRADED_PHRASE_SUBJECT, "CLIs"].join(" ");
-const REWORDED_DEGRADED_PHRASE = ["the", DEGRADED_PHRASE_SUBJECT, "host", "CLIs"].join(" ");
-
-/**
- * THE THIRD RECORDED DIVERGENCE (plan 36-10, decisions D-03 and D-14) — A STATED TRANSFORM ON THE
- * FROZEN BASELINE, ASSEMBLED FROM THE STATE-LAYOUT AUTHORITY, NEVER FROM kit-model.ts OR THE
- * GENERATOR'S OUTPUT.
- *
- * Phase 36 moves per-repo planning state under `memory-bank/plans/` and states the old-layout
- * fallback as one constant, LEGACY_FALLBACK_CLAUSE. The kit-vs-state invariant line every adapter
- * carries therefore changes in EVERY adapter: the retired STATE clause (the pre-v3 root, then
- * memory-bank and .grugops, comma-joined) becomes the v3 STATE clause followed by one space and the
- * fallback clause. On the coordinator only, the body line naming the board takes the v3 board path.
- * Both land in one regeneration, so they are one divergence with two targets.
- *
- * Every root and path below is read out of install/state-layout.js, the authority this phase made
- * the one place a state path is spelled; the expected bytes are therefore a transform of the frozen
- * baseline by that authority, and an INVARIANT or coordinator line that drifted from it is a red
- * byte comparison rather than a new expected value. Each target is asserted to occur exactly once in
- * the baseline adapter before it applies, so a baseline that lacks it (or carries it twice) is a
- * named throw rather than a silent no-op. The board transform runs before the invariant transform,
- * because the fallback clause itself names the pre-v3 board path.
- */
-const STATE_CLAUSE_TAIL = " = STATE in this repo.";
-const MEMORY_BANK_ROOT = "`memory-bank/`";
-const GRUGOPS_ROOT = "`.grugops/`";
-const RETIRED_STATE_CLAUSE =
-  [`\`${LEGACY_STATE_ROOT_REL}/\``, MEMORY_BANK_ROOT, GRUGOPS_ROOT].join(", ") + STATE_CLAUSE_TAIL;
-const NEW_STATE_CLAUSE =
-  `${MEMORY_BANK_ROOT} (planning state in \`${STATE_ROOT_REL}/\`) and ${GRUGOPS_ROOT}${STATE_CLAUSE_TAIL}` +
-  ` ${LEGACY_FALLBACK_CLAUSE}`;
-const RETIRED_BOARD_REF = `\`${LEGACY_BOARD_REL}\``;
-const NEW_BOARD_REF = `\`${BOARD_REL}\``;
-
-/** Replace the one occurrence of `from` in `line`, refusing a line that carries it zero or several times. */
-const replaceOnce = (line: string, from: string, to: string): string => {
-  const count = line.split(from).length - 1;
-  if (count !== 1) throw new Error(`expected exactly one "${from}" in the baseline line, found ${String(count)}: ${line}`);
-  return line.replace(from, to);
-};
-
-/**
- * The bytes the baseline adapter is EXPECTED to have on the working tree: identical, except for the
- * THREE recorded divergences. In EVERY adapter the kit-vs-state invariant line carries the v3 STATE
- * clause and the fallback clause (36-10, D-14). In the coordinator only, the `tools:` line carries
- * the scoped admission tool appended after the last baseline tool (33-28), the Degraded tier line
- * carries the reworded host phrase (34-07 D-14), and the body line naming the board carries the v3
- * board path (36-10). Each is applied to the baseline bytes as a single-line edit whose target is
- * asserted unique first, so the whole file — the `model:` line MODEL-01 is about, the rest of the
- * body, the trailing newline — is still compared byte for byte.
- */
-const lineCarryingOnce = (name: string, lines: string[], target: string): number => {
-  const carrying = lines.filter((l) => l.includes(target)).length;
-  if (carrying !== 1) {
-    throw new Error(`${name} at the baseline carries ${String(carrying)} line(s) with "${target}", expected exactly one`);
-  }
-  return lines.findIndex((l) => l.includes(target));
-};
-
-const expectedWorkingBytes = (name: string, baseline: Buffer, scoped: string): Buffer => {
-  const text = baseline.toString("utf8");
-  const lines = text.split("\n");
-  if (name === DIVERGING_ADAPTER) {
-    // The board line first: the fallback clause the invariant transform inserts names the pre-v3
-    // board path itself, so the uniqueness of this target is asserted on the untransformed baseline.
-    const boardAt = lineCarryingOnce(name, lines, RETIRED_BOARD_REF);
-    lines[boardAt] = replaceOnce(lines[boardAt] as string, RETIRED_BOARD_REF, NEW_BOARD_REF);
-  }
-  const stateAt = lineCarryingOnce(name, lines, RETIRED_STATE_CLAUSE);
-  lines[stateAt] = replaceOnce(lines[stateAt] as string, RETIRED_STATE_CLAUSE, NEW_STATE_CLAUSE);
-  if (name !== DIVERGING_ADAPTER) return Buffer.from(lines.join("\n"), "utf8");
-  const at = lines.findIndex((l) => l.startsWith("tools: "));
-  if (at === -1) throw new Error(`${name} at the baseline carries no \`tools: \` line`);
-  if (lines.filter((l) => l.startsWith("tools: ")).length !== 1) {
-    throw new Error(`${name} at the baseline carries more than one \`tools: \` line`);
-  }
-  lines[at] = `${lines[at]}, ${scoped}`;
-  const degradedLines = lines.filter((l) => l.includes(RETIRED_DEGRADED_PHRASE));
-  if (degradedLines.length !== 1) {
-    throw new Error(
-      `${name} at the baseline carries ${String(degradedLines.length)} line(s) with "${RETIRED_DEGRADED_PHRASE}", expected exactly one`,
-    );
-  }
-  const degradedAt = lines.findIndex((l) => l.includes(RETIRED_DEGRADED_PHRASE));
-  lines[degradedAt] = replaceOnce(lines[degradedAt] as string, RETIRED_DEGRADED_PHRASE, REWORDED_DEGRADED_PHRASE);
-  return Buffer.from(lines.join("\n"), "utf8");
-};
-
-/**
- * Derive the adapter filenames present at a revision, out of the git object store.
+ * Derive the adapter names present at a revision, out of the git object store.
  *
  * `-r` so the listing is by full path beneath the adapter directory at any depth, matching the
- * recursive shape of the adapter-set authority this file compares against. The two floors described
- * in the module header live here: a non-zero spawn is a throw naming the revision, and an empty
- * derivation is a throw stating the premise is empty.
+ * recursive shape of the adapter-set authority this file compares against. A non-zero spawn is a
+ * throw naming the revision, and an empty derivation is a throw stating the premise is empty.
+ * Returned as adapter names (the `.md` dropped), the space the records are written in.
  */
 const baselineAdapterNames = (rev: string): string[] => {
   const listed = spawnSync(
@@ -262,7 +150,8 @@ const baselineAdapterNames = (rev: string): string[] => {
   const names = (listed.stdout as string)
     .split("\n")
     .map((n) => n.trim())
-    .filter((n) => n.endsWith(".md"))
+    .filter((n) => n.endsWith(MD))
+    .map((n) => n.slice(0, -MD.length))
     .sort();
   if (names.length === 0) {
     throw new Error(
@@ -272,13 +161,19 @@ const baselineAdapterNames = (rev: string): string[] => {
   return names;
 };
 
+/** The adapter names on the working tree, read from the adapter directory (the `.md` dropped). */
+const workingAdapterNames = (): string[] =>
+  listAgentAdapters(ROOT)
+    .map((rel) => rel.slice(0, -MD.length))
+    .sort();
+
 /**
  * Read one adapter's bytes at a revision. No encoding is passed, so stdout arrives as a Buffer and
  * the comparison below is over BYTES rather than over a decoded string — a decode would normalise
  * away exactly the differences this file exists to catch.
  */
 const baselineBytes = (rev: string, name: string): Buffer => {
-  const objectPath = `${rev}:${ADAPTER_DIR}/${name}`;
+  const objectPath = `${rev}:${ADAPTER_DIR}/${name}${MD}`;
   const shown = spawnSync("git", ["show", objectPath], {
     cwd: ROOT,
     maxBuffer: 64 * 1024 * 1024,
@@ -291,8 +186,39 @@ const baselineBytes = (rev: string, name: string): Buffer => {
   return shown.stdout as Buffer;
 };
 
-describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (plan 29.1-01)", () => {
-  it("the pinned baseline is a full 40-character object name, never an abbreviation", () => {
+/** Sorted set difference `a \ b`, by exact string equality. */
+const minus = (a: readonly string[], b: readonly string[]): string[] =>
+  a.filter((n) => !b.includes(n)).sort();
+
+/**
+ * Split a coordinator `tools:` line into its Agent grant names and the rest of the line. The grant is
+ * the one `Agent(...)` group, which the generator emits first; a line carrying none, or several, is a
+ * named throw rather than an empty grant.
+ */
+const GRANT_RE = /Agent\(([^)]*)\)/g;
+const splitGrant = (label: string, line: string): { names: string[]; rest: string } => {
+  const groups = [...line.matchAll(GRANT_RE)];
+  if (groups.length !== 1) {
+    throw new Error(`${label}: the coordinator tools line carries ${String(groups.length)} Agent(...) group(s), expected exactly one: ${line}`);
+  }
+  const inner = (groups[0] as RegExpMatchArray)[1] as string;
+  return {
+    names: inner.split(",").map((n) => n.trim()).filter((n) => n !== ""),
+    rest: line.replace(GRANT_RE, "Agent(<grant>)"),
+  };
+};
+
+/** The one line of `lines` that starts with `prefix`; zero or several is a named throw. */
+const onlyLineStarting = (label: string, lines: string[], prefix: string): number => {
+  const at = lines.flatMap((l, i) => (l.startsWith(prefix) ? [i] : []));
+  if (at.length !== 1) {
+    throw new Error(`${label} carries ${String(at.length)} line(s) starting "${prefix}", expected exactly one`);
+  }
+  return at[0] as number;
+};
+
+describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseline, moved only by recorded changes (plan 29.1-01, re-pinned by 39-03 D-3)", () => {
+  it("the pinned baseline is a full 40-character object name, never an abbreviation, and an ancestor of HEAD", () => {
     // FINDING IN-06, PINNED SO IT CANNOT COME BACK. This case is about the SHAPE of the pin, not
     // about which commit it is: an abbreviation is unique only until it collides, and the throw a
     // collision produces misdescribes the failure as an unreachable tree. Asserting the length and
@@ -300,167 +226,148 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
     // that is not an object name" are two different reds with two different remedies.
     expect(PRE_PHASE_ADAPTER_BASELINE).toHaveLength(40);
     expect(/^[0-9a-f]{40}$/.test(PRE_PHASE_ADAPTER_BASELINE)).toBe(true);
+    // The pin is a tree this history passed through, not a commit from another line of work: a
+    // baseline that is not an ancestor of HEAD would compare the kit against an unrelated tree.
+    const anc = spawnSync("git", ["merge-base", "--is-ancestor", PRE_PHASE_ADAPTER_BASELINE, "HEAD"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    expect(anc.status, `the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} is not an ancestor of HEAD: ${(anc.stderr ?? "").trim()}`).toBe(0);
   });
 
-  it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE — except the THREE recorded divergences: the coordinator grant (33-28, held init frame), the coordinator Degraded line (34-07 D-14, stated transform) and the v3 state paths with the fallback clause (36-10 D-14, stated transform from the state-layout authority)", () => {
-    // ── THE PREMISE, BEFORE THE CLAIM. ───────────────────────────────────────────────────────
-    const names = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
-    const scoped = scopedAdmissionToolFromInitFrame();
-    // The divergence must be REAL before it is admitted: the baseline coordinator must NOT already
-    // carry the scoped tool (else the edit below is a no-op that would hide a second, unrecorded
-    // difference), and the diverging adapter must be in the baseline set.
-    expect(names).toContain(DIVERGING_ADAPTER);
-    expect(
-      baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER).toString("utf8").includes(scoped),
-      "the pre-phase baseline already carries the scoped admission tool — the recorded divergence would be a no-op",
-    ).toBe(false);
-    // The same for D-14: the frozen coordinator must carry the retired phrase exactly once and must
-    // not already carry the reworded one.
-    const baselineCoordText = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER).toString("utf8");
-    expect(
-      baselineCoordText.split(RETIRED_DEGRADED_PHRASE).length - 1,
-      "the pre-phase baseline must carry the retired Degraded phrase exactly once — otherwise the D-14 transform has no single target",
-    ).toBe(1);
-    expect(
-      baselineCoordText.includes(REWORDED_DEGRADED_PHRASE),
-      "the pre-phase baseline already carries the reworded Degraded phrase — the D-14 divergence would be a no-op",
-    ).toBe(false);
-    // The same for 36-10: the frozen coordinator must carry the pre-v3 board reference exactly once
-    // and must not already carry the v3 one, and EVERY frozen adapter must carry the retired STATE
-    // clause exactly once and must not already carry the v3 clause or the fallback sentence.
-    expect(
-      baselineCoordText.split(RETIRED_BOARD_REF).length - 1,
-      "the pre-phase baseline coordinator must carry the pre-v3 board reference exactly once — otherwise the 36-10 board transform has no single target",
-    ).toBe(1);
-    expect(
-      baselineCoordText.includes(NEW_BOARD_REF),
-      "the pre-phase baseline coordinator already carries the v3 board reference — the 36-10 board divergence would be a no-op",
-    ).toBe(false);
-    for (const name of names) {
-      const baselineText = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, name).toString("utf8");
-      expect(
-        baselineText.split(RETIRED_STATE_CLAUSE).length - 1,
-        `${name} at the pre-phase baseline must carry the retired STATE clause exactly once — otherwise the 36-10 invariant transform has no single target`,
-      ).toBe(1);
-      expect(
-        baselineText.includes(NEW_STATE_CLAUSE) || baselineText.includes(LEGACY_FALLBACK_CLAUSE),
-        `${name} at the pre-phase baseline already carries the v3 STATE clause or the fallback clause — the 36-10 divergence would be a no-op`,
-      ).toBe(false);
+  it("the records are real before they are admitted: every ADDED name is absent from the baseline, every REMOVED name is present, and no name is recorded twice", () => {
+    const baseline = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
+    const added = recordedAddedNames();
+    expect(added.filter((n) => baseline.includes(n)), "a RECORDED_ADDED name the baseline already carries — the record would admit nothing").toEqual([]);
+    expect(minus(RECORDED_REMOVED, baseline), "a RECORDED_REMOVED name the baseline does not carry — the record would remove nothing").toEqual([]);
+    expect(new Set(added).size, "a name recorded twice in RECORDED_ADDED").toBe(added.length);
+    expect(new Set(RECORDED_REMOVED).size, "a name recorded twice in RECORDED_REMOVED").toBe(RECORDED_REMOVED.length);
+    expect(added.filter((n) => RECORDED_REMOVED.includes(n)), "a name recorded as both added and removed").toEqual([]);
+    expect(added.includes(COORDINATOR), "the coordinator is never recorded as added").toBe(false);
+    expect(RECORDED_REMOVED.includes(COORDINATOR), "the coordinator is never recorded as removed").toBe(false);
+    for (const r of recordedLevelAdapters()) {
+      expect(r.effort, `${r.name}: a level record carries an empty effort literal`).not.toBe("");
+      expect(r.model, `${r.name}: a level record carries an empty model literal`).not.toBe("");
     }
-    // The count is derived INDEPENDENTLY of the loop that consumes it: ROLE_COUNT is the kit
-    // authority's two-sided cardinality, and this derivation never consulted it. A short listing is
-    // therefore a named failure rather than a smaller clean run.
-    expect(
-      names.length,
-      `the pinned baseline at ${PRE_PHASE_ADAPTER_BASELINE} yielded ${String(names.length)} adapter(s), but the kit authority pins the role corpus at ${String(ROLE_COUNT)} — a SHORT derivation compares fewer files than it claims to and reports a clean run over the remainder`,
-    ).toBe(ROLE_COUNT);
+  });
 
-    // ── THE CLAIM. ───────────────────────────────────────────────────────────────────────────
+  it("the working adapter set is the baseline set moved by the records — the added set is RECORDED_ADDED and the removed set is RECORDED_REMOVED", () => {
+    // A byte comparison walks the names BOTH trees carry, so an adapter added since the pin is
+    // invisible to it. Both directions of the set difference are therefore named here, each against
+    // its own record and with its own message.
+    const baseline = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
+    const working = workingAdapterNames();
+    expect(
+      minus(working, baseline),
+      `the adapters the working tree carries and the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} does not must equal RECORDED_ADDED — an added adapter is outside every byte comparison in this file and must be recorded with its reason`,
+    ).toEqual(recordedAddedNames());
+    expect(
+      minus(baseline, working),
+      `the adapters the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} carries and the working tree does not must equal RECORDED_REMOVED — a deleted adapter has no working bytes to compare and must be recorded with its reason`,
+    ).toEqual([...RECORDED_REMOVED].sort());
+  });
+
+  it("the working adapter count equals the adapter-identity derivation and, computed separately, the baseline count plus ADDED minus REMOVED", () => {
+    const baseline = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
+    const working = workingAdapterNames();
+    const derived = listAgentAdapterNames(ROOT);
+    // Source one: the kit authority's derivation from the role files, which never read the adapter
+    // directory or the git object store.
+    expect(working.length, `the adapter directory holds ${String(working.length)} adapter(s) against ${String(derived.length)} derived from the role corpus`).toBe(derived.length);
+    expect(working).toEqual([...derived].sort());
+    // Source two: the frozen tree moved by the hand-written records. A SHORT git listing is a named
+    // failure here, because the derivation above never consulted it.
+    const fromRecords = baseline.length + RECORDED_ADDED.length - RECORDED_REMOVED.length;
+    expect(
+      working.length,
+      `the working tree holds ${String(working.length)} adapter(s), but the pinned baseline's ${String(baseline.length)} plus ${String(RECORDED_ADDED.length)} recorded addition(s) less ${String(RECORDED_REMOVED.length)} recorded removal(s) is ${String(fromRecords)}`,
+    ).toBe(fromRecords);
+  });
+
+  it("every adapter both trees carry is byte-identical to the baseline, except the coordinator's Agent grant, which equals the baseline grant moved by the records and the derived adapter set less the coordinator", () => {
+    const baseline = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
+    const working = workingAdapterNames();
+    const shared = baseline.filter((n) => working.includes(n));
+    expect(shared, "the coordinator must be in both trees").toContain(COORDINATOR);
+
+    // ── THE COORDINATOR'S GRANT, FROM TWO SOURCES. ───────────────────────────────────────────────
+    const baselineCoord = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, COORDINATOR).toString("utf8").split("\n");
+    const workingCoord = readFileSync(join(ROOT, ADAPTER_DIR, `${COORDINATOR}${MD}`), "utf8").split("\n");
+    const bAt = onlyLineStarting(`${COORDINATOR} at the baseline`, baselineCoord, TOOLS_LINE_PREFIX);
+    const wAt = onlyLineStarting(`${COORDINATOR} on the working tree`, workingCoord, TOOLS_LINE_PREFIX);
+    const bGrant = splitGrant("baseline", baselineCoord[bAt] as string);
+    const wGrant = splitGrant("working", workingCoord[wAt] as string);
+    // Source one: the frozen grant moved by the hand-written records.
+    const fromRecords = [...minus(bGrant.names, RECORDED_REMOVED), ...recordedAddedNames()].sort();
+    // Source two: the adapter-identity derivation, every adapter but the coordinator.
+    const fromDerivation = listAgentAdapterNames(ROOT).filter((n) => n !== COORDINATOR).sort();
+    expect(wGrant.names, "the coordinator's Agent grant against the baseline grant moved by RECORDED_ADDED and RECORDED_REMOVED").toEqual(fromRecords);
+    expect(wGrant.names, "the coordinator's Agent grant against the derived adapter set less the coordinator").toEqual(fromDerivation);
+    // Everything on the tools line outside the grant is the baseline's, byte for byte.
+    expect(wGrant.rest, "the coordinator's tools line differs from the baseline outside its Agent grant").toBe(bGrant.rest);
+
+    // ── EVERY OTHER BYTE OF EVERY SHARED ADAPTER. ────────────────────────────────────────────────
     // Findings are accumulated rather than thrown on the first mismatch, so a run reports EVERY
-    // adapter that moved instead of the alphabetically first one, and each finding carries both
-    // byte lengths rather than a bare boolean.
+    // adapter that moved instead of the alphabetically first one, and each finding carries both byte
+    // lengths rather than a bare boolean.
     const differing: string[] = [];
-    for (const name of names) {
-      const baseline = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, name);
-      let working: Buffer;
+    for (const name of shared) {
+      const base = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, name);
+      let work: Buffer;
       try {
-        working = readFileSync(join(ROOT, ADAPTER_DIR, name));
+        work = readFileSync(join(ROOT, ADAPTER_DIR, `${name}${MD}`));
       } catch (e) {
         // Fail closed: an unreadable working adapter is never treated as absent-and-therefore-fine.
-        differing.push(
-          `${name} — baseline ${String(baseline.length)} bytes, working tree UNREADABLE: ${e instanceof Error ? e.message : String(e)}`,
-        );
+        differing.push(`${name} — baseline ${String(base.length)} bytes, working tree UNREADABLE: ${e instanceof Error ? e.message : String(e)}`);
         continue;
       }
-      const expected = expectedWorkingBytes(name, baseline, scoped);
-      if (!expected.equals(working)) {
-        differing.push(
-          `${name} — baseline ${String(baseline.length)} bytes (expected ${String(expected.length)} after the recorded divergences), working tree ${String(working.length)} bytes`,
-        );
+      let expected = base;
+      if (name === COORDINATOR) {
+        // The one admitted edit: the baseline tools line with its grant replaced by the grant the
+        // records give. Every other byte, including the `model:` line MODEL-01 is about and the
+        // trailing newline, is the baseline's.
+        const lines = [...baselineCoord];
+        lines[bAt] = (lines[bAt] as string).replace(GRANT_RE, `Agent(${fromRecords.join(", ")})`);
+        expected = Buffer.from(lines.join("\n"), "utf8");
+      }
+      if (!expected.equals(work)) {
+        differing.push(`${name} — baseline ${String(base.length)} bytes (expected ${String(expected.length)} after the recorded changes), working tree ${String(work.length)} bytes`);
       }
     }
-
     expect(
       differing,
-      `the adapter bytes moved against the pinned pre-phase baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the THREE recorded divergences (the coordinator's tools line carrying the scoped admission tool, plan 33-28; the coordinator's Degraded line carrying the reworded host phrase, 34-07 D-14; every adapter's invariant line carrying the v3 STATE clause and the fallback clause, with the coordinator's board line carrying the v3 board path, 36-10 D-14). MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator`,
-    ).toEqual([]);
-
-    // AND ON THE COORDINATOR THE DIVERGENCE IS EXACTLY THESE FOUR LINES. Derived from the fixtures
-    // and the stated transforms, never from the generator: the coordinator's working bytes minus the
-    // baseline bytes is the appended `, <scoped>`, the Degraded phrase replacement's length
-    // difference, the STATE clause replacement's length difference and the board reference
-    // replacement's length difference, and nothing else. The specialists' single changed line is
-    // covered by the byte comparison above, which applies the same STATE clause transform to them.
-    const baselineCoord = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER);
-    const workingCoord = readFileSync(join(ROOT, ADAPTER_DIR, DIVERGING_ADAPTER));
-    expect(workingCoord.length - baselineCoord.length).toBe(
-      Buffer.byteLength(`, ${scoped}`, "utf8") +
-        Buffer.byteLength(REWORDED_DEGRADED_PHRASE, "utf8") -
-        Buffer.byteLength(RETIRED_DEGRADED_PHRASE, "utf8") +
-        Buffer.byteLength(NEW_STATE_CLAUSE, "utf8") -
-        Buffer.byteLength(RETIRED_STATE_CLAUSE, "utf8") +
-        Buffer.byteLength(NEW_BOARD_REF, "utf8") -
-        Buffer.byteLength(RETIRED_BOARD_REF, "utf8"),
-    );
-    const baselineLines = baselineCoord.toString("utf8").split("\n");
-    const workingLines = workingCoord.toString("utf8").split("\n");
-    expect(workingLines.length).toBe(baselineLines.length);
-    const changedLines = baselineLines
-      .map((l, i) => (l === workingLines[i] ? null : i))
-      .filter((i): i is number => i !== null);
-    expect(changedLines).toHaveLength(4);
-    const changedBaseline = changedLines.map((i) => baselineLines[i] as string);
-    expect(changedBaseline.filter((l) => l.startsWith("tools: "))).toHaveLength(1);
-    expect(changedBaseline.filter((l) => l.includes(RETIRED_DEGRADED_PHRASE))).toHaveLength(1);
-    expect(changedBaseline.filter((l) => l.includes(RETIRED_STATE_CLAUSE))).toHaveLength(1);
-    expect(changedBaseline.filter((l) => l.includes(RETIRED_BOARD_REF))).toHaveLength(1);
-    const changedWorking = changedLines.map((i) => workingLines[i] as string);
-    expect(changedWorking.filter((l) => l.includes(REWORDED_DEGRADED_PHRASE))).toHaveLength(1);
-    expect(changedWorking.filter((l) => l.includes(NEW_STATE_CLAUSE))).toHaveLength(1);
-    expect(changedWorking.filter((l) => l.includes(NEW_BOARD_REF) && !l.includes(LEGACY_FALLBACK_CLAUSE))).toHaveLength(1);
-  });
-
-  it("the working adapter directory holds EXACTLY the baseline set — none added, none removed", () => {
-    // A byte comparison walks the BASELINE set, so an adapter ADDED since the pin is invisible to
-    // the case above: nothing in the baseline names it, so nothing compares against it. Both
-    // directions of the set difference are named here.
-    const baselineNames = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
-    const workingNames = listAgentAdapters(ROOT);
-
-    expect(
-      workingNames.length,
-      `the working adapter directory holds ${String(workingNames.length)} adapter(s) against the kit authority's pinned ${String(ROLE_COUNT)} — the set this case judges is the wrong size before either difference below is even taken`,
-    ).toBe(ROLE_COUNT);
-
-    expect(
-      workingNames.filter((n) => !baselineNames.includes(n)),
-      `EXTRA adapter(s) on the working tree that the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} does not carry — an added adapter is outside every byte comparison in this file and must be accounted for deliberately`,
-    ).toEqual([]);
-
-    expect(
-      baselineNames.filter((n) => !workingNames.includes(n)),
-      `MISSING adapter(s) that the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} carries and the working tree does not — a deleted adapter has no working bytes to compare and would otherwise leave the byte case one comparison short`,
+      `the adapter bytes moved against the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the recorded changes. MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator. Record the change with its reason; do not weaken this comparison (D-3)`,
     ).toEqual([]);
   });
 
-  it("at zero config no committed adapter carries an `effort:` line (D-06), over the derived adapter set with its count asserted", () => {
-    // The byte case above already implies this for every adapter the baseline carries, because the
-    // baseline predates the effort dial. This case states D-06 directly over the WORKING set, so it
-    // holds even if the baseline pin is ever moved, and it reads the set from the kit authority
-    // rather than from a list.
-    const names = listAgentAdapters(ROOT);
-    expect(
-      names.length,
-      `the working adapter set holds ${String(names.length)} adapter(s) against the kit authority's pinned ${String(ROLE_COUNT)}`,
-    ).toBe(ROLE_COUNT);
-    const carrying = names.filter((name) =>
-      readFileSync(join(ROOT, ADAPTER_DIR, name), "utf8")
-        .split("\n")
-        .some((line) => line.startsWith(EFFORT_LINE_PREFIX)),
-    );
-    expect(
-      carrying,
-      "a zero-config adapter carries an `effort:` line — an `inherit` effort must write no line (D-06)",
-    ).toEqual([]);
+  it("effort, two-sided: exactly the adapters recorded as level adapters carry one `effort:` line equal to the record, and every other adapter carries none (D-06)", () => {
+    const levels = new Map(recordedLevelAdapters().map((r) => [r.name, r]));
+    const working = workingAdapterNames();
+    expect(working.length, "the working adapter set is empty, so the effort rule would hold over nothing").toBeGreaterThan(0);
+    const findings: string[] = [];
+    for (const name of working) {
+      const lines = readFileSync(join(ROOT, ADAPTER_DIR, `${name}${MD}`), "utf8").split("\n");
+      const effort = lines.filter((l) => l.startsWith(EFFORT_LINE_PREFIX));
+      const record = levels.get(name);
+      if (record === undefined) {
+        // D-06: an `inherit` effort writes no line, and no adapter but a recorded level adapter has
+        // any other effort at zero config.
+        if (effort.length !== 0) findings.push(`${name} carries ${String(effort.length)} \`effort:\` line(s) but is not a recorded level adapter`);
+        continue;
+      }
+      if (effort.length !== 1 || effort[0] !== `${EFFORT_LINE_PREFIX}${record.effort}`) {
+        findings.push(`${name} must carry exactly one \`${EFFORT_LINE_PREFIX}${record.effort}\` line, found: ${JSON.stringify(effort)}`);
+      }
+      const model = lines.filter((l) => l.startsWith(MODEL_LINE_PREFIX));
+      if (model.length !== 1 || model[0] !== `${MODEL_LINE_PREFIX}${record.model}`) {
+        findings.push(`${name} must carry exactly one \`${MODEL_LINE_PREFIX}${record.model}\` line, found: ${JSON.stringify(model)}`);
+      }
+    }
+    // Every level record names an adapter the working tree carries, so a record cannot pass by
+    // naming nothing.
+    for (const name of levels.keys()) {
+      if (!working.includes(name)) findings.push(`${name} is recorded as a level adapter but the working tree does not carry it`);
+    }
+    expect(findings).toEqual([]);
   });
 });
