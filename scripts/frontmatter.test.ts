@@ -85,6 +85,7 @@ import type {
 // and the class CR-03 itself belongs to.
 import {
   listAgentAdapters,
+  listAgentAdapterNames,
   spawnGrantScan,
   SPAWN_GRANT_SCAN_COUNT,
   SPAWN_GRANT_SCAN_PARTS,
@@ -1397,7 +1398,9 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       .filter((n) => n !== "grugops-orchestrator")
       .sort();
     expect(names.value).toEqual(expectedClosure);
-    expect(names.value.length).toBe(16);
+    // (Plan 39-03, TIER-06) The count from an independent source: the adapter-identity derivation
+    // over the role files, less the coordinator, rather than today's number typed here.
+    expect(names.value.length).toBe(listAgentAdapterNames(root).length - 1);
     expect(names.value).toContain("grugops-software-engineer");
     expect(names.value).toEqual([...names.value].sort());
 
@@ -6928,7 +6931,11 @@ describe("frontmatter — the grant enumeration's legal character set (D-47 item
     );
     // AND BY COUNT, so a closure that collapsed to a handful cannot satisfy the membership check
     // against an equally-collapsed derivation.
-    expect(names.value.length, "coordinator granted-name count").toBe(16);
+    // (Plan 39-03, TIER-06) The count comes from the adapter-identity derivation over the role files,
+    // a source independent of the adapter directory the membership check above was derived from.
+    expect(names.value.length, "coordinator granted-name count").toBe(
+      listAgentAdapterNames(root).length - 1,
+    );
 
     // Every character of that real enumeration is inside the legal set — the measured reason the
     // allowlist costs this repository nothing.

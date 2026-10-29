@@ -85,7 +85,12 @@ import { createServer } from "node:net";
 // buys a deliberate exception back is worth nothing once it stops describing the cases that exist.
 // If the locked decision is ever revisited, this import and those cases are what to delete along
 // with the duplicate. Drives the COMMITTED .js — the repo idiom.
-import { AGENT_ADAPTER_PREFIX, listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
+import {
+  AGENT_ADAPTER_PREFIX,
+  listAgentAdapterNames,
+  listAgentAdapters,
+  listSkillAdapters,
+} from "../scripts/kit-model.js";
 
 // THE CLOSED ALIAS VOCABULARY, IMPORTED HERE FOR THE SAME REASON AND UNDER THE SAME EXCEPTION
 // (29.2-01). The model-delivery cases below assert that every alias an installed adapter carries is
@@ -456,6 +461,14 @@ const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote abo
 // grugops-orchestrator.md is a member of the real set too, so the 17-adapter update case can still
 // pre-seed exactly the single-adapter v2.0 layout it needs.
 const SYNTH_ADAPTERS: string[] = listAgentAdapters(REPO_ROOT).slice().sort();
+
+// (Plan 39-03, TIER-06) THE LIVE KIT'S AGENT ADAPTER COUNT, asked of the adapter-identity derivation
+// over the role files rather than typed. Every install below renders from the real role corpus (a
+// synthetic source copies it, see SYNTH_ADAPTERS above), so the adapter count each case pins is the
+// live kit's. It comes from a source independent of the adapter directories the set comparisons read,
+// so a listing that silently shrinks still fails the count. The two-sided integer pins (ROLE_COUNT,
+// SPAWN_GRANT_SCAN_COUNT) live in scripts/kit-model.test.ts and move only by recorded decision.
+const LIVE_ADAPTER_COUNT: number = listAgentAdapterNames(REPO_ROOT).length;
 
 // THE GENERATOR'S IMPORT CLOSURE AND KIT INPUTS, MIRRORED INTO EVERY SYNTHETIC SOURCE (29.2-01).
 //
@@ -1522,7 +1535,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(runInstall(target, home).status).toBe(0);
     // PREMISE: the install really did lay adapters down, so the comparison below has something to
     // compare. A clean verdict over an empty set would be vacuous.
-    expect(installedAdapters(target).length).toBe(17);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
 
     const doc = runCheck(target, home);
     expect(`status=${doc.status}`).toBe("status=0");
@@ -1541,7 +1554,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const rels = installedAdapters(target);
-    expect(rels.length).toBe(17);
+    expect(rels.length).toBe(LIVE_ADAPTER_COUNT);
     // PREMISE 1: before the edit, the doctor really is clean about staleness. Without this the
     // warning below could be an artefact of the fixture rather than of the edit.
     expect(runCheck(target, home).stdout.includes("stale adapter")).toBe(false);
@@ -1586,7 +1599,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = realpathSync(mkTmp());
     const userHome = realpathSync(mkTmp());
     expect(runInstall(target, home).status).toBe(0);
-    expect(installedAdapters(target).length).toBe(17);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
     // PREMISE: the edit has not reached the adapters, so the remedy has something to do.
     expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
@@ -1658,7 +1671,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = realpathSync(mkTmp());
     const userHome = realpathSync(mkTmp());
     expect(runInstall(target, home).status).toBe(0);
-    expect(installedAdapters(target).length).toBe(17);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     // PREMISE: against this checkout the install is current, so the verdict below is S's difference.
     expect(runCheck(target, home).stdout.includes("stale adapter"), "premise: stale against this checkout").toBe(false);
 
@@ -1942,7 +1955,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(models.length).toBe(installedAdapters(target).length);
     // ...and pinned as an integer beside it, so a listing that silently shrinks fails the number
     // instead of making the set comparison vacuous.
-    expect(models.length).toBe(17);
+    expect(models.length).toBe(LIVE_ADAPTER_COUNT);
     expect([...new Set(models)]).toEqual(["inherit"]);
   });
 
@@ -1957,7 +1970,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const models = targetModelLines(target);
     expect(models.length).toBe(installedAdapters(target).length);
-    expect(models.length).toBe(17);
+    expect(models.length).toBe(LIVE_ADAPTER_COUNT);
     // Both tallies in ONE assertion so a failure prints both numbers rather than the first to trip.
     const tally = (alias: string): number => models.filter((m) => m === alias).length;
     expect(`opus=${tally("opus")} sonnet=${tally("sonnet")}`).toBe("opus=4 sonnet=13");
@@ -2113,7 +2126,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // PREMISE: the first run really did write every adapter, so the second run has something to
     // skip. Without this the case could pass over a target that was never installed at all.
     const count = installedAdapters(target).length;
-    expect(count).toBe(17);
+    expect(count).toBe(LIVE_ADAPTER_COUNT);
     expect(adapterReportLines(first.stdout, "materialized").length).toBe(count);
     const beforeBytes = snapshot(join(target, ".claude", "agents"));
     const beforeMtimes = adapterMtimes(target);
@@ -2182,7 +2195,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const provenance = provenanceLiteral();
     const head = bannerHead();
     const rels = installedAdapters(target);
-    expect(rels.length).toBe(17);
+    expect(rels.length).toBe(LIVE_ADAPTER_COUNT);
 
     for (const rel of rels) {
       // PREMISE, read from the COMMITTED kit adapter rather than spelled: the kit's own copy carries
@@ -2225,7 +2238,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
     expect(runInstall(target, home).status).toBe(0);
     const once = snapshot(join(target, ".claude", "agents"));
-    expect(installedAdapters(target).length).toBe(17);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
 
     for (let i = 0; i < 2; i++) expect(runInstall(target, home).status).toBe(0);
     expect(snapshot(join(target, ".claude", "agents"))).toBe(once);
@@ -2493,7 +2506,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const rels = installedAdapters(target);
-    expect(rels.length).toBe(17);
+    expect(rels.length).toBe(LIVE_ADAPTER_COUNT);
 
     // A user hand-edits ONE adapter's model line. D-13: an installed agent adapter is a kit-owned
     // derived artifact, and the configuration file is the one place to set a model, so the next run
@@ -2714,7 +2727,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // (d) EVERY per-adapter line carries the alias. The count is derived from the target listing.
     const lines = adapterReportLines(r.stdout, "materialized");
     expect(lines.length).toBe(installedAdapters(target).length);
-    expect(lines.length).toBe(17);
+    expect(lines.length).toBe(LIVE_ADAPTER_COUNT);
     for (const line of lines) {
       expect(`${line.trim().split(/\s+/)[1]}: ${line.includes("model=inherit")}`).toBe(
         `${line.trim().split(/\s+/)[1]}: true`,
@@ -2774,7 +2787,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout ?? "").toContain(targetConfigPath(target));
 
     const lines = adapterReportLines(r.stdout ?? "", "would-materialize");
-    expect(lines.length).toBe(17);
+    expect(lines.length).toBe(LIVE_ADAPTER_COUNT);
     const aliases = new Set(
       lines.map((l) => l.slice(l.lastIndexOf("model=") + "model=".length).replace(/\)$/, "")),
     );
@@ -2804,7 +2817,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // count is checked first: seventeen adapters are on disk before the preview is taken.
     const first = runInstall(target, home);
     expect(first.status).toBe(0);
-    expect(adapterReportLines(first.stdout, "materialized").length).toBe(17);
+    expect(adapterReportLines(first.stdout, "materialized").length).toBe(LIVE_ADAPTER_COUNT);
 
     const tPre = snapshot(target);
 
@@ -2818,7 +2831,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     // (c) THE PREVIEW AGREES WITH THE RUN IT DESCRIBES. Every adapter a real re-run would skip is
     // reported `skipped` in the preview, and nothing claims a write that would not happen.
-    expect(adapterReportLines(r.stdout ?? "", "skipped").length).toBe(17);
+    expect(adapterReportLines(r.stdout ?? "", "skipped").length).toBe(LIVE_ADAPTER_COUNT);
     expect(adapterReportLines(r.stdout ?? "", "would-materialize")).toEqual([]);
 
     // (d) ...and it is still a preview: the target is byte-unchanged.
@@ -3187,8 +3200,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
     const r = runInstall(target, home);
     expect(r.status).toBe(0);
-    expect(installedAdapters(target).length).toBe(17);
-    expect(adapterReportLines(r.stdout, "materialized").length).toBe(17);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
+    expect(adapterReportLines(r.stdout, "materialized").length).toBe(LIVE_ADAPTER_COUNT);
     // Recorded rather than asserted as an equality, because whether the two spellings differ is a
     // property of the host filesystem: on macOS they do, and there this case IS the regression.
     expect(`target realpath differs from its literal path: ${realpathSync(target) !== target}`).toContain(
@@ -4252,7 +4265,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
     for (const a of aliases) expect(MODEL_ALIASES).toContain(a);
     const installed = installedAdapters(target);
-    expect(installed.length).toBe(17);
+    expect(installed.length).toBe(LIVE_ADAPTER_COUNT);
 
     expect(runUninstall(target, home).status).toBe(0);
     // WHY THIS HOLDS, AND WHY IT IS WORTH ASSERTING: removal is by DERIVED NAME over
@@ -5166,7 +5179,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       // spelled (plan 33-06; the windows red here was `KIT="C:/…"` against an expected `C:\…`).
       expectMaterializedKit(body, home);
     }
-    expect(SYNTH_ADAPTERS.length).toBe(17);
+    expect(SYNTH_ADAPTERS.length).toBe(LIVE_ADAPTER_COUNT);
     // The target's adapter dir holds EXACTLY the derived set — nothing extra, nothing missing — plus
     // the one D-32 backup of the old adapter (plan 33.1-32), which is not an adapter (no `.md` end).
     const agentNames = readdirSync(join(target, ".claude", "agents")).sort();
@@ -5341,8 +5354,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     // CARDINALITY AS A NUMBER. Set equality alone passes when BOTH sides shrink together; the
     // integer is what makes a silently shrinking derivation fail the count instead.
-    expect(authorityAdapters.length).toBe(17);
-    expect(installedAdapters(target).length).toBe(17);
+    expect(authorityAdapters.length).toBe(LIVE_ADAPTER_COUNT);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     expect(authoritySkills.length).toBe(7);
     expect(installedSkills(target).length).toBe(7);
 
@@ -5414,9 +5427,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // CARDINALITY AS A NUMBER, taken from the derived set rather than written as a literal — the
     // plant changes one member's representation and never the count, so the count is the SAME
     // seventeen on both sides and a derivation that dropped the symlink fails HERE.
-    expect(SYNTH_ADAPTERS.length).toBe(17);
-    expect(authorityAdapters.length).toBe(17);
-    expect(installedAdapters(target).length).toBe(17);
+    expect(SYNTH_ADAPTERS.length).toBe(LIVE_ADAPTER_COUNT);
+    expect(authorityAdapters.length).toBe(LIVE_ADAPTER_COUNT);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     // ...and the link is genuinely a link in the source, or the assertions above are a statement
     // about an ordinary file and this case has quietly stopped being the WR-02 fixture.
     expect(lstatSync(join(src, ".claude", "agents", linkName)).isSymbolicLink()).toBe(true);
@@ -5540,7 +5553,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).not.toContain("== install complete");
     // The flat seventeen still install; only the nested plant is refused, and it never lands.
     expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
-    expect(installedAdapters(target).length).toBe(17);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     expect(existsSync(join(target, ".claude", "agents", "nested"))).toBe(false);
 
     // CONFORMANCE UNDER THE NESTED SHAPE: the authority SEES the nested file (it recurses, because
@@ -5628,7 +5641,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const authority = listAgentAdapters(src);
     expect(authority.filter((m) => m.includes("/"))).toEqual(["alias/x.md", "real/x.md"]);
     expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
-    expect(installedAdapters(target).length).toBe(17);
+    expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     expect(existsSync(join(target, ".claude", "agents", "real"))).toBe(false);
     expect(existsSync(join(target, ".claude", "agents", "alias"))).toBe(false);
   });
@@ -9022,7 +9035,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     // resolver skill) differs, because install writes the kit path into it.
     expect(identical.length, "no kit file is a verbatim copy").toBeGreaterThan(0);
     expect(differing).toContain(".claude/skills/grugops/SKILL.md");
-    expect(differing.filter((rel) => rel.startsWith(".claude/agents/")).length).toBe(17);
+    expect(differing.filter((rel) => rel.startsWith(".claude/agents/")).length).toBe(LIVE_ADAPTER_COUNT);
     const before = new Map(differing.map((rel) => [rel, readFileSync(at(target, rel))]));
 
     for (const rel of identical) before.set(rel, readFileSync(at(target, rel)));

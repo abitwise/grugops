@@ -186,7 +186,8 @@ describe("generate-catalog.js (DOCS-01)", () => {
       expect(text).toContain("agent-factory/workflows/15-security-audit.md");
 
       // Exactly 17 role rows + 19 workflow rows (count via source-link matches, not `.` tallies).
-      expect(countRowsLinkingInto(text, "roles")).toBe(17);
+      // (Plan 39-03, TIER-06) The role-row count is the kit authority's ROLE_COUNT, not typed here.
+      expect(countRowsLinkingInto(text, "roles")).toBe(ROLE_COUNT);
       expect(countRowsLinkingInto(text, "workflows")).toBe(19);
     } finally {
       writeFileSync(OUT, before);

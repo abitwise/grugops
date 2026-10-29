@@ -1901,8 +1901,10 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
     expect(live.length).toBe(SPAWN_GRANT_SCAN_COUNT);
     expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT - 1);
     expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT + 1);
-    // The per-part breakdown the count is composed of: 17 + 7 + 7 + 2.
-    expect(listAgentAdapters().length).toBe(17);
+    // The per-part breakdown the count is composed of: the agent adapters + 7 + 7 + 2. (Plan 39-03,
+    // TIER-06) The agent-adapter part is asked of the adapter-identity derivation rather than typed, so
+    // a role or level added later moves only SPAWN_GRANT_SCAN_COUNT above, the real two-sided pin.
+    expect(listAgentAdapters().length).toBe(listAgentAdapterNames().length);
     expect(listSkillAdapters().length).toBe(7);
     expect(listPluginSkillAdapters().length).toBe(7);
     expect(listPackagingTemplates().length).toBe(2);
@@ -2185,7 +2187,9 @@ describe("kit-model: agent adapter identity (plan 39-01, TIER-02)", () => {
     const names = listAgentAdapterNames();
     const files = listAgentAdapters().map((f) => f.replace(/\.md$/, ""));
     expect(names).toEqual(files);
-    expect(names.length).toBe(17);
+    // (Plan 39-03, TIER-06) With no leveled role there is one adapter per role, so the count is the
+    // kit authority's two-sided ROLE_COUNT pin rather than a second copy of its number.
+    expect(names.length).toBe(ROLE_COUNT);
     expect(LEVELED_ROLE_COUNT).toBe(0);
     const specs = listAgentAdapterSpecs();
     expect(specs.filter((s) => s.level !== null)).toEqual([]);

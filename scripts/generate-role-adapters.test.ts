@@ -66,7 +66,7 @@ import {
   admittedGrantValues,
 } from "./canonical-frontmatter.js";
 import { deriveGrant } from "./capture-live.js";
-import { listAgentAdapterNames, listAgentAdapterSpecs } from "./kit-model.js";
+import { listAgentAdapterNames, listAgentAdapterSpecs, ROLE_COUNT } from "./kit-model.js";
 // Phase 34.1 D-01: the scratch install below names every registry agent, spelled by the registry (agent-flag census).
 import { HOST_TOOLS, agentFlag } from "../install/host-tools.js";
 
@@ -525,7 +525,9 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     const coordText = readFileSync(join(LIVE_AGENTS, coordinators[0]), "utf8");
     const granted = grantNames(coordText);
     expect(granted).toHaveLength(names.length - 1);
-    expect(granted).toHaveLength(16);
+    // (Plan 39-03, TIER-06) The second source is the adapter-identity derivation over the role files,
+    // independent of the adapter directory `names` was read from: every adapter but the coordinator.
+    expect(granted).toHaveLength(listAgentAdapterNames(ROOT).length - 1);
     // grant ∪ {coordinator} == the generated adapter set, with no exception list.
     expect([...granted, "grugops-orchestrator"].sort()).toEqual(names);
     // Sorted emission (the byte-determinism the freshness gate depends on).
@@ -1128,10 +1130,12 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
   it("the live roles and adapter directories are untouched by this suite", () => {
     // A cheap structural assertion (counts + mtime-independent byte totals) that would trip if any
     // case above had written into the real tree instead of its scratch mirror.
+    // (Plan 39-03, TIER-06) The counts are the kit authority's, not typed: ROLE_COUNT for the role
+    // directory and the adapter-identity derivation for the adapter directory.
     const roles = readdirSync(LIVE_ROLES).filter((f) => f.endsWith(".md") && !f.startsWith("_"));
-    expect(roles).toHaveLength(17);
+    expect(roles).toHaveLength(ROLE_COUNT);
     const adapters = readdirSync(LIVE_AGENTS).filter((f) => f.endsWith(".md"));
-    expect(adapters).toHaveLength(17);
+    expect(adapters).toHaveLength(listAgentAdapterNames(ROOT).length);
     for (const a of adapters) {
       expect(statSync(join(LIVE_AGENTS, a)).size).toBeGreaterThan(0);
     }
@@ -2041,12 +2045,14 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
     expect(a.ok, `the live coordinator adapter is REFUSED by the canonical-form reader: ${a.ok ? "" : `[${a.code}] ${a.reason}`}`).toBe(true);
     if (!a.ok) return;
 
-    // The sixteen names, DERIVED from the adapter-identity derivation (every adapter except the
-    // coordinator's), never typed and never rebuilt from role file names (plan 39-02).
+    // The grant names, DERIVED from the adapter-identity derivation (every adapter except the
+    // coordinator's), never typed and never rebuilt from role file names (plan 39-02). The count is
+    // the derivation's own length less the one coordinator (plan 39-03, TIER-06), so the filter is
+    // proven to remove exactly one name.
     const expectedGrant = listAgentAdapterNames(ROOT)
       .filter((n) => n !== "grugops-orchestrator")
       .sort();
-    expect(expectedGrant).toHaveLength(16);
+    expect(expectedGrant).toHaveLength(listAgentAdapterNames(ROOT).length - 1);
     expect(admittedGrantedNames(a.value)).toEqual(expectedGrant);
 
     const values = admittedGrantValues(a.value);
@@ -2089,7 +2095,7 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
   it("K6: the coordinator is the ONLY adapter carrying an MCP tool, and a full-corpus regeneration reproduces every live adapter byte for byte", () => {
     const scoped = scopedAdmissionToolFromInitFrame();
     const files = readdirSync(LIVE_AGENTS).filter((f) => f.endsWith(".md")).sort();
-    expect(files).toHaveLength(17);
+    expect(files).toHaveLength(listAgentAdapterNames(ROOT).length);
     const carriers = files.filter((f) => readFileSync(join(LIVE_AGENTS, f), "utf8").includes(scoped));
     expect(carriers).toEqual(["grugops-orchestrator.md"]);
     for (const f of files) {
@@ -2101,7 +2107,7 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
     // Every live role into one scratch mirror; the generator's output there must equal the live
     // adapter directory file for file — the adapters-freshness property, asserted in-process.
     const allRoles = readdirSync(LIVE_ROLES).filter((f) => f.endsWith(".md") && !f.startsWith("_"));
-    expect(allRoles).toHaveLength(17);
+    expect(allRoles).toHaveLength(ROLE_COUNT);
     const m = scratch(allRoles);
     const r = runIn(m);
     expect(r.status, out(r)).toBe(0);
