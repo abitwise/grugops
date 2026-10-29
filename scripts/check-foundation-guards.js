@@ -230,10 +230,12 @@
 //                                                                kit-model would be nonsense. The
 //                                                                collision was resolved by renaming
 //                                                                #1, not by touching this.
-//   14  roleCeiling()            check-foundation-guards.ts      LEFT ALONE DELIBERATELY (D-17). A
-//                                                                per-file MEASUREMENT BASELINE, not a
-//                                                                discovery set, and it already fails
-//                                                                closed on an unknown role.
+//   14  ROLE_CEILINGS            check-foundation-guards.ts      VALUES LEFT ALONE DELIBERATELY (D-17). A
+//        (was roleCeiling())                                     per-file MEASUREMENT BASELINE, not a
+//                                                                discovery set, and it fails closed
+//                                                                on an unknown role. Its KEY SET is
+//                                                                checked against listRoles() both
+//                                                                ways (plan 39-03, TIER-06).
 //   15  RUNNABLES /              install/install.ts +            LEFT ALONE DELIBERATELY, and now
 //        RUNNABLES_MIRROR        install/uninstall.ts            PAIRED. A source->dest MAPPING, not
 //                                                                a discovery set: there is nothing to
@@ -1505,7 +1507,7 @@ function guardKitCounts() {
     process.stdout.write("\n[guard_kit_counts] derived kit sets match their exact expected counts (KIT-01, D-20/D-21)\n");
     let countFail = "";
     if (ROLE_FILES.length !== ROLE_COUNT) {
-        countFail += `\nkit count: derived ${ROLE_FILES.length} role files, expected exactly ${ROLE_COUNT} — walk every derived consumer (guard_voice, guard_caveman_voice, guard_role_clause_uniqueness, guard_role_size, CTX_SCAN, roleCeiling) BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
+        countFail += `\nkit count: derived ${ROLE_FILES.length} role files, expected exactly ${ROLE_COUNT} — walk every derived consumer (guard_voice, guard_caveman_voice, guard_role_clause_uniqueness, guard_role_size, CTX_SCAN, ROLE_CEILINGS) BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
     }
     if (WORKFLOW_FILES.length !== WORKFLOW_COUNT) {
         countFail += `\nkit count: derived ${WORKFLOW_FILES.length} workflow files, expected exactly ${WORKFLOW_COUNT} — walk every derived consumer BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
@@ -2875,7 +2877,7 @@ function guardVoice() {
         // later decision about a floor has to argue from.
         //
         // THE REFUSED ALTERNATIVE, NAMED. A per-file table of nineteen hand-measured minimum ratios —
-        // the shape `roleCeiling()` uses, failing closed on an unknown key — is REFUSED. D-28 already
+        // the shape `ROLE_CEILINGS` (formerly `roleCeiling()`) uses, failing closed on an unknown key — is REFUSED. D-28 already
         // refused exactly that shape for byte ceilings, on the grounds that nineteen new hand-measured
         // baselines are new set-literal surface, and a hand-maintained set rotting while every published
         // number holds still is this repository's second named systemic failure class. Adding one here
@@ -3024,59 +3026,67 @@ function guardRoleClauseUniqueness() {
 //
 // PER-FILE documented constants (NOT a flat number, NOT computed live). Each role gets its OWN
 // two-tier WARN->FAIL ceiling, hard-coded from the 2026-06-10 baseline: FAIL = baseline + 12%,
-// WARN = baseline + 6% (ba-pm.md = +20% / +12% PERS-02 headroom). Looked up via a switch since the
-// ceilings are locked, not derived. CR-01 missing-file fail-red.
+// WARN = baseline + 6% (ba-pm.md = +20% / +12% PERS-02 headroom). Looked up in the keyed ROLE_CEILINGS
+// table since the ceilings are locked, not derived. CR-01 missing-file fail-red.
 // ---------------------------------------------------------------------------
 // Per-role FAIL/WARN ceilings keyed by basename → "FAIL WARN" (verbatim from the .sh case table).
 //
 // D-17 (Phase 27): this table is DELIBERATELY NOT derived from kit-model.ts, and a later phase must
 // not "fix" it. It is a per-file MEASUREMENT BASELINE, not a discovery set — each value is a measured
 // byte count plus a documented margin, which no directory listing can produce. It also already fails
-// CLOSED on an unknown role (the `default: return ""` branch makes guard_role_size fail red naming
-// the file), so deriving it would convert a fail-closed table into a silently-widening one: role #18
+// CLOSED on an unknown role (an absent key reads as NO_CEILING, the empty string the former switch's
+// `default` returned, which makes guard_role_size fail red naming the file), so deriving it would convert a fail-closed table into a silently-widening one: role #18
 // would arrive with an automatic ceiling instead of forcing an author to measure and record one.
-function roleCeiling(base) {
-    switch (base) {
-        case "orchestrator.md":
-            return "7570 7165"; // +Phase-13 routing; measured 6759 B
-        case "security-nfr.md":
-            return "5102 4830"; // +Phase-14 D-09 severity-map; measured 4556 B
-        case "compliance-officer.md":
-            return "4813 4555"; // +Phase-22 WF18 pointer (baseline 4297 B, +12% / +6%)
-        case "release-manager.md":
-            return "4765 4510"; // +Phase-22 WF18 pointer (baseline 4254 B, +12% / +6%)
-        case "agents-md-scribe.md":
-            return "4544 4301"; // +Phase-22 WF18 pointer (baseline 4057 B, +12% / +6%)
-        case "architect-design.md":
-            return "4243 4016"; // +Phase-22 WF18 pointer (baseline 3788 B, +12% / +6%)
-        case "ba-pm.md":
-            return "4180 3901"; // PERS-02 BA headroom (+20% / +12%); +Phase-21 WF16 pointer (baseline 3483 B)
-        case "factory-coach.md":
-            return "3839 3633"; // +Phase-21 WF16 pointer (baseline 3427 B, +12% / +6%)
-        case "frontend-ui.md":
-            return "3969 3757"; // Phase 13 — 17th role (UI-01)
-        case "incident-responder.md":
-            return "3802 3598"; // +Phase-21 WF16 pointer (baseline 3394 B, +12% / +6%)
-        case "installer.md":
-            return "3938 3727"; // +Phase-22 WF18 pointer (baseline 3516 B, +12% / +6%)
-        case "software-engineer.md":
-            return "3906 3697"; // +Phase-21 WF16 pointer (baseline 3487 B, +12% / +6%)
-        case "qe-e2e.md":
-            return "3822 3617"; // +Phase-21 WF16 pointer (baseline 3412 B, +12% / +6%)
-        case "uat-planner.md":
-            return "3540 3350"; // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
-        case "system-analyst.md":
-            return "3170 3000"; // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)
-        case "greenfield-mapper.md":
-            return "3045 2882"; // +Phase-21 WF16 pointer (baseline 2718 B, +12% / +6%)
-        case "brownfield-mapper.md":
-            return "2845 2693"; // +Phase-21 WF16 pointer (baseline 2540 B, +12% / +6%)
-        default:
-            return "";
-    }
-}
+//
+// (Plan 39-03, TIER-06) The VALUES stay measured and are never derived: each is still a byte count
+// plus a documented margin, carried here unchanged with its comment. The KEY SET follows the
+// filesystem. guard_role_size compares the keys with the derived role corpus (ROLE_FILES, which is
+// listRoles(ROOT)) in both directions before it measures anything: a role with no measured ceiling
+// is red naming the role, exactly as the old `default: return ""` branch made it, and a ceiling
+// whose key names no role file is now red naming the key. A switch could not see the second case,
+// so a deleted or renamed role kept its old ceiling silently. Keys are compared by exact string
+// equality (role basenames are ASCII), and the comparison does not depend on the order of either
+// side; missing and stale keys are each reported sorted.
+const ROLE_CEILINGS = {
+    "orchestrator.md": "7570 7165", // +Phase-13 routing; measured 6759 B
+    "security-nfr.md": "5102 4830", // +Phase-14 D-09 severity-map; measured 4556 B
+    "compliance-officer.md": "4813 4555", // +Phase-22 WF18 pointer (baseline 4297 B, +12% / +6%)
+    "release-manager.md": "4765 4510", // +Phase-22 WF18 pointer (baseline 4254 B, +12% / +6%)
+    "agents-md-scribe.md": "4544 4301", // +Phase-22 WF18 pointer (baseline 4057 B, +12% / +6%)
+    "architect-design.md": "4243 4016", // +Phase-22 WF18 pointer (baseline 3788 B, +12% / +6%)
+    "ba-pm.md": "4180 3901", // PERS-02 BA headroom (+20% / +12%); +Phase-21 WF16 pointer (baseline 3483 B)
+    "factory-coach.md": "3839 3633", // +Phase-21 WF16 pointer (baseline 3427 B, +12% / +6%)
+    "frontend-ui.md": "3969 3757", // Phase 13 — 17th role (UI-01)
+    "incident-responder.md": "3802 3598", // +Phase-21 WF16 pointer (baseline 3394 B, +12% / +6%)
+    "installer.md": "3938 3727", // +Phase-22 WF18 pointer (baseline 3516 B, +12% / +6%)
+    "software-engineer.md": "3906 3697", // +Phase-21 WF16 pointer (baseline 3487 B, +12% / +6%)
+    "qe-e2e.md": "3822 3617", // +Phase-21 WF16 pointer (baseline 3412 B, +12% / +6%)
+    "uat-planner.md": "3540 3350", // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
+    "system-analyst.md": "3170 3000", // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)
+    "greenfield-mapper.md": "3045 2882", // +Phase-21 WF16 pointer (baseline 2718 B, +12% / +6%)
+    "brownfield-mapper.md": "2845 2693", // +Phase-21 WF16 pointer (baseline 2540 B, +12% / +6%)
+};
+// The ceiling the per-file loop sees for a role with no ROLE_CEILINGS key: none. It is the empty
+// string, never a default number, so an unmeasured role gets no size verdict and fails closed.
+const NO_CEILING = "";
 function guardRoleSize() {
     process.stdout.write("\n[guard_role_size] roles stay terse — senior != verbose (per-file byte ceiling, D-07)\n");
+    // (Plan 39-03, TIER-06) The key set of ROLE_CEILINGS against the derived role corpus, both ways,
+    // before any file is measured. Set membership by exact string, so the order of either side cannot
+    // change the verdict; each direction is reported sorted, one finding per name.
+    const roleBases = new Set(ROLE_FILES.map((f) => basename(f)));
+    const ceilingKeys = new Set(Object.keys(ROLE_CEILINGS));
+    const missing = [...roleBases].filter((b) => !ceilingKeys.has(b)).sort();
+    const stale = [...ceilingKeys].filter((k) => !roleBases.has(k)).sort();
+    for (const b of missing) {
+        fail(`ROLE_CEILINGS has no key for role ${b} — measure the role and record its FAIL WARN ceiling; there is no default (TIER-06)`);
+    }
+    for (const k of stale) {
+        fail(`ROLE_CEILINGS key ${k} names no role file under agent-factory/roles — a stale ceiling for a deleted or renamed role (TIER-06)`);
+    }
+    if (missing.length === 0 && stale.length === 0) {
+        pass(`ROLE_CEILINGS key set == ${roleBases.size} derived role file(s), both ways`);
+    }
     for (const f of ROLE_FILES) {
         // CR-01 missing-file fail-red: a deleted role must fail red naming the path.
         if (!fileExists(f)) {
@@ -3084,9 +3094,9 @@ function guardRoleSize() {
             continue;
         }
         const base = basename(f);
-        const ceil = roleCeiling(base);
+        const ceil = Object.hasOwn(ROLE_CEILINGS, base) ? ROLE_CEILINGS[base] : NO_CEILING;
         if (ceil === "") {
-            fail(`${f} has no documented ceiling (unknown role — update role_ceiling)`);
+            fail(`${f} has no documented ceiling (unknown role — record it in ROLE_CEILINGS)`);
             continue;
         }
         const rfail = Number(ceil.split(" ")[0]);

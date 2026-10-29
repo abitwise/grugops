@@ -1,7 +1,7 @@
 // admission-protocol-docs.test.ts — structural invariants for Phase 21 (VFY-03 + VFY-04)
 //
 // VFY-03: agent-factory/workflows/16-context-read-write.md exists with correct frontmatter
-//         and H1; each of the 17 canonical role files carries exactly one `16-context-read-write`
+//         and H1; each canonical role file (derived by listRoles()) carries exactly one `16-context-read-write`
 //         reference.
 //
 // VFY-04: agent-factory/workflows/05-pr-quality-gate.md carries `self_fix_attempts`,
@@ -17,6 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { listRoles, ROLE_COUNT } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const ROLES_DIR = join(ROOT, "agent-factory", "roles");
@@ -25,29 +26,13 @@ const WORKFLOWS_DIR = join(ROOT, "agent-factory", "workflows");
 const WF16 = join(WORKFLOWS_DIR, "16-context-read-write.md");
 const WF05 = join(WORKFLOWS_DIR, "05-pr-quality-gate.md");
 
-// The 17 canonical role file basenames (underscore-prefixed partials excluded).
-const ROLE_BASENAMES = [
-  "agents-md-scribe.md",
-  "architect-design.md",
-  "ba-pm.md",
-  "brownfield-mapper.md",
-  "compliance-officer.md",
-  "factory-coach.md",
-  "frontend-ui.md",
-  "greenfield-mapper.md",
-  "incident-responder.md",
-  "installer.md",
-  "orchestrator.md",
-  "qe-e2e.md",
-  "release-manager.md",
-  "security-nfr.md",
-  "software-engineer.md",
-  "system-analyst.md",
-  "uat-planner.md",
-];
+// The canonical role file basenames (underscore-prefixed partials excluded), DERIVED from the role
+// corpus by kit-model's one derivation (plan 39-03, TIER-06) rather than hand-listed, so a role added
+// later in Phase 39 is checked for its single Workflow 16 reference in the same run it lands.
+const ROLE_BASENAMES = listRoles(ROOT);
 
 // ---------------------------------------------------------------------------
-// VFY-03 — Workflow 16 single-source; all 17 roles reference it
+// VFY-03 — Workflow 16 single-source; every derived role references it
 // ---------------------------------------------------------------------------
 describe("VFY-03: Workflow 16 single-source protocol", () => {
   it("agent-factory/workflows/16-context-read-write.md exists", () => {
@@ -65,6 +50,12 @@ describe("VFY-03: Workflow 16 single-source protocol", () => {
   it("16-context-read-write.md has H1 `# Workflow: context read/write`", () => {
     const text = readFileSync(WF16, "utf8");
     expect(text).toContain("# Workflow: context read/write");
+  });
+
+  // The per-role cases below are generated from the derivation, so an empty or short derivation would
+  // generate fewer cases and still pass. The kit authority's two-sided ROLE_COUNT pin is the floor.
+  it("the derived role list holds the kit's ROLE_COUNT roles", () => {
+    expect(ROLE_BASENAMES.length).toBe(ROLE_COUNT);
   });
 
   for (const basename of ROLE_BASENAMES) {

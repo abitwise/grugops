@@ -5713,14 +5713,19 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   it("planted 18th role reaches guard_role_size — ROLE_FILES is derived, not re-listed (D-19)", () => {
     const m = mirror();
     cpSync(rolePath(ROOT, "installer.md"), rolePath(m, "zz-derived-probe.md"));
-    const lines = out(runIn(m)).split("\n");
+    // (Plan 39-03) The guard_role_size section, attributed by banner: the guard now names the probe
+    // twice, once from the ROLE_CEILINGS key-set comparison and once from the per-file loop.
+    const lines = guardSection(out(runIn(m)), "guard_role_size");
     const roleSizeLine = lines.find(
-      (l) => /^ {2}(PASS|WARN|FAIL)/.test(l) && l.includes("zz-derived-probe.md"),
+      (l) => /^ {2}(PASS|WARN|FAIL)/.test(l) && l.includes(roleRel("zz-derived-probe.md")),
     );
     expect(roleSizeLine).toBeDefined();
-    // roleCeiling() is deliberately NOT derived (D-17), so an undocumented role fails CLOSED naming
-    // the file rather than inheriting an automatic ceiling.
+    // ROLE_CEILINGS' values are deliberately NOT derived (D-17), so an undocumented role fails CLOSED
+    // naming the file rather than inheriting an automatic ceiling.
     expect(roleSizeLine).toContain("no documented ceiling");
+    expect(
+      lines.some((l) => l.includes("ROLE_CEILINGS has no key for role zz-derived-probe.md")),
+    ).toBe(true);
   });
 
   // ── D-19 per-consumer derivation assertions for the three sets re-pointed in plan 27-03. ──────
@@ -8394,9 +8399,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // (c) Falsifier — soften ONLY the default branch in a scratch build. scratchGuardFiles() throws
     //     if the replacement matches nothing, so a mutation that silently stopped applying cannot
     //     leave this case reporting a control it never exercised.
+    //     (Plan 39-03) The switch's `default: return ""` is now the NO_CEILING constant an absent
+    //     ROLE_CEILINGS key reads as; the falsifier softens exactly that constant.
     const softened = scratchGuardFiles({
       "check-foundation-guards.js": (src) =>
-        src.replace('        default:\n            return "";', '        default:\n            return "999999 999999";'),
+        src.replace('const NO_CEILING = "";', 'const NO_CEILING = "999999 999999";'),
     });
     const m2 = consistentMirror();
     plantInto(m2);
@@ -8407,6 +8414,77 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       .find((l) => l.includes(PLANT) && l.includes("within ceiling"));
     expect(softenedLine).toBeDefined();
     expect(softenedLine!.trimStart().startsWith("PASS")).toBe(true);
+    // (Plan 39-03, TIER-06) The key-set comparison is an independent second mechanism: softening the
+    // per-file default does not soften it, so the planted role is still red by name in the same run.
+    const keySetLine = guardSection(out(green), "guard_role_size").find((l) =>
+      l.includes(`ROLE_CEILINGS has no key for role ${PLANT}`),
+    );
+    expect(keySetLine).toBeDefined();
+    expect(keySetLine!.trimStart().startsWith("FAIL")).toBe(true);
+    expect(green.status).not.toBe(0);
+  }, 120_000);
+
+  // ── (Plan 39-03, TIER-06) ROLE_CEILINGS' KEY SET follows the role corpus, both ways. ──────────
+  //
+  // The values stay measured; the keys must equal the derived role basenames. Each case runs the
+  // same consistent mirror unplanted first, so the plant is what turns the guard red, and each
+  // reads only the guard_role_size section (attributed by banner), because a planted or deleted
+  // role legitimately reddens other guards in the same run.
+  const ceilingSection = (r: SpawnSyncReturns<string>): string[] =>
+    guardSection(out(r), "guard_role_size");
+  const KEYSET_PASS = /^ {2}PASS {2}ROLE_CEILINGS key set == \d+ derived role file\(s\), both ways$/;
+
+  it("role ceiling key set (ROLE_CEILINGS): the unplanted mirror is the green control (TIER-06)", () => {
+    const r = runIn(consistentMirror());
+    expect(r.status).toBe(0);
+    const section = ceilingSection(r);
+    expect(section.filter((l) => KEYSET_PASS.test(l))).toHaveLength(1);
+    expect(section.some((l) => l.includes(`key set == ${listRoles(ROOT).length} derived`))).toBe(true);
+    expect(section.some((l) => l.includes("ROLE_CEILINGS has no key"))).toBe(false);
+    expect(section.some((l) => l.includes("names no role file"))).toBe(false);
+  }, 120_000);
+
+  it("role ceiling key set (ROLE_CEILINGS): a planted role with no ceiling is red naming it, sorted, never given a default ceiling (TIER-06 empty, ordering)", () => {
+    const m = consistentMirror();
+    // Planted in reverse name order: the finding order must come from the guard's sort, not from
+    // the order the files were written.
+    for (const name of ["zz-ceiling-probe-b.md", "zz-ceiling-probe-a.md"]) {
+      cpSync(rolePath(ROOT, "installer.md"), rolePath(m, name));
+    }
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = ceilingSection(r);
+    const missing = section.filter((l) => l.includes("ROLE_CEILINGS has no key for role"));
+    expect(missing).toEqual([
+      "  FAIL  ROLE_CEILINGS has no key for role zz-ceiling-probe-a.md — measure the role and record its FAIL WARN ceiling; there is no default (TIER-06)",
+      "  FAIL  ROLE_CEILINGS has no key for role zz-ceiling-probe-b.md — measure the role and record its FAIL WARN ceiling; there is no default (TIER-06)",
+    ]);
+    expect(section.some((l) => KEYSET_PASS.test(l))).toBe(false);
+    // No default: neither planted file gets a size verdict.
+    for (const name of ["zz-ceiling-probe-a.md", "zz-ceiling-probe-b.md"]) {
+      expect(section.some((l) => l.includes(roleRel(name)) && /\d+B (within ceiling|>=)/.test(l))).toBe(false);
+    }
+  }, 120_000);
+
+  it("role ceiling key set (ROLE_CEILINGS): a deleted role whose ceiling remains is red naming the stale key, sorted (TIER-06 adjacency, ordering)", () => {
+    const m = consistentMirror();
+    // release-manager.md precedes brownfield-mapper.md in the table's insertion order, so a sorted
+    // report is the guard's own doing, not the table's order leaking through.
+    const deleted = ["release-manager.md", "brownfield-mapper.md"];
+    for (const role of deleted) {
+      rmSync(rolePath(m, role));
+      rmSync(adapterPath(m, `grugops-${role.replace(/\.md$/, "")}`));
+    }
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = ceilingSection(r);
+    const stale = section.filter((l) => l.includes("names no role file"));
+    expect(stale).toEqual([
+      "  FAIL  ROLE_CEILINGS key brownfield-mapper.md names no role file under agent-factory/roles — a stale ceiling for a deleted or renamed role (TIER-06)",
+      "  FAIL  ROLE_CEILINGS key release-manager.md names no role file under agent-factory/roles — a stale ceiling for a deleted or renamed role (TIER-06)",
+    ]);
+    expect(section.some((l) => KEYSET_PASS.test(l))).toBe(false);
+    expect(section.some((l) => l.includes("ROLE_CEILINGS has no key"))).toBe(false);
   }, 120_000);
 
   // ── Phase 19 Tier-1 oracle wiring (UAT-AUTO-05 / BLOCKER 1) — the aggregator must FAIL CLOSED. ──
