@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Completed 39-06-PLAN.md
-last_updated: "2026-10-29T20:25:51.696Z"
+stopped_at: Completed 39-07-PLAN.md
+last_updated: "2026-10-29T21:58:53.110Z"
 last_activity: 2026-10-29
 last_activity_desc: Phase 39 execution started
-state_head: 3fcb4683e2bbcd8e3d269021998a70d26054a76b
+state_head: 62ca47a131322ce120afa0353fe87add7cd5c2eb
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 78
-  completed_plans: 74
+  completed_plans: 75
   percent: 44
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
-Plan: 7 of 10
+Plan: 8 of 10
 Status: Ready to execute
 Last activity: 2026-10-29 — Phase 39 execution started
 
@@ -790,6 +790,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P04 | 13 min | 2 tasks | 8 files |
 | Phase 39 P05 | 70min | 1 tasks | 55 files |
 | Phase 39 P06 | 62min | 1 tasks | 32 files |
+| Phase 39 P07 | 90 min | 2 tasks | 38 files |
 
 ## Accumulated Context
 
@@ -2174,6 +2175,9 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-06: Designer Hard limits end 'Merge and deploy remain human decisions.' — a clause no other kit file carries, so the frozen set catches no earlier edit
 - [Phase 39]: 39-06: TIERED designer = opus (RESEARCH Assumption A7); zero config stays inherit (D-27); one row to change if sonnet is preferred
 - [Phase 39]: 39-06: Designer capabilities read edit, no web (ui-ux-pro-max path is Phase 42, D-23)
+- [Phase 39]: 39-07: software-engineer.md declares levels junior mid senior; three level adapters (haiku/medium, sonnet/medium, opus/high) replace the base adapter, and the coordinator grants 20 derived names
+- [Phase 39]: 39-07: capture-live side (b) accepts a level adapter's agent stamping its role stem (software-engineer)
+- [Phase 39]: 39-07: CLAUDE_CODE_SUBAGENT_MODEL flattens levels only with CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 (v2.1.257+); documented per code.claude.com sub-agents read 2026-10-29
 
 ### Pending Todos
 
@@ -2509,8 +2513,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-29T20:25:51.161Z
-Stopped at: Completed 39-06-PLAN.md
+Last session: 2026-10-29T21:58:52.536Z
+Stopped at: Completed 39-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

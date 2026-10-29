@@ -44,7 +44,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 ### Role machinery and engineer levels (TIER)
 
 - [ ] **TIER-01**: The kit has a Tech Lead role that scores each ticket's complexity on a written per-factor rubric, records the score and the chosen engineer level in a note and the ticket body, and pre-plans the dev tasks
-- [ ] **TIER-02**: One `software-engineer.md` role yields three generated Claude Code adapters — junior (haiku, effort medium), mid (sonnet), senior (opus) — each with its own effort; on the other five hosts the level is guidance
+- [x] **TIER-02**: One `software-engineer.md` role yields three generated Claude Code adapters — junior (haiku, effort medium), mid (sonnet), senior (opus) — each with its own effort; on the other five hosts the level is guidance
 - [ ] **TIER-03**: Junior takes only tasks whose plan already fixes what to write, never security, migration, concurrency or test-integrity work; the D-09 amendment and the Claude Code v2.1.293 floor are recorded
 - [ ] **TIER-04**: A stuck or twice-failed engineer escalates one level once, via a `failed-attempt` note and a queue re-enqueue — never a relayed prompt
 - [ ] **TIER-05**: The kit has a Designer role that sets design strategy and guidelines; Frontend/UI reads them for per-ticket UI contracts
@@ -137,7 +137,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MIGRATE-06 | Phase 38 | Complete |
 | MIGRATE-07 | Phase 38 | Complete |
 | TIER-01 | Phase 39 | Pending |
-| TIER-02 | Phase 39 | Pending |
+| TIER-02 | Phase 39 | Complete |
 | TIER-03 | Phase 39 | Pending |
 | TIER-04 | Phase 39 | Pending |
 | TIER-05 | Phase 39 | Pending |
