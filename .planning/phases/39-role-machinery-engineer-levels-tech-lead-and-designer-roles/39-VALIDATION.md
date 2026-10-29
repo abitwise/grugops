@@ -70,17 +70,17 @@ Filled by the planner per task; the requirement → test map from RESEARCH.md is
 | 39-04 T1 (tracer) | TIER-07 | `npx vitest run scripts/canonical-frontmatter.test.ts && node scripts/check-foundation-guards.js` | ⬜ |
 | 39-04 T2 | TIER-07 | `npx vitest run scripts/canonical-frontmatter.test.ts scripts/check-foundation-guards.test.ts scripts/generate-role-adapters.test.ts` | ⬜ |
 | 39-05 T1 (tracer) | TIER-01, TIER-03, TIER-06 | `npx vitest run scripts/tier-kit-text.test.ts ...` + all structure/lexicon/register gates + disposition count 721 | ⬜ |
-| 39-05 T2 | TIER-05, TIER-06 | same gate set | ⬜ |
-| 39-06 T1 (tracer) | TIER-02, TIER-03, TIER-06 | `npx vitest run scripts/adapter-byte-baseline.test.ts scripts/tier-kit-text.test.ts ...` + freshness gates + human-check (live effort) | ⬜ |
-| 39-06 T2 | TIER-03 | `npx vitest run scripts/tier-kit-text.test.ts scripts/model-tiers.test.ts` | ⬜ |
-| 39-07 T1 (tracer) | TIER-01 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts scripts/check-uat-oracles.test.ts scripts/voice-model.test.ts` | ⬜ |
-| 39-07 T2 | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts && npm run freshness:guarantees` | ⬜ |
-| 39-08 T1 (tracer) | TIER-05 | `npx vitest run scripts/tier-kit-text.test.ts` + gates | ⬜ |
-| 39-08 T2 | TIER-05 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` | ⬜ |
-| 39-09 T1 (tracer) | TIER-06 (RSI) | `npx vitest run install/install.test.ts -t "no longer ships"` | ⬜ |
-| 39-09 T2 | TIER-03 | `npx vitest run install/install.test.ts -t "no longer ships" && npx vitest run scripts/tier-kit-text.test.ts` | ⬜ |
+| 39-06 T1 (tracer) | TIER-05, TIER-06 | same gate set as 39-05 T1, plus `scripts/generate-catalog.test.ts` | ⬜ |
+| 39-07 T1 (tracer) | TIER-02, TIER-03, TIER-06 | `npx vitest run scripts/adapter-byte-baseline.test.ts scripts/tier-kit-text.test.ts ...` + freshness gates + human-check (live effort) | ⬜ |
+| 39-07 T2 | TIER-03 | `npx vitest run scripts/tier-kit-text.test.ts scripts/model-tiers.test.ts` | ⬜ |
+| 39-08 T1 (tracer) | TIER-01 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts scripts/check-uat-oracles.test.ts scripts/voice-model.test.ts` | ⬜ |
+| 39-08 T2 | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts && npm run freshness:guarantees` | ⬜ |
+| 39-09 T1 (tracer) | TIER-05 | `npx vitest run scripts/tier-kit-text.test.ts` + gates | ⬜ |
+| 39-09 T2 | TIER-05 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` | ⬜ |
+| 39-10 T1 (tracer) | TIER-06 (RSI) | `npx vitest run install/install.test.ts -t "no longer ships"` | ⬜ |
+| 39-10 T2 | TIER-03 | `npx vitest run install/install.test.ts -t "no longer ships" && npx vitest run scripts/tier-kit-text.test.ts` | ⬜ |
 
-The `scripts/<new tier-text>.test.ts` row above is `scripts/tier-kit-text.test.ts`, created by 39-05 T1 and extended by 39-06..39-09.
+The `scripts/<new tier-text>.test.ts` row above is `scripts/tier-kit-text.test.ts`, created by 39-05 T1 and extended by 39-06..39-10.
 
 ---
 

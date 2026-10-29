@@ -446,7 +446,7 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 9 plans
+**Plans**: 10 plans
 
 Plans:
 **Wave 1**
@@ -462,19 +462,22 @@ Plans:
 - [ ] 39-04-PLAN.md — `skills:` role grammar: `ROLE_SCHEMA`, `admitRole`, `roleSkillsOf`, role-frontmatter guard, fixture; adapter schema unchanged
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 39-05-PLAN.md — Tech Lead role + complexity rubric checklist, Designer role, all derived counts moved once (19 roles)
+- [ ] 39-05-PLAN.md — Tech Lead role + complexity rubric checklist, derived counts moved once for it (18 roles)
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 39-06-PLAN.md — Engineer levels on: `levels: junior mid senior`, `## Levels`, three pinned adapters, base adapter removed, D-2 record and dial docs
+- [ ] 39-06-PLAN.md — Designer role, derived counts moved once for it (19 roles)
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 39-07-PLAN.md — WF04 Tech Lead step, named dispatch, escalation path and stop bullets; compact Orchestrator routing (no growth)
+- [ ] 39-07-PLAN.md — Engineer levels on: `levels: junior mid senior`, `## Levels`, three pinned adapters, base adapter removed, D-2 record and dial docs
 
 **Wave 8** *(blocked on Wave 7 completion)*
-- [ ] 39-08-PLAN.md — WF14 Designer step and cadence; Frontend/UI reads the Designer's tokens; missing-token stop
+- [ ] 39-08-PLAN.md — WF04 Tech Lead step, named dispatch, escalation path and stop bullets; compact Orchestrator routing (no growth)
 
 **Wave 9** *(blocked on Wave 8 completion)*
-- [ ] 39-09-PLAN.md — Installer stale-adapter report (install, --check, --dry-run; ledger carry), install docs for the levels and the v2.1.293 floor, phase gate
+- [ ] 39-09-PLAN.md — WF14 Designer step and cadence; Frontend/UI reads the Designer's tokens; missing-token stop
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 39-10-PLAN.md — Installer stale-adapter report (install, --check, --dry-run; ledger carry), install docs for the levels and the v2.1.293 floor, phase gate
 
 Waves are sequential: every plan rebuilds the committed `.js` and most move a shared count pin, so two plans in one wave would race on the build output.
 **Research flag**: plan with `--research-phase` (kit-model variant mechanism, config namespace for level stems, `CANONICAL_SCHEMA` list grammar for `skills:`, per-host model-field semantics, `effort` on haiku).
