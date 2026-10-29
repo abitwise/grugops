@@ -424,7 +424,7 @@ const ADMITTED_BOUND_MEMBER_PATH_COUNT = 6;
  * The canonical form below refuses a call through an identifier this pass cannot resolve. Five
  * platform globals and five value constructors are called in the live closure with no declaration
  * anywhere, and every one of them is inert: none opens a file, starts a process, or returns a
- * module. They are named here WITH the reason, and pinned two-sided, so an eleventh is a decision
+ * module. They are named here WITH the reason, and pinned two-sided, so another is a decision
  * somebody records rather than a condition somebody appends.
  *
  * WHAT IS DELIBERATELY NOT HERE, AND WHY THE LIST IS THE INTERESTING PART: `eval`, `Function`,
@@ -436,6 +436,13 @@ const ADMITTED_GLOBAL_CALLEES = Object.freeze([
   "Date", // scripts/board-read.js — `new Date(...)` for the mtime column. A value, no I/O.
   "Error", // scripts/board-dashboard.js, scripts/kit-model.js — thrown diagnostics.
   "Map", // four closure modules — ordinary keyed collections.
+  // Plan 39-01: kit-model.js now imports scripts/frontmatter.js (the one frontmatter authority, for
+  // the `levels` key), and that module calls these two. Both build a VALUE from values already in
+  // hand: `Number(digit[1])` coerces a matched digit string, and `new RegExp(SPAWN_TOKEN.source, ...)`
+  // compiles a pattern from a module constant. Neither opens a file, starts a process, executes
+  // source or returns a module.
+  "Number", // scripts/frontmatter.js — the numeric coercion of a matched digit.
+  "RegExp", // scripts/frontmatter.js — a global-flag copy of a module-constant pattern.
   "Set", // four closure modules — ordinary de-duplication.
   "String", // scripts/board-dashboard.js, scripts/board-model.js — the string coercion.
   "TextDecoder", // scripts/board-read.js — decodes bytes ALREADY read; it opens nothing itself.
@@ -445,8 +452,11 @@ const ADMITTED_GLOBAL_CALLEES = Object.freeze([
   "setTimeout", // scripts/board-dashboard.js — the watch debounce.
 ]);
 
-/** The cardinality of the exemption set. An eleventh admitted global is a DECISION with a reason. */
-const ADMITTED_GLOBAL_CALLEE_COUNT = 10;
+/**
+ * The cardinality of the exemption set. Another admitted global is a DECISION with a reason. Raised
+ * from ten to twelve by plan 39-01, which admitted `Number` and `RegExp` with the reason beside them.
+ */
+const ADMITTED_GLOBAL_CALLEE_COUNT = 12;
 
 /**
  * THE KINDS OF DECLARATION THAT MAY RESOLVE A CALLEE — the SECOND axis of the resolution, pinned so
@@ -3243,6 +3253,9 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
     // 2026-10-21, plan 36-06: board-read.js and board-model.js import ../install/state-layout.js (constants
     // only, no node:fs symbol), so the board-dashboard.js and board-model.js closures gained it. Both rows
     // were taken from jsImportClosure, not typed.
+    // 2026-10-29, plan 39-01: kit-model.js imports ./frontmatter.js (the `levels` key is read through
+    // the one frontmatter authority), so the board-dashboard.js closure gained scripts/frontmatter.js.
+    // Taken from jsImportClosure, not typed.
     {
       entry: "scripts/board-dashboard.js",
       modules: [
@@ -3250,6 +3263,7 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
         "scripts/board-dashboard.js",
         "scripts/board-model.js",
         "scripts/board-read.js",
+        "scripts/frontmatter.js",
         "scripts/is-entry.js",
         "scripts/kit-model.js",
       ],
@@ -4379,17 +4393,17 @@ describe("32-20 — one admitted way to acquire a module, and a two-sided census
     ).toBe(RESOLVING_DECLARATION_KIND_COUNT);
   });
 
-  it("the admitted-global callee set is exactly ten, and every member is actually called", () => {
+  it("the admitted-global callee set is exactly twelve, and every member is actually called", () => {
     expect(
       ADMITTED_GLOBAL_CALLEES.length,
-      "an eleventh callee admitted WITHOUT a declaration is a DECISION: it asserts that a global " +
+      "a thirteenth callee admitted WITHOUT a declaration is a DECISION: it asserts that a global " +
         "this pass cannot see is inert. `eval`, `Function`, `require` and `createRequire` are " +
         "deliberately absent — they are refused by that absence, which is what makes this an " +
         "allow-list rather than a sixteenth deny-list",
     ).toBe(ADMITTED_GLOBAL_CALLEE_COUNT);
     expect(new Set(ADMITTED_GLOBAL_CALLEES).size).toBe(ADMITTED_GLOBAL_CALLEES.length);
     // An exemption for a callee nobody calls is an exemption silently doing nothing, while keeping
-    // the count at ten and the door open. Derived from the live closure, never assumed.
+    // the count unchanged and the door open. Derived from the live closure, never assumed.
     const called = new Set<string>();
     for (const rel of analyzeClosure(ROOT, DASHBOARD_ENTRY).modules) {
       const text = readFileSync(join(ROOT, rel), "utf8");

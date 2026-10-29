@@ -64,6 +64,10 @@ import {
   SPAWN_GRANT_SCAN_COUNT,
   MAX_WALK_ENTRIES,
   INVARIANT,
+  AGENT_ADAPTER_PREFIX,
+  LEVELED_ROLE_COUNT,
+  listAgentAdapterSpecs,
+  listAgentAdapterNames,
 } from "./kit-model.js";
 // A test may import the state-layout authority; only the hand-mirrored production modules may not
 // (36-RESEARCH Pitfall 8). The every-carrier case below holds each copy of the clause to it.
@@ -2135,5 +2139,96 @@ describe("the fallback clause in every carrier (plan 36-11; D-03, D-14; LAYOUT-0
       if (holdsClause(bytes) || bytes.toString("utf8").includes("install --migrate")) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// AGENT ADAPTER IDENTITY (plan 39-01, TIER-02, TIER-06, D-13)
+//
+// listAgentAdapterSpecs derives which adapters the role corpus implies. On the live tree no role
+// declares `levels`, so it must equal today's adapter files exactly; on a hermetic mirror whose copy
+// of software-engineer.md declares levels it must expand that role and drop its base adapter. Every
+// mirror is a temp copy of the live role files; nothing outside the temp dir is written.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const ROLES_DIR = join(import.meta.dirname, "..", "agent-factory/roles");
+
+/** Insert one frontmatter line directly after a role file's opening delimiter. */
+function withFrontmatterLine(text: string, line: string): string {
+  if (!text.startsWith("---\n")) throw new Error("fixture premise: a role file opens with ---");
+  return `---\n${line}\n${text.slice("---\n".length)}`;
+}
+
+/**
+ * A temp kit root holding a copy of every live role file. `edits` maps a role filename to the
+ * frontmatter lines inserted into its copy; `extra` plants additional role files by name and body.
+ */
+function levelsMirror(
+  edits: Record<string, readonly string[]> = {},
+  extra: Record<string, string> = {},
+): string {
+  const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-levels-"));
+  tmpDirs.push(root);
+  const dir = join(root, "agent-factory/roles");
+  mkdirSync(dir, { recursive: true });
+  for (const f of readdirSync(ROLES_DIR)) {
+    let text = readFileSync(join(ROLES_DIR, f), "utf8");
+    for (const line of [...(edits[f] ?? [])].reverse()) text = withFrontmatterLine(text, line);
+    writeFileSync(join(dir, f), text);
+  }
+  for (const [f, body] of Object.entries(extra)) writeFileSync(join(dir, f), body);
+  return root;
+}
+
+describe("kit-model: agent adapter identity (plan 39-01, TIER-02)", () => {
+  it("the live tree derives exactly today's adapter names: listAgentAdapters minus `.md`, 17 names, no levels", () => {
+    const names = listAgentAdapterNames();
+    const files = listAgentAdapters().map((f) => f.replace(/\.md$/, ""));
+    expect(names).toEqual(files);
+    expect(names.length).toBe(17);
+    expect(LEVELED_ROLE_COUNT).toBe(0);
+    const specs = listAgentAdapterSpecs();
+    expect(specs.filter((s) => s.level !== null)).toEqual([]);
+    for (const s of specs) {
+      expect(s.name).toBe(`${AGENT_ADAPTER_PREFIX}${s.adapterStem}`);
+      expect(s.adapterStem).toBe(s.roleStem);
+      expect(s.roleFile).toBe(`${s.roleStem}.md`);
+    }
+  });
+
+  it("levels: a mirror whose software-engineer.md declares `levels: junior mid senior` yields three level adapters and no base adapter", () => {
+    const root = levelsMirror({ "software-engineer.md": ["levels: junior mid senior"] });
+    const names = listAgentAdapterNames(root);
+    expect(names).toContain("grugops-software-engineer-junior");
+    expect(names).toContain("grugops-software-engineer-mid");
+    expect(names).toContain("grugops-software-engineer-senior");
+    expect(names).not.toContain("grugops-software-engineer");
+    expect(names.length).toBe(17 - 1 + 3);
+    const levelSpecs = listAgentAdapterSpecs(root).filter((s) => s.level !== null);
+    expect(levelSpecs).toEqual([
+      {
+        name: "grugops-software-engineer-junior",
+        adapterStem: "software-engineer-junior",
+        roleStem: "software-engineer",
+        roleFile: "software-engineer.md",
+        level: "junior",
+      },
+      {
+        name: "grugops-software-engineer-mid",
+        adapterStem: "software-engineer-mid",
+        roleStem: "software-engineer",
+        roleFile: "software-engineer.md",
+        level: "mid",
+      },
+      {
+        name: "grugops-software-engineer-senior",
+        adapterStem: "software-engineer-senior",
+        roleStem: "software-engineer",
+        roleFile: "software-engineer.md",
+        level: "senior",
+      },
+    ]);
+    // Sorted by name, in byte order.
+    expect(names).toEqual([...names].sort());
   });
 });

@@ -28,11 +28,19 @@
 // artifact every consumer actually imports.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { listRoles, ROLE_COUNT } from "./kit-model.js";
+import { listAgentAdapterSpecs, listRoles, ROLE_COUNT } from "./kit-model.js";
 import {
   EFFORT_KEYS,
   EFFORT_LEVELS,
@@ -44,6 +52,12 @@ import {
   PRESET_NAMES,
   RESOLVED_PRESET_PREFIX,
   TIERED,
+  LEVEL_COUNT,
+  LEVELS,
+  configKeyStems,
+  presetGovernedStems,
+  resolveAdapterAssignments,
+  zeroConfigAssignments,
   inheritEffortForEveryStem,
   inheritForEveryStem,
   isEffortLevel,
@@ -2871,5 +2885,94 @@ describe("effort `tiered` and its rationale (plan 34-03, D-04, D-05)", () => {
     // Equal members today; two closed sets all the same. A third model preset must not silently
     // become a legal effort preset, which a shared reference would make it.
     expect(EFFORT_PRESET_NAMES).not.toBe(PRESET_NAMES as unknown);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PER-ADAPTER RESOLUTION AND THE LEVEL PINS (plan 39-01, TIER-02, TIER-06; D-14, D-15, D-16)
+//
+// The mirror is a temp copy of the live role files whose software-engineer.md declares
+// `levels: junior mid senior`. Expected level pins are written as literals here, never read from
+// LEVELS, so a changed row goes red instead of moving the expectation with it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const LIVE_ROLES_DIR = join(ROOT, "agent-factory/roles");
+const LEVELED_ROLE = "software-engineer.md";
+
+/** A temp kit root holding every live role file, with `levels` inserted into the named copies. */
+const levelsMirrorRoot = (leveled: Record<string, string> = { [LEVELED_ROLE]: "junior mid senior" }): string => {
+  const root = scratchRoot();
+  const dir = join(root, "agent-factory/roles");
+  mkdirSync(dir, { recursive: true });
+  for (const f of readdirSync(LIVE_ROLES_DIR)) {
+    const text = readFileSync(join(LIVE_ROLES_DIR, f), "utf8");
+    const value = leveled[f];
+    if (value !== undefined && !text.startsWith("---\n")) throw new Error(`premise: ${f} opens with ---`);
+    writeFileSync(join(dir, f), value === undefined ? text : `---\nlevels: ${value}\n${text.slice(4)}`);
+  }
+  return root;
+};
+
+/** The D-14 pins, as literals. */
+const D14_MODELS = {
+  "software-engineer-junior": "haiku",
+  "software-engineer-mid": "sonnet",
+  "software-engineer-senior": "opus",
+} as const;
+const D14_EFFORTS = {
+  "software-engineer-junior": "medium",
+  "software-engineer-mid": "medium",
+  "software-engineer-senior": "high",
+} as const;
+
+describe("per-adapter resolution and the level pins (plan 39-01, D-14)", () => {
+  it("LEVELS holds exactly three rows, junior haiku medium, mid sonnet medium, senior opus high", () => {
+    expect(LEVEL_COUNT).toBe(3);
+    expect(LEVELS.length).toBe(LEVEL_COUNT);
+    expect(LEVELS.map((r) => [r.level, r.alias, r.effort])).toEqual([
+      ["junior", "haiku", "medium"],
+      ["mid", "sonnet", "medium"],
+      ["senior", "opus", "high"],
+    ]);
+  });
+
+  it("zero config on the levels mirror: the three level adapters carry the D-14 pins and every other adapter inherit/inherit", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    const z = zeroConfigAssignments(specs);
+    expect(z.models.size).toBe(specs.length);
+    expect(z.efforts.size).toBe(specs.length);
+    for (const s of specs) {
+      const pinModel = (D14_MODELS as Record<string, string>)[s.adapterStem];
+      const pinEffort = (D14_EFFORTS as Record<string, string>)[s.adapterStem];
+      expect(z.models.get(s.adapterStem), s.adapterStem).toBe(pinModel ?? "inherit");
+      expect(z.efforts.get(s.adapterStem), s.adapterStem).toBe(pinEffort ?? "inherit");
+    }
+    expect(Object.keys(D14_MODELS).every((k) => z.models.has(k))).toBe(true);
+    expect(z.models.has("software-engineer"), "no base adapter once the role declares levels").toBe(false);
+    expect([...z.models.keys()]).toEqual([...z.models.keys()].sort());
+  });
+
+  it("the live tree: zero config resolves inherit/inherit for every one of the 17 adapters", () => {
+    const specs = listAgentAdapterSpecs(ROOT);
+    const z = zeroConfigAssignments(specs);
+    expect(z.models.size).toBe(17);
+    expect([...new Set(z.models.values())]).toEqual(["inherit"]);
+    expect([...new Set(z.efforts.values())]).toEqual(["inherit"]);
+    expect(presetGovernedStems(specs)).toEqual(kitStems());
+    expect(configKeyStems(specs)).toEqual(kitStems());
+  });
+
+  it("configKeyStems and presetGovernedStems on the levels mirror", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    expect(presetGovernedStems(specs)).toEqual(kitStems().filter((s) => s !== "software-engineer"));
+    expect(configKeyStems(specs)).toEqual(
+      [...kitStems(), "software-engineer-junior", "software-engineer-mid", "software-engineer-senior"].sort(),
+    );
+    expect(resolveAdapterAssignments(specs, {
+      preset: "none",
+      overrides: new Map(),
+      effort: { preset: "none", overrides: new Map() },
+      source: null,
+    }).ok).toBe(true);
   });
 });

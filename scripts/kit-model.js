@@ -88,11 +88,17 @@
 // two-sided count check — lives in a GUARD (guard_kit_counts), because there continuing is safe and
 // CI going red is the right signal. This module NEVER calls process.exit: it is imported, not run.
 //
-// Node stdlib ONLY — node:fs + node:path. Zero npm dependencies.
+// Node stdlib ONLY — node:fs + node:path — plus the in-repo frontmatter authority
+// (./frontmatter.js, which itself imports nothing). Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
 import { readdirSync, readFileSync, statSync, realpathSync, existsSync, } from "node:fs";
 import { join } from "node:path";
+// The one frontmatter authority (plan 39-01). listAgentAdapterSpecs reads each role's `levels` key
+// through it rather than through a local line parser: a third frontmatter grammar is pinned red by
+// the D-50 IN-05 case in scripts/frontmatter.test.ts. frontmatter.ts imports nothing, so this edge
+// cannot close a cycle.
+import { parseFrontmatter } from "./frontmatter.js";
 // The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 16 roles is a
 // failure and 18 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
 // author to walk every derived consumer first — that walk is the whole point of the constant.
@@ -776,6 +782,124 @@ export function listAgentAdapters(kitRoot = DEFAULT_KIT_ROOT) {
         .filter((rel) => rel.endsWith(MARKDOWN_EXT))
         .sort();
     return refuseEmpty(files, dir, "agent adapter");
+}
+// ---------------------------------------------------------------------------
+// AGENT ADAPTER IDENTITY — one derivation, read by every consumer (plan 39-01, TIER-02, D-13)
+// ---------------------------------------------------------------------------
+//
+// WHAT THIS ANSWERS. Which agent adapters the role corpus implies, and for each one its name, its
+// adapter stem, the role stem it groups under, the role file it comes from and its level. A role
+// that declares no `levels` key implies ONE adapter, `grugops-<stem>`, with level null. A role whose
+// frontmatter carries `levels: junior mid senior` implies one adapter PER LEVEL,
+// `grugops-<stem>-<level>`, and NO base adapter (D-13: the level adapters replace it).
+//
+// WHY IT IS DERIVED FROM THE ROLE FILES AND NOT FROM `.claude/agents`. The adapter tree is generated
+// output; the role corpus is the source. listAgentAdapters above answers "which adapter files exist
+// on disk"; this answers "which adapter files SHOULD exist". The KIT-03 oracle compares the two, so
+// they must be two independent derivations, never one reading the other.
+//
+// WHAT THIS MODULE DOES NOT VALIDATE. Whether a level token names a row of the LEVELS table lives in
+// scripts/model-tiers.ts, because model-tiers imports this module (ROLE_COUNT) and the reverse edge
+// would be a cycle. Here a token is held only to the SHAPE that keeps it safe as a file name and as a
+// YAML value: lower-case kebab.
+//
+// FAIL CLOSED (D-21 tier 1, this module's floor). Every malformed declaration THROWS naming the role
+// file: an unreadable frontmatter, `levels` present more than once, an empty value, a repeated token,
+// a token outside lower-case kebab, and an expanded name that equals — after lower-casing — a name
+// another role already produced (both files are named). Names are compared by exact string equality
+// and collisions case-folded, so two roles cannot claim one adapter file on a case-insensitive
+// filesystem (TIER-06).
+// The one declaration of the agent adapter namespace. Plan 39-02 deletes the two private copies in
+// scripts/generate-role-adapters.ts and scripts/check-foundation-guards.ts.
+export const AGENT_ADAPTER_PREFIX = "grugops-";
+// The role frontmatter key that expands one role into level adapters.
+const LEVELS_KEY = "levels";
+// The exact number of roles that declare `levels`. Two-sided like ROLE_COUNT: it moves only by a
+// deliberate edit that walks every consumer of the adapter derivation first. Plan 39-07 moves it to 1
+// when software-engineer.md declares its levels; until then no role declares any.
+export const LEVELED_ROLE_COUNT = 0;
+// One or more groups of a-z and 0-9 joined by single hyphens. Nothing else can reach an adapter name,
+// so no path separator, quote, colon or upper-case byte can arrive in a file name or a YAML value.
+function isLowerKebab(token) {
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(token);
+}
+// The declared levels of one role: null when the key is absent, otherwise the validated tokens.
+function declaredLevels(path, text) {
+    const parsed = parseFrontmatter(text);
+    if (!parsed.ok) {
+        throw new Error(`kit-model: cannot read the frontmatter of role file ${path}: ${parsed.reason}`);
+    }
+    const occurrences = parsed.value.get(LEVELS_KEY);
+    if (occurrences === undefined)
+        return null;
+    if (occurrences.length !== 1) {
+        throw new Error(`kit-model: role file ${path} declares \`${LEVELS_KEY}\` ${String(occurrences.length)} times — ` +
+            "refusing to pick one, because the discarded declaration's adapters would vanish with no error. " +
+            "Remedy: keep exactly one `levels` line.");
+    }
+    const tokens = occurrences[0].split(/\s+/).filter((t) => t.length > 0);
+    if (tokens.length === 0) {
+        throw new Error(`kit-model: role file ${path} declares \`${LEVELS_KEY}\` with an EMPTY value — refusing, because ` +
+            "a role with no levels and a role with zero levels are different statements and only the " +
+            "first one means one adapter. Remedy: list the levels, or remove the key.");
+    }
+    const seen = new Set();
+    for (const token of tokens) {
+        if (!isLowerKebab(token)) {
+            throw new Error(`kit-model: role file ${path} declares the level ${JSON.stringify(token)}, which is not ` +
+                "lower-case kebab (one or more groups of a-z and 0-9 joined by single hyphens). A level " +
+                "becomes part of an adapter file name and a YAML value, so its shape is closed. Remedy: " +
+                "correct the level.");
+        }
+        if (seen.has(token)) {
+            throw new Error(`kit-model: role file ${path} declares the level ${JSON.stringify(token)} more than once — ` +
+                "refusing a repeated level rather than collapsing it. Remedy: list each level once.");
+        }
+        seen.add(token);
+    }
+    return tokens;
+}
+// Byte order, never locale order, so the sorted list is identical on every host.
+function byName(a, b) {
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+}
+// Every agent adapter the role corpus implies, sorted by name. See the section header above.
+export function listAgentAdapterSpecs(kitRoot = DEFAULT_KIT_ROOT) {
+    const dir = join(kitRoot, ROLES_SUBPATH);
+    const specs = [];
+    // Lower-cased adapter name -> the role file that produced it, for the case-folded collision check.
+    const claimedBy = new Map();
+    for (const roleFile of listRoles(kitRoot)) {
+        const path = join(dir, roleFile);
+        let text;
+        try {
+            text = readFileSync(path, "utf8");
+        }
+        catch {
+            throw new Error(`kit-model: cannot read role file ${path}`);
+        }
+        const roleStem = roleFile.slice(0, -MARKDOWN_EXT.length);
+        const levels = declaredLevels(path, text);
+        for (const level of levels ?? [null]) {
+            const adapterStem = level === null ? roleStem : `${roleStem}-${level}`;
+            const name = `${AGENT_ADAPTER_PREFIX}${adapterStem}`;
+            const folded = name.toLowerCase();
+            const other = claimedBy.get(folded);
+            if (other !== undefined) {
+                throw new Error(`kit-model: the adapter name "${name}" from role file ${path} collides with an adapter name ` +
+                    `from role file ${join(dir, other)} (compared after lower-casing, because a ` +
+                    "case-insensitive filesystem holds one file for both). Remedy: rename a level or a role.");
+            }
+            claimedBy.set(folded, roleFile);
+            specs.push({ name, adapterStem, roleStem, roleFile, level });
+        }
+    }
+    return specs.sort(byName);
+}
+// The adapter names alone, sorted. On a tree where no role declares levels this equals
+// listAgentAdapters() with the markdown extension removed.
+export function listAgentAdapterNames(kitRoot = DEFAULT_KIT_ROOT) {
+    return listAgentAdapterSpecs(kitRoot).map((s) => s.name);
 }
 // The skill-adapter corpus: every file NAMED `SKILL.md` beneath `.claude/skills` AT ANY DEPTH, as
 // forward-slash relative paths, sorted by the full relative path. 7 files today, each one level down

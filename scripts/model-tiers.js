@@ -141,7 +141,7 @@
 // voice discipline makes clear voice mandatory for money, security and compliance — never caveman.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ROLE_COUNT } from "./kit-model.js";
+import { LEVELED_ROLE_COUNT, ROLE_COUNT } from "./kit-model.js";
 // ── The closed alias vocabulary ───────────────────────────────────────────────────────────────
 //
 // The TUPLE is the declaration and the UNION is derived from it, rather than both being typed out.
@@ -995,7 +995,7 @@ export const TIERED = [
 // two counts should still derive the sets. What this library enforces instead is the strictly
 // STRONGER per-stem check: every stem handed to the resolver has a row, and an unassigned stem is
 // NAMED rather than reported as a number that disagrees.
-export const MODEL_TIERS_COUNT = ROLE_COUNT;
+export const MODEL_TIERS_COUNT = ROLE_COUNT - LEVELED_ROLE_COUNT;
 // The ONE vacuity sentence, declared once and returned by both table predicates below. An empty
 // table and a SHORT table are different facts and must not share a sentence; an empty table and an
 // empty table must not have two.
@@ -1114,6 +1114,12 @@ export function tieredTableRefusals(table = TIERED) {
  * UNCONDITIONALLY rather than on the tiered path, because this repository's own tree resolves the
  * zero-config preset and a tiered-only call would never execute in continuous integration. Do not
  * narrow that call to the tiered path; the reasoning is recorded at the call site.
+ *
+ * THE CORPUS IT JUDGES IS THE PRESET-GOVERNED STEM LIST (plan 39-01). `stems` is
+ * `presetGovernedStems(specs)` — the role stems that declare no `levels` — because a level adapter
+ * never reads a preset (D-16), so a TIERED row for a leveled role would be a second answer to one
+ * fact. While no role declares levels the preset-governed stems equal the role stems, which is what
+ * the guard's call site still passes until plan 39-02 switches it to the derived list.
  */
 export function tieredCorpusRefusals(stems, table = TIERED) {
     if (table.length === 0)
@@ -1147,6 +1153,42 @@ export function tieredCorpusRefusals(stems, table = TIERED) {
     }
     return findings;
 }
+export const LEVELS = [
+    {
+        level: "junior",
+        alias: "haiku",
+        effort: "medium",
+        rationale: "Takes only work whose plan already fixes what to write and that carries no risk tag, so the " +
+            "behavior gate checks all of it. A thinner model degrades into that gate rather than past it, " +
+            "and security, migration, concurrency and test-integrity work never reaches this level.",
+        effortRationale: "The plan already states what to write and the behavior gate checks the result, so moderate " +
+            "reasoning depth suits work whose decisions were made upstream and whose errors are caught " +
+            "rather than shipped.",
+    },
+    {
+        level: "mid",
+        alias: "sonnet",
+        rationale: "Takes work that follows a known pattern in the codebase but leaves the approach open. The " +
+            "pattern bounds the choices and the correctness gate and review check the result, so the " +
+            "middle tier carries enough judgment to pick an approach while the pattern catches a poor pick.",
+        effort: "medium",
+        effortRationale: "Follows a known pattern with the approach left open, so moderate reasoning depth suits " +
+            "judgment that the pattern bounds and the gates and review check.",
+    },
+    {
+        level: "senior",
+        alias: "opus",
+        effort: "high",
+        rationale: "Takes cross-module, risk-bearing or novel work, where a judgment error passes the correctness " +
+            "gate: the tests check what was built, not whether it was the right thing to build across a " +
+            "module boundary. That is the harm the strongest tier exists to prevent.",
+        effortRationale: "Takes cross-module, risk-bearing or novel work where a judgment error passes the correctness " +
+            "gate, so deeper reasoning goes where a decision is made that no later gate re-asks.",
+    },
+];
+// The level table's exact cardinality, pinned beside the table. Two-sided: it moves only when a level
+// is deliberately added or removed, together with its row and every consumer of the adapter set.
+export const LEVEL_COUNT = 3;
 /**
  * Resolve a model alias for every role stem the caller derived.
  *
@@ -1602,6 +1644,179 @@ function zeroConfigModels(source) {
 /** The zero-config effort sub-block: preset `none`, no overrides. One implementation, two callers. */
 function zeroConfigEffort() {
     return { preset: "none", overrides: new Map() };
+}
+// ── PER-ADAPTER RESOLUTION (plan 39-01, TIER-02, TIER-06; D-14, D-15, D-16) ────────────────────
+//
+// The answer every consumer reads once a role can declare levels: a model and an effort for EVERY
+// agent adapter, keyed by adapter stem. A non-level adapter resolves exactly as before, through
+// resolveModels and resolveEfforts over the preset-governed stems. A level adapter resolves through
+// one chain and no preset:
+//
+//   models.roles["<role>-<level>"]  else  models.roles["<role>"]  else  the LEVELS row's alias
+//
+// and the same chain through models.effort.roles for effort (D-15, D-16).
+/** Unique role stems of the specs that declare no level, sorted: the stems a preset governs. */
+export function presetGovernedStems(specs) {
+    return [...new Set(specs.filter((s) => s.level === null).map((s) => s.roleStem))].sort();
+}
+/**
+ * The legal `models.roles` / `models.effort.roles` key set (D-15): every role stem plus the adapter
+ * stem of every level spec, unique, sorted. Derived from the specs, so it is never typed by hand;
+ * this is the stem list a caller hands to readModelsConfig.
+ */
+export function configKeyStems(specs) {
+    const keys = new Set();
+    for (const s of specs) {
+        keys.add(s.roleStem);
+        if (s.level !== null)
+            keys.add(s.adapterStem);
+    }
+    return [...keys].sort();
+}
+// Split one overrides map into the entries a preset-governed stem owns and the rest.
+function splitOverrides(overrides, governed) {
+    const out = { governed: new Map(), rest: new Map() };
+    for (const [key, value] of overrides)
+        (governed.has(key) ? out.governed : out.rest).set(key, value);
+    return out;
+}
+// A Map with its keys in byte order, so no caller's argument order reaches an emit path.
+function sortedMap(entries) {
+    return new Map([...entries].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+/**
+ * Resolve a model alias and an effort level for every adapter spec.
+ *
+ * PURE: no file, no environment variable, no path. Refuses, naming what was wrong: an empty spec set,
+ * a repeated adapter stem, an override key outside configKeyStems(specs), an illegal override value
+ * for a level adapter, a level with no LEVELS row (naming the level, the role file and the legal
+ * levels), and every refusal resolveModels or resolveEfforts gives over the preset-governed stems.
+ */
+export function resolveAdapterAssignments(specs, config) {
+    if (specs.length === 0) {
+        return {
+            ok: false,
+            reason: "model-tiers: the adapter spec set is EMPTY — refusing to resolve a model for no adapter. A " +
+                "resolution over nothing reports a clean assignment and carries no information about the " +
+                "adapters it was supposed to cover.",
+        };
+    }
+    const seen = new Set();
+    for (const s of specs) {
+        if (seen.has(s.adapterStem)) {
+            return {
+                ok: false,
+                reason: `model-tiers: the adapter stem ${quoteValue(s.adapterStem)} appears more than once in the ` +
+                    "spec set — refusing a duplicated adapter rather than letting the last occurrence win.",
+            };
+        }
+        seen.add(s.adapterStem);
+    }
+    if (!isPresetName(config.preset)) {
+        return {
+            ok: false,
+            reason: `model-tiers: ${quoteValue(config.preset)} is not a legal preset name. The legal set is ` +
+                `exactly: ${PRESET_NAMES.map((n) => `"${n}"`).join(", ")}.`,
+        };
+    }
+    if (!isEffortPresetName(config.effort.preset)) {
+        return {
+            ok: false,
+            reason: `model-tiers: ${quoteValue(config.effort.preset)} is not a legal effort preset name. The ` +
+                `legal set is exactly: ${EFFORT_PRESET_NAMES.map((n) => `"${n}"`).join(", ")}.`,
+        };
+    }
+    const legalKeys = configKeyStems(specs);
+    const legalKeySet = new Set(legalKeys);
+    for (const [dial, overrides] of [
+        ["models.roles", config.overrides],
+        ["models.effort.roles", config.effort.overrides],
+    ]) {
+        for (const key of [...overrides.keys()].sort()) {
+            if (legalKeySet.has(key))
+                continue;
+            return {
+                ok: false,
+                reason: `model-tiers: \`${dial}\` names ${quoteValue(key)}, which is not a role stem or a level ` +
+                    `adapter stem of this corpus. The legal set is exactly: ` +
+                    `${legalKeys.map((k) => quoteValue(k)).join(", ")}. An override this resolver drops is a ` +
+                    "setting the caller believes they made and did not, so it is refused rather than skipped.",
+            };
+        }
+    }
+    const governedList = presetGovernedStems(specs);
+    const governed = new Set(governedList);
+    const modelSplit = splitOverrides(config.overrides, governed);
+    const effortSplit = splitOverrides(config.effort.overrides, governed);
+    const models = new Map();
+    const efforts = new Map();
+    if (governedList.length > 0) {
+        const m = resolveModels(governedList, { preset: config.preset, overrides: modelSplit.governed });
+        if (!m.ok)
+            return m;
+        const e = resolveEfforts(governedList, {
+            preset: config.effort.preset,
+            overrides: effortSplit.governed,
+        });
+        if (!e.ok)
+            return e;
+        for (const [stem, alias] of m.value)
+            models.set(stem, alias);
+        for (const [stem, level] of e.value)
+            efforts.set(stem, level);
+    }
+    const rowByLevel = new Map(LEVELS.map((row) => [row.level, row]));
+    for (const s of specs) {
+        if (s.level === null)
+            continue;
+        const row = rowByLevel.get(s.level);
+        if (row === undefined) {
+            return {
+                ok: false,
+                reason: `model-tiers: role file ${quoteValue(s.roleFile)} declares the level ${quoteValue(s.level)}, ` +
+                    "which has no row in the LEVELS table. The legal levels are exactly: " +
+                    `${LEVELS.map((r) => quoteValue(r.level)).join(", ")}. Remedy: correct the level; a new ` +
+                    "level is a source change in scripts/model-tiers.ts with its own rationale, not a value a " +
+                    "role file can invent.",
+            };
+        }
+        const alias = modelSplit.rest.get(s.adapterStem) ?? modelSplit.rest.get(s.roleStem) ?? row.alias;
+        if (!isModelAlias(alias)) {
+            return {
+                ok: false,
+                reason: `model-tiers: the override for level adapter ${quoteValue(s.adapterStem)} is ` +
+                    `${quoteValue(alias)}, which is not a legal model alias. The legal set is exactly: ` +
+                    `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}.`,
+            };
+        }
+        const effort = effortSplit.rest.get(s.adapterStem) ?? effortSplit.rest.get(s.roleStem) ?? row.effort;
+        if (!isEffortLevel(effort)) {
+            return {
+                ok: false,
+                reason: `model-tiers: the effort override for level adapter ${quoteValue(s.adapterStem)} is ` +
+                    `${quoteValue(effort)}, which is not a legal effort level. The legal set is exactly: ` +
+                    `${EFFORT_LEVELS.map((l) => `"${l}"`).join(", ")}.`,
+            };
+        }
+        models.set(s.adapterStem, alias);
+        efforts.set(s.adapterStem, effort);
+    }
+    return { ok: true, value: { models: sortedMap(models), efforts: sortedMap(efforts) } };
+}
+/**
+ * The zero-config per-adapter answer: resolveAdapterAssignments over the zero-config ModelsConfig
+ * (preset none, no overrides, zero-config effort, source null). Every non-level adapter is
+ * `inherit`/`inherit` and every level adapter carries its LEVELS pin. One implementation: this calls
+ * the resolver rather than restating it, and throws only if that call refuses.
+ */
+export function zeroConfigAssignments(specs) {
+    const zero = zeroConfigModels(null);
+    if (!zero.ok)
+        throw new Error(`model-tiers: the zero-config answer refused: ${zero.reason}`);
+    const r = resolveAdapterAssignments(specs, zero.value);
+    if (!r.ok)
+        throw new Error(`model-tiers: the zero-config adapter assignment refused: ${r.reason}`);
+    return r.value;
 }
 /**
  * A JSON value's shape, in words, so a refusal can name what it found rather than what it wanted.

@@ -903,6 +903,13 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // DECLARATIVE index lists, no verdict-bearing symbol, no private fence state and no heading
     // grammar of its own. Re-derived rather than incremented: `git ls-files -z '*.ts' | xargs -0
     // grep -l 'from "./frontmatter.js"'` minus test files reports twelve with this module tracked.
+    //
+    // (Plan 39-01, TIER-02) AND FROM TWELVE TO THIRTEEN, SAME DIRECTION. `kit-model.ts`, which the
+    // paragraph above records as only MENTIONING the module, now imports exactly ONE symbol —
+    // `parseFrontmatter`, the transformation, which is deliberately outside GRANT_PREDICATES — to read
+    // a role file's `levels` key for the agent adapter derivation (listAgentAdapterSpecs). It takes no
+    // verdict-bearing symbol and carries no private line parser: reading the key through the one
+    // authority is the point, because a local grammar would be the third grammar D-50 IN-05 pins red.
     expect(consumers).toEqual([
       "audit-model.ts",
       "canonical-frontmatter.ts",
@@ -915,8 +922,13 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "generate-catalog.ts",
       "generate-role-adapters.ts",
       "generate-skill-twins.ts",
+      "kit-model.ts",
       "voice-model.ts",
     ]);
+    expect(
+      importedSymbols("kit-model.ts", "frontmatter"),
+      "kit-model.ts takes the transformation only — never a grant predicate (plan 39-01)",
+    ).toEqual(["parseFrontmatter"]);
     // (Plan 29-35) …and `generate-catalog.ts`'s OWN set, pinned like every other locator consumer's.
     //
     // (Plan 29-40, G-29-1 / V-29-35-01) THE SET MOVED FROM TWO SYMBOLS TO THE SIBLING'S THREE, AND
