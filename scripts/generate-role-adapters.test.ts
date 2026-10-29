@@ -62,6 +62,8 @@ import {
 // through this file's convenience helpers.
 import {
   admit,
+  admitRole,
+  roleSkillsOf,
   admittedGrantedNames,
   admittedGrantValues,
 } from "./canonical-frontmatter.js";
@@ -2227,5 +2229,34 @@ describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)
     writeFileSync(p, next, "utf8");
     expectRefusal(m, "orchestrator.md: the coordinator role declares `levels`");
     expectRefusal(m, "belong to exactly one adapter");
+  });
+});
+
+describe("generate-role-adapters.js — a role's skills declaration never reaches an adapter (plan 39-04, TIER-07, D-28)", () => {
+  // Claude Code preloads the skill text named by an adapter's `skills:` field into the sub-agent,
+  // which Phase 42 forbids. So a role may declare skills, and the generator must not copy them.
+  it("a scratch software-engineer.md declaring skills generates, and no adapter carries a skills line", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const se = join(m, "agent-factory", "roles", "software-engineer.md");
+    const text = readFileSync(se, "utf8");
+    const planted = text.replace(/^(capabilities: .*)$/m, "$1\nskills: frontend-design");
+    expect(planted, "the plant must land in the frontmatter").not.toBe(text);
+    writeFileSync(se, planted, "utf8");
+
+    // PREMISE: the planted role really declares the skill under the role grammar.
+    const a = admitRole(planted);
+    expect(a.ok, a.ok ? "" : `[${a.code}] ${a.reason}`).toBe(true);
+    if (a.ok) expect(roleSkillsOf(a.value)).toEqual({ ok: true, value: ["frontend-design"] });
+
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    const written = readdirSync(agentsDir(m)).filter((f) => f.endsWith(".md")).sort();
+    expect(written).toEqual(listAgentAdapterNames(m).map((n) => `${n}.md`).sort());
+    for (const f of written) {
+      const adapter = readFileSync(join(agentsDir(m), f), "utf8");
+      expect(adapter, `${f} must carry no skills line`).not.toMatch(/^skills:/m);
+      const ad = admit(adapter);
+      expect(ad.ok, ad.ok ? "" : `${f}: [${ad.code}] ${ad.reason}`).toBe(true);
+    }
   });
 });

@@ -31,6 +31,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  listAgentAdapterNames,
   listAgentAdapters,
   listRoleDirEntries,
   listRoles,
@@ -243,10 +244,12 @@ describe("canonical-frontmatter: two-sided cardinality over the live spawn-grant
     expect(derivedStems).toContain("orchestrator");
 
     const configured = configuredGeneratorCorpus();
+    // (Plan 39-04) One adapter per derived adapter NAME, not per role: a leveled role emits one
+    // adapter per level, so ROLE_COUNT stops being the emitted count as soon as a role has levels.
     expect(
       configured.files.length,
-      "the configured generator run must emit one adapter per derived role",
-    ).toBe(ROLE_COUNT);
+      "the configured generator run must emit one adapter per derived adapter name",
+    ).toBe(listAgentAdapterNames().length);
     const configuredAdmitted: Admitted[] = [];
     const configuredRefusals: string[] = [];
     for (const f of configured.files) {
@@ -990,5 +993,99 @@ describe("canonical-frontmatter: role frontmatter and the skills key (TIER-07)",
     expect(notInCorpus, `ROLE_SCHEMA carries key(s) no role file or fixture uses: ${notInCorpus.join(", ")}`).toEqual([]);
     expect([...ROLE_SCHEMA]).toEqual([...ROLE_SCHEMA].sort());
     expect(Object.isFrozen(ROLE_SCHEMA)).toBe(true);
+  });
+
+  // ── (Task 2) The refusals. Each malformed declaration is refused BY NAME. ──────────────────────
+  //
+  // A minimal role document: the live role shape plus one planted line. The unplanted document is
+  // admitted, so each refusal below is about the planted line and nothing else.
+  const roleDoc = (planted: string[]): string =>
+    ["---", "kind: role", "tier: core", "capabilities: read", ...planted, "---", "", "# Role: probe", ""].join("\n");
+
+  it("skills: the unplanted probe role is admitted and declares no skills (the control for every refusal below)", () => {
+    const a = admitRole(roleDoc([]));
+    expect(a.ok).toBe(true);
+    if (a.ok) expect(roleSkillsOf(a.value)).toEqual({ ok: true, value: [] });
+  });
+
+  it.each([
+    ["a flow list", "skills: [a, b]", "flow-collection"],
+    ["a plugin-namespaced name", "skills: superpowers:test-driven-development", "plain-scalar-charset"],
+    ["a bare key", "skills:", "dangling-empty-key"],
+    ["a double-quoted scalar", 'skills: "a b"', "quoted-on-plain-only-key"],
+  ] as const)("skills: admitRole refuses %s with code %s", (_label, line, code) => {
+    const a = admitRole(roleDoc([line]));
+    expect(a.ok).toBe(false);
+    if (!a.ok) expect(a.code).toBe(code);
+  });
+
+  // The accepted form, named in every roleSkillsOf refusal reason.
+  const ACCEPTED_FORM = /one line, `skills: ` followed by lower-case kebab names separated by single spaces/;
+
+  it.each([
+    ["a repeated name", ["skills: a a"], /names `a` more than once/],
+    ["a name that is not lower-case kebab", ["skills: Frontend-Design"], /`Frontend-Design`, which is not a lower-case kebab name/],
+    ["two adjacent spaces (an empty name)", ["skills: a  b"], /carries ``, which is not a lower-case kebab name/],
+    ["a block sequence", ["skills:", "  - a"], /written as a block sequence/],
+  ] as const)("skills: roleSkillsOf refuses %s, naming the accepted form", (_label, lines, why) => {
+    const a = admitRole(roleDoc([...lines]));
+    expect(a.ok, a.ok ? "" : `the grammar must admit this shape so roleSkillsOf decides it: [${a.code}] ${a.reason}`).toBe(true);
+    if (!a.ok) return;
+    const s = roleSkillsOf(a.value);
+    expect(s.ok).toBe(false);
+    if (!s.ok) {
+      expect(s.reason).toMatch(why);
+      expect(s.reason).toMatch(ACCEPTED_FORM);
+    }
+  });
+
+  it("skills: roleSkillsOf refuses a double-quoted value even when handed one directly, naming the accepted form", () => {
+    // admitRole already refuses a quoted `skills` value (quoted-on-plain-only-key, above); the
+    // projection refuses the shape on its own too, so it never depends on the grammar's quote table.
+    const doc: AdmittedDocument = new Map([["skills", { kind: "scalar", value: "a b", quoted: true }]]);
+    const s = roleSkillsOf(doc);
+    expect(s.ok).toBe(false);
+    if (!s.ok) {
+      expect(s.reason).toMatch(/double-quoted scalar/);
+      expect(s.reason).toMatch(ACCEPTED_FORM);
+    }
+  });
+
+  // ── (Task 2, D-28) The adapter authority did not move. ─────────────────────────────────────────
+  it("skills: CANONICAL_SCHEMA is still the eleven adapter keys, and admit() refuses an adapter carrying a skills line as unknown-key (D-28)", () => {
+    expect([...CANONICAL_SCHEMA]).toEqual([
+      "allowed-tools",
+      "argument-hint",
+      "coordinator",
+      "description",
+      "disable-model-invocation",
+      "effort",
+      "kind",
+      "model",
+      "name",
+      "tier",
+      "tools",
+    ]);
+    expect(CANONICAL_SCHEMA.includes("skills")).toBe(false);
+
+    // A live adapter, admitted unplanted (the control), then with one `skills:` line planted after
+    // the opening delimiter.
+    const rel = listAgentAdapters(ROOT)[0] as string;
+    expect(rel, "the live adapter corpus must not be empty").toBeDefined();
+    const text = readFileSync(join(ROOT, ".claude", "agents", rel), "utf8");
+    const control = admit(text);
+    expect(control.ok, control.ok ? "" : `[${control.code}] ${control.reason}`).toBe(true);
+    const planted = text.replace(/^---\n/, "---\nskills: frontend-design\n");
+    expect(planted).not.toBe(text);
+    const a = admit(planted);
+    expect(a.ok).toBe(false);
+    if (!a.ok) {
+      expect(a.code).toBe("unknown-key");
+      expect(a.reason).toContain("`skills`");
+    }
+    // The same line is admitted under the role key set, so the refusal above is the adapter
+    // schema's doing and not the line's.
+    const r = admitRole(roleDoc(["skills: frontend-design"]));
+    expect(r.ok).toBe(true);
   });
 });

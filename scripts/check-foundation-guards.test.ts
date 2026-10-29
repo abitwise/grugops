@@ -8487,6 +8487,35 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(section.some((l) => l.includes("ROLE_CEILINGS has no key"))).toBe(false);
   }, 120_000);
 
+  // ── (Plan 39-04, TIER-07) guard_role_frontmatter: every roles-directory file is admitted. ──────
+  //
+  // The section is attributed by its banner. The control is the unplanted consistent mirror; the
+  // plant is one flow-list `skills:` line in qe-e2e.md's frontmatter, which the canonical grammar
+  // refuses at the node start with code flow-collection.
+  const ROLE_FM_PASS = /^ {2}PASS {2}\d+ roles-directory file\(s\) admitted under ROLE_SCHEMA/;
+
+  it("guard_role_frontmatter: the unplanted mirror is green, and a roles-directory file whose skills is a flow list is red naming that file (TIER-07)", () => {
+    const green = runIn(consistentMirror());
+    expect(green.status, out(green)).toBe(0);
+    const greenSection = guardSection(out(green), "guard_role_frontmatter");
+    expect(greenSection.filter((l) => ROLE_FM_PASS.test(l))).toHaveLength(1);
+    expect(greenSection.some((l) => l.includes("FAIL"))).toBe(false);
+
+    const m = consistentMirror();
+    const target = rolePath(m, "qe-e2e.md");
+    const text = readFileSync(target, "utf8");
+    const planted = text.replace(/^(capabilities: .*)$/m, "$1\nskills: [a]");
+    expect(planted, "the plant must land in the frontmatter").not.toBe(text);
+    writeFileSync(target, planted, "utf8");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = guardSection(out(r), "guard_role_frontmatter");
+    const fails = section.filter((l) => l.startsWith("  FAIL"));
+    expect(fails).toHaveLength(1);
+    expect(fails[0]).toContain(`${roleRel("qe-e2e.md")}: role frontmatter refused [flow-collection]`);
+    expect(section.some((l) => ROLE_FM_PASS.test(l))).toBe(false);
+  }, 120_000);
+
   // ── Phase 19 Tier-1 oracle wiring (UAT-AUTO-05 / BLOCKER 1) — the aggregator must FAIL CLOSED. ──
   // Break a single Tier-1 input in the mirror and prove the aggregator goes red — i.e. `node
   // scripts/check-foundation-guards.js` exits non-zero when any one Tier-1 oracle fails, proving it
