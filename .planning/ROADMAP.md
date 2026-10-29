@@ -446,7 +446,37 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+**Wave 1**
+- [ ] 39-01-PLAN.md — Adapter-spec derivation (`levels:` via parseFrontmatter), `LEVELS` table, per-adapter model/effort resolution and zero-config map; live tree unchanged
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 39-02-PLAN.md — Generator 1:N, KIT-03, model/effort guards and freshness gate switched to the derivation; levels mirror green, wrong shapes red
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 39-03-PLAN.md — `ROLE_CEILINGS` keyed table (two-sided), derived test counts, MODEL-01 baseline re-pinned to the Phase 39 start commit by recorded decision
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 39-04-PLAN.md — `skills:` role grammar: `ROLE_SCHEMA`, `admitRole`, `roleSkillsOf`, role-frontmatter guard, fixture; adapter schema unchanged
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 39-05-PLAN.md — Tech Lead role + complexity rubric checklist, Designer role, all derived counts moved once (19 roles)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 39-06-PLAN.md — Engineer levels on: `levels: junior mid senior`, `## Levels`, three pinned adapters, base adapter removed, D-2 record and dial docs
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 39-07-PLAN.md — WF04 Tech Lead step, named dispatch, escalation path and stop bullets; compact Orchestrator routing (no growth)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 39-08-PLAN.md — WF14 Designer step and cadence; Frontend/UI reads the Designer's tokens; missing-token stop
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 39-09-PLAN.md — Installer stale-adapter report (install, --check, --dry-run; ledger carry), install docs for the levels and the v2.1.293 floor, phase gate
+
+Waves are sequential: every plan rebuilds the committed `.js` and most move a shared count pin, so two plans in one wave would race on the build output.
 **Research flag**: plan with `--research-phase` (kit-model variant mechanism, config namespace for level stems, `CANONICAL_SCHEMA` list grammar for `skills:`, per-host model-field semantics, `effort` on haiku).
 **Notes**: D-2, D-3, D-5 and D-9 (no `level` ticket key). Counts move once here so Phase 40 writes under a stable ceiling table; research expects roles 17 → 19 and adapters 17 → 21, which the guards must derive, not type. Tier rationales are quality arguments only. Budget extra gap rounds under the four-round cap.
 
