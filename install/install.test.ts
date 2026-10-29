@@ -12197,3 +12197,120 @@ describe("MSG-1: install-side messages name a command or a README section (D-26)
     }
   }, 240_000);
 });
+
+// ── THE ADAPTER A NEWER KIT NO LONGER SHIPS (plan 39-10, D-13, T-39-18..20) ──────────────────────
+//
+// Phase 39 retired `.claude/agents/grugops-software-engineer.md`. A host repository installed before
+// it keeps that file: the generator only writes, and install's adapter set comes from the kit source,
+// so nothing named it. Claude Code still loads it, and on the Reduced tier the coordinator can spawn it.
+// install, `--dry-run` and `--check` now name every kit-true adapter the previous install ledger
+// records and this kit source does not ship. They never delete it; a still-held record is carried, so
+// uninstall can still remove it.
+//
+// THE OLDER KIT IS REAL, NOT FORGED. `retiredProbeSource` copies this checkout's kit inputs and adds
+// one role, `retired-probe.md` (system-analyst.md with its title changed), and its adapter. The
+// install-time render then really produces `grugops-retired-probe.md`, so the first install writes
+// and records it exactly as an older kit wrote the retired engineer adapter. No ledger is edited by
+// hand. The stale set is derived by the installer; the probe name lives only in this fixture.
+//
+// HOME is a scratch directory on every run, beside GRUGOPS_HOME and TARGET.
+describe("install.js — an adapter this kit version no longer ships (plan 39-10, D-13)", () => {
+  const PROBE_REL = ".claude/agents/grugops-retired-probe.md";
+
+  function retiredProbeSource(): string {
+    const src = realpathSync(mkTmp());
+    for (const rel of ["agent-factory", ".claude", "AGENTS.md", "scripts/runnable-ref", ...SYNTH_GENERATOR_TWINS]) {
+      cpSync(join(REPO_ROOT, ...rel.split("/")), join(src, ...rel.split("/")), { recursive: true });
+    }
+    const role = readFileSync(join(REPO_ROOT, "agent-factory", "roles", "system-analyst.md"), "utf8");
+    const probeRole = role.replace("# Role: System Analyst", "# Role: Retired Probe");
+    expect(probeRole, "premise: the copied role has a title to change").not.toBe(role);
+    writeFileSync(join(src, "agent-factory", "roles", "retired-probe.md"), probeRole);
+    const adapter = readFileSync(join(REPO_ROOT, ".claude", "agents", "grugops-system-analyst.md"), "utf8");
+    const probeAdapter = adapter.replaceAll("grugops-system-analyst", "grugops-retired-probe").replaceAll("roles/system-analyst.md", "roles/retired-probe.md");
+    expect(probeAdapter, "premise: the copied adapter has a name to change").not.toBe(adapter);
+    writeFileSync(join(src, ...PROBE_REL.split("/")), probeAdapter);
+    return src;
+  }
+
+  type Run = { status: number | null; stdout: string; stderr: string };
+  function run(bin: string, src: string, target: string, home: string, userHome: string, args: readonly string[]): Run {
+    const r = spawnSync("node", [bin, ...args], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, HOME: userHome, TARGET: target },
+    });
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  }
+  const install = (src: string, t: { target: string; home: string; userHome: string }, ...args: string[]): Run =>
+    run(INSTALL_JS, src, t.target, t.home, t.userHome, ["--yes", ...withAgentFlags(args)]);
+  const uninstall = (t: { target: string; home: string; userHome: string }): Run => run(UNINSTALL_JS, REPO_ROOT, t.target, t.home, t.userHome, []);
+  const recordOf = (target: string, rel: string): RawEntry[] => markerLedger(target).filter((e) => e.path === rel && e.kind === "file");
+  const findingLines = (out: string): string[] => out.split("\n").filter((l) => l.includes("no longer ships"));
+
+  // The older install: the probe kit installed into a fresh target, with its premises checked.
+  function olderInstall(): { target: string; home: string; userHome: string; probe: string; bytes: Buffer } {
+    const t = { target: realpathSync(makeFixture()), home: realpathSync(mkTmp()), userHome: realpathSync(mkTmp()) };
+    const first = install(retiredProbeSource(), t);
+    expect(first.status, `premise: the older kit installs cleanly\n${first.stdout}${first.stderr}`).toBe(0);
+    const probe = join(t.target, ...PROBE_REL.split("/"));
+    expect(existsSync(probe), "premise: the older kit wrote the probe adapter").toBe(true);
+    expect(recordOf(t.target, PROBE_REL).map((e) => e.kit), "premise: the older install recorded the probe as a kit file").toEqual([true]);
+    expect(findingLines(first.stdout), "premise: the older kit ships the probe, so it names nothing").toEqual([]);
+    return { ...t, probe, bytes: readFileSync(probe) };
+  }
+
+  it("re-installing the current kit names the adapter it no longer ships, keeps it and its record, ends INCOMPLETE (exit 3), and uninstall still removes it", () => {
+    const t = olderInstall();
+    const second = install(REPO_ROOT, t);
+    expect(second.status, second.stdout + second.stderr).toBe(3);
+    const lines = findingLines(second.stdout);
+    expect(lines.length, second.stdout).toBe(1);
+    expect(lines[0]).toMatch(/^\s+verify\s/);
+    expect(lines[0]).toContain(PROBE_REL);
+    expect(lines[0]).toContain("Claude Code still loads it");
+    expect(lines[0]).toContain("Reduced tier");
+    expect(lines[0]).toContain("delete it by hand");
+    expect(lines[0]).toContain("uninstall removes it while it is unchanged");
+    expect(second.stdout).toContain("INCOMPLETE");
+    expect(readFileSync(t.probe).equals(t.bytes), "install changed the bytes of the adapter it no longer ships").toBe(true);
+    expect(recordOf(t.target, PROBE_REL).map((e) => e.kit), "the new ledger dropped the still-held record").toEqual([true]);
+
+    const removed = uninstall(t);
+    expect(removed.status, removed.stdout + removed.stderr).toBe(0);
+    expect(existsSync(t.probe), `uninstall left the recorded, unchanged adapter\n${removed.stdout}`).toBe(false);
+  }, 300_000);
+
+  it("--dry-run names the adapter the kit no longer ships and changes nothing in the target", () => {
+    const t = olderInstall();
+    const before = snapshot(t.target);
+    const dry = install(REPO_ROOT, t, "--dry-run");
+    const lines = findingLines(dry.stdout);
+    expect(lines.length, dry.stdout + dry.stderr).toBe(1);
+    expect(lines[0]).toContain(PROBE_REL);
+    expect(snapshot(t.target), "--dry-run changed the target").toBe(before);
+  }, 300_000);
+
+  it("an adapter the kit no longer ships that the user edited is reported as theirs, left byte for byte and not recorded", () => {
+    const t = olderInstall();
+    writeFileSync(t.probe, `${t.bytes.toString("utf8")}\nmy own note\n`);
+    const edited = readFileSync(t.probe);
+    const second = install(REPO_ROOT, t);
+    expect(second.status, second.stdout + second.stderr).toBe(3);
+    const lines = findingLines(second.stdout);
+    expect(lines.length, second.stdout).toBe(1);
+    expect(lines[0]).toContain(PROBE_REL);
+    expect(lines[0]).toContain("so it is yours");
+    expect(readFileSync(t.probe).equals(edited), "install changed the user's edited adapter").toBe(true);
+    expect(recordOf(t.target, PROBE_REL), "the new ledger still records the user's edited file as install's").toEqual([]);
+  }, 300_000);
+
+  it("control: two installs of this kit name no adapter the kit no longer ships, and the second ends complete (exit 0)", () => {
+    const t = { target: realpathSync(makeFixture()), home: realpathSync(mkTmp()), userHome: realpathSync(mkTmp()) };
+    const first = install(REPO_ROOT, t);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const second = install(REPO_ROOT, t);
+    expect(second.status, second.stdout + second.stderr).toBe(0);
+    expect(findingLines(first.stdout + second.stdout)).toEqual([]);
+  }, 300_000);
+});
