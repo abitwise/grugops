@@ -410,6 +410,8 @@ import {
   resolveAdapterAssignments,
   zeroConfigAssignments,
   type AdapterAssignments,
+  // (Plan 39-07, TIER-06) The level table guard_kit_counts compares the declared level tokens with.
+  LEVELS,
 } from "./model-tiers.js";
 
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
@@ -1649,6 +1651,31 @@ function guardKitCounts(): void {
   if (WORKFLOW_FILES.length !== WORKFLOW_COUNT) {
     countFail += `\nkit count: derived ${WORKFLOW_FILES.length} workflow files, expected exactly ${WORKFLOW_COUNT} — walk every derived consumer BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
   }
+  // (Plan 39-07, TIER-06) THE LEVEL DECLARATIONS, PINNED TWO WAYS.
+  //
+  // The number of role files declaring `levels` must equal LEVELED_ROLE_COUNT, and the union of the
+  // declared level tokens must equal the LEVELS table's levels in BOTH directions. A role that drops
+  // its `levels` line, a second role that gains one, a level no LEVELS row prices and a LEVELS row no
+  // role declares are each a different fact, so each is named on its own. Both sides are derived:
+  // the roles from AGENT_ADAPTER_SPECS (the module's one spec derivation), the tokens from LEVELS.
+  const leveledRoles = [
+    ...new Set(AGENT_ADAPTER_SPECS.filter((s) => s.level !== null).map((s) => s.roleFile)),
+  ].sort();
+  if (leveledRoles.length !== LEVELED_ROLE_COUNT) {
+    countFail += `\nkit count: derived ${leveledRoles.length} role file(s) declaring \`levels\` [${leveledRoles.join(", ")}], expected exactly LEVELED_ROLE_COUNT of ${LEVELED_ROLE_COUNT} — a level adapter set appears or vanishes with this declaration, so walk the generator, KIT-03, both value guards, the TIERED table (MODEL_TIERS_COUNT = ROLE_COUNT - LEVELED_ROLE_COUNT) and the MODEL-01 baseline records BEFORE updating LEVELED_ROLE_COUNT in scripts/kit-model.ts`;
+  }
+  const declaredLevelTokens = new Set(
+    AGENT_ADAPTER_SPECS.flatMap((s) => (s.level === null ? [] : [s.level])),
+  );
+  const tableLevelTokens = new Set(LEVELS.map((row) => row.level));
+  const undeclaredByTable = [...declaredLevelTokens].filter((l) => !tableLevelTokens.has(l)).sort();
+  const undeclaredByRoles = [...tableLevelTokens].filter((l) => !declaredLevelTokens.has(l)).sort();
+  if (undeclaredByTable.length > 0) {
+    countFail += `\nkit count: the role corpus declares the level token(s) [${undeclaredByTable.join(", ")}] that NO LEVELS row in scripts/model-tiers.ts carries — direction ROLES → TABLE; a level adapter with no row has no model or effort to pin`;
+  }
+  if (undeclaredByRoles.length > 0) {
+    countFail += `\nkit count: the LEVELS table carries the level(s) [${undeclaredByRoles.join(", ")}] that NO role file declares in its \`levels\` line — direction TABLE → ROLES; a row with no adapter pins nothing and reads as a level the kit ships`;
+  }
   // (Plan 29-03, D-40) THE TWO DISPLAY-NAME DERIVATIONS, PINNED HERE AND NOT IN THE LISTER.
   //
   // Same split every sibling count in this guard uses, and for the reason kit-model.ts records at
@@ -1927,7 +1954,7 @@ function guardKitCounts(): void {
     // structural (the falsifying state routes to the failure channel) rather than a hedge in the
     // wording. A PASS line must never state a check that was not performed.
     pass(
-      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); ${roleDisplayNames === null ? 0 : roleDisplayNames.length} role and ${workflowDisplayNames === null ? 0 : workflowDisplayNames.length} workflow DISPLAY names derived from their headings (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${coveredLabels.join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")})`,
+      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); ${roleDisplayNames === null ? 0 : roleDisplayNames.length} role and ${workflowDisplayNames === null ? 0 : workflowDisplayNames.length} workflow DISPLAY names derived from their headings (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${coveredLabels.join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")}); ${leveledRoles.length} role file(s) declare levels (expected ${LEVELED_ROLE_COUNT}), and the declared level tokens equal the LEVELS levels (${[...tableLevelTokens].join(", ")}) both ways`,
     );
   } else {
     fail(`kit-count violation:${countFail}`);
@@ -3527,7 +3554,7 @@ const ROLE_CEILINGS: Readonly<Record<string, string>> = {
   "frontend-ui.md":        "3969 3757", // Phase 13 — 17th role (UI-01)
   "incident-responder.md": "3802 3598", // +Phase-21 WF16 pointer (baseline 3394 B, +12% / +6%)
   "installer.md":          "3938 3727", // +Phase-22 WF18 pointer (baseline 3516 B, +12% / +6%)
-  "software-engineer.md":  "3906 3697", // +Phase-21 WF16 pointer (baseline 3487 B, +12% / +6%)
+  "software-engineer.md":  "4979 4712", // Plan 39-07 (TIER-02 `## Levels`, D-1), 2026-10-29: measured 4445 B, +12% / +6% rounded up (was 3906 3697 from the Phase-21 3487 B baseline)
   "qe-e2e.md":             "3822 3617", // +Phase-21 WF16 pointer (baseline 3412 B, +12% / +6%)
   "uat-planner.md":        "3540 3350", // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
   "system-analyst.md":     "3170 3000", // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)

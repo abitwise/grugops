@@ -116,9 +116,10 @@ type RecordedAdded =
 //     coordinator's grant then names it, which the grant case below already expects from the record.
 //   • Engineer levels (39-07) add one `level` entry per level adapter, with its role, level, model and
 //     effort literals, and the replaced base adapter's name to RECORDED_REMOVED. 39-07 also adds the
-//     LEVEL TRANSFORM to the byte case: a level adapter equals the baseline BASE adapter of its role
-//     with the `name:` line, the `description:` line, the `model:` line, an inserted `effort:` line and
-//     the level body line transformed, each target asserted to occur exactly once before it applies.
+//     LEVEL TRANSFORM case: a level adapter equals the baseline BASE adapter of its role with the
+//     `name:` line, the `description:` line, the `model:` line, an inserted `effort:` line and the
+//     level body line transformed, each target asserted to occur exactly once before it applies.
+//     Plan 39-07 landed all three; the case sits after the shared-adapter byte case below.
 //
 // RECORDED_REMOVED holds adapter names only; each entry carries its reason in a trailing comment.
 const RECORDED_ADDED: readonly RecordedAdded[] = [
@@ -138,8 +139,47 @@ const RECORDED_ADDED: readonly RecordedAdded[] = [
       "Its one generated adapter runs on `model: inherit` with no effort line at zero config, like " +
       "every judgment role (D-27); the coordinator's grant names it.",
   },
+  // (Plan 39-07, TIER-02) The three engineer level adapters. D-13 names them and drops the base
+  // adapter; D-14 fixes each pin and D-3 says the level adapters carry their pins at zero config. The
+  // model and effort values are LITERALS written here from D-14, never read from the LEVELS table, so
+  // a drifted table cannot move this file's expectation with it.
+  {
+    name: "grugops-software-engineer-junior",
+    kind: "level",
+    role: "software-engineer",
+    level: "junior",
+    model: "haiku",
+    effort: "medium",
+    reason:
+      "Plan 39-07 (TIER-02, D-13, D-14): software-engineer.md declares `levels: junior mid senior`; the " +
+      "junior level pins `haiku` at effort `medium` at zero config (D-3, the D-2 amendment of D-09).",
+  },
+  {
+    name: "grugops-software-engineer-mid",
+    kind: "level",
+    role: "software-engineer",
+    level: "mid",
+    model: "sonnet",
+    effort: "medium",
+    reason:
+      "Plan 39-07 (TIER-02, D-13, D-14): software-engineer.md declares `levels: junior mid senior`; the " +
+      "mid level pins `sonnet` at effort `medium` at zero config (D-3).",
+  },
+  {
+    name: "grugops-software-engineer-senior",
+    kind: "level",
+    role: "software-engineer",
+    level: "senior",
+    model: "opus",
+    effort: "high",
+    reason:
+      "Plan 39-07 (TIER-02, D-13, D-14): software-engineer.md declares `levels: junior mid senior`; the " +
+      "senior level pins `opus` at effort `high` at zero config (D-3).",
+  },
 ];
-const RECORDED_REMOVED: readonly string[] = [];
+const RECORDED_REMOVED: readonly string[] = [
+  "grugops-software-engineer", // Plan 39-07 (TIER-02, D-13): replaced by its three level adapters; no base adapter is kept.
+];
 
 const recordedAddedNames = (): string[] => RECORDED_ADDED.map((r) => r.name).sort();
 const recordedLevelAdapters = (): Extract<RecordedAdded, { kind: "level" }>[] =>
@@ -354,6 +394,53 @@ describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseli
     expect(
       differing,
       `the adapter bytes moved against the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the recorded changes. MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator. Record the change with its reason; do not weaken this comparison (D-3)`,
+    ).toEqual([]);
+  });
+
+  it("a level adapter is the baseline base adapter of its role with exactly five transforms: the name, the description suffix, the model, one inserted effort line and the inserted level body line (D-3, D-13, D-14)", () => {
+    const levels = recordedLevelAdapters();
+    expect(levels.length, "PREMISE: at least one level record, or this case holds over nothing").toBeGreaterThan(0);
+    const working = workingAdapterNames();
+    const differing: string[] = [];
+    for (const record of levels) {
+      const baseName = `${AGENT_ADAPTER_PREFIX}${record.role}`;
+      // D-13: the base adapter a level replaces is recorded as removed, so no base adapter survives.
+      expect(RECORDED_REMOVED, `${record.name}: its role's base adapter ${baseName} must be recorded as removed (D-13)`).toContain(baseName);
+      expect(working, `${record.name} is recorded as a level adapter but the working tree does not carry it`).toContain(record.name);
+      const lines = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, baseName).toString("utf8").split("\n");
+
+      // Each target occurs exactly once before it is transformed, so a transform cannot land twice
+      // or silently land nowhere.
+      const nameAt = onlyLineStarting(`${baseName} at the baseline`, lines, "name: ");
+      expect(lines[nameAt], `${baseName}: the baseline name line`).toBe(`name: ${baseName}`);
+      const descAt = onlyLineStarting(`${baseName} at the baseline`, lines, "description: ");
+      const desc = lines[descAt] as string;
+      expect(desc.endsWith('"'), `${baseName}: the baseline description is one quoted scalar`).toBe(true);
+      const modelAt = onlyLineStarting(`${baseName} at the baseline`, lines, MODEL_LINE_PREFIX);
+      expect(lines[modelAt], `${baseName}: the baseline base adapter runs on inherit`).toBe(`${MODEL_LINE_PREFIX}inherit`);
+      expect(lines.filter((l) => l.startsWith(EFFORT_LINE_PREFIX)), `${baseName}: the baseline carries no effort line`).toEqual([]);
+      const pointerTail = "thinking; this adapter only points at it.";
+      const pointerAt = lines.flatMap((l, i) => (l === pointerTail ? [i] : []));
+      expect(pointerAt, `${baseName}: the role-pointer lines end exactly once`).toHaveLength(1);
+      expect(lines[(pointerAt[0] as number) - 1], `${baseName}: the role pointer names its role file`).toBe(
+        `Read \`agent-factory/roles/${record.role}.md\` now and act as that role. The role file does the`,
+      );
+
+      // The five transforms, applied from the bottom up so earlier indexes stay valid.
+      const out = [...lines];
+      out.splice((pointerAt[0] as number) + 1, 0, "", `Work at the \`${record.level}\` level: read the \`## Levels\` section of that role file for its scope.`);
+      out.splice(modelAt, 1, `${MODEL_LINE_PREFIX}${record.model}`, `${EFFORT_LINE_PREFIX}${record.effort}`);
+      out[descAt] = `${desc.slice(0, -1)} Level: ${record.level}."`;
+      out[nameAt] = `name: ${record.name}`;
+      const expected = Buffer.from(out.join("\n"), "utf8");
+      const work = readFileSync(join(ROOT, ADAPTER_DIR, `${record.name}${MD}`));
+      if (!expected.equals(work)) {
+        differing.push(`${record.name} — expected ${String(expected.length)} bytes from ${baseName} at the baseline with the five recorded transforms, working tree ${String(work.length)} bytes`);
+      }
+    }
+    expect(
+      differing,
+      `a level adapter differs from its role's base adapter at the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the five recorded transforms. Record the change with its reason; do not weaken this comparison (D-3)`,
     ).toEqual([]);
   });
 

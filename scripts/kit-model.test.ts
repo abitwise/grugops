@@ -704,12 +704,13 @@ describe("kit-model listAgentAdapters (KIT-02 adapter derivation authority)", ()
     expect(Date.now() - t0).toBeLessThan(30_000);
   }, 60_000);
 
-  it("the live tree derives one adapter per role, all top-level and sorted", () => {
+  it("the live tree derives one adapter per derived adapter name, all top-level and sorted", () => {
     // Read-only over the real tree. Deliberately NOT asserted against a separate adapter-count
     // constant: the KIT-03 oracle owns that number by comparing against the role corpus, and a second
-    // constant asserting the same fact would be a second authority for it.
+    // constant asserting the same fact would be a second authority for it. (Plan 39-07) With one
+    // leveled role the count is the derivation's, not ROLE_COUNT: one role yields three adapters.
     const adapters = listAgentAdapters();
-    expect(adapters.length).toBe(ROLE_COUNT);
+    expect(adapters.length).toBe(listAgentAdapterNames().length);
     expect(adapters).toEqual([...adapters].sort());
     expect(adapters.every((rel) => !rel.includes("/"))).toBe(true);
     expect(adapters).toContain("grugops-orchestrator.md");
@@ -1891,7 +1892,7 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
   });
 
   it("exports SPAWN_GRANT_SCAN_COUNT and the live tree derives exactly that many, failing in BOTH directions", () => {
-    // D-19 / D-20: two-sided. 34 is a failure and 36 is a failure; only 35 passes. This count is the
+    // D-19 / D-20: two-sided. 36 is a failure and 38 is a failure; only 37 passes. This count is the
     // ONLY signal that can catch a part dropped from the composition, because its two consumers read
     // one object and set equality between them compares an object with itself.
     //
@@ -1904,7 +1905,10 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
     //
     // (Plan 39-06, 2026-10-29) RAISED 34 -> 35: the agent part gains the generated grugops-designer
     // adapter (TIER-06).
-    expect(SPAWN_GRANT_SCAN_COUNT).toBe(35);
+    //
+    // (Plan 39-07, 2026-10-29) RAISED 35 -> 37: software-engineer.md declares three levels, so the
+    // agent part trades its one base engineer adapter for three level adapters (TIER-02, D-13).
+    expect(SPAWN_GRANT_SCAN_COUNT).toBe(37);
     const live = spawnGrantScan();
     expect(live.length).toBe(SPAWN_GRANT_SCAN_COUNT);
     expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT - 1);
@@ -2063,10 +2067,11 @@ function clauseCarriers(): CarrierSet {
     bytes: Buffer.from(orchestratorLine8, "utf8"),
   });
 
-  // 6. Each generated agent adapter, from the generator's rule over listRoles().
-  const roles = listRoles(REPO);
-  for (const role of roles) {
-    const rel = `.claude/agents/grugops-${role.replace(/\.md$/, "")}.md`;
+  // 6. Each generated agent adapter, from the adapter-identity derivation over listRoles() (plan
+  // 39-07: a leveled role yields one adapter per level, so the names come from the derivation).
+  const adapterNames = listAgentAdapterNames(REPO);
+  for (const name of adapterNames) {
+    const rel = `.claude/agents/${name}.md`;
     carriers.push({ label: rel, bytes: read(rel) });
   }
 
@@ -2074,7 +2079,7 @@ function clauseCarriers(): CarrierSet {
   const twins = listSkillAdapters(REPO);
   for (const rel of twins) carriers.push({ label: `.claude/skills/${rel}`, bytes: read(`.claude/skills/${rel}`) });
 
-  const derivedCount = 1 + 1 + packagingCopies + skillSources.length + 1 + roles.length + twins.length;
+  const derivedCount = 1 + 1 + packagingCopies + skillSources.length + 1 + adapterNames.length + twins.length;
   return { carriers, derivedCount };
 }
 
@@ -2101,11 +2106,10 @@ describe("the fallback clause in every carrier (plan 36-11; D-03, D-14; LAYOUT-0
     expect(listPluginSkillAdapters(REPO).length).toBeGreaterThan(0);
     expect(listSkillAdapters(REPO).length).toBeGreaterThan(0);
     expect(listPackagingTemplates(REPO).length).toBeGreaterThan(0);
-    // The generator writes one adapter per role and nothing else, so the role-derived adapter set is
-    // the adapter directory's own derivation; a stray or missing adapter is not silently skipped.
-    expect(listRoles(REPO).map((r) => `grugops-${r.replace(/\.md$/, "")}.md`).sort()).toEqual(
-      listAgentAdapters(REPO),
-    );
+    // The generator writes one adapter per derived adapter name and nothing else, so the
+    // role-derived adapter set is the adapter directory's own derivation; a stray or missing adapter
+    // is not silently skipped. (Plan 39-07) A leveled role contributes one name per level.
+    expect(listAgentAdapterNames(REPO).map((n) => `${n}.md`).sort()).toEqual(listAgentAdapters(REPO));
     // One twin per skill source.
     expect(listSkillAdapters(REPO).length).toBe(listPluginSkillAdapters(REPO).length);
     // Labels are unique, so no carrier is counted twice.
@@ -2169,9 +2173,17 @@ function withFrontmatterLine(text: string, line: string): string {
   return `---\n${line}\n${text.slice("---\n".length)}`;
 }
 
+/** Drop every `levels:` frontmatter line, so a mirror starts from the corpus with no leveled role. */
+function withoutLevelsLine(text: string): string {
+  return text.replace(/^levels:.*\n/m, "");
+}
+
 /**
  * A temp kit root holding a copy of every live role file. `edits` maps a role filename to the
  * frontmatter lines inserted into its copy; `extra` plants additional role files by name and body.
+ * (Plan 39-07) The live software-engineer.md now declares its levels, so each copy first has its
+ * `levels:` line removed: every mirror starts from a corpus with no leveled role and the edits
+ * alone decide which role declares what.
  */
 function levelsMirror(
   edits: Record<string, readonly string[]> = {},
@@ -2182,7 +2194,7 @@ function levelsMirror(
   const dir = join(root, "agent-factory/roles");
   mkdirSync(dir, { recursive: true });
   for (const f of readdirSync(ROLES_DIR)) {
-    let text = readFileSync(join(ROLES_DIR, f), "utf8");
+    let text = withoutLevelsLine(readFileSync(join(ROLES_DIR, f), "utf8"));
     for (const line of [...(edits[f] ?? [])].reverse()) text = withFrontmatterLine(text, line);
     writeFileSync(join(dir, f), text);
   }
@@ -2191,19 +2203,25 @@ function levelsMirror(
 }
 
 describe("kit-model: agent adapter identity (plan 39-01, TIER-02)", () => {
-  it("the live tree derives exactly today's adapter names: listAgentAdapters minus `.md`, 17 names, no levels", () => {
+  it("the live tree derives exactly today's adapter names: listAgentAdapters minus `.md`, the engineer's three levels and no base engineer adapter", () => {
     const names = listAgentAdapterNames();
     const files = listAgentAdapters().map((f) => f.replace(/\.md$/, ""));
     expect(names).toEqual(files);
-    // (Plan 39-03, TIER-06) With no leveled role there is one adapter per role, so the count is the
-    // kit authority's two-sided ROLE_COUNT pin rather than a second copy of its number.
-    expect(names.length).toBe(ROLE_COUNT);
-    expect(LEVELED_ROLE_COUNT).toBe(0);
+    // (Plan 39-07, TIER-02, D-13) software-engineer.md declares `levels: junior mid senior`: one role
+    // yields three adapters and its base adapter is gone, so the count is ROLE_COUNT less the one
+    // leveled role plus its three levels, two-sided through ROLE_COUNT and LEVELED_ROLE_COUNT.
+    expect(LEVELED_ROLE_COUNT).toBe(1);
+    expect(names.length).toBe(ROLE_COUNT - LEVELED_ROLE_COUNT + 3);
+    expect(names).not.toContain(`${AGENT_ADAPTER_PREFIX}software-engineer`);
     const specs = listAgentAdapterSpecs();
-    expect(specs.filter((s) => s.level !== null)).toEqual([]);
+    expect(specs.filter((s) => s.level !== null).map((s) => s.name)).toEqual([
+      "grugops-software-engineer-junior",
+      "grugops-software-engineer-mid",
+      "grugops-software-engineer-senior",
+    ]);
     for (const s of specs) {
       expect(s.name).toBe(`${AGENT_ADAPTER_PREFIX}${s.adapterStem}`);
-      expect(s.adapterStem).toBe(s.roleStem);
+      expect(s.adapterStem).toBe(s.level === null ? s.roleStem : `${s.roleStem}-${s.level}`);
       expect(s.roleFile).toBe(`${s.roleStem}.md`);
     }
   });

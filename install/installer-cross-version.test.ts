@@ -59,9 +59,12 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // 44 -> 45 on 2026-10-29, plan 39-06 (TIER-05): the Designer role renders one more Claude Code adapter,
 // `.claude/agents/grugops-designer.md`, which install records, so the adapters part reads 19 (measured: the case
 // printed 45).
-const RECORDED_FILE_COUNT = 45;
+// 45 -> 47 on 2026-10-29, plan 39-07 (TIER-02, D-13): software-engineer.md declares three levels, so install records
+// `.claude/agents/grugops-software-engineer-junior.md`, `-mid.md` and `-senior.md` in place of the base engineer
+// adapter, and the adapters part reads 21 (measured: the case printed 47).
+const RECORDED_FILE_COUNT = 47;
 const RECORDED_FILE_COUNT_WHY =
-  "19 adapters + 7 skills + AGENTS.md + 7 runnables + tools/grugops/LICENSE + tools/grugops/package.json + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
+  "21 adapters + 7 skills + AGENTS.md + 7 runnables + tools/grugops/LICENSE + tools/grugops/package.json + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
 
 let SCRATCH = "";
 beforeAll(() => {

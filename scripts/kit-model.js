@@ -191,7 +191,10 @@ export const PLUGIN_SKILL_ADAPTER_COUNT = 7;
 // MOVED 34 -> 35 ON 2026-10-29 BY PLAN 39-06 (TIER-06): the agent part moved 18 -> 19 with the
 // generated grugops-designer adapter. guard_kit_counts printed "derived 35 members, expected exactly
 // 34 (derived breakdown: agent 19 + skill 7 + plugin-skill 7 + packaging 2)" before this number moved.
-export const SPAWN_GRANT_SCAN_COUNT = 35;
+//
+// MOVED 35 -> 37 ON 2026-10-29 BY PLAN 39-07 (TIER-02, D-13): the agent part moved 19 -> 21, because
+// software-engineer.md now yields three level adapters in place of its one base adapter.
+export const SPAWN_GRANT_SCAN_COUNT = 37;
 // MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
 //
 // A SECOND MECHANISM, DELIBERATELY SEPARATE FROM THE CYCLE ANSWER. The `ancestors` stack in
@@ -831,9 +834,12 @@ export const AGENT_ADAPTER_PREFIX = "grugops-";
 // The role frontmatter key that expands one role into level adapters.
 const LEVELS_KEY = "levels";
 // The exact number of roles that declare `levels`. Two-sided like ROLE_COUNT: it moves only by a
-// deliberate edit that walks every consumer of the adapter derivation first. Plan 39-07 moves it to 1
-// when software-engineer.md declares its levels; until then no role declares any.
-export const LEVELED_ROLE_COUNT = 0;
+// deliberate edit that walks every consumer of the adapter derivation first.
+//
+// MOVED 0 -> 1 ON 2026-10-29 BY PLAN 39-07 (TIER-02, TIER-06): software-engineer.md declares
+// `levels: junior mid senior`, so it yields grugops-software-engineer-junior, -mid and -senior and no
+// base adapter (D-13). guard_kit_counts checks this number against the derived declarations.
+export const LEVELED_ROLE_COUNT = 1;
 // One or more groups of a-z and 0-9 joined by single hyphens. Nothing else can reach an adapter name,
 // so no path separator, quote, colon or upper-case byte can arrive in a file name or a YAML value.
 function isLowerKebab(token) {

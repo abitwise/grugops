@@ -104,9 +104,11 @@ const AGENTS = "AGENTS.md";
 // `.claude/agents/grugops-tech-lead.md` entered the derived set (measured: the assertion printed 25).
 // KIT_PATH_COUNT 25 -> 26 on 2026-10-29 (plan 39-06, TIER-05): the Designer's adapter
 // `.claude/agents/grugops-designer.md` entered the derived set (measured: the assertion printed 26).
+// KIT_PATH_COUNT 26 -> 28 on 2026-10-29 (plan 39-07, TIER-02, D-13): the three engineer level adapters replaced the
+// base engineer adapter in the derived set (measured: the assertion printed 28).
 // RUNNABLE_PATH_COUNT 4 -> 7 on 2026-10-22 (plan 37-13, SPLIT-05): the three state runnables state-check.js,
 // trace-render.js and state-roll.js entered the derived set (measured: the assertion printed 7).
-const KIT_PATH_COUNT = 26;
+const KIT_PATH_COUNT = 28;
 const RUNNABLE_PATH_COUNT = 7;
 const REMOVED_BY_NAME = [...KIT_PATHS, ...RUNNABLE_PATHS, AGENTS];
 

@@ -40,7 +40,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { listAgentAdapterNames, listAgentAdapterSpecs, listRoles, ROLE_COUNT } from "./kit-model.js";
+import { LEVELED_ROLE_COUNT, listAgentAdapterNames, listAgentAdapterSpecs, listRoles, ROLE_COUNT } from "./kit-model.js";
 import {
   EFFORT_KEYS,
   EFFORT_LEVELS,
@@ -98,7 +98,15 @@ const ROOT = join(import.meta.dirname, "..");
  * the resolver is keyed by STEM, so the extension is dropped here — the one place in this file that
  * knows the difference.
  */
-const kitStems = (): string[] => listRoles(ROOT).map((f) => f.slice(0, -".md".length));
+const roleStems = (): string[] => listRoles(ROOT).map((f) => f.slice(0, -".md".length));
+
+/**
+ * (Plan 39-07, D-16) The stems the TIERED preset governs on the live tree: every role stem but a
+ * leveled role's, which resolves through LEVELS instead. Once software-engineer.md declared its
+ * levels this stopped being the whole role set, and it is the set every resolveModels and
+ * resolveEfforts case below is about, so those cases keep their meaning.
+ */
+const kitStems = (): string[] => presetGovernedStems(listAgentAdapterSpecs(ROOT));
 
 /** The success arm's value, or a failure that names the refusal instead of a bare undefined. */
 const resolvedOrFail = (stems: readonly string[]): ReadonlyMap<string, ModelAlias> => {
@@ -118,14 +126,14 @@ describe("model-tiers: the zero-config resolution (plan 29.1-01)", () => {
     expect(
       stems.length,
       "the role corpus must really have been derived before anything is claimed about its resolution",
-    ).toBe(ROLE_COUNT);
+    ).toBe(MODEL_TIERS_COUNT);
 
     // ── THE CLAIM. ───────────────────────────────────────────────────────────────────────────
     const resolved = resolvedOrFail(stems);
     expect(
       resolved.size,
       "the resolved map must carry one entry per derived stem — a map SHORTER than its input assigns nothing to the remainder while reporting success",
-    ).toBe(ROLE_COUNT);
+    ).toBe(MODEL_TIERS_COUNT);
 
     // Every derived stem is present AND carries `inherit`. Asserted as a findings array rather than
     // inside the loop, so a red names every stem that moved instead of the first one.
@@ -195,7 +203,7 @@ describe("model-tiers: the refusals, each by its own name (plan 29.1-01)", () =>
     const stems = kitStems();
     const duped = [...stems.slice(0, stems.length - 1), stems[0]];
     expect(duped.length, "the duplicate case must clear the length floor to reach the duplicate check").toBe(
-      ROLE_COUNT,
+      MODEL_TIERS_COUNT,
     );
 
     const r = resolveModels(duped);
@@ -312,7 +320,7 @@ const matching = (findings: readonly string[], re: RegExp): string[] =>
 describe("model-tiers: the TIERED preset table (plan 29.1-02, MODEL-03)", () => {
   it("covers the DERIVED role corpus in BOTH directions with nothing left over", () => {
     const stems = kitStems();
-    expect(stems.length, "the corpus must really have been derived first").toBe(ROLE_COUNT);
+    expect(stems.length, "the corpus must really have been derived first").toBe(MODEL_TIERS_COUNT);
     expect(
       tieredCorpusRefusals(stems),
       "the shipped table must equal the derived role set in both directions — a stem with no role file and a role file with no row are two different defects and both are refusals",
@@ -322,7 +330,7 @@ describe("model-tiers: the TIERED preset table (plan 29.1-02, MODEL-03)", () => 
   it("pins its cardinality TWO-SIDED against the derived corpus and against MODEL_TIERS_COUNT", () => {
     const stems = kitStems();
     expect(TIERED.length).toBe(stems.length);
-    expect(MODEL_TIERS_COUNT).toBe(ROLE_COUNT);
+    expect(MODEL_TIERS_COUNT).toBe(ROLE_COUNT - LEVELED_ROLE_COUNT);
     expect(TIERED.length).toBe(MODEL_TIERS_COUNT);
     // Distinctness beside the count: seventeen rows over sixteen stems would otherwise pass a count.
     expect(new Set(TIERED.map((r) => r.stem)).size).toBe(TIERED.length);
@@ -411,7 +419,7 @@ describe("model-tiers: the TIERED preset table (plan 29.1-02, MODEL-03)", () => 
   it("every rationale is NON-EMPTY after trim, checked over every row rather than sampled", () => {
     const blank = TIERED.filter((r) => r.rationale.trim().length === 0).map((r) => r.stem);
     expect(blank, "D-10 makes the reason a required field; a blank one is a row with no argument").toEqual([]);
-    expect(TIERED.length, "the check must have had rows to run over").toBe(ROLE_COUNT);
+    expect(TIERED.length, "the check must have had rows to run over").toBe(MODEL_TIERS_COUNT);
   });
 
   it("no rationale contains a DECIMAL DIGIT — a price or a percentage cannot arrive without a red", () => {
@@ -434,6 +442,10 @@ describe("model-tiers: the TIERED preset table (plan 29.1-02, MODEL-03)", () => 
     expect(stemsWithAlias("haiku"), "no role is assigned the thinnest tier under this preset").toEqual([]);
     // (Plan 39-01) The sonnet bucket is the PRESET-GOVERNED rows less the opus bucket, so dropping a
     // leveled role's row moves this through MODEL_TIERS_COUNT rather than through a hand edit.
+    // (Plan 39-07, 2026-10-29) The software-engineer row is gone, so the bucket is 18 less the six
+    // opus stems: MODEL_TIERS_COUNT moved 19 -> 18 with LEVELED_ROLE_COUNT 0 -> 1.
+    expect(MODEL_TIERS_COUNT).toBe(18);
+    expect(stemsWithAlias("opus").length).toBe(6);
     expect(stemsWithAlias("sonnet").length).toBe(MODEL_TIERS_COUNT - stemsWithAlias("opus").length);
     // The three buckets partition the table — no row claimed twice, no row claimed by none.
     expect(
@@ -2689,13 +2701,13 @@ describe("models.effort — resolveEfforts floors (plan 34-01, D-04)", () => {
 
   it("zero config: every derived stem resolves to `inherit`, the same map inheritEffortForEveryStem builds", () => {
     const stems = kitStems();
-    expect(stems.length).toBe(ROLE_COUNT);
+    expect(stems.length).toBe(MODEL_TIERS_COUNT);
     const r = resolveEfforts(stems);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect([...r.value]).toEqual([...inheritEffortForEveryStem(stems)]);
     expect(new Set(r.value.values())).toEqual(new Set(["inherit"]));
-    expect(r.value.size).toBe(ROLE_COUNT);
+    expect(r.value.size).toBe(MODEL_TIERS_COUNT);
   });
 
   it("`tiered` resolves `high` for exactly the TIERED `opus` rows and `medium` for every other stem, derived from TIERED", () => {
@@ -2703,7 +2715,7 @@ describe("models.effort — resolveEfforts floors (plan 34-01, D-04)", () => {
     const r = resolveEfforts(stems, { preset: "tiered" });
     expect(r.ok, r.ok ? "" : r.reason).toBe(true);
     if (!r.ok) return;
-    expect(r.value.size).toBe(ROLE_COUNT);
+    expect(r.value.size).toBe(MODEL_TIERS_COUNT);
     const highs = TIERED.filter((t) => t.alias === "opus").map((t) => t.stem).sort();
     expect(highs.length, "PREMISE: the table must carry at least one judgment row").toBeGreaterThan(0);
     for (const stem of stems) {
@@ -2884,7 +2896,7 @@ describe("effort `tiered` and its rationale (plan 34-03, D-04, D-05)", () => {
 
   it("D-05: the MODEL preset `tiered` resolves effort preset `none` with no overrides, and `inherit` for every stem", () => {
     const stems = kitStems();
-    expect(stems.length).toBe(ROLE_COUNT);
+    expect(stems.length).toBe(MODEL_TIERS_COUNT);
     const c = readModelsConfig(rootWithConfig({ models: { preset: "tiered" } }), stems);
     expect(c.ok, c.ok ? "" : c.reason).toBe(true);
     if (!c.ok) return;
@@ -2926,7 +2938,9 @@ const levelsMirrorRoot = (leveled: Record<string, string> = { [LEVELED_ROLE]: "j
   const dir = join(root, "agent-factory/roles");
   mkdirSync(dir, { recursive: true });
   for (const f of readdirSync(LIVE_ROLES_DIR)) {
-    const text = readFileSync(join(LIVE_ROLES_DIR, f), "utf8");
+    // (Plan 39-07) The live software-engineer.md declares its levels now, so its `levels:` line is
+    // dropped first: the mirror starts from a corpus with no leveled role and `leveled` alone decides.
+    const text = readFileSync(join(LIVE_ROLES_DIR, f), "utf8").replace(/^levels:.*\n/m, "");
     const value = leveled[f];
     if (value !== undefined && !text.startsWith("---\n")) throw new Error(`premise: ${f} opens with ---`);
     writeFileSync(join(dir, f), value === undefined ? text : `---\nlevels: ${value}\n${text.slice(4)}`);
@@ -2973,23 +2987,33 @@ describe("per-adapter resolution and the level pins (plan 39-01, D-14)", () => {
     expect([...z.models.keys()]).toEqual([...z.models.keys()].sort());
   });
 
-  it("the live tree: zero config resolves inherit/inherit for every derived adapter", () => {
+  it("the live tree: zero config pins the three engineer levels to D-14 and resolves inherit/inherit for every other derived adapter", () => {
     const specs = listAgentAdapterSpecs(ROOT);
     const z = zeroConfigAssignments(specs);
     // (Plan 39-05, TIER-06) the live adapter count is asked of the derivation, never typed.
     expect(z.models.size).toBe(specs.length);
     expect(specs.length, "PREMISE: the adapter-identity derivation agrees with the spec list").toBe(listAgentAdapterNames(ROOT).length);
-    expect([...new Set(z.models.values())]).toEqual(["inherit"]);
-    expect([...new Set(z.efforts.values())]).toEqual(["inherit"]);
-    expect(presetGovernedStems(specs)).toEqual(kitStems());
-    expect(configKeyStems(specs)).toEqual(kitStems());
+    // (Plan 39-07, D-3, D-13, D-14) software-engineer.md declares its levels on the live tree, so the
+    // three level adapters carry their D-14 literals and every other adapter stays at inherit.
+    for (const s of specs) {
+      const pinModel = (D14_MODELS as Record<string, string>)[s.adapterStem];
+      const pinEffort = (D14_EFFORTS as Record<string, string>)[s.adapterStem];
+      expect(z.models.get(s.adapterStem), s.adapterStem).toBe(pinModel ?? "inherit");
+      expect(z.efforts.get(s.adapterStem), s.adapterStem).toBe(pinEffort ?? "inherit");
+    }
+    expect(Object.keys(D14_MODELS).every((k) => z.models.has(k)), "all three level adapters are derived").toBe(true);
+    expect(z.models.has("software-engineer"), "no base engineer adapter on the live tree (D-13)").toBe(false);
+    expect(presetGovernedStems(specs)).toEqual(roleStems().filter((s) => s !== "software-engineer"));
+    expect(configKeyStems(specs)).toEqual(
+      [...roleStems(), "software-engineer-junior", "software-engineer-mid", "software-engineer-senior"].sort(),
+    );
   });
 
   it("configKeyStems and presetGovernedStems on the levels mirror", () => {
     const specs = listAgentAdapterSpecs(levelsMirrorRoot());
-    expect(presetGovernedStems(specs)).toEqual(kitStems().filter((s) => s !== "software-engineer"));
+    expect(presetGovernedStems(specs)).toEqual(roleStems().filter((s) => s !== "software-engineer"));
     expect(configKeyStems(specs)).toEqual(
-      [...kitStems(), "software-engineer-junior", "software-engineer-mid", "software-engineer-senior"].sort(),
+      [...roleStems(), "software-engineer-junior", "software-engineer-mid", "software-engineer-senior"].sort(),
     );
     expect(resolveAdapterAssignments(specs, {
       preset: "none",
@@ -3167,8 +3191,9 @@ describe("the level precedence matrix (plan 39-01, D-14, D-15, D-16)", () => {
     expect(r.reason).toContain('"junior", "mid", "senior"');
   });
 
-  it("the live tree: resolveAdapterAssignments under every preset pair equals the old resolveModels and resolveEfforts output", () => {
+  it("the live tree: resolveAdapterAssignments under every preset pair equals the old resolveModels and resolveEfforts output over the preset-governed stems, and the D-14 pins for the levels", () => {
     const specs = listAgentAdapterSpecs(ROOT);
+    // (Plan 39-07, D-16) kitStems() is the preset-governed set: every role but the leveled engineer.
     const stems = kitStems();
     for (const preset of PRESET_NAMES) {
       for (const effortPreset of EFFORT_PRESET_NAMES) {
@@ -3182,8 +3207,16 @@ describe("the level precedence matrix (plan 39-01, D-14, D-15, D-16)", () => {
         const e = resolveEfforts(stems, { preset: effortPreset });
         expect(r.ok && m.ok && e.ok, `${preset}/${effortPreset}`).toBe(true);
         if (!r.ok || !m.ok || !e.ok) continue;
-        expect([...r.value.models], `${preset}/${effortPreset}`).toEqual([...m.value]);
-        expect([...r.value.efforts], `${preset}/${effortPreset}`).toEqual([...e.value]);
+        const governed = (map: ReadonlyMap<string, string>): [string, string][] =>
+          [...map].filter(([stem]) => stems.includes(stem));
+        expect(governed(r.value.models), `${preset}/${effortPreset}`).toEqual([...m.value]);
+        expect(governed(r.value.efforts), `${preset}/${effortPreset}`).toEqual([...e.value]);
+        // D-16: neither preset moves a level, so the level adapters keep their D-14 literals.
+        for (const [stem, alias] of Object.entries(D14_MODELS)) {
+          expect(r.value.models.get(stem), `${preset}/${effortPreset} ${stem}`).toBe(alias);
+          expect(r.value.efforts.get(stem), `${preset}/${effortPreset} ${stem}`).toBe((D14_EFFORTS as Record<string, string>)[stem]);
+        }
+        expect(r.value.models.size, `${preset}/${effortPreset}: nothing outside the two sets`).toBe(stems.length + Object.keys(D14_MODELS).length);
       }
     }
   });
@@ -3265,27 +3298,29 @@ describe("levelTableRefusals (plan 39-01, MODEL-07)", () => {
 // ── TIERED against the PRESET-GOVERNED stems (plan 39-01, Task 3, D-16) ───────────────────────
 
 describe("TIERED coverage follows the preset-governed stems (plan 39-01, D-16)", () => {
-  it("preset-governed: on the levels mirror a TIERED table WITHOUT the software-engineer row is complete", () => {
+  it("preset-governed: on the levels mirror the shipped TIERED table, which has no software-engineer row, is complete", () => {
     const specs = listAgentAdapterSpecs(levelsMirrorRoot());
     const governed = presetGovernedStems(specs);
     expect(governed, "PREMISE: the leveled role is not preset-governed").not.toContain("software-engineer");
-    const withoutRow = TIERED.filter((r) => r.stem !== "software-engineer");
-    expect(withoutRow.length, "PREMISE: the shipped table carries the row today").toBe(TIERED.length - 1);
-    expect(tieredCorpusRefusals(governed, withoutRow)).toEqual([]);
+    // (Plan 39-07, TIER-06) the row was dropped when software-engineer.md declared its levels.
+    expect(TIERED.filter((r) => r.stem === "software-engineer"), "the shipped table carries no software-engineer row").toEqual([]);
+    expect(tieredCorpusRefusals(governed, TIERED)).toEqual([]);
   });
 
-  it("preset-governed: on the levels mirror a TIERED table WITH the software-engineer row is refused, naming the stem", () => {
+  it("preset-governed: on the levels mirror a TIERED table WITH a software-engineer row is refused, naming the stem", () => {
     const specs = listAgentAdapterSpecs(levelsMirrorRoot());
-    const findings = tieredCorpusRefusals(presetGovernedStems(specs), TIERED);
+    // The row the shipped table carried before plan 39-07, planted back as a fixture.
+    const withRow = [...TIERED, { ...(TIERED[0] as (typeof TIERED)[number]), stem: "software-engineer" }];
+    const findings = tieredCorpusRefusals(presetGovernedStems(specs), withRow);
     expect(findings.length).toBeGreaterThan(0);
     const named = matching(findings, /"software-engineer"/);
     expect(named.length).toBe(1);
     expect(named[0]).toMatch(/NOT one of the role stems/);
   });
 
-  it("preset-governed: on the live tree the preset-governed stems are the role stems, MODEL_TIERS_COUNT of them, and TIERED covers them exactly", () => {
+  it("preset-governed: on the live tree the preset-governed stems are the role stems less the leveled engineer, MODEL_TIERS_COUNT of them, and TIERED covers them exactly", () => {
     const governed = presetGovernedStems(listAgentAdapterSpecs(ROOT));
-    expect(governed).toEqual(kitStems());
+    expect(governed).toEqual(roleStems().filter((s) => s !== "software-engineer"));
     expect(governed.length).toBe(MODEL_TIERS_COUNT);
     expect(tieredCorpusRefusals(governed)).toEqual([]);
   });

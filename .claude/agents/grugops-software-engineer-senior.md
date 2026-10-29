@@ -1,8 +1,9 @@
 ---
-name: grugops-software-engineer
-description: "Implement one ticket end to end. Use when: Need code (one ticket)."
+name: grugops-software-engineer-senior
+description: "Implement one ticket end to end. Use when: Need code (one ticket). Level: senior."
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: inherit
+model: opus
+effort: high
 ---
 <!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-role-adapters.js -->
 
@@ -21,6 +22,8 @@ KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"
 
 Read `agent-factory/roles/software-engineer.md` now and act as that role. The role file does the
 thinking; this adapter only points at it.
+
+Work at the `senior` level: read the `## Levels` section of that role file for its scope.
 
 Publish your typed notes per `agent-factory/workflows/16-context-read-write.md`. The shared verified context is the only memory — read what earlier roles published, publish your own, and expect nothing to have been passed to you by whoever activated you.
 

@@ -766,6 +766,13 @@ export interface GrantDerivation {
   prefix: string;
   /** Reasons the two derivations disagree, or the floor refused. Empty means they agree. */
   reasons: string[];
+  /**
+   * (Plan 39-07, TIER-02) The role file stems the granted adapters point at, sorted and unique, read
+   * from each adapter's "Read `agent-factory/roles/<stem>.md`" line. A level adapter's name
+   * (`grugops-software-engineer-junior`) is not its role's stem (`software-engineer`), and a role
+   * agent may stamp its notes with either, so side (b) accepts both.
+   */
+  grantedRoles: string[];
 }
 
 function longestCommonPrefix(names: readonly string[]): string {
@@ -803,9 +810,11 @@ export function deriveGrant(installedRoot: string): GrantDerivation {
       coordinator: null,
       prefix: "",
       reasons: [`the adapter set could not be listed under ${join(installedRoot, ADAPTER_DIR)} — ${e instanceof Error ? e.message : String(e)}`],
+      grantedRoles: [],
     };
   }
   const adapterNames: string[] = [];
+  const roleOf = new Map<string, string>();
   const coordinators: { name: string; granted: string[] }[] = [];
   for (const rel of rels) {
     const path = join(installedRoot, ADAPTER_DIR, rel);
@@ -827,6 +836,8 @@ export function deriveGrant(installedRoot: string): GrantDerivation {
       continue;
     }
     adapterNames.push(name);
+    const pointer = /^Read `agent-factory\/roles\/([a-z0-9-]+)\.md` now/m.exec(text);
+    if (pointer !== null) roleOf.set(name, pointer[1] as string);
     if (admittedKeyHasValue(parsed.value, "coordinator", "true")) {
       coordinators.push({ name, granted: admittedGrantedNames(parsed.value) });
     }
@@ -835,7 +846,7 @@ export function deriveGrant(installedRoot: string): GrantDerivation {
   if (adapterNames.length === 0) reasons.push("vacuity floor: the adapter-name derivation is empty — no verdict over an empty census");
   if (coordinators.length !== 1) {
     reasons.push(`exactly one adapter must carry the coordinator marker; found ${coordinators.length}`);
-    return { granted: [], adapterNames, coordinator: null, prefix: longestCommonPrefix(adapterNames), reasons };
+    return { granted: [], adapterNames, coordinator: null, prefix: longestCommonPrefix(adapterNames), reasons, grantedRoles: [] };
   }
   const coordinator = coordinators[0].name;
   const granted = [...coordinators[0].granted].sort();
@@ -853,7 +864,8 @@ export function deriveGrant(installedRoot: string): GrantDerivation {
         "Walk both derivations before touching either — this is not a pin to move",
     );
   }
-  return { granted, adapterNames, coordinator, prefix: longestCommonPrefix(adapterNames), reasons };
+  const grantedRoles = [...new Set(granted.flatMap((n) => (roleOf.has(n) ? [roleOf.get(n) as string] : [])))].sort();
+  return { granted, adapterNames, coordinator, prefix: longestCommonPrefix(adapterNames), reasons, grantedRoles };
 }
 
 /** The four derived-grant fields, compared as sorted lists / scalars. */
@@ -971,7 +983,8 @@ export function capThreePredicate(input: CapThreeInput): string[] {
   } else {
     const roleStamps = input.stamps.filter((s) => {
       const key = roleKey(s.by, grant.prefix);
-      return grantedKeys.has(key) && key !== coordinatorKey;
+      // (Plan 39-07) A level adapter's agent may stamp its role's stem rather than its adapter stem.
+      return (grantedKeys.has(key) || grant.grantedRoles.includes(key)) && key !== coordinatorKey;
     });
     if (roleStamps.length === 0) {
       const seen = [...new Set(input.stamps.map((s) => s.by))].sort();

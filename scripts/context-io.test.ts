@@ -17755,6 +17755,7 @@ describe("33-25 — R1/R2: every reader route reaches the refusal", () => {
         coordinator: "grugops-orchestrator",
         prefix: "",
         reasons: [],
+        grantedRoles: [],
       },
       observations: [
         { role: "brownfield-mapper", toolUseId: "tu-1", evidence: "nested-frames", frameCount: 3, frameIndex: 1, evidenceFrameIndex: 2 },

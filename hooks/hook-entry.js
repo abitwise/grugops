@@ -238,7 +238,7 @@ const DECIDER_MANIFEST = {
         "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
         "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
         "scripts/is-entry.js": "4bea950408906acfb2978e8996b1506a7558ebaf645f43d26dcf8ed413d17c2b",
-        "scripts/kit-model.js": "b4dbeaae07b4f6ed6c5cff055a171b05ae0f0ae56e2053ebe3541cbe245c139c",
+        "scripts/kit-model.js": "ecfb4b9fb22150c2a61e88fc861dd80024ee2cb9b585a356e32d1386504ab30b",
         "scripts/vacuity.js": "eba304f76da868672d269b94cdf907b6c6638ec8d0d2707a36841ad5d7fe7bf6",
         "scripts/voice-model.js": "3a16c8761245eee5ef715616363c5d5e33686f6e3a7abacdcd44921fe4bd578f",
     },

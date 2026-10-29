@@ -1401,7 +1401,9 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // (Plan 39-03, TIER-06) The count from an independent source: the adapter-identity derivation
     // over the role files, less the coordinator, rather than today's number typed here.
     expect(names.value.length).toBe(listAgentAdapterNames(root).length - 1);
-    expect(names.value).toContain("grugops-software-engineer");
+    // (Plan 39-07, D-13) The engineer is granted by its three level adapters, never a base adapter.
+    for (const level of ["junior", "mid", "senior"]) expect(names.value).toContain(`grugops-software-engineer-${level}`);
+    expect(names.value).not.toContain("grugops-software-engineer");
     expect(names.value).toEqual([...names.value].sort());
 
     // Every ordinary enumeration the generator actually emits still succeeds, de-duplicated + sorted.

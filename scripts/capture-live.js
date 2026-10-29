@@ -655,9 +655,11 @@ export function deriveGrant(installedRoot) {
             coordinator: null,
             prefix: "",
             reasons: [`the adapter set could not be listed under ${join(installedRoot, ADAPTER_DIR)} — ${e instanceof Error ? e.message : String(e)}`],
+            grantedRoles: [],
         };
     }
     const adapterNames = [];
+    const roleOf = new Map();
     const coordinators = [];
     for (const rel of rels) {
         const path = join(installedRoot, ADAPTER_DIR, rel);
@@ -680,6 +682,9 @@ export function deriveGrant(installedRoot) {
             continue;
         }
         adapterNames.push(name);
+        const pointer = /^Read `agent-factory\/roles\/([a-z0-9-]+)\.md` now/m.exec(text);
+        if (pointer !== null)
+            roleOf.set(name, pointer[1]);
         if (admittedKeyHasValue(parsed.value, "coordinator", "true")) {
             coordinators.push({ name, granted: admittedGrantedNames(parsed.value) });
         }
@@ -689,7 +694,7 @@ export function deriveGrant(installedRoot) {
         reasons.push("vacuity floor: the adapter-name derivation is empty — no verdict over an empty census");
     if (coordinators.length !== 1) {
         reasons.push(`exactly one adapter must carry the coordinator marker; found ${coordinators.length}`);
-        return { granted: [], adapterNames, coordinator: null, prefix: longestCommonPrefix(adapterNames), reasons };
+        return { granted: [], adapterNames, coordinator: null, prefix: longestCommonPrefix(adapterNames), reasons, grantedRoles: [] };
     }
     const coordinator = coordinators[0].name;
     const granted = [...coordinators[0].granted].sort();
@@ -708,7 +713,8 @@ export function deriveGrant(installedRoot) {
             "the relationship is census = grant + the coordinator itself, so the two must differ by exactly one. " +
             "Walk both derivations before touching either — this is not a pin to move");
     }
-    return { granted, adapterNames, coordinator, prefix: longestCommonPrefix(adapterNames), reasons };
+    const grantedRoles = [...new Set(granted.flatMap((n) => (roleOf.has(n) ? [roleOf.get(n)] : [])))].sort();
+    return { granted, adapterNames, coordinator, prefix: longestCommonPrefix(adapterNames), reasons, grantedRoles };
 }
 /** The four derived-grant fields, compared as sorted lists / scalars. */
 const GRANT_FIELDS = ["granted", "adapterNames", "coordinator", "prefix"];
@@ -807,7 +813,8 @@ export function capThreePredicate(input) {
     else {
         const roleStamps = input.stamps.filter((s) => {
             const key = roleKey(s.by, grant.prefix);
-            return grantedKeys.has(key) && key !== coordinatorKey;
+            // (Plan 39-07) A level adapter's agent may stamp its role's stem rather than its adapter stem.
+            return (grantedKeys.has(key) || grant.grantedRoles.includes(key)) && key !== coordinatorKey;
         });
         if (roleStamps.length === 0) {
             const seen = [...new Set(input.stamps.map((s) => s.by))].sort();

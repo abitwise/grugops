@@ -1545,8 +1545,19 @@ export function bannedClaimScanOverlap(
  *         guarantees 1, overlap 2)
  *
  * The same run reported 0 findings over 126/126 elements.
+ *
+ * MOVED AGAIN 126 → 128 ON 2026-10-29 IN PLAN 39-07, AND THE CHANGE IS NAMED:
+ * `software-engineer.md` now declares three levels, so `claudeAdapters` trades the generated
+ * `.claude/agents/grugops-software-engineer.md` for `grugops-software-engineer-junior.md`, `-mid.md`
+ * and `-senior.md` (26 → 28). No kit document entered. Read off this gate's own refusal, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 128 document(s), expected exactly 126 (kit 79,
+ *         publicDocs 12, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, overlap 2)
+ *
+ * The same run reported 0 findings over 128/128 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 126;
+export const BANNED_CLAIM_SCAN_COUNT = 128;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.

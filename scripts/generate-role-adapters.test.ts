@@ -134,9 +134,12 @@ function scratch(roles: string[]): string {
 
 // A representative scratch corpus: the coordinator, both tiers, and the two roles carrying the
 // awkward derived prose (a colon-space inside the description, and a `web` capability token).
+// (Plan 39-07) Every role here yields exactly one adapter. software-engineer.md declares its levels
+// now, so it left this list for system-analyst.md, another core-tier specialist; the levels cases
+// below add the engineer to their own mirror (levelsScratch).
 const SAMPLE_ROLES = [
   "orchestrator.md",
-  "software-engineer.md",
+  "system-analyst.md",
   "qe-e2e.md",
   "agents-md-scribe.md", // description carries `routing matrix: "Need AGENTS.md"`
   "security-nfr.md", // `capabilities: read edit shell web`
@@ -2130,15 +2133,32 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
 // LITERALS on purpose: they are the D-14 decision, and reading them back from the LEVELS table would
 // make this case agree with whatever the table says.
 
-/** The sample mirror with `levels: <value>` added to software-engineer.md, below `capabilities:`. */
+/** The live software-engineer.md, which declares its levels (plan 39-07). */
+const LEVELED_ROLE = "software-engineer.md";
+
+/**
+ * The sample mirror plus software-engineer.md, whose `levels:` line is set to `<value>`. The live
+ * file declares `levels: junior mid senior` (plan 39-07), so the line is replaced rather than added.
+ */
 function levelsScratch(value = "junior mid senior"): string {
-  const m = scratch(SAMPLE_ROLES);
-  const p = join(m, "agent-factory", "roles", "software-engineer.md");
+  const m = scratch([...SAMPLE_ROLES, LEVELED_ROLE]);
+  const p = join(m, "agent-factory", "roles", LEVELED_ROLE);
   const text = readFileSync(p, "utf8");
-  const next = text.replace(/^capabilities: .*$/m, (line) => `${line}\nlevels: ${value}`);
-  if (next === text) {
-    throw new Error("PREMISE: software-engineer.md carries no `capabilities:` line to anchor `levels:` on");
+  const next = text.replace(/^levels: .*$/m, `levels: ${value}`);
+  if (!/^levels: .*$/m.test(text)) {
+    throw new Error("PREMISE: the live software-engineer.md carries a `levels:` line to set");
   }
+  writeFileSync(p, next, "utf8");
+  return m;
+}
+
+/** The sample mirror plus software-engineer.md with its `levels:` line removed: the unleveled role. */
+function unleveledScratch(): string {
+  const m = scratch([...SAMPLE_ROLES, LEVELED_ROLE]);
+  const p = join(m, "agent-factory", "roles", LEVELED_ROLE);
+  const text = readFileSync(p, "utf8");
+  const next = text.replace(/^levels: .*\n/m, "");
+  if (next === text) throw new Error("PREMISE: the live software-engineer.md carries a `levels:` line to remove");
   writeFileSync(p, next, "utf8");
   return m;
 }
@@ -2152,7 +2172,7 @@ const LEVEL_PINS = {
 describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)", () => {
   it("levels: a leveled role emits one adapter per level and no base adapter, each pinned, described, pointed and granted", () => {
     // The unleveled mirror's software-engineer description is the base every level suffixes.
-    const plain = scratch(SAMPLE_ROLES);
+    const plain = unleveledScratch();
     expect(runIn(plain).status).toBe(0);
     const baseDescription =
       fmValue(readFileSync(join(agentsDir(plain), "grugops-software-engineer.md"), "utf8"), "description") ?? "";
@@ -2166,7 +2186,7 @@ describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)
     expect(files).toContain("grugops-software-engineer-mid.md");
     expect(files).toContain("grugops-software-engineer-senior.md");
     expect(files, "a leveled role keeps NO base adapter (D-13)").not.toContain("grugops-software-engineer.md");
-    expect(files).toHaveLength(SAMPLE_ROLES.length - 1 + 3);
+    expect(files).toHaveLength(SAMPLE_ROLES.length + 3);
 
     const tools =
       fmValue(readFileSync(join(agentsDir(plain), "grugops-software-engineer.md"), "utf8"), "tools") ?? "";
@@ -2236,7 +2256,7 @@ describe("generate-role-adapters.js — a role's skills declaration never reache
   // Claude Code preloads the skill text named by an adapter's `skills:` field into the sub-agent,
   // which Phase 42 forbids. So a role may declare skills, and the generator must not copy them.
   it("a scratch software-engineer.md declaring skills generates, and no adapter carries a skills line", () => {
-    const m = scratch(SAMPLE_ROLES);
+    const m = scratch([...SAMPLE_ROLES, LEVELED_ROLE]);
     const se = join(m, "agent-factory", "roles", "software-engineer.md");
     const text = readFileSync(se, "utf8");
     const planted = text.replace(/^(capabilities: .*)$/m, "$1\nskills: frontend-design");

@@ -139,8 +139,10 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * entered as a file, in every variant that installs the Claude Code adapters, because the Designer role renders one
  * more adapter; `.claude/agents` was already a directory. Measured by this test's failing run (expected 117).
  * 116 -> 117.
+ * 79 files and links + 40 directories on 2026-10-29, plan 39-07 (TIER-02, D-13): `.claude/agents/grugops-software-engineer.md` left and `grugops-software-engineer-junior.md`, `-mid.md` and `-senior.md` entered, because software-engineer.md now declares three levels (one role, three adapters, no base adapter); `.claude/agents` was already
+ * a directory. Measured by this test's failing run (expected 119). 117 -> 119.
  */
-const WRITE_PATH_COUNT = 117;
+const WRITE_PATH_COUNT = 119;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";
@@ -426,7 +428,9 @@ const KIT_PATHS: readonly string[] = Object.keys(fileRecords(readMarkerObject(SE
 // entered; measured by this test's failing run (expected 25).
 // 25 -> 26 on 2026-10-29, plan 39-06 (TIER-05): the Designer's adapter `.claude/agents/grugops-designer.md`
 // entered; measured by this test's failing run (expected 26).
-const KIT_PATH_COUNT = 26;
+// 26 -> 28 on 2026-10-29, plan 39-07 (TIER-02, D-13): the three engineer level adapters replaced the base
+// engineer adapter; measured by this test's failing run (expected 28).
+const KIT_PATH_COUNT = 28;
 
 describe("an identical copy install did not write is never recorded, and uninstall leaves it (red-team of 33.1-36)", () => {
   it("KIT_PATHS: every kit-true file entry of the default install, count pinned", () => {

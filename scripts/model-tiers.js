@@ -961,16 +961,6 @@ export const TIERED = [
             "end instead of stopping at the first plausible answer.",
     },
     {
-        stem: "software-engineer",
-        alias: "sonnet",
-        rationale: "Implements a ready ticket behind the behavior gate, which is the mechanism this kit relies on " +
-            "most and which judges this role's output directly. A weaker implementation degrades INTO that " +
-            "gate rather than past it.",
-        effortRationale: "Implements a ready ticket behind the behavior gate, which judges this output directly. " +
-            "Moderate reasoning depth suits bounded work that the gate and the tests check, where a " +
-            "weaker attempt is caught rather than shipped.",
-    },
-    {
         stem: "system-analyst",
         alias: "sonnet",
         rationale: "Turns an epic into a ready ticket against a stated checklist, and that ticket is read by a " +

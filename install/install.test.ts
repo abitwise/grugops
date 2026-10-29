@@ -88,6 +88,7 @@ import { createServer } from "node:net";
 import {
   AGENT_ADAPTER_PREFIX,
   listAgentAdapterNames,
+  listAgentAdapterSpecs,
   listAgentAdapters,
   listSkillAdapters,
 } from "../scripts/kit-model.js";
@@ -113,15 +114,16 @@ import {
   // emitters over a per-adapter map, so no payload is hand-typed here (same test-side exception).
   resolvedAssignmentLine,
   resolvedEffortAssignmentLine,
-  resolveModels,
   type ModelAlias,
   // Plan 34-10: the effort delivery cases derive every expected `effort:` line from the ONE effort
   // resolver and its closed level tuple, under the same test-side exception as the alias set above.
   EFFORT_LEVELS,
-  resolveEfforts,
+  // (Plan 39-07, D-3, D-14, D-16) the per-adapter resolver the generator uses, so a level adapter's
+  // pin is part of every expectation; resolveModels and resolveEfforts cover role stems only.
+  resolveAdapterAssignments,
+  type AdapterAssignments,
+  type EffortLevel,
 } from "../scripts/model-tiers.js";
-// The derived role set the effort expectation is resolved over (plan 34-10). Same exception.
-import { listRoles } from "../scripts/kit-model.js";
 
 // THE INSTALLER-SIDE WALK, IMPORTED DIRECTLY (D-35/D-36). The boundary cases below need to examine
 // MAX_WALK_ENTRIES+1 directory entries; driving that through a full installer subprocess would
@@ -469,6 +471,45 @@ const SYNTH_ADAPTERS: string[] = listAgentAdapters(REPO_ROOT).slice().sort();
 // so a listing that silently shrinks still fails the count. The two-sided integer pins (ROLE_COUNT,
 // SPAWN_GRANT_SCAN_COUNT) live in scripts/kit-model.test.ts and move only by recorded decision.
 const LIVE_ADAPTER_COUNT: number = listAgentAdapterNames(REPO_ROOT).length;
+
+// (Plan 39-07, D-3, D-14) THE ENGINEER LEVEL PINS AT ZERO CONFIG, as literals (never read from
+// LEVELS). software-engineer.md declares `levels: junior mid senior`, so a zero-config install is
+// `inherit` everywhere except these three adapters.
+const LEVEL_PINS: Readonly<Record<string, { model: ModelAlias; effort: EffortLevel }>> = {
+  "grugops-software-engineer-junior": { model: "haiku", effort: "medium" },
+  "grugops-software-engineer-mid": { model: "sonnet", effort: "medium" },
+  "grugops-software-engineer-senior": { model: "opus", effort: "high" },
+};
+/** The zero-config model of an adapter, by name (no `.md`). */
+const zeroModelOf = (name: string): ModelAlias => LEVEL_PINS[name]?.model ?? "inherit";
+/** The zero-config effort of an adapter, by name (no `.md`). */
+const zeroEffortOf = (name: string): EffortLevel => LEVEL_PINS[name]?.effort ?? "inherit";
+/** The distinct aliases a zero-config install carries, sorted. */
+const ZERO_CONFIG_ALIAS_SET: readonly string[] = ["haiku", "inherit", "opus", "sonnet"];
+/** The level adapters' file names, sorted: the only adapters with an `effort:` line at zero config. */
+const LEVEL_ADAPTER_FILES: readonly string[] = Object.keys(LEVEL_PINS).map((n) => `${n}.md`).sort();
+
+/**
+ * The per-adapter answer the generator resolves for a `models` block, keyed by ADAPTER stem
+ * (`software-engineer-junior`, never `software-engineer`), through the one per-adapter resolver.
+ */
+function adapterAssignments(models: {
+  preset?: "none" | "tiered";
+  roles?: Record<string, ModelAlias>;
+  effort?: { preset?: "none" | "tiered"; roles?: Record<string, EffortLevel> };
+} = {}): AdapterAssignments {
+  const r = resolveAdapterAssignments(listAgentAdapterSpecs(REPO_ROOT), {
+    preset: models.preset ?? "none",
+    overrides: new Map(Object.entries(models.roles ?? {})),
+    effort: {
+      preset: models.effort?.preset ?? "none",
+      overrides: new Map(Object.entries(models.effort?.roles ?? {})),
+    },
+    source: null,
+  });
+  if (!r.ok) throw new Error(r.reason);
+  return r.value;
+}
 
 // THE GENERATOR'S IMPORT CLOSURE AND KIT INPUTS, MIRRORED INTO EVERY SYNTHETIC SOURCE (29.2-01).
 //
@@ -1564,7 +1605,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(configPath)).toBe(true);
     expect(readFileSync(configPath, "utf8")).toContain('"tiered"');
     // ...and it has NOT been applied: the installed adapters still carry the old resolution.
-    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(ZERO_CONFIG_ALIAS_SET);
 
     const bare = runCheck(target, home);
     // D-10: a WARN, so the exit stays 0 and the banner carries a warning count.
@@ -1573,13 +1614,21 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(bare.stdout).toMatch(/warning\(s\)/);
     expect(bare.stdout).toContain("stale adapter");
     // EVERY stale file is NAMED — a count with no names is a finding a reader cannot act on.
-    for (const rel of rels) {
+    // (Plan 39-07, D-16) `tiered` never moves the three engineer level adapters, so they are not
+    // stale; every other adapter is, because its alias moves from `inherit` to the preset's tier.
+    const tieredModels = adapterAssignments({ preset: "tiered" }).models;
+    const stale = rels.filter((rel) => {
+      const name = rel.slice(0, -".md".length);
+      return tieredModels.get(name.slice(AGENT_ADAPTER_PREFIX.length)) !== zeroModelOf(name);
+    });
+    expect(stale.length, "PREMISE: the edit makes adapters stale").toBe(rels.length - LEVEL_ADAPTER_FILES.length);
+    for (const rel of stale) {
       expect(`${rel} named: ${bare.stdout.includes(rel)}`).toBe(`${rel} named: true`);
     }
     // ...and the remedy is the re-run, named as such.
     expect(bare.stdout).toContain("install.js --target");
     // Nothing was written into the target while it looked.
-    expect(targetModelLines(target).every((m) => m === "inherit")).toBe(true);
+    expect(targetModelLines(target)).toEqual(rels.map((rel) => zeroModelOf(rel.slice(0, -".md".length))));
 
     // D-10's other half: --strict promotes it to a failure.
     const strict = runCheck(target, home, { args: ["--strict"] });
@@ -1602,7 +1651,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(installedAdapters(target).length).toBe(LIVE_ADAPTER_COUNT);
     writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
     // PREMISE: the edit has not reached the adapters, so the remedy has something to do.
-    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(ZERO_CONFIG_ALIAS_SET);
 
     const bare = runCheck(target, home);
     const warn = bare.stdout.split("\n").filter((l) => l.includes("stale adapter(s) under"));
@@ -1630,7 +1679,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const after = runCheck(target, home);
     expect(`status=${after.status}`).toBe("status=0");
     expect(`names a stale adapter: ${after.stdout.includes("stale adapter")}`, after.stdout).toBe("names a stale adapter: false");
-    expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(["haiku", "opus", "sonnet"]);
   });
 
   // WR-23 (phase 34.1 gap round 3, D-36; brief §5, MSG-1): with GRUGOPS_SRC set to another kit checkout S, the doctor
@@ -1956,7 +2005,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // ...and pinned as an integer beside it, so a listing that silently shrinks fails the number
     // instead of making the set comparison vacuous.
     expect(models.length).toBe(LIVE_ADAPTER_COUNT);
-    expect([...new Set(models)]).toEqual(["inherit"]);
+    // (Plan 39-07, D-3) `inherit` for every adapter but the three engineer levels, which carry their
+    // D-14 pins: compared per adapter, in the listing's order.
+    expect(models).toEqual(installedAdapters(target).map((rel) => zeroModelOf(rel.slice(0, -".md".length))));
   });
 
   it("model delivery: a `tiered` target's adapters carry the aliases that preset resolves to (D-01, D-06)", () => {
@@ -1976,13 +2027,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // (Plan 39-05, TIER-06) The expected split is the resolver's own answer over the derived role set,
     // never a typed pair: it was "opus=4 sonnet=13" until the Tech Lead's opus row (D-03). The
     // composition itself is pinned by name in scripts/model-tiers.test.ts.
-    const wantStems = listRoles(REPO_ROOT).map((f) => f.slice(0, -".md".length));
-    const want = resolveModels(wantStems, { preset: "tiered" });
-    if (!want.ok) throw new Error(want.reason);
-    const wantTally = (alias: string): number => [...want.value.values()].filter((v) => v === alias).length;
+    // (Plan 39-07, D-16) Asked of the per-adapter resolver: `tiered` governs every role but the
+    // leveled engineer, whose three adapters keep their D-14 pins (one each of haiku, sonnet, opus).
+    const want = adapterAssignments({ preset: "tiered" });
+    const wantTally = (alias: string): number => [...want.models.values()].filter((v) => v === alias).length;
     expect(wantTally("opus"), "PREMISE: the tiered preset assigns opus somewhere").toBeGreaterThan(0);
-    expect(`opus=${tally("opus")} sonnet=${tally("sonnet")}`).toBe(`opus=${String(wantTally("opus"))} sonnet=${String(wantTally("sonnet"))}`);
-    expect([...new Set(models)].sort()).toEqual(["opus", "sonnet"]);
+    expect(`haiku=${tally("haiku")} opus=${tally("opus")} sonnet=${tally("sonnet")}`).toBe(
+      `haiku=${String(wantTally("haiku"))} opus=${String(wantTally("opus"))} sonnet=${String(wantTally("sonnet"))}`,
+    );
+    expect([...new Set(models)].sort()).toEqual(["haiku", "opus", "sonnet"]);
     // Every value is a member of the closed vocabulary the resolver owns — never a full model id.
     for (const m of models) {
       expect(`${m}: legal alias = ${(MODEL_ALIASES as readonly string[]).includes(m)}`).toBe(
@@ -2044,7 +2097,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r2.status).toBe(3);
     expect(r2.stdout).toContain("install INCOMPLETE");
     expect(snapshot(join(seeded, ".claude", "agents"))).toBe(before);
-    expect(targetModelLines(seeded).every((m) => m === "inherit")).toBe(true);
+    expect(targetModelLines(seeded)).toEqual(installedAdapters(seeded).map((rel) => zeroModelOf(rel.slice(0, -".md".length))));
   });
 
   it("model delivery: a second install over an unchanged CONFIGURED target produces ZERO diff in both roots", () => {
@@ -2060,7 +2113,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(target)).toBe(t1);
     expect(snapshot(home)).toBe(h1);
     // ...and the resolution did not drift between the two runs.
-    expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(["haiku", "opus", "sonnet"]);
   });
 
   // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -2167,7 +2220,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // PREMISE: the first install has no configuration to read, so every adapter resolves `inherit`.
     expect(existsSync(targetConfigPath(target))).toBe(false);
     expect(runInstall(target, home).status).toBe(0);
-    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(ZERO_CONFIG_ALIAS_SET);
 
     // PREMISE: the edit actually landed at the path the installer reads.
     const configPath = writeTargetConfig(target, '{"models":{"preset":"tiered"}}\n');
@@ -2175,7 +2228,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const second = runInstall(target, home);
     expect(second.status).toBe(0);
-    const rels = installedAdapters(target);
+    // (Plan 39-07, D-16) The three engineer level adapters are unchanged by `tiered`, so the second
+    // run rewrites every other adapter and leaves those three byte-identical.
+    const rels = installedAdapters(target).filter((rel) => !LEVEL_ADAPTER_FILES.includes(rel));
+    expect(rels.length, "PREMISE: every adapter but the three levels changes").toBe(LIVE_ADAPTER_COUNT - LEVEL_ADAPTER_FILES.length);
     const lines = adapterReportLines(second.stdout, "materialized");
     expect(`rewritten adapter lines: ${lines.length}`).toBe(`rewritten adapter lines: ${rels.length}`);
     // Every rewrite is NAMED, with the alias the file now carries — read off the bytes rather than
@@ -2192,7 +2248,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
         `${rel}: named with model=${alias}: 1`,
       );
     }
-    expect([...new Set(targetModelLines(target))].sort()).toEqual(["opus", "sonnet"]);
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(["haiku", "opus", "sonnet"]);
   });
 
   it("model delivery: every target adapter carries a TARGET-TRUE banner exactly once and names no command the target cannot run (D-14)", () => {
@@ -2268,15 +2324,20 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // TARGET repository reaches THAT repository's adapters through the shipped installer, and a target
   // without one gets no `effort:` line at all.
   //
-  // Every expectation is DERIVED: the role stems come from kit-model's listRoles over the real kit,
+  // Every expectation is DERIVED: the adapter stems come from kit-model's listAgentAdapterSpecs over
+  // the real kit (plan 39-07; listRoles before the engineer declared its levels),
   // the adapter-to-stem map from kit-model's AGENT_ADAPTER_PREFIX, and each adapter's
-  // expected level from resolveEfforts over those stems. No stem and no level is typed here.
+  // expected level from the per-adapter resolver over those stems. No stem and no level is typed here.
   // ─────────────────────────────────────────────────────────────────────────────────────────────
 
   // effortStems — the derived role set, with the role-file extension removed. The count is asserted
   // against the installed adapter count by each case, never against a literal.
+  //
+  // (Plan 39-07, TIER-02) ADAPTER stems, from the adapter-identity derivation: the leveled engineer
+  // contributes `software-engineer-junior`, `-mid` and `-senior`, so each installed adapter maps to
+  // exactly one stem, and every expectation is resolved per adapter (adapterAssignments).
   function effortStems(): string[] {
-    return listRoles(REPO_ROOT).map((f) => f.slice(0, -".md".length));
+    return listAgentAdapterSpecs(REPO_ROOT).map((s) => s.adapterStem);
   }
 
   // agentPrefixLiteral — the adapter namespace, imported from its one declaration in
@@ -2320,12 +2381,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // The override target is the first derived stem whose TIERED level is not the override level,
     // so the override is visible in the bytes rather than coinciding with the preset's answer.
     const overrideLevel = EFFORT_LEVELS[EFFORT_LEVELS.length - 1];
-    const tieredOnly = resolveEfforts(stems, { preset: "tiered" });
-    if (!tieredOnly.ok) throw new Error(tieredOnly.reason);
-    const victim = stems.find((s) => tieredOnly.value.get(s) !== overrideLevel);
+    const tieredOnly = adapterAssignments({ effort: { preset: "tiered" } }).efforts;
+    const victim = stems.find((s) => tieredOnly.get(s) !== overrideLevel);
     if (victim === undefined) throw new Error("no derived stem resolves to a level other than the override level");
-    const expected = resolveEfforts(stems, { preset: "tiered", overrides: new Map([[victim, overrideLevel]]) });
-    if (!expected.ok) throw new Error(expected.reason);
+    const expected = { value: adapterAssignments({ effort: { preset: "tiered", roles: { [victim]: overrideLevel } } }).efforts };
     // PREMISE: the expectation really differs from the preset alone at the victim, and the resolver
     // gives SOME role a non-inherit level, so "carries the resolved line" is not vacuous.
     expect(expected.value.get(victim)).toBe(overrideLevel);
@@ -2351,7 +2410,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     }
     expect(findings).toEqual([]);
     // The model half is untouched by an effort-only change of preset: every adapter still `inherit`.
-    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+    expect([...new Set(targetModelLines(target))].sort()).toEqual(ZERO_CONFIG_ALIAS_SET);
     // The configuration file is USER content: the render reads it and never rewrites it.
     expect(readFileSync(configPath, "utf8")).toBe(body);
   });
@@ -2366,8 +2425,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(runInstall(target, home).status).toBe(0);
 
     const map = adapterStemMap(target, stems);
-    const carrying = [...map.keys()].filter((rel) => targetEffortLines(target, rel).length > 0);
-    expect(carrying, "an `inherit` effort must emit NO line (D-06)").toEqual([]);
+    const carrying = [...map.keys()].filter((rel) => targetEffortLines(target, rel).length > 0).sort();
+    // (Plan 39-07, D-3) Only the three engineer level adapters carry a line, each its D-14 pin.
+    expect(carrying, "an `inherit` effort must emit NO line (D-06)").toEqual(LEVEL_ADAPTER_FILES);
+    for (const rel of carrying) expect(targetEffortLines(target, rel)).toEqual([`effort: ${zeroEffortOf(rel.slice(0, -".md".length))}`]);
   });
 
   it("effort delivery: a target with ONLY the model preset `tiered` installs adapters with NO `effort:` line (D-05)", () => {
@@ -2383,8 +2444,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const map = adapterStemMap(target, stems);
     // PREMISE: the model preset really took effect, so "no effort line" is about a configured target.
     expect([...new Set(targetModelLines(target))].sort()).not.toEqual(["inherit"]);
-    const carrying = [...map.keys()].filter((rel) => targetEffortLines(target, rel).length > 0);
-    expect(carrying, "the model preset must not change any effort (D-05)").toEqual([]);
+    const carrying = [...map.keys()].filter((rel) => targetEffortLines(target, rel).length > 0).sort();
+    // (Plan 39-07) The level adapters keep their pinned efforts; nothing else gains a line.
+    expect(carrying, "the model preset must not change any effort (D-05)").toEqual(LEVEL_ADAPTER_FILES);
     expect(readFileSync(configPath, "utf8")).toBe(body);
   });
 
@@ -2436,7 +2498,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r2.stdout).toContain("install INCOMPLETE");
     expect(snapshot(join(seeded, ".claude", "agents"))).toBe(before);
     const map = adapterStemMap(seeded, stems);
-    expect([...map.keys()].filter((rel) => targetEffortLines(seeded, rel).length > 0)).toEqual([]);
+    expect([...map.keys()].filter((rel) => targetEffortLines(seeded, rel).length > 0).sort()).toEqual(LEVEL_ADAPTER_FILES);
   });
 
   it("effort delivery: a SECOND install over an unchanged effort-configured target WRITES NO adapter (D-11)", () => {
@@ -2691,8 +2753,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // map is built from those two sources, never from the announcement under test.
   function expectedModelByAdapter(target: string, preset?: "tiered"): Map<string, ModelAlias> {
     const stems = effortStems();
-    const resolved = resolveModels(stems, preset === undefined ? undefined : { preset });
-    if (!resolved.ok) throw new Error(resolved.reason);
+    const resolved = { value: adapterAssignments(preset === undefined ? {} : { preset }).models };
     const map = new Map<string, ModelAlias>();
     for (const [rel, stem] of adapterStemMap(target, stems)) {
       const alias = resolved.value.get(stem);
@@ -2737,9 +2798,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(lines.length).toBe(installedAdapters(target).length);
     expect(lines.length).toBe(LIVE_ADAPTER_COUNT);
     for (const line of lines) {
-      expect(`${line.trim().split(/\s+/)[1]}: ${line.includes("model=inherit")}`).toBe(
-        `${line.trim().split(/\s+/)[1]}: true`,
-      );
+      // (Plan 39-07, D-3) Each line carries its adapter's zero-config alias: the level pin for the
+      // three engineer levels, `inherit` for every other adapter.
+      const rel = line.trim().split(/\s+/)[1] as string;
+      const zero = zeroModelOf(rel.replace(/^\.claude\/agents\//, "").replace(/\.md$/, ""));
+      expect(`${rel}: ${line.includes(`model=${zero}`)}`).toBe(`${rel}: true`);
     }
     // ...and no report line anywhere carries a full model id shape.
     expect(r.stdout).not.toMatch(/model=[a-z]+-[a-z0-9-]*\d/);
@@ -2799,7 +2862,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const aliases = new Set(
       lines.map((l) => l.slice(l.lastIndexOf("model=") + "model=".length).replace(/\)$/, "")),
     );
-    expect([...aliases].sort()).toEqual(["opus", "sonnet"]);
+    expect([...aliases].sort()).toEqual(["haiku", "opus", "sonnet"]);
     // ...and no per-adapter line claims a write happened.
     expect(adapterReportLines(r.stdout ?? "", "materialized")).toEqual([]);
 
@@ -3600,7 +3663,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const r = runInstallFrom(src, target, mkTmp());
     // EVERY ADAPTER NAMED, AND THE STATUS, IN ONE ASSERTION.
-    const unnamed = SYNTH_NAMES.filter((n) => !r.stdout.includes(perMemberSentence(n, "model", "rendered", "inherit", "opus")));
+    // (Plan 39-07) Each adapter renders its own zero-config alias; the senior level already renders
+    // `opus`, so it agrees with the announcement and is not a disagreement to name.
+    const unnamed = SYNTH_NAMES.filter((n) => zeroModelOf(n) !== "opus").filter(
+      (n) => !r.stdout.includes(perMemberSentence(n, "model", "rendered", zeroModelOf(n), "opus")),
+    );
     expect(`status=${r.status} unnamed=${JSON.stringify(unnamed)}`).toBe("status=3 unnamed=[]");
     expect(r.stdout).toContain("install INCOMPLETE");
     expect(installedAdapters(target)).toEqual([]);
@@ -3635,7 +3702,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const r = runInstallFrom(src, target, mkTmp());
     const unnamed = SYNTH_NAMES.filter(
-      (n) => !r.stdout.includes(perMemberSentence(n, "effort", "rendered", "inherit", FOREIGN_LEVEL)),
+      (n) => !r.stdout.includes(perMemberSentence(n, "effort", "rendered", zeroEffortOf(n), FOREIGN_LEVEL)),
     );
     expect(`status=${r.status} unnamed=${JSON.stringify(unnamed)}`).toBe("status=3 unnamed=[]");
     expect(r.stdout).toContain("install INCOMPLETE");
@@ -3664,12 +3731,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   } {
     const stems = effortStems();
     const prefix = agentPrefixLiteral();
-    const tiered = resolveEfforts(stems, { preset: "tiered" });
-    if (!tiered.ok) throw new Error(tiered.reason);
+    const tiered = { value: adapterAssignments({ effort: { preset: "tiered" } }).efforts };
     const pinned = stems.find((s) => tiered.value.get(s) !== "inherit");
     if (pinned === undefined) throw new Error("no derived stem has a tiered effort level other than inherit");
-    const resolved = resolveEfforts(stems, { preset: "tiered", overrides: new Map([[pinned, "inherit" as const]]) });
-    if (!resolved.ok) throw new Error(resolved.reason);
+    const resolved = { value: adapterAssignments({ effort: { preset: "tiered", roles: { [pinned]: "inherit" } } }).efforts };
     const byName = new Map<string, string>(stems.map((s) => [`${prefix}${s}`, String(resolved.value.get(s))]));
     const levels = [...byName.values()];
     const victim = SYNTH_NAMES.find((n) => {
@@ -3808,8 +3873,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   function modelSwap(): { victim: string; said: string; swap: string; byName: Map<string, string> } {
     const stems = effortStems();
     const prefix = agentPrefixLiteral();
-    const tiered = resolveModels(stems, { preset: "tiered" });
-    if (!tiered.ok) throw new Error(tiered.reason);
+    const tiered = { value: adapterAssignments({ preset: "tiered" }).models };
     const byName = new Map<string, string>(stems.map((st) => [`${prefix}${st}`, String(tiered.value.get(st))]));
     const values = [...byName.values()];
     const count = (a: string): number => values.filter((v) => v === a).length;
@@ -3825,8 +3889,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   function tieredEffortVictim(): { victim: string; level: string } {
     const stems = effortStems();
     const prefix = agentPrefixLiteral();
-    const tiered = resolveEfforts(stems, { preset: "tiered" });
-    if (!tiered.ok) throw new Error(tiered.reason);
+    const tiered = { value: adapterAssignments({ effort: { preset: "tiered" } }).efforts };
     const byName = new Map<string, string>(stems.map((st) => [`${prefix}${st}`, String(tiered.value.get(st))]));
     const victim = SYNTH_NAMES.find((n) => byName.get(n) !== undefined && byName.get(n) !== "inherit");
     if (victim === undefined) throw new Error("no synthetic adapter has a tiered effort level other than inherit");

@@ -3,7 +3,8 @@
 // Plan 39-05 adds the cases for agent-factory/checklists/complexity-rubric.md (TIER-01, TIER-03,
 // D-11, D-31) and agent-factory/roles/tech-lead.md (TIER-01; D-04..D-07, D-10, D-17, D-19, D-21).
 // Plan 39-06 adds the cases for agent-factory/roles/designer.md (TIER-05; D-23..D-27).
-// Later Phase 39 plans add the engineer `## Levels` section, WF04 and WF14.
+// Plan 39-07 adds the cases for the engineer's `levels:` line and `## Levels` section (TIER-02,
+// TIER-03; D-5, D-10, D-17, D-18, D-31). Later Phase 39 plans add WF04 and WF14.
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -19,6 +20,7 @@ const RUBRIC = readFileSync(join(ROOT, RUBRIC_PATH), "utf8");
 const TECH_LEAD = readFileSync(join(ROOT, "agent-factory/roles/tech-lead.md"), "utf8");
 const DESIGNER = readFileSync(join(ROOT, "agent-factory/roles/designer.md"), "utf8");
 const CHECKLIST_INDEX = readFileSync(join(ROOT, "agent-factory/checklists/00-index.md"), "utf8");
+const ENGINEER = readFileSync(join(ROOT, "agent-factory/roles/software-engineer.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -309,5 +311,63 @@ describe("designer.md (TIER-05; D-23..D-27)", () => {
     expect(body).toContain("The accessibility bar is WCAG 2.2 AA, stated in clear professional English.");
     expect(body).toContain("Never fabricate a guideline or a passing bar; mark anything unverified `UNKNOWN - verify`.");
     expect(body).toContain("Merge and deploy remain human decisions.");
+  });
+});
+
+describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D-17, D-18, D-31)", () => {
+  const levels = (): string => section(ENGINEER, "Levels");
+
+  it("D-13: the frontmatter declares `levels: junior mid senior` once, as its last line", () => {
+    const fm = ENGINEER.split("\n---\n")[0] as string;
+    expect(fm.split("\n").filter((l) => l.startsWith("levels:"))).toEqual(["levels: junior mid senior"]);
+    expect(fm.split("\n").at(-1)).toBe("levels: junior mid senior");
+  });
+
+  it("the `## Levels` section exists once and sits right after `## Responsibilities`", () => {
+    const headings = ENGINEER.split("\n").filter((l) => l.startsWith("## "));
+    expect(headings.filter((h) => h === "## Levels")).toHaveLength(1);
+    expect(headings[headings.indexOf("## Levels") - 1]).toBe("## Responsibilities");
+  });
+
+  it("D-17: on Claude Code it names the three level adapters and says the Tech Lead names one per ticket", () => {
+    const body = levels();
+    expect(body).toContain("On Claude Code this role runs as `grugops-software-engineer-junior`, `-mid` or `-senior`");
+    expect(body).toContain("the Tech Lead names one for each ticket");
+  });
+
+  it("D-5 / D-17: on the other hosts the level in the ticket's `## Tech Lead plan` is scope guidance only, with no model advice", () => {
+    const body = levels();
+    expect(body).toContain("On the other hosts, read the level in the ticket's `## Tech Lead plan` section and keep to that level's scope; the model does not change.");
+    // No model is named or advised anywhere in the section.
+    for (const word of ["haiku", "sonnet", "opus", "Haiku", "Sonnet", "Opus", "effort"]) {
+      expect(body, `the section must not advise a model: "${word}"`).not.toContain(word);
+    }
+  });
+
+  it("the scope of each level is the complexity rubric's, which it points at and does not restate", () => {
+    const body = levels();
+    expect(body).toContain("`agent-factory/checklists/complexity-rubric.md` sets the scope of each level.");
+    expect(body).not.toContain("F1");
+  });
+
+  it("TIER-03 / D-31: a junior takes only tasks whose plan fixes what to write, and stops `BLOCKED` on the four excluded kinds of work", () => {
+    const body = levels();
+    expect(body).toContain("A junior takes only tasks whose plan already fixes what to write.");
+    expect(body).toContain("A junior that meets security, migration, concurrency or test-integrity work stops and reports `BLOCKED`.");
+  });
+
+  it("D-10: every level may deviate from the plan, recording what changed and why", () => {
+    expect(levels()).toContain("At any level you may deviate from the plan to fit the real code; record what changed and why in your notes.");
+  });
+
+  it("D-18: a blocked engineer, or one whose gate fails a second time, publishes a `failed-attempt` note per WF04", () => {
+    expect(levels()).toContain(
+      "When you are blocked, or the gate fails a second time, publish a `failed-attempt` note per `agent-factory/workflows/04-ticket-to-pr.md`.",
+    );
+  });
+
+  it("the role keeps exactly one Workflow 16 and one Workflow 18 reference after the section lands", () => {
+    expect(ENGINEER.split("16-context-read-write.md").length - 1).toBe(1);
+    expect(ENGINEER.split("18-context-compaction.md").length - 1).toBe(1);
   });
 });

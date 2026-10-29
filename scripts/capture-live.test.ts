@@ -242,6 +242,21 @@ describe("D-02 two-sidedness: a one-sided capture is a red with a named reason",
     expect(reasons[0]).toMatch(/^side \(a\): 0 distinct granted role\(s\)/);
   });
 
+  it("(plan 39-07) side (b) accepts a level adapter's agent stamping either its role stem or its adapter stem, never the coordinator", () => {
+    const grant = deriveGrant(ROOT);
+    expect(grant.grantedRoles).toContain("software-engineer");
+    expect(grant.grantedRoles).not.toContain("orchestrator");
+    expect(grant.granted).not.toContain("grugops-software-engineer");
+    for (const by of ["software-engineer", "software-engineer-junior", "grugops-software-engineer-senior"]) {
+      const root = contextRootWithNotes([{ by, kind: "finding", body: "Implemented." }]);
+      const reasons = capThreePredicate({ observations: spawnObservations(FIXTURE.frames), grant, stamps: authorStamps(root) });
+      expect(reasons.filter((r) => r.startsWith("side (b)")), by).toEqual([]);
+    }
+    const coord = contextRootWithNotes([{ by: "orchestrator", kind: "claim", body: "Routed." }]);
+    const coordReasons = capThreePredicate({ observations: spawnObservations(FIXTURE.frames), grant, stamps: authorStamps(coord) });
+    expect(coordReasons.some((r) => r.startsWith("side (b)"))).toBe(true);
+  });
+
   it("an empty context root fails side (b) with the no-note reason; both sides holding yields the empty array", () => {
     const grant = deriveGrant(ROOT);
     const empty = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-empty-`));

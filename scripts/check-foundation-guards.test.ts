@@ -94,6 +94,7 @@ import {
   LEVELED_ROLE_COUNT,
   PLUGIN_SKILL_ADAPTER_COUNT,
   PLUGIN_MANIFEST_COMPONENT_COUNT,
+  listAgentAdapterSpecs,
 } from "./kit-model.js";
 
 // (Plan 29-33) Arm A of the SEC_VOICE per-member property floor. The ONE derivation of the safety
@@ -115,6 +116,9 @@ import {
   // (Plan 34-05) the effort guard cases assert their premises through the SAME reader and resolver.
   resolveEfforts,
   EFFORT_LEVELS,
+  // (Plan 39-07, D-16) the stems a preset governs: every role but the leveled engineer.
+  presetGovernedStems,
+  MODEL_TIERS_COUNT,
 } from "./model-tiers.js";
 
 // (Phase 32.1, plan 32.1-05, D-01) THE SHARED SYMBOL-RESOLVING INSTRUMENT, imported rather than
@@ -130,6 +134,13 @@ import {
 } from "./ts-symbols.test-support.js";
 
 const ROOT = join(import.meta.dirname, "..");
+
+// (Plan 39-07, TIER-02) The live adapter count, asked of the adapter-identity derivation. It is no
+// longer ROLE_COUNT: software-engineer.md yields three level adapters and no base adapter.
+const LIVE_ADAPTER_COUNT = listAgentAdapterNames(ROOT).length;
+// (Plan 39-07, D-3, D-14) The distinct model aliases and effort levels the zero-config path resolves
+// on the live tree, as literals: `inherit` for every non-level adapter and the three D-14 pins.
+const ZERO_CONFIG_ALIASES = "haiku, inherit, opus, sonnet";
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 
 // (Plan 29.1-09, IN-04) The stray-pin arm's denominator, DERIVED HERE THE SAME WAY THE GUARD DERIVES
@@ -3734,6 +3745,14 @@ function brokenMirror(): string {
   return m;
 }
 
+// (Plan 39-07) The D-14 zero-config pins of the three engineer level adapters, as test literals
+// (never read from LEVELS), for the fixture bodies consistentMirror() writes.
+const FIXTURE_LEVEL_PINS: Readonly<Record<string, { model: string; effort: string }>> = {
+  "grugops-software-engineer-junior": { model: "haiku", effort: "medium" },
+  "grugops-software-engineer-mid": { model: "sonnet", effort: "medium" },
+  "grugops-software-engineer-senior": { model: "opus", effort: "high" },
+};
+
 function consistentMirror(): string {
   const m = mirror();
   const names = roleAgentNames(m);
@@ -3763,10 +3782,16 @@ function consistentMirror(): string {
   // genuinely defective adapter, and every "asserts ALL CHECKS PASSED" case built on this mirror
   // would fail for a reason having nothing to do with what it tests. It is deliberately SPAWN-FREE:
   // only the coordinator may hold the grant, so the list names ordinary tools and no `Agent`.
+  //
+  // (Plan 39-07, D-3, D-14) A level adapter's fixture body carries its zero-config pin, because the
+  // value guards expect it: the live software-engineer.md declares its levels, so a fixture at
+  // `model: inherit` would be a genuinely mis-pinned adapter and every green case would fail on it.
   for (const name of granted) {
+    const pin = FIXTURE_LEVEL_PINS[name];
+    const dial = pin === undefined ? "model: inherit" : `model: ${pin.model}\neffort: ${pin.effort}`;
     writeFileSync(
       adapterPath(m, name),
-      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\ntools: Read, Grep, Glob, Edit, Write, Bash\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
+      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\ntools: Read, Grep, Glob, Edit, Write, Bash\n${dial}\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
     );
   }
   // Re-point the coordinator's grant at the full 16-name set so the closure closes.
@@ -10659,10 +10684,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const section = modelSection(out(r));
     expect(section, "the guard must emit a banner and a section").not.toBe("");
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived adapter stem(s)`,
+      `${LIVE_ADAPTER_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${LIVE_ADAPTER_COUNT} derived adapter stem(s)`,
     );
     expect(section).toContain('preset "none"');
-    expect(section).toContain("distinct aliases resolved: inherit");
+    expect(section).toContain(`distinct aliases resolved: ${ZERO_CONFIG_ALIASES}`);
   });
 
   it("two consecutive runs over the same tree produce BYTE-IDENTICAL stdout", () => {
@@ -10883,7 +10908,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain(`adapter stem "${PLANTED_18TH_STEM}"`);
     expect(section).toContain("has NO committed adapter under .claude/agents");
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} adapter stem(s)`,
+      `${LIVE_ADAPTER_COUNT} committed adapter(s) under .claude/agents against ${LIVE_ADAPTER_COUNT + 1} adapter stem(s)`,
     );
   });
 
@@ -10913,7 +10938,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     // The count floor still fires — it reads the role derivation, which the mutation did not touch —
     // so the section is NOT silent, and the discrimination is precisely the stem-naming finding.
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents against ${ROLE_COUNT + 1} adapter stem(s)`,
+      `${LIVE_ADAPTER_COUNT} committed adapter(s) under .claude/agents against ${LIVE_ADAPTER_COUNT + 1} adapter stem(s)`,
     );
     // (Plan 29.1-09) NARROWED FROM "the stem is never mentioned" TO "the RESOLUTION-DERIVED finding
     // does not fire", and the narrowing is a repair rather than a weakening.
@@ -10967,7 +10992,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(r.status).not.toBe(0);
     const section = modelSection(out(r));
     expect(section).toContain(
-      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} adapter stem(s)`,
+      `${LIVE_ADAPTER_COUNT - 1} committed adapter(s) under .claude/agents against ${LIVE_ADAPTER_COUNT} adapter stem(s)`,
     );
     expect(section).toContain('adapter stem "factory-coach"');
     expect(section).toContain("has NO committed adapter under .claude/agents");
@@ -11044,10 +11069,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).toContain("degraded — the configuration was refused");
     // …and the comparison still ran against every adapter rather than being skipped.
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived adapter stem(s)`,
+      `${LIVE_ADAPTER_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${LIVE_ADAPTER_COUNT} derived adapter stem(s)`,
     );
     // The degradation TARGET is unchanged: `inherit` for every stem, never a pinned tier.
-    expect(section).toContain("distinct aliases resolved: inherit");
+    expect(section).toContain(`distinct aliases resolved: ${ZERO_CONFIG_ALIASES}`);
   });
 
   // (Plan 29.1-09, WR-07) THE COMPANION ARM. `guard_model_assignment` degrades on TWO branches — a
@@ -11093,7 +11118,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     expect(section).not.toContain("  PASS  model assignment");
     // …and this arm's degradation target is the lean default too, not the `tiered` table it failed
     // to apply. A promotion that changed what the expectation degrades TO would show up here.
-    expect(section).toContain("distinct aliases resolved: inherit");
+    expect(section).toContain(`distinct aliases resolved: ${ZERO_CONFIG_ALIASES}`);
   });
 
   // (Plan 29.1-13, R2-IN-01) THE SLICER, HOISTED OUT OF CASE (m) SO BOTH PROPERTIES READ ONE BODY.
@@ -11699,7 +11724,9 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
 
     // PREMISE, through the same reader the guard uses: the planted file really resolves `tiered`,
     // and the resolution it produces really disagrees with the committed `inherit` on every role.
-    const stems = listRoles(m).map((f) => f.replace(/\.md$/, ""));
+    // (Plan 39-07, D-16) Over the preset-governed stems: the leveled engineer resolves through
+    // LEVELS, so `tiered` never moves its three adapters.
+    const stems = presetGovernedStems(listAgentAdapterSpecs(m));
     const cfg = readModelsConfig(m, stems);
     expect(cfg.ok).toBe(true);
     if (!cfg.ok) throw new Error("unreachable");
@@ -11724,7 +11751,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const mismatches = section
       .split("\n")
       .filter((l) => l.includes(MISMATCH_ANCHOR));
-    expect(mismatches).toHaveLength(ROLE_COUNT);
+    expect(mismatches).toHaveLength(MODEL_TIERS_COUNT);
+    for (const level of ["junior", "mid", "senior"]) {
+      expect(section, `D-16: tiered never moves the ${level} level`).not.toContain(`grugops-software-engineer-${level}.md: declares`);
+    }
     expect(section).toContain(
       "declares `model: inherit`, and the configuration resolves `opus` for adapter stem \"orchestrator\"",
     );
@@ -11841,7 +11871,8 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   it("(q-green) the tier table and the role corpus agree on THIS repository, and the arm is not vacuous", () => {
     // The production consumer exists and runs: on the live tree it produces no finding, and the
     // mutation case above proves the same call can produce one.
-    expect(tieredCorpusRefusals(listRoles(ROOT).map((f) => f.replace(/\.md$/, "")))).toEqual([]);
+    // (Plan 39-07, D-16) Over the preset-governed stems: the leveled engineer has no TIERED row.
+    expect(tieredCorpusRefusals(presetGovernedStems(listAgentAdapterSpecs(ROOT)))).toEqual([]);
     expect(runIn(ROOT).status).toBe(0);
   });
 
@@ -12199,10 +12230,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
     const section = modelSection(out(r));
     expect(section).toContain("PASS  model assignment:");
     expect(section).toContain(
-      `${ROLE_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${ROLE_COUNT} derived adapter stem(s)`,
+      `${LIVE_ADAPTER_COUNT} committed adapter(s) under .claude/agents compared against a resolution recomputed for ${LIVE_ADAPTER_COUNT} derived adapter stem(s)`,
     );
     expect(section).toContain('preset "none" from neither standard location');
-    expect(section).toContain("distinct aliases resolved: inherit");
+    expect(section).toContain(`distinct aliases resolved: ${ZERO_CONFIG_ALIASES}`);
   });
 
   // ── (r) THE GENERATOR IS WIRED INTO CI, ASSERTED AT BOTH ENDS. (Plan 29.1-09, WR-07) ─────────
@@ -14794,20 +14825,21 @@ describe("guard_effort_assignment (plan 34-05)", () => {
     const file = join(m, ".claude/agents", adapter);
 
     // PREMISE, through the guard's own reader: the regenerated adapter really carries `high`, and no
-    // other adapter carries any effort line (every other role resolves `inherit`).
+    // other adapter carries any effort line (every other role resolves `inherit`) except the three
+    // engineer level adapters, which carry their D-14 pins (plan 39-07, D-3).
     expect(admittedEffortValues(file)).toEqual(["high"]);
     const carriers = listAgentAdapters(m).filter((rel) => {
       const v = admittedEffortValues(join(m, ".claude/agents", rel));
       return !Array.isArray(v) || v.length !== 0;
     });
-    expect(carriers).toEqual([adapter]);
+    expect(carriers).toEqual([adapter, ...Object.keys(FIXTURE_LEVEL_PINS).map((n) => `${n}.md`)].sort());
 
     const green = runIn(m);
     const greenSection = effortSection(out(green));
     expect(greenSection, "the guard must emit a banner and a section").not.toBe("");
     expect(greenSection).toContain(EFFORT_PASS_MARKER);
     expect(greenSection).toContain("from .grugops/factory.config.json");
-    expect(greenSection).toContain("distinct effort levels resolved: high, inherit");
+    expect(greenSection).toContain("distinct effort levels resolved: high, inherit, medium");
     expect(out(green)).toContain("ALL CHECKS PASSED");
     expect(green.status).toBe(0);
 
@@ -14922,17 +14954,20 @@ describe("guard_effort_assignment (plan 34-05)", () => {
   const tiered = (): TieredFixture => {
     if (tieredFixture !== undefined) return tieredFixture;
     const root = mirror();
-    const stems = derivedStemsOf(root);
+    derivedStemsOf(root);
     configureAndRegenerate(root, { models: { effort: { preset: "tiered" } } });
-    const resolution = resolveEfforts(stems, { preset: "tiered" });
+    // (Plan 39-07, D-16) The effort preset governs every role but the leveled engineer, whose three
+    // adapters keep their D-14 effort pins under `tiered`.
+    const resolution = resolveEfforts(presetGovernedStems(listAgentAdapterSpecs(root)), { preset: "tiered" });
     if (!resolution.ok) throw new Error(resolution.reason);
     const adapters = listAgentAdapters(root).sort();
-    expect(adapters.length, "the derived adapter set must number ROLE_COUNT").toBe(ROLE_COUNT);
+    expect(adapters.length, "the derived adapter set must number the live adapter count").toBe(LIVE_ADAPTER_COUNT);
     const levelOf = new Map<string, string>();
     const bytesOf = new Map<string, string>();
     for (const rel of adapters) {
       const stemOf = rel.replace(/\.md$/, "").replace(/^grugops-/, "");
-      const level = resolution.value.get(stemOf);
+      const pin = FIXTURE_LEVEL_PINS[rel.replace(/\.md$/, "")];
+      const level = pin === undefined ? resolution.value.get(stemOf) : pin.effort;
       expect(level, `${rel}: the tiered resolution must assign its stem a level`).toBeDefined();
       expect(level).not.toBe(EFFORT_LEVELS[0]);
       const file = join(root, ".claude/agents", rel);
@@ -14993,7 +15028,7 @@ describe("guard_effort_assignment (plan 34-05)", () => {
       } finally {
         restore(fx);
       }
-      expect(runs, "every derived adapter was faulted once").toBe(ROLE_COUNT);
+      expect(runs, "every derived adapter was faulted once").toBe(LIVE_ADAPTER_COUNT);
     });
   }
 
@@ -15033,8 +15068,12 @@ describe("guard_effort_assignment (plan 34-05)", () => {
 
   it("ZERO-CONFIG EXTRA LINE — any adapter gaining an effort line where `inherit` resolves is a finding (expected inherit, found the level)", () => {
     const m = mirror();
-    const adapters = listAgentAdapters(m).sort();
-    expect(adapters.length).toBe(ROLE_COUNT);
+    // (Plan 39-07) The three engineer level adapters resolve a pinned effort, not `inherit`, so they
+    // are outside this case; every other derived adapter is planted in turn.
+    const adapters = listAgentAdapters(m)
+      .filter((rel) => FIXTURE_LEVEL_PINS[rel.replace(/\.md$/, "")] === undefined)
+      .sort();
+    expect(adapters.length).toBe(LIVE_ADAPTER_COUNT - Object.keys(FIXTURE_LEVEL_PINS).length);
     const levels = EFFORT_LEVELS.slice(1);
     let runs = 0;
     for (const [i, rel] of adapters.entries()) {
@@ -15062,7 +15101,7 @@ describe("guard_effort_assignment (plan 34-05)", () => {
       writeFileSync(file, original, "utf8");
       runs += 1;
     }
-    expect(runs).toBe(ROLE_COUNT);
+    expect(runs).toBe(LIVE_ADAPTER_COUNT - Object.keys(FIXTURE_LEVEL_PINS).length);
   });
 
   it("DEGRADED (read) — a configuration naming an illegal effort level fails the run and names the refusal", () => {
@@ -15128,7 +15167,7 @@ describe("guard_effort_assignment (plan 34-05)", () => {
     expect(r.status).not.toBe(0);
     const section = effortSection(out(r));
     expect(section).toContain("the adapter derivation returned NO committed adapters");
-    expect(section).toContain(`All ${ROLE_COUNT} adapter stem(s) are unbacked`);
+    expect(section).toContain(`All ${LIVE_ADAPTER_COUNT} adapter stem(s) are unbacked`);
     expect(section).not.toContain(EFFORT_PASS_MARKER);
   });
 
@@ -15140,7 +15179,7 @@ describe("guard_effort_assignment (plan 34-05)", () => {
     expect(r.status).not.toBe(0);
     const section = effortSection(out(r));
     expect(section).toContain(
-      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} adapter stem(s)`,
+      `${LIVE_ADAPTER_COUNT - 1} committed adapter(s) under .claude/agents against ${LIVE_ADAPTER_COUNT} adapter stem(s)`,
     );
     expect(section).toContain(`adapter stem "${gone.replace(/\.md$/, "").replace(/^grugops-/, "")}"`);
     expect(section).not.toContain(EFFORT_PASS_MARKER);
@@ -15216,12 +15255,11 @@ describe("guard_effort_assignment (plan 34-05)", () => {
 // ENGINEER LEVELS AT THE GATE (plan 39-02, TIER-02, TIER-06; D-3, D-13, D-14, D-15)
 //
 // A levels mirror: software-engineer.md declares `levels: junior mid senior`, and the mirror's
-// adapter directory is what the COMMITTED generator writes for it, with the base engineer adapter
-// removed. It is judged by a scratch build in the shape plan 39-07 leaves the tree in: one leveled
-// role (LEVELED_ROLE_COUNT 1) and no TIERED row for it, because a leveled role resolves through the
-// LEVELS table (D-16). Without those two source edits the TIERED table names a stem the corpus no
-// longer governs, which is a correct red for a half-done change rather than a defect in the levels
-// derivation.
+// adapter directory is what the COMMITTED generator writes for it, with no base engineer adapter.
+// (Plan 39-07) The live tree is that tree now: one leveled role (LEVELED_ROLE_COUNT 1) and no
+// TIERED row for it, because a leveled role resolves through the LEVELS table (D-16). Plan 39-02
+// judged this mirror with a scratch build in that shape; the committed build is that shape, so the
+// cases below run the committed guard.
 //
 // The unplanted mirror is the CONTROL and must be green on KIT-03 and both value guards. Each plant
 // then turns exactly the named guard red, with the file in its output.
@@ -15231,12 +15269,16 @@ const ENGINEER_ROLE = "software-engineer.md";
 const LEVEL_NAMES = ["junior", "mid", "senior"] as const;
 const levelAdapter = (level: string): string => `grugops-software-engineer-${level}`;
 
-/** Add `levels: <value>` below the `capabilities:` line of one role file in a root. */
-function declareLevels(root: string, roleFile: string, value: string): void {
+/**
+ * Set the `levels:` line of one role file in a root to `levels: <value>`, or remove it when `value`
+ * is null. (Plan 39-07) The live software-engineer.md already declares its levels, so the line is
+ * replaced or removed rather than added; a file with no `levels:` line is a PREMISE failure.
+ */
+function setLevels(root: string, roleFile: string, value: string | null): void {
   const p = rolePath(root, roleFile);
   const text = readFileSync(p, "utf8");
-  const next = text.replace(/^capabilities: .*$/m, (line) => `${line}\nlevels: ${value}`);
-  if (next === text) throw new Error(`PREMISE: ${roleFile} carries no \`capabilities:\` line`);
+  if (!/^levels: .*$/m.test(text)) throw new Error(`PREMISE: ${roleFile} carries no \`levels:\` line`);
+  const next = value === null ? text.replace(/^levels: .*\n/m, "") : text.replace(/^levels: .*$/m, `levels: ${value}`);
   writeFileSync(p, next, "utf8");
 }
 
@@ -15269,7 +15311,10 @@ function regenerateAdapters(m: string, configJson?: string): void {
 /** The levels mirror, optionally carrying a `.grugops/factory.config.json` the generator also read. */
 function levelsMirror(configJson?: string): string {
   const m = mirror();
-  declareLevels(m, ENGINEER_ROLE, "junior mid senior");
+  // PREMISE (plan 39-07): the mirrored role already declares exactly the three D-13 levels.
+  if (!/^levels: junior mid senior$/m.test(readFileSync(rolePath(m, ENGINEER_ROLE), "utf8"))) {
+    throw new Error(`PREMISE: the mirrored ${ENGINEER_ROLE} declares \`levels: junior mid senior\``);
+  }
   if (configJson !== undefined) {
     mkdirSync(join(m, ".grugops"), { recursive: true });
     writeFileSync(join(m, ".grugops", "factory.config.json"), configJson, "utf8");
@@ -15278,14 +15323,12 @@ function levelsMirror(configJson?: string): string {
   return m;
 }
 
-/** The scratch build in plan 39-07's shape: one leveled role, no TIERED row for software-engineer. */
+/**
+ * The guard the levels mirror is judged by. (Plan 39-07) The committed build is plan 39-07's shape,
+ * one leveled role and no TIERED row for software-engineer, so it is the committed guard itself.
+ */
 function levelsGuardBuild(): string {
-  return scratchGuardFiles({
-    "kit-model.js": (src) =>
-      src.replace("export const LEVELED_ROLE_COUNT = 0;", "export const LEVELED_ROLE_COUNT = 1;"),
-    "model-tiers.js": (src) =>
-      src.replace(/\n {4}\{\n {8}stem: "software-engineer",[\s\S]*?\n {4}\},/, ""),
-  });
+  return GUARD_JS;
 }
 
 const kit03Section = (o: string): string => guardSection(o, "guard_referential_integrity").join("\n");
@@ -15320,7 +15363,10 @@ describe("engineer levels at the gate (plan 39-02, D-13, D-14, D-15)", () => {
 
   it("level RED (KIT-03): a re-planted base engineer adapter is named as an adapter with no derived name", () => {
     const m = levelsMirror();
-    cpSync(join(ROOT, ".claude", "agents", "grugops-software-engineer.md"), adapterPath(m, "grugops-software-engineer"));
+    // (Plan 39-07) The base adapter is gone from the live tree, so it is re-planted from a level
+    // adapter's bytes with its identity rewritten to the base name: an adapter with no derived name.
+    cpSync(adapterPath(m, levelAdapter("mid")), adapterPath(m, "grugops-software-engineer"));
+    renameAdapterIdentity(adapterPath(m, "grugops-software-engineer"), "grugops-software-engineer");
     const section = kit03Section(out(runScratch(levelsGuardBuild(), m)));
     expect(section).toContain("KIT-03 referential-integrity violation");
     expect(section).toContain("1 adapter(s) with no role file: grugops-software-engineer");
@@ -15387,6 +15433,59 @@ describe("engineer levels at the gate (plan 39-02, D-13, D-14, D-15)", () => {
     for (const level of LEVEL_NAMES) {
       expect(section).not.toContain(`.claude/agents/${levelAdapter(level)}.md: declares`);
     }
+  });
+
+  // ── (Plan 39-07, TIER-06) THE LEVEL DECLARATIONS IN guard_kit_counts. ──────────────────────────
+  //
+  // guard_kit_counts pins the number of roles declaring `levels` to LEVELED_ROLE_COUNT and the union
+  // of the declared level tokens to the LEVELS levels, both ways. Each plant below changes only the
+  // engineer's `levels:` line and must turn that section red by name; the unplanted mirror is green.
+  const kitCountsSection = (o: string): string => guardSection(o, "guard_kit_counts").join("\n");
+
+  it("level declarations CONTROL: the unplanted mirror's guard_kit_counts passes, one role declaring the three LEVELS levels", () => {
+    const section = kitCountsSection(out(runIn(mirror())));
+    expect(section).toContain("PASS  kit counts:");
+    expect(section).toContain(
+      `${LEVELED_ROLE_COUNT} role file(s) declare levels (expected ${LEVELED_ROLE_COUNT}), and the declared level tokens equal the LEVELS levels (junior, mid, senior) both ways`,
+    );
+    expect(section).not.toContain("FAIL");
+  });
+
+  it("level declarations RED: the engineer's `levels:` line removed is named against LEVELED_ROLE_COUNT, and every LEVELS level is named undeclared", () => {
+    const m = mirror();
+    setLevels(m, ENGINEER_ROLE, null);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = kitCountsSection(out(r));
+    expect(section).toContain(
+      `derived 0 role file(s) declaring \`levels\` [], expected exactly LEVELED_ROLE_COUNT of ${LEVELED_ROLE_COUNT}`,
+    );
+    expect(section).toContain("the LEVELS table carries the level(s) [junior, mid, senior] that NO role file declares");
+    expect(section).not.toContain("PASS  kit counts:");
+  });
+
+  it("level declarations RED: `levels: junior mid` names the undeclared LEVELS level `senior`, direction TABLE → ROLES", () => {
+    const m = mirror();
+    setLevels(m, ENGINEER_ROLE, "junior mid");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = kitCountsSection(out(r));
+    expect(section).toContain("the LEVELS table carries the level(s) [senior] that NO role file declares in its `levels` line — direction TABLE → ROLES");
+    // The role count still agrees: one role declares levels, so only the token set is wrong.
+    expect(section).not.toContain("role file(s) declaring `levels`");
+    expect(section).not.toContain("direction ROLES → TABLE");
+  });
+
+  it("level declarations RED: `levels: junior mid senior lead` names `lead`, direction ROLES → TABLE, and the generator refuses it", () => {
+    const m = mirror();
+    setLevels(m, ENGINEER_ROLE, "junior mid senior lead");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = kitCountsSection(out(r));
+    expect(section).toContain("the role corpus declares the level token(s) [lead] that NO LEVELS row in scripts/model-tiers.ts carries — direction ROLES → TABLE");
+    expect(section).not.toContain("direction TABLE → ROLES");
+    // The committed generator refuses the same declaration: a level with no LEVELS row has no pin.
+    expect(() => regenerateAdapters(m)).toThrow(/committed generator refused the mirror[\s\S]*lead/);
   });
 
   it("level namespace: only scripts/kit-model.ts declares the agent namespace constant among non-test modules", () => {
