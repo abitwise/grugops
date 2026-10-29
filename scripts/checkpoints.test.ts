@@ -856,7 +856,10 @@ describe("30-04 — the live workflow corpus derives the roster, two-sided (D-01
     expect(cp.sortedIds(inWf05)).toEqual(
       cp.sortedIds(["exhaust_self_fix_budget", "accept_human_only_failure"]),
     );
-    expect(tagged.size).toBe(12);
+    // 12 -> 13 (39-08, 2026-10-29): `04-ticket-to-pr.md` took its first two tags, the gate-failure
+    // escalation (`exhaust_self_fix_budget`) and the options-used-up stop
+    // (`escalate_unadjudicable_result`). The derivation printed 13 before this line moved.
+    expect(tagged.size).toBe(13);
   });
 
   it("every file this plan tagged is named by a row in its disposition file (Pitfall 7)", () => {
@@ -866,11 +869,11 @@ describe("30-04 — the live workflow corpus derives the roster, two-sided (D-01
     for (const list of live.sites.values()) {
       for (const s of list) tagged.add(`agent-factory/workflows/${s.file}`);
     }
-    // BOTH disposition files, because the tags were laid down by two plans: 30-04 tagged eleven
-    // files and 30-05 tagged the twelfth. Reading only one of them would make the equality below
-    // fail for a bookkeeping reason rather than a missing row.
+    // EVERY disposition file whose plan laid down tags: 30-04 tagged eleven files, 30-05 tagged the
+    // twelfth and 39-08 tagged the thirteenth (`04-ticket-to-pr.md`). Reading only some of them
+    // would make the equality below fail for a bookkeeping reason rather than a missing row.
     const named = new Set<string>();
-    for (const plan of ["30-04.md", "30-05.md"]) {
+    for (const plan of ["30-04.md", "30-05.md", "39-08.md"]) {
       const doc = readFileSync(join(ROOT, "docs", "audit", "29-style-dispositions", plan), "utf8");
       for (const line of doc.split("\n")) {
         const m = line.match(/^\|\s*(agent-factory\/workflows\/[^\s|]+)\s*\|/);

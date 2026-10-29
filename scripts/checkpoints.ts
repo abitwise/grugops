@@ -325,8 +325,22 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * role, not to a human, so it carries no `checkpoint:` tag and the roster is unchanged. The same
  * plan widened the XL bullet to cover a Tech Lead file plan too large for one PR; that is the same
  * bullet, so it moves nothing here.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (39-08 Task 2, 2026-10-29): 44 -> 47. The same plan wrote
+ * the engineer escalation path into workflow 04, and its `## Stop conditions` gained three bullets.
+ * The derivation printed 47 before this line moved. THE TAGGING LIST WAS RE-WALKED, bullet by
+ * bullet:
+ *   - the engineer reports `BLOCKED`: it hands the ticket to the Tech Lead, a role, so it is
+ *     UNTAGGED;
+ *   - the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix for an agent-fixable reason: a
+ *     named human confirms the Tech Lead's decision before the re-enqueue, so it is TAGGED
+ *     `exhaust_self_fix_budget`, the same id as the workflow 05 stop it sits in front of; the human
+ *     stop is reused, never lowered;
+ *   - the Tech Lead's options are used up: it hands the ticket to a named human with no retry loop,
+ *     so it is TAGGED `escalate_unadjudicable_result`.
+ * Both tags reuse existing ids, so the roster is unchanged and only site counts move (below).
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 44;
+export const WORKFLOW_STOP_BULLET_COUNT = 47;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the
@@ -755,6 +769,17 @@ export function assertRosterMatchesDerivation(root: string = DEFAULT_ROOT): void
  * (38 -> 39) in the same commit as the tag. The id is reused rather than added because the case IS
  * an unadjudicable result: the in-script tier cannot re-verify the human disposition it is being
  * asked to carry forward, and a downgrade there would discard a named human's adjudication.
+ *
+ * PLAN 39-08 (2026-10-29) TAGGED `04-ticket-to-pr.md` TWICE AND MOVED THREE NUMBERS THE SAME WAY,
+ * each read off the derivation before it moved. Its gate-failure escalation bullet (the gate ends
+ * `BLOCKED_NEEDS_FIX` after its bounded self-fix, and a named human confirms the Tech Lead's
+ * decision before the re-enqueue) took `exhaust_self_fix_budget` at a sixth site (5 -> 6): it is the
+ * workflow 05 human stop, met from workflow 04, so the id is reused and the stop is not lowered. Its
+ * options-used-up bullet (the one escalation spent and the other moves also blocked, so a named human
+ * takes the ticket and nothing retries) took `escalate_unadjudicable_result` at a third site
+ * (2 -> 3): no agent can adjudicate that result, the same case as workflow 16's. Together they moved
+ * `RECORDED_TOTAL_SITES` 17 -> 19. The untagged `BLOCKED` bullet beside them hands to the Tech Lead,
+ * not to a human.
  */
 export const CHECKPOINT_SITE_COUNTS = {
   protected_branch_merge: 0,
@@ -767,9 +792,9 @@ export const CHECKPOINT_SITE_COUNTS = {
   escalate_stale_blocker: 1,
   exceed_wip_limit: 1,
   decide_accessibility_exception: 1,
-  exhaust_self_fix_budget: 5,
+  exhaust_self_fix_budget: 6,
   override_finding_severity: 1,
-  escalate_unadjudicable_result: 2,
+  escalate_unadjudicable_result: 3,
   accept_human_only_failure: 1,
 } as const satisfies Record<Checkpoint, number>;
 
@@ -780,7 +805,8 @@ export const CHECKPOINT_SITE_COUNTS = {
  * number written down separately is not. This is the same reason `WORKFLOW_STOP_BULLET_COUNT` is a
  * literal: a denominator computed by the loop it audits has never caught anything.
  */
-export const RECORDED_TOTAL_SITES = 17;
+// MEASURED (39-08, 2026-10-29): 17 -> 19, for the two workflow 04 tags recorded above.
+export const RECORDED_TOTAL_SITES = 19;
 
 /**
  * Assert a derived id→sites map against the recorded counts, in BOTH directions.

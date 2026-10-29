@@ -7,8 +7,8 @@
 // TIER-03; D-5, D-10, D-17, D-18, D-31), and the dial documentation of the D-2 amendment and the
 // level keys (D-2, D-15, D-16, D-22).
 // Plan 39-08 adds the cases for the Tech Lead in agent-factory/workflows/04-ticket-to-pr.md and the
-// Orchestrator's routing block (TIER-01; D-02, D-05, D-06, D-08, D-17, D-30). A later Phase 39 plan
-// adds WF14.
+// Orchestrator's routing block (TIER-01; D-02, D-05, D-06, D-08, D-17, D-30), and for the WF04
+// escalation path (TIER-04; D-18..D-21). A later Phase 39 plan adds WF14.
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -513,5 +513,81 @@ describe("WF04 and the Orchestrator route each ticket through the Tech Lead (TIE
 
   it("the packaging specimen names no retired base engineer adapter", () => {
     expect(PACKAGING).not.toMatch(/grugops-software-engineer(?![-a-z])/);
+  });
+});
+
+describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const WF05 = readFileSync(join(ROOT, "agent-factory/workflows/05-pr-quality-gate.md"), "utf8");
+  const steps = numbered(section(WF04, "Steps"));
+  const stops = section(WF04, "Stop conditions").split("\n").filter((l) => l.startsWith("- "));
+  const stepAt = (prefix: string) => {
+    const s = steps.find((x) => x.text.startsWith(prefix));
+    expect(s, `no step starting "${prefix}"`).toBeDefined();
+    return s as { n: number; text: string };
+  };
+
+  it("D-18: the engineer records a `failed-attempt` note on `BLOCKED` or an agent-fixable `BLOCKED_NEEDS_FIX`, and moves the ticket to `Blocked` naming the Tech Lead", () => {
+    const s = stepAt("Record a `failed-attempt` note per Workflow 16 when the engineer reports `BLOCKED` (Software Engineer).");
+    expect(s.text).toContain("when the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, for an agent-fixable reason");
+    expect(s.text).toContain("Move the ticket to the `Blocked` column.");
+    expect(s.text).toContain("Add a `## Blocked` bullet naming the Tech Lead as the owner who clears it.");
+    // Escalation comes after the gate and the QE steps.
+    expect(s.n).toBeGreaterThan(stepAt("Assess the feature by trying to break it (QE/E2E).").n);
+    expect(s.n).toBeGreaterThan(stepAt("Run the quality gate per").n);
+  });
+
+  it("T-39-16: a human-only gate failure never takes the escalation path", () => {
+    const s = stepAt("Record a `failed-attempt` note");
+    expect(s.text).toContain("A human-only gate failure (visual baseline, test integrity) never takes this path; Workflow 05 hands it to its human.");
+  });
+
+  it("D-19: the Tech Lead reads the note and picks one move, escalating one level at most once per ticket", () => {
+    const s = stepAt("Read the `failed-attempt` note (Tech Lead).");
+    expect(s.text).toContain("escalate one level at most once per ticket, re-plan and re-score, split, or return it to the Architect");
+    expect(s.text).toContain("Record the move in a new `decision` note per Workflow 16.");
+    expect(s.text).toContain("Return the ticket to `Ready for Dev`.");
+  });
+
+  it("D-20: the re-enqueue is a new `pending/` subtask on the same context, and the spawn prompt carries only the task reference", () => {
+    const s = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).");
+    expect(s.text).toContain("Point its `ref:` at the same per-task context.");
+    expect(s.text).toContain("Never re-pend a `done/` subtask.");
+    expect(s.text).toContain("Spawn the adapter as step 4 does.");
+    expect(steps[3]?.text).toContain("non-fork sub-agent");
+    expect(s.text).toContain("The spawn prompt carries the task reference and nothing else.");
+    expect(s.n).toBe(stepAt("Read the `failed-attempt` note (Tech Lead).").n + 1);
+  });
+
+  it("D-18 / D-19: a `BLOCKED` engineer stops for the Tech Lead with no checkpoint tag", () => {
+    const b = stops.filter((l) => l.startsWith("- The engineer reports `BLOCKED` ->"));
+    expect(b).toHaveLength(1);
+    expect(b[0]).toContain("naming the Tech Lead as its owner");
+    expect(b[0]).not.toMatch(/checkpoint/i);
+  });
+
+  it("T-39-16: the gate-failure stop keeps the WF05 human stop, tagged `exhaust_self_fix_budget`", () => {
+    const b = stops.filter((l) => l.startsWith("- The gate ends `BLOCKED_NEEDS_FIX`"));
+    expect(b).toHaveLength(1);
+    expect(b[0]).toContain("A named human confirms the Tech Lead's decision before the re-enqueue, per Workflow 05.");
+    expect(b[0]?.endsWith("`checkpoint: exhaust_self_fix_budget`")).toBe(true);
+    expect(WF04.split("checkpoint: exhaust_self_fix_budget").length - 1).toBe(1);
+    // The WF05 stop is still there, unchanged in count.
+    expect(WF05.split("checkpoint: exhaust_self_fix_budget").length - 1).toBe(1);
+  });
+
+  it("D-21 / T-39-15: once the options are used up a named human takes the ticket, never a retry loop", () => {
+    const b = stops.filter((l) => l.startsWith("- The Tech Lead's options are used up ->"));
+    expect(b).toHaveLength(1);
+    expect(b[0]).toContain("stop and hand the ticket to a named human; never retry in a loop.");
+    expect(b[0]).toContain("the one escalation is spent");
+    expect(b[0]?.endsWith("`checkpoint: escalate_unadjudicable_result`")).toBe(true);
+    expect(WF04.split("checkpoint: escalate_unadjudicable_result").length - 1).toBe(1);
+  });
+
+  it("the board moves name the escalation's `Blocked` move and the Tech Lead's exit", () => {
+    expect(section(WF04, "Board moves")).toContain(
+      "On an escalation the Software Engineer moves the ticket to `Blocked`, and the Tech Lead owns its exit back to `Ready for Dev`.",
+    );
   });
 });
