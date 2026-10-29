@@ -1500,6 +1500,81 @@ export const LEVELS: readonly LevelTier[] = [
 // is deliberately added or removed, together with its row and every consumer of the adapter set.
 export const LEVEL_COUNT = 3;
 
+/**
+ * The level table's OWN integrity, modeled on tieredTableRefusals: an empty table, a repeated level,
+ * an alias outside MODEL_ALIASES, an effort outside EFFORT_LEVELS, and an empty or digit-carrying
+ * rationale or effortRationale (MODEL-07). Each finding is its own sentence naming the level.
+ *
+ * Takes the table as a parameter defaulting to the shipped one, so an oracle can drive an
+ * adversarial table without mutating module state. Fields are checked with `typeof` first because
+ * this also runs on hand-built tables at run time, where the type that makes them required is gone.
+ * resolveAdapterAssignments calls it before any level adapter resolves, so a broken table is a
+ * refusal rather than a pin.
+ */
+export function levelTableRefusals(table: readonly LevelTier[] = LEVELS): string[] {
+  if (table.length === 0) {
+    return [
+      "model-tiers: the LEVELS table is EMPTY — refusing to resolve a level adapter from a table " +
+        "with no entries, because every declared level would then be refused for the wrong reason.",
+    ];
+  }
+
+  const findings: string[] = [];
+
+  const occurrences = new Map<string, number>();
+  for (const row of table) occurrences.set(row.level, (occurrences.get(row.level) ?? 0) + 1);
+  for (const level of [...occurrences.keys()].sort()) {
+    const count = occurrences.get(level) ?? 0;
+    if (count > 1) {
+      findings.push(
+        `model-tiers: the level ${quoteValue(level)} appears ${String(count)} times in the LEVELS ` +
+          "table — refusing a duplicated entry rather than letting the last occurrence win, because " +
+          "the losing entry's pin and its argument would both vanish with no error anywhere. Remedy: " +
+          "delete the duplicate.",
+      );
+    }
+  }
+
+  const sorted = [...table].sort((a, b) => (a.level < b.level ? -1 : a.level > b.level ? 1 : 0));
+  for (const row of sorted) {
+    if (!isModelAlias(row.alias)) {
+      findings.push(
+        `model-tiers: the LEVELS entry for ${quoteValue(row.level)} assigns ${quoteValue(row.alias)}, ` +
+          `which is not a legal model alias. The legal set is exactly: ` +
+          `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}.`,
+      );
+    }
+    if (!isEffortLevel(row.effort)) {
+      findings.push(
+        `model-tiers: the LEVELS entry for ${quoteValue(row.level)} assigns the effort ` +
+          `${quoteValue(row.effort)}, which is not a legal effort level. The legal set is exactly: ` +
+          `${EFFORT_LEVELS.map((l) => `"${l}"`).join(", ")}.`,
+      );
+    }
+    for (const [field, value] of [
+      ["rationale", row.rationale as unknown],
+      ["effortRationale", row.effortRationale as unknown],
+    ] as const) {
+      if (typeof value !== "string" || value.trim().length === 0) {
+        findings.push(
+          `model-tiers: the LEVELS entry for ${quoteValue(row.level)} carries an EMPTY ${field} — ` +
+            "every level pin must argue its model and its effort so a later reader can dispute it. " +
+            "Remedy: write the quality argument; do NOT delete the field.",
+        );
+      } else if (/[0-9]/.test(value)) {
+        findings.push(
+          `model-tiers: the LEVELS entry for ${quoteValue(row.level)} carries a ${field} that ` +
+            "contains a DIGIT — MODEL-07 refuses any number in a rationale, because a number is what " +
+            "a cost or savings claim needs and such a claim must be measured or marked " +
+            "`UNKNOWN - verify`. Remedy: state the quality argument without a number.",
+        );
+      }
+    }
+  }
+
+  return findings;
+}
+
 /** What a caller may ask of the resolver beyond the stems themselves. */
 export interface ResolveModelsOptions {
   /**
@@ -2162,11 +2237,15 @@ function sortedMap<V>(entries: Iterable<readonly [string, V]>): Map<string, V> {
  * PURE: no file, no environment variable, no path. Refuses, naming what was wrong: an empty spec set,
  * a repeated adapter stem, an override key outside configKeyStems(specs), an illegal override value
  * for a level adapter, a level with no LEVELS row (naming the level, the role file and the legal
- * levels), and every refusal resolveModels or resolveEfforts gives over the preset-governed stems.
+ * levels), every refusal resolveModels or resolveEfforts gives over the preset-governed stems, and
+ * every levelTableRefusals finding over `table`. The table is checked on every call, before any level
+ * adapter resolves, so a broken table is a refusal rather than a pin. `table` defaults to the shipped
+ * LEVELS and exists so an oracle can hand over an adversarial one.
  */
 export function resolveAdapterAssignments(
   specs: readonly AgentAdapterSpec[],
   config: ModelsConfig,
+  table: readonly LevelTier[] = LEVELS,
 ): AdapterAssignmentResolution {
   if (specs.length === 0) {
     return {
@@ -2247,7 +2326,10 @@ export function resolveAdapterAssignments(
     for (const [stem, level] of e.value) efforts.set(stem, level);
   }
 
-  const rowByLevel = new Map(LEVELS.map((row) => [row.level, row]));
+  const tableRefusals = levelTableRefusals(table);
+  if (tableRefusals.length > 0) return { ok: false, reason: tableRefusals.join("\n") };
+
+  const rowByLevel = new Map(table.map((row) => [row.level, row]));
   for (const s of specs) {
     if (s.level === null) continue;
     const row = rowByLevel.get(s.level);
@@ -2257,7 +2339,7 @@ export function resolveAdapterAssignments(
         reason:
           `model-tiers: role file ${quoteValue(s.roleFile)} declares the level ${quoteValue(s.level)}, ` +
           "which has no row in the LEVELS table. The legal levels are exactly: " +
-          `${LEVELS.map((r) => quoteValue(r.level)).join(", ")}. Remedy: correct the level; a new ` +
+          `${table.map((r) => quoteValue(r.level)).join(", ")}. Remedy: correct the level; a new ` +
           "level is a source change in scripts/model-tiers.ts with its own rationale, not a value a " +
           "role file can invent.",
       };
