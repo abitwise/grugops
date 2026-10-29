@@ -427,7 +427,9 @@ describe("model-tiers: the TIERED preset table (plan 29.1-02, MODEL-03)", () => 
       ["architect-design", "compliance-officer", "orchestrator", "security-nfr"].sort(),
     );
     expect(stemsWithAlias("haiku"), "no role is assigned the thinnest tier under this preset").toEqual([]);
-    expect(stemsWithAlias("sonnet").length).toBe(ROLE_COUNT - 4);
+    // (Plan 39-01) The sonnet bucket is the PRESET-GOVERNED rows less the opus bucket, so dropping a
+    // leveled role's row moves this through MODEL_TIERS_COUNT rather than through a hand edit.
+    expect(stemsWithAlias("sonnet").length).toBe(MODEL_TIERS_COUNT - stemsWithAlias("opus").length);
     // The three buckets partition the table — no row claimed twice, no row claimed by none.
     expect(
       stemsWithAlias("opus").length + stemsWithAlias("sonnet").length + stemsWithAlias("haiku").length,
@@ -3250,5 +3252,34 @@ describe("levelTableRefusals (plan 39-01, MODEL-07)", () => {
     }
     expect(offending).toEqual([]);
     expect(LEVELS.length, "the check must have had rows to run over").toBe(LEVEL_COUNT);
+  });
+});
+
+// ── TIERED against the PRESET-GOVERNED stems (plan 39-01, Task 3, D-16) ───────────────────────
+
+describe("TIERED coverage follows the preset-governed stems (plan 39-01, D-16)", () => {
+  it("preset-governed: on the levels mirror a TIERED table WITHOUT the software-engineer row is complete", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    const governed = presetGovernedStems(specs);
+    expect(governed, "PREMISE: the leveled role is not preset-governed").not.toContain("software-engineer");
+    const withoutRow = TIERED.filter((r) => r.stem !== "software-engineer");
+    expect(withoutRow.length, "PREMISE: the shipped table carries the row today").toBe(TIERED.length - 1);
+    expect(tieredCorpusRefusals(governed, withoutRow)).toEqual([]);
+  });
+
+  it("preset-governed: on the levels mirror a TIERED table WITH the software-engineer row is refused, naming the stem", () => {
+    const specs = listAgentAdapterSpecs(levelsMirrorRoot());
+    const findings = tieredCorpusRefusals(presetGovernedStems(specs), TIERED);
+    expect(findings.length).toBeGreaterThan(0);
+    const named = matching(findings, /"software-engineer"/);
+    expect(named.length).toBe(1);
+    expect(named[0]).toMatch(/NOT one of the role stems/);
+  });
+
+  it("preset-governed: on the live tree the preset-governed stems are the role stems, MODEL_TIERS_COUNT of them, and TIERED covers them exactly", () => {
+    const governed = presetGovernedStems(listAgentAdapterSpecs(ROOT));
+    expect(governed).toEqual(kitStems());
+    expect(governed.length).toBe(MODEL_TIERS_COUNT);
+    expect(tieredCorpusRefusals(governed)).toEqual([]);
   });
 });

@@ -1222,15 +1222,24 @@ export const TIERED: readonly RoleTier[] = [
 
 // The tier table's exact cardinality, pinned beside the table it describes.
 //
-// PROMOTE TRIGGER: A NEW ROLE FILE ARRIVING under agent-factory/roles/. That is the ONLY event that
-// legitimately moves this number, and it obliges the author to add a row to TIERED with a rationale
-// in the same change — the whole point of MODEL-03 is that role eighteen cannot arrive unassigned.
+// DERIVED, NOT TYPED (plan 39-01): ROLE_COUNT minus LEVELED_ROLE_COUNT, the number of PRESET-GOVERNED
+// roles — the roles that declare no `levels`. A level adapter never reads a preset (D-16): its model
+// and effort come from the LEVELS table and from explicit `models.roles` / `models.effort.roles`
+// entries only. A TIERED row for a leveled role would therefore be read by no adapter and would be a
+// second answer to one fact, so the table covers the preset-governed stems and nothing else, and
+// tieredCorpusRefusals compares it against presetGovernedStems(specs). Dropping a leveled role's row
+// is then a derivation change rather than a hand edit of this number.
 //
-// EVERY CONSUMER AN EDITOR MUST WALK BEFORE CHANGING IT: `listRoles` (scripts/kit-model.ts — the
-// role-set authority this number mirrors), `resolveModels` below (which reads TIERED under the
-// `tiered` preset), `guard_model_assignment` (plan 29.1-04 — where a wrong number stops a release),
-// and the adapter generator's resolution call (scripts/generate-role-adapters.ts, which hands this
-// resolver the stems it derived).
+// PROMOTE TRIGGERS: A NEW ROLE FILE ARRIVING under agent-factory/roles/, or A ROLE STARTING OR
+// STOPPING TO DECLARE `levels` (which moves LEVELED_ROLE_COUNT). Either obliges the author to add or
+// remove the TIERED row in the same change — the whole point of MODEL-03 is that a preset-governed
+// role cannot arrive unassigned.
+//
+// EVERY CONSUMER AN EDITOR MUST WALK BEFORE CHANGING IT: `listRoles` and `listAgentAdapterSpecs`
+// (scripts/kit-model.ts — the role-set and adapter-set authorities this number mirrors),
+// `resolveModels` below (which reads TIERED under the `tiered` preset), `guard_model_assignment`
+// (plan 29.1-04 — where a wrong number stops a release), and the adapter generator's resolution call
+// (scripts/generate-role-adapters.ts, which hands this resolver the stems it derived).
 //
 // WHERE THE EXACT CARDINALITY IS ADJUDICATED, and why it is not adjudicated here. THIS LIBRARY
 // THROWS ONLY ON THE VACUOUS SET. `guard_model_assignment` owns the two-sided count over the LIVE
