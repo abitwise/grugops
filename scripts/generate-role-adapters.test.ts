@@ -66,6 +66,7 @@ import {
   admittedGrantValues,
 } from "./canonical-frontmatter.js";
 import { deriveGrant } from "./capture-live.js";
+import { listAgentAdapterNames, listAgentAdapterSpecs } from "./kit-model.js";
 // Phase 34.1 D-01: the scratch install below names every registry agent, spelled by the registry (agent-flag census).
 import { HOST_TOOLS, agentFlag } from "../install/host-tools.js";
 
@@ -534,11 +535,11 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
   it("the grant carries both tiers — capability is not filtered by policy (D-10)", () => {
     const coordText = readFileSync(join(LIVE_AGENTS, "grugops-orchestrator.md"), "utf8");
     const granted = grantNames(coordText);
-    // The five enterprise-tier roles, read from the kit rather than hand-listed here.
-    const enterprise = readdirSync(LIVE_ROLES)
-      .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
-      .filter((f) => /^tier:\s*enterprise\b/m.test(readFileSync(join(LIVE_ROLES, f), "utf8")))
-      .map((f) => `grugops-${f.replace(/\.md$/, "")}`)
+    // The five enterprise-tier roles, read from the kit rather than hand-listed here. (Plan 39-02)
+    // Their adapter names come from the adapter-identity derivation, never rebuilt from role files.
+    const enterprise = listAgentAdapterSpecs(ROOT)
+      .filter((s) => /^tier:\s*enterprise\b/m.test(readFileSync(join(LIVE_ROLES, s.roleFile), "utf8")))
+      .map((s) => s.name)
       .sort();
     expect(enterprise).toHaveLength(5);
     for (const e of enterprise) expect(granted).toContain(e);
@@ -2040,11 +2041,10 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
     expect(a.ok, `the live coordinator adapter is REFUSED by the canonical-form reader: ${a.ok ? "" : `[${a.code}] ${a.reason}`}`).toBe(true);
     if (!a.ok) return;
 
-    // The sixteen names, DERIVED from the role corpus (every non-underscore role except the
-    // coordinator), never typed.
-    const expectedGrant = readdirSync(LIVE_ROLES)
-      .filter((f) => f.endsWith(".md") && !f.startsWith("_") && f !== "orchestrator.md")
-      .map((f) => `grugops-${f.replace(/\.md$/, "")}`)
+    // The sixteen names, DERIVED from the adapter-identity derivation (every adapter except the
+    // coordinator's), never typed and never rebuilt from role file names (plan 39-02).
+    const expectedGrant = listAgentAdapterNames(ROOT)
+      .filter((n) => n !== "grugops-orchestrator")
       .sort();
     expect(expectedGrant).toHaveLength(16);
     expect(admittedGrantedNames(a.value)).toEqual(expectedGrant);
@@ -2210,5 +2210,16 @@ describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)
     // The announcements too, after the run-specific output directory is removed from the summary.
     const strip = (r: SpawnSyncReturns<string>, m: string): string => (r.stdout ?? "").split(m).join("<mirror>");
     expect(strip(rx, shuffled)).toBe(strip(rs, sorted));
+  });
+
+  it("levels: a coordinator role that declares `levels` is refused naming the file, and nothing is written", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const p = join(m, "agent-factory", "roles", "orchestrator.md");
+    const text = readFileSync(p, "utf8");
+    const next = text.replace(/^capabilities: .*$/m, (line) => `${line}\nlevels: junior`);
+    expect(next, "PREMISE: orchestrator.md carries a `capabilities:` line").not.toBe(text);
+    writeFileSync(p, next, "utf8");
+    expectRefusal(m, "orchestrator.md: the coordinator role declares `levels`");
+    expectRefusal(m, "belong to exactly one adapter");
   });
 });

@@ -957,4 +957,39 @@ describe("adapters-freshness.js — engineer levels are fresh at their zero-conf
     expect(r.stdout).toContain(`${listRoles(ROOT).length - 1 + 3} adapter(s) compared`);
     expect(r.stdout).toContain("0 byte difference(s)");
   });
+
+  it("levels RED: a committed junior adapter carrying `model: inherit` is stale, named by file", () => {
+    const m = levelsScriptRootMirror();
+    const p = join(m, ".claude", "agents", "grugops-software-engineer-junior.md");
+    const text = readFileSync(p, "utf8");
+    expect(text, "PREMISE: the junior adapter carries its D-14 pin").toContain("\nmodel: haiku\n");
+    writeFileSync(p, text.replace("\nmodel: haiku\n", "\nmodel: inherit\n"), "utf8");
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    expect(r.stdout).toContain("grugops-software-engineer-junior");
+  });
+
+  it("levels RED: a regeneration that ANNOUNCES junior at `inherit` is refused against junior's own zero-config value", () => {
+    // The generator twin is made to announce junior at `inherit` and the coordinator at `haiku`
+    // while the bytes stay pinned. The swap keeps the DISTINCT alias set unchanged, so only the
+    // per-adapter zero-config expectation can see it: `inherit` is the zero-config value of every
+    // non-level adapter and the wrong one for a level adapter.
+    const m = levelsScriptRootMirror();
+    const call = ANNOUNCE_CALLS[0];
+    replaceAnnouncementCall(
+      m,
+      call.call,
+      call.call.replace(
+        call.map,
+        `new Map([...${call.map}].map(([n, v]) => [n, n === "grugops-software-engineer-junior" ? "inherit" : n === "grugops-orchestrator" ? "haiku" : v]))`,
+      ),
+    );
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    expect(r.stdout).toContain(
+      'announced model map gives 2 adapter(s) a value other than its own zero-config value: grugops-orchestrator="haiku" (zero-config "inherit"), grugops-software-engineer-junior="inherit" (zero-config "haiku")',
+    );
+  });
 });

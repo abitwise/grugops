@@ -81,6 +81,7 @@ import {
 
 import {
   listRoles,
+  listAgentAdapterNames,
   listAgentAdapters,
   listSkillAdapters,
   listPluginSkillAdapters,
@@ -647,8 +648,10 @@ function plantCavemanBlock(
 // mirror-only role's adapter untouched by `brokenMirror`'s deletion sweep, so the RED fixture would
 // silently ship an intact adapter and the guard would convict it for the wrong reason.
 const COORDINATOR = "grugops-orchestrator";
-const roleAgentNames = (root: string): string[] =>
-  roleNamesIn(root).map((f) => `grugops-${f.replace(/\.md$/, "")}`);
+// (Plan 39-02) The adapter names come from the ONE adapter-identity derivation, never rebuilt here
+// from role file names: a leveled role contributes one name per level and no base name, and a
+// rebuild from role files would keep naming the base adapter the generator no longer writes.
+const roleAgentNames = (root: string): string[] => listAgentAdapterNames(root);
 const adapterPath = (root: string, name: string): string =>
   join(root, ".claude/agents", `${name}.md`);
 
@@ -15082,5 +15085,198 @@ describe("guard_effort_assignment (plan 34-05)", () => {
         );
       }
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// ENGINEER LEVELS AT THE GATE (plan 39-02, TIER-02, TIER-06; D-3, D-13, D-14, D-15)
+//
+// A levels mirror: software-engineer.md declares `levels: junior mid senior`, and the mirror's
+// adapter directory is what the COMMITTED generator writes for it, with the base engineer adapter
+// removed. It is judged by a scratch build in the shape plan 39-07 leaves the tree in: one leveled
+// role (LEVELED_ROLE_COUNT 1) and no TIERED row for it, because a leveled role resolves through the
+// LEVELS table (D-16). Without those two source edits the TIERED table names a stem the corpus no
+// longer governs, which is a correct red for a half-done change rather than a defect in the levels
+// derivation.
+//
+// The unplanted mirror is the CONTROL and must be green on KIT-03 and both value guards. Each plant
+// then turns exactly the named guard red, with the file in its output.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const ENGINEER_ROLE = "software-engineer.md";
+const LEVEL_NAMES = ["junior", "mid", "senior"] as const;
+const levelAdapter = (level: string): string => `grugops-software-engineer-${level}`;
+
+/** Add `levels: <value>` below the `capabilities:` line of one role file in a root. */
+function declareLevels(root: string, roleFile: string, value: string): void {
+  const p = rolePath(root, roleFile);
+  const text = readFileSync(p, "utf8");
+  const next = text.replace(/^capabilities: .*$/m, (line) => `${line}\nlevels: ${value}`);
+  if (next === text) throw new Error(`PREMISE: ${roleFile} carries no \`capabilities:\` line`);
+  writeFileSync(p, next, "utf8");
+}
+
+/**
+ * Regenerate a mirror's agent adapters with the COMMITTED generator, run from a separate scratch
+ * root (so no compiled script lands inside the tree the gate judges). Removes the adapters the
+ * mirror carried first, so an adapter the generator no longer writes cannot survive as an orphan.
+ */
+function regenerateAdapters(m: string, configJson?: string): void {
+  const g = mkdtempSync(join(tmpdir(), "grugops-fg-levels-gen-"));
+  tmpDirs.push(g);
+  mkdirSync(join(g, "scripts"), { recursive: true });
+  for (const name of readdirSync(join(ROOT, "scripts"))) {
+    if (name.endsWith(".js")) cpSync(join(ROOT, "scripts", name), join(g, "scripts", name));
+  }
+  cpSync(join(m, ROLE_DIR_REL), join(g, ROLE_DIR_REL), { recursive: true });
+  if (configJson !== undefined) {
+    mkdirSync(join(g, ".grugops"), { recursive: true });
+    writeFileSync(join(g, ".grugops", "factory.config.json"), configJson, "utf8");
+  }
+  const r = spawnSync("node", [join(g, "scripts", "generate-role-adapters.js")], { encoding: "utf8" });
+  if (r.status !== 0) throw new Error(`PREMISE: the committed generator refused the mirror:\n${out(r)}`);
+  const agents = join(m, ".claude", "agents");
+  for (const f of readdirSync(agents)) if (f.endsWith(".md")) rmSync(join(agents, f));
+  for (const f of readdirSync(join(g, ".claude", "agents"))) {
+    cpSync(join(g, ".claude", "agents", f), join(agents, f));
+  }
+}
+
+/** The levels mirror, optionally carrying a `.grugops/factory.config.json` the generator also read. */
+function levelsMirror(configJson?: string): string {
+  const m = mirror();
+  declareLevels(m, ENGINEER_ROLE, "junior mid senior");
+  if (configJson !== undefined) {
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(join(m, ".grugops", "factory.config.json"), configJson, "utf8");
+  }
+  regenerateAdapters(m, configJson);
+  return m;
+}
+
+/** The scratch build in plan 39-07's shape: one leveled role, no TIERED row for software-engineer. */
+function levelsGuardBuild(): string {
+  return scratchGuardFiles({
+    "kit-model.js": (src) =>
+      src.replace("export const LEVELED_ROLE_COUNT = 0;", "export const LEVELED_ROLE_COUNT = 1;"),
+    "model-tiers.js": (src) =>
+      src.replace(/\n {4}\{\n {8}stem: "software-engineer",[\s\S]*?\n {4}\},/, ""),
+  });
+}
+
+const kit03Section = (o: string): string => guardSection(o, "guard_referential_integrity").join("\n");
+
+describe("engineer levels at the gate (plan 39-02, D-13, D-14, D-15)", () => {
+  it("level CONTROL: an unplanted levels mirror is green on KIT-03 and both value guards", () => {
+    const m = levelsMirror();
+    // PREMISE: the mirror really carries the three level adapters and no base adapter, and the
+    // derivation the gate reads agrees.
+    for (const level of LEVEL_NAMES) expect(existsSync(adapterPath(m, levelAdapter(level)))).toBe(true);
+    expect(existsSync(adapterPath(m, "grugops-software-engineer"))).toBe(false);
+    expect(listAgentAdapterNames(m)).toHaveLength(ROLE_COUNT - 1 + LEVEL_NAMES.length);
+
+    const r = runScratch(levelsGuardBuild(), m);
+    const o = out(r);
+    expect(kit03Section(o)).toContain(
+      `PASS  KIT-03: ${ROLE_COUNT + 2} derived adapter names == ${ROLE_COUNT + 2} adapters == ${ROLE_COUNT + 2} grant-closure names`,
+    );
+    expect(modelSection(o)).toContain("PASS  model assignment:");
+    expect(modelSection(o)).not.toContain("FAIL");
+    expect(effortSection(o)).toContain(EFFORT_PASS_MARKER);
+    expect(effortSection(o)).not.toContain("FAIL");
+  });
+
+  it("level RED (KIT-03): a deleted level adapter is named as a derived name with no adapter file", () => {
+    const m = levelsMirror();
+    rmSync(adapterPath(m, levelAdapter("mid")));
+    const section = kit03Section(out(runScratch(levelsGuardBuild(), m)));
+    expect(section).toContain("KIT-03 referential-integrity violation");
+    expect(section).toContain(`1 role(s) with no adapter file: ${levelAdapter("mid")}`);
+  });
+
+  it("level RED (KIT-03): a re-planted base engineer adapter is named as an adapter with no derived name", () => {
+    const m = levelsMirror();
+    cpSync(join(ROOT, ".claude", "agents", "grugops-software-engineer.md"), adapterPath(m, "grugops-software-engineer"));
+    const section = kit03Section(out(runScratch(levelsGuardBuild(), m)));
+    expect(section).toContain("KIT-03 referential-integrity violation");
+    expect(section).toContain("1 adapter(s) with no role file: grugops-software-engineer");
+  });
+
+  it("level RED (KIT-03): a hand-added grant name with no adapter is named", () => {
+    const m = levelsMirror();
+    const coord = adapterPath(m, COORDINATOR);
+    const text = readFileSync(coord, "utf8");
+    const ghost = levelAdapter("principal");
+    const next = text.replace(/^tools: Agent\(/m, `tools: Agent(${ghost}, `);
+    expect(next, "PREMISE: the coordinator carries an enumerated Agent( grant").not.toBe(text);
+    writeFileSync(coord, next, "utf8");
+    const section = kit03Section(out(runScratch(levelsGuardBuild(), m)));
+    expect(section).toContain("KIT-03 referential-integrity violation");
+    expect(section).toContain(`1 granted name(s) resolving to no adapter file: ${ghost}`);
+  });
+
+  it("level RED (guard_model_assignment): junior's `model: haiku` changed to `model: sonnet` is named", () => {
+    const m = levelsMirror();
+    const p = adapterPath(m, levelAdapter("junior"));
+    const text = readFileSync(p, "utf8");
+    expect(text, "PREMISE: the junior adapter carries its D-14 model pin").toContain("\nmodel: haiku\n");
+    writeFileSync(p, text.replace("\nmodel: haiku\n", "\nmodel: sonnet\n"), "utf8");
+    const section = modelSection(out(runScratch(levelsGuardBuild(), m)));
+    expect(section).toContain(
+      `.claude/agents/${levelAdapter("junior")}.md: declares \`model: sonnet\`, and the configuration resolves \`haiku\` for adapter stem "software-engineer-junior"`,
+    );
+  });
+
+  it("level RED (guard_effort_assignment): junior's `effort: medium` line removed is named", () => {
+    const m = levelsMirror();
+    const p = adapterPath(m, levelAdapter("junior"));
+    const text = readFileSync(p, "utf8");
+    expect(text, "PREMISE: the junior adapter carries its D-14 effort pin").toContain("\neffort: medium\n");
+    writeFileSync(p, text.replace("\neffort: medium\n", "\n"), "utf8");
+    const section = effortSection(out(runScratch(levelsGuardBuild(), m)));
+    expect(section).toContain(
+      `.claude/agents/${levelAdapter("junior")}.md: carries NO \`effort\` line, and the configuration resolves \`medium\` for adapter stem "software-engineer-junior"`,
+    );
+  });
+
+  it("level config (D-15): a `models.roles` key `software-engineer-junior` is accepted by the generator and the guard", () => {
+    const config = JSON.stringify({ models: { roles: { "software-engineer-junior": "opus" } } }, null, 2);
+    const m = levelsMirror(config);
+    const junior = readFileSync(adapterPath(m, levelAdapter("junior")), "utf8");
+    expect(junior).toContain("\nmodel: opus\n");
+    // The other two levels keep their D-14 pins: the key names one level.
+    expect(readFileSync(adapterPath(m, levelAdapter("mid")), "utf8")).toContain("\nmodel: sonnet\n");
+    expect(readFileSync(adapterPath(m, levelAdapter("senior")), "utf8")).toContain("\nmodel: opus\n");
+    const section = modelSection(out(runScratch(levelsGuardBuild(), m)));
+    expect(section).toContain("PASS  model assignment:");
+    expect(section).toContain("from .grugops/factory.config.json");
+    expect(section).not.toContain("FAIL");
+  });
+
+  it("level degrade (D-3): a refused configuration degrades a level adapter to its LEVELS pin, never to inherit", () => {
+    const m = levelsMirror();
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(join(m, ".grugops", "factory.config.json"), JSON.stringify({ models: null }), "utf8");
+    const section = modelSection(out(runScratch(levelsGuardBuild(), m)));
+    expect(section).toContain("DEGRADES to the zero-config answer (D-3)");
+    // The pinned level adapters agree with the degraded expectation, so none of them is named.
+    for (const level of LEVEL_NAMES) {
+      expect(section).not.toContain(`.claude/agents/${levelAdapter(level)}.md: declares`);
+    }
+  });
+
+  it("level namespace: only scripts/kit-model.ts declares the agent namespace constant among non-test modules", () => {
+    // A declaration of a const whose string value is the agent namespace, in any non-test module.
+    const decl = /\bconst\s+[A-Za-z_$][\w$]*\s*(?::\s*[^=]+)?=\s*"grugops-"\s*;/g;
+    const owners: string[] = [];
+    for (const rel of nonTestModules()) {
+      const n = (readFileSync(join(ROOT, rel), "utf8").match(decl) ?? []).length;
+      for (let i = 0; i < n; i++) owners.push(rel);
+    }
+    expect(owners).toEqual(["scripts/kit-model.ts"]);
+    // The constant is the exported one every consumer imports.
+    expect(readFileSync(join(ROOT, "scripts", "kit-model.ts"), "utf8")).toContain(
+      'export const AGENT_ADAPTER_PREFIX = "grugops-";',
+    );
   });
 });
