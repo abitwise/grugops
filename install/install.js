@@ -702,6 +702,44 @@ function targetAdapterFiles() {
     const files = srcAdapterFiles(GRUGOPS_SRC);
     return files === null ? null : files.map((f) => join(TARGET, ".claude", "agents", f));
 }
+function staleKitAdapters(ledger) {
+    const shipped = srcAdapterFiles(GRUGOPS_SRC);
+    if (shipped === null)
+        return null;
+    const out = [];
+    for (const e of entriesOfKind(ledger, "file")) {
+        if (!e.kit)
+            continue;
+        const name = /^\.claude\/agents\/(grugops-[^/]+\.md)$/.exec(e.path)?.[1];
+        if (name === undefined || shipped.includes(name))
+            continue;
+        try {
+            lstatSync(join(TARGET, ...e.path.split("/")));
+        }
+        catch (err) {
+            const code = errCode(err);
+            if (code === "ENOENT" || code === "ENOTDIR")
+                continue;
+        }
+        out.push({ rel: e.path, record: e.content, held: owns(ledger, TARGET, e.path, "file").owned });
+    }
+    return out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+}
+// staleAdapterText: the ONE wording of a stale-adapter finding, for install's verify and the doctor's FAIL alike.
+function staleAdapterText(s) {
+    if (s.held) {
+        return (`${s.rel} — this kit version no longer ships ${s.rel}. Claude Code still loads it, and on the Reduced tier the ` +
+            `coordinator can spawn it; delete it by hand when you no longer need it. Install never deletes it, and uninstall ` +
+            `removes it while it is unchanged.`);
+    }
+    return (`${s.rel} is an adapter an earlier kit installed and you have since edited or replaced, so it is yours. This kit ` +
+        `version no longer ships it, and Claude Code still loads it; review it and delete it by hand if you do not use it. ` +
+        `Install never deletes it, and uninstall leaves it.`);
+}
+// staleAdaptersSkippedText: the note when the kit source's adapter directory could not be read (uninstall.ts
+// reportUnrecordedKitPaths wording).
+const staleAdaptersSkippedText = () => `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the check for adapters an earlier ` +
+    `install wrote that this kit version no longer ships is skipped. No adapter is deleted either way.`;
 // report / mkdirp / sameContent / isoStamp: install-side helpers declared HERE (above the doctor +
 // the early --update / --prune-old-kit / --migrate branches) so those early branches — which run
 // before the original install run — can call them (transitively, via copyKit → dirsSameContent →
@@ -7563,6 +7601,26 @@ else {
             `were found before the first kit write, and the kit is written whole or not at all. ` +
             `Every kit file already in ${join(TARGET, ".claude")} was left exactly as it was. Resolve each ` +
             `verify above and re-run.`);
+    }
+    reportStaleKitAdapters();
+}
+// reportStaleKitAdapters (plan 39-10, D-13): install's half of STALE KIT ADAPTERS (see staleKitAdapters). Asked over the
+// previous ledger, whatever the kit write decided, so a refused or previewed run names the same files a written one
+// does. A held record is recorded in KIT_FILES as a carry (identicalKitDest's rule: the earlier record, never one
+// learned from these bytes), so the next ledger keeps it and uninstall can still remove the file; recordKitFile records
+// nothing under DRY_RUN. The file itself is never removed, renamed or written.
+function reportStaleKitAdapters() {
+    if (PREVIOUS_LEDGER.state !== "ok")
+        return;
+    const stale = staleKitAdapters(PREVIOUS_LEDGER);
+    if (stale === null) {
+        report("note", staleAdaptersSkippedText());
+        return;
+    }
+    for (const s of stale) {
+        if (s.held)
+            recordKitFile(join(TARGET, ...s.rel.split("/")), s.record);
+        verify(staleAdapterText(s));
     }
 }
 // The flat-directory contract, refused BY NAME rather than silently skipped (T-27-62). See

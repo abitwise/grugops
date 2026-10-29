@@ -87,7 +87,7 @@
 //     rule only. R48a-e follow the reader's remaining states as printed (not an object, a 0xff byte, a retired record, a
 //     field install never writes, a link at the marker path). The widened removal-matcher census asks MARKER_REMOVAL_ANY
 //     of every reading of every product module: zero offers to delete, remove or erase the marker, and every other hit
-//     in REMOVAL_EXEMPT (91 rows, 138 hits since the phase-38 code review fix) with the object it removes.
+//     in REMOVAL_EXEMPT (96 rows, 143 hits since plan 39-10) with the object it removes.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -4771,6 +4771,11 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
   ["install.ts", "agentClosingLines", "removes an agent's files", 1, "an agent's files, negated (install never removes them)"],
   ["install.ts", "agentClosingLines", "remove one", 1, "an agent left installed (by its printed uninstall command)"],
   ["install.ts", "seedState", "deletes nothing", 1, "nothing, negated: a repository holding both boards is installed on the v3 layout and this run merges or deletes nothing (plan 36-13, 2026-10-21, D-02)"],
+  ["install.ts", "staleAdapterText", "delete it by hand when you no longer need it", 1, "an adapter this kit version no longer ships, removed by the user by hand (plan 39-10, D-13)"],
+  ["install.ts", "staleAdapterText", "deletes it, and uninstall removes it while it is unchanged", 1, "the same adapter, negated: install never deletes it (plan 39-10)"],
+  ["install.ts", "staleAdapterText", "removes it while it is unchanged", 1, "the same adapter, by uninstall while it still holds its ledger record (a statement, plan 39-10)"],
+  ["install.ts", "staleAdapterText", "delete it by hand if you do not use it", 1, "an adapter the kit no longer ships that the user edited, removed by the user by hand (plan 39-10)"],
+  ["install.ts", "staleAdapterText", "deletes it, and uninstall leaves it", 1, "the user's edited adapter, negated: install never deletes it (plan 39-10)"],
   ["uninstall.ts", "unlinkPath", "remove it by hand if it is grugops's", 2, "a path still present after its removal"],
   ["uninstall.ts", "<module>", "remove", 3, "the agents this run removes (the `agents to remove` heading)"],
   ["uninstall.ts", "removalDecision", "remove it by hand if it is grugops's", 3, "a path the uninstaller left (a link that is not install's, or a path it could not examine)"],
@@ -4880,12 +4885,15 @@ describe("D-37: the widened removal-matcher census, by search over every printed
     // install and the device refusal's "never copies and deletes".
     // 137 -> 138, table 90 -> 91, install.ts 50 -> 51 (the phase-38 code review fix, 2026-10-28): the note after a
     // completed migrate whose staging directory was left says to remove that directory by hand.
-    expect(hits.length, "the hit count moved").toBe(138);
-    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(91);
+    // 138 -> 143, table 91 -> 96, install.ts 51 -> 56 (plan 39-10, 2026-10-29, D-13): the stale-adapter finding names
+    // an adapter this kit version no longer ships; install never deletes it, the user deletes it by hand, and uninstall
+    // removes it only while it still holds its record (measured: the census printed these five clauses).
+    expect(hits.length, "the hit count moved").toBe(143);
+    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(96);
     expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({
       "checkpoint-ask-rules.ts": 1,
       "install-marker.ts": 2,
-      "install.ts": 51,
+      "install.ts": 56,
       "state-migrate.ts": 2,
       "uninstall.ts": 82,
     });
