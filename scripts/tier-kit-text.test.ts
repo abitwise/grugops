@@ -456,7 +456,7 @@ describe("the level dial documentation (TIER-03; D-2, D-5, D-15, D-16, D-17, D-2
     for (const stem of ["software-engineer-junior", "software-engineer-mid", "software-engineer-senior"]) {
       expect(CONFIG).toContain(`\`${stem}\``);
     }
-    expect(CONFIG).toContain("junior `haiku` at effort `medium`, mid `sonnet` at effort `medium`, senior `opus` at effort `high`");
+    expect(CONFIG).toContain("junior `haiku` at effort `xhigh`, mid `sonnet` at effort `high`, senior `opus` at effort `medium`");
   });
 
   it("D-15 / D-16: the role-wide key covers all three levels, a level key wins, and no preset changes a level", () => {
@@ -887,6 +887,12 @@ describe("install/README.md documents the engineer level adapters and the stale-
     expect(README).toContain("v2.1.293");
     expect(README).toContain("Haiku 4.5");
     expect(README).toContain("`install.js --check` does not probe the\nClaude Code version yet");
+  });
+
+  it("G-39-5: the level table carries the 2026-10-30 re-decided pins (D-14 as amended)", () => {
+    expect(README).toContain("| `grugops-software-engineer-junior` | `haiku` | `xhigh` |");
+    expect(README).toContain("| `grugops-software-engineer-mid` | `sonnet` | `high` |");
+    expect(README).toContain("| `grugops-software-engineer-senior` | `opus` | `medium` |");
   });
 
   it("D-5 / D-17: the level adapters are Claude Code only, and the level is scope guidance with no model advice elsewhere", () => {
