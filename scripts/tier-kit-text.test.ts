@@ -268,7 +268,11 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
   it("D-21: it never escalates twice, and stops for a named human once the options are used up", () => {
     const body = section(TECH_LEAD, "Hard limits");
     expect(body).toContain("Never escalate a ticket twice.");
-    expect(body).toContain("After the options are used up, stop for a named human.");
+    // Plan 39-18 (WR-01, park-in-blocked): the used-up limit follows the tagged cell; at `block` a
+    // named human takes the ticket, and under every value the Tech Lead makes no move of its own.
+    expect(body).toContain(
+      "After the options are used up, make no move of your own; at the default `block`, stop for a named human.",
+    );
     expect(body).toContain("Merge and deploy stay with humans.");
   });
 
@@ -778,7 +782,9 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s15).toContain("Once the named human answers, the Tech Lead records the answer as a `finding` per Workflow 16.");
     expect(s15).toContain("Open its body with `Confirmed: yes` or `Confirmed: no`.");
     expect(s15).toContain("A `Confirmed: no` move is neither carried out nor counted.");
-    expect(s15).toContain("Record a new move, or stop for a named human once the options are used up.");
+    // Plan 39-18 (WR-01): once the options are used up the confirmation points at the used-up stop,
+    // which follows its cell, instead of an unconditional named-human stop.
+    expect(s15).toContain("Record a new move, or apply the used-up stop once the options are used up.");
     expect(s15).toContain("Stamp it `human:<name>`, with the move note's id among its refs.");
     expect(s15).toContain("Never write that stamp without the human's answer.");
     expect(s15).toContain(
@@ -1224,5 +1230,103 @@ describe("WF04 step 15 holds the re-score stop before any move note, and step 16
     expect(noEngineer).toBeGreaterThanOrEqual(0);
     expect(s16.indexOf(GATE_HOLD)).toBeLessThan(noEngineer);
     expect(s16.indexOf(RESCORE_HOLD)).toBeLessThan(noEngineer);
+  });
+});
+
+describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one outcome under every value (WR-01, 39-18)", () => {
+  // Plan 39-18 (WR-01, option park-in-blocked, decided by Olger Oeselg on 2026-10-30): the used-up stop
+  // is tagged `checkpoint: escalate_unadjudicable_result`, and step 15 says it follows the same value as
+  // the re-score stop. The text defined `notify`/`off` only for the re-score case, so a lowered cell
+  // left a used-up ticket with no legal move and no `Move:` label for a kept level. Now: at `block` a
+  // named human takes the ticket; at `notify` or `off` the Tech Lead makes no move, nothing is
+  // re-enqueued, the ticket stays in `Blocked`, and Workflow 09 raises it for a human.
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
+  const lines = section(WF04, "Steps").split("\n");
+  const at15 = lines.findIndex((l) => l.startsWith("15. "));
+  const subs: string[] = [];
+  for (let i = at15 + 1; i < lines.length && (lines[i] as string).startsWith("    - "); i++) {
+    subs.push((lines[i] as string).slice("    - ".length));
+  }
+  const subAt = (opening: string) => {
+    const i = subs.findIndex((s) => s.startsWith(`${opening} `));
+    expect(i, `no sub-bullet opening "${opening}"`).toBeGreaterThanOrEqual(0);
+    return subs[i] as string;
+  };
+  const hasSentence = (text: string, sentence: string) => (` ${text} `).includes(` ${sentence} `);
+  const stops = section(WF04, "Stop conditions").split("\n").filter((l) => l.startsWith("- "));
+  const usedUp = () => {
+    const b = stops.filter((l) => l.startsWith("- The Tech Lead's options are used up ->"));
+    expect(b).toHaveLength(1);
+    return b[0] as string;
+  };
+  const escalateParagraph = () => {
+    const cl = CONFIG.split("\n");
+    const a = cl.findIndex((l) => l.startsWith("**What `escalate_unadjudicable_result` gates.**"));
+    const b = cl.findIndex((l) => l.startsWith("**Which members are floor-tier is not decided here.**"));
+    expect(a).toBeGreaterThanOrEqual(0);
+    expect(b).toBeGreaterThan(a);
+    return cl.slice(a, b);
+  };
+
+  it("(a) the move limits send a ticket with both options spent to the used-up stop", () => {
+    const t = subAt("Apply the move limits.");
+    const sentence = "Once the escalation and the other move are both spent, apply the used-up stop.";
+    expect(hasSentence(t, sentence), `move-limits sub-bullet lacks "${sentence}"`).toBe(true);
+  });
+
+  it("(b) the re-score stop names a kept level and parks a used-up ticket at `notify` or `off`", () => {
+    const t = subAt("Apply the re-score stop.");
+    for (const sentence of [
+      "Mark a kept level `Move: re-plan`.",
+      "At `notify` or `off`, a used-up ticket stays in `Blocked` until Workflow 09 raises it for a human.",
+      "At `notify`, a used-up ticket also gets an `observation` per Workflow 16 naming its `failed-attempt` note.",
+      "The used-up stop below follows the same value.",
+    ]) {
+      expect(hasSentence(t, sentence), `re-score sub-bullet lacks "${sentence}"`).toBe(true);
+    }
+    // The kept-level label sits right after the level move it names.
+    expect(t.indexOf("Mark a kept level `Move: re-plan`.")).toBe(
+      t.indexOf("At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level.") +
+        "At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level. ".length,
+    );
+  });
+
+  it("(c) the confirmation points at the used-up stop once the options are used up", () => {
+    const t = subAt("Record the human's confirmation.");
+    const sentence = "Record a new move, or apply the used-up stop once the options are used up.";
+    expect(hasSentence(t, sentence), `confirmation sub-bullet lacks "${sentence}"`).toBe(true);
+    expect(t).not.toContain("or stop for a named human once the options are used up");
+  });
+
+  it("(d) the tagged used-up stop states the lowered outcome, keeps the loop bound and its tag; WF04 keeps two tags", () => {
+    const b = usedUp();
+    expect(b).toContain("At `notify` or `off`, the ticket stays in `Blocked` with no move and no re-enqueue.");
+    expect(b).toContain("never retry in a loop.");
+    expect(b.endsWith("At `notify` or `off`, the ticket stays in `Blocked` with no move and no re-enqueue. `checkpoint: escalate_unadjudicable_result`")).toBe(true);
+    expect(WF04.split("checkpoint: ").length - 1).toBe(2);
+  });
+
+  it("(e) tech-lead.md `## Hard limits` makes no move after the options are used up, and stops for a human at `block`", () => {
+    const body = section(TECH_LEAD, "Hard limits");
+    expect(body).toContain(
+      "After the options are used up, make no move of your own; at the default `block`, stop for a named human.",
+    );
+    expect(body).toContain("Never escalate a ticket twice.");
+    expect(body).not.toContain("After the options are used up, stop for a named human.");
+  });
+
+  it("(f) the factory.config.md paragraph names the kept-level move, Workflow 09 and the loop bound under every value", () => {
+    const para = escalateParagraph();
+    const text = para.join("\n");
+    expect(text).toContain("Keeping the level is a `Move: re-plan`.");
+    expect(text).toContain("Workflow 09");
+    expect(text).toContain("`blocked_escalation_days`");
+    const wf04Stop = para.filter((l) => l.startsWith("- Workflow 04, `## Stop conditions`:"));
+    expect(wf04Stop).toHaveLength(1);
+    expect(wf04Stop[0]).toContain(
+      "At `block` the ticket goes to a named human; at `notify` or `off` it stays in `Blocked` with no move. Under every value it is never retried in a loop.",
+    );
+    expect(wf04Stop[0]).not.toContain("The ticket goes to a named human and is never retried in a loop.");
   });
 });
