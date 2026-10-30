@@ -19,6 +19,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = join(import.meta.dirname, "..");
 const RUBRIC_PATH = "agent-factory/checklists/complexity-rubric.md";
@@ -942,6 +943,12 @@ describe("install/README.md documents the engineer level adapters and the stale-
   });
 });
 
+// The committed derivation, loaded the way config-governance-consistency.test.ts loads it, so the
+// escalate paragraph is checked against the tagged sites the corpus reports, not a typed list.
+const cp: typeof import("./checkpoints.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "checkpoints.js")).href
+);
+
 describe("factory.config.md `checkpoints` wording matches Workflow 04 step 15 (quick 261030-fzo; HD-2, HD-3)", () => {
   const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
   const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
@@ -1001,5 +1008,46 @@ describe("factory.config.md `checkpoints` wording matches Workflow 04 step 15 (q
     expect(entry).toContain("per Workflow 16");
     expect(entry).toContain("`observation`");
     expect(entry).not.toContain(HEAD_PARENTHETICAL);
+  });
+  const ESCALATE_LEAD = "**What `escalate_unadjudicable_result` gates.**";
+  const NEXT_PARA = "**Which members are floor-tier is not decided here.**";
+  const escalateParagraph = () => {
+    const a = sliceLines.findIndex((l) => l.startsWith(ESCALATE_LEAD));
+    const b = sliceLines.findIndex((l) => l.startsWith(NEXT_PARA));
+    expect(a, `no line starting ${ESCALATE_LEAD}`).toBeGreaterThanOrEqual(0);
+    expect(b).toBeGreaterThan(a);
+    return sliceLines.slice(a, b).join("\n");
+  };
+
+  it("E1: exactly one **What `escalate_unadjudicable_result` gates.** paragraph, before the floor-tier paragraph", () => {
+    expect(sliceLines.filter((l) => l.startsWith(ESCALATE_LEAD))).toHaveLength(1);
+    expect(escalateParagraph().length).toBeGreaterThan(ESCALATE_LEAD.length);
+  });
+
+  it("E2: the paragraph names the workflow of every derived `escalate_unadjudicable_result` site", () => {
+    const para = escalateParagraph();
+    const sites = cp.deriveCheckpoints(ROOT).sites.get("escalate_unadjudicable_result") ?? [];
+    expect(sites.length).toBeGreaterThan(0);
+    expect(sites.length).toBe(cp.CHECKPOINT_SITE_COUNTS.escalate_unadjudicable_result);
+    for (const site of sites) expect(para).toContain(`Workflow ${site.file.slice(0, 2)}`);
+  });
+
+  it("E3: the per-value sentences at Workflow 04 step 15 match the step's own text", () => {
+    const para = escalateParagraph();
+    expect(para).toContain("Workflow 04 step 15");
+    expect(para).toContain("`block`, the default: the Tech Lead stops for a named human.");
+    expect(para).toContain("`notify`: the Tech Lead raises the level one step if the escalation is unspent, and otherwise keeps the level.");
+    expect(para).toContain("records an `observation` per Workflow 16 that names the move note");
+    expect(para).toContain("`off`: the same move and the same move note, with no `observation`.");
+    const s15 = stepAt(STEP15).text;
+    expect(s15).toContain("At `block`, the default, stop for a named human.");
+    expect(s15).toContain("At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level.");
+    expect(s15).toContain("At `notify`, also record an `observation` per Workflow 16 that names the move note.");
+  });
+
+  it("E4: the roster row's stop cell points at the paragraph", () => {
+    const rows = sliceLines.filter((l) => l.startsWith("| `escalate_unadjudicable_result` |"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain("What `escalate_unadjudicable_result` gates");
   });
 });

@@ -210,8 +210,20 @@ There is no fourth value. The roster is closed and lives once, in `scripts/check
 | `decide_accessibility_exception` | — | `block` | Marking an accessibility item passed on a control the design does not meet. |
 | `exhaust_self_fix_budget` | — | `block` | Continuing after the bounded `self_fix_attempts` budget is spent and the gate still fails. |
 | `override_finding_severity` | — | `block` | Overriding a security finding's severity without a stated reason and a named owner. |
-| `escalate_unadjudicable_result` | — | `block` | Self-stamping a high-stakes result no gate can adjudicate. |
+| `escalate_unadjudicable_result` | — | `block` | A result only a named human can settle: self-stamping a high-stakes result no gate can adjudicate, or the Tech Lead running out of legal moves on a blocked ticket. See *What `escalate_unadjudicable_result` gates* below. |
 | `accept_human_only_failure` | — | `block` | Spending an agent fix attempt on a failure only a human can clear. |
+
+**What `escalate_unadjudicable_result` gates.** The cell covers each point where no gate can adjudicate a result and the agents cannot settle it, so the decision belongs to a named human. Four places read it:
+
+- Workflow 16, `## Stop conditions`: a high-stakes result no gate can adjudicate, or a disagreement the agents cannot resolve. The agent escalates to a named human (`human:<name>`) and does not stamp the result itself. This is the cell's original meaning.
+- Workflow 18, `## Stop conditions`: a faithful re-binding of a note a named human already disposed is refused. The agent stops and hands the note to a human instead of downgrading it.
+- Workflow 04, `## Stop conditions`: the Tech Lead's options on a blocked ticket are used up. The one escalation and the one other move are both spent, or the scores call for more than one level, or for a raise after the escalation is spent. The ticket goes to a named human and is never retried in a loop.
+- Workflow 04 step 15, the Tech Lead's two-level re-score stop. When a re-score calls for more than one level, or for a raise after the one escalation is spent, the Tech Lead reads this cell. The used-up stop above follows the same value:
+  - `block`, the default: the Tech Lead stops for a named human.
+  - `notify`: the Tech Lead raises the level one step if the escalation is unspent, and otherwise keeps the level. It records the scored level in the move note, and records an `observation` per Workflow 16 that names the move note.
+  - `off`: the same move and the same move note, with no `observation`.
+
+Lowering the cell does not license an agent to write a `human:<name>` stamp for itself: Workflow 16 records a result that has no real stamp as a `claim` or an `observation`. Workflows 16 and 18 define no per-value behaviour beyond the three general meanings above.
 
 **Which members are floor-tier is not decided here.** The canonical floor list is `SAFETY_FLOORS` in `scripts/audit-model.ts`: the four claim floors that the project's public safety sentences rest on. The `Tier` column above reports that list rather than declaring it, and a test compares the column to it. A member added to the floor list later becomes floor-tier without this table being the thing that says so.
 

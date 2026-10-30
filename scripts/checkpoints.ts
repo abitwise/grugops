@@ -123,6 +123,9 @@ export type Checkpoint =
   | "decide_accessibility_exception"
   | "exhaust_self_fix_budget"
   | "override_finding_severity"
+  // What this id gates, and what each disposition does at the Tech Lead's re-score stop (Workflow 04
+  // step 15), is documented once in agent-factory/config/factory.config.md under "What
+  // `escalate_unadjudicable_result` gates". This is a pointer; the site list is not restated here.
   | "escalate_unadjudicable_result"
   | "accept_human_only_failure";
 
