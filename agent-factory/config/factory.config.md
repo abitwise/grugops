@@ -217,11 +217,11 @@ There is no fourth value. The roster is closed and lives once, in `scripts/check
 
 - Workflow 16, `## Stop conditions`: a high-stakes result no gate can adjudicate, or a disagreement the agents cannot resolve. The agent escalates to a named human (`human:<name>`) and does not stamp the result itself. This is the cell's original meaning.
 - Workflow 18, `## Stop conditions`: a faithful re-binding of a note a named human already disposed is refused. The agent stops and hands the note to a human instead of downgrading it.
-- Workflow 04, `## Stop conditions`: the Tech Lead's options on a blocked ticket are used up. The one escalation and the one other move are both spent, or the scores call for more than one level, or for a raise after the escalation is spent. The ticket goes to a named human and is never retried in a loop.
+- Workflow 04, `## Stop conditions`: the Tech Lead's options on a blocked ticket are used up. The one escalation and the one other move are both spent, or the scores call for more than one level, or for a raise after the escalation is spent. At `block` the ticket goes to a named human; at `notify` or `off` it stays in `Blocked` with no move. Under every value it is never retried in a loop.
 - Workflow 04 step 15, the Tech Lead's two-level re-score stop. When a re-score calls for more than one level, or for a raise after the one escalation is spent, the Tech Lead reads this cell. The used-up stop above follows the same value:
   - `block`, the default: the Tech Lead stops for a named human.
-  - `notify`: the Tech Lead raises the level one step if the escalation is unspent, and otherwise keeps the level. It records the scored level in the move note, and records an `observation` per Workflow 16 that names the move note.
-  - `off`: the same move and the same move note, with no `observation`.
+  - `notify`: the Tech Lead raises the level one step if the escalation is unspent, and otherwise keeps the level. It records the scored level in the move note, and records an `observation` per Workflow 16 that names the move note. Keeping the level is a `Move: re-plan`. Once the options are used up it makes no move: the ticket stays in `Blocked`, an `observation` names its `failed-attempt` note, and Workflow 09 raises it for a human after `blocked_escalation_days`.
+  - `off`: the same move and the same move note, with no `observation`. Keeping the level is a `Move: re-plan` here too. A used-up ticket stays in `Blocked` with no move and no `observation` until Workflow 09 raises it.
 
 Lowering the cell does not license an agent to write a `human:<name>` stamp for itself: Workflow 16 records a result that has no real stamp as a `claim` or an `observation`. Workflows 16 and 18 define no per-value behaviour beyond the three general meanings above.
 
