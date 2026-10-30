@@ -1463,9 +1463,10 @@ export function tieredCorpusRefusals(
 // ── THE D-2 AMENDMENT RECORD (Phase 39, plans 39-01 and 39-07) ─────────────────────────────────
 //
 // D-2 amends the D-09 rule above ("no role is assigned `haiku`") for the engineer's junior level
-// only. The junior level adapter, grugops-software-engineer-junior, pins `haiku` at effort `medium`
-// at zero config (D-3, D-14). It takes only tasks whose plan already fixes what to write, and never
-// security, migration, concurrency or test-integrity work: the complexity rubric's F3 rule makes
+// only. The junior level adapter, grugops-software-engineer-junior, pins `haiku` at effort `xhigh`
+// at zero config (D-3, D-14; D-2's effort, first `medium`, was amended by the human on 2026-10-30).
+// It takes only tasks whose plan already fixes what to write, and never security, migration,
+// concurrency or test-integrity work: the complexity rubric's F3 rule makes
 // junior impossible for those, and software-engineer.md's `## Levels` section tells a junior that
 // meets one to stop BLOCKED (D-31). No TIERED row assigns `haiku`, and no preset changes a level
 // (D-16).
@@ -1475,17 +1476,23 @@ export function tieredCorpusRefusals(
 // Anthropic API. The same page says the alias resolves to Haiku 4.5 on Claude Platform on AWS, Amazon
 // Bedrock, Google Cloud's Agent Platform and Microsoft Foundry, and Haiku 4.5 is not in its list of
 // models that support an effort level. What Claude Code does with the junior adapter's
-// `effort: medium` line there is `UNKNOWN - verify`. The floor is documented only, here and in
+// `effort: xhigh` line there is `UNKNOWN - verify`. The floor is documented only, here and in
 // agent-factory/config/factory.config.md: no `claude --version` probe is added (D-22; the doctor
 // work is Phase 42).
 //
 // ── LEVELS — the engineer level pins, one row per level, each row carrying its reason ─────────
 //
-// D-14: junior `haiku` at effort `medium`, mid `sonnet` at `medium`, senior `opus` at `high`. A role
-// that declares `levels` (scripts/kit-model.ts, listAgentAdapterSpecs) is expanded into one adapter
-// per level, and each level adapter resolves its model and effort from THIS table, never from a
-// preset (D-16): an explicit `models.preset: "none"` and `"tiered"` both leave the pins in place, and
-// only a `models.roles` / `models.effort.roles` entry moves a level (D-15). Recorded assumption A1:
+// D-14, as amended by the human on 2026-10-30 (Phase 39 UAT, G-39-5): junior `haiku` at effort
+// `xhigh`, mid `sonnet` at `high`, senior `opus` at `medium`.
+//
+// These efforts are not what the effort `tiered` rule gives the same models (`high` for `opus`,
+// `medium` for every other alias). The divergence is deliberate, and because no preset changes a
+// level (D-16) nothing reconciles the two.
+//
+// A role that declares `levels` (scripts/kit-model.ts, listAgentAdapterSpecs) is expanded into one
+// adapter per level, and each level adapter resolves its model and effort from THIS table, never from
+// a preset (D-16): an explicit `models.preset: "none"` and `"tiered"` both leave the pins in place,
+// and only a `models.roles` / `models.effort.roles` entry moves a level (D-15). Recorded assumption A1:
 // D-16 names `none`; `tiered` is read the same way because the levels exist to differ.
 //
 // D-2 bounds the thinnest level: junior takes only work whose plan already fixes what to write and
@@ -1511,15 +1518,15 @@ export const LEVELS: readonly LevelTier[] = [
   {
     level: "junior",
     alias: "haiku",
-    effort: "medium",
+    effort: "xhigh",
     rationale:
       "Takes only work whose plan already fixes what to write and that carries no risk tag, so the " +
       "behavior gate checks all of it. A thinner model degrades into that gate rather than past it, " +
       "and security, migration, concurrency and test-integrity work never reaches this level.",
     effortRationale:
-      "The plan already states what to write and the behavior gate checks the result, so moderate " +
-      "reasoning depth suits work whose decisions were made upstream and whose errors are caught " +
-      "rather than shipped.",
+      "The plan already states what to write, so this level's reasoning goes into following that " +
+      "plan exactly. Extended reasoning lets a thinner model check each edit against the plan and " +
+      "the tests before the behavior gate sees the result.",
   },
   {
     level: "mid",
@@ -1528,22 +1535,24 @@ export const LEVELS: readonly LevelTier[] = [
       "Takes work that follows a known pattern in the codebase but leaves the approach open. The " +
       "pattern bounds the choices and the correctness gate and review check the result, so the " +
       "middle tier carries enough judgment to pick an approach while the pattern catches a poor pick.",
-    effort: "medium",
+    effort: "high",
     effortRationale:
-      "Follows a known pattern with the approach left open, so moderate reasoning depth suits " +
-      "judgment that the pattern bounds and the gates and review check.",
+      "The approach is left open inside a known pattern, so choosing it is this level's own " +
+      "judgment. High effort goes into weighing the pattern's options before writing, because a " +
+      "poor pick can still pass the tests.",
   },
   {
     level: "senior",
     alias: "opus",
-    effort: "high",
+    effort: "medium",
     rationale:
       "Takes cross-module, risk-bearing or novel work, where a judgment error passes the correctness " +
       "gate: the tests check what was built, not whether it was the right thing to build across a " +
       "module boundary. That is the harm the strongest tier exists to prevent.",
     effortRationale:
-      "Takes cross-module, risk-bearing or novel work where a judgment error passes the correctness " +
-      "gate, so deeper reasoning goes where a decision is made that no later gate re-asks.",
+      "The judgment that cross-module, risk-bearing or novel work needs comes from the strongest " +
+      "model, so this level relies on the model tier for its depth rather than on the effort " +
+      "setting. A moderate setting suits a model that already reasons well across a module boundary.",
   },
 ];
 

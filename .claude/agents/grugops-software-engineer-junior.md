@@ -3,7 +3,7 @@ name: grugops-software-engineer-junior
 description: "Implement one ticket end to end. Use when: the Tech Lead's plan names grugops-software-engineer-junior; never for unscored work. Level: junior."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: haiku
-effort: medium
+effort: xhigh
 ---
 <!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-role-adapters.js -->
 

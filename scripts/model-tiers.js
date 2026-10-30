@@ -1187,13 +1187,13 @@ export const LEVELS = [
     {
         level: "junior",
         alias: "haiku",
-        effort: "medium",
+        effort: "xhigh",
         rationale: "Takes only work whose plan already fixes what to write and that carries no risk tag, so the " +
             "behavior gate checks all of it. A thinner model degrades into that gate rather than past it, " +
             "and security, migration, concurrency and test-integrity work never reaches this level.",
-        effortRationale: "The plan already states what to write and the behavior gate checks the result, so moderate " +
-            "reasoning depth suits work whose decisions were made upstream and whose errors are caught " +
-            "rather than shipped.",
+        effortRationale: "The plan already states what to write, so this level's reasoning goes into following that " +
+            "plan exactly. Extended reasoning lets a thinner model check each edit against the plan and " +
+            "the tests before the behavior gate sees the result.",
     },
     {
         level: "mid",
@@ -1201,19 +1201,21 @@ export const LEVELS = [
         rationale: "Takes work that follows a known pattern in the codebase but leaves the approach open. The " +
             "pattern bounds the choices and the correctness gate and review check the result, so the " +
             "middle tier carries enough judgment to pick an approach while the pattern catches a poor pick.",
-        effort: "medium",
-        effortRationale: "Follows a known pattern with the approach left open, so moderate reasoning depth suits " +
-            "judgment that the pattern bounds and the gates and review check.",
+        effort: "high",
+        effortRationale: "The approach is left open inside a known pattern, so choosing it is this level's own " +
+            "judgment. High effort goes into weighing the pattern's options before writing, because a " +
+            "poor pick can still pass the tests.",
     },
     {
         level: "senior",
         alias: "opus",
-        effort: "high",
+        effort: "medium",
         rationale: "Takes cross-module, risk-bearing or novel work, where a judgment error passes the correctness " +
             "gate: the tests check what was built, not whether it was the right thing to build across a " +
             "module boundary. That is the harm the strongest tier exists to prevent.",
-        effortRationale: "Takes cross-module, risk-bearing or novel work where a judgment error passes the correctness " +
-            "gate, so deeper reasoning goes where a decision is made that no later gate re-asks.",
+        effortRationale: "The judgment that cross-module, risk-bearing or novel work needs comes from the strongest " +
+            "model, so this level relies on the model tier for its depth rather than on the effort " +
+            "setting. A moderate setting suits a model that already reasons well across a module boundary.",
     },
 ];
 // The level table's exact cardinality, pinned by scripts/model-tiers.test.ts only; no guard reads it,
