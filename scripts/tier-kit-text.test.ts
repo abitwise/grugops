@@ -766,12 +766,15 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
   });
 
   it("the board moves name the escalation's `Blocked` move and the Tech Lead's exit", () => {
+    // Re-review IN-03: "escalation" is one Tech Lead move, so the `Blocked` entry names its two
+    // causes instead, and the exit names all four moves, the re-plan included.
     expect(section(WF04, "Board moves")).toContain(
-      "On an escalation the Software Engineer moves the ticket to `Blocked`, and the Tech Lead owns its exit back to `Ready for Dev`.",
+      "When the engineer reports `BLOCKED`, or the gate ends `BLOCKED_NEEDS_FIX`, the Software Engineer moves the ticket to `Blocked`.",
     );
     expect(section(WF04, "Board moves")).toContain(
-      "After a split that exit is `Backlog`, and after an Architect pass it is `In Design`.",
+      "The Tech Lead owns its exit: `Ready for Dev` after an escalation or a re-plan, `Backlog` after a split, `In Design` after an Architect pass.",
     );
+    expect(section(WF04, "Board moves")).not.toContain("On an escalation the Software Engineer");
   });
 
   it("WR-12: a split or an Architect pass leaves `Ready for Dev` alone and re-enqueues no engineer", () => {
