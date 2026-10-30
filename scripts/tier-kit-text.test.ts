@@ -601,11 +601,27 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
   it("T-39-16: the gate-failure stop keeps the WF05 human stop, tagged `exhaust_self_fix_budget`", () => {
     const b = stops.filter((l) => l.startsWith("- The gate ends `BLOCKED_NEEDS_FIX`"));
     expect(b).toHaveLength(1);
-    expect(b[0]).toContain("A named human confirms the Tech Lead's decision before the re-enqueue, per Workflow 05.");
+    // Plan 39-12 (CR-02): the human stop is named in step 15 too, and the WF05 reference is accurate.
+    expect(b[0]).toContain("A named human confirms the Tech Lead's decision before the re-enqueue (step 15).");
+    expect(b[0]).toContain("Workflow 05 sets this human stop when the self-fix budget is spent.");
+    expect(WF04).not.toContain("before the re-enqueue, per Workflow 05");
     expect(b[0]?.endsWith("`checkpoint: exhaust_self_fix_budget`")).toBe(true);
     expect(WF04.split("checkpoint: exhaust_self_fix_budget").length - 1).toBe(1);
     // The WF05 stop is still there, unchanged in count.
     expect(WF05.split("checkpoint: exhaust_self_fix_budget").length - 1).toBe(1);
+  });
+
+  it("CR-02: after a gate failure the numbered steps stop for a named human before any re-enqueue", () => {
+    const s15 = stepAt("Read the `failed-attempt` note (Tech Lead).").text;
+    const stop = s15.indexOf("After a gate `BLOCKED_NEEDS_FIX`, stop until a named human confirms the move.");
+    expect(stop).toBeGreaterThanOrEqual(0);
+    expect(stop).toBeLessThan(s15.indexOf("Return the ticket to `Ready for Dev`."));
+    const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
+    expect(s16).toContain("confirmed by that human");
+    // The human stop stays tagged only in `## Stop conditions`; no step carries a checkpoint tag.
+    expect(section(WF04, "Steps")).not.toContain("checkpoint:");
+    // Workflow 05's own stop is unchanged.
+    expect(WF05).toContain("Stop and hand to a human. `checkpoint: exhaust_self_fix_budget`");
   });
 
   it("D-21 / T-39-15: once the options are used up a named human takes the ticket, never a retry loop", () => {
