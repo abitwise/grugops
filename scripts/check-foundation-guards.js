@@ -3097,7 +3097,7 @@ const ROLE_CEILINGS = {
     "qe-e2e.md": "3822 3617", // +Phase-21 WF16 pointer (baseline 3412 B, +12% / +6%)
     "uat-planner.md": "3540 3350", // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
     "system-analyst.md": "3170 3000", // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)
-    "tech-lead.md": "4222 3996", // Phase 39 review fix WR-14, 2026-10-30: measured 3769 B, +12% / +6% rounded up (was 3572 3381 from the Plan 39-05 3189 B baseline); the escalation stops and the `Move:` line the review asked for
+    "tech-lead.md": "3572 3381", // Plan 39-05 (TIER-01), 2026-10-29: measured 3189 B, +12% / +6% rounded up. The review-fix WR-14 raise to 4222 3996 was never confirmed by a human and is reverted (re-review WR-05, 2026-10-30): the role now points at Workflow 04 step 15 instead of restating it
     "designer.md": "3273 3098", // Plan 39-06 (TIER-05), 2026-10-29: measured 2922 B, +12% / +6% rounded up
     "greenfield-mapper.md": "3045 2882", // +Phase-21 WF16 pointer (baseline 2718 B, +12% / +6%)
     "brownfield-mapper.md": "2845 2693", // +Phase-21 WF16 pointer (baseline 2540 B, +12% / +6%)

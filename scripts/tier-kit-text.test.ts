@@ -223,10 +223,9 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
       expect(text, `${name} spells a \`level:\` key`).not.toContain("`level:");
     }
     expect(section(TECH_LEAD, "Output")).toContain("No ticket frontmatter key");
-    // WR-14: the move note's fixed first line, stated in the role's Output too.
-    expect(section(TECH_LEAD, "Output")).toContain(
-      "- On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none.",
-    );
+    // WR-14, re-review WR-05: the move note's fixed `Move:` line lives once, in Workflow 04 step 15,
+    // and the role points at it rather than restating it.
+    expect(section(TECH_LEAD, "Output")).not.toContain("Move:");
   });
 
   it("D-08: the ticket stays in `Ready for Dev` while the Tech Lead plans; F2 = 2 returns it to `In Design`", () => {
@@ -240,9 +239,10 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     expect(resp).toContain(
       "On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect.",
     );
-    // WR-12: the exit depends on the move; only an escalation or a re-plan goes back to `Ready for Dev`.
+    // WR-12, re-review WR-05: the exit depends on the move, and Workflow 04 step 15 names it per move
+    // (pinned in the WF04 describe below); the role points there instead of restating it.
     expect(section(TECH_LEAD, "Board moves")).toContain(
-      "It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass.",
+      "It owns the exit of a dev-raised `## Blocked`, per Workflow 04 step 15.",
     );
   });
 
@@ -266,24 +266,21 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
       "- `agent-factory/workflows/04-ticket-to-pr.md` steps 14-16, the path of a blocked ticket.",
     );
     const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
-    // WR-16: the role's stop follows the same checkpoint value as Workflow 04 step 15.
+    // WR-16, re-review WR-05: the role meets the human stops through Workflow 04 step 15, which holds
+    // them once (pinned in the WF04 describe below), instead of restating the checkpoint conditions.
     expect(item5).toContain(
-      "After a gate `BLOCKED_NEEDS_FIX`, with `checkpoints.exhaust_self_fix_budget` at `block` (the default), leave the ticket in `Blocked` until a named human confirms the move.",
+      "Follow Workflow 04 step 15 for the `Move:` line, the re-score rule and the named-human stops.",
     );
-    expect(section(TECH_LEAD, "Board moves")).toContain(
-      "After a gate `BLOCKED_NEEDS_FIX` at `block`, the exit waits for a named human.",
-    );
+    expect(section(TECH_LEAD, "Board moves")).toContain("per Workflow 04 step 15");
   });
 
   it("WR-01: besides the one escalation the Tech Lead makes at most one other move, and a level-raising re-score is the escalation", () => {
     const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
     expect(item5).toContain("Besides the escalation, make at most one other move per ticket.");
-    // WR-13: the level-raising re-score moves one level only; two levels, or a raise after the
-    // escalation is spent, stops for a named human.
-    expect(item5).toContain("A re-score that raises the level is the escalation, one level only.");
-    expect(item5).toContain(
-      "When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human.",
-    );
+    // WR-13, re-review WR-05: the re-score rule lives once, in Workflow 04 step 15 (pinned in the
+    // WF04 describe below); the role points there, and restates neither the rule nor its stops.
+    expect(item5).toContain("Follow Workflow 04 step 15 for the `Move:` line, the re-score rule");
+    expect(item5).not.toContain("one level only");
   });
 });
 

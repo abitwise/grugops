@@ -14,6 +14,12 @@ The IDs below are the re-review's own numbering. They are not the WR-11 to WR-16
   `context.human_admission: all`, and at the default `off` the finding is a prose-tier record.
   `39-review-fix-1.md` claimed the admission guard checks the stamp; its rows are corrected in the
   same commit.
+- **WR-05**: `tech-lead.md` points at Workflow 04 step 15 for the `Move:` line, the re-score rule,
+  the named-human stops and the per-move exit, instead of restating them. The role drops from
+  4110 B to 3439 B, under the measured Plan 39-05 ceiling (3572 B), so `ROLE_CEILINGS` in
+  `scripts/check-foundation-guards.ts` goes back to `3572 3381`. The iteration-1 raise to
+  `4222 3996` was never confirmed by a human and is reverted. The role still trips the 3381 B WARN
+  tier, which is that tier's job: it is within 6% of its ceiling.
 
 The `line` column gives each clause's line in the tree after the fix that wrote the row.
 
@@ -33,3 +39,6 @@ the rows below are written.
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Never write that stamp without the human's answer. | WR-01, T-39-25 | **added.** States the limit on the writer, because nothing at the default dial stops an agent from writing the stamp itself. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Only at `context.human_admission: all` does admission check that stamp, and only Claude Code binds it to the human's session grant. | WR-01, T-39-25 | **added.** Says honestly which dial makes the stamp checked, per `isGatedNote` in `scripts/context-io.ts`; a Tech Lead finding is not gated at `high-severity`. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | At the default `off` it is a prose-tier record. | WR-01, T-39-25 | **added.** Matches `factory.config.md` § "Where each cell is enforced": a non-floor cell is prose tier, and no mechanism refuses a self-written stamp at the default. | — |
+| agent-factory/roles/tech-lead.md | 35 | A re-score that raises the level is the escalation, one level only. When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human. After a gate `BLOCKED_NEEDS_FIX`, with `checkpoints.exhaust_self_fix_budget` at `block` (the default), leave the ticket in `Blocked` until a named human confirms the move. | Follow Workflow 04 step 15 for the `Move:` line, the re-score rule and the named-human stops. | WR-05, D-19, D-21 | **reworded to a pointer.** The rules live once, in Workflow 04 step 15, which the role already reads (Reads, steps 14-16); restating them grew the role past its measured ceiling and let the two copies drift. | — |
+| agent-factory/roles/tech-lead.md | 44 | It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass. After a gate `BLOCKED_NEEDS_FIX` at `block`, the exit waits for a named human. | It owns the exit of a dev-raised `## Blocked`, per Workflow 04 step 15. | WR-05, D-19 | **reworded to a pointer.** Workflow 04 step 15 names the exit for each move and the human stop that holds it. | — |
+| agent-factory/roles/tech-lead.md | 41 | On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none. | — | WR-05, D-20 | **removed.** Responsibility 5 already records the move in a decision note and points at Workflow 04 step 15 for its `Move:` line and the counting rule. | — |
