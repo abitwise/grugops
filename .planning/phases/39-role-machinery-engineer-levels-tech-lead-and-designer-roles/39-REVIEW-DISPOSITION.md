@@ -3,14 +3,26 @@ phase: 39
 review: 39-REVIEW.md
 titles: json
 findings:
+  - id: CR-01
+    severity: critical
+    disposition: open
+    title: "The step 15 split records the move before the re-score stop, and step 16 never holds for that stop, so at the default `block` an engineer-raised two-level re-score is re-enqueued without the named human"
   - id: WR-01
     severity: warning
-    disposition: fixed
-    title: "The `human:<name>` confirmation finding is unchecked at the default dial, and the disposition says the admission guard checks it"
+    disposition: open
+    title: "At `notify`/`off`, the used-up stop no longer stops, but no legal move is left and the \"never retry in a loop\" bound still reads as unconditional"
   - id: WR-02
     severity: warning
-    disposition: fixed
-    title: "Step 16 waits for any `human:<name>` finding that names the move note, so a recorded rejection releases the re-enqueue, and a rejected move still uses up the budget"
+    disposition: open
+    title: "The `models` row of the config field table still states the old level pins"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The iteration-2 disposition still states the reverted `3572 3381` ceiling and a WARN the role no longer trips"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "\"Only at `context.human_admission: all` does admission check that stamp\" leaves out the two other cases where admission gates the finding"
   - id: WR-03
     severity: warning
     disposition: fixed
@@ -27,14 +39,6 @@ findings:
     severity: warning
     disposition: fixed
     title: "Step 16's \"After a gate failure at `block`\" needs a fact step 14 never records: the `failed-attempt` note is \"the same note\" for an engineer block and a gate block"
-  - id: IN-01
-    severity: info
-    disposition: fixed
-    title: "The tagged gate-failure stop still says \"before the re-enqueue (step 15)\", but the re-enqueue is step 16 and the stop now also holds split and Architect moves"
-  - id: IN-02
-    severity: info
-    disposition: fixed
-    title: "The README's unreadable-marker sentence leaves out `--dry-run`, and \"print no note from install\" is ambiguous next to `install.js --check`"
   - id: IN-03
     severity: info
     disposition: fixed
@@ -83,10 +87,6 @@ findings:
     severity: info
     disposition: open
     title: "The new presence-path tests leave out the README's headline case and two branches"
-  - id: CR-01
-    severity: critical
-    disposition: fixed
-    title: "The Designer has no shell, so it cannot read or publish the notes that are its whole output"
   - id: CR-02
     severity: critical
     disposition: fixed
@@ -115,25 +115,26 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 4
+open: 9
 total: 28
-recorded: 2026-10-30T11:22:59.085Z
+recorded: 2026-10-30T16:00:36.510Z
 ---
 
 # Phase 39: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-02 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-03 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-04 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-05 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-06 | warning | fixed | 39-REVIEW-FIX.md |
-| IN-01 | info | fixed | 39-REVIEW-FIX.md |
-| IN-02 | info | fixed | 39-REVIEW-FIX.md |
-| IN-03 | info | fixed | 39-REVIEW-FIX.md |
-| IN-04 | info | fixed | 39-REVIEW-FIX.md |
+| CR-01 | critical | open | - |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
+| WR-03 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-04 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-05 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-06 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| IN-03 | info | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| IN-04 | info | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-11 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-12 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-13 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
@@ -144,7 +145,6 @@ recorded: 2026-10-30T11:22:59.085Z
 | IN-08 | info | open | - (not in the current review) |
 | IN-09 | info | open | - (not in the current review) |
 | IN-10 | info | open | - (not in the current review) |
-| CR-01 | critical | fixed | plan 39-11 (0a94175f) (not in the current review) |
 | CR-02 | critical | fixed | plan 39-12 (a1fd04dd) (not in the current review) |
 | WR-07 | warning | fixed | plan 39-12 (34f92ff7) (not in the current review) |
 | WR-08 | warning | fixed | plan 39-11 (78c07a10) (not in the current review) |
