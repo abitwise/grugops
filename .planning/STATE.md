@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
-status: executing
-stopped_at: Completed 39-12-PLAN.md
-last_updated: "2026-10-30T07:12:50.460Z"
+status: verifying
+stopped_at: Completed 39-13-PLAN.md
+last_updated: "2026-10-30T08:40:58.611Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: f0bf9c5ce2b36c23e1bbaf206520d4a4aeb58f82
+state_head: fdb119192a2223a2d7ed4e7c3ce9f8be9fa260fd
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 81
-  completed_plans: 80
+  completed_plans: 81
   percent: 44
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
 Plan: 13 of 13
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-30 — Phase 39 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -796,6 +796,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P10 | 63 min | 2 tasks | 6 files |
 | Phase 39 P11 | 13 min | 3 tasks | 16 files |
 | Phase 39 P12 | 9 min | 3 tasks | 8 files |
+| Phase 39 P13 | 1h 25m | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -2191,6 +2192,8 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-11: Level adapter description names its own adapter (the Tech Lead's plan names <adapter>; never for unscored work); MODEL-01 level case re-records only the description transform, pin and records unchanged (WR-03, D-3)
 - [Phase 39]: 39-12: CR-02 is fixed by rewording WF04 (step 15 names the human stop, step 16 waits for it, the stop bullet states what WF05 says); WF05 and every checkpoint count stay unchanged
 - [Phase 39]: 39-12: The Tech Lead makes at most one escalation and one other move per ticket; a re-score that raises the level is the escalation; moves are counted from the ticket's decision notes (WR-01, D-19, D-21)
+- [Phase 39]: 39-13: an unshipped grugops adapter the install ledger has no kit-true record of is named in a report-only note (exit status unchanged), on every run until it is gone (WR-06)
+- [Phase 39]: 39-13: IN-04 deferred to Phase 42 doctor work, IN-05 to Phase 41, IN-06 to Phase 40; review disposition open: 0
 
 ### Pending Todos
 
@@ -2526,8 +2529,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-30T07:12:49.794Z
-Stopped at: Completed 39-12-PLAN.md
+Last session: 2026-10-30T08:40:57.941Z
+Stopped at: Completed 39-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

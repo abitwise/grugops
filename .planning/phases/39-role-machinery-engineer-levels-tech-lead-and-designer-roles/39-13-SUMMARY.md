@@ -203,3 +203,9 @@ None. No external service configuration is required.
 ---
 *Phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles*
 *Completed: 2026-10-30*
+
+## Self-Check: PASSED
+
+- Commits found on HEAD: 7ff0f96f, 6368128f, b5a82cf9, 8b023a54, 9770a05a, fdb11919
+- Modified files present: install/install.ts, install/install.js, install/install.test.ts, install/agents-record.test.ts, install/README.md, agent-factory/config/factory.config.md, CHANGELOG.md, scripts/tier-kit-text.test.ts
+- `npx vitest run install/install.test.ts -t "no longer ships"`: 13 passed (at least 10 required)
