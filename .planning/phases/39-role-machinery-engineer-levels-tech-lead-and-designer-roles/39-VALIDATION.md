@@ -88,6 +88,18 @@ Filled by the planner per task; the requirement → test map from RESEARCH.md is
 | 39-13 T1 (tracer, gap) | TIER-06 | `npx vitest run install/install.test.ts -t "no longer ships" && npx vitest run install/agents-record.test.ts install/installer-dry-run.test.ts install/installer-special-files.test.ts scripts/tier-kit-text.test.ts` + build-parity gate | ✅ |
 | 39-13 T2 (gap) | TIER-02, TIER-03 | `npx vitest run scripts/tier-kit-text.test.ts scripts/model-dial-consistency.test.ts scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts` + public-docs/claim-anchor gates | ✅ |
 | 39-13 T3 (gap) | TIER-02, TIER-03 | phase gate: full non-e2e suite against the recorded baseline (20 known reds in deferred-items.md) + disposition count 721 | ✅ |
+| 39-14 T1 (tracer, gap 2) | TIER-02, TIER-06 | `npx vitest run scripts/model-tiers.test.ts scripts/adapter-byte-baseline.test.ts scripts/adapters-freshness.test.ts` + freshness/build-parity/foundation gates | ✅ |
+| 39-14 T2 (gap 2) | TIER-02 | `npx vitest run scripts/generate-role-adapters.test.ts install/install.test.ts scripts/check-foundation-guards.test.ts` | ✅ |
+| 39-14 T3 (gap 2) | TIER-03 | grep record checks (PROJECT, REQUIREMENTS, ROADMAP, CONTEXT D-14 amended) | ✅ |
+| 39-15 T1 (tracer, gap 2) | TIER-02, TIER-03 | `npx vitest run scripts/tier-kit-text.test.ts scripts/model-dial-consistency.test.ts scripts/check-public-docs-vocabulary.test.ts` + public-docs/claim-anchor gates | ✅ |
+| 39-15 T2 (gap 2) | TIER-02 | `npx vitest run scripts/model-dial-consistency.test.ts -t "G-39-6"` + config-governance + disposition count 721 | ✅ |
+| 39-16 T1 (tracer, gap 2) | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts scripts/check-uat-oracles.test.ts scripts/voice-model.test.ts scripts/check-imperative-lexicon.test.ts` + language gates + disposition count 721 | ✅ |
+| 39-16 T2 (gap 2) | TIER-04 | phase gate: every repo gate + full non-e2e suite against the recorded baseline | ✅ |
+| 39-17 T1 (tracer, gap 3) | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts -t "CR-01, 39-17"` + WF04 text/checkpoint suites + language gates + disposition count 721 | ✅ |
+| 39-17 T2 (gap 3) | TIER-02 | `npx vitest run scripts/model-dial-consistency.test.ts -t "WR-02"` (cases derived from `LEVELS`) + config-governance/model-tiers suites | ✅ |
+| 39-18 T1 (gap 3) | TIER-04 | human decision checkpoint (park-in-blocked, Olger Oeselg, 2026-10-30) — recorded, not automated | ✅ |
+| 39-18 T2 (tracer, gap 3) | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts scripts/config-governance-consistency.test.ts` (WR-01 one-outcome cases) + language gates + disposition count 721 | ✅ |
+| 39-18 T3 (gap 3) | TIER-04 | phase gate: every repo gate + full non-e2e suite against the recorded baseline (21 known reds) | ✅ |
 
 The `scripts/<new tier-text>.test.ts` row above is `scripts/tier-kit-text.test.ts`, created by 39-05 T1 and extended by 39-06..39-10.
 
