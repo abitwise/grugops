@@ -713,9 +713,15 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     // WR-15: the confirmation is a published `human:<name>` finding, and step 16 reads it.
     expect(s16).toContain("After a gate failure at `block`, wait also for the `human:<name>` finding that names the move note.");
     expect(s15).toContain("Leave the ticket in `Blocked` until then.");
+    // WR-01 (iteration 2): the step names who writes the finding and the limit, and says honestly
+    // that admission checks the stamp only at `context.human_admission: all`.
+    expect(s15).toContain("Once the named human confirms, the Tech Lead records it as a `finding` per Workflow 16.");
+    expect(s15).toContain("Stamp it `human:<name>`, with the move note's id among its refs.");
+    expect(s15).toContain("Never write that stamp without the human's answer.");
     expect(s15).toContain(
-      "Record the confirmation as a `finding` per Workflow 16, stamped `human:<name>`, with the move note's id among its refs.",
+      "Only at `context.human_admission: all` does admission check that stamp, and only Claude Code binds it to the human's session grant.",
     );
+    expect(s15).toContain("At the default `off` it is a prose-tier record.");
     // The human stop stays tagged only in `## Stop conditions`; no step carries a checkpoint tag.
     expect(section(WF04, "Steps")).not.toContain("checkpoint:");
     // Workflow 05's own stop is unchanged.

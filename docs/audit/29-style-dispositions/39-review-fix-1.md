@@ -19,8 +19,11 @@ here.
 - **WR-15**: the Tech Lead role now reads Workflow 04 steps 14-16 and holds a gate-failure ticket in
   `Blocked` until a named human confirms the move. Workflow 04 records the confirmation as a
   `finding` stamped `human:<name>` (Workflow 16's escalation stamp) naming the move note, and step
-  16 waits for that finding, so the stop leaves a published fact an Orchestrator or an auditor can
-  check.
+  16 waits for that finding, so the stop leaves a published record. Corrected in iteration 2
+  (`39-review-fix-2.md`, WR-01): admission checks that stamp only at `context.human_admission:
+  all`, where Claude Code's admission guard binds it to the human's session grant. At the default
+  `off`, and for a Tech Lead finding at `high-severity`, nothing checks it; it is a prose-tier record
+  the Tech Lead writes after the human answers.
 - **WR-16**: the step-15 and role stop follow `checkpoints.exhaust_self_fix_budget`, the value the
   tagged gate-failure stop already follows. At `block`, the default, the human stop holds; at
   `notify` or `off` the move goes ahead without that human. No checkpoint tag is added or moved.
@@ -58,9 +61,9 @@ the rows below are written.
 | agent-factory/roles/tech-lead.md | 41 | — | On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. | WR-14, D-20 | **added.** The role's Output names the move note's fixed line, matching Workflow 04 step 15. | — |
 | agent-factory/roles/tech-lead.md | 41 | — | Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none. | WR-14, D-20, D-21 | **added.** The role states what the bound counts, so the D-21 loop bound reads a structured line. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Leave the ticket in `Blocked` until then. | WR-15, D-21 | **added.** The board does not show the ticket as ready before the human confirms the move. | — |
-| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Record the confirmation as a `finding` per Workflow 16, stamped `human:<name>`, with the move note's id among its refs. | WR-15, D-20, T-39-25 | **added.** The human stop leaves a published record: Workflow 16's `human:<name>` stamp, which the admission guard checks on Claude Code, naming the move note it confirms. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Record the confirmation as a `finding` per Workflow 16, stamped `human:<name>`, with the move note's id among its refs. | WR-15, D-20, T-39-25 | **added.** The human stop leaves a published record: Workflow 16's `human:<name>` stamp, naming the move note it confirms. Corrected in iteration 2 (WR-01): on Claude Code the admission guard binds the stamp to the human's session grant only at `context.human_admission: all`; at the default `off` it is a prose-tier record the Tech Lead writes after the human answers. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 42 | Create it only once the step 15 move is recorded and, after a gate failure, confirmed by that human. | Create it only once the step 15 move is recorded. | WR-15, D-20 | **reworded.** The record condition stays; the human condition moves to its own sentence that names the record to read. | — |
-| agent-factory/workflows/04-ticket-to-pr.md | 42 | — | After a gate failure, wait also for the `human:<name>` finding that names the move note. | WR-15, D-20, T-39-25 | **added.** Step 16's condition reads a published fact instead of an unrecorded confirmation. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 42 | — | After a gate failure, wait also for the `human:<name>` finding that names the move note. | WR-15, D-20, T-39-25 | **added.** Step 16's condition reads a published record instead of an unrecorded confirmation. Corrected in iteration 2 (WR-01): the record is prose tier unless `context.human_admission` is `all`. | — |
 | agent-factory/roles/tech-lead.md | 25 | — | `agent-factory/workflows/04-ticket-to-pr.md` steps 14-16, the path of a blocked ticket. | WR-15 | **added.** The role reads the workflow that holds the human stop. | — |
 | agent-factory/roles/tech-lead.md | 35 | — | After a gate `BLOCKED_NEEDS_FIX`, leave the ticket in `Blocked` until a named human confirms the move. | WR-15, D-21, T-39-25 | **added.** A Tech Lead acting from its role file meets the human stop. | — |
 | agent-factory/roles/tech-lead.md | 44 | — | After a gate `BLOCKED_NEEDS_FIX`, the exit waits for a named human. | WR-15, D-21 | **added.** The role's board moves carry the same stop. | — |
