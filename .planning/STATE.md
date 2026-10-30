@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
-status: executing
-stopped_at: Completed 39-17-PLAN.md
-last_updated: "2026-10-30T19:14:48.899Z"
+status: verifying
+stopped_at: Completed 39-18-PLAN.md
+last_updated: "2026-10-30T19:51:06.084Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: 51a68264c43b3d7a4073e2105aac9db2b3c87fd5
+state_head: ec3f74fedf5443a31d23262bc5fc120680da0a31
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 86
-  completed_plans: 85
+  completed_plans: 86
   percent: 44
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — READY TO EXECUTE
 Plan: 16 of 16
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-30 — Phase 39 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -801,6 +801,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P15 | 5 min | 2 tasks | 5 files |
 | Phase 39 P16 | 28 min | 2 tasks | 3 files |
 | Phase 39 P17 | 63 min | 2 tasks | 6 files |
+| Phase 39 P18 | 28min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2205,6 +2206,8 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-16: WF04 step 15 split into a lead line plus six labelled sub-bullets with every sentence kept; numbered() folds indented sub-bullet lines; only openings of 4+ normalized words (CLAUSE_MIN_WORDS) need a disposition row
 - [Phase 39]: 39-17: At the re-score stop at block the Tech Lead records no move until the named human answers; the move note carries Stop: re-score and the human's level, the stamped finding a Level: line, and step 16 holds for it naming checkpoints.escalate_unadjudicable_result: block
 - [Phase 39]: 39-17: factory.config.md models row states junior haiku/xhigh, mid sonnet/high, senior opus/medium; WR-02 cases derive every level-pin statement from LEVELS
+- [Phase 39]: WR-01, option park-in-blocked (Olger Oeselg, 2026-10-30): at block a named human takes a used-up ticket; at notify/off the Tech Lead makes no move, nothing is re-enqueued, the ticket stays in Blocked and Workflow 09 raises it after blocked_escalation_days; a kept level is Move: re-plan
+- [Phase 39]: The 39-17 sentence 'The human's level stands, even past the move limits.' confirmed by Olger Oeselg on 2026-10-30
 
 ### Pending Todos
 
@@ -2541,8 +2544,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-30T19:14:48.231Z
-Stopped at: Completed 39-17-PLAN.md
+Last session: 2026-10-30T19:51:05.411Z
+Stopped at: Completed 39-18-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
