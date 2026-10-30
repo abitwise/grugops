@@ -146,3 +146,12 @@ The `scripts/<new tier-text>.test.ts` row above is `scripts/tier-kit-text.test.t
 | Gaps found | 0 |
 | Resolved | 0 |
 | Escalated | 0 |
+
+## Validation Audit 2026-10-30
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Tasks audited | 12 |
