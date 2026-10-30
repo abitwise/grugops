@@ -266,9 +266,12 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
       "- `agent-factory/workflows/04-ticket-to-pr.md` steps 14-16, the path of a blocked ticket.",
     );
     const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
-    expect(item5).toContain("leave the ticket in `Blocked` until a named human confirms the move.");
+    // WR-16: the role's stop follows the same checkpoint value as Workflow 04 step 15.
+    expect(item5).toContain(
+      "After a gate `BLOCKED_NEEDS_FIX`, with `checkpoints.exhaust_self_fix_budget` at `block` (the default), leave the ticket in `Blocked` until a named human confirms the move.",
+    );
     expect(section(TECH_LEAD, "Board moves")).toContain(
-      "After a gate `BLOCKED_NEEDS_FIX`, the exit waits for a named human.",
+      "After a gate `BLOCKED_NEEDS_FIX` at `block`, the exit waits for a named human.",
     );
   });
 
@@ -698,12 +701,17 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
 
   it("CR-02: after a gate failure the numbered steps stop for a named human before any re-enqueue", () => {
     const s15 = stepAt("Read the `failed-attempt` note (Tech Lead).").text;
-    const stop = s15.indexOf("After a gate `BLOCKED_NEEDS_FIX`, stop until a named human confirms the move.");
+    // WR-16: the stop follows the `exhaust_self_fix_budget` value; `block` is the default.
+    expect(s15).toContain(
+      "After a gate `BLOCKED_NEEDS_FIX`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows.",
+    );
+    expect(s15).toContain("At `notify` or `off`, make the move without that human.");
+    const stop = s15.indexOf("At `block`, the default, stop until a named human confirms the move.");
     expect(stop).toBeGreaterThanOrEqual(0);
     expect(stop).toBeLessThan(s15.indexOf("On an escalation or a re-plan, return the ticket to `Ready for Dev`."));
     const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
     // WR-15: the confirmation is a published `human:<name>` finding, and step 16 reads it.
-    expect(s16).toContain("After a gate failure, wait also for the `human:<name>` finding that names the move note.");
+    expect(s16).toContain("After a gate failure at `block`, wait also for the `human:<name>` finding that names the move note.");
     expect(s15).toContain("Leave the ticket in `Blocked` until then.");
     expect(s15).toContain(
       "Record the confirmation as a `finding` per Workflow 16, stamped `human:<name>`, with the move note's id among its refs.",

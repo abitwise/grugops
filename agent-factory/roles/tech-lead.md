@@ -32,7 +32,7 @@ Need a ticket scored and planned before development.
 2. Write the dev tasks, each with a file path, the change and concrete Given/When/Then test cases.
 3. Score the dev tasks and the ticket per the rubric. Return `SPLIT_REQUIRED` for an XL ticket or a file plan too large for one PR.
 4. Name the level; the Orchestrator dispatches exactly that adapter.
-5. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect. Besides the escalation, make at most one other move per ticket. A re-score that raises the level is the escalation, one level only. When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human. After a gate `BLOCKED_NEEDS_FIX`, leave the ticket in `Blocked` until a named human confirms the move.
+5. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect. Besides the escalation, make at most one other move per ticket. A re-score that raises the level is the escalation, one level only. When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human. After a gate `BLOCKED_NEEDS_FIX`, with `checkpoints.exhaust_self_fix_budget` at `block` (the default), leave the ticket in `Blocked` until a named human confirms the move.
 
 ## Output (file + format)
 - A `decision` note per Workflow 16 holding the six factor scores with the fact behind each, the sum, the level, the adapter `grugops-software-engineer-<level>` and the dev tasks.
@@ -41,7 +41,7 @@ Need a ticket scored and planned before development.
 - On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none.
 
 ## Board moves (which column transitions this role causes)
-No column of its own: the ticket stays in `Ready for Dev` while the Tech Lead plans. It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass. After a gate `BLOCKED_NEEDS_FIX`, the exit waits for a named human. F2 = 2 returns a ticket to `In Design`.
+No column of its own: the ticket stays in `Ready for Dev` while the Tech Lead plans. It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass. After a gate `BLOCKED_NEEDS_FIX` at `block`, the exit waits for a named human. F2 = 2 returns a ticket to `In Design`.
 
 ## Trace updates
 Publish the decision note with the ticket id among its refs. `tools/grugops/trace-render.js` renders the trace from those refs.
