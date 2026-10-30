@@ -3,6 +3,46 @@ phase: 39
 review: 39-REVIEW.md
 titles: json
 findings:
+  - id: WR-01
+    severity: warning
+    disposition: fixed
+    title: "The `human:<name>` confirmation finding is unchecked at the default dial, and the disposition says the admission guard checks it"
+  - id: WR-02
+    severity: warning
+    disposition: open
+    title: "Step 16 waits for any `human:<name>` finding that names the move note, so a recorded rejection releases the re-enqueue, and a rejected move still uses up the budget"
+  - id: WR-03
+    severity: warning
+    disposition: open
+    title: "The WR-13 stops are unconditional in step 15 but tagged `escalate_unadjudicable_result` in the stop conditions, which is the contradiction WR-16 just fixed for another cell"
+  - id: WR-04
+    severity: warning
+    disposition: fixed
+    title: "At `notify`, step 15 makes the move with no record, so `notify` behaves exactly like `off`"
+  - id: WR-05
+    severity: warning
+    disposition: open
+    title: "The new `tech-lead.md` ceiling was measured at an intermediate size; the shipped file already trips its WARN tier, and the comment misstates the size"
+  - id: WR-06
+    severity: warning
+    disposition: open
+    title: "Step 16's \"After a gate failure at `block`\" needs a fact step 14 never records: the `failed-attempt` note is \"the same note\" for an engineer block and a gate block"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The tagged gate-failure stop still says \"before the re-enqueue (step 15)\", but the re-enqueue is step 16 and the stop now also holds split and Architect moves"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "The README's unreadable-marker sentence leaves out `--dry-run`, and \"print no note from install\" is ambiguous next to `install.js --check`"
+  - id: IN-03
+    severity: info
+    disposition: fixed
+    title: "\"On an escalation\" in the WF04 board moves now means two different things"
+  - id: IN-04
+    severity: info
+    disposition: open
+    title: "The role's new Reads line cites Workflow 04 by step number, and no test ties those numbers to the blocked-ticket steps"
   - id: WR-11
     severity: warning
     disposition: fixed
@@ -51,30 +91,6 @@ findings:
     severity: critical
     disposition: fixed
     title: "Workflow 04's escalation steps re-enqueue an exhausted gate without the named-human confirmation its stop condition requires"
-  - id: WR-01
-    severity: warning
-    disposition: fixed
-    title: "The Tech Lead's re-plan loop has no bound, and a re-score is an uncounted second escalation"
-  - id: WR-02
-    severity: warning
-    disposition: fixed
-    title: "The junior stop rule names four of the seven F3 = 2 tags and none of the F3 = 1 tags"
-  - id: WR-03
-    severity: warning
-    disposition: fixed
-    title: "The three level adapters have near-identical routing descriptions, so auto-delegation can pick junior outside the Tech Lead path"
-  - id: WR-04
-    severity: warning
-    disposition: fixed
-    title: "The engineer's escalation trigger (\"the gate fails a second time\") disagrees with Workflow 04 and the self-fix dial"
-  - id: WR-05
-    severity: warning
-    disposition: fixed
-    title: "Routing-matrix entry \"plan -> Tech Lead\" collides with product planning"
-  - id: WR-06
-    severity: warning
-    disposition: fixed
-    title: "The retired-adapter report is silent for installs whose ledger is not `ok` or predates kit-file records, while the README says those installs are covered"
   - id: WR-07
     severity: warning
     disposition: fixed
@@ -91,22 +107,6 @@ findings:
     severity: warning
     disposition: fixed
     title: "No changelog entry for a release-visible, partly breaking change"
-  - id: IN-01
-    severity: info
-    disposition: fixed
-    title: "Stale docblock in `tieredCorpusRefusals`"
-  - id: IN-02
-    severity: info
-    disposition: fixed
-    title: "`LEVEL_COUNT` is called a two-sided pin, but only tests read it"
-  - id: IN-03
-    severity: info
-    disposition: fixed
-    title: "The held-record carry in `reportStaleKitAdapters` repeats an existing carry"
-  - id: IN-04
-    severity: info
-    disposition: deferred
-    title: "A non-ENOENT `lstat` error is reported as a user-edited adapter"
   - id: IN-05
     severity: info
     disposition: deferred
@@ -115,41 +115,41 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 4
+open: 11
 total: 28
-recorded: 2026-10-30T10:21:40.157Z
+recorded: 2026-10-30T11:22:43.764Z
 ---
 
 # Phase 39: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-11 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-12 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-13 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-14 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-15 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-16 | warning | fixed | 39-REVIEW-FIX.md |
-| IN-07 | info | open | - |
-| IN-08 | info | open | - |
-| IN-09 | info | open | - |
-| IN-10 | info | open | - |
+| WR-01 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
+| WR-04 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-05 | warning | open | - |
+| WR-06 | warning | open | - |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
+| IN-03 | info | fixed | 39-REVIEW-FIX.md |
+| IN-04 | info | open | - |
+| WR-11 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-12 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-13 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-14 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-15 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| WR-16 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| IN-07 | info | open | - (not in the current review) |
+| IN-08 | info | open | - (not in the current review) |
+| IN-09 | info | open | - (not in the current review) |
+| IN-10 | info | open | - (not in the current review) |
 | CR-01 | critical | fixed | plan 39-11 (0a94175f) (not in the current review) |
 | CR-02 | critical | fixed | plan 39-12 (a1fd04dd) (not in the current review) |
-| WR-01 | warning | fixed | plan 39-12 (34f92ff7) (not in the current review) |
-| WR-02 | warning | fixed | plan 39-12 (e0fdc899) (not in the current review) |
-| WR-03 | warning | fixed | plan 39-11 (de619b57) (not in the current review) |
-| WR-04 | warning | fixed | plan 39-12 (e0fdc899) (not in the current review) |
-| WR-05 | warning | fixed | plan 39-12 (e0fdc899) (not in the current review) |
-| WR-06 | warning | fixed | plan 39-13 (6368128f) (not in the current review) |
 | WR-07 | warning | fixed | plan 39-12 (34f92ff7) (not in the current review) |
 | WR-08 | warning | fixed | plan 39-11 (78c07a10) (not in the current review) |
 | WR-09 | warning | fixed | plan 39-13 (b5a82cf9) (not in the current review) |
 | WR-10 | warning | fixed | plan 39-13 (b5a82cf9) (not in the current review) |
-| IN-01 | info | fixed | plan 39-11 (de619b57) (not in the current review) |
-| IN-02 | info | fixed | plan 39-11 (de619b57) (not in the current review) |
-| IN-03 | info | fixed | plan 39-13 (6368128f) (not in the current review) |
-| IN-04 | info | deferred | deferred to Phase 42 doctor work: a permission-fault fixture breaks every other adapter read in the same install or `--check` run, so the case cannot be isolated without a test seam in install.ts; the mis-wording is info-level and names no deletion (not in the current review) |
 | IN-05 | info | deferred | deferred to Phase 41 (orchestrator flow): no gap fix changes the coordinator adapter; its warn tier or a shorter grant rendering is decided where the next grant change lands (not in the current review) |
 | IN-06 | info | deferred | deferred to Phase 40 (plain-language role rewrite): naming the role that moves an XL ticket out of `Ready for Dev` adds a board move, and Phase 40's role-rule inventory treats board-move ownership as a partition (not in the current review) |
 
