@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Completed 39-14-PLAN.md
-last_updated: "2026-10-30T15:14:17.356Z"
+stopped_at: Completed 39-15-PLAN.md
+last_updated: "2026-10-30T15:21:11.271Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: 2b5d61c688e7dc6d9f709a44c7c381d9f546454b
+state_head: 74153c18e0df2ae0d13b2e31b036eb395e51d498
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 84
-  completed_plans: 82
+  completed_plans: 83
   percent: 44
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
-Plan: 15 of 16
+Plan: 16 of 16
 Status: Ready to execute
 Last activity: 2026-10-30 — Phase 39 execution started
 
@@ -798,6 +798,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P12 | 9 min | 3 tasks | 8 files |
 | Phase 39 P13 | 1h 25m | 3 tasks | 9 files |
 | Phase 39 P14 | 11 min | 3 tasks | 15 files |
+| Phase 39 P15 | 5 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2197,6 +2198,8 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-13: IN-04 deferred to Phase 42 doctor work, IN-05 to Phase 41, IN-06 to Phase 40; review disposition open: 0
 - [Phase 39]: Engineer level efforts re-pinned to junior xhigh, mid high, senior medium (human re-decision 2026-10-30, G-39-5; amends D-14 and the effort half of D-2); models unchanged
 - [Phase 39]: Level efforts deliberately diverge from the effort tiered rule (opus high, others medium); no preset reconciles them (D-16)
+- [Phase 39]: Phase 39 plan 15: the D-2 floor paragraph cites model-config 'Adjust effort level' (read 2026-10-30): Haiku 5.5 and Sonnet 5.5 accept xhigh and high; Haiku 4.5 / Sonnet 4.5 stay UNKNOWN - verify
+- [Phase 39]: Phase 39 plan 15: factory.config.md names four closed models key sets (models own keys, models.roles, models.effort own keys, models.effort.roles), held by tests derived from MODELS_KEYS and EFFORT_KEYS (G-39-6)
 
 ### Pending Todos
 
@@ -2533,8 +2536,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-30T15:14:16.539Z
-Stopped at: Completed 39-14-PLAN.md
+Last session: 2026-10-30T15:21:10.436Z
+Stopped at: Completed 39-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
