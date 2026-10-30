@@ -1,177 +1,172 @@
 ---
 phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles
-reviewed: 2026-10-30T11:05:00Z
+reviewed: 2026-10-30T16:10:00Z
 depth: standard
-files_reviewed: 9
+files_reviewed: 23
 files_reviewed_list:
+  - .claude/agents/grugops-software-engineer-junior.md
+  - .claude/agents/grugops-software-engineer-mid.md
+  - .claude/agents/grugops-software-engineer-senior.md
+  - CHANGELOG.md
+  - agent-factory/config/factory.config.md
   - agent-factory/roles/tech-lead.md
   - agent-factory/workflows/04-ticket-to-pr.md
+  - docs/audit/29-style-dispositions/39-16.md
   - docs/audit/29-style-dispositions/39-review-fix-1.md
+  - docs/audit/29-style-dispositions/39-review-fix-2.md
   - install/README.md
-  - install/install.js
-  - install/install.ts
+  - install/install.test.ts
+  - scripts/adapter-byte-baseline.test.ts
   - scripts/check-foundation-guards.js
+  - scripts/check-foundation-guards.test.ts
   - scripts/check-foundation-guards.ts
+  - scripts/checkpoints.ts
+  - scripts/generate-role-adapters.test.ts
+  - scripts/model-dial-consistency.test.ts
+  - scripts/model-tiers.js
+  - scripts/model-tiers.test.ts
+  - scripts/model-tiers.ts
   - scripts/tier-kit-text.test.ts
 findings:
-  critical: 0
-  warning: 6
-  info: 4
-  total: 10
+  critical: 1
+  warning: 2
+  info: 2
+  total: 5
 status: issues_found
 ---
 
-# Phase 39: Code Review Report (re-review after review-fix iteration 1)
+# Phase 39: Code Review Report (re-review after review-fix iteration 2 and gap closure round 2)
 
-**Reviewed:** 2026-10-30T11:05:00Z
+**Reviewed:** 2026-10-30T16:10:00Z
 **Depth:** standard
-**Files Reviewed:** 9
+**Files Reviewed:** 23
 **Status:** issues_found
 
 ## Summary
 
-This re-review covers `git diff 1fc3128f..HEAD` on the nine files the fixes for WR-11 to WR-16 touched (commits `1edfc8c5` to `c6f08087`). The question for each fix is whether it is correct and complete, and whether it brought in new defects or new disagreements between the role text, the workflow, the README, the TypeScript sources with their compiled `.js`, and the tests that pin the text. Earlier IDs (CR-01, CR-02, WR-01 to WR-16, IN-01 to IN-10) are recorded in `39-REVIEW-DISPOSITION.md` and are not reported again. This report numbers its own findings from WR-01 and IN-01.
+This re-review covers `git diff 5236ede3..HEAD` on the 23 listed files. The range holds:
+- review-fix iteration 2 (the previous report's WR-01 to WR-06 and IN-01 to IN-04);
+- quick task 261030-fzo (HD-1 ceiling raise, HD-2 `notify` wording, HD-3 `escalate_unadjudicable_result` paragraph);
+- gap closure round 2: 39-14 level re-pin, 39-15 docs and key-set wording, 39-16 split of Workflow 04 step 15.
+
+Findings already recorded in `39-REVIEW-DISPOSITION.md` are not raised again. That includes the deferred IN-05 and IN-06 and the open IN-07 to IN-10. This report numbers its own findings from CR-01, WR-01 and IN-01.
 
 Checks run:
-- `npm run freshness`: 88 committed `.js` files match a rebuild. `install/install.js` and `scripts/check-foundation-guards.js` are faithful builds.
-- `npx vitest run scripts/tier-kit-text.test.ts`: 97 tests pass.
-- `node scripts/check-foundation-guards.js` prints ALL CHECKS PASSED. It also prints `WARN agent-factory/roles/tech-lead.md 4110B >= 3996B — approaching ceiling` (see WR-05).
-- `npm run check:diff-disposition` exits 1. None of the clauses it flags in `04-ticket-to-pr.md` or `tech-lead.md` comes from these fixes. All of them are older `memory-bank/` path and board-move clauses.
-- WR-11 README claims, probed in scratch installs:
-  - **`ledger: "x"`:** install and `--dry-run` exit 3 with a `verify` line and no note. `--check` exits 1 with a FAIL plus the note.
-  - **Marker that is not valid JSON:** install, `--dry-run` and `--check` all stop at the marker, and none prints a note.
-  - **Marker with `ledger` deleted:** install and `--dry-run` print the note.
+- `npm run freshness`: all 88 committed `.js` files match a rebuild, so `scripts/model-tiers.js` and `scripts/check-foundation-guards.js` are faithful builds.
+- `npx vitest run` on the seven touched test files: 1291 pass and 1 fails. The failure is `scripts/check-foundation-guards.test.ts:3566` (the `.js` walk against git's index). The cause is the stray untracked `~/` directory at the repo root, which holds `.js` files from another project. It is environmental and not a code finding.
+- `node scripts/check-foundation-guards.js`: `tech-lead.md` is 3439 B, under its new `4000 3786` ceiling, with no WARN. The ceiling comment's arithmetic is correct: ceil(4000 x 1.06 / 1.12) = 3786.
+- The 39-16 split keeps the sentence multiset of step 15 exactly. A diff of the sorted sentences before and after shows only the five added labels. **The sentence order did change, though, and that matters (CR-01).**
 
-  The README's WR-11 paragraph matches this behaviour. Its only gap is IN-02.
+What is correct:
+- The level re-pin (junior `haiku`/`xhigh`, mid `sonnet`/`high`, senior `opus`/`medium`) is consistent across `LEVELS`, the three generated adapters, the README table, the CHANGELOG `[Unreleased]` entry, `factory.config.md` § Engineer levels and § Absent means inherit, and every test literal.
+- The iteration-2 fixes for the previous WR-01, WR-02, WR-04, WR-05, WR-06, IN-01, IN-02, IN-03 and IN-04 hold as written.
 
-**WR-11, WR-12 and WR-14 are correct as far as they go.**
+What is not:
+1. The 39-16 reorder now records the move note before the re-score stop. Step 16 only holds the re-enqueue for a gate failure, so at the default `block` an engineer-raised ticket whose re-score calls for two levels is re-enqueued past its human stop (CR-01).
+2. The WR-03 fix ties the used-up stop to `escalate_unadjudicable_result`. At `notify`/`off` that drops the loop bound, which the stop condition and the role's hard limit still state as unconditional (WR-01).
+3. The field-reference table row in `factory.config.md` still carries the old pins (WR-02).
 
-**WR-13, WR-15 and WR-16 each leave a gap or bring in a new one:**
-- The `human:<name>` confirmation finding that WR-15 relies on is not checked by anything at the zero-config default. The disposition file says the admission guard checks it (WR-01).
-- Step 16 waits for any `human:<name>` finding that names the move note, so a recorded rejection would also release it (WR-02).
-- The WR-13 stops repeat the step-versus-tagged-cell contradiction that WR-16 fixed, this time for `escalate_unadjudicable_result` (WR-03).
-- WR-16 treats `notify` the same as `off` (WR-04).
+## Critical Issues
+
+### CR-01: The step 15 split records the move before the re-score stop, and step 16 never holds for that stop, so at the default `block` an engineer-raised two-level re-score is re-enqueued without the named human
+
+**File:** `agent-factory/workflows/04-ticket-to-pr.md:42-44,48`; `scripts/tier-kit-text.test.ts:1107-1118`; `docs/audit/29-style-dispositions/39-16.md:9-13`
+
+**Issue:** Before plan 39-16, step 15 had the re-score stop first ("When the scores call for more than one level ... At `block`, the default, stop for a named human ..."). The counting sentences came next, and only then "Record the move in a new `decision` note". So at `block` the Tech Lead stopped before any move note existed.
+
+The split puts the parts in a new order:
+1. "Apply the move limits."
+2. "Record the move in a new `decision` note per Workflow 16. ... Mark a re-score that raises the level `Move: escalate`." (line 43)
+3. "Apply the re-score stop. ... At `block`, the default, stop for a named human." (line 44)
+
+Read in order, which is how a sub-bullet list reads, the Tech Lead now publishes a `Move: escalate` (or `Move: re-plan`) note and only then stops.
+
+Step 16 (line 48) is the Orchestrator's release. It holds only for a gate failure:
+- "Create it only after an escalation or a re-plan."
+- "Create it only once the step 15 move is recorded."
+- "After a `Cause: gate` note at `block`, wait also for a `Confirmed: yes` finding that names the move note."
+
+So for a `Cause: engineer` block whose re-score calls for two levels:
+- the escalation note is recorded;
+- step 16's conditions are all met;
+- the Orchestrator creates the `pending/` subtask and spawns the adapter while the Tech Lead is still waiting for the human.
+
+The default `block` stop is bypassed. This is the same class of defect as the earlier CR-02 (a re-enqueue that skipped a human stop the stop condition requires).
+
+The text has three smaller gaps of its own:
+- The "Record the human's confirmation" bullet only lets the human answer `Confirmed: yes` / `Confirmed: no` on a recorded move. At the re-score stop the human is deciding a level, and there is no way to record that decision, such as "take two levels" or "keep the level".
+- Step 16's "at `block`" no longer says which cell it means. Since WR-03, step 15 reads two cells (`exhaust_self_fix_budget` and `escalate_unadjudicable_result`).
+- At `notify`/`off`, "Record the scored level in the move note" now comes after the note was already recorded in the bullet above.
+
+Plan 39-16's disposition says the split "changes no instruction". The test at `tier-kit-text.test.ts:1107` pins the new order, so the regression is locked in.
+
+**Fix:**
+- Put the re-score stop before the move record, and say that at `block` no move note is written until the human answers.
+- Give step 16 the matching hold, and name the cell in both conditions.
+- Move the two openings in the test at line 1107 to match.
+
+For example:
+```markdown
+    - Apply the move limits. ...
+    - Apply the re-score stop. When the scores call for more than one level, or for a raise after the escalation is spent, read `checkpoints.escalate_unadjudicable_result`. ... At `block`, the default, stop for a named human before recording any move. ...
+    - Record the move in a new `decision` note per Workflow 16. ...
+16. ... After a `Cause: gate` note at `checkpoints.exhaust_self_fix_budget: block`, wait also for a `Confirmed: yes` finding that names the move note. After a re-score stop at `checkpoints.escalate_unadjudicable_result: block`, wait also for a `Confirmed: yes` finding that names the move note.
+```
+Also correct the 39-16 disposition: the split reordered the re-score stop and the move record.
 
 ## Warnings
 
-### WR-01: The `human:<name>` confirmation finding is unchecked at the default dial, and the disposition says the admission guard checks it
+### WR-01: At `notify`/`off`, the used-up stop no longer stops, but no legal move is left and the "never retry in a loop" bound still reads as unconditional
 
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:41-42`; `docs/audit/29-style-dispositions/39-review-fix-1.md:21-23,61,63`
+**File:** `agent-factory/workflows/04-ticket-to-pr.md:41,44,67`; `agent-factory/config/factory.config.md:216-226`; `agent-factory/roles/tech-lead.md:49`
 
-**Issue:** WR-15 makes the gate-failure human stop "leave a published fact an Orchestrator or an auditor can check". The fact is a `finding` stamped `human:<name>`. The disposition row at line 61 says this is "Workflow 16's `human:<name>` stamp, which the admission guard checks on Claude Code". That is not true in the configurations this stop runs under:
-- `hooks/admission-guard.ts` gates a note only when `isGatedNote(by, kind, config)` is true.
-- With `context.human_admission` at `off` (the documented lean default, `factory.config.md:94,273`) nothing is gated, so the hook allows any `human:<name>` stamp.
-- At `high-severity`, only findings by `security-nfr`, `architect-design` or `release-manager` are gated (`scripts/context-io.ts:4274`). A finding written by the Tech Lead is not.
-- Only `human_admission: all` makes the hook check the stamp against `GRUGOPS_ADMISSION_APPROVED_BY`.
+**Issue:** The WR-03 fix in this range made step 15 say "The used-up stop below follows the same value", meaning `checkpoints.escalate_unadjudicable_result`. HD-3's paragraph in `factory.config.md` repeats it ("The used-up stop above follows the same value") and defines `notify`/`off` only for the re-score case: "raises the level one step if the escalation is unspent, and otherwise keeps the level". Apply that to the used-up case at `off`, where the escalation is spent and the one other move is spent too:
+- **No stop.** The tagged stop follows `off`, so it does not stop.
+- **No legal move.** "Besides the escalation, make at most one other move per ticket" (line 41) has no checkpoint condition, so a third move is forbidden.
+- **"Keep the level" has no `Move:` label.** Step 15 does not say whether it is a `Move: re-plan`. If the Tech Lead records one, step 16 re-enqueues ("only after an escalation or a re-plan"). The engineer blocks again and the cycle repeats without a bound.
+- **Two statements still say there is a bound.** The stop condition at line 67 still says "never retry in a loop", and `tech-lead.md:49` still says "After the options are used up, stop for a named human" with no condition. That is the step-versus-tagged-cell contradiction the earlier WR-03 and WR-16 fixed, now running the other way.
 
-So at the default `exhaust_self_fix_budget: block`, the agent can write the "human confirmation" itself with a made-up name, and step 16 will accept it. An auditor cannot tell this finding from a real confirmation.
+So lowering this cell either deadlocks the Tech Lead or removes the D-21 loop bound, and the text does not say which.
 
-This also contradicts `factory.config.md` § "Where each cell is enforced", which says every non-floor cell is prose tier with "No mechanism refuses the action". A disposition claiming enforcement that does not exist goes against the project's no-fabrication rule.
+**Fix:** Decide what the used-up stop does when the cell is lowered, and write it in step 15, the HD-3 paragraph and the role's hard limit. For example:
+- Keep the used-up stop at a named human under every value. "Used up" is the loop bound, not an unadjudicable result. Move it out of the tagged bullet, or say "the re-score stop follows this cell; the used-up stop always stops".
+- Or define the `notify`/`off` outcome for a spent ticket explicitly (for example "leave the ticket in `Blocked` and record an `observation`"), and name the `Move:` line that "keep the level" uses.
 
-Step 15 also does not say who writes the finding. The step is labelled "(Tech Lead)", so as written the Tech Lead agent writes a `human:`-stamped note.
+### WR-02: The `models` row of the config field table still states the old level pins
 
-**Fix:**
-- Correct the disposition rows (lines 21-23, 61, 63) to say what is true. For example: "a `human:<name>`-stamped finding; on Claude Code with `context.human_admission: all` the admission guard binds the stamp to the human's session grant; at the default `off` it is a prose-tier record that the agent writes after the human answers."
-- In step 15, name the writer and the limit. For example: "The Tech Lead records the confirmation, after the named human answers, as a `finding` ... Never write the stamp without that answer."
+**File:** `agent-factory/config/factory.config.md:28`
 
-### WR-02: Step 16 waits for any `human:<name>` finding that names the move note, so a recorded rejection releases the re-enqueue, and a rejected move still uses up the budget
+**Issue:** The top-level field table, the first place a configuring reader looks, still says the three engineer level adapters "pin junior `haiku`/`medium`, mid `sonnet`/`medium` and senior `opus`/`high`". The 2026-10-30 human re-decision changed the pins, and the following now say `xhigh` / `high` / `medium`:
+- the generated adapters;
+- `LEVELS`;
+- `factory.config.md:125` and the § Absent means inherit paragraph;
+- the README table;
+- the CHANGELOG.
 
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:41-42,61`; `agent-factory/roles/tech-lead.md:35,41`
+The G-39-5 docs alignment (39-15) missed this row, and none of the new pins covers it. `tier-kit-text.test.ts:477` checks only the line-125 sentence, and `model-dial-consistency.test.ts` G-39-6 checks only the Refusals and closed-set paragraphs. The same document now states two different zero-config efforts for the same adapters.
 
-**Issue:** At `block`, step 15 publishes the move note first ("Record the move in a new `decision` note ... Open its body with `Move: ...`") and only then stops for the human. The text covers only a human who confirms:
-1. **A rejection releases step 16.** Step 16's condition is "wait also for the `human:<name>` finding that names the move note". A finding that records the human's **rejection** also names the move note and carries the same stamp. The literal condition does not require the finding to say "confirmed", so the Orchestrator can re-enqueue on a rejection.
-2. **A rejection has nowhere to go.** No text says what happens when the human says no: whether the Tech Lead records a different move, whether the ticket stays in `Blocked`, or whether it goes to the used-up stop.
-3. **A rejected move still counts.** The move note carries a `Move:` line, so under WR-14's counting rule it counts toward "at most one other move per ticket" even though it was never carried out. One human rejection can use up the Tech Lead's options.
-
-**Fix:**
-- Make the finding say yes or no, and make step 16 read it. For example: "Record the human's answer as a `finding` ... whose body opens with `Confirmed: yes` or `Confirmed: no`. Step 16 waits for a `Confirmed: yes` finding that names the move note."
-- In step 15, say that a `Confirmed: no` move is not counted, and that the Tech Lead records a new move or stops for the human.
-
-### WR-03: The WR-13 stops are unconditional in step 15 but tagged `escalate_unadjudicable_result` in the stop conditions, which is the contradiction WR-16 just fixed for another cell
-
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:41,61`; `agent-factory/roles/tech-lead.md:35`; `agent-factory/config/factory.config.md:213`
-
-**Issue:** Step 15 now says "Stop for a named human when the scores call for more than one level" and "... for a raise after the escalation is spent". Role item 5 says the same, with no condition. The same two cases were added to the used-up stop at line 61, which carries `checkpoint: escalate_unadjudicable_result`. That makes them a configurable cell (`block` / `notify` / `off`). WR-16 fixed exactly this mismatch for `exhaust_self_fix_budget`: the numbered step always stops while the tagged stop follows the cell. WR-13 brings it back for this cell.
-
-There is also a second problem. At `notify` or `off`, the text gives the Tech Lead no legal move for a two-level re-score:
-- "one level only" rules out taking the scored level.
-- "Never pick a level without the written scores" rules out picking the in-between level.
-
-That is the original WR-13 deadlock, reopened under a non-default dial. The cell's documented meaning, "Self-stamping a high-stakes result no gate can adjudicate", also does not describe a re-score that jumps two levels. That makes the tag a poor fit, and so does what `notify`/`off` would mean for it.
-
-**Fix:** Pick one and state it in step 15, role item 5 and the line-61 stop:
-- **Option 1:** Tie the step to the cell the way WR-16 did ("read `checkpoints.escalate_unadjudicable_result` ... at `block`, the default, stop ...") and say what the Tech Lead does at `notify`/`off`. For example: "take the one-level raise and record the scored level in the note".
-- **Option 2:** Say on purpose that these two stops do not follow any cell, and move them out of the tagged bullet into their own untagged stop condition.
-
-### WR-04: At `notify`, step 15 makes the move with no record, so `notify` behaves exactly like `off`
-
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:41`; `agent-factory/config/factory.config.md:191-193`
-
-**Issue:** `factory.config.md` defines the three values: `block`, "the action waits for a named human"; `notify`, "the action proceeds and is recorded (a finding note)"; `off`, "the action proceeds silently". WR-16's new sentence is "At `notify` or `off`, make the move without that human." That merges the two values. A repository that chose `notify` gets no record that the gate-failure move went ahead without its human. That repository chose `notify` instead of `off` to get exactly that record. The WR-16 test in `scripts/tier-kit-text.test.ts:708` pins the merged sentence, so the defect is locked in.
-
-**Fix:** Split the sentence: "At `notify`, make the move and record a note naming the move note and the spent budget. At `off`, make the move without that human." Update the pin to match. The note probably has to be an `observation`, because a `finding` needs a stamp; `factory.config.md`'s "(a finding note)" wording is worth checking at the same time.
-
-### WR-05: The new `tech-lead.md` ceiling was measured at an intermediate size; the shipped file already trips its WARN tier, and the comment misstates the size
-
-**File:** `scripts/check-foundation-guards.ts:3561`; `scripts/check-foundation-guards.js:3100`; `agent-factory/roles/tech-lead.md`
-
-**Issue:** The `ROLE_CEILINGS` entry was re-measured in the WR-14 commit: "measured 3769 B, +12% / +6% rounded up". It gives `4222 3996`. WR-15 and WR-16 then added more text, and the role ships at **4110 B**. That is already over the new WARN ceiling (3996 B). The guard prints `WARN agent-factory/roles/tech-lead.md 4110B >= 3996B — approaching ceiling` on a ceiling raised in this same fix round.
-
-The effects:
-- The comment's "measured" figure is not the size of the file it governs.
-- The +6% early warning, whose purpose is to flag growth, now fires all the time. It can no longer report new growth.
-- Measured against the Plan 39-05 baseline (3189 B), the role has grown 29%. The ceiling was raised 18% (3572 to 4222).
-
-The fix report says "A human should confirm that raising this ceiling is acceptable", and no confirmation is recorded. CLAUDE.md's minimal-substrate rule is the reason these ceilings exist.
-
-**Fix:** Re-measure on the final file (4110 B gives `4604 4357`) and correct the comment. Or, better, cut the role back below the old ceiling: point item 5 at "Workflow 04 steps 15-16" for the `Move:` line format and the `checkpoints` condition instead of restating them. Then keep or drop the raise only after the named human confirms it.
-
-### WR-06: Step 16's "After a gate failure at `block`" needs a fact step 14 never records: the `failed-attempt` note is "the same note" for an engineer block and a gate block
-
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:40-42`; `agent-factory/roles/tech-lead.md:35,44`
-
-**Issue:** WR-15 and WR-16 make two decisions turn on whether the block came from the gate. Step 15 (Tech Lead) decides whether to read `exhaust_self_fix_budget` and stop. Step 16 (Orchestrator) decides whether to wait for the `human:<name>` finding. But step 14 records "the same note when the gate ends `BLOCKED_NEEDS_FIX`" and gives no field or fixed line that tells the two causes apart. `failed-attempt` is a soft kind with a free-text body (WF16 line 33).
-
-This is the class of defect WR-14 fixed for `decision` notes: the condition depends on an unstructured note. If either role misreads the cause, the gate-failure human stop is skipped.
-
-**Fix:** Give the `failed-attempt` note a fixed first line in step 14, for example `Cause: engineer-blocked` or `Cause: gate-blocked-needs-fix`. Have steps 15 and 16 and role item 5 read it ("When the note opens with `Cause: gate-blocked-needs-fix` ..."). Pin the line in `tier-kit-text.test.ts`.
+**Fix:** Change the row to "junior `haiku`/`xhigh`, mid `sonnet`/`high` and senior `opus`/`medium`". Add a pin next to the line-477 check, for example `expect(CONFIG).not.toContain("junior \`haiku\`/\`medium\`")` plus a positive check for the new row text, so the next re-decision cannot leave the table behind.
 
 ## Info
 
-### IN-01: The tagged gate-failure stop still says "before the re-enqueue (step 15)", but the re-enqueue is step 16 and the stop now also holds split and Architect moves
+### IN-01: The iteration-2 disposition still states the reverted `3572 3381` ceiling and a WARN the role no longer trips
 
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:60`
+**File:** `docs/audit/29-style-dispositions/39-review-fix-2.md:17-22`
 
-**Issue:** "A named human confirms the Tech Lead's decision before the re-enqueue (step 15)." The re-enqueue is in step 16. Since WR-12, a split or an Architect pass has no re-enqueue at all, yet step 15 still holds those tickets in `Blocked` until the human confirms. The frozen stop now describes less than the step it governs.
+**Issue:** The WR-05 bullet says `ROLE_CEILINGS` "goes back to `3572 3381`" and that "The role still trips the 3381 B WARN tier". Quick task 261030-fzo (`aa21a823`) then set `4000 3786` with a named human's approval, and the 3439 B role no longer trips any tier. The audit file gives no pointer to the later decision, so a reader auditing the ceiling from this file gets a value that is not in the tree. The same goes for the WR-04 bullet's "left for a human to settle", which HD-2 has since settled.
 
-**Fix:** In a companion row: "A named human confirms the Tech Lead's move before the ticket leaves `Blocked` (step 15) and before any re-enqueue (step 16)."
+**Fix:** Add a line to each bullet, for example "Superseded on 2026-10-30 by quick task 261030-fzo (HD-1): `4000 3786`, approved by a named human", and the same kind of line for HD-2.
 
-### IN-02: The README's unreadable-marker sentence leaves out `--dry-run`, and "print no note from install" is ambiguous next to `install.js --check`
+### IN-02: "Only at `context.human_admission: all` does admission check that stamp" leaves out the two other cases where admission gates the finding
 
-**File:** `install/README.md:190-194`
+**File:** `agent-factory/workflows/04-ticket-to-pr.md:46`
 
-**Issue:** A probe shows that `--dry-run` also stops at an invalid-JSON marker (exit 3, no note). The sentence names only "install and `install.js --check`", while the malformed-ledger sentence just before it names `--dry-run` separately. The lead sentence also says "Two marker states print no note from install", and the next sentence says `install.js --check` "still prints the note" in one of them. Some readers will take "install" to include `install.js --check`.
+**Issue:** `isGatedNote` (`scripts/context-io.ts:6497,6503`) also gates every finding when the config file exists but cannot be read, and when `human_admission` holds any unrecognised value (fail toward gating). The new sentence says "Only at ... `all`". That is accurate for the documented values but not for the actual behaviour, and the WR-01 fix was meant to make this sentence exactly true.
 
-**Fix:** "...install, `--dry-run` and `install.js --check` all stop at the marker and print no note." Change the lead sentence to "Two marker states stop install and `--dry-run` without a note."
-
-### IN-03: "On an escalation" in the WF04 board moves now means two different things
-
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:45`
-
-**Issue:** "On an escalation the Software Engineer moves the ticket to `Blocked`, and the Tech Lead owns its exit back to `Ready for Dev`. After a split that exit is `Backlog`..." In this sentence "escalation" means the engineer's `BLOCKED`. Since WR-13 and WR-14, "escalation" is also the name of one Tech Lead move (`Move: escalate`). Step 15 uses it that way, in "On an escalation or a re-plan, return the ticket to `Ready for Dev`." Read next to step 15, the board-move sentence suggests that only an escalation goes back to `Ready for Dev`, and leaves out the re-plan.
-
-**Fix:** "When the engineer reports `BLOCKED`, or the gate ends `BLOCKED_NEEDS_FIX`, the ticket moves to `Blocked`. The Tech Lead owns its exit: `Ready for Dev` after an escalation or a re-plan, `Backlog` after a split, `In Design` after an Architect pass."
-
-### IN-04: The role's new Reads line cites Workflow 04 by step number, and no test ties those numbers to the blocked-ticket steps
-
-**File:** `agent-factory/roles/tech-lead.md:25`; `scripts/tier-kit-text.test.ts:265-267`
-
-**Issue:** "`agent-factory/workflows/04-ticket-to-pr.md` steps 14-16, the path of a blocked ticket." The WF04 tests find steps by their text (`stepAt(...)`), not by number. The role test pins only the Reads string. If a step is inserted before step 14, the role silently points the Tech Lead at the wrong steps.
-
-**Fix:** In the test, find the steps by text and check that their numbers are 14, 15 and 16. Alternatively, cite the steps by content ("the `failed-attempt` and re-enqueue steps").
+**Fix:** "Admission checks that stamp only at `context.human_admission: all`, or when the config cannot be read or holds an unknown value ...". Or drop "Only" and say "At `context.human_admission: all`, admission checks that stamp".
 
 ---
 
-_Reviewed: 2026-10-30T11:05:00Z_
+_Reviewed: 2026-10-30T16:10:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
