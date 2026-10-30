@@ -187,11 +187,11 @@ entered the install ledger in v2.2), and neither does one with no install marker
 an earlier install wrote it. The note comes back on every run until the file is gone, and
 the exit status does not change. Check each named file by hand.
 
-Two marker states print no note from install. When the install ledger is malformed, install and
-`--dry-run` refuse and write nothing until it is fixed; `install.js --check` reports the malformed
-ledger as a `FAIL` and still prints the note. When the install marker cannot be read at all (it is not
-valid JSON, for example), install and `install.js --check` both stop at the marker and print no note.
-Fix the marker, then run again.
+Two marker states stop install and `--dry-run` without a note. When the install ledger is
+malformed, install and `--dry-run` refuse and write nothing until it is fixed; `install.js --check`
+reports the malformed ledger as a `FAIL` and still prints the note. When the install marker cannot
+be read at all (it is not valid JSON, for example), install, `--dry-run` and `install.js --check` all
+stop at the marker and print no note. Fix the marker, then run again.
 
 Install never deletes, renames or rewrites such a file. Delete it by hand when you no longer need it;
 the next run does not report a file that is gone. While the file still holds what install wrote, install

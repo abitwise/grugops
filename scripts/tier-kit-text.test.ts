@@ -913,9 +913,12 @@ describe("install/README.md documents the engineer level adapters and the stale-
     // WR-11: the README says what each mode prints over a marker the ledger cannot answer from. A
     // malformed ledger is refused by install and `--dry-run` with no note; only `--check` notes.
     expect(README).not.toContain("absent or cannot be\nread");
-    expect(README).toContain("Two marker states print no note from install.");
-    expect(README).toContain("`install.js --check` reports the malformed\nledger as a `FAIL` and still prints the note.");
-    expect(README).toContain("install and `install.js --check` both stop at the marker and print no note.");
+    // Re-review IN-02: the lead sentence names install and `--dry-run`, not `--check`, and the
+    // unreadable-marker sentence names `--dry-run` too, matching a probe of all three modes.
+    expect(README).toContain("Two marker states stop install and `--dry-run` without a note.");
+    expect(README).not.toContain("Two marker states print no note from install.");
+    expect(README).toContain("`install.js --check`\nreports the malformed ledger as a `FAIL` and still prints the note.");
+    expect(README).toContain("install, `--dry-run` and `install.js --check` all\nstop at the marker and print no note.");
     expect(README).toContain("install names\nit in a `verify` line (exit `3`) and `--check` in a `FAIL`; otherwise both name it in a `note`.");
   });
 
