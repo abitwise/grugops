@@ -236,8 +236,9 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     expect(resp).toContain(
       "On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect.",
     );
+    // WR-12: the exit depends on the move; only an escalation or a re-plan goes back to `Ready for Dev`.
     expect(section(TECH_LEAD, "Board moves")).toContain(
-      "It owns the exit of a dev-raised `## Blocked`, returning the ticket to `Ready for Dev`.",
+      "It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass.",
     );
   });
 
@@ -621,7 +622,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     const s = stepAt("Read the `failed-attempt` note (Tech Lead).");
     expect(s.text).toContain("escalate one level at most once per ticket, re-plan and re-score, split, or return it to the Architect");
     expect(s.text).toContain("Record the move in a new `decision` note per Workflow 16.");
-    expect(s.text).toContain("Return the ticket to `Ready for Dev`.");
+    expect(s.text).toContain("On an escalation or a re-plan, return the ticket to `Ready for Dev`.");
   });
 
   it("WR-01: one escalation and one other move per ticket, counted from the decision notes, then a named human", () => {
@@ -669,7 +670,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     const s15 = stepAt("Read the `failed-attempt` note (Tech Lead).").text;
     const stop = s15.indexOf("After a gate `BLOCKED_NEEDS_FIX`, stop until a named human confirms the move.");
     expect(stop).toBeGreaterThanOrEqual(0);
-    expect(stop).toBeLessThan(s15.indexOf("Return the ticket to `Ready for Dev`."));
+    expect(stop).toBeLessThan(s15.indexOf("On an escalation or a re-plan, return the ticket to `Ready for Dev`."));
     const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
     expect(s16).toContain("confirmed by that human");
     // The human stop stays tagged only in `## Stop conditions`; no step carries a checkpoint tag.
@@ -691,6 +692,19 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(section(WF04, "Board moves")).toContain(
       "On an escalation the Software Engineer moves the ticket to `Blocked`, and the Tech Lead owns its exit back to `Ready for Dev`.",
     );
+    expect(section(WF04, "Board moves")).toContain(
+      "After a split that exit is `Backlog`, and after an Architect pass it is `In Design`.",
+    );
+  });
+
+  it("WR-12: a split or an Architect pass leaves `Ready for Dev` alone and re-enqueues no engineer", () => {
+    const s15 = stepAt("Read the `failed-attempt` note (Tech Lead).").text;
+    expect(s15).not.toContain("Return the ticket to `Ready for Dev`.");
+    expect(s15).toContain("On a split, move it to `Backlog` for BA/PM.");
+    expect(s15).toContain("On an Architect pass, move it to `In Design`.");
+    const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
+    expect(s16).toContain("Create it only after an escalation or a re-plan.");
+    expect(s16).toContain("A split or an Architect pass dispatches no engineer.");
   });
 });
 

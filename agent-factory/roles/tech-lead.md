@@ -39,7 +39,7 @@ Need a ticket scored and planned before development.
 - No ticket frontmatter key and no dev-plan file.
 
 ## Board moves (which column transitions this role causes)
-No column of its own: the ticket stays in `Ready for Dev` while the Tech Lead plans. It owns the exit of a dev-raised `## Blocked`, returning the ticket to `Ready for Dev`. F2 = 2 returns a ticket to `In Design`.
+No column of its own: the ticket stays in `Ready for Dev` while the Tech Lead plans. It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass. F2 = 2 returns a ticket to `In Design`.
 
 ## Trace updates
 Publish the decision note with the ticket id among its refs. `tools/grugops/trace-render.js` renders the trace from those refs.
