@@ -142,17 +142,20 @@ const RECORDED_ADDED: readonly RecordedAdded[] = [
   // (Plan 39-07, TIER-02) The three engineer level adapters. D-13 names them and drops the base
   // adapter; D-14 fixes each pin and D-3 says the level adapters carry their pins at zero config. The
   // model and effort values are LITERALS written here from D-14, never read from the LEVELS table, so
-  // a drifted table cannot move this file's expectation with it.
+  // a drifted table cannot move this file's expectation with it. The three effort literals were moved
+  // by the human's recorded re-decision of 2026-10-30 (Phase 39 UAT, G-39-5; plan 39-14), not by
+  // loosening the test (D-3).
   {
     name: "grugops-software-engineer-junior",
     kind: "level",
     role: "software-engineer",
     level: "junior",
     model: "haiku",
-    effort: "medium",
+    effort: "xhigh",
     reason:
       "Plan 39-07 (TIER-02, D-13, D-14): software-engineer.md declares `levels: junior mid senior`; the " +
-      "junior level pins `haiku` at effort `medium` at zero config (D-3, the D-2 amendment of D-09).",
+      "junior level pins `haiku` at effort `xhigh` at zero config (D-3, the D-2 amendment of D-09); " +
+      "efforts re-decided by the human on 2026-10-30 (Phase 39 UAT, G-39-5; plan 39-14).",
   },
   {
     name: "grugops-software-engineer-mid",
@@ -160,10 +163,11 @@ const RECORDED_ADDED: readonly RecordedAdded[] = [
     role: "software-engineer",
     level: "mid",
     model: "sonnet",
-    effort: "medium",
+    effort: "high",
     reason:
       "Plan 39-07 (TIER-02, D-13, D-14): software-engineer.md declares `levels: junior mid senior`; the " +
-      "mid level pins `sonnet` at effort `medium` at zero config (D-3).",
+      "mid level pins `sonnet` at effort `high` at zero config (D-3); efforts re-decided by the human " +
+      "on 2026-10-30 (Phase 39 UAT, G-39-5; plan 39-14).",
   },
   {
     name: "grugops-software-engineer-senior",
@@ -171,10 +175,11 @@ const RECORDED_ADDED: readonly RecordedAdded[] = [
     role: "software-engineer",
     level: "senior",
     model: "opus",
-    effort: "high",
+    effort: "medium",
     reason:
       "Plan 39-07 (TIER-02, D-13, D-14): software-engineer.md declares `levels: junior mid senior`; the " +
-      "senior level pins `opus` at effort `high` at zero config (D-3).",
+      "senior level pins `opus` at effort `medium` at zero config (D-3); efforts re-decided by the " +
+      "human on 2026-10-30 (Phase 39 UAT, G-39-5; plan 39-14).",
   },
 ];
 const RECORDED_REMOVED: readonly string[] = [

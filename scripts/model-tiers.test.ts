@@ -2948,26 +2948,26 @@ const levelsMirrorRoot = (leveled: Record<string, string> = { [LEVELED_ROLE]: "j
   return root;
 };
 
-/** The D-14 pins, as literals. */
+/** The D-14 pins, as literals (efforts as re-decided by the human on 2026-10-30, G-39-5). */
 const D14_MODELS = {
   "software-engineer-junior": "haiku",
   "software-engineer-mid": "sonnet",
   "software-engineer-senior": "opus",
 } as const;
 const D14_EFFORTS = {
-  "software-engineer-junior": "medium",
-  "software-engineer-mid": "medium",
-  "software-engineer-senior": "high",
+  "software-engineer-junior": "xhigh",
+  "software-engineer-mid": "high",
+  "software-engineer-senior": "medium",
 } as const;
 
 describe("per-adapter resolution and the level pins (plan 39-01, D-14)", () => {
-  it("LEVELS holds exactly three rows, junior haiku medium, mid sonnet medium, senior opus high", () => {
+  it("LEVELS holds exactly three rows, junior haiku xhigh, mid sonnet high, senior opus medium", () => {
     expect(LEVEL_COUNT).toBe(3);
     expect(LEVELS.length).toBe(LEVEL_COUNT);
     expect(LEVELS.map((r) => [r.level, r.alias, r.effort])).toEqual([
-      ["junior", "haiku", "medium"],
-      ["mid", "sonnet", "medium"],
-      ["senior", "opus", "high"],
+      ["junior", "haiku", "xhigh"],
+      ["mid", "sonnet", "high"],
+      ["senior", "opus", "medium"],
     ]);
   });
 
@@ -3047,9 +3047,9 @@ const resolveMirror = (config: unknown): ReturnType<typeof resolveAdapterAssignm
 };
 
 const D14_PINS = {
-  "software-engineer-junior": ["haiku", "medium"],
-  "software-engineer-mid": ["sonnet", "medium"],
-  "software-engineer-senior": ["opus", "high"],
+  "software-engineer-junior": ["haiku", "xhigh"],
+  "software-engineer-mid": ["sonnet", "high"],
+  "software-engineer-senior": ["opus", "medium"],
 };
 
 describe("the level precedence matrix (plan 39-01, D-14, D-15, D-16)", () => {
@@ -3076,9 +3076,9 @@ describe("the level precedence matrix (plan 39-01, D-14, D-15, D-16)", () => {
 
   it("D-15: `models.roles.software-engineer: opus` moves all three levels to opus and leaves their efforts", () => {
     expect(levelPins(resolveMirror({ models: { roles: { "software-engineer": "opus" } } }))).toEqual({
-      "software-engineer-junior": ["opus", "medium"],
-      "software-engineer-mid": ["opus", "medium"],
-      "software-engineer-senior": ["opus", "high"],
+      "software-engineer-junior": ["opus", "xhigh"],
+      "software-engineer-mid": ["opus", "high"],
+      "software-engineer-senior": ["opus", "medium"],
     });
   });
 
@@ -3087,9 +3087,9 @@ describe("the level precedence matrix (plan 39-01, D-14, D-15, D-16)", () => {
       models: { roles: { "software-engineer": "opus", "software-engineer-junior": "sonnet" } },
     });
     expect(levelPins(r)).toEqual({
-      "software-engineer-junior": ["sonnet", "medium"],
-      "software-engineer-mid": ["opus", "medium"],
-      "software-engineer-senior": ["opus", "high"],
+      "software-engineer-junior": ["sonnet", "xhigh"],
+      "software-engineer-mid": ["opus", "high"],
+      "software-engineer-senior": ["opus", "medium"],
     });
   });
 
