@@ -914,7 +914,22 @@ function targetAdapterFiles(): string[] | null {
 // its role corpus is whole is a damaged checkout (the render-disagreement refusal and WARN name it), not a kit that
 // retired those adapters: without the render half this check would tell the user to delete adapters the kit still
 // makes. With no render in this run (it did not run, or failed) the adapter directory alone answers.
+//
+// THE PRESENCE PATH (plan 39-13, review WR-06; threats T-39-29, T-39-30). The ledger path above sees only what the
+// ledger records, and a ledger can have nothing to say: a repository last installed before kit files entered the
+// ledger, an absent ledger, or one that cannot be read. Such a target can still hold a retired adapter Claude Code
+// loads. unrecordedStaleAdapters names every `.claude/agents/grugops-<name>.md` file present in the target that this
+// kit does not ship (the same shipped rule, shippedAdapter) and that the ledger, when `ok`, holds no kit-true record of.
+// The set is derived from the target's directory, the ledger, the kit source and the render; no retired name is written
+// down. Each member is a `note`, not a counted verify or a FAIL: install cannot tell whether an earlier install wrote
+// the file, so it claims no ownership, and an upgrade keeps its exit status. The note repeats on every run until the
+// file is gone. This path also only reads: nothing is removed, renamed, written or recorded for the file.
 let RENDERED_ADAPTERS: readonly string[] | null = null;
+// ADAPTER_PATH: the one spelling of a kit adapter's repo-relative path in the target, for both paths.
+const ADAPTER_PATH = /^\.claude\/agents\/(grugops-[^/]+\.md)$/;
+// shippedAdapter: the one shipped rule (the kit source's adapter directory, or this run's render), for both paths.
+const shippedAdapter = (shipped: readonly string[], name: string): boolean =>
+  shipped.includes(name) || (RENDERED_ADAPTERS ?? []).includes(name);
 interface StaleKitAdapter {
   readonly rel: string;
   readonly record: string;
@@ -926,8 +941,8 @@ function staleKitAdapters(ledger: LedgerRead): readonly StaleKitAdapter[] | null
   const out: StaleKitAdapter[] = [];
   for (const e of entriesOfKind(ledger, "file")) {
     if (!e.kit) continue;
-    const name = /^\.claude\/agents\/(grugops-[^/]+\.md)$/.exec(e.path)?.[1];
-    if (name === undefined || shipped.includes(name) || (RENDERED_ADAPTERS ?? []).includes(name)) continue;
+    const name = ADAPTER_PATH.exec(e.path)?.[1];
+    if (name === undefined || shippedAdapter(shipped, name)) continue;
     try {
       lstatSync(join(TARGET, ...e.path.split("/")));
     } catch (err) {
@@ -958,6 +973,51 @@ function staleAdapterText(s: StaleKitAdapter): string {
 const staleAdaptersSkippedText = (): string =>
   `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the check for adapters an earlier ` +
   `install wrote that this kit version no longer ships is skipped. No adapter is deleted either way.`;
+
+// unrecordedStaleAdapters: the presence path (see STALE KIT ADAPTERS). `paths` are repo-relative and sorted by byte
+// order. An absent target adapter directory is an empty list (nothing there to load). A target directory that exists
+// but cannot be listed is `unreadable` (its error code), never read as empty: nothing was read, so nothing is known.
+// Null: the kit source's adapter directory could not be read, the same null staleKitAdapters returns.
+interface UnrecordedStaleAdapters {
+  readonly paths: readonly string[];
+  readonly unreadable: string | null;
+}
+function unrecordedStaleAdapters(ledger: LedgerRead): UnrecordedStaleAdapters | null {
+  const shipped = srcAdapterFiles(GRUGOPS_SRC);
+  if (shipped === null) return null;
+  const recorded = new Set<string>();
+  if (ledger.state === "ok") {
+    for (const e of entriesOfKind(ledger, "file")) if (e.kit) recorded.add(e.path);
+  }
+  let names: string[];
+  try {
+    names = readdirSync(join(TARGET, ".claude", "agents"));
+  } catch (err) {
+    const code = errCode(err);
+    if (code === "ENOENT" || code === "ENOTDIR") return { paths: [], unreadable: null };
+    return { paths: [], unreadable: code };
+  }
+  const paths: string[] = [];
+  for (const n of names) {
+    const rel = `.claude/agents/${n}`;
+    const name = ADAPTER_PATH.exec(rel)?.[1];
+    if (name === undefined || shippedAdapter(shipped, name) || recorded.has(rel)) continue;
+    paths.push(rel);
+  }
+  return { paths: paths.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), unreadable: null };
+}
+// ledgerSays: why the install ledger cannot vouch for a file, in the presence note's words.
+const ledgerSays = (ledger: LedgerRead): string =>
+  ledger.state === "absent" ? "is absent" : ledger.state === "malformed" ? "could not be read" : "has no record of it";
+// unrecordedStaleAdapterText: the ONE wording of a presence note, for install and the doctor alike.
+const unrecordedStaleAdapterText = (rel: string, why: string): string =>
+  `${rel} — this kit version does not ship it, and the install ledger ${why}, so ` +
+  `install cannot tell whether an earlier install wrote it. Claude Code still loads every file in \`.claude/agents/\`. ` +
+  `Check it by hand and delete it if you do not use it; install never deletes it.`;
+// unrecordedAdaptersUnreadableText: the note when the target's own adapter directory could not be listed.
+const unrecordedAdaptersUnreadableText = (code: string): string =>
+  `.claude/agents/ — cannot list ${join(TARGET, ".claude", "agents")} (${code}), so the check for unshipped grugops ` +
+  `adapters the install ledger has no record of is skipped. No adapter is deleted either way.`;
 
 // report / mkdirp / sameContent / isoStamp: install-side helpers declared HERE (above the doctor +
 // the early --update / --prune-old-kit / --migrate branches) so those early branches — which run
@@ -2902,10 +2962,21 @@ function doctor(): number {
   // needs only the ledger and the kit source, and a retired adapter is loaded whatever else is wrong. Only when Claude
   // Code is installed here (D-07) and the ledger is install's own and readable (a malformed one already has its FAIL).
   // It reads; nothing is written, removed or renamed.
+  // The presence path (plan 39-13, WR-06) follows whenever Claude Code is installed, over the same ledger read: one
+  // uncounted note per unshipped adapter the ledger holds no kit-true record of. The skipped note prints once.
+  let staleSkipped = false;
   if (claudeInstalled && markerRead.state === "ok" && ledgerRead.state === "ok") {
     const stale = staleKitAdapters(ledgerRead);
-    if (stale === null) docReport("note", staleAdaptersSkippedText());
-    else for (const s of stale) docFail(staleAdapterText(s));
+    if (stale === null) {
+      docReport("note", staleAdaptersSkippedText());
+      staleSkipped = true;
+    } else for (const s of stale) docFail(staleAdapterText(s));
+  }
+  if (claudeInstalled && !staleSkipped) {
+    const unrecorded = unrecordedStaleAdapters(ledgerRead);
+    if (unrecorded === null) docReport("note", staleAdaptersSkippedText());
+    else if (unrecorded.unreadable !== null) docReport("note", unrecordedAdaptersUnreadableText(unrecorded.unreadable));
+    else for (const rel of unrecorded.paths) docReport("note", unrecordedStaleAdapterText(rel, ledgerSays(ledgerRead)));
   }
 
   // --- Claude Code ask rules (D-18): report each ledger rule present or absent; never repair ---
@@ -8582,17 +8653,32 @@ if (!SELECTED_KINDS.has("claude-kit")) {
 // does. A held record is recorded in KIT_FILES as a carry (identicalKitDest's rule: the earlier record, never one
 // learned from these bytes), so the next ledger keeps it and uninstall can still remove the file; recordKitFile records
 // nothing under DRY_RUN. The file itself is never removed, renamed or written.
+// Then, whatever the ledger's state, the presence path (plan 39-13, WR-06): one uncounted note per unshipped adapter
+// the ledger holds no kit-true record of. No verify, no record, no exit change; the skipped note prints once.
 function reportStaleKitAdapters(): void {
-  if (PREVIOUS_LEDGER.state !== "ok") return;
-  const stale = staleKitAdapters(PREVIOUS_LEDGER);
-  if (stale === null) {
+  if (PREVIOUS_LEDGER.state === "ok") {
+    const stale = staleKitAdapters(PREVIOUS_LEDGER);
+    if (stale === null) {
+      report("note", staleAdaptersSkippedText());
+      return;
+    }
+    for (const s of stale) {
+      // IN-03: nextLedgerEntries already carries every held kit-true record of the previous ledger. This call states
+      // the stale path's own carry on purpose, so the rule that keeps uninstall able to remove the file is visible here.
+      if (s.held) recordKitFile(join(TARGET, ...s.rel.split("/")), s.record);
+      verify(staleAdapterText(s));
+    }
+  }
+  const unrecorded = unrecordedStaleAdapters(PREVIOUS_LEDGER);
+  if (unrecorded === null) {
     report("note", staleAdaptersSkippedText());
     return;
   }
-  for (const s of stale) {
-    if (s.held) recordKitFile(join(TARGET, ...s.rel.split("/")), s.record);
-    verify(staleAdapterText(s));
+  if (unrecorded.unreadable !== null) {
+    report("note", unrecordedAdaptersUnreadableText(unrecorded.unreadable));
+    return;
   }
+  for (const rel of unrecorded.paths) report("note", unrecordedStaleAdapterText(rel, ledgerSays(PREVIOUS_LEDGER)));
 }
 
 // The flat-directory contract, refused BY NAME rather than silently skipped (T-27-62). See

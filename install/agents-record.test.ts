@@ -87,7 +87,7 @@
 //     rule only. R48a-e follow the reader's remaining states as printed (not an object, a 0xff byte, a retired record, a
 //     field install never writes, a link at the marker path). The widened removal-matcher census asks MARKER_REMOVAL_ANY
 //     of every reading of every product module: zero offers to delete, remove or erase the marker, and every other hit
-//     in REMOVAL_EXEMPT (96 rows, 143 hits since plan 39-10) with the object it removes.
+//     in REMOVAL_EXEMPT (98 rows, 145 hits since plan 39-13) with the object it removes.
 //
 // Hermetic: every run sets GRUGOPS_HOME (and HOME) to scratch directories removed at the end, and passes the target
 // through the test support (TARGET, or `--target` for a printed command). Drives the COMMITTED install/install.js and
@@ -2003,6 +2003,9 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   // verify, "ask rules (the install marker could not be used — see the verify line above; nothing removed)", which names
   // no remedy verb and no by-hand removal, so the walk no longer reports it (R45 follows it as printed).
   ["uninstall.ts", "rmdirIfEmpty", "either", "${d} (install created this directory and it is empty, but it could not be removed (${why}); a directory keeps neither the marker nor an agent recorded, so remove it by hand once that is fixed)", "touches no record", "a directory install created (plan 34.1-21, DI-07); the marker is named only to say the directory does not hold it"],
+  // An unshipped adapter the install ledger cannot vouch for (plan 39-13, 2026-10-30, review WR-06): the ledger is
+  // named only to say it has no record; the by-hand remedy is on the adapter file, never on the marker or its ledger.
+  ["install.ts", "unrecordedStaleAdapterText", "either", "${rel} — this kit version does not ship it, and the install ledger ${why}, so install cannot tell whether an earlier install wrote it. Claude Code still loads every file in `.claude/agents/`. Check it by hand and delete it if you do not use it; install never deletes it.", "touches no record", "an unshipped adapter the install ledger has no record of; the user checks and deletes the adapter file by hand (plan 39-13, WR-06)"],
   // not a printed alternative: this run's own (DRY_RUN) description of the rewrite it makes.
   ["uninstall.ts", "said", "either", "the entries this run would remove or reverse would be taken out of its install ledger: ${what}", "not a printed alternative", "updateKeptMarker's DRY_RUN wording of its own ledger rewrite"],
 ];
@@ -2033,14 +2036,17 @@ const CENSUS_TABLE: readonly CensusRow[] = [
  * unusable marker is a pointer with no by-hand removal, so it leaves "touches no record" (10 -> 9); uninstall.ts 20 -> 19.
  * 22 since plan 34.1-54 (2026-10-14, D-40, DI-18): markerFixText takes the caller's next step and decides whether it
  * follows, so its never-remove wording has a second reading ending "; then ${then}" ("never remove the marker" 1 -> 2;
- * install-marker.ts 1 -> 2). */
+ * install-marker.ts 1 -> 2).
+ * 23 since plan 39-13 (2026-10-30, review WR-06; measured: the census printed this one unclassified site):
+ * unrecordedStaleAdapterText names the install ledger only to say it has no record of an unshipped adapter, and its
+ * by-hand remedy is on the adapter file ("touches no record" 9 -> 10; install.ts 1 -> 2). */
 const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
   "not a usable record": 1,
   "never remove the marker": 2,
   "per entry": 5,
   "per field": 1,
   fix: 3,
-  "touches no record": 9,
+  "touches no record": 10,
   "not a printed alternative": 1,
 };
 /** What every row of a class must say, so a row cannot be classed against its text. */
@@ -2323,8 +2329,10 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     // 22 -> 21 (plan 34.1-45, 2026-10-13, D-37, 34.1 review IN-34): reportUnrecordedSettings' ask-rules verify over an
     // unusable marker became a `left` line pointing at the marker's verify, with no by-hand removal (20 -> 19).
     // 21 -> 22 (plan 34.1-54, 2026-10-14, D-40, DI-18): markerFixText's second never-remove reading, with the next step.
-    expect(sites.length, "the census size moved").toBe(22);
-    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 2, "install.ts": 1, "uninstall.ts": 19 });
+    // 22 -> 23 (plan 39-13, 2026-10-30, review WR-06): unrecordedStaleAdapterText, the presence note for an unshipped
+    // adapter the install ledger has no record of (install.ts 1 -> 2; measured by this census).
+    expect(sites.length, "the census size moved").toBe(23);
+    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 2, "install.ts": 2, "uninstall.ts": 19 });
     expect(countBy(CENSUS_TABLE, (r) => r[4]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(CENSUS_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
@@ -4776,6 +4784,8 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
   ["install.ts", "staleAdapterText", "removes it while it is unchanged", 1, "the same adapter, by uninstall while it still holds its ledger record (a statement, plan 39-10)"],
   ["install.ts", "staleAdapterText", "delete it by hand if you do not use it", 1, "an adapter the kit no longer ships that the user edited, removed by the user by hand (plan 39-10)"],
   ["install.ts", "staleAdapterText", "deletes it, and uninstall leaves it", 1, "the user's edited adapter, negated: install never deletes it (plan 39-10)"],
+  ["install.ts", "unrecordedStaleAdapterText", "delete it if you do not use it", 1, "an unshipped adapter the install ledger has no record of, removed by the user by hand (plan 39-13, WR-06)"],
+  ["install.ts", "unrecordedStaleAdapterText", "deletes it", 1, "the same adapter, negated: install never deletes it (plan 39-13, WR-06)"],
   ["uninstall.ts", "unlinkPath", "remove it by hand if it is grugops's", 2, "a path still present after its removal"],
   ["uninstall.ts", "<module>", "remove", 3, "the agents this run removes (the `agents to remove` heading)"],
   ["uninstall.ts", "removalDecision", "remove it by hand if it is grugops's", 3, "a path the uninstaller left (a link that is not install's, or a path it could not examine)"],
@@ -4888,12 +4898,15 @@ describe("D-37: the widened removal-matcher census, by search over every printed
     // 138 -> 143, table 91 -> 96, install.ts 51 -> 56 (plan 39-10, 2026-10-29, D-13): the stale-adapter finding names
     // an adapter this kit version no longer ships; install never deletes it, the user deletes it by hand, and uninstall
     // removes it only while it still holds its record (measured: the census printed these five clauses).
-    expect(hits.length, "the hit count moved").toBe(143);
-    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(96);
+    // 143 -> 145, table 96 -> 98, install.ts 56 -> 58 (plan 39-13, 2026-10-30, review WR-06): the presence note for an
+    // unshipped adapter the install ledger has no record of tells the user to delete it by hand if unused and says
+    // install never deletes it (measured: the census printed these two clauses).
+    expect(hits.length, "the hit count moved").toBe(145);
+    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(98);
     expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({
       "checkpoint-ask-rules.ts": 1,
       "install-marker.ts": 2,
-      "install.ts": 56,
+      "install.ts": 58,
       "state-migrate.ts": 2,
       "uninstall.ts": 82,
     });
@@ -5443,7 +5456,12 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // Re-pinned 2026-10-29 by plan 39-10 (D-13): 60, measured by this census. The doctor's stale-adapter FAIL reaches
 // staleKitAdapters (the ledger it is passed, srcAdapterFiles over GRUGOPS_SRC, one lstat under TARGET and owns),
 // staleAdapterText and staleAdaptersSkippedText (wording only). None reads the marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 60;
+// Re-pinned 2026-10-30 by plan 39-13 (review WR-06): 65, measured by this census. The doctor's presence note reaches
+// unrecordedStaleAdapters (the ledger it is passed, srcAdapterFiles over GRUGOPS_SRC, one readdir of TARGET's
+// .claude/agents), shippedAdapter (the shipped rule, now shared with staleKitAdapters), ledgerSays,
+// unrecordedStaleAdapterText and unrecordedAdaptersUnreadableText (wording only). None reads the marker; the DI-19 rows
+// below still hold.
+const DOCTOR_REACH_SIZE = 65;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -6205,7 +6223,11 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // staleKitAdapters (the ledger it is passed, srcAdapterFiles over GRUGOPS_SRC, the kit checkout, and TARGET),
 // staleAdapterText and staleAdaptersSkippedText (wording over GRUGOPS_SRC); none reads GRUGOPS_HOME, GIVEN_KIT_HOME or
 // KIT_ROOT, so C3's table gains no row.
-const WR24_REACH_SIZE = 51;
+// Re-pinned 2026-10-30 by plan 39-13 (review WR-06): 56, measured by this walk. The doctor's presence note reaches
+// unrecordedStaleAdapters (the ledger it is passed, srcAdapterFiles over GRUGOPS_SRC, the kit checkout, and TARGET),
+// shippedAdapter, ledgerSays, unrecordedStaleAdapterText and unrecordedAdaptersUnreadableText (wording over TARGET);
+// none reads GRUGOPS_HOME, GIVEN_KIT_HOME or KIT_ROOT, so C3's table gains no row.
+const WR24_REACH_SIZE = 56;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run

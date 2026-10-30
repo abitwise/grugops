@@ -792,6 +792,13 @@ describe("install/README.md documents the engineer level adapters and the stale-
     expect(README).toContain("Install never deletes, renames or rewrites such a file.");
   });
 
+  it("WR-06: a repository the install ledger cannot vouch for gets a `note` for each unshipped adapter, and §6 names both report forms", () => {
+    expect(README).toContain("v2.1 or earlier");
+    expect(README).toContain("print a `note` instead");
+    expect(README).toContain("the exit status does not change");
+    expect(README).toContain("install names\nit in a `verify` line (exit `3`) and `--check` in a `FAIL`; otherwise both name it in a `note`.");
+  });
+
   it("carries no hand-typed specialist count", () => {
     expect(README).not.toMatch(/\b16 specialist/i);
   });

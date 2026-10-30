@@ -180,6 +180,13 @@ ships ...`), and the run ends INCOMPLETE with exit `3`. The set is worked out fr
 kit source on every run; no list of retired names is kept. `--dry-run` prints the same lines and
 changes nothing, and `install.js --check` reports each file as a `FAIL` with the same remedy.
 
+A repository last installed by v2.1 or earlier has no ledger record for its adapters (kit files
+entered the install ledger in v2.2), and neither does one whose install ledger is absent or cannot be
+read. For an unshipped `.claude/agents/grugops-*.md` file the ledger has no record of, install,
+`--dry-run` and `install.js --check` print a `note` instead, naming the file and saying install cannot
+tell whether an earlier install wrote it. The note comes back on every run until the file is gone, and
+the exit status does not change. Check each named file by hand.
+
 Install never deletes, renames or rewrites such a file. Delete it by hand when you no longer need it;
 the next run does not report a file that is gone. While the file still holds what install wrote, install
 keeps its record in the ledger, so `uninstall.js` still removes it. A file you edited since is yours:
@@ -2080,8 +2087,9 @@ In any of these cases the three levels can run on one model, and grugops does no
 which model and effort a running sub-agent got, run `/tasks` in Claude Code (v2.1.242 or later).
 
 **After an upgrade.** A repository installed before the level adapters existed still holds
-`.claude/agents/grugops-software-engineer.md`. Install and `--check` name it, and you delete it by hand;
-see "An adapter this kit version no longer ships" in §2.
+`.claude/agents/grugops-software-engineer.md`. When the install ledger records the file, install names
+it in a `verify` line (exit `3`) and `--check` in a `FAIL`; otherwise both name it in a `note`. You
+delete it by hand; see "An adapter this kit version no longer ships" in §2.
 
 ---
 
