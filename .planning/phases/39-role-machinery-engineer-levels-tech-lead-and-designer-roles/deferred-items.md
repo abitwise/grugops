@@ -10,3 +10,7 @@
   status: open
   **What:** "every node:fs export whose name may mark a content read is classified" fails with `UNCLASSIFIED node:fs export openAsBlobSync` on the local Node v26.12.1; the census has no row for that newer `node:fs` export.
   **Why deferred:** a Node-version census gap, unrelated to plan 39-01.
+- Environmental `scripts/check-foundation-guards.test.ts` red from the stray untracked `~/` directory at the repo root (found during plan 39-14, Task 2)
+  status: open
+  **What:** "every remaining floor item's LIVE COUNT is DERIVED, not asserted in prose" (LANG-07) fails because the test's `.js` walk enumerates seven `.js` files under `~/projects/hacks/grugops-example-01/tools/grugops/`, which git's index does not list. The other 336 cases pass.
+  **Why deferred:** the `~/` directory is not grugops content and executors must not modify or delete it; removing it is the human's call. No plan 39-14 change touches the walk or those files.
