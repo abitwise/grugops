@@ -397,7 +397,7 @@ describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseli
     ).toEqual([]);
   });
 
-  it("a level adapter is the baseline base adapter of its role with exactly five transforms: the name, the description suffix, the model, one inserted effort line and the inserted level body line (D-3, D-13, D-14)", () => {
+  it("a level adapter is the baseline base adapter of its role with exactly five transforms: the name, the description's use-when clause and level suffix, the model, one inserted effort line and the inserted level body line (D-3, D-13, D-14)", () => {
     const levels = recordedLevelAdapters();
     expect(levels.length, "PREMISE: at least one level record, or this case holds over nothing").toBeGreaterThan(0);
     const working = workingAdapterNames();
@@ -430,7 +430,16 @@ describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseli
       const out = [...lines];
       out.splice((pointerAt[0] as number) + 1, 0, "", `Work at the \`${record.level}\` level: read the \`## Levels\` section of that role file for its scope.`);
       out.splice(modelAt, 1, `${MODEL_LINE_PREFIX}${record.model}`, `${EFFORT_LINE_PREFIX}${record.effort}`);
-      out[descAt] = `${desc.slice(0, -1)} Level: ${record.level}."`;
+      // Gap plan 39-11, WR-03, 2026-10-30: the level adapter's use-when clause names its own adapter so
+      // a main thread cannot route unscored code work to it. A recorded transform, the comparison is
+      // not loosened (D-3): the baseline line is cut after its one `Use when: ` and the clause below,
+      // typed here and never imported from the generator, is appended with the record's own name and
+      // level.
+      const useWhen = "Use when: ";
+      expect(desc.split(useWhen).length - 1, `${baseName}: the baseline description carries exactly one use-when clause`).toBe(1);
+      out[descAt] =
+        `${desc.slice(0, desc.indexOf(useWhen) + useWhen.length)}` +
+        `the Tech Lead's plan names ${record.name}; never for unscored work. Level: ${record.level}."`;
       out[nameAt] = `name: ${record.name}`;
       const expected = Buffer.from(out.join("\n"), "utf8");
       const work = readFileSync(join(ROOT, ADAPTER_DIR, `${record.name}${MD}`));

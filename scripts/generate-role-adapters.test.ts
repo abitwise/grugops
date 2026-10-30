@@ -2196,7 +2196,15 @@ describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)
       expect(fmValue(text, "tools"), "a level adapter carries the role's tools").toBe(tools);
       expect(modelLines(text)).toEqual([`model: ${pin.model}`]);
       expect(effortLines(text)).toEqual([`effort: ${pin.effort}`]);
-      expect(fmValue(text, "description")).toBe(`${baseDescription.slice(0, -1)} Level: ${level}."`);
+      // Gap plan 39-11 (WR-03): the use-when clause names the level adapter itself, so a main thread
+      // cannot auto-route unscored code work to it. The clause is typed here (second opinion), never
+      // imported from the generator.
+      const useWhen = "Use when: ";
+      expect(baseDescription.split(useWhen).length - 1, `PREMISE: one use-when clause in ${baseDescription}`).toBe(1);
+      expect(fmValue(text, "description")).toBe(
+        `${baseDescription.slice(0, baseDescription.indexOf(useWhen) + useWhen.length)}` +
+          `the Tech Lead's plan names grugops-software-engineer-${level}; never for unscored work. Level: ${level}."`,
+      );
       expect(text).toContain(
         "Read `agent-factory/roles/software-engineer.md` now and act as that role. The role file does the\n" +
           "thinking; this adapter only points at it.\n\n" +
@@ -2225,6 +2233,43 @@ describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)
     expect(a.byAdapter["grugops-software-engineer-senior"]).toBe("opus");
     expect(a.byAdapter["grugops-orchestrator"]).toBe("inherit");
     expect(a.overrides).toBe(0);
+  });
+
+  it("levels: the three level descriptions differ pairwise and none carries the role's own use-when sentence (WR-03, TIER-02 adjacency)", () => {
+    const m = levelsScratch();
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    // Read the role's `## Activates when` sentence from the mirror's role file, never typed here.
+    const roleLines = readFileSync(join(m, "agent-factory", "roles", LEVELED_ROLE), "utf8").split("\n");
+    const at = roleLines.indexOf("## Activates when");
+    expect(at, "PREMISE: software-engineer.md has a `## Activates when` section").toBeGreaterThanOrEqual(0);
+    const activates = (roleLines.slice(at + 1).find((l) => l.trim() !== "") ?? "").trim();
+    expect(activates.length, "PREMISE: the `## Activates when` section is not empty").toBeGreaterThan(0);
+
+    const descriptions = Object.keys(LEVEL_PINS).map(
+      (level) => fmValue(readFileSync(join(agentsDir(m), `grugops-software-engineer-${level}.md`), "utf8"), "description") ?? "",
+    );
+    expect(new Set(descriptions).size, descriptions.join("\n")).toBe(descriptions.length);
+    for (const d of descriptions) {
+      expect(d, "a level adapter must not invite routing by the role's own trigger").not.toContain(activates);
+      expect(d).toContain("never for unscored work");
+    }
+  });
+
+  it("levels: an adapter of a role that declares no `levels` keeps `<One job> Use when: <Activates when>` unchanged (TIER-02 empty edge)", () => {
+    const m = unleveledScratch();
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    for (const role of [LEVELED_ROLE, "qe-e2e.md"]) {
+      const lines = readFileSync(join(m, "agent-factory", "roles", role), "utf8").split("\n");
+      const firstLineOf = (heading: string): string => {
+        const at = lines.indexOf(`## ${heading}`);
+        expect(at, `PREMISE: ${role} has a \`## ${heading}\` section`).toBeGreaterThanOrEqual(0);
+        return (lines.slice(at + 1).find((l) => l.trim() !== "") ?? "").trim();
+      };
+      const adapter = readFileSync(join(agentsDir(m), `grugops-${role.slice(0, -".md".length)}.md`), "utf8");
+      expect(fmValue(adapter, "description")).toBe(`"${firstLineOf("One job")} Use when: ${firstLineOf("Activates when")}"`);
+    }
   });
 
   it("levels: the declaration order of `levels` tokens cannot change any emitted byte (TIER-02 ordering)", () => {
