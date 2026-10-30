@@ -8,6 +8,9 @@ here.
 
 - **WR-12**: a split or an Architect move no longer returns the ticket to `Ready for Dev` or
   re-enqueues an engineer. A split goes to `Backlog` for BA/PM, an Architect pass to `In Design`.
+- **WR-13**: a re-score that raises the level is the escalation and moves the ticket one level only.
+  When the scores call for more than one level, or for a raise after the escalation is spent, the
+  Tech Lead stops for a named human under the existing `escalate_unadjudicable_result` stop.
 
 `## Stop conditions` and `## Hard limits` are FROZEN by heading. A row in either carries a
 `companion` cell that names the section and the reason.
@@ -27,3 +30,9 @@ the rows below are written.
 | agent-factory/workflows/04-ticket-to-pr.md | 42 | — | A split or an Architect pass dispatches no engineer. | WR-12, D-20 | **added.** States the other half of the condition, so no engineer is spawned on a ticket whose size or design was just rejected. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 45 | — | After a split that exit is `Backlog`, and after an Architect pass it is `In Design`. | WR-12, D-19 | **added.** The board moves name the Tech Lead's two other exits from `Blocked`. | — |
 | agent-factory/roles/tech-lead.md | 42 | It owns the exit of a dev-raised `## Blocked`, returning the ticket to `Ready for Dev`. | It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass. | WR-12, D-19 | **reworded.** The role's board moves name the exit for each move, matching Workflow 04 step 15. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | A re-score that raises the level is the escalation. | A re-score that raises the level is the escalation, and it moves the ticket one level only. | WR-13, D-19 | **reworded.** A re-score cannot move a ticket two levels as one escalation, matching "escalate one level". | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Stop for a named human when the scores call for more than one level. | WR-13, D-21 | **added.** Gives the Tech Lead a legal output when the rubric jumps two levels, instead of breaking either "one level" or "never pick a level without the written scores". | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Stop for a named human when the scores call for a raise after the escalation is spent. | WR-13, D-21 | **added.** A raise after the one escalation would be a second escalation; the Tech Lead stops rather than escalate twice or keep a level its scores contradict. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 61 | — | It also means the scores call for more than one level, or for a raise after the escalation is spent. | WR-13, D-21 | **added inside a FROZEN section.** The used-up stop now names the two re-score cases step 15 stops on, so the stop and the step describe one event. | FROZEN SECTION `## Stop conditions`, workflow 04. Reason: WR-13, the definition of used up gains the two re-score cases that had no legal move; the named-human stop and its `escalate_unadjudicable_result` tag are unchanged, no stop is lowered and no checkpoint count moves. |
+| agent-factory/roles/tech-lead.md | 34 | A re-score that raises the level is the escalation. | A re-score that raises the level is the escalation, one level only. | WR-13, D-19 | **reworded.** The same one-level rule as Workflow 04 step 15, kept short for the role's byte ceiling. | — |
+| agent-factory/roles/tech-lead.md | 34 | — | When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human. | WR-13, D-21 | **added.** The role names the same two human stops as Workflow 04 step 15. | — |

@@ -31,7 +31,7 @@ Need a ticket scored and planned before development.
 2. Write the dev tasks, each with a file path, the change and concrete Given/When/Then test cases.
 3. Score the dev tasks and the ticket per the rubric. Return `SPLIT_REQUIRED` for an XL ticket or a file plan too large for one PR.
 4. Name the level; the Orchestrator dispatches exactly that adapter.
-5. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect. Besides the escalation, make at most one other move per ticket. A re-score that raises the level is the escalation.
+5. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect. Besides the escalation, make at most one other move per ticket. A re-score that raises the level is the escalation, one level only. When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human.
 
 ## Output (file + format)
 - A `decision` note per Workflow 16 holding the six factor scores with the fact behind each, the sum, the level, the adapter `grugops-software-engineer-<level>` and the dev tasks.

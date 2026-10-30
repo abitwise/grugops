@@ -260,7 +260,12 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
   it("WR-01: besides the one escalation the Tech Lead makes at most one other move, and a level-raising re-score is the escalation", () => {
     const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
     expect(item5).toContain("Besides the escalation, make at most one other move per ticket.");
-    expect(item5).toContain("A re-score that raises the level is the escalation.");
+    // WR-13: the level-raising re-score moves one level only; two levels, or a raise after the
+    // escalation is spent, stops for a named human.
+    expect(item5).toContain("A re-score that raises the level is the escalation, one level only.");
+    expect(item5).toContain(
+      "When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human.",
+    );
   });
 });
 
@@ -628,12 +633,15 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
   it("WR-01: one escalation and one other move per ticket, counted from the decision notes, then a named human", () => {
     const s = stepAt("Read the `failed-attempt` note (Tech Lead).");
     expect(s.text).toContain("Besides the escalation, make at most one other move per ticket.");
-    expect(s.text).toContain("A re-score that raises the level is the escalation.");
+    expect(s.text).toContain("A re-score that raises the level is the escalation, and it moves the ticket one level only.");
+    expect(s.text).toContain("Stop for a named human when the scores call for more than one level.");
+    expect(s.text).toContain("Stop for a named human when the scores call for a raise after the escalation is spent.");
     expect(s.text).toContain("Count the earlier moves from the ticket's `decision` notes.");
     const b = stops.filter((l) => l.startsWith("- The Tech Lead's options are used up ->"));
     expect(b).toHaveLength(1);
     expect(b[0]).toContain("the one escalation is spent");
     expect(b[0]).toContain("the one other move is spent too");
+    expect(b[0]).toContain("It also means the scores call for more than one level, or for a raise after the escalation is spent.");
   });
 
   it("D-20: the re-enqueue is a new `pending/` subtask on the same context, and the spawn prompt carries only the task reference", () => {
