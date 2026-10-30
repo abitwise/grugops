@@ -693,6 +693,18 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s.n).toBe(stepAt("Read the `failed-attempt` note (Tech Lead).").n + 1);
   });
 
+  it("IN-04: the step numbers tech-lead.md cites are the blocked-ticket steps, found by their text", () => {
+    // The role cites Workflow 04 by number ("steps 14-16", "step 15"). Inserting a step above them
+    // would silently point the Tech Lead at the wrong steps, so the numbers are tied to the text here.
+    expect(stepAt("Record a `failed-attempt` note per Workflow 16 when the engineer reports `BLOCKED` (Software Engineer).").n).toBe(14);
+    expect(stepAt("Read the `failed-attempt` note (Tech Lead).").n).toBe(15);
+    expect(stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").n).toBe(16);
+    expect(section(TECH_LEAD, "Reads")).toContain("`agent-factory/workflows/04-ticket-to-pr.md` steps 14-16");
+    const cited = [...TECH_LEAD.matchAll(/Workflow 04 steps? (\d+)/g)].map((m) => Number(m[1]));
+    expect(cited.length).toBeGreaterThan(0);
+    for (const n of cited) expect(n, "tech-lead.md cites a Workflow 04 step other than 15").toBe(15);
+  });
+
   it("D-18 / D-19: a `BLOCKED` engineer stops for the Tech Lead with no checkpoint tag", () => {
     const b = stops.filter((l) => l.startsWith("- The engineer reports `BLOCKED` ->"));
     expect(b).toHaveLength(1);
