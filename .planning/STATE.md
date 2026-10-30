@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
-status: executing
-stopped_at: Completed 39-15-PLAN.md
-last_updated: "2026-10-30T15:21:11.271Z"
+status: verifying
+stopped_at: Completed 39-16-PLAN.md
+last_updated: "2026-10-30T15:51:10.592Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: 74153c18e0df2ae0d13b2e31b036eb395e51d498
+state_head: fc03f7d4d8135e4fec8a0e346972005b403add88
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 84
-  completed_plans: 83
+  completed_plans: 84
   percent: 44
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
 Plan: 16 of 16
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-30 — Phase 39 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -799,6 +799,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P13 | 1h 25m | 3 tasks | 9 files |
 | Phase 39 P14 | 11 min | 3 tasks | 15 files |
 | Phase 39 P15 | 5 min | 2 tasks | 5 files |
+| Phase 39 P16 | 28 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -2200,6 +2201,7 @@ Recent decisions affecting current work:
 - [Phase 39]: Level efforts deliberately diverge from the effort tiered rule (opus high, others medium); no preset reconciles them (D-16)
 - [Phase 39]: Phase 39 plan 15: the D-2 floor paragraph cites model-config 'Adjust effort level' (read 2026-10-30): Haiku 5.5 and Sonnet 5.5 accept xhigh and high; Haiku 4.5 / Sonnet 4.5 stay UNKNOWN - verify
 - [Phase 39]: Phase 39 plan 15: factory.config.md names four closed models key sets (models own keys, models.roles, models.effort own keys, models.effort.roles), held by tests derived from MODELS_KEYS and EFFORT_KEYS (G-39-6)
+- [Phase 39]: 39-16: WF04 step 15 split into a lead line plus six labelled sub-bullets with every sentence kept; numbered() folds indented sub-bullet lines; only openings of 4+ normalized words (CLAUSE_MIN_WORDS) need a disposition row
 
 ### Pending Todos
 
@@ -2536,8 +2538,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-30T15:21:10.436Z
-Stopped at: Completed 39-15-PLAN.md
+Last session: 2026-10-30T15:51:09.769Z
+Stopped at: Completed 39-16-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
