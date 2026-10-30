@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
-status: verifying
-stopped_at: Completed 39-13-PLAN.md
-last_updated: "2026-10-30T11:49:06.694Z"
+status: executing
+stopped_at: Completed 39-14-PLAN.md
+last_updated: "2026-10-30T15:14:17.356Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: aa21a823fccaf89861efb8f480dfef16fe1c12e6
+state_head: 2b5d61c688e7dc6d9f709a44c7c381d9f546454b
 progress:
   total_phases: 9
   completed_phases: 4
-  total_plans: 81
-  completed_plans: 81
+  total_plans: 84
+  completed_plans: 82
   percent: 44
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
-Plan: 13 of 13
-Status: Phase complete — ready for verification
-Last activity: 2026-10-30 - Completed quick task 261030-fzo: Phase 39 follow-ups (tech-lead ceiling 4000 B, notify wording, escalate_unadjudicable_result explained)
+Plan: 15 of 16
+Status: Ready to execute
+Last activity: 2026-10-30 — Phase 39 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -797,6 +797,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P11 | 13 min | 3 tasks | 16 files |
 | Phase 39 P12 | 9 min | 3 tasks | 8 files |
 | Phase 39 P13 | 1h 25m | 3 tasks | 9 files |
+| Phase 39 P14 | 11 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -2194,6 +2195,8 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-12: The Tech Lead makes at most one escalation and one other move per ticket; a re-score that raises the level is the escalation; moves are counted from the ticket's decision notes (WR-01, D-19, D-21)
 - [Phase 39]: 39-13: an unshipped grugops adapter the install ledger has no kit-true record of is named in a report-only note (exit status unchanged), on every run until it is gone (WR-06)
 - [Phase 39]: 39-13: IN-04 deferred to Phase 42 doctor work, IN-05 to Phase 41, IN-06 to Phase 40; review disposition open: 0
+- [Phase 39]: Engineer level efforts re-pinned to junior xhigh, mid high, senior medium (human re-decision 2026-10-30, G-39-5; amends D-14 and the effort half of D-2); models unchanged
+- [Phase 39]: Level efforts deliberately diverge from the effort tiered rule (opus high, others medium); no preset reconciles them (D-16)
 
 ### Pending Todos
 
@@ -2530,8 +2533,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-30T08:40:57.941Z
-Stopped at: Completed 39-13-PLAN.md
+Last session: 2026-10-30T15:14:16.539Z
+Stopped at: Completed 39-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

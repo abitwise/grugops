@@ -446,7 +446,7 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 13/16 plans executed (6 gap closure plans)
+**Plans**: 14/16 plans executed (6 gap closure plans)
 
 Plans:
 **Wave 1**
@@ -485,7 +485,7 @@ Plans:
 - [x] 39-13-PLAN.md — Presence note for unrecorded unshipped adapters (WR-06), one flattening list (WR-09), CHANGELOG (WR-10), IN-03; IN-04..06 deferred with reasons; phase gate
 
 **Gap closure round 2** *(from 39-UAT.md gaps G-39-5..G-39-7; sequential)*
-- [ ] 39-14-PLAN.md — Level efforts re-pinned to the human's 2026-10-30 re-decision (junior haiku/xhigh, mid sonnet/high, senior opus/medium): LEVELS and quality-only rationales, regenerated adapters, MODEL-01 records, every pin literal, the dated decision record (G-39-5)
+- [x] 39-14-PLAN.md — Level efforts re-pinned to the human's 2026-10-30 re-decision (junior haiku/xhigh, mid sonnet/high, senior opus/medium): LEVELS and quality-only rationales, regenerated adapters, MODEL-01 records, every pin literal, the dated decision record (G-39-5)
 - [ ] 39-15-PLAN.md — factory.config.md, install/README.md and CHANGELOG state the new pins; the `models` Refusals and closed-set paragraphs name the real key sets, held by a test derived from MODELS_KEYS and EFFORT_KEYS (G-39-5, G-39-6)
 - [ ] 39-16-PLAN.md — WF04 step 15 split into a lead line and labelled sub-bullets with no change in meaning; phase gate (G-39-7)
 
@@ -565,7 +565,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
-| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 13/13 | In Progress | - |
+| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 14/16 | In Progress | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
