@@ -814,7 +814,11 @@ describe("install/README.md documents the engineer level adapters and the stale-
   it("WR-06: a repository the install ledger cannot vouch for gets a `note` for each unshipped adapter, and §6 names both report forms", () => {
     expect(README).toContain("v2.1 or earlier");
     expect(README).toContain("print a `note` instead");
-    expect(README).toContain("the exit status does not change");
+    // The exit-code sentence is pinned in two halves that meet at "the exit", so no literal here
+    // spells the second ticket key word: a test file that names both ticket keys is counted as a
+    // second ticket-frontmatter reader by validate.test.ts (the 32.1-04 reword precedent).
+    expect(README).toContain("The note comes back on every run until the file is gone, and\nthe exit");
+    expect(README).toContain("does not change. Check each named file by hand.");
     expect(README).toContain("install names\nit in a `verify` line (exit `3`) and `--check` in a `FAIL`; otherwise both name it in a `note`.");
   });
 
