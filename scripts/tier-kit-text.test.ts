@@ -39,13 +39,31 @@ function section(text: string, heading: string): string {
   return (end === -1 ? rest : rest.slice(0, end)).join("\n");
 }
 
-/** The numbered list items of a section, in order, with their numbers. */
+/**
+ * The numbered list items of a section, in order, with their numbers.
+ *
+ * Plan 39-16 (G-39-7): an indented, non-blank line right after a numbered line belongs to that item
+ * (Workflow 04 step 15 carries its parts as indented sub-bullets). Each such line is appended to the
+ * item's text with its leading whitespace and one leading `- ` marker removed, joined by a single
+ * space, so a case reading the step sees every sentence. A blank line, the next numbered line or a
+ * line with no leading whitespace ends the fold.
+ */
 function numbered(body: string): { n: number; text: string }[] {
-  return body
-    .split("\n")
-    .map((l) => /^(\d+)\. (.*)$/.exec(l))
-    .filter((m): m is RegExpExecArray => m !== null)
-    .map((m) => ({ n: Number(m[1]), text: m[2] as string }));
+  const items: { n: number; text: string }[] = [];
+  let open = false;
+  for (const l of body.split("\n")) {
+    const m = /^(\d+)\. (.*)$/.exec(l);
+    if (m !== null) {
+      items.push({ n: Number(m[1]), text: m[2] as string });
+      open = true;
+    } else if (open && /^[ \t]+\S/.test(l)) {
+      const last = items[items.length - 1] as { n: number; text: string };
+      last.text = `${last.text} ${l.replace(/^[ \t]+/, "").replace(/^- /, "")}`;
+    } else {
+      open = false;
+    }
+  }
+  return items;
 }
 
 /** The F-factor table row whose first cell starts with `id`, split into its cells. */
