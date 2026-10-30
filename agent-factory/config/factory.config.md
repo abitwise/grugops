@@ -171,11 +171,12 @@ The `models.effort` object assigns one reasoning-effort level to each generated 
 
 **The level is guidance on the other hosts.** The level adapters exist on Claude Code only. On Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi there is one software engineer role: it reads the level in the ticket's `## Tech Lead plan` section and keeps to that level's scope, and the model does not change. grugops gives no model advice for those hosts.
 
-**What can flatten the levels at run time.** The pins are adapter frontmatter, and Claude Code lets three run-time settings take precedence over it (`code.claude.com/docs/en/sub-agents`, read 2026-10-29). No grugops gate sees any of them, and grugops does not enforce the level:
+**What can flatten the levels at run time.** The pins are adapter frontmatter, and in Claude Code the following run-time settings take precedence over it (`code.claude.com/docs/en/sub-agents`, read 2026-10-29). No grugops gate sees any of them, and grugops does not enforce the level:
 
 - **A `model` or `effort` parameter on the spawn call.** Claude Code checks a per-invocation `model` parameter before the adapter's `model` field, and a per-invocation `effort` parameter overrides the adapter's `effort` field (the effort parameter needs Claude Code v2.1.292 or later). The `CLAUDE_CODE_EFFORT_LEVEL` environment variable takes precedence over both effort values.
 - **`CLAUDE_CODE_SUBAGENT_MODEL`.** Set alone, the variable is a default that an adapter's `model` field outranks. Set together with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (Claude Code v2.1.257 or later), it runs every sub-agent on that one model and Claude Code ignores the adapter's `model` field. Before v2.1.251 the variable alone overrode the adapter's `model` field.
 - **An `availableModels` restriction.** Claude Code checks the adapter's value against the organization's `availableModels` allowlist. For a blocked family alias it runs the sub-agent on the newest version of that family the allowlist permits, and otherwise on the inherited model.
+- **An installed mod's `agent.spawn` hook.** "If an installed mod sets a model in its `agent.spawn` hook, Claude Code uses that model in place of the per-invocation parameter" (`code.claude.com/docs/en/sub-agents`, read 2026-10-30). Such a hook can therefore run every level on one model.
 
 To see which model and effort a running sub-agent got, run `/tasks` in Claude Code (v2.1.242 or later); its row names the model and the effort level set for that sub-agent.
 

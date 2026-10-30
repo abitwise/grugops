@@ -26,6 +26,19 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   unchanged, from `.grugops/context/` to `.grugops/archive/context/`, and lists each folder it keeps
   with the reason. Valid only with `--migrate`. See
   [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
+- The Tech Lead role and the complexity rubric
+  (`agent-factory/checklists/complexity-rubric.md`). The Tech Lead scores each ready ticket against
+  the rubric, names the engineer level that does it and plans the dev tasks.
+- The Designer role. It sets the product's design system once, before Frontend/UI writes its
+  per-ticket UI contract from it.
+- Three Claude Code engineer adapters: `grugops-software-engineer-junior` (`haiku`, effort `medium`;
+  needs Claude Code v2.1.293 or later), `grugops-software-engineer-mid` (`sonnet`, effort `medium`)
+  and `grugops-software-engineer-senior` (`opus`, effort `high`). On the other hosts there is one
+  software engineer role, and the level in the ticket is scope guidance.
+- The `skills:` key in role frontmatter. Only the grammar is added; no shipped role declares one yet.
+- Install, `--dry-run` and `install.js --check` name an adapter in `.claude/agents/` that this kit
+  version no longer ships. They never delete it. See `install/README.md`, "An adapter this kit
+  version no longer ships".
 
 ### Changed
 
@@ -45,6 +58,14 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - `install --check` prints one `state layout:` line: `ok` for the v3 layout, and a warning (never a
   failure) for the pre-v3 layout, which names `install --migrate`, or for a repository with both
   boards. See [docs/pre-v3-state-layout.md](docs/pre-v3-state-layout.md).
+- At zero config the Claude Code engineer adapters pin their model and effort instead of `inherit`,
+  so the session's model choice no longer applies to engineer work on Claude Code.
+- `models.roles.software-engineer` sets all three engineer levels, and the `software-engineer-junior`,
+  `software-engineer-mid` and `software-engineer-senior` keys set one level each; the same keys work
+  under `models.effort.roles`. No preset moves a level.
+- Workflow 04 runs the Tech Lead after the Definition of Ready check. An engineer that is blocked, or
+  whose gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, can be escalated one level, at most
+  once per ticket.
 
 ### Fixed
 
@@ -58,6 +79,12 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 
 - The pre-v3 `plans/` state layout. Agents fall back to it with a one-line notice to run
   `install --migrate`; the fallback is supported through v3.x and removed in v4.0.
+
+### Removed
+
+- The `grugops-software-engineer` Claude Code adapter, replaced by the three engineer level adapters,
+  and the software engineer's row in the `tiered` model preset. A repository installed by an earlier
+  release keeps the old file: install and `install.js --check` name it, and you delete it by hand.
 
 ## [2.2.0] - 2026-10-19
 

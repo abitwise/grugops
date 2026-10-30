@@ -2069,22 +2069,13 @@ level, so what Claude Code does with the junior adapter's `effort: medium` line 
 so the mid adapter's effort there is `UNKNOWN - verify` too. `install.js --check` does not probe the
 Claude Code version yet; check it yourself before you rely on the junior level.
 
-**What can flatten the levels at run time.** The pins are adapter frontmatter. Each of the following
-takes precedence over it when a sub-agent starts, and no grugops gate can see any of them
-(`code.claude.com/docs/en/sub-agents` and `code.claude.com/docs/en/model-config`, fetched 2026-10-29):
-
-- a `model` or `effort` parameter on the spawn call: Claude Code checks a per-invocation `model`
-  parameter before the adapter's `model` field, and a per-invocation `effort` parameter overrides the
-  adapter's `effort` field;
-- `CLAUDE_CODE_SUBAGENT_MODEL` set together with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (Claude Code
-  v2.1.257 or later), which runs every sub-agent on that one model; set alone, the variable is a
-  default that the adapter's `model` field outranks;
-- an installed mod's `agent.spawn` hook, which can flatten all three levels;
-- an `availableModels` restriction: a blocked alias runs on the newest version of its family the
-  allowlist permits, or else on the inherited model.
-
-In any of these cases the three levels can run on one model, and grugops does not detect it. To see
-which model and effort a running sub-agent got, run `/tasks` in Claude Code (v2.1.242 or later).
+**What can flatten the levels at run time.** The pins are adapter frontmatter, and these run-time
+settings take precedence over them: a `model` or `effort` parameter on the spawn call;
+`CLAUDE_CODE_SUBAGENT_MODEL` set with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`; an installed mod's
+`agent.spawn` hook; and an `availableModels` restriction. Any of them can run the three levels on one
+model, and no grugops gate sees any of them. How each one works, and its source, is in
+`agent-factory/config/factory.config.md` (§ `models.effort` sub-fields). To see which model and effort a
+running sub-agent got, run `/tasks` in Claude Code (v2.1.242 or later).
 
 **After an upgrade.** A repository installed before the level adapters existed still holds
 `.claude/agents/grugops-software-engineer.md`. When the install ledger records the file, install names

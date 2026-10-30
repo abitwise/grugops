@@ -456,11 +456,19 @@ describe("the level dial documentation (TIER-03; D-2, D-5, D-15, D-16, D-17, D-2
     expect(CONFIG).toContain("grugops gives no model advice for those hosts.");
   });
 
-  it("T-39-11: the three run-time flattening paths are named and no enforcement is claimed", () => {
+  it("T-39-11 / WR-09: the run-time flattening paths are named, the mod hook among them with its source, and no enforcement is claimed", () => {
     expect(CONFIG).toContain("**A `model` or `effort` parameter on the spawn call.**");
     expect(CONFIG).toContain("**`CLAUDE_CODE_SUBAGENT_MODEL`.**");
     expect(CONFIG).toContain("**An `availableModels` restriction.**");
+    expect(CONFIG).toContain(
+      "- **An installed mod's `agent.spawn` hook.** \"If an installed mod sets a model in its `agent.spawn` hook, Claude Code uses that model in place of the per-invocation parameter\" (`code.claude.com/docs/en/sub-agents`, read 2026-10-30).",
+    );
     expect(CONFIG).toContain("grugops does not enforce the level");
+    // WR-09: the lead-in carries no count, so a fifth setting cannot make it wrong.
+    const lead = CONFIG.split("\n").find((l) => l.startsWith("**What can flatten the levels at run time.**")) ?? "";
+    expect(lead, "no flattening lead-in").not.toBe("");
+    expect(lead).not.toMatch(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+) run-time settings?\b/i);
+    expect(lead).toContain("the following run-time settings take precedence over it");
   });
 
   it("subagent.frontmatter.md carries no specialist or adapter count, and documents the level adapter's differing lines", () => {
@@ -785,6 +793,17 @@ describe("install/README.md documents the engineer level adapters and the stale-
     expect(README).toContain("CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1");
     expect(README).toContain("`agent.spawn` hook");
     expect(README).toContain("`availableModels` restriction");
+  });
+
+  it("WR-09: the flattening paragraph names the settings and points to factory.config.md for how each works", () => {
+    const para = README.slice(README.indexOf("**What can flatten the levels at run time.**"));
+    expect(README.indexOf("**What can flatten the levels at run time.**")).toBeGreaterThanOrEqual(0);
+    const body = para.slice(0, para.indexOf("\n\n"));
+    expect(body).toContain("`agent-factory/config/factory.config.md` (§ `models.effort` sub-fields)");
+    expect(body).toContain("no grugops gate sees any of them");
+    expect(body).toContain("`/tasks`");
+    // The precedence detail lives once, in factory.config.md.
+    expect(README).not.toContain("per-invocation");
   });
 
   it("D-13: documents the stale-adapter report and its remedy", () => {
