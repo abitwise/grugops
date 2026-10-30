@@ -39,6 +39,8 @@ The IDs below are the re-review's own numbering. They are not the WR-11 to WR-16
 - **WR-06**: step 14's `failed-attempt` note opens with `Cause: engineer` or `Cause: gate`, and
   steps 15 and 16 decide on the gate-failure stop from that line instead of the note's free text.
   The role reaches the same rule through its pointer to step 15 (WR-05).
+- **IN-01**: the tagged gate-failure stop names both holds of the human stop, the `Blocked` exit
+  (step 15) and the re-enqueue (step 16), so it no longer describes less than the step it governs.
 
 The `line` column gives each clause's line in the tree after the fix that wrote the row.
 
@@ -78,3 +80,4 @@ the rows below are written.
 | agent-factory/workflows/04-ticket-to-pr.md | 40 | — | Open its body with `Cause: engineer` for a `BLOCKED` report, or `Cause: gate` for a gate failure. | WR-06, D-18 | **added.** Gives the soft `failed-attempt` note a fixed first line that says which of the two causes raised the block. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | After a gate `BLOCKED_NEEDS_FIX`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows. | When the note opens with `Cause: gate`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows. | WR-06, CR-02 | **reworded.** The Tech Lead decides on the gate-failure stop from the note's fixed line, so a misread cause cannot skip the stop. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 42 | After a gate failure at `block`, wait also for a `Confirmed: yes` finding that names the move note. | After a `Cause: gate` note at `block`, wait also for a `Confirmed: yes` finding that names the move note. | WR-06, D-20 | **reworded.** The Orchestrator reads the same fixed line as the Tech Lead. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 60 | A named human confirms the Tech Lead's decision before the re-enqueue (step 15). | A named human confirms the Tech Lead's move before the ticket leaves `Blocked` (step 15) and before any re-enqueue (step 16). | IN-01, CR-02, T-39-16 | **reworded inside a FROZEN section.** The re-enqueue is step 16, and since WR-12 a split or an Architect pass has none, yet step 15 still holds those tickets in `Blocked`; the stop now names both holds. | FROZEN SECTION `## Stop conditions`, workflow 04. Reason: IN-01, the stop's step references are corrected and it names the `Blocked` hold it already governed; no stop is lowered, and `checkpoint: exhaust_self_fix_budget` stays once on this bullet. |

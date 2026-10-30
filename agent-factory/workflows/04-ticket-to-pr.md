@@ -57,7 +57,7 @@ Record `Cycle time` and `WIP` in `memory-bank/plans/metrics.md`.
 - The ticket is XL, or the Tech Lead's file plan is too large for one PR -> `SPLIT_REQUIRED`. It goes back to BA/PM for splitting before it can enter `Ready for Dev`.
 - The Tech Lead finds the approach not designed (F2 = 2) -> record the gap and send the ticket back to `In Design` for the Architect. Dispatch no engineer.
 - The engineer reports `BLOCKED` -> publish a `failed-attempt` note and move the ticket to `Blocked`, naming the Tech Lead as its owner. Wait for the Tech Lead's new decision note.
-- The gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, for an agent-fixable reason -> the same `failed-attempt` note and `Blocked` move. A named human confirms the Tech Lead's decision before the re-enqueue (step 15). Workflow 05 sets this human stop when the self-fix budget is spent. `checkpoint: exhaust_self_fix_budget`
+- The gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, for an agent-fixable reason -> the same `failed-attempt` note and `Blocked` move. A named human confirms the Tech Lead's move before the ticket leaves `Blocked` (step 15) and before any re-enqueue (step 16). Workflow 05 sets this human stop when the self-fix budget is spent. `checkpoint: exhaust_self_fix_budget`
 - The Tech Lead's options are used up -> stop and hand the ticket to a named human; never retry in a loop. Used up means the one escalation is spent and the one other move is spent too. It also means the scores call for more than one level, or for a raise after the escalation is spent. `checkpoint: escalate_unadjudicable_result`
 
 ## Done condition

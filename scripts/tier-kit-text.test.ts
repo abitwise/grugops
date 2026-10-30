@@ -704,7 +704,10 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     const b = stops.filter((l) => l.startsWith("- The gate ends `BLOCKED_NEEDS_FIX`"));
     expect(b).toHaveLength(1);
     // Plan 39-12 (CR-02): the human stop is named in step 15 too, and the WF05 reference is accurate.
-    expect(b[0]).toContain("A named human confirms the Tech Lead's decision before the re-enqueue (step 15).");
+    // Re-review IN-01: the stop names both holds, the `Blocked` exit (step 15) and the re-enqueue (step 16).
+    expect(b[0]).toContain(
+      "A named human confirms the Tech Lead's move before the ticket leaves `Blocked` (step 15) and before any re-enqueue (step 16).",
+    );
     expect(b[0]).toContain("Workflow 05 sets this human stop when the self-fix budget is spent.");
     expect(WF04).not.toContain("before the re-enqueue, per Workflow 05");
     expect(b[0]?.endsWith("`checkpoint: exhaust_self_fix_budget`")).toBe(true);
