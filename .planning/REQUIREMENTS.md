@@ -47,7 +47,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 - [ ] **TIER-02**: One `software-engineer.md` role yields three generated Claude Code adapters — junior (haiku, effort medium), mid (sonnet), senior (opus) — each with its own effort; on the other five hosts the level is guidance
 - [ ] **TIER-03**: Junior takes only tasks whose plan already fixes what to write, never security, migration, concurrency or test-integrity work; the D-09 amendment and the Claude Code v2.1.293 floor are recorded
 - [ ] **TIER-04**: A stuck or twice-failed engineer escalates one level once, via a `failed-attempt` note and a queue re-enqueue — never a relayed prompt
-- [ ] **TIER-05**: The kit has a Designer role that sets design strategy and guidelines; Frontend/UI reads them for per-ticket UI contracts
+- [x] **TIER-05**: The kit has a Designer role that sets design strategy and guidelines; Frontend/UI reads them for per-ticket UI contracts
 - [ ] **TIER-06**: Role and adapter sets stay derived: the adapter-name set, the coordinator's spawn allowlist, role/adapter counts, model/effort tiers and size ceilings all follow the filesystem, and the MODEL-01 baseline is re-pinned by recorded decision
 - [ ] **TIER-07**: Roles can declare skills in frontmatter (`skills:`), admitted by the canonical frontmatter grammar
 
@@ -140,7 +140,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TIER-02 | Phase 39 | Gaps Found |
 | TIER-03 | Phase 39 | Gaps Found |
 | TIER-04 | Phase 39 | Gaps Found |
-| TIER-05 | Phase 39 | Gaps Found |
+| TIER-05 | Phase 39 | Complete |
 | TIER-06 | Phase 39 | Gaps Found |
 | TIER-07 | Phase 39 | Gaps Found |
 | PLAIN-01 | Phase 40 | Pending |
