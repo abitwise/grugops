@@ -246,12 +246,24 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
 });
 
 describe("designer.md (TIER-05; D-23..D-27)", () => {
-  it("D-27: core tier, the read edit capabilities, no skills value, and the role heading", () => {
-    expect(DESIGNER.startsWith("---\nkind: role\ntier: core\ncapabilities: read edit\n---\n# Role: Designer\n")).toBe(true);
+  it("D-27: core tier, the read edit shell capabilities, no skills value, and the role heading", () => {
+    expect(DESIGNER.startsWith("---\nkind: role\ntier: core\ncapabilities: read edit shell\n---\n# Role: Designer\n")).toBe(true);
     expect(DESIGNER).not.toMatch(/^skills:/m);
     // T-39-21: never the coordinator-only `admit` capability, and no spawn grant.
     expect(DESIGNER).not.toMatch(/^capabilities:.*\badmit\b/m);
     expect(DESIGNER).not.toContain("Agent(");
+  });
+
+  it("CR-01, T-39-22: the generated adapter carries Bash to reach the sanctioned writer, and no spawn grant or MCP admission tool", () => {
+    // Gap plan 39-11: Workflow 16 admits a note only through the sanctioned writer, which a nested
+    // role session reaches through the shell. The tools line is the adapter generator's output for
+    // `read edit shell`; no admission tool and no spawn grant ride along with it.
+    const adapter = readFileSync(join(ROOT, ".claude/agents/grugops-designer.md"), "utf8");
+    const tools = adapter.split("\n").find((l) => l.startsWith("tools:"));
+    expect(tools, "the adapter has no tools: line").toBeDefined();
+    expect(tools!.slice("tools:".length).trim()).toBe("Read, Grep, Glob, Edit, Write, Bash");
+    expect(adapter).not.toContain("Agent(");
+    expect(adapter).not.toContain("mcp__");
   });
 
   it("its one job is to set the product-wide design strategy every UI ticket builds on", () => {

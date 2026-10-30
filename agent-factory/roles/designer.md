@@ -1,7 +1,7 @@
 ---
 kind: role
 tier: core
-capabilities: read edit
+capabilities: read edit shell
 ---
 # Role: Designer
 

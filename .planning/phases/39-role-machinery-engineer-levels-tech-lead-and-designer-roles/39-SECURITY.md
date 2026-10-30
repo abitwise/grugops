@@ -44,7 +44,7 @@ created: "2026-10-30"
 | T-39-08 | Tampering | `admitRole` / `roleSkillsOf` | medium | mitigate | `scripts/canonical-frontmatter.ts` refusals; `guard_role_frontmatter` | closed |
 | T-39-09 | Elevation of privilege | tech-lead.md capabilities | medium | mitigate | `capabilities: read edit shell`; no `Agent(` in `grugops-tech-lead.md` | closed |
 | T-39-10 | Tampering | complexity-rubric.md junior gate | high | mitigate | rubric names test integrity, migration, concurrency, security; `BLOCKED` stop in software-engineer.md `## Levels` | closed |
-| T-39-21 | Elevation of privilege | designer.md capabilities | medium | mitigate | `capabilities: read edit`; no `Agent(` in `grugops-designer.md` | closed |
+| T-39-21 | Elevation of privilege | designer.md capabilities | medium | mitigate | `capabilities: read edit shell` (shell reaches the sanctioned writer per Workflow 16; never the admission token); no spawn grant in `grugops-designer.md`; see T-39-22 (plan 39-11) | closed |
 | T-39-11 | Repudiation | level enforcement claims | medium | mitigate | factory.config.md names the override paths (incl. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`) and claims no enforcement; WF04 forbids `model`/`effort` on spawn | closed |
 | T-39-12 | Spoofing | `.claude/agents/grugops-software-engineer.md` | high | mitigate | file absent at HEAD; KIT-03 red on any underived adapter | closed |
 | T-39-13 | Information disclosure | `haiku` alias on cloud providers | low | accept | documented `UNKNOWN - verify` | closed |

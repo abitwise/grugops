@@ -1,7 +1,7 @@
 ---
 name: grugops-designer
 description: "Set the product-wide design strategy and guidelines every UI ticket builds on. Use when: Need a design system for UI work (the first UI work in a repo, or a UI epic that needs a new direction)."
-tools: Read, Grep, Glob, Edit, Write
+tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
 <!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-role-adapters.js -->
