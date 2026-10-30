@@ -181,11 +181,17 @@ kit source on every run; no list of retired names is kept. `--dry-run` prints th
 changes nothing, and `install.js --check` reports each file as a `FAIL` with the same remedy.
 
 A repository last installed by v2.1 or earlier has no ledger record for its adapters (kit files
-entered the install ledger in v2.2), and neither does one whose install ledger is absent or cannot be
-read. For an unshipped `.claude/agents/grugops-*.md` file the ledger has no record of, install,
-`--dry-run` and `install.js --check` print a `note` instead, naming the file and saying install cannot
-tell whether an earlier install wrote it. The note comes back on every run until the file is gone, and
+entered the install ledger in v2.2), and neither does one with no install marker. For an unshipped
+`.claude/agents/grugops-*.md` file the ledger has no record of, install, `--dry-run` and
+`install.js --check` print a `note` instead, naming the file and saying install cannot tell whether
+an earlier install wrote it. The note comes back on every run until the file is gone, and
 the exit status does not change. Check each named file by hand.
+
+Two marker states print no note from install. When the install ledger is malformed, install and
+`--dry-run` refuse and write nothing until it is fixed; `install.js --check` reports the malformed
+ledger as a `FAIL` and still prints the note. When the install marker cannot be read at all (it is not
+valid JSON, for example), install and `install.js --check` both stop at the marker and print no note.
+Fix the marker, then run again.
 
 Install never deletes, renames or rewrites such a file. Delete it by hand when you no longer need it;
 the next run does not report a file that is gone. While the file still holds what install wrote, install

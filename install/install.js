@@ -728,8 +728,10 @@ function targetAdapterFiles() {
 //
 // THE PRESENCE PATH (plan 39-13, review WR-06; threats T-39-29, T-39-30). The ledger path above sees only what the
 // ledger records, and a ledger can have nothing to say: a repository last installed before kit files entered the
-// ledger, an absent ledger, or one that cannot be read. Such a target can still hold a retired adapter Claude Code
-// loads. unrecordedStaleAdapters names every `.claude/agents/grugops-<name>.md` file present in the target that this
+// ledger, or an absent ledger. Such a target can still hold a retired adapter Claude Code loads. A malformed ledger
+// reaches this path only from the doctor: install refuses over it first (INSTALL_REFUSAL) and prints no note. A
+// marker that cannot be read stops install and the doctor alike before this path (review WR-11).
+// unrecordedStaleAdapters names every `.claude/agents/grugops-<name>.md` file present in the target that this
 // kit does not ship (the same shipped rule, shippedAdapter) and that the ledger, when `ok`, holds no kit-true record of.
 // The set is derived from the target's directory, the ledger, the kit source and the render; no retired name is written
 // down. Each member is a `note`, not a counted verify or a FAIL: install cannot tell whether an earlier install wrote

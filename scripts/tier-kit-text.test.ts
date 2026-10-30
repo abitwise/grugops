@@ -819,6 +819,12 @@ describe("install/README.md documents the engineer level adapters and the stale-
     // second ticket-frontmatter reader by validate.test.ts (the 32.1-04 reword precedent).
     expect(README).toContain("The note comes back on every run until the file is gone, and\nthe exit");
     expect(README).toContain("does not change. Check each named file by hand.");
+    // WR-11: the README says what each mode prints over a marker the ledger cannot answer from. A
+    // malformed ledger is refused by install and `--dry-run` with no note; only `--check` notes.
+    expect(README).not.toContain("absent or cannot be\nread");
+    expect(README).toContain("Two marker states print no note from install.");
+    expect(README).toContain("`install.js --check` reports the malformed\nledger as a `FAIL` and still prints the note.");
+    expect(README).toContain("install and `install.js --check` both stop at the marker and print no note.");
     expect(README).toContain("install names\nit in a `verify` line (exit `3`) and `--check` in a `FAIL`; otherwise both name it in a `note`.");
   });
 
