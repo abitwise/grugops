@@ -649,8 +649,18 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     const s = stepAt("Read the `failed-attempt` note (Tech Lead).");
     expect(s.text).toContain("Besides the escalation, make at most one other move per ticket.");
     expect(s.text).toContain("A re-score that raises the level is the escalation, and it moves the ticket one level only.");
-    expect(s.text).toContain("Stop for a named human when the scores call for more than one level.");
-    expect(s.text).toContain("Stop for a named human when the scores call for a raise after the escalation is spent.");
+    // Re-review WR-03: the two re-score stops follow `checkpoints.escalate_unadjudicable_result`, the
+    // cell the used-up stop is tagged with, so the step and the tagged stop agree under every value,
+    // and `notify` / `off` leave the Tech Lead a legal move.
+    expect(s.text).toContain(
+      "When the scores call for more than one level, or for a raise after the escalation is spent, read `checkpoints.escalate_unadjudicable_result`.",
+    );
+    expect(s.text).toContain("The used-up stop below follows the same value.");
+    expect(s.text).toContain("At `block`, the default, stop for a named human.");
+    expect(s.text).toContain("At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level.");
+    expect(s.text).toContain("Record the scored level in the move note.");
+    expect(s.text).toContain("At `notify`, also record an `observation` per Workflow 16 that names the move note.");
+    expect(s.text).not.toContain("Stop for a named human when the scores call for");
     // WR-14: a move note carries a fixed `Move:` line, and only those notes are counted.
     expect(s.text).toContain(
       "Count the earlier moves from the Tech Lead's `decision` notes for this ticket that carry a `Move:` line.",

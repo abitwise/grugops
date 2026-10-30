@@ -24,6 +24,13 @@ The IDs below are the re-review's own numbering. They are not the WR-11 to WR-16
   `Confirmed: yes` finding, so a recorded rejection no longer releases the re-enqueue. A
   `Confirmed: no` move is neither carried out nor counted, and the Tech Lead records a new move or
   stops for a named human once the options are used up.
+- **WR-03**: the two re-score stops of step 15 (more than one level, or a raise after the escalation
+  is spent) now read `checkpoints.escalate_unadjudicable_result`, the cell the used-up stop is
+  tagged with, the way iteration 1's WR-16 tied the gate-failure stop to its cell. At `block`, the
+  default, the Tech Lead stops for a named human. At `notify` or `off` it raises one level while
+  the escalation is unspent and otherwise keeps the level, and records the scored level in the
+  move note, so no value leaves it without a legal move. No checkpoint tag is added or moved, and
+  the frozen used-up stop is unchanged.
 
 The `line` column gives each clause's line in the tree after the fix that wrote the row.
 
@@ -52,3 +59,9 @@ the rows below are written.
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | A `Confirmed: no` move is neither carried out nor counted. | WR-02, D-21 | **added.** Says what a rejection does to the move. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Record a new move, or stop for a named human once the options are used up. | WR-02, D-21 | **added.** Gives a rejected move somewhere to go; the ticket stays in `Blocked` meanwhile. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 42 | After a gate failure at `block`, wait also for the `human:<name>` finding that names the move note. | After a gate failure at `block`, wait also for a `Confirmed: yes` finding that names the move note. | WR-02, D-20, T-39-25 | **reworded.** The re-enqueue waits for a yes, so a recorded rejection no longer releases it. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | Stop for a named human when the scores call for more than one level. Stop for a named human when the scores call for a raise after the escalation is spent. | When the scores call for more than one level, or for a raise after the escalation is spent, read `checkpoints.escalate_unadjudicable_result`. | WR-03, D-21 | **reworded.** The two re-score stops follow the cell the used-up stop is tagged with, so the step and the tagged stop agree under every value. The step names the cell and carries no checkpoint tag. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | The used-up stop below follows the same value. | WR-03, D-21 | **added.** Names the tagged stop the cell belongs to. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | At `block`, the default, stop for a named human. | WR-03, D-21 | **added.** The human stop holds at the default, which a zero-config repository gets, so no default posture is lowered. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level. | WR-03, D-19, D-21 | **added.** Gives the Tech Lead a legal move under a lowered cell, so the two-level re-score does not reopen the WR-13 deadlock; it never escalates twice or more than one level. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Record the scored level in the move note. | WR-03, D-19 | **added.** The level the scores call for stays on the record when the Tech Lead dispatches a different one. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | At `notify`, also record an `observation` per Workflow 16 that names the move note. | WR-03, D-20 | **added.** `notify` means the action proceeds and is recorded. The record is an `observation`, because a `finding` needs a verification stamp this note has no way to earn. | — |
