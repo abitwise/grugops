@@ -284,6 +284,12 @@ describe("designer.md (TIER-05; D-23..D-27)", () => {
     expect(body).toContain("`agent-factory/checklists/accessibility-checklist.md`");
   });
 
+  it("WR-08: in a brownfield repo it reads the brownfield map and the shipped styles as its starting direction", () => {
+    const body = section(DESIGNER, "Reads");
+    expect(body).toContain("`memory-bank/brownfield-map.md`");
+    expect(body).toContain("the starting direction, not a system to replace");
+  });
+
   it("D-26: it owns the principles, the token system, the style direction, the WCAG 2.2 AA bar and the tells to avoid", () => {
     const body = section(DESIGNER, "Responsibilities");
     expect(body).toContain("Set the design principles and the style direction for the product.");

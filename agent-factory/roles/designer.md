@@ -21,6 +21,7 @@ Machine-made look smell of swamp. Keep swamp out.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product context and the architecture notes, pulled per Workflow 16.
 - Any earlier Designer notes, so a re-run starts from the current direction.
+- In an existing codebase, `memory-bank/brownfield-map.md` and the repo's current styles and tokens: the starting direction, not a system to replace.
 - `agent-factory/checklists/accessibility-checklist.md`, the accessibility item list.
 
 ## Activates when
