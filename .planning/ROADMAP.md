@@ -446,7 +446,7 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 10/10 plans executed
+**Plans**: 10/13 plans executed (3 gap closure plans)
 
 Plans:
 **Wave 1**
@@ -478,6 +478,11 @@ Plans:
 
 **Wave 10** *(blocked on Wave 9 completion)*
 - [x] 39-10-PLAN.md — Installer stale-adapter report (install, --check, --dry-run; ledger carry), install docs for the levels and the v2.1.293 floor, phase gate
+
+**Gap closure round 1** *(from 39-VERIFICATION.md gaps_found; sequential)*
+- [ ] 39-11-PLAN.md — Designer gets `shell` so its adapter can publish Workflow 16 notes (CR-01, TIER-05); level adapters routable only by the Tech Lead's named adapter (WR-03); brownfield Designer read (WR-08); IN-01/IN-02 comments
+- [ ] 39-12-PLAN.md — WF04 named-human stop inside escalation steps 15-16 and an accurate Workflow 05 reference (CR-02, TIER-04); move bound (WR-01), write-then-score (WR-07), engineer trigger (WR-04), full junior stop rule (WR-02), routing name (WR-05)
+- [ ] 39-13-PLAN.md — Presence note for unrecorded unshipped adapters (WR-06), one flattening list (WR-09), CHANGELOG (WR-10), IN-03; IN-04..06 deferred with reasons; phase gate
 
 Waves are sequential: every plan rebuilds the committed `.js` and most move a shared count pin, so two plans in one wave would race on the build output.
 **Research flag**: plan with `--research-phase` (kit-model variant mechanism, config namespace for level stems, `CANONICAL_SCHEMA` list grammar for `skills:`, per-host model-field semantics, `effort` on haiku).
