@@ -12335,4 +12335,116 @@ describe("install.js — an adapter this kit version no longer ships (plan 39-10
     const doc = check(t);
     expect(findingLines(doc.stdout), doc.stdout).toEqual([]);
   }, 300_000);
+
+  // ── THE LEDGER CANNOT ANSWER (plan 39-13, review WR-06, T-39-29/T-39-30) ──────────────────────
+  //
+  // A repository last installed before the install ledger recorded kit files, or one whose ledger is
+  // absent or unreadable, holds `.claude/agents/grugops-<name>.md` files the ledger has no record of.
+  // The ledger path above never sees them. install, `--dry-run` and `--check` name each unshipped one
+  // in a `note` (presence only: no ownership claim, no exit change) and never touch it.
+  //
+  // The probe here is PLANTED, not installed: a fresh target with no install marker, holding a copy
+  // of a shipped adapter under a name this kit does not ship. The name lives only in this fixture.
+  const NOTE = "cannot tell whether an earlier install wrote it";
+  const noteLines = (out: string): string[] => out.split("\n").filter((l) => l.includes(NOTE));
+  const SECOND_PROBE_REL = ".claude/agents/grugops-Zz-probe.md";
+  function plantedTarget(): { target: string; home: string; userHome: string; probe: string; bytes: Buffer } {
+    const t = { target: realpathSync(makeFixture()), home: realpathSync(mkTmp()), userHome: realpathSync(mkTmp()) };
+    const adapter = readFileSync(join(REPO_ROOT, ".claude", "agents", "grugops-system-analyst.md"), "utf8");
+    const planted = adapter.replace("name: grugops-system-analyst", "name: grugops-retired-probe");
+    expect(planted, "premise: the copied adapter has a name line to change").not.toBe(adapter);
+    const probe = join(t.target, ...PROBE_REL.split("/"));
+    mkdirSync(dirname(probe), { recursive: true });
+    writeFileSync(probe, planted);
+    expect(existsSync(join(t.target, ".grugops", "install.json")), "premise: the target has no install marker").toBe(false);
+    return { ...t, probe, bytes: readFileSync(probe) };
+  }
+  const cleanTarget = (): { target: string; home: string; userHome: string } => ({
+    target: realpathSync(makeFixture()),
+    home: realpathSync(mkTmp()),
+    userHome: realpathSync(mkTmp()),
+  });
+
+  it("an unshipped adapter in a target with no install ledger (no longer ships, ledger cannot answer): install names it in a note, leaves it byte for byte, records nothing and keeps the clean install's exit status", () => {
+    const t = plantedTarget();
+    // A second unshipped name, a file outside the kit's namespace, and a byte-order pair: the noted paths sort by
+    // byte order ("Z" < "r"), and only `grugops-*.md` names are noted.
+    writeFileSync(join(t.target, ...SECOND_PROBE_REL.split("/")), t.bytes);
+    writeFileSync(join(t.target, ".claude", "agents", "my-own-agent.md"), t.bytes);
+    const planted = install(REPO_ROOT, t);
+    const clean = install(REPO_ROOT, cleanTarget());
+    expect(planted.status, planted.stdout + planted.stderr).toBe(clean.status);
+    const lines = noteLines(planted.stdout);
+    expect(lines.length, planted.stdout).toBe(2);
+    expect(lines[0]).toMatch(/^\s+note\s/);
+    expect(lines[0]).toContain(SECOND_PROBE_REL);
+    expect(lines[1]).toContain(PROBE_REL);
+    expect(lines[1]).toContain("install ledger is absent");
+    expect(lines[1]).toContain("Claude Code still loads every file in `.claude/agents/`");
+    expect(lines[1]).toContain("install never deletes it");
+    expect(planted.stdout).not.toContain("my-own-agent.md");
+    expect(findingLines(planted.stdout), "the presence note is not the ledger path's finding").toEqual([]);
+    expect(readFileSync(t.probe).equals(t.bytes), "install changed the planted adapter").toBe(true);
+    expect(recordOf(t.target, PROBE_REL), "install recorded a file it did not write").toEqual([]);
+  }, 300_000);
+
+  it("--dry-run over a target with no install ledger names the unshipped adapter the kit no longer ships in the same note and writes nothing", () => {
+    const t = plantedTarget();
+    const before = snapshot(t.target);
+    const dry = install(REPO_ROOT, t, "--dry-run");
+    const lines = noteLines(dry.stdout);
+    expect(lines.length, dry.stdout + dry.stderr).toBe(1);
+    expect(lines[0]).toMatch(/^\s+note\s/);
+    expect(lines[0]).toContain(PROBE_REL);
+    expect(snapshot(t.target), "--dry-run changed the target").toBe(before);
+  }, 300_000);
+
+  it("--check after an install over an unrecorded adapter the kit no longer ships names it in a note and keeps the clean --check exit status", () => {
+    const t = plantedTarget();
+    const first = install(REPO_ROOT, t);
+    expect(noteLines(first.stdout).length, `premise: the install named the probe\n${first.stdout}`).toBe(1);
+    const c = cleanTarget();
+    expect(install(REPO_ROOT, c).status, "premise: the control installs").toBe(0);
+    const doc = check(t);
+    const control = check(c);
+    expect(doc.status, doc.stdout + doc.stderr).toBe(control.status);
+    const lines = noteLines(doc.stdout);
+    expect(lines.length, doc.stdout).toBe(1);
+    expect(lines[0]).toMatch(/^\s+note\s/);
+    expect(lines[0]).toContain(PROBE_REL);
+    expect(lines[0]).toContain("has no record of it");
+    expect(findingLines(doc.stdout), "the presence note is not the ledger path's FAIL").toEqual([]);
+    expect(readFileSync(t.probe).equals(t.bytes), "--check changed the adapter").toBe(true);
+  }, 300_000);
+
+  it("a second install over an unrecorded adapter the kit no longer ships names it again (the first install recorded only the kit's own adapters)", () => {
+    const t = plantedTarget();
+    const first = install(REPO_ROOT, t);
+    const second = install(REPO_ROOT, t);
+    expect(second.status, second.stdout + second.stderr).toBe(first.status);
+    const lines = noteLines(second.stdout);
+    expect(lines.length, second.stdout).toBe(1);
+    expect(lines[0]).toContain(PROBE_REL);
+    expect(lines[0]).toContain("has no record of it");
+    expect(readFileSync(t.probe).equals(t.bytes), "the second install changed the adapter").toBe(true);
+    expect(recordOf(t.target, PROBE_REL), "an install recorded a file it did not write").toEqual([]);
+  }, 300_000);
+
+  it("control: a clean install and --check of this kit print no unrecorded-adapter note (no longer ships: nothing to name)", () => {
+    const t = cleanTarget();
+    const first = install(REPO_ROOT, t);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const doc = check(t);
+    expect(noteLines(first.stdout + doc.stdout), first.stdout + doc.stdout).toEqual([]);
+  }, 300_000);
+
+  it("a ledger-recorded adapter the kit no longer ships keeps its verify and FAIL lines and gets no second (note) line", () => {
+    const t = olderInstall();
+    const second = install(REPO_ROOT, t);
+    expect(findingLines(second.stdout).length, second.stdout).toBe(1);
+    expect(noteLines(second.stdout), second.stdout).toEqual([]);
+    const doc = check(t);
+    expect(findingLines(doc.stdout).length, doc.stdout).toBe(1);
+    expect(noteLines(doc.stdout), doc.stdout).toEqual([]);
+  }, 300_000);
 });
