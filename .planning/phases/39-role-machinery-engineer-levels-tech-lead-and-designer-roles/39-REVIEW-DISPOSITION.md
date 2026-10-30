@@ -9,11 +9,11 @@ findings:
     title: "The `human:<name>` confirmation finding is unchecked at the default dial, and the disposition says the admission guard checks it"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Step 16 waits for any `human:<name>` finding that names the move note, so a recorded rejection releases the re-enqueue, and a rejected move still uses up the budget"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The WR-13 stops are unconditional in step 15 but tagged `escalate_unadjudicable_result` in the stop conditions, which is the contradiction WR-16 just fixed for another cell"
   - id: WR-04
     severity: warning
@@ -21,19 +21,19 @@ findings:
     title: "At `notify`, step 15 makes the move with no record, so `notify` behaves exactly like `off`"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The new `tech-lead.md` ceiling was measured at an intermediate size; the shipped file already trips its WARN tier, and the comment misstates the size"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Step 16's \"After a gate failure at `block`\" needs a fact step 14 never records: the `failed-attempt` note is \"the same note\" for an engineer block and a gate block"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The tagged gate-failure stop still says \"before the re-enqueue (step 15)\", but the re-enqueue is step 16 and the stop now also holds split and Architect moves"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The README's unreadable-marker sentence leaves out `--dry-run`, and \"print no note from install\" is ambiguous next to `install.js --check`"
   - id: IN-03
     severity: info
@@ -41,7 +41,7 @@ findings:
     title: "\"On an escalation\" in the WF04 board moves now means two different things"
   - id: IN-04
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The role's new Reads line cites Workflow 04 by step number, and no test ties those numbers to the blocked-ticket steps"
   - id: WR-11
     severity: warning
@@ -115,9 +115,9 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 11
+open: 4
 total: 28
-recorded: 2026-10-30T11:22:43.764Z
+recorded: 2026-10-30T11:22:59.085Z
 ---
 
 # Phase 39: Code Review Disposition
@@ -125,15 +125,15 @@ recorded: 2026-10-30T11:22:43.764Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | WR-01 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
+| WR-02 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-03 | warning | fixed | 39-REVIEW-FIX.md |
 | WR-04 | warning | fixed | 39-REVIEW-FIX.md |
-| WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
+| WR-05 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-06 | warning | fixed | 39-REVIEW-FIX.md |
+| IN-01 | info | fixed | 39-REVIEW-FIX.md |
+| IN-02 | info | fixed | 39-REVIEW-FIX.md |
 | IN-03 | info | fixed | 39-REVIEW-FIX.md |
-| IN-04 | info | open | - |
+| IN-04 | info | fixed | 39-REVIEW-FIX.md |
 | WR-11 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-12 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-13 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
