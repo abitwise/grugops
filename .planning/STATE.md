@@ -6,10 +6,10 @@ current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: verifying
 stopped_at: Completed 39-13-PLAN.md
-last_updated: "2026-10-30T08:40:58.611Z"
+last_updated: "2026-10-30T11:49:06.694Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: fdb119192a2223a2d7ed4e7c3ce9f8be9fa260fd
+state_head: aa21a823fccaf89861efb8f480dfef16fe1c12e6
 progress:
   total_phases: 9
   completed_phases: 4
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
 Plan: 13 of 13
 Status: Phase complete — ready for verification
-Last activity: 2026-10-30 — Phase 39 execution started
+Last activity: 2026-10-30 - Completed quick task 261030-fzo: Phase 39 follow-ups (tech-lead ceiling 4000 B, notify wording, escalate_unadjudicable_result explained)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2277,6 +2277,7 @@ None yet.
 | 261019-i3g | Review WR-09 IN-12 IN-13: closing line gives launchOwned's cause; provenance line names only forms given; launch pair held by the type | 2026-10-19 | 33de910e | [261019-i3g-review-wr-09-in-12-in-13-closing-line-ow](./quick/261019-i3g-review-wr-09-in-12-in-13-closing-line-ow/) |
 | 261019-ktd | Review WR-05 WR-06 WR-10 IN-14: live-run state on every --check launch line; host versions recorded; verified-live claims checked against the registry | 2026-10-19 | 0b5d9066 | [261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-](./quick/261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-/) |
 | 261019-mq1 | Review hs8 leftovers: Pi trust warning, case-insensitive Pi guard, canonical YAML values, doc lists checked against the registry, CLAUDE.md launch files | 2026-10-19 | 598da0be | [261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-](./quick/261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-/) |
+| 261030-fzo | Phase 39 follow-ups: raise tech-lead role ceiling to 4000 B, align notify wording with Workflow 04, explain escalate_unadjudicable_result | 2026-10-30 | aa21a823 | [261030-fzo-phase-39-follow-ups-raise-tech-lead-role](./quick/261030-fzo-phase-39-follow-ups-raise-tech-lead-role/) |
 
 ## Deferred Items
 
