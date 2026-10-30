@@ -36,7 +36,7 @@ status: all_fixed
 - Step 15 now says what checks the stamp: only `context.human_admission: all` makes admission check it, and only Claude Code binds it to the human's session grant. At the default `off` the finding is a prose-tier record. I checked this against `isGatedNote` in `scripts/context-io.ts`.
 - The iteration-1 disposition text that claimed the admission guard checks the stamp is corrected: the summary at lines 21-23 and the rows for the step 15 finding sentence and the step 16 wait.
 
-### WR-05: The new `tech-lead.md` ceiling was measured at an intermediate size; the shipped file already trips its WARN tier
+### WR-05: The new `tech-lead.md` ceiling was measured at an intermediate size; the shipped file already trips its WARN tier, and the comment misstates the size
 
 **Files modified:** `agent-factory/roles/tech-lead.md`, `scripts/check-foundation-guards.ts`, `scripts/check-foundation-guards.js`, `scripts/tier-kit-text.test.ts`, `docs/audit/29-style-dispositions/39-review-fix-2.md`
 **Commit:** baec8150
@@ -50,7 +50,7 @@ status: all_fixed
 - The committed `.js` was rebuilt, and `npm run freshness` reports 88 files fresh.
 - **Still open:** the role is 3439 B, which is still over the 3381 B WARN tier, so the guard prints a WARN. That is what the tier is for: the role is within 6% of its ceiling. Getting under 3381 B would mean cutting text that was there before this review round.
 
-### WR-02: Step 16 waits for any `human:<name>` finding, so a recorded rejection releases the re-enqueue
+### WR-02: Step 16 waits for any `human:<name>` finding that names the move note, so a recorded rejection releases the re-enqueue, and a rejected move still uses up the budget
 
 **Files modified:** `agent-factory/workflows/04-ticket-to-pr.md`, `scripts/tier-kit-text.test.ts`, `docs/audit/29-style-dispositions/39-review-fix-2.md`
 **Commit:** 996071d3
@@ -62,7 +62,7 @@ status: all_fixed
 - After a rejection, the Tech Lead records a new move, or stops for a named human once the options are used up.
 - The role meets all of this through its step 15 pointer (WR-05).
 
-### WR-03: The WR-13 stops are unconditional in step 15 but tagged `escalate_unadjudicable_result` in the stop conditions
+### WR-03: The WR-13 stops are unconditional in step 15 but tagged `escalate_unadjudicable_result` in the stop conditions, which is the contradiction WR-16 just fixed for another cell
 
 **Files modified:** `agent-factory/workflows/04-ticket-to-pr.md`, `scripts/tier-kit-text.test.ts`, `docs/audit/29-style-dispositions/39-review-fix-2.md`
 **Commit:** a7f0aa8f
@@ -88,7 +88,7 @@ status: all_fixed
 - The pin in `scripts/tier-kit-text.test.ts` is updated, and it now also refuses the old merged sentence.
 - **Left for a human:** `factory.config.md` line 192 still defines `notify` as "recorded (a finding note)". Workflow 16 needs a verification stamp on a `finding`, so the record here is an `observation`. That config wording affects every checkpoint, so I left it unchanged. A human should decide whether to change it to "a note per Workflow 16".
 
-### WR-06: Step 16's "After a gate failure at `block`" needs a fact step 14 never records
+### WR-06: Step 16's "After a gate failure at `block`" needs a fact step 14 never records: the `failed-attempt` note is "the same note" for an engineer block and a gate block
 
 **Files modified:** `agent-factory/workflows/04-ticket-to-pr.md`, `scripts/tier-kit-text.test.ts`, `docs/audit/29-style-dispositions/39-review-fix-2.md`
 **Commit:** bc0c28ca
@@ -99,7 +99,7 @@ status: all_fixed
 - Step 16 waits for a `Confirmed: yes` finding after a `Cause: gate` note at `block`.
 - All three are pinned in `scripts/tier-kit-text.test.ts`.
 
-### IN-01: The tagged gate-failure stop still says "before the re-enqueue (step 15)"
+### IN-01: The tagged gate-failure stop still says "before the re-enqueue (step 15)", but the re-enqueue is step 16 and the stop now also holds split and Architect moves
 
 **Files modified:** `agent-factory/workflows/04-ticket-to-pr.md`, `scripts/tier-kit-text.test.ts`, `docs/audit/29-style-dispositions/39-review-fix-2.md`
 **Commit:** 8e4c403d
@@ -108,7 +108,7 @@ status: all_fixed
 - The disposition row has a filled `companion` cell for `## Stop conditions`.
 - `checkpoint: exhaust_self_fix_budget` stays on the bullet, once. `scripts/checkpoints.test.ts` passes (118 tests).
 
-### IN-02: The README's unreadable-marker sentence leaves out `--dry-run`
+### IN-02: The README's unreadable-marker sentence leaves out `--dry-run`, and "print no note from install" is ambiguous next to `install.js --check`
 
 **Files modified:** `install/README.md`, `scripts/tier-kit-text.test.ts`
 **Commit:** c72de460
@@ -128,7 +128,7 @@ status: all_fixed
 - The board moves no longer say "On an escalation". They name the two causes: the engineer reports `BLOCKED`, or the gate ends `BLOCKED_NEEDS_FIX`.
 - The Tech Lead's exit now names all four moves: `Ready for Dev` after an escalation or a re-plan, `Backlog` after a split, and `In Design` after an Architect pass.
 
-### IN-04: The role's Reads line cites Workflow 04 by step number, and no test ties those numbers to the steps
+### IN-04: The role's new Reads line cites Workflow 04 by step number, and no test ties those numbers to the blocked-ticket steps
 
 **Files modified:** `scripts/tier-kit-text.test.ts`
 **Commit:** 53629682
