@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Completed 39-11-PLAN.md
-last_updated: "2026-10-30T07:01:42.998Z"
+stopped_at: Completed 39-12-PLAN.md
+last_updated: "2026-10-30T07:12:50.460Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: 7ff76df171807db58cf827e4fc5de1e92c082e5c
+state_head: f0bf9c5ce2b36c23e1bbaf206520d4a4aeb58f82
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 81
-  completed_plans: 79
+  completed_plans: 80
   percent: 44
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
-Plan: 12 of 13
+Plan: 13 of 13
 Status: Ready to execute
 Last activity: 2026-10-30 — Phase 39 execution started
 
@@ -795,6 +795,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P09 | 32 min | 2 tasks | 8 files |
 | Phase 39 P10 | 63 min | 2 tasks | 6 files |
 | Phase 39 P11 | 13 min | 3 tasks | 16 files |
+| Phase 39 P12 | 9 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2188,6 +2189,8 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-10: install, --dry-run and --check report (never delete) a ledger-recorded kit adapter the kit no longer ships; a name is shipped when the adapter directory or this run's render has it
 - [Phase 39]: 39-11: Designer capabilities are read edit shell (CR-01); shell is the sub-agent's only route to the sanctioned writer, admit/web/spawn grant stay absent
 - [Phase 39]: 39-11: Level adapter description names its own adapter (the Tech Lead's plan names <adapter>; never for unscored work); MODEL-01 level case re-records only the description transform, pin and records unchanged (WR-03, D-3)
+- [Phase 39]: 39-12: CR-02 is fixed by rewording WF04 (step 15 names the human stop, step 16 waits for it, the stop bullet states what WF05 says); WF05 and every checkpoint count stay unchanged
+- [Phase 39]: 39-12: The Tech Lead makes at most one escalation and one other move per ticket; a re-score that raises the level is the escalation; moves are counted from the ticket's decision notes (WR-01, D-19, D-21)
 
 ### Pending Todos
 
@@ -2523,8 +2526,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-30T07:01:42.321Z
-Stopped at: Completed 39-11-PLAN.md
+Last session: 2026-10-30T07:12:49.794Z
+Stopped at: Completed 39-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
