@@ -79,6 +79,15 @@ Filled by the planner per task; the requirement → test map from RESEARCH.md is
 | 39-09 T2 | TIER-05 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` | ✅ |
 | 39-10 T1 (tracer) | TIER-06 (RSI) | `npx vitest run install/install.test.ts -t "no longer ships"` | ✅ |
 | 39-10 T2 | TIER-03 | `npx vitest run install/install.test.ts -t "no longer ships" && npx vitest run scripts/tier-kit-text.test.ts` | ✅ |
+| 39-11 T1 (tracer, gap) | TIER-05 | `npx vitest run scripts/tier-kit-text.test.ts scripts/generate-role-adapters.test.ts scripts/adapter-byte-baseline.test.ts scripts/adapters-freshness.test.ts scripts/kit-model.test.ts` + foundation/structure/register gates + disposition count 721 | ✅ |
+| 39-11 T2 (gap) | TIER-02 | `npx vitest run scripts/generate-role-adapters.test.ts scripts/adapter-byte-baseline.test.ts scripts/tier-kit-text.test.ts scripts/model-tiers.test.ts scripts/kit-model.test.ts` + freshness gates | ✅ |
+| 39-11 T3 (gap) | TIER-05 | `npx vitest run scripts/tier-kit-text.test.ts` + gates | ✅ |
+| 39-12 T1 (tracer, gap) | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts scripts/check-uat-oracles.test.ts scripts/voice-model.test.ts` + lexicon/claims/kit-ref gates + disposition count 721 | ✅ |
+| 39-12 T2 (gap) | TIER-01 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` + gates | ✅ |
+| 39-12 T3 (gap) | TIER-01, TIER-03 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` + gates + disposition count 721 | ✅ |
+| 39-13 T1 (tracer, gap) | TIER-06 | `npx vitest run install/install.test.ts -t "no longer ships" && npx vitest run install/agents-record.test.ts install/installer-dry-run.test.ts install/installer-special-files.test.ts scripts/tier-kit-text.test.ts` + build-parity gate | ✅ |
+| 39-13 T2 (gap) | TIER-02, TIER-03 | `npx vitest run scripts/tier-kit-text.test.ts scripts/model-dial-consistency.test.ts scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts` + public-docs/claim-anchor gates | ✅ |
+| 39-13 T3 (gap) | TIER-02, TIER-03 | phase gate: full non-e2e suite against the recorded baseline (20 known reds in deferred-items.md) + disposition count 721 | ✅ |
 
 The `scripts/<new tier-text>.test.ts` row above is `scripts/tier-kit-text.test.ts`, created by 39-05 T1 and extended by 39-06..39-10.
 
