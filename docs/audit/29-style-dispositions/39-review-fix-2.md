@@ -31,6 +31,11 @@ The IDs below are the re-review's own numbering. They are not the WR-11 to WR-16
   the escalation is unspent and otherwise keeps the level, and records the scored level in the
   move note, so no value leaves it without a legal move. No checkpoint tag is added or moved, and
   the frozen used-up stop is unchanged.
+- **WR-04**: at `checkpoints.exhaust_self_fix_budget: notify` the gate-failure move goes ahead and
+  is recorded in an `observation` naming the move note; only `off` goes ahead silently. Iteration 1
+  had merged the two values. `factory.config.md` defines `notify` as "recorded (a finding note)";
+  the record here is an `observation` because a `finding` needs a verification stamp, and that
+  config wording is left for a human to settle (see `39-REVIEW-FIX.md`).
 
 The `line` column gives each clause's line in the tree after the fix that wrote the row.
 
@@ -65,3 +70,5 @@ the rows below are written.
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level. | WR-03, D-19, D-21 | **added.** Gives the Tech Lead a legal move under a lowered cell, so the two-level re-score does not reopen the WR-13 deadlock; it never escalates twice or more than one level. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Record the scored level in the move note. | WR-03, D-19 | **added.** The level the scores call for stays on the record when the Tech Lead dispatches a different one. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | At `notify`, also record an `observation` per Workflow 16 that names the move note. | WR-03, D-20 | **added.** `notify` means the action proceeds and is recorded. The record is an `observation`, because a `finding` needs a verification stamp this note has no way to earn. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | At `notify` or `off`, make the move without that human. | At `notify`, make the move and record an `observation` per Workflow 16 that names the move note. | WR-04, D-20 | **reworded and split.** `notify` proceeds and is recorded, per `factory.config.md`, so a repository that chose it over `off` gets the record it chose. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | At `notify` or `off`, make the move without that human. | At `off`, make the move without that human. | WR-04 | **reworded and split.** Only `off` proceeds silently. | — |

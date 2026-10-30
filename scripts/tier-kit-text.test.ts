@@ -714,7 +714,12 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s15).toContain(
       "After a gate `BLOCKED_NEEDS_FIX`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows.",
     );
-    expect(s15).toContain("At `notify` or `off`, make the move without that human.");
+    // Re-review WR-04: `notify` proceeds and is recorded; only `off` proceeds silently.
+    expect(s15).toContain(
+      "At `notify`, make the move and record an `observation` per Workflow 16 that names the move note.",
+    );
+    expect(s15).toContain("At `off`, make the move without that human.");
+    expect(s15).not.toContain("At `notify` or `off`, make the move without that human.");
     const stop = s15.indexOf("At `block`, the default, stop until a named human confirms the move.");
     expect(stop).toBeGreaterThanOrEqual(0);
     expect(stop).toBeLessThan(s15.indexOf("On an escalation or a re-plan, return the ticket to `Ready for Dev`."));
