@@ -5,27 +5,27 @@ titles: json
 findings:
   - id: WR-11
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The README says install and `--dry-run` print the presence note when the install ledger \"cannot be read\". Install refuses over such a marker and prints no note"
   - id: WR-12
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "For a split or an Architect move, Workflow 04 steps 15-16 still return the ticket to `Ready for Dev` and re-enqueue an engineer"
   - id: WR-13
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "\"A re-score that raises the level is the escalation\" conflicts with \"escalate one level\" and does not cover a re-score after the escalation is spent"
   - id: WR-14
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The bound on Tech Lead moves is counted from `decision` notes, but those notes cannot be told apart"
   - id: WR-15
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The CR-02 human stop exists only in Workflow 04, and the confirmation is recorded nowhere step 16 or the trace can read"
   - id: WR-16
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Step 15's human stop ignores the `exhaust_self_fix_budget` checkpoint dial"
   - id: IN-07
     severity: info
@@ -115,21 +115,21 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 10
+open: 4
 total: 28
-recorded: 2026-10-30T09:17:08.999Z
+recorded: 2026-10-30T10:21:40.157Z
 ---
 
 # Phase 39: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-11 | warning | open | - |
-| WR-12 | warning | open | - |
-| WR-13 | warning | open | - |
-| WR-14 | warning | open | - |
-| WR-15 | warning | open | - |
-| WR-16 | warning | open | - |
+| WR-11 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-12 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-13 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-14 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-15 | warning | fixed | 39-REVIEW-FIX.md |
+| WR-16 | warning | fixed | 39-REVIEW-FIX.md |
 | IN-07 | info | open | - |
 | IN-08 | info | open | - |
 | IN-09 | info | open | - |
