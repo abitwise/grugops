@@ -3,6 +3,46 @@ phase: 39
 review: 39-REVIEW.md
 titles: json
 findings:
+  - id: WR-11
+    severity: warning
+    disposition: open
+    title: "The README says install and `--dry-run` print the presence note when the install ledger \"cannot be read\". Install refuses over such a marker and prints no note"
+  - id: WR-12
+    severity: warning
+    disposition: open
+    title: "For a split or an Architect move, Workflow 04 steps 15-16 still return the ticket to `Ready for Dev` and re-enqueue an engineer"
+  - id: WR-13
+    severity: warning
+    disposition: open
+    title: "\"A re-score that raises the level is the escalation\" conflicts with \"escalate one level\" and does not cover a re-score after the escalation is spent"
+  - id: WR-14
+    severity: warning
+    disposition: open
+    title: "The bound on Tech Lead moves is counted from `decision` notes, but those notes cannot be told apart"
+  - id: WR-15
+    severity: warning
+    disposition: open
+    title: "The CR-02 human stop exists only in Workflow 04, and the confirmation is recorded nowhere step 16 or the trace can read"
+  - id: WR-16
+    severity: warning
+    disposition: open
+    title: "Step 15's human stop ignores the `exhaust_self_fix_budget` checkpoint dial"
+  - id: IN-07
+    severity: info
+    disposition: open
+    title: "`ledgerSays` adds a second wording of \"the install ledger cannot vouch for this file\", and its `malformed` arm says \"could not be read\" for a ledger that was read"
+  - id: IN-08
+    severity: info
+    disposition: open
+    title: "Other junior-exclusion statements still name only four of the ten rubric tags, and the role copies the tag list by hand"
+  - id: IN-09
+    severity: info
+    disposition: open
+    title: "The run-time flattening lists leave out effort settings documented a few lines earlier"
+  - id: IN-10
+    severity: info
+    disposition: open
+    title: "The new presence-path tests leave out the README's headline case and two branches"
   - id: CR-01
     severity: critical
     disposition: fixed
@@ -75,33 +115,43 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 0
-total: 18
-recorded: 2026-10-30T01:10:40.204Z
+open: 10
+total: 28
+recorded: 2026-10-30T09:17:08.999Z
 ---
 
 # Phase 39: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | plan 39-11 (0a94175f) |
-| CR-02 | critical | fixed | plan 39-12 (a1fd04dd) |
-| WR-01 | warning | fixed | plan 39-12 (34f92ff7) |
-| WR-02 | warning | fixed | plan 39-12 (e0fdc899) |
-| WR-03 | warning | fixed | plan 39-11 (de619b57) |
-| WR-04 | warning | fixed | plan 39-12 (e0fdc899) |
-| WR-05 | warning | fixed | plan 39-12 (e0fdc899) |
-| WR-06 | warning | fixed | plan 39-13 (6368128f) |
-| WR-07 | warning | fixed | plan 39-12 (34f92ff7) |
-| WR-08 | warning | fixed | plan 39-11 (78c07a10) |
-| WR-09 | warning | fixed | plan 39-13 (b5a82cf9) |
-| WR-10 | warning | fixed | plan 39-13 (b5a82cf9) |
-| IN-01 | info | fixed | plan 39-11 (de619b57) |
-| IN-02 | info | fixed | plan 39-11 (de619b57) |
-| IN-03 | info | fixed | plan 39-13 (6368128f) |
-| IN-04 | info | deferred | deferred to Phase 42 doctor work: a permission-fault fixture breaks every other adapter read in the same install or `--check` run, so the case cannot be isolated without a test seam in install.ts; the mis-wording is info-level and names no deletion |
-| IN-05 | info | deferred | deferred to Phase 41 (orchestrator flow): no gap fix changes the coordinator adapter; its warn tier or a shorter grant rendering is decided where the next grant change lands |
-| IN-06 | info | deferred | deferred to Phase 40 (plain-language role rewrite): naming the role that moves an XL ticket out of `Ready for Dev` adds a board move, and Phase 40's role-rule inventory treats board-move ownership as a partition |
+| WR-11 | warning | open | - |
+| WR-12 | warning | open | - |
+| WR-13 | warning | open | - |
+| WR-14 | warning | open | - |
+| WR-15 | warning | open | - |
+| WR-16 | warning | open | - |
+| IN-07 | info | open | - |
+| IN-08 | info | open | - |
+| IN-09 | info | open | - |
+| IN-10 | info | open | - |
+| CR-01 | critical | fixed | plan 39-11 (0a94175f) (not in the current review) |
+| CR-02 | critical | fixed | plan 39-12 (a1fd04dd) (not in the current review) |
+| WR-01 | warning | fixed | plan 39-12 (34f92ff7) (not in the current review) |
+| WR-02 | warning | fixed | plan 39-12 (e0fdc899) (not in the current review) |
+| WR-03 | warning | fixed | plan 39-11 (de619b57) (not in the current review) |
+| WR-04 | warning | fixed | plan 39-12 (e0fdc899) (not in the current review) |
+| WR-05 | warning | fixed | plan 39-12 (e0fdc899) (not in the current review) |
+| WR-06 | warning | fixed | plan 39-13 (6368128f) (not in the current review) |
+| WR-07 | warning | fixed | plan 39-12 (34f92ff7) (not in the current review) |
+| WR-08 | warning | fixed | plan 39-11 (78c07a10) (not in the current review) |
+| WR-09 | warning | fixed | plan 39-13 (b5a82cf9) (not in the current review) |
+| WR-10 | warning | fixed | plan 39-13 (b5a82cf9) (not in the current review) |
+| IN-01 | info | fixed | plan 39-11 (de619b57) (not in the current review) |
+| IN-02 | info | fixed | plan 39-11 (de619b57) (not in the current review) |
+| IN-03 | info | fixed | plan 39-13 (6368128f) (not in the current review) |
+| IN-04 | info | deferred | deferred to Phase 42 doctor work: a permission-fault fixture breaks every other adapter read in the same install or `--check` run, so the case cannot be isolated without a test seam in install.ts; the mis-wording is info-level and names no deletion (not in the current review) |
+| IN-05 | info | deferred | deferred to Phase 41 (orchestrator flow): no gap fix changes the coordinator adapter; its warn tier or a shorter grant rendering is decided where the next grant change lands (not in the current review) |
+| IN-06 | info | deferred | deferred to Phase 40 (plain-language role rewrite): naming the role that moves an XL ticket out of `Ready for Dev` adds a board move, and Phase 40's role-rule inventory treats board-move ownership as a partition (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
