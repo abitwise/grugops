@@ -40,6 +40,7 @@ A sum of 0-3 with F2 = 1 or F3 = 1 maps to mid, never to junior.
 
 Security, migration, concurrency and test integrity are F3 = 2 risk tags, with auth, money and PII.
 Any one of them makes the junior level impossible.
+The F3 = 1 tags (data writes, public interface, config) also rule junior out, by mapping rule 4.
 
 ## Unknowns
 

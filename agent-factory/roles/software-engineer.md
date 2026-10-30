@@ -34,9 +34,9 @@ Need code (one ticket).
 ## Levels
 On Claude Code this role runs as `grugops-software-engineer-junior`, `-mid` or `-senior`, and the Tech Lead names one for each ticket. On the other hosts, read the level in the ticket's `## Tech Lead plan` section and keep to that level's scope; the model does not change. `agent-factory/checklists/complexity-rubric.md` sets the scope of each level.
 
-A junior takes only tasks whose plan already fixes what to write. A junior that meets security, migration, concurrency or test-integrity work stops and reports `BLOCKED`.
+A junior takes only tasks whose plan already fixes what to write. A junior that meets security, migration, concurrency or test-integrity work stops and reports `BLOCKED`. So does a junior that meets any other risk tag the rubric lists: auth, money, PII, data writes, a public interface or config.
 
-At any level you may deviate from the plan to fit the real code; record what changed and why in your notes. When you are blocked, or the gate fails a second time, publish a `failed-attempt` note per `agent-factory/workflows/04-ticket-to-pr.md`.
+At any level you may deviate from the plan to fit the real code; record what changed and why in your notes. When you are blocked, or the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix for an agent-fixable reason, publish a `failed-attempt` note per `agent-factory/workflows/04-ticket-to-pr.md`.
 
 ## Output (file + format)
 Publish the work output as typed notes per Workflow 16: the implementation decisions as `decision` notes, the diff/branch/files/tests/commands/migration/docs/remaining-work as `artifact-ref` and `observation` notes, any risk as a `finding`/`observation` — each carrying the trace ids on its `refs` field. Several one-kind notes, never one mega-packet; reference WF16, never restate a write path.

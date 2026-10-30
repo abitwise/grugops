@@ -43,7 +43,7 @@ Any incoming request — every `/grugops` starts here.
 ### Routing matrix (subtask → role)
 ```
 product clarity -> BA/PM  flows/system rules -> System Analyst
-structure/tradeoffs -> Architect  plan -> Tech Lead
+structure/tradeoffs -> Architect  ready-ticket dev plan -> Tech Lead
 code -> Software Engineer (level from Tech Lead)  tests -> QE/E2E
 design system -> Designer  UI/frontend -> Frontend/UI
 risk/security/compliance -> Security/NFR (+ Compliance Officer if regime set)

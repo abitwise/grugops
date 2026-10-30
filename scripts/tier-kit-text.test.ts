@@ -402,9 +402,20 @@ describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D
     expect(levels()).toContain("At any level you may deviate from the plan to fit the real code; record what changed and why in your notes.");
   });
 
-  it("D-18: a blocked engineer, or one whose gate fails a second time, publishes a `failed-attempt` note per WF04", () => {
+  it("D-18 / WR-04: a blocked engineer, or one whose gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, publishes a `failed-attempt` note per WF04", () => {
     expect(levels()).toContain(
-      "When you are blocked, or the gate fails a second time, publish a `failed-attempt` note per `agent-factory/workflows/04-ticket-to-pr.md`.",
+      "When you are blocked, or the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix for an agent-fixable reason, publish a `failed-attempt` note per `agent-factory/workflows/04-ticket-to-pr.md`.",
+    );
+    // The old trigger wording disagreed with WF04 step 14 and the self-fix dial.
+    expect(levels()).not.toContain("the gate fails a second time");
+  });
+
+  it("WR-02 / TIER-03: a junior also stops on every other rubric risk tag, F3 = 1 included", () => {
+    expect(levels()).toContain(
+      "So does a junior that meets any other risk tag the rubric lists: auth, money, PII, data writes, a public interface or config.",
+    );
+    expect(section(RUBRIC, "Junior exclusions")).toContain(
+      "The F3 = 1 tags (data writes, public interface, config) also rule junior out, by mapping rule 4.",
     );
   });
 
@@ -539,6 +550,8 @@ describe("WF04 and the Orchestrator route each ticket through the Tech Lead (TIE
   it("D-30: the Orchestrator routes plan, code and design system to the Tech Lead, the engineer and the Designer", () => {
     const routing = ORCH.slice(ORCH.indexOf("### Routing matrix"), ORCH.indexOf("### WIP gate"));
     expect(routing).toContain("plan -> Tech Lead");
+    // WR-05: the Tech Lead route names a ready ticket's dev plan, so product planning keeps its BA/PM route.
+    expect(routing).toContain("ready-ticket dev plan -> Tech Lead");
     expect(routing).toContain("code -> Software Engineer (level from Tech Lead)");
     expect(routing).toContain("design system -> Designer");
     // Every route the block carried before the rewrite is still there.
