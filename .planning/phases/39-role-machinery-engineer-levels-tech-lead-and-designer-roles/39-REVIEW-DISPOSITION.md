@@ -33,7 +33,7 @@ findings:
     title: "Routing-matrix entry \"plan -> Tech Lead\" collides with product planning"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The retired-adapter report is silent for installs whose ledger is not `ok` or predates kit-file records, while the README says those installs are covered"
   - id: WR-07
     severity: warning
@@ -45,11 +45,11 @@ findings:
     title: "The Designer reads no existing design in a brownfield repository"
   - id: WR-09
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The two lists of run-time settings that flatten the levels disagree, and the text is not single-sourced"
   - id: WR-10
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "No changelog entry for a release-visible, partly breaking change"
   - id: IN-01
     severity: info
@@ -61,21 +61,21 @@ findings:
     title: "`LEVEL_COUNT` is called a two-sided pin, but only tests read it"
   - id: IN-03
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The held-record carry in `reportStaleKitAdapters` repeats an existing carry"
   - id: IN-04
     severity: info
-    disposition: open
+    disposition: deferred
     title: "A non-ENOENT `lstat` error is reported as a user-edited adapter"
   - id: IN-05
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The coordinator adapter is now past the warn tier"
   - id: IN-06
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 7
+open: 0
 total: 18
 recorded: 2026-10-30T01:10:40.204Z
 ---
@@ -91,17 +91,17 @@ recorded: 2026-10-30T01:10:40.204Z
 | WR-03 | warning | fixed | plan 39-11 (de619b57) |
 | WR-04 | warning | fixed | plan 39-12 (e0fdc899) |
 | WR-05 | warning | fixed | plan 39-12 (e0fdc899) |
-| WR-06 | warning | open | - |
+| WR-06 | warning | fixed | plan 39-13 (6368128f) |
 | WR-07 | warning | fixed | plan 39-12 (34f92ff7) |
 | WR-08 | warning | fixed | plan 39-11 (78c07a10) |
-| WR-09 | warning | open | - |
-| WR-10 | warning | open | - |
+| WR-09 | warning | fixed | plan 39-13 (b5a82cf9) |
+| WR-10 | warning | fixed | plan 39-13 (b5a82cf9) |
 | IN-01 | info | fixed | plan 39-11 (de619b57) |
 | IN-02 | info | fixed | plan 39-11 (de619b57) |
-| IN-03 | info | open | - |
-| IN-04 | info | open | - |
-| IN-05 | info | open | - |
-| IN-06 | info | open | - |
+| IN-03 | info | fixed | plan 39-13 (6368128f) |
+| IN-04 | info | deferred | deferred to Phase 42 doctor work: a permission-fault fixture breaks every other adapter read in the same install or `--check` run, so the case cannot be isolated without a test seam in install.ts; the mis-wording is info-level and names no deletion |
+| IN-05 | info | deferred | deferred to Phase 41 (orchestrator flow): no gap fix changes the coordinator adapter; its warn tier or a shorter grant rendering is decided where the next grant change lands |
+| IN-06 | info | deferred | deferred to Phase 40 (plain-language role rewrite): naming the role that moves an XL ticket out of `Ready for Dev` adds a board move, and Phase 40's role-rule inventory treats board-move ownership as a partition |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
