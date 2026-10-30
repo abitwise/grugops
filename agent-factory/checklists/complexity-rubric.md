@@ -5,6 +5,7 @@ tier: lean
 # Complexity rubric
 
 The Tech Lead scores every ticket with this rubric, in both modes, after the Definition of Ready check.
+The Tech Lead writes the dev tasks first, so the factors read a written dev plan.
 The score picks the engineer level.
 
 ## Factors

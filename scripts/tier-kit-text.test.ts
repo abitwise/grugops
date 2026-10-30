@@ -67,6 +67,10 @@ describe("complexity-rubric.md (TIER-01, TIER-03, D-11, D-12, D-31)", () => {
     expect(RUBRIC).toContain("The Tech Lead scores every ticket with this rubric, in both modes, after the Definition of Ready check.");
   });
 
+  it("WR-07: the Tech Lead writes the dev tasks before it scores, so the factors read a written dev plan", () => {
+    expect(RUBRIC).toContain("The Tech Lead writes the dev tasks first, so the factors read a written dev plan.");
+  });
+
   it("lists the six factors F1-F6 in order, each with a 0, 1 and 2 column and a way to measure it", () => {
     const ids = RUBRIC.split("\n")
       .map((l) => /^\| (F\d) /.exec(l))
@@ -242,6 +246,20 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     expect(body).toContain("Never escalate a ticket twice.");
     expect(body).toContain("After the options are used up, stop for a named human.");
     expect(body).toContain("Merge and deploy stay with humans.");
+  });
+
+  it("WR-07: Responsibilities write the dev tasks (item 2) before scoring them (item 3)", () => {
+    const items = numbered(section(TECH_LEAD, "Responsibilities"));
+    expect(items[1]?.n).toBe(2);
+    expect(items[1]?.text.startsWith("Write the dev tasks")).toBe(true);
+    expect(items[2]?.n).toBe(3);
+    expect(items[2]?.text.startsWith("Score the dev tasks and the ticket per the rubric.")).toBe(true);
+  });
+
+  it("WR-01: besides the one escalation the Tech Lead makes at most one other move, and a level-raising re-score is the escalation", () => {
+    const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
+    expect(item5).toContain("Besides the escalation, make at most one other move per ticket.");
+    expect(item5).toContain("A re-score that raises the level is the escalation.");
   });
 });
 
@@ -477,6 +495,10 @@ describe("WF04 and the Orchestrator route each ticket through the Tech Lead (TIE
     expect(step).toContain("`## Tech Lead plan` section into the ticket body");
   });
 
+  it("WR-07: the Tech Lead step writes the dev tasks before it scores them", () => {
+    expect(steps[1]?.text).toContain("Write the dev tasks first, then score them");
+  });
+
   it("D-08: the pull into development waits for the plan note, after the Tech Lead step", () => {
     expect(steps[2]?.text).toContain("Pull the ticket into development once the plan note is published");
   });
@@ -579,6 +601,17 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s.text).toContain("escalate one level at most once per ticket, re-plan and re-score, split, or return it to the Architect");
     expect(s.text).toContain("Record the move in a new `decision` note per Workflow 16.");
     expect(s.text).toContain("Return the ticket to `Ready for Dev`.");
+  });
+
+  it("WR-01: one escalation and one other move per ticket, counted from the decision notes, then a named human", () => {
+    const s = stepAt("Read the `failed-attempt` note (Tech Lead).");
+    expect(s.text).toContain("Besides the escalation, make at most one other move per ticket.");
+    expect(s.text).toContain("A re-score that raises the level is the escalation.");
+    expect(s.text).toContain("Count the earlier moves from the ticket's `decision` notes.");
+    const b = stops.filter((l) => l.startsWith("- The Tech Lead's options are used up ->"));
+    expect(b).toHaveLength(1);
+    expect(b[0]).toContain("the one escalation is spent");
+    expect(b[0]).toContain("the one other move is spent too");
   });
 
   it("D-20: the re-enqueue is a new `pending/` subtask on the same context, and the spawn prompt carries only the task reference", () => {

@@ -28,10 +28,10 @@ Need a ticket scored and planned before development.
 
 ## Responsibilities
 1. Plan only on top of the Architect's published notes. When the approach still needs design (F2 = 2), record the gap and send the ticket back to `In Design`.
-2. Score the ticket per the rubric. Return `SPLIT_REQUIRED` for an XL ticket or a file plan too large for one PR.
-3. Write the dev tasks, each with a file path, the change and concrete Given/When/Then test cases.
+2. Write the dev tasks, each with a file path, the change and concrete Given/When/Then test cases.
+3. Score the dev tasks and the ticket per the rubric. Return `SPLIT_REQUIRED` for an XL ticket or a file plan too large for one PR.
 4. Name the level; the Orchestrator dispatches exactly that adapter.
-5. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect.
+5. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect. Besides the escalation, make at most one other move per ticket. A re-score that raises the level is the escalation.
 
 ## Output (file + format)
 - A `decision` note per Workflow 16 holding the six factor scores with the fact behind each, the sum, the level, the adapter `grugops-software-engineer-<level>` and the dev tasks.
