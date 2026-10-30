@@ -261,6 +261,17 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     expect(items[2]?.text.startsWith("Score the dev tasks and the ticket per the rubric.")).toBe(true);
   });
 
+  it("WR-15: the role reads Workflow 04 and holds a gate-failure ticket in `Blocked` for a named human", () => {
+    expect(section(TECH_LEAD, "Reads")).toContain(
+      "- `agent-factory/workflows/04-ticket-to-pr.md` steps 14-16, the path of a blocked ticket.",
+    );
+    const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
+    expect(item5).toContain("leave the ticket in `Blocked` until a named human confirms the move.");
+    expect(section(TECH_LEAD, "Board moves")).toContain(
+      "After a gate `BLOCKED_NEEDS_FIX`, the exit waits for a named human.",
+    );
+  });
+
   it("WR-01: besides the one escalation the Tech Lead makes at most one other move, and a level-raising re-score is the escalation", () => {
     const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
     expect(item5).toContain("Besides the escalation, make at most one other move per ticket.");
@@ -691,7 +702,12 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(stop).toBeGreaterThanOrEqual(0);
     expect(stop).toBeLessThan(s15.indexOf("On an escalation or a re-plan, return the ticket to `Ready for Dev`."));
     const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
-    expect(s16).toContain("confirmed by that human");
+    // WR-15: the confirmation is a published `human:<name>` finding, and step 16 reads it.
+    expect(s16).toContain("After a gate failure, wait also for the `human:<name>` finding that names the move note.");
+    expect(s15).toContain("Leave the ticket in `Blocked` until then.");
+    expect(s15).toContain(
+      "Record the confirmation as a `finding` per Workflow 16, stamped `human:<name>`, with the move note's id among its refs.",
+    );
     // The human stop stays tagged only in `## Stop conditions`; no step carries a checkpoint tag.
     expect(section(WF04, "Steps")).not.toContain("checkpoint:");
     // Workflow 05's own stop is unchanged.
