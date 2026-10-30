@@ -680,7 +680,8 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
       "When the scores call for more than one level, or for a raise after the escalation is spent, read `checkpoints.escalate_unadjudicable_result`.",
     );
     expect(s.text).toContain("The used-up stop below follows the same value.");
-    expect(s.text).toContain("At `block`, the default, stop for a named human.");
+    // Plan 39-17 (CR-01): the re-score stop at `block` records no move until the human answers.
+    expect(s.text).toContain("At `block`, the default, stop for a named human, and record no move until the human answers.");
     expect(s.text).toContain("At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level.");
     expect(s.text).toContain("Record the scored level in the move note.");
     expect(s.text).toContain("At `notify`, also record an `observation` per Workflow 16 that names the move note.");
@@ -766,7 +767,10 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
     // WR-15, re-review WR-02: the human's answer is a published `human:<name>` finding that says yes
     // or no, and step 16 waits only for a yes, so a recorded rejection never releases the re-enqueue.
-    expect(s16).toContain("After a `Cause: gate` note at `block`, wait also for a `Confirmed: yes` finding that names the move note.");
+    // Plan 39-17 (CR-01): the hold names the cell it reads, since step 15 reads two cells.
+    expect(s16).toContain(
+      "After a `Cause: gate` note at `checkpoints.exhaust_self_fix_budget: block`, wait also for a `Confirmed: yes` finding naming the move note.",
+    );
     expect(s16).not.toContain("wait also for the `human:<name>` finding");
     expect(s15).toContain("Leave the ticket in `Blocked` until then.");
     // WR-01 (iteration 2): the step names who writes the finding and the limit, and says honestly
@@ -1064,7 +1068,7 @@ describe("factory.config.md `checkpoints` wording matches Workflow 04 step 15 (q
     expect(para).toContain("records an `observation` per Workflow 16 that names the move note");
     expect(para).toContain("`off`: the same move and the same move note, with no `observation`.");
     const s15 = stepAt(STEP15).text;
-    expect(s15).toContain("At `block`, the default, stop for a named human.");
+    expect(s15).toContain("At `block`, the default, stop for a named human, and record no move until the human answers.");
     expect(s15).toContain("At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level.");
     expect(s15).toContain("At `notify`, also record an `observation` per Workflow 16 that names the move note.");
   });
@@ -1089,7 +1093,7 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
   }
   const lead = (lines[at15] ?? "").slice("15. ".length);
   const STEP15 = "Read the `failed-attempt` note (Tech Lead).";
-  const RESCORE_STOP = "At `block`, the default, stop for a named human.";
+  const RESCORE_STOP = "At `block`, the default, stop for a named human, and record no move until the human answers.";
   const GATE_STOP = "At `block`, the default, stop until a named human confirms the move.";
 
   it("step 15 has exactly six indented sub-bullets, followed directly by step 16", () => {
@@ -1104,11 +1108,13 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
     expect(lead).not.toContain("named human");
   });
 
-  it("the sub-bullets open, in order, with the move limits, the move record, both stops, the confirmation and the board", () => {
+  it("the sub-bullets open, in order, with the move limits, the re-score stop, the move record, the gate-failure stop, the confirmation and the board", () => {
+    // Plan 39-17 (CR-01): the re-score stop comes before the move record, so at `block` the Tech Lead
+    // stops before any move note exists.
     const openings = [
       "Apply the move limits.",
-      "Record the move in a new `decision` note per Workflow 16.",
       "Apply the re-score stop.",
+      "Record the move in a new `decision` note per Workflow 16.",
       "Apply the gate-failure stop.",
       "Record the human's confirmation.",
       "Update the board.",
@@ -1134,5 +1140,89 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
     const s15 = numbered(section(WF04, "Steps")).find((s) => s.text.startsWith(STEP15));
     expect(s15?.n).toBe(15);
     expect(s15?.text).toBe([lead, ...subs].join(" "));
+  });
+});
+
+describe("WF04 step 15 holds the re-score stop before any move note, and step 16 holds for it (CR-01, 39-17)", () => {
+  // Plan 39-17 (CR-01): plan 39-16 put the move record before the re-score stop, and step 16 held the
+  // re-enqueue only after a gate failure. So at `block` a two-level re-score could be re-enqueued
+  // before the named human answered. The stop now comes first, records no move until the human
+  // answers, and step 16 holds for a `Stop: re-score` move note as it does for a `Cause: gate` note.
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const lines = section(WF04, "Steps").split("\n");
+  const at15 = lines.findIndex((l) => l.startsWith("15. "));
+  const subs: string[] = [];
+  for (let i = at15 + 1; i < lines.length && (lines[i] as string).startsWith("    - "); i++) {
+    subs.push((lines[i] as string).slice("    - ".length));
+  }
+  const steps = numbered(section(WF04, "Steps"));
+  const stepAt = (prefix: string) => {
+    const s = steps.find((x) => x.text.startsWith(prefix));
+    expect(s, `no step starting "${prefix}"`).toBeDefined();
+    return s as { n: number; text: string };
+  };
+  const subAt = (opening: string) => {
+    const i = subs.findIndex((s) => s.startsWith(`${opening} `));
+    expect(i, `no sub-bullet opening "${opening}"`).toBeGreaterThanOrEqual(0);
+    return { i, text: subs[i] as string };
+  };
+  const RESCORE = "Apply the re-score stop.";
+  const RECORD = "Record the move in a new `decision` note per Workflow 16.";
+  const CONFIRM = "Record the human's confirmation.";
+  const NO_MOVE = "At `block`, the default, stop for a named human, and record no move until the human answers.";
+  const GATE_HOLD =
+    "After a `Cause: gate` note at `checkpoints.exhaust_self_fix_budget: block`, wait also for a `Confirmed: yes` finding naming the move note.";
+  const RESCORE_HOLD =
+    "After a `Stop: re-score` move note at `checkpoints.escalate_unadjudicable_result: block`, wait also for a `Confirmed: yes` finding naming it.";
+  // A whole sentence: the literal sits at the start of the text or after ". ", and ends the text or
+  // is followed by a space.
+  const hasSentence = (text: string, sentence: string) =>
+    (` ${text} `).includes(` ${sentence} `);
+
+  it("CR-01 (a): the re-score stop sub-bullet, and its no-move sentence, come before the move record", () => {
+    expect(subAt(RESCORE).i).toBeLessThan(subAt(RECORD).i);
+    const s15 = stepAt("Read the `failed-attempt` note (Tech Lead).").text;
+    const stop = s15.indexOf(NO_MOVE);
+    expect(stop, "the no-move sentence is in step 15").toBeGreaterThanOrEqual(0);
+    expect(stop).toBeLessThan(s15.indexOf(RECORD));
+  });
+
+  it("CR-01 (b): at `block` the re-score stop leaves the ticket `Blocked` and lets the human name the level", () => {
+    const t = subAt(RESCORE).text;
+    for (const sentence of [
+      NO_MOVE,
+      "Leave the ticket in `Blocked` while the human decides.",
+      "Ask the human for a level, or for another move.",
+      "The human's level stands, even past the move limits.",
+    ]) {
+      expect(hasSentence(t, sentence), `re-score sub-bullet lacks "${sentence}"`).toBe(true);
+    }
+  });
+
+  it("CR-01 (c): the move record carries the human's level and a `Stop: re-score` line", () => {
+    const t = subAt(RECORD).text;
+    for (const sentence of [
+      "After a re-score stop at `block`, record the move and the level the human named.",
+      "Put the line `Stop: re-score` under the `Move:` line when the re-score stop applied.",
+    ]) {
+      expect(hasSentence(t, sentence), `move-record sub-bullet lacks "${sentence}"`).toBe(true);
+    }
+  });
+
+  it("CR-01 (d): the human's confirmation carries the named level on a `Level:` line", () => {
+    const t = subAt(CONFIRM).text;
+    const sentence = "At a re-score stop, put the level the human named on a `Level:` line.";
+    expect(hasSentence(t, sentence), `confirmation sub-bullet lacks "${sentence}"`).toBe(true);
+  });
+
+  it("CR-01 (e): step 16 holds the re-enqueue for both human stops and names the cell in each", () => {
+    const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
+    expect(s16).toContain(GATE_HOLD);
+    expect(s16).toContain(RESCORE_HOLD);
+    expect(s16).toContain("Create it only once the step 15 move is recorded.");
+    const noEngineer = s16.indexOf("A split or an Architect pass dispatches no engineer.");
+    expect(noEngineer).toBeGreaterThanOrEqual(0);
+    expect(s16.indexOf(GATE_HOLD)).toBeLessThan(noEngineer);
+    expect(s16.indexOf(RESCORE_HOLD)).toBeLessThan(noEngineer);
   });
 });
