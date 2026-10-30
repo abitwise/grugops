@@ -11,6 +11,11 @@ here.
 - **WR-13**: a re-score that raises the level is the escalation and moves the ticket one level only.
   When the scores call for more than one level, or for a raise after the escalation is spent, the
   Tech Lead stops for a named human under the existing `escalate_unadjudicable_result` stop.
+- **WR-14**: a move note opens its body with a fixed `Move:` line, and the Tech Lead counts earlier
+  moves only from its own `decision` notes that carry one. The plan note, the engineer's decisions
+  and the Architect's decisions carry none. `tech-lead.md` grew past its byte ceiling with this
+  line, so `ROLE_CEILINGS` in `scripts/check-foundation-guards.ts` was re-measured (3769 B, +12% /
+  +6%) in the same commit.
 
 `## Stop conditions` and `## Hard limits` are FROZEN by heading. A row in either carries a
 `companion` cell that names the section and the reason.
@@ -36,3 +41,9 @@ the rows below are written.
 | agent-factory/workflows/04-ticket-to-pr.md | 61 | — | It also means the scores call for more than one level, or for a raise after the escalation is spent. | WR-13, D-21 | **added inside a FROZEN section.** The used-up stop now names the two re-score cases step 15 stops on, so the stop and the step describe one event. | FROZEN SECTION `## Stop conditions`, workflow 04. Reason: WR-13, the definition of used up gains the two re-score cases that had no legal move; the named-human stop and its `escalate_unadjudicable_result` tag are unchanged, no stop is lowered and no checkpoint count moves. |
 | agent-factory/roles/tech-lead.md | 34 | A re-score that raises the level is the escalation. | A re-score that raises the level is the escalation, one level only. | WR-13, D-19 | **reworded.** The same one-level rule as Workflow 04 step 15, kept short for the role's byte ceiling. | — |
 | agent-factory/roles/tech-lead.md | 34 | — | When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human. | WR-13, D-21 | **added.** The role names the same two human stops as Workflow 04 step 15. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | Count the earlier moves from the ticket's `decision` notes. | Count the earlier moves from the Tech Lead's `decision` notes for this ticket that carry a `Move:` line. | WR-14, D-20, D-21 | **reworded.** The count reads only the Tech Lead's move notes, so the plan note and other roles' decisions are not miscounted as moves. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | The plan note from step 2 carries none. | WR-14, D-20 | **added.** The step-2 plan note has the same shape as a re-plan note; without a `Move:` line it is not counted. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Open its body with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. | WR-14, D-20 | **added.** Gives every move note a structured line the next count can read. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Mark a re-score that raises the level `Move: escalate`. | WR-14, D-19 | **added.** A level-raising re-score is the escalation (WR-13), so it is counted as one. | — |
+| agent-factory/roles/tech-lead.md | 40 | — | On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. | WR-14, D-20 | **added.** The role's Output names the move note's fixed line, matching Workflow 04 step 15. | — |
+| agent-factory/roles/tech-lead.md | 40 | — | Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none. | WR-14, D-20, D-21 | **added.** The role states what the bound counts, so the D-21 loop bound reads a structured line. | — |

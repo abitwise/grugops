@@ -223,6 +223,10 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
       expect(text, `${name} spells a \`level:\` key`).not.toContain("`level:");
     }
     expect(section(TECH_LEAD, "Output")).toContain("No ticket frontmatter key");
+    // WR-14: the move note's fixed first line, stated in the role's Output too.
+    expect(section(TECH_LEAD, "Output")).toContain(
+      "- On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none.",
+    );
   });
 
   it("D-08: the ticket stays in `Ready for Dev` while the Tech Lead plans; F2 = 2 returns it to `In Design`", () => {
@@ -636,7 +640,14 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s.text).toContain("A re-score that raises the level is the escalation, and it moves the ticket one level only.");
     expect(s.text).toContain("Stop for a named human when the scores call for more than one level.");
     expect(s.text).toContain("Stop for a named human when the scores call for a raise after the escalation is spent.");
-    expect(s.text).toContain("Count the earlier moves from the ticket's `decision` notes.");
+    // WR-14: a move note carries a fixed `Move:` line, and only those notes are counted.
+    expect(s.text).toContain(
+      "Count the earlier moves from the Tech Lead's `decision` notes for this ticket that carry a `Move:` line.",
+    );
+    expect(s.text).toContain("The plan note from step 2 carries none.");
+    expect(s.text).toContain("Open its body with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`.");
+    expect(s.text).toContain("Mark a re-score that raises the level `Move: escalate`.");
+    expect(s.text).not.toContain("Count the earlier moves from the ticket's `decision` notes.");
     const b = stops.filter((l) => l.startsWith("- The Tech Lead's options are used up ->"));
     expect(b).toHaveLength(1);
     expect(b[0]).toContain("the one escalation is spent");

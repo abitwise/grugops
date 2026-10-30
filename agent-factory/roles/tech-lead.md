@@ -37,6 +37,7 @@ Need a ticket scored and planned before development.
 - A `decision` note per Workflow 16 holding the six factor scores with the fact behind each, the sum, the level, the adapter `grugops-software-engineer-<level>` and the dev tasks.
 - A short `## Tech Lead plan` section in the ticket body: level, adapter, sum and note id.
 - No ticket frontmatter key and no dev-plan file.
+- On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none.
 
 ## Board moves (which column transitions this role causes)
 No column of its own: the ticket stays in `Ready for Dev` while the Tech Lead plans. It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass. F2 = 2 returns a ticket to `In Design`.
