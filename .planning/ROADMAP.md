@@ -446,7 +446,7 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 16/16 plans executed (6 gap closure plans)
+**Plans**: 16/18 plans executed (8 gap closure plans)
 
 Plans:
 **Wave 1**
@@ -488,6 +488,10 @@ Plans:
 - [x] 39-14-PLAN.md — Level efforts re-pinned to the human's 2026-10-30 re-decision (junior haiku/xhigh, mid sonnet/high, senior opus/medium): LEVELS and quality-only rationales, regenerated adapters, MODEL-01 records, every pin literal, the dated decision record (G-39-5)
 - [x] 39-15-PLAN.md — factory.config.md, install/README.md and CHANGELOG state the new pins; the `models` Refusals and closed-set paragraphs name the real key sets, held by a test derived from MODELS_KEYS and EFFORT_KEYS (G-39-5, G-39-6)
 - [x] 39-16-PLAN.md — WF04 step 15 split into a lead line and labelled sub-bullets with no change in meaning; phase gate (G-39-7)
+
+**Gap closure round 3** *(from 39-VERIFICATION.md gaps CR-01, WR-02 and advisory WR-01; sequential)*
+- [ ] 39-17-PLAN.md — WF04 re-score stop restored before the move record, no move note at `block` until the human answers, step 16 holds for both stops naming each cell, the human's level recorded (CR-01, TIER-04); `models` field-table row at the re-decided pins, held by a LEVELS-derived test (WR-02, TIER-02)
+- [ ] 39-18-PLAN.md — Human decision on the used-up stop at `notify`/`off`, then the chosen option across WF04, tech-lead.md and factory.config.md (WR-01, TIER-04); phase gate
 
 Waves are sequential: every plan rebuilds the committed `.js` and most move a shared count pin, so two plans in one wave would race on the build output.
 **Research flag**: plan with `--research-phase` (kit-model variant mechanism, config namespace for level stems, `CANONICAL_SCHEMA` list grammar for `skills:`, per-host model-field semantics, `effort` on haiku).
