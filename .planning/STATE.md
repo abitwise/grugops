@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: executing
-stopped_at: Completed 39-16-PLAN.md
-last_updated: "2026-10-30T18:04:20.556Z"
+stopped_at: Completed 39-17-PLAN.md
+last_updated: "2026-10-30T19:14:48.899Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: 29fa19d64e7f1315367dd03ce6af6d23de6d1730
+state_head: 51a68264c43b3d7a4073e2105aac9db2b3c87fd5
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 86
-  completed_plans: 84
+  completed_plans: 85
   percent: 44
 ---
 
@@ -800,6 +800,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P14 | 11 min | 3 tasks | 15 files |
 | Phase 39 P15 | 5 min | 2 tasks | 5 files |
 | Phase 39 P16 | 28 min | 2 tasks | 3 files |
+| Phase 39 P17 | 63 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2202,6 +2203,8 @@ Recent decisions affecting current work:
 - [Phase 39]: Phase 39 plan 15: the D-2 floor paragraph cites model-config 'Adjust effort level' (read 2026-10-30): Haiku 5.5 and Sonnet 5.5 accept xhigh and high; Haiku 4.5 / Sonnet 4.5 stay UNKNOWN - verify
 - [Phase 39]: Phase 39 plan 15: factory.config.md names four closed models key sets (models own keys, models.roles, models.effort own keys, models.effort.roles), held by tests derived from MODELS_KEYS and EFFORT_KEYS (G-39-6)
 - [Phase 39]: 39-16: WF04 step 15 split into a lead line plus six labelled sub-bullets with every sentence kept; numbered() folds indented sub-bullet lines; only openings of 4+ normalized words (CLAUSE_MIN_WORDS) need a disposition row
+- [Phase 39]: 39-17: At the re-score stop at block the Tech Lead records no move until the named human answers; the move note carries Stop: re-score and the human's level, the stamped finding a Level: line, and step 16 holds for it naming checkpoints.escalate_unadjudicable_result: block
+- [Phase 39]: 39-17: factory.config.md models row states junior haiku/xhigh, mid sonnet/high, senior opus/medium; WR-02 cases derive every level-pin statement from LEVELS
 
 ### Pending Todos
 
@@ -2538,8 +2541,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-30T15:51:09.769Z
-Stopped at: Completed 39-16-PLAN.md
+Last session: 2026-10-30T19:14:48.231Z
+Stopped at: Completed 39-17-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
