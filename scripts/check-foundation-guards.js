@@ -3097,7 +3097,7 @@ const ROLE_CEILINGS = {
     "qe-e2e.md": "3822 3617", // +Phase-21 WF16 pointer (baseline 3412 B, +12% / +6%)
     "uat-planner.md": "3540 3350", // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
     "system-analyst.md": "3170 3000", // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)
-    "tech-lead.md": "3572 3381", // Plan 39-05 (TIER-01), 2026-10-29: measured 3189 B, +12% / +6% rounded up. The review-fix WR-14 raise to 4222 3996 was never confirmed by a human and is reverted (re-review WR-05, 2026-10-30): the role now points at Workflow 04 step 15 instead of restating it
+    "tech-lead.md": "4000 3786", // Raised 2026-10-30 to FAIL 4000 B, approved by a named human (Olger Oeselg) on 2026-10-30 in quick task 261030-fzo; the FAIL value is that decision. WARN is ceil(4000 x 1.06 / 1.12) = 3786, the +6% / +12% ratio the other entries use. Measured 3439 B at the raise. History: Plan 39-05 (TIER-01), 2026-10-29, measured 3189 B gave 3572 3381; the review-fix WR-14 raise to 4222 3996 was never confirmed by a human and was reverted (re-review WR-05, 2026-10-30)
     "designer.md": "3273 3098", // Plan 39-06 (TIER-05), 2026-10-29: measured 2922 B, +12% / +6% rounded up
     "greenfield-mapper.md": "3045 2882", // +Phase-21 WF16 pointer (baseline 2718 B, +12% / +6%)
     "brownfield-mapper.md": "2845 2693", // +Phase-21 WF16 pointer (baseline 2540 B, +12% / +6%)
