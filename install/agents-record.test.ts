@@ -5440,7 +5440,10 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // Re-pinned 2026-10-21 by plan 36-13 (D-07, LAYOUT-04): 57, measured by this census. The doctor's state-layout line
 // reaches stateLayout, its nested boardAt (lstat of one board path under TARGET) and migrateCommand (the --migrate
 // command the pre-v3 WARN prints). None reads the marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 57;
+// Re-pinned 2026-10-29 by plan 39-10 (D-13): 60, measured by this census. The doctor's stale-adapter FAIL reaches
+// staleKitAdapters (the ledger it is passed, srcAdapterFiles over GRUGOPS_SRC, one lstat under TARGET and owns),
+// staleAdapterText and staleAdaptersSkippedText (wording only). None reads the marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 60;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -6198,7 +6201,11 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // reaches stateLayout (one lstat of each board path under TARGET, through errCode) and migrateCommand (agentCommand
 // over COMMAND_CONTEXT, the record owner C2 excludes, and TARGET); neither reads GRUGOPS_HOME, GIVEN_KIT_HOME or
 // KIT_ROOT, so C3's table gains no row.
-const WR24_REACH_SIZE = 48;
+// Re-pinned 2026-10-29 by plan 39-10 (D-13): 51, measured by this walk. The doctor's stale-adapter FAIL reaches
+// staleKitAdapters (the ledger it is passed, srcAdapterFiles over GRUGOPS_SRC, the kit checkout, and TARGET),
+// staleAdapterText and staleAdaptersSkippedText (wording over GRUGOPS_SRC); none reads GRUGOPS_HOME, GIVEN_KIT_HOME or
+// KIT_ROOT, so C3's table gains no row.
+const WR24_REACH_SIZE = 51;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run

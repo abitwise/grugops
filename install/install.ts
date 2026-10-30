@@ -907,6 +907,14 @@ function targetAdapterFiles(): string[] | null {
 // A held record is carried into the next ledger (reportStaleKitAdapters), so a later uninstall still removes the file
 // while it is unchanged; a file the user edited is reported as theirs and is not recorded. Null: the kit source's
 // adapter directory could not be read, so no comparison was possible (each caller prints a note saying so).
+//
+// WHAT THIS KIT SHIPS IS THE ADAPTER DIRECTORY AND THE RENDER (plan 39-10, Rule 1 deviation). A name the kit source's
+// adapter directory carries, or the install-time render of its role corpus produced in this run (RENDERED_ADAPTERS,
+// recorded by buildKitPlan's and the doctor's render), is shipped. A checkout whose adapter directory is short while
+// its role corpus is whole is a damaged checkout (the render-disagreement refusal and WARN name it), not a kit that
+// retired those adapters: without the render half this check would tell the user to delete adapters the kit still
+// makes. With no render in this run (it did not run, or failed) the adapter directory alone answers.
+let RENDERED_ADAPTERS: readonly string[] | null = null;
 interface StaleKitAdapter {
   readonly rel: string;
   readonly record: string;
@@ -919,7 +927,7 @@ function staleKitAdapters(ledger: LedgerRead): readonly StaleKitAdapter[] | null
   for (const e of entriesOfKind(ledger, "file")) {
     if (!e.kit) continue;
     const name = /^\.claude\/agents\/(grugops-[^/]+\.md)$/.exec(e.path)?.[1];
-    if (name === undefined || shipped.includes(name)) continue;
+    if (name === undefined || shipped.includes(name) || (RENDERED_ADAPTERS ?? []).includes(name)) continue;
     try {
       lstatSync(join(TARGET, ...e.path.split("/")));
     } catch (err) {
@@ -2768,6 +2776,7 @@ function doctor(): number {
         // of its own output directory; this side only has to ask it. The install path asks the same
         // question in both directions before its first write, and this makes the doctor's half of
         // the comparison say the same thing.
+        RENDERED_ADAPTERS = res.value.files;
         const unlisted = res.value.files.filter((n) => !docNames.includes(n));
         if (unlisted.length > 0) {
           docWarn(
@@ -2885,6 +2894,18 @@ function doctor(): number {
         }
       });
     }
+  }
+
+  // --- An adapter this kit version no longer ships (plan 39-10, D-13) -----------------------------
+  // The doctor's half of STALE KIT ADAPTERS (see staleKitAdapters): the same derived set, read from the doctor's one
+  // ledger read, each member one FAIL with install's wording. Outside the clean-stat block above on purpose: the set
+  // needs only the ledger and the kit source, and a retired adapter is loaded whatever else is wrong. Only when Claude
+  // Code is installed here (D-07) and the ledger is install's own and readable (a malformed one already has its FAIL).
+  // It reads; nothing is written, removed or renamed.
+  if (claudeInstalled && markerRead.state === "ok" && ledgerRead.state === "ok") {
+    const stale = staleKitAdapters(ledgerRead);
+    if (stale === null) docReport("note", staleAdaptersSkippedText());
+    else for (const s of stale) docFail(staleAdapterText(s));
   }
 
   // --- Claude Code ask rules (D-18): report each ledger rule present or absent; never repair ---
@@ -8227,6 +8248,7 @@ function buildKitPlan(): KitPlan {
       // which member is the problem. The render runs to completion and is checked here, so rendering
       // and materializing are never interleaved.
       const rendered = render.value.files;
+      RENDERED_ADAPTERS = rendered;
       const extra = adapterSet.filter((name) => !rendered.includes(name));
       const missing = rendered.filter((name) => !adapterSet.includes(name));
       if (extra.length > 0 || missing.length > 0) {

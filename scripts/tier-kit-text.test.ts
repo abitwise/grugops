@@ -672,3 +672,35 @@ describe("WF14 runs the Designer before Frontend/UI, and Frontend/UI reads the D
     expect(section(WF14, "Done condition")).toContain("The contract reads its tokens from the Designer's guidelines.");
   });
 });
+
+describe("install/README.md documents the engineer level adapters and the stale-adapter report (TIER-03, TIER-06; D-5, D-13, D-17, D-22)", () => {
+  const README = readFileSync(join(ROOT, "install/README.md"), "utf8");
+
+  it("D-22: names the Claude Code v2.1.293 floor, the Haiku 4.5 effort `UNKNOWN - verify`, and that --check does not probe the version", () => {
+    expect(README).toContain("v2.1.293");
+    expect(README).toContain("Haiku 4.5");
+    expect(README).toContain("`install.js --check` does not probe the\nClaude Code version yet");
+  });
+
+  it("D-5 / D-17: the level adapters are Claude Code only, and the level is scope guidance with no model advice elsewhere", () => {
+    expect(README).toContain("### The engineer level adapters (Claude Code only)");
+    expect(README).toContain("the level in the ticket is scope guidance");
+    expect(README).toContain("grugops gives no model advice for those hosts");
+  });
+
+  it("names the run-time paths that flatten the levels", () => {
+    expect(README).toContain("CLAUDE_CODE_SUBAGENT_MODEL");
+    expect(README).toContain("CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1");
+    expect(README).toContain("`agent.spawn` hook");
+    expect(README).toContain("`availableModels` restriction");
+  });
+
+  it("D-13: documents the stale-adapter report and its remedy", () => {
+    expect(README).toContain("no longer ships");
+    expect(README).toContain("Install never deletes, renames or rewrites such a file.");
+  });
+
+  it("carries no hand-typed specialist count", () => {
+    expect(README).not.toMatch(/\b16 specialist/i);
+  });
+});

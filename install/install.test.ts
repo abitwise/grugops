@@ -12245,6 +12245,7 @@ describe("install.js — an adapter this kit version no longer ships (plan 39-10
   const install = (src: string, t: { target: string; home: string; userHome: string }, ...args: string[]): Run =>
     run(INSTALL_JS, src, t.target, t.home, t.userHome, ["--yes", ...withAgentFlags(args)]);
   const uninstall = (t: { target: string; home: string; userHome: string }): Run => run(UNINSTALL_JS, REPO_ROOT, t.target, t.home, t.userHome, []);
+  const check = (t: { target: string; home: string; userHome: string }): Run => run(INSTALL_JS, REPO_ROOT, t.target, t.home, t.userHome, ["--check"]);
   const recordOf = (target: string, rel: string): RawEntry[] => markerLedger(target).filter((e) => e.path === rel && e.kind === "file");
   const findingLines = (out: string): string[] => out.split("\n").filter((l) => l.includes("no longer ships"));
 
@@ -12312,5 +12313,26 @@ describe("install.js — an adapter this kit version no longer ships (plan 39-10
     const second = install(REPO_ROOT, t);
     expect(second.status, second.stdout + second.stderr).toBe(0);
     expect(findingLines(first.stdout + second.stdout)).toEqual([]);
+  }, 300_000);
+
+  it("--check over the upgraded target reports the adapter the kit no longer ships as a FAIL with install's remedy", () => {
+    const t = olderInstall();
+    expect(install(REPO_ROOT, t).status, "premise: the re-install ends INCOMPLETE over the stale adapter").toBe(3);
+    const doc = check(t);
+    expect(doc.status, doc.stdout + doc.stderr).toBe(1);
+    const lines = findingLines(doc.stdout);
+    expect(lines.length, doc.stdout).toBe(1);
+    expect(lines[0]).toMatch(/^\s+FAIL\s/);
+    expect(lines[0]).toContain(PROBE_REL);
+    expect(lines[0]).toContain("delete it by hand");
+    expect(lines[0]).toContain("uninstall removes it while it is unchanged");
+    expect(readFileSync(t.probe).equals(t.bytes), "--check changed the adapter").toBe(true);
+  }, 300_000);
+
+  it("control: --check over a clean install of this kit prints no `no longer ships` line", () => {
+    const t = { target: realpathSync(makeFixture()), home: realpathSync(mkTmp()), userHome: realpathSync(mkTmp()) };
+    expect(install(REPO_ROOT, t).status).toBe(0);
+    const doc = check(t);
+    expect(findingLines(doc.stdout), doc.stdout).toEqual([]);
   }, 300_000);
 });

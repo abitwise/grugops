@@ -165,6 +165,26 @@ writing it. Install leaves such a file as it is, reports it `left`, and records 
 the uninstaller leaves it too. Only a file the install ledger already lists, and that still holds what
 the ledger records, keeps its record on a re-install.
 
+#### An adapter this kit version no longer ships
+
+A newer kit can stop shipping an adapter. This release replaces the single software engineer adapter
+with the three engineer level adapters (§6, "The engineer level adapters"), so a repository installed
+by an earlier release still holds `.claude/agents/grugops-software-engineer.md` after a re-install.
+Claude Code still loads every file in `.claude/agents/`, and on the Reduced tier (§6) the coordinator
+can spawn it.
+
+Install compares the adapters its install ledger records under `.claude/agents/grugops-*.md` with
+the adapters this kit version ships. For each recorded adapter that is still in the repository and
+that this kit no longer ships, it prints a `verify` line naming the file (`this kit version no longer
+ships ...`), and the run ends INCOMPLETE with exit `3`. The set is worked out from the ledger and the
+kit source on every run; no list of retired names is kept. `--dry-run` prints the same lines and
+changes nothing, and `install.js --check` reports each file as a `FAIL` with the same remedy.
+
+Install never deletes, renames or rewrites such a file. Delete it by hand when you no longer need it;
+the next run does not report a file that is gone. While the file still holds what install wrote, install
+keeps its record in the ledger, so `uninstall.js` still removes it. A file you edited since is yours:
+install says so, does not record it, and uninstall leaves it.
+
 ### Command-line contract — choosing agents
 
 The agent flags and the choice they make are a published contract (34.1 D-25); a change to any of
@@ -1961,7 +1981,7 @@ The headline entry — `/grugops` in an ordinary Claude Code session — runs in
 thread. That session already has the `Agent` tool, so parallel scheduling is available and is
 used, up to the same `queue.wip_limit`. But the enumerated grant is **not runtime-enforced
 here**: a default session declares no allowlist, so nothing mechanical holds a spawn inside the
-16 specialist names. The coordinator says exactly that when it announces the tier, and stays
+specialist names the grant lists. The coordinator says exactly that when it announces the tier, and stays
 inside the grant by instruction rather than by enforcement. That is a weaker guarantee than the
 full tier, and it is stated plainly rather than softened — you should know which one you have.
 
@@ -2008,9 +2028,60 @@ nothing here depends on the answer, and no equivalence is asserted.
 Project-scope adapters live in `.claude/agents/`, and Claude Code discovers them by walking up
 from your working directory, so every `.claude/agents/` between there and the repository root is
 scanned. Identity comes only from the frontmatter `name` field — the filename does not decide it.
-All 17 grugops adapters carry the `grugops-` prefix, which keeps their names unique across a tree.
+Every grugops adapter carries the `grugops-` prefix, which keeps the names unique across a tree.
 Verify this resolution behavior against current tool docs
 (`code.claude.com/docs/en/sub-agents`) before you depend on the details.
+
+### The engineer level adapters (Claude Code only)
+
+`agent-factory/roles/software-engineer.md` declares three levels, so on Claude Code install writes
+three engineer adapters and no single software engineer adapter. At zero config each one pins its
+model and effort:
+
+| Adapter | `model` | `effort` |
+|---------|---------|----------|
+| `grugops-software-engineer-junior` | `haiku` | `medium` |
+| `grugops-software-engineer-mid` | `sonnet` | `medium` |
+| `grugops-software-engineer-senior` | `opus` | `high` |
+
+At zero config these are the only adapters with an `effort:` line; every other adapter is
+`model: inherit`. The Tech Lead names the level for each ticket, and the Orchestrator spawns that
+adapter by name. The keys that change a level, and why a preset never moves one, are in
+`agent-factory/config/factory.config.md` § `models` sub-fields.
+
+The level adapters are generated for Claude Code only. On Codex CLI, Antigravity CLI, OpenCode, GitHub
+Copilot CLI and Pi there is one software engineer role: the level in the ticket is scope guidance, the
+model does not change, and grugops gives no model advice for those hosts.
+
+**The Claude Code v2.1.293 floor.** On the Anthropic API the junior adapter's `haiku` alias resolves to
+Haiku 5.5, and Haiku 5.5 needs Claude Code v2.1.293 or later (`code.claude.com/docs/en/model-config`,
+fetched 2026-10-29). On Claude Platform on AWS, Amazon Bedrock, Google Cloud's Agent Platform and
+Microsoft Foundry, `haiku` resolves to Haiku 4.5, which that page does not list as supporting an effort
+level, so what Claude Code does with the junior adapter's `effort: medium` line there is
+`UNKNOWN - verify`. On those providers `sonnet` can map to Sonnet 4.5, which is not in that list either,
+so the mid adapter's effort there is `UNKNOWN - verify` too. `install.js --check` does not probe the
+Claude Code version yet; check it yourself before you rely on the junior level.
+
+**What can flatten the levels at run time.** The pins are adapter frontmatter. Each of the following
+takes precedence over it when a sub-agent starts, and no grugops gate can see any of them
+(`code.claude.com/docs/en/sub-agents` and `code.claude.com/docs/en/model-config`, fetched 2026-10-29):
+
+- a `model` or `effort` parameter on the spawn call: Claude Code checks a per-invocation `model`
+  parameter before the adapter's `model` field, and a per-invocation `effort` parameter overrides the
+  adapter's `effort` field;
+- `CLAUDE_CODE_SUBAGENT_MODEL` set together with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (Claude Code
+  v2.1.257 or later), which runs every sub-agent on that one model; set alone, the variable is a
+  default that the adapter's `model` field outranks;
+- an installed mod's `agent.spawn` hook, which can flatten all three levels;
+- an `availableModels` restriction: a blocked alias runs on the newest version of its family the
+  allowlist permits, or else on the inherited model.
+
+In any of these cases the three levels can run on one model, and grugops does not detect it. To see
+which model and effort a running sub-agent got, run `/tasks` in Claude Code (v2.1.242 or later).
+
+**After an upgrade.** A repository installed before the level adapters existed still holds
+`.claude/agents/grugops-software-engineer.md`. Install and `--check` name it, and you delete it by hand;
+see "An adapter this kit version no longer ships" in §2.
 
 ---
 
