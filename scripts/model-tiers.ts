@@ -1410,8 +1410,8 @@ export function tieredTableRefusals(table: readonly RoleTier[] = TIERED): string
  * THE CORPUS IT JUDGES IS THE PRESET-GOVERNED STEM LIST (plan 39-01). `stems` is
  * `presetGovernedStems(specs)` — the role stems that declare no `levels` — because a level adapter
  * never reads a preset (D-16), so a TIERED row for a leveled role would be a second answer to one
- * fact. While no role declares levels the preset-governed stems equal the role stems, which is what
- * the guard's call site still passes until plan 39-02 switches it to the derived list.
+ * fact. Since plan 39-02 the guard's call site passes `presetGovernedStems(listAgentAdapterSpecs())`
+ * (through the guard's derived adapter specs), so a leveled role is never judged by this corpus.
  */
 export function tieredCorpusRefusals(
   stems: readonly string[],
@@ -1547,8 +1547,8 @@ export const LEVELS: readonly LevelTier[] = [
   },
 ];
 
-// The level table's exact cardinality, pinned beside the table. Two-sided: it moves only when a level
-// is deliberately added or removed, together with its row and every consumer of the adapter set.
+// The level table's exact cardinality, pinned by scripts/model-tiers.test.ts only; no guard reads it,
+// and guard_kit_counts compares the declared level tokens with the LEVELS rows directly.
 export const LEVEL_COUNT = 3;
 
 /**

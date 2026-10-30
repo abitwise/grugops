@@ -81,7 +81,9 @@ A role whose frontmatter declares `levels` (today only `software-engineer.md`, w
 level adapter is the specialist adapter above with exactly these differences:
 
 - `name` is `grugops-<role>-<level>`.
-- `description` ends with ` Level: <level>.` inside its quotes.
+- `description` keeps the `## One job` sentence; its use-when clause becomes
+  `the Tech Lead's plan names grugops-<role>-<level>; never for unscored work.` in place of the
+  role's `## Activates when` line, and it ends with ` Level: <level>.` inside its quotes.
 - `model` and an `effort` line carry the level's pin from the `LEVELS` table in
   `scripts/model-tiers.ts`, unless a `models.roles` / `models.effort.roles` entry for the role or
   the level adapter stem overrides it.

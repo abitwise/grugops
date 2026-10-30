@@ -434,6 +434,18 @@ describe("the level dial documentation (TIER-03; D-2, D-5, D-15, D-16, D-17, D-2
     expect(PACKAGING).toContain("`name` is `grugops-<role>-<level>`.");
     expect(PACKAGING).toContain("ends with ` Level: <level>.` inside its quotes");
   });
+
+  it("WR-03: a level adapter is routed only by the name the Tech Lead's plan gives, never for unscored work", () => {
+    expect(PACKAGING).toContain("never for unscored work");
+    for (const level of ["junior", "mid", "senior"]) {
+      const name = `grugops-software-engineer-${level}`;
+      const adapter = readFileSync(join(ROOT, ".claude/agents", `${name}.md`), "utf8");
+      const description = adapter.split("\n").find((l) => l.startsWith("description:"));
+      expect(description, `${name} has no description: line`).toBeDefined();
+      expect(description).toContain("never for unscored work");
+      expect(description).toContain(name);
+    }
+  });
 });
 
 describe("WF04 and the Orchestrator route each ticket through the Tech Lead (TIER-01; D-02, D-05, D-06, D-08, D-17, D-30)", () => {

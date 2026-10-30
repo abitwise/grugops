@@ -472,9 +472,15 @@ for (const file of roleFiles) {
       name: spec.name,
       level: spec.level,
       // A level adapter says its level in the routing text, so the coordinator and a reader can tell
-      // the three engineer adapters apart from the description alone.
+      // the three engineer adapters apart from the description alone. Its use-when clause names the
+      // adapter itself in place of the role's `## Activates when` line (WR-03, gap plan 39-11):
+      // `description` drives Claude Code's auto-delegation, and the role's own trigger let a main
+      // thread route unscored code work to the haiku adapter. A level adapter is used only when the
+      // Tech Lead's plan names it; a role with no levels keeps `baseDescription` exactly.
       description:
-        spec.level === null ? baseDescription : `${baseDescription} Level: ${spec.level}.`,
+        spec.level === null
+          ? baseDescription
+          : `${firstSentence(job!)} Use when: the Tech Lead's plan names ${spec.name}; never for unscored work. Level: ${spec.level}.`,
       tools,
       isCoordinator,
       model,
