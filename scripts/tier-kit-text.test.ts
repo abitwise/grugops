@@ -1057,3 +1057,64 @@ describe("factory.config.md `checkpoints` wording matches Workflow 04 step 15 (q
     expect(rows[0]).toContain("What `escalate_unadjudicable_result` gates");
   });
 });
+
+describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => {
+  // Plan 39-16 (UAT test 7): step 15 held six decisions in one paragraph, and both named-human stops
+  // sat mid-paragraph. Every sentence is kept word for word; each part, and each human stop, now
+  // opens its own indented sub-bullet under a short lead line.
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const lines = section(WF04, "Steps").split("\n");
+  const at15 = lines.findIndex((l) => l.startsWith("15. "));
+  const subs: string[] = [];
+  for (let i = at15 + 1; i < lines.length && (lines[i] as string).startsWith("    - "); i++) {
+    subs.push((lines[i] as string).slice("    - ".length));
+  }
+  const lead = (lines[at15] ?? "").slice("15. ".length);
+  const STEP15 = "Read the `failed-attempt` note (Tech Lead).";
+  const RESCORE_STOP = "At `block`, the default, stop for a named human.";
+  const GATE_STOP = "At `block`, the default, stop until a named human confirms the move.";
+
+  it("step 15 has exactly six indented sub-bullets, followed directly by step 16", () => {
+    expect(at15).toBeGreaterThanOrEqual(0);
+    expect(subs).toHaveLength(6);
+    expect(lines[at15 + 1 + subs.length]?.startsWith("16. ")).toBe(true);
+  });
+
+  it("the lead line carries the choice of moves and no named-human stop", () => {
+    expect(lead.startsWith(STEP15)).toBe(true);
+    expect(lead).toContain("Choose one: escalate one level at most once per ticket");
+    expect(lead).not.toContain("named human");
+  });
+
+  it("the sub-bullets open, in order, with the move limits, the move record, both stops, the confirmation and the board", () => {
+    const openings = [
+      "Apply the move limits.",
+      "Record the move in a new `decision` note per Workflow 16.",
+      "Apply the re-score stop.",
+      "Apply the gate-failure stop.",
+      "Record the human's confirmation.",
+      "Update the board.",
+    ];
+    expect(subs).toHaveLength(openings.length);
+    openings.forEach((o, i) => expect(subs[i]?.startsWith(`${o} `), `sub-bullet ${i + 1} opens "${o}"`).toBe(true));
+  });
+
+  it("each named-human stop sits in the sub-bullet whose opening names it", () => {
+    const rescore = subs.filter((s) => s.includes(RESCORE_STOP));
+    expect(rescore).toHaveLength(1);
+    expect(rescore[0]?.startsWith("Apply the re-score stop. ")).toBe(true);
+    const gate = subs.filter((s) => s.includes(GATE_STOP));
+    expect(gate).toHaveLength(1);
+    expect(gate[0]?.startsWith("Apply the gate-failure stop. ")).toBe(true);
+    const board = subs[subs.length - 1] ?? "";
+    expect(board).toContain("On an escalation or a re-plan, return the ticket to `Ready for Dev`.");
+    expect(board).toContain("On a split, move it to `Backlog` for BA/PM.");
+    expect(board).toContain("On an Architect pass, move it to `In Design`.");
+  });
+
+  it("numbered() folds every sub-bullet into step 15's text, so the step-15 cases still read each sentence", () => {
+    const s15 = numbered(section(WF04, "Steps")).find((s) => s.text.startsWith(STEP15));
+    expect(s15?.n).toBe(15);
+    expect(s15?.text).toBe([lead, ...subs].join(" "));
+  });
+});
