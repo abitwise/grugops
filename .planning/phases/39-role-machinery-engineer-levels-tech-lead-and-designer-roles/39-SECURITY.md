@@ -11,7 +11,7 @@ created: "2026-10-30"
 # Phase 39 — Security
 
 > Per-phase security contract: threat register, accepted risks, and audit trail.
-> Register authored at plan time (39-01..39-10 `<threat_model>` blocks). ASVS L1: mitigations verified at grep depth against HEAD; no SUMMARY carried a `## Threat Flags` entry.
+> Register authored at plan time (39-01..39-13 `<threat_model>` blocks; 39-11..39-13 are gap-closure round 1). ASVS L1: mitigations verified at grep depth against HEAD; no SUMMARY carried a `## Threat Flags` entry.
 
 ---
 
@@ -55,6 +55,17 @@ created: "2026-10-30"
 | T-39-18 | Spoofing | stale base adapter in host repos | high | mitigate | install / `--dry-run` / `--check` report "no longer ships" (exit 3 / FAIL) | closed |
 | T-39-19 | Tampering | installer write path | high | mitigate | `git diff 8a530552 HEAD -- install/install.ts` adds no unlink / rm / rename call | closed |
 | T-39-20 | Repudiation | install ledger | medium | mitigate | stale record carried forward; covered by `install/install.test.ts` "no longer ships" cases | closed |
+| T-39-22 | Elevation of privilege | designer.md capabilities (supersedes T-39-21 wording) | medium | mitigate | `read edit shell` from the closed vocabulary; no spawn grant or MCP tool in `grugops-designer.md` (plan 39-11) | closed |
+| T-39-23 | Spoofing | level adapter descriptions (auto-delegation) | medium | mitigate | each `grugops-software-engineer-{junior,mid,senior}.md` description says "never for unscored work"; pinned in `generate-role-adapters.ts` and `tier-kit-text.test.ts` (plan 39-11) | closed |
+| T-39-24 | Repudiation | `adapter-byte-baseline.test.ts` level case | high | mitigate | dated WR-03 reason at `adapter-byte-baseline.test.ts:433`; exact byte compare kept (plan 39-11) | closed |
+| T-39-25 | Repudiation | WF04 steps 15-16 (gate-exhausted re-enqueue) | high | mitigate | WF04 step 15 "stop until a named human confirms the move" before `Ready for Dev`; `exhaust_self_fix_budget` once in `## Stop conditions` (plan 39-12). Open review WR-15/WR-16 track the unrecorded confirmation and the ignored `notify`/`off` setting | closed |
+| T-39-26 | Denial of service | WF04 / tech-lead.md escalation loop | medium | mitigate | one escalation plus one other move per ticket; used-up options go to a named human under `escalate_unadjudicable_result` (plan 39-12). Open review WR-13/WR-14 track counting gaps | closed |
+| T-39-27 | Elevation of privilege | software-engineer.md junior stop rule | medium | mitigate | junior stops `BLOCKED` on every rubric risk tag (`software-engineer.md:37`) (plan 39-12) | closed |
+| T-39-28 | Spoofing | orchestrator.md routing matrix | low | mitigate | `ready-ticket dev plan -> Tech Lead` (`orchestrator.md:46`) (plan 39-12) | closed |
+| T-39-29 | Spoofing | unshipped `.claude/agents/grugops-*.md` with no ledger record | high | mitigate | `unrecordedStaleAdapters` / `unrecordedStaleAdapterText` in `install/install.ts`; `install.test.ts` cases (plan 39-13). Open review WR-11: with a malformed ledger, install refuses rather than printing the note; the refusal still blocks any silent write | closed |
+| T-39-30 | Tampering | installer write path (presence note) | high | mitigate | report-only presence path; `unlinkSync|rmSync` count in `install/install.ts` is 16, as pinned (plan 39-13) | closed |
+| T-39-31 | Repudiation | flattening facts in factory.config.md / install/README.md | low | mitigate | one list "What can flatten the levels at run time" in `factory.config.md:174`, README points to it (plan 39-13). Open review IN-09 notes `maxEffortLevel` missing | closed |
+| T-39-32 | Repudiation | CHANGELOG.md `[Unreleased]` | low | mitigate | `[Unreleased]` carries Added / Changed / Fixed / Deprecated / Removed sections for Phase 39 (plan 39-13) | closed |
 | T-39-SC | Tampering | npm/pip/cargo installs | low | accept | no package installed by any phase 39 plan | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -90,3 +101,11 @@ created: "2026-10-30"
 - [x] `status: verified` set in frontmatter
 
 **Approval:** verified 2026-10-30
+
+## Security Audit 2026-10-30
+
+| Metric | Count |
+|---|---|
+| Threats found | 33 |
+| Closed | 33 |
+| Open | 0 |
