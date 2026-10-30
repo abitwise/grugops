@@ -1,261 +1,233 @@
 ---
 phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles
-reviewed: 2026-10-30T01:08:36Z
+reviewed: 2026-10-30T09:20:00Z
 depth: standard
-files_reviewed: 64
+files_reviewed: 27
 files_reviewed_list:
-  - agent-factory/checklists/00-index.md
   - agent-factory/checklists/complexity-rubric.md
   - agent-factory/config/factory.config.md
   - agent-factory/packaging/subagent.frontmatter.md
   - agent-factory/roles/designer.md
-  - agent-factory/roles/frontend-ui.md
   - agent-factory/roles/orchestrator.md
   - agent-factory/roles/software-engineer.md
   - agent-factory/roles/tech-lead.md
   - agent-factory/workflows/04-ticket-to-pr.md
-  - agent-factory/workflows/14-ui-design-to-build.md
-  - docs/audit/28-disposition-register.md
-  - docs/audit/28-safety-surface-exclusions.md
-  - docs/audit/29-style-dispositions/39-05.md
-  - docs/audit/29-style-dispositions/39-06.md
-  - docs/audit/29-style-dispositions/39-07.md
-  - docs/audit/29-style-dispositions/39-08.md
-  - docs/audit/29-style-dispositions/39-09.md
-  - docs/catalog/README.md
-  - hooks/hook-entry.ts
-  - install/README.md
+  - CHANGELOG.md
+  - .claude/agents/grugops-designer.md
+  - .claude/agents/grugops-software-engineer-junior.md
+  - .claude/agents/grugops-software-engineer-mid.md
+  - .claude/agents/grugops-software-engineer-senior.md
+  - docs/audit/29-style-dispositions/39-11.md
+  - docs/audit/29-style-dispositions/39-12.md
   - install/agents-record.test.ts
+  - install/install.js
   - install/install.test.ts
   - install/install.ts
-  - install/installer-cross-version.test.ts
-  - install/installer-never-installed.test.ts
-  - install/installer-special-files.test.ts
-  - install/installer-user-edit.test.ts
-  - install/mode-census.test.ts
-  - install/record-truth.test.ts
-  - install/uninstall-removal.test.ts
+  - install/README.md
   - scripts/adapter-byte-baseline.test.ts
-  - scripts/adapters-freshness.test.ts
-  - scripts/adapters-freshness.ts
-  - scripts/admission-protocol-docs.test.ts
-  - scripts/audit-prepass.test.ts
-  - scripts/board-readonly.test.ts
-  - scripts/canonical-frontmatter.test.ts
-  - scripts/canonical-frontmatter.ts
-  - scripts/capture-live.test.ts
-  - scripts/capture-live.ts
-  - scripts/check-audit-register.test.ts
-  - scripts/check-banned-claims.ts
-  - scripts/check-foundation-guards.test.ts
-  - scripts/check-foundation-guards.ts
-  - scripts/check-imperative-lexicon.test.ts
-  - scripts/check-imperative-lexicon.ts
-  - scripts/checkpoints.test.ts
-  - scripts/checkpoints.ts
-  - scripts/context-io.test.ts
-  - scripts/fixtures/role-skills.md
-  - scripts/frontmatter.test.ts
-  - scripts/generate-catalog.test.ts
+  - scripts/generate-role-adapters.js
   - scripts/generate-role-adapters.test.ts
   - scripts/generate-role-adapters.ts
-  - scripts/kit-model.test.ts
-  - scripts/kit-model.ts
-  - scripts/model-dial-consistency.test.ts
-  - scripts/model-tiers.test.ts
+  - scripts/model-tiers.js
   - scripts/model-tiers.ts
   - scripts/tier-kit-text.test.ts
-  - scripts/trace-instructions.test.ts
-  - scripts/uat-gate-exit-contract.test.ts
-  - scripts/validate-agent-factory.ts
 findings:
-  critical: 2
-  warning: 10
-  info: 6
-  total: 18
+  critical: 0
+  warning: 6
+  info: 4
+  total: 10
 status: issues_found
 ---
 
-# Phase 39: Code Review Report
+# Phase 39: Code Review Report (re-review after gap closure round 1)
 
-**Reviewed:** 2026-10-30T01:08:36Z
+**Reviewed:** 2026-10-30T09:20:00Z
 **Depth:** standard
-**Files Reviewed:** 64
+**Files Reviewed:** 27
 **Status:** issues_found
-
-## Narrative Findings (AI reviewer)
 
 ## Summary
 
-Scope: every file in the config list, read against `git diff 8a530552 HEAD`. The review checked the TypeScript tooling and the new kit text.
+This re-review covers the changes since `bb1be9f0` made by plans 39-11, 39-12 and 39-13. The prior
+ledger (`39-REVIEW-DISPOSITION.md`) is the baseline. CR-01, CR-02, WR-01..WR-10 and IN-01..IN-03 are
+recorded as fixed, and IN-04..IN-06 are deferred. None of them is reported again. New IDs continue
+from the ledger: WR-11 onward and IN-07 onward. No new critical ID is used.
 
-The TypeScript side is careful. That covers `listAgentAdapterSpecs`, `resolveAdapterAssignments`, the per-adapter freshness and value guards, the `ROLE_CEILINGS` two-way key check, `admitRole`/`roleSkillsOf`, the stale-adapter report and the decider manifest hashes. Traced edge cases held: duplicate stems, case-folded collisions, a leveled coordinator, an illegal override, an empty spec set and a broken LEVELS table. The recomputed hashes for `scripts/checkpoints.js` and `scripts/kit-model.js` match `hooks/hook-entry.ts`.
+Checks run:
+- `tsc` into a scratch directory. The committed `install/install.js`, `scripts/generate-role-adapters.js` and `scripts/model-tiers.js` are byte-identical to the fresh build.
+- `node scripts/generate-role-adapters.js` left the tree clean.
+- `scripts/tier-kit-text.test.ts` and `scripts/adapter-byte-baseline.test.ts` pass (103 tests).
+- The `install.test.ts` cases matching "no longer ships" pass (13 tests).
 
-The defects are mostly in what the new kit text tells agents to do:
-- The Designer cannot reach the shared context it is defined by.
-- Workflow 04's escalation steps re-enqueue past a human checkpoint that its own stop condition requires.
-- Several level and escalation rules disagree between the role files, the rubric and the workflow.
+I also probed the presence path by hand in scratch targets with four marker states:
+- no marker;
+- a pre-ledger marker (an installed marker with `ledger` and `agents` removed);
+- a malformed ledger (`ledger: "x"`);
+- invalid JSON.
 
-The installer's retired-adapter report also stays silent for installs older than the kit ledger, while the README says those installs are covered.
+The TypeScript side of WR-06 works for the pre-ledger case it targets. But the README states more
+coverage than the code gives (WR-11).
 
-## Critical Issues
-
-### CR-01: The Designer has no shell, so it cannot read or publish the notes that are its whole output
-
-**File:** `agent-factory/roles/designer.md:4` (also `.claude/agents/grugops-designer.md:4`, generated)
-**Issue:** The Designer declares `capabilities: read edit`, so its adapter's tools are `Read, Grep, Glob, Edit, Write`. Every one of its outputs is a typed Workflow 16 note (lines 38, 45), and its Reads pull the product context "per Workflow 16" (line 22).
-
-Workflow 16 allows only one route. It reads through `context-io.ts` (`readContext` / `render`, steps 1 and 27) and writes only through the sanctioned writer, step 3. A note written with a file tool is refused as `unsealed`. The plugin MCP route (`propose_note`) is given only to the coordinator. `scripts/generate-role-adapters.ts:174-181` records that nested role sessions "do not receive plugin MCP tools at all ... and reach the sanctioned writer in-process", which means `node scripts/context-io.js ...` through Bash.
-
-The Designer has no Bash, so on Claude Code it can neither render the context nor admit a note. Its only options are a hand-written note (refused) or no output. Every other note-publishing role (all 18) carries `shell`. Workflow 14 step 1 depends on these notes, and so does every token Frontend/UI reads (Workflow 14 step 2 and its new stop condition). The planned tests pin `read edit` (`scripts/tier-kit-text.test.ts:249`), so the suite passes over a role that cannot do its one job.
-**Fix:** Give the Designer the same write route as every other role:
-```markdown
-capabilities: read edit shell
-```
-Then regenerate the adapters and update the T-39-21 mitigation and the D-27 test to `read edit shell`. If the "no shell" posture is deliberate, the role needs a stated route to Workflow 16 that exists for a shell-less sub-agent. None exists today.
-
-### CR-02: Workflow 04's escalation steps re-enqueue an exhausted gate without the named-human confirmation its stop condition requires
-
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:40-42` vs `:60`, and `agent-factory/workflows/05-pr-quality-gate.md:70`
-**Issue:** Workflow 05's stop condition for an exhausted self-fix budget is "`BLOCKED_NEEDS_FIX`. Stop and hand to a human. `checkpoint: exhaust_self_fix_budget`".
-
-Workflow 04 now sends that same case down an agent path:
-- step 14 records a `failed-attempt` note and moves the ticket to `Blocked`;
-- step 15 has the Tech Lead pick a move and "Return the ticket to `Ready for Dev`";
-- step 16 has the Orchestrator create a new `pending/` subtask and spawn the adapter.
-
-None of steps 14-16 mentions a human. The named-human confirmation appears only in the stop-condition bullet at line 60: "A named human confirms the Tech Lead's decision before the re-enqueue, per Workflow 05". Workflow 05 says nothing of the kind. It says stop and hand to a human, with no Tech Lead decision first.
-
-An agent following the numbered steps re-enqueues past a tagged human checkpoint. The checkpoint census (`scripts/checkpoints.ts`, `exhaust_self_fix_budget` 5 -> 6) counts the tag as present, so the gate reports the human stop as covered while the procedure walks past it. This is the "humans decide, agents execute" rule being bypassed in the procedure text itself.
-**Fix:** Put the human stop into the steps, on the gate-failure branch, before any re-enqueue. Make the Workflow 05 reference accurate:
-```markdown
-15. Read the `failed-attempt` note (Tech Lead). Choose one: ... Record the move in a new `decision` note per Workflow 16.
-    When the note came from a gate `BLOCKED_NEEDS_FIX` (self-fix budget spent), stop: a named human confirms the decision before the ticket returns to `Ready for Dev`. `checkpoint: exhaust_self_fix_budget`
-16. Create a new `pending/` subtask ... only after step 15's move is recorded and, on the gate-failure branch, confirmed by the named human.
-```
-Also either amend Workflow 05 line 70 to name the Tech Lead step, or reword line 60 so it does not claim Workflow 05 says so.
+Most of the new defects are in the Workflow 04 / Tech Lead escalation text that CR-02 and WR-01
+rewrote:
+- a split or Architect move still re-enqueues an engineer;
+- the re-score rule conflicts with "one level";
+- the move count reads notes it cannot tell apart;
+- the named-human confirmation lives only in the workflow, is never recorded, and ignores the checkpoint dial.
 
 ## Warnings
 
-### WR-01: The Tech Lead's re-plan loop has no bound, and a re-score is an uncounted second escalation
+### WR-11: The README says install and `--dry-run` print the presence note when the install ledger "cannot be read". Install refuses over such a marker and prints no note
+
+**File:** `install/README.md:183-188` (also the code comment at `install/install.ts:917-926`; the pinned test in `scripts/tier-kit-text.test.ts`, case "WR-06: a repository the install ledger cannot vouch for ...")
+
+**Issue:** The README groups three kinds of repository: one "last installed by v2.1 or earlier", one whose ledger "is absent", and one whose ledger "cannot be read". It then says "install, `--dry-run` and `install.js --check` print a `note` instead". That is not what the code does:
+- **Malformed ledger.** Install takes the `INSTALL_REFUSAL` branch (`install.ts:6614/6622/6776`) before the Claude kit branch, so `reportStaleKitAdapters` never runs. A probe with `ledger: "x"` printed only "the install ledger is malformed ..., so nothing was installed" under both install and `--dry-run`, with no note. Only `--check` prints the note.
+- **Unreadable marker (invalid JSON).** Both install and `--check` stop at the marker ("nothing else was checked"), so neither prints a note.
+- **Consequence in code.** The `malformed` arm of `ledgerSays` can never be reached from install. The STALE KIT ADAPTERS comment ("a ledger can have nothing to say: ... one that cannot be read") makes the same over-claim.
+
+This is the defect class WR-06 was filed for (the README claims coverage the code does not give), now in the fix's own text. The user is not left uninformed: install's refusal names the marker problem. But the README's description of what each mode prints is wrong.
+
+**Fix:** Say what each mode actually does, for example:
+```markdown
+A repository last installed by v2.1 or earlier, or one with no install marker, has no ledger record
+for its adapters (kit files entered the install ledger in v2.2). For an unshipped
+`.claude/agents/grugops-*.md` file the ledger has no record of, install, `--dry-run` and
+`install.js --check` print a `note` instead ... When the install ledger is malformed, install refuses
+and writes nothing until it is fixed; `install.js --check` still prints the note.
+```
+Then fix the comment at `install.ts:917-926` the same way, and update the pinned test strings.
+
+### WR-12: For a split or an Architect move, Workflow 04 steps 15-16 still return the ticket to `Ready for Dev` and re-enqueue an engineer
+
+**File:** `agent-factory/workflows/04-ticket-to-pr.md:41-42`; `agent-factory/roles/tech-lead.md:42`
+
+**Issue:** Step 15 offers four moves: escalate, re-plan and re-score, split, or return to the Architect. Whatever the move, it ends with "Return the ticket to `Ready for Dev`." Step 16 then always says "Create a new `pending/` subtask for the adapter the new note names" and "Spawn the adapter as step 4 does."
+
+The stop conditions disagree for two of the moves:
+- **Split:** "`SPLIT_REQUIRED`. It goes back to BA/PM for splitting before it can enter `Ready for Dev`" (line 57).
+- **Architect:** "send the ticket back to `In Design` for the Architect. Dispatch no engineer." (line 58).
+
+The Tech Lead's Board moves (`tech-lead.md:42`) also say the Tech Lead exits `## Blocked` by "returning the ticket to `Ready for Dev`", with no exception.
+
+An agent following the numbered steps after a split or an Architect move therefore puts the ticket in `Ready for Dev`. The Orchestrator then looks for an adapter name in a note that has none, or reuses the previous one. Either way an engineer is dispatched on a ticket whose design or size has just been rejected. Steps 15 and 16 were edited in this round (CR-02, WR-01), so this sequence is in scope. It is separate from the deferred IN-06, which covers the step-2 split stop.
+
+**Fix:** Make the return and the re-enqueue depend on the move:
+```markdown
+15. ... Record the move in a new `decision` note per Workflow 16. On an escalation or a re-plan,
+    return the ticket to `Ready for Dev`. On a split, move it to `Backlog` for BA/PM. On an Architect
+    pass, move it to `In Design`.
+16. On an escalation or a re-plan only, create a new `pending/` subtask for the adapter the new note
+    names (Orchestrator). ...
+```
+Mirror the same rule in the Board moves section of `tech-lead.md`.
+
+### WR-13: "A re-score that raises the level is the escalation" conflicts with "escalate one level" and does not cover a re-score after the escalation is spent
 
 **File:** `agent-factory/roles/tech-lead.md:34,48`; `agent-factory/workflows/04-ticket-to-pr.md:41,61`
-**Issue:** Only "escalate one level" is capped ("at most once per ticket"). "Re-plan and re-score", "split" and "return to the Architect" have no bound, and "used up" (line 61) requires all of them to be "blocked", which nothing ever declares. So BLOCKED -> re-plan -> BLOCKED -> re-plan can cycle forever without reaching the `escalate_unadjudicable_result` human stop.
 
-A re-score can also raise the level: junior -> re-score -> mid -> BLOCKED -> escalate -> senior. That is two level raises on one ticket, which defeats "Never escalate a ticket twice" (line 48).
-**Fix:** Bound the Tech Lead's moves per ticket. For example: "at most one escalation and at most one re-plan per ticket; a re-score that raises the level counts as the escalation; the next `failed-attempt` after both are spent is 'options used up'." Pin the bound in `scripts/tier-kit-text.test.ts`.
+**Issue:** The new rule creates two cases that neither file decides:
+1. **A re-score jumps two levels.** The rubric can move a ticket from junior (sum 0-3, F2 = F3 = 0) straight to senior (sum 8-12) once a re-plan exposes more work. The rule calls that re-score "the escalation". The escalation is defined as "escalate one level". Hard limits say "Never pick a level without the written scores", so the Tech Lead cannot name mid either. One rule must break.
+2. **The escalation is already spent, and the one other move is a re-plan whose re-score raises the level.** That re-score would be a second escalation, which "Never escalate a ticket twice" forbids. It cannot keep the old level, because that contradicts the written scores. The "used up" stop does not fire, because "the one other move" was not spent: it could not be made. The Tech Lead has no legal output, and no stop names this case.
 
-### WR-02: The junior stop rule names four of the seven F3 = 2 tags and none of the F3 = 1 tags
+**Fix:** Settle both cases in the shared text, for example: "A re-score that raises the level is the escalation and moves the ticket one level only. When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human (`checkpoint: escalate_unadjudicable_result`)." Add the same clause to the "options are used up" stop.
 
-**File:** `agent-factory/roles/software-engineer.md:37`
-**Issue:** The rubric makes junior impossible for any F3 ≠ 0. That covers auth, money, PII, security, migration, concurrency and test integrity at F3 = 2, plus data writes, public interface and config at F3 = 1 (`complexity-rubric.md:18,31,36-37`). The LEVELS rationale says the same: "carries no risk tag".
+### WR-14: The bound on Tech Lead moves is counted from `decision` notes, but those notes cannot be told apart
 
-The junior reads only this sentence: "A junior that meets security, migration, concurrency or test-integrity work stops and reports `BLOCKED`." A junior that finds mid-task that its change touches auth, money, PII, a data write or a public interface is not told to stop. That surface is exactly the one the D-2 haiku amendment says never reaches junior. The rubric is scored before the work, so a mis-scored ticket has only this sentence as a backstop.
-**Fix:** Make the junior's stop rule cover every risk tag:
+**File:** `agent-factory/workflows/04-ticket-to-pr.md:41`; `agent-factory/roles/tech-lead.md:34,37`; `agent-factory/roles/software-engineer.md:42`
+
+**Issue:** WR-01's bound depends on "Count the earlier moves from the ticket's `decision` notes." The ticket's `decision` notes (by ticket id in `refs`) include:
+- the Tech Lead's own original plan (WF04 step 2: a `decision` note with scores, level, adapter and tasks), which has the same shape as a re-plan note;
+- the engineer's implementation decisions (`software-engineer.md:42`: "the implementation decisions as `decision` notes ... each carrying the trace ids on its `refs` field");
+- the Architect's design decisions, which the Tech Lead plans on top of.
+
+No file says how a move note records which move it is. So the count of moves, and of escalations in particular, has nothing structured to read. Over-counting stops the work early; that direction is safe. Under-counting, or calling a re-score an "other move", breaks the bound that ends the D-21 loop. This is the failure WR-01 was meant to close.
+
+**Fix:** Give the move note a fixed line, and count only the Tech Lead's notes that carry it:
 ```markdown
-A junior that meets any risk-tagged work (any F3 tag in the rubric: auth, money, PII, security, migration, concurrency, test integrity, data writes, a public interface or config) stops and reports `BLOCKED`.
+Record the move in a new `decision` note per Workflow 16 whose first line is
+`Move: escalate | re-plan | split | architect`. Count earlier moves from the Tech Lead's
+`decision` notes for this ticket that carry a `Move:` line; the plan note from step 2 carries none.
 ```
+State it in both `tech-lead.md` § Output and WF04 step 15, and pin the line in `tier-kit-text.test.ts`.
 
-### WR-03: The three level adapters have near-identical routing descriptions, so auto-delegation can pick junior outside the Tech Lead path
+### WR-15: The CR-02 human stop exists only in Workflow 04, and the confirmation is recorded nowhere step 16 or the trace can read
 
-**File:** `scripts/generate-role-adapters.ts:477` (output: `.claude/agents/grugops-software-engineer-{junior,mid,senior}.md:3`)
-**Issue:** The descriptions differ only in a trailing `Level: junior.` / `mid.` / `senior.`, and each still says "Use when: Need code (one ticket)." `description` drives Claude Code's auto-delegation. On the Reduced tier and in any ordinary main-thread session, a request for code can be routed straight to `grugops-software-engineer-junior` (haiku) with no Tech Lead score. That includes security or migration work, the case D-2 excludes. The old single adapter was `inherit`, so auto-delegation could not drop the model below the session's.
-**Fix:** Make the level adapters non-routable except by name. For example, emit a level description of the form "Engineer at the junior level. Use only when the Tech Lead's plan names `grugops-software-engineer-junior`; never for unscored work." Also consider routing unscored "Need code" requests to the Tech Lead.
+**File:** `agent-factory/workflows/04-ticket-to-pr.md:41-42,60`; `agent-factory/roles/tech-lead.md:34,42,48`
 
-### WR-04: The engineer's escalation trigger ("the gate fails a second time") disagrees with Workflow 04 and the self-fix dial
-
-**File:** `agent-factory/roles/software-engineer.md:39` vs `agent-factory/workflows/04-ticket-to-pr.md:40,60`
-**Issue:** The role says to publish a `failed-attempt` note "when you are blocked, or the gate fails a second time". Workflow 04 triggers on "the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, for an agent-fixable reason", and Workflow 05 bounds that by the configurable `self_fix_attempts`. These are different events. With `self_fix_attempts` other than one, or with a human-only failure (which Workflow 04 says never takes this path), the engineer escalates at a different point from the one the workflow and the checkpoint tag describe.
-**Fix:** Use the workflow's trigger word for word: "When you are blocked, or the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix for an agent-fixable reason, publish a `failed-attempt` note per Workflow 04."
-
-### WR-05: Routing-matrix entry "plan -> Tech Lead" collides with product planning
-
-**File:** `agent-factory/roles/orchestrator.md:46`
-**Issue:** "plan" is the name of the `idea-to-epics` / `epic-to-tickets` entry (`/grugops-plan`: "Plan work ... turn an idea into epics, or turn an epic into ready tickets"), which BA/PM owns. The matrix now maps the bare subtask "plan" to the Tech Lead. A coordinator classifying "plan the checkout feature" can route product decomposition to a role whose job is scoring a ready ticket. That role has no product-intake instructions.
-**Fix:** Name the subtask precisely: `dev plan / level for a ready ticket -> Tech Lead`.
-
-### WR-06: The retired-adapter report is silent for installs whose ledger is not `ok` or predates kit-file records, while the README says those installs are covered
-
-**File:** `install/install.ts:8586` (and the doctor gate at `:2905`); claim at `install/README.md:168-186,2082-2084`
-**Issue:** `reportStaleKitAdapters` returns with no output when `PREVIOUS_LEDGER.state !== "ok"`. `staleKitAdapters` only looks at ledger entries with `kit: true`. Kit files were first recorded in the ledger by plan 33.1-30 (late September 2026). The v2.1 installer has no `KIT_FILES` (`git show v2.1:install/install.ts | grep -c KIT_FILES` returns 0).
-
-A repository installed by v2.1 or earlier that upgrades straight to this release has `.claude/agents/grugops-software-engineer.md` on disk and no kit record for it. Install and `--check` then say nothing, not even the "skipped" note the unreadable-source case prints. Claude Code still loads the file. The README states without qualification: "A repository installed before the level adapters existed still holds `.claude/agents/grugops-software-engineer.md`. Install and `--check` name it". That claim is not true for those installs.
-**Fix:** When the ledger is not `ok`, or has no kit-true adapter entries, print a note in the same style as `staleAdaptersSkippedText`. Say that the check could not run and name `.claude/agents/grugops-software-engineer.md` as a file to check by hand. A pure presence report needs no ownership claim. Also qualify the README sentence ("installed by v2.2 or later"), or add the note and say so.
-
-### WR-07: The rubric scores "the dev plan", but the Tech Lead scores before it writes the dev plan
-
-**File:** `agent-factory/roles/tech-lead.md:31-32`; `agent-factory/checklists/complexity-rubric.md:16-17,46`
-**Issue:** F1 is "Count the dev plan's file list", F2 is "Read the dev plan", and "A dev plan with no file list scores F2 = 2". The Tech Lead's numbered responsibilities score first (2) and write the dev tasks second (3). Workflow 04 step 2 also lists "Assess ... Record the six scores ... and dev tasks" in that order. Followed literally, the score is taken when no file list exists, so F2 = 2. That sends every ticket back to `In Design` (mapping rule 2).
-**Fix:** Swap responsibilities 2 and 3 (write the dev tasks, then score them), or have the rubric score the Architect's notes and the ticket where no plan exists yet. Make Workflow 04 step 2 use the same order.
-
-### WR-08: The Designer reads no existing design in a brownfield repository
-
-**File:** `agent-factory/roles/designer.md:19-24`; `agent-factory/workflows/14-ui-design-to-build.md:265`
-**Issue:** Workflow 14 step 1 runs the Designer on "any UI ticket that arrives with no published guidelines". In a brownfield repository that is the first UI ticket after install, in an app that already has a palette, a type scale and components. The Designer's Reads list only the product context, the architecture notes, earlier Designer notes and the accessibility checklist. Nothing tells it to read the brownfield map or the existing styles/tokens. Its prompt is "pick color and stone size once for whole cave". It can therefore set a new token system that Frontend/UI must follow ("never name a new token"), which conflicts with the shipped UI.
-**Fix:** Add a Read: "In an existing codebase, the Brownfield Mapper's notes and the repo's current styles/tokens; record the existing system as the starting direction rather than replacing it."
-
-### WR-09: The two lists of run-time settings that flatten the levels disagree, and the text is not single-sourced
-
-**File:** `agent-factory/config/factory.config.md:174-180` vs `install/README.md:2066-2080`
 **Issue:**
-- `factory.config.md` says "three run-time settings" and lists the spawn-call parameter (with `CLAUDE_CODE_EFFORT_LEVEL`), `CLAUDE_CODE_SUBAGENT_MODEL` (with the pre-v2.1.251 note) and `availableModels`.
-- `install/README.md` lists four: it adds "an installed mod's `agent.spawn` hook", and drops `CLAUDE_CODE_EFFORT_LEVEL` and the pre-v2.1.251 behaviour.
+1. **The Tech Lead's role file has no human stop.** Its Reads list does not include Workflow 04. Responsibility 5 and the Board moves sentence ("It owns the exit of a dev-raised `## Blocked`, returning the ticket to `Ready for Dev`") have no gate-failure condition. Hard limits mention a human only once the options are used up. A Tech Lead adapter acting from its role file returns the ticket to `Ready for Dev` without waiting for a person, so the board shows the ticket as ready before anyone confirmed.
+2. **Step 16's condition cannot be checked.** It allows the re-enqueue only once the move is "confirmed by that human". No step says where the confirmation or the human's name is recorded: no note kind, no `human:<name>` stamp, no ticket section. Agents share nothing except the verified context. An Orchestrator in a later session, or an auditor, has no published fact to check. The "auditable trail" the project promises holds no proof that the human stop happened.
 
-This is a fact about Claude Code precedence stated twice, and the two copies have already drifted. The mod-hook item also cites no source line in either document.
-**Fix:** Keep one list (factory.config.md is the dial's documented home), add the mod-hook item there with its source or mark it `UNKNOWN - verify`, and make the README point to it.
+**Fix:**
+- Add the stop to `tech-lead.md` item 5 and to its Board moves: "When the `failed-attempt` note came from a gate `BLOCKED_NEEDS_FIX`, leave the ticket in `Blocked` until a named human confirms the move."
+- In WF04 step 15, say how the confirmation is recorded, for example "the confirming human's name is recorded on the move's `decision` note as `confirmed_by: human:<name>`" (or a `human:<name>`-stamped note per Workflow 16).
+- Make step 16 read that record.
 
-### WR-10: No changelog entry for a release-visible, partly breaking change
+### WR-16: Step 15's human stop ignores the `exhaust_self_fix_budget` checkpoint dial
 
-**File:** `CHANGELOG.md:19` (`[Unreleased]` — untouched by this phase)
-**Issue:** This phase:
-- adds two roles;
-- retires the adapter name `grugops-software-engineer` in favour of three level adapters (an existing upgrade keeps loading the old file; see WR-06);
-- changes the zero-config answer for engineer work from `inherit` to pinned `haiku`/`sonnet`/`opus`, so a zero-config user's session model choice no longer holds for the engineer;
-- removes the `software-engineer` TIERED row.
+**File:** `agent-factory/workflows/04-ticket-to-pr.md:41`; `agent-factory/config/factory.config.md:188-211`
 
-The project committed to the SemVer break contract from 2.1.0, and Keep a Changelog is the declared format. `[Unreleased]` has no Added, Changed or Removed line for any of these changes.
-**Fix:** Add Added (Tech Lead, Designer, complexity rubric, level adapters), Changed (the zero-config engineer pins; `models.roles` keys for the level stems) and Removed (`grugops-software-engineer` adapter; the remedy is to delete it by hand). Have the human decide whether retiring an adapter name is a MAJOR bump.
+**Issue:** Step 15 now says "After a gate `BLOCKED_NEEDS_FIX`, stop until a named human confirms the move." The sentence has no condition and no checkpoint tag; the 39-12 disposition says this was deliberate ("the tag stays in `## Stop conditions`").
+
+The project rules say otherwise:
+- `factory.config.md` makes this stop a configurable cell: `exhaust_self_fix_budget` takes `block` (the default), `notify` (the action proceeds and is recorded) or `off`.
+- CLAUDE.md requires every role to honor `factory.config.json` when it is present.
+
+A repository set to `notify` gets the stop condition at line 60, which is governed by the cell, and the step at line 41, which always stops. The two disagree, and an agent reading the numbered steps stops whatever the setting. The error leans the safe way (it stops more, never less), but it is still a configuration contradiction inside one workflow.
+
+**Fix:** Tie the step to the cell without adding a second tag, for example: "After a gate `BLOCKED_NEEDS_FIX`, apply the `exhaust_self_fix_budget` cell of the stop condition below: at `block` (the default), stop until a named human confirms the move." Or state on purpose that this Tech Lead stop is not governed by the cell, and say why.
 
 ## Info
 
-### IN-01: Stale docblock in `tieredCorpusRefusals`
+### IN-07: `ledgerSays` adds a second wording of "the install ledger cannot vouch for this file", and its `malformed` arm says "could not be read" for a ledger that was read
 
-**File:** `scripts/model-tiers.ts:1409-1414`
-**Issue:** Says the guard "still passes [role stems] until plan 39-02 switches it to the derived list". Plan 39-02 has landed: `check-foundation-guards.ts` passes `presetGovernedStems(specs)`.
-**Fix:** Drop the "until plan 39-02" clause.
+**File:** `install/install.ts:1009-1011`
 
-### IN-02: `LEVEL_COUNT` is called a two-sided pin, but only tests read it
+**Issue:** `install-marker.ts` already has the single source of this wording: `notRecordedReason` and `LEDGER_UNUSABLE_CAUSE` ("could not be used (this run reports why on its own line)"). `ledgerSays` builds a separate copy. In the one place its `malformed` arm runs (the doctor), the note says "the install ledger could not be read". It is printed under the doctor's own FAIL, which says the marker "holds a malformed install ledger (the install ledger is not a list)": the ledger was read and refused, not left unread. A probe showed the two lines together.
 
-**File:** `scripts/model-tiers.ts:1550-1552`
-**Issue:** No guard or library function reads `LEVEL_COUNT`. `guard_kit_counts` compares level tokens with the LEVELS rows, not with this constant. The pin binds only through `model-tiers.test.ts`.
-**Fix:** Either assert `LEVELS.length === LEVEL_COUNT` in `guard_kit_counts` beside `LEVELED_ROLE_COUNT`, or describe it as test-only.
+**Fix:** Build the reason from `LEDGER_UNUSABLE_CAUSE` for `malformed`, for example `ledger.state === "malformed" ? \`is malformed (${LEDGER_UNUSABLE_CAUSE})\` : ...`, or route the note through `notRecordedReason`.
 
-### IN-03: The held-record carry in `reportStaleKitAdapters` repeats an existing carry
+### IN-08: Other junior-exclusion statements still name only four of the ten rubric tags, and the role copies the tag list by hand
 
-**File:** `install/install.ts:8593`
-**Issue:** `nextLedgerEntries` (`:6309-6315`) already carries every previous kit-true entry that still holds its record when the kit was written, and every kit entry verbatim when it was not. So `recordKitFile(..., s.record)` writes the same record a second way. It is harmless today, but there are now two carry paths for one fact.
-**Fix:** Rely on the existing carry rule and drop the `recordKitFile` call, or note at the call that it repeats that rule.
+**File:** `agent-factory/config/factory.config.md:170`; `scripts/model-tiers.ts:1468,1492,1518`; `agent-factory/roles/software-engineer.md:37`
 
-### IN-04: A non-ENOENT `lstat` error is reported as a user-edited adapter
+**Issue:** WR-02 fixed the engineer's stop rule. But the D-2 paragraph in `factory.config.md` still says the junior takes "never security, migration, concurrency or test-integrity work", and the `LEVELS` rationale in `model-tiers.ts` says the same. Under mapping rule 4, data writes, a public interface, config, auth, money and PII also rule junior out. Neither statement is false, but each is narrower than the rule.
 
-**File:** `install/install.ts:932-936`
-**Issue:** An `EACCES`/`EPERM` from `lstatSync` falls through to `out.push`, and `owns()` will usually answer not-owned. The user is then told the adapter "you have since edited or replaced, so it is yours", which is not established.
-**Fix:** On any other error code, push a separate "could not be inspected (<code>)" finding.
+Separately, `software-engineer.md:37` now repeats the rubric's tag list by hand ("auth, money, PII, data writes, a public interface or config"). That list can drift from the F3 row in `complexity-rubric.md:19`.
 
-### IN-05: The coordinator adapter is now past the warn tier
+**Fix:** Change the D-2 paragraph to "never work the rubric tags with any F3 risk (see `complexity-rubric.md` § Junior exclusions)". In the role, point to the rubric's F3 row instead of listing the tags.
 
-**File:** `agent-factory/packaging/subagent.frontmatter.md:152-156`
-**Issue:** It measures 3368 B against the 3072 B warn tier and the 4096 B fail tier. Configured effort lines and each new role in the grant add bytes. The phase records this, but the warn tier is now permanently red, so it no longer flags new growth.
-**Fix:** Set a re-measured warn baseline or a shorter grant rendering before the next role lands.
+### IN-09: The run-time flattening lists leave out effort settings documented a few lines earlier
 
-### IN-06: The XL / file-plan split stop names no owner for leaving `Ready for Dev`
+**File:** `agent-factory/config/factory.config.md:166,174-180`; `install/README.md:2072-2078`
 
-**File:** `agent-factory/workflows/04-ticket-to-pr.md:57`
-**Issue:** The Tech Lead runs while the ticket sits in `Ready for Dev` (line 217), but the stop says it "goes back to BA/PM for splitting before it can enter `Ready for Dev`". It has already entered, and no role is named as owning the move out.
-**Fix:** "... `SPLIT_REQUIRED`: the Tech Lead moves it back to `Backlog` for BA/PM to split."
+**Issue:** `factory.config.md:166` says a `maxEffortLevel` setting "caps the level on every provider". That one setting can run all three levels at one effort, but it is missing from the "What can flatten the levels at run time" list at lines 174-180.
+
+The README summary lists four settings and says "Any of them can run the three levels on one model". It leaves out `CLAUDE_CODE_EFFORT_LEVEL` and `maxEffortLevel`, which flatten effort rather than model.
+
+The WR-09 fix removed the count from the lead-in, but the README still carries a second, shorter list of names.
+
+**Fix:** Add a `maxEffortLevel` bullet to the `factory.config.md` list. In the README, either drop the list of names and keep only the pointer, or name every setting and say "on one model or one effort".
+
+### IN-10: The new presence-path tests leave out the README's headline case and two branches
+
+**File:** `install/install.test.ts:12339-12449`
+
+**Issue:** Every planted test uses a target with no install marker at all, so the ledger is `absent` because the marker is. Untested:
+- The case the README leads with: a v2.1-era marker that is present and has no `ledger` field. I checked it by hand: install and `--check` both print the "is absent" note.
+- The `malformed` arm (the doctor's "could not be read" note).
+- The `unreadable` branch: an existing `.claude/agents/` that cannot be listed, which goes to `unrecordedAdaptersUnreadableText`.
+
+So the wording and the branch WR-11 and IN-07 discuss have no test pinning them.
+
+**Fix:** Add three cases:
+- a marker with `ledger` (and `agents`) deleted from a real install's marker;
+- a malformed `ledger` under `--check`, asserting the note and the FAIL;
+- a `chmod 000` on `.claude/agents` (skipped on Windows or as root), asserting the "cannot list" note and no other note.
 
 ---
 
-_Reviewed: 2026-10-30T01:08:36Z_
+_Reviewed: 2026-10-30T09:20:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
