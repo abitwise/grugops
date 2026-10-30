@@ -2163,10 +2163,11 @@ function unleveledScratch(): string {
   return m;
 }
 
+// The D-14 level pins as literals; efforts as re-decided by the human on 2026-10-30 (G-39-5).
 const LEVEL_PINS = {
-  junior: { model: "haiku", effort: "medium" },
-  mid: { model: "sonnet", effort: "medium" },
-  senior: { model: "opus", effort: "high" },
+  junior: { model: "haiku", effort: "xhigh" },
+  mid: { model: "sonnet", effort: "high" },
+  senior: { model: "opus", effort: "medium" },
 } as const;
 
 describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)", () => {

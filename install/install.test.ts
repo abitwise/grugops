@@ -472,13 +472,13 @@ const SYNTH_ADAPTERS: string[] = listAgentAdapters(REPO_ROOT).slice().sort();
 // SPAWN_GRANT_SCAN_COUNT) live in scripts/kit-model.test.ts and move only by recorded decision.
 const LIVE_ADAPTER_COUNT: number = listAgentAdapterNames(REPO_ROOT).length;
 
-// (Plan 39-07, D-3, D-14) THE ENGINEER LEVEL PINS AT ZERO CONFIG, as literals (never read from
-// LEVELS). software-engineer.md declares `levels: junior mid senior`, so a zero-config install is
-// `inherit` everywhere except these three adapters.
+// (Plan 39-07, D-3, D-14 as amended on 2026-10-30, G-39-5) THE ENGINEER LEVEL PINS AT ZERO CONFIG,
+// as literals (never read from LEVELS). software-engineer.md declares `levels: junior mid senior`, so
+// a zero-config install is `inherit` everywhere except these three adapters.
 const LEVEL_PINS: Readonly<Record<string, { model: ModelAlias; effort: EffortLevel }>> = {
-  "grugops-software-engineer-junior": { model: "haiku", effort: "medium" },
-  "grugops-software-engineer-mid": { model: "sonnet", effort: "medium" },
-  "grugops-software-engineer-senior": { model: "opus", effort: "high" },
+  "grugops-software-engineer-junior": { model: "haiku", effort: "xhigh" },
+  "grugops-software-engineer-mid": { model: "sonnet", effort: "high" },
+  "grugops-software-engineer-senior": { model: "opus", effort: "medium" },
 };
 /** The zero-config model of an adapter, by name (no `.md`). */
 const zeroModelOf = (name: string): ModelAlias => LEVEL_PINS[name]?.model ?? "inherit";

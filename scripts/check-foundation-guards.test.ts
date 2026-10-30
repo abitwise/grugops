@@ -3746,11 +3746,12 @@ function brokenMirror(): string {
 }
 
 // (Plan 39-07) The D-14 zero-config pins of the three engineer level adapters, as test literals
-// (never read from LEVELS), for the fixture bodies consistentMirror() writes.
+// (never read from LEVELS), for the fixture bodies consistentMirror() writes. Efforts as re-decided
+// by the human on 2026-10-30 (Phase 39 UAT, G-39-5; plan 39-14).
 const FIXTURE_LEVEL_PINS: Readonly<Record<string, { model: string; effort: string }>> = {
-  "grugops-software-engineer-junior": { model: "haiku", effort: "medium" },
-  "grugops-software-engineer-mid": { model: "sonnet", effort: "medium" },
-  "grugops-software-engineer-senior": { model: "opus", effort: "high" },
+  "grugops-software-engineer-junior": { model: "haiku", effort: "xhigh" },
+  "grugops-software-engineer-mid": { model: "sonnet", effort: "high" },
+  "grugops-software-engineer-senior": { model: "opus", effort: "medium" },
 };
 
 function consistentMirror(): string {
@@ -15397,15 +15398,15 @@ describe("engineer levels at the gate (plan 39-02, D-13, D-14, D-15)", () => {
     );
   });
 
-  it("level RED (guard_effort_assignment): junior's `effort: medium` line removed is named", () => {
+  it("level RED (guard_effort_assignment): junior's `effort: xhigh` line removed is named", () => {
     const m = levelsMirror();
     const p = adapterPath(m, levelAdapter("junior"));
     const text = readFileSync(p, "utf8");
-    expect(text, "PREMISE: the junior adapter carries its D-14 effort pin").toContain("\neffort: medium\n");
-    writeFileSync(p, text.replace("\neffort: medium\n", "\n"), "utf8");
+    expect(text, "PREMISE: the junior adapter carries its D-14 effort pin").toContain("\neffort: xhigh\n");
+    writeFileSync(p, text.replace("\neffort: xhigh\n", "\n"), "utf8");
     const section = effortSection(out(runScratch(levelsGuardBuild(), m)));
     expect(section).toContain(
-      `.claude/agents/${levelAdapter("junior")}.md: carries NO \`effort\` line, and the configuration resolves \`medium\` for adapter stem "software-engineer-junior"`,
+      `.claude/agents/${levelAdapter("junior")}.md: carries NO \`effort\` line, and the configuration resolves \`xhigh\` for adapter stem "software-engineer-junior"`,
     );
   });
 
