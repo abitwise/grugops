@@ -941,3 +941,65 @@ describe("install/README.md documents the engineer level adapters and the stale-
     expect(README).not.toMatch(/\b16 specialist/i);
   });
 });
+
+describe("factory.config.md `checkpoints` wording matches Workflow 04 step 15 (quick 261030-fzo; HD-2, HD-3)", () => {
+  const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const CHECKPOINTS_TS = readFileSync(join(ROOT, "scripts/checkpoints.ts"), "utf8");
+  // The parenthetical the HEAD `notify` bullet and JSDoc ended with (8c6c26f1, config line 192).
+  const HEAD_PARENTHETICAL = "is recorded (a finding note)";
+  const OPEN = "### `checkpoints` sub-fields";
+  const CLOSE = "#### Translating a retired `autonomy` value";
+  const from = CONFIG.indexOf(OPEN);
+  const to = CONFIG.indexOf(CLOSE);
+  const slice = CONFIG.slice(from, to);
+  const sliceLines = slice.split("\n");
+  const steps = numbered(section(WF04, "Steps"));
+  const stepAt = (prefix: string) => {
+    const s = steps.find((x) => x.text.startsWith(prefix));
+    expect(s, `no step starting "${prefix}"`).toBeDefined();
+    return s as { n: number; text: string };
+  };
+  const STEP15 = "Read the `failed-attempt` note (Tech Lead).";
+
+  it("the roster section is bounded by its two headings", () => {
+    expect(from).toBeGreaterThanOrEqual(0);
+    expect(to).toBeGreaterThan(from);
+  });
+
+  it("N1: the `notify` bullet defers the record kind to Workflow 16 and names `observation` for an unstamped record", () => {
+    const bullets = sliceLines.filter((l) => l.startsWith("- `notify` — "));
+    expect(bullets).toHaveLength(1);
+    const b = bullets[0] as string;
+    expect(b).toContain("recorded in a note per Workflow 16");
+    expect(b).toContain("`finding`");
+    expect(b).toContain("`observation`");
+    expect(b).toContain("Workflow 04 step 15");
+    expect(b).not.toContain(HEAD_PARENTHETICAL);
+  });
+
+  it("N2: every notify-only (`At \\`notify\\`,`) sentence of Workflow 04 step 15 records an `observation` per Workflow 16, the kind the config bullet names", () => {
+    // "At `notify`," (comma) picks the notify-only sentences. The shared "At `notify` or `off`, …"
+    // sentence names the level move both values make, not the record `notify` adds.
+    const sentences = stepAt(STEP15).text.split(". ").filter((x) => x.startsWith("At `notify`,"));
+    expect(sentences.length).toBeGreaterThanOrEqual(2);
+    for (const s of sentences) {
+      expect(s).toContain("`observation`");
+      expect(s).toContain("per Workflow 16");
+    }
+    const bullet = sliceLines.find((l) => l.startsWith("- `notify` — ")) as string;
+    expect(bullet).toContain("`observation`");
+  });
+
+  it("N3: the `Disposition` JSDoc `notify` entry says per Workflow 16 and `observation`", () => {
+    const lines = CHECKPOINTS_TS.split("\n");
+    const start = lines.findIndex((l) => l.startsWith(" *   notify — "));
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = lines.findIndex((l, i) => i > start && l.startsWith(" *   off "));
+    expect(end).toBeGreaterThan(start);
+    const entry = lines.slice(start, end).join("\n");
+    expect(entry).toContain("per Workflow 16");
+    expect(entry).toContain("`observation`");
+    expect(entry).not.toContain(HEAD_PARENTHETICAL);
+  });
+});

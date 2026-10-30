@@ -189,7 +189,7 @@ To see which model and effort a running sub-agent got, run `/tasks` in Claude Co
 The `checkpoints` object is the per-checkpoint disposition matrix. It replaces the retired `autonomy` scalar, which graded `diff | branch | pr` in prose and was read by no mechanism. Each key is one human stop the kit declares, and each value is one of three dispositions:
 
 - `block` — the stop holds; the action waits for a named human.
-- `notify` — the action proceeds and is recorded (a finding note).
+- `notify` — the action proceeds and is recorded in a note per Workflow 16. Workflow 16 picks the note's kind: a `finding` needs a real `§14-gate#<id>` or `human:<name>` stamp, so a record the acting agent cannot stamp is an `observation`. Workflow 04 step 15 records an `observation` at `notify`.
 - `off` — the action proceeds silently.
 
 There is no fourth value. The roster is closed and lives once, in `scripts/checkpoints.ts`; the structure validator imports it rather than restating it, so an unknown checkpoint id is refused by name and a value outside the three dispositions is refused with the allowed set quoted back to you.

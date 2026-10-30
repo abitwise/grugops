@@ -56,7 +56,8 @@ import {
 /**
  * The ternary a checkpoint may be set to.
  *   block  — the human stop is enforced; the action is refused without a named human.
- *   notify — the action proceeds and is recorded (a finding note).
+ *   notify — the action proceeds and is recorded in a note per Workflow 16; a record the acting
+ *            agent cannot stamp is an `observation`, because a `finding` needs a real stamp.
  *   off    — the action proceeds silently.
  * There is no fourth value, and `block` is the default for every roster member.
  */
