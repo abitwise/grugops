@@ -36,6 +36,9 @@ The IDs below are the re-review's own numbering. They are not the WR-11 to WR-16
   had merged the two values. `factory.config.md` defines `notify` as "recorded (a finding note)";
   the record here is an `observation` because a `finding` needs a verification stamp, and that
   config wording is left for a human to settle (see `39-REVIEW-FIX.md`).
+- **WR-06**: step 14's `failed-attempt` note opens with `Cause: engineer` or `Cause: gate`, and
+  steps 15 and 16 decide on the gate-failure stop from that line instead of the note's free text.
+  The role reaches the same rule through its pointer to step 15 (WR-05).
 
 The `line` column gives each clause's line in the tree after the fix that wrote the row.
 
@@ -72,3 +75,6 @@ the rows below are written.
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | — | At `notify`, also record an `observation` per Workflow 16 that names the move note. | WR-03, D-20 | **added.** `notify` means the action proceeds and is recorded. The record is an `observation`, because a `finding` needs a verification stamp this note has no way to earn. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | At `notify` or `off`, make the move without that human. | At `notify`, make the move and record an `observation` per Workflow 16 that names the move note. | WR-04, D-20 | **reworded and split.** `notify` proceeds and is recorded, per `factory.config.md`, so a repository that chose it over `off` gets the record it chose. | — |
 | agent-factory/workflows/04-ticket-to-pr.md | 41 | At `notify` or `off`, make the move without that human. | At `off`, make the move without that human. | WR-04 | **reworded and split.** Only `off` proceeds silently. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 40 | — | Open its body with `Cause: engineer` for a `BLOCKED` report, or `Cause: gate` for a gate failure. | WR-06, D-18 | **added.** Gives the soft `failed-attempt` note a fixed first line that says which of the two causes raised the block. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | After a gate `BLOCKED_NEEDS_FIX`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows. | When the note opens with `Cause: gate`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows. | WR-06, CR-02 | **reworded.** The Tech Lead decides on the gate-failure stop from the note's fixed line, so a misread cause cannot skip the stop. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 42 | After a gate failure at `block`, wait also for a `Confirmed: yes` finding that names the move note. | After a `Cause: gate` note at `block`, wait also for a `Confirmed: yes` finding that names the move note. | WR-06, D-20 | **reworded.** The Orchestrator reads the same fixed line as the Tech Lead. | — |

@@ -627,6 +627,11 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     const s = stepAt("Record a `failed-attempt` note per Workflow 16 when the engineer reports `BLOCKED` (Software Engineer).");
     expect(s.text).toContain("when the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, for an agent-fixable reason");
     expect(s.text).toContain("Move the ticket to the `Blocked` column.");
+    // Re-review WR-06: the note says which of the two causes raised the block, in a fixed first
+    // line, so steps 15 and 16 can decide on the gate-failure stop without reading free text.
+    expect(s.text).toContain(
+      "Open its body with `Cause: engineer` for a `BLOCKED` report, or `Cause: gate` for a gate failure.",
+    );
     expect(s.text).toContain("Add a `## Blocked` bullet naming the Tech Lead as the owner who clears it.");
     // Escalation comes after the gate and the QE steps.
     expect(s.n).toBeGreaterThan(stepAt("Assess the feature by trying to break it (QE/E2E).").n);
@@ -711,8 +716,9 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
   it("CR-02: after a gate failure the numbered steps stop for a named human before any re-enqueue", () => {
     const s15 = stepAt("Read the `failed-attempt` note (Tech Lead).").text;
     // WR-16: the stop follows the `exhaust_self_fix_budget` value; `block` is the default.
+    // Re-review WR-06: the condition reads the note's fixed `Cause:` line, not its free text.
     expect(s15).toContain(
-      "After a gate `BLOCKED_NEEDS_FIX`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows.",
+      "When the note opens with `Cause: gate`, read `checkpoints.exhaust_self_fix_budget`, the value the gate-failure stop below follows.",
     );
     // Re-review WR-04: `notify` proceeds and is recorded; only `off` proceeds silently.
     expect(s15).toContain(
@@ -726,7 +732,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
     // WR-15, re-review WR-02: the human's answer is a published `human:<name>` finding that says yes
     // or no, and step 16 waits only for a yes, so a recorded rejection never releases the re-enqueue.
-    expect(s16).toContain("After a gate failure at `block`, wait also for a `Confirmed: yes` finding that names the move note.");
+    expect(s16).toContain("After a `Cause: gate` note at `block`, wait also for a `Confirmed: yes` finding that names the move note.");
     expect(s16).not.toContain("wait also for the `human:<name>` finding");
     expect(s15).toContain("Leave the ticket in `Blocked` until then.");
     // WR-01 (iteration 2): the step names who writes the finding and the limit, and says honestly
