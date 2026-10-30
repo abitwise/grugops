@@ -2053,9 +2053,9 @@ model and effort:
 
 | Adapter | `model` | `effort` |
 |---------|---------|----------|
-| `grugops-software-engineer-junior` | `haiku` | `medium` |
-| `grugops-software-engineer-mid` | `sonnet` | `medium` |
-| `grugops-software-engineer-senior` | `opus` | `high` |
+| `grugops-software-engineer-junior` | `haiku` | `xhigh` |
+| `grugops-software-engineer-mid` | `sonnet` | `high` |
+| `grugops-software-engineer-senior` | `opus` | `medium` |
 
 At zero config these are the only adapters with an `effort:` line; every other adapter is
 `model: inherit`. The Tech Lead names the level for each ticket, and the Orchestrator spawns that
@@ -2070,7 +2070,7 @@ model does not change, and grugops gives no model advice for those hosts.
 Haiku 5.5, and Haiku 5.5 needs Claude Code v2.1.293 or later (`code.claude.com/docs/en/model-config`,
 fetched 2026-10-29). On Claude Platform on AWS, Amazon Bedrock, Google Cloud's Agent Platform and
 Microsoft Foundry, `haiku` resolves to Haiku 4.5, which that page does not list as supporting an effort
-level, so what Claude Code does with the junior adapter's `effort: medium` line there is
+level, so what Claude Code does with the junior adapter's `effort: xhigh` line there is
 `UNKNOWN - verify`. On those providers `sonnet` can map to Sonnet 4.5, which is not in that list either,
 so the mid adapter's effort there is `UNKNOWN - verify` too. `install.js --check` does not probe the
 Claude Code version yet; check it yourself before you rely on the junior level.

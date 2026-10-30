@@ -31,9 +31,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   the rubric, names the engineer level that does it and plans the dev tasks.
 - The Designer role. It sets the product's design system once, before Frontend/UI writes its
   per-ticket UI contract from it.
-- Three Claude Code engineer adapters: `grugops-software-engineer-junior` (`haiku`, effort `medium`;
-  needs Claude Code v2.1.293 or later), `grugops-software-engineer-mid` (`sonnet`, effort `medium`)
-  and `grugops-software-engineer-senior` (`opus`, effort `high`). On the other hosts there is one
+- Three Claude Code engineer adapters: `grugops-software-engineer-junior` (`haiku`, effort `xhigh`;
+  needs Claude Code v2.1.293 or later), `grugops-software-engineer-mid` (`sonnet`, effort `high`)
+  and `grugops-software-engineer-senior` (`opus`, effort `medium`). On the other hosts there is one
   software engineer role, and the level in the ticket is scope guidance.
 - The `skills:` key in role frontmatter. Only the grammar is added; no shipped role declares one yet.
 - Install, `--dry-run` and `install.js --check` name an adapter in `.claude/agents/` that this kit
