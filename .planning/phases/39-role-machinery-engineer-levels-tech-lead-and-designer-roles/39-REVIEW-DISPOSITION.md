@@ -9,7 +9,7 @@ findings:
     title: "The step 15 split records the move before the re-score stop, and step 16 never holds for that stop, so at the default `block` an engineer-raised two-level re-score is re-enqueued without the named human"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "At `notify`/`off`, the used-up stop no longer stops, but no legal move is left and the \"never retry in a loop\" bound still reads as unconditional"
   - id: WR-02
     severity: warning
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 9
+open: 8
 total: 28
 recorded: 2026-10-30T16:00:36.510Z
 ---
@@ -125,7 +125,7 @@ recorded: 2026-10-30T16:00:36.510Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | CR-01 | critical | open | - |
-| WR-01 | warning | open | - |
+| WR-01 | warning | fixed | plan 39-18 (71f0a9f2), option park-in-blocked decided by Olger Oeselg on 2026-10-30 |
 | WR-02 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
