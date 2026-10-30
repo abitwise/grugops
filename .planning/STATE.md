@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
-status: executing
-stopped_at: Completed 39-09-PLAN.md
-last_updated: "2026-10-29T23:23:42.346Z"
+status: verifying
+stopped_at: Completed 39-10-PLAN.md
+last_updated: "2026-10-30T00:29:52.515Z"
 last_activity: 2026-10-29
 last_activity_desc: Phase 39 execution started
-state_head: 9b9cffe432f8578ce3dc925f142ccb6496c27178
+state_head: 245971f2b8927ef2143dde85f3e655d67484f4e2
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 78
-  completed_plans: 77
+  completed_plans: 78
   percent: 44
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — EXECUTING
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-29 — Phase 39 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -793,6 +793,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P07 | 90 min | 2 tasks | 38 files |
 | Phase 39 P08 | 47min | 2 tasks | 10 files |
 | Phase 39 P09 | 32 min | 2 tasks | 8 files |
+| Phase 39 P10 | 63 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2183,6 +2184,7 @@ Recent decisions affecting current work:
 - [Phase 39]: 39-08: orchestrator.md routing adds plan -> Tech Lead, code -> Software Engineer (level from Tech Lead), design system -> Designer; the restated Definition of Ready bullet was removed so the file shrank 7359 -> 7255 B
 - [Phase 39]: 39-08: D-18 second gate failure = WF05 BLOCKED_NEEDS_FIX after bounded self-fix for an agent-fixable reason; the Tech Lead decides first, then a named human confirms under checkpoint exhaust_self_fix_budget (WF05 stop not lowered); options used up -> named human under escalate_unadjudicable_result
 - [Phase 39]: 39-09: WF14 runs the Designer first (once per product; re-run only for a new direction; newer decision supersedes older); Frontend/UI reads tokens from the Designer's notes and never names one; a missing token is an untagged stop to the Designer; WORKFLOW_STOP_BULLET_COUNT 48
+- [Phase 39]: 39-10: install, --dry-run and --check report (never delete) a ledger-recorded kit adapter the kit no longer ships; a name is shipped when the adapter directory or this run's render has it
 
 ### Pending Todos
 
@@ -2518,8 +2520,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-29T23:23:41.782Z
-Stopped at: Completed 39-09-PLAN.md
+Last session: 2026-10-30T00:29:51.863Z
+Stopped at: Completed 39-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
