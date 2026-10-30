@@ -35,10 +35,12 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
+  EFFORT_KEYS,
   EFFORT_LEVELS,
   EFFORT_PRESET_NAMES,
   MODEL_ALIASES,
   MODELS_CONFIG_CANDIDATE_RELS,
+  MODELS_KEYS,
   PRESET_NAMES,
 } from "./model-tiers.js";
 import { listPackagingTemplates } from "./kit-model.js";
@@ -1757,5 +1759,89 @@ describe("model dial — the delivery path is stated where a configuring reader 
       (frag) => occurrences(pointer, frag) > 0,
     );
     expect(returned).toEqual([]);
+  });
+});
+
+// ── G-39-6: the Refusals and closed-set paragraphs name the module's own key tuples ─────────────
+//
+// MODELS_KEYS gained `effort` in Phase 34 and the `models.effort` block closes its own EFFORT_KEYS,
+// but the `models` Refusals sentence still read "not `preset` or `roles`" and the closed-set
+// paragraph still counted two closed key sets. Every expectation below is derived from the imported
+// tuples, so a member added to either tuple without its doc turns this block red by name.
+
+/** The heading of the `models` sub-fields section in the config field reference. */
+const MODELS_SECTION_HEADING = "### `models` sub-fields";
+
+/** The opening sentence the closed-set paragraph carried on HEAD before G-39-6, up to its colon. */
+const RETIRED_CLOSED_SET_OPENING = "Two key sets are closed";
+
+/** The text between `start` and the next `end` after it; throws by name when either is missing. */
+function between(text: string, start: string, end: string, what: string): string {
+  const i = text.indexOf(start);
+  if (i < 0) throw new Error(`G-39-6 oracle: ${what}: start marker not found: ${JSON.stringify(start)}`);
+  const from = i + start.length;
+  const j = text.indexOf(end, from);
+  if (j < 0) throw new Error(`G-39-6 oracle: ${what}: end marker not found: ${JSON.stringify(end)}`);
+  return text.slice(from, j);
+}
+
+/** The one line of `text` that starts with `label`; throws by name unless exactly one does. */
+function lineStartingWith(text: string, label: string, what: string): string {
+  const lines = text.split("\n").filter((l) => l.startsWith(label));
+  if (lines.length !== 1) {
+    throw new Error(`G-39-6 oracle: ${what}: expected one line starting ${JSON.stringify(label)}, found ${lines.length}`);
+  }
+  return lines[0];
+}
+
+/** Every backticked word in `text`, in order. */
+function backticked(text: string): string[] {
+  return [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+}
+
+/** Two-way check of a clause's backticked words against a tuple; returns named problems. */
+function clauseMismatch(clause: string, tuple: readonly string[], paragraph: string): string[] {
+  const words = backticked(clause);
+  const legal = new Set<string>(tuple);
+  const missing = tuple.filter((k) => !words.includes(k)).map((k) => `"${k}" missing from ${paragraph}`);
+  const extra = words.filter((w) => !legal.has(w)).map((w) => `"${w}" in ${paragraph} is not a legal key`);
+  return [...missing, ...extra];
+}
+
+describe("model dial — the Refusals and closed-set paragraphs name the module's own key tuples (G-39-6)", () => {
+  const pointer = (): string => readSurface("pointer");
+
+  it("G-39-6 (a): the `models` Refusals unknown-key clause names exactly MODELS_KEYS", () => {
+    const section = between(pointer(), MODELS_SECTION_HEADING, EFFORT_SECTION_HEADING, "`models` sub-fields section");
+    const line = lineStartingWith(section, "**Refusals.**", "`models` Refusals paragraph");
+    const clause = between(line, "a key inside the `models` block that is not ", ", a `preset`", "`models` unknown-key clause");
+    expect(MODELS_KEYS.length, "PREMISE: MODELS_KEYS must not be empty").toBeGreaterThan(0);
+    expect(clauseMismatch(clause, MODELS_KEYS, "the `models` Refusals unknown-key clause")).toEqual([]);
+  });
+
+  it("G-39-6 (b): the `models.effort` Refusals unknown-key clause names exactly EFFORT_KEYS (the control)", () => {
+    const section = effortSection(pointer());
+    const line = lineStartingWith(section, "**Refusals.**", "`models.effort` Refusals paragraph");
+    const clause = between(line, "a key inside `models.effort` that is not ", ", an effort preset", "`models.effort` unknown-key clause");
+    expect(EFFORT_KEYS.length, "PREMISE: EFFORT_KEYS must not be empty").toBeGreaterThan(0);
+    expect(clauseMismatch(clause, EFFORT_KEYS, "the `models.effort` Refusals unknown-key clause")).toEqual([]);
+  });
+
+  it("G-39-6 (c): the closed-set paragraph names every closed key set and every member of both tuples", () => {
+    const line = lineStartingWith(pointer(), "**What is closed, and what is not.**", "closed-set paragraph");
+    const words = backticked(line);
+    const missing = [
+      ...["models.roles", "models.effort", "models.effort.roles"]
+        .filter((set) => !words.includes(set))
+        .map((set) => `closed key set "${set}" missing from the closed-set paragraph`),
+      ...[...new Set<string>([...MODELS_KEYS, ...EFFORT_KEYS])]
+        .filter((k) => !words.includes(k))
+        .map((k) => `key "${k}" missing from the closed-set paragraph`),
+    ];
+    expect(missing).toEqual([]);
+    expect(
+      line.includes(RETIRED_CLOSED_SET_OPENING),
+      `the closed-set paragraph still opens with the retired sentence "${RETIRED_CLOSED_SET_OPENING}"`,
+    ).toBe(false);
   });
 });
