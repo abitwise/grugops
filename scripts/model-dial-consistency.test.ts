@@ -38,6 +38,7 @@ import {
   EFFORT_KEYS,
   EFFORT_LEVELS,
   EFFORT_PRESET_NAMES,
+  LEVELS,
   MODEL_ALIASES,
   MODELS_CONFIG_CANDIDATE_RELS,
   MODELS_KEYS,
@@ -1843,5 +1844,58 @@ describe("model dial — the Refusals and closed-set paragraphs name the module'
       line.includes(RETIRED_CLOSED_SET_OPENING),
       `the closed-set paragraph still opens with the retired sentence "${RETIRED_CLOSED_SET_OPENING}"`,
     ).toBe(false);
+  });
+});
+
+// ── WR-02 (G-39-5): every level-pin statement in factory.config.md equals the LEVELS rows ───────────
+//
+// D-14 was amended by the human on 2026-10-30: the level efforts moved, and LEVELS, the Engineer
+// levels paragraph and the absent-block parenthetical moved with them, but the `models` row of the
+// field table kept the pre-2026-10-30 pins. Nothing read that row. Every expectation below is built
+// from the imported LEVELS rows, two-sided for the row, so a re-decision of LEVELS that leaves any of
+// the three statements behind turns this block red by name.
+
+/** `a`, `a and b`, `a, b and c`: the list shape the config reference writes. */
+function joinWithAnd(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/** Every backticked-word slash backticked-word pair in `text`, as `alias/effort`, in order. */
+function backtickedPairs(text: string): string[] {
+  return [...text.matchAll(/`([^`]+)`\/`([^`]+)`/g)].map((m) => `${m[1]}/${m[2]}`);
+}
+
+describe("model dial — every level-pin statement in factory.config.md equals the LEVELS rows (WR-02, G-39-5)", () => {
+  const pointer = (): string => readSurface("pointer");
+
+  it("WR-02 (a): the `models` field-table row names exactly the LEVELS pins", () => {
+    expect(LEVELS.length, "PREMISE: LEVELS must not be empty").toBeGreaterThan(0);
+    const row = lineStartingWith(pointer(), "| `models` |", "`models` field-table row");
+    const missing = LEVELS.filter((r) => !row.includes(`${r.level} \`${r.alias}\`/\`${r.effort}\``)).map(
+      (r) => `missing pin "${r.level} \`${r.alias}\`/\`${r.effort}\`" in the \`models\` field-table row`,
+    );
+    const legal = new Set(LEVELS.map((r) => `${r.alias}/${r.effort}`));
+    const pairs = backtickedPairs(row);
+    const stale = pairs.filter((p) => !legal.has(p)).map((p) => `stale pair "${p}" in the \`models\` field-table row is not a LEVELS pin`);
+    // One line per report, so a red run names every stale or missing pin in a single message.
+    expect([...missing, ...stale].join("; ")).toBe("");
+    expect(pairs.length, "the `models` field-table row carries one alias/effort pair per LEVELS row").toBe(LEVELS.length);
+  });
+
+  it("WR-02 (b): the Engineer levels paragraph names each LEVELS row (control)", () => {
+    const line = lineStartingWith(pointer(), "**Engineer levels.**", "Engineer levels paragraph");
+    const missing = LEVELS.filter((r) => !line.includes(`${r.level} \`${r.alias}\` at effort \`${r.effort}\``)).map(
+      (r) => `missing "${r.level} \`${r.alias}\` at effort \`${r.effort}\`" in the Engineer levels paragraph`,
+    );
+    expect(missing.join("; ")).toBe("");
+  });
+
+  it("WR-02 (c): the Absent-means-inherit parenthetical names the LEVELS efforts in table order (control)", () => {
+    const line = lineStartingWith(pointer(), "**Absent means inherit, except the levels.**", "Absent-means-inherit paragraph");
+    const efforts = joinWithAnd(LEVELS.map((r) => `\`${r.effort}\``));
+    const levels = joinWithAnd(LEVELS.map((r) => r.level));
+    const expected = `(${efforts} for ${levels})`;
+    expect(line.includes(expected), `the Absent-means-inherit paragraph lacks ${JSON.stringify(expected)}`).toBe(true);
   });
 });
