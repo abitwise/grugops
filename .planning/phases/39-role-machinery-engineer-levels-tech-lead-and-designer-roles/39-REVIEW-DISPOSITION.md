@@ -3,34 +3,38 @@ phase: 39
 review: 39-REVIEW.md
 titles: json
 findings:
+  - id: WR-01
+    severity: warning
+    disposition: open
+    title: "At `notify`/`off`, the tagged used-up stop says \"no move, no re-enqueue\" for the two re-score triggers, while step 15 says \"raise one level / keep the level as `Move: re-plan`\", and step 16 then re-enqueues (reopens the previous WR-01)"
+  - id: WR-02
+    severity: warning
+    disposition: open
+    title: "A parked ticket has no defined way out of `Blocked`, and the one escape depends on `escalate_stale_blocker`, a cell that can also be lowered"
+  - id: WR-03
+    severity: warning
+    disposition: open
+    title: "The used-up stop at `block` has no way to resume and no step 16 hold, and the \"human's level stands, even past the move limits\" license contradicts \"Never escalate a ticket twice\""
+  - id: WR-04
+    severity: warning
+    disposition: open
+    title: "At the re-score stop the human answers with a level, but step 16 is released by a `Confirmed: yes` finding about a move note the human never saw"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "(carried forward, still open) The iteration-2 disposition still states the reverted `3572 3381` ceiling and a WARN the role no longer trips"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "(carried forward, still open) \"Only at `context.human_admission: all` does admission check that stamp\" leaves out the fail-toward-gating cases"
+  - id: IN-03
+    severity: info
+    disposition: open
+    title: "`hasSentence` checks less than its comment says, and is duplicated"
   - id: CR-01
     severity: critical
     disposition: open
     title: "The step 15 split records the move before the re-score stop, and step 16 never holds for that stop, so at the default `block` an engineer-raised two-level re-score is re-enqueued without the named human"
-  - id: WR-01
-    severity: warning
-    disposition: fixed
-    title: "At `notify`/`off`, the used-up stop no longer stops, but no legal move is left and the \"never retry in a loop\" bound still reads as unconditional"
-  - id: WR-02
-    severity: warning
-    disposition: open
-    title: "The `models` row of the config field table still states the old level pins"
-  - id: IN-01
-    severity: info
-    disposition: open
-    title: "The iteration-2 disposition still states the reverted `3572 3381` ceiling and a WARN the role no longer trips"
-  - id: IN-02
-    severity: info
-    disposition: open
-    title: "\"Only at `context.human_admission: all` does admission check that stamp\" leaves out the two other cases where admission gates the finding"
-  - id: WR-03
-    severity: warning
-    disposition: fixed
-    title: "The WR-13 stops are unconditional in step 15 but tagged `escalate_unadjudicable_result` in the stop conditions, which is the contradiction WR-16 just fixed for another cell"
-  - id: WR-04
-    severity: warning
-    disposition: fixed
-    title: "At `notify`, step 15 makes the move with no record, so `notify` behaves exactly like `off`"
   - id: WR-05
     severity: warning
     disposition: fixed
@@ -39,10 +43,6 @@ findings:
     severity: warning
     disposition: fixed
     title: "Step 16's \"After a gate failure at `block`\" needs a fact step 14 never records: the `failed-attempt` note is \"the same note\" for an engineer block and a gate block"
-  - id: IN-03
-    severity: info
-    disposition: fixed
-    title: "\"On an escalation\" in the WF04 board moves now means two different things"
   - id: IN-04
     severity: info
     disposition: fixed
@@ -115,25 +115,25 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 8
+open: 12
 total: 28
-recorded: 2026-10-30T16:00:36.510Z
+recorded: 2026-10-30T20:14:53.188Z
 ---
 
 # Phase 39: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| WR-01 | warning | fixed | plan 39-18 (71f0a9f2), option park-in-blocked decided by Olger Oeselg on 2026-10-30 |
+| WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
+| WR-04 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
-| WR-03 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
-| WR-04 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| IN-03 | info | open | - |
+| CR-01 | critical | open | - (not in the current review) |
 | WR-05 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-06 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
-| IN-03 | info | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | IN-04 | info | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-11 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-12 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
