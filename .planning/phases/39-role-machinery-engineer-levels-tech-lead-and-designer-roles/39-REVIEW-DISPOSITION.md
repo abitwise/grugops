@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "The Designer has no shell, so it cannot read or publish the notes that are its whole output"
   - id: CR-02
     severity: critical
@@ -21,7 +21,7 @@ findings:
     title: "The junior stop rule names four of the seven F3 = 2 tags and none of the F3 = 1 tags"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The three level adapters have near-identical routing descriptions, so auto-delegation can pick junior outside the Tech Lead path"
   - id: WR-04
     severity: warning
@@ -41,7 +41,7 @@ findings:
     title: "The rubric scores \"the dev plan\", but the Tech Lead scores before it writes the dev plan"
   - id: WR-08
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The Designer reads no existing design in a brownfield repository"
   - id: WR-09
     severity: warning
@@ -53,11 +53,11 @@ findings:
     title: "No changelog entry for a release-visible, partly breaking change"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: fixed
     title: "Stale docblock in `tieredCorpusRefusals`"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`LEVEL_COUNT` is called a two-sided pin, but only tests read it"
   - id: IN-03
     severity: info
@@ -75,7 +75,7 @@ findings:
     severity: info
     disposition: open
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 18
+open: 13
 total: 18
 recorded: 2026-10-30T01:10:40.204Z
 ---
@@ -84,20 +84,20 @@ recorded: 2026-10-30T01:10:40.204Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
+| CR-01 | critical | fixed | plan 39-11 (0a94175f) |
 | CR-02 | critical | open | - |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
+| WR-03 | warning | fixed | plan 39-11 (de619b57) |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
-| WR-08 | warning | open | - |
+| WR-08 | warning | fixed | plan 39-11 (78c07a10) |
 | WR-09 | warning | open | - |
 | WR-10 | warning | open | - |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
+| IN-01 | info | fixed | plan 39-11 (de619b57) |
+| IN-02 | info | fixed | plan 39-11 (de619b57) |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
 | IN-05 | info | open | - |
