@@ -11,7 +11,7 @@ created: "2026-10-30"
 # Phase 39 — Security
 
 > Per-phase security contract: threat register, accepted risks, and audit trail.
-> Register authored at plan time (39-01..39-13 `<threat_model>` blocks; 39-11..39-13 are gap-closure round 1). ASVS L1: mitigations verified at grep depth against HEAD; no SUMMARY carried a `## Threat Flags` entry.
+> Register authored at plan time (39-01..39-18 `<threat_model>` blocks; 39-11..39-13, 39-14..39-16 and 39-17..39-18 are gap-closure rounds 1, 2 and 3). ASVS L1: mitigations verified at grep depth against HEAD; no SUMMARY carried a `## Threat Flags` entry.
 
 ---
 
@@ -66,6 +66,24 @@ created: "2026-10-30"
 | T-39-30 | Tampering | installer write path (presence note) | high | mitigate | report-only presence path; `unlinkSync|rmSync` count in `install/install.ts` is 16, as pinned (plan 39-13) | closed |
 | T-39-31 | Repudiation | flattening facts in factory.config.md / install/README.md | low | mitigate | one list "What can flatten the levels at run time" in `factory.config.md:174`, README points to it (plan 39-13). Open review IN-09 notes `maxEffortLevel` missing | closed |
 | T-39-32 | Repudiation | CHANGELOG.md `[Unreleased]` | low | mitigate | `[Unreleased]` carries Added / Changed / Fixed / Deprecated / Removed sections for Phase 39 (plan 39-13) | closed |
+| T-39-33 | Tampering | `adapter-byte-baseline.test.ts` MODEL-01 effort literals | medium | mitigate | three effort literals carry the dated 2026-10-30 reason (5 hits); exact byte compare kept (plan 39-14) | closed |
+| T-39-34 | Repudiation | LEVELS `effortRationale` texts | low | mitigate | `EFFORT_RATIONALE_BANNED` case runs over every tiered row (`model-tiers.test.ts:2789`) (plan 39-14) | closed |
+| T-39-35 | Elevation of privilege | junior adapter scope under a higher effort | low | accept | effort changes reasoning depth only; D-2 bounds in software-engineer.md and the rubric untouched (AR-39-03) | closed |
+| T-39-36 | Information disclosure | `xhigh` on a provider whose `haiku` is Haiku 4.5 | low | accept | `UNKNOWN - verify` note kept in the D-2 record (AR-39-03) | closed |
+| T-39-37 | Repudiation | level pins in factory.config.md, install/README.md, CHANGELOG.md | low | mitigate | tier-kit-text pins the config sentence and README rows (plan 39-15) | closed |
+| T-39-38 | Spoofing | `models` Refusals and closed-set paragraphs | low | mitigate | G-39-6 describe derives keys from `MODELS_KEYS` / `EFFORT_KEYS` (`model-dial-consistency.test.ts:1812`) (plan 39-15) | closed |
+| T-39-39 | Information disclosure | provider caveats (Haiku 4.5, Sonnet 4.5) | low | accept | `UNKNOWN - verify` notes kept (AR-39-03) | closed |
+| T-39-40 | Elevation of privilege | WF04 step 15 named-human stops | high | mitigate | G-39-7 describe (`tier-kit-text.test.ts:1089`); WF04 still has 2 `checkpoint:` tags (plan 39-16) | closed |
+| T-39-41 | Tampering | check-diff-disposition register | medium | mitigate | `docs/audit/29-style-dispositions/39-16.md`; gate at 721 (plan 39-16) | closed |
+| T-39-42 | Repudiation | round-2 phase gate record | low | mitigate | full-suite summary lines pasted in 39-16-SUMMARY (plan 39-16) | closed |
+| T-39-43 | Elevation of privilege | WF04 step 15 re-score stop / step 16 re-enqueue (CR-01) | high | mitigate | step 15 "record no move until the human answers" precedes the move record; step 16 waits for `Confirmed: yes` after a `Stop: re-score` note at `block`; CR-01 describe (`tier-kit-text.test.ts:1152`) (plan 39-17) | closed |
+| T-39-44 | Repudiation | human level decision at the re-score stop | medium | mitigate | `Confirmed: yes` finding with `Level:` line, `human:<name>` stamp; "Never write that stamp without the human's answer" kept (plan 39-17) | closed |
+| T-39-45 | Tampering | disposition register (39-16.md correction, 39-17.md rows) | medium | mitigate | "Correction (plan 39-17" paragraph in 39-16.md; 39-17.md rows; gate at 721 (plan 39-17) | closed |
+| T-39-46 | Spoofing | factory.config.md `models` row pins | low | mitigate | WR-02 describe derives every pin from `LEVELS` (`model-dial-consistency.test.ts:1869`) (plan 39-17) | closed |
+| T-39-47 | Denial of service | used-up ticket at `notify`/`off` (deadlock or loop) | high | mitigate | option park-in-blocked: no move, no re-enqueue, stays `Blocked`, Workflow 09 raises it; stated in WF04 step 15, tech-lead.md `## Hard limits`, factory.config.md:223-224; WR-01 describe (`tier-kit-text.test.ts:1236`) (plan 39-18) | closed |
+| T-39-48 | Elevation of privilege | policy choice for locked D-21 | medium | mitigate | Task 1 `checkpoint:decision` `gate="blocking-human"`; answer quoted in 39-18-SUMMARY (Olger Oeselg, 2026-10-30) | closed |
+| T-39-49 | Tampering | checkpoint corpus and admission-hook manifest | medium | mitigate | no 39-18 commit touches `scripts/checkpoints.*` or `hooks/`; WF04 `checkpoint:` count 2 (plan 39-18) | closed |
+| T-39-50 | Repudiation | round-3 phase gate record | low | mitigate | full-suite summary lines pasted in 39-18-SUMMARY vs deferred-items.md (plan 39-18) | closed |
 | T-39-SC | Tampering | npm/pip/cargo installs | low | accept | no package installed by any phase 39 plan | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -80,6 +98,7 @@ created: "2026-10-30"
 |---------|------------|-----------|-------------|------|
 | AR-39-01 | T-39-13 | Effort support on Haiku 4.5 via cloud provider aliases is unverified; documented as `UNKNOWN - verify` rather than claimed | plan 39-07 threat model | 2026-10-29 |
 | AR-39-02 | T-39-SC | No package is installed by this phase, so there is no supply-chain surface | plans 39-01..39-10 threat models | 2026-10-29 |
+| AR-39-03 | T-39-35, T-39-36, T-39-39 | Effort raises change reasoning depth only; provider effort support stays `UNKNOWN - verify` rather than claimed | plans 39-14, 39-15 threat models | 2026-10-30 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -90,6 +109,7 @@ created: "2026-10-30"
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-10-30 | 22 | 22 | 0 | secure-phase (orchestrator, ASVS L1 grep-depth) |
+| 2026-10-30 | 40 | 40 | 0 | secure-phase (orchestrator, ASVS L1 grep-depth; adds T-39-33..T-39-50 from gap rounds 2-3) |
 
 ---
 
@@ -108,4 +128,12 @@ created: "2026-10-30"
 |---|---|
 | Threats found | 33 |
 | Closed | 33 |
+| Open | 0 |
+
+## Security Audit 2026-10-30
+
+| Metric | Count |
+|---|---|
+| Threats found | 18 |
+| Closed | 18 |
 | Open | 0 |
