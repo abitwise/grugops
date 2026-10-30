@@ -20,6 +20,10 @@ The IDs below are the re-review's own numbering. They are not the WR-11 to WR-16
   `scripts/check-foundation-guards.ts` goes back to `3572 3381`. The iteration-1 raise to
   `4222 3996` was never confirmed by a human and is reverted. The role still trips the 3381 B WARN
   tier, which is that tier's job: it is within 6% of its ceiling.
+- **WR-02**: the human's answer opens with `Confirmed: yes` or `Confirmed: no`. Step 16 waits for a
+  `Confirmed: yes` finding, so a recorded rejection no longer releases the re-enqueue. A
+  `Confirmed: no` move is neither carried out nor counted, and the Tech Lead records a new move or
+  stops for a named human once the options are used up.
 
 The `line` column gives each clause's line in the tree after the fix that wrote the row.
 
@@ -42,3 +46,9 @@ the rows below are written.
 | agent-factory/roles/tech-lead.md | 35 | A re-score that raises the level is the escalation, one level only. When the scores call for more than one level, or for a raise after the escalation is spent, stop for a named human. After a gate `BLOCKED_NEEDS_FIX`, with `checkpoints.exhaust_self_fix_budget` at `block` (the default), leave the ticket in `Blocked` until a named human confirms the move. | Follow Workflow 04 step 15 for the `Move:` line, the re-score rule and the named-human stops. | WR-05, D-19, D-21 | **reworded to a pointer.** The rules live once, in Workflow 04 step 15, which the role already reads (Reads, steps 14-16); restating them grew the role past its measured ceiling and let the two copies drift. | — |
 | agent-factory/roles/tech-lead.md | 44 | It owns the exit of a dev-raised `## Blocked`: back to `Ready for Dev` after an escalation or a re-plan, to `Backlog` for BA/PM after a split, and to `In Design` after an Architect pass. After a gate `BLOCKED_NEEDS_FIX` at `block`, the exit waits for a named human. | It owns the exit of a dev-raised `## Blocked`, per Workflow 04 step 15. | WR-05, D-19 | **reworded to a pointer.** Workflow 04 step 15 names the exit for each move and the human stop that holds it. | — |
 | agent-factory/roles/tech-lead.md | 41 | On a blocked ticket, a move note whose body opens with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`. Only the Tech Lead's notes with a `Move:` line count as moves; the plan note has none. | — | WR-05, D-20 | **removed.** Responsibility 5 already records the move in a decision note and points at Workflow 04 step 15 for its `Move:` line and the counting rule. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Skip a move that a `Confirmed: no` finding names. | WR-02, D-21 | **added.** A move the human rejected was never carried out, so it does not use up one of the Tech Lead's options. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | Once the named human confirms, the Tech Lead records it as a `finding` per Workflow 16. | Once the named human answers, the Tech Lead records the answer as a `finding` per Workflow 16. | WR-02, T-39-25 | **reworded.** The finding records the answer, yes or no, rather than only a confirmation. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Open its body with `Confirmed: yes` or `Confirmed: no`. | WR-02, D-20 | **added.** A fixed first line step 16 can read, the same device as the move note's `Move:` line. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | A `Confirmed: no` move is neither carried out nor counted. | WR-02, D-21 | **added.** Says what a rejection does to the move. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 41 | — | Record a new move, or stop for a named human once the options are used up. | WR-02, D-21 | **added.** Gives a rejected move somewhere to go; the ticket stays in `Blocked` meanwhile. | — |
+| agent-factory/workflows/04-ticket-to-pr.md | 42 | After a gate failure at `block`, wait also for the `human:<name>` finding that names the move note. | After a gate failure at `block`, wait also for a `Confirmed: yes` finding that names the move note. | WR-02, D-20, T-39-25 | **reworded.** The re-enqueue waits for a yes, so a recorded rejection no longer releases it. | — |

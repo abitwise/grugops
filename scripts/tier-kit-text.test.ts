@@ -656,6 +656,8 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
       "Count the earlier moves from the Tech Lead's `decision` notes for this ticket that carry a `Move:` line.",
     );
     expect(s.text).toContain("The plan note from step 2 carries none.");
+    // Re-review WR-02: a move the human rejected is not counted against the Tech Lead's options.
+    expect(s.text).toContain("Skip a move that a `Confirmed: no` finding names.");
     expect(s.text).toContain("Open its body with `Move: escalate`, `Move: re-plan`, `Move: split` or `Move: architect`.");
     expect(s.text).toContain("Mark a re-score that raises the level `Move: escalate`.");
     expect(s.text).not.toContain("Count the earlier moves from the ticket's `decision` notes.");
@@ -707,12 +709,17 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(stop).toBeGreaterThanOrEqual(0);
     expect(stop).toBeLessThan(s15.indexOf("On an escalation or a re-plan, return the ticket to `Ready for Dev`."));
     const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
-    // WR-15: the confirmation is a published `human:<name>` finding, and step 16 reads it.
-    expect(s16).toContain("After a gate failure at `block`, wait also for the `human:<name>` finding that names the move note.");
+    // WR-15, re-review WR-02: the human's answer is a published `human:<name>` finding that says yes
+    // or no, and step 16 waits only for a yes, so a recorded rejection never releases the re-enqueue.
+    expect(s16).toContain("After a gate failure at `block`, wait also for a `Confirmed: yes` finding that names the move note.");
+    expect(s16).not.toContain("wait also for the `human:<name>` finding");
     expect(s15).toContain("Leave the ticket in `Blocked` until then.");
     // WR-01 (iteration 2): the step names who writes the finding and the limit, and says honestly
     // that admission checks the stamp only at `context.human_admission: all`.
-    expect(s15).toContain("Once the named human confirms, the Tech Lead records it as a `finding` per Workflow 16.");
+    expect(s15).toContain("Once the named human answers, the Tech Lead records the answer as a `finding` per Workflow 16.");
+    expect(s15).toContain("Open its body with `Confirmed: yes` or `Confirmed: no`.");
+    expect(s15).toContain("A `Confirmed: no` move is neither carried out nor counted.");
+    expect(s15).toContain("Record a new move, or stop for a named human once the options are used up.");
     expect(s15).toContain("Stamp it `human:<name>`, with the move note's id among its refs.");
     expect(s15).toContain("Never write that stamp without the human's answer.");
     expect(s15).toContain(
