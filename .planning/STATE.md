@@ -6,10 +6,10 @@ current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: verifying
 stopped_at: Completed 39-20-PLAN.md
-last_updated: "2026-10-31T18:48:57.466Z"
+last_updated: "2026-10-31T20:45:27.245Z"
 last_activity: 2026-10-31
 last_activity_desc: Phase 39 execution started
-state_head: 595c088a4895ec8c68cfbadf779886e84eaec884
+state_head: 9e08db1b5aec5d13d29df5dd4121b3ec947d0d4b
 progress:
   total_phases: 9
   completed_phases: 4
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — READY TO EXECUTE
 Plan: 16 of 16
 Status: Phase complete — ready for verification
-Last activity: 2026-10-31 - Completed quick task 261031-oxi: Close the 7 WF04 hand-off loop defects found by the 39 scenario re-trace
+Last activity: 2026-10-31 - Completed quick task 261031-rhv: Close WF04 hand-off loop re-trace defects R1-R4
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2299,6 +2299,7 @@ None yet.
 | 261030-fzo | Phase 39 follow-ups: raise tech-lead role ceiling to 4000 B, align notify wording with Workflow 04, explain escalate_unadjudicable_result | 2026-10-30 | aa21a823 | [261030-fzo-phase-39-follow-ups-raise-tech-lead-role](./quick/261030-fzo-phase-39-follow-ups-raise-tech-lead-role/) |
 | 261031-nd9 | Write the 39-UAT D1-D3 human decisions into WF04 steps 15-17, tech-lead.md, factory.config and the text checks | 2026-10-31 | f97c3985 | [261031-nd9-write-the-39-uat-d1-d3-human-decisions-i](./quick/261031-nd9-write-the-39-uat-d1-d3-human-decisions-i/) |
 | 261031-oxi | Close the 7 WF04 hand-off loop defects found by the 39 scenario re-trace | 2026-10-31 | 595c088a | [261031-oxi-close-the-7-wf04-hand-off-loop-defects-f](./quick/261031-oxi-close-the-7-wf04-hand-off-loop-defects-f/) |
+| 261031-rhv | Close WF04 hand-off loop re-trace defects R1-R4 | 2026-10-31 | 9e08db1b | [261031-rhv-close-wf04-hand-off-loop-re-trace-defect](./quick/261031-rhv-close-wf04-hand-off-loop-re-trace-defect/) |
 
 ## Deferred Items
 
