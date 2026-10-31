@@ -446,7 +446,7 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 18/18 plans executed (8 gap closure plans)
+**Plans**: 18/20 plans executed (10 gap closure plans)
 
 Plans:
 **Wave 1**
@@ -492,6 +492,10 @@ Plans:
 **Gap closure round 3** *(from 39-VERIFICATION.md gaps CR-01, WR-02 and advisory WR-01; sequential)*
 - [x] 39-17-PLAN.md — WF04 re-score stop restored before the move record, no move note at `block` until the human answers, step 16 holds for both stops naming each cell, the human's level recorded (CR-01, TIER-04); `models` field-table row at the re-decided pins, held by a LEVELS-derived test (WR-02, TIER-02)
 - [x] 39-18-PLAN.md — Human decision on the used-up stop at `notify`/`off`, then the chosen option across WF04, tech-lead.md and factory.config.md (WR-01, TIER-04); phase gate
+
+**Gap closure round 4** *(from 39-UAT.md gap G-39-71, the human's W1 decision of 2026-10-31; sequential; the fourth and last round under the cap)*
+- [ ] 39-19-PLAN.md — D-21 amended: a blocked ticket the Tech Lead cannot resolve goes to the role whose job covers its cause at every value of the cell, at most three hand-offs; a named human only after three unresolved hand-offs or a fundamental requirement or rule change. WF04 steps 15-17 and the used-up stop, tech-lead.md, factory.config.md, BA/PM and Architect pointers, the decision record (G-39-71, TIER-04; resolves W1, closes W2-W4)
+- [ ] 39-20-PLAN.md — CHANGELOG line, review dispositions (WR-01..WR-04, CR-01) and the round-4 phase gate (G-39-71)
 
 Waves are sequential: every plan rebuilds the committed `.js` and most move a shared count pin, so two plans in one wave would race on the build output.
 **Research flag**: plan with `--research-phase` (kit-model variant mechanism, config namespace for level stems, `CANONICAL_SCHEMA` list grammar for `skills:`, per-host model-field semantics, `effort` on haiku).
