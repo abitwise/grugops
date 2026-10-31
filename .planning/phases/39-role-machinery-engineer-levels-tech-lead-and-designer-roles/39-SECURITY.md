@@ -84,6 +84,15 @@ created: "2026-10-30"
 | T-39-48 | Elevation of privilege | policy choice for locked D-21 | medium | mitigate | Task 1 `checkpoint:decision` `gate="blocking-human"`; answer quoted in 39-18-SUMMARY (Olger Oeselg, 2026-10-30) | closed |
 | T-39-49 | Tampering | checkpoint corpus and admission-hook manifest | medium | mitigate | no 39-18 commit touches `scripts/checkpoints.*` or `hooks/`; WF04 `checkpoint:` count 2 (plan 39-18) | closed |
 | T-39-50 | Repudiation | round-3 phase gate record | low | mitigate | full-suite summary lines pasted in 39-18-SUMMARY vs deferred-items.md (plan 39-18) | closed |
+| T-39-51 | Elevation of privilege | hand-off loop settling a fundamental requirement or rule change without the stakeholder | high | mitigate | WF04 step 17 `Fundamental:` answer and its definition (`04-ticket-to-pr.md:51`); step 15 human stop (`:45`); factory.config.md escalate row and paragraph (`:213`, `:220-221`); G-39-71 describe (`tier-kit-text.test.ts:1385`) (plan 39-19) | closed |
+| T-39-52 | Denial of service | unbounded Tech Lead <-> receiving-role dispute loop (D-21) | high | mitigate | at most three hand-offs per cause and three disputed rounds counted from `Disputed:` notes; a new cause counts no round (`04-ticket-to-pr.md:44-45`, `factory.config.md:221`); "never retry in a loop" kept in the tagged stop (`:70`) (plan 39-19) | closed |
+| T-39-53 | Tampering | step 16 re-enqueue past the human at `block` | high | mitigate | "record no move until the human answers"; step 16 holds on a `Stop: human` move note until a `Confirmed: yes` finding names it (`04-ticket-to-pr.md:45-50`); CR-01 describe retargeted (`tier-kit-text.test.ts:1192`) (plan 39-19) | closed |
+| T-39-54 | Repudiation | `human:<name>` finding written without the human seeing the move | medium | mitigate | "show the human the move note before recording the answer." and "Never write that stamp without the human's answer." (`04-ticket-to-pr.md:48`) (plan 39-19) | closed |
+| T-39-55 | Elevation of privilege | a hand-off after an exhausted gate bypassing the Workflow 05 human | high | mitigate | a hand-off is a `Move:`; gate-failure sub-bullet unchanged and pinned character for character; step 16 `Cause: gate` hold (`04-ticket-to-pr.md:47`, `:50`); step 14 unchanged (plan 39-19) | closed |
+| T-39-56 | Information disclosure | data relayed to the receiving role in a spawn prompt (D-20) | medium | mitigate | "The spawn prompt carries the task reference and nothing else." kept in step 16 (`04-ticket-to-pr.md:50`) (plan 39-19) | closed |
+| T-39-57 | Tampering | checkpoint corpus and admission-hook manifest | medium | mitigate | no round-4 commit touches `scripts/checkpoints.*` or `hooks/`; WF04 `checkpoint: ` count 2, stop bullets 6 (plan 39-19) | closed |
+| T-39-58 | Repudiation | 39-REVIEW-DISPOSITION.md `fixed` cells | medium | mitigate | WR-01..WR-04 Source cells name e0dfa40b, 59b7ac68 and the 2026-10-31 decision; CR-01 names 013b6012 (plan 39-20) | closed |
+| T-39-59 | Repudiation | round-4 phase gate record | low | mitigate | full-suite summary lines (21 failed, 10707 passed) pasted in 39-20-SUMMARY vs deferred-items.md (plan 39-20) | closed |
 | T-39-SC | Tampering | npm/pip/cargo installs | low | accept | no package installed by any phase 39 plan | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -110,6 +119,7 @@ created: "2026-10-30"
 |------------|---------------|--------|------|--------|
 | 2026-10-30 | 22 | 22 | 0 | secure-phase (orchestrator, ASVS L1 grep-depth) |
 | 2026-10-30 | 40 | 40 | 0 | secure-phase (orchestrator, ASVS L1 grep-depth; adds T-39-33..T-39-50 from gap rounds 2-3) |
+| 2026-10-31 | 49 | 49 | 0 | secure-phase (orchestrator, ASVS L1 grep-depth; adds T-39-51..T-39-59 from gap round 4) |
 
 ---
 
@@ -120,7 +130,7 @@ created: "2026-10-30"
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-10-30
+**Approval:** verified 2026-10-31
 
 ## Security Audit 2026-10-30
 
@@ -136,4 +146,12 @@ created: "2026-10-30"
 |---|---|
 | Threats found | 18 |
 | Closed | 18 |
+| Open | 0 |
+
+## Security Audit 2026-10-31
+
+| Metric | Count |
+|---|---|
+| Threats found | 9 |
+| Closed | 9 |
 | Open | 0 |
