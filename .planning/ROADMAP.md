@@ -514,16 +514,30 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
 **Plans**: 10 plans
+**Wave 1**
 - [ ] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 40-02-PLAN.md — software-engineer.md as the reference role with `## Do less`, the NOTICE credit, and the human checkpoint on voice, shape, length, byte targets and board pairs (PLAIN-02, PLAIN-03, PLAIN-05)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 40-03-PLAN.md — Tech Lead (scope-first), Designer, Frontend/UI, the lean-review lens and the widened credit (PLAIN-02, PLAIN-03, PLAIN-05, PLAIN-06)
 - [ ] 40-04-PLAN.md — BA/PM (aligned to the Exit owner table), System Analyst, Architect/Design, UAT Planner (PLAIN-02, PLAIN-03)
 - [ ] 40-05-PLAN.md — Security/NFR, Compliance Officer, Release Manager, QE/E2E, Incident Responder (PLAIN-02, PLAIN-03)
 - [ ] 40-06-PLAN.md — AGENTS.md Scribe, Installer, Factory Coach, Greenfield and Brownfield Mappers (PLAIN-02, PLAIN-03)
 - [ ] 40-07-PLAN.md — Orchestrator full plain rewrite with concrete board pairs, and the role-switch protocol (PLAIN-02, PLAIN-03)
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 40-08-PLAN.md — board-move partition guard, end-state role checks, `## Activates when` and `## Stop when` in ROLE_SECTIONS with 187 fixtures (PLAIN-02, PLAIN-03)
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 40-09-PLAN.md — role-corpus total guard (FAIL 67,383 B, WARN 64,000 B) and re-baselined ROLE_CEILINGS (PLAIN-04)
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 40-10-PLAN.md — role text joins the writing-profile gates, C-28-003 restored on measurement, CHANGELOG, phase gate (PLAIN-07, PLAIN-01)
+
+**Cross-cutting constraints:**
+- D-27 / D-31: `node scripts/check-role-rules.js` stays green and each role's fact count after is at least its baseline count
 
 Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown only, disjoint files) → 40-08 → 40-09 → 40-10. The last three are sequential because each rebuilds the committed `.js`.
 **Notes**: D-1 (one corpus total that includes Tech Lead and Designer). The caveman flip is the first plan. `scripts/voice-model.ts` is hash-pinned in the admission hook's frozen manifest: change its consumers, not the file.
