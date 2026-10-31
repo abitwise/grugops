@@ -278,7 +278,8 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     for (const sentence of [
       "After the options are used up, hand the ticket to the role whose job covers its cause.",
       "Stop for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
-      "At `notify` or `off`, leave the ticket in `Blocked` with no move instead.",
+      // Quick 261031-oxi defect 5 (Olger Oeselg, 2026-10-31): the park lasts until a human answers.
+      "At `notify` or `off`, leave it in `Blocked` with no move until a human answers.",
     ]) {
       expect(body).toContain(sentence);
     }
@@ -1343,7 +1344,8 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
   it("(d) the tagged used-up stop states the lowered outcome, keeps the loop bound and its tag; WF04 keeps two tags", () => {
     const b = usedUp();
     // G-39-71 (plan 39-19): at a lowered cell the final human stop parks the ticket.
-    const PARKED = "At `notify` or `off`, that stop leaves the ticket in `Blocked` with no move and no re-enqueue.";
+    // Quick 261031-oxi defect 5 (Olger Oeselg, 2026-10-31): the park lasts until a human answers.
+    const PARKED = "At `notify` or `off`, that stop leaves the ticket in `Blocked` with no move and no re-enqueue until a human answers.";
     expect(b).toContain(PARKED);
     expect(b).toContain("never retry in a loop.");
     expect(b.endsWith(`${PARKED} \`checkpoint: escalate_unadjudicable_result\``)).toBe(true);
@@ -1357,7 +1359,8 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
     for (const sentence of [
       "After the options are used up, hand the ticket to the role whose job covers its cause.",
       "Stop for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
-      "At `notify` or `off`, leave the ticket in `Blocked` with no move instead.",
+      // Quick 261031-oxi defect 5 (Olger Oeselg, 2026-10-31): the park lasts until a human answers.
+      "At `notify` or `off`, leave it in `Blocked` with no move until a human answers.",
     ]) {
       expect(body).toContain(sentence);
     }
@@ -1519,7 +1522,8 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
       "Used up means the one escalation is spent and the one other move is spent too.",
       "It also means the scores call for more than one level, or for a raise after the escalation is spent.",
       "Stop for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
-      "At `notify` or `off`, that stop leaves the ticket in `Blocked` with no move and no re-enqueue.",
+      // Quick 261031-oxi defect 5 (Olger Oeselg, 2026-10-31): the park lasts until a human answers.
+      "At `notify` or `off`, that stop leaves the ticket in `Blocked` with no move and no re-enqueue until a human answers.",
     ]);
     expect(b).toContain("never retry in a loop.");
     expect(b.endsWith("`checkpoint: escalate_unadjudicable_result`")).toBe(true);
@@ -1662,8 +1666,10 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     const MARK = "Mark it `Fundamental:` when the fix changes a requirement or a rule fundamentally.";
     const PROPOSE = "Only propose a fundamental fix: leave the requirement, rule, ADR or `checkpoints` value unchanged until a named human approves.";
     const DEFINITION = "Altering a business rule, a hard limit, a `checkpoints` value or an ADR is fundamental too.";
-    const CHECK = "Before step 16 dispatches, the Tech Lead checks every `Resolved:` note against this definition.";
-    const TREAT = "It treats a fundamental one as `Fundamental:` and returns the ticket to `Blocked`.";
+    // Quick 261031-oxi defect 3 (Olger Oeselg, 2026-10-31): the check runs at the step 2 re-plan, reads
+    // the diff, and passes a change that names the human's approval `finding`.
+    const CHECK = "At the step 2 re-plan, the Tech Lead checks the diff behind every `Resolved:` note against this definition.";
+    const TREAT = "It treats a fundamental one that names no approval `finding` as `Fundamental:` and returns the ticket to `Blocked`.";
     holdsAll(s17, "step 17", [MARK, PROPOSE, DEFINITION, CHECK, TREAT]);
     expect(s17.indexOf(PROPOSE)).toBeGreaterThan(s17.indexOf(MARK));
     expect(s17.indexOf(CHECK)).toBeGreaterThan(s17.indexOf(DEFINITION));
@@ -1712,6 +1718,85 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     ]);
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
     expect(stops).toHaveLength(6);
+  });
+
+  // Quick 261031-oxi (Olger Oeselg, 2026-10-31) closes the hand-off loop defects the first-time-reader
+  // re-trace found after quick 261031-nd9. Shared sentences for cases (s) to (w).
+  const HAND_BACK = "On approval, hand the ticket back to the proposing role to make the change.";
+  const PROPOSE = "Only propose a fundamental fix: leave the requirement, rule, ADR or `checkpoints` value unchanged until a named human approves.";
+  const DEFINITION = "Altering a business rule, a hard limit, a `checkpoints` value or an ADR is fundamental too.";
+  const RESOLVED_MOVE = "After `Resolved:`, move the ticket out of `Blocked`: to `Backlog` after a split, otherwise to `Ready for Dev`.";
+  const LEVEL_STANDS = "The human's level stands, even past the move limits.";
+  const STOP_HOLD = "After a `Stop: human` move note at `checkpoints.escalate_unadjudicable_result: block`, wait also for a `Confirmed: yes` finding naming it.";
+  const CHECK_NEW = "At the step 2 re-plan, the Tech Lead checks the diff behind every `Resolved:` note against this definition.";
+  const TREAT_NEW = "It treats a fundamental one that names no approval `finding` as `Fundamental:` and returns the ticket to `Blocked`.";
+  const RECORD_BACK = "Record either hand-back as `Move: hand-off` with `Stop: human`; it counts toward no limit.";
+
+  // Quick 261031-oxi defect 1 (Olger Oeselg, 2026-10-31): an approved fundamental change no longer
+  // re-blocks itself.
+  it("(s) defect 1: an approved fundamental change names the approval `finding` and passes the check (quick 261031-oxi)", () => {
+    const s17 = stepAt(STEP17).text;
+    const APPROVED = "Once a named human approves, make the change and answer `Resolved:`, naming the approval `finding`.";
+    holdsAll(s17, "step 17", [PROPOSE, APPROVED, TREAT_NEW]);
+    expect(s17.indexOf(APPROVED)).toBeGreaterThan(s17.indexOf(PROPOSE));
+    const stop = subAt("Apply the human stop.");
+    holdsAll(stop, "human-stop sub-bullet", [HAND_BACK, RECORD_BACK, LEVEL_STANDS]);
+    expect(stop.indexOf(RECORD_BACK)).toBeGreaterThan(stop.indexOf(HAND_BACK));
+    expect(stop.indexOf(RECORD_BACK)).toBeLessThan(stop.indexOf(LEVEL_STANDS));
+  });
+
+  // Quick 261031-oxi defect 2 (Olger Oeselg, 2026-10-31): a rejected `Fundamental:` proposal has a branch.
+  it("(t) defect 2: a rejected `Fundamental:` proposal follows the human's move or goes back to the proposing role (quick 261031-oxi)", () => {
+    const stop = subAt("Apply the human stop.");
+    const REJECT = "On rejection, apply the move the human names.";
+    const WITHOUT = "Without one, hand the ticket back to the proposing role to fix it within the current requirement and rules.";
+    holdsAll(stop, "human-stop sub-bullet", [HAND_BACK, REJECT, WITHOUT, RECORD_BACK]);
+    expect(stop.indexOf(HAND_BACK)).toBeLessThan(stop.indexOf(REJECT));
+    expect(stop.indexOf(REJECT)).toBeLessThan(stop.indexOf(WITHOUT));
+    expect(stop.indexOf(WITHOUT)).toBeLessThan(stop.indexOf(RECORD_BACK));
+    const para = escalateParagraph();
+    for (const sentence of [
+      "On approval it hands the ticket back to the proposing role to make the change.",
+      "On rejection it applies the move the human names, or else hands the ticket back to fix it within the current requirement and rules.",
+      "Neither hand-back counts toward a limit.",
+    ]) {
+      expect(para, `config paragraph lacks "${sentence}"`).toContain(sentence);
+    }
+  });
+
+  // Quick 261031-oxi defect 3 (Olger Oeselg, 2026-10-31): the `Resolved:` check runs at the step 2
+  // re-plan, the path `Resolved:` really takes, and reads the diff.
+  it("(u) defect 3: the `Resolved:` check reads the diff at the step 2 re-plan and an unapproved change is reverted (quick 261031-oxi)", () => {
+    const s17 = stepAt(STEP17).text;
+    const REVERT = "The Orchestrator then queues a `pending/` subtask for the role that made the change, to revert it.";
+    holdsAll(s17, "step 17", [DEFINITION, CHECK_NEW, TREAT_NEW, REVERT, RESOLVED_MOVE]);
+    const order = [DEFINITION, CHECK_NEW, TREAT_NEW, REVERT, RESOLVED_MOVE].map((x) => s17.indexOf(x));
+    for (let i = 1; i < order.length; i++) expect(order[i] as number).toBeGreaterThan(order[i - 1] as number);
+    expect(s17).not.toContain("Before step 16 dispatches");
+  });
+
+  // Quick 261031-oxi defect 5 (Olger Oeselg, 2026-10-31): a ticket parked at `notify` or `off` resumes
+  // once a human answers.
+  it("(w) defect 5: a ticket parked at `notify` or `off` follows the `block` path once a human answers (quick 261031-oxi)", () => {
+    const RESUME = "At `notify` or `off`, once a human answers, follow the `block` path: the move record, the confirmation and step 16.";
+    expect(subAt("Apply the human stop.").endsWith(RESUME)).toBe(true);
+    const s16 = stepAt(STEP16).text;
+    const WAIT = "Wait the same way at `notify` or `off` once a human answers.";
+    holdsAll(s16, "step 16", [STOP_HOLD, WAIT]);
+    expect(s16.indexOf(WAIT)).toBeGreaterThan(s16.indexOf(STOP_HOLD));
+    const PARKED_NEW = "At `notify` or `off`, that stop leaves the ticket in `Blocked` with no move and no re-enqueue until a human answers.";
+    expect(usedUp()).toContain(PARKED_NEW);
+    expect(usedUp().endsWith(`${PARKED_NEW} \`checkpoint: escalate_unadjudicable_result\``)).toBe(true);
+    const para = escalateParagraph();
+    for (const sentence of [
+      "at `notify` or `off` the ticket stays in `Blocked` with no move until a human answers.",
+      "Once a human answers, the Tech Lead proceeds as at `block`, from the move record through Workflow 04 step 16.",
+    ]) {
+      expect(para, `config paragraph lacks "${sentence}"`).toContain(sentence);
+    }
+    expect(section(TECH_LEAD, "Hard limits")).toContain(
+      "At `notify` or `off`, leave it in `Blocked` with no move until a human answers.",
+    );
   });
 
   // Quick 261031-oxi defect 6 (Olger Oeselg, 2026-10-31): the per-ticket ceiling reads "before a fourth
