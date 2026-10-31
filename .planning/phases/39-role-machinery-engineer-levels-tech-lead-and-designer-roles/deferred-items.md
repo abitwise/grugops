@@ -14,3 +14,7 @@
   status: open
   **What:** "every remaining floor item's LIVE COUNT is DERIVED, not asserted in prose" (LANG-07) fails because the test's `.js` walk enumerates seven `.js` files under `~/projects/hacks/grugops-example-01/tools/grugops/`, which git's index does not list. The other 336 cases pass.
   **Why deferred:** the `~/` directory is not grugops content and executors must not modify or delete it; removing it is the human's call. No plan 39-14 change touches the walk or those files.
+- Stale `scripts/checkpoints.ts` comments after the G-39-71 hand-off rewrite (found during plan 39-19, Task 1)
+  status: open
+  **What:** the comment above the `escalate_unadjudicable_result` roster member (around line 126) still says the factory.config.md paragraph documents "what each disposition does at the Tech Lead's re-score stop (Workflow 04 step 15)", and the plan 39-08 JSDoc (around line 790) describes the used-up bullet as "a named human takes the ticket". Since plan 39-19 the step-15 stop is the hand-off and the human stop, and the used-up bullet hands the ticket to the role whose job covers its cause first.
+  **Why deferred:** plan 39-19 forbids editing `scripts/checkpoints.ts` and `scripts/checkpoints.js` (the `.js` is hashed in the admission-hook decider manifest). The comments are prose only; no count, tag or derivation is wrong. A later plan that may touch the checkpoint corpus should reword them.
