@@ -3,7 +3,7 @@ status: complete
 phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles
 source: [39-01-SUMMARY.md, 39-02-SUMMARY.md, 39-03-SUMMARY.md, 39-04-SUMMARY.md, 39-05-SUMMARY.md, 39-06-SUMMARY.md, 39-07-SUMMARY.md, 39-08-SUMMARY.md, 39-09-SUMMARY.md, 39-10-SUMMARY.md, 39-11-SUMMARY.md, 39-12-SUMMARY.md, 39-13-SUMMARY.md]
 started: 2026-10-30T11:55:07Z
-updated: 2026-10-31T17:47:53.291Z
+updated: 2026-10-31T20:47:42.141Z
 ---
 
 ## Current Test
@@ -442,6 +442,7 @@ reported: "W1 decision, when Tech lead can't solve it then decision should be ma
 severity: major
 source_ref: 39-VERIFICATION W1 (human decision, Olger Oeselg 2026-10-31)
 retest: "pass - human re-check 2026-10-31 after 39-19/39-20: WF04 steps 15-17, the used-up stop, tech-lead.md and factory.config.md match the decision; human accepted the four 39-19 design choices (Move: hand-off note with To: line; a round is a Disputed: note about one cause; the fundamental-change test; parked final stop at notify/off) and the unchanged gate-failure stop"
+retest_2: "pass - re-check 2026-10-31 by Claude on the user's delegation, after 261031-nd9 (D1-D3), 261031-oxi (7 loop defects) and 261031-rhv (R1-R4): three first-time-reader scenario traces of the final WF04 steps 14-17, tech-lead.md and factory.config.md; every scenario reaches a defined end and no agent-only loop is unbounded. Residuals carried to Phase 41 (human decision: fix R1-R4, then close)"
 
 ## Summary
 
@@ -564,6 +565,9 @@ Directions to change the text outside the gap-round cap (round 4 was the last); 
 
 ## Deferred Follow-Ups
 
+- test: 71
+  idea: "Hand-off loop residuals from the final re-trace (carried to Phase 41, human decision 2026-10-31): (1) nothing says who wakes the Tech Lead to record the human's Confirmed: yes finding after it writes the Stop: human move note, and the human is asked twice (Orchestrator decision note, then Tech Lead finding); (2) precedence between the human stop for a fundamental fix and the step-17 revert hand-off for an unapproved one; (3) precedence between the used-up hand-off and the raise-past-the-spent-escalation human stop; (4) an Approved: line is not bound to the specific proposed change; plus the gate-failure stop confirmation wake-up and the Cause: gate hold possibly covering the R1 revert hand-off"
+  deferred_at: 2026-10-31
 - test: 10
   idea: "make it a milestone uat - run the live-host check at the v3.0 milestone UAT after Phases 40-43 land (ROADMAP Phase 43 success criterion 6)"
   deferred_at: 2026-10-31
