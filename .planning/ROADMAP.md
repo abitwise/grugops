@@ -446,7 +446,7 @@ Plans:
   4. A Designer role sets design strategy and guidelines, and the Frontend/UI role reads them for each ticket's UI contract (TIER-05)
   5. The adapter-name set, the coordinator's spawn allowlist, role and adapter counts, model and effort tiers and size ceilings all follow the filesystem with no hand-typed list, and a role can declare `skills:` in frontmatter that the canonical frontmatter grammar admits (TIER-06, TIER-07)
 
-**Plans**: 18/20 plans executed (10 gap closure plans)
+**Plans**: 19/20 plans executed (10 gap closure plans)
 
 Plans:
 **Wave 1**
@@ -494,7 +494,7 @@ Plans:
 - [x] 39-18-PLAN.md — Human decision on the used-up stop at `notify`/`off`, then the chosen option across WF04, tech-lead.md and factory.config.md (WR-01, TIER-04); phase gate
 
 **Gap closure round 4** *(from 39-UAT.md gap G-39-71, the human's W1 decision of 2026-10-31; sequential; the fourth and last round under the cap)*
-- [ ] 39-19-PLAN.md — D-21 amended: a blocked ticket the Tech Lead cannot resolve goes to the role whose job covers its cause at every value of the cell; a named human only after three disputed rounds on one cause (an unrelated new block counts no round) or a fundamental requirement or rule change. WF04 steps 15-17 and the used-up stop, tech-lead.md, factory.config.md, BA/PM and Architect pointers, the decision record (G-39-71, TIER-04; resolves W1, closes W2-W4)
+- [x] 39-19-PLAN.md — D-21 amended: a blocked ticket the Tech Lead cannot resolve goes to the role whose job covers its cause at every value of the cell; a named human only after three disputed rounds on one cause (an unrelated new block counts no round) or a fundamental requirement or rule change. WF04 steps 15-17 and the used-up stop, tech-lead.md, factory.config.md, BA/PM and Architect pointers, the decision record (G-39-71, TIER-04; resolves W1, closes W2-W4)
 - [ ] 39-20-PLAN.md — CHANGELOG line, review dispositions (WR-01..WR-04, CR-01) and the round-4 phase gate (G-39-71)
 
 Waves are sequential: every plan rebuilds the committed `.js` and most move a shared count pin, so two plans in one wave would race on the build output.
@@ -573,7 +573,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 | 36. State-layout authority, path move and protection | v3.0 | 14/14 | Complete    | 2026-10-21 |
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
-| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 18/18 | In Progress | - |
+| 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 19/20 | In Progress | - |
 | 40. Plain-language role rewrite | v3.0 | 0/TBD | Not started | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
