@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: verifying
-stopped_at: Completed 39-19-PLAN.md
-last_updated: "2026-10-31T08:39:47.950Z"
+stopped_at: Completed 39-20-PLAN.md
+last_updated: "2026-10-31T09:07:41.079Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: 7c4297fdf99caae8ea75aacfb7d8973e015c36e9
+state_head: dc816281a289a1c5957c8cda402da7f2c1837eec
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 88
-  completed_plans: 87
+  completed_plans: 88
   percent: 44
 ---
 
@@ -803,6 +803,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P17 | 63 min | 2 tasks | 6 files |
 | Phase 39 P18 | 28min | 3 tasks | 6 files |
 | Phase 39 P19 | 29 min | 2 tasks | 9 files |
+| Phase 39 P20 | 25min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -2211,6 +2212,7 @@ Recent decisions affecting current work:
 - [Phase 39]: The 39-17 sentence 'The human's level stands, even past the move limits.' confirmed by Olger Oeselg on 2026-10-30
 - [Phase 39]: G-39-71 / D-21 amended: a blocked ticket the Tech Lead cannot resolve goes to the role whose job covers its cause at every value of escalate_unadjudicable_result, at most three times per cause; a named human only after three disputed rounds on one cause or a fundamental requirement or rule change (Olger Oeselg, 2026-10-31)
 - [Phase 39]: Plan 39-19: a hand-off is a fifth Move: value (Move: hand-off, with a To: line) counted toward no move limit; a round is a Disputed: decision note for the same cause, and a block with a new cause counts no round; the gate-failure sub-bullet stays byte for byte (Workflow 05 exhaust_self_fix_budget, deferred follow-up)
+- [Phase 39]: 39-20: WR-01..WR-04 recorded fixed by plan 39-19 (e0dfa40b, 59b7ac68) and CR-01 by plan 39-17 (013b6012); round-4 phase gate matches the recorded baseline (21 = 20 deferred + 1 environmental)
 
 ### Pending Todos
 
@@ -2547,8 +2549,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-31T08:39:47.056Z
-Stopped at: Completed 39-19-PLAN.md
+Last session: 2026-10-31T09:07:40.170Z
+Stopped at: Completed 39-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
