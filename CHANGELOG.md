@@ -68,18 +68,24 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   once per ticket. When the Tech Lead's options on a blocked ticket are used up, it hands the ticket
   to the role whose job covers the cause (BA/PM, the Architect or another role). A named human
   decides only after the roles dispute one cause three times, before a fourth hand-off on one ticket,
-  or when a role proposes a fundamental change to a requirement or a rule.
+  when the scores call for a raise past the spent escalation, or when a role proposes a fundamental
+  change to a requirement or a rule.
 - In Workflow 04's hand-off loop, a role that finds a fundamental change to a requirement, rule, ADR
-  or `checkpoints` value proposes it and leaves it unmade until a named human approves. After
-  approval the role makes the change and names the approval in its `Resolved:` answer. After a
-  rejection the Tech Lead applies the move the human names, or hands the ticket back to be fixed
-  within the current requirement and rules. Neither hand-back counts toward a limit. At its re-plan,
-  before any pull, the Tech Lead checks the change behind every `Resolved:` answer; an unapproved
-  fundamental change goes back to `Blocked`, is reverted and reaches the human stop. Each hand-off
-  and dispute carries a `Cause-id:` line naming the `failed-attempt` note that first raised the
-  cause. The Orchestrator queues the Tech Lead after the first block and after every answer. A
-  re-plan that needs a raise past the spent escalation goes to the human stop. At `notify` or `off`,
-  a parked ticket resumes as at `block` once a human answers.
+  or `checkpoints` value proposes it and leaves it unmade until a named human approves. The Tech
+  Lead records the human's verdict on the hand-back as an `Approved:` or `Rejected:` line naming the
+  human. After approval the role makes the change and names that `Approved:` hand-off note in its
+  `Resolved:` answer. After a rejection the Tech Lead applies the move the human names, or hands the
+  ticket back to be fixed within the current requirement and rules. Neither hand-back counts toward
+  a limit. At its re-plan, before any pull, the Tech Lead checks the change behind every `Resolved:`
+  answer; a fundamental change passes only with an `Approved:` hand-off note. Otherwise the Tech
+  Lead hands the ticket back to the role that made the change, to revert it, and that hand-off
+  counts toward the limits like any other. Each hand-off and dispute carries a `Cause-id:` line
+  naming the `failed-attempt` note that first raised the cause. The Orchestrator queues the Tech
+  Lead after the first block and after every answer. When a human answers a human stop, at any value
+  of `checkpoints.escalate_unadjudicable_result`, the Orchestrator records the answer in a
+  `decision` note and queues the Tech Lead. Any raise past the spent escalation goes to the human
+  stop, and the Tech Lead publishes no plan note naming that level before the human answers. At
+  `notify` or `off`, a parked ticket resumes as at `block` once a human answers.
 
 ### Fixed
 
