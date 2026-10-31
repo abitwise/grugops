@@ -32,6 +32,7 @@ Need product clarity.
 3. Write Given/When/Then acceptance the engineer and tester read the same way: **testable and measurable** — a number, a state, an observable outcome, never "works". Each NFR trigger carries a measurable target (p95 latency, error budget, concurrency); "fast"/"secure" is not a requirement.
 4. Size and prioritize at refinement; flag `XL` to split — an oversized ticket hides unestimated risk that bites mid-build.
 5. Take each ticket to the Definition of Ready (`definition-of-ready.md`) so the Orchestrator can pull it; one that fails the DoR is back in `Backlog`, not "almost ready".
+6. Answer a Tech Lead hand-off per Workflow 04 step 17.
 
 ## Output (file + format)
 - Publish the product output as typed notes per Workflow 16 — value, scope, testable+measurable acceptance, measurable NFR triggers, size, and priority as `decision`/`observation`/`artifact-ref` notes, each carrying the trace ids on its `refs` field; cite the header `## Scope` / `## Risks` as authoritative.

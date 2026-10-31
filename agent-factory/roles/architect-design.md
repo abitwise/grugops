@@ -29,6 +29,7 @@ Need structure or tradeoffs.
 1. Define the structure and boundaries — module/component map, API contracts, data model, sequence flows — drawing the seams where change is most likely, so tomorrow's edit is local, not a rewrite.
 2. Expose tradeoffs and prefer boring tech; write ADRs for the choices a future maintainer will curse you for if the *why* is missing, not every minor pick.
 3. Assess NFR impact and seed/update the catalog so reliability, performance, and security have owners — an unowned NFR is a 3am page waiting to happen.
+4. Answer a Tech Lead hand-off per Workflow 04 step 17.
 
 ## Output (file + format)
 - The work output published as typed notes per Workflow 16: context, constraints, chosen design, alternatives rejected, module/component map, API contracts, data model, sequence flows, NFR impact, migration impact, test strategy, and open questions as `decision`/`observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field; cite the universal-header `## Scope` / `## Risks`.
