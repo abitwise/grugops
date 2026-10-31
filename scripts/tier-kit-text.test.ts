@@ -682,7 +682,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s.text).toContain("A re-score that raises the level is the escalation, and it moves the ticket one level only.");
     // Re-review WR-03: the stops follow `checkpoints.escalate_unadjudicable_result`, the cell the
     // used-up stop is tagged with, so the step and the tagged stop agree under every value.
-    // G-39-71, 39-19 (D-21 amended): scores the rubric cannot adjudicate are part of "used up", and
+    // G-39-71 (plan 39-19, D-21 amended): scores the rubric cannot adjudicate are part of "used up", and
     // the hand-off runs first; the cell is read only at the human stop.
     expect(s.text).toContain(
       "Used up also covers scores calling for more than one level, or for a raise past the spent escalation.",
@@ -691,12 +691,12 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s.text).toContain("The used-up stop below follows the same value.");
     // Plan 39-17 (CR-01): the stop at `block` records no move until the human answers.
     expect(s.text).toContain("At `block`, the default, stop for a named human, and record no move until the human answers.");
-    // G-39-71, 39-19: the lowered-cell level raise and the scored-level record are retired; the move
+    // G-39-71 (plan 39-19): the lowered-cell level raise and the scored-level record are retired; the move
     // note carries the level the human named.
     expect(s.text).not.toContain("At `notify` or `off`, raise one level if the escalation is unspent; otherwise keep the level.");
     expect(s.text).not.toContain("Record the scored level in the move note.");
     expect(s.text).toContain("After the human stop, record the move and the level the human named.");
-    // G-39-71, 39-19: `notify` records its observation once, naming the last hand-off note.
+    // G-39-71 (plan 39-19): `notify` records its observation once, naming the last hand-off note.
     expect(s.text).toContain("At `notify`, record an `observation` per Workflow 16 once, naming the last hand-off note.");
     expect(s.text).not.toContain("Stop for a named human when the scores call for");
     // WR-14: a move note carries a fixed `Move:` line, and only those notes are counted.
@@ -706,7 +706,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s.text).toContain("The plan note from step 2 carries none.");
     // Re-review WR-02: a move the human rejected is not counted against the Tech Lead's options.
     expect(s.text).toContain("Skip a move that a `Confirmed: no` finding names.");
-    // G-39-71, 39-19: a hand-off is a fifth `Move:` value, and it counts toward no move limit.
+    // G-39-71 (plan 39-19): a hand-off is a fifth `Move:` value, and it counts toward no move limit.
     expect(s.text).toContain(
       "Open its body with `Move: escalate`, `Move: re-plan`, `Move: split`, `Move: architect` or `Move: hand-off`.",
     );
@@ -736,7 +736,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(stepAt("Record a `failed-attempt` note per Workflow 16 when the engineer reports `BLOCKED` (Software Engineer).").n).toBe(14);
     expect(stepAt("Read the `failed-attempt` note (Tech Lead).").n).toBe(15);
     expect(stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").n).toBe(16);
-    // G-39-71, 39-19: step 17 tells the receiving role how to answer a hand-off.
+    // G-39-71 (plan 39-19): step 17 tells the receiving role how to answer a hand-off.
     expect(stepAt("Read the hand-off note (receiving role).").n).toBe(17);
     expect(section(TECH_LEAD, "Reads")).toContain("`agent-factory/workflows/04-ticket-to-pr.md` steps 14-16");
     const cited = [...TECH_LEAD.matchAll(/Workflow 04 steps? (\d+)/g)].map((m) => Number(m[1]));
@@ -798,7 +798,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s15).toContain("Open its body with `Confirmed: yes` or `Confirmed: no`.");
     expect(s15).toContain("A `Confirmed: no` move is neither carried out nor counted.");
     // Plan 39-18 (WR-01): once the options are used up the confirmation no longer points at an
-    // unconditional named-human stop. G-39-71, 39-19: it points at the hand-off.
+    // unconditional named-human stop. G-39-71 (plan 39-19): it points at the hand-off.
     expect(s15).toContain("Record a new move, or apply the hand-off once the options are used up.");
     expect(s15).toContain("Stamp it `human:<name>`, with the move note's id among its refs.");
     expect(s15).toContain("Never write that stamp without the human's answer.");
@@ -815,7 +815,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
   it("D-21 amended / T-39-15: once the options are used up the resolving role takes the ticket, a named human after three disputed rounds, never a retry loop", () => {
     const b = stops.filter((l) => l.startsWith("- The Tech Lead's options are used up ->"));
     expect(b).toHaveLength(1);
-    // G-39-71, 39-19: the hand-off comes first; the named human only after three disputed rounds.
+    // G-39-71 (plan 39-19): the hand-off comes first; the named human only after three disputed rounds.
     expect(b[0]).toContain("hand the ticket to the role whose job covers its cause; never retry in a loop.");
     expect(b[0]).toContain(
       "Stop for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
@@ -843,7 +843,7 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s15).toContain("On a split, move it to `Backlog` for BA/PM.");
     expect(s15).toContain("On an Architect pass, move it to `In Design`.");
     const s16 = stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").text;
-    // G-39-71, 39-19: a hand-off also dispatches, to the receiving role.
+    // G-39-71 (plan 39-19): a hand-off also dispatches, to the receiving role.
     expect(s16).toContain("Create it only after an escalation, a re-plan or a hand-off.");
     expect(s16).toContain("A split or an Architect pass dispatches no engineer.");
   });
@@ -1095,7 +1095,7 @@ describe("factory.config.md `checkpoints` wording matches Workflow 04 step 15 (q
     expect(para).toContain("`off`: the same move and the same move note, with no `observation`.");
     const s15 = stepAt(STEP15).text;
     expect(s15).toContain("At `block`, the default, stop for a named human, and record no move until the human answers.");
-    // G-39-71, 39-19: at a lowered cell the human stop parks the ticket, and `notify` records its
+    // G-39-71 (plan 39-19): at a lowered cell the human stop parks the ticket, and `notify` records its
     // observation once, naming the last hand-off note.
     expect(s15).toContain("At `notify` or `off`, the ticket stays in `Blocked` with no move until a human answers.");
     expect(s15).toContain("At `notify`, record an `observation` per Workflow 16 once, naming the last hand-off note.");
@@ -1124,7 +1124,7 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
   const RESCORE_STOP = "At `block`, the default, stop for a named human, and record no move until the human answers.";
   const GATE_STOP = "At `block`, the default, stop until a named human confirms the move.";
 
-  // G-39-71, 39-19: the re-score stop became the hand-off and the human stop, so six became seven.
+  // G-39-71 (plan 39-19): the re-score stop became the hand-off and the human stop, so six became seven.
   it("step 15 has exactly seven indented sub-bullets, followed directly by step 16", () => {
     expect(at15).toBeGreaterThanOrEqual(0);
     expect(subs).toHaveLength(7);
@@ -1139,7 +1139,7 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
 
   it("the sub-bullets open, in order, with the move limits, the hand-off, the human stop, the move record, the gate-failure stop, the confirmation and the board", () => {
     // Plan 39-17 (CR-01): the human stop comes before the move record, so at `block` the Tech Lead
-    // stops before any move note exists. G-39-71, 39-19: the hand-off and the human stop replace the
+    // stops before any move note exists. G-39-71 (plan 39-19): the hand-off and the human stop replace the
     // re-score stop.
     const openings = [
       "Apply the move limits.",
@@ -1157,7 +1157,7 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
   it("each named-human stop sits in the sub-bullet whose opening names it", () => {
     const rescore = subs.filter((s) => s.includes(RESCORE_STOP));
     expect(rescore).toHaveLength(1);
-    // G-39-71, 39-19: the no-move sentence now sits in the human-stop sub-bullet.
+    // G-39-71 (plan 39-19): the no-move sentence now sits in the human-stop sub-bullet.
     expect(rescore[0]?.startsWith("Apply the human stop. ")).toBe(true);
     const gate = subs.filter((s) => s.includes(GATE_STOP));
     expect(gate).toHaveLength(1);
@@ -1198,7 +1198,7 @@ describe("WF04 step 15 holds the re-score stop before any move note, and step 16
     expect(i, `no sub-bullet opening "${opening}"`).toBeGreaterThanOrEqual(0);
     return { i, text: subs[i] as string };
   };
-  // G-39-71, 39-19: the re-score stop is now the human stop; the hold reads a `Stop: human` line.
+  // G-39-71 (plan 39-19): the re-score stop is now the human stop; the hold reads a `Stop: human` line.
   const RESCORE = "Apply the human stop.";
   const RECORD = "Record the move in a new `decision` note per Workflow 16.";
   const CONFIRM = "Record the human's confirmation.";
@@ -1234,7 +1234,7 @@ describe("WF04 step 15 holds the re-score stop before any move note, and step 16
 
   it("CR-01 (c): the move record carries the human's level and a `Stop: human` line", () => {
     const t = subAt(RECORD).text;
-    // G-39-71, 39-19: the record follows the human stop, which replaced the re-score stop.
+    // G-39-71 (plan 39-19): the record follows the human stop, which replaced the re-score stop.
     for (const sentence of [
       "After the human stop, record the move and the level the human named.",
       "Put the line `Stop: human` under the `Move:` line when the human stop applied.",
@@ -1245,7 +1245,7 @@ describe("WF04 step 15 holds the re-score stop before any move note, and step 16
 
   it("CR-01 (d): the human's confirmation carries the named level on a `Level:` line", () => {
     const t = subAt(CONFIRM).text;
-    // G-39-71, 39-19: renamed with the stop.
+    // G-39-71 (plan 39-19): renamed with the stop.
     const sentence = "At the human stop, put the level the human named on a `Level:` line.";
     expect(hasSentence(t, sentence), `confirmation sub-bullet lacks "${sentence}"`).toBe(true);
   });
@@ -1300,13 +1300,13 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
 
   it("(a) the move limits send a ticket with both options spent to the hand-off", () => {
     const t = subAt("Apply the move limits.");
-    // G-39-71, 39-19: both options spent now leads to the hand-off, not the used-up stop.
+    // G-39-71 (plan 39-19): both options spent now leads to the hand-off, not the used-up stop.
     const sentence = "Once the escalation and the other move are both spent, apply the hand-off.";
     expect(hasSentence(t, sentence), `move-limits sub-bullet lacks "${sentence}"`).toBe(true);
   });
 
   it("(b) the human stop follows the used-up stop's value and parks the ticket at `notify` or `off`", () => {
-    // G-39-71, 39-19: the re-score stop became the human stop; the kept-level label is retired.
+    // G-39-71 (plan 39-19): the re-score stop became the human stop; the kept-level label is retired.
     const t = subAt("Apply the human stop.");
     for (const sentence of [
       "The used-up stop below follows the same value.",
@@ -1320,7 +1320,7 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
 
   it("(c) the confirmation points at the hand-off once the options are used up", () => {
     const t = subAt("Record the human's confirmation.");
-    // G-39-71, 39-19: the confirmation points at the hand-off.
+    // G-39-71 (plan 39-19): the confirmation points at the hand-off.
     const sentence = "Record a new move, or apply the hand-off once the options are used up.";
     expect(hasSentence(t, sentence), `confirmation sub-bullet lacks "${sentence}"`).toBe(true);
     expect(t).not.toContain("or stop for a named human once the options are used up");
@@ -1328,7 +1328,7 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
 
   it("(d) the tagged used-up stop states the lowered outcome, keeps the loop bound and its tag; WF04 keeps two tags", () => {
     const b = usedUp();
-    // G-39-71, 39-19: at a lowered cell the final human stop parks the ticket.
+    // G-39-71 (plan 39-19): at a lowered cell the final human stop parks the ticket.
     const PARKED = "At `notify` or `off`, that stop leaves the ticket in `Blocked` with no move and no re-enqueue.";
     expect(b).toContain(PARKED);
     expect(b).toContain("never retry in a loop.");
