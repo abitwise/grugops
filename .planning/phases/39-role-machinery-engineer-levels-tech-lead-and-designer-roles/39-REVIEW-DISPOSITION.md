@@ -5,19 +5,19 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "At `notify`/`off`, the tagged used-up stop says \"no move, no re-enqueue\" for the two re-score triggers, while step 15 says \"raise one level / keep the level as `Move: re-plan`\", and step 16 then re-enqueues (reopens the previous WR-01)"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A parked ticket has no defined way out of `Blocked`, and the one escape depends on `escalate_stale_blocker`, a cell that can also be lowered"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The used-up stop at `block` has no way to resume and no step 16 hold, and the \"human's level stands, even past the move limits\" license contradicts \"Never escalate a ticket twice\""
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "At the re-score stop the human answers with a level, but step 16 is released by a `Confirmed: yes` finding about a move note the human never saw"
   - id: IN-01
     severity: info
@@ -33,7 +33,7 @@ findings:
     title: "`hasSentence` checks less than its comment says, and is duplicated"
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "The step 15 split records the move before the re-score stop, and step 16 never holds for that stop, so at the default `block` an engineer-raised two-level re-score is re-enqueued without the named human"
   - id: WR-05
     severity: warning
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 12
+open: 7
 total: 28
 recorded: 2026-10-30T20:14:53.188Z
 ---
@@ -124,14 +124,14 @@ recorded: 2026-10-30T20:14:53.188Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
+| WR-01 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
+| WR-02 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
+| WR-03 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
+| WR-04 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
-| CR-01 | critical | open | - (not in the current review) |
+| CR-01 | critical | fixed | plan 39-17 (013b6012) (not in the current review) |
 | WR-05 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-06 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | IN-04 | info | fixed | 39-REVIEW-FIX.md (not in the current review) |

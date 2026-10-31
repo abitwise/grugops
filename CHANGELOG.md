@@ -65,7 +65,10 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   under `models.effort.roles`. No preset moves a level.
 - Workflow 04 runs the Tech Lead after the Definition of Ready check. An engineer that is blocked, or
   whose gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, can be escalated one level, at most
-  once per ticket.
+  once per ticket. When the Tech Lead's options on a blocked ticket are used up, it hands the ticket
+  to the role whose job covers the cause (BA/PM, the Architect or another role). A named human
+  decides only after the roles dispute one cause three times, or when the fix changes a requirement
+  or a rule fundamentally.
 
 ### Fixed
 
