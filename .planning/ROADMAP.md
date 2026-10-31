@@ -513,7 +513,19 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: TBD
+**Plans**: 10 plans
+- [ ] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
+- [ ] 40-02-PLAN.md — software-engineer.md as the reference role with `## Do less`, the NOTICE credit, and the human checkpoint on voice, shape, length, byte targets and board pairs (PLAIN-02, PLAIN-03, PLAIN-05)
+- [ ] 40-03-PLAN.md — Tech Lead (scope-first), Designer, Frontend/UI, the lean-review lens and the widened credit (PLAIN-02, PLAIN-03, PLAIN-05, PLAIN-06)
+- [ ] 40-04-PLAN.md — BA/PM (aligned to the Exit owner table), System Analyst, Architect/Design, UAT Planner (PLAIN-02, PLAIN-03)
+- [ ] 40-05-PLAN.md — Security/NFR, Compliance Officer, Release Manager, QE/E2E, Incident Responder (PLAIN-02, PLAIN-03)
+- [ ] 40-06-PLAN.md — AGENTS.md Scribe, Installer, Factory Coach, Greenfield and Brownfield Mappers (PLAIN-02, PLAIN-03)
+- [ ] 40-07-PLAN.md — Orchestrator full plain rewrite with concrete board pairs, and the role-switch protocol (PLAIN-02, PLAIN-03)
+- [ ] 40-08-PLAN.md — board-move partition guard, end-state role checks, `## Activates when` and `## Stop when` in ROLE_SECTIONS with 187 fixtures (PLAIN-02, PLAIN-03)
+- [ ] 40-09-PLAN.md — role-corpus total guard (FAIL 67,383 B, WARN 64,000 B) and re-baselined ROLE_CEILINGS (PLAIN-04)
+- [ ] 40-10-PLAN.md — role text joins the writing-profile gates, C-28-003 restored on measurement, CHANGELOG, phase gate (PLAIN-07, PLAIN-01)
+
+Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown only, disjoint files) → 40-08 → 40-09 → 40-10. The last three are sequential because each rebuilds the committed `.js`.
 **Notes**: D-1 (one corpus total that includes Tech Lead and Designer). The caveman flip is the first plan. `scripts/voice-model.ts` is hash-pinned in the admission hook's frozen manifest: change its consumers, not the file.
 
 ### Phase 41: Orchestrator flow guidance

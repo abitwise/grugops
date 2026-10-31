@@ -40,23 +40,23 @@ Full suite carries **21 pre-existing failures** (context-io, context-io-writer-s
 
 ## Per-Task Verification Map
 
-Task IDs are filled in by the planner; rows below map each requirement to its automated proof.
+Task IDs are `40-<plan>-<task>`; rows below map each requirement to its automated proof.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | 01 | 1 | PLAIN-01 | — | Planted caveman fence in a mirrored role → inverted guard exits 1 naming the file; real tree has 0 fences | unit (planted mirror) | `npx vitest run scripts/check-foundation-guards.test.ts -t "caveman"` | ❌ W0 | ⬜ pending |
-| TBD | 01 | 1 | PLAIN-01 | — | No live role returns a fence (voice-model control inverted) | unit | `npx vitest run scripts/voice-model.test.ts -t "every live role"` | ✅ | ⬜ pending |
-| TBD | 01 | 1 | PLAIN-01 | — | `ROLE_SECTIONS` no longer requires the caveman heading | unit | `npx vitest run scripts/validate.test.ts` | ✅ | ⬜ pending |
-| TBD | — | — | PLAIN-02 | — | Every role has `## Stop when` and `## Activates when`; bad fixtures fail for exactly one reason | unit | `npx vitest run scripts/validate.test.ts` | ✅ | ⬜ pending |
-| TBD | — | — | PLAIN-02 | — | Adapter and catalog bytes unchanged | unit + freshness | `npx vitest run scripts/adapter-byte-baseline.test.ts && npm run freshness:adapters && npm run freshness:catalog` | ✅ | ⬜ pending |
-| TBD | — | — | PLAIN-03 | — | Inventory superset vs baseline; planted fact removal → red | unit (planted mirror) | `npx vitest run scripts/check-role-rules.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | — | — | PLAIN-03 | — | Board-move partition: duplicate owner → red; uncovered exit → red | unit | `npx vitest run scripts/check-role-rules.test.ts -t "partition"` | ❌ W0 | ⬜ pending |
-| TBD | — | — | PLAIN-03 | — | D-30 stand-in admits role clauses only when the role-rule check passes; fails closed otherwise | unit (tmp git repos) | `npx vitest run scripts/check-diff-disposition.test.ts -t "stand-in"` | ❌ W0 | ⬜ pending |
-| TBD | — | — | PLAIN-04 | — | Corpus total > 67,383 B → red; real tree ≤ WARN target | unit (planted mirror) | `npx vitest run scripts/check-foundation-guards.test.ts -t "corpus total"` | ❌ W0 | ⬜ pending |
-| TBD | — | — | PLAIN-04 | — | `ROLE_CEILINGS` key set two-way; unknown role fails closed | unit | `npx vitest run scripts/check-foundation-guards.test.ts -t "ROLE_CEILINGS"` | ✅ | ⬜ pending |
-| TBD | — | — | PLAIN-05 | — | Do-less rules present; NOTICE byte copy; no banned literal | unit + gate | `npx vitest run install/installer-kit-home.test.ts -t "NOTICE" && node scripts/check-banned-claims.js` | ✅ | ⬜ pending |
-| TBD | — | — | PLAIN-06 | — | Lean lens present with sub-tags; governed corpus green | gate + unit | `node scripts/check-imperative-lexicon.js` | ❌ W0 (case) | ⬜ pending |
-| TBD | — | — | PLAIN-07 | — | Roles in the governed corpus; planted over-long role sentence → red | unit (planted mirror) | `npx vitest run scripts/check-imperative-lexicon.test.ts` | ✅ | ⬜ pending |
+| 40-01-03 | 01 | 1 | PLAIN-01 | T-40-06 | Planted caveman fence in a mirrored role → inverted guard exits 1 naming the file; real tree has 0 fences | unit (planted mirror) | `npx vitest run scripts/check-foundation-guards.test.ts -t "caveman"` | ❌ W0 (40-01-03 writes it) | ⬜ pending |
+| 40-01-03 | 01 | 1 | PLAIN-01 | T-40-07 | No live role returns a fence (voice-model control inverted); voice-model.ts untouched | unit | `npx vitest run scripts/voice-model.test.ts -t "every live role"` | ✅ | ⬜ pending |
+| 40-01-03 | 01 | 1 | PLAIN-01 | — | `ROLE_SECTIONS` no longer requires the caveman heading | unit | `npx vitest run scripts/validate.test.ts` | ✅ | ⬜ pending |
+| 40-08-03 | 08 | 4 | PLAIN-02 | T-40-22 | Every role has `## Stop when` and `## Activates when`; bad fixtures fail for exactly one reason | unit | `npx vitest run scripts/validate.test.ts` | ✅ | ⬜ pending |
+| 40-02-01, 40-03-01..40-07-02 | 02-07 | 2-3 | PLAIN-02 | T-40-08 | Adapter and catalog bytes unchanged | unit + freshness | `npx vitest run scripts/adapter-byte-baseline.test.ts && node scripts/adapters-freshness.js && node scripts/catalog-freshness.js` | ✅ | ⬜ pending |
+| 40-01-01 | 01 | 1 | PLAIN-03 | T-40-01 | Inventory superset vs baseline; planted fact removal → red; baseline equals derivation at source_commit | unit (planted mirror) | `npx vitest run scripts/check-role-rules.test.ts` | ❌ W0 (40-01-01 writes it) | ⬜ pending |
+| 40-08-01 | 08 | 4 | PLAIN-03 | T-40-21 | Board-move partition: duplicate owner → red; uncovered forward exit → red; undeclared off-table claim → red | unit | `npx vitest run scripts/check-role-rules.test.ts -t "partition"` | ❌ W0 (40-08-01 writes it) | ⬜ pending |
+| 40-01-02 | 01 | 1 | PLAIN-03 | T-40-02 | D-30 stand-in admits role clauses only when the role-rule check passes; fails closed otherwise | unit (tmp git repos) | `npx vitest run scripts/check-diff-disposition.test.ts -t "stand-in"` | ❌ W0 (40-01-02 writes it) | ⬜ pending |
+| 40-09-01 | 09 | 5 | PLAIN-04 | T-40-24 | Corpus total > 67,383 B → red (exactly 67,383 passes); real tree ≤ WARN 64,000 | unit (planted mirror) | `npx vitest run scripts/check-foundation-guards.test.ts -t "corpus total"` | ❌ W0 (40-09-01 writes it) | ⬜ pending |
+| 40-09-02 | 09 | 5 | PLAIN-04 | T-40-24 | `ROLE_CEILINGS` re-baselined; key set two-way; unknown role fails closed | unit | `npx vitest run scripts/check-foundation-guards.test.ts -t "ROLE_CEILINGS"` | ✅ | ⬜ pending |
+| 40-02-02, 40-03-03 | 02, 03 | 2, 3 | PLAIN-05 | T-40-09 | Do-less rules present; NOTICE byte copy; no banned literal | unit + gate | `npx vitest run install/installer-kit-home.test.ts -t "NOTICE" && node scripts/check-banned-claims.js` | ✅ | ⬜ pending |
+| 40-03-03 | 03 | 3 | PLAIN-06 | T-40-11 | Lean lens present with sub-tags; governed corpus green | gate + unit | `npx vitest run scripts/tier-kit-text.test.ts -t "lean lens" && node scripts/check-imperative-lexicon.js` | ❌ W0 (40-03-03 writes the case) | ⬜ pending |
+| 40-10-01 | 10 | 6 | PLAIN-07 | T-40-26 | Roles in the governed corpus (69 in 5 parts); planted 26-word role sentence → red | unit (planted mirror) | `npx vitest run scripts/check-imperative-lexicon.test.ts` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
