@@ -1678,7 +1678,9 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     // Quick 261031-oxi defect 3 (Olger Oeselg, 2026-10-31): the check runs at the step 2 re-plan, reads
     // the diff, and passes a change that names the human's approval `finding`.
     const CHECK = "At the step 2 re-plan, the Tech Lead checks the diff behind every `Resolved:` note against this definition.";
-    const TREAT = "It treats a fundamental one that names no approval `finding` as `Fundamental:` and returns the ticket to `Blocked`.";
+    // Quick 261031-rhv R3 (Olger Oeselg, 2026-10-31): the check passes a fundamental change only on a
+    // hand-off note that carries the human's `Approved:` line.
+    const TREAT = "A fundamental change passes only when its `Resolved:` note names a hand-off note carrying `Approved:`.";
     holdsAll(s17, "step 17", [MARK, PROPOSE, DEFINITION, CHECK, TREAT]);
     expect(s17.indexOf(PROPOSE)).toBeGreaterThan(s17.indexOf(MARK));
     expect(s17.indexOf(CHECK)).toBeGreaterThan(s17.indexOf(DEFINITION));
@@ -1738,14 +1740,18 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
   const LEVEL_STANDS = "The human's level stands, even past the move limits.";
   const STOP_HOLD = "After a `Stop: human` move note at `checkpoints.escalate_unadjudicable_result: block`, wait also for a `Confirmed: yes` finding naming it.";
   const CHECK_NEW = "At the step 2 re-plan, the Tech Lead checks the diff behind every `Resolved:` note against this definition.";
-  const TREAT_NEW = "It treats a fundamental one that names no approval `finding` as `Fundamental:` and returns the ticket to `Blocked`.";
+  // Quick 261031-rhv R3 (Olger Oeselg, 2026-10-31): the check passes a fundamental change only on a
+  // hand-off note that carries `Approved:`.
+  const TREAT_NEW = "A fundamental change passes only when its `Resolved:` note names a hand-off note carrying `Approved:`.";
   const RECORD_BACK = "Record either hand-back as `Move: hand-off` with `Stop: human`; it counts toward no limit.";
 
   // Quick 261031-oxi defect 1 (Olger Oeselg, 2026-10-31): an approved fundamental change no longer
   // re-blocks itself.
-  it("(s) defect 1: an approved fundamental change names the approval `finding` and passes the check (quick 261031-oxi)", () => {
+  it("(s) defect 1: an approved fundamental change names the `Approved:` hand-off note and passes the check (quick 261031-oxi; wording per quick 261031-rhv R3)", () => {
     const s17 = stepAt(STEP17).text;
-    const APPROVED = "Once a named human approves, make the change and answer `Resolved:`, naming the approval `finding`.";
+    // Quick 261031-rhv R3 (Olger Oeselg, 2026-10-31): the `Resolved:` answer names the hand-off note
+    // that carries the human's `Approved:` line.
+    const APPROVED = "Once a named human approves, make the change and answer `Resolved:`, naming the hand-off note that carries `Approved:`.";
     holdsAll(s17, "step 17", [PROPOSE, APPROVED, TREAT_NEW]);
     expect(s17.indexOf(APPROVED)).toBeGreaterThan(s17.indexOf(PROPOSE));
     const stop = subAt("Apply the human stop.");
@@ -1777,7 +1783,9 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
   // re-plan, the path `Resolved:` really takes, and reads the diff.
   it("(u) defect 3: the `Resolved:` check reads the diff at the step 2 re-plan and an unapproved change is reverted (quick 261031-oxi)", () => {
     const s17 = stepAt(STEP17).text;
-    const REVERT = "The Orchestrator then queues a `pending/` subtask for the role that made the change, to revert it.";
+    // Quick 261031-rhv R1 (Olger Oeselg, 2026-10-31): the revert is a recorded hand-off to the role that
+    // made the change.
+    const REVERT = "Otherwise the Tech Lead returns the ticket to `Blocked` and applies the hand-off to the role that made the change.";
     holdsAll(s17, "step 17", [DEFINITION, CHECK_NEW, TREAT_NEW, REVERT, RESOLVED_MOVE]);
     const order = [DEFINITION, CHECK_NEW, TREAT_NEW, REVERT, RESOLVED_MOVE].map((x) => s17.indexOf(x));
     for (let i = 1; i < order.length; i++) expect(order[i] as number).toBeGreaterThan(order[i - 1] as number);
@@ -1854,7 +1862,9 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     holdsAll(s14, "step 14", [OWNER14, QUEUE14]);
     expect(s14.indexOf(QUEUE14)).toBeGreaterThan(s14.indexOf(OWNER14));
     const s15 = stepAt(STEP15).text;
-    const READ_ANSWER = "When a step 17 answer queued the Tech Lead, read that answer note too.";
+    // Quick 261031-rhv R2 (Olger Oeselg, 2026-10-31): any answer note that queued the Tech Lead is read,
+    // the Orchestrator's record of a human's answer included.
+    const READ_ANSWER = "When an answer note queued the Tech Lead, read that note too.";
     holdsAll(s15, "step 15", [READ_ANSWER]);
     expect(s15.startsWith(STEP15)).toBe(true);
     expect(s15.indexOf(READ_ANSWER)).toBeLessThan(s15.indexOf("Choose one:"));
@@ -1868,6 +1878,73 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     expect(s17.indexOf(QUEUE_RESOLVED)).toBeGreaterThan(s17.indexOf(RESOLVED_MOVE));
     expect(s17.indexOf(REPLAN)).toBeGreaterThan(s17.indexOf(QUEUE_RESOLVED));
   });
+  // Quick 261031-rhv (Olger Oeselg, 2026-10-31) closes R1-R3 from the second re-trace. Shared sentences
+  // for cases (z) to (ab).
+  const PASS_RULE = "A fundamental change passes only when its `Resolved:` note names a hand-off note carrying `Approved:`.";
+  const APPROVED_NOTE = "Once a named human approves, make the change and answer `Resolved:`, naming the hand-off note that carries `Approved:`.";
+  const REVERT_HANDOFF = "Otherwise the Tech Lead returns the ticket to `Blocked` and applies the hand-off to the role that made the change.";
+  const READ_ANY = "When an answer note queued the Tech Lead, read that note too.";
+
+  // Quick 261031-rhv R1 (Olger Oeselg, 2026-10-31): the revert of an unapproved fundamental change is a
+  // recorded hand-off, so it counts toward the per-ticket ceiling and step 16 dispatches it.
+  it("(z) R1: an unapproved fundamental change goes back through a recorded hand-off that counts like any other (quick 261031-rhv)", () => {
+    const s17 = stepAt(STEP17).text;
+    const REVERT_NOTE = "Its `Move: hand-off` note keeps the cause's `Cause-id:` line and states the reason: revert the unapproved change.";
+    const REVERT_COUNTS = "That hand-off counts like any other, and step 16 dispatches it.";
+    const seq = [CHECK_NEW, TREAT_NEW, REVERT_HANDOFF, REVERT_NOTE, REVERT_COUNTS, RESOLVED_MOVE];
+    expect(TREAT_NEW).toBe(PASS_RULE);
+    holdsAll(s17, "step 17", seq);
+    const order = seq.map((x) => s17.indexOf(x));
+    for (let i = 1; i < order.length; i++) expect(order[i] as number).toBeGreaterThan(order[i - 1] as number);
+    expect(s17).not.toContain("subtask for the role that made the change");
+    holdsAll(subAt("Apply the hand-off."), "hand-off sub-bullet", [
+      "Add a `## Blocked` bullet naming that role as the owner who clears it.",
+    ]);
+    holdsAll(subAt("Apply the human stop."), "human-stop sub-bullet", [
+      "Apply it also before a fourth hand-off on one ticket.",
+      RECORD_BACK,
+    ]);
+    holdsAll(stepAt(STEP16).text, "step 16", ["For a hand-off, take the adapter of the role on the `To:` line."]);
+  });
+
+  // Quick 261031-rhv R2 (Olger Oeselg, 2026-10-31; "grugops orchestrator is the one who notifies tech
+  // lead"): once a human answers the human stop, the Orchestrator records the answer and queues the
+  // Tech Lead, at every value of the cell.
+  it("(aa) R2: once a human answers the human stop, the Orchestrator records the answer and queues the Tech Lead at every value (quick 261031-rhv)", () => {
+    const stop = subAt("Apply the human stop.");
+    const APPROVE = "After a `Fundamental:` note, ask the human to approve or reject the proposed change.";
+    const RECORD_ANSWER = "At every value, the Orchestrator records the answer in a `decision` note per Workflow 16, naming the human.";
+    const QUEUE_ANSWER = "The Orchestrator then queues a `pending/` subtask for the Tech Lead, who reads that note at step 15.";
+    const seq = [APPROVE, RECORD_ANSWER, QUEUE_ANSWER, HAND_BACK];
+    holdsAll(stop, "human-stop sub-bullet", seq);
+    const order = seq.map((x) => stop.indexOf(x));
+    for (let i = 1; i < order.length; i++) expect(order[i] as number).toBeGreaterThan(order[i - 1] as number);
+    expect(
+      stop.endsWith("At `notify` or `off`, once a human answers, follow the `block` path: the move record, the confirmation and step 16."),
+    ).toBe(true);
+    holdsAll(stepAt(STEP15).text, "step 15", [READ_ANY]);
+    expect(escalateParagraph()).toContain(
+      "Under every value, once a human answers at the human stop, the Orchestrator records the answer in a `decision` note and queues the Tech Lead.",
+    );
+  });
+
+  // Quick 261031-rhv R3 (Olger Oeselg, 2026-10-31): the hand-back after a `Fundamental:` proposal says
+  // whether the human approved or rejected it, and the receiving role acts on that line.
+  it("(ab) R3: the move note carries the human's `Approved:` or `Rejected:` verdict, and the receiving role acts on it (quick 261031-rhv)", () => {
+    const rec = subAt("Record the move in a new `decision` note per Workflow 16.");
+    const STOP_LINE = "Put the line `Stop: human` under the `Move:` line when the human stop applied.";
+    const VERDICT = "After the human approves or rejects a `Fundamental:` proposal, add an `Approved:` or `Rejected:` line naming the human.";
+    holdsAll(rec, "move-record sub-bullet", [STOP_LINE, VERDICT]);
+    expect(rec.indexOf(STOP_LINE)).toBeLessThan(rec.indexOf(VERDICT));
+    const s17 = stepAt(STEP17).text;
+    const REJECTED_NOTE = "When the hand-off note carries `Rejected:`, fix the cause within the current requirement and rules.";
+    const seq = [PROPOSE, APPROVED_NOTE, REJECTED_NOTE, DEFINITION, TREAT_NEW];
+    holdsAll(s17, "step 17", seq);
+    const order = seq.map((x) => s17.indexOf(x));
+    for (let i = 1; i < order.length; i++) expect(order[i] as number).toBeGreaterThan(order[i - 1] as number);
+    expect(WF04).not.toContain("approval `finding`");
+  });
+
   // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation applies the human
   // stop in WF04 step 15, step 17, the used-up stop, tech-lead.md and the config row and paragraph, and
   // the Tech Lead publishes no plan note naming that level before the human answers.
