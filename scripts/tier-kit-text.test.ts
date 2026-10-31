@@ -1653,4 +1653,62 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     holdsAll(t, "step 17", [REPLAN, BIND]);
     expect(t.indexOf(BIND)).toBeGreaterThan(t.indexOf(REPLAN));
   });
+
+  // 39-UAT D1 (Olger Oeselg, 2026-10-31) closes 39-REVIEW CR-02, quick task 261031-nd9: a role only
+  // proposes a fundamental change and leaves it unmade until a named human approves, and the Tech Lead
+  // checks every `Resolved:` note against the step 17 definition before step 16 dispatches.
+  it("(q) D1 / CR-02: a fundamental change is a proposal a named human approves, and every `Resolved:` note is checked (quick 261031-nd9)", () => {
+    const s17 = stepAt(STEP17).text;
+    const MARK = "Mark it `Fundamental:` when the fix changes a requirement or a rule fundamentally.";
+    const PROPOSE = "Only propose a fundamental fix: leave the requirement, rule, ADR or `checkpoints` value unchanged until a named human approves.";
+    const DEFINITION = "Altering a business rule, a hard limit, a `checkpoints` value or an ADR is fundamental too.";
+    const CHECK = "Before step 16 dispatches, the Tech Lead checks every `Resolved:` note against this definition.";
+    const TREAT = "It treats a fundamental one as `Fundamental:` and returns the ticket to `Blocked`.";
+    holdsAll(s17, "step 17", [MARK, PROPOSE, DEFINITION, CHECK, TREAT]);
+    expect(s17.indexOf(PROPOSE)).toBeGreaterThan(s17.indexOf(MARK));
+    expect(s17.indexOf(CHECK)).toBeGreaterThan(s17.indexOf(DEFINITION));
+    expect(s17.indexOf(TREAT)).toBeGreaterThan(s17.indexOf(CHECK));
+
+    const stop = subAt("Apply the human stop.");
+    const APPROVE = "After a `Fundamental:` note, ask the human to approve or reject the proposed change.";
+    const HAND_BACK = "On approval, hand the ticket back to the proposing role to make the change.";
+    const LOWERED = "At `notify` or `off`, the ticket stays in `Blocked` with no move until a human answers.";
+    holdsAll(stop, "human-stop sub-bullet", [APPROVE, HAND_BACK, LOWERED]);
+    expect(stop.indexOf(APPROVE)).toBeLessThan(stop.indexOf(LOWERED));
+    expect(stop.indexOf(HAND_BACK)).toBeLessThan(stop.indexOf(LOWERED));
+    expect(stop.indexOf(HAND_BACK)).toBeGreaterThan(stop.indexOf(APPROVE));
+
+    expect(escalateParagraph()).toContain(
+      "A role only proposes such a change and leaves it unmade until a named human approves, and the Tech Lead checks every `Resolved:` note against that definition.",
+    );
+    const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
+    expect(item5).toContain("Check every `Resolved:` note per step 17.");
+  });
+
+  // 39-UAT D2 (Olger Oeselg, 2026-10-31) closes 39-REVIEW CR-04, quick task 261031-nd9: a cause carries
+  // a stable `Cause-id:` line, and three hand-offs on one ticket reach the human stop.
+  it("(r) D2 / CR-04: a `Cause-id:` line names the cause, and three hand-offs on one ticket reach the human stop (quick 261031-nd9)", () => {
+    holdsAll(subAt("Record the move in a new `decision` note per Workflow 16."), "move-record sub-bullet", [
+      "Add a `Cause-id:` line: the id of the `failed-attempt` note that first raised the cause.",
+    ]);
+    holdsAll(stepAt(STEP17).text, "step 17", ["Copy the hand-off note's `Cause-id:` line into a `Disputed:` answer."]);
+    holdsAll(subAt("Apply the human stop."), "human-stop sub-bullet", [
+      "Apply it also after three hand-offs on one ticket.",
+      "Two notes share a cause when they carry the same `Cause-id:` line.",
+    ]);
+    const CEILING = "three hand-offs on one ticket";
+    const places: [string, string][] = [
+      ["Workflow 04 step 15", stepAt(STEP15).text],
+      ["the Workflow 04 used-up stop", usedUp()],
+      ["tech-lead.md `## Hard limits`", section(TECH_LEAD, "Hard limits")],
+      ["the factory.config.md escalate paragraph", escalateParagraph()],
+    ];
+    for (const [where, text] of places) expect(text, `${where} lacks "${CEILING}"`).toContain(CEILING);
+    holdsAll(usedUp().slice("- ".length), "used-up stop", ["The same stop applies after three hand-offs on one ticket."]);
+    holdsAll(section(TECH_LEAD, "Hard limits"), "tech-lead.md `## Hard limits`", [
+      "Stop the same way after three hand-offs on one ticket.",
+    ]);
+    expect(WF04.split("checkpoint: ").length - 1).toBe(2);
+    expect(stops).toHaveLength(6);
+  });
 });
