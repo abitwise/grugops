@@ -494,7 +494,7 @@ Plans:
 - [x] 39-18-PLAN.md — Human decision on the used-up stop at `notify`/`off`, then the chosen option across WF04, tech-lead.md and factory.config.md (WR-01, TIER-04); phase gate
 
 **Gap closure round 4** *(from 39-UAT.md gap G-39-71, the human's W1 decision of 2026-10-31; sequential; the fourth and last round under the cap)*
-- [ ] 39-19-PLAN.md — D-21 amended: a blocked ticket the Tech Lead cannot resolve goes to the role whose job covers its cause at every value of the cell, at most three hand-offs; a named human only after three unresolved hand-offs or a fundamental requirement or rule change. WF04 steps 15-17 and the used-up stop, tech-lead.md, factory.config.md, BA/PM and Architect pointers, the decision record (G-39-71, TIER-04; resolves W1, closes W2-W4)
+- [ ] 39-19-PLAN.md — D-21 amended: a blocked ticket the Tech Lead cannot resolve goes to the role whose job covers its cause at every value of the cell; a named human only after three disputed rounds on one cause (an unrelated new block counts no round) or a fundamental requirement or rule change. WF04 steps 15-17 and the used-up stop, tech-lead.md, factory.config.md, BA/PM and Architect pointers, the decision record (G-39-71, TIER-04; resolves W1, closes W2-W4)
 - [ ] 39-20-PLAN.md — CHANGELOG line, review dispositions (WR-01..WR-04, CR-01) and the round-4 phase gate (G-39-71)
 
 Waves are sequential: every plan rebuilds the committed `.js` and most move a shared count pin, so two plans in one wave would race on the build output.
