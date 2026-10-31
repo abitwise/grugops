@@ -5,19 +5,19 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "No step brings the Tech Lead back after a `Disputed:` or `Fundamental:` answer, so rounds 2-3 and the `Fundamental:` human stop cannot be reached"
   - id: CR-02
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "The fundamental-change gate is checked after the change is made, and the role that made the change decides whether it was fundamental"
   - id: CR-03
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "The step-2 re-plan after `Resolved:` has no level limit, which bypasses the \"move limits unchanged\" rule and \"never escalate twice on your own\""
   - id: CR-04
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "A \"cause\" has no identity, so neither the per-cause bound nor the round count can be checked, and relabelling a cause loops without limit"
   - id: WR-01
     severity: warning
@@ -123,7 +123,7 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 20
+open: 16
 total: 30
 recorded: 2026-10-31T09:17:11.179Z
 ---
@@ -132,10 +132,10 @@ recorded: 2026-10-31T09:17:11.179Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| CR-02 | critical | open | - |
-| CR-03 | critical | open | - |
-| CR-04 | critical | open | - |
+| CR-01 | critical | fixed | quick-261031-nd9 (c1ecc7eb) per 39-UAT D3 |
+| CR-02 | critical | fixed | quick-261031-nd9 (11125f3a) per 39-UAT D1 |
+| CR-03 | critical | fixed | quick-261031-nd9 (c1ecc7eb) per 39-UAT D3 |
+| CR-04 | critical | fixed | quick-261031-nd9 (11125f3a) per 39-UAT D2 |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |

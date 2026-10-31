@@ -67,8 +67,14 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   whose gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, can be escalated one level, at most
   once per ticket. When the Tech Lead's options on a blocked ticket are used up, it hands the ticket
   to the role whose job covers the cause (BA/PM, the Architect or another role). A named human
-  decides only after the roles dispute one cause three times, or when the fix changes a requirement
-  or a rule fundamentally.
+  decides only after the roles dispute one cause three times, after three hand-offs on one ticket,
+  or when a role proposes a fundamental change to a requirement or a rule.
+- In Workflow 04's hand-off loop, a role that finds a fundamental change to a requirement, rule, ADR
+  or `checkpoints` value proposes it and leaves it unmade until a named human approves, and the Tech
+  Lead checks every `Resolved:` answer for such a change. Each hand-off and dispute carries a
+  `Cause-id:` line naming the `failed-attempt` note that first raised the cause. The Tech Lead is
+  queued again after a disputed or fundamental answer, and its re-plan after a resolved answer keeps
+  the move limits.
 
 ### Fixed
 
