@@ -3,7 +3,7 @@ status: partial
 phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles
 source: [39-01-SUMMARY.md, 39-02-SUMMARY.md, 39-03-SUMMARY.md, 39-04-SUMMARY.md, 39-05-SUMMARY.md, 39-06-SUMMARY.md, 39-07-SUMMARY.md, 39-08-SUMMARY.md, 39-09-SUMMARY.md, 39-10-SUMMARY.md, 39-11-SUMMARY.md, 39-12-SUMMARY.md, 39-13-SUMMARY.md]
 started: 2026-10-30T11:55:07Z
-updated: 2026-10-30T14:35:04.433Z
+updated: 2026-10-31T06:16:43.140Z
 ---
 
 ## Current Test
@@ -39,6 +39,7 @@ reported: "let's set grugops-software-engineer-junior to haiku / xhigh ; grugops
 severity: major
 evidence: "Live probe 2026-10-30 on Claude Code 2.1.314 (this repo, read-only task, spawned by name with no model/effort parameter): junior ran claude-haiku-5-5 at effort medium, mid claude-sonnet-5-5 at medium, senior claude-opus-5-5 at high, read from each sub-agent transcript. The pin mechanism works; the values are being re-decided by G-39-5"
 source_ref: 39-07 D6
+retest: "Live re-probe 2026-10-31 on Claude Code 2.1.314 after 39-14/39-15 (spawned by name, no model/effort parameter): junior claude-haiku-5-5 effort xhigh, mid claude-sonnet-5-5 effort high, senior claude-opus-5-5 effort medium, read from each sub-agent transcript. Matches the re-decided pins."
 
 ### 6. Levels and factory.config.md wording makes no false claim
 expected: The `## Levels` section and the levels wording in agent-factory/config/factory.config.md read clearly and claim no enforcement grugops lacks.
@@ -53,6 +54,7 @@ result: issue
 reported: "please test this and next tests yourself and give me report what can't be tested" (delegated; Claude's reading: steps 2-4 and the stop bullets read clearly, but step 15 is one ~400-word paragraph holding six decisions with both named-human stops buried mid-paragraph)
 severity: minor
 source_ref: 39-08 D6
+retest: "Re-read 2026-10-31 by Claude (delegated) after 39-16/39-17: step 15 is now six labelled sub-bullets; the re-score stop and the gate-failure stop each have their own bullet, and the re-score stop comes before the move record. Still open: the lowered-cell W1 contradiction (VERIFICATION.md), a scope decision for the human, not a readability defect."
 
 ### 8. WF14 Designer to Frontend-UI split reads clearly
 expected: WF14 step 1 and the missing-design-token stop bullet read clearly. A reader can tell the Designer (product-wide strategy) apart from Frontend-UI (the per-ticket contract), and follows Designer, then contract, then build.
@@ -447,7 +449,9 @@ blocked: 2
 
 - gap_id: G-39-5
   truth: "The engineer level adapters pin junior haiku/xhigh, mid sonnet/high and senior opus/medium (human re-decision of D-14 during UAT, 2026-10-30), and spawning each by name with no override runs on that model and effort"
-  status: failed
+  status: resolved
+  resolved_by: 39-14-PLAN.md
+  resolved_at: 2026-10-31
   reason: "User reported: let's set grugops-software-engineer-junior to haiku / xhigh ; grugops-software-engineer-mid to sonnet / high and grugops-software-engineer-senior to opus / medium"
   severity: major
   test: 5
@@ -474,7 +478,9 @@ blocked: 2
 
 - gap_id: G-39-6
   truth: "factory.config.md's `models` Refusals and 'What is closed' paragraphs name the block's real closed key sets and claim no refusal grugops does not make"
-  status: failed
+  status: resolved
+  resolved_by: 39-15-PLAN.md
+  resolved_at: 2026-10-31
   reason: "User reported: fix what you noticed (stale `models` key-set wording at factory.config.md lines 134 and 136)"
   severity: minor
   test: 6
@@ -491,7 +497,9 @@ blocked: 2
 
 - gap_id: G-39-7
   truth: "WF04 step 15 reads clearly to a first-time reader, with both named-human stops easy to find"
-  status: failed
+  status: resolved
+  resolved_by: 39-16-PLAN.md
+  resolved_at: 2026-10-31
   reason: "User delegated the reading check; Claude found step 15 one ~400-word paragraph holding six decisions"
   severity: minor
   test: 7
