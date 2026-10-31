@@ -6,10 +6,10 @@ current_phase: 39
 current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
 status: verifying
 stopped_at: Completed 39-20-PLAN.md
-last_updated: "2026-10-31T09:07:41.079Z"
+last_updated: "2026-10-31T17:31:15.837Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 39 execution started
-state_head: dc816281a289a1c5957c8cda402da7f2c1837eec
+state_head: f97c3985329f8d50406131210c40daaa6a36d810
 progress:
   total_phases: 9
   completed_phases: 4
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — READY TO EXECUTE
 Plan: 16 of 16
 Status: Phase complete — ready for verification
-Last activity: 2026-10-30 — Phase 39 execution started
+Last activity: 2026-10-31 - Completed quick task 261031-nd9: Write the 39-UAT D1-D3 human decisions into WF04 steps 15-17, tech-lead.md, factory.config and the text checks
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2297,6 +2297,7 @@ None yet.
 | 261019-ktd | Review WR-05 WR-06 WR-10 IN-14: live-run state on every --check launch line; host versions recorded; verified-live claims checked against the registry | 2026-10-19 | 0b5d9066 | [261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-](./quick/261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-/) |
 | 261019-mq1 | Review hs8 leftovers: Pi trust warning, case-insensitive Pi guard, canonical YAML values, doc lists checked against the registry, CLAUDE.md launch files | 2026-10-19 | 598da0be | [261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-](./quick/261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-/) |
 | 261030-fzo | Phase 39 follow-ups: raise tech-lead role ceiling to 4000 B, align notify wording with Workflow 04, explain escalate_unadjudicable_result | 2026-10-30 | aa21a823 | [261030-fzo-phase-39-follow-ups-raise-tech-lead-role](./quick/261030-fzo-phase-39-follow-ups-raise-tech-lead-role/) |
+| 261031-nd9 | Write the 39-UAT D1-D3 human decisions into WF04 steps 15-17, tech-lead.md, factory.config and the text checks | 2026-10-31 | f97c3985 | [261031-nd9-write-the-39-uat-d1-d3-human-decisions-i](./quick/261031-nd9-write-the-39-uat-d1-d3-human-decisions-i/) |
 
 ## Deferred Items
 
