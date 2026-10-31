@@ -100,6 +100,10 @@ Filled by the planner per task; the requirement → test map from RESEARCH.md is
 | 39-18 T1 (gap 3) | TIER-04 | human decision checkpoint (park-in-blocked, Olger Oeselg, 2026-10-30) — recorded, not automated | ✅ |
 | 39-18 T2 (tracer, gap 3) | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts scripts/config-governance-consistency.test.ts` (WR-01 one-outcome cases) + language gates + disposition count 721 | ✅ |
 | 39-18 T3 (gap 3) | TIER-04 | phase gate: every repo gate + full non-e2e suite against the recorded baseline (21 known reds) | ✅ |
+| 39-19 T1 (tracer, gap 4) | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts -t "G-39-71"` (WF04 steps 15–17 hand-off loop, used-up stop) + checkpoints/config-governance/uat-oracles/lexicon suites + disposition count 721 | ✅ |
+| 39-19 T2 (gap 4) | TIER-04 | `npx vitest run scripts/tier-kit-text.test.ts` (one describe pins the three W1 phrases in WF04 step 15, the used-up stop, tech-lead.md `## Hard limits`, factory.config.md) + language gates + disposition count 721 | ✅ |
+| 39-20 T1 (tracer, gap 4) | TIER-04 | `npm run check:public-docs && node scripts/check-banned-claims.js && npm run check:claim-anchors` + `grep -cF 'whose job covers the cause' CHANGELOG.md` | ✅ |
+| 39-20 T2 (gap 4) | TIER-04 | phase gate: every repo gate + full non-e2e suite against the recorded baseline (21 known reds; 10707 passed) | ✅ |
 
 The `scripts/<new tier-text>.test.ts` row above is `scripts/tier-kit-text.test.ts`, created by 39-05 T1 and extended by 39-06..39-10.
 
@@ -155,3 +159,12 @@ The `scripts/<new tier-text>.test.ts` row above is `scripts/tier-kit-text.test.t
 | Resolved | 0 |
 | Escalated | 0 |
 | Tasks audited | 12 |
+
+## Validation Audit 2026-10-31
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Tasks audited | 4 |
