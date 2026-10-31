@@ -1634,4 +1634,23 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
       }
     }
   });
+
+  // 39-UAT D3 (Olger Oeselg, 2026-10-31) closes 39-REVIEW CR-01 and CR-03 with two one-sentence edits
+  // to step 17, quick task 261031-nd9: the Tech Lead is queued again after a dispute, and the re-plan
+  // after `Resolved:` keeps the step 15 move limits.
+  it("(o) D3 / CR-01: after `Disputed:` or `Fundamental:` the Orchestrator queues the Tech Lead (quick 261031-nd9)", () => {
+    const t = stepAt(STEP17).text;
+    const OWNER = "After `Disputed:` or `Fundamental:`, name the Tech Lead as the `## Blocked` owner again.";
+    const QUEUE = "The Orchestrator then queues a `pending/` subtask for the Tech Lead, who reads that answer note at step 15.";
+    holdsAll(t, "step 17", [OWNER, QUEUE]);
+    expect(t.indexOf(QUEUE)).toBeGreaterThan(t.indexOf(OWNER));
+  });
+
+  it("(p) D3 / CR-03: the step 15 move limits bind the step 2 re-plan after `Resolved:` (quick 261031-nd9)", () => {
+    const t = stepAt(STEP17).text;
+    const REPLAN = "The Tech Lead then plans it again per step 2 before any pull.";
+    const BIND = "The step 15 move limits bind that plan: record a level raise in it as `Move: escalate`.";
+    holdsAll(t, "step 17", [REPLAN, BIND]);
+    expect(t.indexOf(BIND)).toBeGreaterThan(t.indexOf(REPLAN));
+  });
 });
