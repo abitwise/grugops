@@ -67,14 +67,19 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   whose gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix, can be escalated one level, at most
   once per ticket. When the Tech Lead's options on a blocked ticket are used up, it hands the ticket
   to the role whose job covers the cause (BA/PM, the Architect or another role). A named human
-  decides only after the roles dispute one cause three times, after three hand-offs on one ticket,
+  decides only after the roles dispute one cause three times, before a fourth hand-off on one ticket,
   or when a role proposes a fundamental change to a requirement or a rule.
 - In Workflow 04's hand-off loop, a role that finds a fundamental change to a requirement, rule, ADR
-  or `checkpoints` value proposes it and leaves it unmade until a named human approves, and the Tech
-  Lead checks every `Resolved:` answer for such a change. Each hand-off and dispute carries a
-  `Cause-id:` line naming the `failed-attempt` note that first raised the cause. The Tech Lead is
-  queued again after a disputed or fundamental answer, and its re-plan after a resolved answer keeps
-  the move limits.
+  or `checkpoints` value proposes it and leaves it unmade until a named human approves. After
+  approval the role makes the change and names the approval in its `Resolved:` answer. After a
+  rejection the Tech Lead applies the move the human names, or hands the ticket back to be fixed
+  within the current requirement and rules. Neither hand-back counts toward a limit. At its re-plan,
+  before any pull, the Tech Lead checks the change behind every `Resolved:` answer; an unapproved
+  fundamental change goes back to `Blocked`, is reverted and reaches the human stop. Each hand-off
+  and dispute carries a `Cause-id:` line naming the `failed-attempt` note that first raised the
+  cause. The Orchestrator queues the Tech Lead after the first block and after every answer. A
+  re-plan that needs a raise past the spent escalation goes to the human stop. At `notify` or `off`,
+  a parked ticket resumes as at `block` once a human answers.
 
 ### Fixed
 
