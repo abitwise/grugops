@@ -3,50 +3,70 @@ phase: 39
 review: 39-REVIEW.md
 titles: json
 findings:
+  - id: CR-01
+    severity: critical
+    disposition: open
+    title: "No step brings the Tech Lead back after a `Disputed:` or `Fundamental:` answer, so rounds 2-3 and the `Fundamental:` human stop cannot be reached"
+  - id: CR-02
+    severity: critical
+    disposition: open
+    title: "The fundamental-change gate is checked after the change is made, and the role that made the change decides whether it was fundamental"
+  - id: CR-03
+    severity: critical
+    disposition: open
+    title: "The step-2 re-plan after `Resolved:` has no level limit, which bypasses the \"move limits unchanged\" rule and \"never escalate twice on your own\""
+  - id: CR-04
+    severity: critical
+    disposition: open
+    title: "A \"cause\" has no identity, so neither the per-cause bound nor the round count can be checked, and relabelling a cause loops without limit"
   - id: WR-01
     severity: warning
-    disposition: fixed
-    title: "At `notify`/`off`, the tagged used-up stop says \"no move, no re-enqueue\" for the two re-score triggers, while step 15 says \"raise one level / keep the level as `Move: re-plan`\", and step 16 then re-enqueues (reopens the previous WR-01)"
+    disposition: open
+    title: "\"A named human is asked only after three disputed rounds\" is untrue on two paths the text does not reconcile"
   - id: WR-02
     severity: warning
-    disposition: fixed
-    title: "A parked ticket has no defined way out of `Blocked`, and the one escape depends on `escalate_stale_blocker`, a cell that can also be lowered"
+    disposition: open
+    title: "There is no rule for a cause that no other role's job covers"
   - id: WR-03
     severity: warning
-    disposition: fixed
-    title: "The used-up stop at `block` has no way to resume and no step 16 hold, and the \"human's level stands, even past the move limits\" license contradicts \"Never escalate a ticket twice\""
+    disposition: open
+    title: "A hand-off can be made before the options are used up, and it counts toward no limit"
   - id: WR-04
     severity: warning
-    disposition: fixed
-    title: "At the re-score stop the human answers with a level, but step 16 is released by a `Confirmed: yes` finding about a move note the human never saw"
+    disposition: open
+    title: "Roles other than BA/PM and the Architect are not told how to answer a hand-off"
+  - id: WR-05
+    severity: warning
+    disposition: open
+    title: "Step 17's board moves conflict with the board-move sections of the role files, and `Resolved:` skips the Definition of Ready"
+  - id: WR-06
+    severity: warning
+    disposition: open
+    title: "After `Resolved:`, the Orchestrator can pull the ticket on the old plan note"
+  - id: WR-07
+    severity: warning
+    disposition: open
+    title: "The `## Blocked` owner bullets pile up with conflicting owners"
+  - id: WR-08
+    severity: warning
+    disposition: open
+    title: "In tech-lead.md, \"instead\" can be read as cancelling the hand-off at `notify` and `off`"
   - id: IN-01
     severity: info
     disposition: open
-    title: "(carried forward, still open) The iteration-2 disposition still states the reverted `3572 3381` ceiling and a WARN the role no longer trips"
+    title: "The `notify` observation names the wrong note when `Fundamental:` triggers the stop, and \"once\" has no scope"
   - id: IN-02
     severity: info
     disposition: open
-    title: "(carried forward, still open) \"Only at `context.human_admission: all` does admission check that stamp\" leaves out the fail-toward-gating cases"
+    title: "The step-15 lead line and tech-lead.md item 5 still list four moves, with no hand-off"
   - id: IN-03
     severity: info
     disposition: open
-    title: "`hasSentence` checks less than its comment says, and is duplicated"
-  - id: CR-01
-    severity: critical
-    disposition: fixed
-    title: "The step 15 split records the move before the re-score stop, and step 16 never holds for that stop, so at the default `block` an engineer-raised two-level re-score is re-enqueued without the named human"
-  - id: WR-05
-    severity: warning
-    disposition: fixed
-    title: "The new `tech-lead.md` ceiling was measured at an intermediate size; the shipped file already trips its WARN tier, and the comment misstates the size"
-  - id: WR-06
-    severity: warning
-    disposition: fixed
-    title: "Step 16's \"After a gate failure at `block`\" needs a fact step 14 never records: the `failed-attempt` note is \"the same note\" for an engineer block and a gate block"
+    title: "The disposition register's opening counts three watched documents but lists four"
   - id: IN-04
     severity: info
-    disposition: fixed
-    title: "The role's new Reads line cites Workflow 04 by step number, and no test ties those numbers to the blocked-ticket steps"
+    disposition: open
+    title: "The W1 cross-place test checks that phrases are present, not which value they apply to"
   - id: WR-11
     severity: warning
     disposition: fixed
@@ -87,18 +107,6 @@ findings:
     severity: info
     disposition: open
     title: "The new presence-path tests leave out the README's headline case and two branches"
-  - id: CR-02
-    severity: critical
-    disposition: fixed
-    title: "Workflow 04's escalation steps re-enqueue an exhausted gate without the named-human confirmation its stop condition requires"
-  - id: WR-07
-    severity: warning
-    disposition: fixed
-    title: "The rubric scores \"the dev plan\", but the Tech Lead scores before it writes the dev plan"
-  - id: WR-08
-    severity: warning
-    disposition: fixed
-    title: "The Designer reads no existing design in a brownfield repository"
   - id: WR-09
     severity: warning
     disposition: fixed
@@ -115,26 +123,31 @@ findings:
     severity: info
     disposition: deferred
     title: "The XL / file-plan split stop names no owner for leaving `Ready for Dev`"
-open: 7
-total: 28
-recorded: 2026-10-30T20:14:53.188Z
+open: 20
+total: 30
+recorded: 2026-10-31T09:17:11.179Z
 ---
 
 # Phase 39: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
-| WR-02 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
-| WR-03 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
-| WR-04 | warning | fixed | plan 39-19 (e0dfa40b, 59b7ac68), G-39-71 decided by Olger Oeselg on 2026-10-31 |
+| CR-01 | critical | open | - |
+| CR-02 | critical | open | - |
+| CR-03 | critical | open | - |
+| CR-04 | critical | open | - |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
+| WR-04 | warning | open | - |
+| WR-05 | warning | open | - |
+| WR-06 | warning | open | - |
+| WR-07 | warning | open | - |
+| WR-08 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
-| CR-01 | critical | fixed | plan 39-17 (013b6012) (not in the current review) |
-| WR-05 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
-| WR-06 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
-| IN-04 | info | fixed | 39-REVIEW-FIX.md (not in the current review) |
+| IN-04 | info | open | - |
 | WR-11 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-12 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
 | WR-13 | warning | fixed | 39-REVIEW-FIX.md (not in the current review) |
@@ -145,9 +158,6 @@ recorded: 2026-10-30T20:14:53.188Z
 | IN-08 | info | open | - (not in the current review) |
 | IN-09 | info | open | - (not in the current review) |
 | IN-10 | info | open | - (not in the current review) |
-| CR-02 | critical | fixed | plan 39-12 (a1fd04dd) (not in the current review) |
-| WR-07 | warning | fixed | plan 39-12 (34f92ff7) (not in the current review) |
-| WR-08 | warning | fixed | plan 39-11 (78c07a10) (not in the current review) |
 | WR-09 | warning | fixed | plan 39-13 (b5a82cf9) (not in the current review) |
 | WR-10 | warning | fixed | plan 39-13 (b5a82cf9) (not in the current review) |
 | IN-05 | info | deferred | deferred to Phase 41 (orchestrator flow): no gap fix changes the coordinator adapter; its warn tier or a shorter grant rendering is decided where the next grant change lands (not in the current review) |
