@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: 39
-current_phase_name: "Role machinery: engineer levels, Tech Lead and Designer roles, skills key"
-status: verifying
-stopped_at: Completed 39-20-PLAN.md
-last_updated: "2026-10-31T20:45:27.245Z"
+current_phase: 40
+current_phase_name: Plain-language role rewrite
+status: planning
+stopped_at: Phase 39 complete, ready to plan Phase 40
+last_updated: "2026-10-31T20:51:05.252Z"
 last_activity: 2026-10-31
-last_activity_desc: Phase 39 execution started
-state_head: 9e08db1b5aec5d13d29df5dd4121b3ec947d0d4b
+last_activity_desc: Phase 39 complete, transitioned to Phase 40
+state_head: 66f0e5055c9adbc04d1859eafcdc824c168a377f
 progress:
   total_phases: 9
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 88
   completed_plans: 88
-  percent: 44
+  percent: 56
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 ## Current Position
 
-Phase: 39 (Role machinery: engineer levels, Tech Lead and Designer roles, skills key) — READY TO EXECUTE
-Plan: 16 of 16
-Status: Phase complete — ready for verification
-Last activity: 2026-10-31 - Completed quick task 261031-rhv: Close WF04 hand-off loop re-trace defects R1-R4
+Phase: 40 — Plain-language role rewrite
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-31 — Phase 39 complete, transitioned to Phase 40
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 463
+- Total plans completed: 483
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -145,6 +145,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 36 | 14 | - | - |
 | 37 | 42 | - | - |
 | 38 | 11 | - | - |
+| 39 | 20 | - | - |
 
 **Recent Trend:**
 
@@ -2553,7 +2554,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-10-31T09:07:40.170Z
-Stopped at: Completed 39-20-PLAN.md
+Stopped at: Phase 39 complete, ready to plan Phase 40
 Resume file: None
 
 ## Operator Next Steps

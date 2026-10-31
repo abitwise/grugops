@@ -180,6 +180,7 @@ This is a largely **introspective** milestone: most work improves grugops's own 
 - ✓ Per-checkpoint autonomy matrix — every human stop enumerated and dialable; merge/deploy floors enforced by the git host with installer-written ask rules — v2.1 (AUTO-01..07)
 - ✓ Autonomous manual testing — committed Playwright specs and browser evidence entering through verify-before-write — v2.1 (UATX-02..05; UATX-01/06 open)
 - ✓ Board projector + CLI dashboard — one board-grammar authority, typed snapshot, read-only terminal dashboard — v2.1 (DASH-01..08)
+- ✓ Role machinery — Tech Lead scores and pre-plans, one engineer role yields junior/mid/senior Claude Code adapters (haiku/xhigh, sonnet/high, opus/medium), Designer role, `skills:` frontmatter key, role and adapter sets derived; WF04 blocked-ticket hand-off loop with a named-human stop only for fundamental changes or unsettled disputes — v3.0 Phase 39 (TIER-01..07; live checks UAT 10/14 carried to Phase 43 milestone UAT)
 - ✓ Host registry, Pi support and per-agent installer — `HOST_TOOLS` as the single host set; Pi via `.pi/prompts/grugops.md`; per-agent flags and a shared `.agents/skills/grugops/SKILL.md` — v2.1 (HOST-01, PI-01..04; HOST-02 open)
 
 **v3.0 — Specialist agents. Shared context. Coordinated work. (in progress):**
