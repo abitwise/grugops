@@ -559,6 +559,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   3. Every agent and skill has a reference page generated from its role or skill file, and a gate fails when a page is missing or stale (STORY-03)
   4. Every new public page was inside the claim registry's checked file set before it was written, and every claim that moved was re-dispositioned by id, never deleted (STORY-04)
   5. The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug` (STORY-05)
+  6. Milestone UAT, carried from Phase 39 UAT tests 10 and 14 (human, 2026-10-31): on a live Claude Code host in a scratch repo, unscored work is never auto-delegated to a junior, mid or senior engineer adapter (each level is reached only when the Tech Lead's plan names it), and a `grugops-designer` design note reaches `scripts/context-io.js` through Bash and is admitted, not refused as unsealed
 
 **Plans**: TBD
 **Notes**: Reference pages come from the existing catalog generator; claim anchors keep their ids.
