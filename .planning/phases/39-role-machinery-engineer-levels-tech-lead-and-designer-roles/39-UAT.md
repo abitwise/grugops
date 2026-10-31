@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: partial
 phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles
 source: [39-01-SUMMARY.md, 39-02-SUMMARY.md, 39-03-SUMMARY.md, 39-04-SUMMARY.md, 39-05-SUMMARY.md, 39-06-SUMMARY.md, 39-07-SUMMARY.md, 39-08-SUMMARY.md, 39-09-SUMMARY.md, 39-10-SUMMARY.md, 39-11-SUMMARY.md, 39-12-SUMMARY.md, 39-13-SUMMARY.md]
 started: 2026-10-30T11:55:07Z
-updated: 2026-10-31T06:16:43.140Z
+updated: 2026-10-31T14:21:14.332Z
 ---
 
 ## Current Test
@@ -37,6 +37,7 @@ expected: In a scratch repo on Claude Code 2.1.293 or later, spawn grugops-softw
 result: issue
 reported: "let's set grugops-software-engineer-junior to haiku / xhigh ; grugops-software-engineer-mid to sonnet / high and grugops-software-engineer-senior to opus / medium"
 severity: major
+retest: "pass - live probe 2026-10-31 on Claude Code 2.1.316 after 39-14 (spawned by name, no model/effort parameter, read from each sub-agent transcript): junior claude-haiku-5-5 effort xhigh, mid claude-sonnet-5-5 effort high, senior claude-opus-5-5 effort medium - matches the re-decided pins"
 evidence: "Live probe 2026-10-30 on Claude Code 2.1.314 (this repo, read-only task, spawned by name with no model/effort parameter): junior ran claude-haiku-5-5 at effort medium, mid claude-sonnet-5-5 at medium, senior claude-opus-5-5 at high, read from each sub-agent transcript. The pin mechanism works; the values are being re-decided by G-39-5"
 source_ref: 39-07 D6
 retest: "Live re-probe 2026-10-31 on Claude Code 2.1.314 after 39-14/39-15 (spawned by name, no model/effort parameter): junior claude-haiku-5-5 effort xhigh, mid claude-sonnet-5-5 effort high, senior claude-opus-5-5 effort medium, read from each sub-agent transcript. Matches the re-decided pins."
@@ -442,6 +443,7 @@ result: issue
 reported: "W1 decision, when Tech lead can't solve it then decision should be made to send it back to ba/pm or architect (or suitable role who can solve the reasons why the ticket is blocked). If there is disagreement between what is the solution only then turn to human." / "And before bringing to human, try to solve the disagreement 3 times. Similar approach should be elsewhere as well. Human's role is stakeholder, if fundamental changes are not required to requirements and rules then human attention is not needed." / disagreement = "When roles have argued 3 times and not found resolution."
 severity: major
 source_ref: 39-VERIFICATION W1 (human decision, Olger Oeselg 2026-10-31)
+retest: "pass - human re-check 2026-10-31 after 39-19/39-20: WF04 steps 15-17, the used-up stop, tech-lead.md and factory.config.md match the decision; human accepted the four 39-19 design choices (Move: hand-off note with To: line; a round is a Disputed: note about one cause; the fundamental-change test; parked final stop at notify/off) and the unchanged gate-failure stop"
 
 ## Summary
 
@@ -520,7 +522,10 @@ blocked: 2
 
 - gap_id: G-39-71
   truth: "Once the Tech Lead cannot resolve a blocked ticket (moves used up, or a re-score the rubric cannot adjudicate), the ticket is routed to the role that can resolve the cause (BA/PM, Architect, or another suitable role) at every value of checkpoints.escalate_unadjudicable_result; a named human is brought in only after the roles have argued 3 times without resolution, or when the resolution needs a fundamental change to requirements or rules"
-  status: failed
+  status: resolved
+  resolved_by: 39-20-PLAN.md
+  resolved_at: 2026-10-31
+  resolved_note: "Closed by 39-19-PLAN.md (WF04 steps 15-17, tech-lead.md, factory.config.md, ba-pm/architect pointers) and 39-20-PLAN.md (pins, dispositions, CHANGELOG); both have SUMMARYs"
   reason: "User reported (W1 decision, 2026-10-31): when Tech Lead can't solve it, send it to BA/PM, Architect or a suitable role; turn to the human only on disagreement, after 3 resolution attempts; the human is a stakeholder, needed only for fundamental changes to requirements and rules"
   severity: major
   test: 71
@@ -544,6 +549,20 @@ blocked: 2
     - "Keep D-21 (no unbounded retry loop): the 3-round bound is the loop bound; the per-ticket move limits still hold"
     - "Never touch the hard human gates: merge, production deploy, UAT sign-off and release approval stay with a named human"
     - "Update the text pins and counts deliberately; keep WF04 and the roles under their size ceilings"
+
+## Human Decisions (39-VERIFICATION D1-D3, Olger Oeselg 2026-10-31)
+
+Directions to change the text outside the gap-round cap (round 4 was the last); not UAT gaps.
+
+- id: D1
+  finding: CR-02
+  decision: "(b) A role proposes a fundamental change in its step-17 note and leaves the requirement, rule, ADR or checkpoints value unchanged until the human approves; the Tech Lead checks every Resolved: note against the step-17 fundamental-change definition before step 16 dispatches"
+- id: D2
+  finding: CR-04
+  decision: "(b) Add a stable Cause-id: line (the id of the failed-attempt note that first raised the cause), repeated on every hand-off and Disputed: note, plus a per-ticket ceiling: after three hand-offs on one ticket, apply the human stop"
+- id: D3
+  finding: CR-01, CR-03
+  decision: "Make both one-sentence edits: step 17 queues the Tech Lead after Disputed:/Fundamental: (CR-01); the step 15 move limits bind the step-2 re-plan after Resolved: (CR-03)"
 
 ## Deferred Follow-Ups
 
