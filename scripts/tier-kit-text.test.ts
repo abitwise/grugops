@@ -268,14 +268,20 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     );
   });
 
-  it("D-21: it never escalates twice, and stops for a named human once the options are used up", () => {
+  it("D-21 amended: it never escalates twice on its own, hands a used-up ticket to the resolving role, and stops for a named human after three disputed rounds", () => {
     const body = section(TECH_LEAD, "Hard limits");
-    expect(body).toContain("Never escalate a ticket twice.");
-    // Plan 39-18 (WR-01, park-in-blocked): the used-up limit follows the tagged cell; at `block` a
-    // named human takes the ticket, and under every value the Tech Lead makes no move of its own.
-    expect(body).toContain(
-      "After the options are used up, make no move of your own; at the default `block`, stop for a named human.",
-    );
+    // G-39-71 (plan 39-19): a human may name a second escalation at the human stop, so the limit is
+    // on the Tech Lead's own moves.
+    expect(body).toContain("Never escalate a ticket twice on your own.");
+    // Plan 39-18 (WR-01) made the used-up limit follow the tagged cell. G-39-71 (plan 39-19, D-21
+    // amended): the hand-off runs under every value; the cell decides only the final human stop.
+    for (const sentence of [
+      "After the options are used up, hand the ticket to the role whose job covers its cause.",
+      "Stop for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
+      "At `notify` or `off`, leave the ticket in `Blocked` with no move instead.",
+    ]) {
+      expect(body).toContain(sentence);
+    }
     expect(body).toContain("Merge and deploy stay with humans.");
   });
 
@@ -288,14 +294,16 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
   });
 
   it("WR-15: the role reads Workflow 04 and holds a gate-failure ticket in `Blocked` for a named human", () => {
+    // G-39-71 (plan 39-19): the blocked-ticket path now ends at step 17, the receiving role's answer.
     expect(section(TECH_LEAD, "Reads")).toContain(
-      "- `agent-factory/workflows/04-ticket-to-pr.md` steps 14-16, the path of a blocked ticket.",
+      "- `agent-factory/workflows/04-ticket-to-pr.md` steps 14-17, the path of a blocked ticket.",
     );
     const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
     // WR-16, re-review WR-05: the role meets the human stops through Workflow 04 step 15, which holds
     // them once (pinned in the WF04 describe below), instead of restating the checkpoint conditions.
+    // G-39-71 (plan 39-19): the re-score rule became the hand-off.
     expect(item5).toContain(
-      "Follow Workflow 04 step 15 for the `Move:` line, the re-score rule and the named-human stops.",
+      "Follow Workflow 04 step 15 for the `Move:` line, the hand-off and the named-human stops.",
     );
     expect(section(TECH_LEAD, "Board moves")).toContain("per Workflow 04 step 15");
   });
@@ -305,7 +313,8 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     expect(item5).toContain("Besides the escalation, make at most one other move per ticket.");
     // WR-13, re-review WR-05: the re-score rule lives once, in Workflow 04 step 15 (pinned in the
     // WF04 describe below); the role points there, and restates neither the rule nor its stops.
-    expect(item5).toContain("Follow Workflow 04 step 15 for the `Move:` line, the re-score rule");
+    // G-39-71 (plan 39-19): the pointer names the hand-off.
+    expect(item5).toContain("Follow Workflow 04 step 15 for the `Move:` line, the hand-off");
     expect(item5).not.toContain("one level only");
   });
 });
@@ -731,14 +740,15 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
   });
 
   it("IN-04: the step numbers tech-lead.md cites are the blocked-ticket steps, found by their text", () => {
-    // The role cites Workflow 04 by number ("steps 14-16", "step 15"). Inserting a step above them
+    // The role cites Workflow 04 by number ("steps 14-17", "step 15"). Inserting a step above them
     // would silently point the Tech Lead at the wrong steps, so the numbers are tied to the text here.
     expect(stepAt("Record a `failed-attempt` note per Workflow 16 when the engineer reports `BLOCKED` (Software Engineer).").n).toBe(14);
     expect(stepAt("Read the `failed-attempt` note (Tech Lead).").n).toBe(15);
     expect(stepAt("Create a new `pending/` subtask for the adapter the new note names (Orchestrator).").n).toBe(16);
     // G-39-71 (plan 39-19): step 17 tells the receiving role how to answer a hand-off.
     expect(stepAt("Read the hand-off note (receiving role).").n).toBe(17);
-    expect(section(TECH_LEAD, "Reads")).toContain("`agent-factory/workflows/04-ticket-to-pr.md` steps 14-16");
+    // G-39-71 (plan 39-19): the role reads through step 17.
+    expect(section(TECH_LEAD, "Reads")).toContain("`agent-factory/workflows/04-ticket-to-pr.md` steps 14-17");
     const cited = [...TECH_LEAD.matchAll(/Workflow 04 steps? (\d+)/g)].map((m) => Number(m[1]));
     expect(cited.length).toBeGreaterThan(0);
     for (const n of cited) expect(n, "tech-lead.md cites a Workflow 04 step other than 15").toBe(15);
@@ -1089,10 +1099,14 @@ describe("factory.config.md `checkpoints` wording matches Workflow 04 step 15 (q
   it("E3: the per-value sentences at Workflow 04 step 15 match the step's own text", () => {
     const para = escalateParagraph();
     expect(para).toContain("Workflow 04 step 15");
-    expect(para).toContain("`block`, the default: the Tech Lead stops for a named human.");
-    expect(para).toContain("`notify`: the Tech Lead raises the level one step if the escalation is unspent, and otherwise keeps the level.");
-    expect(para).toContain("records an `observation` per Workflow 16 that names the move note");
-    expect(para).toContain("`off`: the same move and the same move note, with no `observation`.");
+    // G-39-71 (plan 39-19): the hand-offs run under every value; the per-value sentences describe only
+    // the final human stop.
+    expect(para).toContain(
+      "`block`, the default: the Tech Lead stops for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
+    );
+    expect(para).toContain("`notify`: the hand-offs run the same way.");
+    expect(para).toContain("an `observation` per Workflow 16 names the last hand-off note");
+    expect(para).toContain("`off`: the same as `notify`, with no `observation`.");
     const s15 = stepAt(STEP15).text;
     expect(s15).toContain("At `block`, the default, stop for a named human, and record no move until the human answers.");
     // G-39-71 (plan 39-19): at a lowered cell the human stop parks the ticket, and `notify` records its
@@ -1336,26 +1350,34 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
   });
 
-  it("(e) tech-lead.md `## Hard limits` makes no move after the options are used up, and stops for a human at `block`", () => {
+  it("(e) tech-lead.md `## Hard limits` hands a used-up ticket off, stops for a human after three disputed rounds, and parks it at `notify` or `off`", () => {
     const body = section(TECH_LEAD, "Hard limits");
-    expect(body).toContain(
-      "After the options are used up, make no move of your own; at the default `block`, stop for a named human.",
-    );
-    expect(body).toContain("Never escalate a ticket twice.");
+    // G-39-71 (plan 39-19, D-21 amended): the 39-18 no-move limit became the hand-off and the final
+    // human stop.
+    for (const sentence of [
+      "After the options are used up, hand the ticket to the role whose job covers its cause.",
+      "Stop for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
+      "At `notify` or `off`, leave the ticket in `Blocked` with no move instead.",
+    ]) {
+      expect(body).toContain(sentence);
+    }
+    expect(body).toContain("Never escalate a ticket twice on your own.");
     expect(body).not.toContain("After the options are used up, stop for a named human.");
   });
 
-  it("(f) the factory.config.md paragraph names the kept-level move, Workflow 09 and the loop bound under every value", () => {
+  it("(f) the factory.config.md paragraph names the hand-off, Workflow 09 and the loop bound under every value", () => {
     const para = escalateParagraph();
     const text = para.join("\n");
-    expect(text).toContain("Keeping the level is a `Move: re-plan`.");
+    // G-39-71 (plan 39-19): the kept-level move is retired.
+    expect(text).not.toContain("Keeping the level is a `Move: re-plan`.");
     expect(text).toContain("Workflow 09");
     expect(text).toContain("`blocked_escalation_days`");
     const wf04Stop = para.filter((l) => l.startsWith("- Workflow 04, `## Stop conditions`:"));
     expect(wf04Stop).toHaveLength(1);
     expect(wf04Stop[0]).toContain(
-      "At `block` the ticket goes to a named human; at `notify` or `off` it stays in `Blocked` with no move. Under every value it is never retried in a loop.",
+      "Under every value the Tech Lead then hands the ticket to the role whose job covers its cause, at most three times per cause.",
     );
+    expect(wf04Stop[0]).toContain("Under every value it is never retried in a loop.");
     expect(wf04Stop[0]).not.toContain("The ticket goes to a named human and is never retried in a loop.");
   });
 });
@@ -1535,5 +1557,81 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
       expect(WF04, `Workflow 04 still carries "${retired}"`).not.toContain(retired);
     }
     expect(stepAt(STEP15).n).toBe(15);
+  });
+
+  // W1: the four places that state the used-up outcome say the same thing at every value of the cell.
+  const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
+  const BA_PM = readFileSync(join(ROOT, "agent-factory/roles/ba-pm.md"), "utf8");
+  const ARCHITECT = readFileSync(join(ROOT, "agent-factory/roles/architect-design.md"), "utf8");
+  const escalateParagraph = () => {
+    const cl = CONFIG.split("\n");
+    const a = cl.findIndex((l) => l.startsWith("**What `escalate_unadjudicable_result` gates.**"));
+    const b = cl.findIndex((l) => l.startsWith("**Which members are floor-tier is not decided here.**"));
+    expect(a, "no escalate paragraph").toBeGreaterThanOrEqual(0);
+    expect(b).toBeGreaterThan(a);
+    return cl.slice(a, b).join("\n");
+  };
+  const HANDOFF = "the role whose job covers its cause";
+  const HUMAN = "after three disputed rounds, or when the fix changes a requirement or a rule fundamentally";
+  const PARK = "in `Blocked` with no move";
+
+  it("(k) WF04 step 15, the used-up stop, tech-lead.md `## Hard limits` and the config paragraph share the three phrases (W1)", () => {
+    const places: [string, string][] = [
+      ["Workflow 04 step 15", stepAt(STEP15).text],
+      ["the Workflow 04 used-up stop", usedUp()],
+      ["tech-lead.md `## Hard limits`", section(TECH_LEAD, "Hard limits")],
+      ["the factory.config.md escalate paragraph", escalateParagraph()],
+    ];
+    for (const [where, text] of places) {
+      for (const phrase of [HANDOFF, HUMAN, PARK]) expect(text, `${where} lacks "${phrase}"`).toContain(phrase);
+    }
+    expect(stepAt(STEP15).text).toContain("Make the hand-off at every value of `checkpoints.escalate_unadjudicable_result`.");
+    expect(escalateParagraph()).toContain(
+      "Under every value the Tech Lead then hands the ticket to the role whose job covers its cause, at most three times per cause.",
+    );
+  });
+
+  it("(l) the config paragraph gives one sentence per value, defines a round, and names the stale-blocker and fundamental-change limits", () => {
+    const para = escalateParagraph();
+    for (const sentence of [
+      "`block`, the default: the Tech Lead stops for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
+      "`notify`: the hand-offs run the same way.",
+      "`off`: the same as `notify`, with no `observation`.",
+      "A round is a `Disputed:` note about the same cause: a receiving role disputes a hand-off, or the Tech Lead records that the ticket blocked again for the cause a `Resolved:` fix addressed.",
+      "A block with a new cause counts no round.",
+      "If `checkpoints.escalate_stale_blocker` is lowered too, nothing raises a parked ticket: it waits in `Blocked` until a human reads the board.",
+      "Nor does lowering it license an agent to make a fundamental change to a requirement or a rule.",
+    ]) {
+      expect(para, `config paragraph lacks "${sentence}"`).toContain(sentence);
+    }
+    // Checker revision 1: no round without a recorded disagreement, in the step as in the config.
+    expect(hasSentence(stepAt(STEP15).text, "A block with a new cause counts no round.")).toBe(true);
+  });
+
+  it("(m) BA/PM and the Architect each point at Workflow 04 step 17 from `## Responsibilities`", () => {
+    for (const [name, role] of [
+      ["ba-pm.md", BA_PM],
+      ["architect-design.md", ARCHITECT],
+    ] as const) {
+      expect(section(role, "Responsibilities"), `${name} lacks the step 17 pointer`).toContain(
+        "Answer a Tech Lead hand-off per Workflow 04 step 17.",
+      );
+    }
+  });
+
+  it("(n) the retired outcomes are gone from tech-lead.md and factory.config.md", () => {
+    for (const [name, text] of [
+      ["tech-lead.md", TECH_LEAD],
+      ["factory.config.md", CONFIG],
+    ] as const) {
+      for (const retired of [
+        "make no move of your own",
+        "Keeping the level is a `Move: re-plan`.",
+        "`notify`: the Tech Lead raises the level one step if the escalation is unspent, and otherwise keeps the level.",
+        "two-level re-score stop",
+      ]) {
+        expect(text, `${name} still carries "${retired}"`).not.toContain(retired);
+      }
+    }
   });
 });
