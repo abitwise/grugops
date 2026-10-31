@@ -1,5 +1,5 @@
 ---
-status: partial
+status: diagnosed
 phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles
 source: [39-01-SUMMARY.md, 39-02-SUMMARY.md, 39-03-SUMMARY.md, 39-04-SUMMARY.md, 39-05-SUMMARY.md, 39-06-SUMMARY.md, 39-07-SUMMARY.md, 39-08-SUMMARY.md, 39-09-SUMMARY.md, 39-10-SUMMARY.md, 39-11-SUMMARY.md, 39-12-SUMMARY.md, 39-13-SUMMARY.md]
 started: 2026-10-30T11:55:07Z
@@ -436,11 +436,18 @@ result: pass
 source: automated
 coverage_id: 39-13 D5
 
+### 71. W1: used-up and re-score stops route to the role that can fix the cause
+expected: When the Tech Lead's moves are used up or a re-score cannot be adjudicated, the ticket goes to the role that can resolve why it is blocked (BA/PM, Architect, or another suitable role), at every value of the checkpoint cell. A named human is asked only when the roles have argued 3 times without resolution, or when the fix needs a fundamental change to requirements or rules. WF04, factory.config.md and tech-lead.md state this identically and a test pins it.
+result: issue
+reported: "W1 decision, when Tech lead can't solve it then decision should be made to send it back to ba/pm or architect (or suitable role who can solve the reasons why the ticket is blocked). If there is disagreement between what is the solution only then turn to human." / "And before bringing to human, try to solve the disagreement 3 times. Similar approach should be elsewhere as well. Human's role is stakeholder, if fundamental changes are not required to requirements and rules then human attention is not needed." / disagreement = "When roles have argued 3 times and not found resolution."
+severity: major
+source_ref: 39-VERIFICATION W1 (human decision, Olger Oeselg 2026-10-31)
+
 ## Summary
 
-total: 70
+total: 71
 passed: 65
-issues: 3
+issues: 4
 pending: 0
 skipped: 0
 blocked: 2
@@ -511,3 +518,35 @@ blocked: 2
     - "Split step 15 into labelled sub-bullets (moves; limits; re-score stop; gate-failure stop; confirmation record; board move) with no change in meaning"
     - "Keep the workflow under its size ceiling and keep every phrase the WF04 text assertions pin (scripts/tier-kit-text.test.ts) or update them deliberately"
 
+- gap_id: G-39-71
+  truth: "Once the Tech Lead cannot resolve a blocked ticket (moves used up, or a re-score the rubric cannot adjudicate), the ticket is routed to the role that can resolve the cause (BA/PM, Architect, or another suitable role) at every value of checkpoints.escalate_unadjudicable_result; a named human is brought in only after the roles have argued 3 times without resolution, or when the resolution needs a fundamental change to requirements or rules"
+  status: failed
+  reason: "User reported (W1 decision, 2026-10-31): when Tech Lead can't solve it, send it to BA/PM, Architect or a suitable role; turn to the human only on disagreement, after 3 resolution attempts; the human is a stakeholder, needed only for fundamental changes to requirements and rules"
+  severity: major
+  test: 71
+  root_cause: "Design decision, not a code defect. The shipped text parks a used-up ticket in Blocked or stops for a named human (WF04 step 15 re-score stop and used-up stop, WF04 line 67 stop bullet, factory.config.md lines ~220-224, tech-lead.md:49 'After the options are used up, make no move of your own'), and the four places disagree at notify/off (39-VERIFICATION W1). The human re-decided the behaviour: route to the resolving role first, human only after 3 unresolved disagreement rounds or for a fundamental requirements/rules change"
+  artifacts:
+    - path: "agent-factory/workflows/04-ticket-to-pr.md"
+      issue: "step 15 re-score stop and used-up stop, step 16 holds, and the used-up stop bullet (~line 67) send the ticket to a named human or park it in Blocked instead of routing it to the resolving role"
+    - path: "agent-factory/roles/tech-lead.md"
+      issue: "line ~49 says to make no move after the options are used up; must name the hand-off to the resolving role and the 3-round disagreement rule"
+    - path: "agent-factory/config/factory.config.md"
+      issue: "checkpoint cell paragraphs (~220-224) describe the used-up and re-score outcomes per value; must state the new routing and when a human is asked"
+    - path: "agent-factory/roles/ba-pm.md, agent-factory/roles/architect-design.md"
+      issue: "receiving roles may need a line on accepting a hand-back from the Tech Lead and recording agreement or disagreement"
+    - path: "scripts/tier-kit-text.test.ts, scripts/check-foundation-guards.ts and related tests"
+      issue: "WF04 text pins, stop-bullet counts and checkpoint assertions name the current park/human-stop wording"
+  missing:
+    - "Record the decision in PROJECT.md Key Decisions (dated 2026-10-31): human as stakeholder; route to the resolving role; human only after 3 unresolved disagreement rounds or a fundamental requirements/rules change"
+    - "WF04 step 15: replace the used-up park and the re-score named-human stop with a hand-off to the resolving role (BA/PM via split, Architect, or another named role), recorded as a decision note; define a disagreement round (a receiving role records a finding disputing the proposed resolution, or hands it back) and stop for a named human only on the 3rd unresolved round or a fundamental requirements/rules change"
+    - "Decide and state how the gate-failure stop (exhaust_self_fix_budget) in the same step relates: keep it, or apply the same rule, and say why (human-only gate failures such as visual baseline and test integrity keep their human path via Workflow 05)"
+    - "Make WF04 line 67, factory.config.md checkpoint paragraphs and tech-lead.md state the same rule identically at every cell value; resolve W1, and W2's exit-from-Blocked question along the way"
+    - "Keep D-21 (no unbounded retry loop): the 3-round bound is the loop bound; the per-ticket move limits still hold"
+    - "Never touch the hard human gates: merge, production deploy, UAT sign-off and release approval stay with a named human"
+    - "Update the text pins and counts deliberately; keep WF04 and the roles under their size ceilings"
+
+## Deferred Follow-Ups
+
+- test: 71
+  idea: "Similar approach should be elsewhere as well. Human's role is stakeholder, if fundamental changes are not required to requirements and rules then human attention is not needed. (Apply the route-to-resolving-role, 3-rounds-then-human rule to the kit's other agent-resolvable checkpoints; merge, production deploy, UAT sign-off and release approval stay human.)"
+  deferred_at: 2026-10-31
