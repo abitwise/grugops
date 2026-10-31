@@ -531,6 +531,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 **Plans**: TBD
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
+**Carried in (Phase 39 UAT 71, human decision 2026-10-31):** the WF04 hand-off loop residuals listed in `39-UAT.md` `## Deferred Follow-Ups` (test 71): who wakes the Tech Lead to record the human's confirmation (and the double ask), the gate-failure stop confirmation wake-up, two stop-precedence ambiguities, and binding an `Approved:` line to the specific change.
 
 ### Phase 42: Skills per role and evaluation
 
