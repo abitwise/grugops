@@ -1687,16 +1687,18 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
 
   // 39-UAT D2 (Olger Oeselg, 2026-10-31) closes 39-REVIEW CR-04, quick task 261031-nd9: a cause carries
   // a stable `Cause-id:` line, and three hand-offs on one ticket reach the human stop.
-  it("(r) D2 / CR-04: a `Cause-id:` line names the cause, and three hand-offs on one ticket reach the human stop (quick 261031-nd9)", () => {
+  it("(r) D2 / CR-04: a `Cause-id:` line names the cause, and the human stop applies before a fourth hand-off on one ticket (quick 261031-nd9; wording per quick 261031-oxi defect 6)", () => {
+    // Quick 261031-oxi defect 6 (Olger Oeselg, 2026-10-31): the ceiling wording moved from "after three
+    // hand-offs on one ticket" to "before a fourth hand-off on one ticket", so its timing has one reading.
     holdsAll(subAt("Record the move in a new `decision` note per Workflow 16."), "move-record sub-bullet", [
       "Add a `Cause-id:` line: the id of the `failed-attempt` note that first raised the cause.",
     ]);
     holdsAll(stepAt(STEP17).text, "step 17", ["Copy the hand-off note's `Cause-id:` line into a `Disputed:` answer."]);
     holdsAll(subAt("Apply the human stop."), "human-stop sub-bullet", [
-      "Apply it also after three hand-offs on one ticket.",
+      "Apply it also before a fourth hand-off on one ticket.",
       "Two notes share a cause when they carry the same `Cause-id:` line.",
     ]);
-    const CEILING = "three hand-offs on one ticket";
+    const CEILING = "before a fourth hand-off on one ticket";
     const places: [string, string][] = [
       ["Workflow 04 step 15", stepAt(STEP15).text],
       ["the Workflow 04 used-up stop", usedUp()],
@@ -1704,10 +1706,33 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
       ["the factory.config.md escalate paragraph", escalateParagraph()],
     ];
     for (const [where, text] of places) expect(text, `${where} lacks "${CEILING}"`).toContain(CEILING);
-    holdsAll(usedUp().slice("- ".length), "used-up stop", ["The same stop applies after three hand-offs on one ticket."]);
+    holdsAll(usedUp().slice("- ".length), "used-up stop", ["The same stop applies before a fourth hand-off on one ticket."]);
     holdsAll(section(TECH_LEAD, "Hard limits"), "tech-lead.md `## Hard limits`", [
-      "Stop the same way after three hand-offs on one ticket.",
+      "Stop the same way before a fourth hand-off on one ticket.",
     ]);
+    expect(WF04.split("checkpoint: ").length - 1).toBe(2);
+    expect(stops).toHaveLength(6);
+  });
+
+  // Quick 261031-oxi defect 6 (Olger Oeselg, 2026-10-31): the per-ticket ceiling reads "before a fourth
+  // hand-off on one ticket" everywhere, so its timing has one reading; no stop or tag moves.
+  it("(x) defect 6: the per-ticket ceiling stops before a fourth hand-off on one ticket in every place (quick 261031-oxi)", () => {
+    const OLD = "three hand-offs on one ticket";
+    for (const [name, text] of [
+      ["Workflow 04", WF04],
+      ["tech-lead.md", TECH_LEAD],
+      ["factory.config.md", CONFIG],
+    ] as const) {
+      expect(text, `${name} still carries "${OLD}"`).not.toContain(OLD);
+    }
+    const row = CONFIG.split("\n").filter((l) => l.startsWith("| `escalate_unadjudicable_result` |"));
+    expect(row).toHaveLength(1);
+    expect(row[0]).toContain(", or before a fourth hand-off on one ticket,");
+    const para = escalateParagraph();
+    expect(para).toContain("The same holds before a fourth hand-off on one ticket.");
+    expect(para).toContain(
+      "It stops the same way before a fourth hand-off on one ticket, and asks the human to approve or reject a `Fundamental:` proposal.",
+    );
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
     expect(stops).toHaveLength(6);
   });
