@@ -1775,6 +1775,20 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     expect(s17).not.toContain("Before step 16 dispatches");
   });
 
+  // Quick 261031-oxi defect 4 (Olger Oeselg, 2026-10-31): after `Resolved:`, a level raise at the re-plan
+  // is the one escalation, and a raise past the spent escalation reaches the human stop.
+  it("(v) defect 4: a re-plan raise is the one escalation, and a raise past it returns the ticket to the human stop (quick 261031-oxi)", () => {
+    const s17 = stepAt(STEP17).text;
+    const BIND = "The step 15 move limits bind that plan: record a level raise in it as `Move: escalate`.";
+    const RAISE_ONE = "The raise counts as the one escalation per ticket.";
+    const RAISE_PAST = "For a raise past the spent escalation, the Tech Lead returns the ticket to `Blocked` and applies the human stop.";
+    const OWNER = "After `Disputed:` or `Fundamental:`, name the Tech Lead as the `## Blocked` owner again.";
+    holdsAll(s17, "step 17", [BIND, RAISE_ONE, RAISE_PAST, OWNER]);
+    expect(s17.indexOf(RAISE_ONE)).toBeGreaterThan(s17.indexOf(BIND));
+    expect(s17.indexOf(RAISE_PAST)).toBeGreaterThan(s17.indexOf(RAISE_ONE));
+    expect(s17.indexOf(OWNER)).toBeGreaterThan(s17.indexOf(RAISE_PAST));
+  });
+
   // Quick 261031-oxi defect 5 (Olger Oeselg, 2026-10-31): a ticket parked at `notify` or `off` resumes
   // once a human answers.
   it("(w) defect 5: a ticket parked at `notify` or `off` follows the `block` path once a human answers (quick 261031-oxi)", () => {
@@ -1820,5 +1834,29 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     );
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
     expect(stops).toHaveLength(6);
+  });
+
+  // Quick 261031-oxi defect 7 (Olger Oeselg, 2026-10-31): the Orchestrator queues the Tech Lead after the
+  // first block and after `Resolved:`, in the same words as the D3 queue sentence.
+  it("(y) defect 7: the Orchestrator queues the Tech Lead after the first block and after `Resolved:` (quick 261031-oxi)", () => {
+    const s14 = stepAt("Record a `failed-attempt` note").text;
+    const OWNER14 = "Add a `## Blocked` bullet naming the Tech Lead as the owner who clears it.";
+    const QUEUE14 = "The Orchestrator then queues a `pending/` subtask for the Tech Lead, who reads that `failed-attempt` note at step 15.";
+    holdsAll(s14, "step 14", [OWNER14, QUEUE14]);
+    expect(s14.indexOf(QUEUE14)).toBeGreaterThan(s14.indexOf(OWNER14));
+    const s15 = stepAt(STEP15).text;
+    const READ_ANSWER = "When a step 17 answer queued the Tech Lead, read that answer note too.";
+    holdsAll(s15, "step 15", [READ_ANSWER]);
+    expect(s15.startsWith(STEP15)).toBe(true);
+    expect(s15.indexOf(READ_ANSWER)).toBeLessThan(s15.indexOf("Choose one:"));
+    const lead = lines[at15] as string;
+    expect(lead.startsWith(`15. ${STEP15}`)).toBe(true);
+    expect(lead).not.toContain("named human");
+    const s17 = stepAt(STEP17).text;
+    const QUEUE_RESOLVED = "The Orchestrator then queues a `pending/` subtask for the Tech Lead, who reads that answer note at step 2.";
+    const REPLAN = "The Tech Lead then plans it again per step 2 before any pull.";
+    holdsAll(s17, "step 17", [RESOLVED_MOVE, QUEUE_RESOLVED, REPLAN]);
+    expect(s17.indexOf(QUEUE_RESOLVED)).toBeGreaterThan(s17.indexOf(RESOLVED_MOVE));
+    expect(s17.indexOf(REPLAN)).toBeGreaterThan(s17.indexOf(QUEUE_RESOLVED));
   });
 });
