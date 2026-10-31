@@ -65,6 +65,12 @@ Not in this phase: orchestrator flow guidance (in-flight log, refill, fresh sess
 - **D-31:** **"More detail" is shown** by two things: per role, the derived inventory fact count after the rewrite is at least the count before (new Stop-when items count), and a verifier reader check on each role (can a reader name the goal, inputs, outputs, board moves, limits and stops from the file alone?). The bytes come from removing caveman, boilerplate and flow detail, never facts.
 - **D-32:** **Writing-profile gates (PLAIN-07):** when the lexicon or sentence gate flags role text, reword first. A term is added to the lexicon only when it is a grugops name a role must use (a column, a note kind, a config key), and each addition is listed in the plan summary.
 
+### Decided at plan time (2026-10-31, after research)
+- **D-33:** **Board-move partition shape.** The partition guard keys on exact `(from, to)` pairs. The seed board's `Exit owner` table owns forward exits. The Orchestrator's wildcard `→ Done` is rewritten as concrete pairs (`Ready to Release → Done` stays the Release Manager's; the Orchestrator's lean-mode close names its from-column). The Tech Lead's `Ready for Dev → In Design` return and its exit from a dev-raised `Blocked` are a short, declared exception list, each with a test. The `Ready` conflict is settled by aligning `ba-pm.md` to the table (BA/PM owns the `Ready` exit). No board-contract or flow change (D-17 holds).
+- **D-34:** **C-28-003 is deferred, then restored.** Plan 1 re-dispositions it by id as overstated/deferred with `target_phase: 40`. The plan that joins role text to the PLAIN-07 sentence gate sets it back to true, now measured by that gate.
+- **D-35:** **D-13 set confirmed** as the eight roles listed in D-13 (software-engineer, tech-lead, qe-e2e, frontend-ui, installer, agents-md-scribe, greenfield-mapper, orchestrator), recorded as the one decision constant in the inventory script with a two-sided check.
+- **D-36:** **`orchestrator.md` and `tech-lead.md` gain a no-fabrication rule and an `UNKNOWN - verify` line** in the rewrite. The post-rewrite inventory requires them for both roles.
+
 ### Claude's Discretion
 - Batch split and wave layout for the role batches after the reference-role checkpoint.
 - The exact per-role byte targets and the exact WARN number (about 64 KB), within D-02/D-03.
