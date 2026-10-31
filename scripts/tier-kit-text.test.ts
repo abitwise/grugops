@@ -268,11 +268,13 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     );
   });
 
-  it("D-21 amended: it never escalates twice on its own, hands a used-up ticket to the resolving role, and stops for a named human after three disputed rounds", () => {
+  it("D-21 amended: a second escalation stops for a named human, a used-up ticket goes to the resolving role, and three disputed rounds stop for a named human", () => {
     const body = section(TECH_LEAD, "Hard limits");
     // G-39-71 (plan 39-19): a human may name a second escalation at the human stop, so the limit is
     // on the Tech Lead's own moves.
-    expect(body).toContain("Never escalate a ticket twice on your own.");
+    // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation applies the
+    // human stop, so the Tech Lead stops for a named human before a second escalation.
+    expect(body).toContain("Stop the same way before a second escalation.");
     // Plan 39-18 (WR-01) made the used-up limit follow the tagged cell. G-39-71 (plan 39-19, D-21
     // amended): the hand-off runs under every value; the cell decides only the final human stop.
     for (const sentence of [
@@ -694,8 +696,10 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     // used-up stop is tagged with, so the step and the tagged stop agree under every value.
     // G-39-71 (plan 39-19, D-21 amended): scores the rubric cannot adjudicate are part of "used up", and
     // the hand-off runs first; the cell is read only at the human stop.
+    // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation left "used up"
+    // for the human stop, so used up keeps only the multi-level scores while the escalation is unspent.
     expect(s.text).toContain(
-      "Used up also covers scores calling for more than one level, or for a raise past the spent escalation.",
+      "Used up also covers scores calling for more than one level while the escalation is unspent.",
     );
     expect(s.text).toContain("Read `checkpoints.escalate_unadjudicable_result`.");
     expect(s.text).toContain("The used-up stop below follows the same value.");
@@ -727,7 +731,8 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(b).toHaveLength(1);
     expect(b[0]).toContain("the one escalation is spent");
     expect(b[0]).toContain("the one other move is spent too");
-    expect(b[0]).toContain("It also means the scores call for more than one level, or for a raise after the escalation is spent.");
+    // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): the used-up stop keeps the unspent-escalation case.
+    expect(b[0]).toContain("It also means the scores call for more than one level while the escalation is unspent.");
   });
 
   it("D-20: the re-enqueue is a new `pending/` subtask on the same context, and the spawn prompt carries only the task reference", () => {
@@ -1364,7 +1369,9 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
     ]) {
       expect(body).toContain(sentence);
     }
-    expect(body).toContain("Never escalate a ticket twice on your own.");
+    // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation applies the
+    // human stop, so the Tech Lead stops for a named human before a second escalation.
+    expect(body).toContain("Stop the same way before a second escalation.");
     expect(body).not.toContain("After the options are used up, stop for a named human.");
   });
 
@@ -1434,7 +1441,8 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     holdsAll(subAt("Apply the hand-off."), "hand-off sub-bullet", [
       "Apply the hand-off.",
       "Once the options are used up, hand the ticket to the role whose job covers its cause.",
-      "Used up also covers scores calling for more than one level, or for a raise past the spent escalation.",
+      // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation is a human stop.
+      "Used up also covers scores calling for more than one level while the escalation is unspent.",
       "Make the hand-off at every value of `checkpoints.escalate_unadjudicable_result`.",
       "Name BA/PM for scope or acceptance, and the Architect for design.",
       "Name another role when its one job covers the cause.",
@@ -1520,7 +1528,8 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     holdsAll(b.slice("- ".length), "used-up stop", [
       "hand the ticket to the role whose job covers its cause; never retry in a loop.",
       "Used up means the one escalation is spent and the one other move is spent too.",
-      "It also means the scores call for more than one level, or for a raise after the escalation is spent.",
+      // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation is a human stop.
+      "It also means the scores call for more than one level while the escalation is unspent.",
       "Stop for a named human after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
       // Quick 261031-oxi defect 5 (Olger Oeselg, 2026-10-31): the park lasts until a human answers.
       "At `notify` or `off`, that stop leaves the ticket in `Blocked` with no move and no re-enqueue until a human answers.",
@@ -1858,5 +1867,61 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     holdsAll(s17, "step 17", [RESOLVED_MOVE, QUEUE_RESOLVED, REPLAN]);
     expect(s17.indexOf(QUEUE_RESOLVED)).toBeGreaterThan(s17.indexOf(RESOLVED_MOVE));
     expect(s17.indexOf(REPLAN)).toBeGreaterThan(s17.indexOf(QUEUE_RESOLVED));
+  });
+  // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation applies the human
+  // stop in WF04 step 15, step 17, the used-up stop, tech-lead.md and the config row and paragraph, and
+  // the Tech Lead publishes no plan note naming that level before the human answers.
+  it("(ac) R4: a raise past the spent escalation applies the human stop everywhere, and no plan note names that level first (quick 261031-rhv)", () => {
+    holdsAll(subAt("Apply the hand-off."), "hand-off sub-bullet", [
+      "Used up also covers scores calling for more than one level while the escalation is unspent.",
+    ]);
+    const stop = subAt("Apply the human stop.");
+    const CEILING = "Apply it also before a fourth hand-off on one ticket.";
+    const RAISE_TRIGGER = "Apply it also when the scores call for a raise past the spent escalation.";
+    const ROUND = "A round is a `Disputed:` `decision` note naming a hand-off note for the same cause.";
+    holdsAll(stop, "human-stop sub-bullet", [CEILING, RAISE_TRIGGER, ROUND]);
+    expect(stop.indexOf(CEILING)).toBeLessThan(stop.indexOf(RAISE_TRIGGER));
+    expect(stop.indexOf(RAISE_TRIGGER)).toBeLessThan(stop.indexOf(ROUND));
+    expect(WF04).not.toContain("or for a raise");
+
+    const s17 = stepAt(STEP17).text;
+    const RAISE_PAST = "For a raise past the spent escalation, the Tech Lead returns the ticket to `Blocked` and applies the human stop.";
+    const NO_PLAN = "It publishes no plan note naming the raised level before the human answers.";
+    const OWNER = "After `Disputed:` or `Fundamental:`, name the Tech Lead as the `## Blocked` owner again.";
+    holdsAll(s17, "step 17", [RAISE_PAST, NO_PLAN, OWNER]);
+    expect(s17.indexOf(RAISE_PAST)).toBeLessThan(s17.indexOf(NO_PLAN));
+    expect(s17.indexOf(NO_PLAN)).toBeLessThan(s17.indexOf(OWNER));
+
+    const used = usedUp().slice("- ".length);
+    const STOP_CEILING = "The same stop applies before a fourth hand-off on one ticket.";
+    const STOP_RAISE = "The same stop applies when the scores call for a raise past the spent escalation.";
+    holdsAll(used, "used-up stop", [
+      "It also means the scores call for more than one level while the escalation is unspent.",
+      STOP_CEILING,
+      STOP_RAISE,
+    ]);
+    expect(used.indexOf(STOP_CEILING)).toBeLessThan(used.indexOf(STOP_RAISE));
+
+    const limits = section(TECH_LEAD, "Hard limits");
+    const SECOND = "Stop the same way before a second escalation.";
+    const FOURTH = "Stop the same way before a fourth hand-off on one ticket.";
+    holdsAll(limits, "tech-lead.md `## Hard limits`", [SECOND, FOURTH]);
+    expect(limits.indexOf(SECOND)).toBeLessThan(limits.indexOf(FOURTH));
+    expect(limits).not.toContain("Never escalate a ticket twice on your own.");
+
+    const row = CONFIG.split("\n").filter((l) => l.startsWith("| `escalate_unadjudicable_result` |"));
+    expect(row).toHaveLength(1);
+    expect(row[0]).toContain(", or whose scores call for a raise past the spent escalation.");
+    const para = escalateParagraph();
+    for (const sentence of [
+      "or the scores call for more than one level while the escalation is unspent.",
+      "The same holds when the scores call for a raise past the spent escalation.",
+      "It stops the same way when the scores call for a raise past the spent escalation.",
+    ]) {
+      expect(para, `config paragraph lacks "${sentence}"`).toContain(sentence);
+    }
+    expect(CONFIG).not.toContain("or for a raise after the escalation is spent");
+    expect(WF04.split("checkpoint: ").length - 1).toBe(2);
+    expect(stops).toHaveLength(6);
   });
 });
