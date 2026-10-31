@@ -1,9 +1,9 @@
 ---
-status: partial
+status: complete
 phase: 39-role-machinery-engineer-levels-tech-lead-and-designer-roles
 source: [39-01-SUMMARY.md, 39-02-SUMMARY.md, 39-03-SUMMARY.md, 39-04-SUMMARY.md, 39-05-SUMMARY.md, 39-06-SUMMARY.md, 39-07-SUMMARY.md, 39-08-SUMMARY.md, 39-09-SUMMARY.md, 39-10-SUMMARY.md, 39-11-SUMMARY.md, 39-12-SUMMARY.md, 39-13-SUMMARY.md]
 started: 2026-10-30T11:55:07Z
-updated: 2026-10-31T14:21:14.332Z
+updated: 2026-10-31T17:47:53.291Z
 ---
 
 ## Current Test
@@ -71,9 +71,8 @@ source_ref: 39-10 D5
 
 ### 10. Auto-delegation honors the level descriptions (live)
 expected: On a live Claude Code host, unscored work is never auto-delegated to a level adapter (junior, mid or senior). Each level is reached only when the Tech Lead's plan names it.
-result: blocked
-blocked_by: other
-reason: "i think it is hard to test before milestone is completed since things need to be finished first" (live host check deferred until the milestone's remaining phases land; run in a scratch repo then)
+result: skipped
+reason: "Deferred follow-up: make it a milestone uat (human, 2026-10-31). Run live in a scratch repo at the v3.0 milestone UAT, after Phases 40-43 land (Phase 43 success criterion 6). Earlier: i think it is hard to test before milestone is completed since things need to be finished first"
 source_ref: 39-11 D3
 
 ### 11. Gate-failure path reaches the named-human stop
@@ -96,9 +95,8 @@ source_ref: 39-13 D4
 
 ### 14. Designer note is admitted on a live host
 expected: In the same scratch repo, spawn grugops-designer and have it publish a design note. It reaches scripts/context-io.js through Bash, and the note is admitted, not refused as unsealed.
-result: blocked
-blocked_by: other
-reason: "i think it is hard to test before milestone is completed since things need to be finished first" (live host check deferred until the milestone's remaining phases land; run in a scratch repo then)
+result: skipped
+reason: "Deferred follow-up: make it a milestone uat (human, 2026-10-31). Run live in a scratch repo at the v3.0 milestone UAT, after Phases 40-43 land (Phase 43 success criterion 6). Earlier: i think it is hard to test before milestone is completed since things need to be finished first"
 source_ref: live designer
 
 ### 15. listAgentAdapterSpecs / listAgentAdapterNames derive adapter identity from role `levels`; the live tree derives today's 17 names
@@ -451,8 +449,8 @@ total: 71
 passed: 65
 issues: 4
 pending: 0
-skipped: 0
-blocked: 2
+skipped: 2
+blocked: 0
 
 ## Gaps
 
@@ -566,6 +564,12 @@ Directions to change the text outside the gap-round cap (round 4 was the last); 
 
 ## Deferred Follow-Ups
 
+- test: 10
+  idea: "make it a milestone uat - run the live-host check at the v3.0 milestone UAT after Phases 40-43 land (ROADMAP Phase 43 success criterion 6)"
+  deferred_at: 2026-10-31
+- test: 14
+  idea: "make it a milestone uat - run the live-host check at the v3.0 milestone UAT after Phases 40-43 land (ROADMAP Phase 43 success criterion 6)"
+  deferred_at: 2026-10-31
 - test: 71
   idea: "Similar approach should be elsewhere as well. Human's role is stakeholder, if fundamental changes are not required to requirements and rules then human attention is not needed. (Apply the route-to-resolving-role, 3-rounds-then-human rule to the kit's other agent-resolvable checkpoints; merge, production deploy, UAT sign-off and release approval stay human.)"
   deferred_at: 2026-10-31
