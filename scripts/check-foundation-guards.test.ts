@@ -8149,6 +8149,152 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(section.some((l) => l.includes("ROLE_CEILINGS has no key"))).toBe(false);
   }, 120_000);
 
+  // ── (Plan 40-09, PLAIN-04) guard_role_corpus_total: all role text under one byte budget. ──────
+  //
+  // The FAIL and WARN lines are test literals, never read from the guard: FAIL above 67,383 B
+  // ([v3.0, D-1]), WARN above 64,000 B (Phase 40 D-03/D-04). Each case reads only the
+  // guard_role_corpus_total section (attributed by banner), because padding a role legitimately
+  // reddens guard_role_size in the same run; the discriminating cases assert on both sections.
+  // Totals are measured from the mirror itself (the mirror normalizes role files), never from a
+  // number typed here.
+  const CORPUS_FAIL = 67383;
+  const CORPUS_WARN = 64000;
+  const corpusSection = (r: SpawnSyncReturns<string>): string[] =>
+    guardSection(out(r), "guard_role_corpus_total");
+  const CORPUS_VERDICT = /^ {2}(PASS|WARN|FAIL) {2}role corpus (\d+) B over (\d+)\/(\d+) files; FAIL above 67383, WARN above 64000/;
+  const corpusVerdict = (section: string[]): { level: string; total: number; files: string } | undefined => {
+    const hits = section.map((l) => CORPUS_VERDICT.exec(l)).filter((x) => x !== null);
+    if (hits.length !== 1) return undefined;
+    const [, level, total, n, of] = hits[0]!;
+    return { level: level!, total: Number(total), files: `${n}/${of}` };
+  };
+  // Every `.md` in the mirror's roles directory, sorted, and its summed UTF-8 bytes as read.
+  const corpusNamesIn = (root: string): string[] =>
+    readdirSync(join(root, ROLE_DIR_REL)).filter((f) => f.endsWith(".md")).sort();
+  const corpusBytesIn = (root: string): Record<string, number> =>
+    Object.fromEntries(
+      corpusNamesIn(root).map((n) => [n, Buffer.byteLength(readFileSync(rolePath(root, n)))]),
+    );
+  const sumOf = (sizes: Record<string, number>): number =>
+    Object.values(sizes).reduce((a, b) => a + b, 0);
+  // Grow a mirrored corpus file by exactly `n` bytes (n >= 11), inside one HTML comment of filler
+  // letters: no lexicon term, no sentence, nothing another prose guard reads as a clause.
+  const PAD_OVERHEAD = "\n<!--  -->\n".length;
+  const padCorpusFile = (root: string, name: string, n: number): void => {
+    if (n < PAD_OVERHEAD) throw new Error(`padCorpusFile: ${n} B is below the ${PAD_OVERHEAD} B comment overhead`);
+    appendFileSync(rolePath(root, name), `\n<!-- ${"q".repeat(n - PAD_OVERHEAD)} -->\n`);
+  };
+  // Pad one mirror so its corpus totals exactly `target` bytes, measured after the write.
+  const mirrorAtCorpusTotal = (target: number): string => {
+    const m = consistentMirror();
+    padCorpusFile(m, "orchestrator.md", target - sumOf(corpusBytesIn(m)));
+    expect(sumOf(corpusBytesIn(m))).toBe(target);
+    return m;
+  };
+
+  it("corpus total: the unplanted mirror is green, every member is listed sorted by basename, and the lines sum to the total (PLAIN-04 ordering, encoding)", () => {
+    const m = consistentMirror();
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    const section = corpusSection(r);
+    const sizes = corpusBytesIn(m);
+    const v = corpusVerdict(section);
+    expect(v).toEqual({ level: "PASS", total: sumOf(sizes), files: `${listRoles(ROOT).length + 1}/${listRoles(ROOT).length + 1}` });
+    const fileLines = section
+      .map((l) => /^ {4}agent-factory\/roles\/(\S+) (\d+) B$/.exec(l))
+      .filter((x) => x !== null);
+    const printed = fileLines.map((x) => x![1]!);
+    expect(printed).toEqual(Object.keys(sizes).sort());
+    expect(printed).toContain(PROTOCOL_NAME);
+    for (const x of fileLines) expect(Number(x![2])).toBe(sizes[x![1]!]);
+  }, 120_000);
+
+  it("corpus total: exactly 67,383 B is not a FAIL, and 67,384 B is (PLAIN-04 adjacency)", () => {
+    const at = corpusVerdict(corpusSection(runIn(mirrorAtCorpusTotal(CORPUS_FAIL))));
+    expect(at).toMatchObject({ level: "WARN", total: CORPUS_FAIL });
+    const over = corpusVerdict(corpusSection(runIn(mirrorAtCorpusTotal(CORPUS_FAIL + 1))));
+    expect(over).toMatchObject({ level: "FAIL", total: CORPUS_FAIL + 1 });
+  }, 120_000);
+
+  it("corpus total: exactly 64,000 B passes, and 64,001 B WARNs (PLAIN-04 adjacency)", () => {
+    const at = corpusVerdict(corpusSection(runIn(mirrorAtCorpusTotal(CORPUS_WARN))));
+    expect(at).toMatchObject({ level: "PASS", total: CORPUS_WARN });
+    const over = corpusVerdict(corpusSection(runIn(mirrorAtCorpusTotal(CORPUS_WARN + 1))));
+    expect(over).toMatchObject({ level: "WARN", total: CORPUS_WARN + 1 });
+  }, 120_000);
+
+  it("corpus total: a scan set of the wrong size fails closed naming the count and every member, with no total (PLAIN-04 empty)", () => {
+    const expected = listRoles(ROOT).length + 1;
+    // One short: the protocol deleted. listRoles never saw it, so only this guard's own count can.
+    const short = consistentMirror();
+    rmSync(rolePath(short, PROTOCOL_NAME));
+    const shortSection = corpusSection(runIn(short));
+    const shortNames = corpusNamesIn(short);
+    expect(shortSection).toContain(
+      `  FAIL  role corpus scan set has ${expected - 1} file(s), expected exactly ${expected} (${expected - 1} roles + the role-switch protocol): ${shortNames.join(", ")}`,
+    );
+    expect(corpusVerdict(shortSection)).toBeUndefined();
+    // One over: an extra `_`-prefixed markdown file, which listRoles skips but the directory holds.
+    const extra = consistentMirror();
+    cpSync(rolePath(ROOT, PROTOCOL_NAME), rolePath(extra, "_zz-extra-protocol.md"));
+    const extraSection = corpusSection(runIn(extra));
+    expect(
+      extraSection.some((l) =>
+        l.startsWith(`  FAIL  role corpus scan set has ${expected + 1} file(s), expected exactly ${expected}`) &&
+        l.includes("_zz-extra-protocol.md"),
+      ),
+    ).toBe(true);
+    expect(corpusVerdict(extraSection)).toBeUndefined();
+    // Zero files: the run fails closed before any guard can report a total over an empty set.
+    const empty = consistentMirror();
+    for (const n of corpusNamesIn(empty)) rmSync(rolePath(empty, n));
+    const er = runIn(empty);
+    expect(er.status).not.toBe(0);
+    expect(out(er)).not.toMatch(/PASS {2}role corpus/);
+  }, 120_000);
+
+  it("corpus total: every file grown by one fraction below +12% stays under its per-file FAIL while the total WARNs (PLAIN-04, D-04)", () => {
+    const m = consistentMirror();
+    const sizes = corpusBytesIn(m);
+    const f = (CORPUS_WARN + 1) / sumOf(sizes) - 1;
+    // The case's own precondition: one fraction below the +12% per-file headroom must reach WARN.
+    expect(f).toBeGreaterThan(0);
+    expect(f).toBeLessThan(0.12);
+    for (const [name, b] of Object.entries(sizes)) padCorpusFile(m, name, Math.ceil(b * f));
+    const total = sumOf(corpusBytesIn(m));
+    expect(total).toBeGreaterThan(CORPUS_WARN);
+    expect(total).toBeLessThanOrEqual(CORPUS_FAIL);
+    const r = runIn(m);
+    expect(guardSection(out(r), "guard_role_size").some((l) => l.startsWith("  FAIL"))).toBe(false);
+    expect(corpusVerdict(corpusSection(r))).toMatchObject({ level: "WARN", total });
+    // WARN is advisory: nothing else in the run turned red.
+    expect(r.status).toBe(0);
+  }, 120_000);
+
+  it("corpus total: every role under its per-file FAIL and the protocol (total-only) carrying the rest crosses 67,383 B and goes red (PLAIN-04 discriminating, D-04)", () => {
+    // On the Phase 40 tree one common fraction cannot reach 67,384 B below +12% (the corpus is
+    // smaller than the 40-02 allocation), so every role grows by one fraction below +12% and the
+    // protocol, which has no per-file ceiling and is held only by this total, takes the remainder.
+    const m = consistentMirror();
+    const sizes = corpusBytesIn(m);
+    // 0.08 sits below the +12% per-file headroom with margin for the mirror's role normalization.
+    const g = 0.08;
+    expect(g).toBeLessThan(0.12);
+    for (const [name, b] of Object.entries(sizes)) {
+      if (name !== PROTOCOL_NAME) padCorpusFile(m, name, Math.floor(b * g));
+    }
+    const rest = CORPUS_FAIL + 1 - sumOf(corpusBytesIn(m));
+    expect(rest).toBeGreaterThanOrEqual(PAD_OVERHEAD);
+    padCorpusFile(m, PROTOCOL_NAME, rest);
+    expect(sumOf(corpusBytesIn(m))).toBe(CORPUS_FAIL + 1);
+    const r = runIn(m);
+    const sizeSection = guardSection(out(r), "guard_role_size");
+    expect(sizeSection.some((l) => l.startsWith("  FAIL"))).toBe(false);
+    expect(sizeSection.some((l) => l.includes(PROTOCOL_NAME))).toBe(false);
+    expect(corpusVerdict(corpusSection(r))).toMatchObject({ level: "FAIL", total: CORPUS_FAIL + 1 });
+    expect(r.status).not.toBe(0);
+  }, 120_000);
+
   // ── (Plan 39-04, TIER-07) guard_role_frontmatter: every roles-directory file is admitted. ──────
   //
   // The section is attributed by its banner. The control is the unplanted consistent mirror; the

@@ -38,7 +38,10 @@
 //                        banned constructions, and the PASS line carries the measurement.
 //   guard_role_clause_uniqueness — Phase 29 (LANG-05, D-20/D-21/D-38): no normalized clause repeats
 //                        within a single role file. Intra-file only, deliberately.
-//   guard_role_size    — per-role byte ceiling, locked from the 2026-06-10 baseline (D-07).
+//   guard_role_size    — per-role byte ceiling, re-baselined from the Phase 40 measurement (D-07).
+//   guard_role_corpus_total — Phase 40 (PLAIN-04, D-03/D-04): the summed bytes of every `.md` in
+//                        agent-factory/roles/ (19 roles + the protocol) FAIL above 67,383 B and WARN
+//                        above 64,000 B. The scan set is derived and held to ROLE_COUNT + 1.
 //   guard_role_frontmatter — Phase 39 (TIER-07): every roles-directory file is admitted by the
 //                        canonical grammar under ROLE_SCHEMA (admitRole), and its `skills:` value,
 //                        if any, is read by roleSkillsOf. Red naming the file and the refusal.
@@ -1526,7 +1529,7 @@ function guardKitCounts() {
     process.stdout.write("\n[guard_kit_counts] derived kit sets match their exact expected counts (KIT-01, D-20/D-21)\n");
     let countFail = "";
     if (ROLE_FILES.length !== ROLE_COUNT) {
-        countFail += `\nkit count: derived ${ROLE_FILES.length} role files, expected exactly ${ROLE_COUNT} — walk every derived consumer (guard_voice, guard_caveman_voice, guard_role_clause_uniqueness, guard_role_size, CTX_SCAN, ROLE_CEILINGS) BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
+        countFail += `\nkit count: derived ${ROLE_FILES.length} role files, expected exactly ${ROLE_COUNT} — walk every derived consumer (guard_voice, guard_caveman_voice, guard_role_clause_uniqueness, guard_role_size, guard_role_corpus_total, CTX_SCAN, ROLE_CEILINGS) BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
     }
     if (WORKFLOW_FILES.length !== WORKFLOW_COUNT) {
         countFail += `\nkit count: derived ${WORKFLOW_FILES.length} workflow files, expected exactly ${WORKFLOW_COUNT} — walk every derived consumer BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
@@ -3156,6 +3159,78 @@ function guardRoleSize() {
     }
 }
 // ---------------------------------------------------------------------------
+// guard_role_corpus_total — all role text together under one byte budget (PLAIN-04; Phase 40 D-03, D-04).
+//
+// guard_role_size holds each role to its own ceiling, and those ceilings carry +12% headroom each, so
+// they may sum to more than the corpus is allowed to be. This guard is the hard cap on the sum. It
+// reads every `.md` in agent-factory/roles/: the 19 roles plus the role-switch protocol, which has no
+// per-file ceiling (ROLE_CEILINGS' keys are checked two-way against listRoles(), which excludes it),
+// so this total is the only size check the protocol gets.
+//
+// The scan set is derived, never listed: listRoleDirEntries(ROOT) (every entry except the named
+// exemptions) filtered to `.md`, joined with the `.md` exemptions present on disk. listRoleDirEntries
+// alone excludes the protocol, so it alone would give 19. Its size is held two-sided against
+// ROLE_COUNT + 1: a missing role, a missing protocol, a planted extra `.md` or an empty directory
+// fails closed naming the count and every member, and no total is reported over a wrong set.
+//
+// Lengths are the UTF-8 byte lengths of the files as read, the same measure guard_role_size uses.
+// The per-file lines print sorted by basename, and the sum does not depend on directory order.
+// FAIL when the total is above ROLE_CORPUS_FAIL, WARN when above ROLE_CORPUS_WARN, else PASS. A
+// WARN is advisory (it does not fail the build); it marks the headroom Phases 41 and 42 need.
+// ---------------------------------------------------------------------------
+// [v3.0, D-1]: one corpus total of 67,383 B covers all roles. This is the hard cap; never raise it to
+// reach green. A role over budget moves detail into the workflow that runs it (Phase 40 D-05).
+const ROLE_CORPUS_FAIL = 67383;
+// Phase 40 D-03/D-04: the headroom target. The approved 40-02 allocation summed to 63,200 B; the WARN
+// line sits at 64,000 B so about 3 KB stays free for Phase 41's orchestrator text and Phase 42's
+// per-role skills line.
+const ROLE_CORPUS_WARN = 64000;
+function guardRoleCorpusTotal() {
+    process.stdout.write("\n[guard_role_corpus_total] all role text together stays under one byte budget (PLAIN-04, D-03/D-04)\n");
+    const expected = ROLE_COUNT + 1;
+    let names;
+    try {
+        const exemptMd = ROLE_DIR_EXEMPT_NAMES.filter((n) => n.endsWith(".md") && fileExists(`agent-factory/roles/${n}`));
+        names = [...listRoleDirEntries(ROOT).filter((f) => f.endsWith(".md")), ...exemptMd].sort();
+    }
+    catch (e) {
+        fail(`role corpus: the roles directory could not be read — ${e.message}`);
+        return;
+    }
+    if (names.length !== expected) {
+        fail(`role corpus scan set has ${names.length} file(s), expected exactly ${expected} (${ROLE_COUNT} roles + the role-switch protocol): ${names.length === 0 ? "(none)" : names.join(", ")}`);
+        return;
+    }
+    let total = 0;
+    let readError = false;
+    for (const name of names) {
+        const rel = `agent-factory/roles/${name}`;
+        let b;
+        try {
+            b = Buffer.byteLength(readFileSync(abs(rel)));
+        }
+        catch (e) {
+            fail(`role corpus: ${rel} could not be read — ${e.message}`);
+            readError = true;
+            continue;
+        }
+        total += b;
+        process.stdout.write(`    ${rel} ${b} B\n`);
+    }
+    if (readError)
+        return;
+    const summary = `role corpus ${total} B over ${names.length}/${expected} files; FAIL above ${ROLE_CORPUS_FAIL}, WARN above ${ROLE_CORPUS_WARN}`;
+    if (total > ROLE_CORPUS_FAIL) {
+        fail(`${summary} — over the hard cap; move role detail into the workflow that runs it (D-05)`);
+    }
+    else if (total > ROLE_CORPUS_WARN) {
+        warn(`${summary} — into the Phase 41/42 headroom (${ROLE_CORPUS_FAIL - total} B left)`);
+    }
+    else {
+        pass(`${summary}; ${ROLE_CORPUS_FAIL - total} B headroom`);
+    }
+}
+// ---------------------------------------------------------------------------
 // guard_role_frontmatter — every roles-directory file is admitted under ROLE_SCHEMA (TIER-07).
 //
 // (Plan 39-04, D-28, D-29) A role's frontmatter is read by the same canonical grammar as an
@@ -3833,6 +3908,8 @@ guardVoice();
 guardCavemanVoice();
 guardRoleClauseUniqueness();
 guardRoleSize();
+// (Plan 40-09, PLAIN-04) The corpus total beside the per-file ceilings it backs.
+guardRoleCorpusTotal();
 guardRoleFrontmatter();
 guardContextWrites();
 // KIT-03 — the three-way set equality.
