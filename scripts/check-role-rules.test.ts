@@ -35,6 +35,12 @@ import {
   checkPartition,
   claimedPairs,
   partitionModel,
+  deriveAllAt,
+  serializeBaseline,
+  GENERATED_BY,
+  PHASE_40_START_COMMIT,
+  SAFETY_RULE_FACTS,
+  FACT_KINDS,
 } from "./check-role-rules.js";
 import { listRoles } from "./kit-model.js";
 import { BOARD_REL } from "../install/state-layout.js";
@@ -73,10 +79,14 @@ function makeMirror(prefix: string): string {
   return mirror;
 }
 
-function runGate(checkRoot: string): { status: number; stdout: string } {
-  const r = spawnSync("node", [GATE_JS], {
+function runGate(
+  checkRoot: string,
+  args: readonly string[] = [],
+  extraEnv: Record<string, string> = {},
+): { status: number; stdout: string } {
+  const r = spawnSync("node", [GATE_JS, ...args], {
     encoding: "utf8",
-    env: { ...process.env, CHECK_ROOT: checkRoot },
+    env: { ...process.env, ...extraEnv, CHECK_ROOT: checkRoot },
   });
   return { status: r.status ?? -1, stdout: (r.stdout ?? "") + (r.stderr ?? "") };
 }
@@ -211,7 +221,16 @@ describe("check-role-rules: the derived role-rule inventory (D-27)", () => {
       writeFileSync(dst, blob);
     }
     expect(existsSync(join(m, "agent-factory", "roles", "_role-switch-protocol.md"))).toBe(true);
-    expect(deriveAll(m)).toEqual(baseline.files);
+    // The inline git-show materialization above is the independent oracle; deriveAllAt, the writer's
+    // own path, must agree with it and must reproduce the committed bytes (WR-05).
+    const inline = deriveAll(m);
+    expect(inline).toEqual(baseline.files);
+    expect(sha).toBe(PHASE_40_START_COMMIT);
+    const viaWriter = deriveAllAt(ROOT, sha);
+    expect(viaWriter).toEqual(inline);
+    expect(serializeBaseline({ generated_by: GENERATED_BY, source_commit: PHASE_40_START_COMMIT, files: viaWriter })).toBe(
+      readFileSync(join(ROOT, BASELINE_REL), "utf8"),
+    );
     expect(baseline.generated_by).toBe("node scripts/check-role-rules.js --write-baseline");
   });
 });
@@ -498,4 +517,142 @@ describe("CR-01: the safety sentences are guarded (gap 1)", () => {
     },
     120_000,
   );
+});
+
+// ---------------------------------------------------------------------------
+// The other safety families (plan 40-11 task 2). Each case deletes one exact sentence from one role's
+// `## Hard limits` or `## Stop when` and expects the named loss: permanent red-on-deletion evidence.
+// ---------------------------------------------------------------------------
+
+const FAMILY_CASES: readonly { role: string; fact: string; from: string; to: string }[] = [
+  { role: "release-manager.md", fact: "no-deploy", from: " Never deploy to production yourself.", to: "" },
+  { role: "tech-lead.md", fact: "human-merge-deploy", from: "Merge and deploy stay with humans.\n\n", to: "" },
+  { role: "compliance-officer.md", fact: "named-human", from: "to a named human", to: "to someone" },
+  { role: "installer.md", fact: "no-overwrite", from: "Never overwrite or delete user content. ", to: "" },
+  {
+    role: "uat-planner.md",
+    fact: "self-sign",
+    from: " Never self-sign: an agent that signs removes the one human the gate exists for.",
+    to: "",
+  },
+  {
+    role: "orchestrator.md",
+    fact: "no-relay",
+    from: " Never relay data between agents; the shared verified context is the only channel.",
+    to: "",
+  },
+];
+
+const TECH_LEAD_RULE = "Merge and deploy stay with humans.";
+
+describe("CR-01: every safety family is red on deletion", () => {
+  for (const c of FAMILY_CASES) {
+    it(`deleting the ${c.fact} sentence is red naming ${c.role}: lost fact ${c.fact}`, () => {
+      const m = makeMirror(`rr-fam-${c.fact}-`);
+      edit(role(m, c.role), (s) => s.replace(c.from, c.to));
+      const r = runGate(m);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(`${c.role}: lost fact ${c.fact}`);
+    });
+  }
+
+  it("adjacency: the Tech Lead merge-and-deploy rule moved into a `## Stop when` bullet keeps its fact", () => {
+    const m = makeMirror("rr-adj-stop-");
+    edit(role(m, "tech-lead.md"), (s) =>
+      s.replace(`${TECH_LEAD_RULE}\n\n`, "").replace("## Stop when\n", `## Stop when\n- ${TECH_LEAD_RULE}\n`),
+    );
+    const text = readFileSync(role(m, "tech-lead.md"), "utf8");
+    expect(text).toContain(`- ${TECH_LEAD_RULE}`);
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).not.toContain("lost fact human-merge-deploy");
+  });
+
+  it("adjacency: the same rule moved into `## Responsibilities` is red naming tech-lead.md: lost fact human-merge-deploy", () => {
+    const m = makeMirror("rr-adj-resp-");
+    edit(role(m, "tech-lead.md"), (s) =>
+      s.replace(`${TECH_LEAD_RULE}\n\n`, "").replace("## Responsibilities\n", `## Responsibilities\n${TECH_LEAD_RULE}\n\n`),
+    );
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("tech-lead.md: lost fact human-merge-deploy");
+  });
+
+  it("empty: a role whose baseline holds no safety fact (ba-pm.md) is unaffected, and the mirror stays green", () => {
+    const baseline = JSON.parse(readFileSync(join(ROOT, BASELINE_REL), "utf8"));
+    const safety = new Set(SAFETY_RULE_FACTS.map((x) => x.fact));
+    expect(baseline.files["ba-pm.md"].facts.filter((f: string) => safety.has(f))).toEqual([]);
+    const r = runGate(makeMirror("rr-empty-"));
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toContain("ALL CHECKS PASSED");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WR-05: the writer derives only from git objects at PHASE_40_START_COMMIT, so it cannot launder a loss;
+// the check refuses a baseline derived anywhere else; and every writer failure is one named FAIL.
+// ---------------------------------------------------------------------------
+
+describe("WR-05: the baseline is pinned to the Phase 40 start commit", () => {
+  it("a mirrored baseline whose source_commit is another commit id is red naming PHASE_40_START_COMMIT and WR-05", () => {
+    const m = makeMirror("rr-wr05-foreign-");
+    const other = "1".repeat(40);
+    edit(join(m, BASELINE_REL), (s) => s.replace(PHASE_40_START_COMMIT, other));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("PHASE_40_START_COMMIT");
+    expect(r.stdout).toContain("WR-05");
+    expect(r.stdout).toContain(other);
+  });
+
+  it("--write-baseline outside a git repository exits 1 with a named FAIL, no stack frame, and unchanged bytes", () => {
+    const m = makeMirror("rr-wr05-nogit-");
+    const before = readFileSync(join(m, BASELINE_REL));
+    const r = runGate(m, ["--write-baseline"], { GIT_CEILING_DIRECTORIES: dirname(m) });
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toMatch(/^ {2}FAIL {2}.*PHASE_40_START_COMMIT/m);
+    expect(r.stdout).toContain("WR-05");
+    expect(r.stdout).not.toMatch(/^\s+at /m);
+    expect(readFileSync(join(m, BASELINE_REL)).equals(before)).toBe(true);
+  });
+
+  it(
+    "ordering: --write-baseline at two different HEADs with different working trees writes the committed bytes",
+    () => {
+      const c = sharedClone("rr-wr05-writer-");
+      const committed = execFileSync("git", ["-C", ROOT, "show", `HEAD:${BASELINE_REL}`], { encoding: "utf8" });
+      const target = join(c, BASELINE_REL);
+      // Run 1: HEAD as cloned, with the merge ban deleted in the working tree.
+      edit(join(c, "agent-factory", "roles", "orchestrator.md"), (s) => s.replace(MERGE_BAN, ""));
+      writeFileSync(target, "{}\n");
+      const w1 = runIn(c, "scripts/check-role-rules.js", ["--write-baseline"]);
+      expect(w1.status, w1.stdout).toBe(0);
+      expect(readFileSync(target, "utf8")).toBe(committed);
+      // Run 2: commit the loss so HEAD moves, then lose another rule in the working tree.
+      const id = ["-c", "user.name=rr-test", "-c", "user.email=rr-test@example.invalid", "-c", "commit.gpgsign=false"];
+      execFileSync("git", ["-C", c, ...id, "commit", "-q", "-am", "plant: drop the merge ban"], { encoding: "utf8" });
+      edit(join(c, "agent-factory", "roles", "release-manager.md"), (s) => s.replace(" Never deploy to production yourself.", ""));
+      writeFileSync(target, "{}\n");
+      const w2 = runIn(c, "scripts/check-role-rules.js", ["--write-baseline"]);
+      expect(w2.status, w2.stdout).toBe(0);
+      expect(readFileSync(target, "utf8")).toBe(committed);
+      // The re-written baseline still sees both losses: the writer forgave nothing.
+      const chk = runIn(c, "scripts/check-role-rules.js");
+      expect(chk.status, chk.stdout).toBe(1);
+      expect(chk.stdout).toContain("orchestrator.md: lost fact no-merge");
+      expect(chk.stdout).toContain("release-manager.md: lost fact no-deploy");
+    },
+    120_000,
+  );
+
+  it("kind floor: every kind in FACT_KINDS occurs at least once in the committed baseline", () => {
+    const list = FACT_KINDS;
+    expect(list.length).toBe(26);
+    expect(new Set(list).size).toBe(list.length);
+    for (const x of SAFETY_RULE_FACTS) expect(list).toContain(x.fact);
+    const baseline = JSON.parse(readFileSync(join(ROOT, BASELINE_REL), "utf8"));
+    const all: string[] = Object.values(baseline.files as Record<string, { facts: string[] }>).flatMap((f) => f.facts);
+    const missing = list.filter((k) => (k.endsWith(":") ? !all.some((f) => f.startsWith(k)) : !all.includes(k)));
+    expect(missing).toEqual([]);
+  });
 });

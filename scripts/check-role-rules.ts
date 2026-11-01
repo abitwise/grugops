@@ -49,8 +49,10 @@
 //
 // MODES. `--write-baseline` writes docs/audit/40-role-rule-inventory.json, deriving ONLY from git objects
 // at PHASE_40_START_COMMIT (the pre-rewrite roles), never from the working tree; so re-running it after a
-// role loses a fact writes the same bytes and cannot forgive the loss (WR-05). The default `--check`
-// reads it, refuses to run without it, and never writes.
+// role loses a fact writes the same bytes and cannot forgive the loss (WR-05). Every writer failure,
+// including a run outside a git repository, is one named FAIL. The default `--check` reads the baseline,
+// refuses to run without it, refuses one whose source_commit is not PHASE_40_START_COMMIT (WR-05), and
+// never writes.
 //
 // Node stdlib only. Run the committed .js; CHECK_ROOT points it at a hermetic mirror in the tests.
 
@@ -133,6 +135,28 @@ export const SAFETY_RULE_FACTS: readonly SafetyRuleFact[] = [
   { fact: "only-spawner", holds: (s) => /\bonly role that may spawn/i.test(s) },
   // 40-SECURITY.md T-40-18: an agent never signs off its own work.
   { fact: "self-sign", holds: (s) => /\bself-sign/i.test(s) },
+];
+
+// THE FACT KINDS (D-28, closed list). Every kind the derivation can emit: the exact facts, the three
+// derived prefixes, and the twelve SAFETY_RULE_FACTS names (read from the table, never retyped). A kind
+// removed from the derivation must also leave this list, which the kind-floor test makes visible: each
+// kind here must occur at least once in the committed baseline.
+export const FACT_KINDS: readonly string[] = [
+  "unknown-verify",
+  "wf16",
+  "wf17",
+  "wf18",
+  "absent-config",
+  "blocked",
+  "failed-attempt",
+  "no-fabrication",
+  "coding-rules",
+  "announce",
+  "exit",
+  "junior:",
+  "kit-ref:",
+  "board-from:",
+  ...SAFETY_RULE_FACTS.map((r) => r.fact),
 ];
 
 // THE ONE RECORDED DECISION CONSTANT (D-13, confirmed by D-35). These are the roles that write code
@@ -809,6 +833,13 @@ function check(): void {
     baseline = parseBaseline(readFileSync(bp, "utf8"));
   } catch (e) {
     fail(`${BASELINE_REL} is unparseable: ${(e as Error).message}`);
+    return;
+  }
+  if (baseline.source_commit !== PHASE_40_START_COMMIT) {
+    fail(
+      `${BASELINE_REL}: the baseline was derived at ${baseline.source_commit}, but the inventory is pinned to ` +
+        `PHASE_40_START_COMMIT ${PHASE_40_START_COMMIT} (WR-05)`,
+    );
     return;
   }
   let corpus: string[];
