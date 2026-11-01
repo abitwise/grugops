@@ -17,6 +17,9 @@
 // Plan 40-02 adds the cases for the engineer's plain rewrite: the section order, `## Do less`, the
 // `shortcut:` marker and `Not checked:` line in `## Output`, the two board moves and `## Stop when`
 // (PLAIN-02, PLAIN-05; D-08, D-10, D-12, D-20..D-24, D-33).
+// Plan 40-13 adds the cases for the Orchestrator's lean close: it needs the named human's sign-off
+// and a human merge, the lean Definition of Done needs the merge, and lean mode has one owner for
+// the `In UAT` exit across uat-planner.md and Workflow 06 (PLAIN-02, PLAIN-03; CR-02, WR-02, D-33).
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -34,6 +37,9 @@ const TECH_LEAD = readFileSync(join(ROOT, "agent-factory/roles/tech-lead.md"), "
 const DESIGNER = readFileSync(join(ROOT, "agent-factory/roles/designer.md"), "utf8");
 const CHECKLIST_INDEX = readFileSync(join(ROOT, "agent-factory/checklists/00-index.md"), "utf8");
 const ENGINEER = readFileSync(join(ROOT, "agent-factory/roles/software-engineer.md"), "utf8");
+const ORCHESTRATOR = readFileSync(join(ROOT, "agent-factory/roles/orchestrator.md"), "utf8");
+const LEAN_DOD = readFileSync(join(ROOT, "agent-factory/checklists/definition-of-done.md"), "utf8");
+const SEED_BOARD = readFileSync(join(ROOT, "agent-factory/seed/memory-bank/plans/board.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -2254,5 +2260,50 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     expect(CONFIG).not.toContain("or for a raise after the escalation is spent");
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
     expect(stops).toHaveLength(6);
+  });
+});
+
+describe("the lean close keeps its human conditions (CR-02, WR-02; D-33)", () => {
+  /**
+   * The text that states the Orchestrator's `In UAT → Done` close: the `## Board moves` line that
+   * holds the pair, plus any lines after it up to a blank line or the next `You own`/`You enforce`
+   * line. The partition guard checks who owns a pair, never its condition, so this pins the condition.
+   */
+  function leanClose(): string {
+    const lines = section(ORCHESTRATOR, "Board moves").split("\n");
+    const start = lines.findIndex((l) => l.includes("`In UAT → Done`"));
+    expect(start, "orchestrator.md `## Board moves` has no `In UAT → Done` line").toBeGreaterThanOrEqual(0);
+    const out = [lines[start] ?? ""];
+    for (const l of lines.slice(start + 1)) {
+      if (l.trim() === "" || l.startsWith("You own") || l.startsWith("You enforce")) break;
+      out.push(l);
+    }
+    return out.join(" ");
+  }
+
+  it("CR-02: the lean close needs the named human's sign-off, a human merge and the lean DoD", () => {
+    const close = leanClose();
+    for (const phrase of ["the lean-mode close", "named human", "sign_off_acceptance", "merged", "definition-of-done.md"]) {
+      expect(close, `the lean close lacks "${phrase}"`).toContain(phrase);
+    }
+  });
+
+  it("CR-02: `## Stop when` leaves the ticket in `In UAT` until a human merges and the named human signs off", () => {
+    const items = section(ORCHESTRATOR, "Stop when")
+      .split("\n")
+      .filter((l) => l.startsWith("- "));
+    const hold = items.filter((l) => l.includes("`In UAT`") && l.includes("merged"));
+    expect(hold, "no `## Stop when` item holds the ticket in `In UAT` before a merge").toHaveLength(1);
+  });
+
+  it("CR-02: the lean Definition of Done needs the PR merged by a human", () => {
+    const bullets = LEAN_DOD.split("\n").filter((l) => l.startsWith("- "));
+    expect(bullets.filter((l) => l.includes("merged by a human"))).toHaveLength(1);
+  });
+
+  it("D-33: the seed board's Done entry is unchanged", () => {
+    const row = SEED_BOARD.split("\n").filter((l) => l.startsWith("| Done |"));
+    expect(row).toHaveLength(1);
+    expect(row[0]).toContain("merged + released (or merged, lean)");
   });
 });
