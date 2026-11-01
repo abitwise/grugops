@@ -22,3 +22,14 @@
   test name with the recorded `~/` environmental case, which hides it in a by-name comparison: removing `~/`
   would not turn it green. Fix in check-role-rules.ts (index the heading list another way) or record the two
   sites in FLOOR_ITEM_2_SITES with a reason; out of scope for 40-09, which does not touch check-role-rules.
+
+## From plan 40-13
+
+- Full suite (`npx vitest run --exclude '**/scripts/e2e/**'`, 1,371 s) shows 15 failures beyond the known 5 in
+  `scripts/uat-gate-exit-contract.test.ts` and the 1 floor-item case above. None reads a file 40-13 changed:
+  - `scripts/context-io.test.ts` (7), `scripts/context-io-writer-set.test.ts` (2),
+    `scripts/harness-instance-ledger.test.ts` (4) and `scripts/canonical-corpus.test.ts` (1) read
+    `.planning/phases/27-*` and `.planning/phases/31-*` files that `91b4cbc6 chore: archive v2.1 milestone files`
+    moved out of `.planning/phases/`. Repoint the tests at the archive path or record the archive as their source.
+  - `install/installer-fs-census.test.ts` (1): the local Node v26.12.1 exports `openAsBlobSync`, which the census
+    has not classified. Classify it in CONTENT_READER or NOT_CONTENT_READER.
