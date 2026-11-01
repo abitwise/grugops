@@ -1,5 +1,5 @@
 // check-role-rules.ts — the derived role-rule inventory and the board-move partition (Phase 40,
-// PLAIN-02, PLAIN-03; decisions D-27, D-28, D-29, D-31, D-33, D-35).
+// PLAIN-02, PLAIN-03; decisions D-08, D-10, D-27, D-28, D-29, D-31, D-33, D-35, D-36).
 //
 // WHAT THIS IS. Phase 40 rewrites every role file. A rewrite can drop a load-bearing rule without any
 // existing guard noticing, because the rules are prose. This script derives, per role-corpus file, a
@@ -32,6 +32,11 @@
 // partition the seed board's flow (five rules, listed above checkPartition). The flow order, the Exit
 // owners and the terminal column come from the seed board table; BOARD_MOVE_EXCEPTIONS is the one
 // declared list. It adds no fact kind to the baseline derivation.
+//
+// THE END-STATE CHECKS (D-08, D-10, D-35, D-36). `--check` also holds the 19 roles to the rewrite's
+// end state: the D-13 set two-sided (a non-member carrying the coding-rules line is red), the
+// `unknown-verify` and `no-fabrication` facts in every role, at least one `## Stop when` list item, and
+// the D-08 heading order. The protocol keeps its own shape and is outside them.
 //
 // MODES. `--write-baseline` writes docs/audit/40-role-rule-inventory.json once (plan 40-01, before any
 // role prose changed). The default `--check` reads it, refuses to run without it, and never writes.
@@ -472,6 +477,73 @@ function checkBoardPartition() {
         `terminal ${model.terminal}, ${BOARD_MOVE_EXCEPTIONS.length} declared exception(s)\n`);
     FAILS += reportMeasured({ label: "board-move partition", visited: roles.length, expected: ROLE_COUNT, findings: checkPartition(model, claims) }, { pass, fail: (s) => process.stdout.write(`  FAIL  ${s}\n`) }, (s) => `        - ${s}`);
 }
+// ---------------------------------------------------------------------------
+// THE END-STATE ROLE CHECKS (D-08, D-10, D-35, D-36). Run on the current tree only, over the 19 roles
+// in listRoles(); the protocol keeps its own shape (D-15) and is outside them. They add no fact kind to
+// the baseline derivation, so the source_commit equality test is untouched.
+// ---------------------------------------------------------------------------
+/** The D-08 required role headings, in order. Any other `## ` heading may sit only between Responsibilities and Output. */
+export const ROLE_HEADING_ORDER = [
+    "## One job",
+    "## Activates when",
+    "## Reads",
+    "## Responsibilities",
+    "## Output",
+    "## Board moves",
+    "## Trace updates",
+    "## Hard limits",
+    "## Stop when",
+];
+/** Every fact each role must carry after the rewrite (D-36). */
+export const D36_REQUIRED_FACTS = ["unknown-verify", "no-fabrication"];
+/** The D-08 order findings for one role file: required headings in order, optional ones only in the open slot. */
+export function checkHeadingOrder(role, raw) {
+    const text = normalizeText(raw);
+    const flags = fencedLineFlags(text);
+    const headings = text
+        .split("\n")
+        .filter((l, i) => !flags[i] && l.startsWith("## "))
+        .map((l) => l.trimEnd());
+    const out = [];
+    const required = headings.filter((h) => ROLE_HEADING_ORDER.includes(h));
+    if (required.join("|") !== ROLE_HEADING_ORDER.join("|")) {
+        out.push(`${role}: required headings out of order (D-08): found ${required.join(", ") || "none"}; ` +
+            `expected ${ROLE_HEADING_ORDER.join(", ")}`);
+        return out;
+    }
+    const open = headings.indexOf("## Responsibilities");
+    const close = headings.indexOf("## Output");
+    headings.forEach((h, i) => {
+        if (ROLE_HEADING_ORDER.includes(h))
+            return;
+        if (i > open && i < close)
+            return;
+        out.push(`${role}: \`${h}\` sits outside \`## Responsibilities\` .. \`## Output\` (D-08)`);
+    });
+    return out;
+}
+/** The four end-state findings over the roles, given each role's current facts and raw text. */
+export function checkEndState(roles, current, rawOf) {
+    const out = [];
+    for (const r of roles) {
+        const now = current[r];
+        if (!now) {
+            out.push(`${r}: no derived facts`);
+            continue;
+        }
+        if (now.facts.includes("coding-rules") && !D13_CODING_ROLES.includes(r)) {
+            out.push(`${r}: carries the coding-rules line but is not a D13_CODING_ROLES member (D-35)`);
+        }
+        for (const fact of D36_REQUIRED_FACTS) {
+            if (!now.facts.includes(fact))
+                out.push(`${r}: missing fact ${fact} — every role must carry it (D-36)`);
+        }
+        if (now.stopWhenItems < 1)
+            out.push(`${r}: \`## Stop when\` holds no list item (D-10)`);
+        out.push(...checkHeadingOrder(r, rawOf(r)));
+    }
+    return out;
+}
 /** Serialize with every object key sorted, two-space indent, trailing newline. */
 export function serializeBaseline(b) {
     const sortKeys = (v) => {
@@ -597,6 +669,16 @@ function check() {
         expected: ROLE_COUNT + 1,
         findings,
     }, { pass, fail: (s) => process.stdout.write(`  FAIL  ${s}\n`) }, (s) => `        - ${s}`);
+    process.stdout.write("\n[check-role-rules] every role holds its end state (D-08, D-10, D-35, D-36)\n");
+    let endFindings;
+    try {
+        endFindings = checkEndState(roles, current, (r) => readFileSync(join(ROOT, ROLES_SUBPATH, r), "utf8"));
+    }
+    catch (e) {
+        fail(`role end state: derivation failed: ${e.message}`);
+        return;
+    }
+    FAILS += reportMeasured({ label: "role end state", visited: roles.filter((r) => r in current).length, expected: ROLE_COUNT, findings: endFindings }, { pass, fail: (s) => process.stdout.write(`  FAIL  ${s}\n`) }, (s) => `        - ${s}`);
 }
 export function runAll(argv = process.argv.slice(2)) {
     if (argv.includes("--write-baseline"))
