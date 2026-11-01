@@ -342,9 +342,10 @@ const EXCLUSION_CONTROLS: readonly ExclusionControl[] = [
   {
     reason: "the note route between the verb and the trace: a typed note is the sanctioned write",
     source: "agent-factory/roles/software-engineer.md",
-    negative:
-      "3. Record what changed — files, behavior, tests, commands run — as typed notes for the shared context and the trace.",
-    control: "3. Record what changed — files, behavior, tests, commands run — in the shared context and the trace.",
+    // Plan 40-02 (PLAIN-02): the engineer's plain rewrite moved this sentence to item 4 and dropped the dashed list;
+    // the note route between the verb and the trace is unchanged, so the row points at the live sentence.
+    negative: "4. Record what changed as typed notes for the shared context and the trace.",
+    control: "4. Record what changed in the shared context and the trace.",
   },
   {
     reason: "the ref route between the verb and the trace, isolated",

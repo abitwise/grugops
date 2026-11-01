@@ -14,6 +14,9 @@
 // Plan 39-19 (G-39-71, D-21 amended) adds the cases for the Workflow 04 hand-off loop: a blocked
 // ticket the Tech Lead cannot resolve goes to the role whose job covers its cause, and a named human
 // is asked only after three disputed rounds on one cause or for a fundamental change.
+// Plan 40-02 adds the cases for the engineer's plain rewrite: the section order, `## Do less`, the
+// `shortcut:` marker and `Not checked:` line in `## Output`, the two board moves and `## Stop when`
+// (PLAIN-02, PLAIN-05; D-08, D-10, D-12, D-20..D-24, D-33).
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -481,6 +484,72 @@ describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D
   it("the role keeps exactly one Workflow 16 and one Workflow 18 reference after the section lands", () => {
     expect(ENGINEER.split("16-context-read-write.md").length - 1).toBe(1);
     expect(ENGINEER.split("18-context-compaction.md").length - 1).toBe(1);
+  });
+});
+
+describe("software-engineer.md plain rewrite (PLAIN-02, PLAIN-05; D-20..D-24)", () => {
+  it("D-08 / D-12: the headings follow the skeleton order, `## Levels` then `## Do less` after `## Responsibilities`, no suffix", () => {
+    const headings = ENGINEER.split("\n").filter((l) => l.startsWith("## "));
+    expect(headings).toEqual([
+      "## One job",
+      "## Activates when",
+      "## Reads",
+      "## Responsibilities",
+      "## Levels",
+      "## Do less",
+      "## Output",
+      "## Board moves",
+      "## Trace updates",
+      "## Hard limits",
+      "## Stop when",
+    ]);
+  });
+
+  it("D-20 / D-24: `## Do less` holds the six ladder rungs in order, the whole-change rule, the floor and the one-test rule, at every level", () => {
+    const body = section(ENGINEER, "Do less");
+    const rungs = body.split("\n").filter((l) => l.startsWith("- "));
+    expect(rungs).toHaveLength(6);
+    const marks = ["Does it need to exist?", "Reuse what this codebase has", "standard library or a platform feature", "installed dependency", "one line a reader follows", "minimum code that works"];
+    marks.forEach((m, i) => expect(rungs[i], `rung ${i + 1}`).toContain(m));
+    expect(body).toContain("Finish the whole change, including callers, tests and fixtures it breaks.");
+    expect(body).toContain(
+      "Never cut validation at trust boundaries, error handling that prevents data loss, security, accessibility, or anything the user asked for.",
+    );
+    expect(body).toContain("New non-trivial logic (a branch, a loop, a parser, money or security) gets one small test.");
+    expect(body).toContain("These rules hold at every level.");
+  });
+
+  it("D-21 / D-22 / D-23: `## Output` states the `shortcut:` marker and a `Not checked:` line in an `observation` note, capped by the change", () => {
+    const body = section(ENGINEER, "Output");
+    expect(body).toContain("Mark each deliberate shortcut in code as `shortcut: <the limit>, <when to upgrade>`.");
+    expect(body).toContain("End with a `Not checked:` line in an `observation` note.");
+    expect(body).toContain("Give one or two lines on what you skipped or left unchecked, and any risk for a human.");
+    expect(body).toContain("Never make it longer than the change.");
+  });
+
+  it("D-33: `## Board moves` names the two owned pairs as code spans", () => {
+    const body = section(ENGINEER, "Board moves");
+    expect(body).toContain("`In Development → In Review`");
+    expect(body).toContain("`In Development → Blocked`");
+  });
+
+  it("D-10: `## Stop when` holds at least two items, one reporting `BLOCKED`, each naming who gets the ticket", () => {
+    const items = section(ENGINEER, "Stop when")
+      .split("\n")
+      .filter((l) => l.startsWith("- "));
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    expect(items.some((l) => l.includes("`BLOCKED`"))).toBe(true);
+    for (const l of items) {
+      expect(l.startsWith("- When "), l).toBe(true);
+      expect(/Tech Lead|QE\/E2E/.test(l), `no receiving role: ${l}`).toBe(true);
+    }
+  });
+
+  it("the `## Levels` section keeps its pinned sentences and points no level at a different do-less rule", () => {
+    const levels = section(ENGINEER, "Levels");
+    expect(levels).toContain("A junior takes only tasks whose plan already fixes what to write.");
+    expect(levels).toContain("At any level you may deviate from the plan to fit the real code; record what changed and why in your notes.");
+    expect(levels).not.toContain("Do less");
   });
 });
 
