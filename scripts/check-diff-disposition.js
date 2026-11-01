@@ -138,6 +138,12 @@
 // The stand-in holds for agent-factory/roles/ until a later recorded decision ends it (Phases 41 and
 // 42 edit roles too). Ending it means removing the key by a recorded decision.
 //
+// IN-04 (plan 40-12): the value is PINNED, not only shaped. The key may name ROLE_STANDIN_SCRIPT
+// (scripts/check-role-rules.js) and nothing else, and it may appear once. A canonical value naming any
+// other script, or a second `role_standin:` line, is a named refusal before anything is spawned —
+// before this, `role_standin: scripts/is-entry.js` exited 0 and admitted every role clause while
+// check-role-rules was red.
+//
 // WR-04 (plan 40-12) — ROLE `## Stop when` IS FROZEN LIKE ROLE `## Hard limits`.
 //
 // Since Phase 40 the human-stop rules live in role `## Stop when` (D-10): the Tech Lead's named-human
@@ -272,6 +278,14 @@ const BASE_COMMIT_RE = /^base_commit:[ \t]*([0-9a-f]{40})[ \t]*$/m;
  */
 const ROLE_STANDIN_RE = /^role_standin:[ \t]*(scripts\/[a-z0-9-]+\.js)[ \t]*$/m;
 const ROLE_STANDIN_KEY_RE = /^role_standin:/m;
+/** Every `role_standin:` line, so a second one is counted rather than shadowed by the first (IN-04). */
+const ROLE_STANDIN_KEY_ALL_RE = /^role_standin:/gm;
+/**
+ * IN-04 (plan 40-12). The one stand-in D-30 declares. A canonical `scripts/<kebab>.js` value naming
+ * any other script is refused by name before anything is spawned, so a substituted script that
+ * happens to exit 0 can never admit role clauses.
+ */
+const ROLE_STANDIN_SCRIPT = "scripts/check-role-rules.js";
 /** The files the D-30 stand-in may admit. Nothing outside this prefix ever reaches it. */
 const ROLE_STANDIN_SCOPE = "agent-factory/roles/";
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -1501,6 +1515,20 @@ function main() {
     }
     // ── D-30: the role-rule inventory stand-in (see the header). CLI path only, spawned once. ───
     const standin = readRoleStandin(readFileSync(abs(BASE_FILE), "utf8"));
+    if (standin.kind === "duplicate") {
+        fail(`${BASE_FILE} carries ${standin.count} \`role_standin\` lines — a duplicate key. The key may ` +
+            `appear once and name ${ROLE_STANDIN_SCRIPT}; with two, which one speaks would depend on read ` +
+            `order, so the base is refused and nothing is spawned (D-30, IN-04)`);
+        verdict();
+        return;
+    }
+    if (standin.kind === "unexpected") {
+        fail(`${BASE_FILE} declares \`role_standin: ${standin.script}\`, but the only stand-in D-30 ` +
+            `declares is ${ROLE_STANDIN_SCRIPT}. A different script exiting 0 is not the role-rule ` +
+            `inventory passing, so the value is refused and nothing is spawned (D-30, IN-04)`);
+        verdict();
+        return;
+    }
     if (standin.kind === "malformed") {
         fail(`${BASE_FILE} carries a \`role_standin\` line outside the canonical form — a repo-relative ` +
             `\`scripts/<kebab-case>.js\` path, alone on its line. The gate never spawns a value it did ` +
@@ -1843,9 +1871,15 @@ function main() {
 function readRoleStandin(baseText) {
     if (!ROLE_STANDIN_KEY_RE.test(baseText))
         return { kind: "absent" };
+    // IN-04: count first, so a second line is refused rather than shadowed by the first canonical one.
+    const count = (baseText.match(ROLE_STANDIN_KEY_ALL_RE) ?? []).length;
+    if (count > 1)
+        return { kind: "duplicate", count };
     const m = ROLE_STANDIN_RE.exec(baseText);
     if (m === null)
         return { kind: "malformed" };
+    if (m[1] !== ROLE_STANDIN_SCRIPT)
+        return { kind: "unexpected", script: m[1] };
     return { kind: "declared", script: m[1] };
 }
 /**
