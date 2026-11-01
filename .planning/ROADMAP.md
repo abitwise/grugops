@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 8/10 plans executed
+**Plans**: 9/10 plans executed
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -531,7 +531,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 - [x] 40-08-PLAN.md — board-move partition guard, end-state role checks, `## Activates when` and `## Stop when` in ROLE_SECTIONS with 187 fixtures (PLAIN-02, PLAIN-03)
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 40-09-PLAN.md — role-corpus total guard (FAIL 67,383 B, WARN 64,000 B) and re-baselined ROLE_CEILINGS (PLAIN-04)
+- [x] 40-09-PLAN.md — role-corpus total guard (FAIL 67,383 B, WARN 64,000 B) and re-baselined ROLE_CEILINGS (PLAIN-04)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 40-10-PLAN.md — role text joins the writing-profile gates, C-28-003 restored on measurement, CHANGELOG, phase gate (PLAIN-07, PLAIN-01)
@@ -602,7 +602,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
-| 40. Plain-language role rewrite | v3.0 | 8/10 | In Progress | - |
+| 40. Plain-language role rewrite | v3.0 | 9/10 | In Progress | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |

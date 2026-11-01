@@ -18,6 +18,7 @@
   prose" fails: floor item 2 (a heading test written as `.indexOf("# ...")`) now matches
   `scripts/check-role-rules.ts:594` and `:595` (`headings.indexOf("## Responsibilities")` and
   `headings.indexOf("## Output")`), added by 40-08 in d35fa57c. Reproduced in a detached worktree at 5fd4a901
-  (before any 40-09 commit, and without the stray `~/` directory), so it is a 40-08 regression and not the
-  `~/` environmental case. Fix in check-role-rules.ts (index the heading list another way) or record the two
+  (before any 40-09 commit, and without the stray `~/` directory), so it is a 40-08 regression. It shares its
+  test name with the recorded `~/` environmental case, which hides it in a by-name comparison: removing `~/`
+  would not turn it green. Fix in check-role-rules.ts (index the heading list another way) or record the two
   sites in FLOOR_ITEM_2_SITES with a reason; out of scope for 40-09, which does not touch check-role-rules.
