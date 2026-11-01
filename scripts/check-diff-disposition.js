@@ -137,6 +137,16 @@
 //
 // The stand-in holds for agent-factory/roles/ until a later recorded decision ends it (Phases 41 and
 // 42 edit roles too). Ending it means removing the key by a recorded decision.
+//
+// WR-04 (plan 40-12) — ROLE `## Stop when` IS FROZEN LIKE ROLE `## Hard limits`.
+//
+// Since Phase 40 the human-stop rules live in role `## Stop when` (D-10): the Tech Lead's named-human
+// stops, the Compliance Officer's legal escalation, the Installer's stop-and-ask, the engineer's scope
+// hand-back. They moved out of `## Hard limits`, which this gate froze, into a section nothing froze.
+// So `## Stop when` is the fourth FROZEN_SECTION_ANCHORS entry, located by heading and asserted at
+// ROLE_COUNT like the other three. While the D-30 stand-in holds it admits both role sections'
+// clauses on the same terms (the `structuralSections` arm, nothing wider); when the stand-in ends,
+// an edit to either section owes a disposition row.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
@@ -446,8 +456,11 @@ export const POSITIVE_GUARD_LITERALS = POSITIVE_GUARD_LITERAL_DERIVATION.literal
 // D-01 source (b) — the structural sections, located by heading.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 /**
- * The three structural sections D-01 freezes, each located by its own heading and each asserted at
- * FULL cardinality against the derived corpus count.
+ * The four structural sections D-01 freezes, each located by its own heading and each asserted at
+ * FULL cardinality against the derived corpus count. Role `## Stop when` is the fourth (WR-04, plan
+ * 40-12): since Phase 40 it carries the human-stop rules, so it is frozen by position exactly as role
+ * `## Hard limits` is. It is APPENDED, never inserted: tests and code index the workflow anchors as
+ * [1] and [2].
  *
  * The assertion is the point. A derivation that silently returns short shrinks what is protected,
  * and every downstream verdict with it, while presenting as a clean run — so a short derivation
@@ -471,6 +484,12 @@ export const FROZEN_SECTION_ANCHORS = [
         heading: "## Commit",
         subpath: WORKFLOWS_SUBPATH,
         expected: WORKFLOW_COUNT,
+    },
+    {
+        corpus: "roles",
+        heading: "## Stop when",
+        subpath: ROLES_SUBPATH,
+        expected: ROLE_COUNT,
     },
 ];
 /**
@@ -539,7 +558,7 @@ export const FROZEN_SOURCES = {
             `the same working-tree change set (Phase 28 / D-25)`,
     },
     structuralSections: {
-        what: "a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`",
+        what: "a structural section located by heading — role `## Hard limits`, role `## Stop when`, workflow `## Stop conditions`, workflow `## Commit`",
         companion: `a disposition row under ${DISPOSITION_DIR}/ whose \`companion\` cell names the section and the reason`,
     },
     positiveGuardLiterals: {
@@ -1260,7 +1279,7 @@ function watchedCorpus(root) {
 function main() {
     process.stdout.write("\n[guard_diff_disposition] every clause changed in the LANG-03 watched corpus is dispositioned, " +
         "and a frozen intersection carries its same-commit companion edit (LANG-03, D-01..D-05)\n");
-    // ── The frozen set, and its four two-sided derivations ───────────────────────────────────────
+    // ── The frozen set, and its five two-sided derivations ───────────────────────────────────────
     const frozen = deriveFrozenSet(ROOT);
     for (const r of frozen.refusals)
         fail(r);

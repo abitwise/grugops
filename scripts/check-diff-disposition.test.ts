@@ -153,6 +153,11 @@ function gitIn(cwd: string, args: string[]): string {
 const HARD_LIMIT_SENTENCE =
   "Make a small diff for one ticket and never change the architecture without an ADR.";
 
+// WR-04 (plan 40-12). The one human-stop bullet every mirror role's `## Stop when` carries. It equals
+// no sentence in WORKFLOW_BODY or any other fixture, so a hit on it can only come from its position.
+const STOP_WHEN_BULLET =
+  "- When the ticket needs a decision this role cannot make, stop and name its owner.";
+
 const ROLE_BODY = (name: string): string =>
   [
     "---",
@@ -169,6 +174,9 @@ const ROLE_BODY = (name: string): string =>
     "",
     "## Notes",
     "This section sits outside every frozen structural section in the corpus.",
+    "",
+    FROZEN_SECTION_ANCHORS[3].heading,
+    STOP_WHEN_BULLET,
     "",
   ].join("\n");
 
@@ -575,15 +583,18 @@ describe("check-diff-disposition — harness premises", () => {
     }
   });
 
-  it("the three frozen section anchors resolve at full cardinality on the real tree", () => {
+  it("the four frozen section anchors resolve at full cardinality on the real tree", () => {
     expect(FROZEN_SECTION_ANCHORS.map((a) => a.heading)).toEqual([
       "## Hard limits",
       "## Stop conditions",
       "## Commit",
+      "## Stop when",
     ]);
     expect(FROZEN_SECTION_ANCHORS[0].expected).toBe(ROLE_COUNT);
     expect(FROZEN_SECTION_ANCHORS[1].expected).toBe(WORKFLOW_COUNT);
     expect(FROZEN_SECTION_ANCHORS[2].expected).toBe(WORKFLOW_COUNT);
+    expect(FROZEN_SECTION_ANCHORS[3].expected).toBe(ROLE_COUNT);
+    expect(FROZEN_SECTION_ANCHORS[3].corpus).toBe("roles");
   });
 
   it("a registry row exists whose verbatim segments to exactly one clause", () => {
@@ -669,6 +680,7 @@ describe("check-diff-disposition — the clean mirror", () => {
     expect(stdout).toContain(
       `workflows \`## Commit\` ${WORKFLOW_COUNT}/${WORKFLOW_COUNT}`,
     );
+    expect(stdout).toContain(`roles \`## Stop when\` ${ROLE_COUNT}/${ROLE_COUNT}`);
     expect(stdout).toContain("registry verbatim anchors");
     expect(stdout).toContain("a clean tree, not a vacuous pass");
   });
@@ -3297,5 +3309,106 @@ describe("D-30 role-rule inventory stand-in", () => {
     expect(stdout).toContain("FROZEN by structuralSections");
     expect(stdout).toContain(ROLE_UNDER_TEST);
     expect(stdout).not.toContain(STANDIN_ADMITTED);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-04 (plan 40-12) — role `## Stop when` is frozen like `## Hard limits`.
+//
+// Since Phase 40 the human-stop rules (named-human stops, legal escalation, stop-and-ask, scope
+// hand-back) live in role `## Stop when` (D-10), not in `## Hard limits`. Without a fourth anchor a
+// reword there would owe no disposition row once the D-30 stand-in ends. These cases pin the freeze
+// with no key, the unchanged stand-in scope with a key, the cardinality floor, and the region's start.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const REWORDED_STOP_WHEN_BULLET =
+  "- When the ticket needs a decision this role cannot take, stop and name the owner.";
+
+/** The role body with its `## Stop when` bullet reworded — one line, nothing else. */
+const REWORDED_STOP_WHEN_ROLE = ROLE_BODY(REAL_ROLES[0]).replace(
+  STOP_WHEN_BULLET,
+  REWORDED_STOP_WHEN_BULLET,
+);
+
+const NOTES_LINE = "This section sits outside every frozen structural section in the corpus.";
+const REWORDED_NOTES_LINE = "This section sits outside each frozen structural section of the corpus.";
+
+describe("WR-04: role `## Stop when` is frozen like `## Hard limits`", () => {
+  it("with no key, a reworded `## Stop when` bullet is FROZEN by structuralSections even with a row", () => {
+    // The row names the clause but carries no filled companion. Outside a frozen region that row is
+    // enough; inside one it is not, so the red can only come from the freeze.
+    const { root } = makeMirror("gops-diffdisp-stopwhen-nokey-", {
+      plant: { [ROLE_UNDER_TEST]: REWORDED_STOP_WHEN_ROLE },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, STOP_WHEN_BULLET.slice(2), REWORDED_STOP_WHEN_BULLET.slice(2), "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain("region: `## Stop when`");
+    expect(stdout).toContain(ROLE_UNDER_TEST);
+    expect(stdout).not.toContain(STANDIN_ADMITTED);
+  });
+
+  it("with the key and a passing stand-in, the same reword is admitted and counted (D-30 unchanged)", () => {
+    const { root } = makeMirror("gops-diffdisp-stopwhen-standin-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_STOP_WHEN_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    const m = stdout.match(new RegExp(`PASS {2}(\\d+) ${STANDIN_ADMITTED.replace(/[().]/g, "\\$&")}`));
+    expect(m, "the PASS-side stand-in line must be printed").not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThan(0);
+    expect(stdout).not.toContain("FROZEN by structuralSections");
+  });
+
+  it("a renamed `## Stop when` heading SHRINKS the frozen set and is refused, naming both counts", () => {
+    const { root } = makeMirror("gops-diffdisp-stopwhen-short-", {
+      plant: {
+        [ROLE_UNDER_TEST]: ROLE_BODY(REAL_ROLES[0]).replace("## Stop when", "## Stop rules"),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `roles \`## Stop when\` resolved ${ROLE_COUNT - 1} of ${ROLE_COUNT}`,
+    );
+    expect(stdout).toContain("SHRINKS the frozen set");
+  });
+
+  it("the `## Notes` line directly above `## Stop when` stays outside every frozen region", () => {
+    // The region starts AT the heading: the Notes line above it is outside, the bullet below inside.
+    const body = ROLE_BODY(REAL_ROLES[0]);
+    const lines = body.split("\n");
+    const span = locateSection(body, "## Stop when");
+    expect(span, "the fixture role must carry a `## Stop when` section").not.toBeNull();
+    const from = (span as { from: number }).from;
+    expect(lines[from - 1]).toBe("## Stop when");
+    expect(lines.indexOf(NOTES_LINE) + 1).toBeLessThan(from);
+    expect(lines.indexOf(STOP_WHEN_BULLET) + 1).toBeGreaterThan(from);
+
+    const { root } = makeMirror("gops-diffdisp-stopwhen-adjacent-", {
+      plant: { [ROLE_UNDER_TEST]: body.replace(NOTES_LINE, REWORDED_NOTES_LINE) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, NOTES_LINE, REWORDED_NOTES_LINE, "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).not.toContain("FROZEN by structuralSections");
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
   });
 });
