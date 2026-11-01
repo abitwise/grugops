@@ -40,6 +40,8 @@ const ENGINEER = readFileSync(join(ROOT, "agent-factory/roles/software-engineer.
 const ORCHESTRATOR = readFileSync(join(ROOT, "agent-factory/roles/orchestrator.md"), "utf8");
 const LEAN_DOD = readFileSync(join(ROOT, "agent-factory/checklists/definition-of-done.md"), "utf8");
 const SEED_BOARD = readFileSync(join(ROOT, "agent-factory/seed/memory-bank/plans/board.md"), "utf8");
+const UAT_PLANNER = readFileSync(join(ROOT, "agent-factory/roles/uat-planner.md"), "utf8");
+const WF06 = readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -2305,5 +2307,48 @@ describe("the lean close keeps its human conditions (CR-02, WR-02; D-33)", () =>
     const row = SEED_BOARD.split("\n").filter((l) => l.startsWith("| Done |"));
     expect(row).toHaveLength(1);
     expect(row[0]).toContain("merged + released (or merged, lean)");
+  });
+
+  /** The sentences of a text: split at each line break and after each full stop. */
+  function sentences(text: string): string[] {
+    return text
+      .split(/\n|(?<=\.)\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t !== "");
+  }
+
+  it("WR-02: the UAT Planner owns `In UAT → Ready to Release` in enterprise mode only and hands the lean close to the Orchestrator", () => {
+    const moves = sentences(section(UAT_PLANNER, "Board moves"));
+    const forward = moves.filter((t) => t.includes("`In UAT → Ready to Release`"));
+    expect(forward, "uat-planner.md `## Board moves` lost the forward pair").toHaveLength(1);
+    expect(forward[0]).toContain("enterprise");
+    const lean = moves.filter((t) => t.includes("lean") && t.includes("`In UAT`") && t.includes("Orchestrator"));
+    expect(lean, "no uat-planner.md `## Board moves` sentence leaves the lean ticket in `In UAT` for the Orchestrator").toHaveLength(1);
+  });
+
+  it("WR-02: the UAT Planner's done stop names the Release Manager for enterprise and the Orchestrator for lean", () => {
+    const done = section(UAT_PLANNER, "Stop when")
+      .split("\n")
+      .filter((l) => l.startsWith("- ") && l.includes("stop done"));
+    expect(done).toHaveLength(1);
+    for (const phrase of ["enterprise", "Release Manager", "lean", "Orchestrator"]) {
+      expect(done[0], `the done stop lacks "${phrase}"`).toContain(phrase);
+    }
+  });
+
+  it("WR-02: Workflow 06 `## Board moves` and `## Done condition` name the Orchestrator's lean close", () => {
+    const moves = section(WF06, "Board moves");
+    expect(moves).toContain("Orchestrator");
+    expect(moves).toContain("merged");
+    expect(section(WF06, "Done condition")).toContain("Orchestrator");
+  });
+
+  it("WR-02: Workflow 06 no longer offers the UAT Planner a direct move to `Done` in lean mode", () => {
+    for (const heading of ["Board moves", "Done condition"]) {
+      const body = section(WF06, heading);
+      expect(body, `${heading} keeps the old lean parenthetical`).not.toContain("or directly to `Done` in lean mode");
+      expect(body, `${heading} keeps the old lean parenthetical`).not.toContain("(or to `Done` in lean mode)");
+      expect(body, `${heading} still sends the ticket to \`Done\` in lean mode`).not.toMatch(/`Done`\)? in lean mode/);
+    }
   });
 });
