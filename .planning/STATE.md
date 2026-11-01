@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-13-PLAN.md
-last_updated: "2026-11-01T22:19:13.229Z"
+stopped_at: Completed 40-15-PLAN.md
+last_updated: "2026-11-01T22:24:38.112Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 21fb6230fc85fda25c9fefd0258bf68a986513e0
+state_head: 192c1ba614a6b5e99edffcc6373afa3ed680732e
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 104
-  completed_plans: 101
+  completed_plans: 102
   percent: 56
 ---
 
@@ -818,6 +818,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P11 | 8 min | 2 tasks | 4 files |
 | Phase 40 P12 | 10 min | 2 tasks | 5 files |
 | Phase 40 P13 | 44 min | 2 tasks | 6 files |
+| Phase 40 P15 | 3 min | 2 tasks | 178 files |
 
 ## Accumulated Context
 
@@ -2265,6 +2266,7 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-13: the Orchestrator's lean close (In UAT -> Done) requires the named human's sign-off (checkpoint: sign_off_acceptance), a human merge and the lean DoD; the lean DoD now carries 'the PR merged by a human'
 - [Phase 40]: 40-13: lean mode has one In UAT exit owner. The UAT Planner owns In UAT -> Ready to Release in enterprise mode only and leaves the lean ticket for the Orchestrator; Workflow 06 agrees
 - [Phase 40]: 40-13: the effective role byte budget is the corpus-total growth harness in check-foundation-guards.test.ts (orchestrator.md about 6,061 B, uat-planner.md about 2,750 B), tighter than the ROLE_CEILINGS WARN lines; both roles now sit 3-4 B under it
+- [Phase 40]: 40-15: IN-03 fixed by removing the typed section count from 176 fixture role headers, pinned by validate.test.ts; IN-01 line 302 kept byte-exact as the C-28-045 frozen anchor by decision
 
 ### Pending Todos
 
@@ -2604,8 +2606,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-01T22:19:12.325Z
-Stopped at: Completed 40-13-PLAN.md
+Last session: 2026-11-01T22:24:37.206Z
+Stopped at: Completed 40-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
