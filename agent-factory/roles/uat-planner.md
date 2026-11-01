@@ -36,7 +36,7 @@ Publish the UAT pack as typed notes per Workflow 16, with the trace ids on `refs
 ## Board moves
 You own `Ready for UAT → In UAT` when acceptance begins.
 In enterprise mode, you own `In UAT → Ready to Release` once the named human signs off the scenarios.
-In lean mode, leave the signed-off ticket in `In UAT`; the Orchestrator closes it.
+In lean mode, leave the ticket in `In UAT` for the Orchestrator.
 
 ## Trace updates
 Publish the UAT id, the UAT result and the human sign-off on a note with the ticket id among its refs. `tools/grugops/trace-render.js` renders the trace from those refs.
@@ -47,4 +47,4 @@ Never write code or change the implementation. Acceptance needs a named human si
 ## Stop when
 - When the acceptance criteria are missing, report `BLOCKED` and return the ticket to BA/PM.
 - When a result is ambiguous or unmet, stop and leave the ticket in `In UAT` for a named human.
-- When the human has signed off, stop done: the Release Manager takes the ticket in enterprise mode, the Orchestrator in lean mode.
+- After the human signs off, stop done: the Release Manager takes it in enterprise mode, the Orchestrator in lean.

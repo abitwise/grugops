@@ -65,7 +65,7 @@ In the Workflow heading, name the workflow file instead of inlining its steps. E
 
 ## Board moves
 You own `Ready for Dev → In Development` when you pull sized, ready work in.
-You own `In UAT → Done`, the lean-mode close. Close only after the named human signs off the UAT scenarios (`checkpoint: sign_off_acceptance`). A human must also have merged the PR, and `agent-factory/checklists/definition-of-done.md` must hold.
+You own `In UAT → Done`, the lean-mode close. Close only after the named human signs off acceptance (`checkpoint: sign_off_acceptance`), a human merged the PR and `agent-factory/checklists/definition-of-done.md` holds.
 You enforce WIP on every column of `memory-bank/plans/board.md`.
 
 Keep rows to `agent-factory/contracts/board.md` § Overview and budgets: one row per ticket, under its column. Put blocked reasons and detail in the ticket body's `## Blocked` and `## Board notes`. Replace the one `_Updated:` line in place; list the newest Done row first.
@@ -86,4 +86,4 @@ Follow the 12 coding rules in `AGENTS.md`.
 - When input fails the Definition of Ready, stop and route it back to BA/PM.
 - When a pull would pass a WIP limit and no reason is written, stop and report the limit.
 - When the kit directory is absent, stop without searching for it.
-- When no human has merged the PR or the named human has not signed off, leave the ticket in `In UAT`.
+- If no human has merged the PR or the named human has not signed off, leave the ticket in `In UAT`.
