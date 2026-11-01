@@ -5,7 +5,7 @@ It is derived from the ideas of a published controlled-language standard, and it
 of that standard — see § *Disclaimer and honesty floor* for the exact statement and its limits.
 
 This is a rules-and-claims surface, so it is written in clear professional voice throughout. Role
-files carry no caveman block (PLAIN-01); the grug voice appears only in light brand copy.
+files carry no caveman block; the grug voice appears only in light brand copy.
 
 ## What this profile is
 
@@ -301,7 +301,7 @@ anything.
 Caveman-as-token-economy is **disproven on this artifact by measurement** and must not be restated.
 The measured finding stands: the fenced blocks restate rather than compress.
 
-Role bodies join the governed surfaces of this profile in plan 40-10.
+Role bodies are a governed surface of this profile, reached by the build-time gate like the other kit files.
 
 The growth this phase produces is measured and recorded rather than assumed. A later phase reasons
 from that measurement, not from an estimate written before it.
