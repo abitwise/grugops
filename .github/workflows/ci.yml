@@ -325,6 +325,9 @@ jobs:
           # itself byte-unchanged across the transition. That history is why a red here is credible:
           # this guard has been watched catching the exact drift it exists for.
           node scripts/check-public-docs-vocabulary.js
+          # D-27 (plan 40-01): the derived role-rule inventory. Every role-corpus file must still carry
+          # each fact the committed pre-rewrite baseline (docs/audit/40-role-rule-inventory.json) records.
+          node scripts/check-role-rules.js
           # AUDIT-01 (plan 28-03, D-03 / D-05) — the disposition-register completeness gate. It
           # sits after the drift guard because both are Phase 28 audit gates and a reader should
           # meet them together, and because this one is the slower of the two to reason about.

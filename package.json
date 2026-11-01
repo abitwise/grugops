@@ -21,6 +21,7 @@
     "check:claim-anchors": "tsc --outDir .tmp-build && node scripts/check-claim-anchors.js",
     "check:banned-claims": "tsc --outDir .tmp-build && node scripts/check-banned-claims.js",
     "check:imperative-lexicon": "tsc --outDir .tmp-build && node scripts/check-imperative-lexicon.js",
+    "check:role-rules": "tsc --outDir .tmp-build && node scripts/check-role-rules.js",
     "check:diff-disposition": "tsc --outDir .tmp-build && node scripts/check-diff-disposition.js",
     "check:nul-bytes": "tsc --outDir .tmp-build && node scripts/check-nul-bytes.js",
     "check:state-paths": "tsc --outDir .tmp-build && node scripts/check-state-paths.js",

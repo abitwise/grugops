@@ -1,0 +1,301 @@
+{
+  "files": {
+    "_role-switch-protocol.md": {
+      "facts": [
+        "announce",
+        "exit",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/17-task-claim.md",
+        "wf16",
+        "wf17"
+      ],
+      "stopWhenItems": 0
+    },
+    "agents-md-scribe.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "architect-design.md": {
+      "facts": [
+        "absent-config",
+        "board-from:In Design",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "ba-pm.md": {
+      "facts": [
+        "absent-config",
+        "board-from:Backlog",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/definition-of-ready.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "brownfield-mapper.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "compliance-officer.md": {
+      "facts": [
+        "absent-config",
+        "blocked",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/compliance-checklist.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "designer.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/accessibility-checklist.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "factory-coach.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "frontend-ui.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/accessibility-checklist.md",
+        "kit-ref:agent-factory/workflows/04-ticket-to-pr.md",
+        "kit-ref:agent-factory/workflows/05-pr-quality-gate.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "greenfield-mapper.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "incident-responder.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "installer.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "orchestrator.md": {
+      "facts": [
+        "absent-config",
+        "board-from:Ready for Dev",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/definition-of-ready.md",
+        "kit-ref:agent-factory/contracts/board.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/17-task-claim.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "wf16",
+        "wf17",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "qe-e2e.md": {
+      "facts": [
+        "absent-config",
+        "board-from:In Review",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "release-manager.md": {
+      "facts": [
+        "absent-config",
+        "blocked",
+        "board-from:Ready to Release",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/release-readiness-checklist.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "security-nfr.md": {
+      "facts": [
+        "absent-config",
+        "blocked",
+        "board-from:In Security/NFR",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/security-nfr-checklist.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "software-engineer.md": {
+      "facts": [
+        "absent-config",
+        "blocked",
+        "board-from:In Development",
+        "coding-rules",
+        "failed-attempt",
+        "junior:auth",
+        "junior:concurrency",
+        "junior:migration",
+        "junior:money",
+        "junior:pii",
+        "junior:security",
+        "junior:test-integrity",
+        "kit-ref:agent-factory/checklists/complexity-rubric.md",
+        "kit-ref:agent-factory/checklists/example-mapping.md",
+        "kit-ref:agent-factory/workflows/04-ticket-to-pr.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "system-analyst.md": {
+      "facts": [
+        "absent-config",
+        "board-from:In Analysis",
+        "coding-rules",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "tech-lead.md": {
+      "facts": [
+        "absent-config",
+        "coding-rules",
+        "failed-attempt",
+        "kit-ref:agent-factory/checklists/complexity-rubric.md",
+        "kit-ref:agent-factory/workflows/04-ticket-to-pr.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    },
+    "uat-planner.md": {
+      "facts": [
+        "absent-config",
+        "board-from:In UAT",
+        "board-from:Ready for UAT",
+        "coding-rules",
+        "kit-ref:agent-factory/checklists/uat-checklist.md",
+        "kit-ref:agent-factory/workflows/16-context-read-write.md",
+        "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-fabrication",
+        "unknown-verify",
+        "wf16",
+        "wf18"
+      ],
+      "stopWhenItems": 0
+    }
+  },
+  "generated_by": "node scripts/check-role-rules.js --write-baseline",
+  "source_commit": "e8d7802ccf8ebf428a47703f6001327325e3aea3"
+}
