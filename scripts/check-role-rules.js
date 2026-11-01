@@ -27,6 +27,15 @@
 //   announce exit    the protocol's `▶ entering <ROLE>` and `■ exiting <ROLE>` lines
 // and stopWhenItems, the number of list items under `## Stop when`.
 //
+// CR-01 gap closure (plan 40-11). The D-30 stand-in admits every changed role clause when this check
+// exits 0, so the project's hard safety rules are facts too (SAFETY_RULE_FACTS). They are read from the
+// sentences of the unfenced lines of `## Hard limits` followed by `## Stop when`: a rule moved between
+// those two sections keeps its fact, a rule moved anywhere else loses it:
+//   no-merge no-deploy human-merge-deploy named-human production-human   CLAUDE.md Safety (hard)
+//   no-overwrite dry-run                                                 CLAUDE.md Installers, T-40-16
+//   no-relay wip-limit claim-cap only-spawner                            the coordinator rules, T-40-13
+//   self-sign                                                            the sign-off rule, T-40-18
+//
 // THE BOARD-MOVE PARTITION (D-29, D-33). `--check` also runs a second named check on the current tree
 // only: each role's exact `(from, to)` pairs, read from the `X → Y` code spans in `## Board moves`, must
 // partition the seed board's flow (five rules, listed above checkPartition). The flow order, the Exit
@@ -38,13 +47,16 @@
 // `unknown-verify` and `no-fabrication` facts in every role, at least one `## Stop when` list item, and
 // the D-08 heading order. The protocol keeps its own shape and is outside them.
 //
-// MODES. `--write-baseline` writes docs/audit/40-role-rule-inventory.json once (plan 40-01, before any
-// role prose changed). The default `--check` reads it, refuses to run without it, and never writes.
+// MODES. `--write-baseline` writes docs/audit/40-role-rule-inventory.json, deriving ONLY from git objects
+// at PHASE_40_START_COMMIT (the pre-rewrite roles), never from the working tree; so re-running it after a
+// role loses a fact writes the same bytes and cannot forgive the loss (WR-05). The default `--check`
+// reads it, refuses to run without it, and never writes.
 //
 // Node stdlib only. Run the committed .js; CHECK_ROOT points it at a hermetic mirror in the tests.
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join, basename } from "node:path";
+import { tmpdir } from "node:os";
+import { join, basename, dirname } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
 import { BOARD_REL } from "../install/state-layout.js";
 // The ONE fence state machine and the ONE section-end authority. This module declares no fence loop.
@@ -68,6 +80,47 @@ const fail = (m) => {
 };
 export const BASELINE_REL = "docs/audit/40-role-rule-inventory.json";
 export const GENERATED_BY = "node scripts/check-role-rules.js --write-baseline";
+// The Phase 40 start commit, recorded by plan 40-01 as the baseline's source_commit and as base_commit
+// in docs/audit/29-style-dispositions/00-base.md. The inventory is pinned to it by this constant, not by
+// reading 00-base.md, so a later base move cannot re-point the inventory (WR-05).
+export const PHASE_40_START_COMMIT = "e8d7802ccf8ebf428a47703f6001327325e3aea3";
+// The kit paths the derivation reads. deriveAllAt materializes exactly these from git objects.
+export const DERIVATION_PATHS = [
+    "agent-factory/roles",
+    "agent-factory/workflows",
+    "agent-factory/checklists",
+    "agent-factory/contracts",
+    "agent-factory/seed/memory-bank",
+];
+// THE SAFETY-RULE FACTS (CR-01, plan 40-11). Each holds when at least one sentence of the role's
+// `## Hard limits` + `## Stop when` text satisfies it. Adding or removing an entry changes the D-28
+// closed list of kinds (FACT_KINDS) and needs a re-derived baseline.
+export const SAFETY_RULE_FACTS = [
+    // CLAUDE.md Safety (hard): agents never merge a protected branch.
+    { fact: "no-merge", holds: (s) => /\bnever merge/i.test(s) },
+    // CLAUDE.md Safety (hard): agents never deploy to production.
+    { fact: "no-deploy", holds: (s) => /\bnever deploy/i.test(s) },
+    // CLAUDE.md Safety (hard): humans hold merge and deploy.
+    { fact: "human-merge-deploy", holds: (s) => /\bmerge and deploy (?:stay|remain)\b/i.test(s) },
+    // CLAUDE.md Safety (hard): named human confirmation.
+    { fact: "named-human", holds: (s) => /\bnamed human/i.test(s) },
+    // CLAUDE.md Safety (hard): a production action needs a human.
+    { fact: "production-human", holds: (s) => /\bproduction action/i.test(s) && /\bhuman/i.test(s) },
+    // CLAUDE.md Installers / 40-SECURITY.md T-40-16: never overwrite or delete user content.
+    { fact: "no-overwrite", holds: (s) => /\bnever overwrite/i.test(s) },
+    // CLAUDE.md Installers / 40-SECURITY.md T-40-16: dry-run capable.
+    { fact: "dry-run", holds: (s) => /\bdry[- ]run\b/i.test(s) },
+    // 40-SECURITY.md T-40-13: no agent hands data to another.
+    { fact: "no-relay", holds: (s) => /\b(?:never|not) relay/i.test(s) },
+    // 40-SECURITY.md T-40-13: the coordinator's WIP limit.
+    { fact: "wip-limit", holds: (s) => s.includes("queue.wip_limit") },
+    // 40-SECURITY.md T-40-13: the per-delegation claim cap.
+    { fact: "claim-cap", holds: (s) => s.includes("queue.claim_cap") },
+    // 40-SECURITY.md T-40-13: only the Orchestrator spawns.
+    { fact: "only-spawner", holds: (s) => /\bonly role that may spawn/i.test(s) },
+    // 40-SECURITY.md T-40-18: an agent never signs off its own work.
+    { fact: "self-sign", holds: (s) => /\bself-sign/i.test(s) },
+];
 // THE ONE RECORDED DECISION CONSTANT (D-13, confirmed by D-35). These are the roles that write code
 // or config and so keep "Follow the 12 coding rules in `AGENTS.md`". Every other fact in this file is
 // DERIVED from the kit; this list alone is a human decision. It is checked two ways: every member
@@ -155,8 +208,16 @@ export function deriveRoleFacts(raw, ctx) {
         facts.add("announce");
     if (has("■ exiting <ROLE>"))
         facts.add("exit");
-    if (sectionLines(text, flags, "## Hard limits").some((l) => FABRICATION_WORD.test(l))) {
+    const hardLimits = sectionLines(text, flags, "## Hard limits");
+    if (hardLimits.some((l) => FABRICATION_WORD.test(l))) {
         facts.add("no-fabrication");
+    }
+    // CR-01: the safety-rule facts, read from the sentences of `## Hard limits` then `## Stop when`.
+    const ruleText = [...hardLimits, ...sectionLines(text, flags, "## Stop when")].join(" ").replace(/\s+/g, " ").trim();
+    const sentences = ruleText.split(/(?<=[.;:!?])\s+/);
+    for (const rule of SAFETY_RULE_FACTS) {
+        if (sentences.some((x) => rule.holds(x)))
+            facts.add(rule.fact);
     }
     const levels = normalizeForTag(sectionLines(text, flags, "## Levels").join("\n"));
     for (const tag of ctx.juniorTags) {
@@ -303,6 +364,45 @@ export function deriveAll(root) {
         out[f] = deriveRoleFacts(readFileSync(p, "utf8"), ctx);
     }
     return out;
+}
+/**
+ * Derive every corpus file's facts from the git objects at `sha`, never from the working tree (WR-05).
+ * Materializes DERIVATION_PATHS into a temp directory, derives, and removes the directory. Throws an
+ * Error naming the sha, the root and the git command on any git failure.
+ */
+export function deriveAllAt(root, sha) {
+    const git = (args) => {
+        try {
+            return execFileSync("git", ["-C", root, ...args], {
+                maxBuffer: 64 * 1024 * 1024,
+                stdio: ["ignore", "pipe", "pipe"],
+            });
+        }
+        catch (e) {
+            const stderr = String(e.stderr ?? "").trim();
+            throw new Error(`git objects at ${sha} are unreadable under ${root}: \`git ${args.join(" ")}\` failed` +
+                (stderr !== "" ? ` (${stderr.split("\n")[0]})` : ` (${e.message.split("\n")[0]})`));
+        }
+    };
+    const paths = git(["ls-tree", "-r", "--name-only", sha, "--", ...DERIVATION_PATHS])
+        .toString("utf8")
+        .split("\n")
+        .filter((p) => p !== "");
+    if (paths.length === 0)
+        throw new Error(`git objects at ${sha} under ${root} hold no file under ${DERIVATION_PATHS.join(", ")}`);
+    const tmp = mkdtempSync(join(tmpdir(), "role-rules-at-"));
+    try {
+        for (const p of paths) {
+            const blob = git(["show", `${sha}:${p}`]);
+            const dst = join(tmp, p);
+            mkdirSync(dirname(dst), { recursive: true });
+            writeFileSync(dst, blob);
+        }
+        return deriveAll(tmp);
+    }
+    finally {
+        rmSync(tmp, { recursive: true, force: true });
+    }
 }
 /**
  * The D-13 set check, side one: every member must be a role basename. Side two (when `carries` is
@@ -578,23 +678,30 @@ function corpusCountFinding(corpus) {
         corpus.join(", "));
 }
 function writeBaseline() {
-    process.stdout.write("\n[check-role-rules --write-baseline] deriving the role-rule inventory (D-27)\n");
-    let files;
+    process.stdout.write(`\n[check-role-rules --write-baseline] deriving the role-rule inventory from git objects at ${PHASE_40_START_COMMIT} (D-27, WR-05)\n`);
+    let out;
+    let count;
     try {
-        const corpus = roleCorpus(ROOT);
-        const bad = corpusCountFinding(corpus);
+        const files = deriveAllAt(ROOT, PHASE_40_START_COMMIT);
+        const bad = corpusCountFinding(Object.keys(files).sort());
         if (bad !== null)
             throw new Error(bad);
-        files = deriveAll(ROOT);
+        count = Object.keys(files).length;
+        out = serializeBaseline({ generated_by: GENERATED_BY, source_commit: PHASE_40_START_COMMIT, files });
     }
     catch (e) {
-        fail(`derivation failed: ${e.message}`);
+        fail(`derivation at PHASE_40_START_COMMIT ${PHASE_40_START_COMMIT} failed, so ${BASELINE_REL} was not written (WR-05): ` +
+            e.message);
         return;
     }
-    const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
-    const out = serializeBaseline({ generated_by: GENERATED_BY, source_commit: sourceCommit, files });
-    writeFileSync(abs(BASELINE_REL), out);
-    pass(`wrote ${BASELINE_REL}: ${Object.keys(files).length} file(s) at ${sourceCommit}`);
+    try {
+        writeFileSync(abs(BASELINE_REL), out);
+    }
+    catch (e) {
+        fail(`could not write ${BASELINE_REL}: ${e.message}`);
+        return;
+    }
+    pass(`wrote ${BASELINE_REL}: ${count} file(s) at ${PHASE_40_START_COMMIT}`);
 }
 function check() {
     process.stdout.write("\n[check-role-rules] every baseline role fact still holds (D-27, D-28, D-31, D-35)\n");

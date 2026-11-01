@@ -73,6 +73,7 @@
         "kit-ref:agent-factory/checklists/compliance-checklist.md",
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "named-human",
         "no-fabrication",
         "unknown-verify",
         "wf16",
@@ -84,6 +85,7 @@
       "facts": [
         "absent-config",
         "coding-rules",
+        "human-merge-deploy",
         "kit-ref:agent-factory/checklists/accessibility-checklist.md",
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
@@ -143,6 +145,7 @@
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
         "no-fabrication",
+        "production-human",
         "unknown-verify",
         "wf16",
         "wf18"
@@ -153,9 +156,11 @@
       "facts": [
         "absent-config",
         "coding-rules",
+        "dry-run",
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
         "no-fabrication",
+        "no-overwrite",
         "unknown-verify",
         "wf16",
         "wf18"
@@ -166,15 +171,21 @@
       "facts": [
         "absent-config",
         "board-from:Ready for Dev",
+        "claim-cap",
         "coding-rules",
         "kit-ref:agent-factory/checklists/definition-of-ready.md",
         "kit-ref:agent-factory/contracts/board.md",
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/17-task-claim.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "no-deploy",
+        "no-merge",
+        "no-relay",
+        "only-spawner",
         "wf16",
         "wf17",
-        "wf18"
+        "wf18",
+        "wip-limit"
       ],
       "stopWhenItems": 0
     },
@@ -201,7 +212,10 @@
         "kit-ref:agent-factory/checklists/release-readiness-checklist.md",
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "named-human",
+        "no-deploy",
         "no-fabrication",
+        "production-human",
         "unknown-verify",
         "wf16",
         "wf18"
@@ -269,10 +283,12 @@
         "absent-config",
         "coding-rules",
         "failed-attempt",
+        "human-merge-deploy",
         "kit-ref:agent-factory/checklists/complexity-rubric.md",
         "kit-ref:agent-factory/workflows/04-ticket-to-pr.md",
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "named-human",
         "no-fabrication",
         "wf16",
         "wf18"
@@ -288,7 +304,9 @@
         "kit-ref:agent-factory/checklists/uat-checklist.md",
         "kit-ref:agent-factory/workflows/16-context-read-write.md",
         "kit-ref:agent-factory/workflows/18-context-compaction.md",
+        "named-human",
         "no-fabrication",
+        "self-sign",
         "unknown-verify",
         "wf16",
         "wf18"

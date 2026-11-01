@@ -11,7 +11,17 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync, execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  cpSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+  openSync,
+  closeSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import {
@@ -413,4 +423,79 @@ describe("check-role-rules: the end-state role checks (D-08, D-10, D-35, D-36)",
     expect(r.status, r.stdout).toBe(1);
     expect(r.stdout).toContain("software-engineer.md: `## Notes` sits outside `## Responsibilities` .. `## Output` (D-08)");
   });
+});
+
+// ---------------------------------------------------------------------------
+// CR-01 (plan 40-11, gap 1). The D-30 stand-in admits every changed role clause when check-role-rules
+// exits 0, so the inventory must carry the project's hard safety rules as facts, or deleting one leaves
+// every gate green. Case A plants the deletion on a hermetic mirror; case B makes the verifier's
+// reproduction permanent on a shared clone of the real repository, where the base commit is reachable
+// and the stand-in key is present, and drives the committed check-diff-disposition.js.
+// ---------------------------------------------------------------------------
+
+const MERGE_BAN = "Never merge to a protected branch. ";
+
+/**
+ * A shared clone of ROOT, checked out detached at ROOT's HEAD, with ROOT's working-tree inventory
+ * script and baseline copied over the clone's copies, so the case exercises uncommitted code during
+ * TDD. Argv arrays only, never a shell. The clone shares ROOT's object store and never writes into it.
+ */
+function sharedClone(prefix: string): string {
+  const tmp = freshTmp(prefix);
+  execFileSync("git", ["clone", "--shared", "--no-checkout", "-q", ROOT, tmp], { encoding: "utf8" });
+  const sha = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  execFileSync("git", ["-C", tmp, "checkout", "-q", "--detach", sha], { encoding: "utf8" });
+  for (const rel of ["scripts/check-role-rules.js", BASELINE_REL]) cpSync(join(ROOT, rel), join(tmp, rel));
+  return tmp;
+}
+
+/**
+ * Run one committed script inside a clone. Output goes to a file, not a pipe: check-diff-disposition
+ * prints close to a megabyte on a red run and exits, and a pipe reader was measured receiving only the
+ * first third of it, so a pipe capture would miss the finding this case looks for.
+ */
+function runIn(clone: string, script: string, args: readonly string[] = []): { status: number; stdout: string } {
+  const outPath = join(freshTmp("rr-out-"), "out.txt");
+  const fd = openSync(outPath, "w");
+  let status: number;
+  try {
+    const r = spawnSync("node", [join(clone, script), ...args], {
+      cwd: clone,
+      stdio: ["ignore", fd, fd],
+      env: { ...process.env, CHECK_ROOT: clone },
+    });
+    status = r.status ?? -1;
+  } finally {
+    closeSync(fd);
+  }
+  return { status, stdout: readFileSync(outPath, "utf8") };
+}
+
+describe("CR-01: the safety sentences are guarded (gap 1)", () => {
+  it("deleting the Orchestrator's merge ban on a mirror is red naming orchestrator.md: lost fact no-merge", () => {
+    const m = makeMirror("rr-cr01-");
+    expect(runGate(m).status).toBe(0);
+    edit(role(m, "orchestrator.md"), (s) => s.replace(MERGE_BAN, ""));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("orchestrator.md: lost fact no-merge");
+  });
+
+  it(
+    "end to end on a shared clone: the merge-ban deletion turns check-diff-disposition red through the stand-in",
+    () => {
+      const c = sharedClone("rr-cr01-clone-");
+      const green = runIn(c, "scripts/check-diff-disposition.js");
+      expect(green.status, green.stdout).toBe(0);
+      edit(join(c, "agent-factory", "roles", "orchestrator.md"), (s) => s.replace(MERGE_BAN, ""));
+      const red = runIn(c, "scripts/check-diff-disposition.js");
+      expect(red.status, red.stdout).toBe(1);
+      expect(red.stdout).toContain("role-rule inventory stand-in failed");
+      expect(red.stdout).toContain("agent-factory/roles/orchestrator.md");
+      const inv = runIn(c, "scripts/check-role-rules.js");
+      expect(inv.status, inv.stdout).toBe(1);
+      expect(inv.stdout).toContain("orchestrator.md: lost fact no-merge");
+    },
+    120_000,
+  );
 });
