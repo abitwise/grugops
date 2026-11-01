@@ -499,7 +499,9 @@ jobs:
           # design, and adding one later would mean auditing every change already admitted under the
           # strict rule to find which would have taken the hatch. Do NOT narrow the watched corpus
           # and do NOT move the recorded base commit forward — both clear the finding by deleting
-          # its evidence.
+          # its evidence — except by a recorded decision such as D-30
+          # (docs/audit/40-disposition-base-move.md), which moved the base once and declared the
+          # role-rule inventory stand-in for agent-factory/roles/; that stand-in fails closed.
           #
           # THE ONE THING A READER WILL GET WRONG. This gate exiting 0 today does NOT mean it has
           # never been watched fail. It means the watched corpus has no change since the recorded

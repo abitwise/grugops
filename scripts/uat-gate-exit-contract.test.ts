@@ -631,8 +631,19 @@ describe("the disposition register's measuring stick did not move", () => {
     const text = readFileSync(BASE, "utf8");
     const m = text.match(/^base_commit:\s*([0-9a-f]{40})\s*$/m);
     expect(m).not.toBeNull();
-    expect(m![1]).toBe("4d2b8f079cc43d7d6184729966492789fb4dc05e");
-    expect(m![1].startsWith("4d2b8f0")).toBe(true);
+    // D-30 (plan 40-01): the base moved ONCE, by recorded decision, from 4d2b8f0 to the Phase 40 start
+    // commit. docs/audit/40-disposition-base-move.md names both SHAs, the 721 findings the move retires
+    // and the command that reproduces them. Any other move is still the evidence deletion this pins.
+    expect(m![1]).toBe("e8d7802ccf8ebf428a47703f6001327325e3aea3");
+    expect(m![1].startsWith("e8d7802")).toBe(true);
+  });
+
+  it("`00-base.md` declares the D-30 role-rule inventory stand-in and nothing else", () => {
+    // D-30 (plan 40-01): the stand-in key names the derived inventory check. A different script here
+    // would be a different decision, so the value is pinned rather than only its shape.
+    const text = readFileSync(BASE, "utf8");
+    const keys = text.match(/^role_standin:.*$/gm) ?? [];
+    expect(keys).toEqual(["role_standin: scripts/check-role-rules.js"]);
   });
 
   // NO PER-TEST BOUND (plan 33-18, D-14 — W-13, WINDOWS.md row 232). This case carried its own

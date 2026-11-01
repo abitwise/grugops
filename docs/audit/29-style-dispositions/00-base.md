@@ -1,15 +1,16 @@
 ---
-base_commit: 4d2b8f079cc43d7d6184729966492789fb4dc05e
-recorded: 2026-08-13
-recorded_by: plan 29-04
+base_commit: e8d7802ccf8ebf428a47703f6001327325e3aea3
+role_standin: scripts/check-role-rules.js
+recorded: 2026-10-31
+recorded_by: plan 40-01
 gate: guard_diff_disposition
 ---
 
 # Phase 29 style-disposition base commit
 
-`base_commit` above is the commit immediately preceding plan 29-04's first content commit. Every
-run of `scripts/check-diff-disposition.js` takes its diff against that commit and against nothing
-else.
+`base_commit` above was first recorded as the commit immediately preceding plan 29-04's first
+content commit; since plan 40-01 (decision D-30, below) it is the Phase 40 start commit. Every run of
+`scripts/check-diff-disposition.js` takes its diff against that commit and against nothing else.
 
 **Why the base is recorded rather than inferred.** A base inferred from the branch — the merge base
 with `main`, `HEAD~1`, the first commit whose message matches a pattern — is a different commit in
@@ -31,3 +32,11 @@ has nothing to do with the kit's prose.
 **Moving this SHA is not a remedy for a red gate.** A red means a changed clause has no disposition
 row or no companion edit. Re-basing the comparison forward would delete the finding by deleting the
 evidence, which is the same act as narrowing a scan set to reach green. Write the row.
+
+**Moved once by recorded decision D-30 (plan 40-01).** The base moved from `4d2b8f0` (plan 29-04)
+to the Phase 40 start commit, and `role_standin` names the derived role-rule inventory check that
+stands in for per-clause disposition rows on `agent-factory/roles/` only. The decision, the 721
+findings the move retires and the command that reproduces them are in
+`docs/audit/40-disposition-base-move.md`. The stand-in is not a remedy for a red gate either: it
+fails closed, so a missing script, a failed spawn or a red inventory check makes every changed role
+clause a finding again.

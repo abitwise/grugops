@@ -112,6 +112,31 @@
 // Manufacturing a requirement to make the decision's arithmetic come out was the available move and
 // is refused. Source (c) is therefore the nine literals two live guards genuinely require present,
 // and this paragraph is the record of the third item's absence.
+//
+// ---------------------------------------------------------------------------------------------
+// D-30 (plan 40-01) — THE ROLE-RULE INVENTORY STAND-IN, AND WHY IT IS NOT AN OVERRIDE TIER.
+//
+// Phase 40 rewrites every role file, so nearly every role clause changes. A per-clause row for each
+// would be a second copy of the rewrite with no check behind it. Decision D-30 (recorded in
+// docs/audit/40-disposition-base-move.md) moves the recorded base once and lets the derived
+// role-rule inventory (scripts/check-role-rules.js, D-27) stand in for per-clause rows on
+// agent-factory/roles/ only. The mechanism is a declared key in the recorded base:
+//
+//   role_standin: scripts/check-role-rules.js
+//
+// When the key is present, main() spawns `node <value> --check` ONCE — from the CLI path, never at
+// module load, because scripts/checkpoints.ts imports locateSection from this module and the
+// admission hook loads it. If that run exits 0, a changed clause under agent-factory/roles/ that is
+// frozen only by `structuralSections`, or that has no disposition row, is admitted and counted on the
+// line "N role clause(s) admitted by the role-rule inventory stand-in (D-30)". It FAILS CLOSED: a
+// missing script, a spawn error or a non-zero exit makes every such role clause a finding naming the
+// stand-in failure, and a key outside the canonical form is a named refusal. A role clause that equals
+// a claim-registry verbatim anchor or a positive guard literal never reaches the stand-in and still
+// owes its companion edit. Workflow `## Stop conditions` / `## Commit` clauses and every non-role file
+// are untouched by it. A tree without the key behaves exactly as before.
+//
+// The stand-in holds for agent-factory/roles/ until a later recorded decision ends it (Phases 41 and
+// 42 edit roles too). Ending it means removing the key by a recorded decision.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
@@ -230,6 +255,15 @@ export const BASE_FILE = `${DISPOSITION_DIR}/00-base.md`;
 const DISPOSITION_NON_ROWS = ["00-base.md", "README.md"];
 /** The canonical form of a recorded base commit: a full 40-character SHA, nothing else. */
 const BASE_COMMIT_RE = /^base_commit:[ \t]*([0-9a-f]{40})[ \t]*$/m;
+/**
+ * D-30 (plan 40-01). The declared role-rule inventory stand-in: a repo-relative `scripts/<kebab>.js`
+ * path and nothing else. Read from the same recorded base as BASE_COMMIT_RE; any `role_standin:` line
+ * outside this form is a named refusal, so the gate never spawns a path it did not validate.
+ */
+const ROLE_STANDIN_RE = /^role_standin:[ \t]*(scripts\/[a-z0-9-]+\.js)[ \t]*$/m;
+const ROLE_STANDIN_KEY_RE = /^role_standin:/m;
+/** The files the D-30 stand-in may admit. Nothing outside this prefix ever reaches it. */
+const ROLE_STANDIN_SCOPE = "agent-factory/roles/";
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // D-01 source (c) — the positive guard literals, EXTRACTED from the guard that requires each one.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -1446,6 +1480,16 @@ function main() {
         verdict();
         return;
     }
+    // ── D-30: the role-rule inventory stand-in (see the header). CLI path only, spawned once. ───
+    const standin = readRoleStandin(readFileSync(abs(BASE_FILE), "utf8"));
+    if (standin.kind === "malformed") {
+        fail(`${BASE_FILE} carries a \`role_standin\` line outside the canonical form — a repo-relative ` +
+            `\`scripts/<kebab-case>.js\` path, alone on its line. The gate never spawns a value it did ` +
+            `not validate, so the line is refused rather than resolved on a guess (D-30)`);
+        verdict();
+        return;
+    }
+    const standinRun = standin.kind === "declared" ? runRoleStandin(standin.script) : { declared: false };
     // ── The changed side ─────────────────────────────────────────────────────────────────────────
     let changed;
     let attribution;
@@ -1502,6 +1546,7 @@ function main() {
     // refuse, taken the wrong way. So the clean tree is an EXPLICIT arm that names what it measured,
     // and the two refusals below are what stop a non-empty diff ever reaching it.
     if (changed.changedFiles.length === 0) {
+        reportStandin(standinRun, 0);
         if (FAILS === 0 && !derivationShort) {
             pass(`LANG-03: ZERO of the ${corpus.watched.length} watched file(s) differ from the recorded ` +
                 `base ${base.slice(0, 7)}, so there is no changed clause to disposition — a clean tree, ` +
@@ -1568,6 +1613,20 @@ function main() {
         return;
     }
     const findings = [];
+    // D-30: role clauses the stand-in admitted. Counted, published, never silent.
+    let admittedByStandin = 0;
+    // D-30: the positive guard literals' own clauses. The frozen text map keeps the FIRST source that
+    // named a clause, so a literal that also sits in a structural section would read as position only;
+    // this set is what keeps such a clause away from the stand-in regardless of that ordering.
+    const positiveLiteralClauses = new Set(POSITIVE_GUARD_LITERALS.flatMap((l) => segmentClauses(l).map((x) => x.clause)));
+    /** The stand-in's verdict for one clause: admit, fail with a reason, or not applicable. */
+    const standinFor = (file) => {
+        if (!standinRun.declared || !file.startsWith(ROLE_STANDIN_SCOPE))
+            return "not-applicable";
+        return standinRun.ok ? "admit" : standinRun.reason;
+    };
+    const standinFailureNote = (reason) => `        role-rule inventory stand-in failed: ${reason} (D-30) — the stand-in fails closed, so ` +
+        `this role clause is a finding exactly as it would be with no stand-in declared\n`;
     for (const c of changed.clauses) {
         // Positional freeze: the structural sections are frozen by WHERE they are, which is what
         // catches a REWORD. The reworded text is new, so it matches no frozen clause; its position
@@ -1577,6 +1636,22 @@ function main() {
         // prefix with a frozen clause is NOT an intersection and needs only an ordinary row.
         const textSource = frozen.text.get(c.clause);
         const source = region !== null ? "structuralSections" : (textSource ?? null);
+        // D-30. Only a clause frozen by POSITION alone reaches the stand-in: a clause that also equals a
+        // registry verbatim anchor or a positive guard literal never does, whatever section it sits in, so
+        // the registry and guard-literal companions stay owed. (A structural clause's own text is in the
+        // frozen text map under `structuralSections`; that entry is position, not a textual anchor.)
+        let standinNote = "";
+        if (source === "structuralSections" &&
+            (textSource === undefined || textSource === "structuralSections") &&
+            !positiveLiteralClauses.has(c.clause)) {
+            const s = standinFor(c.file);
+            if (s === "admit") {
+                admittedByStandin += 1;
+                continue;
+            }
+            if (s !== "not-applicable")
+                standinNote = standinFailureNote(s);
+        }
         if (source !== null) {
             let satisfied = false;
             let owed = FROZEN_SOURCES[source].companion;
@@ -1642,6 +1717,7 @@ function main() {
                                 : `        Carrier(s) that changed this clause: ` +
                                     `${attributedTo.map(shortCarrier).join(", ")} — none of them touched the ` +
                                     `companion.\n`) +
+                        standinNote +
                         `        Owed companion edit: ${owed}.\n` +
                         `        There is no override tier and no blanket exemption (D-04). Make the companion ` +
                         `edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded ` +
@@ -1651,11 +1727,17 @@ function main() {
             continue;
         }
         if (!disposition.rows.some((r) => rowMatches(r, c))) {
+            const s = standinFor(c.file);
+            if (s === "admit") {
+                admittedByStandin += 1;
+                continue;
+            }
             findings.push({
                 file: c.file,
                 line: c.line,
                 text: `${c.file}:${c.line} (${c.side}) — no disposition row\n` +
                     `        clause: ${JSON.stringify(c.clause)}\n` +
+                    (s === "not-applicable" ? "" : standinFailureNote(s)) +
                     `        Remedy: add a row to your plan's file under ${DISPOSITION_DIR}/ naming the file, ` +
                     `the line, the clause before and after, the profile rule id or decision that drove it, ` +
                     `and the disposition. A row matches when it names this file and either its \`before\` or ` +
@@ -1734,8 +1816,58 @@ function main() {
     process.stdout.write(`        ${changed.changedFiles.length} watched file(s) changed since ${base.slice(0, 7)}; ` +
         `${changed.clauses.length} changed clause(s) derived; ` +
         `${disposition.rows.length} disposition row(s) across ${disposition.files.length} file(s)\n`);
+    reportStandin(standinRun, admittedByStandin);
     FAILS += reportMeasured(measured, { pass, fail }, (f) => `        ${f.text}`);
     verdict();
+}
+/** Read the `role_standin` key from the recorded base. Pure: no I/O, no spawn. */
+function readRoleStandin(baseText) {
+    if (!ROLE_STANDIN_KEY_RE.test(baseText))
+        return { kind: "absent" };
+    const m = ROLE_STANDIN_RE.exec(baseText);
+    if (m === null)
+        return { kind: "malformed" };
+    return { kind: "declared", script: m[1] };
+}
+/**
+ * Spawn the declared stand-in once with `--check`, the way `git()` spawns git: an argv array, no
+ * shell, the script resolved under ROOT. Any throw — a missing script, a spawn error, a non-zero
+ * exit — is a failed stand-in, never a pass. Called from main() only.
+ */
+function runRoleStandin(script) {
+    const path = join(ROOT, script);
+    if (!existsSync(path)) {
+        return { declared: true, script, ok: false, reason: `${script} does not exist at ${path}` };
+    }
+    try {
+        execFileSync(process.execPath, [path, "--check"], {
+            cwd: ROOT,
+            env: { ...process.env, CHECK_ROOT: ROOT },
+            encoding: "buffer",
+            maxBuffer: 64 * 1024 * 1024,
+        });
+        return { declared: true, script, ok: true };
+    }
+    catch (e) {
+        const status = e.status;
+        const reason = typeof status === "number"
+            ? `\`node ${script} --check\` exited ${status}`
+            : `\`node ${script} --check\` could not be run (${e.message})`;
+        return { declared: true, script, ok: false, reason };
+    }
+}
+/** Publish the stand-in line whenever the key is declared, on the clean-tree arm and on the verdict arm. */
+function reportStandin(run, admitted) {
+    if (!run.declared)
+        return;
+    if (run.ok) {
+        pass(`${admitted} role clause(s) admitted by the role-rule inventory stand-in (D-30) — ` +
+            `\`node ${run.script} --check\` exited 0`);
+    }
+    else {
+        process.stdout.write(`        ${admitted} role clause(s) admitted by the role-rule inventory stand-in (D-30) — ` +
+            `the stand-in failed (${run.reason}), so every changed role clause is judged without it\n`);
+    }
 }
 function verdict() {
     process.stdout.write("\n== Result ==\n");

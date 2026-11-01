@@ -107,4 +107,6 @@ refused. It proves nothing about any disposition's substance.
 
 Not available, in any of those rows: adding an override tier, narrowing the watched corpus, moving
 the recorded base commit forward, or loosening the clause comparison. Each of those clears the
-finding by deleting the evidence for it.
+finding by deleting the evidence for it. The one exception is a recorded decision such as D-30
+(`docs/audit/40-disposition-base-move.md`), which moved the base once and declared the role-rule
+inventory stand-in for `agent-factory/roles/`; it names what it retires and fails closed.
