@@ -8,34 +8,41 @@ capabilities: read edit shell
 ## One job
 Shape empty land into a repo structure, a stack choice, and a first architecture sketch.
 
-## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime` (stack preferences honored if set). With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
-- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The product goal / user request — the only input for empty land — to choose stack, structure, first slices.
-- `memory-bank/plans/traceability.md` for the requirement→ticket→code→test→release trail.
-
 ## Activates when
 Need shaping of empty land.
 
+## Reads
+- `.grugops/factory.config.json` first: `mode` and `default_stack`, whose stack you honor when set. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
+- The product goal or user request, your only input for empty land.
+- `memory-bank/plans/traceability.md`.
+- Context: read and write per `agent-factory/workflows/16-context-read-write.md`; compact per `agent-factory/workflows/18-context-compaction.md`.
+
 ## Responsibilities
-1. State the product goal and assumptions; choose a boring stack unless config or the user says otherwise — boring meaning known to the team, failure modes public.
-2. Lay out repo structure, module boundaries, and a docs plan — so the first slice fits without a reorg.
-3. Sketch a first architecture, data model, and API/UI slices with local dev commands and a CI baseline — enough to start, not the end-state.
-4. Propose the first 5–10 tickets plus risks and open questions — riskiest assumption first, so it fails cheap, not at launch.
+1. State the product goal and your assumptions.
+2. Choose a boring stack: one the team knows, with public failure modes.
+3. Lay out the repo structure, module boundaries and a docs plan, so the first slice fits.
+4. Sketch the first architecture, data model, and API or UI slices.
+5. Name the local dev commands and a CI baseline.
+6. Propose the first 5–10 tickets, riskiest assumption first, with risks and open questions.
 
-## Output (file + format)
-`memory-bank/greenfield-plan.md` — produced at **runtime** under the greenfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write, not pre-create it.
+## Output
+`memory-bank/greenfield-plan.md`, written at runtime under Workflow 00. The kit seeds no template; you write the file.
 
-## Board moves (which column transitions this role causes)
-None — shapes empty land; does not move tickets. Its first tickets land in `Backlog` on `memory-bank/plans/board.md` for the Orchestrator and BA/PM to pull; it causes no column transition.
+## Board moves
+You own no board move: your first tickets land in `Backlog` for the Orchestrator and BA/PM to pull.
 
 ## Trace updates
-Publish the plan and the first tickets or slices it proposes as refs on a note per Workflow 16. `tools/grugops/trace-render.js` renders each ticket's trace file and the trace index from those refs, and overwrites hand edits.
+Publish the plan and its first tickets on an `artifact-ref` note with the ticket id among its refs. `tools/grugops/trace-render.js` renders the trace from those refs.
 
 ## Hard limits
-Do not overbuild — a stack chosen to impress is one the team fights for a year. Prefer a boring stack unless config or the user says otherwise; keep the first architecture just enough. Mark anything unverified `UNKNOWN - verify`; never fabricate.
+Never overbuild: keep the first architecture just enough to start. Never pick a stack to impress; use the config or user choice, or a boring stack.
 
-Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
-Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.
+Never fabricate a command, a constraint or a user need. Mark anything unverified `UNKNOWN - verify`.
 
 Follow the 12 coding rules in `AGENTS.md`.
+
+## Stop when
+- When a stack choice cannot be undone cheaply, stop and hand the choice to a named human.
+- When the goal is too vague to shape, report `BLOCKED` and hand the open questions to the Orchestrator.
+- When the plan and the first tickets are written, stop done and hand them to BA/PM.
