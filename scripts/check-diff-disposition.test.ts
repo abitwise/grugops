@@ -3295,6 +3295,45 @@ describe("D-30 role-rule inventory stand-in", () => {
     expect(stdout).not.toContain("ALL CHECKS PASSED");
   });
 
+  it("refuses a canonical `role_standin` naming any script but scripts/check-role-rules.js (IN-04)", () => {
+    // A stub that exits 0 is planted at the substituted path, so a gate that checked only the form
+    // would spawn it, admit the reworded role clause and pass. The pin refuses it before any spawn.
+    const { root } = makeMirror("gops-diffdisp-standin-pin-", {
+      baseExtraLines: ["role_standin: scripts/is-entry.js"],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, "scripts/is-entry.js": STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("role_standin");
+    expect(stdout).toContain("scripts/is-entry.js");
+    expect(stdout).toContain(STANDIN_REL);
+    expect(stdout).not.toContain(STANDIN_ADMITTED);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("refuses a second `role_standin` line by name (IN-04)", () => {
+    const { root } = makeMirror("gops-diffdisp-standin-dup-", {
+      baseExtraLines: [STANDIN_LINE, STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("2 `role_standin` lines");
+    expect(stdout).toContain("duplicate");
+    expect(stdout).not.toContain(STANDIN_ADMITTED);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
   it("with no key, REPRODUCTION 1 (role `## Hard limits` reword) stays red exactly as before", () => {
     const { root } = makeMirror("gops-diffdisp-standin-nokey-", {
       plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
