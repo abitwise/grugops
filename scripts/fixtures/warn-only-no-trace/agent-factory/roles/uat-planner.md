@@ -1,7 +1,7 @@
 # uat-planner (fixture role)
 
 A minimal fixture role. Not the real grugops role — just enough to satisfy the validator's
-8 prefix-matched section checks.
+prefix-matched section checks.
 
 ## One job
 do one fixture job.

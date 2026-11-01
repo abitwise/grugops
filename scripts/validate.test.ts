@@ -4056,3 +4056,38 @@ describe("READ-1: an unlistable tickets directory and an unreadable role file ar
     expect(r.stdout ?? "", out(r)).not.toContain("ALL CHECKS PASSED");
   });
 });
+
+// ── IN-03 (plan 40-15): fixture role headers type no section count ───────────────────────────────
+//
+// Every fixture role file opens with a comment saying it carries "just enough to satisfy the
+// validator's prefix-matched section checks". That comment used to type how many checks there
+// were, and ROLE_SECTIONS grew past it. A typed count is the drift this repo keeps paying for, so
+// the count is gone, and this case refuses one coming back: for every occurrence of the phrase,
+// the word before it must not be a number (digits or a number word). The walk must check at least
+// the 176 files measured when the count was removed, so an empty walk cannot pass.
+describe("fixture role headers type no section count (IN-03)", () => {
+  it("no word before 'prefix-matched section checks' in any fixture role file is a number", () => {
+    const PHRASE = "prefix-matched section checks";
+    const NUMBER_WORD =
+      /^(?:\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)$/i;
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const name of fixtureEntries) {
+      const rolesDir = join(FIX, name, "agent-factory", "roles");
+      if (!existsSync(rolesDir)) continue;
+      const files = (readdirSync(rolesDir, { recursive: true }) as string[])
+        .filter((rel) => rel.endsWith(".md"))
+        .sort();
+      for (const rel of files) {
+        const text = readFileSync(join(rolesDir, rel), "utf8");
+        if (!text.includes(PHRASE)) continue;
+        checked += 1;
+        for (const m of text.matchAll(/(\S+)\s+prefix-matched section checks/g)) {
+          if (NUMBER_WORD.test(m[1].replace(/[^\w]/g, ""))) offenders.push(`${name}/agent-factory/roles/${rel}: "${m[0]}"`);
+        }
+      }
+    }
+    expect(checked, "PREMISE: the walk reached the fixture role headers").toBeGreaterThanOrEqual(176);
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+});
