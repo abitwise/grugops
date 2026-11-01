@@ -502,6 +502,58 @@ describe("designer.md (TIER-05; D-23..D-27)", () => {
   });
 });
 
+describe("designer.md and frontend-ui.md plain rewrite (PLAIN-02; D-10, D-13, D-18, D-33)", () => {
+  const FRONTEND_UI = readFileSync(join(ROOT, "agent-factory/roles/frontend-ui.md"), "utf8");
+  const ORDER = [
+    "## One job",
+    "## Activates when",
+    "## Reads",
+    "## Responsibilities",
+    "## Output",
+    "## Board moves",
+    "## Trace updates",
+    "## Hard limits",
+    "## Stop when",
+  ];
+
+  it("both roles use the reference section order with bare headings", () => {
+    for (const [name, text] of [["designer.md", DESIGNER], ["frontend-ui.md", FRONTEND_UI]] as const) {
+      expect(text.split("\n").filter((l) => l.startsWith("## ")), name).toEqual(ORDER);
+    }
+  });
+
+  it("D-33: neither role claims a board pair", () => {
+    for (const [name, text] of [["designer.md", DESIGNER], ["frontend-ui.md", FRONTEND_UI]] as const) {
+      expect(section(text, "Board moves"), `${name} claims a pair`).not.toContain(" → ");
+    }
+    expect(section(FRONTEND_UI, "Board moves")).toContain(
+      "You own no board move: you write the contract at the design step, before `In Development`.",
+    );
+  });
+
+  it("D-13: the Designer drops the coding-rules line and Frontend/UI keeps it", () => {
+    expect(DESIGNER).not.toContain("12 coding rules");
+    expect(FRONTEND_UI).toContain("Follow the 12 coding rules in `AGENTS.md`.");
+  });
+
+  it("D-10: each role states when it stops, and Frontend/UI returns a ticket with no guidelines for the Designer", () => {
+    expect(section(DESIGNER, "Stop when")).toContain(
+      "- When a design decision changes the architecture, report `BLOCKED` and hand it to the Architect.",
+    );
+    expect(section(FRONTEND_UI, "Stop when")).toContain(
+      "- When the Designer's guidelines are missing or lack a token, report `BLOCKED` and return the ticket to the Orchestrator for the Designer.",
+    );
+  });
+
+  it("D-05: the moved detail lives in Workflow 14 steps 1 and 2", () => {
+    const wf14 = readFileSync(join(ROOT, "agent-factory/workflows/14-ui-design-to-build.md"), "utf8");
+    expect(section(DESIGNER, "Responsibilities")).toContain("4. Name the generated-design tells to avoid, per Workflow 14 step 1.");
+    expect(wf14).toContain("Name the generated-design tells to avoid, such as stock gradients, uniform card grids and filler copy.");
+    expect(section(FRONTEND_UI, "Output")).toContain("every part Workflow 14 step 2 names");
+    expect(wf14).toContain("It names the responsive and performance budget and the verification owner too.");
+  });
+});
+
 describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D-17, D-18, D-31)", () => {
   const levels = (): string => section(ENGINEER, "Levels");
 
@@ -1077,7 +1129,9 @@ describe("WF14 runs the Designer before Frontend/UI, and Frontend/UI reads the D
     expect(section(FRONTEND, "Reads")).toContain("- The Designer's published guidelines (pulled per Workflow 16)");
     const r2 = numbered(section(FRONTEND, "Responsibilities"))[1]?.text ?? "";
     expect(r2.startsWith("Read the design tokens (palette, type scale, spacing) from the Designer's published notes; never name new ones.")).toBe(true);
-    expect(r2).toContain("Name the component inventory");
+    // Plan 40-03 (D-14): one action per item, so the component inventory is the next item.
+    const r3 = numbered(section(FRONTEND, "Responsibilities"))[2]?.text ?? "";
+    expect(r3.startsWith("Name the component inventory")).toBe(true);
     expect(section(FRONTEND, "Output")).toContain("the token references read from the Designer's notes");
   });
 
