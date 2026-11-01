@@ -270,6 +270,30 @@ describe("validate-agent-factory.js (VAL-01 / VAL-02 self-test)", () => {
     expect(r.status).toBe(0);
   });
 
+  // (b2) Plan 40-08, D-09: every role must carry `## Activates when` and `## Stop when`. A copy of the
+  // `good` fixture with one heading deleted from one role fails naming that role and that heading.
+  // The heading must have been present before the deletion (asserted last), so the case cannot pass
+  // over a fixture that never carried it.
+  it.each([["## Stop when"], ["## Activates when"]])(
+    "D-09: GOOD copy with %s deleted from one role → nonzero naming the role and the heading",
+    (heading) => {
+      const kit = copyGoodKit(true);
+      const p = join(kit, "agent-factory/roles/software-engineer.md");
+      const before = readFileSync(p, "utf8");
+      writeFileSync(
+        p,
+        before
+          .split("\n")
+          .filter((l) => l !== heading)
+          .join("\n"),
+      );
+      const r = runFixture(kit);
+      expect(r.status, out(r)).not.toBe(0);
+      expect(out(r)).toContain(`agent-factory/roles/software-engineer.md: missing required role section "${heading}"`);
+      expect(before.split("\n")).toContain(heading);
+    },
+  );
+
   // (c) BAD fixtures → nonzero + the finding naming the defect.
   it.each([
     ["bad-role-missing-section", /Hard limits/i],
