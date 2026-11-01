@@ -106,7 +106,7 @@ describe("check-role-rules: the derived role-rule inventory (D-27)", () => {
 
   it("removing ba-pm.md's `## Board moves` claim is red naming board-from:Backlog", () => {
     const m = makeMirror("rr-board-");
-    edit(role(m, "ba-pm.md"), (s) => s.replace("owns the `Backlog → Ready` exit", "moves ideas forward"));
+    edit(role(m, "ba-pm.md"), (s) => s.replace("You own `Backlog → Ready` once", "You move ideas forward once"));
     const r = runGate(m);
     expect(r.status, r.stdout).toBe(1);
     expect(r.stdout).toContain("ba-pm.md: lost fact board-from:Backlog");
@@ -114,7 +114,11 @@ describe("check-role-rules: the derived role-rule inventory (D-27)", () => {
 
   it("removing the coding-rules line from a non-member (ba-pm.md) stays green as intended (D-13)", () => {
     const m = makeMirror("rr-d13-non-");
-    edit(role(m, "ba-pm.md"), dropLines((l) => l.includes("12 coding rules")));
+    // Plan 40-04 removed the line from ba-pm.md in the tree, so the mirror already carries the
+    // removal: assert both sides of it (baseline has the fact, the role lacks the line), then run.
+    const baseline = JSON.parse(readFileSync(join(m, BASELINE_REL), "utf8"));
+    expect(baseline.files["ba-pm.md"].facts).toContain("coding-rules");
+    expect(readFileSync(role(m, "ba-pm.md"), "utf8")).not.toContain("12 coding rules");
     const r = runGate(m);
     expect(r.status, r.stdout).toBe(0);
     expect(r.stdout).toContain("ba-pm.md: coding-rules removed — intended (D-13)");
