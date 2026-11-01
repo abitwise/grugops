@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 10/10 plans executed
+**Plans**: 16 plans (10 executed; 6 gap-closure plans, 40-11 to 40-16)
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -535,6 +535,18 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [x] 40-10-PLAN.md — role text joins the writing-profile gates, C-28-003 restored on measurement, CHANGELOG, phase gate (PLAIN-07, PLAIN-01)
+
+**Gap closure, round 1** *(from 40-VERIFICATION.md: gap 1 safety-sentence guard, gap 2 lean close)*
+
+Gap wave 1 *(parallel, disjoint files)*
+- [ ] 40-11-PLAN.md — twelve derived safety-rule facts in the D-30 stand-in, baseline re-derived from git objects at the Phase 40 start commit, red-on-deletion tests including a shared-clone end-to-end case (CR-01, WR-05; PLAIN-03)
+- [ ] 40-12-PLAN.md — role `## Stop when` frozen like `## Hard limits`, stand-in key pinned to scripts/check-role-rules.js, hook manifest regenerated (WR-04, IN-04; PLAIN-03)
+- [ ] 40-13-PLAN.md — Orchestrator lean close needs the named human's sign-off and a human merge, lean DoD gains the merge item, UAT Planner and Workflow 06 aligned (CR-02, WR-02; PLAIN-02, PLAIN-03, PLAIN-04, PLAIN-07)
+- [ ] 40-15-PLAN.md — fixture headers stop typing a section count, writing profile drops internal ids (IN-01, IN-03; PLAIN-01, PLAIN-02, PLAIN-07)
+- [ ] 40-16-PLAN.md — the 31 frozen-section findings the D-30 base move retired, read and disposed of by a named human (WR-06; PLAIN-03; human checkpoint)
+
+Gap wave 2 *(blocked on gap wave 1)*
+- [ ] 40-14-PLAN.md — partition refuses gate-skipping pairs and malformed move spans, security evidence re-verified red-on-deletion, review dispositions recorded, WR-03 deferred (WR-01, IN-02; PLAIN-03)
 
 **Cross-cutting constraints:**
 - D-27 / D-31: `node scripts/check-role-rules.js` stays green and each role's fact count after is at least its baseline count
