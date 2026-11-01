@@ -15628,17 +15628,23 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
   // grammar over these bytes, fence-blind AND level-blind — and asks the authority instead. A new
   // consumer is exactly when a `-1` contract silently breaks, so the site is classified by this scan
   // like every other: it binds the answer to `at` and refuses with `null` on the line below.
+  //
+  // (Plan 40-01, D-27) RE-DERIVED, UP BY ONE MODULE AND TWO SITES. `check-role-rules.ts`, the derived
+  // role-rule inventory, asks the locator for the seed board's column-table header and for the
+  // complexity rubric's factor-table header. Both sites bind the answer to `at` and throw on `-1` on
+  // the next line, so each is classified guarded by this scan like every other.
   const CONTRACT_CONSUMERS = [
     "audit-model.ts",
     "check-banned-claims.ts",
     "check-diff-disposition.ts",
     "check-imperative-lexicon.ts",
+    "check-role-rules.ts",
     "generate-catalog.ts",
     "generate-role-adapters.ts",
     "voice-model.ts",
   ];
-  const CONTRACT_CONSUMER_COUNT = 7;
-  const CONTRACT_SITE_COUNT = 9;
+  const CONTRACT_CONSUMER_COUNT = 8;
+  const CONTRACT_SITE_COUNT = 11;
 
   it("the consumer set and its call-site count are DERIVED, sorted and pinned two-sided", () => {
     const modules = consumerModules();
