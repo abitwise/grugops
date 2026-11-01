@@ -1,5 +1,5 @@
-// check-role-rules.test.ts — behavioral oracle for the derived role-rule inventory (Phase 40,
-// PLAIN-03; D-27, D-28, D-31, D-35).
+// check-role-rules.test.ts — behavioral oracle for the derived role-rule inventory and the board-move
+// partition (Phase 40, PLAIN-02, PLAIN-03; D-27, D-28, D-29, D-31, D-33, D-35).
 //
 // Drives the COMMITTED .js via spawnSync against a hermetic mirror (CHECK_ROOT), the shape of
 // check-kit-refs.test.ts. Nothing is written into the committed tree. Each red case plants one loss
@@ -21,6 +21,10 @@ import {
   buildContext,
   D13_CODING_ROLES,
   BASELINE_REL,
+  BOARD_MOVE_EXCEPTIONS,
+  checkPartition,
+  claimedPairs,
+  partitionModel,
 } from "./check-role-rules.js";
 import { listRoles } from "./kit-model.js";
 
@@ -198,5 +202,125 @@ describe("check-role-rules: the derived role-rule inventory (D-27)", () => {
     expect(existsSync(join(m, "agent-factory", "roles", "_role-switch-protocol.md"))).toBe(true);
     expect(deriveAll(m)).toEqual(baseline.files);
     expect(baseline.generated_by).toBe("node scripts/check-role-rules.js --write-baseline");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The board-move partition (D-29, D-33). Same planted-mirror shape: each red case plants or removes one
+// `X → Y` code span in one role's `## Board moves` and asserts the finding names the role, the pair and
+// the rule. The flow, the owners and the terminal column come from the mirror's own seed board.
+// ---------------------------------------------------------------------------
+
+const plantMove = (from: string, to: string) => (s: string): string =>
+  s.replace("## Board moves\n", `## Board moves\nYou own \`${from} → ${to}\` (planted).\n`);
+const dropMove = (from: string, to: string) => dropLines((l) => l.includes(`\`${from} → ${to}\``));
+
+describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
+  it("partition green control: the live mirror passes and prints the claimed pair count", () => {
+    const m = makeMirror("rr-part-green-");
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toMatch(/board-move partition: 18 claimed pair\(s\) over 12 flow column\(s\), terminal Done, 4 declared exception\(s\)/);
+    expect(r.stdout).toContain("board-move partition: 0 findings over 19/19");
+  });
+
+  it("partition model: flow, owners and terminal are derived from the seed board table", () => {
+    const model = partitionModel(ROOT);
+    expect(model.flow[0]).toBe("Backlog");
+    expect(model.terminal).toBe("Done");
+    expect(model.flow).not.toContain("Blocked");
+    expect(model.columns.has("Blocked")).toBe(true);
+    expect(model.owners.get("Ready for Dev")).toBe("orchestrator.md");
+    expect(model.owners.get("Done")).toBe("orchestrator.md");
+    expect(model.owners.get("In Development")).toBe("software-engineer.md");
+  });
+
+  it("partition rule 1 and rule 4: `In Review → Ready for UAT` planted into system-analyst.md is red", () => {
+    const m = makeMirror("rr-part-r1-");
+    edit(role(m, "system-analyst.md"), plantMove("In Review", "Ready for UAT"));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("qe-e2e.md, system-analyst.md: rule 1: `In Review → Ready for UAT` is claimed by 2 roles");
+    expect(r.stdout).toContain("system-analyst.md: rule 4: claims `In Review → Ready for UAT` but In Review is owned by qe-e2e.md");
+  });
+
+  it("partition rule 2: `Ready → In Analysis` removed from ba-pm.md is red", () => {
+    const m = makeMirror("rr-part-r2-");
+    edit(role(m, "ba-pm.md"), dropMove("Ready", "In Analysis"));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("ba-pm.md: rule 2: owns the Ready exit but does not claim its forward pair `Ready → In Analysis`");
+  });
+
+  it("partition rule 3: `In UAT → Done` removed from orchestrator.md is red", () => {
+    const m = makeMirror("rr-part-r3-");
+    edit(role(m, "orchestrator.md"), dropMove("In UAT", "Done"));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("orchestrator.md: rule 3: owns the terminal column Done but claims no pair into it");
+  });
+
+  it("partition rule 4: `In Review → Done` planted into system-analyst.md is red", () => {
+    const m = makeMirror("rr-part-r4-");
+    edit(role(m, "system-analyst.md"), plantMove("In Review", "Done"));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("system-analyst.md: rule 4: claims `In Review → Done` but In Review is owned by qe-e2e.md");
+    expect(r.stdout).not.toContain("rule 1:");
+  });
+
+  it("partition rule 4: a close into the terminal column is admitted only for the terminal column's owner", () => {
+    const model = partitionModel(ROOT);
+    // The Orchestrator owns Done, so its close out of In UAT (owned by the UAT Planner) is admitted.
+    const closes = checkPartition(model, { "orchestrator.md": [{ from: "In UAT", to: "Done" }] }, []);
+    expect(closes.filter((f) => f.includes("rule 4"))).toEqual([]);
+    const other = checkPartition(model, { "orchestrator.md": [{ from: "In UAT", to: "Done" }], "qe-e2e.md": [{ from: "In UAT", to: "Done" }] }, []);
+    expect(other).toContain(
+      "qe-e2e.md: rule 4: claims `In UAT → Done` but In UAT is owned by uat-planner.md, and the pair is not in BOARD_MOVE_EXCEPTIONS (D-29, D-33)",
+    );
+  });
+
+  it("partition rule 5: `Blocked → Backlog` removed from tech-lead.md is red", () => {
+    const m = makeMirror("rr-part-r5-");
+    edit(role(m, "tech-lead.md"), (s) => s.replace("`Blocked → Backlog` or ", ""));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("tech-lead.md: rule 5: BOARD_MOVE_EXCEPTIONS declares `Blocked → Backlog` but the role no longer claims it");
+  });
+
+  it("partition exceptions: exactly the four D-33 Tech Lead entries, each with a reason", () => {
+    expect(BOARD_MOVE_EXCEPTIONS.map((e) => `${e.role}: ${e.from} → ${e.to}`)).toEqual([
+      "tech-lead.md: Ready for Dev → In Design",
+      "tech-lead.md: Blocked → Ready for Dev",
+      "tech-lead.md: Blocked → Backlog",
+      "tech-lead.md: Blocked → In Design",
+    ]);
+    for (const e of BOARD_MOVE_EXCEPTIONS) expect(e.reason).toMatch(/D-33/);
+  });
+
+  for (const e of BOARD_MOVE_EXCEPTIONS) {
+    it(`partition exception \`${e.from} → ${e.to}\`: admitted for tech-lead.md, red when planted into designer.md`, () => {
+      const model = partitionModel(ROOT);
+      const live = claimedPairs(readFileSync(role(ROOT, "tech-lead.md"), "utf8"), model.columns);
+      expect(live.map((p) => `${p.from} → ${p.to}`)).toContain(`${e.from} → ${e.to}`);
+      const m = makeMirror("rr-part-exc-");
+      edit(role(m, "designer.md"), (s) =>
+        s.replace("## Board moves\n", `## Board moves\nPlanted: \`${e.from} → ${e.to}\`.\n`),
+      );
+      const r = runGate(m);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(`designer.md: rule 4: claims \`${e.from} → ${e.to}\``);
+      expect(r.stdout).not.toContain("tech-lead.md: rule 4");
+    });
+  }
+
+  it("partition fails closed: an Exit owner that is no role's name is a derivation failure naming it", () => {
+    const m = makeMirror("rr-part-owner-");
+    edit(join(m, "agent-factory", "seed", "memory-bank", "plans", "board.md"), (s) =>
+      s.replace("| In Analysis | behavior being mapped | System Analyst |", "| In Analysis | behavior being mapped | Systems Analist |"),
+    );
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain('column In Analysis has Exit owner "Systems Analist", which is no role\'s `# Role: ` name');
   });
 });

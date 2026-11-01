@@ -1,5 +1,5 @@
-// check-role-rules.ts — the derived role-rule inventory (Phase 40, PLAIN-03; decisions D-27, D-28,
-// D-31, D-35).
+// check-role-rules.ts — the derived role-rule inventory and the board-move partition (Phase 40,
+// PLAIN-02, PLAIN-03; decisions D-27, D-28, D-29, D-31, D-33, D-35).
 //
 // WHAT THIS IS. Phase 40 rewrites every role file. A rewrite can drop a load-bearing rule without any
 // existing guard noticing, because the rules are prose. This script derives, per role-corpus file, a
@@ -27,6 +27,12 @@
 //   announce exit    the protocol's `▶ entering <ROLE>` and `■ exiting <ROLE>` lines
 // and stopWhenItems, the number of list items under `## Stop when`.
 //
+// THE BOARD-MOVE PARTITION (D-29, D-33). `--check` also runs a second named check on the current tree
+// only: each role's exact `(from, to)` pairs, read from the `X → Y` code spans in `## Board moves`, must
+// partition the seed board's flow (five rules, listed above checkPartition). The flow order, the Exit
+// owners and the terminal column come from the seed board table; BOARD_MOVE_EXCEPTIONS is the one
+// declared list. It adds no fact kind to the baseline derivation.
+//
 // MODES. `--write-baseline` writes docs/audit/40-role-rule-inventory.json once (plan 40-01, before any
 // role prose changed). The default `--check` reads it, refuses to run without it, and never writes.
 //
@@ -39,7 +45,7 @@ import { isEntrypoint } from "./is-entry.js";
 import { BOARD_REL } from "../install/state-layout.js";
 // The ONE fence state machine and the ONE section-end authority. This module declares no fence loop.
 import { fencedLineFlags, unfencedHeadingIndex, sectionEndIndex } from "./frontmatter.js";
-import { listRoles, ROLE_COUNT, ROLE_DIR_EXEMPT_NAMES, ROLES_SUBPATH } from "./kit-model.js";
+import { listRoles, listRoleDisplayNames, ROLE_COUNT, ROLE_DIR_EXEMPT_NAMES, ROLES_SUBPATH } from "./kit-model.js";
 import { reportMeasured } from "./vacuity.js";
 
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
@@ -208,8 +214,19 @@ export function deriveRoleFacts(raw: string, ctx: FactContext): RoleFacts {
   return { facts: [...facts].sort(), stopWhenItems };
 }
 
-/** The seed board's column set, read from its `| Column | … |` table (the boardColumns reading pattern). */
-export function boardColumns(root: string): string[] {
+/** One row of the seed board's column table: the column and its `Exit owner` cell, in table order. */
+export interface BoardRow {
+  readonly column: string;
+  readonly exitOwner: string;
+}
+
+const plainCell = (c: string): string => c.replace(/`([^`]*)`/g, "$1").replace(/\*\*([^*]*)\*\*/g, "$1").trim();
+
+/**
+ * The seed board's column table rows in order, read from its `| Column | … | Exit owner | … |` table
+ * (the boardColumns reading pattern, extended to the `Exit owner` cell for the partition, D-29).
+ */
+export function boardRows(root: string): BoardRow[] {
   const p = join(root, BOARD);
   if (!existsSync(p)) throw new Error(`${BOARD} does not exist at ${p}`);
   const text = normalizeText(readFileSync(p, "utf8"));
@@ -217,17 +234,24 @@ export function boardColumns(root: string): string[] {
   const lines = text.split("\n");
   const at = unfencedHeadingIndex(text, BOARD_TABLE_HEADER);
   if (at === -1) throw new Error(`${BOARD} carries no \`${BOARD_TABLE_HEADER}\` header row`);
-  const out: string[] = [];
+  const ownerCol = cells(lines[at]).indexOf("Exit owner");
+  const out: BoardRow[] = [];
   for (let i = at + 1; i < lines.length; i++) {
     if (flags[i]) continue;
     const row = lines[i].trim();
     if (!row.startsWith("|")) break;
     if (isTableRule(row)) continue;
-    const cell = (cells(lines[i])[0] ?? "").replace(/`([^`]*)`/g, "$1").replace(/\*\*([^*]*)\*\*/g, "$1").trim();
-    if (cell !== "") out.push(cell);
+    const c = cells(lines[i]);
+    const column = plainCell(c[0] ?? "");
+    if (column !== "") out.push({ column, exitOwner: plainCell(c[ownerCol] ?? "") });
   }
   if (out.length === 0) throw new Error(`${BOARD}: the column table has no rows`);
   return out;
+}
+
+/** The seed board's column set, in table order. */
+export function boardColumns(root: string): string[] {
+  return boardRows(root).map((r) => r.column);
 }
 
 /** The complexity rubric's F3 = 2 risk tags, read from the rubric row, never typed. */
@@ -323,6 +347,204 @@ export function checkCodingRoleSet(
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// THE BOARD-MOVE PARTITION (D-29, D-33). A second named check over the same role corpus, run on the
+// current tree only: it adds nothing to the baseline fact derivation, so the source_commit equality
+// test is untouched. The flow order, the Exit owner of each column and the terminal column are read
+// from the seed board's column table, never typed. Each role's claimed `(from, to)` pairs are the
+// unfenced code spans in its `## Board moves` section that hold ` → ` with a column on both sides.
+//
+//   rule 1  no exact pair is claimed by two roles
+//   rule 2  a non-terminal flow column's Exit owner claims its forward pair (the next flow row)
+//   rule 3  the terminal column's Exit owner claims at least one pair into it
+//   rule 4  a pair from a column owned by another role, or from a column with no role owner
+//           (`Blocked`, `(raiser)`), is red unless it is a declared exception for that role or a close
+//           into the terminal column claimed by the terminal column's owner
+//   rule 5  a declared exception its role no longer claims is red (the list cannot go stale)
+// ---------------------------------------------------------------------------
+
+export interface BoardMoveException {
+  readonly role: string;
+  readonly from: string;
+  readonly to: string;
+  readonly reason: string;
+}
+
+// THE DECLARED EXCEPTIONS (D-33, approved by the human in plan 40-02's checkpoint). These are the only
+// moves a role may claim out of a column it does not own. Adding an entry needs a recorded human
+// decision; every entry has its own test, and rule 5 turns an entry its role no longer claims red.
+export const BOARD_MOVE_EXCEPTIONS: readonly BoardMoveException[] = [
+  {
+    role: "tech-lead.md",
+    from: "Ready for Dev",
+    to: "In Design",
+    reason: "F2 = 2 return: the plan needs design work before development (D-33)",
+  },
+  {
+    role: "tech-lead.md",
+    from: "Blocked",
+    to: "Ready for Dev",
+    reason: "exit of a dev-raised block, Workflow 04 step 15 (D-33)",
+  },
+  {
+    role: "tech-lead.md",
+    from: "Blocked",
+    to: "Backlog",
+    reason: "exit of a dev-raised block, Workflow 04 step 15 (D-33)",
+  },
+  {
+    role: "tech-lead.md",
+    from: "Blocked",
+    to: "In Design",
+    reason: "exit of a dev-raised block, Workflow 04 step 15 (D-33)",
+  },
+];
+
+export interface BoardPair {
+  readonly from: string;
+  readonly to: string;
+}
+
+export interface PartitionModel {
+  /** Role-owned columns in table order. */
+  readonly flow: readonly string[];
+  /** Column -> owning role basename, for role-owned columns only. */
+  readonly owners: ReadonlyMap<string, string>;
+  /** The last flow column. */
+  readonly terminal: string;
+  readonly columns: ReadonlySet<string>;
+}
+
+const ARROW = " → ";
+export const pairKey = (p: BoardPair): string => `${p.from}${ARROW}${p.to}`;
+
+/** The `(from, to)` pairs one role file claims in its unfenced `## Board moves` code spans. */
+export function claimedPairs(raw: string, columns: ReadonlySet<string>): BoardPair[] {
+  const text = normalizeText(raw);
+  const flags = fencedLineFlags(text);
+  const moves = sectionLines(text, flags, "## Board moves").join("\n");
+  const out: BoardPair[] = [];
+  const seen = new Set<string>();
+  for (const m of moves.matchAll(/`([^`\n]+)`/g)) {
+    if (!m[1].includes(ARROW)) continue;
+    const parts = m[1].split(ARROW);
+    if (parts.length !== 2) continue;
+    const pair = { from: parts[0].trim(), to: parts[1].trim() };
+    if (!columns.has(pair.from) || !columns.has(pair.to)) continue;
+    if (seen.has(pairKey(pair))) continue;
+    seen.add(pairKey(pair));
+    out.push(pair);
+  }
+  return out;
+}
+
+/**
+ * The partition model, derived from the seed board table and the roles' `# Role: ` headings. An Exit
+ * owner in parentheses (`(raiser)`) is outside the flow; any other owner must be a role display name,
+ * or the derivation throws naming it (a misspelt owner must never silently shrink the flow).
+ */
+export function partitionModel(root: string): PartitionModel {
+  const rows = boardRows(root);
+  const files = listRoles(root);
+  const names = listRoleDisplayNames(root);
+  const byName = new Map<string, string>();
+  names.forEach((n, i) => byName.set(n, files[i]));
+  const owners = new Map<string, string>();
+  const flow: string[] = [];
+  for (const r of rows) {
+    if (/^\(.*\)$/.test(r.exitOwner)) continue;
+    const f = byName.get(r.exitOwner);
+    if (f === undefined) {
+      throw new Error(`${BOARD}: column ${r.column} has Exit owner "${r.exitOwner}", which is no role's \`# Role: \` name`);
+    }
+    owners.set(r.column, f);
+    flow.push(r.column);
+  }
+  if (flow.length < 2) throw new Error(`${BOARD}: fewer than two role-owned columns, so there is no flow`);
+  return { flow, owners, terminal: flow[flow.length - 1], columns: new Set(rows.map((r) => r.column)) };
+}
+
+/** The five partition rules over the claimed pairs. Returns the findings, each naming role, pair and rule. */
+export function checkPartition(
+  model: PartitionModel,
+  claims: Readonly<Record<string, readonly BoardPair[]>>,
+  exceptions: readonly BoardMoveException[] = BOARD_MOVE_EXCEPTIONS,
+): string[] {
+  const out: string[] = [];
+  const roles = Object.keys(claims).sort();
+  const claimsOf = (r: string): readonly BoardPair[] => claims[r] ?? [];
+  const claimsPair = (r: string, p: BoardPair): boolean => claimsOf(r).some((q) => pairKey(q) === pairKey(p));
+
+  // rule 1
+  const holders = new Map<string, string[]>();
+  for (const r of roles) for (const p of claimsOf(r)) holders.set(pairKey(p), [...(holders.get(pairKey(p)) ?? []), r]);
+  for (const [k, rs] of [...holders.entries()].sort()) {
+    if (rs.length > 1) out.push(`${rs.join(", ")}: rule 1: \`${k}\` is claimed by ${rs.length} roles — a pair has one owner (D-29)`);
+  }
+
+  // rule 2
+  for (let i = 0; i + 1 < model.flow.length; i++) {
+    const p = { from: model.flow[i], to: model.flow[i + 1] };
+    const owner = model.owners.get(p.from) as string;
+    if (!claimsPair(owner, p)) {
+      out.push(`${owner}: rule 2: owns the ${p.from} exit but does not claim its forward pair \`${pairKey(p)}\` (D-29)`);
+    }
+  }
+
+  // rule 3
+  const terminalOwner = model.owners.get(model.terminal) as string;
+  if (!claimsOf(terminalOwner).some((p) => p.to === model.terminal)) {
+    out.push(`${terminalOwner}: rule 3: owns the terminal column ${model.terminal} but claims no pair into it (D-29)`);
+  }
+
+  // rule 4
+  const declared = (r: string, p: BoardPair): boolean =>
+    exceptions.some((e) => e.role === r && e.from === p.from && e.to === p.to);
+  for (const r of roles) {
+    for (const p of claimsOf(r)) {
+      const fromOwner = model.owners.get(p.from);
+      if (fromOwner === r) continue;
+      if (declared(r, p)) continue;
+      if (p.to === model.terminal && r === terminalOwner) continue;
+      const why = fromOwner === undefined ? `${p.from} has no role as its Exit owner` : `${p.from} is owned by ${fromOwner}`;
+      out.push(`${r}: rule 4: claims \`${pairKey(p)}\` but ${why}, and the pair is not in BOARD_MOVE_EXCEPTIONS (D-29, D-33)`);
+    }
+  }
+
+  // rule 5
+  for (const e of exceptions) {
+    if (!claimsPair(e.role, e)) {
+      out.push(`${e.role}: rule 5: BOARD_MOVE_EXCEPTIONS declares \`${pairKey(e)}\` but the role no longer claims it (D-33)`);
+    }
+  }
+  return out;
+}
+
+function checkBoardPartition(): void {
+  process.stdout.write("\n[check-role-rules] board-move ownership is a partition of the seed board (D-29, D-33)\n");
+  let model: PartitionModel;
+  let roles: string[];
+  const claims: Record<string, BoardPair[]> = {};
+  try {
+    model = partitionModel(ROOT);
+    roles = listRoles(ROOT);
+    for (const r of roles) claims[r] = claimedPairs(readFileSync(join(ROOT, ROLES_SUBPATH, r), "utf8"), model.columns);
+  } catch (e) {
+    fail(`board-move partition: derivation failed: ${(e as Error).message}`);
+    return;
+  }
+  const pairs = roles.reduce((n, r) => n + claims[r].length, 0);
+  process.stdout.write(
+    `  INFO  board-move partition: ${pairs} claimed pair(s) over ${model.flow.length} flow column(s), ` +
+      `terminal ${model.terminal}, ${BOARD_MOVE_EXCEPTIONS.length} declared exception(s)\n`,
+  );
+  FAILS += reportMeasured(
+    { label: "board-move partition", visited: roles.length, expected: ROLE_COUNT, findings: checkPartition(model, claims) },
+    { pass, fail: (s) => process.stdout.write(`  FAIL  ${s}\n`) },
+    (s) => `        - ${s}`,
+  );
 }
 
 /** Serialize with every object key sorted, two-space indent, trailing newline. */
@@ -455,7 +677,10 @@ function check(): void {
 
 export function runAll(argv: readonly string[] = process.argv.slice(2)): void {
   if (argv.includes("--write-baseline")) writeBaseline();
-  else check();
+  else {
+    check();
+    checkBoardPartition();
+  }
   process.stdout.write("\n== Result ==\n");
   if (FAILS === 0) {
     process.stdout.write("ALL CHECKS PASSED\n");
