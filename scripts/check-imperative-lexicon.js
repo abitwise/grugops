@@ -194,7 +194,7 @@ import { BOARD_REL } from "../install/state-layout.js";
 import { fencedLineFlags, unfencedHeadingIndex, sectionEndIndex, } from "./frontmatter.js";
 // The workflow corpus and the two display-name derivations (D-40). MAX_WALK_ENTRIES is the walk's
 // WORK bound, taken from the one place this repository declares it.
-import { listWorkflows, listRoleDisplayNames, listWorkflowDisplayNames, MAX_WALK_ENTRIES, } from "./kit-model.js";
+import { listWorkflows, listRoleDisplayNames, listWorkflowDisplayNames, listRoleDirEntries, ROLE_DIR_EXEMPT_NAMES, ROLE_COUNT, MAX_WALK_ENTRIES, } from "./kit-model.js";
 // The shared element-level vacuity rule (AP-1, plan 29-01), folded once per predicate.
 import { reportMeasured } from "./vacuity.js";
 // Two CLOSED token sets, taken whole. Never filtered, never re-declared.
@@ -221,6 +221,7 @@ const WORKFLOWS_DIR = "agent-factory/workflows";
 const CHECKLISTS_DIR = "agent-factory/checklists";
 const SEED_DIR = "agent-factory/seed";
 const CONTRACTS_DIR = "agent-factory/contracts";
+const ROLES_DIR = "agent-factory/roles";
 // ---------------------------------------------------------------------------
 // THE DERIVED EXCLUSION (D-42) — a MARKER, never a filename.
 //
@@ -255,7 +256,7 @@ export const GENERATED_EXEMPT_COUNT = 2;
 // THE LOCATIONS EXCLUDED BY NAME, WITH THEIR REASONS — never by silent omission.
 //
 // These are DOCUMENTATION ABOUT THE KIT rather than instructions an agent executes, which is the
-// line D-36 draws. They are structurally outside the four parts below (nothing walks them), and the
+// line D-36 draws. They are structurally outside the five parts below (nothing walks them), and the
 // reason is recorded here and named inline in the PASS line so a reader meets it rather than
 // inferring it from a directory's absence.
 // ---------------------------------------------------------------------------
@@ -273,13 +274,11 @@ export const GOVERNED_CORPUS_EXCLUDED_LOCATIONS = [
         reason: "reference documentation for every dial in factory.config.json. It is documentation about " +
             "the kit rather than a procedure, and its rows are key definitions rather than steps",
     },
-    {
-        location: "agent-factory/roles/",
-        label: "the role corpus",
-        reason: "the roles are governed by guard_voice, guard_caveman_voice and guard_role_clause_uniqueness " +
-            "in scripts/check-foundation-guards.ts. A second predicate over the same bytes from a second " +
-            "module is how two gates come to disagree about one corpus",
-    },
+    // THE ROLE CORPUS LEFT THIS LIST IN PLAN 40-10 (PLAIN-07, v3.0 D-9). It was excluded because the
+    // foundation guards already read the role bytes for voice and clause uniqueness. Those guards ask
+    // different questions from this one: none of them measures sentence length or bans a modal in a
+    // numbered item. The roles are now the fifth governed part below, so they meet the same WP-02..WP-08
+    // rules as the workflows.
 ];
 // Refusals raised while DERIVING the corpus. Collected rather than thrown: this is a GATE, and a
 // gate's floor is to REPORT (the kit-model throw-versus-report split).
@@ -344,6 +343,36 @@ function workflowMembers() {
         return [];
     }
 }
+/**
+ * The role part (plan 40-10, PLAIN-07): every `.md` in agent-factory/roles/, the 19 roles and the
+ * role-switch protocol.
+ *
+ * Derived through kit-model's listRoleDirEntries, not a second directory walk. listRoleDirEntries drops
+ * the named exemptions, and the protocol is one of them, so the `.md` exemptions present on disk are
+ * joined back in. This is the same scan set guard_role_corpus_total in check-foundation-guards.ts
+ * sums: a deleted protocol shows as 19 and a planted `_x.md` shows as 21.
+ */
+function roleMembers() {
+    let entries;
+    try {
+        entries = listRoleDirEntries(ROOT);
+    }
+    catch (e) {
+        DERIVATION_REFUSALS.push(`the role part could not be derived through kit-model's listRoleDirEntries() — ` +
+            `${e.message}`);
+        return [];
+    }
+    const exemptMd = ROLE_DIR_EXEMPT_NAMES.filter((n) => n.endsWith(MARKDOWN_EXT) && existsSync(abs(`${ROLES_DIR}/${n}`)));
+    return [...entries.filter((f) => f.endsWith(MARKDOWN_EXT)), ...exemptMd]
+        .sort()
+        .map((f) => `${ROLES_DIR}/${f}`);
+}
+/**
+ * The role part's own size, two-sided: the 19 roles plus the role-switch protocol. The aggregate pin
+ * below would also catch a lost role, but it names only a total. This pin names the part and every
+ * member, so a reader sees which file is missing or extra.
+ */
+export const ROLE_PART_COUNT = ROLE_COUNT + 1;
 /** The seed-template part: markdown anywhere under agent-factory/seed/, walked. */
 function seedMembers() {
     const acc = [];
@@ -372,14 +401,15 @@ const CANDIDATE_PARTS = [
     { name: "checklists", members: flatMarkdown(CHECKLISTS_DIR) },
     { name: "seedTemplates", members: seedMembers() },
     { name: "contracts", members: flatMarkdown(CONTRACTS_DIR) },
+    { name: "roles", members: roleMembers() },
 ];
 /** Every candidate carrying the generator's marker, in candidate order. */
 export const GENERATED_EXEMPT = CANDIDATE_PARTS.flatMap((p) => [...p.members].filter(isGenerated));
 /**
- * The four named parts, AFTER the derived exclusion.
+ * The five named parts, AFTER the derived exclusion.
  *
  * The per-part vacuity floor below is evaluated over THESE, and it is per-part on purpose: a floor
- * written over the concatenated total could be cleared by three parts while the fourth vanished
+ * written over the concatenated total could be cleared by four parts while the fifth vanished
  * entirely, and the gate would report a verdict over a corpus a quarter of which it never opened.
  */
 export const GOVERNED_CORPUS_PARTS = CANDIDATE_PARTS.map((p) => ({
@@ -391,8 +421,8 @@ export function governedCorpus() {
     return GOVERNED_CORPUS_PARTS.flatMap((p) => [...p.members]);
 }
 /**
- * The pinned cardinality. 48 today: 19 workflows + 14 hand-authored checklists + 12 seed templates
- * + 3 contracts.
+ * The pinned cardinality. 69 today: 19 workflows + 15 hand-authored checklists + 12 seed templates
+ * + 3 contracts + 20 role-corpus files (19 roles and the role-switch protocol).
  *
  * TWO-SIDED. A corpus that silently SHRANK reports a clean pass over the documents it stopped
  * reading; one that silently GREW is a scan nobody reviewed.
@@ -425,8 +455,16 @@ export function governedCorpus() {
  * document(s), expected exactly 48 (workflows 19, checklists 15, seedTemplates 12, contracts 3)" and
  * zero findings over 49/49 elements for guard_sentence_form, and zero over the unchanged 19/19 for
  * guard_imperative_lexicon, because the rubric carries no `## Steps` section.
+ *
+ * MOVED 49 → 69 ON 2026-11-01 IN PLAN 40-10, AND THE ENTRANT IS NAMED:
+ * the role corpus, `agent-factory/roles/` — the 19 roles and `_role-switch-protocol.md` (PLAIN-07,
+ * v3.0 D-9). Its GOVERNED_CORPUS_EXCLUDED_LOCATIONS entry is deleted, and the files enter a fifth
+ * derived part, `roles`, by existing. The pin moved after the gate had read the new part: the run that
+ * moved it reported 69 governed documents in 5 derived parts and zero findings over 69/69 elements for
+ * guard_sentence_form, and zero over the unchanged 19/19 for guard_imperative_lexicon, because no role
+ * carries a `## Steps` section.
  */
-export const GOVERNED_CORPUS_COUNT = 49;
+export const GOVERNED_CORPUS_COUNT = 69;
 // ---------------------------------------------------------------------------
 // APPROVED_STEP_VERBS — the CLOSED verb set (WP-01).
 //
@@ -1313,28 +1351,37 @@ function runAll() {
     }
     // VACUITY FLOOR, PER PART, BEFORE THE AGGREGATE PIN. A part contributing nothing FAILS BY NAME
     // rather than shrinking the denominator, because a floor over the concatenated total could be
-    // cleared by three parts while the fourth vanished entirely.
+    // cleared by four parts while the fifth vanished entirely.
     for (const part of GOVERNED_CORPUS_PARTS) {
         if (part.members.length === 0) {
             fail(`the "${part.name}" part of the governed corpus derived ZERO members — refusing to report ` +
                 `a verdict over a part that contributes nothing, because a vacuous scan set passes every ` +
-                `guard. This floor is per-part on purpose: three parts could clear a floor written over ` +
-                `the concatenated total while the fourth vanished entirely`);
+                `guard. This floor is per-part on purpose: four parts could clear a floor written over ` +
+                `the concatenated total while the fifth vanished entirely`);
         }
+    }
+    // THE ROLE PART'S OWN PIN, TWO-SIDED (plan 40-10). A zero is the floor's case above, so this fires
+    // only on a non-empty part of the wrong size, and it names the part and every member it derived.
+    const rolePart = GOVERNED_CORPUS_PARTS.find((p) => p.name === "roles");
+    if (rolePart !== undefined && rolePart.members.length > 0 && rolePart.members.length !== ROLE_PART_COUNT) {
+        fail(`the "roles" part derived ${rolePart.members.length} file(s), expected exactly ` +
+            `${ROLE_PART_COUNT} (${ROLE_COUNT} roles + the role-switch protocol): ` +
+            `${rolePart.members.join(", ")} — a role file left or arrived without a decision; ` +
+            `ROLE_COUNT in scripts/kit-model.ts is the one place a role count moves`);
     }
     const corpus = governedCorpus();
     // TWO-SIDED PIN, worded so that moving it is visibly not the remedy.
     //
     // THIS REFUSAL STAYS, AND IS DELIBERATELY NOT FOLDED INTO THE TWO PER-GUARD DENOMINATOR REFUSALS
     // BELOW, because it answers a different question. This one asks whether the SCAN SET IS THE RIGHT
-    // SIZE — did the four-part walk assemble the corpus it claims to govern. Those two ask whether the
+    // SIZE — did the five-part walk assemble the corpus it claims to govern. Those two ask whether the
     // LOOP REACHED IT — did every member the walk found actually produce an element. Folding them
     // together would make a corpus that silently SHRANK and a loop that silently SKIPPED report the
     // same failure, and the remedies for those are opposite: one is a derivation bug, the other is a
     // classification bug.
     if (corpus.length !== GOVERNED_CORPUS_COUNT) {
         fail(`the governed corpus derived ${corpus.length} document(s), expected exactly ` +
-            `${GOVERNED_CORPUS_COUNT} (${corpusBreakdown()}) — walk all four parts' derivations, the ` +
+            `${GOVERNED_CORPUS_COUNT} (${corpusBreakdown()}) — walk all ${GOVERNED_CORPUS_PARTS.length} parts' derivations, the ` +
             `${GENERATED_MARKER} exclusion and the GOVERNED_CORPUS_EXCLUDED_LOCATIONS reasons BEFORE ` +
             `updating GOVERNED_CORPUS_COUNT in scripts/check-imperative-lexicon.ts. A new workflow is ` +
             `supposed to enter this scan BY EXISTING; moving the pin is how you acknowledge that it ` +
@@ -1387,7 +1434,7 @@ function runAll() {
             stepFindings.push(f);
     }
     const stepFiles = bulletFilesVisited.length;
-    process.stdout.write(`        corpus: ${corpus.length} file(s) in 4 part(s) — ${corpusBreakdown()}; ` +
+    process.stdout.write(`        corpus: ${corpus.length} file(s) in ${GOVERNED_CORPUS_PARTS.length} part(s) — ${corpusBreakdown()}; ` +
         `${GENERATED_EXEMPT.length} excluded by the derived \`${GENERATED_MARKER}\` marker ` +
         `(${GENERATED_EXEMPT.join(", ") || "none"} — machine-generated, the security checklist from a ` +
         `third-party standard and the seed trace index by trace-render, so a style pass would be ` +
@@ -1486,7 +1533,7 @@ function runAll() {
     // predicates report two separate verdicts, and a reader who scrolls to the second one must meet
     // its denominator and its exclusions there — a verdict whose corpus is stated only beside a
     // different verdict is a verdict a reader has to reconstruct.
-    process.stdout.write(`        corpus: ${corpus.length} file(s) in 4 part(s) — ${corpusBreakdown()}; ` +
+    process.stdout.write(`        corpus: ${corpus.length} file(s) in ${GOVERNED_CORPUS_PARTS.length} part(s) — ${corpusBreakdown()}; ` +
         `${GENERATED_EXEMPT.length} excluded by the derived \`${GENERATED_MARKER}\` marker ` +
         `(${GENERATED_EXEMPT.join(", ") || "none"} — machine-generated, the security checklist from a ` +
         `third-party standard and the seed trace index by trace-render, so a style pass would be ` +
@@ -1536,7 +1583,7 @@ function runAll() {
         // A PASS line must never state a check that was not performed: every number below is read from
         // the run that just happened, and every exclusion is named inline with its reason so a reader
         // meets it here rather than inferring it from a file's absence.
-        pass(`LANG-02: ${corpus.length} governed document(s) in 4 derived part(s) — ${corpusBreakdown()}; ` +
+        pass(`LANG-02: ${corpus.length} governed document(s) in ${GOVERNED_CORPUS_PARTS.length} derived part(s) — ${corpusBreakdown()}; ` +
             `${GENERATED_EXEMPT.length} excluded by the derived \`${GENERATED_MARKER}\` marker; ` +
             `${GOVERNED_CORPUS_EXCLUDED_LOCATIONS.length} location(s) excluded by name (` +
             `${GOVERNED_CORPUS_EXCLUDED_LOCATIONS.map((e) => `${e.location} — ${e.label}: ${e.reason}`).join("; ")}); ` +

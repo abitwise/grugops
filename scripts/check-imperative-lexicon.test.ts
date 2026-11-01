@@ -54,6 +54,7 @@ import {
   LEXICON_MEASURED_LABEL,
   SENTENCE_MEASURED_LABEL,
   GOVERNED_CORPUS_EXCLUDED_LOCATIONS,
+  ROLE_PART_COUNT,
   GENERATED_MARKER,
   GENERATED_EXEMPT_COUNT,
   PROCEDURAL_SENTENCE_MAX_WORDS,
@@ -109,6 +110,7 @@ const WORKFLOW_N = partSize("workflows");
 const CHECKLIST_N = partSize("checklists");
 const SEED_N = partSize("seedTemplates");
 const CONTRACT_N = partSize("contracts");
+const ROLE_CORPUS_N = partSize("roles");
 const ROLE_N = partSize("roleDisplayNames");
 const CONFIG_KEY_N = partSize("configKeys");
 const NOTE_KIND_N = partSize("noteKinds");
@@ -195,6 +197,9 @@ function configDoc(keys: number): string {
 // at — a plant naming `BA/PM` would be a word the mirror's derivation has never heard of, and the
 // case would pass through the `not-an-approved-verb` arm while claiming to prove the actor arm.
 const mirrorRoleDisplayName = (n: number): string => `Fixture Role ${n}`;
+/** The mirror's role-switch protocol: `_`-prefixed, so a role-corpus member but not a role. */
+const PROTOCOL = "agent-factory/roles/_role-switch-protocol.md";
+const PROTOCOL_DOC = ["# Role-switch protocol", "", "Protocol text stays short.", ""].join("\n");
 function roleDoc(n: number): string {
   return [
     `# Role: ${mirrorRoleDisplayName(n)}`,
@@ -213,6 +218,8 @@ type MirrorSpec = {
   seed?: number;
   contracts?: number;
   roles?: number;
+  /** Whether the mirror ships the role-switch protocol. Default true: the roles part is 19 + 1. */
+  protocol?: boolean;
   boardColumns?: number;
   noteKinds?: number;
   configKeys?: number;
@@ -279,11 +286,14 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   for (let i = 1; i < nContracts; i++) {
     write(`agent-factory/contracts/${String(i).padStart(2, "0")}-fixture.md`, CONFORMING_CONTRACT(i));
   }
-  // Outside the corpus, but inside the Technical Names derivation.
+  // INSIDE THE CORPUS SINCE PLAN 40-10 (PLAIN-07): the roles are the fifth governed part, and they
+  // still feed the Technical Names derivation. The part is the roles plus the role-switch protocol,
+  // so the mirror ships both and every sentence in them is measured like a workflow's.
   const nRoles = spec.roles ?? ROLE_N;
   for (let i = 0; i < nRoles; i++) {
     write(`agent-factory/roles/fixture-${String(i).padStart(2, "0")}.md`, roleDoc(i));
   }
+  if (spec.protocol ?? true) write(PROTOCOL, PROTOCOL_DOC);
   write(CONFIG_JSON, configDoc(spec.configKeys ?? CONFIG_KEY_N));
 
   for (const [rel, body] of Object.entries(spec.extra ?? {})) {
@@ -336,7 +346,13 @@ describe("check-imperative-lexicon — the clean mirror", () => {
     const { status, stdout } = runGate(makeMirror("gops-lex-clean-"));
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
-    expect(stdout).toContain(`${GOVERNED_CORPUS_COUNT} governed document(s) in 4 derived part(s)`);
+    expect(stdout).toContain(`${GOVERNED_CORPUS_COUNT} governed document(s) in 5 derived part(s)`);
+    // The PASS line names all five parts with their sizes, whatever order the parts are walked in.
+    const passLine = stdout.split("\n").find((l) => l.includes("PASS  LANG-02:")) ?? "";
+    for (const p of GOVERNED_CORPUS_PARTS) {
+      expect(passLine).toContain(`${p.name} ${p.members.length}`);
+    }
+    expect(passLine).toContain(`roles ${ROLE_PART_COUNT}`);
     // Both predicates print their own measured verdict — two names, two denominators.
     expect(stdout).toContain("[guard_imperative_lexicon]");
     expect(stdout).toContain("[guard_sentence_form]");
@@ -356,6 +372,8 @@ describe("check-imperative-lexicon — the clean mirror", () => {
       expect(stdout).toContain(e.location);
       expect(stdout).toContain(e.reason);
     }
+    // (Plan 40-10) The role corpus is no longer excluded by name; it is governed.
+    expect(GOVERNED_CORPUS_EXCLUDED_LOCATIONS.map((e) => e.location)).not.toContain("agent-factory/roles/");
     expect(stdout).toContain(
       `${TECHNICAL_NAMES_COUNT} Technical Name(s) DERIVED from the kit, never listed`,
     );
@@ -367,13 +385,18 @@ describe("check-imperative-lexicon — the clean mirror", () => {
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe("check-imperative-lexicon — the derived corpus", () => {
-  for (const part of ["workflows", "checklists", "seedTemplates", "contracts"] as const) {
+  for (const part of ["workflows", "checklists", "seedTemplates", "contracts", "roles"] as const) {
     it(`a mirror whose "${part}" part derives ZERO members exits 1 naming that part`, () => {
       const spec: MirrorSpec = {};
       if (part === "workflows") spec.workflows = 0;
       if (part === "checklists") spec.checklists = 0;
       if (part === "seedTemplates") spec.seed = 0;
       if (part === "contracts") spec.contracts = 0;
+      // The roles directory emptied: no role and no protocol (PLAIN-07 empty edge).
+      if (part === "roles") {
+        spec.roles = 0;
+        spec.protocol = false;
+      }
       const { status, stdout } = runGate(makeMirror(`gops-lex-zero-${part}-`, spec));
       expect(status).toBe(1);
       expect(stdout).toContain(`the "${part}" part of the governed corpus derived ZERO members`);
@@ -386,6 +409,33 @@ describe("check-imperative-lexicon — the derived corpus", () => {
       expect(pinAt).toBeGreaterThan(floorAt);
     });
   }
+
+  // (Plan 40-10, PLAIN-07) The roles part is pinned on its own, two-sided, and the refusal names the
+  // part and every member it derived — a total alone would say a file was lost and not which.
+  it("a mirror whose roles part LOST THE PROTOCOL (19 files) exits 1 naming the roles part and its count", () => {
+    const { status, stdout } = runGate(makeMirror("gops-lex-roles19-", { protocol: false }));
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `the "roles" part derived ${ROLE_PART_COUNT - 1} file(s), expected exactly ${ROLE_PART_COUNT}`,
+    );
+    expect(stdout).toContain(
+      `the governed corpus derived ${GOVERNED_CORPUS_COUNT - 1} document(s), expected exactly ${GOVERNED_CORPUS_COUNT}`,
+    );
+    expect(stdout).not.toContain("PASS  LANG-02:");
+  });
+
+  it("a mirror whose roles part GREW BY ONE (21 files) exits 1 naming the roles part and the extra file", () => {
+    const extra = "agent-factory/roles/_extra-protocol.md";
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-roles21-", { extra: { [extra]: PROTOCOL_DOC } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `the "roles" part derived ${ROLE_PART_COUNT + 1} file(s), expected exactly ${ROLE_PART_COUNT}`,
+    );
+    expect(stdout).toContain(extra);
+    expect(stdout).not.toContain("PASS  LANG-02:");
+  });
 
   it("a mirror SHORT BY ONE WORKFLOW exits 1 naming the derived count and the pinned count", () => {
     const { status, stdout } = runGate(
@@ -711,6 +761,80 @@ describe("guard_sentence_form (WP-02..WP-08)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (4b) PLAIN-07 — ROLE TEXT IS HELD TO THE SAME SENTENCE RULES (plan 40-10).
+//
+// Every plant goes into a MIRRORED ROLE, not a workflow, so these cases prove the role part is
+// measured. Lengths are the gate's own word count over its own sentence split, asserted with the
+// module's countWords before each run.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("guard_sentence_form over the role part (PLAIN-07)", () => {
+  const ROLE_FILE = "agent-factory/roles/fixture-00.md";
+  const roleWith = (line: string): string =>
+    [`# Role: ${mirrorRoleDisplayName(0)}`, "", "## One job", line, ""].join("\n");
+  const plantRole = (prefix: string, line: string) =>
+    runGate(makeMirror(prefix, { plant: { [ROLE_FILE]: roleWith(line) } }));
+
+  it("an unnumbered role sentence of 25 words passes; 26 words fails WP-03 naming the role file", () => {
+    const at = `${filler(DESCRIPTIVE_SENTENCE_MAX_WORDS)}.`;
+    const over = `${filler(DESCRIPTIVE_SENTENCE_MAX_WORDS + 1)}.`;
+    expect(countWords(at)).toBe(DESCRIPTIVE_SENTENCE_MAX_WORDS);
+    expect(countWords(over)).toBe(DESCRIPTIVE_SENTENCE_MAX_WORDS + 1);
+
+    const green = plantRole("gops-lex-role25-", at);
+    expect(green.status).toBe(0);
+    expect(formFindingCount(green.stdout, "descriptive-sentence-too-long")).toBe(0);
+
+    const red = plantRole("gops-lex-role26-", over);
+    expect(red.status).toBe(1);
+    expect(formFindingCount(red.stdout, "descriptive-sentence-too-long")).toBe(1);
+    expect(red.stdout).toContain(`${ROLE_FILE}:4 — WP-03`);
+    expect(red.stdout).toContain(
+      `${DESCRIPTIVE_SENTENCE_MAX_WORDS + 1} words, bound ${DESCRIPTIVE_SENTENCE_MAX_WORDS}`,
+    );
+  });
+
+  it("a numbered role item of 20 words passes; 21 words fails WP-02 naming the role file", () => {
+    const at = `1. ${VERB} ${filler(PROCEDURAL_SENTENCE_MAX_WORDS - 1)}.`;
+    const over = `1. ${VERB} ${filler(PROCEDURAL_SENTENCE_MAX_WORDS)}.`;
+    expect(countWords(at.replace(/^1\. /, ""))).toBe(PROCEDURAL_SENTENCE_MAX_WORDS);
+    expect(countWords(over.replace(/^1\. /, ""))).toBe(PROCEDURAL_SENTENCE_MAX_WORDS + 1);
+
+    const green = plantRole("gops-lex-role-n20-", at);
+    expect(green.status).toBe(0);
+
+    const red = plantRole("gops-lex-role-n21-", over);
+    expect(red.status).toBe(1);
+    expect(formFindingCount(red.stdout, "procedural-sentence-too-long")).toBe(1);
+    expect(red.stdout).toContain(`${ROLE_FILE}:4 — WP-02`);
+  });
+
+  it("a modal inside a numbered role item fails WP-05; the same item without it passes", () => {
+    const red = plantRole("gops-lex-role-modal-", `1. ${VERB} the gate result, which may pass.`);
+    expect(red.status).toBe(1);
+    expect(formFindingCount(red.stdout, "modal-in-procedural-step")).toBe(1);
+    expect(red.stdout).toContain(`${ROLE_FILE}:4 — WP-05`);
+
+    const green = plantRole("gops-lex-role-nomodal-", `1. ${VERB} the gate result.`);
+    expect(green.status).toBe(0);
+  });
+
+  it("length is counted in words, never bytes or characters: 25 long multi-byte words pass, 26 one-letter words fail", () => {
+    const longWord = "überprüfungsergebnisse";
+    const wide = `${Array.from({ length: DESCRIPTIVE_SENTENCE_MAX_WORDS }, () => longWord).join(" ")}.`;
+    const narrow = `${Array.from({ length: DESCRIPTIVE_SENTENCE_MAX_WORDS + 1 }, () => "a").join(" ")}.`;
+    // The premise: the passing sentence is far longer in bytes and characters than the failing one.
+    expect(Buffer.byteLength(wide, "utf8")).toBeGreaterThan(Buffer.byteLength(narrow, "utf8") * 5);
+    expect(wide.length).toBeGreaterThan(narrow.length * 5);
+
+    expect(plantRole("gops-lex-role-wide-", wide).status).toBe(0);
+    const red = plantRole("gops-lex-role-narrow-", narrow);
+    expect(red.status).toBe(1);
+    expect(formFindingCount(red.stdout, "descriptive-sentence-too-long")).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
 // (5) THE DERIVED TECHNICAL NAMES SET (LANG-01 / D-40).
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -761,7 +885,19 @@ describe("check-imperative-lexicon — exported pins and cost", () => {
     // the seed part (13 → 12); GENERATED_EXEMPT_COUNT moves 1 → 2 with it.
     // (Plan 39-05, 2026-10-29) 48 → 49: agent-factory/checklists/complexity-rubric.md, the Tech Lead's
     // scoring rubric, is a hand-authored checklist and enters the checklists part by existing (14 → 15).
-    expect(GOVERNED_CORPUS_COUNT).toBe(49);
+    // (Plan 40-10, 2026-11-01) 49 → 69: the role corpus, agent-factory/roles/ (19 roles and the
+    // role-switch protocol), leaves GOVERNED_CORPUS_EXCLUDED_LOCATIONS and enters as the fifth part
+    // (PLAIN-07, v3.0 D-9).
+    expect(GOVERNED_CORPUS_COUNT).toBe(69);
+    expect(ROLE_PART_COUNT).toBe(20);
+    expect(ROLE_CORPUS_N).toBe(ROLE_PART_COUNT);
+    expect(GOVERNED_CORPUS_PARTS.map((p) => p.name)).toEqual([
+      "workflows",
+      "checklists",
+      "seedTemplates",
+      "contracts",
+      "roles",
+    ]);
     expect(APPROVED_STEP_VERBS.length).toBe(43);
     expect(PROCEDURAL_SENTENCE_MAX_WORDS).toBe(20);
     expect(DESCRIPTIVE_SENTENCE_MAX_WORDS).toBe(25);
