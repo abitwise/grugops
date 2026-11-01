@@ -27,6 +27,7 @@ import {
   partitionModel,
 } from "./check-role-rules.js";
 import { listRoles } from "./kit-model.js";
+import { BOARD_REL } from "../install/state-layout.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-role-rules.js");
@@ -316,7 +317,7 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
 
   it("partition fails closed: an Exit owner that is no role's name is a derivation failure naming it", () => {
     const m = makeMirror("rr-part-owner-");
-    edit(join(m, "agent-factory", "seed", "memory-bank", "plans", "board.md"), (s) =>
+    edit(join(m, "agent-factory", "seed", BOARD_REL), (s) =>
       s.replace("| In Analysis | behavior being mapped | System Analyst |", "| In Analysis | behavior being mapped | Systems Analist |"),
     );
     const r = runGate(m);
