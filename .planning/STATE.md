@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-04-PLAN.md
-last_updated: "2026-11-01T13:34:46.580Z"
+stopped_at: Completed 40-05-PLAN.md
+last_updated: "2026-11-01T14:08:06.332Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 7255e209e7b23d103629c9d2a5ef6779557f1340
+state_head: 771885e5d6826c4e4263beaeb5db292352a71ea4
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 98
-  completed_plans: 92
+  completed_plans: 93
   percent: 56
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 40 (Plain-language role rewrite) — EXECUTING
-Plan: 5 of 10
+Plan: 6 of 10
 Status: Ready to execute
 Last activity: 2026-11-01 — Phase 40 execution started
 
@@ -809,6 +809,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P02 | ~2h | 3 tasks | 5 files |
 | Phase 40 P03 | 45min | 3 tasks | 10 files |
 | Phase 40 P04 | 35min | 3 tasks | 5 files |
+| Phase 40 P05 | 32 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2230,6 +2231,8 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-04: BA/PM, System Analyst, Architect/Design and UAT Planner fit their D-02 targets by rewording alone; no workflow or checklist moved, no 40-04 rows file
 - [Phase 40]: 40-04: BA/PM owns Backlog → Ready and Ready → In Analysis; the Orchestrator-pulls-from-Ready sentence is gone (Workflow 08 still says it; follow-up)
 - [Phase 40]: 40-04: UAT Planner keeps the named-human sign-off and never claims In UAT → Done
+- [Phase 40]: 40-05: all five gate-lane roles fit D-02 by rewording; severity map, compliance items and release-record fields already lived in Workflow 15, compliance-checklist.md and Workflow 12, so no workflow or checklist was edited
+- [Phase 40]: 40-05: qe-e2e One job stays one line (generator tests pin its bytes); security-nfr's 34-word Activates when sentence stays byte-identical (RW-2, adapter baseline) and is the one WP-03 mirror finding left for the PLAIN-07 corpus join
 
 ### Pending Todos
 
@@ -2569,8 +2572,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-01T13:34:45.432Z
-Stopped at: Completed 40-04-PLAN.md
+Last session: 2026-11-01T14:08:05.390Z
+Stopped at: Completed 40-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
