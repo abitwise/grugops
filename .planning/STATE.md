@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-06-PLAN.md
-last_updated: "2026-11-01T14:41:31.081Z"
+stopped_at: Completed 40-07-PLAN.md
+last_updated: "2026-11-01T15:27:22.758Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 1114358f2f4e4d1cbb270b56d7a9ddf2e681394c
+state_head: 4ebededf9489a2315db947985132f90811d1a019
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 98
-  completed_plans: 94
+  completed_plans: 95
   percent: 56
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 40 (Plain-language role rewrite) — EXECUTING
-Plan: 7 of 10
+Plan: 8 of 10
 Status: Ready to execute
 Last activity: 2026-11-01 — Phase 40 execution started
 
@@ -811,6 +811,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P04 | 35min | 3 tasks | 5 files |
 | Phase 40 P05 | 32 min | 3 tasks | 5 files |
 | Phase 40 P06 | 45min | 3 tasks | 6 files |
+| Phase 40 P07 | 55 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2238,6 +2239,10 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-06: the Scribe keeps the registry-anchored 'If a command is unknown, ship UNKNOWN - verify' clause byte-identical, with a 40-06 disposition row, because the D-30 stand-in never admits a registry anchor
 - [Phase 40]: 40-06: the Scribe carries the coding-rules fact through its One job sentence, not a Follow pointer line
 - [Phase 40]: 40-06: Brownfield Mapper gains a real no-fabrication sentence (Never invent a command)
+- [Phase 40]: 40-07: Orchestrator owns exactly Ready for Dev → In Development and In UAT → Done (lean close after definition-of-done.md); the … → Done wildcard is gone
+- [Phase 40]: 40-07: platform depth and width detail moved from orchestrator.md to Workflow 17 § Platform depth and width; the role keeps a one-sentence pointer
+- [Phase 40]: 40-07: Workflow 08 aligned with D-33 (committed items stay in Ready; BA/PM moves them to In Analysis; Orchestrator pulls from Ready for Dev)
+- [Phase 40]: 40-07: orchestrator.md 5,844 B and _role-switch-protocol.md 2,340 B; no lexicon addition
 
 ### Pending Todos
 
@@ -2577,8 +2582,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-01T14:41:30.218Z
-Stopped at: Completed 40-06-PLAN.md
+Last session: 2026-11-01T15:27:21.879Z
+Stopped at: Completed 40-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
