@@ -252,3 +252,7 @@ None. No external service configuration required.
 ---
 *Phase: 40-plain-language-role-rewrite*
 *Completed: 2026-11-01*
+
+## Self-Check: PASSED
+
+All 6 key files exist; all 5 task commits (f59df507, 16e7609c, 2d4230a6, ca2877ef, 9ec16998) are ancestors of HEAD; every task acceptance criterion and the plan-level verification re-ran green after the final commit.
