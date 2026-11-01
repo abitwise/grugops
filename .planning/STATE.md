@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-03-PLAN.md
-last_updated: "2026-11-01T13:03:07.978Z"
+stopped_at: Completed 40-04-PLAN.md
+last_updated: "2026-11-01T13:34:46.580Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 933d62314d40290295555a1225e09fc54507589c
+state_head: 7255e209e7b23d103629c9d2a5ef6779557f1340
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 98
-  completed_plans: 91
+  completed_plans: 92
   percent: 56
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 ## Current Position
 
 Phase: 40 (Plain-language role rewrite) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-11-01 — Phase 40 execution started
 
@@ -808,6 +808,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P01 | 1h 21m | 3 tasks | 49 files |
 | Phase 40 P02 | ~2h | 3 tasks | 5 files |
 | Phase 40 P03 | 45min | 3 tasks | 10 files |
+| Phase 40 P04 | 35min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2226,6 +2227,9 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-03: Tech Lead's blocked-ticket move list lives only in Workflow 04 step 15; the role keeps one pointer
 - [Phase 40]: 40-03: Design-tell examples and two contract parts moved into Workflow 14 steps 1 and 2 (D-05), rows in 40-03.md
 - [Phase 40]: 40-03: Lean lens in pr-review-checklist.md is advisory, never blocks, prints no number; PLAIN-05 and PLAIN-06 met
+- [Phase 40]: 40-04: BA/PM, System Analyst, Architect/Design and UAT Planner fit their D-02 targets by rewording alone; no workflow or checklist moved, no 40-04 rows file
+- [Phase 40]: 40-04: BA/PM owns Backlog → Ready and Ready → In Analysis; the Orchestrator-pulls-from-Ready sentence is gone (Workflow 08 still says it; follow-up)
+- [Phase 40]: 40-04: UAT Planner keeps the named-human sign-off and never claims In UAT → Done
 
 ### Pending Todos
 
@@ -2565,8 +2569,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-01T13:03:07.023Z
-Stopped at: Completed 40-03-PLAN.md
+Last session: 2026-11-01T13:34:45.432Z
+Stopped at: Completed 40-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 3/10 plans executed
+**Plans**: 4/10 plans executed
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -522,7 +522,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [x] 40-03-PLAN.md — Tech Lead (scope-first), Designer, Frontend/UI, the lean-review lens and the widened credit (PLAIN-02, PLAIN-03, PLAIN-05, PLAIN-06)
-- [ ] 40-04-PLAN.md — BA/PM (aligned to the Exit owner table), System Analyst, Architect/Design, UAT Planner (PLAIN-02, PLAIN-03)
+- [x] 40-04-PLAN.md — BA/PM (aligned to the Exit owner table), System Analyst, Architect/Design, UAT Planner (PLAIN-02, PLAIN-03)
 - [ ] 40-05-PLAN.md — Security/NFR, Compliance Officer, Release Manager, QE/E2E, Incident Responder (PLAIN-02, PLAIN-03)
 - [ ] 40-06-PLAN.md — AGENTS.md Scribe, Installer, Factory Coach, Greenfield and Brownfield Mappers (PLAIN-02, PLAIN-03)
 - [ ] 40-07-PLAN.md — Orchestrator full plain rewrite with concrete board pairs, and the role-switch protocol (PLAIN-02, PLAIN-03)
@@ -602,7 +602,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
-| 40. Plain-language role rewrite | v3.0 | 3/10 | In Progress | - |
+| 40. Plain-language role rewrite | v3.0 | 4/10 | In Progress | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
