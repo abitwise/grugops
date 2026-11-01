@@ -841,6 +841,10 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // and runnable-embeds-freshness, the runnable-embed generator and its drift gate. Both delegate to
     // `isEntrypoint(import.meta.url)`. Re-derived rather than incremented: `grep -l 'const isEntry ='
     // scripts/*.ts` minus test files reports 19.
+    // 19 → 20 (plan 40-01 task 1, D-27) check-role-rules, the derived role-rule inventory. Its entry
+    // guard delegates to `isEntrypoint(import.meta.url)` so its own test can import the derivation
+    // without the import running the check inside the vitest worker. Re-derived rather than
+    // incremented: `grep -l 'const isEntry =' scripts/*.ts` minus test files reports 20.
     //
     // THE PROPERTY THIS CASE ASSERTS CHANGED IN ROUND 4, AND THE REASON IS THE FINDING. It used to
     // require each guard to spell `import.meta.url === pathToFileURL(process.argv[1]).href`. That
@@ -850,9 +854,9 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // it, including the gate round 3 had just created. A predicate with fourteen spellings is not
     // fixed by fixing one of them, so there is now one authority (`scripts/is-entry.ts`) and this
     // case asserts DELEGATION to it rather than uniformity of a spelling that was itself wrong.
-    expect(sources.length).toBe(19);
-    expect(sources.length).not.toBe(18);
-    expect(sources.length).not.toBe(20);
+    expect(sources.length).toBe(20);
+    expect(sources.length).not.toBe(19);
+    expect(sources.length).not.toBe(21);
     const offenders = sources
       .filter((s) => !/isEntrypoint\(import\.meta\.url\)/.test(s.src))
       .map((s) => `scripts/${s.name}`);
