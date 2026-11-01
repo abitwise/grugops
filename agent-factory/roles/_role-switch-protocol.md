@@ -4,54 +4,29 @@ tier: core
 ---
 # Role-switch protocol
 
-Single source for HOW a role activates. The default substrate is ONE context
-window — the Orchestrator and each specialist role live in the same window, one after
-another. This is sequential role-load: the Orchestrator loads each role's file into the
-same window in turn, the role does its one job, records its work into the shared verified
-context, and control returns to the Orchestrator. On the non-spawning host CLIs
-(Codex, Antigravity, OpenCode, Copilot, Pi) this is the only mode. On Claude Code the coordinator
-(the orchestrator adapter, which carries `coordinator: true`) may instead spawn role
-agents — same roles, same shared context, same gates; only the dispatch differs. Either
-way the steps below are identical.
+This file is the single source for how a role activates. Every entry point names it by path; nobody else copies the steps.
 
-Every entry point (the Orchestrator's responsibilities, every workflow's "Agents
-involved" block) references THIS file by path. Nobody else inlines the steps.
+The default is one context window with sequential role-load: the Orchestrator loads each role's file into the same window in turn. On the non-spawning host CLIs (Codex, Antigravity, OpenCode, Copilot, Pi) it is the only mode. On Claude Code the coordinator (the orchestrator adapter, which carries `coordinator: true`) may spawn role agents instead. They get the same roles, the same shared context and the same gates; only the dispatch differs. The steps below are the same in both modes.
 
 ## The 5 steps
 
-When a role activates, do these five in order:
+When a role activates, run these five steps in order.
 
-1. **Announce.** Print `▶ entering <ROLE>` so the window shows which role holds the
-   work right now.
-2. **Read only what this role needs.** Read ONLY that role's file (`agent-factory/roles/<role>.md`)
-   plus the shared verified context this role needs, pulled on-demand per Workflow 16
-   (`agent-factory/workflows/16-context-read-write.md`) — nothing else. No peeking at
-   other roles' scratch, no scrolling the running conversation for context.
-3. **Drop prior context.** Drop all prior persona and scratch context from the role
-   that ran before. The earlier role's half-thoughts do not carry over. Fresh head.
-4. **Do the job, then record (and, when queued, claim + record).** This is the task-done
-   consolidation point. Do the one job, then RECORD the work output as typed notes per
-   Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): publish decisions as
-   `decision` notes, risks and findings as `finding`/`observation`, deliverables as
-   `artifact-ref`, with the trace ids on each note's `refs` field. Several one-kind notes,
-   never one mega-packet. When the work was queued (the parallel substrate), wrap the job
-   thinly: **claim the subtask per Workflow 17 (`agent-factory/workflows/17-task-claim.md`)
-   → read/publish shared context per Workflow 16 → mark the subtask done.** Reference those
-   workflows; never restate their mechanics here.
-5. **Exit.** Print `■ exiting <ROLE>` and return control to the Orchestrator. The
-   Orchestrator reads the role's published notes from the shared context — never the
-   exited role's running chatter.
+1. Print `▶ entering <ROLE>` so the window shows which role holds the work.
+2. Read the role's file, `agent-factory/roles/<role>.md`, plus the shared verified context it needs.
+   Pull that context on demand per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`).
+   Read nothing else: no other role's scratch, no scrolling back through the conversation.
+3. Drop the instructions and scratch context of the role that ran before.
+4. Do the one job; publish its output as typed notes per Workflow 16.
+   Publish decisions as `decision` notes, risks as `finding` or `observation`, and deliverables as `artifact-ref`.
+   Put the trace ids on each note's `refs` field. Publish several one-kind notes, never one large packet.
+   When the work was queued, claim the subtask per Workflow 17 (`agent-factory/workflows/17-task-claim.md`) first.
+   Mark the subtask done once its notes are published. Workflows 16 and 17 hold the mechanics.
+5. Print `■ exiting <ROLE>`; control returns to the Orchestrator.
+   The Orchestrator reads the role's published notes, never its running chatter.
 
-## The invariant (the whole point)
+## The invariant
 
-**A role's sole memory of earlier roles is the shared verified context (read per Workflow
-16) — never the running conversation.** Coordination flows only through the on-disk
-substrate, never the running conversation. One window, but clean boundaries: each role
-starts from the verified context, not from whatever the last role was muttering. If it is
-not published as a note in the shared context, the next role does not know it. This keeps
-scratch context from one role bleeding into the next even though they share a single window.
+A role's only memory of earlier roles is the shared verified context, read per Workflow 16, never the running conversation. If a fact is not published as a note, the next role does not know it. Each role starts from the verified context, so one role's scratch never leaks into the next, even in one window.
 
-Spawning is coordinator-only, and only on Claude Code: the non-spawning host CLIs run
-the single-window sequential role-load above, and on Claude Code only the coordinator
-(`coordinator: true`) spawns role agents. Whichever mode runs, the invariant holds — drop
-prior context, the shared verified context is the only memory.
+Only the coordinator spawns, and only on Claude Code. In either mode the invariant holds: drop prior context, and treat the shared verified context as the only memory.
