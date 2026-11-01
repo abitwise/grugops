@@ -28,6 +28,17 @@ Two distinct things, never blurred:
 
 The queue owns ownership; WF16 owns memory. Never write the shared context by claiming, and never claim by writing a note.
 
+## Platform depth and width
+Width is how many role agents run at once. Depth is how many layers a spawned agent may spawn below it. The two are separate limits.
+
+- Width: the coordinator never runs more agents at once than `queue.wip_limit` (default 3).
+- Claude Code caps 20 concurrent subagents and 200 per session. The grugops width cap is a discipline choice far inside that ceiling, not a result of the depth limit.
+- Depth: Claude Code nests subagents three layers below the main conversation by default. `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` sets the depth.
+- The three-layer default arrived in v2.1.219. Versions v2.1.217 and v2.1.218 defaulted to one layer, so nesting is off and a coordinator there spawns nothing.
+- On those versions the host version is the cause, not grugops.
+- At the depth limit the platform withholds `Agent` rather than raising an error. A role agent at that depth does the work itself, a correct silent degrade.
+- Depth and width bound nested spawning; no nested allowlist does.
+
 ## Steps
 Run these in order.
 

@@ -9,7 +9,7 @@ cadence: scrum
 At the start of a sprint, when the team works in time-boxed iterations. Sprint planning is a `cadence=scrum` ceremony — the Orchestrator selects it only when `config.cadence=scrum`; in kanban it never fires. grug pick the work for the box, write it down, then build. The plan flows: a stocked `Ready` column -> Orchestrator + BA/PM -> a committed sprint goal -> `memory-bank/plans/sprints/SPRINT-xx.md`.
 
 ## Agents involved
-- Orchestrator — reads `config.cadence` and capacity, pulls committed items from `Ready` by priority up to capacity, enforces the Definition of Ready before each pull.
+- Orchestrator — reads `config.cadence` and capacity, picks committed items from `Ready` by priority up to capacity, enforces the Definition of Ready before each pick.
 - BA/PM — frames the one-sentence sprint goal and confirms each pulled item is Ready (value, scope, acceptance, size, priority).
 
 Each role reads the shared verified context before it works. Each role records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
@@ -21,7 +21,7 @@ Each role reads the shared verified context before it works. Each role records i
 
 ## Steps
 1. Set a one-sentence sprint goal — the outcome the box delivers (BA/PM).
-2. Pull from the `Ready` column by priority, up to capacity, until the box is full. The Orchestrator respects `sprint_length_days` and the Definition of Ready.
+2. Identify the items to commit from the `Ready` column by priority, up to capacity, until the box is full. The Orchestrator respects `sprint_length_days` and the Definition of Ready.
 3. Confirm each pulled item is Ready against `agent-factory/checklists/definition-of-ready.md`. If an item is not Ready, leave it in `Ready` and do not commit it.
 4. Write `memory-bank/plans/sprints/SPRINT-xx.md` in the §6.2 format — reproduce the field list exactly:
    - Record **Goal** as a one-sentence outcome.
@@ -35,7 +35,7 @@ Each role reads the shared verified context before it works. Each role records i
    - Record **Notes for retro** as anything to carry into `11-retro.md`.
 
 ## Board moves
-On `memory-bank/plans/board.md`, committed items leave the `Ready` column into the sprint commitment recorded in `memory-bank/plans/sprints/SPRINT-xx.md`. The Orchestrator pulls each forward into `Ready for Dev` as the box runs, respecting WIP limits. No new column is introduced — the sprint file is the scrum overlay on top of the same board.
+On `memory-bank/plans/board.md`, committed items stay in the `Ready` column, and `memory-bank/plans/sprints/SPRINT-xx.md` records the commitment. As the box runs, BA/PM moves each committed item from `Ready` into `In Analysis`. The Orchestrator later pulls it from `Ready for Dev` into `In Development`, within WIP limits. No new column is introduced — the sprint file is the scrum overlay on top of the same board.
 
 ## Output
 The primary output is `memory-bank/plans/sprints/SPRINT-xx.md` (the sprint file). The sprint goal and committed list are recorded as typed notes per Workflow 16 for the team.
