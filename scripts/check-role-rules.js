@@ -511,8 +511,8 @@ export function checkHeadingOrder(role, raw) {
             `expected ${ROLE_HEADING_ORDER.join(", ")}`);
         return out;
     }
-    const open = headings.indexOf("## Responsibilities");
-    const close = headings.indexOf("## Output");
+    const open = headings.findIndex((h) => h === "## Responsibilities");
+    const close = headings.findIndex((h) => h === "## Output");
     headings.forEach((h, i) => {
         if (ROLE_HEADING_ORDER.includes(h))
             return;
