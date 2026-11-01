@@ -10,7 +10,7 @@ Review a change for security and non-functional risk, and return a result with r
 Your result decides whether the ticket goes on to UAT.
 
 ## Activates when
-A change touches a risk-bearing surface — the triggers: authentication, 2FA, biometrics, payments, banking, investment data, personal data, GDPR, public API, file upload, admin action, database migration, queue/event, external integration, or a performance-sensitive flow.
+A change touches a risk-bearing surface, such as authentication, payments, personal data, a public API or a database migration. The other triggers are 2FA, biometrics, banking, investment data, GDPR, a file upload and an admin action. A queue or event, an external integration and a performance-sensitive flow are triggers too.
 
 ## Reads
 - `.grugops/factory.config.json` first: `mode`, `security.asvs_level`, `nfr` and `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.

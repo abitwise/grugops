@@ -186,6 +186,39 @@ const RECORDED_REMOVED: readonly string[] = [
   "grugops-software-engineer", // Plan 39-07 (TIER-02, D-13): replaced by its three level adapters; no base adapter is kept.
 ];
 
+/**
+ * An adapter BOTH trees carry whose bytes moved, recorded by hand with its reason. The change is one
+ * literal substring of the frontmatter `description:` line, `from` → `to`, written here in full; the
+ * byte case asserts `from` occurs exactly once in the baseline adapter before it applies, so a stale
+ * record fails loudly instead of admitting nothing. Every other byte stays the baseline's.
+ */
+type RecordedChanged = {
+  readonly name: string;
+  readonly from: string;
+  readonly to: string;
+  readonly reason: string;
+};
+
+// (Plan 40-10, PLAIN-07 / D-32) The role corpus joined the writing-profile sentence gate, which
+// reported one finding: security-nfr.md's `## Activates when` first sentence was 34 words against the
+// 25-word descriptive bound (WP-03). D-32 says reword first, so the sentence was split. The adapter's
+// `Use when:` clause is that first sentence, so it moves here; the full trigger list stays in the role.
+const RECORDED_CHANGED: readonly RecordedChanged[] = [
+  {
+    name: "grugops-security-nfr",
+    from:
+      "Use when: A change touches a risk-bearing surface — the triggers: authentication, 2FA, biometrics, " +
+      "payments, banking, investment data, personal data, GDPR, public API, file upload, admin action, " +
+      "database migration, queue/event, external integration, or a performance-sensitive flow.\"",
+    to:
+      "Use when: A change touches a risk-bearing surface, such as authentication, payments, personal data, " +
+      "a public API or a database migration.\"",
+    reason:
+      "Plan 40-10 (PLAIN-07, D-32): the 34-word `## Activates when` first sentence of security-nfr.md broke " +
+      "WP-03 once roles joined the governed corpus; it was reworded, and the adapter description follows it.",
+  },
+];
+
 const recordedAddedNames = (): string[] => RECORDED_ADDED.map((r) => r.name).sort();
 const recordedLevelAdapters = (): Extract<RecordedAdded, { kind: "level" }>[] =>
   RECORDED_ADDED.filter((r): r is Extract<RecordedAdded, { kind: "level" }> => r.kind === "level");
@@ -307,6 +340,14 @@ describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseli
     expect(added.filter((n) => RECORDED_REMOVED.includes(n)), "a name recorded as both added and removed").toEqual([]);
     expect(added.includes(COORDINATOR), "the coordinator is never recorded as added").toBe(false);
     expect(RECORDED_REMOVED.includes(COORDINATOR), "the coordinator is never recorded as removed").toBe(false);
+    const changed = RECORDED_CHANGED.map((r) => r.name);
+    expect(new Set(changed).size, "a name recorded twice in RECORDED_CHANGED").toBe(changed.length);
+    expect(changed.filter((n) => !baseline.includes(n)), "a RECORDED_CHANGED name the baseline does not carry — the record would change nothing").toEqual([]);
+    expect(changed.filter((n) => added.includes(n) || RECORDED_REMOVED.includes(n)), "a RECORDED_CHANGED name also recorded as added or removed").toEqual([]);
+    expect(changed.includes(COORDINATOR), "the coordinator's one admitted edit is its grant, never a RECORDED_CHANGED entry").toBe(false);
+    for (const r of RECORDED_CHANGED) {
+      expect(r.from, `${r.name}: a change record whose from and to are equal admits nothing`).not.toBe(r.to);
+    }
     for (const r of recordedLevelAdapters()) {
       expect(r.effort, `${r.name}: a level record carries an empty effort literal`).not.toBe("");
       expect(r.model, `${r.name}: a level record carries an empty model literal`).not.toBe("");
@@ -390,6 +431,21 @@ describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseli
         // trailing newline, is the baseline's.
         const lines = [...baselineCoord];
         lines[bAt] = (lines[bAt] as string).replace(GRANT_RE, `Agent(${fromRecords.join(", ")})`);
+        expected = Buffer.from(lines.join("\n"), "utf8");
+      }
+      const change = RECORDED_CHANGED.find((r) => r.name === name);
+      if (change !== undefined) {
+        // The recorded description change, applied only where its `from` text occurs exactly once on
+        // the baseline's one `description:` line. Zero or two occurrences is a stale record, reported
+        // as a difference rather than silently skipped.
+        const lines = expected.toString("utf8").split("\n");
+        const at = onlyLineStarting(`${name} at the baseline`, lines, "description: ");
+        const hits = (lines[at] as string).split(change.from).length - 1;
+        if (hits !== 1) {
+          differing.push(`${name} — RECORDED_CHANGED \`from\` occurs ${String(hits)} time(s) on the baseline description line, expected exactly 1`);
+          continue;
+        }
+        lines[at] = (lines[at] as string).replace(change.from, change.to);
         expected = Buffer.from(lines.join("\n"), "utf8");
       }
       if (!expected.equals(work)) {
