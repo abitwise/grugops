@@ -39,9 +39,28 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - Install, `--dry-run` and `install.js --check` name an adapter in `.claude/agents/` that this kit
   version no longer ships. They never delete it. See `install/README.md`, "An adapter this kit
   version no longer ships".
+- A role-rule inventory check, `node scripts/check-role-rules.js`. It fails when a role drops a
+  rule token it carried before the plain-English rewrite, checks that the roles' board moves
+  partition the seed board's flow, apart from one short declared list of exceptions, and checks each role's `## Stop when` end state.
+- A byte budget for all role text together, `guard_role_corpus_total` in
+  `node scripts/check-foundation-guards.js`, beside the per-role ceilings.
+- Role text is now a governed surface of `agent-factory/writing-profile.md`. The sentence check in
+  `node scripts/check-imperative-lexicon.js` holds the 19 roles and the role-switch protocol to the
+  same sentence-length and modal rules as the workflows.
+- "Do less" rules for the Software Engineer and the Tech Lead, and an advisory lean-review lens in
+  `agent-factory/checklists/pr-review-checklist.md`. They are adapted from ponytail under the MIT
+  License; see [NOTICE](NOTICE) for the credit and the license text.
 
 ### Changed
 
+- The 19 roles and the role-switch protocol are rewritten in clear, compact English. Every role
+  states when it activates and ends with a `## Stop when` section, and each board move is named as
+  an exact `From → To` pair. The caveman prompt blocks are retired. Run
+  `node install/install.js --update` to refresh an installed kit with the new role text.
+- The Security/NFR role's `## Activates when` sentence is split, so the
+  `grugops-security-nfr` Claude Code adapter's `Use when:` text is shorter. The adapter reaches an
+  installed repository when you re-run the install against it; `install.js --check` names it as
+  stale until then.
 - `install --migrate` now moves a pre-v3 repository's planning state from `plans/` to
   `memory-bank/plans/`, keeping the originals in `memory-bank/plans/archive/pre-v3/`. It splits the
   board, the traceability matrix and the NFR catalog, rolls older Done rows and dated progress
