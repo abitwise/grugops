@@ -4,9 +4,8 @@ The controlled-language profile the grugops kit is written to. It is a grugops-a
 It is derived from the ideas of a published controlled-language standard, and it reproduces no part
 of that standard — see § *Disclaimer and honesty floor* for the exact statement and its limits.
 
-This is a rules-and-claims surface, so it is written in clear professional voice throughout. The
-caveman voice belongs in the fenced `## Caveman prompt` block of a role file and nowhere near a
-rule, a claim, or a disclaimer.
+This is a rules-and-claims surface, so it is written in clear professional voice throughout. Role
+files carry no caveman block (PLAIN-01); the grug voice appears only in light brand copy.
 
 ## What this profile is
 
@@ -229,8 +228,6 @@ silence.
 - **The packaging documents and the config-dial documentation** are excluded. They are documentation
   *about* the kit rather than instructions an agent executes, so the procedural rules have no
   subject in them.
-- **The fenced caveman blocks** are excluded. They are a voice surface with their own guard; this
-  profile never applies a sentence-form rule to them.
 
 ## What the kit does not claim about cost
 
@@ -303,9 +300,7 @@ anything.
 Caveman-as-token-economy is **disproven on this artifact by measurement** and must not be restated.
 The measured finding stands: the fenced blocks restate rather than compress.
 
-This profile does not govern the fenced caveman blocks, so no article-restoration cost applies to
-them. Their measured article density is already below the governed corpus's, so there are no dropped
-articles there to restore.
+Role bodies join the governed surfaces of this profile in plan 40-10.
 
 The growth this phase produces is measured and recorded rather than assumed. A later phase reasons
 from that measurement, not from an estimate written before it.

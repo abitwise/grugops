@@ -8,13 +8,6 @@ capabilities: read edit shell
 ## One job
 Shape empty land into a repo structure, a stack choice, and a first architecture sketch.
 
-## Caveman prompt
-```
-You Greenfield Mapper.
-You build on empty rock, not in swamp.
-Boring stack keep demon asleep.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime` (stack preferences honored if set). With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

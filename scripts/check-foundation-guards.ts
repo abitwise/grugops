@@ -286,6 +286,9 @@ import {
   // (Plan 39-04, TIER-07) Every roles-directory entry except the named exemptions, so
   // guard_role_frontmatter admits the same set the raw-membership refusal reads.
   listRoleDirEntries,
+  // (Plan 40-01, PLAIN-01) The roles directory's named exemptions. Their `.md` members (the role-
+  // switch protocol) join the 19 roles to form the role CORPUS the two voice guards scan.
+  ROLE_DIR_EXEMPT_NAMES,
   // (Plan 39-02, TIER-02, TIER-06) THE ADAPTER IDENTITY AUTHORITY. KIT-03 and both value guards key
   // every adapter by the spec derivation, and the agent namespace is declared there, never here.
   listAgentAdapterSpecs,
@@ -327,6 +330,11 @@ import { RETIRED_PROSE_FORMS } from "./dead-vocabulary.js";
 // IT IS NOW THE ONLY THING THIS GUARD TAKES FROM THAT MODULE. The grant predicates, the coordinator
 // marker read and the parse entry point moved to ./canonical-frontmatter.js below. A fence is not a
 // verdict; the demotion is about who renders the verdict, not about who finds the region.
+//
+// (Plan 40-01, PLAIN-01) guard_caveman_voice asks it one more question — does a role-corpus file
+// carry a bare `## Caveman prompt` heading outside any fence — by stripping the fenced lines here and
+// comparing each remaining line with the heading STRING. No other frontmatter symbol is imported
+// (this module renders a spawn verdict, and the D-64 pin holds its import set to this one).
 import { stripFencedBlocks } from "./frontmatter.js";
 // Phase 29 (LANG-05/06/07, D-22/D-23/D-24/D-38, plan 29-01): THE VOICE AUTHORITY.
 //
@@ -336,11 +344,7 @@ import { stripFencedBlocks } from "./frontmatter.js";
 // bytes (29-RESEARCH §A-6). One reader, one lexicon, two consumers.
 import {
   readCavemanFence,
-  CAVEMAN_LEXICON,
-  CAVEMAN_LEXICON_MIN,
   countLexiconTokens,
-  countBannedConstructions,
-  countContentWords,
   segmentClauses,
 } from "./voice-model.js";
 // Phase 29 (AP-1, D-08, plan 29-01): the ONE element-level vacuity rule. Every new guard below folds
@@ -2817,9 +2821,11 @@ function guardDistributionPair(): void {
 // ---------------------------------------------------------------------------
 // guard_voice — voice-discipline lint over the curated clear-voice surfaces.
 //
-// Section-scoped, never whole-file: role bodies legitimately mix a fenced `## Caveman prompt`
-// (intentionally caveman) with clear-voice sections. Strip the SINGLE fenced `## Caveman prompt`
-// block, then grep the remainder for caveman markers.
+// WHOLE-FILE since plan 40-01 (PLAIN-01). Role files no longer carry a fenced `## Caveman prompt`
+// block, so every voice surface — the 19 roles, the role-switch protocol and the security surfaces —
+// is scanned whole for caveman markers. A fence appearing on any of them is itself a finding here
+// (and guard_caveman_voice names it too); the reader's fence region is still subtracted from the scan
+// in that case so the accounting below keeps closing.
 // ---------------------------------------------------------------------------
 // The role files, DERIVED (Phase 27, KIT-01) — no longer a hand-listed array. kit-model.listRoles()
 // reads `<ROOT>/agent-factory/roles` and drops every `_`-prefixed entry, so
@@ -2839,8 +2845,17 @@ let WORKFLOW_FILES!: string[];
 // (Plan 39-02) The agent adapter specs, derived once here beside the role set and with the same
 // fail-closed exit: a malformed `levels` declaration leaves no adapter set any guard could judge.
 let AGENT_ADAPTER_SPECS!: AgentAdapterSpec[];
+// (Plan 40-01, PLAIN-01) THE ROLE CORPUS: the roles plus the `.md` members of ROLE_DIR_EXEMPT — the
+// role-switch protocol. The two voice guards scan it, because grug words must not return to the
+// protocol either. Derived from the same two declarations kit-model owns, never typed; its count is
+// held against ROLE_COUNT + 1 by each guard's own denominator.
+let ROLE_CORPUS_FILES!: string[];
 try {
   ROLE_FILES = listRoles(ROOT).map((f) => `agent-factory/roles/${f}`);
+  ROLE_CORPUS_FILES = [
+    ...ROLE_FILES,
+    ...ROLE_DIR_EXEMPT_NAMES.filter((n) => n.endsWith(".md")).map((n) => `agent-factory/roles/${n}`),
+  ];
   WORKFLOW_FILES = listWorkflows(ROOT);
   AGENT_ADAPTER_SPECS = listAgentAdapterSpecs(ROOT);
 } catch (e) {
@@ -2878,9 +2893,10 @@ const SEC_VOICE_FILES = [
 // THE THREE MECHANISMS THAT ACTUALLY SHIP, AND WHAT EACH ONE CATCHES:
 //
 //   1. THE `reportMeasured` DENOMINATOR — catches ADD and REMOVE, at GATE RUN TIME. `guardVoice`
-//      hands `ROLE_COUNT + SEC_VOICE_FILE_COUNT` as the denominator while `visited` is incremented
-//      once per member of `VOICE_FILES`, so a member added here without bumping the constant reports
-//      20 of 19 and reds, and a member removed reports 18 of 19 and reds. Neither can print a PASS.
+//      hands `ROLE_COUNT + 1 + SEC_VOICE_FILE_COUNT` as the denominator (the `+ 1` is the role-switch
+//      protocol, plan 40-01) while `visited` is incremented once per member of `VOICE_FILES`, so a
+//      member added here without bumping the constant reports one too many and reds, and a member
+//      removed reports one too few and reds. Neither can print a PASS.
 //      It is BLIND to a SUBSTITUTION: swap one member for any other existing `agent-factory/**.md`
 //      path and every published number holds still while a real security surface leaves the scan.
 //      That bypass was reproduced end to end against the committed `.js`, on hermetic mirrors, by
@@ -2911,24 +2927,16 @@ const SEC_VOICE_FILES = [
 // admitted: mechanisms 2 and 3 pin the `.ts` SOURCE, and the reproduction above edited the committed
 // `.js`. The half of the closure covering that route is `npm run freshness`, measured in plan 29-33.
 const SEC_VOICE_FILE_COUNT = 2;
-const VOICE_FILES = [...ROLE_FILES, ...SEC_VOICE_FILES];
+const VOICE_FILES = [...ROLE_CORPUS_FILES, ...SEC_VOICE_FILES];
 // The INDEPENDENTLY derived denominator for guard_voice. `ROLE_COUNT` comes from scripts/kit-model.ts
 // — a module this guard's voice corpus does not otherwise consult — so this is never
 // `VOICE_FILES.length`, which would compare one number with itself (the critique recorded at
-// guardCavemanVoice's `expected` below).
-const VOICE_FILE_COUNT = ROLE_COUNT + SEC_VOICE_FILE_COUNT;
+// guardCavemanVoice's `expected` below). The `+ 1` is the role-switch protocol (plan 40-01).
+const VOICE_FILE_COUNT = ROLE_COUNT + 1 + SEC_VOICE_FILE_COUNT;
 
-// WHICH VOICE SURFACES CARRY A CAVEMAN FENCE, DECLARED RATHER THAN INFERRED (plan 29-01).
-//
-// SEC_VOICE_FILES's comment above has always asserted "they have NO `## Caveman prompt` fence", and
-// nothing enforced it. Under the one reader that assertion has to become mechanical, because a
-// `missing` verdict means two different things depending on which surface produced it: on a ROLE
-// file it is a defect (the block is required, and guard_caveman_voice names it), and on a security
-// surface it is the declared shape (the whole document IS the clear-voice remainder).
-//
-// This is a NAMED expectation pair, not a silent `continue`: the two-sided form means a security
-// surface that GAINS a fence is a finding too, so the declaration cannot quietly go stale.
-const EXPECTS_CAVEMAN_FENCE = new Set<string>(ROLE_FILES);
+// (Plan 40-01, PLAIN-01) The declared fence-expectation set — the voice surfaces DECLARED to carry a
+// fence (the roles, until now) — is DELETED. No voice surface carries one any more, so every file
+// takes the one whole-document branch, and a fence appearing anywhere is a finding naming the file.
 
 // (Plan 29-01, D-22/D-23) `stripCavemanBlock` and its `__UNCLOSED_CAVEMAN_FENCE__` sentinel were
 // DELETED here rather than kept as a second opinion, and `VOICE_MARKERS` went with them. Both are
@@ -3043,7 +3051,7 @@ function neutralizePhrases(text: string): string {
 // ---------------------------------------------------------------------------------------------
 function guardVoice(): void {
   process.stdout.write(
-    "\n[guard_voice] clear-voice surfaces free of caveman markers (section-scoped)\n",
+    "\n[guard_voice] clear-voice surfaces free of caveman markers (whole-file, plan 40-01)\n",
   );
   const findings: VoiceFinding[] = [];
   let visited = 0;
@@ -3069,27 +3077,25 @@ function guardVoice(): void {
     // reader did not produce, which is precisely what makes it a witness rather than a restatement.
     const documentLines = text.split("\n").length;
     const verdict = readCavemanFence(text);
-    const expectsFence = EXPECTS_CAVEMAN_FENCE.has(f);
     let body: string;
     // The reader's line accounting for this file. Declared here so both branches below must say what
     // they mean by it, and neither can fall through carrying the previous file's numbers.
     let outsideLines: number;
     let removedLines: number;
     if (verdict.ok) {
-      if (!expectsFence) {
-        findings.push({
-          file: f,
-          detail:
-            "a ## Caveman prompt fence appeared on a surface declared to carry none (SEC_VOICE_FILES) — the declaration and the file disagree",
-        });
-      }
+      findings.push({
+        file: f,
+        detail:
+          "a ## Caveman prompt fence appeared on a voice surface — no voice surface carries one since PLAIN-01 (plan 40-01)",
+      });
       body = verdict.outside;
       outsideLines = verdict.outsideLines;
       removedLines = verdict.removedLines;
-    } else if (verdict.reason === "missing" && !expectsFence) {
-      // The declared shape for a security surface: no caveman anchor at all, so the WHOLE document
-      // is the clear-voice remainder and is scanned whole. This is the only branch that treats a
-      // refusal as expected, it is scoped to a named set, and it states its reason.
+    } else if (verdict.reason === "missing") {
+      // The declared shape for every voice surface since plan 40-01: no caveman fence, so the WHOLE
+      // document is the clear-voice remainder and is scanned whole. This is the only branch that
+      // treats a refusal as expected, and it states its reason. (A bare `## Caveman prompt` heading
+      // with no fence also reads `missing`; it is scanned whole here and named by guard_caveman_voice.)
       body = text;
       // A DECLARATION ABOUT THIS BRANCH, NOT A MEASUREMENT. No fence was read, so there is no reader
       // accounting to take: the whole document is the remainder and the caveman region is empty.
@@ -3098,10 +3104,10 @@ function guardVoice(): void {
       outsideLines = documentLines;
       removedLines = 0;
     } else {
-      // Every other refusal — on a role file, or any malformed fence anywhere — is a finding NAMING
-      // THE REASON. guard_caveman_voice below names the same file with the same reason, from the
-      // same verdict, which is LANG-07's actual acceptance evidence: not that one reader exists, but
-      // that both consumers reach an identical verdict on identical bytes.
+      // Every other refusal — a malformed fence anywhere — is a finding NAMING THE REASON.
+      // guard_caveman_voice below names the same file with the same reason, from the same verdict,
+      // which is LANG-07's acceptance evidence: both consumers reach an identical verdict on
+      // identical bytes.
       findings.push({
         file: f,
         detail: `## Caveman prompt fence refused — reason ${verdict.reason}; the clear-voice remainder was not determined, so this file was NOT scanned`,
@@ -3182,6 +3188,11 @@ function guardVoice(): void {
     // is what the floor tests now. The finding text names the retained count and no longer describes
     // a "zero-line remainder" the code never looked for; a message describing a condition the code
     // does not test is the claim-wider-than-its-assertion class this round exists to remove.
+    //
+    // (Plan 40-01, PLAIN-01) The residual below describes the fence era. Since PLAIN-01 no voice
+    // surface carries a caveman fence, every file is scanned whole with a caveman region of 0 lines,
+    // and a fence appearing on any surface is itself a finding — so a region that grows now reds
+    // before it can swallow anything. The paragraph is kept as the record of the decision it was.
     //
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // THE WR-05 RESIDUAL — WHAT THE ACCOUNTING ABOVE DOES NOT CATCH, STATED AS A DECISION.
@@ -3286,134 +3297,92 @@ function guardVoice(): void {
 // ---------------------------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// guard_caveman_voice — the POSITIVE INVERSE of guard_voice, rebuilt two-sided (D-06, D-07, D-08).
+// guard_caveman_voice — no role-corpus file carries a `## Caveman prompt` block (PLAIN-01, plan 40-01).
 //
-// THE `^You` CADENCE ARM IS DELETED, NOT SUPPLEMENTED (D-06). The predicate it replaces was
-// `>= 2 lines starting with "You" OR >= 1 caveman idiom`, and measurement showed the idiom arm was
-// DEAD: across all 17 blocks the idiom count was zero and every block passed on the `^You` arm alone
-// (29-RESEARCH §A-5). A disjunction whose weakest arm already dominates does not get a third arm —
-// it gets the weak arm removed.
+// INVERTED BY PLAN 40-01. Until Phase 40 this guard REQUIRED a fenced caveman block in every role and
+// measured it with a two-arm lexicon/banned-construction predicate (Phase 29, D-06..D-08). PLAIN-01
+// retires the caveman voice from role text, so the guard now REFUSES any trace of the block, over the
+// whole role corpus: the 19 roles plus `_role-switch-protocol.md` (the roles directory's `.md`
+// members, derived from `listRoles` and the `.md` names of `ROLE_DIR_EXEMPT`, never typed).
 //
-// TWO SIDES, BOTH REQUIRED (D-07):
-//   positive — at least CAVEMAN_LEXICON_MIN distinct terms from the committed lexicon, so a block
-//              cannot be sanded to senior prose;
-//   negative — ZERO banned constructions (article, copula, modal, subordinator), so a block cannot be
-//              decorated with two tokens and left as senior prose around them.
-// Neither arm alone may carry a pass. This is written as a conjunction on purpose: both arms fail
-// 17/17 INDEPENDENTLY against today's tree at every N, so a build that shipped the disjunction by
-// mistake would produce a byte-identical RED transcript. The three discriminating fixtures in
-// scripts/check-foundation-guards.test.ts are what make the conjunction falsifiable; the transcript
-// alone cannot.
+// THE PREDICATE, per file, from the one reader in scripts/voice-model.ts:
+//   readCavemanFence(text).ok === true          — a fenced block is present: a finding.
+//   reason "multiple" or "unterminated"        — a malformed block is present: a finding naming it.
+//   reason "missing" with a bare heading found — a `## Caveman prompt` heading with no fence: a finding.
+//   reason "missing" and no heading            — the expected shape.
+// The bare-heading test compares the lines `stripFencedBlocks` keeps with the heading STRING; this file
+// declares no fence state machine and no heading regex of its own. PRESENCE is what is refused, never content, so an
+// empty fenced block is refused exactly like a full one. The word "caveman" in ordinary prose is not a
+// heading and is not a finding.
 //
-// THE PASS LINE CARRIES THE MEASUREMENT, NEVER AN ASSERTION (D-08). Each block emits
-// `<name>.md: tokens N / content words M, banned K` INSIDE the loop, in listRoles() sorted order so
-// the transcript is byte-diffable across runs, and the verdict folds through the shared vacuity rule
-// so a run that visited zero blocks can never print PASS. D-10 records the rejected alternative — a
-// tokens-per-content-word RATIO with a threshold — so a later phase does not re-propose a tunable
-// number. The counts here are REPORTED; only the two closed-set arms decide.
+// The label stays "caveman voice" and the guard name stays guard_caveman_voice, so the consumers that
+// name it (the lexicon gate's exclusion reason, guard_kit_counts) need no rename.
 //
-// THE D-24 RED TRANSCRIPT — this guard was watched FAILING against the real tree before a single
-// caveman block was rewritten, because a guard that passes the moment it appears has never been
-// watched fail. Measured 2026-08-13 on the tree at HEAD, `node scripts/check-foundation-guards.js`:
+// THE PLAN 40-01 RED TRANSCRIPT. This guard and the whole-file guard_voice were built and run
+// against the unchanged tree — every role still carried its fence — before any fence was deleted,
+// `node scripts/check-foundation-guards.js`, exit 1, 2 CHECK(S) FAILED:
 //
-//   role file                   tokens  content words  banned  arms failed
-//   --------------------------  ------  -------------  ------  -----------------
-//   agents-md-scribe.md              0             45       3  positive + negative
-//   architect-design.md              0             27       1  positive + negative
-//   ba-pm.md                         0             32       2  positive + negative
-//   brownfield-mapper.md             0             27       2  positive + negative
-//   compliance-officer.md            0             41       3  positive + negative
-//   factory-coach.md                 0             31       5  positive + negative
-//   frontend-ui.md                   0             40       5  positive + negative
-//   greenfield-mapper.md             0             30       4  positive + negative
-//   incident-responder.md            0             28       3  positive + negative
-//   installer.md                     0             40       5  positive + negative
-//   orchestrator.md                  0             86       7  positive + negative
-//   qe-e2e.md                        0             29       2  positive + negative
-//   release-manager.md               0             37       5  positive + negative
-//   security-nfr.md                  0             21       1  positive + negative
-//   software-engineer.md             0             37       4  positive + negative
-//   system-analyst.md                0             26       1  positive + negative
-//   uat-planner.md                   0             20       1  positive + negative
-//   --------------------------  ------  -------------  ------  -----------------
-//   TOTAL (17)                       0            597      54  17 of 17 blocks RED
+//   FAIL  voice: 20 finding(s) over 22 elements
+//         (19 roles: "a ## Caveman prompt fence appeared on a voice surface"; the protocol: five
+//          `grug` marker lines, at its lines 8, 24, 31, 49 and 50)
+//   FAIL  caveman voice: 19 finding(s) over 20 elements
+//         (one per role: "a ## Caveman prompt fence is present"; the protocol carried none)
 //
-//   FAIL  caveman voice: 17 finding(s) over 17 elements
-//   exit code 1 — 2 CHECK(S) FAILED (this guard + guard_role_clause_uniqueness)
+// The permanent proof is the planted-mirror cases in scripts/check-foundation-guards.test.ts, not
+// this transcript.
 //
-// Plans 29-05, 29-06 and 29-07 land the block rewrites (7 + 8 + 2 = 17 roles) that turn this green. A
-// red build on this guard before those land is the ACCEPTANCE EVIDENCE for Phase 28's D-24, not a
-// regression.
-//
-// AND THE TRANSCRIPT ALONE IS NOT THE EVIDENCE. Every row above fails BOTH arms, so the same 17 lines
-// would print from a build that shipped `positive || negative`, or that dropped an arm outright. Read
-// the three discriminating fixtures in scripts/check-foundation-guards.test.ts — positive-arm-only
-// RED, negative-arm-only RED, both-arms GREEN — before trusting this table.
+// THE D-24 TRANSCRIPTS THAT STOOD HERE describe the retired two-arm guard (Phase 29). They were the
+// record of that guard, which no longer exists; git history keeps them.
 // ---------------------------------------------------------------------------
 type VoiceFinding = { file: string; detail: string };
 
+/** The heading PLAIN-01 retired. A string compared with whole unfenced lines, never a regex. */
+const RETIRED_CAVEMAN_HEADING = "## Caveman prompt";
+
 function guardCavemanVoice(): void {
   process.stdout.write(
-    "\n[guard_caveman_voice] every role's caveman block carries >= " +
-      `${CAVEMAN_LEXICON_MIN} of the ${CAVEMAN_LEXICON.length} committed lexicon terms AND zero banned constructions — both arms required (D-06, D-07, D-08)\n`,
+    "\n[guard_caveman_voice] no role-corpus file carries a `## Caveman prompt` block — fenced, empty, malformed or bare (PLAIN-01)\n",
   );
   const findings: VoiceFinding[] = [];
   let visited = 0;
-  for (const f of ROLE_FILES) {
-    // Every role file the loop looks at counts as VISITED, including one that has gone missing since
-    // the corpus was derived: the denominator floor below measures whether the SCAN SET is short,
-    // and an unreadable member is a finding rather than a silently smaller denominator.
+  for (const f of ROLE_CORPUS_FILES) {
+    // Every file the loop looks at counts as VISITED, including one that has gone missing since the
+    // corpus was derived: an unreadable member is a finding rather than a silently smaller denominator.
     visited += 1;
-    const name = basename(f);
     if (!fileExists(f)) {
+      findings.push({ file: f, detail: "required role-corpus file missing — it could not be read" });
+      continue;
+    }
+    const text = readText(f);
+    const verdict = readCavemanFence(text);
+    if (verdict.ok) {
       findings.push({
         file: f,
-        detail: "required role file missing — no caveman block could be read",
+        detail: "a ## Caveman prompt fence is present — role text carries no caveman block (PLAIN-01)",
       });
       continue;
     }
-    const verdict = readCavemanFence(readText(f));
-    if (!verdict.ok) {
+    if (verdict.reason !== "missing") {
       findings.push({
         file: f,
-        detail: `## Caveman prompt fence refused — reason ${verdict.reason}`,
+        detail: `## Caveman prompt fence refused — reason ${verdict.reason}; a malformed caveman block is still a caveman block (PLAIN-01)`,
       });
       continue;
     }
-    const tokens = countLexiconTokens(verdict.inside);
-    const words = countContentWords(verdict.inside);
-    const banned = countBannedConstructions(verdict.inside);
-    const bannedTotal =
-      banned.article + banned.copula + banned.modal + banned.subordinator;
-    // The per-block measurement line, emitted INSIDE the loop and BEFORE the fold — so a vacuous run
-    // prints zero detail lines AND fails its own count assertion (D-08).
-    process.stdout.write(
-      `        ${name}: tokens ${tokens} / content words ${words}, banned ${bannedTotal}\n`,
-    );
-    // THE CONJUNCTION. Both must hold; a finding is recorded when EITHER fails.
-    const positiveHolds = tokens >= CAVEMAN_LEXICON_MIN;
-    const negativeHolds = bannedTotal === 0;
-    if (!(positiveHolds && negativeHolds)) {
-      const why: string[] = [];
-      if (!positiveHolds) {
-        why.push(
-          `positive arm: ${tokens} lexicon term(s), needs >= ${CAVEMAN_LEXICON_MIN}`,
-        );
-      }
-      if (!negativeHolds) {
-        why.push(
-          `negative arm: ${bannedTotal} banned construction(s) (article ${banned.article}, copula ${banned.copula}, modal ${banned.modal}, subordinator ${banned.subordinator}), needs 0`,
-        );
-      }
-      findings.push({ file: f, detail: why.join("; ") });
+    if (stripFencedBlocks(text).split("\n").some((l) => l.trimEnd() === RETIRED_CAVEMAN_HEADING)) {
+      findings.push({
+        file: f,
+        detail: "a bare ## Caveman prompt heading is present with no fence — the section is retired, heading included (PLAIN-01)",
+      });
     }
   }
   const measured: Measured<VoiceFinding> = {
     label: "caveman voice",
     visited,
-    // The denominator is the INDEPENDENTLY derived cardinality, never ROLE_FILES.length — comparing
-    // the scan set against its own length is a comparison of one number with itself.
-    expected: ROLE_COUNT,
+    // The denominator is the INDEPENDENTLY derived cardinality — ROLE_COUNT from kit-model plus the
+    // one role-switch protocol — never ROLE_CORPUS_FILES.length, which would compare one number with
+    // itself.
+    expected: ROLE_COUNT + 1,
     findings,
   };
   FAILS += reportMeasured(measured, { pass, fail }, (x) => `  ${x.file}: ${x.detail}`);

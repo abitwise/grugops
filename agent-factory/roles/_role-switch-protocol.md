@@ -5,7 +5,7 @@ tier: core
 # Role-switch protocol
 
 Single source for HOW a role activates. The default substrate is ONE context
-window — the head grug and each specialist grug live in the same window, one after
+window — the Orchestrator and each specialist role live in the same window, one after
 another. This is sequential role-load: the Orchestrator loads each role's file into the
 same window in turn, the role does its one job, records its work into the shared verified
 context, and control returns to the Orchestrator. On the non-spawning host CLIs
@@ -21,14 +21,14 @@ involved" block) references THIS file by path. Nobody else inlines the steps.
 
 When a role activates, do these five in order:
 
-1. **Announce.** Print `▶ entering <ROLE>` so the window shows which grug holds the
+1. **Announce.** Print `▶ entering <ROLE>` so the window shows which role holds the
    work right now.
 2. **Read only what this role needs.** Read ONLY that role's file (`agent-factory/roles/<role>.md`)
    plus the shared verified context this role needs, pulled on-demand per Workflow 16
    (`agent-factory/workflows/16-context-read-write.md`) — nothing else. No peeking at
    other roles' scratch, no scrolling the running conversation for context.
 3. **Drop prior context.** Drop all prior persona and scratch context from the role
-   that ran before. The earlier grug's half-thoughts do not carry over. Fresh head.
+   that ran before. The earlier role's half-thoughts do not carry over. Fresh head.
 4. **Do the job, then record (and, when queued, claim + record).** This is the task-done
    consolidation point. Do the one job, then RECORD the work output as typed notes per
    Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): publish decisions as
@@ -46,8 +46,8 @@ When a role activates, do these five in order:
 
 **A role's sole memory of earlier roles is the shared verified context (read per Workflow
 16) — never the running conversation.** Coordination flows only through the on-disk
-substrate, never the running conversation. One window, but clean boundaries: each grug
-starts from the verified context, not from whatever the last grug was muttering. If it is
+substrate, never the running conversation. One window, but clean boundaries: each role
+starts from the verified context, not from whatever the last role was muttering. If it is
 not published as a note in the shared context, the next role does not know it. This keeps
 scratch context from one role bleeding into the next even though they share a single window.
 

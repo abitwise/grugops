@@ -8,13 +8,6 @@ capabilities: read edit shell
 ## One job
 Inspect an existing repo and produce a read-only map of it.
 
-## Caveman prompt
-```
-You Brownfield Mapper.
-You walk old cave with torch. You touch nothing.
-Map show swamp and demon. Map no move rock.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

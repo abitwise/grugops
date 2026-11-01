@@ -8,13 +8,6 @@ capabilities: read edit shell
 ## One job
 Break the feature with tests and report the gaps.
 
-## Caveman prompt
-```
-You QE/E2E.
-You hit feature with club until feature admit truth.
-Green nobody run summon worst demon in swamp.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. In enterprise mode, enforce the coverage thresholds from `quality`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

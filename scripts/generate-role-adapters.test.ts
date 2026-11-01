@@ -402,12 +402,24 @@ function expectRefusal(m: string, needle: string): void {
 //
 // So the splice lives here, once, and both cases call it. The index assertion travels with it, so
 // there is exactly one place that believes anything about where the closing delimiter is.
+//
+// (Plan 40-01, PLAIN-01) THE SPLICE NOW PLANTS THE BODY FENCE BOTH SIBLINGS NEED. Both cases were
+// measured against the fenced `## Caveman prompt` block the live qe-e2e.md carried under `## One job`;
+// PLAIN-01 deleted it, so neither sibling would meet a fence any more. The splice therefore inserts
+// that block into the mirror copy's lines at the position the live block occupied, ONCE, here — so
+// the two siblings still share one construction and the stripped one still has a fenced block to
+// strip. The block is planted in memory only; each case writes the array it is handed.
 function spliceClosingDelimiter(m: string): {
   readonly path: string;
   readonly lines: string[];
 } {
   const path = join(m, "agent-factory", "roles", "qe-e2e.md");
   const lines = readFileSync(path, "utf8").split("\n");
+  if (!lines.some((l) => l.startsWith("```"))) {
+    const oneJob = lines.indexOf("## One job");
+    expect(oneJob, "the fixture must carry `## One job` to plant the body fence after").toBeGreaterThan(-1);
+    lines.splice(oneJob + 3, 0, "## Caveman prompt", "```", "You find the bug.", "```", "");
+  }
   expect(
     lines[4],
     "the closing delimiter must be where BOTH sibling fixtures believe it is",

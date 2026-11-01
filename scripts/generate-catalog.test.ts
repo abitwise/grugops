@@ -719,7 +719,22 @@ describe("generate-catalog.js (DOCS-01)", () => {
     expect(runMirror(m).status).toBe(0);
 
     const rolePath = join(m, "agent-factory", "roles", "qe-e2e.md");
-    const original = readFileSync(rolePath, "utf8");
+    // (Plan 40-01, PLAIN-01) NO LIVE ROLE CARRIES A FENCE ANY MORE. This case was measured against the
+    // fenced `## Caveman prompt` block the live qe-e2e.md carried under `## One job`; PLAIN-01 deleted
+    // it. So the case plants the fenced block it needs into its OWN mirror copy, at the position the
+    // live block occupied (directly after the `## One job` paragraph), and the measurement below was
+    // re-taken on those bytes: the runaway region still reaches the fence delimiter at line 11. The
+    // assertion stays exact — it was re-measured, not loosened.
+    const unfenced = readFileSync(rolePath, "utf8").split("\n");
+    const oneJob = unfenced.indexOf("## One job");
+    expect(oneJob, "the fixture must carry `## One job` to plant after").toBeGreaterThan(-1);
+    const fenceBlock = ["## Caveman prompt", "```", "You find the bug.", "```", ""];
+    const original = [
+      ...unfenced.slice(0, oneJob + 3),
+      ...fenceBlock,
+      ...unfenced.slice(oneJob + 3),
+    ].join("\n");
+    writeFileSync(rolePath, original);
     // THE PLANT: splice out the CLOSING `---` delimiter, so the frontmatter region opens and never
     // closes. This is the shape G-29-1 names and the shape the sibling's own case plants.
     const lines = original.split("\n");
@@ -764,8 +779,8 @@ describe("generate-catalog.js (DOCS-01)", () => {
     // refuses.
     //
     // WHICH REFUSAL THIS REACHES WAS MEASURED, NOT ASSUMED, and it is NOT the unterminated-block one.
-    // Every catalogued role file carries a fenced `## Caveman prompt` block, so the runaway region
-    // swallows that block's opening fence line and the authority refuses THAT first — a column-0
+    // The mirror copy carries the fenced block planted above (no live role does since PLAIN-01), so the
+    // runaway region swallows that block's opening fence line and the authority refuses THAT first — a column-0
     // fence line is not a legal node in a top-level block mapping. The sibling's test had to be split
     // in two for exactly this reason (plan 27-45, D-53), and inheriting the trap silently would make
     // this case assert something other than what its name says.

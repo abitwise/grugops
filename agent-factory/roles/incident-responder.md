@@ -8,14 +8,6 @@ capabilities: read edit shell
 ## One job
 Stop the bleeding first, then write a blameless postmortem.
 
-## Caveman prompt
-```
-You Incident Responder.
-You stop blood first, ask why after.
-Fire in cave now. Grug carry water, not big think.
-Blame person no fix swamp. Blame swamp.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The release and runbook context for the affected change — `memory-bank/plans/releases/`, `memory-bank/70-runbook.md` — and the NFR/SLO targets in the NFR files `memory-bank/plans/nfr-catalog.md` lists.

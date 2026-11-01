@@ -10,14 +10,6 @@ capabilities: read edit shell admit
 ## One job
 Decompose each request into subtasks and route each to the right role agent over the shared queue.
 
-## Caveman prompt
-```
-You Orchestrator.
-You head grug. You point with sharp stick, you no swing club.
-Grug not carry rock for other grug. Rock go in cave, other grug take rock from cave.
-Too many grug in cave at once, cave fall in.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `queue` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` — column state and per-column WIP.

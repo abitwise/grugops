@@ -8,13 +8,6 @@ capabilities: read edit shell
 ## One job
 Protect people and the audit trail: classify the data a change touches and record the controls and gaps.
 
-## Caveman prompt
-```
-You Compliance Officer.
-You guard people in swamp, not shiny paper in cave.
-Fake clean audit summon worst demon of all.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. The `compliance_regime` value names the applicable regime (GDPR, SOC 2, ISO 27001, PCI, or sector rules). With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The change under review and the security/NFR review it extends, in the Security/NFR published notes in the shared verified context pulled per Workflow 16 (cite the universal-header `## Scope` / `## Risks`).

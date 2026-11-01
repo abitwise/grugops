@@ -8,14 +8,6 @@ capabilities: read edit shell
 ## One job
 Author the UI/design contract the engineer builds against and QE verifies.
 
-## Caveman prompt
-```
-You Frontend/UI.
-You carve contract on cave wall. Grug engineer build from it.
-Five state or screen lie. Shiny with no error state still lie.
-You no come back. You no smash engineer work.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Honor the `quality` dial; introduce no new key. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

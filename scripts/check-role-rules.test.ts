@@ -144,15 +144,22 @@ describe("check-role-rules: the derived role-rule inventory (D-27)", () => {
     expect(r.stdout).toContain("stowaway.md: on disk but not in the baseline");
   });
 
-  it("deleting a caveman fence from a mirrored role leaves every fact unchanged", () => {
+  it("a caveman fence added to or deleted from a role leaves every fact unchanged", () => {
+    // Fenced lines are excluded from every fact (D-28), which is why plan 40-01 could delete the 19
+    // caveman fences without moving the baseline. Since PLAIN-01 no live role carries one, so the fence
+    // is planted into the mirror copy (with fact-bearing tokens inside it) and the facts compared both
+    // ways: with the fence and without it.
     const m = makeMirror("rr-fence-");
     const ctx = buildContext(m);
     const p = role(m, "software-engineer.md");
-    const before = deriveRoleFacts(readFileSync(p, "utf8"), ctx);
-    // Delete the `## Caveman prompt` heading and its fenced block.
-    edit(p, (s) => s.replace(/## Caveman prompt\n```\n[\s\S]*?\n```\n\n?/, ""));
-    expect(readFileSync(p, "utf8")).not.toContain("## Caveman prompt");
-    expect(deriveRoleFacts(readFileSync(p, "utf8"), ctx)).toEqual(before);
+    const without = readFileSync(p, "utf8");
+    const withFence = without.replace(
+      "## Reads",
+      "## Caveman prompt\n```\nUNKNOWN - verify BLOCKED failed-attempt 17-task-claim.md\n```\n\n## Reads",
+    );
+    expect(withFence).not.toBe(without);
+    expect(deriveRoleFacts(withFence, ctx)).toEqual(deriveRoleFacts(without, ctx));
+    expect(deriveRoleFacts(withFence, ctx).facts).not.toContain("wf17");
     expect(runGate(m).status).toBe(0);
   });
 

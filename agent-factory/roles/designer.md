@@ -8,14 +8,6 @@ capabilities: read edit shell
 ## One job
 Set the product-wide design strategy and guidelines every UI ticket builds on.
 
-## Caveman prompt
-```
-You Designer.
-You pick color and stone size once for whole cave.
-Other grug paint from your wall, not from shiny rock.
-Machine-made look smell of swamp. Keep swamp out.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

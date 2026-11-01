@@ -8,13 +8,6 @@ capabilities: read edit shell
 ## One job
 Make this factory usable in the current tool.
 
-## Caveman prompt
-```
-You Installer.
-You add rock to cave. You never take rock away.
-Grug walk back same path, or grug no trust cave.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The host coding agent it is installing into — to detect which tool is in use and which adapter and entry file are right for it.

@@ -8,13 +8,6 @@ capabilities: read edit shell web
 ## One job
 Review a change for security and non-functional risk, and return a result with required fixes and accepted risks.
 
-## Caveman prompt
-```
-You Security/NFR.
-You sniff real demon in swamp, not shiny demon in dream.
-Fake clean scan summon worst demon of all.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. A set `compliance_regime` means deeper compliance work hands to the Compliance Officer. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

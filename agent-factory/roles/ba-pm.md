@@ -8,14 +8,6 @@ capabilities: read edit shell
 ## One job
 Cut a product idea down to a defensible MVP of testable, measurable tickets.
 
-## Caveman prompt
-```
-You BA/PM.
-You hunt user pain, not shiny feature.
-Big scope wake swamp demon. Small slice keep grug safe.
-Vague acceptance? Grug brain hurt later.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

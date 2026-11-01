@@ -538,26 +538,22 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
     expect(r).toEqual({ ok: false, reason: "multiple" });
   });
 
-  it("every live role returns ok with a non-empty interior — the false-red control", () => {
-    // PASSES BEFORE AND AFTER, by construction: all 17 live roles carry both fence delimiters INSIDE
-    // the caveman section, so the bound cannot move their verdict. That is exactly what makes it a
-    // control — if this case went red, the bound would have re-measured the corpus rather than merely
-    // scoping the reader, which is the one outcome this change is not allowed to have.
+  it("every live role returns `missing` (PLAIN-01) — the false-red control", () => {
+    // (Plan 40-01, PLAIN-01) INVERTED WITH THE CORPUS. Until Phase 40 every live role carried a fenced
+    // `## Caveman prompt` block and this control asserted the reader returned `ok` with a non-empty
+    // interior for each. PLAIN-01 deleted every block, so the control now asserts the reader's
+    // verdict for every live role is exactly `{ ok: false, reason: "missing" }` — the shape
+    // guard_caveman_voice requires. scripts/voice-model.ts is unchanged (hash-pinned in the admission
+    // hook's manifest); only this consumer of it moved.
     //
     // Membership is DERIVED from the kit authority, never a literal list: a hand-typed role list is
     // the set-literal drift this repository has corrected three times, and a short denominator here
     // would let a role slip out of the control silently.
     //
-    // (Plan 29-25, WR-05) THE DENOMINATOR IS NOW COMPARED, BECAUSE THE FLOOR THAT STOOD HERE COULD
-    // NOT FAIL. The retired assertion was `expect(names.length).toBeGreaterThan(0)` — sitting three
-    // lines under a comment promising that "a short denominator here would let a role slip out of the
-    // control silently", and asserting precisely nothing about that denominator. `listRoles()` calls
-    // `refuseEmpty` before returning (scripts/kit-model.ts), so it THROWS on an empty or missing roles
-    // directory: `> 0` was guaranteed by the very call it was checking, and no input the call survives
-    // could red it. If sixteen of seventeen roles vanished this control passed. The number the comment
-    // promised to protect is now the assertion, taken from the kit authority rather than typed, and
-    // the sibling case below plants a mirror short by one role to prove the strengthened form reds —
-    // a control that has never been shown to fail is a comment.
+    // (Plan 29-25, WR-05) THE DENOMINATOR IS COMPARED, because a `> 0` floor here could not fail:
+    // `listRoles()` refuses an empty directory before returning. The sibling case below plants a mirror
+    // short by one role to prove this form reds — a control that has never been shown to fail is a
+    // comment.
     const names = listRoles();
     expect(
       names,
@@ -565,30 +561,10 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
     ).toHaveLength(ROLE_COUNT);
     for (const n of names) {
       const text = readFileSync(join(import.meta.dirname, "..", ROLES_SUBPATH, n), "utf8");
-      const v = readCavemanFence(text);
-      expect(v.ok, `${n} must read ok`).toBe(true);
-      if (!v.ok) continue;
-      expect(v.inside.length, `${n} must have a non-empty interior`).toBeGreaterThan(0);
-      // (Plan 29-27, closing CR-01) THE REMAINDER IS ASSERTED DIRECTLY, NEVER INFERRED FROM `ok`.
-      // `ok: true` says the fence was located and is well-formed; it says NOTHING about how much of
-      // the document survived the filter. Under the 29-20 bound a role file could return `ok: true`
-      // with `outside` the EMPTY STRING — guard_voice's entire scan surface — and every assertion in
-      // this loop still passed.
-      //
-      // (Plan 29-34, WR-04) THE LINE-COUNT HALF WAS THE VACUOUS HALF. What stood here was
-      // `expect(v.outside.split("\n").length).toBeGreaterThan(0)` — true of EVERY possible string,
-      // because `"".split("\n")` is `[""]` and never `[]`. Its own comment chose a line count over a
-      // length deliberately, "because that is the number guard_voice now publishes per file, so the
-      // two cannot drift apart" — and then picked the one form of line count that cannot be false.
-      // Only the `trim().length` line beneath it ever did any work.
-      //
-      // The replacement keeps the drift argument and makes it true: the reader now PUBLISHES
-      // `outsideLines`, and that is the number guard_voice publishes, so it is asserted DIRECTLY
-      // rather than re-derived from the string. Beside it the NON-BLANK line count — a count that
-      // really can be zero. The predicate lives in one place and the falsifiability sibling below
-      // drives that same place, because a probe carrying its own copy proves a predicate that is not
-      // the one shipped.
-      assertRemainderScannable(v, n);
+      expect(readCavemanFence(text), `${n} must carry no caveman block (PLAIN-01)`).toEqual({
+        ok: false,
+        reason: "missing",
+      });
     }
   });
 

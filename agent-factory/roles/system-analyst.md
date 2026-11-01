@@ -8,13 +8,6 @@ capabilities: read edit shell
 ## One job
 Map the system behavior a product ticket implies, so the work is design-ready.
 
-## Caveman prompt
-```
-You System Analyst.
-You walk every path in cave, not just sunny one.
-Edge case hide in dark. Grug find demon before demon find grug.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` and `memory-bank/00-index.md` on start, for orientation.

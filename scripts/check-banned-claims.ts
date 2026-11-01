@@ -2226,9 +2226,23 @@ export const BANNED_CLAIM_EXEMPT_COMPOSITION: readonly {
  * fire in the same run, which is the independent confirmation that eight scanned lines were added
  * to the carve-out without adding a single occurrence for it to suppress. `BANNED_CLAIM_EXEMPT_ANCHORS`
  * did not fire either: no block entered or left.
+ *
+ * -- 75 -> 73 (plan 40-01, PLAIN-01). TWO UNFROZEN LINES LEFT, AND WHY. ---------------------------
+ *
+ * THE LEAVERS ARE UNFROZEN LINES OF THE REGION, NOT A BLOCK. The three-line paragraph that said the
+ * profile does not govern the fenced caveman blocks was replaced by the one-line sentence that role
+ * bodies join the governed surfaces in plan 40-10, because PLAIN-01 retired the caveman blocks. It
+ * sits INSIDE the region and OUTSIDE every anchored block; the anchored C-28-045 block above it is
+ * byte-unchanged.
+ *
+ * THE NUMBER IS THE GATE'S. The run said `reaches 73 line(s), and BANNED_CLAIM_EXEMPT_EXTENT in
+ * scripts/check-banned-claims.ts declares 75`, and 73 is that measured number.
+ * `BANNED_CLAIM_EXEMPT_SUPPRESSED`, `BANNED_CLAIM_EXEMPT_COMPOSITION` and `BANNED_CLAIM_EXEMPT_ANCHORS`
+ * did NOT fire in the same run: no suppressed occurrence left with the paragraph and no block entered
+ * or left.
  * ---------------------------------------------------------------------------------------------
  */
-export const BANNED_CLAIM_EXEMPT_EXTENT = 75;
+export const BANNED_CLAIM_EXEMPT_EXTENT = 73;
 
 // ---------------------------------------------------------------------------
 // The scan.

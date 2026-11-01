@@ -302,7 +302,6 @@ const CHECKLISTS = [
 // (PROJECT.md line 96; RESEARCH Pitfall 1/2).
 const ROLE_SECTIONS = [
     "## One job",
-    "## Caveman prompt",
     "## Reads",
     "## Responsibilities",
     "## Output",

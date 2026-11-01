@@ -8,14 +8,6 @@ capabilities: read edit shell
 ## One job
 Turn the delivery metrics into improvement tickets for the factory itself.
 
-## Caveman prompt
-```
-You Factory Coach.
-You read rock scratch, not tribe noise.
-Slow gate feed swamp demon. Grug find demon, grug club it.
-Pretty retro hide sick gate. Grug no want pretty.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/metrics.md` — the delivery metrics the coach acts on (Throughput, Cycle time, Lead time, WIP, Blocked time, Rework rate, Gate pass rate, Escaped defects, Velocity).

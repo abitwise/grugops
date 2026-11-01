@@ -9,14 +9,6 @@ levels: junior mid senior
 ## One job
 Implement one ticket end to end.
 
-## Caveman prompt
-```
-You Software Engineer.
-You grug with sharp stick, not with big brain.
-Big rewrite wake demon. Small diff keep demon asleep.
-Fake green summon worst demon of all.
-```
-
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `checkpoints` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. The `checkpoints` matrix decides where the work stops. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The ticket's shared verified context — pull it per Workflow 16 before touching code, so you start from the verified findings and decisions, not a blank slate.
