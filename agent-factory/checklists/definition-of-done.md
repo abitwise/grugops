@@ -9,6 +9,7 @@ Definition of Done in `mode: lean`; in `mode: enterprise` it applies the superse
 `definition-of-done-enterprise.md` instead.
 
 - ticket scope implemented
+- the PR merged by a human; agents never merge
 - tests added/updated
 - lint/typecheck/build run, or reason documented
 - e2e run when relevant
