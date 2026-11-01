@@ -72,6 +72,18 @@ function numbered(body: string): { n: number; text: string }[] {
   return items;
 }
 
+/**
+ * The Tech Lead's dev-raised-block item, found by its opening words. Plan 40-03 (D-20) inserted the
+ * scope-first item, so the block item no longer sits at a fixed number.
+ */
+function blockedItem(): string {
+  const item = numbered(section(TECH_LEAD, "Responsibilities")).find((i) =>
+    i.text.startsWith("On a ticket the engineer moved to `## Blocked`"),
+  );
+  expect(item, "no dev-raised-block item in tech-lead.md `## Responsibilities`").toBeDefined();
+  return (item as { n: number; text: string }).text;
+}
+
 /** The F-factor table row whose first cell starts with `id`, split into its cells. */
 function factorRow(id: string): string[] {
   const row = RUBRIC.split("\n").find((l) => l.startsWith(`| ${id} `));
@@ -232,8 +244,10 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
   it("D-04 / D-17: the Output names the decision note's contents and the `## Tech Lead plan` section", () => {
     const body = section(TECH_LEAD, "Output");
     expect(body).toContain(
-      "A `decision` note per Workflow 16 holding the six factor scores with the fact behind each, the sum, the level, the adapter `grugops-software-engineer-<level>` and the dev tasks.",
+      // Plan 40-03 (D-14, WP-03): the 27-word sentence split in two; every named part survives.
+      "A `decision` note per Workflow 16: the six factor scores with the fact behind each, the sum, the level and the dev tasks.",
     );
+    expect(body).toContain("It names the adapter `grugops-software-engineer-<level>`.");
     expect(body).toContain("A short `## Tech Lead plan` section in the ticket body: level, adapter, sum and note id.");
     expect(body).toContain("No ticket frontmatter key and no dev-plan file.");
     expect(section(TECH_LEAD, "Responsibilities")).toContain("the Orchestrator dispatches exactly that adapter");
@@ -255,24 +269,32 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
 
   it("D-08: the ticket stays in `Ready for Dev` while the Tech Lead plans; F2 = 2 returns it to `In Design`", () => {
     const body = section(TECH_LEAD, "Board moves");
-    expect(body).toContain("No column of its own: the ticket stays in `Ready for Dev` while the Tech Lead plans.");
-    expect(body).toContain("F2 = 2 returns a ticket to `In Design`.");
+    // Plan 40-03 (D-11, D-33): second person, and the F2 = 2 return is the declared pair as a code span.
+    expect(body).toContain("The ticket stays in `Ready for Dev` while you plan.");
+    expect(body).toContain("You own `Ready for Dev → In Design` at F2 = 2.");
   });
 
   it("D-19: it owns the exit of a dev-raised `## Blocked` and records one of the four moves in a new decision note", () => {
     const resp = section(TECH_LEAD, "Responsibilities");
-    expect(resp).toContain(
-      "On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note and record one move in a new decision note: escalate one level, at most once per ticket; re-plan and re-score; split; or send it back to the Architect.",
+    // Plan 40-03 (D-14, WP-02): the 41-word sentence split; the four moves are listed once, in
+    // Workflow 04 step 15, and the once-per-ticket escalation limit is the `## Stop when` stop.
+    expect(resp).toContain("On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note.");
+    expect(resp).toContain("Record one move in a new decision note.");
+    expect(readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8")).toContain(
+      "Choose one: escalate one level at most once per ticket, re-plan and re-score, split, or return it to the Architect.",
     );
     // WR-12, re-review WR-05: the exit depends on the move, and Workflow 04 step 15 names it per move
     // (pinned in the WF04 describe below); the role points there instead of restating it.
+    // Plan 40-03 (D-33): the three exits are the declared `Blocked →` pairs, as code spans.
     expect(section(TECH_LEAD, "Board moves")).toContain(
-      "It owns the exit of a dev-raised `## Blocked`, per Workflow 04 step 15.",
+      "You own the exit of a dev-raised `## Blocked`, per Workflow 04 step 15: `Blocked → Ready for Dev`, `Blocked → Backlog` or `Blocked → In Design`.",
     );
   });
 
   it("D-21 amended: a second escalation stops for a named human, a used-up ticket goes to the resolving role, and three disputed rounds stop for a named human", () => {
-    const body = section(TECH_LEAD, "Hard limits");
+    // Plan 40-03 (D-10): the stops moved from `## Hard limits` to `## Stop when`, byte-exact; merge
+    // and deploy stay a hard limit.
+    const body = section(TECH_LEAD, "Stop when");
     // G-39-71 (plan 39-19): a human may name a second escalation at the human stop, so the limit is
     // on the Tech Lead's own moves.
     // Quick 261031-rhv R4 (Olger Oeselg, 2026-10-31): a raise past the spent escalation applies the
@@ -288,15 +310,27 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     ]) {
       expect(body).toContain(sentence);
     }
-    expect(body).toContain("Merge and deploy stay with humans.");
+    expect(section(TECH_LEAD, "Hard limits")).toContain("Merge and deploy stay with humans.");
+    for (const sentence of [
+      "Stop the same way before a second escalation.",
+      "After the options are used up, hand the ticket to the role whose job covers its cause.",
+      "Stop for a named human after three disputed rounds",
+    ]) {
+      expect(section(TECH_LEAD, "Hard limits"), `the stop "${sentence}" is stated twice`).not.toContain(sentence);
+    }
   });
 
-  it("WR-07: Responsibilities write the dev tasks (item 2) before scoring them (item 3)", () => {
+  it("WR-07: Responsibilities scope the change, then write the dev tasks, then score them (plan 40-03 order)", () => {
+    // Plan 40-03 (D-20): the scope-first item sits before "Write the dev tasks", so the case asserts the
+    // order of the three items by their text rather than by fixed indices.
     const items = numbered(section(TECH_LEAD, "Responsibilities"));
-    expect(items[1]?.n).toBe(2);
-    expect(items[1]?.text.startsWith("Write the dev tasks")).toBe(true);
-    expect(items[2]?.n).toBe(3);
-    expect(items[2]?.text.startsWith("Score the dev tasks and the ticket per the rubric.")).toBe(true);
+    const at = (prefix: string) => items.findIndex((i) => i.text.startsWith(prefix));
+    const scope = at("Write down every place the change reaches");
+    const write = at("Write the dev tasks");
+    const score = at("Score the dev tasks and the ticket per the rubric.");
+    expect(scope, "no scope-first item").toBeGreaterThanOrEqual(0);
+    expect(write).toBe(scope + 1);
+    expect(score).toBe(write + 1);
   });
 
   it("WR-15: the role reads Workflow 04 and holds a gate-failure ticket in `Blocked` for a named human", () => {
@@ -304,7 +338,7 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
     expect(section(TECH_LEAD, "Reads")).toContain(
       "- `agent-factory/workflows/04-ticket-to-pr.md` steps 14-17, the path of a blocked ticket.",
     );
-    const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
+    const item5 = blockedItem();
     // WR-16, re-review WR-05: the role meets the human stops through Workflow 04 step 15, which holds
     // them once (pinned in the WF04 describe below), instead of restating the checkpoint conditions.
     // G-39-71 (plan 39-19): the re-score rule became the hand-off.
@@ -315,13 +349,63 @@ describe("tech-lead.md (TIER-01; D-01, D-04..D-07, D-10, D-12, D-17, D-19, D-21)
   });
 
   it("WR-01: besides the one escalation the Tech Lead makes at most one other move, and a level-raising re-score is the escalation", () => {
-    const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
+    const item5 = blockedItem();
     expect(item5).toContain("Besides the escalation, make at most one other move per ticket.");
     // WR-13, re-review WR-05: the re-score rule lives once, in Workflow 04 step 15 (pinned in the
     // WF04 describe below); the role points there, and restates neither the rule nor its stops.
     // G-39-71 (plan 39-19): the pointer names the hand-off.
     expect(item5).toContain("Follow Workflow 04 step 15 for the `Move:` line, the hand-off");
     expect(item5).not.toContain("one level only");
+  });
+});
+
+describe("tech-lead.md plain conform (PLAIN-05; D-10, D-18, D-20, D-33, D-36)", () => {
+  it("D-20: scope-first names every place the change reaches, the dropped options and the never-cut floor", () => {
+    const item = numbered(section(TECH_LEAD, "Responsibilities")).find((i) =>
+      i.text.startsWith("Write down every place the change reaches"),
+    )?.text ?? "";
+    expect(item).toContain("Write down every place the change reaches: callers, tests, fixtures, config, exports.");
+    expect(item).toContain("Name each option nobody asked for as dropped.");
+    expect(item).toContain(
+      "Write the never-cut floor: trust-boundary validation, error handling that prevents data loss, security, accessibility, anything the user asked for.",
+    );
+  });
+
+  it("D-20: the `## Tech Lead plan` section records the scope, the dropped options and the floor", () => {
+    const body = section(TECH_LEAD, "Output");
+    expect(body).toContain(
+      "A short `## Tech Lead plan` section in the ticket body: level, adapter, sum and note id. It also records the scope, the dropped options and the floor.",
+    );
+  });
+
+  it("D-36: `## Hard limits` keeps the no-fabrication sentence and marks an unmeasurable factor `UNKNOWN - verify`", () => {
+    const limits = section(TECH_LEAD, "Hard limits");
+    expect(limits).toContain("never fabricate a score");
+    expect(limits).toContain("Mark an unmeasurable factor `UNKNOWN - verify`, scored per the rubric.");
+    expect(RUBRIC).toContain("A factor the Tech Lead cannot measure is recorded `UNKNOWN - verify` and scored 2.");
+  });
+
+  it("D-33: `## Board moves` names exactly the four declared exception pairs", () => {
+    const pairs = [...section(TECH_LEAD, "Board moves").matchAll(/`([^`]+ → [^`]+)`/g)].map((m) => m[1]);
+    expect(pairs).toEqual(["Ready for Dev → In Design", "Blocked → Ready for Dev", "Blocked → Backlog", "Blocked → In Design"]);
+  });
+
+  it("D-10: `## Stop when` follows `## Hard limits`, closes the file, and ends with the done stop", () => {
+    const headings = TECH_LEAD.split("\n").filter((l) => l.startsWith("## "));
+    expect(headings).toEqual([
+      "## One job",
+      "## Activates when",
+      "## Reads",
+      "## Responsibilities",
+      "## Output",
+      "## Board moves",
+      "## Trace updates",
+      "## Hard limits",
+      "## Stop when",
+    ]);
+    expect(section(TECH_LEAD, "Stop when")).toContain(
+      "- When the level is named, stop done and hand the ticket to the Orchestrator.",
+    );
   });
 });
 
@@ -1426,8 +1510,8 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
   });
 
-  it("(e) tech-lead.md `## Hard limits` hands a used-up ticket off, stops for a human after three disputed rounds, and parks it at `notify` or `off`", () => {
-    const body = section(TECH_LEAD, "Hard limits");
+  it("(e) tech-lead.md `## Stop when` hands a used-up ticket off, stops for a human after three disputed rounds, and parks it at `notify` or `off`", () => {
+    const body = section(TECH_LEAD, "Stop when");
     // G-39-71 (plan 39-19, D-21 amended): the 39-18 no-move limit became the hand-off and the final
     // human stop.
     for (const sentence of [
@@ -1657,11 +1741,11 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
   const HUMAN = "after three disputed rounds, or when the fix changes a requirement or a rule fundamentally";
   const PARK = "in `Blocked` with no move";
 
-  it("(k) WF04 step 15, the used-up stop, tech-lead.md `## Hard limits` and the config paragraph share the three phrases (W1)", () => {
+  it("(k) WF04 step 15, the used-up stop, tech-lead.md `## Stop when` and the config paragraph share the three phrases (W1)", () => {
     const places: [string, string][] = [
       ["Workflow 04 step 15", stepAt(STEP15).text],
       ["the Workflow 04 used-up stop", usedUp()],
-      ["tech-lead.md `## Hard limits`", section(TECH_LEAD, "Hard limits")],
+      ["tech-lead.md `## Stop when`", section(TECH_LEAD, "Stop when")],
       ["the factory.config.md escalate paragraph", escalateParagraph()],
     ];
     for (const [where, text] of places) {
@@ -1767,8 +1851,10 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     expect(escalateParagraph()).toContain(
       "A role only proposes such a change and leaves it unmade until a named human approves, and the Tech Lead checks every `Resolved:` note against that definition.",
     );
-    const item5 = numbered(section(TECH_LEAD, "Responsibilities")).find((i) => i.n === 5)?.text ?? "";
-    expect(item5).toContain("Check every `Resolved:` note per step 17.");
+    // Plan 40-03 (D-14): the `Resolved:` check is its own item, one action per item.
+    expect(numbered(section(TECH_LEAD, "Responsibilities")).map((i) => i.text)).toContain(
+      "Check every `Resolved:` note per step 17.",
+    );
   });
 
   // 39-UAT D2 (Olger Oeselg, 2026-10-31) closes 39-REVIEW CR-04, quick task 261031-nd9: a cause carries
@@ -1788,12 +1874,12 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     const places: [string, string][] = [
       ["Workflow 04 step 15", stepAt(STEP15).text],
       ["the Workflow 04 used-up stop", usedUp()],
-      ["tech-lead.md `## Hard limits`", section(TECH_LEAD, "Hard limits")],
+      ["tech-lead.md `## Stop when`", section(TECH_LEAD, "Stop when")],
       ["the factory.config.md escalate paragraph", escalateParagraph()],
     ];
     for (const [where, text] of places) expect(text, `${where} lacks "${CEILING}"`).toContain(CEILING);
     holdsAll(usedUp().slice("- ".length), "used-up stop", ["The same stop applies before a fourth hand-off on one ticket."]);
-    holdsAll(section(TECH_LEAD, "Hard limits"), "tech-lead.md `## Hard limits`", [
+    holdsAll(section(TECH_LEAD, "Stop when"), "tech-lead.md `## Stop when`", [
       "Stop the same way before a fourth hand-off on one ticket.",
     ]);
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
@@ -1894,7 +1980,7 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     ]) {
       expect(para, `config paragraph lacks "${sentence}"`).toContain(sentence);
     }
-    expect(section(TECH_LEAD, "Hard limits")).toContain(
+    expect(section(TECH_LEAD, "Stop when")).toContain(
       "At `notify` or `off`, leave it in `Blocked` with no move until a human answers.",
     );
   });
@@ -2048,10 +2134,10 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     ]);
     expect(used.indexOf(STOP_CEILING)).toBeLessThan(used.indexOf(STOP_RAISE));
 
-    const limits = section(TECH_LEAD, "Hard limits");
+    const limits = section(TECH_LEAD, "Stop when");
     const SECOND = "Stop the same way before a second escalation.";
     const FOURTH = "Stop the same way before a fourth hand-off on one ticket.";
-    holdsAll(limits, "tech-lead.md `## Hard limits`", [SECOND, FOURTH]);
+    holdsAll(limits, "tech-lead.md `## Stop when`", [SECOND, FOURTH]);
     expect(limits.indexOf(SECOND)).toBeLessThan(limits.indexOf(FOURTH));
     expect(limits).not.toContain("Never escalate a ticket twice on your own.");
 
