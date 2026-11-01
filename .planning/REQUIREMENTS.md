@@ -53,13 +53,13 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 
 ### Plain-language roles (PLAIN)
 
-- [x] **PLAIN-01**: No role carries a caveman block; the voice constraint, the section list, the voice guards, the writing profile, claim C-28-003 and `CLAUDE.md` change together in one atomic change, with the inverted guard seen failing first
-- [x] **PLAIN-02**: All 19 roles and the role-switch protocol are rewritten in clear, compact English that states each role's goal, inputs, outputs, board moves, hard limits and stop conditions in more detail than today
-- [x] **PLAIN-03**: A role-rule inventory generated before the rewrite (no-fabrication, `UNKNOWN - verify`, WF16/WF18 pointers, absent-config fallback, board-move ownership as a partition) still holds after it
-- [x] **PLAIN-04**: All role files together stay within 67,383 bytes, enforced by a guard, with a recorded per-file ceiling for each role
-- [x] **PLAIN-05**: The engineer and Tech Lead roles carry grugops-authored "do less" rules adapted from ponytail (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line), with MIT attribution in NOTICE and no borrowed benchmark numbers
-- [x] **PLAIN-06**: The PR review checklist has a lean-review lens that flags over-engineering
-- [x] **PLAIN-07**: Role text is a governed surface of the writing profile (lexicon and sentence gates pass on every role)
+- [ ] **PLAIN-01**: No role carries a caveman block; the voice constraint, the section list, the voice guards, the writing profile, claim C-28-003 and `CLAUDE.md` change together in one atomic change, with the inverted guard seen failing first
+- [ ] **PLAIN-02**: All 19 roles and the role-switch protocol are rewritten in clear, compact English that states each role's goal, inputs, outputs, board moves, hard limits and stop conditions in more detail than today
+- [ ] **PLAIN-03**: A role-rule inventory generated before the rewrite (no-fabrication, `UNKNOWN - verify`, WF16/WF18 pointers, absent-config fallback, board-move ownership as a partition) still holds after it
+- [ ] **PLAIN-04**: All role files together stay within 67,383 bytes, enforced by a guard, with a recorded per-file ceiling for each role
+- [ ] **PLAIN-05**: The engineer and Tech Lead roles carry grugops-authored "do less" rules adapted from ponytail (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line), with MIT attribution in NOTICE and no borrowed benchmark numbers
+- [ ] **PLAIN-06**: The PR review checklist has a lean-review lens that flags over-engineering
+- [ ] **PLAIN-07**: Role text is a governed surface of the writing profile (lexicon and sentence gates pass on every role)
 
 ### Orchestrator flow (RUN)
 
@@ -143,13 +143,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TIER-05 | Phase 39 | Complete |
 | TIER-06 | Phase 39 | Complete |
 | TIER-07 | Phase 39 | Complete |
-| PLAIN-01 | Phase 40 | Complete |
-| PLAIN-02 | Phase 40 | Complete |
-| PLAIN-03 | Phase 40 | Complete |
-| PLAIN-04 | Phase 40 | Complete |
-| PLAIN-05 | Phase 40 | Complete |
-| PLAIN-06 | Phase 40 | Complete |
-| PLAIN-07 | Phase 40 | Complete |
+| PLAIN-01 | Phase 40 | Gaps Found |
+| PLAIN-02 | Phase 40 | Gaps Found |
+| PLAIN-03 | Phase 40 | Gaps Found |
+| PLAIN-04 | Phase 40 | Gaps Found |
+| PLAIN-05 | Phase 40 | Gaps Found |
+| PLAIN-06 | Phase 40 | Gaps Found |
+| PLAIN-07 | Phase 40 | Gaps Found |
 | RUN-01 | Phase 41 | Pending |
 | RUN-02 | Phase 41 | Pending |
 | RUN-03 | Phase 41 | Pending |
