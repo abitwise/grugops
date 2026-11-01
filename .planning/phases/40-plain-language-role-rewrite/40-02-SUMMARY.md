@@ -192,6 +192,7 @@ None.
 ## Next Phase Readiness
 
 - The wave-3 batches (40-03 onward) can copy software-engineer.md as the approved reference and use the tables in `## Checkpoint outcome` as final.
+- PLAIN-02, PLAIN-03 and PLAIN-05 are partly met here and stay unchecked in REQUIREMENTS.md. PLAIN-02 needs all 19 roles and the protocol (40-03 to 40-07). PLAIN-03 needs the inventory and the partition guard to hold after the whole rewrite (40-08). PLAIN-05 also needs the Tech Lead's do-less rules (40-03).
 - When 40-03 lands the Tech Lead's rules and the lean-review lens, it widens NOTICE's first ponytail paragraph to name them, so the credit never runs ahead of the content.
 
 ## Self-Check: PASSED
