@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-10-PLAN.md
-last_updated: "2026-11-01T20:32:36.330Z"
+stopped_at: Completed 40-11-PLAN.md
+last_updated: "2026-11-01T21:20:31.412Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: b12b4b1392052659b054df9577d23a46113c6eca
+state_head: 2af04971d8a984c77486b1368c909cdfb1be033f
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 104
-  completed_plans: 98
+  completed_plans: 99
   percent: 56
 ---
 
@@ -815,6 +815,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P08 | 35min | 3 tasks | 193 files |
 | Phase 40 P09 | 40min | 2 tasks | 4 files |
 | Phase 40 P10 | 33 min | 3 tasks | 9 files |
+| Phase 40 P11 | 8 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -2254,6 +2255,8 @@ Recent decisions affecting current work:
 - [Phase 40]: Plan 40-10: role corpus is the fifth governed part of check-imperative-lexicon (69 files, ROLE_PART_COUNT 20 pinned two-sided)
 - [Phase 40]: Plan 40-10: security-nfr.md Activates when reworded (D-32), adapter change recorded as RECORDED_CHANGED in adapter-byte-baseline (D-3); no lexicon addition in Phase 40
 - [Phase 40]: Plan 40-10: C-28-003 restored to true on guard_sentence_form output; F-28-202 closed
+- [Phase 40]: 40-11: CR-01 closed by adding twelve derived safety facts (SAFETY_RULE_FACTS) to the role-rule inventory, honoring D-30 as written rather than restoring the positional Hard-limits freeze
+- [Phase 40]: 40-11: the inventory baseline is pinned to PHASE_40_START_COMMIT e8d7802 by a constant; --write-baseline derives only from git objects there and check() refuses a foreign source_commit (WR-05)
 
 ### Pending Todos
 
@@ -2593,8 +2596,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-01T17:25:41.061Z
-Stopped at: Completed 40-10-PLAN.md
+Last session: 2026-11-01T21:20:30.466Z
+Stopped at: Completed 40-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
