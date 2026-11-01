@@ -931,6 +931,13 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // a role file's `levels` key for the agent adapter derivation (listAgentAdapterSpecs). It takes no
     // verdict-bearing symbol and carries no private line parser: reading the key through the one
     // authority is the point, because a local grammar would be the third grammar D-50 IN-05 pins red.
+    //
+    // (Plan 40-01, D-27) AND FROM THIRTEEN TO FOURTEEN, SAME DIRECTION. `check-role-rules.ts`, the
+    // derived role-rule inventory, imports `fencedLineFlags`, `unfencedHeadingIndex` and
+    // `sectionEndIndex` — the fence toggle and the two section-locator answers, no verdict-bearing
+    // symbol, no private fence state and no heading grammar of its own. Re-derived rather than
+    // incremented: the same `git ls-files … | xargs grep -l 'from "./frontmatter.js"'` minus test files
+    // reports fourteen with this module tracked.
     expect(consumers).toEqual([
       "audit-model.ts",
       "canonical-frontmatter.ts",
@@ -939,6 +946,7 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "check-flip-manifest.ts",
       "check-foundation-guards.ts",
       "check-imperative-lexicon.ts",
+      "check-role-rules.ts",
       "checkpoints.ts",
       "generate-catalog.ts",
       "generate-role-adapters.ts",
@@ -2445,8 +2453,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 111 with this module tracked (2026-10-28, plan 38-02).
+ *
+ * 111 -> 112 (plan 40-01, PLAIN-03, D-27), ONE MODULE:
+ *   - `scripts/check-role-rules.ts` — the derived role-rule inventory: per role-corpus file it derives a fact
+ *     set (anchor tokens, kit references, board from-columns) and checks it against the committed pre-rewrite
+ *     baseline docs/audit/40-role-rule-inventory.json. It imports `fencedLineFlags`, `unfencedHeadingIndex` and
+ *     `sectionEndIndex` from the one authority and declares no fence state machine of its own.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it asks `sectionEndIndex` for every section end and builds no section bound
+ *     of its own (its `new RegExp` calls match a rubric tag or a kit-file basename, never a heading), declares no
+ *     function named for the frontmatter parser, reads no grant and renders no spawn verdict. Its committed `.js`
+ *     twin landed in the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 112 with this module tracked (2026-11-01, plan 40-01).
  */
-const NON_TEST_MODULE_COUNT = 111;
+const NON_TEST_MODULE_COUNT = 112;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2581,17 +2601,23 @@ const LOCATOR_FUNCTIONS = [
 // THE PIN MOVING IS THE PIN WORKING: it went red the moment the module took the authority, and it is
 // raised only after checking that the direction is adoption and not a private grammar smuggled in
 // under an import.
+// (Plan 40-01, D-27) RE-DERIVED AND UP BY ONE. `scripts/check-role-rules.ts`, the derived role-rule
+// inventory, joins: it locates each role section by heading prefix over the authority's fence flags
+// and asks `sectionEndIndex` for every section end, and it reads the board and rubric tables through
+// `unfencedHeadingIndex`. It declares NO close scan and NO fence state of its own, so it is adoption,
+// checked in that direction before the pin moved.
 const LOCATOR_CONSUMERS = [
   "scripts/audit-model.ts",
   "scripts/check-banned-claims.ts",
   "scripts/check-diff-disposition.ts",
   "scripts/check-imperative-lexicon.ts",
+  "scripts/check-role-rules.ts",
   "scripts/checkpoints.ts",
   "scripts/generate-catalog.ts",
   "scripts/generate-role-adapters.ts",
   "scripts/voice-model.ts",
 ];
-const LOCATOR_CONSUMER_COUNT = 8;
+const LOCATOR_CONSUMER_COUNT = 9;
 
 /**
  * A source carrying ONE site of each construct pair — the falsifiability probe's fixture.
@@ -3078,7 +3104,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // imports nothing at all, so it contributes three empty comparisons and cannot make the agreement above
     // vacuous on its own. Re-derived: the scoped walk over `scripts/` minus tests reports 71 with the module
     // tracked (2026-10-23).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(71);
+    // 71 → 72 (plan 40-01, D-27): `scripts/check-role-rules.ts`, the derived role-rule inventory. It imports
+    // `fencedLineFlags`, `unfencedHeadingIndex` and `sectionEndIndex` from ./frontmatter.js, and both readers must
+    // agree on that import set like every other module both can see. Re-derived: the scoped walk over `scripts/`
+    // minus tests reports 72 with the module tracked (2026-11-01).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(72);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3114,7 +3144,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 65 → 66 (plan 37-02, task 1): `state-rules.ts`, three specs per module as ever (2026-10-22).
     // 69 → 70 (plan 37-20): `fault-inject.test-support.ts`, three specs per module as ever (2026-10-23).
     // 70 → 71 (plan 37-24): `runnable-stamp.ts`, three specs per module as ever (2026-10-23).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(71 * 3);
+    // 71 → 72 (plan 40-01): `check-role-rules.ts`, three specs per module as ever (2026-11-01).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(72 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3349,7 +3380,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // (2026-10-23).
       // 70 → 71 (plan 37-24): `runnable-stamp.ts`, the same module the flat reader gained; both pins move in one
       // commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 71 (2026-10-23).
-    ).toBe(71);
+      // 71 → 72 (plan 40-01): `check-role-rules.ts`, the same module the flat reader gained; both pins move in
+      // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 72 (2026-11-01).
+    ).toBe(72);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -10230,7 +10263,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // kit prose Phase 39 writes (the complexity rubric and the Tech Lead role now). The pin moved because a module landed,
 // not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 81 on this tree
 // (2026-10-29, plan 39-05).
-const TRIPWIRE_MODULES = 81;
+//
+// 81 -> 82 (plan 40-01, 2026-11-01): ONE test module, `scripts/check-role-rules.test.ts` — the planted-mirror cases
+// for the derived role-rule inventory (D-27) and the re-derivation of its baseline from git objects at the recorded
+// source_commit. The pin moved because a module landed, not to make a red go away. Re-derived rather than
+// incremented: `ls scripts/*.test.ts | wc -l` reports 82 on this tree (2026-11-01, plan 40-01).
+const TRIPWIRE_MODULES = 82;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
@@ -13037,7 +13075,11 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       // gate, `scripts/check-state-paths.js`, named directly by a ci.yml step in the gate block. It
       // fails on any spelling of the pre-v3 state root outside its per-file allow-list. The number
       // moved because the SET moved, in the same commit as the module (2026-10-21).
-      targets: 12,
+      // 12 -> 13 (plan 40-01, task 1, D-27). `check:role-rules` joined: the derived role-rule
+      // inventory, `scripts/check-role-rules.js`, named directly by a ci.yml step beside the
+      // public-docs vocabulary gate. It fails on any baseline role fact a role-corpus file no longer
+      // carries. The number moved because the SET moved, in the same commit as the module (2026-11-01).
+      targets: 13,
       proof: "ci.yml names the gate module, or CI_EXEMPT names a reason AND something still runs it",
     },
     "suite-test-file": {
