@@ -28,7 +28,7 @@ Each role reads the shared verified context before it works. Each role records i
 5. Obtain the named human's signoff on the scenarios; the ticket then moves on toward release.
 
 ## Board moves
-On `memory-bank/plans/board.md`, the UAT Planner moves the ticket `Ready for UAT -> In UAT` to begin acceptance. The UAT Planner owns the `In UAT` exit. Once the named human signs off, the ticket moves to `Ready to Release` (or directly to `Done` in lean mode).
+On `memory-bank/plans/board.md`, the UAT Planner moves the ticket `Ready for UAT -> In UAT` to begin acceptance. In enterprise mode, the UAT Planner moves the ticket to `Ready to Release` once the named human signs off. In lean mode, the UAT Planner leaves the signed-off ticket in `In UAT`. The Orchestrator closes it to `Done` once a human has merged the PR and the lean Definition of Done holds.
 
 Green machine-backed evidence does not by itself carry the ticket past acceptance. With the shipped configuration, the `In UAT -> Ready to Release` move still stops for a named human at the `sign_off_acceptance` checkpoint. The zero-config posture stops there, and this workflow does not change it. The lean path straight to `Done` is unchanged. A repository that trusts its machine-backed evidence may lower `sign_off_acceptance` under `.grugops/factory.config.json#checkpoints`. The closed disposition vocabulary is `block`, `notify` and `off`, and no fourth value exists. Only a value the repository actually wrote can lower it; absence reads as the documented default. `sign_off_acceptance` is not a safety floor, so no floor is weakened and no second key is involved. No new checkpoint id is added for an evidence-backed advance. The UAT Planner presents the pack as machine-backed either way — the dial changes who signs, never what the evidence is.
 
@@ -46,7 +46,7 @@ Record `Lead time` in `memory-bank/plans/metrics.md` as the ticket clears accept
 - The acceptance criteria are missing or ambiguous — stop and route the ticket back; never self-sign or fake a pass. A named human signoff is required. `checkpoint: sign_off_acceptance`
 
 ## Done condition
-The scenarios, test data, pass/fail criteria, signoff checklist, and known limitations exist. The named human has signed off. The ticket moves to `Ready to Release` (or to `Done` in lean mode).
+The scenarios, test data, pass/fail criteria, signoff checklist, and known limitations exist. The named human has signed off. In enterprise mode the ticket moves to `Ready to Release`; in lean mode it waits in `In UAT` for the Orchestrator's close.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/uat-pack-<id>`), then `type(scope): summary`. The artifacts are the UAT pack notes recorded per Workflow 16, the recorded human signoff, the board move, the metrics and the rendered trace files. Never merge, never deploy; humans hold both.
