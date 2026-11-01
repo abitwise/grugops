@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
-status: executing
-stopped_at: Completed 40-09-PLAN.md
-last_updated: "2026-11-01T16:42:53.987Z"
+status: verifying
+stopped_at: Completed 40-10-PLAN.md
+last_updated: "2026-11-01T17:25:42.069Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 55c8fdb4bea46b920402c9c9881248e58f1659c0
+state_head: 0ebc03dff67b46e38c40ff1b107df1f6a548b6e8
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 98
-  completed_plans: 97
+  completed_plans: 98
   percent: 56
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 40 (Plain-language role rewrite) — EXECUTING
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-01 — Phase 40 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -814,6 +814,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P07 | 55 min | 2 tasks | 6 files |
 | Phase 40 P08 | 35min | 3 tasks | 193 files |
 | Phase 40 P09 | 40min | 2 tasks | 4 files |
+| Phase 40 P10 | 33 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -2250,6 +2251,9 @@ Recent decisions affecting current work:
 - [Phase 40]: Corpus scan set = every .md in agent-factory/roles (listRoleDirEntries .md entries plus .md exemptions on disk), held two-sided to ROLE_COUNT + 1
 - [Phase 40]: Discriminating corpus-total FAIL case grows each role 8% and loads the protocol (no per-file ceiling); one common fraction would need 13.3% on this tree
 - [Phase 40]: D-07 re-baseline raised two FAIL ceilings: tech-lead 4000 to 4128 (dropped named-human value) and software-engineer 4979 to 4982; 17 fell
+- [Phase 40]: Plan 40-10: role corpus is the fifth governed part of check-imperative-lexicon (69 files, ROLE_PART_COUNT 20 pinned two-sided)
+- [Phase 40]: Plan 40-10: security-nfr.md Activates when reworded (D-32), adapter change recorded as RECORDED_CHANGED in adapter-byte-baseline (D-3); no lexicon addition in Phase 40
+- [Phase 40]: Plan 40-10: C-28-003 restored to true on guard_sentence_form output; F-28-202 closed
 
 ### Pending Todos
 
@@ -2589,8 +2593,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-01T16:42:53.096Z
-Stopped at: Completed 40-09-PLAN.md
+Last session: 2026-11-01T17:25:41.061Z
+Stopped at: Completed 40-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
