@@ -11,3 +11,13 @@
   reads these quotes. Plan 40-10 owns the registry; refresh the quotes there or in a later audit pass.
 - `docs/audit/28-disposition-register.md` F-28-008 names orchestrator.md § Hard limits; re-read it against the
   rewritten section when the register is next revisited.
+
+## From plan 40-09
+
+- `scripts/check-foundation-guards.test.ts` > "every remaining floor item's LIVE COUNT is DERIVED, not asserted in
+  prose" fails: floor item 2 (a heading test written as `.indexOf("# ...")`) now matches
+  `scripts/check-role-rules.ts:594` and `:595` (`headings.indexOf("## Responsibilities")` and
+  `headings.indexOf("## Output")`), added by 40-08 in d35fa57c. Reproduced in a detached worktree at 5fd4a901
+  (before any 40-09 commit, and without the stray `~/` directory), so it is a 40-08 regression and not the
+  `~/` environmental case. Fix in check-role-rules.ts (index the heading list another way) or record the two
+  sites in FLOOR_ITEM_2_SITES with a reason; out of scope for 40-09, which does not touch check-role-rules.

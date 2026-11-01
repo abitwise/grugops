@@ -6579,7 +6579,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   //
   // The host is therefore `agents-md-scribe.md`: still a ROLE_FILES member, so the caveman-fence
   // strip path is exercised exactly as before, and the role the probe text is actually about (the
-  // Scribe writing a Mission section) — but with ~450 bytes of headroom under its ceiling, roughly
+  // Scribe writing a Mission section) — but with about 329 bytes under its FAIL ceiling (Plan 40-09:
+  // 2736 B measured against the re-baselined 3065 B; the plant stays where it is), roughly
   // five times the plant. neutralizePhrases() is file-agnostic (it rewrites `/grug`, `grug voice`
   // and `grug wink` on every line of every voice file), so nothing about the coverage changes.
   // Do NOT move this plant back onto a role that is near its ceiling: no byte ceiling may be raised
@@ -6618,7 +6619,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // exempted and which survived.
   //
   // The host is `agents-md-scribe.md` for the reason the refinement case above records at length: it
-  // is a ROLE_FILES member with roughly 450 bytes of headroom under its guard_role_size ceiling, so
+  // is a ROLE_FILES member with about 329 bytes under its guard_role_size FAIL ceiling (Plan 40-09), so
   // these plants fail for VOICE reasons or not at all. No byte ceiling may be raised to make a plant
   // fit.
   const CASE_INSENSITIVE_EXEMPT_PLANTS: readonly {

@@ -3492,9 +3492,9 @@ function guardRoleClauseUniqueness(): void {
 // guard_role_size — per-role byte ceiling, byte-for-byte mirror of guard_adapter_size (D-07).
 //
 // PER-FILE documented constants (NOT a flat number, NOT computed live). Each role gets its OWN
-// two-tier WARN->FAIL ceiling, hard-coded from the 2026-06-10 baseline: FAIL = baseline + 12%,
-// WARN = baseline + 6% (ba-pm.md = +20% / +12% PERS-02 headroom). Looked up in the keyed ROLE_CEILINGS
-// table since the ceilings are locked, not derived. CR-01 missing-file fail-red.
+// two-tier WARN->FAIL ceiling, hard-coded from its Phase 40 measurement: FAIL = ceil(bytes x 1.12),
+// WARN = ceil(bytes x 1.06). Looked up in the keyed ROLE_CEILINGS table since the ceilings are
+// locked, not derived. CR-01 missing-file fail-red.
 // ---------------------------------------------------------------------------
 // Per-role FAIL/WARN ceilings keyed by basename → "FAIL WARN" (verbatim from the .sh case table).
 //
@@ -3514,26 +3514,33 @@ function guardRoleClauseUniqueness(): void {
 // so a deleted or renamed role kept its old ceiling silently. Keys are compared by exact string
 // equality (role basenames are ASCII), and the comparison does not depend on the order of either
 // side; missing and stale keys are each reported sorted.
+//
+// (Plan 40-09, Phase 40 D-07) The Phase 40 plain-language rewrite re-baselined all 19 entries from
+// the post-rewrite measurement, FAIL = ceil(bytes x 1.12) and WARN = ceil(bytes x 1.06), each
+// commented with the bytes measured. The old baselines and their history comments no longer describe
+// the files, so they are gone (docs/audit/29-ceiling-rebaseline.md keeps the earlier history).
+// `_role-switch-protocol.md` has no entry here because the key set is checked two-way against
+// listRoles(), which excludes it; guard_role_corpus_total covers it inside the 67,383 B total.
 const ROLE_CEILINGS: Readonly<Record<string, string>> = {
-  "orchestrator.md":       "7570 7165", // +Phase-13 routing; measured 6759 B
-  "security-nfr.md":       "5102 4830", // +Phase-14 D-09 severity-map; measured 4556 B
-  "compliance-officer.md": "4813 4555", // +Phase-22 WF18 pointer (baseline 4297 B, +12% / +6%)
-  "release-manager.md":    "4765 4510", // +Phase-22 WF18 pointer (baseline 4254 B, +12% / +6%)
-  "agents-md-scribe.md":   "4544 4301", // +Phase-22 WF18 pointer (baseline 4057 B, +12% / +6%)
-  "architect-design.md":   "4243 4016", // +Phase-22 WF18 pointer (baseline 3788 B, +12% / +6%)
-  "ba-pm.md":              "4180 3901", // PERS-02 BA headroom (+20% / +12%); +Phase-21 WF16 pointer (baseline 3483 B)
-  "factory-coach.md":      "3839 3633", // +Phase-21 WF16 pointer (baseline 3427 B, +12% / +6%)
-  "frontend-ui.md":        "3969 3757", // Phase 13 — 17th role (UI-01)
-  "incident-responder.md": "3802 3598", // +Phase-21 WF16 pointer (baseline 3394 B, +12% / +6%)
-  "installer.md":          "3938 3727", // +Phase-22 WF18 pointer (baseline 3516 B, +12% / +6%)
-  "software-engineer.md":  "4979 4712", // Plan 39-07 (TIER-02 `## Levels`, D-1), 2026-10-29: measured 4445 B, +12% / +6% rounded up (was 3906 3697 from the Phase-21 3487 B baseline)
-  "qe-e2e.md":             "3822 3617", // +Phase-21 WF16 pointer (baseline 3412 B, +12% / +6%)
-  "uat-planner.md":        "3540 3350", // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
-  "system-analyst.md":     "3170 3000", // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)
-  "tech-lead.md":          "4000 3786", // Raised 2026-10-30 to FAIL 4000 B, approved by a named human (Olger Oeselg) on 2026-10-30 in quick task 261030-fzo; the FAIL value is that decision. WARN is ceil(4000 x 1.06 / 1.12) = 3786, the +6% / +12% ratio the other entries use. Measured 3439 B at the raise. History: Plan 39-05 (TIER-01), 2026-10-29, measured 3189 B gave 3572 3381; the review-fix WR-14 raise to 4222 3996 was never confirmed by a human and was reverted (re-review WR-05, 2026-10-30)
-  "designer.md":           "3273 3098", // Plan 39-06 (TIER-05), 2026-10-29: measured 2922 B, +12% / +6% rounded up
-  "greenfield-mapper.md":  "3045 2882", // +Phase-21 WF16 pointer (baseline 2718 B, +12% / +6%)
-  "brownfield-mapper.md":  "2845 2693", // +Phase-21 WF16 pointer (baseline 2540 B, +12% / +6%)
+  "orchestrator.md":       "6546 6195", // Phase 40, measured 5844 B
+  "security-nfr.md":       "3970 3757", // Phase 40, measured 3544 B
+  "compliance-officer.md": "3051 2888", // Phase 40, measured 2724 B
+  "release-manager.md":    "3273 3098", // Phase 40, measured 2922 B
+  "agents-md-scribe.md":   "3065 2901", // Phase 40, measured 2736 B
+  "architect-design.md":   "3242 3068", // Phase 40, measured 2894 B
+  "ba-pm.md":              "3226 3053", // Phase 40, measured 2880 B
+  "factory-coach.md":      "3007 2846", // Phase 40, measured 2684 B
+  "frontend-ui.md":        "3356 3176", // Phase 40, measured 2996 B
+  "incident-responder.md": "3214 3042", // Phase 40, measured 2869 B
+  "installer.md":          "2728 2582", // Phase 40, measured 2435 B
+  "software-engineer.md":  "4982 4715", // Phase 40, measured 4448 B
+  "qe-e2e.md":             "2944 2786", // Phase 40, measured 2628 B
+  "uat-planner.md":        "2970 2811", // Phase 40, measured 2651 B
+  "system-analyst.md":     "2519 2384", // Phase 40, measured 2249 B
+  "tech-lead.md":          "4128 3907", // Phase 40, measured 3685 B
+  "designer.md":           "2957 2799", // Phase 40, measured 2640 B
+  "greenfield-mapper.md":  "2546 2410", // Phase 40, measured 2273 B
+  "brownfield-mapper.md":  "2252 2131", // Phase 40, measured 2010 B
 };
 
 // The ceiling the per-file loop sees for a role with no ROLE_CEILINGS key: none. It is the empty
