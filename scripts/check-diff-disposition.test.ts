@@ -227,6 +227,12 @@ interface MirrorSpec {
   readonly dispositions?: Readonly<Record<string, string>>;
   /** Override the recorded base commit with this literal (for the unresolvable-base case). */
   readonly baseOverride?: string;
+  /**
+   * D-30 (plan 40-01). Extra frontmatter lines written into the mirror's BASE_FILE after
+   * `base_commit` — the `role_standin` key, well-formed or not. Additive: a spec that omits it builds
+   * exactly the base file this harness has always built.
+   */
+  readonly baseExtraLines?: readonly string[];
 }
 
 /** Writers bound to one mirror root. Shared by makeMirror and makeDivergentMirror. */
@@ -335,7 +341,9 @@ function makeMirror(
 
   write(
     BASE_FILE,
-    `---\nbase_commit: ${spec.baseOverride ?? base}\nrecorded: 2026-08-13\n---\n\nHarness mirror.\n`,
+    `---\nbase_commit: ${spec.baseOverride ?? base}\n` +
+      (spec.baseExtraLines ?? []).map((l) => `${l}\n`).join("") +
+      `recorded: 2026-08-13\n---\n\nHarness mirror.\n`,
   );
   for (const [rel, content] of Object.entries(spec.plant ?? {})) {
     write(rel, content);
@@ -3137,5 +3145,157 @@ describe("30-10 R4 — reviewer 5 obs. 4: the ROLES corpus gets the membership r
 
   it("the LIVE kit raises no membership refusal at either corpus", () => {
     expect(deriveFrozenSet(REPO).refusals.filter((r) => /does not admit/.test(r))).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// D-30 (plan 40-01) — the role-rule inventory stand-in.
+//
+// With `role_standin: scripts/check-role-rules.js` in 00-base.md, a changed clause under
+// agent-factory/roles/ that is frozen only by `structuralSections`, or that has no disposition row,
+// is admitted when ONE spawn of that script with `--check` exits 0. Every case below plants a STUB
+// script into the mirror rather than the real inventory check: the gate's contract is "admit iff the
+// named script exits 0", and the stub makes each side of that contract a one-line fixture. The real
+// check is exercised by the gate run on the live tree.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const STANDIN_REL = "scripts/check-role-rules.js";
+const STANDIN_LINE = `role_standin: ${STANDIN_REL}`;
+const STUB_PASS = "process.exit(0);\n";
+const STUB_FAIL = "process.exit(1);\n";
+const STANDIN_ADMITTED = "role clause(s) admitted by the role-rule inventory stand-in (D-30)";
+
+/** The workflow body with its `## Stop conditions` sentence reworded — one line, nothing else. */
+const REWORDED_STOP_WORKFLOW = WORKFLOW_BODY(REAL_WORKFLOWS[0]).replace(
+  "Stop when the scope grows beyond the ticket that is in hand.",
+  "Stop as soon as the scope grows past the one ticket in hand.",
+);
+
+describe("D-30 role-rule inventory stand-in", () => {
+  it("admits a reworded role `## Hard limits` sentence when the stand-in exits 0", () => {
+    const { root } = makeMirror("gops-diffdisp-standin-ok-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    const m = stdout.match(new RegExp(`PASS {2}(\\d+) ${STANDIN_ADMITTED.replace(/[().]/g, "\\$&")}`));
+    expect(m, "the PASS-side stand-in line must be printed").not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThan(0);
+    expect(stdout).not.toContain("FROZEN by structuralSections");
+  });
+
+  it("makes every changed role clause a finding when the stand-in exits non-zero", () => {
+    const { root } = makeMirror("gops-diffdisp-standin-red-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_FAIL },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain("role-rule inventory stand-in failed");
+    expect(stdout).toContain("(D-30)");
+    expect(stdout).toContain(ROLE_UNDER_TEST);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("makes every changed role clause a finding when the stand-in script is absent", () => {
+    const { root } = makeMirror("gops-diffdisp-standin-absent-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("role-rule inventory stand-in failed");
+    expect(stdout).toContain(STANDIN_REL);
+    expect(stdout).toContain(ROLE_UNDER_TEST);
+  });
+
+  it("never admits a workflow `## Stop conditions` reword, even with the stand-in passing", () => {
+    const { root } = makeMirror("gops-diffdisp-standin-wf-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [WORKFLOW_UNDER_TEST]: REWORDED_STOP_WORKFLOW, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain(WORKFLOW_UNDER_TEST);
+    expect(stdout).toContain("## Stop conditions");
+    expect(stdout).toContain(`0 ${STANDIN_ADMITTED}`);
+  });
+
+  it("never admits a registry-anchored line in a role file, even with the stand-in passing", () => {
+    // The anchor is planted into a ROLE file, outside `## Hard limits`, so the only thing between it
+    // and the stand-in is the rule that a registry-anchor hit never reaches the stand-in.
+    const roleWithAnchor = ROLE_BODY(REAL_ROLES[0]).replace(
+      "This section sits outside every frozen structural section in the corpus.",
+      `This section sits outside every frozen structural section in the corpus.\n${ANCHOR_VERBATIM}`,
+    );
+    const { root } = makeMirror("gops-diffdisp-standin-anchor-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: roleWithAnchor, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([row(ROLE_UNDER_TEST, "—", ANCHOR_VERBATIM, "—")]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by registryAnchors");
+    expect(stdout).toContain(REGISTRY_REL);
+    expect(stdout).toContain(ROLE_UNDER_TEST);
+  });
+
+  it("refuses a `role_standin` value outside the canonical form by name", () => {
+    const { root } = makeMirror("gops-diffdisp-standin-form-", {
+      baseExtraLines: ["role_standin: ../x.js"],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("role_standin");
+    expect(stdout).toContain("canonical form");
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("with no key, REPRODUCTION 1 (role `## Hard limits` reword) stays red exactly as before", () => {
+    const { root } = makeMirror("gops-diffdisp-standin-nokey-", {
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain(ROLE_UNDER_TEST);
+    expect(stdout).not.toContain(STANDIN_ADMITTED);
   });
 });
