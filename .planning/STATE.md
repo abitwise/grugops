@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Phase 40 context gathered
-last_updated: "2026-10-31T23:53:05.653Z"
-last_activity: 2026-10-31
-last_activity_desc: Phase 39 complete, transitioned to Phase 40
-state_head: 2615d1af51ee248092436ca6309d9346f5b7ace1
+stopped_at: Completed 40-01-PLAN.md
+last_updated: "2026-11-01T10:19:15.467Z"
+last_activity: 2026-11-01
+last_activity_desc: Phase 40 execution started
+state_head: 53f211043b99e6fad3c4c92fa8d1046b264e67d2
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 98
-  completed_plans: 88
+  completed_plans: 89
   percent: 56
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 39 — Role machinery: engineer levels, Tech Lead and Designer roles, skills key
+**Current focus:** Phase 40 — Plain-language role rewrite
 
 ## Current Position
 
-Phase: 40 (Plain-language role rewrite) — READY TO EXECUTE
-Plan: Not started
+Phase: 40 (Plain-language role rewrite) — EXECUTING
+Plan: 2 of 10
 Status: Ready to execute
-Last activity: 2026-10-31 — Phase 39 complete, transitioned to Phase 40
+Last activity: 2026-11-01 — Phase 40 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -805,6 +805,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 39 P18 | 28min | 3 tasks | 6 files |
 | Phase 39 P19 | 29 min | 2 tasks | 9 files |
 | Phase 39 P20 | 25min | 2 tasks | 3 files |
+| Phase 40 P01 | 1h 21m | 3 tasks | 49 files |
 
 ## Accumulated Context
 
@@ -2214,6 +2215,10 @@ Recent decisions affecting current work:
 - [Phase 39]: G-39-71 / D-21 amended: a blocked ticket the Tech Lead cannot resolve goes to the role whose job covers its cause at every value of escalate_unadjudicable_result, at most three times per cause; a named human only after three disputed rounds on one cause or a fundamental requirement or rule change (Olger Oeselg, 2026-10-31)
 - [Phase 39]: Plan 39-19: a hand-off is a fifth Move: value (Move: hand-off, with a To: line) counted toward no move limit; a round is a Disputed: decision note for the same cause, and a block with a new cause counts no round; the gate-failure sub-bullet stays byte for byte (Workflow 05 exhaust_self_fix_budget, deferred follow-up)
 - [Phase 39]: 39-20: WR-01..WR-04 recorded fixed by plan 39-19 (e0dfa40b, 59b7ac68) and CR-01 by plan 39-17 (013b6012); round-4 phase gate matches the recorded baseline (21 = 20 deferred + 1 environmental)
+- [Phase 40]: 40-01: Phase 40 start commit e8d7802ccf8ebf428a47703f6001327325e3aea3 is the inventory source_commit and the new disposition base (D-27, D-30)
+- [Phase 40]: 40-01: role corpus = listRoles() + .md members of ROLE_DIR_EXEMPT (listRoleDirEntries excludes the protocol)
+- [Phase 40]: 40-01: D-31 floor discounts intended D-13 coding-rules removals
+- [Phase 40]: 40-01: brownfield-mapper.md lacks the no-fabrication token in the baseline (17 of 19 roles carry it); a later role plan should add it
 
 ### Pending Todos
 
@@ -2553,9 +2558,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-31T22:30:05.458Z
-Stopped at: Phase 40 context gathered
-Resume file: .planning/phases/40-plain-language-role-rewrite/40-CONTEXT.md
+Last session: 2026-11-01T10:19:14.554Z
+Stopped at: Completed 40-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
