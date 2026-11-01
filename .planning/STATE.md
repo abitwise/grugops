@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-11-PLAN.md
-last_updated: "2026-11-01T21:20:31.412Z"
+stopped_at: Completed 40-12-PLAN.md
+last_updated: "2026-11-01T21:32:59.947Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 2af04971d8a984c77486b1368c909cdfb1be033f
+state_head: 78c46103c1ed4373b79ab958eb1b129b6e9e541d
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 104
-  completed_plans: 99
+  completed_plans: 100
   percent: 56
 ---
 
@@ -816,6 +816,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P09 | 40min | 2 tasks | 4 files |
 | Phase 40 P10 | 33 min | 3 tasks | 9 files |
 | Phase 40 P11 | 8 min | 2 tasks | 4 files |
+| Phase 40 P12 | 10 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2257,6 +2258,9 @@ Recent decisions affecting current work:
 - [Phase 40]: Plan 40-10: C-28-003 restored to true on guard_sentence_form output; F-28-202 closed
 - [Phase 40]: 40-11: CR-01 closed by adding twelve derived safety facts (SAFETY_RULE_FACTS) to the role-rule inventory, honoring D-30 as written rather than restoring the positional Hard-limits freeze
 - [Phase 40]: 40-11: the inventory baseline is pinned to PHASE_40_START_COMMIT e8d7802 by a constant; --write-baseline derives only from git objects there and check() refuses a foreign source_commit (WR-05)
+- [Phase 40]: WR-04 closed by freezing role `## Stop when` as the fourth FROZEN_SECTION_ANCHORS entry at ROLE_COUNT (19/19 live), not by moving the named-human stops back into `## Hard limits`
+- [Phase 40]: IN-04: role_standin is pinned to scripts/check-role-rules.js (ROLE_STANDIN_SCRIPT) and may appear once; a substituted or duplicate key is a named refusal before any spawn
+- [Phase 40]: D-30 stand-in scope unchanged: role `## Stop when` clauses join the same structuralSections arm `## Hard limits` uses; when the stand-in ends both owe disposition rows
 
 ### Pending Todos
 
@@ -2596,8 +2600,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-01T21:20:30.466Z
-Stopped at: Completed 40-11-PLAN.md
+Last session: 2026-11-01T21:32:59.040Z
+Stopped at: Completed 40-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
