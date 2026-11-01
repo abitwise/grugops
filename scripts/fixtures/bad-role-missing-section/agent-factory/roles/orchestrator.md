@@ -6,6 +6,9 @@ A minimal fixture role. Not the real grugops role — just enough to satisfy the
 ## One job
 do one fixture job.
 
+## Activates when
+the fixture asks for this role.
+
 ## Caveman prompt
 grug do thing. grug not do other thing.
 
@@ -24,3 +27,6 @@ grug do thing. grug not do other thing.
 
 ## Trace updates (what it must record in memory-bank/plans/traceability.md)
 - none in the fixture
+
+## Stop when
+- stop when the fixture job is done.

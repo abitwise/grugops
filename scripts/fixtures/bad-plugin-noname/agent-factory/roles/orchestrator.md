@@ -6,6 +6,9 @@ A minimal fixture role. Not the real grugops role — just enough to satisfy the
 ## One job
 do one fixture job.
 
+## Activates when
+the fixture asks for this role.
+
 ## Caveman prompt
 grug do thing. grug not do other thing.
 
@@ -27,3 +30,6 @@ grug do thing. grug not do other thing.
 
 ## Hard limits
 - never do the forbidden fixture thing.
+
+## Stop when
+- stop when the fixture job is done.

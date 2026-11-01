@@ -297,9 +297,10 @@ const CHECKLISTS = [
     "uat-checklist",
 ];
 // Role section headings — match by PREFIX (^## <prefix>), never exact, never uniqueness.
-// The real headers carry parenthetical suffixes (## Output (file + format), etc.), and the
-// duplicate ## Scope/## Risks in two handoffs means presence>=1 is the only safe assertion
-// (PROJECT.md line 96; RESEARCH Pitfall 1/2).
+// Since Phase 40 (D-12) every role heading is bare (## Output, ## Board moves); the prefix match
+// stays because fixtures and user kits may still carry an older suffixed heading, and
+// presence>=1 is the only safe assertion (PROJECT.md line 96; RESEARCH Pitfall 1/2).
+// `## Activates when` and `## Stop when` joined the list in plan 40-08 (D-09).
 const ROLE_SECTIONS = [
     "## One job",
     "## Reads",
@@ -308,6 +309,8 @@ const ROLE_SECTIONS = [
     "## Board moves",
     "## Trace updates",
     "## Hard limits",
+    "## Activates when",
+    "## Stop when",
 ];
 // Workflow section headings — the §18-named sections, prefix-matched (## Metrics emitted is
 // bonus and not asserted). The former "## Handoffs" section was dropped in Phase 24: workflows
@@ -327,8 +330,9 @@ const WORKFLOW_SECTIONS = [
 // `kebab` used to be declared here. It now lives in scripts/board-model.ts and is imported above,
 // because the rule that joins a board column to a ticket status — `kebab(column) === status` — is
 // part of the board grammar and the grammar has exactly one spelling (DASH-01 / D-06).
-// Section presence by prefix: present if ANY line starts with the prefix. Handles
-// "## Output (file + format)" and tolerates duplicate sections (presence, not uniqueness).
+// Section presence by prefix: present if ANY line starts with the prefix. Matches the bare
+// "## Output" and "## Board moves" headings (D-12) and tolerates duplicate sections (presence,
+// not uniqueness).
 function checkSections(rel, text, sections, kind) {
     const lines = text.split("\n");
     for (const sec of sections) {
