@@ -11,7 +11,9 @@ artwork, or stories from that series are used. All grugops artwork is original.
 
 "grugops" is the project's name for a software tool. No claim is made to the word "Grug" itself.
 
-The "do less" rules in agent-factory/roles/software-engineer.md are adapted from ponytail
+The "do less" rules in agent-factory/roles/software-engineer.md and
+agent-factory/roles/tech-lead.md, and the lean-review lens in
+agent-factory/checklists/pr-review-checklist.md, are adapted from ponytail
 (https://github.com/DietrichGebert/ponytail), used under the MIT License:
 
 Copyright (c) 2026 DietrichGebert

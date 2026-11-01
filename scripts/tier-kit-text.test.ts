@@ -554,6 +554,51 @@ describe("designer.md and frontend-ui.md plain rewrite (PLAIN-02; D-10, D-13, D-
   });
 });
 
+describe("pr-review-checklist.md lean lens (PLAIN-06; D-25)", () => {
+  const CHECKLIST = readFileSync(join(ROOT, "agent-factory/checklists/pr-review-checklist.md"), "utf8");
+  const lens = (): string => section(CHECKLIST, "Lean lens (advisory)");
+
+  it("keeps the lean-tier frontmatter and carries the advisory lens heading once", () => {
+    expect(CHECKLIST.startsWith("---\nkind: checklist\ntier: lean\n---\n# PR Review Checklist\n")).toBe(true);
+    expect(CHECKLIST.split("\n").filter((l) => l === "## Lean lens (advisory)")).toHaveLength(1);
+  });
+
+  it("reviews correctness, safety and tests before lean, and never blocks a PR on its own", () => {
+    expect(lens()).toContain("- Review correctness, safety and tests first; apply the lean lens last.");
+    expect(lens()).toContain("- The lens is advisory: a lean finding never blocks a PR on its own.");
+  });
+
+  it("no case, no finding, and no style-taste finding", () => {
+    expect(lens()).toContain("No case, no finding: each finding names the concrete code it would delete, reuse or merge.");
+    expect(lens()).toContain("- Raise no style-taste finding.");
+  });
+
+  it("names the six sub-tags, splits by job, and flags a `shortcut:` marker with no upgrade trigger", () => {
+    for (const tag of ["`delete`", "`reuse`", "`stdlib/native`", "`yagni`", "`merge`", "`split by job`"]) {
+      expect(lens(), `the lens lacks the ${tag} tag`).toContain(tag);
+    }
+    expect(lens()).toContain("- Split by job, never by line count.");
+    expect(lens()).toContain("- Flag a `shortcut:` marker that names no upgrade trigger.");
+  });
+
+  it("prints no savings or line-count number", () => {
+    expect(lens()).toContain("- Never print a savings figure or a line count.");
+    expect(lens()).not.toMatch(/\d\s*%/);
+  });
+
+  it("D-26: NOTICE credits ponytail for the engineer's and Tech Lead's do-less rules and the lens", () => {
+    const notice = readFileSync(join(ROOT, "NOTICE"), "utf8");
+    for (const path of [
+      "agent-factory/roles/software-engineer.md",
+      "agent-factory/roles/tech-lead.md",
+      "agent-factory/checklists/pr-review-checklist.md",
+    ]) {
+      expect(notice, `NOTICE does not name ${path}`).toContain(path);
+    }
+    expect(readFileSync(join(ROOT, "agent-factory/NOTICE"), "utf8")).toBe(notice);
+  });
+});
+
 describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D-17, D-18, D-31)", () => {
   const levels = (): string => section(ENGINEER, "Levels");
 
