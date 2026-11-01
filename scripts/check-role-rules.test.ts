@@ -324,3 +324,92 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
     expect(r.stdout).toContain('column In Analysis has Exit owner "Systems Analist", which is no role\'s `# Role: ` name');
   });
 });
+
+// ---------------------------------------------------------------------------
+// The end-state role checks (D-08, D-10, D-35, D-36). They run on the current tree only, over the 19
+// roles in listRoles(); the protocol keeps its own shape (D-15) and is outside them.
+// ---------------------------------------------------------------------------
+
+const CODING_LINE = "Follow the 12 coding rules in `AGENTS.md`.";
+
+describe("check-role-rules: the end-state role checks (D-08, D-10, D-35, D-36)", () => {
+  it("end state green control: the live mirror passes over 19/19, protocol and optional sections included", () => {
+    const m = makeMirror("rr-end-green-");
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toContain("role end state: 0 findings over 19/19");
+    // software-engineer.md carries `## Levels` and `## Do less` between Responsibilities and Output.
+    const se = readFileSync(role(m, "software-engineer.md"), "utf8");
+    expect(se.indexOf("## Levels")).toBeGreaterThan(se.indexOf("## Responsibilities"));
+    expect(se.indexOf("## Do less")).toBeLessThan(se.indexOf("## Output"));
+    // The protocol keeps its protocol shape: no `## Stop when`, no role skeleton, and it is not named.
+    expect(readFileSync(role(m, "_role-switch-protocol.md"), "utf8")).not.toContain("## Stop when");
+    expect(r.stdout).not.toMatch(/_role-switch-protocol\.md: .*\(D-(08|10)\)/);
+  });
+
+  it("D-35: the coding-rules line planted into ba-pm.md (a non-member) is red", () => {
+    const m = makeMirror("rr-end-d35-non-");
+    edit(role(m, "ba-pm.md"), (s) => s.replace("## Stop when\n", `${CODING_LINE}\n\n## Stop when\n`));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("ba-pm.md: carries the coding-rules line but is not a D13_CODING_ROLES member (D-35)");
+  });
+
+  it("D-35: the coding-rules line removed from installer.md (a member) is red", () => {
+    const m = makeMirror("rr-end-d35-mem-");
+    edit(role(m, "installer.md"), dropLines((l) => l.includes("12 coding rules")));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("installer.md: lost fact coding-rules — a D13_CODING_ROLES member must keep");
+    expect(r.stdout).toContain("(D-13, D-35)");
+  });
+
+  it("D-36: `UNKNOWN - verify` removed from orchestrator.md is red naming D-36", () => {
+    const m = makeMirror("rr-end-d36-uv-");
+    edit(role(m, "orchestrator.md"), (s) => s.split("UNKNOWN - verify").join("unverified"));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("orchestrator.md: missing fact unknown-verify — every role must carry it (D-36)");
+  });
+
+  it("D-36: the no-fabrication sentence removed from tech-lead.md `## Hard limits` is red naming D-36", () => {
+    const m = makeMirror("rr-end-d36-nf-");
+    edit(role(m, "tech-lead.md"), (s) => s.replace(", and never fabricate a score", ""));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("tech-lead.md: missing fact no-fabrication — every role must carry it (D-36)");
+  });
+
+  it("D-10: a `## Stop when` heading with no list item beneath it is red naming the role", () => {
+    const m = makeMirror("rr-end-d10-");
+    edit(role(m, "uat-planner.md"), (s) => {
+      const at = s.indexOf("## Stop when");
+      return `${s.slice(0, at)}## Stop when\nStop when the work is done.\n`;
+    });
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("uat-planner.md: `## Stop when` holds no list item (D-10)");
+  });
+
+  it("D-08: `## Stop when` moved above `## Hard limits` is red under the order check", () => {
+    const m = makeMirror("rr-end-d08-");
+    edit(role(m, "qe-e2e.md"), (s) => {
+      const hl = s.indexOf("## Hard limits");
+      const sw = s.indexOf("## Stop when");
+      const hard = s.slice(hl, sw);
+      const stop = s.slice(sw).replace(/\n*$/, "\n\n");
+      return `${s.slice(0, hl)}${stop}${hard}`.replace(/\n*$/, "\n");
+    });
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("qe-e2e.md: required headings out of order (D-08)");
+  });
+
+  it("D-08: an optional heading outside Responsibilities..Output is red; between them it is green", () => {
+    const m = makeMirror("rr-end-d08-opt-");
+    edit(role(m, "software-engineer.md"), (s) => s.replace("## Trace updates\n", "## Notes\nA stray section.\n\n## Trace updates\n"));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("software-engineer.md: `## Notes` sits outside `## Responsibilities` .. `## Output` (D-08)");
+  });
+});
