@@ -60,3 +60,12 @@
   carries none of the 26 fact kinds can be reworded with every gate green. The safety sentences are facts, and
   plan 40-12 froze `## Stop when`, but the stand-in still admits a non-fact sentence in either section.
   status: open
+
+## From plan 40-19
+
+- The full suite with the e2e lane included (`npx vitest run`, 1,368 s) shows 25 failures: the 21 recorded above
+  (same 7 files) plus 4 in `scripts/e2e/uat-live.test.ts`. Those 4 are the gated Tier-2 live capture refusing to
+  start: `GO-READINESS: not-ready — pushed sha ... HEAD c9e9187b747a is 14 commit(s) ahead of origin/main`. They
+  are environmental (an unpushed local HEAD) and read no file 40-19 changed; the earlier runs excluded
+  `scripts/e2e/**`. They clear when the phase is pushed, or with the e2e lane excluded.
+  status: open
