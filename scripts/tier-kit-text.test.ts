@@ -20,6 +20,10 @@
 // Plan 40-13 adds the cases for the Orchestrator's lean close: it needs the named human's sign-off
 // and a human merge, the lean Definition of Done needs the merge, and lean mode has one owner for
 // the `In UAT` exit across uat-planner.md and Workflow 06 (PLAIN-02, PLAIN-03; CR-02, WR-02, D-33).
+// Plan 40-17 adds the cases for the dial-following lean close: the close and its Stop-when hold
+// are pinned as exact sentences, Workflow 06 says the lean close stops at the same `sign_off_acceptance`
+// checkpoint and that the dial never removes the human merge (PLAIN-03; WR-01, WR-03; human decision
+// 2026-11-02).
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -43,6 +47,15 @@ const SEED_BOARD = readFileSync(join(ROOT, "agent-factory/seed/memory-bank/plans
 const UAT_PLANNER = readFileSync(join(ROOT, "agent-factory/roles/uat-planner.md"), "utf8");
 const WF06 = readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8");
 
+/**
+ * Plan 40-17 (WR-01, WR-03): the exact sentence that states the Orchestrator's lean close, and the
+ * exact `## Stop when` item that holds the ticket until that close may happen. The sign-off follows
+ * the `sign_off_acceptance` dial; the human merge does not. Dropping either condition breaks the match.
+ */
+const CLOSE_SENTENCE =
+  "Close only after the sign-off that `checkpoint: sign_off_acceptance` requires, a human merged the PR and `agent-factory/checklists/definition-of-done.md` holds.";
+const HOLD_ITEM = "- If a human has not merged the PR or `sign_off_acceptance` is not met, leave the ticket in `In UAT`.";
+
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
   const lines = text.split("\n");
@@ -51,6 +64,29 @@ function section(text: string, heading: string): string {
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((l) => l.startsWith("## "));
   return (end === -1 ? rest : rest.slice(0, end)).join("\n");
+}
+
+/** The number of times `needle` occurs in `hay`, counted without overlap. */
+function occurrences(hay: string, needle: string): number {
+  return hay.split(needle).length - 1;
+}
+
+/**
+ * Plan 40-17 (WR-01): what is wrong with a text's lean close. "close" when the `## Board moves` line
+ * holding "`In UAT → Done`" does not carry CLOSE_SENTENCE exactly once; "hold" when the `## Stop when`
+ * list items do not carry HOLD_ITEM exactly once. A correct Orchestrator gives [].
+ */
+function leanCloseViolations(text: string): string[] {
+  const out: string[] = [];
+  const closeLines = section(text, "Board moves")
+    .split("\n")
+    .filter((l) => l.includes("`In UAT → Done`"));
+  if (closeLines.length !== 1 || occurrences(closeLines[0] ?? "", CLOSE_SENTENCE) !== 1) out.push("close");
+  const holds = section(text, "Stop when")
+    .split("\n")
+    .filter((l) => l === HOLD_ITEM);
+  if (holds.length !== 1) out.push("hold");
+  return out;
 }
 
 /**
@@ -2283,19 +2319,14 @@ describe("the lean close keeps its human conditions (CR-02, WR-02; D-33)", () =>
     return out.join(" ");
   }
 
-  it("CR-02: the lean close needs the named human's sign-off, a human merge and the lean DoD", () => {
+  it("CR-02, WR-03: the lean close is the exact sentence: the sign-off `sign_off_acceptance` requires, a human merge and the lean DoD", () => {
     const close = leanClose();
-    for (const phrase of ["the lean-mode close", "named human", "sign_off_acceptance", "merged", "definition-of-done.md"]) {
-      expect(close, `the lean close lacks "${phrase}"`).toContain(phrase);
-    }
+    expect(close, "the lean close lost its owner sentence").toContain("You own `In UAT → Done`, the lean-mode close.");
+    expect(leanCloseViolations(ORCHESTRATOR), `the lean close is not "${CLOSE_SENTENCE}"`).not.toContain("close");
   });
 
-  it("CR-02: `## Stop when` leaves the ticket in `In UAT` until a human merges and the named human signs off", () => {
-    const items = section(ORCHESTRATOR, "Stop when")
-      .split("\n")
-      .filter((l) => l.startsWith("- "));
-    const hold = items.filter((l) => l.includes("`In UAT`") && l.includes("merged"));
-    expect(hold, "no `## Stop when` item holds the ticket in `In UAT` before a merge").toHaveLength(1);
+  it("CR-02, WR-03: `## Stop when` holds the ticket in `In UAT` with the exact item: no human merge or `sign_off_acceptance` not met", () => {
+    expect(leanCloseViolations(ORCHESTRATOR), `no \`## Stop when\` item is "${HOLD_ITEM}"`).not.toContain("hold");
   });
 
   it("CR-02: the lean Definition of Done needs the PR merged by a human", () => {
@@ -2349,6 +2380,32 @@ describe("the lean close keeps its human conditions (CR-02, WR-02; D-33)", () =>
       expect(body, `${heading} keeps the old lean parenthetical`).not.toContain("or directly to `Done` in lean mode");
       expect(body, `${heading} keeps the old lean parenthetical`).not.toContain("(or to `Done` in lean mode)");
       expect(body, `${heading} still sends the ticket to \`Done\` in lean mode`).not.toMatch(/`Done`\)? in lean mode/);
+      expect(body, `${heading} keeps the stale lean-path sentence`).not.toContain("straight to `Done`");
     }
+  });
+});
+
+describe("the lean close follows the dial (WR-03, WR-01; human decision 2026-11-02)", () => {
+  it("WR-03: Workflow 06 says the Orchestrator's lean close stops at the same checkpoint", () => {
+    expect(section(WF06, "Board moves")).toContain("In lean mode, the Orchestrator's close to `Done` stops at the same checkpoint.");
+  });
+
+  it("WR-03: Workflow 06 says the dial never removes the human merge", () => {
+    expect(section(WF06, "Board moves")).toContain("never removes the human merge");
+  });
+
+  it("WR-03: Workflow 06 names what `notify` and `off` do, and the `observation` an unstamped record becomes", () => {
+    const moves = section(WF06, "Board moves");
+    for (const token of ["`notify`", "`off`", "`observation`"]) {
+      expect(moves, `Workflow 06 \`## Board moves\` lacks ${token}`).toContain(token);
+    }
+  });
+
+  it("PLAIN-03: Workflow 06 keeps the zero-config posture at the named human", () => {
+    expect(section(WF06, "Board moves")).toContain("The zero-config posture stops there");
+  });
+
+  it("WR-01: the live Orchestrator has no lean-close violation", () => {
+    expect(leanCloseViolations(ORCHESTRATOR)).toEqual([]);
   });
 });
