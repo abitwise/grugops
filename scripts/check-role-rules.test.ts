@@ -476,9 +476,9 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
     expect(r.stdout).toContain("release-manager.md: rule 6: `… → Done` holds → but is not a `column → column` pair (IN-02)");
   });
 
-  it("partition rule 6 (IN-02): a span with no arrow and an arrow in prose outside code spans add no finding", () => {
+  it("partition rule 6 (IN-02): a span with no arrow adds no finding", () => {
     const m = makeMirror("rr-part-in02c-");
-    edit(role(m, "orchestrator.md"), plantSpan("Planted: `In UAT` and In UAT→Done in prose."));
+    edit(role(m, "orchestrator.md"), plantSpan("Planted: `In UAT` and nothing else."));
     const r = runGate(m);
     expect(r.status, r.stdout).toBe(0);
     expect(r.stdout).not.toContain("rule 6");
@@ -487,6 +487,73 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
     for (const f of listRoles(ROOT)) {
       expect(moveSpanFindings(readFileSync(role(ROOT, f), "utf8"), model.columns, f)).toEqual([]);
     }
+  });
+
+  // WR-02: this case used to pin "an arrow in prose outside code spans adds no finding". It is reversed on
+  // purpose: an agent reads a prose move as a claim, so a move between two board columns written outside
+  // a code span is a rule 6 finding that forces the canonical `X → Y` span, where rule 4 judges ownership.
+  it("partition rule 6 (WR-02): an arrow in prose between two board columns is red", () => {
+    const m = makeMirror("rr-part-wr02-prose-uat-");
+    edit(role(m, "orchestrator.md"), plantSpan("Planted: In UAT→Done in prose."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain(
+      "orchestrator.md: rule 6: `In UAT→Done` is a board move written outside a code span; write it as `X → Y` in a code span (WR-02)",
+    );
+  });
+
+  // WR-02: the verifier's reproduction. The kit's workflows write moves with `->`, so a rewriting agent can
+  // write a gate-skipping move that way; rule 6 names any ASCII-arrow span instead of letting it pass unread.
+  const ruleSixLines = (out: string): string[] => out.split("\n").filter((l) => l.includes("rule 6"));
+  for (const arrow of ["->", "=>"]) {
+    it(`partition rule 6 (WR-02): \`In Development ${arrow} Done\` planted into software-engineer.md is red naming the span`, () => {
+      const m = makeMirror("rr-part-wr02-ascii-");
+      edit(role(m, "software-engineer.md"), plantSpan(`Planted: \`In Development ${arrow} Done\`.`));
+      const r = runGate(m);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(
+        `software-engineer.md: rule 6: \`In Development ${arrow} Done\` spells a board move with an ASCII arrow; write it as \`X → Y\` (WR-02)`,
+      );
+      expect(ruleSixLines(r.stdout)).toHaveLength(1);
+    });
+  }
+
+  for (const [line, matched] of [
+    ["You own In Development → Done when the change is small.", "In Development → Done"],
+    ["In Development -> Done is the short path.", "In Development -> Done"],
+  ] as const) {
+    it(`partition rule 6 (WR-02): the prose move "${line}" planted into software-engineer.md is red`, () => {
+      const m = makeMirror("rr-part-wr02-prose-");
+      edit(role(m, "software-engineer.md"), plantSpan(line));
+      const r = runGate(m);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(
+        `software-engineer.md: rule 6: \`${matched}\` is a board move written outside a code span; write it as \`X → Y\` in a code span (WR-02)`,
+      );
+      expect(ruleSixLines(r.stdout)).toHaveLength(1);
+    });
+  }
+
+  it("partition rule 6 (WR-02): a prose arrow between words that are not both board columns adds no finding", () => {
+    const m = makeMirror("rr-part-wr02-nocol-");
+    edit(role(m, "software-engineer.md"), plantSpan("Keep the input → output order."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).not.toContain("rule 6");
+    expect(r.stdout).toContain("board-move partition: 0 findings over 19/19");
+  });
+
+  it("partition rule 6 (WR-02): column names are matched whole and longest first", () => {
+    const model = partitionModel(ROOT);
+    const doc = (body: string): string => `# Role: Planted\n\n## Board moves\n${body}\n\n## Hard limits\n- none\n`;
+    // `Already` is not the column `Ready`; `For Dev` is not `Ready for Dev`.
+    expect(moveSpanFindings(doc("Already → Done. Look for Dev → Done."), model.columns, "p.md")).toEqual([]);
+    // `Ready for UAT` is read whole, never as `Ready` followed by stray words, and `In UAT` stays one column.
+    expect(moveSpanFindings(doc("Ready for UAT → In UAT then."), model.columns, "p.md")).toEqual([
+      "p.md: rule 6: `Ready for UAT → In UAT` is a board move written outside a code span; write it as `X → Y` in a code span (WR-02)",
+    ]);
+    // A code span is blanked before the prose test, so the canonical span is never a prose finding.
+    expect(moveSpanFindings(doc("`Ready for UAT → In UAT`"), model.columns, "p.md")).toEqual([]);
   });
 
   it("partition fails closed: an Exit owner that is no role's name is a derivation failure naming it", () => {
