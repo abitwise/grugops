@@ -1,78 +1,26 @@
 ---
 phase: 40-plain-language-role-rewrite
-reviewed: 2026-11-01T18:01:14Z
+reviewed: 2026-11-02T14:57:56Z
 depth: standard
-files_reviewed: 256
+scope: incremental, befa0e91ade67e097e99a41a220e608e27026a2c..HEAD (gap-closure plans 40-11 to 40-16)
+files_reviewed: 194
 files_reviewed_list:
-  - agent-factory/checklists/pr-review-checklist.md
-  - agent-factory/NOTICE
-  - agent-factory/roles/agents-md-scribe.md
-  - agent-factory/roles/architect-design.md
-  - agent-factory/roles/ba-pm.md
-  - agent-factory/roles/brownfield-mapper.md
-  - agent-factory/roles/compliance-officer.md
-  - agent-factory/roles/designer.md
-  - agent-factory/roles/factory-coach.md
-  - agent-factory/roles/frontend-ui.md
-  - agent-factory/roles/greenfield-mapper.md
-  - agent-factory/roles/incident-responder.md
-  - agent-factory/roles/installer.md
+  - agent-factory/checklists/definition-of-done.md
   - agent-factory/roles/orchestrator.md
-  - agent-factory/roles/qe-e2e.md
-  - agent-factory/roles/release-manager.md
-  - agent-factory/roles/_role-switch-protocol.md
-  - agent-factory/roles/security-nfr.md
-  - agent-factory/roles/software-engineer.md
-  - agent-factory/roles/system-analyst.md
-  - agent-factory/roles/tech-lead.md
   - agent-factory/roles/uat-planner.md
-  - agent-factory/workflows/08-sprint-planning.md
-  - agent-factory/workflows/14-ui-design-to-build.md
-  - agent-factory/workflows/17-task-claim.md
+  - agent-factory/workflows/06-uat-pack.md
   - agent-factory/writing-profile.md
-  - CHANGELOG.md
-  - .claude/agents/grugops-security-nfr.md
-  - CLAUDE.md
-  - docs/audit/28-claim-registry.md
-  - docs/audit/29-style-dispositions/00-base.md
-  - docs/audit/29-style-dispositions/40-03.md
-  - docs/audit/29-style-dispositions/40-06.md
-  - docs/audit/29-style-dispositions/40-07.md
-  - docs/audit/29-style-dispositions/README.md
+  - docs/audit/29-style-dispositions/40-13.md
   - docs/audit/40-disposition-base-move.md
   - docs/audit/40-role-rule-inventory.json
-  - .github/workflows/ci.yml
   - hooks/hook-entry.js
   - hooks/hook-entry.ts
-  - install/mode-census.test.ts
-  - NOTICE
-  - package.json
-  - scripts/adapter-byte-baseline.test.ts
-  - scripts/check-banned-claims.js
-  - scripts/check-banned-claims.ts
-  - scripts/check-claim-anchors.test.ts
   - scripts/check-diff-disposition.js
   - scripts/check-diff-disposition.test.ts
   - scripts/check-diff-disposition.ts
-  - scripts/check-foundation-guards.js
-  - scripts/check-foundation-guards.test.ts
-  - scripts/check-foundation-guards.ts
-  - scripts/check-imperative-lexicon.js
-  - scripts/check-imperative-lexicon.test.ts
-  - scripts/check-imperative-lexicon.ts
   - scripts/check-role-rules.js
   - scripts/check-role-rules.test.ts
   - scripts/check-role-rules.ts
-  - scripts/frontmatter.test.ts
-  - scripts/generate-catalog.test.ts
-  - scripts/generate-role-adapters.test.ts
-  - scripts/tier-kit-text.test.ts
-  - scripts/trace-instructions.test.ts
-  - scripts/uat-gate-exit-contract.test.ts
-  - scripts/validate-agent-factory.js
-  - scripts/validate-agent-factory.ts
-  - scripts/validate.test.ts
-  - scripts/voice-model.test.ts
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/agents-md-scribe.md
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/architect-design.md
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/ba-pm.md
@@ -85,7 +33,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-config-no-mode/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-config-no-mode/agent-factory/roles/system-analyst.md
@@ -102,7 +49,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-plugin-noname/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-plugin-noname/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-plugin-noname/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-plugin-noname/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-plugin-noname/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-plugin-noname/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-plugin-noname/agent-factory/roles/system-analyst.md
@@ -119,7 +65,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-role-missing-section/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-role-missing-section/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-role-missing-section/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-role-missing-section/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-role-missing-section/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-role-missing-section/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-role-missing-section/agent-factory/roles/system-analyst.md
@@ -136,7 +81,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-ticket-bad-column/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-ticket-bad-column/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-ticket-bad-column/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-ticket-bad-column/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-ticket-bad-column/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-ticket-bad-column/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-ticket-bad-column/agent-factory/roles/system-analyst.md
@@ -153,7 +97,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-ticket-body-column/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-ticket-body-column/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-ticket-body-column/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-ticket-body-column/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-ticket-body-column/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-ticket-body-column/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-ticket-body-column/agent-factory/roles/system-analyst.md
@@ -170,7 +113,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-ticket-duplicate-key/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-ticket-duplicate-key/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-ticket-duplicate-key/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-ticket-duplicate-key/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-ticket-duplicate-key/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-ticket-duplicate-key/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-ticket-duplicate-key/agent-factory/roles/system-analyst.md
@@ -187,7 +129,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-ticket-mismatch/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-ticket-mismatch/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-ticket-mismatch/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-ticket-mismatch/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-ticket-mismatch/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-ticket-mismatch/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-ticket-mismatch/agent-factory/roles/system-analyst.md
@@ -204,7 +145,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-ticket-no-region/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-ticket-no-region/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-ticket-no-region/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-ticket-no-region/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-ticket-no-region/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-ticket-no-region/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-ticket-no-region/agent-factory/roles/system-analyst.md
@@ -221,7 +161,6 @@ files_reviewed_list:
   - scripts/fixtures/bad-workflow-no-commit/agent-factory/roles/orchestrator.md
   - scripts/fixtures/bad-workflow-no-commit/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/bad-workflow-no-commit/agent-factory/roles/release-manager.md
-  - scripts/fixtures/bad-workflow-no-commit/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/bad-workflow-no-commit/agent-factory/roles/security-nfr.md
   - scripts/fixtures/bad-workflow-no-commit/agent-factory/roles/software-engineer.md
   - scripts/fixtures/bad-workflow-no-commit/agent-factory/roles/system-analyst.md
@@ -238,7 +177,6 @@ files_reviewed_list:
   - scripts/fixtures/good/agent-factory/roles/orchestrator.md
   - scripts/fixtures/good/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/good/agent-factory/roles/release-manager.md
-  - scripts/fixtures/good/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/good/agent-factory/roles/security-nfr.md
   - scripts/fixtures/good/agent-factory/roles/software-engineer.md
   - scripts/fixtures/good/agent-factory/roles/system-analyst.md
@@ -255,167 +193,117 @@ files_reviewed_list:
   - scripts/fixtures/warn-only-no-trace/agent-factory/roles/orchestrator.md
   - scripts/fixtures/warn-only-no-trace/agent-factory/roles/qe-e2e.md
   - scripts/fixtures/warn-only-no-trace/agent-factory/roles/release-manager.md
-  - scripts/fixtures/warn-only-no-trace/agent-factory/roles/_role-switch-protocol.md
   - scripts/fixtures/warn-only-no-trace/agent-factory/roles/security-nfr.md
   - scripts/fixtures/warn-only-no-trace/agent-factory/roles/software-engineer.md
   - scripts/fixtures/warn-only-no-trace/agent-factory/roles/system-analyst.md
   - scripts/fixtures/warn-only-no-trace/agent-factory/roles/uat-planner.md
+  - scripts/tier-kit-text.test.ts
+  - scripts/validate.test.ts
 findings:
-  critical: 2
-  warning: 6
-  info: 4
-  total: 12
+  critical: 1
+  warning: 3
+  info: 3
+  total: 7
 status: issues_found
 ---
 
 # Phase 40: Code Review Report
 
-**Reviewed:** 2026-11-01T18:01:14Z
+**Reviewed:** 2026-11-02T14:57:56Z
 **Depth:** standard
-**Files Reviewed:** 256 (69 source/doc files read in full or as diffs against `61edba1e`; the 187 fixture files were checked mechanically, see Summary)
+**Files Reviewed:** 194 (18 source and kit files read in full or as diffs against `befa0e91`; the 176 fixture files checked mechanically)
 **Status:** issues_found
 
 ## Summary
 
-This review covered the new role-rule inventory (`scripts/check-role-rules.ts`), the D-30 stand-in arm in `scripts/check-diff-disposition.ts`, the inverted caveman guard and the corpus-total guard in `scripts/check-foundation-guards.ts`, roles as the fifth part of `scripts/check-imperative-lexicon.ts`, the validator's section list, the 19 rewritten roles plus the protocol, the three workflows, the audit records and the changed tests.
+This is an incremental review of the gap-closure round (plans 40-11 to 40-16), scoped to changes since `befa0e91`. I read `40-REVIEW-DISPOSITION.md` and did not re-raise any of the 12 earlier findings. I did not re-raise the recorded items either: the fact-less safety sentence residual, the truncated red-run output through a pipe, and the corpus-cap headroom. Where an earlier fix holds only in part, the new finding says what is still open.
 
 What I checked and confirmed:
-- `npm run freshness`: all 89 committed `.js` files match a rebuild of their `.ts`.
-- `npm run freshness:adapters`: 0 byte differences.
-- `NOTICE` and `agent-factory/NOTICE` are byte-identical.
-- The `DECIDER_MANIFEST` hash for `scripts/check-diff-disposition.js` in `hooks/hook-entry.{ts,js}` matches the file.
-- `check-role-rules.js`, `check-diff-disposition.js` and `check-foundation-guards.js` all exit 0 on HEAD.
-- The five main changed test files pass: 424 of 424 tests.
-- All 187 fixture files gained exactly the same six lines (`## Activates when` plus one line, `## Stop when` plus one item, two blank lines) and nothing else.
-- `bad-role-missing-section` still lacks only `## Hard limits` in `orchestrator.md`, so it still fails for its one reason.
+- `npm run freshness`: all 89 committed `.js` files match a rebuild of their sources.
+- The `DECIDER_MANIFEST` hash for `scripts/check-diff-disposition.js` in `hooks/hook-entry.{ts,js}` (`6f0f2e93…`) matches the file.
+- `node scripts/check-role-rules.js` exits 0 on HEAD. The four changed test files pass: 564 of 564 tests.
+- All 176 fixture diffs are the same one-line change (`8 prefix-matched section checks.` → `prefix-matched section checks.`), with nothing else changed. The count is 11 fixture trees × 16 role files.
+- Workflow 06 grew from 5,820 B to 6,012 B, matching `40-13.md`. The base-move record's commit claims hold: `8578f8ad` is the parent of `557531419e`, and `1d6f94c6` is the plan 37-16 commit. The 31-row tally (19 reworded / 10 moved / 2 added, 23 workflow + 8 role) is consistent with the table.
+- Earlier fixes that hold as claimed: WR-04 (the `## Stop when` freeze when no key is present), WR-06 (31 rows, accepted by a named human), IN-01, IN-03, IN-04 (pin and duplicate refusal). WR-05 also holds: the writer reads only git objects at the pinned commit, and the equality test now goes red on a laundered baseline.
 
-Where it falls short: the rewrite kept the guarded tokens (`UNKNOWN - verify`, `BLOCKED`, fake/invent wording). But the gate change that came with it removed the only mechanical protection the role `## Hard limits` sentences had. That includes the merge and deploy bans, which no token protects. I proved this on a throwaway worktree. I deleted "Never merge to a protected branch. Never deploy to production; merge and deploy stay with humans." from `orchestrator.md`, "Never deploy to production yourself." and the human-approval sentence from `release-manager.md`, and "Merge and deploy stay with humans." from `tech-lead.md`. Every gate stayed green: check-role-rules, check-diff-disposition (it reported "1125 role clause(s) admitted by the role-rule inventory stand-in"), check-foundation-guards, check-imperative-lexicon, check-claim-anchors, check-banned-claims and validate-agent-factory. Before this phase, check-diff-disposition would have flagged each of those deletions as `FROZEN by structuralSections`.
-
-The Orchestrator's new lean close also dropped its "once merged" condition and never requires the named-human UAT sign-off. The board-move partition guard also admits moves that skip gates; I confirmed this by calling `checkPartition` directly.
+Where it falls short. The CR-01 fix makes the inventory red when a safety token is **deleted**. It does not notice a safety sentence that is **reworded to say the opposite while keeping its token**. Under the D-30 stand-in, that rewording is admitted with no disposition row. I proved this end to end on a shared clone of HEAD. I changed the Orchestrator's merge ban to "Never merge to a protected branch until the gate is green; then merge it yourself." and dropped "merge and deploy stay with humans". In the same clone I also planted a gate-skipping board move written with an ASCII arrow. After that, `check-diff-disposition.js` exited 0 (`1138 role clause(s) admitted by the role-rule inventory stand-in`). So did `check-role-rules.js`, `check-foundation-guards.js`, `check-claim-anchors.js`, `check-banned-claims.js`, `check-imperative-lexicon.js`, `validate-agent-factory.js`, and the `tier-kit-text` and `check-banned-claims` test files. The same token-only weakness lets the CR-02 lean-close sign-off condition be dropped with all gates and pins green (WR-01 below).
 
 ## Critical Issues
 
-### CR-01: The merge, deploy and named-human bans in role `## Hard limits` are no longer protected by any gate
+### CR-01: A safety sentence reworded to allow merging keeps its fact, so the D-30 stand-in admits it with no human row
 
-**File:** `scripts/check-diff-disposition.ts:1996-2007` and `:2091-2096` (stand-in admission); `scripts/check-role-rules.ts:15-28, 175-188` (closed D-28 fact list)
-**Issue:** With `role_standin: scripts/check-role-rules.js` declared, check-diff-disposition admits every changed role clause frozen only by `structuralSections`, and every role clause with no disposition row, whenever `check-role-rules.js` exits 0. The D-28 fact list contains no fact for the project's hard safety rule from CLAUDE.md: no protected-branch merge, no production deploy, and a named human's confirmation or approval. So the inventory cannot see those sentences go missing, and the stand-in lets the deletion through.
+**File:** `scripts/check-role-rules.ts:113-139` (SAFETY_RULE_FACTS), `:276-281` (the sentence scan); `scripts/check-diff-disposition.ts:2048-2058` (stand-in admission of `structuralSections` clauses)
+**Issue:** Each safety fact is a substring test on any one sentence of `## Hard limits` + `## Stop when`: `/\bnever merge/i`, `/\bnever deploy/i`, `/\bnamed human/i`, `/\bdry[- ]run\b/i`, and so on. The test cannot tell "Never merge to a protected branch." from "Never merge to a protected branch until the gate is green; then merge it yourself." When the inventory exits 0, check-diff-disposition admits every changed role clause frozen by position. Rewording a fact-carrying safety sentence therefore needs no disposition row and no human read. Before Phase 40, the same edit was a `FROZEN by structuralSections` finding.
 
-Verified on a worktree at HEAD: deleting the merge/deploy sentences from `orchestrator.md`, `release-manager.md` and `tech-lead.md` left every gate at exit 0. Before Phase 40, the same edit was a `FROZEN by structuralSections` finding that needed a disposition row a human reads. 40-SECURITY.md's T-40-13 mitigation ("the named-human sign-off ... sentences are inventory facts") is therefore wrong for the merge/deploy sentences: they are not inventory facts.
+This is not the recorded residual. That residual covers sentences that carry **none** of the 26 fact kinds. This case covers the sentences that carry the facts CR-01 added. The test suite pins red only on deletion (`FAMILY_CASES`, `MERGE_BAN`), never on a reword that weakens the rule. The header itself says "The meaning is checked at plan review, not here". But under the stand-in no review row is owed, so nobody checks the meaning. The stand-in stays in force through Phases 41 and 42.
 
-The stand-in stays in force through Phases 41 and 42 (`docs/audit/40-disposition-base-move.md`, "Scope end"), so this gap stays open while roles keep being edited.
-**Fix:** Do one of these, or both:
+Reproduced on a shared clone of HEAD: the edit above to `agent-factory/roles/orchestrator.md:77` (plus "Never deploy to production without a green gate.") left check-diff-disposition, check-role-rules, every other CLI gate and the related test files green.
+
+Mitigating facts, so the severity is not overstated: the git host is the hard floor (CLAUDE.md Safety), and `AGENTS.md` repeats the rule. But the phase's own constraint is that the stand-in must not become a blanket bypass, and for every fact-carrying safety sentence it is one.
+**Fix:** Keep the stand-in for ordinary role prose, but stop it from admitting a changed clause that carries a safety token on either side. Then any edit to such a sentence owes a disposition row a human reads, which is the pre-Phase-40 behavior for exactly these sentences:
 ```ts
-// (a) check-diff-disposition.ts: keep the positional freeze on role `## Hard limits`. The stand-in
-//     admits only clauses OUTSIDE a frozen region (the "no disposition row" arm), never a region hit.
+// check-role-rules.ts: export one predicate built from the table.
+export const carriesSafetyFact = (sentence: string): boolean =>
+  SAFETY_RULE_FACTS.some((r) => r.holds(sentence));
+
+// check-diff-disposition.ts, in the stand-in arm (~line 2048):
 if (
   source === "structuralSections" &&
-  region === null &&                         // <- add: a clause inside `## Hard limits` still owes its row
   (textSource === undefined || textSource === "structuralSections") &&
-  !positiveLiteralClauses.has(c.clause)
+  !positiveLiteralClauses.has(c.clause) &&
+  !carriesSafetyFact(c.clause)          // <- a safety-bearing clause, removed or added, still owes its row
 ) { ... }
-
-// (b) check-role-rules.ts: add the safety facts to the closed list, derived from `## Hard limits`
-//     (and from `## Stop when` for the named-human stops), then re-derive the baseline at source_commit.
-const MERGE_BAN = /\bnever merge\b|merge and deploy (?:stay|remain) with humans/i;
-const DEPLOY_BAN = /\bnever deploy\b|production action is always human-confirmed|merge and deploy (?:stay|remain)/i;
-const NAMED_HUMAN = /\bnamed human\b/i;
-if (hardLimits.some((l) => MERGE_BAN.test(l))) facts.add("no-merge");
-if (hardLimits.some((l) => DEPLOY_BAN.test(l))) facts.add("no-deploy");
-if (unfencedLines.some((l) => NAMED_HUMAN.test(l))) facts.add("named-human");
 ```
-Add a planted-mirror test that deletes "Never merge to a protected branch." from `orchestrator.md` and asserts the gate goes red.
-
-### CR-02: The Orchestrator's lean close `In UAT → Done` no longer needs a human merge or the named-human UAT sign-off
-
-**File:** `agent-factory/roles/orchestrator.md:68`
-**Issue:** The old text was "`… → Done` — closes a ticket once merged (and released, in enterprise mode)". The new text is "You own `In UAT → Done`, the lean-mode close, once `agent-factory/checklists/definition-of-done.md` holds." The lean Definition of Done (`agent-factory/checklists/definition-of-done.md`) has no "merged" item and no human sign-off item. An Orchestrator following its role can therefore move a ticket out of acceptance to `Done` before a human has merged the PR, and without the named human's acceptance. That contradicts three places:
-- the seed board's Done column says "merged + released (or merged, lean)" (`agent-factory/seed/memory-bank/plans/board.md:92`);
-- Workflow 06 makes the move to Done conditional on "Once the named human signs off" (`agent-factory/workflows/06-uat-pack.md:31, 49`);
-- `uat-planner.md:48` says "When a result is ambiguous or unmet, stop and leave the ticket in `In UAT` for a named human". The Orchestrator's close ignores that hold.
-
-Moving the ticket to the Orchestrator was approved (D-33). Losing the human conditions was not. The partition guard cannot catch this, because it checks who owns the pair, never the condition attached to it.
-**Fix:**
-```markdown
-You own `In UAT → Done`, the lean-mode close, once the named human has signed off the UAT scenarios
-(`checkpoint: sign_off_acceptance`), a human has merged the PR, and
-`agent-factory/checklists/definition-of-done.md` holds.
-```
-Also add "merged by a human" to the lean Definition of Done, matching the board's Done entry. Align Workflow 06 line 31 so it names the Orchestrator as the owner of the lean close.
+(check-diff-disposition is in the hook's decider closure, so either copy the predicate into check-diff-disposition or regenerate the manifest after adding the import.) Add a red case on a shared clone: the merge-ban reword above, with the stand-in key present, must exit 1 naming `orchestrator.md`.
 
 ## Warnings
 
-### WR-01: The board-move partition guard admits moves that skip gates
+### WR-01: The CR-02 lean-close conditions are pinned only by tokens, and six roles' new safety facts have no baseline
 
-**File:** `scripts/check-role-rules.ts:507-519`
-**Issue:** Rule 4 skips any pair whose from-column the claiming role owns (`if (fromOwner === r) continue;`). It also skips any pair into the terminal column claimed by the terminal column's owner (`if (p.to === model.terminal && r === terminalOwner) continue;`). No rule constrains the `to` column. Measured with `checkPartition` over the live claims plus one planted pair, each of these returns zero findings:
-- `software-engineer.md` claiming `In Development → Done` (skips review, security and UAT);
-- `orchestrator.md` claiming `In Review → Done` or `Blocked → Done`;
-- `qe-e2e.md` claiming `In Review → Ready to Release` (skips UAT).
+**File:** `agent-factory/roles/orchestrator.md:68, 89`; `scripts/tier-kit-text.test.ts` (the "lean close keeps its human conditions" describe); `docs/audit/40-role-rule-inventory.json`
+**Issue:** The CR-02 fix holds in the text today, but nothing keeps it there:
+- The `tier-kit-text` pins check only that the close line contains `named human`, `sign_off_acceptance`, `merged` and `definition-of-done.md`. They also check that one `## Stop when` item contains `` `In UAT` `` and `merged`. I changed line 68 to "Close once a human merged the PR; the named human may sign off later (`checkpoint: sign_off_acceptance`), and … definition-of-done.md holds." and line 89 to "If no human has merged the PR, leave the ticket in `In UAT`." With those edits, `tier-kit-text.test.ts` (182 tests), check-role-rules and check-diff-disposition all stayed green. The sign-off condition CR-02 restored is gone.
+- `## Board moves` is not a frozen section, so this edit owes only an ordinary row even after the stand-in ends.
+- The baseline is pinned to the pre-rewrite commit, so any safety sentence added during Phase 40 never becomes a protected fact. Measured with `deriveAll` against the baseline: `orchestrator.md` carries `human-merge-deploy` and `named-human` with no baseline entry. `architect-design.md`, `factory-coach.md`, `greenfield-mapper.md`, `incident-responder.md` and `installer.md` each carry an unprotected `named-human`. The `named-human` stops include the Installer's stop-and-ask and the Orchestrator's CR-02 hold. Each of these sentences can be deleted with every gate green. The recorded residual covers only sentences with no fact kind at all.
 
-D-33 says the Orchestrator's lean close "names its from-column". The guard admits every from-column. The header says the moves "partition the seed board's flow", which overstates what is asserted.
-**Fix:** Allow a pair from an owned column only when its target is the next flow column, or a target declared per role (as `BOARD_MOVE_EXCEPTIONS` does for the Tech Lead). Narrow the terminal exemption to an explicit list of allowed close pairs, `{orchestrator.md: In UAT → Done}`. Add planted-mirror red cases for the three pairs above.
+**Fix:** Pin the close condition by meaning, not by token. Assert the exact close sentence, or assert that "Close only after" precedes both conditions, joined by "and". Assert that the `## Stop when` hold names both the merge and the sign-off. For the gained facts, add a second, additive floor: a committed list of safety facts per role, taken at the end of Phase 40 (HEAD, not `e8d7802`), checked the same way as the baseline, so facts gained in Phase 40 cannot be lost in Phases 41 and 42.
 
-### WR-02: In lean mode, two roles exit `In UAT` with conditions that do not exclude each other
+### WR-02: The partition guard reads only backtick spans that use `→`, so a gate-skipping move written with `->` or in prose is invisible
 
-**File:** `agent-factory/roles/uat-planner.md:38, 49`; `agent-factory/roles/orchestrator.md:68`; `agent-factory/workflows/06-uat-pack.md:31`
-**Issue:** The UAT Planner owns `In UAT → Ready to Release` with no mode condition, and its done stop says "the Release Manager takes it". But the Release Manager activates only on `mode=enterprise` or an explicit release request (`release-manager.md` `## Activates when`). The Orchestrator owns `In UAT → Done` in lean mode. So in lean mode a signed-off ticket can go either way. If the UAT Planner moves it, it sits in `Ready to Release` with no lean owner. Workflow 06 still says the UAT Planner moves it "directly to `Done` in lean mode", a third version. The 40-10 summary records Workflow 06 as deliberately untouched, but the roles and the workflow now disagree.
-**Fix:** Make the UAT Planner's move enterprise-only ("in `mode: enterprise`, once the named human signs off ... `In UAT → Ready to Release`"). Say that in lean mode it leaves the signed-off ticket in `In UAT` for the Orchestrator's close. Update Workflow 06 lines 31 and 49 to match.
+**File:** `scripts/check-role-rules.ts:586-602` (`claimedPairs`), `:610-622` (`moveSpanFindings`, rule 6)
+**Issue:** Both parsers look only at code spans containing U+2192. The kit's workflows use `->` for board moves throughout (Workflow 06: `` `Ready for UAT -> In UAT` ``), so a rewriting agent can easily use that spelling. I added "You own `In Development -> Done` when the change is small." to `software-engineer.md` `## Board moves`. The result: no claim, no rule 4 finding, no rule 6 finding, no fact, and check-role-rules stays green. The same holds for the prose form "You own In Development → Done …", and the test "an arrow in prose outside code spans add no finding" pins that as intended. An agent reads either spelling as a claim. The WR-01 narrowing therefore holds only for moves spelled the canonical way. The IN-02 rule 6 has the same blind spot.
+**Fix:** In `moveSpanFindings`, report any `## Board moves` code span that contains `->` or `=>`, and any unfenced line that names two board columns around an arrow outside a code span. Each becomes a rule 6 finding ("write board moves as `` `X → Y` ``"). Add red cases for `` `In Development -> Done` `` and the prose form.
 
-### WR-03: New `## Stop when` bullets imply backward board moves that no role owns
+### WR-03: Workflow 06 still says "The lean path straight to `Done` is unchanged", and its dial text conflicts with the Orchestrator's unconditional sign-off
 
-**File:** `agent-factory/roles/architect-design.md:50`, `system-analyst.md:43`, `uat-planner.md:47`, `security-nfr.md:51`, `qe-e2e.md:48`, `compliance-officer.md:49`, `ba-pm.md:50`
-**Issue:** These bullets say "return the ticket to the System Analyst / BA/PM" or "hand the ticket back to the Software Engineer". None of those roles carried this text before Phase 40. No role claims the matching backward pairs (`In Design → In Analysis`, `In Analysis → Backlog`, `In UAT → Backlog`, `In Security/NFR → In Development`, `In Review → In Development`). The bullets never say whether the ticket changes column. An agent can read "return the ticket" as a move. That move would have no owner, which breaks the one-owner rule the partition guard exists for. Or it can leave the ticket in place, which makes "return" misleading.
-**Fix:** Pick one reading per bullet and state it, for example: "report `BLOCKED`, add a `## Blocked` bullet naming the System Analyst, and leave the ticket in `In Design`". If a real backward move is intended, claim it in `## Board moves` and add it to the partition model.
+**File:** `agent-factory/workflows/06-uat-pack.md:33`; `agent-factory/roles/orchestrator.md:68`
+**Issue:** Plan 40-13 rewrote line 31 and the Done condition. It left line 33's "The lean path straight to `Done` is unchanged." That sentence comes from the removed design, where the UAT Planner moved the ticket straight to Done. The lean ticket now waits in `In UAT` for the Orchestrator's close, so "straight" and "unchanged" are both wrong. The WR-02 negative pins in `tier-kit-text.test.ts` look only for the two old parentheticals and `` /`Done`\)? in lean mode/ ``, so this sentence slips past them.
 
-### WR-04: Human-stop rules moved out of the frozen `## Hard limits` region into `## Stop when`, which nothing freezes
-
-**File:** `agent-factory/roles/tech-lead.md:55-56`; `compliance-officer.md:49-50`; `installer.md:47`; `software-engineer.md:69`
-**Issue:** Before Phase 40, these were `## Hard limits` sentences, frozen by D-01 source (b): the Tech Lead's "Stop for a named human after three disputed rounds ... before a second escalation ... before a fourth hand-off", the Compliance Officer's "escalate genuine legal questions to a named human" and "mark ... `BLOCKED`", the Installer's "When detection is ambiguous, stop and ask", and the Software Engineer's "Stop and hand back if scope grows". `FROZEN_SECTION_ANCHORS` freezes only role `## Hard limits`, so once the D-30 stand-in ends, edits to these rules still need no companion row. `tier-kit-text.test.ts` pins some of the Tech Lead wording, but not the Compliance, Installer or Software Engineer stops.
-**Fix:** Add `{ corpus: "roles", heading: "## Stop when", subpath: ROLES_SUBPATH, expected: ROLE_COUNT }` to `FROZEN_SECTION_ANCHORS`, or move the named-human stops back into `## Hard limits`.
-
-### WR-05: The pre-rewrite baseline can be laundered with one command, and the equality test stays green
-
-**File:** `scripts/check-role-rules.ts:664-680`; `scripts/check-role-rules.test.ts:184-206`
-**Issue:** `--write-baseline` overwrites `docs/audit/40-role-rule-inventory.json` at any time. It records `source_commit = git rev-parse HEAD` but derives facts from the working tree, so a dirty tree records facts that are not at that commit. The only integrity test re-derives at whatever `source_commit` the file names. So re-running `--write-baseline` at a later HEAD, after facts were lost, forgives every loss and passes the test. Nothing ties `source_commit` to the Phase 40 start commit that D-27 and D-30 name (`e8d7802…`, the `base_commit` in `00-base.md`). Separately, the `execFileSync("git", ...)` at line 676 sits outside any try/catch, so outside a git tree it dies with a stack trace instead of a named refusal.
-**Fix:** In `check()` (and the test), assert that `baseline.source_commit` equals the `base_commit` read from `docs/audit/29-style-dispositions/00-base.md`, or a named constant. Make `--write-baseline` refuse when the baseline file already exists or the tree is dirty. Wrap the `git rev-parse` call and report it through `fail()`.
-
-### WR-06: The base move retired 23 undispositioned workflow safety-section changes that nobody read
-
-**File:** `docs/audit/40-disposition-base-move.md` ("The 721 findings this move retires"); `docs/audit/29-style-dispositions/00-base.md:2`
-**Issue:** D-30 says "Frozen safety clauses in non-role files stay verbatim". But moving the base from `4d2b8f0` to `e8d7802` retired 444 non-role findings with no review. That includes 23 workflow `## Stop conditions` / `## Commit` clauses reported as `FROZEN by structuralSections`. Those are exactly the non-role safety sections D-30 says it protects. The record gives only counts and a reproduce command, not the 23 clauses, so no human has read whether those Phase 30-39 rewordings kept their permission. The README calls moving the base "deleting the evidence", and that is what happened here for non-role files.
-**Fix:** Run the recorded reproduce command and list the 23 workflow frozen-section findings by file, line and clause in `40-disposition-base-move.md`. Get a named human disposition for each, using the same row format as the other disposition files.
+The same paragraph also says only the `In UAT -> Ready to Release` move stops at `sign_off_acceptance`, and that a repository may lower that checkpoint to `off` ("the dial changes who signs"). But `orchestrator.md:68` requires "the named human signs off acceptance" with no condition. A lean repository that sets `sign_off_acceptance: off` gets a role that never closes.
+**Fix:** Replace the stale sentence with "In lean mode, the Orchestrator's close to `Done` stops at the same checkpoint." Then decide, and state in both files, what the lean close requires when `sign_off_acceptance` is `notify` or `off`. Either the Orchestrator's condition reads "the sign-off the `sign_off_acceptance` checkpoint requires", or the workflow says the lean close ignores the dial. Add `"straight to \`Done\`"` to the WR-02 negative pin.
 
 ## Info
 
-### IN-01: Shipped kit text cites internal planning ids and describes blocks that no longer exist
+### IN-01: `check()` checks the baseline's `source_commit` but not its contents
 
-**File:** `agent-factory/writing-profile.md:8, 302, 304`
-**Issue:** These kit files ship to host repositories:
-- line 8 cites "PLAIN-01";
-- line 302 says "the fenced blocks restate rather than compress", about blocks that were deleted;
-- line 304, "Role bodies join the governed surfaces of this profile in plan 40-10.", reads as future work and cites an internal plan id.
-**Fix:** State the current fact without plan ids ("Role bodies are a governed surface of this profile; see the table above"), and drop or rephrase the sentence about fenced blocks.
+**File:** `scripts/check-role-rules.ts:888-908`
+**Issue:** The gate the stand-in trusts reads the facts from the JSON as written. I removed `"no-merge"` from `files["orchestrator.md"].facts` on a mirror and deleted the merge ban, and `check-role-rules.js` passed. The re-derive test in `check-role-rules.test.ts` catches this in CI's vitest step, so the build is still red. check-diff-disposition, though, consults only the CLI gate.
+**Fix:** When git objects at `PHASE_40_START_COMMIT` are reachable, have `check()` compare `serializeBaseline(...deriveAllAt(ROOT, PHASE_40_START_COMMIT)...)` with the file bytes and fail on any difference. Keep today's behavior only when the objects are unreachable, and say so in the output.
 
-### IN-02: The fact parser and the partition parser read `→` differently
+### IN-02: Stale header text in `check-role-rules.ts`
 
-**File:** `scripts/check-role-rules.ts:207-212` vs `:425-440`
-**Issue:** `deriveRoleFacts` splits a code span on a bare `→`, while `claimedPairs` needs `" → "` with spaces. A span written `` `In UAT→Done` `` yields `board-from:In UAT`, but no partition claim. The result is a confusing rule 2 or rule 3 finding instead of a parse finding.
-**Fix:** Use one span parser for both, and report a span that holds `→` but does not parse as a pair.
+**File:** `scripts/check-role-rules.ts:41-43`
+**Issue:** The header says the partition has "five rules, listed above checkPartition" and that "BOARD_MOVE_EXCEPTIONS is the one declared list". There are now six rules (rule 6 is in `moveSpanFindings`) and two declared lists (`D33_NON_FORWARD_PAIRS`). `FACT_KINDS` (`:140-160`) is described as the closed list of "every kind the derivation can emit", but nothing asserts that the derived facts are a subset of it. A new kind added to `deriveRoleFacts` without a `FACT_KINDS` entry would go unnoticed.
+**Fix:** Update the header to six rules and two lists. In the kind-floor test, also assert that every fact in the committed baseline and in `deriveAll(ROOT)` matches a `FACT_KINDS` entry (exact, or by prefix for `junior:`, `kit-ref:` and `board-from:`).
 
-### IN-03: The fixture comment still says "8 prefix-matched section checks"
+### IN-03: `deriveAllAt` reads `git ls-tree` paths relative to the current directory, but `git show` reads them relative to the repository root
 
-**File:** `scripts/fixtures/good/agent-factory/roles/ba-pm.md:3-4` (and the same header in every fixture role)
-**Issue:** The validator now checks 9 prefixes. The fixtures also still carry the retired `## Caveman prompt` heading and the old suffixed headings. The validator accepts both, but they no longer show the shipped shape.
-**Fix:** Update the comment to 9. Optionally drop `## Caveman prompt` from the `good` fixture.
-
-### IN-04: The gate checks `role_standin` only for form, not for the expected value, and ignores duplicates
-
-**File:** `scripts/check-diff-disposition.ts:300-301, 2211-2216`
-**Issue:** Any canonical `scripts/<kebab>.js` passes. On a worktree, `role_standin: scripts/is-entry.js` exited 0 and admitted 1128 role clauses while `check-role-rules.js` was red. A second `role_standin:` line is not refused; the first canonical match wins. The value is pinned only by `uat-gate-exit-contract.test.ts`, and CI runs `check-role-rules.js` directly, so the overall build would still go red. The gate alone does not fail closed on a substituted script.
-**Fix:** In `readRoleStandin`, compare the value against a `ROLE_STANDIN_SCRIPT = "scripts/check-role-rules.js"` constant, and refuse more than one `role_standin:` line.
+**File:** `scripts/check-role-rules.ts:445-456`
+**Issue:** `git -C root ls-tree -r --name-only sha -- <paths>` interprets pathspecs and prints names relative to `root`. `git show sha:<p>` resolves `<p>` from the repository root. If `CHECK_ROOT` is a subdirectory of a repository, the two disagree and the writer fails, with a named error. Without `-z`, a non-ASCII path would also come back quoted. Neither case occurs today; the writer runs at the repository root.
+**Fix:** Use `ls-tree -r -z --full-tree --name-only` and split on `\0`, or use `git show sha:./<p>` so both sides resolve the same way.
 
 ---
 
-_Reviewed: 2026-11-01T18:01:14Z_
+_Reviewed: 2026-11-02T14:57:56Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
