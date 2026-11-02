@@ -35,6 +35,9 @@
 //   no-overwrite dry-run                                                 CLAUDE.md Installers, T-40-16
 //   no-relay wip-limit claim-cap only-spawner                            the coordinator rules, T-40-13
 //   self-sign                                                            the sign-off rule, T-40-18
+// CR-01 round 2 (plan 40-19): carriesSafetyFact is the table's some(), the one predicate the stand-in
+// asks about a changed clause, and the parity case proves it sees every derived safety fact on the
+// clauses voice-model.ts normalizes, at HEAD and at PHASE_40_START_COMMIT.
 //
 // THE BOARD-MOVE PARTITION (D-29, D-33). `--check` also runs a second named check on the current tree
 // only: each role's exact `(from, to)` pairs, read from the `X → Y` code spans in `## Board moves`, must
@@ -117,15 +120,25 @@ export const SAFETY_RULE_FACTS = [
     { fact: "dry-run", holds: (s) => /\bdry[- ]run\b/i.test(s) },
     // 40-SECURITY.md T-40-13: no agent hands data to another.
     { fact: "no-relay", holds: (s) => /\b(?:never|not) relay/i.test(s) },
-    // 40-SECURITY.md T-40-13: the coordinator's WIP limit.
-    { fact: "wip-limit", holds: (s) => s.includes("queue.wip_limit") },
-    // 40-SECURITY.md T-40-13: the per-delegation claim cap.
-    { fact: "claim-cap", holds: (s) => s.includes("queue.claim_cap") },
+    // 40-SECURITY.md T-40-13: the coordinator's WIP limit (raw or normalized spelling, CR-01 round 2).
+    { fact: "wip-limit", holds: (s) => /\bqueue[._ ]wip[_ ]limit\b/i.test(s) },
+    // 40-SECURITY.md T-40-13: the per-delegation claim cap (raw or normalized spelling, CR-01 round 2).
+    { fact: "claim-cap", holds: (s) => /\bqueue[._ ]claim[_ ]cap\b/i.test(s) },
     // 40-SECURITY.md T-40-13: only the Orchestrator spawns.
     { fact: "only-spawner", holds: (s) => /\bonly role that may spawn/i.test(s) },
-    // 40-SECURITY.md T-40-18: an agent never signs off its own work.
-    { fact: "self-sign", holds: (s) => /\bself-sign/i.test(s) },
+    // 40-SECURITY.md T-40-18: an agent never signs off its own work (raw or normalized spelling, CR-01 round 2).
+    { fact: "self-sign", holds: (s) => /\bself[- ]sign/i.test(s) },
 ];
+/**
+ * The one predicate the D-30 stand-in uses to refuse a changed role clause that carries a safety fact on
+ * either side (human decision 2026-11-02, CR-01). It is the SAFETY_RULE_FACTS table's own some(), so no
+ * fact pattern exists outside the table. It accepts a raw sentence or a clause normalized by
+ * voice-model.ts (lowercase, punctuation folded to spaces, code spans unwrapped), which the parity case
+ * in check-role-rules.test.ts proves for every corpus file at HEAD and at PHASE_40_START_COMMIT.
+ */
+export function carriesSafetyFact(text) {
+    return SAFETY_RULE_FACTS.some((r) => r.holds(text));
+}
 // THE FACT KINDS (D-28, closed list). Every kind the derivation can emit: the exact facts, the three
 // derived prefixes, and the twelve SAFETY_RULE_FACTS names (read from the table, never retyped). A kind
 // removed from the derivation must also leave this list, which the kind-floor test makes visible: each

@@ -46,8 +46,8 @@ import {
   DERIVATION_PATHS,
   roleCorpus,
   sectionLines,
+  carriesSafetyFact,
 } from "./check-role-rules.js";
-import * as roleRules from "./check-role-rules.js";
 import { listRoles } from "./kit-model.js";
 import { fencedLineFlags } from "./frontmatter.js";
 import { normalizeSentence, segmentClauses } from "./voice-model.js";
@@ -911,8 +911,6 @@ describe("WR-05: the baseline is pinned to the Phase 40 start commit", () => {
 // folded to spaces, code spans unwrapped), so the predicate must hold on that form as well as on the raw
 // sentence. These cases copy no fact regex: they ask each SAFETY_RULE_FACTS entry's own holds.
 // ---------------------------------------------------------------------------
-
-const carriesSafetyFact = (roleRules as unknown as { carriesSafetyFact: (text: string) => boolean }).carriesSafetyFact;
 
 const SAFETY_FACT_NAMES = new Set(SAFETY_RULE_FACTS.map((r) => r.fact));
 
