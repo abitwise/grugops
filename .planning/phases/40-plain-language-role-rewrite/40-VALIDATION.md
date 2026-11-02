@@ -4,7 +4,7 @@ slug: "plain-language-role-rewrite"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: true) (#2117)
 status: validated
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: true
 created: "2026-10-31"
 ---
@@ -57,6 +57,16 @@ Task IDs are `40-<plan>-<task>`; rows below map each requirement to its automate
 | 40-02-02, 40-03-03 | 02, 03 | 2, 3 | PLAIN-05 | T-40-09 | Do-less rules present; NOTICE byte copy; no banned literal | unit + gate | `npx vitest run install/installer-kit-home.test.ts -t "NOTICE" && node scripts/check-banned-claims.js` | ✅ | ✅ green |
 | 40-03-03 | 03 | 3 | PLAIN-06 | T-40-11 | Lean lens present with sub-tags; governed corpus green | gate + unit | `npx vitest run scripts/tier-kit-text.test.ts -t "lean lens" && node scripts/check-imperative-lexicon.js` | ✅ | ✅ green |
 | 40-10-01 | 10 | 6 | PLAIN-07 | T-40-26 | Roles in the governed corpus (69 in 5 parts); planted 26-word role sentence → red | unit (planted mirror) | `npx vitest run scripts/check-imperative-lexicon.test.ts` | ✅ | ✅ green |
+| 40-11-01 | 11 | 1 | PLAIN-03 | T-40-02 | CR-01: deleting a merge, deploy or named-human sentence on a mirror is red naming the role and the lost fact; a move into `## Stop when` keeps the fact, a move elsewhere loses it | unit (planted mirror) | `npx vitest run scripts/check-role-rules.test.ts -t "CR-01"` | ✅ | ✅ green |
+| 40-11-02 | 11 | 1 | PLAIN-03 | T-40-01 | WR-05: baseline pinned to the Phase 40 start commit; a foreign `source_commit` is red; the writer reads git objects only and fails by name outside git | unit (tmp git repos) | `npx vitest run scripts/check-role-rules.test.ts -t "WR-05"` | ✅ | ✅ green |
+| 40-12-01 | 12 | 1 | PLAIN-03 | T-40-02 | WR-04: role `## Stop when` is frozen like `## Hard limits`; a renamed heading shrinks the frozen set and is refused | unit (tmp git repos) | `npx vitest run scripts/check-diff-disposition.test.ts -t "WR-04"` | ✅ | ✅ green |
+| 40-12-02 | 12 | 1 | PLAIN-03 | T-40-02 | IN-04: `role_standin` naming any script but `scripts/check-role-rules.js`, or a second key line, is refused by name | unit (tmp git repos) | `npx vitest run scripts/check-diff-disposition.test.ts -t "IN-04"` | ✅ | ✅ green |
+| 40-13-01 | 13 | 1 | PLAIN-03 | T-40-21 | CR-02: the lean close needs the named human's sign-off, a human merge and the lean DoD; `## Stop when` holds the ticket in `In UAT` until both | unit (text pins) | `npx vitest run scripts/tier-kit-text.test.ts -t "CR-02"` | ✅ | ✅ green |
+| 40-13-02 | 13 | 1 | PLAIN-03 | T-40-21 | WR-02: one lean owner of the `In UAT` exit across the UAT Planner, the Orchestrator and Workflow 06 | unit (text pins) | `npx vitest run scripts/tier-kit-text.test.ts -t "WR-02"` | ✅ | ✅ green |
+| 40-14-01 | 14 | 2 | PLAIN-03 | T-40-21 | WR-01: partition rule 4 refuses gate-skipping moves; only the two D-33 approved non-forward pairs are admitted | unit (planted mirror) | `npx vitest run scripts/check-role-rules.test.ts -t "WR-01" && npx vitest run scripts/check-role-rules.test.ts -t "approved pair"` | ✅ | ✅ green |
+| 40-14-02 | 14 | 2 | PLAIN-03 | T-40-21 | IN-02: a `## Board moves` arrow span that is not a column pair is a named finding (rule 6) | unit (planted mirror) | `npx vitest run scripts/check-role-rules.test.ts -t "IN-02"` | ✅ | ✅ green |
+| 40-15-01 | 15 | 1 | PLAIN-02 | — | IN-03: no fixture role header types a section count (≥176 files walked) | unit | `npx vitest run scripts/validate.test.ts -t "type no section count"` | ✅ | ✅ green |
+| 40-15-02 | 15 | 1 | PLAIN-07 | — | IN-01: writing profile cites no internal ids; C-28-045 anchor byte-frozen | gate | `node scripts/check-banned-claims.js && node scripts/check-claim-anchors.js` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -79,6 +89,8 @@ Task IDs are `40-<plan>-<task>`; rows below map each requirement to its automate
 | Reader check: goal, inputs, outputs, board moves, limits and stops nameable from each role file alone | PLAIN-02 | Meaning judgement (D-31) | Verifier reads each of the 19 roles + protocol and names the six items per file |
 | Reference-role voice, shape and length approval | PLAIN-02 | Human checkpoint (D-16) | User reads rewritten `software-engineer.md` and approves before the batch rewrite |
 | Rewritten rules keep their meaning, not only their anchor tokens | PLAIN-03 | Guard checks tokens; meaning needs review (D-28) | Plan review compares pre/post rule inventory entries per role |
+| WR-06: the 31 frozen-section findings retired by the D-30 base move are read by a named human | PLAIN-03 | Only a named human can give a disposition (T-40-45, `blocking-human`) | Done 2026-11-02: Olger replied "accept-all, Olger"; `docs/audit/40-disposition-base-move.md` holds 31 `accepted by Olger` cells and 0 `pending (named human)` (count check: `grep -c 'pending (named human)' docs/audit/40-disposition-base-move.md` → 0) |
+| Lean-close wording reads with the intended meaning (CR-02, WR-02) | PLAIN-03 | Text pins check tokens; meaning is a judgment check in plan 40-13 | Verifier reads the new `orchestrator.md` / `uat-planner.md` lean-close sentences |
 
 ---
 
@@ -91,7 +103,7 @@ Task IDs are `40-<plan>-<task>`; rows below map each requirement to its automate
 - [x] Feedback latency < 60s
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** validated 2026-11-01 by /gsd-validate-phase 40. All 13 mapped commands were re-run on HEAD and exit 0. Manual-only rows: the D-16 reference-role approval was given at the 40-02 checkpoint ("approved"); the reader check and the meaning review go to the phase verifier. Note: 40-10 changed one adapter on purpose (security-nfr, sentence split for D-32), recorded as a `RECORDED_CHANGED` literal in adapter-byte-baseline.test.ts. The adapter row therefore proves no unrecorded byte change, rather than no change at all.
+**Approval:** validated 2026-11-01 by /gsd-validate-phase 40. All 13 mapped commands were re-run on HEAD and exit 0. Manual-only rows: the D-16 reference-role approval was given at the 40-02 checkpoint ("approved"); the reader check and the meaning review go to the phase verifier. Gap round (2026-11-02): rows 40-11-01 to 40-15-02 cover the gap-closure plans; all 10 mapped commands were re-run on HEAD and pass, and `check-role-rules.js` and `check-diff-disposition.js` exit 0. The final full suite had 10,844 passed and 21 failed, exactly the recorded pre-existing set. 40-16 is a human disposition and sits in Manual-Only. Note: 40-10 changed one adapter on purpose (security-nfr, sentence split for D-32), recorded as a `RECORDED_CHANGED` literal in adapter-byte-baseline.test.ts. The adapter row therefore proves no unrecorded byte change, rather than no change at all.
 
 ## Validation Audit 2026-11-01
 
