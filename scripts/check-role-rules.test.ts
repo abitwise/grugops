@@ -1006,3 +1006,92 @@ describe("CR-01 round 2: one safety predicate sees the gate's clauses", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// IN-01 (plan 40-19). The CLI gate the D-30 stand-in spawns read the baseline JSON as written, so a JSON
+// edit that drops a fact from the baseline, plus the matching rule deleted from the role, left every gate
+// green. When the git objects at PHASE_40_START_COMMIT are reachable, check() now compares the committed
+// bytes with a fresh derivation out of git and judges losses against that derivation; when they are not,
+// it says so in one NOTE line.
+// ---------------------------------------------------------------------------
+
+/** Rewrite a clone's baseline JSON with `fact` dropped from `file`'s facts, through serializeBaseline. */
+function dropBaselineFact(clone: string, file: string, fact: string): void {
+  const p = join(clone, BASELINE_REL);
+  const b = JSON.parse(readFileSync(p, "utf8"));
+  const before = b.files[file].facts.length;
+  b.files[file].facts = b.files[file].facts.filter((x: string) => x !== fact);
+  if (b.files[file].facts.length === before) throw new Error(`${file} holds no ${fact} in the baseline — the plant is vacuous`);
+  writeFileSync(p, serializeBaseline(b));
+}
+
+const in01Lines = (out: string): string[] => out.split("\n").filter((l) => l.includes("IN-01"));
+
+describe("IN-01: the CLI gate checks the baseline contents against git", () => {
+  it(
+    "an untouched shared clone passes with one IN-01 PASS line, byte-identical on a second run",
+    () => {
+      const c = sharedClone("rr-in01-green-");
+      const r1 = runIn(c, "scripts/check-role-rules.js");
+      expect(r1.status, r1.stdout).toBe(0);
+      const lines = in01Lines(r1.stdout);
+      expect(lines.length, r1.stdout).toBe(1);
+      expect(lines[0]).toMatch(/^ {2}PASS {2}/);
+      expect(lines[0]).toContain("equals a fresh derivation");
+      const r2 = runIn(c, "scripts/check-role-rules.js");
+      expect(in01Lines(r2.stdout)).toEqual(lines);
+    },
+    120_000,
+  );
+
+  it(
+    "a baseline JSON that lost no-merge from orchestrator.md is red naming IN-01 and orchestrator.md",
+    () => {
+      const c = sharedClone("rr-in01-json-");
+      dropBaselineFact(c, "orchestrator.md", "no-merge");
+      const r = runIn(c, "scripts/check-role-rules.js");
+      expect(r.status, r.stdout).toBe(1);
+      const fails = in01Lines(r.stdout).filter((l) => /^ {2}FAIL {2}/.test(l));
+      expect(fails.length, r.stdout).toBe(1);
+      expect(fails[0]).toContain("orchestrator.md");
+    },
+    120_000,
+  );
+
+  it(
+    "the same JSON edit plus the merge ban deleted is red naming IN-01 and orchestrator.md: lost fact no-merge",
+    () => {
+      const c = sharedClone("rr-in01-launder-");
+      dropBaselineFact(c, "orchestrator.md", "no-merge");
+      edit(join(c, "agent-factory", "roles", "orchestrator.md"), (s) => s.replace(MERGE_BAN, ""));
+      const r = runIn(c, "scripts/check-role-rules.js");
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toMatch(/^ {2}FAIL {2}.*IN-01/m);
+      expect(r.stdout).toContain("orchestrator.md: lost fact no-merge");
+    },
+    120_000,
+  );
+
+  it(
+    "on that tampered clone check-diff-disposition is red through the stand-in",
+    () => {
+      const c = sharedClone("rr-in01-gate-");
+      dropBaselineFact(c, "orchestrator.md", "no-merge");
+      edit(join(c, "agent-factory", "roles", "orchestrator.md"), (s) => s.replace(MERGE_BAN, ""));
+      const r = runIn(c, "scripts/check-diff-disposition.js");
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain("role-rule inventory stand-in failed");
+    },
+    120_000,
+  );
+
+  it("a plain mirror with no git history stays green and prints the IN-01 NOTE", () => {
+    const m = makeMirror("rr-in01-nogit-");
+    const r = runGate(m, [], { GIT_CEILING_DIRECTORIES: dirname(m) });
+    expect(r.status, r.stdout).toBe(0);
+    const lines = in01Lines(r.stdout);
+    expect(lines.length, r.stdout).toBe(1);
+    expect(lines[0]).toMatch(/^ {2}NOTE {2}/);
+    expect(lines[0]).toContain("not compared with git (IN-01)");
+  });
+});
