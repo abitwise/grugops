@@ -1,8 +1,8 @@
 ---
 phase: 40-plain-language-role-rewrite
-verified: 2026-11-01T18:12:00Z
+verified: 2026-11-02T15:20:00Z
 status: gaps_found
-score: 5/7 must-haves verified
+score: 6/7 must-haves verified
 covered_files:
   - ".planning/phases/40-plain-language-role-rewrite/40-01-PLAN.md"
   - ".planning/phases/40-plain-language-role-rewrite/40-01-SUMMARY.md"
@@ -24,46 +24,68 @@ covered_files:
   - ".planning/phases/40-plain-language-role-rewrite/40-09-SUMMARY.md"
   - ".planning/phases/40-plain-language-role-rewrite/40-10-PLAN.md"
   - ".planning/phases/40-plain-language-role-rewrite/40-10-SUMMARY.md"
-  - "agent-factory/NOTICE"
-  - "agent-factory/checklists/pr-review-checklist.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-11-PLAN.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-11-SUMMARY.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-12-PLAN.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-12-SUMMARY.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-13-PLAN.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-13-SUMMARY.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-14-PLAN.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-14-SUMMARY.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-15-PLAN.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-15-SUMMARY.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-16-PLAN.md"
+  - ".planning/phases/40-plain-language-role-rewrite/40-16-SUMMARY.md"
+  - "agent-factory/checklists/definition-of-done.md"
   - "agent-factory/roles/orchestrator.md"
-  - "agent-factory/roles/release-manager.md"
-  - "agent-factory/roles/software-engineer.md"
-  - "agent-factory/roles/tech-lead.md"
   - "agent-factory/roles/uat-planner.md"
-  - "docs/audit/29-style-dispositions/00-base.md"
+  - "agent-factory/workflows/06-uat-pack.md"
+  - "docs/audit/40-disposition-base-move.md"
   - "docs/audit/40-role-rule-inventory.json"
   - "scripts/check-diff-disposition.ts"
-  - "scripts/check-foundation-guards.ts"
   - "scripts/check-role-rules.ts"
-covered_digest: "v3:sha256:0d6a1a7b052f6d7b9d5facd6374d83450337ff5e1157852ccb3ac818b0e58626"
+covered_digest: "v3:sha256:6fa1d4c02d25eeac64b7f2366444ad1eeafd44ea65cd4db7ebb29910b3a368d3"
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 5/7
+  gaps_closed:
+    - "Gap 1 (deletion half): deleting the Orchestrator, Release Manager or Tech Lead merge/deploy sentence now turns check-role-rules and check-diff-disposition red (40-11, 40-12)"
+    - "Gap 1 (WR-04): role `## Stop when` is a fourth frozen section anchor (40-12)"
+    - "Gap 2: the Orchestrator lean close names the named-human sign-off, a human merge and the lean DoD; lean DoD gained 'the PR merged by a human'; UAT Planner forward move is enterprise-only (40-13)"
+    - "WR-05 baseline laundering, WR-06 named-human read of 31 retired findings (accept-all, Olger), IN-01, IN-03, IN-04 (40-11, 40-12, 40-15, 40-16)"
+  gaps_remaining:
+    - "A safety sentence reworded to reverse its rule while keeping its token passes every gate (new CR-01 of the incremental review)"
+    - "Workflow 06 line 33 still says the lean path straight to Done is unchanged, and its dial text conflicts with the Orchestrator's unconditional sign-off (new WR-03)"
+  regressions: []
 gaps:
-  - truth: "The rewrite keeps every rule that holds the factory safe (phase goal clause; PLAIN-03 'still holds'; D-30 'stays mechanical and fails closed')"
+  - truth: "The rewrite keeps every rule that holds the factory safe, and the D-30 stand-in stays mechanical and fails closed (phase goal clause; PLAIN-03 'still holds'; plan prohibition 'MUST NOT let the D-30 stand-in become a blanket bypass')"
     status: partial
-    reason: "The merge / deploy / named-human rule TEXT is present in every role today (verified). The GUARD that stops it being removed silently is gone for most of it. The D-30 stand-in admits any role clause, including every `## Hard limits` sentence, whenever check-role-rules exits 0, and the closed D-28 fact list has no merge, deploy or named-human fact. Reproduced here in a throwaway worktree: deleting the Orchestrator's 'Never merge to a protected branch. Never deploy to production; merge and deploy stay with humans.', the Release Manager's 'Deploy only after a named human approves; ... Never deploy to production yourself.' and the Tech Lead's 'Merge and deploy stay with humans.' left check-role-rules --check, check-diff-disposition, check-foundation-guards, validate-agent-factory, check-imperative-lexicon and check-banned-claims all at exit 0. Only the Tech Lead sentence is caught, and only by a text pin in scripts/tier-kit-text.test.ts (not a gate). Before Phase 40 the same edits were FROZEN by structuralSections in check-diff-disposition. WR-04 compounds it: the human-stop rules (Tech Lead named-human stops, Compliance legal escalation, Installer stop-and-ask, Engineer scope hand-back) moved out of the frozen `## Hard limits` region into `## Stop when`, which FROZEN_SECTION_ANCHORS does not freeze."
+    reason: "Deletion is now guarded, reword-to-reverse is not. Reproduced on a shared clone of HEAD (never the real tree): changing agent-factory/roles/orchestrator.md:77 'Never merge to a protected branch. Never deploy to production; merge and deploy stay with humans.' to 'Never merge to a protected branch until the gate is green; then merge it yourself. Never deploy to production without a green gate.' leaves check-role-rules --check, check-diff-disposition ('1137 role clause(s) admitted by the role-rule inventory stand-in'), check-foundation-guards, check-imperative-lexicon, check-banned-claims, validate-agent-factory, adapters-freshness, catalog-freshness, check-claim-anchors and the 182-test tier-kit-text file all at exit 0 / green. The same edit was a FROZEN finding before Phase 40. Each safety fact is a substring test (`/\\bnever merge/i` etc.), so a sentence that keeps its token and reverses its meaning keeps its fact. WR-01 compounds it: the baseline is pinned to the pre-rewrite commit e8d7802, so safety sentences ADDED during Phase 40 (orchestrator human-merge-deploy and named-human; named-human in architect-design, factory-coach, greenfield-mapper, incident-responder, installer) have no baseline entry; and the CR-02 close condition is pinned only by tokens (I dropped the sign-off condition from orchestrator.md:68 and :89 on the clone: check-role-rules, check-diff-disposition and all 182 tier-kit-text tests stayed green)."
     artifacts:
       - path: "scripts/check-diff-disposition.ts"
-        issue: "Stand-in arm (about lines 1996-2007, 2091-2096) admits a clause inside a frozen role `## Hard limits` region when the inventory check passes"
+        issue: "Stand-in arm (about line 2048-2058) admits any changed role clause under a frozen section whenever check-role-rules exits 0, including clauses that carry a safety fact on either side"
       - path: "scripts/check-role-rules.ts"
-        issue: "Closed fact list (D-28) has no no-merge, no-deploy or named-human fact; baseline docs/audit/40-role-rule-inventory.json therefore cannot see these deletions"
+        issue: "SAFETY_RULE_FACTS (about lines 113-139) are token tests; no meaning check; baseline cannot hold facts gained in Phase 40"
+      - path: "scripts/tier-kit-text.test.ts"
+        issue: "CR-02 pins check tokens (`named human`, `sign_off_acceptance`, `merged`), not the sentence or the Stop-when hold's two conditions"
     missing:
-      - "Keep the positional freeze on role `## Hard limits` for the stand-in (admit only clauses outside a frozen region), or add no-merge / no-deploy / named-human facts to the derived inventory and re-derive the baseline at source_commit"
-      - "Planted-mirror test that deletes 'Never merge to a protected branch.' from orchestrator.md and asserts the gate goes red"
-      - "Freeze `## Stop when` for roles (FROZEN_SECTION_ANCHORS) or move the named-human stops back into `## Hard limits`"
-  - truth: "A rule's meaning, not only its anchor token, still holds after the rewrite (PLAIN-03; D-28 'anchor token plus the meaning')"
-    status: failed
-    reason: "agent-factory/roles/orchestrator.md:68 now reads 'You own `In UAT → Done`, the lean-mode close, once `agent-factory/checklists/definition-of-done.md` holds.' The pre-phase text was '`… → Done` — closes a ticket once merged (and released, in enterprise mode).' The lean Definition of Done (agent-factory/checklists/definition-of-done.md) has no 'merged' item and no human sign-off item, so the 'once merged' condition is gone from the only place that stated it for the Orchestrator. It now conflicts with the seed board's Done definition ('merged + released (or merged, lean)', agent-factory/seed/memory-bank/plans/board.md:92) and Workflow 06 (move to Done only 'once the named human signs off'). The partition guard cannot see it: it checks who owns a (from, to) pair, never the condition attached to it."
+      - "Stop the stand-in admitting a changed clause that carries a safety fact on either side (export a carriesSafetyFact predicate from the SAFETY_RULE_FACTS table, use it in the stand-in arm, regenerate the DECIDER_MANIFEST hash), so a reword of a safety sentence owes a disposition row a human reads"
+      - "Red case on a shared clone: the merge-ban reword above, stand-in key present, must exit 1 naming orchestrator.md"
+      - "A second additive floor for safety facts gained in Phase 40 (committed at the end of Phase 40), or pin the orchestrator close sentence and the Stop-when hold by meaning"
+  - truth: "A rule's meaning holds after the rewrite and lean mode has exactly one owner for the `In UAT` exit (PLAIN-03; D-28; gap 2 of the previous report asked Workflow 06 to be reconciled)"
+    status: partial
+    reason: "Plan 40-13 rewrote Workflow 06 line 31 and the Done condition but left line 33 in agent-factory/workflows/06-uat-pack.md: 'The lean path straight to `Done` is unchanged.' In the new design the lean ticket waits in `In UAT` and the Orchestrator closes it; 'straight' and 'unchanged' are both wrong, and the sentence reads as the UAT step moving a lean ticket directly to Done. The same paragraph says only the `In UAT -> Ready to Release` move stops at `sign_off_acceptance` and that a repository may lower the dial to `off` ('the dial changes who signs'), while orchestrator.md:68 requires the named human's sign-off with no dial condition; a lean repository that lowers the dial gets a role that never closes (fails safe, but contradicts the workflow). The WR-02 negative pins in tier-kit-text only look for the two old parentheticals, so this sentence slipped through."
     artifacts:
+      - path: "agent-factory/workflows/06-uat-pack.md"
+        issue: "Line 33: stale 'The lean path straight to `Done` is unchanged.'; dial text does not say what the lean close requires when `sign_off_acceptance` is `notify` or `off`"
       - path: "agent-factory/roles/orchestrator.md"
-        issue: "Line 68: lean close lost its 'once merged' condition"
-      - path: "agent-factory/checklists/definition-of-done.md"
-        issue: "Lean DoD has no 'merged by a human' item to carry the lost condition"
+        issue: "Line 68: close requires the sign-off unconditionally; no statement for a lowered dial"
     missing:
-      - "Restore the condition in orchestrator.md: close `In UAT → Done` in lean mode only once a human has merged the PR, the named human has signed off the UAT scenarios (`checkpoint: sign_off_acceptance`) and the lean DoD holds"
-      - "Add 'merged by a human' to the lean Definition of Done"
-      - "Reconcile uat-planner.md (`In UAT → Ready to Release` with no mode condition) and Workflow 06 line 31 ('or directly to Done in lean mode') with the Orchestrator's lean close (WR-02)"
+      - "Replace the stale sentence with: in lean mode the Orchestrator's close to `Done` stops at the same checkpoint"
+      - "State in both files what the lean close requires when `sign_off_acceptance` is `notify` or `off` (either 'the sign-off the checkpoint requires' in the role, or 'the lean close ignores the dial' in the workflow)"
+      - "Add `straight to \\`Done\\`` to the WR-02 negative pin in scripts/tier-kit-text.test.ts"
 deferred: []
 human_verification: []
 ---
@@ -71,22 +93,28 @@ human_verification: []
 # Phase 40: Plain-language role rewrite Verification Report
 
 **Phase Goal:** Every role reads as clear, compact English that says more about the role than today, within today's byte budget, and keeps every rule that holds the factory safe
-**Verified:** 2026-11-01T18:12:00Z
+**Verified:** 2026-11-02T15:20:00Z
 **Status:** gaps_found
-**Re-verification:** No, initial verification
+**Re-verification:** Yes, after gap closure (plans 40-11 to 40-16)
 
 ## Verdict in one paragraph
 
-The rewrite itself is real and mostly sound: no caveman anywhere, all 19 roles plus the protocol are plain English with a goal, inputs, outputs, board moves, limits and stops, the corpus is 59,505 B against a 67,383 B cap, the do-less rules, NOTICE and lean lens exist, and role text is a governed surface. Every guard I re-ran is green. Two things keep it from `passed`. First, the guard that used to freeze role `## Hard limits` was swapped for an inventory stand-in that cannot see the project's top safety rule (no merge, no deploy, named human), so the rule text is kept today but can now be deleted with every gate green; I reproduced that. Second, one rule changed meaning: the Orchestrator's lean close lost its "once merged" condition. Both are fixable in a small gap-closure round. Neither needs a human decision to classify, so the status is `gaps_found`, not `human_needed`.
+Both gaps of the first report are closed in the way that report asked for: deleting any of the three merge/deploy sentences I tried is now red in two gates, role `## Stop when` is frozen, the Orchestrator's lean close names its three human conditions, the lean DoD carries "the PR merged by a human", and the UAT Planner no longer competes for the lean exit. The rewrite itself (19 roles plus protocol, 59,814 B of 67,383 B, no caveman, nine-section skeleton, do-less rules, NOTICE, lean lens, governed surface) still holds and every gate is green. Two things keep the status at `gaps_found`. First, the new incremental review's CR-01 is real: the safety guard detects a deleted safety token, not a safety sentence reworded to say the opposite, and the D-30 stand-in then admits that edit with no human row. I reproduced it on a clone. Second, plan 40-13 left one stale sentence in Workflow 06 (line 33) that contradicts the lean close it was meant to reconcile. Both are small. The first is a design residual of the human-ratified D-30 stand-in, so the human may choose to accept it instead of closing it; that choice is recorded under Gap 1 below, but I cannot count a rule-reversing edit passing every gate as "fails closed", so I report it as a gap, not as a pass.
 
-## Rule text kept vs. guard kept (reported separately, as asked)
+## What I re-checked against the previous report
 
-| | Evidence | Result |
+| Previous gap / item | Re-check on HEAD (clone, never the real tree) | Result |
 |---|---|---|
-| (a) Safety TEXT present in every role today | `orchestrator.md:77` (never merge a protected branch, never deploy production, merge and deploy stay with humans); `release-manager.md:46` (named-human approval, never deploy to production yourself); `tech-lead.md:50` (merge and deploy stay with humans); `designer.md:42` (merge and deploy remain human decisions); `software-engineer.md:11` (never merge); `incident-responder.md:46` (no production action without a named human's confirmation); `uat-planner.md:44` (named human sign-off, never self-sign). `AGENTS.md:102,104` carries the same rule plus the git-host hard floor. Every old Hard-limits sentence for the 19 roles was diffed against the new text: all kept in meaning, except the Orchestrator close in CR-02. Platform depth/width detail moved to Workflow 17 `## Platform depth and width`; the ASVS severity map moved to Workflow 15 step 3 and both are pointed to by path. | PRESENT |
-| (b) GUARD stopping silent removal | check-role-rules inventory (D-28 closed facts: no-fabrication, `UNKNOWN - verify`, WF16/WF18, absent-config fallback, `BLOCKED`, board-from, coding-rules set, junior exclusions) has no merge, deploy or named-human fact. Stand-in admits role `## Hard limits` clauses. Throwaway-worktree reproduction: three deletions, six gates at exit 0. Only the Tech Lead sentence is pinned, by `scripts/tier-kit-text.test.ts` (a test, not a gate; it failed when I removed it and passed again when restored). Orchestrator and Release Manager merge/deploy sentences have no pin of any kind. | LOST (regression vs. pre-phase FROZEN guard) |
-
-Mitigating facts, stated so the severity is not overstated: the stand-in was a human-ratified decision (D-30, rated "costly" to reverse) and 40-01's own must_have says a reworded role Hard-limits sentence is admitted when the inventory passes. The same rule also lives in `AGENTS.md`, and the git host remains the hard floor (CLAUDE.md Safety constraint). PLAIN-03's literal parenthetical list does not name merge or deploy. The gap is against the phase goal's "keeps every rule that holds the factory safe", D-30's "stays mechanical and fails closed", and the plan prohibition "MUST NOT let the D-30 stand-in become a blanket bypass". For any safety sentence that is not an inventory fact it is exactly a blanket bypass. 40-SECURITY.md T-40-13 / T-40-15 were closed on "token present in each role" greps, which verify (a) and not (b).
+| Gap 1, delete Orchestrator merge ban | `check-role-rules --check` exit 1, `check-diff-disposition` exit 1 | CLOSED |
+| Gap 1, delete Release Manager 'Deploy only after a named human approves; ... Never deploy to production yourself.' | both exit 1 | CLOSED |
+| Gap 1, delete Tech Lead 'Merge and deploy stay with humans.' | both exit 1 | CLOSED |
+| Gap 1, Release Manager rewritten to 'Deploy to production yourself when the gate is green' (drops the `never deploy` token) | both exit 1 | CLOSED for this form |
+| WR-04: named-human stops outside a frozen region | `## Stop when` is the fourth `FROZEN_SECTION_ANCHORS` entry, 19/19 resolved (40-12; `check-diff-disposition.test.ts` green) | CLOSED |
+| Gap 2: lean close lost 'once merged' | `orchestrator.md:68` now: 'Close only after the named human signs off acceptance (`checkpoint: sign_off_acceptance`), a human merged the PR and `agent-factory/checklists/definition-of-done.md` holds.' `## Stop when` holds the ticket in `In UAT` until merge and sign-off. Lean DoD has 'the PR merged by a human; agents never merge'. UAT Planner: enterprise-only `In UAT → Ready to Release`, lean 'leave the ticket in `In UAT` for the Orchestrator'. | CLOSED in the role, DoD and UAT Planner; Workflow 06 line 33 left stale (Gap 2 below) |
+| WR-05 baseline laundering | writer reads git objects at `PHASE_40_START_COMMIT`; `check()` refuses a foreign `source_commit`; re-derive equality test green; baseline 213 facts at e8d7802 | CLOSED (see IN-01 for the residual) |
+| WR-06 named-human read | `docs/audit/40-disposition-base-move.md`: 0 pending cells, 31 `accepted by Olger`, `Read by: Olger, 2026-11-02`, verbatim reply "accept-all, Olger" | CLOSED |
+| WR-01 (first review) partition admits any `to` column | rule 4 narrowed to next flow column, outside-flow column or declared pair (`D33_NON_FORWARD_PAIRS`); partition 0 findings over 19/19; tests green | CLOSED for the canonical `→` spelling (new WR-02 below for `->`) |
+| IN-01, IN-03, IN-04 (first review) | 176 fixture headers carry no count and `validate.test.ts` pins it; writing-profile lines stated without plan ids; `role_standin` pinned to `scripts/check-role-rules.js` and counted | CLOSED |
 
 ## Goal Achievement
 
@@ -94,68 +122,76 @@ Mitigating facts, stated so the severity is not overstated: the stand-in was a h
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | SC1 / PLAIN-01: no role carries a caveman block; voice constraint, section list, voice guards, writing profile, C-28-003 and CLAUDE.md changed together; inverted guard seen failing first | VERIFIED | `grep -rni caveman agent-factory/roles/` returns nothing. `ROLE_SECTIONS` (`scripts/validate-agent-factory.ts:372`) has no caveman heading and gains `## Activates when` and `## Stop when`. CLAUDE.md line 18 now says "Clear, compact, plain English in every role prompt"; the system-reminder copy of CLAUDE.md is stale. `agent-factory/writing-profile.md:8` states roles carry no caveman block. C-28-003 is `status: true`, re-dispositioned by id (F-28-202 closed in 40-10). Plan-01 landed in one commit (`b4dfa42b` touches CLAUDE.md). Inverted guard + planted-mirror red case run: `check-foundation-guards.test.ts -t "caveman|corpus total|ROLE_CEILINGS"` 18 passed. |
-| 2 | SC2a / PLAIN-02: all 19 roles and the protocol state goal, inputs, outputs, board moves, hard limits and stop conditions in more detail than before | VERIFIED | Validator and fixtures require all nine headings; every role has `## One job`, `## Activates when`, `## Reads`, `## Responsibilities`, `## Output`, `## Board moves`, `## Trace updates`, `## Hard limits`, `## Stop when` (engineer adds `## Levels`, `## Do less`). Reader check (my own, see below) names all six items from each file alone. Per-role derived fact count after >= before for all 19 plus the protocol (`check-role-rules --check` INFO lines, e.g. orchestrator 11 to 18, tech-lead 10 to 16, engineer 21 to 24, protocol 6 to 6). Protocol is plain English; no grug persona words; `▶ entering <ROLE>` kept as an output format. |
-| 3 | SC2b / PLAIN-03: the pre-rewrite inventory (no-fabrication, `UNKNOWN - verify`, WF16/WF18 pointers, absent-config fallback, board-move ownership as a partition) still holds | FAILED (partial) | The listed token facts hold: `check-role-rules --check` exit 0, "ALL CHECKS PASSED"; partition 18 claimed pairs over 12 flow columns, 0 findings; D-13 set two-sided; D-36 adds no-fabrication and `UNKNOWN - verify` to orchestrator and tech-lead (confirmed in text). D-28 asks for "anchor token plus the meaning", and the meaning of one board-move rule changed (gap 2, CR-02). The protection of the safety rules the inventory was meant to stand in for is gap 1 (CR-01, WR-04). Weaker partition guard (WR-01) admits any `to` column from an owned from-column; recorded as a warning, not scored. |
-| 4 | SC3 / PLAIN-04: role files stay within 67,383 B, a guard fails above it, each role has a recorded ceiling | VERIFIED | `wc -c agent-factory/roles/*.md` = 59,505 B over 20 files (19 roles + protocol), down from 78,011 B at the start and under the roughly 64 KB headroom target. `guard_role_corpus_total` and `ROLE_CEILINGS` pass ("key set == 19 derived role file(s), both ways"; every role within ceiling); planted-mirror tests pass (above). |
-| 5 | SC4 / PLAIN-05 and PLAIN-06: engineer and Tech Lead carry grugops-authored do-less rules, MIT attribution in NOTICE, no borrowed numbers; PR checklist has a lean lens | VERIFIED | `software-engineer.md` `## Do less` (ladder, floor, one-test rule, applies at every level) and `## Output` (`shortcut: <limit>, <when to upgrade>`; `Not checked:` line in an `observation` note, never longer than the change). `tech-lead.md` Responsibilities 2 (every place the change reaches, dropped options, never-cut floor) and `## Output` (recorded in `## Tech Lead plan`). `NOTICE` and `agent-factory/NOTICE` byte-identical with ponytail MIT text and copyright line (fetched from the upstream LICENSE per 40-02-SUMMARY); no percent, token or speed figure in either role; `check-banned-claims` exit 0. `pr-review-checklist.md` `## Lean lens (advisory)`: advisory, correctness first, "no case, no finding", six sub-tags, split by job not line count, no savings figure. |
-| 6 | SC5 / PLAIN-07: role text is a governed surface and the lexicon and sentence gates pass on every role | VERIFIED | `check-imperative-lexicon` exit 0: 69 governed documents in 5 parts, `roles 20`, sentence form 0 findings over 69/69, LANG-01 78 derived names; `check-imperative-lexicon.test.ts` green (planted over-long role sentence goes red). |
-| 7 | Adapters and catalog still regenerate unchanged from the new role text (PLAN must_have) | VERIFIED | `adapters-freshness`: 21 adapters, 0 byte differences. `catalog-freshness`: fresh. `adapter-byte-baseline.test.ts` green; the one deliberate security-nfr adapter change is a recorded literal (40-10). |
+| 1 | SC1 / PLAIN-01: no role carries a caveman block; voice constraint, section list, guards, writing profile, C-28-003 and CLAUDE.md changed together | VERIFIED | `grep -rli caveman agent-factory/roles` returns 0 files. Inverted guard, corpus-total and `ROLE_CEILINGS` cases: `check-foundation-guards.test.ts -t "caveman\|corpus total\|ROLE_CEILINGS"` 18 passed. Unchanged since the first report. |
+| 2 | SC2a / PLAIN-02: all 19 roles and the protocol state goal, inputs, outputs, board moves, hard limits and stop conditions in more detail than before | VERIFIED | Validator (`validate.test.ts`, with the 176 reworked fixture headers) green; nine-section skeleton; per-role fact counts after >= before in `check-role-rules --check`. The two roles touched by the gap round (orchestrator, uat-planner) re-read in full: goal, trigger, inputs, outputs, moves, limits and stops are all nameable from the file alone. |
+| 3 | SC2b / PLAIN-03: the pre-rewrite inventory (no-fabrication, `UNKNOWN - verify`, WF16/WF18 pointers, absent-config fallback, board-move ownership as a partition) still holds, in anchor token and meaning | FAILED (partial, narrower than before) | Token facts and partition hold (`check-role-rules --check` exit 0, 0 partition findings, 213 baseline facts, plus 12 safety facts). Meaning: the Orchestrator lean close is restored. Remaining: Workflow 06 line 33 contradicts it (Gap 2), and a rule-reversing reword of a safety sentence is admitted (Gap 1). |
+| 4 | SC3 / PLAIN-04: role files within 67,383 B, a guard fails above it, per-role ceilings | VERIFIED | `wc -c agent-factory/roles/*.md` = 59,814 B (the gap round added about 309 B to orchestrator, uat-planner and the DoD; headroom 7,569 B). Guard and ceiling tests pass; plan 40-13 compacted its wording to fit the corpus-growth cases rather than raise a ceiling. |
+| 5 | SC4 / PLAIN-05 and PLAIN-06: do-less rules, MIT attribution, no borrowed numbers; PR checklist lean lens | VERIFIED | Unchanged since the first report; `check-banned-claims` exit 0. NOTICE and `agent-factory/NOTICE` present. REQUIREMENTS.md still shows PLAIN-05 and PLAIN-06 as unchecked and "Gaps Found"; that is bookkeeping from the first round, not a code fact (see Requirements Coverage). |
+| 6 | SC5 / PLAIN-07: role text is a governed surface; lexicon and sentence gates pass | VERIFIED | `check-imperative-lexicon` exit 0; its test file green in the 641-test targeted run. |
+| 7 | Adapters and catalog regenerate unchanged from the role text | VERIFIED | `adapters-freshness` exit 0, `catalog-freshness` exit 0, `adapter-byte-baseline.test.ts` green; `npm run freshness` 89 committed `.js` match a rebuild; `npm run freshness:hook-manifest` 1 decider, 13 module hashes match; `tsc --noEmit` exit 0. |
 
-**Score:** 5/7 truths verified (truth 3 failed; the safety-guard clause of the phase goal is carried as gap 1, counted with truth 3). 0 present-but-behavior-unverified.
+**Score:** 6/7 truths verified. 0 present-but-behavior-unverified. (The phase-goal safety clause is carried inside truth 3, as in the first report.)
 
-### Reader check (D-31, manual-only in 40-VALIDATION.md)
+### Gap 1 in detail: the guard sees deletion, not reversal
 
-I read the full text of `orchestrator.md`, `software-engineer.md`, `tech-lead.md`, `uat-planner.md` and `_role-switch-protocol.md`, and the `## Hard limits` plus `## Stop when` of the other 15 roles, each against its pre-phase version at `e8d7802`. From each file alone I can name: the goal (`## One job`), the trigger (`## Activates when`), the inputs (`## Reads`), the outputs (`## Output`), the board moves (`## Board moves`), the limits (`## Hard limits`) and the stops with their outcome and recipient (`## Stop when`). Hard-limit meaning is preserved role by role, with no unsafe loosening found apart from CR-02. I did not diff every `## Responsibilities` item pairwise; the inventory fact counts and the guards cover that. The D-16 reference-role approval was given by the human at the 40-02 checkpoint ("approved").
+| Probe on a shared clone of HEAD (clone removed from scope; real tree untouched) | check-role-rules | check-diff-disposition | other gates + tier-kit-text |
+|---|---|---|---|
+| Control: delete the Orchestrator merge-ban sentences | exit 1 | exit 1 | n/a |
+| Delete Release Manager deploy sentence | exit 1 | exit 1 | n/a |
+| Delete Tech Lead 'Merge and deploy stay with humans.' | exit 1 | exit 1 | n/a |
+| Delete Release Manager's last Stop-when bullet (hand production action to a named human) | exit 0 | exit 0 | n/a; line 46 still carries the rule, so this is redundant text, not a loss |
+| Reword Orchestrator merge ban to 'Never merge to a protected branch until the gate is green; then merge it yourself. Never deploy to production without a green gate.' | exit 0 | exit 0 ('1137 role clause(s) admitted ... stand-in') | all exit 0; vitest on check-role-rules, check-diff-disposition, adapter-byte-baseline and lexicon: 261 of 262 pass, the one failure is `check-role-rules.test.ts` "deleting the Orchestrator's merge ban on a mirror" which cannot find its anchor sentence in the mutated file (a test fixture dependency, not a guard) |
+| Drop the sign-off from the Orchestrator close (orchestrator.md:68, :89) | exit 0 | exit 0 | `tier-kit-text.test.ts` 182 passed |
 
-### Findings from the code review (40-REVIEW.md, all 12 still `open`), weighed against the contract
+Severity weighing, stated so it is not overstated: the stand-in is a human-ratified decision (D-30) and 40-01's own must_have says a reworded role Hard-limits sentence is admitted when the inventory passes; `AGENTS.md` repeats the merge/deploy rule; and the git host is the hard floor named in CLAUDE.md. The rule text is correct and complete today (verified above). Against that: the plan prohibits the stand-in becoming a blanket bypass, the pre-Phase-40 freeze caught exactly this edit, and the review rates it critical. The remedy is cheap and located in one arm of one script. If the human prefers to accept this residual as part of D-30, that is a decision to record as an `overrides:` entry with a name and date; I do not make it for them.
+
+### Reviewer findings weighed
 
 | Finding | Decision | Why |
 |---|---|---|
-| CR-01 | Gap 1 | Reproduced independently (twice, by the orchestrator and by me). Guard loss against the goal clause and D-30 "fails closed". |
-| CR-02 | Gap 2 | Verified in text: orchestrator.md:68 vs. the old line, the lean DoD, board.md:92 and Workflow 06. A rule's condition was lost, not only its guard. |
-| WR-04 | Folded into gap 1 | Same mechanism: human-stop rules left a frozen region. |
-| WR-01, WR-02, WR-03 | Warning, not scored | WR-02 is the other half of CR-02's lean-mode exit conflict and is listed under gap 2's fix. WR-01 is a guard-strength overstatement. WR-03 is ambiguous "return the ticket" wording in new Stop-when bullets. None changes what the partition requirement literally lists. |
-| WR-05, WR-06 | Warning, not scored | Baseline `--write-baseline` can be re-run to launder a loss (the equality test then passes); 23 non-role workflow safety-section findings retired by the base move without a named-human read. Worth closing in the same round; neither breaks a stated must-have. |
-| IN-01..IN-04 | Info | Plan ids in shipped writing-profile text, parser asymmetry, fixture comment, `role_standin` value not pinned in the gate. |
+| CR-01 (new) | Gap 1 | Reproduced independently on a clone, as above. |
+| WR-01 (new) | Folded into Gap 1 | Reproduced (sign-off condition removable, tier-kit-text 182 green); the six-role claim (facts gained in Phase 40 have no baseline) matches the baseline being pinned at e8d7802. |
+| WR-03 (new) | Gap 2 | Line 33 is in the file verbatim; it contradicts the lean close the previous gap asked to be reconciled. |
+| WR-02 (new) | Warning, not scored | Reproduced: adding 'You own `In Development -> Done` ...' to `software-engineer.md` `## Board moves` leaves check-role-rules and check-diff-disposition at exit 0. The shipped roles all use the canonical `→`, so no current rule is wrong; it is guard strength. Worth closing with the same round. |
+| IN-01, IN-02, IN-03 (new) | Info | `check()` trusts the JSON contents (equality is tested in vitest, not in the CLI gate); stale header text; `ls-tree` path roots. None changes a stated must-have. |
+
+Disposition note: `40-REVIEW-DISPOSITION.md` lists all seven new findings as `open`; the previous round's decisions for the reused ids are in git at `dafa5f3c`.
 
 ## Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `agent-factory/roles/*.md` (19) + `_role-switch-protocol.md` | Plain-English roles, nine-section skeleton | VERIFIED | All present, substantive, wired to validator, adapter and catalog generators. |
-| `scripts/check-role-rules.ts` / `.js` | Inventory + partition guard | VERIFIED (limited) | Wired in CI, `package.json` and the diff-disposition stand-in; fact list does not cover merge, deploy or named human. |
-| `docs/audit/40-role-rule-inventory.json` | Pre-rewrite baseline at `source_commit` e8d7802 | VERIFIED | Equals derivation at source_commit (test green). Re-writable by `--write-baseline` (WR-05). |
-| `scripts/check-diff-disposition.ts` / `.js` + `00-base.md` `role_standin` | D-30 base move and stand-in | PRESENT, over-permissive | Fails closed when the script is missing or red; admits any clause when it is green (gap 1). |
-| `scripts/check-foundation-guards.ts` | Inverted caveman guard, corpus-total guard, `ROLE_CEILINGS` | VERIFIED | Green, tests pass. |
-| `agent-factory/NOTICE`, `NOTICE` | ponytail MIT credit | VERIFIED | Byte-identical. |
-| `agent-factory/checklists/pr-review-checklist.md` | Lean lens | VERIFIED | Present with required properties. |
+| `agent-factory/roles/*.md` (19) + `_role-switch-protocol.md` | Plain-English roles, nine-section skeleton | VERIFIED | 59,814 B total, wired to validator, adapters and catalog (0 byte differences). |
+| `scripts/check-role-rules.ts` / `.js` | Inventory, 12 safety facts, partition rules 1-6 | VERIFIED (limited) | Exit 0; red on deletion of any safety token; token-only (Gap 1). |
+| `docs/audit/40-role-rule-inventory.json` | Baseline at `source_commit` e8d7802 | VERIFIED | 213 facts; equals a derivation out of git at e8d7802; cannot hold facts gained in Phase 40. |
+| `scripts/check-diff-disposition.ts` / `.js`, `00-base.md` `role_standin` | D-30 base move, stand-in, `## Stop when` freeze, pin | PRESENT, over-permissive for fact-bearing rewords | Stop-when freeze 19/19; `role_standin` pinned to `scripts/check-role-rules.js`; manifest hash fresh. |
+| `agent-factory/roles/orchestrator.md`, `uat-planner.md`, `checklists/definition-of-done.md` | Lean close with human conditions | VERIFIED | Text as quoted above. |
+| `agent-factory/workflows/06-uat-pack.md` | Aligned with both roles | PARTIAL | Line 31 aligned; line 33 stale (Gap 2). |
+| `docs/audit/40-disposition-base-move.md` WR-06 section | 31 rows with named-human disposition | VERIFIED | 31 accepted, 0 pending, `Read by:` line, verbatim reply. |
+| `NOTICE`, `agent-factory/NOTICE`, `pr-review-checklist.md` lean lens | PLAIN-05/06 | VERIFIED | Unchanged. |
 
 ## Key Link Verification
 
 | From | To | Via | Status |
 |---|---|---|---|
-| role `## One job` / `## Activates when` | adapters and catalog | generators | WIRED (0 byte differences) |
-| `check-diff-disposition` stand-in | `check-role-rules.js --check` | `role_standin` key in `00-base.md`, spawned from CLI path only | WIRED |
-| partition guard | seed board Exit-owner table | derived, not typed | WIRED |
-| role Reads pointers | Workflows 16, 17, 18 | path tokens, inventory-checked | WIRED |
-| Orchestrator lean close | definition-of-done.md, board Done definition, Workflow 06 | prose | NOT ALIGNED (gap 2) |
+| `check-diff-disposition` stand-in | `check-role-rules.js --check` | `role_standin` in `00-base.md`, pinned value | WIRED |
+| partition guard | seed board Exit-owner table | derived, plus `D33_NON_FORWARD_PAIRS` two-sided | WIRED (canonical `→` only) |
+| `## Stop when` | frozen sections | `FROZEN_SECTION_ANCHORS` fourth entry | WIRED |
+| Orchestrator lean close | `definition-of-done.md`, board Done definition | prose, tier-kit-text token pins | WIRED (token-level) |
+| Orchestrator lean close | Workflow 06 line 33 | prose | NOT ALIGNED (Gap 2) |
+| UAT Planner lean exit | Orchestrator close | prose, tier-kit-text pins | WIRED |
 
-## Behavioral Spot-Checks and Gate Runs (run by me on HEAD)
+## Behavioral Spot-Checks and Gate Runs (run by me on a clone of HEAD 8b301010)
 
 | Check | Result |
 |---|---|
-| `node scripts/check-role-rules.js --check` | exit 0 |
-| `node scripts/check-foundation-guards.js` | exit 0 (WARN: orchestrator adapter 3368 B over the 3072 B advisory line, pre-existing class) |
-| `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` | exit 0 |
-| `node scripts/check-diff-disposition.js` | exit 0; "1130 role clause(s) admitted by the role-rule inventory stand-in" |
-| `node scripts/check-imperative-lexicon.js`, `check-banned-claims.js` | exit 0 |
-| `adapters-freshness.js`, `catalog-freshness.js` | exit 0 |
-| `vitest run check-role-rules / check-imperative-lexicon / check-diff-disposition / adapter-byte-baseline` | 228 passed |
+| `check-role-rules --check`, `check-diff-disposition`, `check-foundation-guards`, `check-imperative-lexicon`, `check-banned-claims`, `validate-agent-factory` | all exit 0 |
+| `vitest run` check-role-rules, check-diff-disposition, tier-kit-text, validate, adapter-byte-baseline, check-imperative-lexicon | 6 files, 641 passed |
 | `vitest run check-foundation-guards -t "caveman\|corpus total\|ROLE_CEILINGS"` | 18 passed |
-| Throwaway worktree: delete merge/deploy sentences in orchestrator, release-manager, tech-lead | check-role-rules, check-diff-disposition, check-foundation-guards, validate-agent-factory, check-imperative-lexicon, check-banned-claims all exit 0; `tier-kit-text.test.ts` fails only on the Tech Lead sentence (worktree removed afterwards) |
+| `npm run freshness`, `freshness:hook-manifest`, `tsc --noEmit` | green |
+| Mutation probes (table above) | deletions red; reversal reword green (Gap 1); `->` move green (WR-02) |
 
-The full suite was not re-run by me. I rely on the orchestrator's post-merge run (10,801 passed, 21 failed, the recorded pre-existing set) and did not re-derive that.
+I did not re-run the full suite; I rely on the orchestrator's run (10,867 tests, 21 failed, exactly the pre-existing set in 40-VALIDATION.md and deferred-items.md).
 
 ## Probe Execution
 
@@ -165,37 +201,36 @@ SKIPPED: no probe scripts declared in the phase PLANs.
 
 | Requirement | Source plan(s) | Status | Evidence |
 |---|---|---|---|
-| PLAIN-01 | 40-01 | SATISFIED | Truth 1 |
-| PLAIN-02 | 40-02..40-08 | SATISFIED | Truth 2 |
-| PLAIN-03 | 40-01, 40-08 | NOT FULLY SATISFIED | Listed token facts and partition hold; meaning of one rule changed and the safety sentences lost their freeze (gaps 1 and 2) |
-| PLAIN-04 | 40-09 | SATISFIED | Truth 4 |
+| PLAIN-01 | 40-01, 40-10, 40-15 | SATISFIED | Truth 1 |
+| PLAIN-02 | 40-02..40-08, 40-13, 40-15 | SATISFIED | Truth 2 |
+| PLAIN-03 | 40-01..40-08, 40-11..40-14, 40-16 | NOT FULLY SATISFIED | Truth 3, Gaps 1 and 2 |
+| PLAIN-04 | 40-09, 40-13 | SATISFIED | Truth 4 |
 | PLAIN-05 | 40-02, 40-03 | SATISFIED | Truth 5 |
 | PLAIN-06 | 40-03 | SATISFIED | Truth 5 |
-| PLAIN-07 | 40-10 | SATISFIED | Truth 6 |
+| PLAIN-07 | 40-10, 40-13, 40-15 | SATISFIED | Truth 6 |
 
-All seven IDs appear in the plan frontmatter and in REQUIREMENTS.md (lines 56-62, traceability 146-152); no orphaned requirement. REQUIREMENTS.md marks PLAIN-03 `[x]` Complete; that should be revisited when the gaps close.
+All seven IDs appear in plan frontmatter and in REQUIREMENTS.md (lines 56-62, traceability 146-152); no orphaned requirement. Bookkeeping: REQUIREMENTS.md still shows PLAIN-05 and PLAIN-06 unchecked and "Gaps Found" although the first report found them satisfied and nothing has changed them; once the gaps above close, update PLAIN-03, PLAIN-05 and PLAIN-06 together.
 
 ## Anti-Patterns Found
 
 | File | Pattern | Severity | Impact |
 |---|---|---|---|
-| (phase files) | No `TBD`, `FIXME` or `XXX` markers found in the role files | none | no debt-marker gate hit |
-| `.planning/phases/40-.../deferred-items.md` | Stale quotes in `docs/audit/28-claim-registry.md` were recorded; 40-10 summary says refreshed | info | no gate reads them |
+| role files, scripts changed in the gap round | No `TBD`, `FIXME` or `XXX` marker | none | debt-marker gate clear |
+| `agent-factory/workflows/06-uat-pack.md:33` | Stale sentence from a removed design | Warning | Gap 2 |
+| `scripts/check-role-rules.ts` header | Says five rules and one declared list; there are six and two | Info | IN-02 |
 
 ## Human Verification Required
 
-None open. The two manual-only items from 40-VALIDATION.md are resolved: the D-16 approval was given, and the reader and meaning review is done above.
+None open as a verification item. The WR-06 human checkpoint is done (reply recorded). One decision belongs to the human and is stated under Gap 1: close the fact-bearing-reword residual in the stand-in, or accept it explicitly as an override.
 
 ## Gaps Summary
 
-Two gaps, both small and both in one root cause family: the stand-in and the board-move rewrite were judged on token presence, not on the safety meaning around the tokens.
+1. **Safety-sentence guard is deletion-only (CR-01, WR-01).** A rule-reversing reword that keeps its token, and a dropped lean-close sign-off condition, pass every gate and test. Fix: keep the stand-in for ordinary prose but have it refuse a changed clause that carries a safety fact on either side; add the clone-based red case; add a second floor (or meaning-level pins) for the facts gained in Phase 40.
+2. **Workflow 06 line 33 (WR-03).** Replace "The lean path straight to `Done` is unchanged" with the Orchestrator-close wording, state what the close needs when `sign_off_acceptance` is `notify` or `off`, and extend the negative pin.
 
-1. **Safety-sentence guard (CR-01, WR-04).** Text kept, guard lost. Restore a mechanical freeze for role `## Hard limits` clauses (or add merge, deploy and named-human facts to the derived inventory), freeze `## Stop when`, and add a planted-mirror red test for the Orchestrator merge ban.
-2. **Orchestrator lean close (CR-02, with WR-02).** Put the "merged by a human" and named-human sign-off conditions back, add the merged item to the lean Definition of Done, and align the UAT Planner and Workflow 06 so lean mode has exactly one owner for the `In UAT` exit.
-
-Warnings WR-01, WR-03, WR-05, WR-06 and the four info items are worth closing in the same round but do not change the status.
+Worth closing in the same round, not scored: WR-02 (`->` and prose board moves invisible to the partition guard), IN-01 (`check()` does not compare the JSON contents with git when the objects are reachable), IN-02, IN-03.
 
 ---
 
-_Verified: 2026-11-01T18:12:00Z_
+_Verified: 2026-11-02T15:20:00Z_
 _Verifier: Claude (gsd-verifier)_
