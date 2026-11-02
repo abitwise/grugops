@@ -1095,3 +1095,31 @@ describe("IN-01: the CLI gate checks the baseline contents against git", () => {
     expect(lines[0]).toContain("not compared with git (IN-01)");
   });
 });
+
+// ---------------------------------------------------------------------------
+// IN-03 (plan 40-19). deriveAllAt listed paths relative to `-C root` but read each blob with
+// `git show <sha>:<path>`, which resolves from the repository root, and split a quoted, newline-separated
+// listing. A kit inside a subdirectory of a repository, with a non-ASCII file name, must derive the same
+// facts out of git as out of its working tree.
+// ---------------------------------------------------------------------------
+
+describe("IN-03: deriveAllAt from a subdirectory and a non-ASCII path", () => {
+  it("a kit under kit/ with a non-ASCII seed file derives the same facts out of git as from the working tree", () => {
+    const repo = freshTmp("rr-in03-");
+    const kit = join(repo, "kit");
+    for (const rel of DERIVATION_PATHS) {
+      const dst = join(kit, rel);
+      mkdirSync(dirname(dst), { recursive: true });
+      cpSync(join(ROOT, rel), dst, { recursive: true });
+    }
+    writeFileSync(join(kit, "agent-factory", "seed", "memory-bank", "notes-ü.md"), "# Notes\n\nA seed file with a non-ASCII name.\n");
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "-q", repo], { encoding: "utf8" });
+    execFileSync("git", ["-C", repo, "add", "."], { encoding: "utf8" });
+    const id = ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"];
+    execFileSync("git", ["-C", repo, ...id, "commit", "-q", "-m", "kit in a subdirectory"], { encoding: "utf8" });
+    const sha = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const fromTree = deriveAll(kit);
+    expect(Object.keys(fromTree).length).toBe(20);
+    expect(deriveAllAt(kit, sha)).toEqual(fromTree);
+  });
+});
