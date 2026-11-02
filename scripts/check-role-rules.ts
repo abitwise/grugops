@@ -444,7 +444,9 @@ export function deriveAll(root: string): Record<string, RoleFacts> {
 /**
  * Derive every corpus file's facts from the git objects at `sha`, never from the working tree (WR-05).
  * Materializes DERIVATION_PATHS into a temp directory, derives, and removes the directory. Throws an
- * Error naming the sha, the root and the git command on any git failure.
+ * Error naming the sha, the root and the git command on any git failure. Paths are listed and read
+ * relative to root (`ls-tree` from `-C root`, then `git show <sha>:./<path>`), and the listing is
+ * NUL-separated, so a kit in a subdirectory of its repository and a non-ASCII file name both work (IN-03).
  */
 export function deriveAllAt(root: string, sha: string): Record<string, RoleFacts> {
   const git = (args: string[]): Buffer => {
@@ -461,15 +463,15 @@ export function deriveAllAt(root: string, sha: string): Record<string, RoleFacts
       );
     }
   };
-  const paths = git(["ls-tree", "-r", "--name-only", sha, "--", ...DERIVATION_PATHS])
+  const paths = git(["ls-tree", "-r", "-z", "--name-only", sha, "--", ...DERIVATION_PATHS])
     .toString("utf8")
-    .split("\n")
+    .split("\0")
     .filter((p) => p !== "");
   if (paths.length === 0) throw new Error(`git objects at ${sha} under ${root} hold no file under ${DERIVATION_PATHS.join(", ")}`);
   const tmp = mkdtempSync(join(tmpdir(), "role-rules-at-"));
   try {
     for (const p of paths) {
-      const blob = git(["show", `${sha}:${p}`]);
+      const blob = git(["show", `${sha}:./${p}`]);
       const dst = join(tmp, p);
       mkdirSync(dirname(dst), { recursive: true });
       writeFileSync(dst, blob);
