@@ -521,6 +521,26 @@ export function claimedPairs(raw, columns) {
     return out;
 }
 /**
+ * Rule 6 (IN-02): one finding per unfenced `## Board moves` code span that holds `→` but does not split on
+ * " → " into exactly two board columns. Reads the spans exactly as claimedPairs does; deriveRoleFacts and
+ * its lenient bare-`→` split are left as they are, because the baseline was derived with them.
+ */
+export function moveSpanFindings(raw, columns, role) {
+    const text = normalizeText(raw);
+    const flags = fencedLineFlags(text);
+    const moves = sectionLines(text, flags, "## Board moves").join("\n");
+    const out = [];
+    for (const m of moves.matchAll(/`([^`\n]+)`/g)) {
+        if (!m[1].includes("→"))
+            continue;
+        const parts = m[1].split(ARROW).map((x) => x.trim());
+        if (parts.length === 2 && columns.has(parts[0]) && columns.has(parts[1]))
+            continue;
+        out.push(`${role}: rule 6: \`${m[1]}\` holds → but is not a \`column → column\` pair (IN-02)`);
+    }
+    return out;
+}
+/**
  * The partition model, derived from the seed board table and the roles' `# Role: ` headings. An Exit
  * owner in parentheses (`(raiser)`) is outside the flow; any other owner must be a role display name,
  * or the derivation throws naming it (a misspelt owner must never silently shrink the flow).
@@ -613,11 +633,15 @@ function checkBoardPartition() {
     let model;
     let roles;
     const claims = {};
+    const spanFindings = [];
     try {
         model = partitionModel(ROOT);
         roles = listRoles(ROOT);
-        for (const r of roles)
-            claims[r] = claimedPairs(readFileSync(join(ROOT, ROLES_SUBPATH, r), "utf8"), model.columns);
+        for (const r of roles) {
+            const raw = readFileSync(join(ROOT, ROLES_SUBPATH, r), "utf8");
+            claims[r] = claimedPairs(raw, model.columns);
+            spanFindings.push(...moveSpanFindings(raw, model.columns, r));
+        }
     }
     catch (e) {
         fail(`board-move partition: derivation failed: ${e.message}`);
@@ -627,7 +651,7 @@ function checkBoardPartition() {
     process.stdout.write(`  INFO  board-move partition: ${pairs} claimed pair(s) over ${model.flow.length} flow column(s), ` +
         `terminal ${model.terminal}, ${BOARD_MOVE_EXCEPTIONS.length} declared exception(s), ` +
         `${D33_NON_FORWARD_PAIRS.length} approved non-forward pair(s)\n`);
-    FAILS += reportMeasured({ label: "board-move partition", visited: roles.length, expected: ROLE_COUNT, findings: checkPartition(model, claims) }, { pass, fail: (s) => process.stdout.write(`  FAIL  ${s}\n`) }, (s) => `        - ${s}`);
+    FAILS += reportMeasured({ label: "board-move partition", visited: roles.length, expected: ROLE_COUNT, findings: [...checkPartition(model, claims), ...spanFindings] }, { pass, fail: (s) => process.stdout.write(`  FAIL  ${s}\n`) }, (s) => `        - ${s}`);
 }
 // ---------------------------------------------------------------------------
 // THE END-STATE ROLE CHECKS (D-08, D-10, D-35, D-36). Run on the current tree only, over the 19 roles

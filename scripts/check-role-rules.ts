@@ -503,6 +503,9 @@ export function checkCodingRoleSet(
 //           terminal column admits no close of its own (WR-01).
 //   rule 5  a declared exception or approved non-forward pair its role no longer claims is red (neither
 //           list can go stale)
+//   rule 6  a `## Board moves` code span that holds `→` but does not split on " → " into two columns is
+//           red, so a span the fact parser and the partition parser would read differently fails loudly
+//           instead of yielding a fact with no partition claim (IN-02)
 // ---------------------------------------------------------------------------
 
 export interface BoardMoveException {
@@ -595,6 +598,25 @@ export function claimedPairs(raw: string, columns: ReadonlySet<string>): BoardPa
     if (seen.has(pairKey(pair))) continue;
     seen.add(pairKey(pair));
     out.push(pair);
+  }
+  return out;
+}
+
+/**
+ * Rule 6 (IN-02): one finding per unfenced `## Board moves` code span that holds `→` but does not split on
+ * " → " into exactly two board columns. Reads the spans exactly as claimedPairs does; deriveRoleFacts and
+ * its lenient bare-`→` split are left as they are, because the baseline was derived with them.
+ */
+export function moveSpanFindings(raw: string, columns: ReadonlySet<string>, role: string): string[] {
+  const text = normalizeText(raw);
+  const flags = fencedLineFlags(text);
+  const moves = sectionLines(text, flags, "## Board moves").join("\n");
+  const out: string[] = [];
+  for (const m of moves.matchAll(/`([^`\n]+)`/g)) {
+    if (!m[1].includes("→")) continue;
+    const parts = m[1].split(ARROW).map((x) => x.trim());
+    if (parts.length === 2 && columns.has(parts[0]) && columns.has(parts[1])) continue;
+    out.push(`${role}: rule 6: \`${m[1]}\` holds → but is not a \`column → column\` pair (IN-02)`);
   }
   return out;
 }
@@ -700,10 +722,15 @@ function checkBoardPartition(): void {
   let model: PartitionModel;
   let roles: string[];
   const claims: Record<string, BoardPair[]> = {};
+  const spanFindings: string[] = [];
   try {
     model = partitionModel(ROOT);
     roles = listRoles(ROOT);
-    for (const r of roles) claims[r] = claimedPairs(readFileSync(join(ROOT, ROLES_SUBPATH, r), "utf8"), model.columns);
+    for (const r of roles) {
+      const raw = readFileSync(join(ROOT, ROLES_SUBPATH, r), "utf8");
+      claims[r] = claimedPairs(raw, model.columns);
+      spanFindings.push(...moveSpanFindings(raw, model.columns, r));
+    }
   } catch (e) {
     fail(`board-move partition: derivation failed: ${(e as Error).message}`);
     return;
@@ -715,7 +742,7 @@ function checkBoardPartition(): void {
       `${D33_NON_FORWARD_PAIRS.length} approved non-forward pair(s)\n`,
   );
   FAILS += reportMeasured(
-    { label: "board-move partition", visited: roles.length, expected: ROLE_COUNT, findings: checkPartition(model, claims) },
+    { label: "board-move partition", visited: roles.length, expected: ROLE_COUNT, findings: [...checkPartition(model, claims), ...spanFindings] },
     { pass, fail: (s) => process.stdout.write(`  FAIL  ${s}\n`) },
     (s) => `        - ${s}`,
   );
