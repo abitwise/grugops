@@ -40,7 +40,9 @@
 // only: each role's exact `(from, to)` pairs, read from the `X → Y` code spans in `## Board moves`, must
 // partition the seed board's flow (five rules, listed above checkPartition). The flow order, the Exit
 // owners and the terminal column come from the seed board table; BOARD_MOVE_EXCEPTIONS is the one
-// declared list. It adds no fact kind to the baseline derivation.
+// declared list. Rule 6 also refuses a move spelled with an ASCII arrow (`->`, `=>`) in a code span and a
+// move between two board columns written outside a code span, so a move has one spelling (WR-02). It adds
+// no fact kind to the baseline derivation.
 //
 // THE END-STATE CHECKS (D-08, D-10, D-35, D-36). `--check` also holds the 19 roles to the rewrite's
 // end state: the D-13 set two-sided (a non-member carrying the coding-rules line is red), the
@@ -521,22 +523,42 @@ export function claimedPairs(raw, columns) {
     return out;
 }
 /**
- * Rule 6 (IN-02): one finding per unfenced `## Board moves` code span that holds `→` but does not split on
- * " → " into exactly two board columns. Reads the spans exactly as claimedPairs does; deriveRoleFacts and
- * its lenient bare-`→` split are left as they are, because the baseline was derived with them.
+ * Rule 6: the span and spelling rule over the unfenced `## Board moves` lines. A board move has one
+ * spelling, the code span `X → Y`, because that is the only spelling claimedPairs reads and rule 4 judges.
+ *   (a) WR-02: a code span that holds `->` or `=>` is one finding (checked first, so it yields exactly one).
+ *   (b) IN-02: a code span that holds `→` but does not split on " → " into exactly two board columns.
+ *   (c) WR-02: with every code span blanked, a line that names two board columns around `→`, `->` or `=>`
+ *       is a move written outside a code span. The columns come from the argument (the seed board), each
+ *       matched whole, longest first, case-insensitive; a prose arrow between other words is no finding.
+ * Reads the spans exactly as claimedPairs does; deriveRoleFacts and its lenient bare-`→` split are left as
+ * they are, because the baseline was derived with them.
  */
 export function moveSpanFindings(raw, columns, role) {
     const text = normalizeText(raw);
     const flags = fencedLineFlags(text);
-    const moves = sectionLines(text, flags, "## Board moves").join("\n");
+    const lines = sectionLines(text, flags, "## Board moves");
+    const moves = lines.join("\n");
     const out = [];
     for (const m of moves.matchAll(/`([^`\n]+)`/g)) {
+        if (m[1].includes("->") || m[1].includes("=>")) {
+            out.push(`${role}: rule 6: \`${m[1]}\` spells a board move with an ASCII arrow; write it as \`X → Y\` (WR-02)`);
+            continue;
+        }
         if (!m[1].includes("→"))
             continue;
         const parts = m[1].split(ARROW).map((x) => x.trim());
         if (parts.length === 2 && columns.has(parts[0]) && columns.has(parts[1]))
             continue;
         out.push(`${role}: rule 6: \`${m[1]}\` holds → but is not a \`column → column\` pair (IN-02)`);
+    }
+    if (columns.size === 0)
+        return out;
+    const col = `(?<![A-Za-z0-9])(?:${[...columns].sort((a, b) => b.length - a.length).map(escapeRe).join("|")})(?![A-Za-z0-9])`;
+    const prose = new RegExp(`${col}\\s*(?:→|->|=>)\\s*${col}`, "gi");
+    for (const line of lines) {
+        for (const m of line.replace(/`[^`\n]+`/g, " ").matchAll(prose)) {
+            out.push(`${role}: rule 6: \`${m[0]}\` is a board move written outside a code span; write it as \`X → Y\` in a code span (WR-02)`);
+        }
     }
     return out;
 }
