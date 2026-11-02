@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 16/16 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16)
+**Plans**: 16/21 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16; 5 gap-closure plans, 40-17 to 40-21, planned)
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -547,6 +547,21 @@ Gap wave 1 *(parallel, disjoint files)*
 
 Gap wave 2 *(blocked on gap wave 1)*
 - [x] 40-14-PLAN.md — partition refuses gate-skipping pairs and malformed move spans, security evidence re-verified red-on-deletion, review dispositions recorded, WR-03 deferred (WR-01, IN-02; PLAIN-03)
+
+**Gap closure, round 2** *(from the 40-VERIFICATION.md re-verification: gap 1 safety sentence reworded to reverse, gap 2 Workflow 06 dial; human decisions of 2026-11-02)*
+
+Gap wave 1 *(parallel, disjoint files)*
+- [ ] 40-17-PLAN.md — the lean close follows `sign_off_acceptance` in Workflow 06 and the Orchestrator while the human merge stays fixed; exact-sentence pins with the reviewer's mutation red (WR-03, WR-01; PLAIN-02, PLAIN-03, PLAIN-04, PLAIN-07)
+- [ ] 40-18-PLAN.md — partition rule 6 names ASCII-arrow and prose board moves; header and FACT_KINDS subset corrected (WR-02, IN-02; PLAIN-03)
+
+Gap wave 2 *(blocked on gap wave 1)*
+- [ ] 40-19-PLAN.md — carriesSafetyFact from SAFETY_RULE_FACTS sees the gate's clause form; check() compares the baseline JSON with git; deriveAllAt path roots (CR-01 part, IN-01, IN-03; PLAIN-03)
+
+Gap wave 3 *(blocked on gap wave 2)*
+- [ ] 40-20-PLAN.md — rows for the rewrite's own safety-sentence changes, read and disposed of by a named human (CR-01 part; PLAIN-03; human checkpoint)
+
+Gap wave 4 *(blocked on gap wave 3)*
+- [ ] 40-21-PLAN.md — the D-30 stand-in refuses any changed role clause that carries a safety fact; shared-clone red case, hook manifest and closure baselines; review dispositions closed (CR-01; PLAIN-03)
 
 **Cross-cutting constraints:**
 - D-27 / D-31: `node scripts/check-role-rules.js` stays green and each role's fact count after is at least its baseline count
