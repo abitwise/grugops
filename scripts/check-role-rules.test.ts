@@ -35,6 +35,7 @@ import {
   D33_NON_FORWARD_PAIRS,
   checkPartition,
   claimedPairs,
+  moveSpanFindings,
   partitionModel,
   deriveAllAt,
   serializeBaseline,
@@ -454,6 +455,39 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
       expect(r.stdout).not.toContain("tech-lead.md: rule 4");
     });
   }
+
+  // IN-02: the fact parser splits a span on a bare `→`, the partition parser on " → ". A span the two
+  // read differently is a named rule 6 finding instead of a fact with no partition claim.
+  const plantSpan = (line: string) => (s: string): string => s.replace("## Board moves\n", `## Board moves\n${line}\n`);
+
+  it("partition rule 6 (IN-02): `In UAT→Done` (no spaces) planted into orchestrator.md is red naming the span", () => {
+    const m = makeMirror("rr-part-in02a-");
+    edit(role(m, "orchestrator.md"), plantSpan("Planted: `In UAT→Done`."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("orchestrator.md: rule 6: `In UAT→Done` holds → but is not a `column → column` pair (IN-02)");
+  });
+
+  it("partition rule 6 (IN-02): `… → Done` (a non-column side) planted into release-manager.md is red naming the span", () => {
+    const m = makeMirror("rr-part-in02b-");
+    edit(role(m, "release-manager.md"), plantSpan("Planted: `… → Done`."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("release-manager.md: rule 6: `… → Done` holds → but is not a `column → column` pair (IN-02)");
+  });
+
+  it("partition rule 6 (IN-02): a span with no arrow and an arrow in prose outside code spans add no finding", () => {
+    const m = makeMirror("rr-part-in02c-");
+    edit(role(m, "orchestrator.md"), plantSpan("Planted: `In UAT` and In UAT→Done in prose."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).not.toContain("rule 6");
+    expect(r.stdout).toContain("board-move partition: 0 findings over 19/19");
+    const model = partitionModel(ROOT);
+    for (const f of listRoles(ROOT)) {
+      expect(moveSpanFindings(readFileSync(role(ROOT, f), "utf8"), model.columns, f)).toEqual([]);
+    }
+  });
 
   it("partition fails closed: an Exit owner that is no role's name is a derivation failure naming it", () => {
     const m = makeMirror("rr-part-owner-");
