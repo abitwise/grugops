@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 15/16 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16)
+**Plans**: 16/16 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16)
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -546,7 +546,7 @@ Gap wave 1 *(parallel, disjoint files)*
 - [x] 40-16-PLAN.md — the 31 frozen-section findings the D-30 base move retired, read and disposed of by a named human (WR-06; PLAIN-03; human checkpoint)
 
 Gap wave 2 *(blocked on gap wave 1)*
-- [ ] 40-14-PLAN.md — partition refuses gate-skipping pairs and malformed move spans, security evidence re-verified red-on-deletion, review dispositions recorded, WR-03 deferred (WR-01, IN-02; PLAIN-03)
+- [x] 40-14-PLAN.md — partition refuses gate-skipping pairs and malformed move spans, security evidence re-verified red-on-deletion, review dispositions recorded, WR-03 deferred (WR-01, IN-02; PLAIN-03)
 
 **Cross-cutting constraints:**
 - D-27 / D-31: `node scripts/check-role-rules.js` stays green and each role's fact count after is at least its baseline count
@@ -614,7 +614,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
-| 40. Plain-language role rewrite | v3.0 | 15/16 | In Progress | - |
+| 40. Plain-language role rewrite | v3.0 | 16/16 | In Progress | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |

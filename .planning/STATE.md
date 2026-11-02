@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
-status: executing
-stopped_at: Completed 40-16-PLAN.md
-last_updated: "2026-11-02T13:37:37.159Z"
+status: verifying
+stopped_at: Completed 40-14-PLAN.md
+last_updated: "2026-11-02T14:15:37.915Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: fcac28b0e1e227d68de2e7c7830a0c19d73ea2c7
+state_head: 1ce3c709ae84796b656183a1146961076d0c6d0a
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 104
-  completed_plans: 103
+  completed_plans: 104
   percent: 56
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 40 (Plain-language role rewrite) — READY TO EXECUTE
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-01 — Phase 40 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -820,6 +820,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P13 | 44 min | 2 tasks | 6 files |
 | Phase 40 P15 | 3 min | 2 tasks | 178 files |
 | Phase 40 P16 | 7 min | 3 tasks | 1 files |
+| Phase 40 P14 | 12 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2269,6 +2270,8 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-13: the effective role byte budget is the corpus-total growth harness in check-foundation-guards.test.ts (orchestrator.md about 6,061 B, uat-planner.md about 2,750 B), tighter than the ROLE_CEILINGS WARN lines; both roles now sit 3-4 B under it
 - [Phase 40]: 40-15: IN-03 fixed by removing the typed section count from 176 fixture role headers, pinned by validate.test.ts; IN-01 line 302 kept byte-exact as the C-28-045 frozen anchor by decision
 - [Phase 40]: WR-06: Olger accepted all 31 frozen-section changes the D-30 base move retired (reply 'accept-all, Olger', 2026-11-02); no row flagged, no open follow-up for plan 40-14
+- [Phase 40]: 40-14: D33_NON_FORWARD_PAIRS holds only the two non-forward pairs of the approved D-33 table (orchestrator In UAT -> Done, qe-e2e In Review -> Ready for UAT); BOARD_MOVE_EXCEPTIONS unchanged; partition rule 4 refuses gate-skipping owned-column pairs (WR-01)
+- [Phase 40]: 40-14: deriveRoleFacts keeps its lenient bare-arrow split so the baseline does not move; partition rule 6 names any arrow span that is not a column pair (IN-02)
 
 ### Pending Todos
 
@@ -2608,8 +2611,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-02T13:37:36.205Z
-Stopped at: Completed 40-16-PLAN.md
+Last session: 2026-11-02T14:15:36.827Z
+Stopped at: Completed 40-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
