@@ -496,10 +496,13 @@ export function checkCodingRoleSet(
 //   rule 1  no exact pair is claimed by two roles
 //   rule 2  a non-terminal flow column's Exit owner claims its forward pair (the next flow row)
 //   rule 3  the terminal column's Exit owner claims at least one pair into it
-//   rule 4  a pair from a column owned by another role, or from a column with no role owner
-//           (`Blocked`, `(raiser)`), is red unless it is a declared exception for that role or a close
-//           into the terminal column claimed by the terminal column's owner
-//   rule 5  a declared exception its role no longer claims is red (the list cannot go stale)
+//   rule 4  a pair declared for its role in BOARD_MOVE_EXCEPTIONS or D33_NON_FORWARD_PAIRS passes.
+//           Otherwise a pair out of a column the role owns passes only when its target is the next flow
+//           column or a column outside the flow (`Blocked`, read from its parenthesized Exit owner), and
+//           a pair out of a column owned by another role, or with no role owner, is red. Owning the
+//           terminal column admits no close of its own (WR-01).
+//   rule 5  a declared exception or approved non-forward pair its role no longer claims is red (neither
+//           list can go stale)
 // ---------------------------------------------------------------------------
 
 export interface BoardMoveException {
@@ -509,8 +512,8 @@ export interface BoardMoveException {
   readonly reason: string;
 }
 
-// THE DECLARED EXCEPTIONS (D-33, approved by the human in plan 40-02's checkpoint). These are the only
-// moves a role may claim out of a column it does not own. Adding an entry needs a recorded human
+// THE DECLARED EXCEPTIONS (D-33, approved by the human in plan 40-02's checkpoint). With the lean close in
+// D33_NON_FORWARD_PAIRS, these are the only moves a role may claim out of a column it does not own. Adding an entry needs a recorded human
 // decision; every entry has its own test, and rule 5 turns an entry its role no longer claims red.
 export const BOARD_MOVE_EXCEPTIONS: readonly BoardMoveException[] = [
   {
@@ -536,6 +539,25 @@ export const BOARD_MOVE_EXCEPTIONS: readonly BoardMoveException[] = [
     from: "Blocked",
     to: "In Design",
     reason: "exit of a dev-raised block, Workflow 04 step 15 (D-33)",
+  },
+];
+
+// THE APPROVED NON-FORWARD PAIRS (D-33, WR-01). Owned moves the human approved in the D-33 pair table at
+// plan 40-02's checkpoint whose target is not the next flow column. Rule 4 admits them for their role
+// only. An addition needs a recorded human decision, like BOARD_MOVE_EXCEPTIONS, and rule 5 turns an
+// entry its role no longer claims red.
+export const D33_NON_FORWARD_PAIRS: readonly BoardMoveException[] = [
+  {
+    role: "orchestrator.md",
+    from: "In UAT",
+    to: "Done",
+    reason: "the lean-mode close into the terminal column, in the D-33 pair table approved at the 40-02 checkpoint",
+  },
+  {
+    role: "qe-e2e.md",
+    from: "In Review",
+    to: "Ready for UAT",
+    reason: "no Security/NFR review triggered, in the D-33 pair table approved at the 40-02 checkpoint",
   },
 ];
 
@@ -608,6 +630,7 @@ export function checkPartition(
   model: PartitionModel,
   claims: Readonly<Record<string, readonly BoardPair[]>>,
   exceptions: readonly BoardMoveException[] = BOARD_MOVE_EXCEPTIONS,
+  approved: readonly BoardMoveException[] = D33_NON_FORWARD_PAIRS,
 ): string[] {
   const out: string[] = [];
   const roles = Object.keys(claims).sort();
@@ -638,22 +661,35 @@ export function checkPartition(
 
   // rule 4
   const declared = (r: string, p: BoardPair): boolean =>
-    exceptions.some((e) => e.role === r && e.from === p.from && e.to === p.to);
+    [...exceptions, ...approved].some((e) => e.role === r && e.from === p.from && e.to === p.to);
+  const outsideFlow = (c: string): boolean => model.columns.has(c) && !model.flow.includes(c);
   for (const r of roles) {
     for (const p of claimsOf(r)) {
-      const fromOwner = model.owners.get(p.from);
-      if (fromOwner === r) continue;
       if (declared(r, p)) continue;
-      if (p.to === model.terminal && r === terminalOwner) continue;
+      const fromOwner = model.owners.get(p.from);
+      if (fromOwner === r) {
+        const next = model.flow[model.flow.indexOf(p.from) + 1];
+        if (p.to === next || outsideFlow(p.to)) continue;
+        out.push(
+          `${r}: rule 4: claims \`${pairKey(p)}\` out of its own column, but ${p.to} is neither the next flow column ` +
+            `(${next ?? "none"}) nor outside the flow, and the pair is not declared (WR-01, D-33)`,
+        );
+        continue;
+      }
       const why = fromOwner === undefined ? `${p.from} has no role as its Exit owner` : `${p.from} is owned by ${fromOwner}`;
       out.push(`${r}: rule 4: claims \`${pairKey(p)}\` but ${why}, and the pair is not in BOARD_MOVE_EXCEPTIONS (D-29, D-33)`);
     }
   }
 
   // rule 5
-  for (const e of exceptions) {
-    if (!claimsPair(e.role, e)) {
-      out.push(`${e.role}: rule 5: BOARD_MOVE_EXCEPTIONS declares \`${pairKey(e)}\` but the role no longer claims it (D-33)`);
+  for (const [name, list] of [
+    ["BOARD_MOVE_EXCEPTIONS", exceptions],
+    ["D33_NON_FORWARD_PAIRS", approved],
+  ] as const) {
+    for (const e of list) {
+      if (!claimsPair(e.role, e)) {
+        out.push(`${e.role}: rule 5: ${name} declares \`${pairKey(e)}\` but the role no longer claims it (D-33)`);
+      }
     }
   }
   return out;
@@ -675,7 +711,8 @@ function checkBoardPartition(): void {
   const pairs = roles.reduce((n, r) => n + claims[r].length, 0);
   process.stdout.write(
     `  INFO  board-move partition: ${pairs} claimed pair(s) over ${model.flow.length} flow column(s), ` +
-      `terminal ${model.terminal}, ${BOARD_MOVE_EXCEPTIONS.length} declared exception(s)\n`,
+      `terminal ${model.terminal}, ${BOARD_MOVE_EXCEPTIONS.length} declared exception(s), ` +
+      `${D33_NON_FORWARD_PAIRS.length} approved non-forward pair(s)\n`,
   );
   FAILS += reportMeasured(
     { label: "board-move partition", visited: roles.length, expected: ROLE_COUNT, findings: checkPartition(model, claims) },

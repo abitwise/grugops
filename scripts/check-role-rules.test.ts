@@ -32,6 +32,7 @@ import {
   D13_CODING_ROLES,
   BASELINE_REL,
   BOARD_MOVE_EXCEPTIONS,
+  D33_NON_FORWARD_PAIRS,
   checkPartition,
   claimedPairs,
   partitionModel,
@@ -250,7 +251,9 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
     const m = makeMirror("rr-part-green-");
     const r = runGate(m);
     expect(r.status, r.stdout).toBe(0);
-    expect(r.stdout).toMatch(/board-move partition: 18 claimed pair\(s\) over 12 flow column\(s\), terminal Done, 4 declared exception\(s\)/);
+    expect(r.stdout).toMatch(
+      /board-move partition: 18 claimed pair\(s\) over 12 flow column\(s\), terminal Done, 4 declared exception\(s\), 2 approved non-forward pair\(s\)/,
+    );
     expect(r.stdout).toContain("board-move partition: 0 findings over 19/19");
   });
 
@@ -282,12 +285,16 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
     expect(r.stdout).toContain("ba-pm.md: rule 2: owns the Ready exit but does not claim its forward pair `Ready → In Analysis`");
   });
 
-  it("partition rule 3: `In UAT → Done` removed from orchestrator.md is red", () => {
+  it("partition rule 3 and rule 5: `In UAT → Done` removed from orchestrator.md is red", () => {
     const m = makeMirror("rr-part-r3-");
     edit(role(m, "orchestrator.md"), dropMove("In UAT", "Done"));
     const r = runGate(m);
     expect(r.status, r.stdout).toBe(1);
     expect(r.stdout).toContain("orchestrator.md: rule 3: owns the terminal column Done but claims no pair into it");
+    // The approved entry went stale, so rule 5 names D33_NON_FORWARD_PAIRS too.
+    expect(r.stdout).toContain(
+      "orchestrator.md: rule 5: D33_NON_FORWARD_PAIRS declares `In UAT → Done` but the role no longer claims it",
+    );
   });
 
   it("partition rule 4: `In Review → Done` planted into system-analyst.md is red", () => {
@@ -299,16 +306,120 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
     expect(r.stdout).not.toContain("rule 1:");
   });
 
-  it("partition rule 4: a close into the terminal column is admitted only for the terminal column's owner", () => {
+  it("partition rule 4: the lean close into the terminal column is admitted only through D33_NON_FORWARD_PAIRS (WR-01)", () => {
     const model = partitionModel(ROOT);
-    // The Orchestrator owns Done, so its close out of In UAT (owned by the UAT Planner) is admitted.
-    const closes = checkPartition(model, { "orchestrator.md": [{ from: "In UAT", to: "Done" }] }, []);
-    expect(closes.filter((f) => f.includes("rule 4"))).toEqual([]);
-    const other = checkPartition(model, { "orchestrator.md": [{ from: "In UAT", to: "Done" }], "qe-e2e.md": [{ from: "In UAT", to: "Done" }] }, []);
+    const lean = { "orchestrator.md": [{ from: "In UAT", to: "Done" }] };
+    // Owning the terminal column no longer admits a close: with no approved list the lean close is red.
+    expect(checkPartition(model, lean, [], [])).toContain(
+      "orchestrator.md: rule 4: claims `In UAT → Done` but In UAT is owned by uat-planner.md, and the pair is not in BOARD_MOVE_EXCEPTIONS (D-29, D-33)",
+    );
+    // With the approved list (the default) it is admitted.
+    expect(checkPartition(model, lean, []).filter((f) => f.includes("rule 4"))).toEqual([]);
+    expect(checkPartition(model, lean, [], D33_NON_FORWARD_PAIRS).filter((f) => f.includes("rule 4"))).toEqual([]);
+    // The approval is per role: the same pair from another role stays red.
+    const other = checkPartition(model, { ...lean, "qe-e2e.md": [{ from: "In UAT", to: "Done" }] }, []);
     expect(other).toContain(
       "qe-e2e.md: rule 4: claims `In UAT → Done` but In UAT is owned by uat-planner.md, and the pair is not in BOARD_MOVE_EXCEPTIONS (D-29, D-33)",
     );
   });
+
+  it("partition approved pairs: exactly the two non-forward pairs of the D-33 table approved at the 40-02 checkpoint", () => {
+    expect(D33_NON_FORWARD_PAIRS.map((e) => `${e.role}: ${e.from} → ${e.to}`)).toEqual([
+      "orchestrator.md: In UAT → Done",
+      "qe-e2e.md: In Review → Ready for UAT",
+    ]);
+    for (const e of D33_NON_FORWARD_PAIRS) {
+      expect(e.reason).toMatch(/D-33/);
+      expect(e.reason).toMatch(/40-02/);
+    }
+  });
+
+  // WR-01: the gate-skipping pairs the reviewer measured as admitted, plus the UAT Planner's lean close.
+  const WR01_RED: readonly { role: string; from: string; to: string; tail: string }[] = [
+    {
+      role: "software-engineer.md",
+      from: "In Development",
+      to: "Done",
+      tail: "out of its own column, but Done is neither the next flow column (In Review) nor outside the flow, and the pair is not declared (WR-01, D-33)",
+    },
+    {
+      role: "orchestrator.md",
+      from: "In Review",
+      to: "Done",
+      tail: "but In Review is owned by qe-e2e.md, and the pair is not in BOARD_MOVE_EXCEPTIONS (D-29, D-33)",
+    },
+    {
+      role: "orchestrator.md",
+      from: "Blocked",
+      to: "Done",
+      tail: "but Blocked has no role as its Exit owner, and the pair is not in BOARD_MOVE_EXCEPTIONS (D-29, D-33)",
+    },
+    {
+      role: "qe-e2e.md",
+      from: "In Review",
+      to: "Ready to Release",
+      tail: "out of its own column, but Ready to Release is neither the next flow column (In Security/NFR) nor outside the flow, and the pair is not declared (WR-01, D-33)",
+    },
+    {
+      role: "uat-planner.md",
+      from: "In UAT",
+      to: "Done",
+      tail: "out of its own column, but Done is neither the next flow column (Ready to Release) nor outside the flow, and the pair is not declared (WR-01, D-33)",
+    },
+  ];
+  for (const c of WR01_RED) {
+    it(`partition rule 4 (WR-01): \`${c.from} → ${c.to}\` planted into ${c.role} is red`, () => {
+      const m = makeMirror("rr-part-wr01-");
+      edit(role(m, c.role), plantMove(c.from, c.to));
+      const r = runGate(m);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(`${c.role}: rule 4: claims \`${c.from} → ${c.to}\` ${c.tail}`);
+    });
+  }
+
+  it("partition rule 4 edge adjacency: a pair into the next flow column passes; one that skips a column is red unless declared", () => {
+    const model = partitionModel(ROOT);
+    const next = checkPartition(model, { "system-analyst.md": [{ from: "In Analysis", to: "In Design" }] }, [], []);
+    expect(next.filter((f) => f.includes("rule 4"))).toEqual([]);
+    const skip = checkPartition(model, { "system-analyst.md": [{ from: "In Analysis", to: "Ready for Dev" }] }, [], []);
+    expect(skip).toContain(
+      "system-analyst.md: rule 4: claims `In Analysis → Ready for Dev` out of its own column, but Ready for Dev is neither the next flow column (In Design) nor outside the flow, and the pair is not declared (WR-01, D-33)",
+    );
+    const declared = checkPartition(
+      model,
+      { "system-analyst.md": [{ from: "In Analysis", to: "Ready for Dev" }] },
+      [],
+      [{ role: "system-analyst.md", from: "In Analysis", to: "Ready for Dev", reason: "test" }],
+    );
+    expect(declared.filter((f) => f.includes("rule 4"))).toEqual([]);
+    // A column outside the flow (Blocked, a parenthesized Exit owner) is always a legal target from an owned column.
+    const blocked = checkPartition(model, { "system-analyst.md": [{ from: "In Analysis", to: "Blocked" }] }, [], []);
+    expect(blocked.filter((f) => f.includes("rule 4"))).toEqual([]);
+  });
+
+  it("partition rule 4 edge empty: a role that claims no pair adds no finding", () => {
+    const model = partitionModel(ROOT);
+    const live = claimedPairs(readFileSync(role(ROOT, "compliance-officer.md"), "utf8"), model.columns);
+    expect(live).toEqual([]);
+    const findings = checkPartition(model, { "compliance-officer.md": [] }, [], []);
+    expect(findings.filter((f) => f.includes("compliance-officer.md"))).toEqual([]);
+  });
+
+  for (const e of D33_NON_FORWARD_PAIRS) {
+    it(`partition approved pair \`${e.from} → ${e.to}\`: admitted for ${e.role}, red when planted into designer.md`, () => {
+      const model = partitionModel(ROOT);
+      const live = claimedPairs(readFileSync(role(ROOT, e.role), "utf8"), model.columns);
+      expect(live.map((p) => `${p.from} → ${p.to}`)).toContain(`${e.from} → ${e.to}`);
+      const m = makeMirror("rr-part-appr-");
+      edit(role(m, "designer.md"), (s) =>
+        s.replace("## Board moves\n", `## Board moves\nPlanted: \`${e.from} → ${e.to}\`.\n`),
+      );
+      const r = runGate(m);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(`designer.md: rule 4: claims \`${e.from} → ${e.to}\``);
+      expect(r.stdout).not.toContain(`${e.role}: rule 4`);
+    });
+  }
 
   it("partition rule 5: `Blocked → Backlog` removed from tech-lead.md is red", () => {
     const m = makeMirror("rr-part-r5-");
