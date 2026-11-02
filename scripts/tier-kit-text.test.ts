@@ -23,7 +23,8 @@
 // Plan 40-17 adds the cases for the dial-following lean close: the close and its Stop-when hold
 // are pinned as exact sentences, Workflow 06 says the lean close stops at the same `sign_off_acceptance`
 // checkpoint and that the dial never removes the human merge (PLAIN-03; WR-01, WR-03; human decision
-// 2026-11-02).
+// 2026-11-02). Its mutation cases apply the reviewer's own edit, and each single dropped condition,
+// to an in-memory copy of orchestrator.md and require leanCloseViolations() to go red (WR-01).
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -2407,5 +2408,55 @@ describe("the lean close follows the dial (WR-03, WR-01; human decision 2026-11-
 
   it("WR-01: the live Orchestrator has no lean-close violation", () => {
     expect(leanCloseViolations(ORCHESTRATOR)).toEqual([]);
+  });
+});
+
+describe("WR-01: dropping a lean-close condition is red (mutation cases)", () => {
+  /** ORCHESTRATOR with each [from, to] replacement applied once. A plant that changes nothing fails. */
+  function mutate(pairs: [string, string][]): string {
+    let text = ORCHESTRATOR;
+    for (const [from, to] of pairs) {
+      const next = text.replace(from, to);
+      expect(next, `the plant "${from}" changed nothing`).not.toBe(text);
+      text = next;
+    }
+    return text;
+  }
+
+  it("WR-01: the live Orchestrator gives no violation", () => {
+    expect(leanCloseViolations(ORCHESTRATOR)).toEqual([]);
+  });
+
+  it("WR-01: the reviewer's mutation of both lines is red on the close and the hold", () => {
+    const mutated = mutate([
+      [
+        CLOSE_SENTENCE,
+        "Close once a human merged the PR; the named human may sign off later (`checkpoint: sign_off_acceptance`), and `agent-factory/checklists/definition-of-done.md` holds.",
+      ],
+      [HOLD_ITEM, "- If no human has merged the PR, leave the ticket in `In UAT`."],
+    ]);
+    const found = leanCloseViolations(mutated);
+    expect(found).toContain("close");
+    expect(found).toContain("hold");
+  });
+
+  it("WR-01: dropping only the sign-off clause from the close is red", () => {
+    const mutated = mutate([[CLOSE_SENTENCE, CLOSE_SENTENCE.replace("the sign-off that `checkpoint: sign_off_acceptance` requires, ", "")]]);
+    expect(leanCloseViolations(mutated)).toEqual(["close"]);
+  });
+
+  it("WR-01: dropping only the merge clause from the close is red", () => {
+    const mutated = mutate([[CLOSE_SENTENCE, CLOSE_SENTENCE.replace("a human merged the PR and ", "")]]);
+    expect(leanCloseViolations(mutated)).toEqual(["close"]);
+  });
+
+  it("WR-01: dropping only the sign-off condition from the hold is red", () => {
+    const mutated = mutate([[HOLD_ITEM, HOLD_ITEM.replace(" or `sign_off_acceptance` is not met", "")]]);
+    expect(leanCloseViolations(mutated)).toEqual(["hold"]);
+  });
+
+  it("WR-01: dropping only the merge condition from the hold is red", () => {
+    const mutated = mutate([[HOLD_ITEM, HOLD_ITEM.replace("a human has not merged the PR or ", "")]]);
+    expect(leanCloseViolations(mutated)).toEqual(["hold"]);
   });
 });
