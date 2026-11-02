@@ -58,7 +58,8 @@
 // role loses a fact writes the same bytes and cannot forgive the loss (WR-05). Every writer failure,
 // including a run outside a git repository, is one named FAIL. The default `--check` reads the baseline,
 // refuses to run without it, refuses one whose source_commit is not PHASE_40_START_COMMIT (WR-05), and
-// never writes.
+// never writes. `--check` also compares the committed baseline with a git derivation when the objects at
+// PHASE_40_START_COMMIT are reachable, and says in a NOTE line when they are not (IN-01).
 //
 // Node stdlib only. Run the committed .js; CHECK_ROOT points it at a hermetic mirror in the tests.
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
@@ -819,6 +820,38 @@ function writeBaseline() {
     }
     pass(`wrote ${BASELINE_REL}: ${count} file(s) at ${PHASE_40_START_COMMIT}`);
 }
+/** True when the commit `sha` is readable from `root`'s git objects; false on any git error (IN-01). */
+function gitObjectsReachable(root, sha) {
+    try {
+        execFileSync("git", ["-C", root, "cat-file", "-e", `${sha}^{commit}`], { stdio: "ignore" });
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * What differs between the committed baseline and a fresh derivation (IN-01): the sorted names of the
+ * files whose facts or stopWhenItems differ (or that only one side holds), then any top-level key that
+ * differs. Empty when only the formatting differs.
+ */
+function baselineDifferences(committed, fresh) {
+    const out = [];
+    const names = [...new Set([...Object.keys(committed.files), ...Object.keys(fresh.files)])].sort();
+    for (const f of names) {
+        const a = committed.files[f];
+        const b = fresh.files[f];
+        if (!a || !b || JSON.stringify(a.facts) !== JSON.stringify(b.facts) || a.stopWhenItems !== b.stopWhenItems)
+            out.push(f);
+    }
+    const c = committed;
+    const d = fresh;
+    const keys = [...new Set([...Object.keys(c), ...Object.keys(d)])].filter((k) => k !== "files").sort();
+    for (const k of keys)
+        if (JSON.stringify(c[k]) !== JSON.stringify(d[k]))
+            out.push(`top-level key ${k}`);
+    return out;
+}
 function check() {
     process.stdout.write("\n[check-role-rules] every baseline role fact still holds (D-27, D-28, D-31, D-35)\n");
     const bp = abs(BASELINE_REL);
@@ -827,8 +860,10 @@ function check() {
         return;
     }
     let baseline;
+    let baselineRaw;
     try {
-        baseline = parseBaseline(readFileSync(bp, "utf8"));
+        baselineRaw = readFileSync(bp, "utf8");
+        baseline = parseBaseline(baselineRaw);
     }
     catch (e) {
         fail(`${BASELINE_REL} is unparseable: ${e.message}`);
@@ -838,6 +873,34 @@ function check() {
         fail(`${BASELINE_REL}: the baseline was derived at ${baseline.source_commit}, but the inventory is pinned to ` +
             `PHASE_40_START_COMMIT ${PHASE_40_START_COMMIT} (WR-05)`);
         return;
+    }
+    // IN-01: the stand-in trusts this check, so the baseline's contents are checked against git whenever
+    // git can disprove them. A difference is a FAIL, and losses are then judged against the git-derived
+    // facts, so a fact dropped from the JSON together with its rule is still named.
+    if (gitObjectsReachable(ROOT, PHASE_40_START_COMMIT)) {
+        let fresh;
+        try {
+            fresh = deriveAllAt(ROOT, PHASE_40_START_COMMIT);
+        }
+        catch (e) {
+            fail(`${BASELINE_REL} could not be compared with a fresh derivation out of git (IN-01): ${e.message}`);
+            return;
+        }
+        const expected = { generated_by: GENERATED_BY, source_commit: PHASE_40_START_COMMIT, files: fresh };
+        if (serializeBaseline(expected) === baselineRaw) {
+            pass(`${BASELINE_REL} equals a fresh derivation out of git objects at ${PHASE_40_START_COMMIT.slice(0, 7)} (IN-01)`);
+        }
+        else {
+            const diffs = baselineDifferences(baseline, expected);
+            fail(`${BASELINE_REL} differs from a fresh derivation out of git objects at ${PHASE_40_START_COMMIT}: ` +
+                (diffs.length > 0 ? diffs.join(", ") : "formatting only") +
+                " — losses below are judged against the git-derived facts (IN-01)");
+            baseline = expected;
+        }
+    }
+    else {
+        process.stdout.write(`  NOTE  git objects at ${PHASE_40_START_COMMIT} are not reachable under ${ROOT}, so ${BASELINE_REL} was read ` +
+            "as written and not compared with git (IN-01)\n");
     }
     let corpus;
     let roles;
