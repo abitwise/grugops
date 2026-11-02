@@ -867,4 +867,33 @@ describe("WR-05: the baseline is pinned to the Phase 40 start commit", () => {
     const missing = list.filter((k) => (k.endsWith(":") ? !all.some((f) => f.startsWith(k)) : !all.includes(k)));
     expect(missing).toEqual([]);
   });
+
+  // IN-02: the floor above holds every kind to the data; these hold the data to the kinds. A fact kind
+  // added to deriveRoleFacts without a FACT_KINDS entry has no kindOf, so the subset cases turn red.
+  const kindOf = (fact: string): string | null =>
+    FACT_KINDS.find((k) => k === fact) ?? FACT_KINDS.find((k) => k.endsWith(":") && fact.startsWith(k)) ?? null;
+  const unknownKinds = (files: Record<string, { facts: readonly string[] }>): string[] =>
+    Object.entries(files).flatMap(([f, r]) => r.facts.filter((x) => kindOf(x) === null).map((x) => `${f}: ${x}`));
+
+  it("kind floor (IN-02): kindOf matches an exact kind and a prefix kind, and refuses an unknown kind", () => {
+    expect(kindOf("made-up-kind")).toBeNull();
+    expect(kindOf("kit-ref")).toBeNull();
+    expect(kindOf("kit-ref:agent-factory/workflows/04-ticket-to-pr.md")).toBe("kit-ref:");
+    expect(kindOf("board-from:In UAT")).toBe("board-from:");
+    expect(kindOf("no-merge")).toBe("no-merge");
+    expect(unknownKinds({ "planted.md": { facts: ["wf16", "made-up-kind"] } })).toEqual(["planted.md: made-up-kind"]);
+  });
+
+  it("kind floor (IN-02): every fact in the committed baseline is a FACT_KINDS kind", () => {
+    const baseline = JSON.parse(readFileSync(join(ROOT, BASELINE_REL), "utf8"));
+    const files = baseline.files as Record<string, { facts: string[] }>;
+    expect(Object.values(files).flatMap((f) => f.facts).length).toBeGreaterThan(0);
+    expect(unknownKinds(files)).toEqual([]);
+  });
+
+  it("kind floor (IN-02): every fact in deriveAll(ROOT) is a FACT_KINDS kind", () => {
+    const files = deriveAll(ROOT);
+    expect(Object.values(files).flatMap((f) => f.facts).length).toBeGreaterThan(0);
+    expect(unknownKinds(files)).toEqual([]);
+  });
 });
