@@ -43,8 +43,14 @@ import {
   PHASE_40_START_COMMIT,
   SAFETY_RULE_FACTS,
   FACT_KINDS,
+  DERIVATION_PATHS,
+  roleCorpus,
+  sectionLines,
 } from "./check-role-rules.js";
+import * as roleRules from "./check-role-rules.js";
 import { listRoles } from "./kit-model.js";
+import { fencedLineFlags } from "./frontmatter.js";
+import { normalizeSentence, segmentClauses } from "./voice-model.js";
 import { BOARD_REL } from "../install/state-layout.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -895,5 +901,110 @@ describe("WR-05: the baseline is pinned to the Phase 40 start commit", () => {
     const files = deriveAll(ROOT);
     expect(Object.values(files).flatMap((f) => f.facts).length).toBeGreaterThan(0);
     expect(unknownKinds(files)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CR-01 round 2 (plan 40-19, human decision 1, 2026-11-02). The D-30 stand-in will refuse a changed role
+// clause that carries a safety fact on either side, through carriesSafetyFact, the one predicate built
+// from SAFETY_RULE_FACTS. The gate holds clauses normalized by voice-model.ts (lowercase, punctuation
+// folded to spaces, code spans unwrapped), so the predicate must hold on that form as well as on the raw
+// sentence. These cases copy no fact regex: they ask each SAFETY_RULE_FACTS entry's own holds.
+// ---------------------------------------------------------------------------
+
+const carriesSafetyFact = (roleRules as unknown as { carriesSafetyFact: (text: string) => boolean }).carriesSafetyFact;
+
+const SAFETY_FACT_NAMES = new Set(SAFETY_RULE_FACTS.map((r) => r.fact));
+
+/** The unfenced `## Hard limits` then `## Stop when` lines of one file, read the way the derivation reads them. */
+function ruleLines(raw: string): string[] {
+  const text = raw.replace(/\r\n/g, "\n");
+  const flags = fencedLineFlags(text);
+  return [...sectionLines(text, flags, "## Hard limits"), ...sectionLines(text, flags, "## Stop when")];
+}
+
+/** The derivation's sentences of those lines: joined, whitespace collapsed, split after a terminator. */
+const ruleSentences = (raw: string): string[] =>
+  ruleLines(raw).join(" ").replace(/\s+/g, " ").trim().split(/(?<=[.;:!?])\s+/);
+
+/** Materialize DERIVATION_PATHS at `sha` with `git show`, the equality case's way, and return the root. */
+function materializeAt(sha: string): string {
+  const m = freshTmp("rr-parity-at-");
+  const paths = execFileSync("git", ["ls-tree", "-r", "--name-only", sha, "--", ...DERIVATION_PATHS], {
+    cwd: ROOT,
+    encoding: "utf8",
+  })
+    .split("\n")
+    .filter((p) => p !== "");
+  for (const p of paths) {
+    const blob = execFileSync("git", ["show", `${sha}:${p}`], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+    const dst = join(m, p);
+    mkdirSync(dirname(dst), { recursive: true });
+    writeFileSync(dst, blob);
+  }
+  return m;
+}
+
+/**
+ * For every corpus file under `root`: each safety fact the derivation finds must hold on at least one
+ * segmentClauses clause of the same unfenced lines. Returns the misses as `<file>: <fact>`.
+ */
+function clauseParityMisses(root: string): { files: number; misses: string[] } {
+  const ctx = buildContext(root);
+  const misses: string[] = [];
+  const corpus = roleCorpus(root);
+  for (const f of corpus) {
+    const raw = readFileSync(join(root, "agent-factory", "roles", f), "utf8");
+    const derived = deriveRoleFacts(raw, ctx).facts.filter((x) => SAFETY_FACT_NAMES.has(x));
+    const clauses = segmentClauses(ruleLines(raw).join("\n")).map((c) => c.clause);
+    for (const fact of derived) {
+      const entry = SAFETY_RULE_FACTS.find((r) => r.fact === fact);
+      if (!entry || !clauses.some((c) => entry.holds(c))) misses.push(`${f}: ${fact}`);
+    }
+  }
+  return { files: corpus.length, misses };
+}
+
+describe("CR-01 round 2: one safety predicate sees the gate's clauses", () => {
+  it("carriesSafetyFact holds on a merge ban and not on an ordinary instruction, raw or normalized", () => {
+    expect(typeof carriesSafetyFact).toBe("function");
+    expect(carriesSafetyFact("Never merge to a protected branch.")).toBe(true);
+    expect(carriesSafetyFact("Give one next action, not a menu.")).toBe(false);
+    expect(carriesSafetyFact(normalizeSentence("Give one next action, not a menu."))).toBe(false);
+  });
+
+  it("every SAFETY_RULE_FACTS entry holds on its first live role sentence and on that sentence normalized", () => {
+    const corpus = roleCorpus(ROOT);
+    const misses: string[] = [];
+    for (const entry of SAFETY_RULE_FACTS) {
+      let found: string | undefined;
+      for (const f of corpus) {
+        found = ruleSentences(readFileSync(join(ROOT, "agent-factory", "roles", f), "utf8")).find((s) => entry.holds(s));
+        if (found !== undefined) break;
+      }
+      if (found === undefined) misses.push(`${entry.fact}: no live role sentence holds it`);
+      else if (!entry.holds(normalizeSentence(found))) misses.push(`${entry.fact}: "${normalizeSentence(found)}"`);
+    }
+    expect(SAFETY_RULE_FACTS.length).toBe(12);
+    expect(misses).toEqual([]);
+  });
+
+  it("parity at HEAD: every derived safety fact is visible on a gate clause of the same lines", () => {
+    const r = clauseParityMisses(ROOT);
+    expect(r.files).toBe(20);
+    expect(r.misses).toEqual([]);
+  });
+
+  it("parity at PHASE_40_START_COMMIT: every derived safety fact is visible on a gate clause of the same lines", () => {
+    const r = clauseParityMisses(materializeAt(PHASE_40_START_COMMIT));
+    expect(r.files).toBe(20);
+    expect(r.misses).toEqual([]);
+  });
+
+  it("the baseline did not move: a fresh git derivation still serializes to the committed bytes", () => {
+    const files = deriveAllAt(ROOT, PHASE_40_START_COMMIT);
+    expect(serializeBaseline({ generated_by: GENERATED_BY, source_commit: PHASE_40_START_COMMIT, files })).toBe(
+      readFileSync(join(ROOT, BASELINE_REL), "utf8"),
+    );
   });
 });

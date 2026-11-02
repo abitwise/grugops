@@ -182,7 +182,7 @@ const isTableRule = (trimmed) => trimmed.startsWith("|") && /^[\s:|-]+$/.test(tr
  * rule: `## Board moves` matches both today's suffixed heading and the D-12 bare heading). The first
  * such unfenced heading wins; the section ends where `sectionEndIndex` says. `[]` when absent.
  */
-function sectionLines(text, flags, prefix) {
+export function sectionLines(text, flags, prefix) {
     const lines = text.split("\n");
     let at = -1;
     for (let i = 0; i < lines.length; i++) {
