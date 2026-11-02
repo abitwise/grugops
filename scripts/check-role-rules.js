@@ -38,9 +38,10 @@
 //
 // THE BOARD-MOVE PARTITION (D-29, D-33). `--check` also runs a second named check on the current tree
 // only: each role's exact `(from, to)` pairs, read from the `X → Y` code spans in `## Board moves`, must
-// partition the seed board's flow (five rules, listed above checkPartition). The flow order, the Exit
-// owners and the terminal column come from the seed board table; BOARD_MOVE_EXCEPTIONS is the one
-// declared list. Rule 6 also refuses a move spelled with an ASCII arrow (`->`, `=>`) in a code span and a
+// partition the seed board's flow (six rules: rules 1 to 5 in checkPartition, rule 6 in moveSpanFindings).
+// The flow order, the Exit owners and the terminal column come from the seed board table.
+// BOARD_MOVE_EXCEPTIONS and D33_NON_FORWARD_PAIRS are the two declared lists, each entry a recorded human
+// decision. Rule 6 also refuses a move spelled with an ASCII arrow (`->`, `=>`) in a code span and a
 // move between two board columns written outside a code span, so a move has one spelling (WR-02). It adds
 // no fact kind to the baseline derivation.
 //
@@ -128,7 +129,8 @@ export const SAFETY_RULE_FACTS = [
 // THE FACT KINDS (D-28, closed list). Every kind the derivation can emit: the exact facts, the three
 // derived prefixes, and the twelve SAFETY_RULE_FACTS names (read from the table, never retyped). A kind
 // removed from the derivation must also leave this list, which the kind-floor test makes visible: each
-// kind here must occur at least once in the committed baseline.
+// kind here must occur at least once in the committed baseline. The kind-floor test also holds every
+// derived fact, in the baseline and in deriveAll, inside this list, so a new kind needs an entry (IN-02).
 export const FACT_KINDS = [
     "unknown-verify",
     "wf16",
@@ -589,7 +591,10 @@ export function partitionModel(root) {
         throw new Error(`${BOARD}: fewer than two role-owned columns, so there is no flow`);
     return { flow, owners, terminal: flow[flow.length - 1], columns: new Set(rows.map((r) => r.column)) };
 }
-/** The five partition rules over the claimed pairs. Returns the findings, each naming role, pair and rule. */
+/**
+ * The partition rules 1 to 5 over the claimed pairs (rule 6, the span and spelling rule, is
+ * moveSpanFindings). Returns the findings, each naming role, pair and rule.
+ */
 export function checkPartition(model, claims, exceptions = BOARD_MOVE_EXCEPTIONS, approved = D33_NON_FORWARD_PAIRS) {
     const out = [];
     const roles = Object.keys(claims).sort();
