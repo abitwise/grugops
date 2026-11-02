@@ -33,3 +33,30 @@
     moved out of `.planning/phases/`. Repoint the tests at the archive path or record the archive as their source.
   - `install/installer-fs-census.test.ts` (1): the local Node v26.12.1 exports `openAsBlobSync`, which the census
     has not classified. Classify it in CONTENT_READER or NOT_CONTENT_READER.
+
+## From the gap round (plans 40-11 to 40-16)
+
+- WR-03 (deferred to the backlog; candidate: Phase 41 flow guidance). Each "return the ticket" bullet needs a flow
+  decision: either a backward move with an owner (a new pair, which D-17 and D-33 keep out of Phase 40) or a
+  stay-in-column reading. Workflows 03, 05 and 06 carry the same "route back" wording in frozen
+  `## Stop conditions` clauses, so a role-only rewording could contradict them, and the QE bullet already
+  conflicts with Workflow 04 step 14 (gate failures go to `Blocked` for the Tech Lead). The eight `## Stop when`
+  bullets it covers, at HEAD after plan 40-14:
+  - `architect-design.md:50`: return the ticket to the System Analyst
+  - `system-analyst.md:43`: return the ticket to BA/PM
+  - `uat-planner.md:48`: return the ticket to BA/PM
+  - `security-nfr.md:51`: hand the ticket back to the Software Engineer
+  - `qe-e2e.md:48`: hand the ticket back to the Software Engineer (the bullet that conflicts with Workflow 04 step 14)
+  - `compliance-officer.md:49`: hand the ticket back to Security/NFR
+  - `ba-pm.md:50`: return the ticket to the requester
+  - `frontend-ui.md:47`: return the ticket to the Orchestrator for the Designer. This is Phase 39 wording pinned by
+    `scripts/tier-kit-text.test.ts` (the D-10 Frontend/UI case). Line 48 (hand the ticket to BA/PM) has the same
+    shape but no pin.
+  status: open
+- IN-03, optional part: drop the retired caveman heading from the `good` validator fixture. Plan 40-15 closed the
+  required part (the typed section count, pinned in `scripts/validate.test.ts`) and left this as optional.
+  status: open
+- Residual from plan 40-11: while the D-30 stand-in holds, a `## Hard limits` or `## Stop when` sentence that
+  carries none of the 26 fact kinds can be reworded with every gate green. The safety sentences are facts, and
+  plan 40-12 froze `## Stop when`, but the stand-in still admits a non-fact sentence in either section.
+  status: open
