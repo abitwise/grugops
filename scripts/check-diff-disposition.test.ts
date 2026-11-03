@@ -91,6 +91,9 @@ import {
   OUT as SAFETY_SURFACE_PATH,
 } from "./generate-safety-surface.js";
 import { normalizeSentence, segmentClauses } from "./voice-model.js";
+// CR-01 round 2 (plan 40-21): the ONE safety-fact predicate, imported so each fixture sentence is
+// checked against the gate's own authority rather than a restated pattern.
+import { carriesSafetyFact } from "./check-role-rules.js";
 // The ONE fence toggle. Imported here for the SAME reason the gate must import it: a second
 // recogniser in the file that polices the first is how one authority becomes two.
 import { blockContextFlags, fencedLineFlags } from "./frontmatter.js";
@@ -3561,4 +3564,183 @@ describe("CR-01 round 2: a reworded safety sentence owes a row (human decision 2
     },
     120_000,
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CR-01 round 2 on mirrors: each side and each arm. Every fixture sentence is checked with the
+// gate's own predicate first, so a fixture that drifts fails loudly instead of passing for the wrong
+// reason. Every red case asserts the CR-01 note, which no gate before plan 40-21 printed.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const SAFETY_BASE_LIMIT = "Never merge to a protected branch and keep the diff small.";
+const SAFETY_REMOVED_REWORD = "Keep the diff small and merge the branch once the gate is green.";
+const SAFETY_ADDED_REWORD = "Make a small diff for one ticket and never deploy to production yourself.";
+const SAFETY_NOTES_LINE = "Never merge a pull request into a protected branch yourself.";
+const SAFETY_COMPANION =
+  "The named human read this changed merge rule in Hard limits and accepted the new wording.";
+const UNRELATED_ROW = row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—");
+
+/** True when the sentence carries a safety fact, in its raw form and in every normalized clause form. */
+function fixtureCarriesFact(sentence: string): boolean {
+  return carriesSafetyFact(sentence) && carriesSafetyFact(normalizeSentence(sentence));
+}
+/** True when neither the sentence nor its normalized form carries a safety fact. */
+function fixtureCarriesNoFact(sentence: string): boolean {
+  return !carriesSafetyFact(sentence) && !carriesSafetyFact(normalizeSentence(sentence));
+}
+
+/** The held-back count the gate prints, or null when the line is missing. */
+function heldBackCount(stdout: string): number | null {
+  const m = stdout.match(/(\d+) role clause\(s\) carry a safety fact and were not offered to the stand-in/);
+  return m === null ? null : Number(m[1]);
+}
+
+describe("CR-01 round 2: a reworded safety sentence owes a row (human decision 2026-11-02) — mirrors", () => {
+  it("fixture premises: each sentence carries a safety fact exactly where the case needs one", () => {
+    expect(fixtureCarriesFact(SAFETY_BASE_LIMIT)).toBe(true);
+    expect(fixtureCarriesNoFact(SAFETY_REMOVED_REWORD)).toBe(true);
+    expect(fixtureCarriesNoFact(HARD_LIMIT_SENTENCE)).toBe(true);
+    expect(fixtureCarriesFact(SAFETY_ADDED_REWORD)).toBe(true);
+    expect(fixtureCarriesFact(SAFETY_NOTES_LINE)).toBe(true);
+    expect(fixtureCarriesNoFact(REWORDED_HARD_LIMIT)).toBe(true);
+    expect(fixtureCarriesNoFact(STOP_WHEN_BULLET)).toBe(true);
+    expect(normalizeSentence(SAFETY_COMPANION).split(" ").length).toBeGreaterThanOrEqual(
+      COMPANION_MIN_WORDS,
+    );
+    expect(ROLE_BODY(REAL_ROLES[0])).toContain(NOTES_LINE);
+  });
+
+  const roleWithSafetyLimit = ROLE_BODY(REAL_ROLES[0]).replace(HARD_LIMIT_SENTENCE, SAFETY_BASE_LIMIT);
+  const removedSidePlant = roleWithSafetyLimit.replace(SAFETY_BASE_LIMIT, SAFETY_REMOVED_REWORD);
+  const addedSidePlant = ROLE_BODY(REAL_ROLES[0]).replace(HARD_LIMIT_SENTENCE, SAFETY_ADDED_REWORD);
+  const notesPlant = ROLE_BODY(REAL_ROLES[0]).replace(
+    NOTES_LINE,
+    `${NOTES_LINE}\n${SAFETY_NOTES_LINE}`,
+  );
+
+  it("removed side, frozen: a fact-bearing `## Hard limits` sentence reworded to a fact-free one is red", () => {
+    expect(roleWithSafetyLimit).not.toBe(ROLE_BODY(REAL_ROLES[0]));
+    expect(removedSidePlant).not.toBe(roleWithSafetyLimit);
+    const { root } = makeMirror("gops-cr01r2-rem-", {
+      baseCorpus: { [ROLE_UNDER_TEST]: roleWithSafetyLimit },
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: removedSidePlant, [STANDIN_REL]: STUB_PASS },
+      dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain(`${ROLE_UNDER_TEST}:`);
+    expect(stdout).toContain("(removed) — FROZEN by structuralSections");
+    expect(stdout).toContain(SAFETY_NOTE);
+    expect(stdout).toContain(STANDIN_ADMITTED);
+    expect(heldBackCount(stdout)).toBeGreaterThanOrEqual(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("removed side, frozen: the same reword is green once a row names both sentences with a filled companion", () => {
+    const { root } = makeMirror("gops-cr01r2-rem-row-", {
+      baseCorpus: { [ROLE_UNDER_TEST]: roleWithSafetyLimit },
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: removedSidePlant, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, SAFETY_BASE_LIMIT, SAFETY_REMOVED_REWORD, SAFETY_COMPANION),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    expect(heldBackCount(stdout)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("added side, frozen: a fact-free `## Hard limits` sentence reworded to a fact-bearing one is red", () => {
+    expect(addedSidePlant).not.toBe(ROLE_BODY(REAL_ROLES[0]));
+    const { root } = makeMirror("gops-cr01r2-add-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: addedSidePlant, [STANDIN_REL]: STUB_PASS },
+      dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(added) — FROZEN by structuralSections");
+    expect(stdout).toContain(SAFETY_NOTE);
+    expect(heldBackCount(stdout)).toBeGreaterThanOrEqual(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("added side, frozen: the same reword is green once a row names both sentences with a filled companion", () => {
+    const { root } = makeMirror("gops-cr01r2-add-row-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: addedSidePlant, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, HARD_LIMIT_SENTENCE, SAFETY_ADDED_REWORD, SAFETY_COMPANION),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("outside frozen sections: a fact-bearing sentence added under `## Notes` with no row is red", () => {
+    expect(notesPlant).not.toBe(ROLE_BODY(REAL_ROLES[0]));
+    const { root } = makeMirror("gops-cr01r2-notes-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: notesPlant, [STANDIN_REL]: STUB_PASS },
+      dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain(`${ROLE_UNDER_TEST}:`);
+    expect(stdout).toContain("(added) — no disposition row");
+    expect(stdout).toContain(SAFETY_NOTE);
+    expect(stdout).not.toContain("FROZEN by structuralSections");
+    expect(heldBackCount(stdout)).toBe(1);
+  });
+
+  it("outside frozen sections: the same sentence is green with an ordinary row (companion `—`)", () => {
+    const { root } = makeMirror("gops-cr01r2-notes-row-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: notesPlant, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([row(ROLE_UNDER_TEST, "—", SAFETY_NOTES_LINE, "—")]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    expect(heldBackCount(stdout)).toBe(1);
+  });
+
+  it("control: a fact-free role reword is still admitted by the stand-in, with nothing held back", () => {
+    const { root } = makeMirror("gops-cr01r2-control-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    const m = stdout.match(new RegExp(`PASS {2}(\\d+) ${STANDIN_ADMITTED.replace(/[().]/g, "\\$&")}`));
+    expect(m, "the PASS-side stand-in line must be printed").not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThan(0);
+    expect(heldBackCount(stdout)).toBe(0);
+    expect(stdout).not.toContain(SAFETY_NOTE);
+  });
+
+  it("with no key, the gate prints no held-back count (behavior unchanged without the stand-in)", () => {
+    const { root } = makeMirror("gops-cr01r2-nokey-", {
+      plant: { [ROLE_UNDER_TEST]: notesPlant },
+      dispositions: {
+        "29-05.md": dispositionFile([row(ROLE_UNDER_TEST, "—", SAFETY_NOTES_LINE, "—")]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    expect(heldBackCount(stdout)).toBeNull();
+    expect(stdout).not.toContain(SAFETY_NOTE);
+  });
 });
