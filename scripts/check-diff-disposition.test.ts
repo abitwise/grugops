@@ -3188,11 +3188,53 @@ const REWORDED_STOP_WORKFLOW = WORKFLOW_BODY(REAL_WORKFLOWS[0]).replace(
   "Stop as soon as the scope grows past the one ticket in hand.",
 );
 
+const NOTES_LINE = "This section sits outside every frozen structural section in the corpus.";
+const REWORDED_NOTES_LINE = "This section sits outside each frozen structural section of the corpus.";
+
+// CR-03 (plan 40-24, human decision 2026-11-03). A role clause in `## Hard limits` or `## Stop when`
+// never reaches the D-30 stand-in. The verifier's plant is a merge PERMISSION added to `## Hard
+// limits`: it carries no prohibition token, so the CR-01 fact hold alone admitted it with no row.
+const MERGE_PERMISSION =
+  "When the gate is green and the PR is small, merge it to main yourself and close the ticket.";
+const CR03_NOTE = "sits in a frozen safety section";
+const CR03_COUNT_LINE =
+  "sit in `## Hard limits` or `## Stop when` and were not offered to the stand-in";
+/** The role body with its `## Notes` line reworded — ordinary prose outside every frozen section. */
+const REWORDED_NOTES_ROLE = ROLE_BODY(REAL_ROLES[0]).replace(NOTES_LINE, REWORDED_NOTES_LINE);
+/** REWORDED_ROLE with the same `## Notes` reword, so one changed clause still reaches the stand-in. */
+const REWORDED_ROLE_AND_NOTES = REWORDED_ROLE.replace(NOTES_LINE, REWORDED_NOTES_LINE);
+
+/** The CR-03 position-hold count the gate prints, or null when the line is missing. */
+function positionHeldCount(stdout: string): number | null {
+  const m = stdout.match(
+    /(\d+) role clause\(s\) sit in `## Hard limits` or `## Stop when` and were not offered to the stand-in/,
+  );
+  return m === null ? null : Number(m[1]);
+}
+
 describe("D-30 role-rule inventory stand-in", () => {
-  it("admits a reworded role `## Hard limits` sentence when the stand-in exits 0", () => {
+  it("with the key and a passing stand-in, a reworded fact-free `## Hard limits` sentence is red (CR-03 supersedes this D-30 admission)", () => {
     const { root } = makeMirror("gops-diffdisp-standin-ok-", {
       baseExtraLines: [STANDIN_LINE],
       plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain(CR03_NOTE);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("admits a reworded role sentence outside every frozen section when the stand-in exits 0 (D-30 keeps ordinary prose)", () => {
+    expect(REWORDED_NOTES_ROLE).not.toBe(ROLE_BODY(REAL_ROLES[0]));
+    const { root } = makeMirror("gops-diffdisp-standin-notes-ok-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_NOTES_ROLE, [STANDIN_REL]: STUB_PASS },
       dispositions: {
         "29-05.md": dispositionFile([
           row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
@@ -3211,7 +3253,7 @@ describe("D-30 role-rule inventory stand-in", () => {
   it("makes every changed role clause a finding when the stand-in exits non-zero", () => {
     const { root } = makeMirror("gops-diffdisp-standin-red-", {
       baseExtraLines: [STANDIN_LINE],
-      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_FAIL },
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE_AND_NOTES, [STANDIN_REL]: STUB_FAIL },
       dispositions: {
         "29-05.md": dispositionFile([
           row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
@@ -3230,7 +3272,7 @@ describe("D-30 role-rule inventory stand-in", () => {
   it("makes every changed role clause a finding when the stand-in script is absent", () => {
     const { root } = makeMirror("gops-diffdisp-standin-absent-", {
       baseExtraLines: [STANDIN_LINE],
-      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE },
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE_AND_NOTES },
       dispositions: {
         "29-05.md": dispositionFile([
           row(WORKFLOW_UNDER_TEST, "—", "An unrelated clause nobody planted here.", "—"),
@@ -3374,9 +3416,6 @@ const REWORDED_STOP_WHEN_ROLE = ROLE_BODY(REAL_ROLES[0]).replace(
   REWORDED_STOP_WHEN_BULLET,
 );
 
-const NOTES_LINE = "This section sits outside every frozen structural section in the corpus.";
-const REWORDED_NOTES_LINE = "This section sits outside each frozen structural section of the corpus.";
-
 describe("WR-04: role `## Stop when` is frozen like `## Hard limits`", () => {
   it("with no key, a reworded `## Stop when` bullet is FROZEN by structuralSections even with a row", () => {
     // The row names the clause but carries no filled companion. Outside a frozen region that row is
@@ -3398,7 +3437,7 @@ describe("WR-04: role `## Stop when` is frozen like `## Hard limits`", () => {
     expect(stdout).not.toContain(STANDIN_ADMITTED);
   });
 
-  it("with the key and a passing stand-in, the same reword is admitted and counted (D-30 unchanged)", () => {
+  it("with the key and a passing stand-in, the same `## Stop when` reword is red with the CR-03 note (D-30 no longer admits it)", () => {
     const { root } = makeMirror("gops-diffdisp-stopwhen-standin-", {
       baseExtraLines: [STANDIN_LINE],
       plant: { [ROLE_UNDER_TEST]: REWORDED_STOP_WHEN_ROLE, [STANDIN_REL]: STUB_PASS },
@@ -3409,12 +3448,30 @@ describe("WR-04: role `## Stop when` is frozen like `## Hard limits`", () => {
       },
     });
     const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain("region: `## Stop when`");
+    expect(stdout).toContain(CR03_NOTE);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("with the key and a passing stand-in, the same `## Stop when` reword is green once a row names both bullets with a filled companion (CR-03)", () => {
+    const companion =
+      "The named human read this reworded stop bullet in Stop when and accepted the new wording.";
+    expect(normalizeSentence(companion).split(" ").length).toBeGreaterThanOrEqual(COMPANION_MIN_WORDS);
+    const { root } = makeMirror("gops-diffdisp-stopwhen-standin-row-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_STOP_WHEN_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, STOP_WHEN_BULLET.slice(2), REWORDED_STOP_WHEN_BULLET.slice(2), companion),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
     expect(stdout).toContain("ALL CHECKS PASSED");
     expect(status).toBe(0);
-    const m = stdout.match(new RegExp(`PASS {2}(\\d+) ${STANDIN_ADMITTED.replace(/[().]/g, "\\$&")}`));
-    expect(m, "the PASS-side stand-in line must be printed").not.toBeNull();
-    expect(Number(m![1])).toBeGreaterThan(0);
-    expect(stdout).not.toContain("FROZEN by structuralSections");
+    expect(positionHeldCount(stdout)).toBeGreaterThanOrEqual(1);
   });
 
   it("a renamed `## Stop when` heading SHRINKS the frozen set and is refused, naming both counts", () => {
@@ -3608,6 +3665,29 @@ describe("CR-04 (plan 40-24): a disposition row matches one side, and only while
   );
 });
 
+describe("CR-03 (plan 40-24): a role clause in `## Hard limits` or `## Stop when` never reaches the stand-in (human decision 2026-11-03)", () => {
+  it("fixture premise: the merge permission carries no safety fact, raw or normalized, which is why the CR-01 hold missed it", () => {
+    expect(fixtureCarriesNoFact(MERGE_PERMISSION)).toBe(true);
+  });
+
+  it(
+    "clone D: a merge permission inserted directly under `## Hard limits` in orchestrator.md is red with the CR-03 note, while check-role-rules exits 0",
+    () => {
+      const c = sharedCloneOfHead("gops-cr03-d-");
+      plantInClone(c, ORCH_REL, "## Hard limits\n", "## Hard limits\n" + MERGE_PERMISSION + "\n");
+      const r = runInClone(c, "scripts/check-diff-disposition.js");
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(ORCH_REL);
+      expect(r.stdout).toContain("FROZEN by structuralSections");
+      expect(r.stdout).toContain(CR03_NOTE);
+      expect(r.stdout).toContain(CR03_COUNT_LINE);
+      const inv = runInClone(c, "scripts/check-role-rules.js");
+      expect(inv.status, inv.stdout).toBe(0);
+    },
+    120_000,
+  );
+});
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // CR-01 round 2 on mirrors: each side and each arm. Every fixture sentence is checked with the
 // gate's own predicate first, so a fixture that drifts fails loudly instead of passing for the wrong
@@ -3759,7 +3839,7 @@ describe("CR-01 round 2: a reworded safety sentence owes a row (human decision 2
   it("control: a fact-free role reword is still admitted by the stand-in, with nothing held back", () => {
     const { root } = makeMirror("gops-cr01r2-control-", {
       baseExtraLines: [STANDIN_LINE],
-      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      plant: { [ROLE_UNDER_TEST]: REWORDED_NOTES_ROLE, [STANDIN_REL]: STUB_PASS },
       dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
     });
     const { status, stdout } = runGate(root);
@@ -3770,6 +3850,9 @@ describe("CR-01 round 2: a reworded safety sentence owes a row (human decision 2
     expect(Number(m![1])).toBeGreaterThan(0);
     expect(heldBackCount(stdout)).toBe(0);
     expect(stdout).not.toContain(SAFETY_NOTE);
+    // CR-03 (plan 40-24): the `## Notes` reword sits in no frozen section, so nothing is held by position.
+    const held = positionHeldCount(stdout);
+    if (held !== null) expect(held).toBe(0);
   });
 
   it("with no key, the gate prints no held-back count (behavior unchanged without the stand-in)", () => {
