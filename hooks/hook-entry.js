@@ -232,7 +232,7 @@ const DECIDER_MANIFEST = {
         "install/state-layout.js": "2cce25a03ca66b8ca3d85924bbf324bcc999f4d08e6464734e35d0912dd44c0c",
         "scripts/audit-model.js": "e0cf5413a343e6ce54f9c4c7d7edb38cff89fed95711033eb00affeb38dee49a",
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
-        "scripts/check-diff-disposition.js": "1941cf6cbd8940b1e606921fa6f9b8270a87fe47890551fc2e18c21021aa4851",
+        "scripts/check-diff-disposition.js": "2f9362840df4b4810c2af8293ef91cb3ce25a547d8387f3aa1dfae83dc04804d",
         "scripts/check-role-rules.js": "3d479c9108f6617ca024d12129d422947a0470088e1d05239c745475ac2e2dea",
         "scripts/checkpoints.js": "b7070fbe99194a2bc7d451834fd2113efc4de557b82bcf75cbba12c03d415216",
         "scripts/context-io.js": "3bff331a2db45b6e0f3a906ec5b78b7b61372624454f3d860c91467807f7d906",

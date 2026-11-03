@@ -127,8 +127,9 @@
 // When the key is present, main() spawns `node <value> --check` ONCE — from the CLI path, never at
 // module load, because scripts/checkpoints.ts imports locateSection from this module and the
 // admission hook loads it. If that run exits 0, a changed clause under agent-factory/roles/ that is
-// frozen only by `structuralSections`, or that has no disposition row, is admitted unless it carries a
-// safety fact (CR-01 round 2, below), and counted on the
+// frozen only by `structuralSections`, or that has no disposition row, is admitted unless it sits in
+// `## Hard limits` or `## Stop when` (CR-03) or carries a safety fact (CR-01 round 2), both below, and
+// counted on the
 // line "N role clause(s) admitted by the role-rule inventory stand-in (D-30)". It FAILS CLOSED: a
 // missing script, a spawn error or a non-zero exit makes every such role clause a finding naming the
 // stand-in failure, and a key outside the canonical form is a named refusal. A role clause that equals
@@ -151,9 +152,8 @@
 // stops, the Compliance Officer's legal escalation, the Installer's stop-and-ask, the engineer's scope
 // hand-back. They moved out of `## Hard limits`, which this gate froze, into a section nothing froze.
 // So `## Stop when` is the fourth FROZEN_SECTION_ANCHORS entry, located by heading and asserted at
-// ROLE_COUNT like the other three. While the D-30 stand-in holds it admits both role sections'
-// clauses on the same terms (the `structuralSections` arm, nothing wider); when the stand-in ends,
-// an edit to either section owes a disposition row.
+// ROLE_COUNT like the other three. Since plan 40-24 (CR-03) the stand-in admits neither section's
+// clauses: an edit to either owes a disposition row with a filled companion.
 //
 // CR-01 ROUND 2 (plan 40-21, human decision 2026-11-02) — THE STAND-IN NEVER SEES A SAFETY SENTENCE.
 //
@@ -179,6 +179,14 @@
 // matches only a row's `before` and an added clause only its `after`, and a row whose non-empty `after`
 // is not an added clause of the same file in the current diff matches nothing. An identical-sides row
 // therefore matches only while its clause is on both sides of the diff.
+//
+// CR-03 (plan 40-24, human decision 2026-11-03) — THE STAND-IN NEVER SEES A FROZEN ROLE SECTION.
+//
+// A permission added to `## Hard limits` carries no prohibition token, so the CR-01 fact hold alone
+// admitted it with no row. The hold is now by position as well as content: a role clause is held back
+// when the key is declared, the file is under agent-factory/roles/, and the clause sits in a frozen
+// region or carries a safety fact (`c.region !== null || carriesSafetyFact(c.clause)`). Only role
+// prose outside `## Hard limits` and `## Stop when` still reaches the stand-in.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
@@ -1754,6 +1762,11 @@ function main() {
     const SAFETY_HOLD_NOTE = `        carries a safety fact (SAFETY_RULE_FACTS in scripts/check-role-rules.js), so the D-30 ` +
         `stand-in does not admit it: a changed safety sentence owes a disposition row a named human ` +
         `reads (CR-01)\n`;
+    // CR-03 (plan 40-24): fact-free role clauses held back because they sit in a frozen role section.
+    let heldBackForPosition = 0;
+    const safetySectionNote = (heading) => `        sits in a frozen safety section (\`${heading}\`), so the D-30 stand-in does not admit ` +
+        `it: a changed \`## Hard limits\` or \`## Stop when\` sentence owes a disposition row with a ` +
+        `filled companion, which a named human reads (CR-03)\n`;
     for (const c of changed.clauses) {
         // Positional freeze: the structural sections are frozen by WHERE they are, which is what
         // catches a REWORD. The reworded text is new, so it matches no frozen clause; its position
@@ -1763,9 +1776,14 @@ function main() {
         // prefix with a frozen clause is NOT an intersection and needs only an ordinary row.
         const textSource = frozen.text.get(c.clause);
         const source = region !== null ? "structuralSections" : (textSource ?? null);
-        // CR-01 round 2. Computed once per clause, on whichever side it sits: a role clause under the
-        // stand-in's scope that carries a safety fact is never offered to the stand-in on either arm.
-        const safetyHeld = standinRun.declared && c.file.startsWith(ROLE_STANDIN_SCOPE) && carriesSafetyFact(c.clause);
+        // CR-01 round 2 and CR-03. Computed once per clause, on whichever side it sits: a role clause
+        // under the stand-in's scope is never offered to the stand-in on either arm when it carries a
+        // safety fact (CR-01) or sits inside a frozen role section, `## Hard limits` or `## Stop when`
+        // (CR-03). The no-row arm only sees clauses with no region, so there the hold is the fact alone.
+        const factHeld = carriesSafetyFact(c.clause);
+        const safetyHeld = standinRun.declared &&
+            c.file.startsWith(ROLE_STANDIN_SCOPE) &&
+            (c.region !== null || factHeld);
         // D-30. Only a clause frozen by POSITION alone reaches the stand-in: a clause that also equals a
         // registry verbatim anchor or a positive guard literal never does, whatever section it sits in, so
         // the registry and guard-literal companions stay owed. (A structural clause's own text is in the
@@ -1775,8 +1793,14 @@ function main() {
             (textSource === undefined || textSource === "structuralSections") &&
             !positiveLiteralClauses.has(c.clause)) {
             if (safetyHeld) {
-                heldBackForSafety += 1;
-                standinNote = SAFETY_HOLD_NOTE;
+                if (factHeld) {
+                    heldBackForSafety += 1;
+                    standinNote = SAFETY_HOLD_NOTE;
+                }
+                else {
+                    heldBackForPosition += 1;
+                    standinNote = safetySectionNote(region === null ? "" : region.heading);
+                }
             }
             else {
                 const s = standinFor(c.file);
@@ -1963,6 +1987,9 @@ function main() {
     if (standinRun.declared) {
         process.stdout.write(`        ${heldBackForSafety} role clause(s) carry a safety fact and were not offered to the ` +
             `stand-in (CR-01); each needs a disposition row\n`);
+        process.stdout.write(`        ${heldBackForPosition} role clause(s) sit in \`## Hard limits\` or \`## Stop when\` ` +
+            `and were not offered to the stand-in (CR-03); each needs a disposition row with a filled ` +
+            `companion\n`);
     }
     reportStandin(standinRun, admittedByStandin);
     FAILS += reportMeasured(measured, { pass, fail }, (f) => `        ${f.text}`);
