@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-22-PLAN.md
-last_updated: "2026-11-03T20:00:54.931Z"
+stopped_at: Completed 40-23-PLAN.md
+last_updated: "2026-11-03T20:29:25.612Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 18ce2d314fb9e0d2f1a5a20a3f9f012267670140
+state_head: 8885666cbf9d3bf89ccb16cfd847eca19a78f182
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 113
-  completed_plans: 110
+  completed_plans: 111
   percent: 56
 ---
 
@@ -827,6 +827,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P20 | 1 day (human checkpoint) | 3 tasks | 1 files |
 | Phase 40 P21 | 41 min | 3 tasks | 13 files |
 | Phase 40 P22 | 8 min | 2 tasks | 5 files |
+| Phase 40 P23 | 25min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2288,6 +2289,9 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-21: the D-30 stand-in never admits a changed role clause that carries a safety fact (carriesSafetyFact imported from check-role-rules.js, both sides, both admission points); check-role-rules.js and install/state-layout.js are now in the admission hook's decider closure, so edits to them need npm run generate:hook-manifest
 - [Phase 40]: 40-22 WR-07: rule 6 arm (d) unspans single-column code spans and names two-span, ASCII/⇒/⟶ arrow and from/to board moves as one (WR-07) finding each, deduplicated against arm (c)
 - [Phase 40]: 40-22 IN-05: a shallow repository FAILs the IN-01 baseline content check naming fetch-depth: 0; mirrors with no history keep the NOTE; process.env.CI is never the trigger
+- [Phase 40]: 40-23 WR-08: the lean close and its hold need the named human's sign-off and the human merge at every sign_off_acceptance value (decision 4, Olger, 2026-11-03)
+- [Phase 40]: 40-23 WR-09: the UAT Planner's named-human sign-off stays unconditional; uat-planner.md unchanged; the dial only shapes the lean close record (decision 2, Olger, 2026-11-03)
+- [Phase 40]: 40-23 rows: Olger accepted all 16 rows of docs/audit/29-style-dispositions/40-23.md on 2026-11-03 (accept-all, Olger)
 
 ### Pending Todos
 
@@ -2627,8 +2631,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-03T20:00:53.989Z
-Stopped at: Completed 40-22-PLAN.md
+Last session: 2026-11-03T20:29:24.636Z
+Stopped at: Completed 40-23-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
