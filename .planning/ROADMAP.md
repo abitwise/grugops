@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 21/21 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16; 5 gap-closure plans, 40-17 to 40-21, planned)
+**Plans**: 21/25 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16; 5 gap-closure plans, 40-17 to 40-21; 4 gap-closure plans, 40-22 to 40-25, planned)
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -562,6 +562,18 @@ Gap wave 3 *(blocked on gap wave 2)*
 
 Gap wave 4 *(blocked on gap wave 3)*
 - [x] 40-21-PLAN.md — the D-30 stand-in refuses any changed role clause that carries a safety fact; shared-clone red case, hook manifest and closure baselines; review dispositions closed (CR-01; PLAIN-03)
+
+**Gap closure, round 3** *(from the 40-VERIFICATION.md re-verification of 2026-11-03: CR-03 and CR-04 in the D-30 stand-in, WR-07 to WR-09, IN-05 to IN-07; human decisions of 2026-11-03)*
+
+Gap wave 1 *(parallel, disjoint files)*
+- [ ] 40-22-PLAN.md — rule 6 names a board move written as two code spans around an arrow or as from/to prose; a shallow history FAILs the baseline content check (WR-07, IN-05; PLAIN-03)
+- [ ] 40-23-PLAN.md — the Orchestrator's lean close and hold name the named human's sign-off; Workflow 06 stops saying the dial lowers the UAT Planner's unconditional sign-off; pins, side-correct rows and the named human's read (WR-08, WR-09; PLAIN-02, PLAIN-03, PLAIN-04, PLAIN-07; human checkpoint)
+
+Gap wave 2 *(blocked on gap wave 1)*
+- [ ] 40-24-PLAN.md — disposition rows match one side and only while their `after` exists; no role `## Hard limits` / `## Stop when` clause reaches the stand-in; clone red cases; the shipped rewrite's owed rows written as pending (CR-04, CR-03; PLAIN-03)
+
+Gap wave 3 *(blocked on gap wave 2)*
+- [ ] 40-25-PLAN.md — the named human reads the 40-24 rows; all eight round-2 findings dispositioned; deferred item (c) closed (CR-03, CR-04, IN-06, IN-07; PLAIN-03; human checkpoint)
 
 **Cross-cutting constraints:**
 - D-27 / D-31: `node scripts/check-role-rules.js` stays green and each role's fact count after is at least its baseline count
