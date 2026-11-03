@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
-status: executing
-stopped_at: Completed 40-24-PLAN.md
-last_updated: "2026-11-03T20:51:53.179Z"
+status: verifying
+stopped_at: Completed 40-25-PLAN.md
+last_updated: "2026-11-03T22:08:41.659Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 9bd16d066af73f70ef8218481bfbc2c81ff9964f
+state_head: caaf91c3d230d86b940ae3fbb048c24eccee2555
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 113
-  completed_plans: 112
+  completed_plans: 113
   percent: 56
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 40 (Plain-language role rewrite) — READY TO EXECUTE
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-01 — Phase 40 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -829,6 +829,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P22 | 8 min | 2 tasks | 5 files |
 | Phase 40 P23 | 25min | 3 tasks | 5 files |
 | Phase 40 P24 | 20 min | 3 tasks | 6 files |
+| Phase 40 P25 | 15min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -2295,6 +2296,8 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-23 rows: Olger accepted all 16 rows of docs/audit/29-style-dispositions/40-23.md on 2026-11-03 (accept-all, Olger)
 - [Phase 40]: CR-04 (human decision 1, Olger, 2026-11-03): rowMatches is side-aware and refuses a row whose non-empty after is not an added clause in the diff
 - [Phase 40]: CR-03 (human decision 1): no role clause in ## Hard limits or ## Stop when reaches the D-30 stand-in; 309 owed rows in 40-24.md are pending (named human) for plan 40-25
+- [Phase 40]: Olger accepted all 309 CR-03 / CR-04 rows in 40-24.md on 2026-11-03 (accept-all, Olger); no row flagged
+- [Phase 40]: Gap round 3 closed: CR-03, CR-04, WR-07, WR-08, WR-09, IN-05 fixed; IN-06 and IN-07 deferred with reasons (40-REVIEW-DISPOSITION.md open: 0)
 
 ### Pending Todos
 
@@ -2634,8 +2637,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-03T20:51:52.222Z
-Stopped at: Completed 40-24-PLAN.md
+Last session: 2026-11-03T22:08:40.752Z
+Stopped at: Completed 40-25-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
