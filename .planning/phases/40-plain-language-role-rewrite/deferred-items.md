@@ -88,7 +88,7 @@
 - (c) The plan 40-11 residual, narrowed by plan 40-21. A role sentence that carries a safety fact now owes a
   disposition row whenever it changes. A `## Hard limits` or `## Stop when` sentence that carries no safety fact is
   still admitted by the D-30 stand-in while the stand-in holds.
-  status: open
+  status: closed (plan 40-24: no role clause in `## Hard limits` or `## Stop when` reaches the D-30 stand-in, CR-03; the shipped clauses' rows were read by Olger, 2026-11-03, plan 40-25)
 - (d) Rows the human flagged in plan 40-20: none. Olger accepted all 36 rows on 2026-11-03 ("accept-all, Olger"),
   so there is no CR-01 follow-up to carry.
   status: closed (nothing flagged)
@@ -97,4 +97,22 @@
   40-17 limit 6,057 B; the growth cases allow about 6,061 B), `uat-planner.md` 2,747 B (about 3 B of growth room,
   per plan 40-17), role corpus 59,803 B. Any reword of these two files that grows them needs that room checked
   first. After plan 40-23: orchestrator.md 6,036 B, role corpus 59,793 B (`wc -c`).
+  status: open
+
+## From gap round 3 (plans 40-22 to 40-25)
+
+- IN-06: the fact patterns were widened to fit the normalized form, which also loosens the baseline floor. Deferred:
+  the removed-side safety hold (plan 40-21) already makes a key-to-prose reword of a fact-bearing role clause owe a
+  named-human row, because the removed clause carries the fact, so the looser floor cannot hide that reword. Splitting
+  the pattern table would change the derivation the committed baseline and the 40-20 rows were measured with.
+  Candidate: when the D-30 stand-in ends, together with item (a) of gap round 2.
+  status: open
+- IN-07: the admission hook's verified closure now includes the inventory gate. Deferred: moving SAFETY_RULE_FACTS and
+  carriesSafetyFact into a module with no imports touches the hook manifest, CLOSURE_BASELINES and the seven scratch
+  kits plan 40-21 updated. `npm run freshness:hook-manifest` already fails closed in CI on a forgotten regeneration, so
+  the coupling costs a command, not safety. Candidate: a tooling cleanup after Phase 40.
+  status: open
+- `agent-factory/config/factory.config.md` line 207: the `sign_off_acceptance` table cell still names only missing,
+  ambiguous or unmet criteria. With the UAT Planner's named-human sign-off unconditional, the dial cannot remove the
+  named human; reword the cell if the human asks.
   status: open

@@ -135,3 +135,7 @@ The reply accepts all 31 rows and flags none, so WR-06 leaves no open follow-up.
 ## CR-01 round 2: the stand-in no longer admits a safety sentence (2026-11-02)
 
 By the named human's decision (Olger, 2026-11-02), the role-rule inventory stand-in refuses any changed role clause that carries a `SAFETY_RULE_FACTS` fact, on either side of the diff (plan 40-21). The rewrite's own such clauses are dispositioned in `docs/audit/29-style-dispositions/40-20.md`, and the named human read them. The recorded base and the `role_standin` key are unchanged.
+
+## CR-03 and CR-04: the stand-in no longer sees a frozen role section, and a row matches one side (2026-11-03)
+
+By the named human's decision (Olger, 2026-11-03), no role clause in `## Hard limits` or `## Stop when` is offered to the role-rule inventory stand-in, and a disposition row matches only the side it names while its `after` still exists (plan 40-24). The shipped clauses this newly requires are dispositioned in `docs/audit/29-style-dispositions/40-24.md` and were read by the named human, who accepted all 309 rows on 2026-11-03 (plan 40-25). The recorded base and the `role_standin` key are unchanged.
