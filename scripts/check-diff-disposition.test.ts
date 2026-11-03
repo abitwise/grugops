@@ -3869,3 +3869,239 @@ describe("CR-01 round 2: a reworded safety sentence owes a row (human decision 2
     expect(stdout).not.toContain(SAFETY_NOTE);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CR-03 and CR-04 (plan 40-24) on mirrors: each fix, side and arm. Every fixture sentence is checked
+// with the gate's own fact predicate first, so a fixture that drifts fails loudly. Every red case
+// asserts the note that proves why it is red (CR03_NOTE or CR04_NOTE); no gate before plan 40-24
+// printed either, so none of these red cases could pass against the pre-plan gate.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const CR03_ADDED_LIMIT = "Keep each review note short and tied to one acceptance scenario.";
+const CR03_COMPANION =
+  "The named human read this changed sentence in Hard limits or Stop when and accepted it.";
+const CR04_FIRST = "Record every reviewer question in the ticket thread before the stand-up.";
+const CR04_SECOND = "Link each open question to the acceptance scenario it blocks.";
+const CR04_SECOND_REWORDED = "Link every open question to the acceptance scenario that it blocks.";
+const CR04_DELETED = "Archive the sprint notes once the review has closed.";
+const CR04_ADDED = "Publish the sprint notes after the review closes in full.";
+
+/** The finding count on the gate's FAIL line, or null when the gate printed none. */
+function findingCount(stdout: string): number | null {
+  const m = stdout.match(/(\d+) finding\(s\) over/);
+  return m === null ? null : Number(m[1]);
+}
+
+describe("CR-03 and CR-04 (plan 40-24) — mirrors", () => {
+  const roleWithAddedLimit = ROLE_BODY(REAL_ROLES[0]).replace(
+    HARD_LIMIT_SENTENCE,
+    `${HARD_LIMIT_SENTENCE}\n${CR03_ADDED_LIMIT}`,
+  );
+  const roleWithoutStopBullet = ROLE_BODY(REAL_ROLES[0]).replace(`${STOP_WHEN_BULLET}\n`, "");
+  const notesTwoSentences = workflowWithNote(`${CR04_FIRST} ${CR04_SECOND}`);
+  const roleTwoLimits = ROLE_BODY(REAL_ROLES[0]).replace(
+    HARD_LIMIT_SENTENCE,
+    `${SAFETY_BASE_LIMIT} ${HARD_LIMIT_SENTENCE}`,
+  );
+
+  it("fixture premises: each new sentence carries a fact exactly where the case needs one, and every one has at least four words", () => {
+    for (const s of [
+      CR03_ADDED_LIMIT,
+      CR04_FIRST,
+      CR04_SECOND,
+      CR04_SECOND_REWORDED,
+      CR04_DELETED,
+      CR04_ADDED,
+    ]) {
+      expect(fixtureCarriesNoFact(s), s).toBe(true);
+      expect(normalizeSentence(s).split(" ").length, s).toBeGreaterThanOrEqual(4);
+    }
+    expect(fixtureCarriesFact(SAFETY_BASE_LIMIT)).toBe(true);
+    expect(fixtureCarriesNoFact(HARD_LIMIT_SENTENCE)).toBe(true);
+    expect(normalizeSentence(CR03_COMPANION).split(" ").length).toBeGreaterThanOrEqual(
+      COMPANION_MIN_WORDS,
+    );
+    expect(roleWithAddedLimit).not.toBe(ROLE_BODY(REAL_ROLES[0]));
+    expect(roleWithoutStopBullet).not.toBe(ROLE_BODY(REAL_ROLES[0]));
+    expect(notesTwoSentences).not.toBe(WORKFLOW_BODY(REAL_WORKFLOWS[0]));
+    expect(roleTwoLimits).not.toBe(ROLE_BODY(REAL_ROLES[0]));
+  });
+
+  it("CR-03 pure addition: a fact-free sentence added under `## Hard limits` with no row is red, with the CR-03 note and count", () => {
+    const { root } = makeMirror("gops-cr03-add-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: roleWithAddedLimit, [STANDIN_REL]: STUB_PASS },
+      dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(added) — FROZEN by structuralSections");
+    expect(stdout).toContain(CR03_NOTE);
+    expect(positionHeldCount(stdout)).toBeGreaterThanOrEqual(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("CR-03 pure addition: the same addition is green with a row (before `—`) and a filled companion", () => {
+    const { root } = makeMirror("gops-cr03-add-row-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: roleWithAddedLimit, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([row(ROLE_UNDER_TEST, "—", CR03_ADDED_LIMIT, CR03_COMPANION)]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    expect(positionHeldCount(stdout)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("CR-03 removal: deleting the `## Stop when` bullet with no row is red, with the CR-03 note", () => {
+    const { root } = makeMirror("gops-cr03-rem-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: roleWithoutStopBullet, [STANDIN_REL]: STUB_PASS },
+      dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(removed) — FROZEN by structuralSections");
+    expect(stdout).toContain("region: `## Stop when`");
+    expect(stdout).toContain(CR03_NOTE);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("CR-03 removal: the same deletion is green with a row (after `—`) and a filled companion", () => {
+    const { root } = makeMirror("gops-cr03-rem-row-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: roleWithoutStopBullet, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, STOP_WHEN_BULLET.slice(2), "—", CR03_COMPANION),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("CR-03 unfilled companion: the pure addition with a row whose companion is `—` is red", () => {
+    const { root } = makeMirror("gops-cr03-unfilled-", {
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: roleWithAddedLimit, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([row(ROLE_UNDER_TEST, "—", CR03_ADDED_LIMIT, "—")]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(added) — FROZEN by structuralSections");
+    expect(stdout).toContain(CR03_NOTE);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("CR-03 no key: the pure addition is a FROZEN finding with no CR-03 note and no CR-03 count line (behavior unchanged without the stand-in)", () => {
+    const { root } = makeMirror("gops-cr03-nokey-", {
+      plant: { [ROLE_UNDER_TEST]: roleWithAddedLimit },
+      dispositions: { "29-05.md": dispositionFile([UNRELATED_ROW]) },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(added) — FROZEN by structuralSections");
+    expect(stdout).not.toContain(CR03_NOTE);
+    expect(positionHeldCount(stdout)).toBeNull();
+    expect(stdout).not.toContain(STANDIN_ADMITTED);
+  });
+
+  it("CR-04 stale identical row: deleting a sentence an identical-sides row records is red at the removed sentence, with the CR-04 note", () => {
+    const { root } = makeMirror("gops-cr04-stale-", {
+      baseCorpus: { [WORKFLOW_UNDER_TEST]: notesTwoSentences },
+      plant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(CR04_SECOND_REWORDED) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, CR04_FIRST, CR04_FIRST, "—"),
+          row(WORKFLOW_UNDER_TEST, CR04_SECOND, CR04_SECOND_REWORDED, "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(removed) — no disposition row");
+    expect(stdout).toContain(`clause: ${JSON.stringify(normalizeSentence(CR04_FIRST))}`);
+    expect(stdout).toContain(CR04_NOTE);
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("CR-04 stale identical row, control: keeping the first sentence while rewording the second is green on the same rows", () => {
+    const { root } = makeMirror("gops-cr04-stale-ctl-", {
+      baseCorpus: { [WORKFLOW_UNDER_TEST]: notesTwoSentences },
+      plant: {
+        [WORKFLOW_UNDER_TEST]: workflowWithNote(`${CR04_FIRST} ${CR04_SECOND_REWORDED}`),
+      },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, CR04_FIRST, CR04_FIRST, "—"),
+          row(WORKFLOW_UNDER_TEST, CR04_SECOND, CR04_SECOND_REWORDED, "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("CR-04 swapped cells: a row whose before is the new text and after the old text is red on both sides", () => {
+    const { root } = makeMirror("gops-cr04-swapped-", {
+      baseCorpus: { [WORKFLOW_UNDER_TEST]: workflowWithNote(CR04_SECOND) },
+      plant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(CR04_SECOND_REWORDED) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, CR04_SECOND_REWORDED, CR04_SECOND, "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(removed) — no disposition row");
+    expect(stdout).toContain("(added) — no disposition row");
+    expect(stdout).toContain(CR04_NOTE);
+    expect(findingCount(stdout)).toBe(2);
+  });
+
+  it("CR-04 one-sided rows: a pure deletion row (after `—`) and a pure addition row (before `—`) are green", () => {
+    const { root } = makeMirror("gops-cr04-onesided-", {
+      baseCorpus: { [WORKFLOW_UNDER_TEST]: workflowWithNote(CR04_DELETED) },
+      plant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(CR04_ADDED) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, CR04_DELETED, "—", "—"),
+          row(WORKFLOW_UNDER_TEST, "—", CR04_ADDED, "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("CR-04 frozen role deletion: deleting a `## Hard limits` safety sentence an identical-sides row records is red at that sentence, with the CR-04 note", () => {
+    const { root } = makeMirror("gops-cr04-frozen-", {
+      baseCorpus: { [ROLE_UNDER_TEST]: roleTwoLimits },
+      baseExtraLines: [STANDIN_LINE],
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE, [STANDIN_REL]: STUB_PASS },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, SAFETY_BASE_LIMIT, SAFETY_BASE_LIMIT, SAFETY_COMPANION),
+          row(ROLE_UNDER_TEST, HARD_LIMIT_SENTENCE, REWORDED_HARD_LIMIT, CR03_COMPANION),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status, stdout).toBe(1);
+    expect(stdout).toContain("(removed) — FROZEN by structuralSections");
+    expect(stdout).toContain(`clause: ${JSON.stringify(normalizeSentence(SAFETY_BASE_LIMIT))}`);
+    expect(stdout).toContain(CR04_NOTE);
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+});
