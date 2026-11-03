@@ -69,3 +69,32 @@
   are environmental (an unpushed local HEAD) and read no file 40-19 changed; the earlier runs excluded
   `scripts/e2e/**`. They clear when the phase is pushed, or with the e2e lane excluded.
   status: open
+
+## From gap round 2 (plans 40-17 to 40-21)
+
+- (a) WR-01 second floor, deferred by the human's 2026-11-02 instruction to pick the smaller mechanism. Plan 40-17
+  pins the orchestrator close and hold by exact sentence. The named-human facts that Phase 40 added to
+  `architect-design.md`, `factory-coach.md`, `greenfield-mapper.md`, `incident-responder.md` and `installer.md`, and
+  the human-merge-deploy fact in `orchestrator.md`, have no baseline entry, so deleting one of those sentences still
+  passes every gate. Candidate for when the D-30 stand-in ends: a floor taken at the end of Phase 40.
+  status: open
+- (b) `uat-planner.md` lines 38, 45, 49 and 50 state the human sign-off at the `block` default. Whether they should
+  follow `sign_off_acceptance` like the lean close is a human decision. Lines 45 and 49 are frozen safety-fact
+  sentences, and the file has about 3 B of growth room (plan 40-17). Candidate wording from plan 40-17's flagged
+  assumptions: line 38 "after the sign-off `sign_off_acceptance` requires" (+5 B), and line 50 "After acceptance,
+  stop done: ..." (-11 B). Lines 45 and 49 need the human's decision because they are frozen safety-fact sentences;
+  after plan 40-21 any change to them also owes a disposition row a named human reads.
+  status: open
+- (c) The plan 40-11 residual, narrowed by plan 40-21. A role sentence that carries a safety fact now owes a
+  disposition row whenever it changes. A `## Hard limits` or `## Stop when` sentence that carries no safety fact is
+  still admitted by the D-30 stand-in while the stand-in holds.
+  status: open
+- (d) Rows the human flagged in plan 40-20: none. Olger accepted all 36 rows on 2026-11-03 ("accept-all, Olger"),
+  so there is no CR-01 follow-up to carry.
+  status: closed (nothing flagged)
+- (e) Byte headroom under the corpus-total growth cases in `scripts/check-foundation-guards.test.ts`, measured with
+  `wc -c` after plan 40-17 and unchanged by plan 40-21 (it edited no role file): `orchestrator.md` 6,046 B (plan
+  40-17 limit 6,057 B; the growth cases allow about 6,061 B), `uat-planner.md` 2,747 B (about 3 B of growth room,
+  per plan 40-17), role corpus 59,803 B. Any reword of these two files that grows them needs that room checked
+  first.
+  status: open

@@ -131,3 +131,7 @@ Read by: Olger, 2026-11-02
 > accept-all, Olger
 
 The reply accepts all 31 rows and flags none, so WR-06 leaves no open follow-up.
+
+## CR-01 round 2: the stand-in no longer admits a safety sentence (2026-11-02)
+
+By the named human's decision (Olger, 2026-11-02), the role-rule inventory stand-in refuses any changed role clause that carries a `SAFETY_RULE_FACTS` fact, on either side of the diff (plan 40-21). The rewrite's own such clauses are dispositioned in `docs/audit/29-style-dispositions/40-20.md`, and the named human read them. The recorded base and the `role_standin` key are unchanged.

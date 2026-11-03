@@ -5,31 +5,31 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "A safety sentence reworded to allow merging keeps its fact, so the D-30 stand-in admits it with no human row"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The CR-02 lean-close conditions are pinned only by tokens, and six roles' new safety facts have no baseline"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The partition guard reads only backtick spans that use `→`, so a gate-skipping move written with `->` or in prose is invisible"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Workflow 06 still says \"The lean path straight to `Done` is unchanged\", and its dial text conflicts with the Orchestrator's unconditional sign-off"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`check()` checks the baseline's `source_commit` but not its contents"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: fixed
     title: "Stale header text in `check-role-rules.ts`"
   - id: IN-03
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`deriveAllAt` reads `git ls-tree` paths relative to the current directory, but `git show` reads them relative to the repository root"
   - id: CR-02
     severity: critical
@@ -51,7 +51,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The gate checks `role_standin` only for form, not for the expected value, and ignores duplicates"
-open: 7
+open: 0
 total: 12
 recorded: 2026-11-02T15:00:19.654Z
 ---
@@ -60,13 +60,13 @@ recorded: 2026-11-02T15:00:19.654Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
-| IN-03 | info | open | - |
+| CR-01 | critical | fixed | plans 40-19, 40-20, 40-21: carriesSafetyFact from SAFETY_RULE_FACTS with the parity case (check-role-rules.test.ts CR-01 round 2); the D-30 stand-in refuses fact-bearing role clauses on both admission points and both sides (check-diff-disposition.test.ts "CR-01 round 2", 12 passed, the shared-clone case red on the verifier's reword); the rewrite's own safety clauses on rows in docs/audit/29-style-dispositions/40-20.md, read by the named human Olger; node scripts/check-diff-disposition.js exit 0 with 62 role clauses held back |
+| WR-01 | warning | fixed | plan 40-17: exact-sentence pins on the orchestrator close and hold, with the reviewer's mutation red (tier-kit-text.test.ts WR-01 describe; -t "WR-01\|WR-03\|dial" 28 passed). The second floor for facts gained in Phase 40 is deferred by the human's instruction to pick the smaller mechanism (deferred-items.md, gap round 2) |
+| WR-02 | warning | fixed | plan 40-18: rule 6 names ASCII-arrow spans and prose board moves (check-role-rules.test.ts partition rule 6 WR-02 cases; -t "CR-01 round 2\|IN-01\|IN-03\|WR-02\|kind" 22 passed); node scripts/check-role-rules.js exit 0 |
+| WR-03 | warning | fixed | plan 40-17: Workflow 06 lean close stops at the same checkpoint and never loses the human merge; orchestrator.md close follows the dial; negative pin extended (tier-kit-text.test.ts WR-03 and dial cases, 28 passed); rows in docs/audit/29-style-dispositions/40-17.md; check-diff-disposition exit 0 |
+| IN-01 | info | fixed | plan 40-19: check() compares the baseline JSON with a git derivation when reachable (check-role-rules.test.ts IN-01 clone cases, in the 22 passed); node scripts/check-role-rules.js exit 0 |
+| IN-02 | info | fixed | plan 40-18: header says six rules and two declared lists; FACT_KINDS subset case (check-role-rules.test.ts kind floor IN-02 cases, in the 22 passed) |
+| IN-03 | info | fixed | plan 40-19: `-z` listing and `<sha>:./<path>` reads (check-role-rules.test.ts IN-03 case, in the 22 passed) |
 | CR-02 | critical | fixed | plan 40-13: the lean close needs the named human's sign-off and a human merge; lean DoD gains the merge item; tier-kit-text.test.ts CR-02 pins (not in the current review) |
 | WR-04 | warning | fixed | plan 40-12: role `## Stop when` in FROZEN_SECTION_ANCHORS; check-diff-disposition.test.ts WR-04 describe (not in the current review) |
 | WR-05 | warning | fixed | plan 40-11: git-object writer pinned to PHASE_40_START_COMMIT; foreign source_commit refused; check-role-rules.test.ts WR-05 describe (not in the current review) |
