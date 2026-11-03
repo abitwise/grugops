@@ -1,28 +1,23 @@
 ---
 phase: 40-plain-language-role-rewrite
-reviewed: 2026-11-03T10:43:50Z
+reviewed: 2026-11-03T22:35:50Z
 depth: standard
-scope: incremental, be77596e4a3d081580122b9949dbb2be4d284645..HEAD (gap-closure round 2, plans 40-17 to 40-21)
-files_reviewed: 19
+scope: incremental, fb336d6a..HEAD (gap-closure round 3, plans 40-22 to 40-25)
+files_reviewed: 14
 files_reviewed_list:
   - agent-factory/roles/orchestrator.md
   - agent-factory/workflows/06-uat-pack.md
-  - docs/audit/29-style-dispositions/40-17.md
-  - docs/audit/29-style-dispositions/40-20.md
+  - docs/audit/29-style-dispositions/40-23.md
+  - docs/audit/29-style-dispositions/40-24.md
   - docs/audit/40-disposition-base-move.md
   - hooks/hook-entry.js
   - hooks/hook-entry.ts
-  - scripts/board-readonly.test.ts
-  - scripts/check-banned-claims.test.ts
   - scripts/check-diff-disposition.js
   - scripts/check-diff-disposition.test.ts
   - scripts/check-diff-disposition.ts
-  - scripts/check-foundation-guards.test.ts
   - scripts/check-role-rules.js
   - scripts/check-role-rules.test.ts
   - scripts/check-role-rules.ts
-  - scripts/compactor.test.ts
-  - scripts/context-io.test.ts
   - scripts/tier-kit-text.test.ts
 findings:
   critical: 2
@@ -32,144 +27,200 @@ findings:
 status: issues_found
 ---
 
-# Phase 40: Code Review Report (gap-closure round 2)
+# Phase 40: Code Review Report (gap-closure round 3)
 
-**Reviewed:** 2026-11-03T10:43:50Z
+**Reviewed:** 2026-11-03T22:35:50Z
 **Depth:** standard
-**Files Reviewed:** 19
+**Files Reviewed:** 14
 **Status:** issues_found
 
 ## Summary
 
-This review covers the changes since `be77596e`: the CR-01 round-2 safety hold in the D-30 stand-in (`check-diff-disposition.ts`, `carriesSafetyFact` in `check-role-rules.ts`), rule 6 of the board-move partition (WR-02), the IN-01 baseline-against-git comparison, the IN-03 `-z` / `./` path fix, the change to the Orchestrator's lean close and Workflow 06 so they follow the `sign_off_acceptance` dial (WR-03), the exact-sentence pins (WR-01), the 36 disposition rows in `40-20.md`, and the import-closure and manifest updates. The committed `.js` files were taken as builds of the `.ts` files, so the `.ts` files were reviewed.
+This review covers `git diff fb336d6a..HEAD` over the 14 files: WR-07 (rule 6 arm (d)), IN-05 (a shallow history FAILs), WR-08 and WR-09 (the named human's sign-off in `orchestrator.md` and Workflow 06), CR-04 (`rowMatches(row, c, addedKeys)`), CR-03 (the position hold in front of the D-30 stand-in), the disposition files 40-23.md and 40-24.md, and the hook manifest bump.
 
-The mechanics are carefully built. The held-back count cannot double-count, because the structural arm always ends in `continue`. The parity case holds: a script run against every role sentence at HEAD found no fact-bearing sentence whose gate clause loses the fact. The IN-01 comparison replaces the baseline with the git derivation when the two differ, so a laundered JSON cannot hide a loss. The IN-03 path fix is correct, because `ls-tree` and `<sha>:./<path>` both resolve relative to `-C root`.
+What holds:
 
-**The round's main claim does not hold.** The fix promises that a changed safety sentence owes a row a named human reads. Two edits, each reproduced in a scratch clone of HEAD, give a weaker safety posture while both CI gates print `ALL CHECKS PASSED`:
+- `node scripts/check-diff-disposition.js` and `node scripts/check-role-rules.js --check` are green on HEAD. `scripts/freshness.js` reports all 89 committed `.js` files fresh, and `hook-manifest-freshness.js` matches. The two new manifest hashes in `hooks/hook-entry.ts:258-259` equal `sha256sum` of the committed `.js` files.
+- `check-role-rules.test.ts` and `tier-kit-text.test.ts` pass (291 tests).
+- **The 40-23.md and 40-24.md rows are side-correct.** A script read all 325 rows in the two files and compared each one with `changedClauses(e8d7802, …)`. Every non-empty `before` is a removed clause and every non-empty `after` is an added clause in the current diff. Every "kept word for word" row has identical sides. No "removed" row names a clause the HEAD file still holds, and no "added" row names a clause the base file already held. The counts in the 40-24.md read aid are also correct: 309 rows; 37 kept, 159 removed, 113 added; 290 role rows; 287 rows with a filled companion. **The `designer.md:54` "12 coding rules" row is labeled correctly:** `git diff e8d7802 -- agent-factory/roles/designer.md` deletes that line and adds no replacement. The four `designer.md` Context I/O and Compaction rows are labeled "removed", and the read aid says the pointers moved, reworded, into `## Reads`. That label is accurate on the gate's terms. These are the named human's dispositions and this review does not question them.
 
-1. **Adding a sentence to `## Hard limits`.** A new sentence that permits merging needs no row (CR-03).
-2. **Deleting a dispositioned safety sentence.** One of the new `40-20.md` rows pre-approves the deletion (CR-04).
+What does not hold. Two demonstrated bypasses let a change inside a frozen role section reach a green gate with zero findings, even though CR-03 and CR-04 claim to hold it:
 
-The same clone run showed a third gap. A gate-skipping move written as two code spans with an arrow between them (`In Development` → `Done`) is invisible to rule 6 and to the partition (WR-07).
+1. **CR-05.** A "kept word for word" row binds its `after` to the file, not to the frozen section. So a `## Hard limits` prohibition can be moved into an unfrozen section with no new row.
+2. **CR-06.** A level-1 `# ` heading planted inside `## Hard limits` ends the frozen region. The role end-state check only looks at `## ` headings, so a fact-free permission added below the planted heading reaches the stand-in and is admitted.
 
-**About the finding IDs.** The round-1 IDs (CR-01, CR-02, WR-01 to WR-06, IN-01 to IN-04) are already recorded as `fixed` in `40-REVIEW-DISPOSITION.md`. This report starts at CR-03, WR-07 and IN-05 so that no recorded decision is dropped by reusing an ID.
+Both were reproduced in a scratch worktree of HEAD. The worktree was removed afterwards and no source file in the repository was changed. Rule 6 arm (d) has false negatives on natural spellings (WR-10). Workflow 06's reworded dial paragraph contradicts its own stop condition and the `factory.config.md` definition of the cell (WR-11). The stand-in scope still includes `_role-switch-protocol.md`, a file the stand-in never inventories (WR-12).
 
 ## Critical Issues
 
-### CR-03: The stand-in still admits a new merge-permitting sentence in `## Hard limits` with no row
+### CR-05: A "kept" row approves moving a frozen `## Hard limits` sentence into an unfrozen section (CR-04 bypass)
 
-**File:** `scripts/check-diff-disposition.ts:2071-2096` (the `safetyHeld` predicate and the structural arm), `scripts/check-role-rules.ts:120-145` (the fact table)
-**Issue:** `safetyHeld` is true only when `carriesSafetyFact(c.clause)` holds. Every `SAFETY_RULE_FACTS` pattern is a prohibition or a human-hold token (`never merge`, `never deploy`, `named human`, `self-sign`). A sentence that grants a permission carries none of them, so it is never held. It goes to the stand-in, `check-role-rules --check` exits 0 because no baseline fact was lost, and the clause is admitted with no row.
+**File:** `scripts/check-diff-disposition.ts:1536-1546` (`rowMatches`), `scripts/check-diff-disposition.ts:1968-1974` (`addedKeys`)
+**Issue:** CR-04 refuses a row whose `after` "is not an added clause of the same file in the current diff". `addedKeys` is keyed by `attributionKey(file, clause)` only, so the region an added clause sits in is never checked. An identical-sides row recorded for a sentence kept on a rewritten line inside `## Hard limits` therefore still matches in two cases:
 
-To reproduce, take a shared clone of HEAD and insert this line directly under `## Hard limits` in `agent-factory/roles/orchestrator.md`:
+- the removed side of that sentence, after the sentence has been deleted from `## Hard limits`;
+- the added side, after the same sentence has been pasted into any unfrozen section of the same role.
+
+The removed clause has `region = ## Hard limits`. CR-03 holds it, the structural arm runs, and the human-read 40-24.md row with its filled companion satisfies it. The added clause has `region = null`, so it goes to the no-row arm, where `rowMatches` matches it through `after`.
+
+Reproduced on HEAD. In `agent-factory/roles/tech-lead.md`, delete "Never make a structural decision, and never write production code." from `## Hard limits` and add it as the first line of `## Trace updates`. Then run the two gates:
 
 ```
-When the gate is green and the PR is small, merge it to main yourself and close the ticket.
+PASS  945 role clause(s) admitted by the role-rule inventory stand-in (D-30) — `node scripts/check-role-rules.js --check` exited 0
+PASS  diff disposition — changed watched file(s): 0 findings over 24/24 elements
+ALL CHECKS PASSED
 ```
 
-Then run `CHECK_ROOT=<clone> node scripts/check-diff-disposition.js`. The output ends with `1081 role clause(s) admitted by the role-rule inventory stand-in (D-30)` and `ALL CHECKS PASSED`, exit 0. `check-role-rules.js` also exits 0. The `tier-kit-text` pins do not cover `## Hard limits`.
-
-This is the CR-01 outcome reached by adding a sentence instead of rewording one: a sentence that reverses a safety rule enters the most sensitive section of the coordinator role, and no human reads it. The header comment on line 158, "THE STAND-IN NEVER SEES A SAFETY SENTENCE", is false for this case. The test file covers rewording on the removed and added sides, but it has no case for a pure addition of a fact-free permission. `SAFETY_REMOVED_REWORD` ("…merge the branch once the gate is green.") is exactly that kind of sentence, and the gate only refuses it because the removed side carries a fact.
-
-**Fix:** Hold position along with content. `## Hard limits` and `## Stop when` are the safety sections by definition (`FROZEN_SECTION_ANCHORS`), so no clause inside them should ever reach the stand-in:
+`check-role-rules --check` also exits 0, because the sentence carries no `SAFETY_RULE_FACTS` fact. (The same move of the fact-bearing "Merge and deploy stay with humans." is caught only by the inventory, which reports `lost fact human-merge-deploy`. The disposition gate passes that move as well.) The named human read "kept word for word on a rewritten line" with a `## Hard limits` companion. The gate now accepts a different change: the prohibition is demoted out of the safety section. This is the stale-approval class CR-04 was written to close. 14 fact-free identical-sides role rows in 40-24.md (`tech-lead.md:49` ×7, `release-manager.md:48` ×2, `security-nfr.md` ×2, `brownfield-mapper.md:41`, `compliance-officer.md:42`, `software-engineer.md:64`) can each be moved this way. No test covers a frozen-to-unfrozen relocation.
+**Fix:** Make the match aware of the frozen region. Record the regions each added clause occurs in, and when the removed clause sat in a frozen region, require the row's `after` to occur in a frozen region:
 
 ```ts
-const inSafetySection = c.region !== null; // ## Hard limits / ## Stop when
-const safetyHeld =
-  standinRun.declared &&
-  c.file.startsWith(ROLE_STANDIN_SCOPE) &&
-  (inSafetySection || carriesSafetyFact(c.clause));
-```
+// main(): one map instead of a set
+const addedRegions = new Map<string, Set<string | null>>();
+for (const c of changed.clauses) {
+  if (c.side !== "added") continue;
+  const k = attributionKey(c.file, c.clause);
+  if (!addedRegions.has(k)) addedRegions.set(k, new Set());
+  addedRegions.get(k)!.add(c.region?.heading ?? null);
+}
 
-Add a mirror case that inserts a fact-free merge permission into `## Hard limits` and expects red with the CR-01 note. If the human wants the stand-in to keep admitting some structural prose, at least widen the predicate to hold any clause that names `merge`, `deploy`, `production`, `sign off` or `release` with no prohibition, and state that narrower promise in the header comment.
-
-### CR-04: A `40-20.md` row pre-approves deleting the safety sentence it records, and both gates stay green
-
-**File:** `scripts/check-diff-disposition.ts:1507-1513` (`rowMatches`), `docs/audit/29-style-dispositions/40-20.md` (the "kept word for word" rows: `installer.md` 38, `orchestrator.md` 77, `release-manager.md` 46)
-**Issue:** `rowMatches` matches a row when its file is the same and either its `before` or its `after` normalizes to the changed clause. It checks neither the clause's side nor its line, nor whether the row's `after` still exists in the working tree. `40-20.md` adds rows whose `before` and `after` are the same text, to record that a safety sentence was kept on a rewritten line. Because the gate diffs against the fixed base `e8d7802`, such a row also matches the removed-side clause if that sentence is later deleted outright. On the structural arm the row's companion cell is already filled, so the deletion passes as "satisfied".
-
-To reproduce, take a shared clone of HEAD and delete `Deploy only after a named human approves; production action is always human-confirmed.` from `agent-factory/roles/release-manager.md` line 46, leaving only `Never deploy to production yourself.`. Both `check-diff-disposition.js` and `check-role-rules.js` exit 0 with `ALL CHECKS PASSED`.
-
-The fact floor does not catch the deletion, because `named-human` and `production-human` are still held by the role's line 52. So a human-approval rule leaves `## Hard limits` with no new row and no human read. The disposition the human accepted, "kept word for word", now describes a sentence that no longer exists. The same applies to any row whose `before` names a safety clause. Once a sentence is dispositioned, any later change on that side of the clause is pre-approved for as long as the base stays at `e8d7802`.
-
-**Fix:** Make a row match a side, and check the side it claims:
-
-```ts
-function rowMatches(row: DispositionRow, c: ChangedClause): boolean {
+export function rowMatches(row, c, addedRegions): boolean {
   if (row.file !== c.file) return false;
-  const before = row.before.trim() === "—" ? null : normalizeSentence(row.before);
-  const after = row.after.trim() === "—" ? null : normalizeSentence(row.after);
-  if (c.side === "removed") return before === c.clause;
-  return after === c.clause;
+  const before = normalizeSentence(row.before);
+  const after = normalizeSentence(row.after);
+  const at = after === "" ? undefined : addedRegions.get(attributionKey(row.file, after));
+  if (after !== "" && at === undefined) return false;
+  // CR-05: a frozen removed clause is matched only when its `after` is still inside a frozen region
+  if (c.side === "removed" && c.region !== null && after !== "" && ![...at!].some((h) => h !== null)) return false;
+  return c.side === "removed" ? before !== "" && before === c.clause : after !== "" && after === c.clause;
 }
 ```
 
-Also, for a safety-held clause, refuse a row whose `after` side is non-empty but has no matching added clause in the current diff. That row records a sentence the tree no longer holds. A row with `before === after` should match only when both a removed and an added clause with that text exist.
+Add a mirror case: delete a `HARD_LIMIT_SENTENCE` that has an identical-sides row with a filled companion, append it under `## Notes`, and expect a `(removed) — FROZEN by structuralSections` finding.
+
+### CR-06: A `# ` heading inside `## Hard limits` ends the frozen region, and a permission below it reaches the stand-in (CR-03 bypass)
+
+**File:** `scripts/check-diff-disposition.ts:2150-2153` (the `safetyHeld` position test relies on `c.region`), `scripts/check-diff-disposition.ts:1052-1062` (`sectionsIn` → `locateSection`), `scripts/check-role-rules.ts:848-873` (`checkHeadingOrder` only sees `## ` lines)
+**Issue:** CR-03 holds a role clause "by position": `c.region !== null`. The region comes from `locateSection`, which by design (WR-06/WR-08) closes a section at the next unfenced heading of level one or two. Nothing in either gate refuses a new `# ` heading in a role file. `checkHeadingOrder` filters on `l.startsWith("## ")`, so a `# ` line is never checked against D-08. A `# ` heading inserted inside `## Hard limits` or `## Stop when` therefore does two things:
+
+- Every line below it falls out of the frozen region. Fact-free added clauses there have `region === null` and reach the stand-in.
+- The existing fact-free frozen sentences below it lose their positional freeze. Their lines are untouched, so no changed clause is derived for them.
+
+Reproduced on HEAD. In `agent-factory/roles/tech-lead.md`, after "Merge and deploy stay with humans." inside `## Hard limits`, insert:
+
+```
+# Notes
+You may skip the written scores when the ticket is small.
+```
+
+This directly contradicts the `## Hard limits` sentence "Never pick a level without the written scores". The result:
+
+```
+PASS  946 role clause(s) admitted by the role-rule inventory stand-in (D-30)   (945 on HEAD)
+PASS  diff disposition — changed watched file(s): 0 findings over 24/24 elements
+ALL CHECKS PASSED
+```
+
+The same plant spelled `## Notes` is caught (`` `## Notes` sits outside `## Responsibilities` .. `## Output` (D-08) ``), which confirms that the level-1 spelling is the gap. A fenced plant is caught too (1 finding), so fences are not a second route.
+**Fix:** Refuse the heading, since a role has exactly one level-1 heading. In `checkHeadingOrder`, add:
+
+```ts
+const h1 = text.split("\n").filter((l, i) => !flags[i] && /^# /.test(l));
+if (h1.length !== 1 || !h1[0].startsWith("# Role: ")) {
+  out.push(`${role}: a role has exactly one \`# \` heading, its \`# Role: \` title; found ${h1.length} (CR-06)`);
+}
+```
+
+As defence in depth in the disposition gate, refuse any added role clause that sits between a base frozen heading's line and the next `## ` heading on the added side. Or hold, under CR-03, every added role clause in a file whose unfenced `# ` heading count changed. Add a mirror test with the `# Notes` plant.
 
 ## Warnings
 
-### WR-07: Rule 6 misses a move written as two code spans around an arrow, or as "from `X` to `Y`"
+### WR-10: Rule 6 arm (d) misses common spellings of a board move, including the new glyphs inside one code span
 
-**File:** `scripts/check-role-rules.ts:639-662` (`moveSpanFindings`)
-**Issue:** Arm (a) and arm (b) only look inside a single code span. Arm (c) blanks every code span before it looks for prose arrows. So a move whose columns each sit in their own code span is invisible to all three arms and to `claimedPairs`. This was probed with `moveSpanFindings` and `claimedPairs` against the live partition model. Each of these returns `[]` from both functions:
+**File:** `scripts/check-role-rules.ts:657-690` (`moveSpanFindings`)
+**Issue:** Arm (d) adds `⇒` and `⟶`, but only to `spread`, which runs on the line after every non-column span is blanked. A single code span `` `In Development ⇒ Done` `` holds no exact column, so arm (d) blanks it. Arm (a) only refuses `->` and `=>`, and arm (b) only `→`. The most natural spelling with the new glyph, which mirrors the canonical form, is never read. `claimedPairs` ignores it too, so rule 4 never judges it. The WR-02 contract this arm extends ("a move spelled any other way than `X → Y` cannot slip past rule 4 unread") fails. A probe over `moveSpanFindings(doc(…), partitionModel(ROOT).columns, "p.md")` returned **0 findings** for each of these lines in `## Board moves`:
 
-- `` You own `In Development` → `Done`. ``
-- `` You own `In Development`->`Done`. ``
-- `` Move the ticket from `In Development` to `Done` yourself. ``
-- `In Development ⇒ Done` (an arrow glyph outside the three listed)
+| Spelling | Findings |
+|---|---|
+| `` You own `In Development ⇒ Done`. `` / `` `In Development ⟶ Done` `` | 0 |
+| ``Move it from the `In Development` column to `Done`.`` | 0 |
+| ``Move it from `In Development` straight to `Done`.`` | 0 |
+| ``You own `In Development` --> `Done`.`` | 0 |
+| ``You own `In Development` ➜ `Done`.`` / `` ⟹ `` | 0 |
+| ``You own `In Development` `` + newline + ``→ `Done`.`` (wrapped line) | 0 |
+| ``…from `In Development` `` + newline + ``to `Done`.`` (wrapped line) | 0 |
+| `You own **In Development** → **Done**.` / `*In Development* -> *Done*` / `"In Development" → "Done"` | 0 |
 
-The first spelling, planted next to the Orchestrator's lean-close sentence in a scratch clone, passed `check-role-rules.js` (`board-move partition: 0 findings`). It also passed the `tier-kit-text` close pin, which only checks that `CLOSE_SENTENCE` appears exactly once on the line. The WR-02 disposition says a move now "has one spelling", but this round only covers arrows that sit inside one span or between two bare column names.
+The emphasis and quote cases also escape arm (c), because `\s*` does not consume `*`, `_` or `"` between the column and the arrow. No test covers a single-span `⇒` or `⟶`, a wrapped line, or a from/to phrase with "the … column".
+**Fix:**
+- (a) In arm (a), refuse every code span that contains an arrow-like glyph and is not exactly `X → Y`. For example: `/->|=>|⇒|⟶|⟹|➜|➔|-->|→/.test(span) && !canonical`.
+- (b) Run arms (c) and (d) over each paragraph, with its lines joined by a space, rather than per line.
+- (c) Before matching, strip `*`, `_` and `"` that directly wrap a column.
+- (d) Widen the prose form to `\bfrom\s+(?:the\s+)?${col}(?:\s+column)?\s+(?:\w+\s+)?(?:to|into)\s+(?:the\s+)?${col}`.
 
-**Fix:** Run arm (c) on a copy where each code span holding exactly one board column is replaced by that column's text, not by a blank. Add a "from <col> to <col>" pattern to the same arm:
+Add each row of the table above as a red case.
+
+### WR-11: Workflow 06's reworded dial paragraph contradicts its own stop condition and the config definition of `sign_off_acceptance`
+
+**File:** `agent-factory/workflows/06-uat-pack.md:33`, `agent-factory/workflows/06-uat-pack.md:46`, `agent-factory/config/factory.config.md:207` (and `:192-194`, the disposition meanings)
+**Issue:** Line 33 now says: "The dial governs only how the Orchestrator records the lean close". Two other places give the cell a different scope:
+
+- Line 46, in the same workflow, tags the UAT stop condition "The acceptance criteria are missing or ambiguous — stop and route the ticket back; never self-sign…" with `checkpoint: sign_off_acceptance`.
+- `factory.config.md` defines the cell as "Signing off acceptance when the criteria are missing, ambiguous or unmet", with `off` meaning "the action proceeds silently". 40-23.md's own preamble cites that definition ("whose shipped definition fires only on missing, ambiguous or unmet criteria").
+
+So the kit now gives `sign_off_acceptance` three meanings:
+
+1. the missing-criteria stop, in both modes (line 46 and the config table);
+2. only the record kept for the lean close (line 33);
+3. nothing at all in enterprise mode (line 33: the move "waits for the named human's sign-off at every value").
+
+An agent at `off` reading line 46 together with the config table can conclude that it may proceed past missing criteria, and line 33 says the dial governs nothing of the kind. Line 33 also covers `notify` and `off` but never says what `block` does to the close, although `block` is the default and "waits for a named human". The duty to record the close at `notify` lives only in Workflow 06. `orchestrator.md:68` no longer carries a `checkpoint:` pointer, so the role that does the close has no instruction to write the observation. `tier-kit-text.test.ts` pins the new line 33 sentences but no consistency with line 46 or the config row, so the contradiction is green.
+**Fix:** Give the cell one meaning and state it everywhere. If the named human's sign-off is unconditional (decision 2), change the config row to name the lean-close record and remove `checkpoint: sign_off_acceptance` from line 46, which then reads as an unconditional stop. Otherwise reword line 33 so it does not say "only", for example: "Apart from the stop condition below, the dial governs how the Orchestrator records the lean close". Either way, add the `block` behaviour to line 33, and a pointer in `orchestrator.md` `## Board moves` such as "record the close per Workflow 06 at `notify`". Add a `tier-kit-text` case that ties line 33's scope to the line-46 tag and the config row.
+
+### WR-12: The stand-in still admits changes to `_role-switch-protocol.md`, which it never inventories
+
+**File:** `scripts/check-diff-disposition.ts:367` (`ROLE_STANDIN_SCOPE = "agent-factory/roles/"`), `:2113-2116` (`standinFor`), `:2150-2153` (`safetyHeld`)
+**Issue:** The stand-in scope is the prefix `agent-factory/roles/`, which includes `agent-factory/roles/_role-switch-protocol.md`. That file is a `safety_surface: yes` register row. But `check-role-rules` derives facts only for `listRoles()`, which drops underscore-prefixed files, and its end-state checks also exclude the protocol (D-15). The `node scripts/check-role-rules.js --check` exit code therefore says nothing about the protocol file, but the gate still counts its changed clauses as "admitted by the role-rule inventory stand-in". The protocol has no `## Hard limits` or `## Stop when`, so CR-03's position hold never applies to it, and only the CR-01 fact predicate stands between it and admission.
+
+Reproduced on HEAD: replacing "Only the coordinator spawns, and only on Claude Code." with "Any role may spawn role agents when the work is large." in `_role-switch-protocol.md` leaves the gate at `0 findings … ALL CHECKS PASSED`. The new clause has no matching row, and both sentences are fact-free. That reverses the spawn-authority invariant, which `orchestrator.md:79` relies on. This predates round 3, but the predicate this round rewrote is where it lives. `docs/audit/40-disposition-base-move.md:21-27` lists the protocol among the watched files without saying that the stand-in covers it, so the scope needs a named human's ruling, not an agent's.
+**Fix:** Limit the stand-in to the files it inventories, for example in `standinFor` and `safetyHeld`:
 
 ```ts
-const unspanned = line.replace(/`([^`\n]+)`/g, (_m, inner: string) =>
-  columns.has(inner.trim()) ? inner.trim() : " ");
-const prose = new RegExp(`${col}\\s*(?:→|->|=>|⇒|⟶)\\s*${col}|\\bfrom\\s+${col}\\s+to\\s+${col}`, "gi");
+const inStandinScope = (f: string): boolean =>
+  f.startsWith(ROLE_STANDIN_SCOPE) && !f.slice(ROLE_STANDIN_SCOPE.length).startsWith("_");
 ```
 
-Keep the existing case that a lone `` `X → Y` `` span is not a prose finding. The canonical span still holds `→` inside one code span, so it is blanked as it is today.
-
-### WR-08: The Orchestrator's close now depends on a checkpoint whose shipped definition does not require a human for a clean pass
-
-**File:** `agent-factory/roles/orchestrator.md:68`, `agent-factory/roles/orchestrator.md:89`; cross-reference `agent-factory/config/factory.config.md:207`
-**Issue:** Plan 40-17 replaced "Close only after the named human signs off acceptance (`checkpoint: sign_off_acceptance`)" with "Close only after the sign-off that `checkpoint: sign_off_acceptance` requires". The checkpoint table defines the stop it names as "Signing off acceptance **when the criteria are missing, ambiguous or unmet**". An Orchestrator that reads its role and the config literally therefore finds that, at the shipped `block` default, the checkpoint requires no human when all criteria are clear and met. It can then close a ticket that no human accepted. That is the CR-02 outcome, reached through an indirection.
-
-The `## Stop when` item "`sign_off_acceptance` is not met" has the same problem: a checkpoint is a disposition (`block` / `notify` / `off`), not a condition, so "not met" has no defined meaning. Workflow 06 line 33 asserts the opposite reading ("With the shipped configuration … still stops for a named human"), so two files now disagree on what the default does. In practice the human merge, the git-host floor, is still required. The UAT Planner's unconditional hard limit (see WR-09) still forces a human sign-off at default, but only because that role ignores the dial.
-
-**Fix:** State the default in the sentence itself, so the role does not depend on the config table's wording. For example: "Close only after a human merged the PR, `agent-factory/checklists/definition-of-done.md` holds, and the named human signed off acceptance, unless `checkpoint: sign_off_acceptance` is lowered to `notify` or `off`." Reword the hold item to match ("…or the named human has not signed off and `sign_off_acceptance` is `block`…"). Alternatively, fix the config table cell so `sign_off_acceptance` names every acceptance sign-off, not only the missing, ambiguous or unmet case. Update the `CLOSE_SENTENCE` and `HOLD_ITEM` pins, and add a row in the plan's disposition file.
-
-### WR-09: The UAT Planner and Workflow 06's first paragraph still require a named human unconditionally, which contradicts the dial text added in this round
-
-**File:** `agent-factory/workflows/06-uat-pack.md:31` against `:33`; `agent-factory/roles/uat-planner.md:38`, `:45`, `:50`
-**Issue:** Line 33 now says "The dial governs both the enterprise `In UAT -> Ready to Release` move and the lean close … At `off` it proceeds silently." In the same section, line 31 says "In enterprise mode, the UAT Planner moves the ticket to `Ready to Release` **once the named human signs off**", with no dial. The role that owns that move says the same three times, with no dial: "you own `In UAT → Ready to Release` once the named human signs off the scenarios" (line 38), "Acceptance needs a named human sign-off" (hard limit, line 45), and "After the human signs off, stop done" (line 50).
-
-At `notify` or `off`, the owning role never moves the ticket and never hands the lean ticket to the Orchestrator, while the workflow says the move proceeds. This is the cross-file conflict class that WR-03 was opened for. It was fixed for the Orchestrator and moved onto the UAT Planner. `40-17.md` says no board pair is re-owned, but it does not mention that the move's owner still ignores the dial.
-
-**Fix:** Pick one reading and apply it to all three places. If the dial is meant to lower the enterprise move, make `uat-planner.md` lines 38 and 50 and Workflow 06 line 31 conditional on `sign_off_acceptance` being `block`. The hard limit on line 45 is a safety sentence (`named-human` fact), so its change needs a disposition row and the named human's read under CR-01. If the human intends the UAT Planner always to require a named human, then remove "The dial governs both the enterprise … move" from line 33 and say the dial governs only the Orchestrator's lean close. Add a `tier-kit-text` case that holds the UAT Planner and Workflow 06 to the same rule.
+Even better, derive the scope from `listRoles(ROOT)`. Then disposition the protocol's changed clauses in rows. If the named human rules that D-30 covers the protocol, record that ruling in `40-disposition-base-move.md`.
 
 ## Info
 
-### IN-05: The IN-01 content check passes silently with a NOTE when the history is shallow
+### IN-08: The CR-03 control assertion is conditional and passes if the count line disappears
 
-**File:** `scripts/check-role-rules.ts:989-1014`
-**Issue:** When `PHASE_40_START_COMMIT` is not reachable, `check()` prints a NOTE, reads the JSON as written, and can pass. The tampering IN-01 was meant to catch then goes undetected. `check-diff-disposition` fails closed on a shallow history ("confirm the history reaches … `fetch-depth: 0`"), but this gate, which the stand-in trusts, degrades instead. CI uses `fetch-depth: 0` today, so this matters only if that setting changes.
-**Fix:** When `process.env.CI` is set, or when `git rev-parse --is-shallow-repository` prints `true`, make the unreachable case a FAIL. Keep the NOTE only for a mirror with no git history at all.
+**File:** `scripts/check-diff-disposition.test.ts:3853-3855`
+**Issue:** `const held = positionHeldCount(stdout); if (held !== null) expect(held).toBe(0);`. In this case the stand-in key is declared (`baseExtraLines: [STANDIN_LINE]`), and the gate prints the CR-03 count line whenever the key is declared. So a regression that drops the line, or renames it so the regex no longer matches, makes the assertion vanish and the case stays green.
+**Fix:** `expect(positionHeldCount(stdout)).toBe(0);`.
 
-### IN-06: The fact patterns were widened to fit the normalized form, which also loosens the baseline floor
+### IN-09: IN-05's shallow detection has edges where it gives a NOTE instead of a FAIL, or fires on a tree that is not shallow
 
-**File:** `scripts/check-role-rules.ts:136-144`
-**Issue:** `wip-limit` and `claim-cap` changed from the exact config key (`s.includes("queue.wip_limit")`) to `/\bqueue[._ ]wip[_ ]limit\b/i`, and `self-sign` now matches `self sign`. The same table drives the baseline derivation on raw text. So a role that replaces the config key `` `queue.wip_limit` `` with the prose "the queue WIP limit" still holds the fact, and the inventory floor no longer pins the key name. The CR-01 hold on the removed side covers a reword today, so the risk is low.
-**Fix:** Keep the derivation patterns exact, and have `carriesSafetyFact` test both the clause and a raw-form lookup. Alternatively, give the predicate its own normalized-form patterns, built from the table in one place, with a parity case.
+**File:** `scripts/check-role-rules.ts:973-984` (`isShallowRepository`), `:1052-1065`
+**Issue:**
+- `git rev-parse --is-shallow-repository` needs git 2.15 or later. An older git echoes the flag literally, so the output is not `"true"` and the check falls back to the NOTE. A missing `git` also falls back to the NOTE.
+- A history that is not shallow but lacks the start commit (grafted, `git replace`, or re-rooted) keeps the NOTE by design.
+- `git -C ROOT` walks up the directory tree, so a hermetic mirror (a directory that is not a repository) under a shallow checkout's tree reads as shallow and turns red.
 
-### IN-07: The admission hook's verified closure now includes the inventory gate
+The risk is low, because the stand-in only runs under `check-diff-disposition`, which already requires the base commit to be reachable.
+**Fix:**
+- Treat any output other than `true` or `false` as a FAIL that names the git version.
+- Before trusting the answer, confirm that `git -C ROOT rev-parse --show-toplevel` equals `ROOT`.
 
-**File:** `hooks/hook-entry.ts:255-258`, `scripts/check-diff-disposition.ts:101-104`
-**Issue:** Importing `carriesSafetyFact` puts all of `check-role-rules.js` (its git, writer and partition code) and `install/state-layout.js` into the admission hook's hash-verified closure. Any later edit to the inventory gate, a CI-only lint, now changes a runtime-hook manifest. If someone forgets `npm run generate:hook-manifest`, every admission call on a host fails closed. The freshness check catches this in CI, but the coupling has no value for the hook. Four test files had to start copying `install/state-layout.js` into scratch kits because of it.
-**Fix:** Move `SAFETY_RULE_FACTS` and `carriesSafetyFact` into a small module with no imports (for example `scripts/safety-facts.ts`). Have both `check-role-rules.ts` and `check-diff-disposition.ts` import it. That keeps one source for the fact list and leaves the hook closure as it was.
+### IN-10: Dead fallback in the CR-03 note
+
+**File:** `scripts/check-diff-disposition.ts:2171`
+**Issue:** `safetySectionNote(region === null ? "" : region.heading)` runs only when `safetyHeld && !factHeld`, which implies `c.region !== null`. The `""` branch cannot run, and if it did it would print an empty heading in backticks.
+**Fix:** Pass `region!.heading`, or assert non-null there, so a future change to `safetyHeld` fails loudly instead of printing ``(``)``.
 
 ---
 
-_Reviewed: 2026-11-03T10:43:50Z_
+_Reviewed: 2026-11-03T22:35:50Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
