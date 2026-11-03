@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
-status: executing
-stopped_at: Completed 40-20-PLAN.md
-last_updated: "2026-11-03T09:26:54.762Z"
+status: verifying
+stopped_at: Completed 40-21-PLAN.md
+last_updated: "2026-11-03T10:10:16.205Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: b0aa5ff2d96acb92d9b5b68b2583bbb7d5ceb7e7
+state_head: 7cd12dd62b3442b6ad5e5cc3a85d5071b31df931
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 109
-  completed_plans: 108
+  completed_plans: 109
   percent: 56
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 Phase: 40 (Plain-language role rewrite) — READY TO EXECUTE
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-01 — Phase 40 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -825,6 +825,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P18 | 27 min | 2 tasks | 3 files |
 | Phase 40 P19 | 30 min | 3 tasks | 3 files |
 | Phase 40 P20 | 1 day (human checkpoint) | 3 tasks | 1 files |
+| Phase 40 P21 | 41 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -2283,6 +2284,7 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-19: carriesSafetyFact(text) is SAFETY_RULE_FACTS.some(r => r.holds(text)); wip-limit, claim-cap and self-sign accept the voice-model normalized spelling, fact-neutral at HEAD and at the start commit (CR-01 round 2)
 - [Phase 40]: 40-19: check-role-rules compares the baseline JSON with a fresh git derivation when the objects are reachable and judges losses against git on a difference (IN-01); NOTE line when unreachable
 - [Phase 40]: 40-20: named human Olger (2026-11-03) accepted all 36 Phase 40 safety-sentence disposition rows in docs/audit/29-style-dispositions/40-20.md; no CR-01 follow-ups
+- [Phase 40]: 40-21: the D-30 stand-in never admits a changed role clause that carries a safety fact (carriesSafetyFact imported from check-role-rules.js, both sides, both admission points); check-role-rules.js and install/state-layout.js are now in the admission hook's decider closure, so edits to them need npm run generate:hook-manifest
 
 ### Pending Todos
 
@@ -2622,8 +2624,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-03T09:26:53.846Z
-Stopped at: Completed 40-20-PLAN.md
+Last session: 2026-11-03T10:10:15.284Z
+Stopped at: Completed 40-21-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
