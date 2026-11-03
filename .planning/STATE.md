@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-19-PLAN.md
-last_updated: "2026-11-02T22:31:45.775Z"
+stopped_at: Completed 40-20-PLAN.md
+last_updated: "2026-11-03T09:26:54.762Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: c73129c8e714fda5331c97faa2337053957ebd3f
+state_head: b0aa5ff2d96acb92d9b5b68b2583bbb7d5ceb7e7
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 109
-  completed_plans: 107
+  completed_plans: 108
   percent: 56
 ---
 
@@ -824,6 +824,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P17 | 39 min | 2 tasks | 4 files |
 | Phase 40 P18 | 27 min | 2 tasks | 3 files |
 | Phase 40 P19 | 30 min | 3 tasks | 3 files |
+| Phase 40 P20 | 1 day (human checkpoint) | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -2281,6 +2282,7 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-18: the IN-02 'prose arrow adds no finding' pin was split; its prose half is reversed on purpose (WR-02)
 - [Phase 40]: 40-19: carriesSafetyFact(text) is SAFETY_RULE_FACTS.some(r => r.holds(text)); wip-limit, claim-cap and self-sign accept the voice-model normalized spelling, fact-neutral at HEAD and at the start commit (CR-01 round 2)
 - [Phase 40]: 40-19: check-role-rules compares the baseline JSON with a fresh git derivation when the objects are reachable and judges losses against git on a difference (IN-01); NOTE line when unreachable
+- [Phase 40]: 40-20: named human Olger (2026-11-03) accepted all 36 Phase 40 safety-sentence disposition rows in docs/audit/29-style-dispositions/40-20.md; no CR-01 follow-ups
 
 ### Pending Todos
 
@@ -2620,8 +2622,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-02T22:31:44.828Z
-Stopped at: Completed 40-19-PLAN.md
+Last session: 2026-11-03T09:26:53.846Z
+Stopped at: Completed 40-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

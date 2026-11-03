@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 19/21 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16; 5 gap-closure plans, 40-17 to 40-21, planned)
+**Plans**: 20/21 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16; 5 gap-closure plans, 40-17 to 40-21, planned)
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -558,7 +558,7 @@ Gap wave 2 *(blocked on gap wave 1)*
 - [x] 40-19-PLAN.md — carriesSafetyFact from SAFETY_RULE_FACTS sees the gate's clause form; check() compares the baseline JSON with git; deriveAllAt path roots (CR-01 part, IN-01, IN-03; PLAIN-03)
 
 Gap wave 3 *(blocked on gap wave 2)*
-- [ ] 40-20-PLAN.md — rows for the rewrite's own safety-sentence changes, read and disposed of by a named human (CR-01 part; PLAIN-03; human checkpoint)
+- [x] 40-20-PLAN.md — rows for the rewrite's own safety-sentence changes, read and disposed of by a named human (CR-01 part; PLAIN-03; human checkpoint)
 
 Gap wave 4 *(blocked on gap wave 3)*
 - [ ] 40-21-PLAN.md — the D-30 stand-in refuses any changed role clause that carries a safety fact; shared-clone red case, hook manifest and closure baselines; review dispositions closed (CR-01; PLAIN-03)
@@ -629,7 +629,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
-| 40. Plain-language role rewrite | v3.0 | 19/21 | In Progress | - |
+| 40. Plain-language role rewrite | v3.0 | 20/21 | In Progress | - |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
