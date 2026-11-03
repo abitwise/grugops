@@ -25,6 +25,9 @@
 // checkpoint and that the dial never removes the human merge (PLAIN-03; WR-01, WR-03; human decision
 // 2026-11-02). Its mutation cases apply the reviewer's own edit, and each single dropped condition,
 // to an in-memory copy of orchestrator.md and require leanCloseViolations() to go red (WR-01).
+// Plan 40-23 pins the lean close and its hold to the named human's sign-off (WR-08, decision 4) and holds the UAT
+// Planner's unconditional sign-off and Workflow 06's dial paragraph to the same rule (WR-09, decision 2; human decisions
+// 2026-11-03).
 //
 // Each case reads the shipped file and asserts a stated phrase or an ordering. The cases are about
 // the WORDS an agent reads: the junior gate and its exclusions are enforced in text (D-31), so the
@@ -49,13 +52,27 @@ const UAT_PLANNER = readFileSync(join(ROOT, "agent-factory/roles/uat-planner.md"
 const WF06 = readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8");
 
 /**
- * Plan 40-17 (WR-01, WR-03): the exact sentence that states the Orchestrator's lean close, and the
- * exact `## Stop when` item that holds the ticket until that close may happen. The sign-off follows
- * the `sign_off_acceptance` dial; the human merge does not. Dropping either condition breaks the match.
+ * Plans 40-17 and 40-23 (WR-01, WR-03, WR-08): the exact sentence that states the Orchestrator's lean
+ * close, and the exact `## Stop when` item that holds the ticket until that close may happen. The
+ * sign-off is the named human's at every dial value, and the human merge is required too; neither
+ * condition follows the dial (human decision 4, 2026-11-03). Dropping either condition breaks the match.
  */
 const CLOSE_SENTENCE =
+  "Close only after the named human signed off acceptance, a human merged the PR and `agent-factory/checklists/definition-of-done.md` holds.";
+const HOLD_ITEM =
+  "- If a human has not merged the PR or the named human has not signed off acceptance, leave the ticket in `In UAT`.";
+
+/** Plan 40-17's close sentence and hold item, which WR-08 retired; the mutation cases keep them red. */
+const PLAN_40_17_CLOSE =
   "Close only after the sign-off that `checkpoint: sign_off_acceptance` requires, a human merged the PR and `agent-factory/checklists/definition-of-done.md` holds.";
-const HOLD_ITEM = "- If a human has not merged the PR or `sign_off_acceptance` is not met, leave the ticket in `In UAT`.";
+const PLAN_40_17_HOLD = "- If a human has not merged the PR or `sign_off_acceptance` is not met, leave the ticket in `In UAT`.";
+
+/** Plan 40-23 (WR-09, human decision 2, 2026-11-03): Workflow 06's dial paragraph sentences. */
+const WF06_SIGN_OFF =
+  "The `In UAT -> Ready to Release` move waits for the named human's sign-off at every value of `sign_off_acceptance`.";
+const WF06_LEAN_CLOSE = "In lean mode, the Orchestrator's close to `Done` waits for the same sign-off.";
+const WF06_DIAL =
+  "The dial governs only how the Orchestrator records the lean close, and it never removes the human merge or the named human's sign-off.";
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -2320,13 +2337,13 @@ describe("the lean close keeps its human conditions (CR-02, WR-02; D-33)", () =>
     return out.join(" ");
   }
 
-  it("CR-02, WR-03: the lean close is the exact sentence: the sign-off `sign_off_acceptance` requires, a human merge and the lean DoD", () => {
+  it("CR-02, WR-03: the lean close is the exact sentence: the named human's sign-off, a human merge and the lean DoD", () => {
     const close = leanClose();
     expect(close, "the lean close lost its owner sentence").toContain("You own `In UAT → Done`, the lean-mode close.");
     expect(leanCloseViolations(ORCHESTRATOR), `the lean close is not "${CLOSE_SENTENCE}"`).not.toContain("close");
   });
 
-  it("CR-02, WR-03: `## Stop when` holds the ticket in `In UAT` with the exact item: no human merge or `sign_off_acceptance` not met", () => {
+  it("CR-02, WR-03: `## Stop when` holds the ticket in `In UAT` with the exact item: no human merge or no named human's sign-off", () => {
     expect(leanCloseViolations(ORCHESTRATOR), `no \`## Stop when\` item is "${HOLD_ITEM}"`).not.toContain("hold");
   });
 
@@ -2386,9 +2403,9 @@ describe("the lean close keeps its human conditions (CR-02, WR-02; D-33)", () =>
   });
 });
 
-describe("the lean close follows the dial (WR-03, WR-01; human decision 2026-11-02)", () => {
-  it("WR-03: Workflow 06 says the Orchestrator's lean close stops at the same checkpoint", () => {
-    expect(section(WF06, "Board moves")).toContain("In lean mode, the Orchestrator's close to `Done` stops at the same checkpoint.");
+describe("the lean close waits for the named human (WR-03, WR-08, WR-09; human decisions 2026-11-02 and 2026-11-03)", () => {
+  it("WR-03, WR-09: Workflow 06 says the Orchestrator's lean close waits for the same sign-off", () => {
+    expect(section(WF06, "Board moves")).toContain(WF06_LEAN_CLOSE);
   });
 
   it("WR-03: Workflow 06 says the dial never removes the human merge", () => {
@@ -2441,7 +2458,7 @@ describe("WR-01: dropping a lean-close condition is red (mutation cases)", () =>
   });
 
   it("WR-01: dropping only the sign-off clause from the close is red", () => {
-    const mutated = mutate([[CLOSE_SENTENCE, CLOSE_SENTENCE.replace("the sign-off that `checkpoint: sign_off_acceptance` requires, ", "")]]);
+    const mutated = mutate([[CLOSE_SENTENCE, CLOSE_SENTENCE.replace("the named human signed off acceptance, ", "")]]);
     expect(leanCloseViolations(mutated)).toEqual(["close"]);
   });
 
@@ -2451,12 +2468,64 @@ describe("WR-01: dropping a lean-close condition is red (mutation cases)", () =>
   });
 
   it("WR-01: dropping only the sign-off condition from the hold is red", () => {
-    const mutated = mutate([[HOLD_ITEM, HOLD_ITEM.replace(" or `sign_off_acceptance` is not met", "")]]);
+    const mutated = mutate([[HOLD_ITEM, HOLD_ITEM.replace(" or the named human has not signed off acceptance", "")]]);
     expect(leanCloseViolations(mutated)).toEqual(["hold"]);
   });
 
   it("WR-01: dropping only the merge condition from the hold is red", () => {
     const mutated = mutate([[HOLD_ITEM, HOLD_ITEM.replace("a human has not merged the PR or ", "")]]);
     expect(leanCloseViolations(mutated)).toEqual(["hold"]);
+  });
+
+  it("WR-08 (plan 40-23): the plan 40-17 close sentence is red if it comes back", () => {
+    const mutated = mutate([[CLOSE_SENTENCE, PLAN_40_17_CLOSE]]);
+    expect(leanCloseViolations(mutated)).toEqual(["close"]);
+  });
+
+  it("WR-08 (plan 40-23): the plan 40-17 hold is red if it comes back", () => {
+    const mutated = mutate([[HOLD_ITEM, PLAN_40_17_HOLD]]);
+    expect(leanCloseViolations(mutated)).toEqual(["hold"]);
+  });
+});
+
+describe("WR-09 (plan 40-23): the UAT Planner's named-human sign-off is unconditional in the role and in Workflow 06 (human decision 2026-11-03)", () => {
+  it("WR-09: uat-planner.md `## Board moves` gives the enterprise move to the named human's sign-off", () => {
+    expect(section(UAT_PLANNER, "Board moves")).toContain(
+      "In enterprise mode, you own `In UAT → Ready to Release` once the named human signs off the scenarios.",
+    );
+  });
+
+  it("WR-09: uat-planner.md `## Hard limits` needs a named human sign-off and bans self-signing", () => {
+    const limits = section(UAT_PLANNER, "Hard limits");
+    expect(limits).toContain("Acceptance needs a named human sign-off.");
+    expect(limits).toContain("Never self-sign: an agent that signs removes the one human the gate exists for.");
+  });
+
+  it("WR-09: uat-planner.md `## Stop when` leaves an unclear result for a named human and stops done after the sign-off", () => {
+    const stops = section(UAT_PLANNER, "Stop when");
+    expect(stops).toContain("- When a result is ambiguous or unmet, stop and leave the ticket in `In UAT` for a named human.");
+    expect(stops).toContain(
+      "- After the human signs off, stop done: the Release Manager takes it in enterprise mode, the Orchestrator in lean.",
+    );
+  });
+
+  it("WR-09: no uat-planner.md sign-off section makes the sign-off follow `sign_off_acceptance`", () => {
+    for (const heading of ["Board moves", "Hard limits", "Stop when"]) {
+      expect(section(UAT_PLANNER, heading), `uat-planner.md \`## ${heading}\` names the dial`).not.toContain("sign_off_acceptance");
+    }
+  });
+
+  it("WR-09: Workflow 06 `## Board moves` says the move waits for the named human at every value and the dial only shapes the lean close record", () => {
+    const moves = section(WF06, "Board moves");
+    expect(moves).toContain(WF06_SIGN_OFF);
+    expect(moves).toContain(WF06_DIAL);
+    expect(moves).toContain("In enterprise mode, the UAT Planner moves the ticket to `Ready to Release` once the named human signs off.");
+  });
+
+  it("WR-09: Workflow 06 `## Board moves` drops every old claim that the dial lowers the sign-off", () => {
+    const moves = section(WF06, "Board moves");
+    for (const phrase of ["governs both", "the dial changes who signs", "trusts its machine-backed evidence", "the move or close proceeds"]) {
+      expect(moves, `Workflow 06 \`## Board moves\` keeps "${phrase}"`).not.toContain(phrase);
+    }
   });
 });
