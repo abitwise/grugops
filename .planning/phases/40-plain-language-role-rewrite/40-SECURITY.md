@@ -78,6 +78,19 @@ created: "2026-11-01"
 | T-40-43 | Tampering | fixture role files | low | mitigate | 176 files, one header line each (numstat); validate, claim-anchors and banned-claims tests 373/373 (plan 40-15, IN-03) | closed |
 | T-40-44 | Repudiation | the 31 retired frozen-section changes | medium | mitigate | Old gate reproduced independently at 8578f8ad: 721 findings, 31 `FROZEN by structuralSections`, (file, line, side) set identical to the 31 rows in docs/audit/40-disposition-base-move.md (plan 40-16, WR-06) | closed |
 | T-40-45 | Spoofing | human dispositions in the record | high | mitigate | `blocking-human` checkpoint; cells were `pending (named human)` at d9502b27; Olger replied "accept-all, Olger" in the orchestrator session on 2026-11-02; d90822f4 records 31 `accepted by Olger`, the Read-by line and the verbatim reply (plan 40-16) | closed |
+| T-40-46 | Elevation of privilege | orchestrator.md lean close and Stop-when hold | high | mitigate | The merge condition stays outside the dial in the close, the hold, Workflow 06 ("never removes the human merge") and the lean DoD; exact-sentence pins (`leanCloseViolations`) and the WR-01 mutation cases go red if either condition is dropped (plan 40-17) | closed |
+| T-40-47 | Tampering | Workflow 06 line 33 | medium | mitigate | Four rows in docs/audit/29-style-dispositions/40-17.md for the reworded clauses; check-diff-disposition exits 0 (plan 40-17) | closed |
+| T-40-48 | Repudiation | WR-01 property (sign-off condition removable with every gate green) | medium | mitigate | leanCloseViolations pins plus the reviewer's own mutation as a permanent red case (plan 40-17) | closed |
+| T-40-49 | Elevation of privilege | rule 6 / moveSpanFindings | high | mitigate | ASCII-arrow spans and prose moves between two board columns are named findings; four planted red cases including the verifier's `In Development -> Done` (plan 40-18) | closed |
+| T-40-50 | Denial of service | prose arrows that are not moves | low | mitigate | A board column is required on both sides, matched whole and longest first (check-role-rules.ts:656); a non-column prose arrow stays green; live tree 0 findings (plan 40-18) | closed |
+| T-40-51 | Elevation of privilege | carriesSafetyFact on normalized clauses | high | mitigate | `carriesSafetyFact` exported and derived from SAFETY_RULE_FACTS alone; three entries widened to the normalized spelling; parity cases at HEAD and at the start commit; baseline byte-equality case (plan 40-19) | closed |
+| T-40-52 | Tampering | docs/audit/40-role-rule-inventory.json contents | high | mitigate | check() compares the bytes with a git derivation when reachable and fails naming IN-01; tampered-baseline clone cases (plan 40-19) | closed |
+| T-40-53 | Denial of service | deriveAllAt from a nested root or non-ASCII path | low | mitigate | `ls-tree -r -z --name-only` listing (check-role-rules.ts:466) and `<sha>:./<path>` reads; temporary-repository case (plan 40-19) | closed |
+| T-40-54 | Spoofing | human dispositions in 40-20.md | high | mitigate | `blocking-human` checkpoint; cells were `pending (named human)` at 91180e43; Olger replied "accept-all, Olger" in the orchestrator session on 2026-11-03; e6272c7b records 36 `accepted by Olger:`, the Read-by line and the verbatim reply (plan 40-20) | closed |
+| T-40-55 | Repudiation | the listed safety clauses | medium | mitigate | Listing owed 0 after the rows; plan 40-21 re-proved completeness with the wired gate (0 findings, 62 clauses held back) (plans 40-20, 40-21) | closed |
+| T-40-56 | Elevation of privilege | D-30 stand-in admission of reworded safety sentences | high | mitigate | carriesSafetyFact consulted at both admission points on both sides; the verifier's merge-ban reword is a permanent shared-clone red case; mirror cases for each side and arm; a fact-free reword is still admitted (plan 40-21) | closed |
+| T-40-57 | Tampering | admission hook frozen manifest after the new import | high | mitigate | Manifest regenerated (closure 13 → 15 modules); `npm run freshness:hook-manifest` exits 0; CLOSURE_BASELINES rows taken from jsImportClosure (plan 40-21) | closed |
+| T-40-58 | Repudiation | 40-REVIEW-DISPOSITION.md | medium | mitigate | Each fixed row names its plan and proof; `open: 0`, `total: 12`; REQUIREMENTS.md untouched (plan 40-21) | closed |
 | T-40-SC | Tampering | npm/pip/cargo installs (every plan) | low | accept | No package is installed by any plan in this phase | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -118,7 +131,7 @@ created: "2026-11-01"
 
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
-| AR-40-01 | T-40-SC | No plan in this phase installs a package; the only dev deps are the existing {typescript, vitest, @types/node} lockfile. The disposition was set at plan time. | plan-time disposition (40-01..40-16 threat models) | 2026-10-31 |
+| AR-40-01 | T-40-SC | No plan in this phase installs a package; the only dev deps are the existing {typescript, vitest, @types/node} lockfile. The disposition was set at plan time. | plan-time disposition (40-01..40-21 threat models; no package file changed since 2c130e57) | 2026-10-31 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -131,7 +144,7 @@ created: "2026-11-01"
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-01 (/gsd-secure-phase 40, ASVS L1, block_on high); re-verified 2026-11-02 after the gap round (T-40-28 to T-40-45 added and closed by gsd-security-auditor)
+**Approval:** verified 2026-11-01 (/gsd-secure-phase 40, ASVS L1, block_on high); re-verified 2026-11-02 after the gap round (T-40-28 to T-40-45 added and closed by gsd-security-auditor); re-verified 2026-11-03 after gap round 2 (T-40-46 to T-40-58 added and closed at L1 grep depth: register authored at plan time, threats_open 0, ASVS L1, so no auditor spawn per the short-circuit rule)
 
 ## Security Audit 2026-11-01
 
@@ -147,4 +160,12 @@ created: "2026-11-01"
 |---|---|
 | Threats found | 46 |
 | Closed | 46 |
+| Open | 0 |
+
+## Security Audit 2026-11-03
+
+| Metric | Count |
+|---|---|
+| Threats found | 59 |
+| Closed | 59 |
 | Open | 0 |
