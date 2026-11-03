@@ -23,6 +23,7 @@ import {
   closeSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { join, dirname } from "node:path";
 import {
   checkCodingRoleSet,
@@ -1157,6 +1158,66 @@ describe("IN-01: the CLI gate checks the baseline contents against git", () => {
     expect(lines[0]).toMatch(/^ {2}NOTE {2}/);
     expect(lines[0]).toContain("not compared with git (IN-01)");
   });
+});
+
+// ---------------------------------------------------------------------------
+// IN-05 (plan 40-22, decision 2026-11-03). On a shallow history the IN-01 content check printed a NOTE and
+// passed, so a laundered baseline would go unseen if CI stopped fetching the full history. A shallow
+// repository is now a FAIL naming `fetch-depth: 0`. A repository whose history lacks the start commit, and
+// a tree with no git history (the hermetic mirrors, which CI runs with CI=true), keep the NOTE.
+// ---------------------------------------------------------------------------
+
+const gitIn = (dir: string, args: readonly string[]): string =>
+  execFileSync(
+    "git",
+    ["-C", dir, "-c", "user.name=grugops-test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", ...args],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+/** A mirror made into a git repository with two commits, the second touching one mirror file. */
+function mirrorRepo(prefix: string): string {
+  const m = makeMirror(prefix);
+  gitIn(m, ["init", "-q"]);
+  gitIn(m, ["add", "-A"]);
+  gitIn(m, ["commit", "-q", "-m", "mirror one"]);
+  writeFileSync(join(m, "agent-factory", "checklists", "in05-second-commit.txt"), "second commit\n");
+  gitIn(m, ["add", "-A"]);
+  gitIn(m, ["commit", "-q", "-m", "mirror two"]);
+  return m;
+}
+
+describe("IN-05: a shallow history is a FAIL, not a NOTE (gap round 3)", () => {
+  it(
+    "a depth-1 clone of a two-commit mirror repository is red naming the shallow history and fetch-depth: 0",
+    () => {
+      const src = mirrorRepo("rr-in05-src-");
+      const dest = join(freshTmp("rr-in05-shallow-"), "clone");
+      execFileSync("git", ["clone", "-q", "--depth", "1", pathToFileURL(src).href, dest], { stdio: "ignore" });
+      // The premise first, so the case cannot pass on a clone that is not shallow.
+      expect(gitIn(dest, ["rev-parse", "--is-shallow-repository"]).trim()).toBe("true");
+      const r = runGate(dest);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain("(IN-05)");
+      expect(r.stdout).toContain("shallow");
+      expect(r.stdout).toContain("fetch-depth: 0");
+    },
+    120_000,
+  );
+
+  it(
+    "the non-shallow mirror repository, whose history lacks the start commit, stays green with one IN-01 NOTE",
+    () => {
+      const src = mirrorRepo("rr-in05-full-");
+      expect(gitIn(src, ["rev-parse", "--is-shallow-repository"]).trim()).toBe("false");
+      const r = runGate(src);
+      expect(r.status, r.stdout).toBe(0);
+      const lines = in01Lines(r.stdout);
+      expect(lines.length, r.stdout).toBe(1);
+      expect(lines[0]).toMatch(/^ {2}NOTE {2}/);
+      expect(r.stdout).not.toContain("IN-05");
+    },
+    120_000,
+  );
 });
 
 // ---------------------------------------------------------------------------
