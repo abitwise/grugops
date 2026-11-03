@@ -84,7 +84,7 @@
   assumptions: line 38 "after the sign-off `sign_off_acceptance` requires" (+5 B), and line 50 "After acceptance,
   stop done: ..." (-11 B). Lines 45 and 49 need the human's decision because they are frozen safety-fact sentences;
   after plan 40-21 any change to them also owes a disposition row a named human reads.
-  status: open
+  status: closed (decided by Olger, 2026-11-03: the UAT Planner's named-human sign-off stays unconditional; uat-planner.md is unchanged; Workflow 06 line 33 reworded in plan 40-23, rows in docs/audit/29-style-dispositions/40-23.md)
 - (c) The plan 40-11 residual, narrowed by plan 40-21. A role sentence that carries a safety fact now owes a
   disposition row whenever it changes. A `## Hard limits` or `## Stop when` sentence that carries no safety fact is
   still admitted by the D-30 stand-in while the stand-in holds.
@@ -96,5 +96,5 @@
   `wc -c` after plan 40-17 and unchanged by plan 40-21 (it edited no role file): `orchestrator.md` 6,046 B (plan
   40-17 limit 6,057 B; the growth cases allow about 6,061 B), `uat-planner.md` 2,747 B (about 3 B of growth room,
   per plan 40-17), role corpus 59,803 B. Any reword of these two files that grows them needs that room checked
-  first.
+  first. After plan 40-23: orchestrator.md 6,036 B, role corpus 59,793 B (`wc -c`).
   status: open
