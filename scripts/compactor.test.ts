@@ -3245,6 +3245,10 @@ describe("33-25 — the compactor's promoted-tier walk asks the one seal predica
     for (const f of readdirSync(join(ROOT, "scripts"))) {
       if (f.endsWith(".js")) writeFileSync(join(kit, "scripts", f), readFileSync(join(ROOT, "scripts", f)));
     }
+    // (Plan 40-21, CR-01) check-diff-disposition.js imports ./check-role-rules.js, which imports
+    // `../install/state-layout.js` (constants only). Only that pure-data module is copied.
+    mkdirSync(join(kit, "install"), { recursive: true });
+    writeFileSync(join(kit, "install", "state-layout.js"), readFileSync(join(ROOT, "install", "state-layout.js")));
     const target = join(kit, "scripts", "compactor.js");
     let text = readFileSync(target, "utf8");
     const anchor = "const seal = sealVerdict(fields.text);";

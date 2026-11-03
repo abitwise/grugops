@@ -2345,6 +2345,9 @@ function copyOfCommittedBuild(prefix: string): string {
     if (n.endsWith(".js")) copyFileSync(join(src, n), join(dir, n));
   }
   copyFileSync(join(ROOT, "install", "host-tools.js"), join(root, "install", "host-tools.js"));
+  // (Plan 40-21, CR-01) check-diff-disposition.js imports ./check-role-rules.js, which imports
+  // `../install/state-layout.js` (constants only). Only that pure-data module is copied.
+  copyFileSync(join(ROOT, "install", "state-layout.js"), join(root, "install", "state-layout.js"));
   return dir;
 }
 

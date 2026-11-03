@@ -3991,6 +3991,9 @@ function scratchGuardFiles(
   // instead of the floor it mutates. So the committed registry is copied to <scratch>/install/ too.
   mkdirSync(join(dir, "install"), { recursive: true });
   cpSync(join(ROOT, "install", "host-tools.js"), join(dir, "install", "host-tools.js"));
+  // (Plan 40-21, CR-01) The copied check-diff-disposition.js imports ./check-role-rules.js, which
+  // imports `../install/state-layout.js` (constants only). Only that pure-data module is copied.
+  cpSync(join(ROOT, "install", "state-layout.js"), join(dir, "install", "state-layout.js"));
   for (const [name, mutate] of Object.entries(mutations)) {
     const path = join(scriptsDir, name);
     const before = readFileSync(path, "utf8");

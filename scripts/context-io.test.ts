@@ -6191,6 +6191,10 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     // the kit gains no installer code and the oracle can load.
     mkdirSync(join(dir, "install"), { recursive: true });
     cpSync(join(ROOT, "install", "host-tools.js"), join(dir, "install", "host-tools.js"));
+    // (Plan 40-21, CR-01) scripts/check-diff-disposition.js, in context-io.js's closure, imports
+    // ./check-role-rules.js, which imports `../install/state-layout.js` (constants only, no node:fs
+    // symbol). Only that pure-data module is copied, so the kit still gains no installer code.
+    cpSync(join(ROOT, "install", "state-layout.js"), join(dir, "install", "state-layout.js"));
     mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
     cpSync(
       join(ROOT, "agent-factory", "config", "factory.config.json"),
@@ -6521,6 +6525,10 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
         filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
       });
     }
+    // (Plan 40-21, CR-01) context-io.js reaches ./check-role-rules.js through check-diff-disposition.js,
+    // and it imports `../install/state-layout.js` (constants only). Only that pure-data module is copied.
+    mkdirSync(join(dir, "install"), { recursive: true });
+    cpSync(join(ROOT, "install", "state-layout.js"), join(dir, "install", "state-layout.js"));
     mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
     cpSync(
       join(ROOT, "agent-factory", "config", "factory.config.json"),
@@ -7118,6 +7126,10 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
           filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
         });
       }
+      // (Plan 40-21, CR-01) context-io.js reaches ./check-role-rules.js through check-diff-disposition.js,
+      // and it imports `../install/state-layout.js` (constants only). Only that pure-data module is copied.
+      mkdirSync(join(dir, "install"), { recursive: true });
+      cpSync(join(ROOT, "install", "state-layout.js"), join(dir, "install", "state-layout.js"));
       mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
       cpSync(
         join(ROOT, "agent-factory", "config", "factory.config.json"),
@@ -7556,6 +7568,10 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
           filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
         });
       }
+      // (Plan 40-21, CR-01) context-io.js reaches ./check-role-rules.js through check-diff-disposition.js,
+      // and it imports `../install/state-layout.js` (constants only). Only that pure-data module is copied.
+      mkdirSync(join(dir, "install"), { recursive: true });
+      cpSync(join(ROOT, "install", "state-layout.js"), join(dir, "install", "state-layout.js"));
       mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
       cpSync(
         join(ROOT, "agent-factory", "config", "factory.config.json"),
