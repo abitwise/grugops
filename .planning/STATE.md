@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-21-PLAN.md
-last_updated: "2026-11-03T13:48:29.958Z"
+stopped_at: Completed 40-22-PLAN.md
+last_updated: "2026-11-03T20:00:54.931Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 0e880298f30ba732a330f0cd0b0c80995af95794
+state_head: 18ce2d314fb9e0d2f1a5a20a3f9f012267670140
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 113
-  completed_plans: 109
+  completed_plans: 110
   percent: 56
 ---
 
@@ -826,6 +826,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P19 | 30 min | 3 tasks | 3 files |
 | Phase 40 P20 | 1 day (human checkpoint) | 3 tasks | 1 files |
 | Phase 40 P21 | 41 min | 3 tasks | 13 files |
+| Phase 40 P22 | 8 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2285,6 +2286,8 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-19: check-role-rules compares the baseline JSON with a fresh git derivation when the objects are reachable and judges losses against git on a difference (IN-01); NOTE line when unreachable
 - [Phase 40]: 40-20: named human Olger (2026-11-03) accepted all 36 Phase 40 safety-sentence disposition rows in docs/audit/29-style-dispositions/40-20.md; no CR-01 follow-ups
 - [Phase 40]: 40-21: the D-30 stand-in never admits a changed role clause that carries a safety fact (carriesSafetyFact imported from check-role-rules.js, both sides, both admission points); check-role-rules.js and install/state-layout.js are now in the admission hook's decider closure, so edits to them need npm run generate:hook-manifest
+- [Phase 40]: 40-22 WR-07: rule 6 arm (d) unspans single-column code spans and names two-span, ASCII/⇒/⟶ arrow and from/to board moves as one (WR-07) finding each, deduplicated against arm (c)
+- [Phase 40]: 40-22 IN-05: a shallow repository FAILs the IN-01 baseline content check naming fetch-depth: 0; mirrors with no history keep the NOTE; process.env.CI is never the trigger
 
 ### Pending Todos
 
@@ -2624,8 +2627,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-03T10:10:15.284Z
-Stopped at: Completed 40-21-PLAN.md
+Last session: 2026-11-03T20:00:53.989Z
+Stopped at: Completed 40-22-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
