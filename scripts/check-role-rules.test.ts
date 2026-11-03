@@ -562,6 +562,69 @@ describe("check-role-rules: the board-move partition (D-29, D-33)", () => {
     expect(moveSpanFindings(doc("`Ready for UAT → In UAT`"), model.columns, "p.md")).toEqual([]);
   });
 
+  // WR-07 (human decision 3, 2026-11-03): a move whose columns each sit in their own code span, or that is
+  // written as "from X to Y", was invisible to arms (a) to (c) and to claimedPairs. Arm (d) names it, so the
+  // author has to write the canonical `X → Y` span that rule 4 judges.
+  const wr07 = (r: string, match: string): string =>
+    `${r}: rule 6: \`${match}\` is a board move written as separate code spans or as from/to prose; write it as one \`X → Y\` code span (WR-07)`;
+
+  it("partition rule 6 (WR-07): the human's red case, `In Development` → `Done` planted into orchestrator.md, is red", () => {
+    const m = makeMirror("rr-part-wr07-two-span-");
+    edit(role(m, "orchestrator.md"), plantSpan("You own `In Development` → `Done`."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain("orchestrator.md: rule 6: `In Development → Done`");
+    expect(r.stdout).toContain(wr07("orchestrator.md", "In Development → Done"));
+    expect(ruleSixLines(r.stdout)).toHaveLength(1);
+    expect(ruleSixLines(r.stdout)[0]).toContain("(WR-07)");
+  });
+
+  it("partition rule 6 (WR-07): `In Development`->`Done` planted into software-engineer.md is red", () => {
+    const m = makeMirror("rr-part-wr07-ascii-");
+    edit(role(m, "software-engineer.md"), plantSpan("You own `In Development`->`Done`."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain(wr07("software-engineer.md", "In Development->Done"));
+    expect(ruleSixLines(r.stdout)).toHaveLength(1);
+    expect(ruleSixLines(r.stdout)[0]).toContain("(WR-07)");
+  });
+
+  it("partition rule 6 (WR-07): from `In Development` to `Done` planted into software-engineer.md is red", () => {
+    const m = makeMirror("rr-part-wr07-from-to-");
+    edit(role(m, "software-engineer.md"), plantSpan("Move the ticket from `In Development` to `Done` yourself."));
+    const r = runGate(m);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain(wr07("software-engineer.md", "from In Development to Done"));
+    expect(ruleSixLines(r.stdout)).toHaveLength(1);
+    expect(ruleSixLines(r.stdout)[0]).toContain("(WR-07)");
+  });
+
+  const wr07Doc = (body: string): string => `# Role: Planted\n\n## Board moves\n${body}\n\n## Hard limits\n- none\n`;
+
+  it("partition rule 6 (WR-07): an arrow glyph outside the ASCII set, In Development ⇒ Done, is one finding", () => {
+    const model = partitionModel(ROOT);
+    for (const glyph of ["⇒", "⟶"]) {
+      const found = moveSpanFindings(wr07Doc(`In Development ${glyph} Done`), model.columns, "p.md");
+      expect(found).toHaveLength(1);
+      expect(found[0]).toBe(wr07("p.md", `In Development ${glyph} Done`));
+    }
+  });
+
+  it("partition rule 6 (WR-07): the canonical span, a non-column two-span arrow and a one-column from/to add no finding", () => {
+    const model = partitionModel(ROOT);
+    expect(moveSpanFindings(wr07Doc("`Ready for UAT → In UAT`"), model.columns, "p.md")).toEqual([]);
+    expect(moveSpanFindings(wr07Doc("Keep the `input` → `output` order."), model.columns, "p.md")).toEqual([]);
+    expect(moveSpanFindings(wr07Doc("Move it from `Blocked` to the owner."), model.columns, "p.md")).toEqual([]);
+  });
+
+  it("partition rule 6 (WR-07): a two-span move next to a canonical span is one finding, and an empty section is none", () => {
+    const model = partitionModel(ROOT);
+    expect(
+      moveSpanFindings(wr07Doc("Close with `In UAT → Done`, never `In Development` → `Done`."), model.columns, "p.md"),
+    ).toEqual([wr07("p.md", "In Development → Done")]);
+    expect(moveSpanFindings(wr07Doc(""), model.columns, "p.md")).toEqual([]);
+  });
+
   it("partition fails closed: an Exit owner that is no role's name is a derivation failure naming it", () => {
     const m = makeMirror("rr-part-owner-");
     edit(join(m, "agent-factory", "seed", BOARD_REL), (s) =>
