@@ -528,7 +528,8 @@ export function checkCodingRoleSet(
 //           red, so a span the fact parser and the partition parser would read differently fails loudly
 //           instead of yielding a fact with no partition claim (IN-02). A code span that holds `->` or `=>`,
 //           and a line naming two board columns around an arrow outside a code span, are red too, so a
-//           move spelled any other way than `X → Y` cannot slip past rule 4 unread (WR-02)
+//           move spelled any other way than `X → Y` cannot slip past rule 4 unread (WR-02). A move written
+//           as two code spans around an arrow, or as "from X to Y" prose, is red too (WR-07)
 // ---------------------------------------------------------------------------
 
 export interface BoardMoveException {
@@ -633,6 +634,9 @@ export function claimedPairs(raw: string, columns: ReadonlySet<string>): BoardPa
  *   (c) WR-02: with every code span blanked, a line that names two board columns around `→`, `->` or `=>`
  *       is a move written outside a code span. The columns come from the argument (the seed board), each
  *       matched whole, longest first, case-insensitive; a prose arrow between other words is no finding.
+ *   (d) WR-07: on a copy where each code span holding exactly one board column is replaced by that column
+ *       and every other span is blanked, two columns around `→`, `->`, `=>`, `⇒` or `⟶`, or `from X to Y`,
+ *       is one finding, unless arm (c) already named the same move on that line.
  * Reads the spans exactly as claimedPairs does; deriveRoleFacts and its lenient bare-`→` split are left as
  * they are, because the baseline was derived with them.
  */
@@ -653,11 +657,31 @@ export function moveSpanFindings(raw: string, columns: ReadonlySet<string>, role
     out.push(`${role}: rule 6: \`${m[1]}\` holds → but is not a \`column → column\` pair (IN-02)`);
   }
   if (columns.size === 0) return out;
-  const col = `(?<![A-Za-z0-9])(?:${[...columns].sort((a, b) => b.length - a.length).map(escapeRe).join("|")})(?![A-Za-z0-9])`;
+  const alts = [...columns].sort((a, b) => b.length - a.length).map(escapeRe).join("|");
+  const col = `(?<![A-Za-z0-9])(?:${alts})(?![A-Za-z0-9])`;
   const prose = new RegExp(`${col}\\s*(?:→|->|=>)\\s*${col}`, "gi");
+  const oneColumn = new RegExp(`^(?:${alts})$`, "i");
+  const spread = new RegExp(`${col}\\s*(?:→|->|=>|⇒|⟶)\\s*${col}|\\bfrom\\s+${col}\\s+to\\s+${col}`, "gi");
+  const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
   for (const line of lines) {
+    // Arm (c) matches on this line, counted by their collapsed text, so arm (d) never reports the same move twice.
+    const seenC = new Map<string, number>();
     for (const m of line.replace(/`[^`\n]+`/g, " ").matchAll(prose)) {
       out.push(`${role}: rule 6: \`${m[0]}\` is a board move written outside a code span; write it as \`X → Y\` in a code span (WR-02)`);
+      seenC.set(collapse(m[0]), (seenC.get(collapse(m[0])) ?? 0) + 1);
+    }
+    // Arm (d): a span holding exactly one column becomes that column's text, every other span a blank.
+    const unspanned = line.replace(/`([^`\n]+)`/g, (_s, inner: string) => (oneColumn.test(inner.trim()) ? inner.trim() : " "));
+    for (const m of unspanned.matchAll(spread)) {
+      const key = collapse(m[0]);
+      const left = seenC.get(key) ?? 0;
+      if (left > 0) {
+        seenC.set(key, left - 1);
+        continue;
+      }
+      out.push(
+        `${role}: rule 6: \`${m[0]}\` is a board move written as separate code spans or as from/to prose; write it as one \`X → Y\` code span (WR-07)`,
+      );
     }
   }
   return out;
