@@ -61,6 +61,12 @@
 // never writes. `--check` also compares the committed baseline with a git derivation when the objects at
 // PHASE_40_START_COMMIT are reachable, and says in a NOTE line when they are not (IN-01).
 //
+// IN-05 (plan 40-22, decision 2026-11-03). When those objects are not reachable because the repository
+// is shallow, the check is a FAIL naming `fetch-depth: 0`, because the D-30 stand-in trusts this check and
+// a shallow checkout would let a laundered baseline pass. A tree with no git history, or a repository whose
+// history lacks the start commit, keeps the NOTE, because the hermetic test mirrors are such trees; the
+// trigger is the shallow repository, never the CI variable. CI checks out with fetch-depth 0.
+//
 // Node stdlib only. Run the committed .js; CHECK_ROOT points it at a hermetic mirror in the tests.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
@@ -964,6 +970,19 @@ function gitObjectsReachable(root: string, sha: string): boolean {
   }
 }
 
+/** True only when git says `root` is a shallow repository; false on any git error, since a tree that is not a repository is not shallow (IN-05). */
+function isShallowRepository(root: string): boolean {
+  try {
+    const out = execFileSync("git", ["-C", root, "rev-parse", "--is-shallow-repository"], {
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+    return out.trim() === "true";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * What differs between the committed baseline and a fresh derivation (IN-01): the sorted names of the
  * files whose facts or stopWhenItems differ (or that only one side holds), then any top-level key that
@@ -1030,6 +1049,13 @@ function check(): void {
       );
       baseline = expected;
     }
+  } else if (isShallowRepository(ROOT)) {
+    fail(
+      `git objects at ${PHASE_40_START_COMMIT} are not reachable under ${ROOT} because the history is shallow, so ` +
+        `${BASELINE_REL} cannot be compared with git (IN-05). Fetch the full history (on CI, \`fetch-depth: 0\`); ` +
+        "do not re-record the baseline",
+    );
+    return;
   } else {
     process.stdout.write(
       `  NOTE  git objects at ${PHASE_40_START_COMMIT} are not reachable under ${ROOT}, so ${BASELINE_REL} was read ` +
