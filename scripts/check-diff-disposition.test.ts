@@ -3475,6 +3475,7 @@ const PROSE_SENTENCE = "Give one next action, not a menu.";
 const PROSE_REWORDED = "Give a single next action, not a menu.";
 const SAFETY_NOTE = "carries a safety fact";
 const SAFETY_COUNT_LINE = "carry a safety fact and were not offered to the stand-in";
+const DISPOSITION_DIR_REL = "docs/audit/29-style-dispositions";
 
 /**
  * A shared clone of REPO, checked out detached at REPO's HEAD, with the working-tree gate and
@@ -3489,6 +3490,12 @@ function sharedCloneOfHead(prefix: string): string {
   for (const rel of ["scripts/check-diff-disposition.js", "scripts/check-role-rules.js"]) {
     cpSync(join(REPO, rel), join(tmp, rel));
   }
+  // Rows written in the same task as a gate change are not committed yet, and the clone must judge
+  // the tree the task will commit, so the working-tree disposition directory replaces the clone's.
+  cpSync(join(REPO, DISPOSITION_DIR_REL), join(tmp, DISPOSITION_DIR_REL), {
+    recursive: true,
+    force: true,
+  });
   return tmp;
 }
 
@@ -3561,6 +3568,41 @@ describe("CR-01 round 2: a reworded safety sentence owes a row (human decision 2
       const r = runInClone(c, "scripts/check-diff-disposition.js");
       expect(r.status, r.stdout).toBe(0);
       expect(r.stdout).not.toContain(SAFETY_NOTE);
+    },
+    120_000,
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CR-04 (plan 40-24, human decision 2026-11-03). rowMatches accepted a row when EITHER side equalled
+// a changed clause, so a "kept word for word" row in 40-20.md, whose before and after are the same
+// sentence, also matched that sentence's DELETION: the gate diffs against a fixed base, so a deleted
+// sentence is still a removed clause equal to the row's before. The verifier deleted the Release
+// Manager's named-human approval sentence and both gates stayed green. Now a removed clause matches
+// only a row's before, an added clause only its after, and a row whose non-empty after is not an
+// added clause in the current diff matches nothing.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const RM_REL = "agent-factory/roles/release-manager.md";
+const RM_APPROVAL =
+  "Deploy only after a named human approves; production action is always human-confirmed. ";
+const CR04_NOTE = "match nothing (CR-04)";
+
+describe("CR-04 (plan 40-24): a disposition row matches one side, and only while its after still exists (human decision 2026-11-03)", () => {
+  it(
+    "clone E: deleting the Release Manager's named-human approval sentence is red, naming the stale 40-20.md row, while check-role-rules exits 0",
+    () => {
+      const c = sharedCloneOfHead("gops-cr04-e-");
+      plantInClone(c, RM_REL, RM_APPROVAL, "");
+      const r = runInClone(c, "scripts/check-diff-disposition.js");
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(`${RM_REL}:`);
+      expect(r.stdout).toContain("(removed)");
+      expect(r.stdout).toContain("FROZEN by structuralSections");
+      expect(r.stdout).toContain(CR04_NOTE);
+      expect(r.stdout).toContain("40-20.md");
+      const inv = runInClone(c, "scripts/check-role-rules.js");
+      expect(inv.status, inv.stdout).toBe(0);
     },
     120_000,
   );
