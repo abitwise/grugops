@@ -169,6 +169,16 @@
 // puts check-role-rules.js (and its constants module install/state-layout.js) in the admission
 // hook's decider closure, so any later edit to it needs `npm run generate:hook-manifest`. Ordinary
 // role prose keeps the D-30 stand-in exactly as ratified.
+//
+// CR-04 (plan 40-24, human decision 2026-11-03) — A ROW MATCHES ONE SIDE, AND ONLY WHILE ITS AFTER
+// STILL EXISTS.
+//
+// The match used to be side-blind: a row matched when either cell equalled the changed clause. Because
+// the gate diffs against a fixed base, a deleted sentence stays a removed clause, so an identical-sides
+// "kept word for word" row pre-approved deleting the very sentence it records. Now a removed clause
+// matches only a row's `before` and an added clause only its `after`, and a row whose non-empty `after`
+// is not an added clause of the same file in the current diff matches nothing. An identical-sides row
+// therefore matches only while its clause is on both sides of the diff.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
@@ -1232,12 +1242,52 @@ export function readDispositionRows(root = ROOT) {
     }
     return { rows, files, refusals };
 }
-/** A row matches a changed clause when it names the file and either side normalizes to the clause. */
-function rowMatches(row, c) {
+/**
+ * CR-04 (plan 40-24). A row matches a changed clause only when it names the same file and the row's
+ * cell for the clause's OWN side normalizes to the clause: a removed clause matches only `before`,
+ * an added clause only `after`. A cell that normalizes to the empty string (which `—` does) is an
+ * empty side and matches nothing.
+ *
+ * A row whose `after` is non-empty but is not an added clause of the same file in the current diff
+ * matches nothing at all: it records a sentence the tree no longer holds. Without that refusal an
+ * identical-sides "kept word for word" row would still match the DELETION of its sentence through
+ * `before`, because the gate diffs against a fixed base and a deleted sentence stays a removed
+ * clause. `addedKeys` holds attributionKey(file, clause) for every added clause in the diff.
+ */
+export function rowMatches(row, c, addedKeys) {
     if (row.file !== c.file)
         return false;
-    return (normalizeSentence(row.before) === c.clause ||
-        normalizeSentence(row.after) === c.clause);
+    const before = normalizeSentence(row.before);
+    const after = normalizeSentence(row.after);
+    if (after !== "" && !addedKeys.has(attributionKey(row.file, after)))
+        return false;
+    return c.side === "removed" ? before !== "" && before === c.clause : after !== "" && after === c.clause;
+}
+/**
+ * CR-04. The sources of rows that name this clause on either side but were refused because their
+ * `after` is not an added clause in this diff. Computed only for a clause that is already a finding.
+ */
+function staleRowSources(rows, c, addedKeys) {
+    const sources = new Set();
+    for (const r of rows) {
+        if (r.file !== c.file)
+            continue;
+        const before = normalizeSentence(r.before);
+        const after = normalizeSentence(r.after);
+        if (before !== c.clause && after !== c.clause)
+            continue;
+        if (after !== "" && !addedKeys.has(attributionKey(r.file, after)))
+            sources.add(r.source);
+    }
+    return [...sources].sort();
+}
+/** CR-04. The note a finding carries when stale rows name its clause, or "" when none do. */
+function staleRowNote(sources) {
+    if (sources.length === 0)
+        return "";
+    return (`        row(s) in ${sources.join(", ")} name this clause, but their \`after\` is not an added ` +
+        `clause in this diff, so they record a sentence the tree no longer holds and match nothing ` +
+        `(CR-04)\n`);
 }
 /** file path, then line number — so two runs over the same diff produce byte-identical stdout. */
 function byPosition(a, b) {
@@ -1569,6 +1619,11 @@ function main() {
         verdict();
         return;
     }
+    // CR-04 (plan 40-24). Built ONCE: every added clause in the diff, keyed the way attribution keys a
+    // clause. rowMatches reads it to refuse a row whose `after` the tree no longer holds.
+    const addedKeys = new Set(changed.clauses
+        .filter((c) => c.side === "added")
+        .map((c) => attributionKey(c.file, c.clause)));
     // The floor and its expectation are PUBLISHED on every green run, not only quoted on a red one —
     // this gate reports its measurements rather than asserting them, and a pin nobody can see in a
     // passing transcript is a pin nobody can notice going slack.
@@ -1744,7 +1799,7 @@ function main() {
                 // rather than above the branch for every frozen clause on all three arms. The other two
                 // arms decide through `companionSatisfied` and never look at a row, so hoisting the filter
                 // made the gate walk 1532 rows per clause twice over for an answer nobody consumed.
-                const rows = disposition.rows.filter((r) => rowMatches(r, c));
+                const rows = disposition.rows.filter((r) => rowMatches(r, c, addedKeys));
                 // WR-05. The satisfaction test is the CANONICAL FILLED FORM and nothing else: no sentinel
                 // is excluded and no spelling is enumerated, so a placeholder is refused by construction
                 // rather than by having been thought of. See isCompanionFilled for the argument in full.
@@ -1799,6 +1854,7 @@ function main() {
                                     `${attributedTo.map(shortCarrier).join(", ")} — none of them touched the ` +
                                     `companion.\n`) +
                         standinNote +
+                        staleRowNote(staleRowSources(disposition.rows, c, addedKeys)) +
                         `        Owed companion edit: ${owed}.\n` +
                         `        There is no override tier and no blanket exemption (D-04). Make the companion ` +
                         `edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded ` +
@@ -1811,7 +1867,7 @@ function main() {
         // it; only the clauses with no row become findings.
         if (safetyHeld)
             heldBackForSafety += 1;
-        if (!disposition.rows.some((r) => rowMatches(r, c))) {
+        if (!disposition.rows.some((r) => rowMatches(r, c, addedKeys))) {
             const s = safetyHeld ? "not-applicable" : standinFor(c.file);
             if (s === "admit") {
                 admittedByStandin += 1;
@@ -1824,10 +1880,12 @@ function main() {
                     `        clause: ${JSON.stringify(c.clause)}\n` +
                     (safetyHeld ? SAFETY_HOLD_NOTE : "") +
                     (s === "not-applicable" ? "" : standinFailureNote(s)) +
+                    staleRowNote(staleRowSources(disposition.rows, c, addedKeys)) +
                     `        Remedy: add a row to your plan's file under ${DISPOSITION_DIR}/ naming the file, ` +
                     `the line, the clause before and after, the profile rule id or decision that drove it, ` +
-                    `and the disposition. A row matches when it names this file and either its \`before\` or ` +
-                    `its \`after\` normalizes to this clause`,
+                    `and the disposition. A removed clause matches a row's \`before\` and an added clause a ` +
+                    `row's \`after\`; a row whose non-empty \`after\` is not an added clause in this diff ` +
+                    `matches nothing (CR-04)`,
             });
         }
     }
