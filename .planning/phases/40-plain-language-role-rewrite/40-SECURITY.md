@@ -91,6 +91,18 @@ created: "2026-11-01"
 | T-40-56 | Elevation of privilege | D-30 stand-in admission of reworded safety sentences | high | mitigate | carriesSafetyFact consulted at both admission points on both sides; the verifier's merge-ban reword is a permanent shared-clone red case; mirror cases for each side and arm; a fact-free reword is still admitted (plan 40-21) | closed |
 | T-40-57 | Tampering | admission hook frozen manifest after the new import | high | mitigate | Manifest regenerated (closure 13 → 15 modules); `npm run freshness:hook-manifest` exits 0; CLOSURE_BASELINES rows taken from jsImportClosure (plan 40-21) | closed |
 | T-40-58 | Repudiation | 40-REVIEW-DISPOSITION.md | medium | mitigate | Each fixed row names its plan and proof; `open: 0`, `total: 12`; REQUIREMENTS.md untouched (plan 40-21) | closed |
+| T-40-59 | Elevation of privilege | moveSpanFindings rule 6 (a gate-skipping move written as two spans or from/to prose) | medium | mitigate | Rule 6 arm (d) in scripts/check-role-rules.ts (lines 643-679); `npx vitest run scripts/check-role-rules.test.ts -t "rule 6\|WR-07"` green on HEAD (2026-11-03) | closed |
+| T-40-60 | Tampering | check() IN-01 branch on a shallow history | low | mitigate | `isShallowRepository` (scripts/check-role-rules.ts:974) makes a shallow tree a FAIL naming `fetch-depth: 0` (line 1052); IN-05/IN-01 cases green on HEAD | closed |
+| T-40-61 | Tampering | admission hook DECIDER_MANIFEST after the 40-22 rebuild | high | mitigate | `npm run freshness:hook-manifest` exits 0 on HEAD; the board-readonly, floor-invariance, reader-parity, admission-guard and freshness suites pass (473) | closed |
+| T-40-62 | Elevation of privilege | orchestrator.md lean close and hold (WR-08) | high | mitigate | orchestrator.md:68 and :89 name the named human's sign-off and the human merge; tier-kit-text exact-sentence and mutation pins pass (201) | closed |
+| T-40-63 | Spoofing | dispositions in docs/audit/29-style-dispositions/40-23.md | high | mitigate | Blocking-human checkpoint answered by the human in-session ("accept-all, Olger"); 16 `accepted by Olger:` cells, 0 pending, one `Read by: Olger, 2026-11-03` line with the reply quoted verbatim | closed |
+| T-40-64 | Tampering | Workflow 06 dial paragraph (WR-09) | medium | mitigate | 06-uat-pack.md:33 now says the `In UAT -> Ready to Release` move waits for the named human's sign-off at every value of `sign_off_acceptance`; uat-planner.md unchanged over the round (`git diff --quiet a3fc0409~1 HEAD`); tier-kit-text pins pass | closed |
+| T-40-65 | Elevation of privilege | structural-arm stand-in admission (CR-03) | high | mitigate | CR-03 hold in scripts/check-diff-disposition.ts (line 183): no `## Hard limits` or `## Stop when` clause reaches the stand-in; clone and mirror cases in check-diff-disposition.test.ts pass (153) | closed |
+| T-40-66 | Tampering | rowMatches (CR-04) | high | mitigate | Side-aware `export function rowMatches` (scripts/check-diff-disposition.ts:1536); the deletion clone case and the stale, swapped, one-sided and frozen-role mirrors pass (153) | closed |
+| T-40-67 | Tampering | admission hook DECIDER_MANIFEST after the 40-24 rebuild | high | mitigate | Same evidence as T-40-61, run after the last rebuild: `freshness:hook-manifest` exit 0 and the 473 hook and reader cases pass | closed |
+| T-40-68 | Spoofing | generated rows in 40-24.md read as accepted | high | mitigate | At the 40-24 close (`005ae960`) the file held 309 `pending (named human)` cells and 0 `accepted by`; acceptance came only from the 40-25 human read | closed |
+| T-40-69 | Spoofing | human dispositions in 40-24.md | high | mitigate | Blocking-human checkpoint answered by the human in-session ("accept-all, Olger"); 309 `accepted by Olger:` cells, 0 pending, one `Read by: Olger, 2026-11-03` line with the reply quoted verbatim (40-24.md:411-415) | closed |
+| T-40-70 | Repudiation | 40-REVIEW-DISPOSITION.md and deferred-items.md | medium | mitigate | `open: 0`, `total: 20`, each fixed row names its plan and run; append-only prefixes unchanged (base-move first 137 lines `8906a69cbb7ca917`, deferred-items first 72 lines `91b6a1ac3da1b324`) | closed |
 | T-40-SC | Tampering | npm/pip/cargo installs (every plan) | low | accept | No package is installed by any plan in this phase | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -122,7 +134,7 @@ created: "2026-11-01"
 
 ## Known residuals (not registered threats)
 
-- **Fact-less safety sentences under the stand-in (from plan 40-11, open in deferred-items.md).** While the D-30 `role_standin` key is present, a `## Hard limits` or `## Stop when` sentence that carries none of the 26 fact kinds can be reworded with every gate green. T-40-34's freeze applies when the key is absent. This is recorded as open, not accepted: accepting it needs a named human.
+- **Fact-less safety sentences under the stand-in (from plan 40-11, open in deferred-items.md).** While the D-30 `role_standin` key is present, a `## Hard limits` or `## Stop when` sentence that carries none of the 26 fact kinds can be reworded with every gate green. T-40-34's freeze applies when the key is absent. This is recorded as open, not accepted: accepting it needs a named human. Gap round 3 (plan 40-24, CR-03, 2026-11-03): no clause in `## Hard limits` or `## Stop when` reaches the stand-in any more, so this residual is closed by a fix (T-40-65).
 - **Truncated red output through a pipe (from plans 40-11, 40-12).** A large red run of `check-diff-disposition.js` (~897 KB) can be cut short when stdout is a pipe; the exit code stays correct. Not fixed.
 
 ---
@@ -131,7 +143,7 @@ created: "2026-11-01"
 
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
-| AR-40-01 | T-40-SC | No plan in this phase installs a package; the only dev deps are the existing {typescript, vitest, @types/node} lockfile. The disposition was set at plan time. | plan-time disposition (40-01..40-21 threat models; no package file changed since 2c130e57) | 2026-10-31 |
+| AR-40-01 | T-40-SC | No plan in this phase installs a package; the only dev deps are the existing {typescript, vitest, @types/node} lockfile. The disposition was set at plan time. | plan-time disposition (40-01..40-25 threat models; no package file changed since 2c130e57) | 2026-10-31 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -144,7 +156,7 @@ created: "2026-11-01"
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-01 (/gsd-secure-phase 40, ASVS L1, block_on high); re-verified 2026-11-02 after the gap round (T-40-28 to T-40-45 added and closed by gsd-security-auditor); re-verified 2026-11-03 after gap round 2 (T-40-46 to T-40-58 added and closed at L1 grep depth: register authored at plan time, threats_open 0, ASVS L1, so no auditor spawn per the short-circuit rule)
+**Approval:** verified 2026-11-01 (/gsd-secure-phase 40, ASVS L1, block_on high); re-verified 2026-11-02 after the gap round (T-40-28 to T-40-45 added and closed by gsd-security-auditor); re-verified 2026-11-03 after gap round 2 (T-40-46 to T-40-58 added and closed at L1 grep depth: register authored at plan time, threats_open 0, ASVS L1, so no auditor spawn per the short-circuit rule); re-verified 2026-11-03 after gap round 3 (T-40-59 to T-40-70 added and closed at L1 grep depth, same short-circuit rule)
 
 ## Security Audit 2026-11-01
 
@@ -168,4 +180,12 @@ created: "2026-11-01"
 |---|---|
 | Threats found | 59 |
 | Closed | 59 |
+| Open | 0 |
+
+## Security Audit 2026-11-03
+
+| Metric | Count |
+|---|---|
+| Threats found | 71 |
+| Closed | 71 |
 | Open | 0 |
