@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 40
 current_phase_name: Plain-language role rewrite
 status: executing
-stopped_at: Completed 40-23-PLAN.md
-last_updated: "2026-11-03T20:29:25.612Z"
+stopped_at: Completed 40-24-PLAN.md
+last_updated: "2026-11-03T20:51:53.179Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 40 execution started
-state_head: 8885666cbf9d3bf89ccb16cfd847eca19a78f182
+state_head: 9bd16d066af73f70ef8218481bfbc2c81ff9964f
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 113
-  completed_plans: 111
+  completed_plans: 112
   percent: 56
 ---
 
@@ -828,6 +828,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P21 | 41 min | 3 tasks | 13 files |
 | Phase 40 P22 | 8 min | 2 tasks | 5 files |
 | Phase 40 P23 | 25min | 3 tasks | 5 files |
+| Phase 40 P24 | 20 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2292,6 +2293,8 @@ Recent decisions affecting current work:
 - [Phase 40]: 40-23 WR-08: the lean close and its hold need the named human's sign-off and the human merge at every sign_off_acceptance value (decision 4, Olger, 2026-11-03)
 - [Phase 40]: 40-23 WR-09: the UAT Planner's named-human sign-off stays unconditional; uat-planner.md unchanged; the dial only shapes the lean close record (decision 2, Olger, 2026-11-03)
 - [Phase 40]: 40-23 rows: Olger accepted all 16 rows of docs/audit/29-style-dispositions/40-23.md on 2026-11-03 (accept-all, Olger)
+- [Phase 40]: CR-04 (human decision 1, Olger, 2026-11-03): rowMatches is side-aware and refuses a row whose non-empty after is not an added clause in the diff
+- [Phase 40]: CR-03 (human decision 1): no role clause in ## Hard limits or ## Stop when reaches the D-30 stand-in; 309 owed rows in 40-24.md are pending (named human) for plan 40-25
 
 ### Pending Todos
 
@@ -2631,8 +2634,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-03T20:29:24.636Z
-Stopped at: Completed 40-23-PLAN.md
+Last session: 2026-11-03T20:51:52.222Z
+Stopped at: Completed 40-24-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
