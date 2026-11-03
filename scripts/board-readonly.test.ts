@@ -3231,13 +3231,18 @@ const RELOCATED_SPECIFIER_ROW_COUNT = 3;
  */
 const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: readonly string[] }[] =
   Object.freeze([
+    // 2026-11-02, plan 40-21: check-diff-disposition.js imports ./check-role-rules.js (carriesSafetyFact,
+    // CR-01), so these closures gained scripts/check-role-rules.js and install/state-layout.js. Taken
+    // from jsImportClosure, not typed.
     {
       entry: "hooks/admission-guard.js",
       modules: [
         "hooks/admission-guard.js",
+        "install/state-layout.js",
         "scripts/audit-model.js",
         "scripts/audit-prepass.js",
         "scripts/check-diff-disposition.js",
+        "scripts/check-role-rules.js",
         "scripts/checkpoints.js",
         "scripts/context-io.js",
         "scripts/dead-vocabulary.js",
@@ -3270,12 +3275,16 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
     },
     { entry: "scripts/board-model.js", modules: ["install/state-layout.js", "scripts/board-model.js"] },
     { entry: "scripts/claim.js", modules: ["scripts/claim.js", "scripts/is-entry.js"] },
+    // 2026-11-02, plan 40-21: see the dated comment on the hooks/admission-guard.js row (CR-01). Taken
+    // from jsImportClosure, not typed.
     {
       entry: "scripts/context-io.js",
       modules: [
+        "install/state-layout.js",
         "scripts/audit-model.js",
         "scripts/audit-prepass.js",
         "scripts/check-diff-disposition.js",
+        "scripts/check-role-rules.js",
         "scripts/checkpoints.js",
         "scripts/context-io.js",
         "scripts/dead-vocabulary.js",
@@ -3287,12 +3296,16 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
         "scripts/voice-model.js",
       ],
     },
+    // 2026-11-02, plan 40-21: see the dated comment on the hooks/admission-guard.js row (CR-01). Taken
+    // from jsImportClosure, not typed.
     {
       entry: "scripts/generate-guarantees.js",
       modules: [
+        "install/state-layout.js",
         "scripts/audit-model.js",
         "scripts/audit-prepass.js",
         "scripts/check-diff-disposition.js",
+        "scripts/check-role-rules.js",
         "scripts/checkpoints.js",
         "scripts/context-io.js",
         "scripts/dead-vocabulary.js",

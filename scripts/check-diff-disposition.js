@@ -127,7 +127,8 @@
 // When the key is present, main() spawns `node <value> --check` ONCE — from the CLI path, never at
 // module load, because scripts/checkpoints.ts imports locateSection from this module and the
 // admission hook loads it. If that run exits 0, a changed clause under agent-factory/roles/ that is
-// frozen only by `structuralSections`, or that has no disposition row, is admitted and counted on the
+// frozen only by `structuralSections`, or that has no disposition row, is admitted unless it carries a
+// safety fact (CR-01 round 2, below), and counted on the
 // line "N role clause(s) admitted by the role-rule inventory stand-in (D-30)". It FAILS CLOSED: a
 // missing script, a spawn error or a non-zero exit makes every such role clause a finding naming the
 // stand-in failure, and a key outside the canonical form is a named refusal. A role clause that equals
@@ -153,11 +154,30 @@
 // ROLE_COUNT like the other three. While the D-30 stand-in holds it admits both role sections'
 // clauses on the same terms (the `structuralSections` arm, nothing wider); when the stand-in ends,
 // an edit to either section owes a disposition row.
+//
+// CR-01 ROUND 2 (plan 40-21, human decision 2026-11-02) — THE STAND-IN NEVER SEES A SAFETY SENTENCE.
+//
+// The role-rule inventory tests tokens, not meaning. A sentence reworded to reverse its rule while
+// keeping its token ("Never merge to a protected branch until the gate is green; then merge it
+// yourself.") keeps its fact, so check-role-rules exits 0 and the stand-in admitted the reversal with
+// no row. The stand-in therefore refuses any changed role clause that carries a safety fact, on the
+// removed side or the added side, at both admission points (the `structuralSections` arm and the
+// no-row arm). Such a clause owes a disposition row, which the disposition directory's README says a
+// named human reads; frozen ones also owe the filled companion. Each such finding carries a note
+// naming the reason, and the verdict arm prints how many role clauses were held back. The predicate,
+// carriesSafetyFact, is imported from check-role-rules.ts so the fact list lives once; that import
+// puts check-role-rules.js (and its constants module install/state-layout.js) in the admission
+// hook's decider closure, so any later edit to it needs `npm run generate:hook-manifest`. Ordinary
+// role prose keeps the D-30 stand-in exactly as ratified.
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+// CR-01 round 2 (plan 40-21). The ONE safety-fact predicate, the SAFETY_RULE_FACTS table's own some().
+// IMPORTED, never restated: a second copy of the fact list here could drift from the inventory that
+// guards it. check-role-rules.ts runs nothing on import (its runAll sits behind isEntrypoint).
+import { carriesSafetyFact } from "./check-role-rules.js";
 // The ONE sentence-identity pair (Phase 29 / plan 29-01, D-38). IMPORTED, never re-implemented: the
 // diff gate and guard_role_clause_uniqueness must not be able to disagree about what one clause is.
 // NFC normalization happens inside normalizeSentence, first, so two spellings of one clause are one
@@ -1674,6 +1694,11 @@ function main() {
     };
     const standinFailureNote = (reason) => `        role-rule inventory stand-in failed: ${reason} (D-30) — the stand-in fails closed, so ` +
         `this role clause is a finding exactly as it would be with no stand-in declared\n`;
+    // CR-01 round 2: role clauses that carry a safety fact and were held back from the stand-in.
+    let heldBackForSafety = 0;
+    const SAFETY_HOLD_NOTE = `        carries a safety fact (SAFETY_RULE_FACTS in scripts/check-role-rules.js), so the D-30 ` +
+        `stand-in does not admit it: a changed safety sentence owes a disposition row a named human ` +
+        `reads (CR-01)\n`;
     for (const c of changed.clauses) {
         // Positional freeze: the structural sections are frozen by WHERE they are, which is what
         // catches a REWORD. The reworded text is new, so it matches no frozen clause; its position
@@ -1683,6 +1708,9 @@ function main() {
         // prefix with a frozen clause is NOT an intersection and needs only an ordinary row.
         const textSource = frozen.text.get(c.clause);
         const source = region !== null ? "structuralSections" : (textSource ?? null);
+        // CR-01 round 2. Computed once per clause, on whichever side it sits: a role clause under the
+        // stand-in's scope that carries a safety fact is never offered to the stand-in on either arm.
+        const safetyHeld = standinRun.declared && c.file.startsWith(ROLE_STANDIN_SCOPE) && carriesSafetyFact(c.clause);
         // D-30. Only a clause frozen by POSITION alone reaches the stand-in: a clause that also equals a
         // registry verbatim anchor or a positive guard literal never does, whatever section it sits in, so
         // the registry and guard-literal companions stay owed. (A structural clause's own text is in the
@@ -1691,13 +1719,19 @@ function main() {
         if (source === "structuralSections" &&
             (textSource === undefined || textSource === "structuralSections") &&
             !positiveLiteralClauses.has(c.clause)) {
-            const s = standinFor(c.file);
-            if (s === "admit") {
-                admittedByStandin += 1;
-                continue;
+            if (safetyHeld) {
+                heldBackForSafety += 1;
+                standinNote = SAFETY_HOLD_NOTE;
             }
-            if (s !== "not-applicable")
-                standinNote = standinFailureNote(s);
+            else {
+                const s = standinFor(c.file);
+                if (s === "admit") {
+                    admittedByStandin += 1;
+                    continue;
+                }
+                if (s !== "not-applicable")
+                    standinNote = standinFailureNote(s);
+            }
         }
         if (source !== null) {
             let satisfied = false;
@@ -1773,8 +1807,12 @@ function main() {
             }
             continue;
         }
+        // CR-01 round 2: a fact-bearing role clause is held back here too, whether or not a row names
+        // it; only the clauses with no row become findings.
+        if (safetyHeld)
+            heldBackForSafety += 1;
         if (!disposition.rows.some((r) => rowMatches(r, c))) {
-            const s = standinFor(c.file);
+            const s = safetyHeld ? "not-applicable" : standinFor(c.file);
             if (s === "admit") {
                 admittedByStandin += 1;
                 continue;
@@ -1784,6 +1822,7 @@ function main() {
                 line: c.line,
                 text: `${c.file}:${c.line} (${c.side}) — no disposition row\n` +
                     `        clause: ${JSON.stringify(c.clause)}\n` +
+                    (safetyHeld ? SAFETY_HOLD_NOTE : "") +
                     (s === "not-applicable" ? "" : standinFailureNote(s)) +
                     `        Remedy: add a row to your plan's file under ${DISPOSITION_DIR}/ naming the file, ` +
                     `the line, the clause before and after, the profile rule id or decision that drove it, ` +
@@ -1863,6 +1902,10 @@ function main() {
     process.stdout.write(`        ${changed.changedFiles.length} watched file(s) changed since ${base.slice(0, 7)}; ` +
         `${changed.clauses.length} changed clause(s) derived; ` +
         `${disposition.rows.length} disposition row(s) across ${disposition.files.length} file(s)\n`);
+    if (standinRun.declared) {
+        process.stdout.write(`        ${heldBackForSafety} role clause(s) carry a safety fact and were not offered to the ` +
+            `stand-in (CR-01); each needs a disposition row\n`);
+    }
     reportStandin(standinRun, admittedByStandin);
     FAILS += reportMeasured(measured, { pass, fail }, (f) => `        ${f.text}`);
     verdict();

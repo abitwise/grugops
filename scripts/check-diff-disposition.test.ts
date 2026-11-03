@@ -33,12 +33,14 @@
 // Vitest globals:false → import explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
+  closeSync,
   copyFileSync,
   cpSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -3450,4 +3452,113 @@ describe("WR-04: role `## Stop when` is frozen like `## Hard limits`", () => {
     expect(stdout).toContain("ALL CHECKS PASSED");
     expect(status).toBe(0);
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CR-01 round 2 (plan 40-21, human decision 2026-11-02). The D-30 stand-in admitted a changed role
+// clause whenever check-role-rules exited 0, and that inventory tests safety tokens, not meaning: the
+// verifier reworded the Orchestrator's merge ban to reverse it while keeping "never merge", and the
+// gate admitted it with no row. The stand-in now refuses any changed role clause that carries a
+// safety fact (carriesSafetyFact, imported from check-role-rules.js), on either side and at both
+// admission points. The clone cases drive the real tree; the mirror cases pin each side and arm.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const ORCH_REL = "agent-factory/roles/orchestrator.md";
+const MERGE_BAN_SENTENCE =
+  "Never merge to a protected branch. Never deploy to production; merge and deploy stay with humans.";
+const MERGE_BAN_REVERSED =
+  "Never merge to a protected branch until the gate is green; then merge it yourself. Never deploy to production without a green gate.";
+const PROSE_SENTENCE = "Give one next action, not a menu.";
+const PROSE_REWORDED = "Give a single next action, not a menu.";
+const SAFETY_NOTE = "carries a safety fact";
+const SAFETY_COUNT_LINE = "carry a safety fact and were not offered to the stand-in";
+
+/**
+ * A shared clone of REPO, checked out detached at REPO's HEAD, with the working-tree gate and
+ * inventory scripts copied over the clone's, so the case exercises uncommitted code during TDD.
+ * Argv arrays only, never a shell. The clone shares REPO's object store and never writes into it.
+ */
+function sharedCloneOfHead(prefix: string): string {
+  const tmp = freshTmp(prefix);
+  execFileSync("git", ["clone", "--shared", "--no-checkout", "-q", REPO, tmp], { encoding: "utf8" });
+  const sha = execFileSync("git", ["-C", REPO, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  execFileSync("git", ["-C", tmp, "checkout", "-q", "--detach", sha], { encoding: "utf8" });
+  for (const rel of ["scripts/check-diff-disposition.js", "scripts/check-role-rules.js"]) {
+    cpSync(join(REPO, rel), join(tmp, rel));
+  }
+  return tmp;
+}
+
+/**
+ * Run one script inside a clone. Output goes to a file descriptor, never a pipe: a red run prints
+ * close to a megabyte and exits, and a pipe reader was measured receiving only part of it.
+ */
+function runInClone(clone: string, script: string): { status: number; stdout: string } {
+  const outPath = join(freshTmp("gops-cr01r2-out-"), "out.txt");
+  const fd = openSync(outPath, "w");
+  let status: number;
+  try {
+    const r = spawnSync(process.execPath, [join(clone, script)], {
+      cwd: clone,
+      stdio: ["ignore", fd, fd],
+      env: { ...process.env, CHECK_ROOT: clone },
+    });
+    status = r.status ?? -1;
+  } finally {
+    closeSync(fd);
+  }
+  return { status, stdout: readFileSync(outPath, "utf8") };
+}
+
+/** Replace `from` with `to` in a clone file, asserting the replace changed the text. */
+function plantInClone(clone: string, rel: string, from: string, to: string): void {
+  const path = join(clone, rel);
+  const before = readFileSync(path, "utf8");
+  const after = before.replace(from, to);
+  expect(after, `the plant must change ${rel}`).not.toBe(before);
+  writeFileSync(path, after, "utf8");
+}
+
+describe("CR-01 round 2: a reworded safety sentence owes a row (human decision 2026-11-02)", () => {
+  it(
+    "clone A, unplanted: the gate is green, the stand-in admits ordinary role prose and the safety count is printed",
+    () => {
+      const c = sharedCloneOfHead("gops-cr01r2-a-");
+      const r = runInClone(c, "scripts/check-diff-disposition.js");
+      expect(r.status, r.stdout).toBe(0);
+      expect(r.stdout).toContain("admitted by the role-rule inventory stand-in (D-30)");
+      expect(r.stdout).toContain(SAFETY_COUNT_LINE);
+    },
+    120_000,
+  );
+
+  it(
+    "clone B: the verifier's merge-ban reword is red, naming orchestrator.md and the safety fact, while the stand-in itself exits 0",
+    () => {
+      const c = sharedCloneOfHead("gops-cr01r2-b-");
+      plantInClone(c, ORCH_REL, MERGE_BAN_SENTENCE, MERGE_BAN_REVERSED);
+      const r = runInClone(c, "scripts/check-diff-disposition.js");
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toContain(ORCH_REL);
+      expect(r.stdout).toContain("FROZEN by structuralSections");
+      expect(r.stdout).toContain(SAFETY_NOTE);
+      expect(r.stdout).toContain("admitted by the role-rule inventory stand-in (D-30)");
+      expect(r.stdout).toContain("--check` exited 0");
+      const inv = runInClone(c, "scripts/check-role-rules.js");
+      expect(inv.status, inv.stdout).toBe(0);
+    },
+    120_000,
+  );
+
+  it(
+    "clone C: rewording ordinary role prose stays admitted by the stand-in (green control)",
+    () => {
+      const c = sharedCloneOfHead("gops-cr01r2-c-");
+      plantInClone(c, ORCH_REL, PROSE_SENTENCE, PROSE_REWORDED);
+      const r = runInClone(c, "scripts/check-diff-disposition.js");
+      expect(r.status, r.stdout).toBe(0);
+      expect(r.stdout).not.toContain(SAFETY_NOTE);
+    },
+    120_000,
+  );
 });
