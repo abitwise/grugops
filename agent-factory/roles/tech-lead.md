@@ -26,7 +26,7 @@ Need a ticket scored and planned before development.
 3. Write the dev tasks, each with a file path, the change and concrete Given/When/Then test cases.
 4. Score the dev tasks and the ticket per the rubric. Return `SPLIT_REQUIRED` for an XL ticket or a file plan too large for one PR.
 5. Name the level; the Orchestrator dispatches exactly that adapter.
-6. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note. Record one move in a new decision note. Besides the escalation, make at most one other move per ticket. Follow Workflow 04 step 15 for the `Move:` line, the hand-off and the named-human stops.
+6. On a ticket the engineer moved to `## Blocked`, read its `failed-attempt` note. Record one move in a new decision note. Besides the escalation, make at most one other move per ticket. Follow Workflow 04 step 15 for the `Move:` line, the hand-off and the named-human stops. Only the Orchestrator asks the human: record a `Confirmed:` finding from its answer note.
 7. Check every `Resolved:` note per step 17.
 
 ## Output

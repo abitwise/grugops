@@ -1704,6 +1704,32 @@ describe("WF04 asks a human once, and the answer note wakes the Tech Lead at bot
   });
 });
 
+describe("tech-lead.md and the config paragraph say who asks the human (plan 41-02; D-21)", () => {
+  // `## Stop when` tells the Tech Lead to "stop for a named human", which a reader can take as the Tech
+  // Lead asking. One sentence in responsibility 6 removes that reading, and the config paragraph no
+  // longer says the Tech Lead asks.
+  const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
+  const cl = CONFIG.split("\n");
+  const para = cl
+    .slice(
+      cl.findIndex((l) => l.startsWith("**What `escalate_unadjudicable_result` gates.**")),
+      cl.findIndex((l) => l.startsWith("**Which members are floor-tier is not decided here.**")),
+    )
+    .join("\n");
+
+  it("responsibility 6 says only the Orchestrator asks, and the Tech Lead records from its answer note", () => {
+    const item = numbered(section(TECH_LEAD, "Responsibilities"))[5]?.text ?? "";
+    expect(` ${item} `).toContain(" Only the Orchestrator asks the human: record a `Confirmed:` finding from its answer note. ");
+  });
+
+  it("the config paragraph says the Orchestrator asks, once, and no longer that the Tech Lead asks", () => {
+    expect(para.length).toBeGreaterThan(0);
+    expect(para).toContain("Only the Orchestrator asks the human, once.");
+    expect(para).toContain("The Orchestrator asks the human to approve or reject a `Fundamental:` proposal.");
+    expect(para).not.toContain("and asks the human to approve");
+  });
+});
+
 describe("WF04 gives competing stops one order, an approval names its proposal, and step 4 claims (plan 41-02; D-04, D-22 to D-25, D-27)", () => {
   // Phase 39 UAT test 71 residuals (2) to (4): two stops could both claim one ticket, the step 16 gate
   // hold could hold a later hand-off, and an `Approved:` line bound to no specific change.
@@ -2366,9 +2392,9 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     expect(row[0]).toContain(", or before a fourth hand-off on one ticket,");
     const para = escalateParagraph();
     expect(para).toContain("The same holds before a fourth hand-off on one ticket.");
-    expect(para).toContain(
-      "It stops the same way before a fourth hand-off on one ticket, and asks the human to approve or reject a `Fundamental:` proposal.",
-    );
+    // Plan 41-02 (D-21): the sentence split, because the Orchestrator asks and the Tech Lead does not.
+    expect(para).toContain("It stops the same way before a fourth hand-off on one ticket.");
+    expect(para).toContain("The Orchestrator asks the human to approve or reject a `Fundamental:` proposal.");
     expect(WF04.split("checkpoint: ").length - 1).toBe(2);
     expect(stops).toHaveLength(6);
   });
