@@ -24,6 +24,23 @@
 //   sweepStale (Task 2, DOGF-02 seed): an explicit generous-configurable wall-clock TTL reclaim of
 //     a claim whose claim.md `at` is older than the TTL — NO pid/host liveness.
 //
+//   The whole lifecycle (RUN-01, plan 41-01): claimPending takes a pending subtask into claimed/ in
+//     one call, and completeTask moves it to done/ and removes claimed/<task>/. That removal is what
+//     empties the in-flight log: a bare transition(claimed→done) moves only the subtask file and
+//     leaves claim.md behind, so the render would keep a row for finished work.
+//
+//   NO RENDER HERE. The mutators do not call renderNowRunning. The program that calls them renders
+//     after each one (D-02), so a failed render can be reported without denying a queue change that
+//     stands.
+//
+//   EMBEDDED IN A HOST PROGRAM. scripts/generate-runnable-embeds.ts embeds this library, next to
+//     scripts/context-io.ts, into a host runnable. That is why the task-name rule here is named
+//     QUEUE_TASK_NAME_RE and assertSafeQueueTask: the generator refuses one name with two targets, and
+//     it refuses a closure that reaches a non-`node:` import, so the rule cannot be imported from
+//     context-io.ts. A test binds the two patterns. It is also why renderNowRunning takes its root
+//     from the caller: DEFAULT_QUEUE_ROOT is an import.meta.dirname path, and only the kit CLI below
+//     may reach it.
+//
 // CRITICAL naming distinction: the queue CLAIM here (hard work-ownership via atomic mkdir) is
 // DIFFERENT from the `claim` note-KIND in context-io.ts (a soft, unverified assertion). They never
 // share a code path. claim.md (this file, the now-running registry) is NOT a `kind: claim` note.
@@ -50,7 +67,8 @@ import {
   renameSync,
   unlinkSync,
   rmSync,
-  existsSync,
+  lstatSync,
+  type Stats,
 } from "node:fs";
 import { join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
@@ -65,15 +83,38 @@ export const QUEUE_STAGES = ["pending", "claimed", "done"] as const;
 export type QueueStage = (typeof QUEUE_STAGES)[number];
 
 // ── Task-name allowlist (path-traversal mitigation, T-20-04) ─────────────────────────────────────
-const TASK_NAME_RE = /^[A-Za-z0-9._-]+$/;
-function assertSafeTask(task: string): void {
+export const QUEUE_TASK_NAME_RE = /^[A-Za-z0-9._-]+$/;
+function assertSafeQueueTask(task: string): void {
   // Reject empty, `.`/`..`, path separators, absolute paths, and anything outside the allowlist.
-  if (!TASK_NAME_RE.test(task) || task === "." || task === "..") {
+  if (!QUEUE_TASK_NAME_RE.test(task) || task === "." || task === "..") {
     throw new Error(
       `claim: invalid task name "${task}" — must match ^[A-Za-z0-9._-]+$ ` +
         "(no path separators, no .., no absolute paths)",
     );
   }
+}
+
+// ── queueEntry / readClaimRecord: ask what is there before anything opens it (T-41-03). ──────────
+// An lstat, so a link is reported as a link and never followed. Nothing there is null: ENOENT, and
+// ENOTDIR for a path under a regular file, which is what `claimed/.gitkeep/claim.md` gives. Every
+// other failure is rethrown, because a failed look must never read as "nothing there".
+function queueEntry(path: string): Stats | null {
+  try {
+    return lstatSync(path);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return null;
+    throw e;
+  }
+}
+
+// The text of a claim record, or null when nothing is there or the entry is not a regular file. A
+// FIFO must never be opened, because a read of one blocks until a writer comes, and a link names a
+// file outside the queue.
+function readClaimRecord(path: string): string | null {
+  const entry = queueEntry(path);
+  if (entry === null || !entry.isFile()) return null;
+  return readFileSync(path, "utf8");
 }
 
 // ── atomicRename: rename src → dst; on the Windows MoveFileEx case, unlink dst then retry. ───────
@@ -108,7 +149,12 @@ export function claimTask(
   task: string,
   by: string,
 ): boolean {
-  assertSafeTask(task);
+  return takeClaim(queueRoot, task, by) !== null;
+}
+
+// The claim itself: the `at` written to the record, or null when the claim is lost.
+function takeClaim(queueRoot: string, task: string, by: string): string | null {
+  assertSafeQueueTask(task);
   // Field-injection guard (CR-02): `by` is written raw into claim.md frontmatter. A newline would
   // smuggle a forged `at:` line ahead of the real one, and sweepStale's first-match regex would
   // then read the forged timestamp — making a stale claim un-sweepable forever (queue-lock DoS).
@@ -123,7 +169,7 @@ export function claimTask(
     mkdirSync(claimDir); // atomic create-or-fail (NOT recursive — a missing claimed/ parent is a real ENOENT)
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    if (code === "EEXIST") return false; // claim lost — another claimant already owns this task
+    if (code === "EEXIST") return null; // claim lost — another claimant already owns this task
     throw e; // ENOENT (claimed/ parent missing) / EACCES / ... are genuine failures
   }
   // Won the claim: record the now-running registry entry for the stale sweep. ISO-8601 `at`.
@@ -133,7 +179,70 @@ export function claimTask(
     `---\nby: ${by}\nat: ${at}\ntask: ${task}\n---\n`,
     "utf8",
   );
-  return true;
+  return at;
+}
+
+// ── claimPending: claim a pending subtask and move it into the claim directory (RUN-01, D-04). ──
+// The claim directory comes first, on purpose. A check of the pending file first would turn a lost
+// race into a refusal, because the winner has already moved that file. So a second claimant meets
+// EEXIST and reads `lost`, and only the claimant that won the directory can find the subtask missing,
+// in which case it removes its own directory and refuses. A real failure is a refusal, never a false
+// `lost` (D-08).
+export type ClaimOutcome =
+  | { kind: "claimed"; at: string }
+  | { kind: "lost" }
+  | { kind: "refused"; reason: string };
+
+export function claimPending(queueRoot: string, task: string, by: string): ClaimOutcome {
+  assertSafeQueueTask(task);
+  let at: string | null;
+  try {
+    if (queueEntry(stagePath(queueRoot, task, "done")) !== null) {
+      return { kind: "refused", reason: `done/${task}.md already exists, so ${task} is finished` };
+    }
+    at = takeClaim(queueRoot, task, by);
+  } catch (e) {
+    return { kind: "refused", reason: `claim of ${task} failed: ${(e as Error).message}` };
+  }
+  if (at === null) return { kind: "lost" };
+  try {
+    transition(queueRoot, task, "pending", "claimed");
+  } catch (e) {
+    rmSync(join(queueRoot, "claimed", task), { recursive: true, force: true });
+    const missing = (e as NodeJS.ErrnoException).code === "ENOENT";
+    return {
+      kind: "refused",
+      reason: missing
+        ? `no subtask at pending/${task}.md`
+        : `could not move pending/${task}.md: ${(e as Error).message}`,
+    };
+  }
+  return { kind: "claimed", at };
+}
+
+// ── completeTask: move the subtask to done/ and release the claim (RUN-01, Pitfall 1). ──────────
+// When the subtask is no longer in claimed/<task>/ but done/<task>.md exists, an earlier run stopped
+// between the rename and the removal: finish it by releasing the claim. A subtask in both places, or
+// in neither, is refused and nothing moves.
+export type DoneOutcome = { kind: "done" } | { kind: "refused"; reason: string };
+
+export function completeTask(queueRoot: string, task: string): DoneOutcome {
+  assertSafeQueueTask(task);
+  const claimDir = join(queueRoot, "claimed", task);
+  if (queueEntry(claimDir)?.isDirectory() !== true) {
+    return { kind: "refused", reason: `no claim directory at claimed/${task}/` };
+  }
+  const inClaimed = queueEntry(stagePath(queueRoot, task, "claimed")) !== null;
+  const inDone = queueEntry(stagePath(queueRoot, task, "done")) !== null;
+  if (inClaimed && inDone) {
+    return { kind: "refused", reason: `done/${task}.md already exists, and ${task} is still in claimed/` };
+  }
+  if (!inClaimed && !inDone) {
+    return { kind: "refused", reason: `no subtask for ${task} in claimed/${task}/ or done/` };
+  }
+  if (inClaimed) transition(queueRoot, task, "claimed", "done");
+  rmSync(claimDir, { recursive: true, force: true });
+  return { kind: "done" };
 }
 
 // ── transition: move the subtask file between stages by atomic rename (CLAIM-01). ───────────────
@@ -146,7 +255,7 @@ export function transition(
   from: QueueStage,
   to: QueueStage,
 ): void {
-  assertSafeTask(task);
+  assertSafeQueueTask(task);
   const src = stagePath(queueRoot, task, from);
   const dst = stagePath(queueRoot, task, to);
   atomicRename(src, dst);
@@ -181,14 +290,13 @@ export function sweepStale(
   now: number = Date.now(),
 ): string[] {
   const claimedDir = join(queueRoot, "claimed");
-  if (!existsSync(claimedDir)) return [];
+  if (queueEntry(claimedDir) === null) return [];
   const reclaimed: string[] = [];
   for (const task of readdirSync(claimedDir)) {
     // Defensive: skip anything whose name would not be a safe task (never join an unsafe segment).
-    if (!TASK_NAME_RE.test(task) || task === "." || task === "..") continue;
-    const claimMd = join(claimedDir, task, "claim.md");
-    if (!existsSync(claimMd)) continue;
-    const claimText = readFileSync(claimMd, "utf8");
+    if (!QUEUE_TASK_NAME_RE.test(task) || task === "." || task === "..") continue;
+    const claimText = readClaimRecord(join(claimedDir, task, "claim.md"));
+    if (claimText === null) continue;
     // Defense-in-depth (CR-02): the design writes EXACTLY ONE `at:` line. More than one is a
     // tampered/malformed record (the on-disk signature of a `by`-injection that smuggled a forged
     // `at:`). Do NOT trust the first match — treat the claim as compromised and reclaim it, rather
@@ -206,7 +314,7 @@ export function sweepStale(
     // rename) BEFORE releasing the claim dir, then remove the claim directory. Wall-clock only —
     // no liveness probe.
     const subtask = join(claimedDir, task, `${task}.md`);
-    if (existsSync(subtask)) {
+    if (queueEntry(subtask) !== null) {
       atomicRename(subtask, join(queueRoot, "pending", `${task}.md`));
     }
     rmSync(join(claimedDir, task), { recursive: true, force: true });
@@ -274,17 +382,16 @@ interface NowRunningRow {
 // trusted on the first (or second) match. There is deliberately NO permissive multi-match frontmatter
 // parser here: a forged second `at:` line is a queue-lock DoS, and trusting it would let a tampered
 // claim masquerade as a running row.
-export function renderNowRunning(queueRoot: string = DEFAULT_QUEUE_ROOT): void {
+export function renderNowRunning(queueRoot: string): void {
   const claimedDir = join(queueRoot, "claimed");
   const rows: NowRunningRow[] = [];
 
-  if (existsSync(claimedDir)) {
+  if (queueEntry(claimedDir) !== null) {
     for (const task of readdirSync(claimedDir)) {
       // Defensive: never read through an unsafe segment.
-      if (!TASK_NAME_RE.test(task) || task === "." || task === "..") continue;
-      const claimMd = join(claimedDir, task, "claim.md");
-      if (!existsSync(claimMd)) continue;
-      const claimText = readFileSync(claimMd, "utf8");
+      if (!QUEUE_TASK_NAME_RE.test(task) || task === "." || task === "..") continue;
+      const claimText = readClaimRecord(join(claimedDir, task, "claim.md"));
+      if (claimText === null) continue;
 
       // First-`at`-trusted single-line discipline (mirror sweepStale l.194-196). A multi-`at`
       // record is tampered → skip it; do NOT emit a forged second line as a trusted row.
