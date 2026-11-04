@@ -593,10 +593,10 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 6 plans
+**Plans**: 1/6 plans executed
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
-- [ ] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
+- [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
 - [ ] 41-02-PLAN.md — Workflow 04 residuals: ask once, stop precedence, an approval that names its proposal, and the claim step (RUN-06)
 
 Wave 2 *(blocked on wave 1)*
@@ -608,6 +608,7 @@ Wave 3 *(blocked on wave 2)*
 
 Wave 4 *(blocked on wave 3)*
 - [ ] 41-06-PLAN.md — the Orchestrator pointer and hard limit, the README and registry, the software engineer prompt review (Phase 41 D-31), and the phase gate (RUN-02, RUN-03, RUN-04, RUN-06)
+
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
 **Carried in (Phase 39 UAT 71, human decision 2026-10-31):** the WF04 hand-off loop residuals listed in `39-UAT.md` `## Deferred Follow-Ups` (test 71): who wakes the Tech Lead to record the human's confirmation (and the double ask), the gate-failure stop confirmation wake-up, two stop-precedence ambiguities, and binding an `Approved:` line to the specific change.
@@ -656,7 +657,7 @@ Wave 4 *(blocked on wave 3)*
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
-| 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
+| 41. Orchestrator flow guidance | v3.0 | 1/6 | In Progress | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 

@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Phase 41 context gathered
-last_updated: "2026-11-04T21:52:04.300Z"
+stopped_at: Completed 41-01-PLAN.md
+last_updated: "2026-11-04T22:07:33.084Z"
 last_activity: 2026-11-04
-last_activity_desc: Phase 40 complete, transitioned to Phase 41
-state_head: dda8f1dc69510a69517db46ef8db473831f0019c
+last_activity_desc: Phase 41 execution started
+state_head: 0ee62e3b7acbac40e36a05416f927b9ec250f482
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 119
-  completed_plans: 113
+  completed_plans: 114
   percent: 67
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 ## Current Position
 
-Phase: 41 (Orchestrator flow guidance) — READY TO EXECUTE
-Plan: Not started
+Phase: 41 (Orchestrator flow guidance) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-11-04 — Phase 40 complete, transitioned to Phase 41
+Last activity: 2026-11-04 — Phase 41 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -831,6 +831,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P23 | 25min | 3 tasks | 5 files |
 | Phase 40 P24 | 20 min | 3 tasks | 6 files |
 | Phase 40 P25 | 15min | 3 tasks | 4 files |
+| Phase 41 P01 | 12 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2300,6 +2301,10 @@ Recent decisions affecting current work:
 - [Phase 40]: Olger accepted all 309 CR-03 / CR-04 rows in 40-24.md on 2026-11-03 (accept-all, Olger); no row flagged
 - [Phase 40]: Gap round 3 closed: CR-03, CR-04, WR-07, WR-08, WR-09, IN-05 fixed; IN-06 and IN-07 deferred with reasons (40-REVIEW-DISPOSITION.md open: 0)
 - [Phase 40]: Phase close by override (Olger, 2026-11-04, "accept CR-05 and CR-06"): the round-3 review criticals CR-05 (region-blind "kept" row match) and CR-06 (a `# ` heading ends the frozen region) accepted as D-30 stand-in residuals; verification passed 7/7 with 1 override; both stay open in deferred-items.md
+- [Phase 41]: queueEntry treats ENOTDIR as nothing there, because a keeper file in claimed/ gives ENOTDIR for claimed/.gitkeep/claim.md
+- [Phase 41]: claimPending turns a real failure into a refusal and removes its own claim directory; only a bad task name throws
+- [Phase 41]: subtaskRefFolder counts every ref: line, so a good line beside a bad one is refused
+- [Phase 41]: claimRecordFields stops a value at its own line, so an empty by: no longer reads the next line
 
 ### Pending Todos
 
@@ -2640,9 +2645,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-04T15:58:22.107Z
-Stopped at: Phase 41 context gathered
-Resume file: .planning/phases/41-orchestrator-flow-guidance/41-CONTEXT.md
+Last session: 2026-11-04T22:07:32.073Z
+Stopped at: Completed 41-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
