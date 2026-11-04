@@ -114,6 +114,34 @@ describe("renderNowRunning — deterministic, byte-reproducible render (D-14)", 
   });
 });
 
+describe("renderNowRunning — the in-flight log empties as work finishes (RUN-01, Pitfall 1)", () => {
+  it("after the last completeTask the render holds its table header and no data row", () => {
+    const { queueRoot } = makeCheckRoot("nr-empties-", []);
+    mkdirSync(join(queueRoot, "pending"), { recursive: true });
+    mkdirSync(join(queueRoot, "done"), { recursive: true });
+    writeFileSync(join(queueRoot, "pending", "one.md"), "# subtask one\n");
+    writeFileSync(join(queueRoot, "pending", "two.md"), "# subtask two\n");
+
+    expect(mod.claimPending(queueRoot, "one", "grugops-qe-e2e").kind).toBe("claimed");
+    expect(mod.claimPending(queueRoot, "two", "grugops-qe-e2e").kind).toBe("claimed");
+    mod.renderNowRunning(queueRoot);
+    expect(readFileSync(join(queueRoot, "now-running.md"), "utf8")).toContain("| one |");
+
+    expect(mod.completeTask(queueRoot, "one").kind).toBe("done");
+    mod.renderNowRunning(queueRoot);
+    const partway = readFileSync(join(queueRoot, "now-running.md"), "utf8");
+    expect(partway).not.toContain("| one |");
+    expect(partway).toContain("| two |");
+
+    expect(mod.completeTask(queueRoot, "two").kind).toBe("done");
+    mod.renderNowRunning(queueRoot);
+    const lines = readFileSync(join(queueRoot, "now-running.md"), "utf8").trimEnd().split("\n");
+    // The last two lines are the header and its separator: nothing follows them.
+    expect(lines[lines.length - 1]).toMatch(/^\| --- \|/);
+    expect(lines[lines.length - 2]).toMatch(/^\| task \| by \|/);
+  });
+});
+
 describe("renderNowRunning — security carve-out: forged second `at:` line (T-23-01)", () => {
   it("does NOT emit a tampered (multi-`at`) claim.md as a trusted now-running row", () => {
     const { queueRoot } = makeCheckRoot("nr-tamper-", [
