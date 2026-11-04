@@ -118,7 +118,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
 - [x] **Phase 37: Overview board, per-file records and budgets** - the board becomes a one-line-per-ticket overview, NFRs and traceability become one file per record with indexes, and byte budgets are checked in grugops and in host repos (completed 2026-10-27)
 - [x] **Phase 38: install --migrate v3** - an old-layout repo moves to the v3 layout with one command that keeps every original, proves line conservation and re-runs as a no-op (the data-loss surface, in its own phase) (completed 2026-10-28)
 - [x] **Phase 39: Role machinery: engineer levels, Tech Lead and Designer roles, skills key** - a Tech Lead scores and pre-plans, one engineer role yields junior/mid/senior adapters on Claude Code, a Designer role exists, roles can declare skills, and every role and adapter set stays derived (completed 2026-10-31)
-- [ ] **Phase 40: Plain-language role rewrite** - caveman retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English within 67,383 bytes, every load-bearing rule kept, "do less" rules added
+- [x] **Phase 40: Plain-language role rewrite** - caveman retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English within 67,383 bytes, every load-bearing rule kept, "do less" rules added (completed 2026-11-04)
 - [ ] **Phase 41: Orchestrator flow guidance** - the Orchestrator reads running work from disk, refills free capacity on each completion, knows when to start a fresh session, and the same guidance works on all six hosts
 - [ ] **Phase 42: Skills per role and evaluation** - each role names the skills it may use with a fallback, third-party skills are evaluated and recommended only as optional pinned installs, and the doctor warns on a missing skill
 - [ ] **Phase 43: Story and layered docs** - the README tells the new story, the main docs explain how grugops works with worked examples, and every agent and skill has a generated, freshness-gated reference page
@@ -513,7 +513,7 @@ Waves are sequential: every plan rebuilds the committed `.js` and most move a sh
   4. The engineer and Tech Lead roles carry grugops-authored "do less" rules (scope-first, reuse-before-build ladder, never-cut floor, one test for logic, `shortcut:` marker, "what was skipped" line) with ponytail's MIT attribution in NOTICE and no borrowed benchmark numbers, and the PR review checklist has a lean-review lens that flags over-engineering (PLAIN-05, PLAIN-06)
   5. Role text is a governed surface of the writing profile, and the lexicon and sentence gates pass on every role (PLAIN-07)
 
-**Plans**: 25/25 plans executed (10 executed; 6 gap-closure plans, 40-11 to 40-16; 5 gap-closure plans, 40-17 to 40-21; 4 gap-closure plans, 40-22 to 40-25, planned)
+**Plans**: 25/25 plans complete (10 executed; 6 gap-closure plans, 40-11 to 40-16; 5 gap-closure plans, 40-17 to 40-21; 4 gap-closure plans, 40-22 to 40-25, planned)
 **Wave 1**
 - [x] 40-01-PLAN.md — role-rule inventory baseline, D-30 disposition base move and stand-in, then the atomic caveman flip seen red first (PLAIN-01, PLAIN-03)
 
@@ -641,7 +641,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
 | 37. Overview board, per-file records and budgets | v3.0 | 42/42 | Complete    | 2026-10-27 |
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
-| 40. Plain-language role rewrite | v3.0 | 25/25 | In Progress | - |
+| 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 0/TBD | Not started | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |

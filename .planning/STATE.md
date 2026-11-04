@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: 40
-current_phase_name: Plain-language role rewrite
-status: verifying
-stopped_at: Completed 40-25-PLAN.md
-last_updated: "2026-11-03T22:08:41.659Z"
-last_activity: 2026-11-01
-last_activity_desc: Phase 40 execution started
-state_head: caaf91c3d230d86b940ae3fbb048c24eccee2555
+current_phase: 41
+current_phase_name: Orchestrator flow guidance
+status: planning
+stopped_at: Phase 40 complete, ready to plan Phase 41
+last_updated: "2026-11-04T10:42:48.668Z"
+last_activity: 2026-11-04
+last_activity_desc: Phase 40 complete, transitioned to Phase 41
+state_head: 27c9855e4191eb9350abfdfe3d39f6b0b77745db
 progress:
   total_phases: 9
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 113
   completed_plans: 113
-  percent: 56
+  percent: 67
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
 
 ## Current Position
 
-Phase: 40 (Plain-language role rewrite) — READY TO EXECUTE
-Plan: 10 of 10
-Status: Phase complete — ready for verification
-Last activity: 2026-11-01 — Phase 40 execution started
+Phase: 41 — Orchestrator flow guidance
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-04 — Phase 40 complete, transitioned to Phase 41
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 483
+- Total plans completed: 508
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -146,6 +146,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 37 | 42 | - | - |
 | 38 | 11 | - | - |
 | 39 | 20 | - | - |
+| 40 | 25 | - | - |
 
 **Recent Trend:**
 
@@ -2638,7 +2639,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-11-03T22:08:40.752Z
-Stopped at: Completed 40-25-PLAN.md
+Stopped at: Phase 40 complete, ready to plan Phase 41
 Resume file: None
 
 ## Operator Next Steps
