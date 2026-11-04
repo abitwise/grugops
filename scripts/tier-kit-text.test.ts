@@ -1478,13 +1478,15 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
   const GATE_STOP = "At `block`, the default, stop until a named human confirms the move.";
 
   // G-39-71 (plan 39-19): the re-score stop became the hand-off and the human stop, so six became seven.
-  // Plan 41-02 (D-21): the ask-once rule is its own sub-bullet, so seven became eight.
-  it("step 15 has exactly eight indented sub-bullets, followed directly by step 16", () => {
+  // Plan 41-02 (D-21, D-27): the ask-once rule and the stop precedence are their own sub-bullets, so
+  // seven became nine, and the precedence carries three six-space numbered lines.
+  it("step 15 has exactly nine indented sub-bullets and three folded lines, followed directly by step 16", () => {
     expect(at15).toBeGreaterThanOrEqual(0);
-    expect(subs).toHaveLength(8);
+    expect(subs).toHaveLength(9);
     const body = lines.slice(at15 + 1, lines.findIndex((l) => l.startsWith("16. ")));
     expect(body.filter((l) => /^ {4}- /.test(l))).toHaveLength(subs.length);
-    expect(body.every((l) => /^ {4}- |^ {6}\S/.test(l))).toBe(true);
+    expect(body.filter((l) => /^ {6}\d\. /.test(l))).toHaveLength(3);
+    expect(body).toHaveLength(subs.length + 3);
   });
 
   it("step15Subs folds a six-space line into the sub-bullet above it and stops at anything else", () => {
@@ -1500,14 +1502,15 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
     expect(lead).not.toContain("named human");
   });
 
-  it("the sub-bullets open, in order, with the move limits, the hand-off, the human stop, the move record, the gate-failure stop, the ask-once rule, the confirmation and the board", () => {
+  it("the sub-bullets open, in order, with the move limits, the hand-off, the stop precedence, the human stop, the move record, the gate-failure stop, the ask-once rule, the confirmation and the board", () => {
     // Plan 39-17 (CR-01): the human stop comes before the move record, so at `block` the Tech Lead
     // stops before any move note exists. G-39-71 (plan 39-19): the hand-off and the human stop replace the
     // re-score stop. Plan 41-02 (D-21): the ask-once rule follows both stops and comes before the
-    // confirmation it feeds.
+    // confirmation it feeds, and the stop precedence (D-27) reads before either stop it orders.
     const openings = [
       "Apply the move limits.",
       "Apply the hand-off.",
+      "Apply the stop precedence.",
       "Apply the human stop.",
       "Record the move in a new `decision` note per Workflow 16.",
       "Apply the gate-failure stop.",
@@ -1701,6 +1704,100 @@ describe("WF04 asks a human once, and the answer note wakes the Tech Lead at bot
   });
 });
 
+describe("WF04 gives competing stops one order, an approval names its proposal, and step 4 claims (plan 41-02; D-04, D-22 to D-25, D-27)", () => {
+  // Phase 39 UAT test 71 residuals (2) to (4): two stops could both claim one ticket, the step 16 gate
+  // hold could hold a later hand-off, and an `Approved:` line bound to no specific change.
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const lines = section(WF04, "Steps").split("\n");
+  const subs = step15Subs(lines);
+  const steps = numbered(section(WF04, "Steps"));
+  const indexOfSub = (opening: string) => {
+    const i = subs.findIndex((s) => s.startsWith(`${opening} `));
+    expect(i, `no sub-bullet opening "${opening}"`).toBeGreaterThanOrEqual(0);
+    return i;
+  };
+  const sub = (opening: string) => subs[indexOfSub(opening)] as string;
+  const hasSentence = (text: string, sentence: string) => (` ${text} `).includes(` ${sentence} `);
+  const holdsAll = (text: string, where: string, sentences: string[]) => {
+    for (const sentence of sentences) expect(hasSentence(text, sentence), `${where} lacks "${sentence}"`).toBe(true);
+  };
+  const PRECEDENCE = "Apply the stop precedence.";
+  const LINE1 = "1. Apply step 17's revert hand-off to an unapproved fundamental change, never the human stop.";
+  const LINE2 = "2. Apply the hand-off before a stop for a raise past the spent escalation, once the options are used up.";
+  const LINE3 = "3. Apply the step 16 gate hold only to the move that answers its `Cause: gate` note.";
+
+  it("the precedence sub-bullet sits between the hand-off and the human stop and folds its three numbered lines", () => {
+    expect(indexOfSub(PRECEDENCE)).toBe(indexOfSub("Apply the hand-off.") + 1);
+    expect(indexOfSub("Apply the human stop.")).toBe(indexOfSub(PRECEDENCE) + 1);
+    const at = lines.findIndex((l) => l.startsWith(`    - ${PRECEDENCE} `));
+    expect(lines[at]).toBe(`    - ${PRECEDENCE} Take the first line that fits.`);
+    expect(lines[at + 1]).toBe(`      ${LINE1}`);
+    expect(lines[at + 2]?.startsWith(`      ${LINE2} `)).toBe(true);
+    expect(lines[at + 3]?.startsWith(`      ${LINE3} `)).toBe(true);
+    expect(lines[at + 4]?.startsWith("    - Apply the human stop. ")).toBe(true);
+  });
+
+  it("D-22: line 1 sends an unapproved fundamental change to the revert hand-off, never the human stop", () => {
+    holdsAll(sub(PRECEDENCE), "precedence sub-bullet", [LINE1]);
+  });
+
+  it("D-23: line 2 puts the hand-off before the raise stop and keeps the three-rounds and fundamental rules", () => {
+    holdsAll(sub(PRECEDENCE), "precedence sub-bullet", [
+      LINE2,
+      "Apply that stop only when the ticket comes back still needing the raise.",
+      "The three-rounds and fundamental rules still apply.",
+    ]);
+  });
+
+  it("D-25: line 3 binds the gate hold to the move that answers it, and a later revert hand-off does not wait", () => {
+    holdsAll(sub(PRECEDENCE), "precedence sub-bullet", [
+      LINE3,
+      "Dispatch a later revert hand-off on the same ticket without waiting.",
+    ]);
+  });
+
+  it("D-22: the human stop applies to a proposed `Fundamental:` note only", () => {
+    const t = sub("Apply the human stop.");
+    holdsAll(t, "human-stop sub-bullet", [
+      "Apply it after three disputed rounds, or when a proposed `Fundamental:` note waits for approval.",
+    ]);
+    expect(t).not.toContain("when the fix changes a requirement or a rule fundamentally");
+  });
+
+  it("D-24: the move record names the human and the `Fundamental:` note, with no content hash", () => {
+    const t = sub("Record the move in a new `decision` note per Workflow 16.");
+    holdsAll(t, "move-record sub-bullet", [
+      "Name the human and the id of the `Fundamental:` note it answers on that line.",
+    ]);
+    expect(t).not.toContain("line naming the human.");
+    expect(WF04).not.toMatch(/\bhash\b/i);
+  });
+
+  it("D-24: step 17 reads the pass rule and then binds it to the `Fundamental:` note behind the change", () => {
+    const s17 = steps[16]?.text ?? "";
+    expect(s17).toContain(
+      "A fundamental change passes only when its `Resolved:` note names a hand-off note carrying `Approved:`. That `Approved:` line names the `Fundamental:` note behind this change.",
+    );
+  });
+
+  it("D-04: step 4 claims before the spawn and still passes no `model` or `effort` parameter", () => {
+    const s4 = steps[3]?.text ?? "";
+    const CLAIM = "Run `node tools/grugops/claim.js claim <task> --by <adapter> --level <level>` per Workflow 17.";
+    const SPAWN = "Spawn that adapter by name as a non-fork sub-agent.";
+    holdsAll(s4, "step 4", [CLAIM, SPAWN, "Pass no `model` or `effort` parameter on the spawn call."]);
+    expect(s4.indexOf(CLAIM)).toBeLessThan(s4.indexOf(SPAWN));
+  });
+
+  it("the raise trigger and the two checkpoint tags are untouched", () => {
+    holdsAll(sub("Apply the human stop."), "human-stop sub-bullet", [
+      "Apply it also when the scores call for a raise past the spent escalation.",
+    ]);
+    for (const tag of ["`checkpoint: exhaust_self_fix_budget`", "`checkpoint: escalate_unadjudicable_result`"]) {
+      expect(WF04.split(tag), tag).toHaveLength(2);
+    }
+  });
+});
+
 describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one outcome under every value (WR-01, 39-18)", () => {
   // Plan 39-18 (WR-01, option park-in-blocked, decided by Olger Oeselg on 2026-10-30): the used-up stop
   // is tagged `checkpoint: escalate_unadjudicable_result`, and step 15 says it follows the same value as
@@ -1874,7 +1971,8 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     const LOWERED = "At `notify` or `off`, the ticket stays in `Blocked` with no move until a human answers.";
     holdsAll(t, "human-stop sub-bullet", [
       "Apply the human stop.",
-      "Apply it after three disputed rounds, or when the fix changes a requirement or a rule fundamentally.",
+      // Plan 41-02 (D-22): the stop covers a proposal only; an already-made change takes the revert hand-off.
+      "Apply it after three disputed rounds, or when a proposed `Fundamental:` note waits for approval.",
       "A round is a `Disputed:` `decision` note naming a hand-off note for the same cause.",
       "A receiving role writes one per step 17.",
       "Record one when the ticket blocks again for the cause a `Resolved:` fix addressed.",
@@ -2005,14 +2103,17 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
   const PARK = "in `Blocked` with no move";
 
   it("(k) WF04 step 15, the used-up stop, tech-lead.md `## Stop when` and the config paragraph share the three phrases (W1)", () => {
-    const places: [string, string][] = [
-      ["Workflow 04 step 15", stepAt(STEP15).text],
-      ["the Workflow 04 used-up stop", usedUp()],
-      ["tech-lead.md `## Stop when`", section(TECH_LEAD, "Stop when")],
-      ["the factory.config.md escalate paragraph", escalateParagraph()],
+    // Plan 41-02 (D-22): step 15's own trigger names the proposal, because the stop precedence sends an
+    // already-made change to the revert hand-off. The three summaries keep the general wording.
+    const STEP15_HUMAN = "after three disputed rounds, or when a proposed `Fundamental:` note waits for approval";
+    const places: [string, string, string][] = [
+      ["Workflow 04 step 15", stepAt(STEP15).text, STEP15_HUMAN],
+      ["the Workflow 04 used-up stop", usedUp(), HUMAN],
+      ["tech-lead.md `## Stop when`", section(TECH_LEAD, "Stop when"), HUMAN],
+      ["the factory.config.md escalate paragraph", escalateParagraph(), HUMAN],
     ];
-    for (const [where, text] of places) {
-      for (const phrase of [HANDOFF, HUMAN, PARK]) expect(text, `${where} lacks "${phrase}"`).toContain(phrase);
+    for (const [where, text, human] of places) {
+      for (const phrase of [HANDOFF, human, PARK]) expect(text, `${where} lacks "${phrase}"`).toContain(phrase);
     }
     expect(stepAt(STEP15).text).toContain("Make the hand-off at every value of `checkpoints.escalate_unadjudicable_result`.");
     expect(escalateParagraph()).toContain(
@@ -2357,9 +2458,12 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
   it("(ab) R3: the move note carries the human's `Approved:` or `Rejected:` verdict, and the receiving role acts on it (quick 261031-rhv)", () => {
     const rec = subAt("Record the move in a new `decision` note per Workflow 16.");
     const STOP_LINE = "Put the line `Stop: human` under the `Move:` line when the human stop applied.";
-    const VERDICT = "After the human approves or rejects a `Fundamental:` proposal, add an `Approved:` or `Rejected:` line naming the human.";
-    holdsAll(rec, "move-record sub-bullet", [STOP_LINE, VERDICT]);
+    // Plan 41-02 (D-24): the line also names the `Fundamental:` note it answers.
+    const VERDICT = "After the human approves or rejects a `Fundamental:` proposal, add an `Approved:` or `Rejected:` line.";
+    const VERDICT_NAMES = "Name the human and the id of the `Fundamental:` note it answers on that line.";
+    holdsAll(rec, "move-record sub-bullet", [STOP_LINE, VERDICT, VERDICT_NAMES]);
     expect(rec.indexOf(STOP_LINE)).toBeLessThan(rec.indexOf(VERDICT));
+    expect(rec.indexOf(VERDICT)).toBeLessThan(rec.indexOf(VERDICT_NAMES));
     const s17 = stepAt(STEP17).text;
     const REJECTED_NOTE = "When the hand-off note carries `Rejected:`, fix the cause within the current requirement and rules.";
     const seq = [PROPOSE, APPROVED_NOTE, REJECTED_NOTE, DEFINITION, TREAT_NEW];
