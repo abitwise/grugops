@@ -148,8 +148,8 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:d09e3b1bc49de37edf833538e7dc739bc78e68602704dfaddfbf0cac38f23e9e";
-export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"] as const);
+export const RUNNABLE_SET_STAMP = "sha256:5d6f6a0d94ffa4c6a8871d55d961cc81230fab7e5c68c8d02032e574ab55e772";
+export const RUNNABLE_SET = Object.freeze(["claim.js", "state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
 export const STATE_ROOT_REL = "memory-bank/plans";

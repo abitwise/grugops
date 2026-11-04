@@ -137,6 +137,11 @@ export function runnableSpecs(set) {
  * no install/state-layout.ts authority: the hand-written part imports those constants from ./state-layout.js, so
  * the region declares none of them twice. The roots are the whole set phase 38 needs, so later plans never edit
  * the row.
+ * Plan 41-03 (2026-11-04) adds the row of the host queue tool, scripts/runnable-ref/claim.ts (RUN-05, D-01), a
+ * runnable, so claim.js joins RUNNABLE_SET and the build stamp: the queue paths from install/state-layout.ts, the
+ * output sanitizer from scripts/state-rules.ts, the queue rules from scripts/claim.ts, and the root-chain owner and
+ * the non-blocking reader from scripts/context-io.ts. The scripts/claim.ts roots include what plan 41-05 calls, so
+ * that plan needs no generator change.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -307,6 +312,35 @@ export const EMBED_SPECS = Object.freeze([
         ],
     },
     {
+        target: "scripts/runnable-ref/claim.ts",
+        authorities: [
+            {
+                module: "install/state-layout.ts",
+                roots: ["GRUGOPS_DIR_REL", "QUEUE_REL", "QUEUE_PENDING_REL", "QUEUE_CLAIMED_REL", "QUEUE_DONE_REL"],
+            },
+            { module: "scripts/state-rules.ts", roots: ["stripControlChars"] },
+            {
+                module: "scripts/claim.ts",
+                roots: [
+                    "claimPending",
+                    "completeTask",
+                    "renderNowRunning",
+                    "claimRecordFields",
+                    "subtaskRefFolder",
+                    "noteSinceClaim",
+                    "claimedCount",
+                    "freeSlots",
+                    "parseQueueConfig",
+                    "sweepQueue",
+                ],
+            },
+            {
+                module: "scripts/context-io.ts",
+                roots: ["rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL", "readRegularFileOrNull"],
+            },
+        ],
+    },
+    {
         target: "install/state-migrate.ts",
         kind: "module",
         authorities: [
@@ -355,8 +389,9 @@ export const EMBED_SPECS = Object.freeze([
  * 2026-10-22, plan 37-06: two rows; the second is the host trace renderer (SPLIT-03, D-01).
  * 2026-10-22, plan 37-10: three rows; the third is the Done roll, scripts/runnable-ref/state-roll.ts (SPLIT-06, D-08).
  * 2026-10-28, plan 38-02: four rows; the fourth is the migrate planner, install/state-migrate.ts, of kind `module`.
+ * 2026-11-04, plan 41-03: five rows; the new one is the host queue tool, scripts/runnable-ref/claim.ts (RUN-05, D-01).
  */
-export const EMBED_SPEC_COUNT = 4;
+export const EMBED_SPEC_COUNT = 5;
 /** Names the generator never embeds, each with the reason it gives. */
 const REFUSED_NAMES = Object.freeze({
     LEGACY_STATE_ROOT_REL: "its quoted value is the spelling the old-state-path gate counts (research Pitfall 2); choose roots whose " +

@@ -217,11 +217,12 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
       });
   };
 
-  it("each of the three targets holds exactly one stamp line inside its region, and the three stamps are equal", () => {
+  it("each of the four runnable targets holds exactly one stamp line inside its region, and the four stamps are equal", () => {
     expect(RUNNABLES.map((s) => s.target)).toEqual([
       "scripts/runnable-ref/state-check.ts",
       "scripts/runnable-ref/trace-render.ts",
       "scripts/runnable-ref/state-roll.ts",
+      "scripts/runnable-ref/claim.ts",
     ]);
     const stamps = RUNNABLES.map((s) => {
       const text = readFileSync(join(ROOT, s.target), "utf8");
@@ -240,7 +241,7 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
       const js = join(ROOT, s.target.replace(/\.ts$/, ".js"));
       const text = readFileSync(js, "utf8");
       expect(readRunnableStamp(text), js).toEqual({ kind: "stamp", stamp: own });
-      expect(text).toContain('export const RUNNABLE_SET = Object.freeze(["state-check.js", "state-roll.js", "trace-render.js"]);');
+      expect(text).toContain('export const RUNNABLE_SET = Object.freeze(["claim.js", "state-check.js", "state-roll.js", "trace-render.js"]);');
       const self = s.target.split("/").pop()?.replace(/\.ts$/, ".js") ?? "";
       expect(text.split("\n").filter((l) => l.startsWith("export const RUNNABLE_SELF = "))).toEqual([
         `export const RUNNABLE_SELF = ${JSON.stringify(self)};`,
@@ -359,7 +360,7 @@ function committedRegion(target: string): string {
 describe("the build stamp moves with every authority and cannot be hand-written (plan 37-24, D-17, WR-05)", () => {
   const STATE_CHECK = "scripts/runnable-ref/state-check.ts";
 
-  it("one character changed inside a declaration only state-check embeds moves the stamp of all three regions (temporary mirror)", () => {
+  it("one character changed inside a declaration only state-check embeds moves the stamp of every runnable region (temporary mirror)", () => {
     // PREMISE: boardBudgetFindings is embedded by the state checker's region alone among the runnables (plan 38-02:
     // the migrate module embeds it too, and carries no stamp).
     for (const s of RUNNABLES) {
@@ -381,7 +382,7 @@ describe("the build stamp moves with every authority and cannot be hand-written 
     for (const [i, s] of RUNNABLES.entries()) {
       expect(stamps[i], `${s.target}: the stamp moved`).not.toBe(committed);
     }
-    expect(new Set(stamps).size, "the three moved stamps are still equal").toBe(1);
+    expect(new Set(stamps).size, "the moved stamps are still equal").toBe(1);
     // Only the stamp moved in the two regions that do not embed the edited declaration.
     for (const [i, s] of RUNNABLES.entries()) {
       if (s.target === STATE_CHECK) continue;
@@ -415,7 +416,7 @@ describe("the build stamp moves with every authority and cannot be hand-written 
     expect(ok.status, ok.stdout + ok.stderr).toBe(0);
   });
 
-  it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 3", () => {
+  it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 4", () => {
     // The RUNNABLES rows are read from install/install.ts's syntax tree: the array literal bound to `RUNNABLES`.
     // install.ts runs on import, so it is never imported here.
     const installTs = join(ROOT, "install", "install.ts");
@@ -450,7 +451,7 @@ describe("the build stamp moves with every authority and cannot be hand-written 
       const m = /^export const RUNNABLE_SET = Object\.freeze\((\[.*\]) as const\);$/.exec(line[0] as string);
       expect(m, s.target).not.toBeNull();
       const set = JSON.parse((m as RegExpExecArray)[1] as string) as string[];
-      expect(set).toHaveLength(3);
+      expect(set).toHaveLength(4);
       expect([...set].sort(), `${s.target}: RUNNABLE_SET against the installer`).toEqual([...installed].sort());
       expect([...installed].sort(), "the other direction").toEqual([...set].sort());
     }
@@ -460,10 +461,10 @@ describe("the build stamp moves with every authority and cannot be hand-written 
 // ── Module rows (plan 38-02, research Pitfall 9) ───────────────────────────────────────────────────────────────
 
 describe("a module row is generated and fresh but never stamped (plan 38-02)", () => {
-  it("EMBED_SPEC_COUNT is 4: three runnables and one module, install/state-migrate.ts", () => {
-    expect(EMBED_SPEC_COUNT).toBe(4);
-    expect(EMBED_SPECS.length).toBe(4);
-    expect(RUNNABLES).toHaveLength(3);
+  it("EMBED_SPEC_COUNT is 5: four runnables and one module, install/state-migrate.ts", () => {
+    expect(EMBED_SPEC_COUNT).toBe(5);
+    expect(EMBED_SPECS.length).toBe(5);
+    expect(RUNNABLES).toHaveLength(4);
     expect(MODULES.map((s) => s.target)).toEqual(["install/state-migrate.ts"]);
   });
 
@@ -483,7 +484,7 @@ describe("a module row is generated and fresh but never stamped (plan 38-02)", (
     }
   });
 
-  it("the three runnable regions are byte-identical with and without the module row, and the stamp ignores it", () => {
+  it("the runnable regions are byte-identical with and without the module row, and the stamp ignores it", () => {
     for (const s of RUNNABLES) {
       expect(deriveRegion(s, ROOT, EMBED_SPECS), s.target).toBe(deriveRegion(s, ROOT, RUNNABLES));
       expect(deriveRegion(s, ROOT, EMBED_SPECS), s.target).toBe(committedRegion(s.target));

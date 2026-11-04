@@ -6052,6 +6052,8 @@ const RUNNABLES: Array<[string, string]> = [
   ["scripts/runnable-ref/state-check.js", "tools/grugops/state-check.js"],
   ["scripts/runnable-ref/trace-render.js", "tools/grugops/trace-render.js"],
   ["scripts/runnable-ref/state-roll.js", "tools/grugops/state-roll.js"],
+  // The host queue tool (plan 41-03, 2026-11-04, RUN-05): Workflow 17 runs each queue step through this path.
+  ["scripts/runnable-ref/claim.js", "tools/grugops/claim.js"],
   // The MIT license asks that its notice go with every copy of the software. The programs above are
   // copies that stay in the user's repository, and a license in the kit home does not travel with it.
   // So the license goes next to them, by the same rule (quick task 261018-hs8, Task 4). NOTICE is not
