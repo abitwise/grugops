@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Completed 41-01-PLAN.md
-last_updated: "2026-11-04T22:07:33.084Z"
+stopped_at: Completed 41-02-PLAN.md
+last_updated: "2026-11-04T22:33:20.457Z"
 last_activity: 2026-11-04
 last_activity_desc: Phase 41 execution started
-state_head: 0ee62e3b7acbac40e36a05416f927b9ec250f482
+state_head: 34fc0b94daa33b2b3bae21f673a34b5cf296eefa
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 119
-  completed_plans: 114
+  completed_plans: 115
   percent: 67
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 ## Current Position
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-11-04 — Phase 41 execution started
 
@@ -832,6 +832,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 40 P24 | 20 min | 3 tasks | 6 files |
 | Phase 40 P25 | 15min | 3 tasks | 4 files |
 | Phase 41 P01 | 12 min | 3 tasks | 8 files |
+| Phase 41 P02 | 24 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2305,6 +2306,7 @@ Recent decisions affecting current work:
 - [Phase 41]: claimPending turns a real failure into a refusal and removes its own claim directory; only a bad task name throws
 - [Phase 41]: subtaskRefFolder counts every ref: line, so a good line beside a bad one is refused
 - [Phase 41]: claimRecordFields stops a value at its own line, so an empty by: no longer reads the next line
+- [Phase 41]: Workflow 04 step 15 keeps its own narrowed trigger; the used-up stop, tech-lead.md and the config paragraph keep the general wording (plan 41-02)
 
 ### Pending Todos
 
@@ -2645,8 +2647,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-04T22:07:32.073Z
-Stopped at: Completed 41-01-PLAN.md
+Last session: 2026-11-04T22:33:19.232Z
+Stopped at: Completed 41-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
