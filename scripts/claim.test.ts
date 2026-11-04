@@ -42,6 +42,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { skipLine, stageShapeOrSkip } from "./check-platform-shapes.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CLAIM_JS = join(ROOT, "scripts", "claim.js");
@@ -323,13 +324,20 @@ describe("claim.js — queue entries are asked by lstat, never opened blind (T-4
     expect(existsSync(join(root, "claimed", "t"))).toBe(true);
   });
 
-  it.skipIf(process.platform === "win32")(
+  it(
     "a FIFO at claimed/<task>/claim.md is never opened: the render skips it and the sweep leaves it",
     () => {
       const root = makeQueueRoot("claim-fifo-");
       mkdirSync(join(root, "claimed", "t"));
-      const made = spawnSync("mkfifo", [join(root, "claimed", "t", "claim.md")]);
-      expect(made.status).toBe(0);
+      const skipped = stageShapeOrSkip(
+        "FIFO",
+        join(root, "claimed", "t", "claim.md"),
+        "scripts/claim.test.ts: a FIFO at the claim record (plan 41-01)",
+      );
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, "the symlink case beside this one (the same lstat rule)"));
+        return;
+      }
 
       expect(renderAndSweepInChild(root)).toEqual({ status: 0, signal: null });
       expect(readFileSync(join(root, "now-running.md"), "utf8")).not.toContain("| t |");
