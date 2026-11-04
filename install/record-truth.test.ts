@@ -366,8 +366,10 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * role renders one more adapter and install records it; measured by this test's printed listing (expected 47).
  * 47 -> 49 on 2026-10-29, plan 39-07 (TIER-02, D-13): `.claude/agents/grugops-software-engineer.md` left and `grugops-software-engineer-junior.md`, `-mid.md` and `-senior.md` entered, because software-engineer.md now declares three levels (one role, three adapters, no base adapter); install records each; measured by this test's
  * failing run (expected 49).
+ * 49 -> 50 on 2026-11-04, plan 41-03 (RUN-05): `tools/grugops/claim.js` entered, because install materializes the host
+ * queue tool (one more RUNNABLES row) and records it; measured by this test's failing run (expected 50).
  */
-const REMOVABLE_COUNT = 49;
+const REMOVABLE_COUNT = 50;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a

@@ -108,8 +108,10 @@ const AGENTS = "AGENTS.md";
 // base engineer adapter in the derived set (measured: the assertion printed 28).
 // RUNNABLE_PATH_COUNT 4 -> 7 on 2026-10-22 (plan 37-13, SPLIT-05): the three state runnables state-check.js,
 // trace-render.js and state-roll.js entered the derived set (measured: the assertion printed 7).
+// RUNNABLE_PATH_COUNT 7 -> 8 on 2026-11-04 (plan 41-03, RUN-05): the host queue tool tools/grugops/claim.js entered
+// the derived set (measured: the assertion printed 8).
 const KIT_PATH_COUNT = 28;
-const RUNNABLE_PATH_COUNT = 7;
+const RUNNABLE_PATH_COUNT = 8;
 const REMOVED_BY_NAME = [...KIT_PATHS, ...RUNNABLE_PATHS, AGENTS];
 
 /** The link install itself makes at `rel` (linkOrCopy's symlinkSync(src, dest)): the kit source path. */

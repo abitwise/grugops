@@ -173,8 +173,10 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * failing run (expected 77). 76 -> 77.
  * 79 on 2026-10-29, plan 39-07 (TIER-02, D-13): `.claude/agents/grugops-software-engineer.md` left and `grugops-software-engineer-junior.md`, `-mid.md` and `-senior.md` entered, because software-engineer.md now declares three levels (one role, three adapters, no base adapter); an edit to any of them is left byte for byte by
  * uninstall. Measured by this test's failing run (expected 79). 77 -> 79.
+ * 80 on 2026-11-04, plan 41-03 (RUN-05): `tools/grugops/claim.js` entered as a file (one more RUNNABLES row); an edit to it
+ * is left byte for byte by uninstall, as for every runnable. Measured by this test's failing run (expected 80). 79 -> 80.
  */
-const INSTALLED_FILE_COUNT = 79;
+const INSTALLED_FILE_COUNT = 80;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

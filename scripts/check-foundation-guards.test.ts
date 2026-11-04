@@ -2337,8 +2337,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     twin landed in the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 112 with this module tracked (2026-11-01, plan 40-01).
+ *
+ * 112 -> 113 (plan 41-03, RUN-05, D-01), ONE MODULE:
+ *   - `scripts/runnable-ref/claim.ts` — the host queue tool, installed to `tools/grugops/claim.js`. Its hand-written
+ *     part holds argv, the root checks, the exit codes and the output lines; its region, a `runnable` row of
+ *     scripts/generate-runnable-embeds.ts EMBED_SPECS, carries generated copies of the queue paths, the queue rules, the
+ *     output sanitizer and the root-chain owner. It imports `node:` builtins and nothing else.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: any copy of a parser or a section predicate sits inside a fresh generated region
+ *     of an EMBED_SPECS target (admittedGeneratedCopy); outside that region it declares no function named for the
+ *     frontmatter parser, builds no section bound, reads no grant and renders no spawn verdict. Its committed `.js`
+ *     twin landed in the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 113 with this module tracked (2026-11-04, plan 41-03).
  */
-const NON_TEST_MODULE_COUNT = 112;
+const NON_TEST_MODULE_COUNT = 113;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

@@ -141,8 +141,11 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * 116 -> 117.
  * 79 files and links + 40 directories on 2026-10-29, plan 39-07 (TIER-02, D-13): `.claude/agents/grugops-software-engineer.md` left and `grugops-software-engineer-junior.md`, `-mid.md` and `-senior.md` entered, because software-engineer.md now declares three levels (one role, three adapters, no base adapter); `.claude/agents` was already
  * a directory. Measured by this test's failing run (expected 119). 117 -> 119.
+ * 80 files and links + 40 directories on 2026-11-04, plan 41-03 (RUN-05): `tools/grugops/claim.js` entered as a file, in
+ * every variant, because install materializes the host queue tool (one more RUNNABLES row); `tools/grugops` was already
+ * a directory. Measured by this test's failing run (expected 120). 119 -> 120.
  */
-const WRITE_PATH_COUNT = 119;
+const WRITE_PATH_COUNT = 120;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

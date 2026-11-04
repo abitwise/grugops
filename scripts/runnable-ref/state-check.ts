@@ -77,10 +77,10 @@
 // layout marker, stops the check at the marker first (exit 2, plan 37-35). Only an lstat ENOENT on a component whose
 // earlier components are real directories is an absent root.
 //
-// SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js and state-roll.js are installed
+// SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js, state-roll.js and claim.js are installed
 // side by side and never updated in place, and each embeds its own generated copy of shared authorities (the trace
 // model, BUDGETS). Each generated region therefore carries a build stamp, RUNNABLE_SET_STAMP, which the generator
-// computes over all three programs' generated bodies, with RUNNABLE_SET (the programs built together) and
+// computes over every program's generated body, with RUNNABLE_SET (the programs built together) and
 // RUNNABLE_SELF. After the trace report, this file reads every other program in RUNNABLE_SET from its own directory
 // through the embedded non-blocking reader, and asks the embedded readRunnableStamp (scripts/runnable-stamp.ts, the
 // one owner of the stamp line's shape) for its stamp. A sibling that is absent (the generated entryPresence's answer,
@@ -88,7 +88,7 @@
 // that carries no stamp or more than one, that is a link whose target cannot be reached, that vanished after it was
 // seen, or that is present and could not be read (unopenable, not a regular file, above the ceiling) is one runnable-version-skew
 // finding naming it, under the marker's severity like every integrity finding. The remedy is stated to a human:
-// remove the three programs and install them again together. This file never replaces or removes one.
+// remove the programs of RUNNABLE_SET and install them again together. This file never replaces or removes one.
 //
 // WHAT IT MEASURES IS DECIDED BY THE RULES, NOT HERE. Which directory entries count is the embedded
 // budgetEntryNames, given the raw listing; this file filters no name itself (D-11). A record's size is its

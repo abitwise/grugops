@@ -447,18 +447,19 @@ are written only when that agent is chosen.
   modules whatever your own `package.json` says (npm 11's `npm init -y` writes `"type": "commonjs"`,
   which otherwise stops each program at its first import); like the license, it is recorded, removed
   with the programs, and never written over a file you already have at that path.
-  Three of the programs work on the planning state:
+  Four of the programs work on the planning state and the queue:
   - `tools/grugops/state-check.js` checks the state budgets and indexes and changes no file
   - `tools/grugops/trace-render.js` renders the per-ticket trace files and the trace index
   - `tools/grugops/state-roll.js` moves older Done rows and dated progress entries into archive files
+  - `tools/grugops/claim.js` claims and completes queued tasks and reports free capacity
 
   Install never overwrites a copy that is already there, so an updated program reaches your
   repository only after you remove the old copy and install again.
-  The three state programs are built together from one copy of the state model and carry one
-  build stamp, so update them together: remove `state-check.js`, `trace-render.js` and
-  `state-roll.js`, then install again. When the build stamp of `trace-render.js` or
-  `state-roll.js` differs from the stamp of `state-check.js`, or is missing, state-check reports a
-  `runnable-version-skew` finding that names the program
+  The four programs are built together from one copy of the state model and carry one
+  build stamp, so update them together: remove `state-check.js`, `trace-render.js`,
+  `state-roll.js` and `claim.js`, then install again. When the build stamp of `trace-render.js`,
+  `state-roll.js` or `claim.js` differs from the stamp of `state-check.js`, or is missing,
+  state-check reports a `runnable-version-skew` finding that names the program
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `memory-bank/plans/`, and `memory-bank/`
 - `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is

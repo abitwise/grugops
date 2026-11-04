@@ -1509,15 +1509,15 @@ describe("state-check.js — a host's rendered trace is fresh, checked with the 
 
 // ── Sibling programs built together (plan 37-24, D-17, WR-05, AUTH-1) ─────────────────────────────────────
 //
-// The three state programs are installed side by side and never updated in place. Each case copies the three
-// COMMITTED .js files into one new directory, edits only the copies, and runs the copied state-check.js, which
+// The four programs of RUNNABLE_SET are installed side by side and never updated in place. Each case copies the
+// four COMMITTED .js files into one new directory, edits only the copies, and runs the copied state-check.js, which
 // reads its siblings from its own directory. The stamp line is read and written through scripts/runnable-stamp.ts,
-// the one owner of its shape.
+// the one owner of its shape. claim.js joined on 2026-11-04 (plan 41-03): it shares authorities with the others.
 
-/** The three state programs a host installs together. */
-const SIBLING_NAMES = ["state-check.js", "trace-render.js", "state-roll.js"] as const;
+/** The four programs a host installs together. */
+const SIBLING_NAMES = ["state-check.js", "trace-render.js", "state-roll.js", "claim.js"] as const;
 
-/** The three committed programs copied into one new directory. */
+/** The four committed programs copied into one new directory. */
 function siblingHost(): string {
   const dir = mkTmp("grugops-state-check-siblings-");
   for (const n of SIBLING_NAMES) copyFileSync(join(import.meta.dirname, n), join(dir, n));
@@ -1575,14 +1575,14 @@ function removeStampLine(text: string): string {
 }
 
 describe("state-check.js — a sibling built from other authorities is runnable-version-skew (plan 37-24, D-17, WR-05)", () => {
-  it("PREMISE: the three committed programs carry one equal stamp", () => {
+  it("PREMISE: the four committed programs carry one equal stamp", () => {
     const own = committedStamp();
     for (const n of SIBLING_NAMES) {
       expect(readRunnableStamp(readFileSync(join(import.meta.dirname, n), "utf8")), n).toEqual({ kind: "stamp", stamp: own });
     }
   });
 
-  it("the three committed programs in one directory, a clean repository with the marker: exit 0, no runnable-version-skew", () => {
+  it("the four committed programs in one directory, a clean repository with the marker: exit 0, no runnable-version-skew", () => {
     const dir = siblingHost();
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);
     const r = runSiblings(dir, root);
@@ -1592,6 +1592,17 @@ describe("state-check.js — a sibling built from other authorities is runnable-
     const j = runSiblings(dir, root, "--json");
     expect(j.status).toBe(0);
     expect((JSON.parse(j.stdout) as JsonReport).findings).toEqual([]);
+  });
+
+  it("one hex digit of the copied claim.js stamp changed: exit 1, one FINDING naming claim.js (plan 41-03, Open Question 4)", () => {
+    const dir = siblingHost();
+    editCopy(dir, "claim.js", changeOneStampDigit);
+    const r = runSiblings(dir, cleanRepo(LAYOUT_MARKER_CONTENT));
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = skewLines(r.stdout);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`${realpathSync(dir)}/claim.js: `);
+    expect(lines[0]).toContain(committedStamp());
   });
 
   it("one hex digit of the copied trace-render.js stamp changed: exit 1, one FINDING naming trace-render.js and both stamps; --json carries it", () => {
@@ -1611,7 +1622,7 @@ describe("state-check.js — a sibling built from other authorities is runnable-
     expect(lines[0]).toContain(`${realpathSync(dir)}/trace-render.js: `);
     expect(lines[0]).toContain(theirStamp);
     expect(lines[0]).toContain(own);
-    expect(lines[0]).toContain("remove state-check.js, state-roll.js and trace-render.js and install them again together");
+    expect(lines[0]).toContain("remove claim.js, state-check.js, state-roll.js and trace-render.js and install them again together");
     expect(r.stdout.split("\n").filter((l) => /^(WARN|FINDING) /.test(l)), "the skew is the only finding").toHaveLength(1);
 
     const j = runSiblings(dir, root, "--json");

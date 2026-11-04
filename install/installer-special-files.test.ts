@@ -133,7 +133,11 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // (expected 79). 78 -> 79.
 // 81 on 2026-10-29, plan 39-07 (TIER-02, D-13): `.claude/agents/grugops-software-engineer.md` left and `grugops-software-engineer-junior.md`, `-mid.md` and `-senior.md` entered, because software-engineer.md now declares three levels (one role, three adapters, no base adapter) (79 files and links written, plus the two read-only
 // inputs). Measured by this test's failing run (expected 81). 79 -> 81.
-const READ_PATH_COUNT = 81;
+// 82 on 2026-11-04, plan 41-03 (RUN-05): `tools/grugops/claim.js` entered (80 files and links written, plus the two
+// read-only inputs), because install materializes the host queue tool (one more RUNNABLES row) and asks its destination
+// through readForWrite; a FIFO and a directory are planted at it by derivation. Measured by this test's failing run
+// (expected 82). 81 -> 82.
+const READ_PATH_COUNT = 82;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo
