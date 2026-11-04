@@ -22,10 +22,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-28 after Phase 38)
+See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 40 — Plain-language role rewrite
+**Current focus:** Phase 41 — Orchestrator flow guidance
 
 ## Current Position
 
@@ -2299,6 +2299,7 @@ Recent decisions affecting current work:
 - [Phase 40]: CR-03 (human decision 1): no role clause in ## Hard limits or ## Stop when reaches the D-30 stand-in; 309 owed rows in 40-24.md are pending (named human) for plan 40-25
 - [Phase 40]: Olger accepted all 309 CR-03 / CR-04 rows in 40-24.md on 2026-11-03 (accept-all, Olger); no row flagged
 - [Phase 40]: Gap round 3 closed: CR-03, CR-04, WR-07, WR-08, WR-09, IN-05 fixed; IN-06 and IN-07 deferred with reasons (40-REVIEW-DISPOSITION.md open: 0)
+- [Phase 40]: Phase close by override (Olger, 2026-11-04, "accept CR-05 and CR-06"): the round-3 review criticals CR-05 (region-blind "kept" row match) and CR-06 (a `# ` heading ends the frozen region) accepted as D-30 stand-in residuals; verification passed 7/7 with 1 override; both stay open in deferred-items.md
 
 ### Pending Todos
 
@@ -2370,6 +2371,7 @@ None yet.
 - [Phase 32] 16 open items deferred to Phase 32.1 by Option C (2026-09-17): F-14 (C1 byte in a ticket id quoted then deleted, no correcting field), F-15 (split-reader census sees named imports only; a namespace import or two-hop re-export is a working second reader), F-16..F-21, plus check:diff-disposition RED (pre-existing, 78 findings), live e2e lane UNKNOWN - verify, the production-file census exemption, the runtime-assembled key spelling, board-tracer.test.ts as 9th registry exemption, and the wrong F-15 commit hash in 32-40-ADVERSARIAL-REVIEW.md (7aea94f0; real one 7a3ae592). Round-4 code review WR-01..WR-04 (32-REVIEW.md, e385498d) are NOT in that ledger yet; triage them into Phase 32.1 at planning.
 - Phase 32.1 plan 10: the live claude-CLI end-to-end lane ran once and FAILED — A1 (D-31) empty capture, A2-live (SAFE-02/V14, a safety case) deny marker absent, A3-live (DOG-02/D-05) no verdict convergence. Evidence in 32.1-10-LIVE-TRANSCRIPT.txt; disposition is plan 32.1-11 to decide. Also: uat-live.test.ts docblock falsely claims npm test excludes the live lane.
 - [Phase 33] prod-deploy guard: round-4 review CR-01 and CR-02 are LIVE bypasses accepted open at the Phase 33 close (D-33-R4-08), not fixed; WINDOWS.md rows 301-302; first in the next phase, ahead of every other carried item (D-33-R4-06 redesign is coupled).
+- [Phase 40] Role-safety guard residuals accepted open at the Phase 40 close (2026-11-04): CR-05 and CR-06 (the D-30 stand-in admits a `## Hard limits` sentence moved to an unfrozen section, or a permission under a planted `# ` heading, with no human row); WR-12 (`_role-switch-protocol.md` never inventoried) awaits a named-human ruling; WR-10, WR-11, IN-08..IN-10 open in 40-REVIEW-DISPOSITION.md
 
 ### Quick Tasks Completed
 
@@ -2638,7 +2640,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-03T22:08:40.752Z
+Last session: 2026-11-04T10:41:45Z
 Stopped at: Phase 40 complete, ready to plan Phase 41
 Resume file: None
 
