@@ -247,7 +247,7 @@ After: `Wall-clock TTL, in minutes, after which the session-start sweep (`node t
 
 ## `agent-factory/roles/orchestrator.md` (D-12, D-13)
 
-Replace responsibilities 6 to 13 with these five items. The gate item stays, because it is not flow text and the Definition of Ready and next-action items keep their wording. Measured on a mirror: 6,036 B becomes 6,027 B, under the 6,195 B WARN.
+Replace responsibilities 6 to 13 with these five items. The gate item stays, because it is not flow text and the Definition of Ready and next-action items keep their wording. Measured on a mirror: 6,036 B becomes 6,087 B, 108 B under the 6,195 B WARN.
 
 ```
 6. Start role agents, claim, refill, sweep and run session compaction per `agent-factory/workflows/17-task-claim.md`.
@@ -259,9 +259,9 @@ Replace responsibilities 6 to 13 with these five items. The gate item stays, bec
 
 Add this paragraph to `## Hard limits`, directly after the paragraph that ends `Workflow 17 holds the platform's depth and width limits.`:
 
-> The Orchestrator claims a queue task only at dispatch and only in the name of the adapter it starts (`--by <adapter>`). It never claims with itself as owner and never does a task's work without a role switch.
+> The Orchestrator claims a queue task only at dispatch and only in the name of the adapter it starts (`--by <adapter>`). It never claims with itself as owner and never does a task's work. Where the `Agent` tool does not exist, it does the work only after a role switch.
 
-D-13's quoted sentence runs to 34 words, past the 25-word bound on a descriptive sentence, so it is split at its semicolon. `without a role switch` is the qualifier research Pitfall 11 asks for: on a host without `Agent` the same window does the work after a role switch. The tiered-engineer rule (start by adapter name, never fork, no model or per-invocation override) lives in Workflow 17 step 4 and Workflow 04 step 4, because D-12 allows one compact sentence here.
+D-13's quoted sentence runs to 34 words, past the 25-word bound on a descriptive sentence, so it is split at its semicolon. The last sentence is D-32's, word for word: the qualifier reaches only hosts without the `Agent` tool, where the same window does the work after a role switch (research Pitfall 11). The tiered-engineer rule (start by adapter name, never fork, no model or per-invocation override) lives in Workflow 17 step 4 and Workflow 04 step 4, not here.
 
 ## `agent-factory/roles/_role-switch-protocol.md` step 4 (D-04, D-05)
 
@@ -305,7 +305,7 @@ After:
 
 ## The software engineer prompt (Phase 41 D-31)
 
-These are the changes the planning review expects. The review in `41-06-PLAN.md` Task 3 confirms each one before applying it. Measured on a mirror: `software-engineer.md` goes from 4,448 B to 4,653 B, under its 4,715 B WARN, and every `junior:` fact stays in `## Levels`.
+These are the changes the planning review expects. The review in `41-06-PLAN.md` Task 3 confirms each one before applying it. Measured on a mirror: `software-engineer.md` goes from 4,448 B to 4,698 B, under its 4,715 B WARN, and every `junior:` fact stays in `## Levels`.
 
 ### `scripts/generate-role-adapters.ts`, `specialistBody`
 
@@ -317,9 +317,9 @@ The three engineer adapters then differ only in `name`, `model`, `effort` and th
 
 ### `agent-factory/roles/software-engineer.md` `## Levels`, first paragraph
 
-Before: `and the Tech Lead names one for each ticket. On the other hosts,`
+Before: `and the Tech Lead names one for each ticket. On the other hosts, read the level in the ticket's `## Tech Lead plan` section and keep to that level's scope; the model does not change.`
 
-After: `and the Tech Lead names one for each ticket. Every tier works as a senior engineer: the tiers differ in adapter name, model and effort, not in persona. On the other hosts,`
+After: `and the Tech Lead names one for each ticket. Every tier works as a senior engineer: the tiers differ in adapter name, model and effort, not in persona. On every host, read the adapter or level named in the ticket's `## Tech Lead plan` section before you start. Keep to that level's scope; on the other hosts the model does not change.`
 
 ### `agent-factory/roles/software-engineer.md` `## Levels`, second paragraph
 
@@ -327,7 +327,7 @@ Before: `A junior takes only tasks whose plan already fixes what to write. A jun
 
 After: `A junior plan names the `grugops-software-engineer-junior` adapter, or the junior level on the other hosts. Under a junior plan, take only tasks whose plan already fixes what to write. Stop and report `BLOCKED` on security, migration, concurrency or test-integrity work. Stop the same way on any other risk tag the rubric lists: auth, money, PII, data writes, a public interface or config.`
 
-The rule reads the adapter name from the plan on purpose. Once the three adapter bodies match, the body no longer tells an agent its tier, and a sub-agent is shown its body, not its frontmatter `name`. `## Tech Lead plan` already names the adapter, and Workflow 04 step 4 dispatches exactly that adapter.
+The rule reads the adapter name from the plan on purpose. Once the three adapter bodies match, the body no longer tells an agent its tier, and a sub-agent is shown its body, not its frontmatter `name`. `## Tech Lead plan` already names the adapter, and Workflow 04 step 4 dispatches exactly that adapter. The plan read in the first paragraph therefore applies on every host: the adapter's fixed line sends an engineer to `## Levels`, and `## Levels` sends it to the plan before it starts. Without that read, an engineer on Claude Code has no instruction to look at the name the stop keys on.
 
 ### `agent-factory/roles/software-engineer.md` `## Stop when`
 
