@@ -25,7 +25,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { skipLine, stageNameOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import * as ctxio from "../context-io.js";
 import {
   CONTEXT_REL,
@@ -69,7 +69,8 @@ interface Ran {
 
 /** The host copy run with its working directory in `cwd`. */
 function run(cwd: string, ...args: string[]): Ran {
-  const r = spawnSync(process.execPath, [HOST_JS, ...args], { encoding: "utf8", cwd });
+  const r = spawnSync(process.execPath, [HOST_JS, ...args], { encoding: "utf8", cwd, timeout: 15_000 });
+  expect(r.error, "the program did not finish in bounded time").toBeUndefined();
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
@@ -657,6 +658,18 @@ describe("done refuses what it cannot read (T-41-16)", () => {
     rmSync(claimPath(root, "t1"));
     mkdirSync(claimPath(root, "t1"));
     expectRefused(run(root, "done", "t1"), "claim.md");
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"))).toBe(true);
+  });
+
+  it("a FIFO at the claim record exits 2 and is never opened", () => {
+    const root = claimedRepo("t1");
+    rmSync(claimPath(root, "t1"));
+    const skipped = stageShapeOrSkip("FIFO", claimPath(root, "t1"), "scripts/runnable-ref/claim.test.ts: the claim record (plan 41-03)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the directory at the claim record case above"));
+      return;
+    }
+    expectRefused(run(root, "done", "t1"), "claim.md", "is not a regular file");
     expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"))).toBe(true);
   });
 

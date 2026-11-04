@@ -173,7 +173,8 @@ export function runnableSpecs(set: readonly EmbedSpec[]): readonly EmbedSpec[] {
  * runnable, so claim.js joins RUNNABLE_SET and the build stamp: the queue paths from install/state-layout.ts, the
  * output sanitizer from scripts/state-rules.ts, the queue rules from scripts/claim.ts, and the root-chain owner and
  * the non-blocking reader from scripts/context-io.ts. The scripts/claim.ts roots include what plan 41-05 calls, so
- * that plan needs no generator change.
+ * that plan needs no generator change. The note walk, readRawNotesWithSkips and recordFromParsed, reaches `done` from
+ * the same module, so the seal check has one owner (D-07, D-28); install/state-layout.ts adds CONTEXT_REL for it.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -348,7 +349,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
     authorities: [
       {
         module: "install/state-layout.ts",
-        roots: ["GRUGOPS_DIR_REL", "QUEUE_REL", "QUEUE_PENDING_REL", "QUEUE_CLAIMED_REL", "QUEUE_DONE_REL"],
+        roots: ["GRUGOPS_DIR_REL", "CONTEXT_REL", "QUEUE_REL", "QUEUE_PENDING_REL", "QUEUE_CLAIMED_REL", "QUEUE_DONE_REL"],
       },
       { module: "scripts/state-rules.ts", roots: ["stripControlChars"] },
       {
@@ -368,7 +369,14 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
       },
       {
         module: "scripts/context-io.ts",
-        roots: ["rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL", "readRegularFileOrNull"],
+        roots: [
+          "rootChainPresence",
+          "isWithin",
+          "ROOT_CHAIN_LINK_REFUSAL",
+          "readRegularFileOrNull",
+          "readRawNotesWithSkips",
+          "recordFromParsed",
+        ],
       },
     ],
   },

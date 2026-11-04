@@ -4,20 +4,29 @@
 // installed to tools/grugops/claim.js and run on a host with only Node present. It is the one program that moves a
 // queue record, so each step of Workflow 17 is one command and no agent runs the protocol by hand:
 //   - `claim TASK --by ADAPTER [--level LEVEL]` takes pending/TASK.md into claimed/TASK/ and writes the claim record.
+//   - `done TASK` moves the subtask to done/ and releases claimed/TASK/, once a sealed note exists since the claim.
 //   - `now-running` renders .grugops/queue/now-running.md, the in-flight log, from claimed/.
 // A command that changes the queue renders the log before it reports, so the log cannot go stale between steps (D-02).
 // It moves queue records and nothing else: it runs no git, pushes, merges or deploys nothing, and writes nowhere
-// outside .grugops/queue/.
+// outside .grugops/queue/. It reads .grugops/context/ for the note check and never writes there.
 //
 // THE D-12 CONTRACT (D-08).
-//   exit 0 → the command did its work; stdout holds one line (`claimed TASK by ADAPTER`,
+//   exit 0 → the command did its work; stdout holds one line (`claimed TASK by ADAPTER`, `done TASK`,
 //            `rendered .grugops/queue/now-running.md`).
-//   exit 1 → an outcome to act on, never an error: stdout holds one line (`lost TASK`).
+//   exit 1 → an outcome to act on, never an error: stdout holds one line (`lost TASK`, or `not-done TASK: ...`, which
+//            leaves the task in claimed/).
 //   exit 2 → could not run or refused: a bad argument, a root with no .grugops directory, a symbolic link or a
 //            non-directory on the way to the queue, a task name outside the allowlist, a refused owner, a level outside
-//            the closed set, no pending subtask, a task already in done/. Exit 2 prints nothing on stdout and one
+//            the closed set, no pending subtask, a task already in done/, a task with no claim directory, a tampered
+//            claim record, a bad `ref:` line, notes that cannot be read. Exit 2 prints nothing on stdout and one
 //            `Error: ` line on stderr. An unexpected error is exit 2 too, and never surfaces as Node's own exit 1: that
-//            line names a queue change that stands, so a failed render never denies a claim that was made.
+//            line names a queue change that stands, so a failed render never denies a claim or a finish that was made.
+//
+// THE NOTE CHECK (D-07, D-28). `done` passes only on a sealed note whose `at` is at or after the claim's `at`, in the
+// context folder the subtask's `ref:` line names, which can differ from the task name on a re-queued subtask. The seal
+// check is the embedded note walk's, so it has one owner. A hand-written note does not count, on any host: the
+// `not-done` line names the unsealed notes it found, so a host with no sealed-note writer sees the gap and never a
+// silent pass. No flag and no environment variable skips this check.
 //
 // THE ROOT IS A BOUNDARY. The root is the current directory, or `--root DIR`, resolved once with realpath. Unlike
 // state-roll's root it is not positional, because the task is. A root with no .grugops directory is exit 2, so a wrong
@@ -33,8 +42,8 @@
 // else. The hand-written part below imports them as namespaces, so the names the generated region imports never
 // collide with its own.
 //
-// NOTHING HERE IS RETYPED. The queue paths, the owner rule, the level set, the claim and the render sit in the generated
-// region, copied verbatim from install/state-layout.ts, scripts/state-rules.ts, scripts/claim.ts and
+// NOTHING HERE IS RETYPED. The queue paths, the owner rule, the level set, the claim, the finish, the render and the note
+// walk sit in the generated region, copied verbatim from install/state-layout.ts, scripts/state-rules.ts, scripts/claim.ts and
 // scripts/context-io.ts by scripts/generate-runnable-embeds.ts. scripts/runnable-embeds-freshness.ts fails CI when the
 // region differs from a fresh derivation. The part below holds only argv, the root checks, the exit codes and the
 // output lines.
@@ -43,14 +52,15 @@
 import * as nodeFs from "node:fs";
 import * as nodePath from "node:path";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { join, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:5d6f6a0d94ffa4c6a8871d55d961cc81230fab7e5c68c8d02032e574ab55e772";
+import { join, parse, resolve, sep } from "node:path";
+export const RUNNABLE_SET_STAMP = "sha256:17e24ec5af62a8ff1b76f9ba326ffc4932a41cb516d80cc74b98a4b666e198f5";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "claim.js";
 // from install/state-layout.ts
 export const GRUGOPS_DIR_REL = ".grugops";
+export const CONTEXT_REL = `${GRUGOPS_DIR_REL}/context`;
 export const QUEUE_REL = `${GRUGOPS_DIR_REL}/queue`;
 export const QUEUE_DONE_REL = `${QUEUE_REL}/done`;
 export const QUEUE_PENDING_REL = `${QUEUE_REL}/pending`;
@@ -420,8 +430,117 @@ export function renderNowRunning(queueRoot) {
     md.push(""); // trailing element → exactly one final "\n"
     atomicWrite(join(queueRoot, "now-running.md"), md.join("\n"));
 }
-// from scripts/context-io.ts
+const TASK_NAME_RE = /^[A-Za-z0-9._-]+$/;
+function assertSafeTask(task) {
+    // Reject empty, `.`/`..`, path separators, absolute paths, and anything outside the allowlist.
+    if (!TASK_NAME_RE.test(task) || task === "." || task === "..") {
+        throw new Error(`context-io: invalid task name "${task}" — must match ^[A-Za-z0-9._-]+$ ` +
+            "(no path separators, no .., no absolute paths)");
+    }
+}
+export function isRecognizedFrontmatterLine(line) {
+    if (line.trim() === "")
+        return true; // blank
+    if (/^refs:\s*$/.test(line))
+        return true; // refs: block header
+    if (/^\s*-\s+/.test(line))
+        return true; // refs: list item shape
+    if (/^([A-Za-z_]+):\s*(.*)$/.test(line))
+        return true; // column-0 key: value scalar
+    return false;
+}
+export function parseNote(text) {
+    // Normalize CRLF/CR to LF before matching the fence so a git-autocrlf (Windows) note parses
+    // identically to its LF form. Without this, the fence regex (anchored on \n) misses a CRLF note,
+    // parseNote returns null, readContext silently drops it, and admit() wrongly refuses a real
+    // §14-gate verdict (CR-01). parseNote is the single choke point feeding both validate() and
+    // readContext, so normalizing here aligns the text and admission paths in one place.
+    const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const m = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    if (!m)
+        return null; // no frontmatter fence → caller treats as a structural fail
+    const fmLines = m[1].split("\n");
+    const body = m[2] ?? "";
+    const scalars = {};
+    const seen = new Set();
+    const dupes = new Set();
+    // Non-recognized in-fence line shapes (CMP-02 round-5, IN-02). Records the exact offending line
+    // text so validate() and the carve-out oracle can name each one. The recognized set is exactly:
+    // a blank line, the `refs:` block header, a `refs:` list item consumed under a header, and a
+    // column-0 `key: value` scalar. Everything else inside the fence is malformed.
+    const malformed = [];
+    let refs = [];
+    for (let i = 0; i < fmLines.length; i++) {
+        const line = fmLines[i];
+        // A blank (empty-after-trim) line is a recognized, legal shape — skip it.
+        if (line.trim() === "")
+            continue;
+        // A `refs:` key with no inline value starts a YAML list block: consume following `  - x` lines.
+        // The `- item` lines are consumed HERE and never reach the kv branch, so the legitimate refs:
+        // list block can never register as a duplicate provenance key.
+        const refsBlock = line.match(/^refs:\s*$/);
+        if (refsBlock) {
+            if (seen.has("refs"))
+                dupes.add("refs");
+            seen.add("refs");
+            const collected = [];
+            while (i + 1 < fmLines.length && /^\s*-\s+/.test(fmLines[i + 1])) {
+                collected.push(fmLines[++i].replace(/^\s*-\s+/, "").trim());
+            }
+            refs = collected;
+            continue;
+        }
+        const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
+        if (kv) {
+            const key = kv[1];
+            const val = kv[2].trim();
+            // Record a duplicate provenance key once. parseNote still keeps the last value (overwrite)
+            // for backward-compatible reads; validate() rejects on the recorded duplicate.
+            if (seen.has(key))
+                dupes.add(key);
+            seen.add(key);
+            if (key === "refs") {
+                // Single-line comma form: `refs: a, b, c` (empty → []).
+                refs = val === "" ? [] : val.split(",").map((s) => s.trim()).filter((s) => s !== "");
+            }
+            else {
+                scalars[key] = val;
+            }
+            continue;
+        }
+        // CMP-02 round-5: a non-blank fence line that is neither the `refs:` header, a `refs:` list item
+        // consumed above, nor a column-0 `key: value` scalar is MALFORMED. A stray `  - item` outside a
+        // refs block, a leading-space/tab indented key, a `key : value` (space before the colon) line,
+        // and any junk line all land here. The anchored kv regex would silently project each to "" with
+        // no signal; recording it lets validate() and the carve-out oracle fail closed on the LINE SHAPE.
+        //
+        // IN-02 single-source coupling: a line reaches this branch only when it is NOT blank, NOT the
+        // refs header, NOT a refs list item consumed above, and NOT a column-0 `key: value` scalar. The
+        // shared isRecognizedFrontmatterLine predicate is the canonical statement of the
+        // blank / refs-header / list-item-shape / column-0-kv grammar, and splitNotes keys its
+        // recovered-note boundary on that SAME predicate so the splitter cannot drift from the parser.
+        // The ONLY recognized-SHAPE line that still reaches here is a STRAY list item (recognized shape,
+        // malformed context — a `- x` outside a refs block); every other line here is also
+        // !isRecognizedFrontmatterLine. We assert that invariant (it documents and pins the coupling and
+        // never trips on real input, so parseNote's recorded-malformed set is unchanged).
+        const isStrayListItem = /^\s*-\s+/.test(line);
+        if (!isStrayListItem && isRecognizedFrontmatterLine(line)) {
+            throw new Error(`context-io.parseNote: internal invariant violated — line "${line}" reached the malformed ` +
+                "branch yet is a recognized frontmatter line (splitNotes/parseNote grammar drift, IN-02).");
+        }
+        malformed.push(line);
+    }
+    // Route the parsed `kind` THROUGH the single-source authority (round-8 GAP-R7-1 Lever-1). This is
+    // behavior-identical to the kv loop's existing `.trim()` (the value is already trimmed) — its sole
+    // purpose is to make parseNote consult the SAME helper the gate (isGatedNote / the hook / the server)
+    // consults, so the store's kind view and the gate's kind view cannot drift. The existing parseNote
+    // tests stay green (this is a proven no-op on the persisted value).
+    if (scalars.kind !== undefined)
+        scalars.kind = normalizeKind(scalars.kind);
+    return { scalars, refs, body, duplicateKeys: [...dupes], malformedLines: malformed };
+}
 export const CANONICAL_READ_POSITION = "absent, or a regular file";
+export const NOTE_FILE_MAX_BYTES = 8 * 1024 * 1024;
 export const READ_POSITION_CONDITIONS = ["unopenable", "not-a-regular-file", "above-ceiling"];
 export class ReadPositionRefusal extends Error {
     condition;
@@ -484,9 +603,118 @@ export function readRegularFileOrNull(path, maxBytes, position) {
         closeSync(fd);
     }
 }
+export const NOTE_SEAL_KEY = "seal";
+const NOTE_SEAL_DOMAIN = "grugops-note-seal-v1";
+export const NOTE_SEAL_RE = /^sha256:[0-9a-f]{64}$/;
+function normalizeLineEndings(text) {
+    return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+export function noteSeal(unsealedText) {
+    const h = createHash("sha256");
+    h.update(NOTE_SEAL_DOMAIN, "utf8");
+    h.update(Buffer.from([0]));
+    h.update(normalizeLineEndings(unsealedText), "utf8");
+    return `sha256:${h.digest("hex")}`;
+}
+export function sealVerdict(text) {
+    const normalized = normalizeLineEndings(text);
+    const m = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    if (!m)
+        return { ok: false, reason: "absent" };
+    const fmLines = m[1].split("\n");
+    // A column-0 `<key>:` line. Spelled from the key and a character test rather than from a literal
+    // or a template, so the S5 derivation (which counts every spelling of the seal key's line shape)
+    // sees ONE emitter in this module and this reader is not it.
+    const isSealLine = (line) => line.startsWith(NOTE_SEAL_KEY) && line.charAt(NOTE_SEAL_KEY.length) === ":";
+    const sealIndexes = [];
+    for (let i = 0; i < fmLines.length; i++) {
+        if (isSealLine(fmLines[i]))
+            sealIndexes.push(i);
+    }
+    if (sealIndexes.length === 0)
+        return { ok: false, reason: "absent" };
+    if (sealIndexes.length > 1)
+        return { ok: false, reason: "malformed" };
+    const at = sealIndexes[0];
+    if (at !== fmLines.length - 1)
+        return { ok: false, reason: "malformed" };
+    const sealLine = fmLines[at];
+    const value = sealLine.slice(NOTE_SEAL_KEY.length + 1).trim();
+    if (!NOTE_SEAL_RE.test(value))
+        return { ok: false, reason: "malformed" };
+    // Strip the seal line by position: the fence body `m[1]` begins at offset 4 (after `---\n`), and
+    // the seal line is its last line, followed by `\n---`. Removing `<line>\n` there yields exactly the
+    // text `composeNote` sealed.
+    const start = 4 + (m[1].length - sealLine.length);
+    const unsealed = normalized.slice(0, start) + normalized.slice(start + sealLine.length + 1);
+    return noteSeal(unsealed) === value ? { ok: true } : { ok: false, reason: "mismatch" };
+}
+export const NOTE_SKIP_ARMS = ["unparseable", ...READ_POSITION_CONDITIONS, "vanished", "unsealed"];
 function presenceCode(e) {
     const code = e?.code;
     return typeof code === "string" && code !== "" ? code : "unknown";
+}
+export function entryPresence(path) {
+    const full = resolve(path);
+    const top = parse(full).root;
+    // Every prefix from the filesystem root to the path itself, so one lstat, one stat and one realpath answer for
+    // every component.
+    const prefixes = [top];
+    for (const name of full.slice(top.length).split(sep)) {
+        if (name !== "")
+            prefixes.push(join(prefixes[prefixes.length - 1], name));
+    }
+    for (let i = 0;; i += 1) {
+        const at = prefixes[i];
+        const last = i === prefixes.length - 1;
+        let entry;
+        try {
+            entry = lstatSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            if (code === "ENOENT")
+                return { kind: "absent" };
+            return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})`, link: false };
+        }
+        // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
+        // path names, and the one stat site is reached under every caller.
+        let target = entry;
+        if (entry.isSymbolicLink() || last) {
+            try {
+                target = statSync(at);
+            }
+            catch (e) {
+                const code = presenceCode(e);
+                return {
+                    kind: "unreadable",
+                    code,
+                    reason: !entry.isSymbolicLink()
+                        ? `"${at}" cannot be inspected (${code})`
+                        : last
+                            ? `it is a symbolic link whose target cannot be reached (${code})`
+                            : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+                    // The path's own lstat showed a link only when this is the last component and it is one (IN-11).
+                    link: last && entry.isSymbolicLink(),
+                };
+            }
+        }
+        if (!last) {
+            if (!target.isDirectory()) {
+                return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)`, link: false };
+            }
+            continue;
+        }
+        let real;
+        try {
+            real = realpathSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})`, link: entry.isSymbolicLink() };
+        }
+        return { kind: "present", entry, target, real };
+    }
 }
 export function isWithin(real, boundary) {
     const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
@@ -568,6 +796,146 @@ export function rootChainPresence(realRoot, rel, leaf) {
         return { kind: "present", entry, target, real };
     }
 }
+function codedError(message, code) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
+}
+function readRawNotesWithSkips(task, contextRoot, boundary = null) {
+    assertSafeTask(task);
+    const notesDir = join(contextRoot, task, "notes");
+    // ONLY AN LSTAT ENOENT IS ABSENCE (plan 37-28, D-18, CR-03, IN-06). The question is entryPresence's, the one
+    // owner: a missing notes directory is a task with no notes, and anything else that stops the read throws and
+    // reaches the trace model as a failed task. The stat this replaced (plan 37-21) answered undefined for ENOTDIR
+    // and for a dangling link as well as for ENOENT, so its premise ("a missing path only") was false (IN-06), and a
+    // dangling `notes` link read as a task with no notes (CR-03).
+    const presence = entryPresence(notesDir);
+    if (presence.kind === "absent")
+        return { notes: [], skipped: [] };
+    if (presence.kind === "unreadable") {
+        throw codedError(`context-io: the notes directory "${notesDir}" could not be read: ${presence.reason}`, presence.code);
+    }
+    if (!presence.target.isDirectory()) {
+        throw codedError(`context-io: the notes directory "${notesDir}" is not a directory (ENOTDIR)`, "ENOTDIR");
+    }
+    if (boundary !== null && !isWithin(presence.real, boundary)) {
+        // Plan 37-38 (D-20): the refusal names the notes directory, as every other refusal of this walk does; until then
+        // it said only "its notes directory", so a reader saw the task and not the position (the READ-1 shape table's
+        // outside-link cells found it).
+        throw new Error(`context-io: the notes directory "${notesDir}" resolves outside the repository root, so it was not read`);
+    }
+    const skipped = [];
+    const out = [];
+    for (const file of readdirSync(notesDir)) {
+        if (!file.endsWith(".md"))
+            continue;
+        // THE THIRD CALLER-INFLUENCED READ POSITION IN THIS MODULE (31-21, CR-12 / D-24). CR-12 named
+        // the write chokepoint and the ledger look. This walk is the third: what it reads is whatever a
+        // notes/ DIRECTORY lists, and a directory's contents are exactly what a caller can add a name
+        // to. Measured with the first two positions already closed, a `mkfifo` at
+        // `<ctx>/<task>/notes/<anything>.md` still wedged `readContext`, `render`, `currentState` AND
+        // `promoteAdmitted`'s destination-liveness clause — CR-12 surviving at a position the finding
+        // did not name. Closing only the two named reads would have satisfied the review and left D-24's
+        // own rule false, which is the failure shape five rounds of this phase have paid for.
+        //
+        // THE DISPOSITION IS SKIP, AND IT IS A DECISION RATHER THAN A DEFAULT. This walk already skips a
+        // file that does not PARSE rather than crashing, because one malformed file must not make a
+        // whole task's context unreadable. A position occupied by a FIFO, a device or a directory is not
+        // a note by that same argument, so it is skipped by the same rule. Throwing here would let one
+        // planted FIFO deny `render` and `currentState` for the entire task — trading a hang for a
+        // denial one register over. The WRITE side stays loud: `writeNoteFile` refuses that position BY
+        // NAME, so nothing can be written over it and nothing is silently replaced. The residual — that
+        // a skip is quiet on a surface whose whole value is legibility — is named in D-24.
+        // THREE ARMS, EACH NAMED, EACH COUNTED (31-29, IN-14 / R-31-21-02). The disposition is still
+        // SKIP — throwing would let one planted FIFO deny `render` and `currentState` for a whole task,
+        // trading a hang for a denial one register over — but a skip is no longer SILENT.
+        let text;
+        try {
+            const raw = readRegularFileOrNull(join(notesDir, file), NOTE_FILE_MAX_BYTES, "note file");
+            if (raw === null) {
+                // `open(2)` answered ENOENT. Two conditions reach here and the arm's docstring names both:
+                // a file listed by `readdir` and deleted before it was opened, and a DANGLING SYMLINK whose
+                // ENOENT is about its target.
+                skipped.push({ file, arm: "vanished", detail: "" });
+                continue;
+            }
+            text = raw;
+        }
+        catch (e) {
+            // ── THE ARM IS READ FROM THE AUTHORITY, NEVER RE-DERIVED HERE (31-33, CR-24 / D-34). ──────
+            //
+            // `D-31 (3)` put the condition on the error with a stated reason: "carrying the condition on
+            // the error is what lets a caller name its own clause WITHOUT re-deriving the fact." This
+            // caller — the one `IN-14` was raised about — discarded it and hand-labelled all three
+            // conditions `not-a-regular-file`. A caller that re-labels every condition with one arm has
+            // re-derived the fact, and re-derived it WRONGLY, on the one surface whose whole stated value
+            // is legibility: the row a human reads when a note that was admitted has become unreadable.
+            // Reproduced before the fix — an EACCES file and an 8,388,609-byte REGULAR file both filed
+            // under `not-a-regular-file`, the second row's detail contradicting its own arm.
+            //
+            // THE FALLBACK IS ONE EXPLICITLY NAMED ARM, not a label per catch. Anything reaching here
+            // that is not a `ReadPositionRefusal` — an EIO from `fstat`, an allocation failure — is a
+            // position that could not be opened or read as far as this walk is concerned, which is what
+            // `unopenable` means. Naming it once is the difference between a fallback and a second
+            // classifier.
+            const arm = e instanceof ReadPositionRefusal ? e.condition : "unopenable";
+            skipped.push({ file, arm, detail: e.message });
+            continue;
+        }
+        const parsed = parseNote(text);
+        if (!parsed) {
+            // A file that is never a note — an editor backup, a stray `.md`. One malformed file must not
+            // make a whole task's context unreadable, so it is skipped rather than thrown on.
+            skipped.push({ file, arm: "unparseable", detail: "" });
+            continue;
+        }
+        // THE SEAL IS ASKED HERE, IN THE ONE WALK, AND ONLY HERE (plan 33-25, KIT (b)). A note the
+        // sanctioned writer did not compose — a hand-written note, a pre-seal note, an edited note — is
+        // refused by name and counted under `unsealed`, with the predicate's own word as the detail. The
+        // disposition is SKIP like the other arms: one planted file must not make a whole task's context
+        // unreadable, and the write side stays loud. Measured on the held round-1 capture before this
+        // change: nine `Write`-tool notes read as nine records; after it, nine `unsealed`/`absent` rows.
+        const seal = sealVerdict(text);
+        if (!seal.ok) {
+            skipped.push({ file, arm: "unsealed", detail: seal.reason });
+            continue;
+        }
+        // Prefer the explicit frozen `id:` field; fall back to the filename-derived id when absent (a
+        // pre-id note). When BOTH are present they must agree — a frontmatter id diverging from its
+        // filename is the on-disk signature of a tampered identity, so the filename (the storage key)
+        // wins for the read and the divergence is left for validate() to surface on the explicit path.
+        const fileId = file.replace(/\.md$/, "");
+        const s = parsed.scalars;
+        out.push({ id: s.id && s.id !== "" ? s.id : fileId, text, parsed });
+    }
+    return { notes: out, skipped };
+}
+function recordFromParsed(parsed, id) {
+    const s = parsed.scalars;
+    return {
+        id,
+        kind: s.kind ?? "",
+        by: s.by ?? "",
+        at: s.at ?? "",
+        verified_by: s.verified_by ?? "",
+        confidence: s.confidence ?? "",
+        refs: parsed.refs,
+        supersedes: s.supersedes && s.supersedes !== "" ? s.supersedes : null,
+        // The evidence-provenance projection (Phase 31). parseNote's open scalar map already ACCEPTS
+        // these keys, so no parser change was needed — but a scalar the parser accepted and this
+        // projection dropped is a scalar admit() cannot read, and admit()'s D-03 branch reads the
+        // matched verdict's `sha` through exactly this record. Absent stays `undefined` rather than
+        // "" so "the verdict recorded no SHA" and "the verdict recorded an empty SHA" are one case
+        // for the refusal below to name.
+        sha: s.sha ?? undefined,
+        gate_run: s.gate_run ?? undefined,
+        content_hash: s.content_hash ?? undefined,
+        body: parsed.body.trim(),
+    };
+}
+export function normalizeKind(raw) {
+    return (raw ?? "").trim();
+}
 // </runnable-embeds>
 /** The queue change that stands, once one was made; read by the unexpected-throw handler below. */
 let queueChange = "";
@@ -598,10 +966,15 @@ function codeOf(e) {
     return e.code ?? "unknown error";
 }
 const USAGE = "Usage: node claim.js claim <task> --by <adapter> [--level <level>] [--root <dir>] | " +
-    "node claim.js now-running [--root <dir>]";
+    "node claim.js done <task> [--root <dir>] | node claim.js now-running [--root <dir>]";
+/** The largest queue record this program reads, in bytes: a reader ceiling, as a claim record is a few lines. */
+const RECORD_CEILING_BYTES = 1024 * 1024;
+/** How many unsealed notes a `not-done` line names before it says how many more there are. */
+const MAX_NAMED_NOTES = 10;
 /** What each command takes on the command line. */
 const COMMANDS = new Map([
     ["claim", { task: true, flags: ["--by", "--level", "--root"] }],
+    ["done", { task: true, flags: ["--root"] }],
     ["now-running", { task: false, flags: ["--root"] }],
 ]);
 const args = process.argv.slice(2);
@@ -706,6 +1079,125 @@ function runClaim(task) {
     renderNowRunning(queueRoot);
     process.stdout.write(`claimed ${printable(task)} by ${printable(by)}\n`);
 }
+/**
+ * The text of the queue record at `rel`, or null when nothing is there. The root-chain owner answers with leaf `entry`,
+ * and a present entry is judged by its own lstat, so a symbolic link, a FIFO or a directory is refused by name and never
+ * opened. A record that vanished after it was seen is refused, never read as absent.
+ */
+function recordTextOrNull(rel) {
+    const presence = rootChainPresence(root, rel, "entry");
+    if (presence.kind === "absent")
+        return null;
+    if (presence.kind === "unreadable")
+        couldNotRun(`${rel} cannot be inspected: ${presence.reason}.`);
+    if (presence.kind === "link")
+        couldNotRun(`${rel} cannot be used: ${presence.reason}.`);
+    if (presence.kind === "outside")
+        couldNotRun(`${rel} resolves outside the repository root, so it was not read.`);
+    if (presence.entry.isSymbolicLink())
+        couldNotRun(`${rel} is a symbolic link, so it was not read.`);
+    if (!presence.entry.isFile())
+        couldNotRun(`${rel} is not a regular file, so it was not read.`);
+    let text;
+    try {
+        text = readRegularFileOrNull(nodePath.join(root, rel), RECORD_CEILING_BYTES, rel);
+    }
+    catch (e) {
+        couldNotRun(`${rel} could not be read (${e.message}).`);
+    }
+    if (text === null)
+        couldNotRun(`${rel} vanished after it was seen.`);
+    return text;
+}
+/**
+ * The notes of `.grugops/context/<folder>/`, read through the embedded walk, so the seal check has one owner. An absent
+ * folder is a folder with no notes. Anything else that stops the read is exit 2: a link, a path outside the root, or a
+ * throw from the walk never reads as "no notes".
+ */
+function noteWalk(folder) {
+    const rel = `${CONTEXT_REL}/${folder}`;
+    const presence = rootChainPresence(root, rel, "directory");
+    if (presence.kind === "absent")
+        return { ats: [], unsealed: [], others: 0 };
+    const problem = directoryProblem(presence);
+    if (problem !== null)
+        couldNotRun(`${rel} cannot be used: ${problem}.`);
+    try {
+        const read = readRawNotesWithSkips(folder, nodePath.join(root, CONTEXT_REL), root);
+        return {
+            ats: read.notes.map((note) => recordFromParsed(note.parsed, note.id).at),
+            unsealed: read.skipped.filter((s) => s.arm === "unsealed").map((s) => s.file).sort(),
+            others: read.skipped.filter((s) => s.arm !== "unsealed").length,
+        };
+    }
+    catch (e) {
+        return couldNotRun(`the notes of ${rel} could not be read (${e.message}).`);
+    }
+}
+/** The one `not-done` line (D-07), which keeps the unsealed notes visible (D-28). */
+function notDoneLine(task, folder, at, walk) {
+    let line = `not-done ${task}: no sealed note in ${CONTEXT_REL}/${folder}/ since ${at}`;
+    if (walk.unsealed.length > 0) {
+        const named = walk.unsealed.slice(0, MAX_NAMED_NOTES).join(", ");
+        const more = walk.unsealed.length - MAX_NAMED_NOTES;
+        line += `; ${walk.unsealed.length} unsealed note(s) found: ${named}${more > 0 ? ` and ${more} more` : ""}`;
+    }
+    if (walk.others > 0)
+        line += `; ${walk.others} other note(s) skipped`;
+    return line;
+}
+/**
+ * `done`: the task leaves the in-flight log here and nowhere else. Every read comes before the first move, so each
+ * refusal and the `not-done` outcome leave claimed/TASK/ as it was. A subtask that already left claimed/TASK/ goes
+ * straight to completeTask, which releases the claim when done/TASK.md exists, because an earlier run stopped between
+ * the move and the release.
+ */
+function runDone(task) {
+    try {
+        assertSafeQueueTask(task);
+    }
+    catch (e) {
+        couldNotRun(`${e.message}.`);
+    }
+    const claimDirRel = `${QUEUE_CLAIMED_REL}/${task}`;
+    const claimDir = rootChainPresence(root, claimDirRel, "directory");
+    if (claimDir.kind === "absent")
+        couldNotRun(`no claim directory at ${claimDirRel}/.`);
+    const claimDirProblem = directoryProblem(claimDir);
+    if (claimDirProblem !== null)
+        couldNotRun(`${claimDirRel} cannot be used: ${claimDirProblem}.`);
+    const claimRel = `${claimDirRel}/claim.md`;
+    const claimText = recordTextOrNull(claimRel);
+    if (claimText === null)
+        couldNotRun(`${claimDirRel}/ holds no claim record.`);
+    const record = claimRecordFields(claimText);
+    if (record.kind === "tampered")
+        couldNotRun(`the claim record ${claimRel} is tampered: it has more than one at: line.`);
+    if (record.kind === "no-at")
+        couldNotRun(`the claim record ${claimRel} has no at: value.`);
+    if (Number.isNaN(Date.parse(record.at))) {
+        couldNotRun(`the claim record ${claimRel} says at: ${record.at}, which is not a timestamp.`);
+    }
+    const subtaskText = recordTextOrNull(`${claimDirRel}/${task}.md`);
+    if (subtaskText !== null) {
+        const ref = subtaskRefFolder(subtaskText);
+        if (ref.kind === "refused")
+            couldNotRun(`${ref.reason}.`);
+        const walk = noteWalk(ref.folder);
+        if (!noteSinceClaim(record.at, walk.ats)) {
+            process.stdout.write(`${printable(notDoneLine(task, ref.folder, record.at, walk))}\n`);
+            process.exitCode = 1;
+            return;
+        }
+    }
+    ensureQueueDirs();
+    const outcome = completeTask(queueRoot, task);
+    if (outcome.kind === "refused")
+        couldNotRun(`${outcome.reason}.`);
+    queueChange = `${task} moved to done/ and its claim was released.`;
+    renderNowRunning(queueRoot);
+    process.stdout.write(`done ${printable(task)}\n`);
+}
 /** `now-running`: render the in-flight log from claimed/. */
 function runNowRunning() {
     ensureQueueDirs();
@@ -714,5 +1206,7 @@ function runNowRunning() {
 }
 if (command === "claim")
     runClaim(positional[0]);
+else if (command === "done")
+    runDone(positional[0]);
 else
     runNowRunning();
