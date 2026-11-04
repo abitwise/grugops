@@ -7,7 +7,7 @@
 // cases prove the same rules run on a host, through the CLI contract of plan 41-03.
 //
 //   exit 0 → the command did its work; stdout holds its one line
-//   exit 1 → an outcome to act on: `lost TASK`
+//   exit 1 → an outcome to act on: `lost TASK`, `not-done TASK: ...`
 //   exit 2 → could not run or refused, with nothing on stdout and one `Error: ` line on stderr
 
 import { describe, it, expect, afterAll } from "vitest";
@@ -25,8 +25,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { skipLine, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import { skipLine, stageNameOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import * as ctxio from "../context-io.js";
 import {
+  CONTEXT_REL,
   GRUGOPS_DIR_REL,
   QUEUE_CLAIMED_REL,
   QUEUE_DONE_REL,
@@ -374,5 +376,381 @@ describe("the committed program stands alone (RUN-05)", () => {
 
   it("names itself in the build stamp set", () => {
     expect(readFileSync(CLAIM_JS, "utf8")).toContain('export const RUNNABLE_SELF = "claim.js";');
+  });
+});
+
+// ── done (plan 41-03 Task 3, RUN-01, D-05, D-07, D-28) ──────────────────────────────────────────────────
+
+/** The text of a sealed note written at `at`, sealed through the committed seal export. */
+function sealedNote(name: string, at: string): string {
+  const fence =
+    `id: ${name}\n` +
+    "kind: observation\n" +
+    "by: grugops-qe-e2e\n" +
+    `at: ${at}\n` +
+    "verified_by: \n" +
+    "confidence: high\n" +
+    "refs:\n" +
+    "supersedes: \n";
+  const rest = "---\n\n" + "an observation the task published.\n";
+  return "---\n" + fence + `${ctxio.NOTE_SEAL_KEY}: ${ctxio.noteSeal("---\n" + fence + rest)}\n` + rest;
+}
+
+/** A sealed note with its seal line removed: what a hand-written note looks like to the walk (D-28). */
+function handWrittenNote(name: string, at: string): string {
+  const seal = `${ctxio.NOTE_SEAL_KEY}:`;
+  return sealedNote(name, at)
+    .split("\n")
+    .filter((l) => !l.startsWith(seal))
+    .join("\n");
+}
+
+function notesDir(root: string, folder: string): string {
+  return join(root, CONTEXT_REL, folder, "notes");
+}
+
+/** Plant the note `text` as `<name>.md` in the notes directory of `folder`. */
+function plantNote(root: string, folder: string, name: string, text: string): void {
+  mkdirSync(notesDir(root, folder), { recursive: true });
+  writeFileSync(join(notesDir(root, folder), `${name}.md`), text);
+}
+
+/** A repository with `task` claimed through the program, its subtask carrying `subtaskText`. */
+function claimedRepo(task: string, subtaskText: string = subtask(task)): string {
+  const root = repo();
+  writeFileSync(join(root, QUEUE_PENDING_REL, `${task}.md`), subtaskText);
+  const r = run(root, "claim", task, "--by", "grugops-qe-e2e");
+  expect(r.status, r.stderr).toBe(0);
+  return root;
+}
+
+function claimPath(root: string, task: string): string {
+  return join(root, QUEUE_CLAIMED_REL, task, "claim.md");
+}
+
+/** The `at` of the claim record of `task`. */
+function claimAt(root: string, task: string): string {
+  const at = /^at: (.+)$/m.exec(readFileSync(claimPath(root, task), "utf8"))?.[1];
+  if (at === undefined) throw new Error("PREMISE: the claim record carries an at line");
+  return at;
+}
+
+/** The same instant moved by `ms` milliseconds, in the ISO form a note carries. */
+function shifted(at: string, ms: number): string {
+  return new Date(Date.parse(at) + ms).toISOString();
+}
+
+/** Every file of claimed/<task>/, with its text: the before and after of a `done` that must move nothing. */
+function claimTree(root: string, task: string): Record<string, string> {
+  const dir = join(root, QUEUE_CLAIMED_REL, task);
+  return Object.fromEntries(readdirSync(dir).sort().map((f) => [f, readFileSync(join(dir, f), "utf8")]));
+}
+
+/** `done` must have stopped with claimed/<task>/ exactly as `before` and nothing in done/. */
+function expectNothingMoved(root: string, task: string, before: Record<string, string>): void {
+  expect(claimTree(root, task)).toEqual(before);
+  expect(existsSync(join(root, QUEUE_DONE_REL, `${task}.md`))).toBe(false);
+}
+
+describe("done TASK finishes a task on a sealed note (RUN-01, D-05, D-07)", () => {
+  it("moves the subtask to done/, releases the claim and leaves a header-only log", () => {
+    const root = claimedRepo("t1");
+    plantNote(root, "t1", "n1", sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    const r = run(root, "done", "t1");
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe("done t1\n");
+    expect(r.status).toBe(0);
+    expect(readFileSync(join(root, QUEUE_DONE_REL, "t1.md"), "utf8")).toBe(subtask("t1"));
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1"))).toBe(false);
+    expect(rows(root)).toEqual([]);
+  });
+
+  it("the log keeps the row of a task still running", () => {
+    const root = repo("t1", "t2");
+    expect(run(root, "claim", "t1", "--by", "grugops-qe-e2e").status).toBe(0);
+    expect(run(root, "claim", "t2", "--by", "grugops-security").status).toBe(0);
+    plantNote(root, "t1", "n1", sealedNote("n1", claimAt(root, "t1")));
+    expect(run(root, "done", "t1").status).toBe(0);
+    const remaining = rows(root);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]).toContain("| t2 | grugops-security |");
+  });
+
+  it("a sealed note at the claim's own instant counts", () => {
+    const root = claimedRepo("t1");
+    plantNote(root, "t1", "n1", sealedNote("n1", claimAt(root, "t1")));
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+  });
+
+  it("a sealed note one millisecond before the claim does not count", () => {
+    const root = claimedRepo("t1");
+    const at = claimAt(root, "t1");
+    plantNote(root, "t1", "n1", sealedNote("n1", shifted(at, -1)));
+    const before = claimTree(root, "t1");
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toBe(`not-done t1: no sealed note in ${CONTEXT_REL}/t1/ since ${at}\n`);
+    expectNothingMoved(root, "t1", before);
+  });
+
+  it("no note at all: prints the not-done line naming the folder and the claim's at, exits 1 and moves nothing", () => {
+    const root = claimedRepo("t1");
+    const at = claimAt(root, "t1");
+    const before = claimTree(root, "t1");
+    const r = run(root, "done", "t1");
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe(`not-done t1: no sealed note in ${CONTEXT_REL}/t1/ since ${at}\n`);
+    expect(r.status).toBe(1);
+    expectNothingMoved(root, "t1", before);
+    expect(rows(root)).toHaveLength(1);
+  });
+
+  it("a hand-written note alone exits 1 and the line names the file and says unsealed (D-28)", () => {
+    const root = claimedRepo("t1");
+    plantNote(root, "t1", "hand", handWrittenNote("hand", shifted(claimAt(root, "t1"), 1000)));
+    const before = claimTree(root, "t1");
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain("; 1 unsealed note(s) found: hand.md\n");
+    expectNothingMoved(root, "t1", before);
+  });
+
+  it("more than ten unsealed notes: the line names ten and says how many more", () => {
+    const root = claimedRepo("t1");
+    const at = shifted(claimAt(root, "t1"), 1000);
+    const names = Array.from({ length: 13 }, (_, i) => `hand-${String(i).padStart(2, "0")}`);
+    for (const name of names) plantNote(root, "t1", name, handWrittenNote(name, at));
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const listed = names.slice(0, 10).map((n) => `${n}.md`).join(", ");
+    expect(r.stdout).toContain(`; 13 unsealed note(s) found: ${listed} and 3 more\n`);
+    expect(r.stdout).not.toContain("hand-10.md");
+  });
+
+  it("notes the walk skipped under other arms are counted apart, never read as unsealed", () => {
+    const root = claimedRepo("t1");
+    plantNote(root, "t1", "stray", "no frontmatter here\n");
+    mkdirSync(join(notesDir(root, "t1"), "folder.md"));
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain("; 2 other note(s) skipped\n");
+    expect(r.stdout).not.toContain("unsealed");
+  });
+
+  it("a sealed note beside a hand-written one passes: the seal decides, and the hand-written note is left", () => {
+    const root = claimedRepo("t1");
+    const at = shifted(claimAt(root, "t1"), 1000);
+    plantNote(root, "t1", "hand", handWrittenNote("hand", at));
+    plantNote(root, "t1", "n1", sealedNote("n1", at));
+    expect(run(root, "done", "t1").status).toBe(0);
+  });
+
+  it("removes a control character from a note name it prints (V7)", () => {
+    const root = claimedRepo("t1");
+    mkdirSync(notesDir(root, "t1"), { recursive: true });
+    const at = join(notesDir(root, "t1"), "ha\u0007nd.md");
+    const skipped = stageNameOrSkip(
+      () => writeFileSync(at, handWrittenNote("hand", shifted(claimAt(root, "t1"), 1000))),
+      "scripts/runnable-ref/claim.test.ts: a note name holding a control byte (plan 41-03)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the task-name control-character case above"));
+      return;
+    }
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain("found: hand.md\n");
+    expect(r.stdout).not.toContain("\u0007");
+  });
+
+  it("reads the folder from the subtask's ref: line, so a folder named apart from the task finds its notes", () => {
+    const root = claimedRepo("t1", "# subtask t1\nref: .grugops/context/shared/\n");
+    plantNote(root, "shared", "n1", sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+  });
+
+  it("a note in the task's own folder does not count when the ref: line names another", () => {
+    const root = claimedRepo("t1", "# subtask t1\nref: .grugops/context/shared/\n");
+    plantNote(root, "t1", "n1", sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    const r = run(root, "done", "t1");
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout).toContain(`no sealed note in ${CONTEXT_REL}/shared/ since`);
+  });
+
+  it("a claim directory with no subtask and done/t1.md present exits 0 and releases the directory", () => {
+    const root = claimedRepo("t1");
+    mkdirSync(join(root, QUEUE_DONE_REL), { recursive: true });
+    writeFileSync(join(root, QUEUE_DONE_REL, "t1.md"), subtask("t1"));
+    rmSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"));
+    const r = run(root, "done", "t1");
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe("done t1\n");
+    expect(r.status).toBe(0);
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1"))).toBe(false);
+    expect(rows(root)).toEqual([]);
+  });
+
+  it("offers no way past the note check: an unknown flag is refused and the task stays claimed", () => {
+    const root = claimedRepo("t1");
+    const before = claimTree(root, "t1");
+    expectRefused(run(root, "done", "t1", "--force"), "--force", "Usage: node claim.js");
+    expectNothingMoved(root, "t1", before);
+  });
+});
+
+describe("done refuses what it cannot read (T-41-16)", () => {
+  const badRefs: readonly { name: string; text: string; phrase: string }[] = [
+    { name: "a ref: line that traverses", text: "# subtask t1\nref: ../../etc\n", phrase: "does not name one folder" },
+    { name: "a ref: line with .. as its folder", text: "# subtask t1\nref: .grugops/context/../\n", phrase: "does not name one folder" },
+    { name: "two ref: lines", text: "# subtask t1\nref: .grugops/context/t1/\nref: .grugops/context/t2/\n", phrase: "2 ref: lines" },
+    { name: "no ref: line", text: "# subtask t1\n", phrase: "0 ref: lines" },
+  ];
+  for (const c of badRefs) {
+    it(`${c.name}: exit 2 with claimed/t1/ unchanged`, () => {
+      const root = claimedRepo("t1", c.text);
+      const before = claimTree(root, "t1");
+      expectRefused(run(root, "done", "t1"), c.phrase);
+      expectNothingMoved(root, "t1", before);
+    });
+  }
+
+  it("a claim with two at: lines exits 2 and is not moved", () => {
+    const root = claimedRepo("t1");
+    plantNote(root, "t1", "n1", sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    const text = readFileSync(claimPath(root, "t1"), "utf8");
+    writeFileSync(claimPath(root, "t1"), text.replace("task: t1\n", "at: 2020-01-01T00:00:00.000Z\ntask: t1\n"));
+    const before = claimTree(root, "t1");
+    expectRefused(run(root, "done", "t1"), "tampered");
+    expectNothingMoved(root, "t1", before);
+  });
+
+  it("a claim with no at: value exits 2 and is not moved", () => {
+    const root = claimedRepo("t1");
+    writeFileSync(claimPath(root, "t1"), "---\nby: x\ntask: t1\n---\n");
+    const before = claimTree(root, "t1");
+    expectRefused(run(root, "done", "t1"), "no at");
+    expectNothingMoved(root, "t1", before);
+  });
+
+  it("a claim whose at: is not a timestamp exits 2, because no note could ever pass it", () => {
+    const root = claimedRepo("t1");
+    const text = readFileSync(claimPath(root, "t1"), "utf8");
+    writeFileSync(claimPath(root, "t1"), text.replace(/^at: .*$/m, "at: not\u0007-a-date"));
+    const before = claimTree(root, "t1");
+    const r = run(root, "done", "t1");
+    expectRefused(r, "not-a-date", "not a timestamp");
+    expect(r.stderr).not.toContain("\u0007");
+    expectNothingMoved(root, "t1", before);
+  });
+
+  it("a claim directory with no claim record exits 2", () => {
+    const root = claimedRepo("t1");
+    rmSync(claimPath(root, "t1"));
+    expectRefused(run(root, "done", "t1"), "no claim record");
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"))).toBe(true);
+  });
+
+  it("a claim record that is a directory exits 2", () => {
+    const root = claimedRepo("t1");
+    rmSync(claimPath(root, "t1"));
+    mkdirSync(claimPath(root, "t1"));
+    expectRefused(run(root, "done", "t1"), "claim.md");
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"))).toBe(true);
+  });
+
+  it("a symlinked claim record exits 2, and the file it points to is not read", () => {
+    const root = claimedRepo("t1");
+    const elsewhere = join(root, "elsewhere.md");
+    writeFileSync(elsewhere, readFileSync(claimPath(root, "t1")));
+    rmSync(claimPath(root, "t1"));
+    const skipped = stageSymlinkOrSkip(
+      elsewhere,
+      claimPath(root, "t1"),
+      "symlink inside the repository root",
+      "scripts/runnable-ref/claim.test.ts: the claim record (plan 41-03)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the symlinked queue directory case above"));
+      return;
+    }
+    expectRefused(run(root, "done", "t1"), "claim.md", "symbolic link");
+    expect(lstatSync(claimPath(root, "t1")).isSymbolicLink()).toBe(true);
+  });
+
+  it("`done` on a task with no claim directory exits 2", () => {
+    const root = repo("t1");
+    expectRefused(run(root, "done", "t1"), "no claim directory");
+    expect(existsSync(join(root, QUEUE_PENDING_REL, "t1.md"))).toBe(true);
+  });
+
+  it("`done` on a repository with no queue exits 2 and creates none", () => {
+    const root = bareRepo();
+    expectRefused(run(root, "done", "t1"), "no claim directory");
+    expect(existsSync(join(root, QUEUE_REL))).toBe(false);
+  });
+
+  it("no subtask anywhere exits 2 and keeps the claim directory", () => {
+    const root = claimedRepo("t1");
+    rmSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"));
+    expectRefused(run(root, "done", "t1"), "no subtask for t1");
+    expect(existsSync(claimPath(root, "t1"))).toBe(true);
+  });
+
+  it("a subtask in both claimed/ and done/ exits 2 and moves nothing", () => {
+    const root = claimedRepo("t1");
+    plantNote(root, "t1", "n1", sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    writeFileSync(join(root, QUEUE_DONE_REL, "t1.md"), "an earlier copy\n");
+    expectRefused(run(root, "done", "t1"), "already exists");
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"))).toBe(true);
+    expect(readFileSync(join(root, QUEUE_DONE_REL, "t1.md"), "utf8")).toBe("an earlier copy\n");
+  });
+
+  it("a bad task name and a missing task each exit 2", () => {
+    expectRefused(run(repo(), "done", "a/b"), "invalid task name");
+    expectRefused(run(repo(), "done"), "Usage: node claim.js");
+  });
+
+  it("a symlinked context folder exits 2 and the task stays claimed", () => {
+    const root = claimedRepo("t1");
+    const outside = mkTmp("grugops-claim-context-outside-");
+    mkdirSync(join(outside, "notes"));
+    writeFileSync(join(outside, "notes", "n1.md"), sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    mkdirSync(join(root, CONTEXT_REL));
+    const skipped = stageSymlinkOrSkip(
+      outside,
+      join(root, CONTEXT_REL, "t1"),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/claim.test.ts: the context folder (plan 41-03)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the symlinked queue directory case above"));
+      return;
+    }
+    const before = claimTree(root, "t1");
+    expectRefused(run(root, "done", "t1"), `${CONTEXT_REL}/t1 is a symbolic link`);
+    expectNothingMoved(root, "t1", before);
+  });
+
+  it("a notes path that is a regular file exits 2 and the task stays claimed", () => {
+    const root = claimedRepo("t1");
+    mkdirSync(join(root, CONTEXT_REL, "t1"), { recursive: true });
+    writeFileSync(notesDir(root, "t1"), "");
+    const before = claimTree(root, "t1");
+    expectRefused(run(root, "done", "t1"), "notes");
+    expectNothingMoved(root, "t1", before);
+  });
+
+  it("a render that fails after the move exits 2 and says the task finished", () => {
+    const root = claimedRepo("t1");
+    plantNote(root, "t1", "n1", sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    rmSync(join(root, NOW_RUNNING_REL));
+    mkdirSync(join(root, NOW_RUNNING_REL));
+    writeFileSync(join(root, NOW_RUNNING_REL, "keeps-the-directory-full"), "");
+    const r = run(root, "done", "t1");
+    expectRefused(r, "the queue tool stopped unexpectedly", "t1 moved to done/", "The command did not finish.");
+    expect(r.stderr).not.toContain("The queue was not changed.");
+    expect(existsSync(join(root, QUEUE_DONE_REL, "t1.md"))).toBe(true);
   });
 });
