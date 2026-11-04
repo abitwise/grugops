@@ -8,7 +8,8 @@
 //     pending/<task>.md       a thin, self-contained subtask file (what-to-do + a ref to its
 //                             .grugops/context/<task>/ folder + the originating ticket)
 //     claimed/<task>/         the claim directory — its existence IS the claim (atomic mkdir)
-//       claim.md              the "now-running" registry record: by / at / task (frontmatter)
+//       claim.md              the "now-running" registry record: by / at / task, plus the optional
+//                             agent / level lines (D-03) (frontmatter)
 //     done/<task>.md          the completed subtask
 //
 //   claimTask (CLAIM-02): mkdirSync(claimed/<task>) is atomic create-or-fail on every platform
@@ -84,9 +85,12 @@ export type QueueStage = (typeof QUEUE_STAGES)[number];
 
 // ── Task-name allowlist (path-traversal mitigation, T-20-04) ─────────────────────────────────────
 export const QUEUE_TASK_NAME_RE = /^[A-Za-z0-9._-]+$/;
-function assertSafeQueueTask(task: string): void {
+function isSafeQueueName(name: string): boolean {
   // Reject empty, `.`/`..`, path separators, absolute paths, and anything outside the allowlist.
-  if (!QUEUE_TASK_NAME_RE.test(task) || task === "." || task === "..") {
+  return QUEUE_TASK_NAME_RE.test(name) && name !== "." && name !== "..";
+}
+function assertSafeQueueTask(task: string): void {
+  if (!isSafeQueueName(task)) {
     throw new Error(
       `claim: invalid task name "${task}" — must match ^[A-Za-z0-9._-]+$ ` +
         "(no path separators, no .., no absolute paths)",
@@ -141,28 +145,39 @@ function atomicRename(src: string, dst: string): void {
 }
 
 // ── claimTask: atomic mkdir claim (CLAIM-02). First claimant wins; EEXIST = claim lost (false). ──
-// On success, writes the now-running registry record claimed/<task>/claim.md (by / at / task) and
-// returns true. On EEXIST returns false (claim lost — NOT an error). On ANY other code (ENOENT
+// On success, writes the now-running registry record claimed/<task>/claim.md (by / at / task, with
+// `fields` after `by`) and returns true. On EEXIST returns false (claim lost — NOT an error). On ANY other code (ENOENT
 // parent-missing, EACCES, ...) rethrows — a real failure is never swallowed into a false "lost".
+export type ClaimFields = { readonly agent?: string; readonly level?: string };
+
 export function claimTask(
   queueRoot: string,
   task: string,
   by: string,
+  fields: ClaimFields = {},
 ): boolean {
-  return takeClaim(queueRoot, task, by) !== null;
+  return takeClaim(queueRoot, task, by, fields) !== null;
 }
 
 // The claim itself: the `at` written to the record, or null when the claim is lost.
-function takeClaim(queueRoot: string, task: string, by: string): string | null {
+function takeClaim(
+  queueRoot: string,
+  task: string,
+  by: string,
+  fields: ClaimFields,
+): string | null {
   assertSafeQueueTask(task);
   // Field-injection guard (CR-02): `by` is written raw into claim.md frontmatter. A newline would
   // smuggle a forged `at:` line ahead of the real one, and sweepStale's first-match regex would
   // then read the forged timestamp — making a stale claim un-sweepable forever (queue-lock DoS).
-  // Reject any `by` carrying a CR or LF before writing the record.
-  if (/[\r\n]/.test(by)) {
-    throw new Error(
-      `claim: invalid "by" — must be single-line (no embedded newline): ${JSON.stringify(by)}`,
-    );
+  // Reject any `by`, `agent` or `level` carrying a CR or LF before writing the record: all three are
+  // written raw, ahead of `at:`.
+  for (const [name, value] of [["by", by], ["agent", fields.agent], ["level", fields.level]]) {
+    if (value !== undefined && /[\r\n]/.test(value)) {
+      throw new Error(
+        `claim: invalid "${name}" — must be single-line (no embedded newline): ${JSON.stringify(value)}`,
+      );
+    }
   }
   const claimDir = join(queueRoot, "claimed", task);
   try {
@@ -174,13 +189,34 @@ function takeClaim(queueRoot: string, task: string, by: string): string | null {
   }
   // Won the claim: record the now-running registry entry for the stale sweep. ISO-8601 `at`.
   const at = new Date().toISOString();
+  const agent = fields.agent === undefined ? "" : `agent: ${fields.agent}\n`;
+  const level = fields.level === undefined ? "" : `level: ${fields.level}\n`;
   writeFileSync(
     join(claimDir, "claim.md"),
-    `---\nby: ${by}\nat: ${at}\ntask: ${task}\n---\n`,
+    `---\nby: ${by}\n${agent}${level}at: ${at}\ntask: ${task}\n---\n`,
     "utf8",
   );
   return at;
 }
+
+// ── claimOwnerRefusal: who may own a claim (D-13, T-41-04). ─────────────────────────────────────
+// The Orchestrator claims only in the name of the adapter it starts, never as itself. A reason is
+// returned for an empty name, a name outside the task-name allowlist, and a name whose stem is
+// `orchestrator`. This is an instruction backstop, not a boundary: an agent can edit files.
+export function claimOwnerRefusal(by: string): string | null {
+  if (by === "") return "the claim owner is empty; name the adapter that runs the task";
+  if (!isSafeQueueName(by)) {
+    return `the claim owner ${JSON.stringify(by)} is not a plain name (^[A-Za-z0-9._-]+$)`;
+  }
+  if (by.toLowerCase().replace(/^grugops-/, "") === "orchestrator") {
+    return `the Orchestrator never owns a claim; claim in the name of the adapter it starts, not ${by}`;
+  }
+  return null;
+}
+
+// The closed set of engineer levels a claim may name. A binding case keeps it equal to the LEVELS
+// rows of scripts/model-tiers.ts; it is not imported, because a host program embeds this library.
+export const CLAIM_LEVELS = ["junior", "mid", "senior"] as const;
 
 // ── claimPending: claim a pending subtask and move it into the claim directory (RUN-01, D-04). ──
 // The claim directory comes first, on purpose. A check of the pending file first would turn a lost
@@ -193,14 +229,29 @@ export type ClaimOutcome =
   | { kind: "lost" }
   | { kind: "refused"; reason: string };
 
-export function claimPending(queueRoot: string, task: string, by: string): ClaimOutcome {
+export function claimPending(
+  queueRoot: string,
+  task: string,
+  by: string,
+  level?: string,
+): ClaimOutcome {
   assertSafeQueueTask(task);
+  const refusal = claimOwnerRefusal(by);
+  if (refusal !== null) return { kind: "refused", reason: refusal };
+  if (level !== undefined && !CLAIM_LEVELS.some((known) => known === level)) {
+    return {
+      kind: "refused",
+      reason: `the level ${JSON.stringify(level)} is not one of ${CLAIM_LEVELS.join(", ")}`,
+    };
+  }
   let at: string | null;
   try {
     if (queueEntry(stagePath(queueRoot, task, "done")) !== null) {
       return { kind: "refused", reason: `done/${task}.md already exists, so ${task} is finished` };
     }
-    at = takeClaim(queueRoot, task, by);
+    // `agent` repeats `by` (D-30): the three readers of `by` stay as they are, and the two lines
+    // cannot differ here.
+    at = takeClaim(queueRoot, task, by, { agent: by, level });
   } catch (e) {
     return { kind: "refused", reason: `claim of ${task} failed: ${(e as Error).message}` };
   }
@@ -294,19 +345,17 @@ export function sweepStale(
   const reclaimed: string[] = [];
   for (const task of readdirSync(claimedDir)) {
     // Defensive: skip anything whose name would not be a safe task (never join an unsafe segment).
-    if (!QUEUE_TASK_NAME_RE.test(task) || task === "." || task === "..") continue;
+    if (!isSafeQueueName(task)) continue;
     const claimText = readClaimRecord(join(claimedDir, task, "claim.md"));
     if (claimText === null) continue;
     // Defense-in-depth (CR-02): the design writes EXACTLY ONE `at:` line. More than one is a
     // tampered/malformed record (the on-disk signature of a `by`-injection that smuggled a forged
     // `at:`). Do NOT trust the first match — treat the claim as compromised and reclaim it, rather
     // than leaving it un-sweepable forever.
-    const atLineCount = (claimText.match(/^at:/gm) ?? []).length;
-    const m = claimText.match(/^at:\s*(.+)$/m);
-    const tampered = atLineCount > 1;
-    if (!tampered) {
-      if (!m) continue; // no `at` field → cannot judge staleness; leave the claim alone
-      const at = Date.parse(m[1].trim());
+    const record = claimRecordFields(claimText);
+    if (record.kind === "no-at") continue; // cannot judge staleness; leave the claim alone
+    if (record.kind === "record") {
+      const at = Date.parse(record.at);
       if (Number.isNaN(at)) continue; // unparseable timestamp → leave it alone (conservative)
       if (now - at <= ttlMs) continue; // fresh (within TTL) → leave it alone
     }
@@ -321,6 +370,119 @@ export function sweepStale(
     reclaimed.push(task);
   }
   return reclaimed;
+}
+
+// ── sweepQueue: release what finished, then reclaim what went stale. ────────────────────────────
+// A claim whose subtask has left claimed/<task>/ and sits in done/ is finished work, whatever its
+// age: an earlier run stopped between the rename and the removal. It is released and reported apart
+// from a reclaim, because a release returns nothing to pending/. A claim record that is absent, a
+// link or a FIFO is left alone, as sweepStale leaves it.
+export function sweepQueue(
+  queueRoot: string,
+  ttlMs: number,
+  now: number = Date.now(),
+): { released: string[]; reclaimed: string[] } {
+  const claimedDir = join(queueRoot, "claimed");
+  const released: string[] = [];
+  if (queueEntry(claimedDir) !== null) {
+    for (const task of readdirSync(claimedDir)) {
+      if (!isSafeQueueName(task)) continue;
+      if (readClaimRecord(join(claimedDir, task, "claim.md")) === null) continue;
+      if (queueEntry(stagePath(queueRoot, task, "claimed")) !== null) continue;
+      if (queueEntry(stagePath(queueRoot, task, "done")) === null) continue;
+      rmSync(join(claimedDir, task), { recursive: true, force: true });
+      released.push(task);
+    }
+  }
+  return { released, reclaimed: sweepStale(queueRoot, ttlMs, now) };
+}
+
+// ── claimedCount / freeSlots: what the width cap sees (RUN-02). ─────────────────────────────────
+// Counts every entry in claimed/ except a keeper: a name that starts with `.` and is a regular file,
+// such as git's `.gitkeep`. That is the keeper rule of claimedQueueRefusal in install/install.ts.
+// Anything else counts, link and stray file included: over-counting can never over-spawn. It throws
+// when the directory cannot be read; a host program asks the root-chain owner first.
+export function claimedCount(queueRoot: string): number {
+  const entries = readdirSync(join(queueRoot, "claimed"), { withFileTypes: true });
+  return entries.filter((entry) => !(entry.name.startsWith(".") && entry.isFile())).length;
+}
+
+export function freeSlots(wipLimit: number, claimed: number): number {
+  return Math.max(0, wipLimit - claimed);
+}
+
+// ── parseQueueConfig: read the `queue` dial from the text of factory.config.json (RUN-02). ──────
+// A value counts only as a positive safe integer. Anything else falls back to QUEUE_DEFAULTS and adds
+// a note, so a caller can say which value it did not use. It never throws on content: the config file
+// is user content and may be malformed. `text` is null when there is no file. A binding case keeps
+// QUEUE_DEFAULTS equal to the seed config.
+export const QUEUE_DEFAULTS = Object.freeze({ wip_limit: 3, claim_cap: 2, stale_ttl_minutes: 30 });
+
+export type QueueConfig = {
+  readonly wip_limit: number;
+  readonly claim_cap: number;
+  readonly stale_ttl_minutes: number;
+  readonly notes: readonly string[];
+};
+
+export function parseQueueConfig(text: string | null): QueueConfig {
+  let config: unknown = null;
+  let invalidJson = false;
+  if (text !== null) {
+    try {
+      config = JSON.parse(text);
+    } catch {
+      invalidJson = true;
+    }
+  }
+  const queue: unknown = (config as { queue?: unknown } | null)?.queue;
+  const values = (typeof queue === "object" && queue !== null ? queue : {}) as Record<string, unknown>;
+  const notes: string[] = [];
+  const pick = (key: keyof typeof QUEUE_DEFAULTS): number => {
+    const fallback = QUEUE_DEFAULTS[key];
+    const value = values[key];
+    if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value;
+    if (invalidJson) notes.push(`queue.${key} not read, the config is not valid JSON, default ${fallback}`);
+    else if (value === undefined) notes.push(`queue.${key} not set, default ${fallback}`);
+    else notes.push(`queue.${key} is not a positive integer, default ${fallback}`);
+    return fallback;
+  };
+  return {
+    wip_limit: pick("wip_limit"),
+    claim_cap: pick("claim_cap"),
+    stale_ttl_minutes: pick("stale_ttl_minutes"),
+    notes,
+  };
+}
+
+// ── subtaskRefFolder: the context folder a subtask names (T-41-16). ─────────────────────────────
+// A subtask carries exactly one `ref:` line, and every `ref:` line is counted: a good line beside a
+// bad one is refused, as a second `at:` line is. Its folder is one segment under .grugops/context/,
+// inside the task-name allowlist, so the value can be joined under the context root.
+export function subtaskRefFolder(
+  text: string,
+): { kind: "folder"; folder: string } | { kind: "refused"; reason: string } {
+  const refs = text.split(/\r?\n/).filter((line) => line.startsWith("ref:"));
+  if (refs.length !== 1) {
+    return { kind: "refused", reason: `the subtask carries ${refs.length} ref: lines, not one` };
+  }
+  const folder = /^ref: \.grugops\/context\/([A-Za-z0-9._-]+)\/?$/.exec(refs[0])?.[1];
+  if (folder === undefined || !isSafeQueueName(folder)) {
+    return {
+      kind: "refused",
+      reason: `the line ${JSON.stringify(refs[0])} does not name one folder under .grugops/context/`,
+    };
+  }
+  return { kind: "folder", folder };
+}
+
+// ── noteSinceClaim: was a note written since the claim (D-07)? ──────────────────────────────────
+// The boundary is inclusive: a note at the claim's own instant counts. An unparseable note `at` is
+// ignored, because NaN compares false, and an unparseable claim `at` gives false.
+export function noteSinceClaim(claimAt: string, noteAts: readonly string[]): boolean {
+  const claimed = Date.parse(claimAt);
+  if (Number.isNaN(claimed)) return false;
+  return noteAts.some((noteAt) => Date.parse(noteAt) >= claimed);
 }
 
 // ── atomicWrite: write a unique temp sibling, then rename onto the final path. ──────────────────
@@ -360,23 +522,44 @@ function cell(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
+// ── claimRecordFields: the one reading of a claim record (T-41-02). ─────────────────────────────
+// Exactly one `at:` line is written; more than one is `tampered`, the on-disk signature of an
+// injection that smuggled a forged `at:`. A record with no `at` value is `no-at`. An absent `by`,
+// `agent` or `level` line reads as the empty string, so an old record stays valid (D-03). A value
+// stops at its own line: an empty `by:` must not take the next line as its value.
+export type ClaimRecordFields =
+  | { kind: "record"; by: string; agent: string; level: string; at: string }
+  | { kind: "tampered" }
+  | { kind: "no-at" };
+
+export function claimRecordFields(text: string): ClaimRecordFields {
+  if ((text.match(/^at:/gm) ?? []).length > 1) return { kind: "tampered" };
+  const value = (key: string): string =>
+    new RegExp(`^${key}:[ \\t]*(.*)$`, "m").exec(text)?.[1].trim() ?? "";
+  const at = value("at");
+  if (at === "") return { kind: "no-at" };
+  return { kind: "record", by: value("by"), agent: value("agent"), level: value("level"), at };
+}
+
 // A single trusted now-running row parsed from a claimed/<task>/claim.md record.
 interface NowRunningRow {
   task: string;
   by: string;
+  agent: string;
+  level: string;
   at: string;
 }
 
 // ── renderNowRunning: derive .grugops/queue/now-running.md from the claim registry (D-14). ──────
 //
 // Reads every claimed/<task>/claim.md and emits a deterministic, GENERATED-headered markdown table
-// (task | by | since), sorted by `at` then `task`, with a single trailing newline — byte-reproducible
+// (task, by, agent, level, since), sorted by `at` then `task`, with a single trailing newline — byte-reproducible
 // (running twice over the same registry produces identical bytes; it carries no wall-clock of its own).
 // An empty/absent claimed/ yields a header-only render (vacuous, no crash). This is the human-facing
 // "what is running" view and the SC2 width-evidence source.
 //
-// SECURITY CARVE-OUT (T-23-01, V5 — load-bearing): the parse REUSES claim.ts's first-`at`-trusted /
-// single-line discipline from sweepStale (l.190-202). A claim.md is written with EXACTLY ONE `at:`
+// SECURITY CARVE-OUT (T-23-01, V5 — load-bearing): the parse is claimRecordFields, the same reading
+// sweepStale uses. A claim.md is written with EXACTLY ONE `at:`
 // line; MORE than one is a tampered/malformed record (the on-disk signature of a `by`-injection that
 // smuggled a forged `at:`). A tampered record is NEVER emitted as a trusted row — it is skipped, never
 // trusted on the first (or second) match. There is deliberately NO permissive multi-match frontmatter
@@ -389,22 +572,16 @@ export function renderNowRunning(queueRoot: string): void {
   if (queueEntry(claimedDir) !== null) {
     for (const task of readdirSync(claimedDir)) {
       // Defensive: never read through an unsafe segment.
-      if (!QUEUE_TASK_NAME_RE.test(task) || task === "." || task === "..") continue;
+      if (!isSafeQueueName(task)) continue;
       const claimText = readClaimRecord(join(claimedDir, task, "claim.md"));
       if (claimText === null) continue;
 
-      // First-`at`-trusted single-line discipline (mirror sweepStale l.194-196). A multi-`at`
-      // record is tampered → skip it; do NOT emit a forged second line as a trusted row.
-      const atLineCount = (claimText.match(/^at:/gm) ?? []).length;
-      if (atLineCount > 1) continue; // tampered (multi-`at`) — never a trusted now-running row
-      const atMatch = claimText.match(/^at:\s*(.+)$/m);
-      if (!atMatch) continue; // no `at` field → cannot place it on the timeline; skip
+      // A multi-`at` record is tampered: skip it, and never emit a forged second line as a trusted
+      // row. A record with no `at` cannot be placed on the timeline: skip it too.
+      const record = claimRecordFields(claimText);
+      if (record.kind !== "record") continue;
 
-      // `by` is likewise single-line (claimTask rejects CR/LF in `by` at write time); take the first.
-      const byMatch = claimText.match(/^by:\s*(.+)$/m);
-      const by = byMatch ? byMatch[1].trim() : "";
-
-      rows.push({ task, by, at: atMatch[1].trim() });
+      rows.push({ task, by: record.by, agent: record.agent, level: record.level, at: record.at });
     }
   }
 
@@ -412,13 +589,13 @@ export function renderNowRunning(queueRoot: string): void {
   rows.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.task.localeCompare(b.task)));
 
   const md: string[] = [];
-  md.push("<!-- GENERATED — do not hand-edit. Re-run: node scripts/claim.js now-running -->");
+  md.push("<!-- GENERATED — do not hand-edit. Re-run: node tools/grugops/claim.js now-running -->");
   md.push("# Now running");
   md.push("");
-  md.push("| task | by | since |");
-  md.push("| --- | --- | --- |");
+  md.push("| task | by | agent | level | since |");
+  md.push("| --- | --- | --- | --- | --- |");
   for (const r of rows) {
-    md.push(`| ${cell(r.task)} | ${cell(r.by)} | ${cell(r.at)} |`);
+    md.push(`| ${cell(r.task)} | ${cell(r.by)} | ${cell(r.agent)} | ${cell(r.level)} | ${cell(r.at)} |`);
   }
   md.push(""); // trailing element → exactly one final "\n"
 
