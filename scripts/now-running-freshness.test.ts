@@ -110,7 +110,49 @@ describe("renderNowRunning — deterministic, byte-reproducible render (D-14)", 
     expect(() => mod.renderNowRunning(queueRoot)).not.toThrow();
     const text = readFileSync(join(queueRoot, "now-running.md"), "utf8");
     expect(text).toContain("GENERATED — do not hand-edit");
-    expect(text).toContain("| task | by | since |");
+    expect(text).toContain("| task | by | agent | level | since |");
+    // The first line names the program a host holds, not the kit's own build path.
+    expect(text.split("\n")[0]).toMatch(/Re-run: node tools\/grugops\/claim\.js now-running -->$/);
+  });
+});
+
+describe("renderNowRunning — agent and level columns, and row order (D-03, RUN-01)", () => {
+  it("renders the agent and level of a record, and empty cells for a record without them", () => {
+    const { queueRoot } = makeCheckRoot("nr-columns-", [
+      { task: "old", by: "engineer", at: "2026-06-21T08:00:00.000Z" },
+    ]);
+    mkdirSync(join(queueRoot, "pending"), { recursive: true });
+    mkdirSync(join(queueRoot, "done"), { recursive: true });
+    writeFileSync(join(queueRoot, "pending", "new.md"), "# subtask new\n");
+    const outcome = mod.claimPending(queueRoot, "new", "grugops-software-engineer-mid", "mid");
+    if (outcome.kind !== "claimed") throw new Error("the claim was not made");
+
+    mod.renderNowRunning(queueRoot);
+    const text = readFileSync(join(queueRoot, "now-running.md"), "utf8");
+    expect(text).toContain("| old | engineer |  |  | 2026-06-21T08:00:00.000Z |");
+    expect(text).toContain(
+      `| new | grugops-software-engineer-mid | grugops-software-engineer-mid | mid | ${outcome.at} |`,
+    );
+  });
+
+  it("two records with one `at` render in task order, and one claim renders one row", () => {
+    const at = "2026-06-21T10:00:00.000Z";
+    const { queueRoot } = makeCheckRoot("nr-order-", [
+      { task: "zeta", by: "engineer", at },
+      { task: "alpha", by: "qe", at },
+    ]);
+    mod.renderNowRunning(queueRoot);
+    const text = readFileSync(join(queueRoot, "now-running.md"), "utf8");
+    expect(text.indexOf("| alpha |")).toBeLessThan(text.indexOf("| zeta |"));
+    expect(text.split("\n").filter((l) => l.endsWith(`| ${at} |`))).toHaveLength(2);
+  });
+
+  it("an absent claimed/ renders header-only with no throw", () => {
+    const queueRoot = join(freshTmp("nr-absent-"), ".grugops", "queue");
+    mkdirSync(queueRoot, { recursive: true });
+    expect(() => mod.renderNowRunning(queueRoot)).not.toThrow();
+    const lines = readFileSync(join(queueRoot, "now-running.md"), "utf8").trimEnd().split("\n");
+    expect(lines[lines.length - 1]).toMatch(/^\| --- \|/);
   });
 });
 

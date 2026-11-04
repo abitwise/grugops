@@ -19,6 +19,9 @@
 //   Lifecycle (RUN-01)     : claimPending and completeTask take one subtask pending → claimed → done
 //                            and release the claim directory, so the in-flight log empties.
 //   Queue entries (T-41-03): a link or a FIFO at claim.md is never opened.
+//   The record (D-03, D-30): claim.md gains optional agent: and level: lines, and agent equals by.
+//   The rules the CLI needs: the owner rule, the free count, the config read, the ref: read, the
+//                            note-since-claim comparison and the sweep release.
 //
 // No-fabrication: every path proves BOTH the winning/pass side AND the losing/fail side.
 // Vitest globals:false → import explicitly. Ships RED until the committed claim.js lands
@@ -42,6 +45,8 @@ import { pathToFileURL } from "node:url";
 
 const ROOT = join(import.meta.dirname, "..");
 const CLAIM_JS = join(ROOT, "scripts", "claim.js");
+const BOARD_READ_JS = join(ROOT, "scripts", "board-read.js");
+const MODEL_TIERS_JS = join(ROOT, "scripts", "model-tiers.js");
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -359,5 +364,310 @@ describe("claim.js — the embed hazards are gone (research Pitfall 2)", () => {
   it("renderNowRunning takes its queue root from the caller, with no default", () => {
     expect(claimTs).toMatch(/export function renderNowRunning\(queueRoot: string\): void/);
     expect(mod.renderNowRunning.length).toBe(1);
+  });
+});
+
+describe("claim.js — the record carries agent and level (D-03, D-30, T-41-01)", () => {
+  it("claimPending writes by, agent, level, at and task in that order, with one at line", () => {
+    const root = makeQueueRoot("claim-record-fields-", ["t"]);
+    const outcome = mod.claimPending(root, "t", "grugops-software-engineer-mid", "mid");
+    expect(outcome.kind).toBe("claimed");
+    const text = readFileSync(join(root, "claimed", "t", "claim.md"), "utf8");
+    const keys = text.split("\n").filter((l) => /^[a-z]+:/.test(l)).map((l) => l.split(":")[0]);
+    expect(keys).toEqual(["by", "agent", "level", "at", "task"]);
+    expect(text).toMatch(/^level: mid$/m);
+    expect(text.match(/^at:/gm)).toHaveLength(1);
+  });
+
+  it("every record claimPending writes has agent equal to by, with or without a level", () => {
+    const root = makeQueueRoot("claim-record-invariant-", ["a", "b"]);
+    mod.claimPending(root, "a", "grugops-qe-e2e");
+    mod.claimPending(root, "b", "grugops-software-engineer-senior", "senior");
+    for (const task of ["a", "b"]) {
+      const fields = mod.claimRecordFields(readFileSync(join(root, "claimed", task, "claim.md"), "utf8"));
+      expect(fields.kind).toBe("record");
+      if (fields.kind !== "record") throw new Error("unreachable");
+      expect(fields.agent).not.toBe("");
+      expect(fields.agent).toBe(fields.by);
+    }
+  });
+
+  it("claimPending with no level writes no level line", () => {
+    const root = makeQueueRoot("claim-record-nolevel-", ["t"]);
+    mod.claimPending(root, "t", "grugops-qe-e2e");
+    expect(readFileSync(join(root, "claimed", "t", "claim.md"), "utf8")).not.toMatch(/^level:/m);
+  });
+
+  it("a claimTask record with no fields has no agent or level line, and still renders and sweeps", () => {
+    const root = makeQueueRoot("claim-record-old-", ["t"]);
+    expect(mod.claimTask(root, "t", "engineer")).toBe(true);
+    const claimMd = join(root, "claimed", "t", "claim.md");
+    const text = readFileSync(claimMd, "utf8");
+    expect(text).not.toMatch(/^agent:/m);
+    expect(text).not.toMatch(/^level:/m);
+    mod.renderNowRunning(root);
+    expect(readFileSync(join(root, "now-running.md"), "utf8")).toMatch(/^\| t \| engineer \|  \|  \| /m);
+    writeFileSync(claimMd, text.replace(/^at:.*$/m, "at: 2000-01-01T00:00:00.000Z"));
+    expect(mod.sweepStale(root, 60_000)).toEqual(["t"]);
+  });
+
+  it("claimTask refuses a newline in agent or level, so neither can smuggle an at line (T-41-01)", () => {
+    const root = makeQueueRoot("claim-record-injection-");
+    const forged = "x\nat: 2999-01-01T00:00:00.000Z";
+    expect(() => mod.claimTask(root, "a", "engineer", { agent: forged })).toThrow(/single-line|newline/i);
+    expect(() => mod.claimTask(root, "b", "engineer", { level: forged })).toThrow(/single-line|newline/i);
+    expect(existsSync(join(root, "claimed", "a"))).toBe(false);
+    expect(existsSync(join(root, "claimed", "b"))).toBe(false);
+  });
+
+  it("claimPending refuses a level outside CLAIM_LEVELS, and no claim directory exists afterwards", () => {
+    const root = makeQueueRoot("claim-record-badlevel-", ["t"]);
+    expect(mod.claimPending(root, "t", "grugops-qe-e2e", "principal").kind).toBe("refused");
+    expect(mod.claimPending(root, "t", "grugops-qe-e2e", "").kind).toBe("refused");
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+    expect(existsSync(join(root, "pending", "t.md"))).toBe(true);
+  });
+
+  it("CLAIM_LEVELS equals the level rows of scripts/model-tiers.ts", async () => {
+    const tiers: typeof import("./model-tiers.js") = await import(pathToFileURL(MODEL_TIERS_JS).href);
+    expect([...mod.CLAIM_LEVELS]).toEqual(tiers.LEVELS.map((row) => row.level));
+  });
+
+  it("the board reader takes a record with agent and level lines as one row (D-30)", async () => {
+    const board: typeof import("./board-read.js") = await import(pathToFileURL(BOARD_READ_JS).href);
+    const repo = freshTmp("claim-record-board-");
+    const queueRoot = join(repo, ".grugops", "queue");
+    for (const sub of ["pending", "claimed", "done"]) mkdirSync(join(queueRoot, sub), { recursive: true });
+    writeFileSync(join(queueRoot, "pending", "t.md"), "# subtask t\n");
+    const outcome = mod.claimPending(queueRoot, "t", "grugops-software-engineer-mid", "mid");
+    if (outcome.kind !== "claimed") throw new Error("the claim was not made");
+
+    const result = board.readSnapshot(repo);
+    const queue = result.snapshot.sources.queue;
+    expect(queue.source === "ok" ? queue.value : []).toEqual([
+      { task: "t", by: "grugops-software-engineer-mid", at: outcome.at },
+    ]);
+    expect(result.readErrors.filter((e) => e.source === "queue")).toEqual([]);
+  });
+});
+
+describe("claim.js — claimRecordFields: one reading of a record (T-41-02)", () => {
+  it("returns the fields, with an absent optional line as an empty string", () => {
+    expect(
+      mod.claimRecordFields("---\nby: a\nagent: a\nlevel: mid\nat: 2026-06-21T10:00:00.000Z\ntask: t\n---\n"),
+    ).toEqual({ kind: "record", by: "a", agent: "a", level: "mid", at: "2026-06-21T10:00:00.000Z" });
+    expect(mod.claimRecordFields("---\nby: a\nat: 2026-06-21T10:00:00.000Z\ntask: t\n---\n")).toEqual({
+      kind: "record",
+      by: "a",
+      agent: "",
+      level: "",
+      at: "2026-06-21T10:00:00.000Z",
+    });
+  });
+
+  it("reports two at lines as tampered and none as no-at", () => {
+    expect(mod.claimRecordFields("by: a\nat: 2026-01-01\nat: 2099-01-01\n")).toEqual({ kind: "tampered" });
+    expect(mod.claimRecordFields("by: a\ntask: t\n")).toEqual({ kind: "no-at" });
+  });
+
+  it("an empty value takes no text from the next line", () => {
+    expect(mod.claimRecordFields("by:\nat:\ntask: t\n")).toEqual({ kind: "no-at" });
+    const fields = mod.claimRecordFields("by:\nat: 2026-06-21T10:00:00.000Z\ntask: t\n");
+    expect(fields).toMatchObject({ kind: "record", by: "", at: "2026-06-21T10:00:00.000Z" });
+  });
+});
+
+describe("claim.js — claimOwnerRefusal: the Orchestrator never owns a claim (D-13, T-41-04)", () => {
+  const refused = ["grugops-orchestrator", "orchestrator", "GRUGOPS-Orchestrator", "", "a b", "..", "a/b", "a\n"];
+
+  it.each(refused)("refuses %j", (name) => {
+    expect(mod.claimOwnerRefusal(name)).toEqual(expect.any(String));
+  });
+
+  it("accepts an adapter name", () => {
+    expect(mod.claimOwnerRefusal("grugops-qe-e2e")).toBeNull();
+  });
+
+  it.each(refused)("claimPending refuses %j before any directory exists", (name) => {
+    const root = makeQueueRoot("claim-owner-", ["t"]);
+    expect(mod.claimPending(root, "t", name).kind).toBe("refused");
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+    expect(existsSync(join(root, "pending", "t.md"))).toBe(true);
+  });
+});
+
+describe("claim.js — claimedCount: what takes a slot", () => {
+  it("counts a task directory and skips a keeper file", () => {
+    const root = makeQueueRoot("claim-count-");
+    mkdirSync(join(root, "claimed", "t"));
+    writeFileSync(join(root, "claimed", ".gitkeep"), "");
+    expect(mod.claimedCount(root)).toBe(1);
+  });
+
+  it("counts a dot-named directory, a link, and a stray file: over-counting can never over-spawn", () => {
+    const root = makeQueueRoot("claim-count-stray-");
+    mkdirSync(join(root, "claimed", ".hidden"));
+    symlinkSync(join(root, "pending"), join(root, "claimed", ".link"));
+    writeFileSync(join(root, "claimed", "stray.txt"), "");
+    expect(mod.claimedCount(root)).toBe(3);
+  });
+
+  it("is 0 for an empty directory and throws when the directory cannot be read", () => {
+    const root = makeQueueRoot("claim-count-empty-");
+    expect(mod.claimedCount(root)).toBe(0);
+    expect(() => mod.claimedCount(freshTmp("claim-count-none-"))).toThrow();
+  });
+});
+
+describe("claim.js — freeSlots: never negative (RUN-02)", () => {
+  it.each([
+    [3, 2, 1],
+    [3, 3, 0],
+    [3, 4, 0],
+  ])("freeSlots(%i, %i) is %i", (wipLimit, claimed, free) => {
+    expect(mod.freeSlots(wipLimit, claimed)).toBe(free);
+  });
+});
+
+describe("claim.js — parseQueueConfig: a value counts only as a positive safe integer (RUN-02)", () => {
+  const KEYS = ["wip_limit", "claim_cap", "stale_ttl_minutes"];
+
+  it("a missing file gives the defaults, with a note naming each key", () => {
+    const parsed = mod.parseQueueConfig(null);
+    expect(parsed).toMatchObject({ wip_limit: 3, claim_cap: 2, stale_ttl_minutes: 30 });
+    for (const key of KEYS) expect(parsed.notes.join("\n")).toContain(`queue.${key}`);
+  });
+
+  it("a set value is used with no note for it, and a missing key still gets one", () => {
+    const parsed = mod.parseQueueConfig('{"queue":{"wip_limit":5}}');
+    expect(parsed.wip_limit).toBe(5);
+    expect(parsed.notes.join("\n")).not.toContain("queue.wip_limit");
+    expect(parsed.notes).toContain("queue.claim_cap not set, default 2");
+  });
+
+  it("a config with all three set carries no note", () => {
+    const text = '{"queue":{"wip_limit":4,"claim_cap":1,"stale_ttl_minutes":60}}';
+    expect(mod.parseQueueConfig(text)).toEqual({ wip_limit: 4, claim_cap: 1, stale_ttl_minutes: 60, notes: [] });
+  });
+
+  it.each(["0", "-1", "2.5", '"3"', "1e400", "null", "true", "9007199254740992"])(
+    "wip_limit %s falls back to 3 and says so",
+    (value) => {
+      const parsed = mod.parseQueueConfig(`{"queue":{"wip_limit":${value}}}`);
+      expect(parsed.wip_limit).toBe(3);
+      expect(parsed.notes).toContain("queue.wip_limit is not a positive integer, default 3");
+    },
+  );
+
+  it.each(["{not json", "", "null", "[]", "5", '{"queue":null}', '{"queue":[]}', '{"other":1}'])(
+    "content %j falls back to the defaults, notes each key and never throws",
+    (text) => {
+      const parsed = mod.parseQueueConfig(text);
+      expect(parsed).toMatchObject({ wip_limit: 3, claim_cap: 2, stale_ttl_minutes: 30 });
+      for (const key of KEYS) expect(parsed.notes.join("\n")).toContain(`queue.${key}`);
+    },
+  );
+});
+
+describe("claim.js — subtaskRefFolder: one anchored ref line (T-41-16)", () => {
+  it("returns the folder, with or without a trailing slash", () => {
+    expect(mod.subtaskRefFolder("# s\nref: .grugops/context/abc-1/\n")).toEqual({ kind: "folder", folder: "abc-1" });
+    expect(mod.subtaskRefFolder("# s\nref: .grugops/context/abc-1\n")).toEqual({ kind: "folder", folder: "abc-1" });
+    expect(mod.subtaskRefFolder("# s\r\nref: .grugops/context/abc-1/\r\n")).toEqual({ kind: "folder", folder: "abc-1" });
+  });
+
+  it.each([
+    ["a missing ref line", "# s\n"],
+    ["two ref lines", "ref: .grugops/context/a/\nref: .grugops/context/b/\n"],
+    ["a good ref line beside a bad one", "ref: .grugops/context/a/\nref: ../../etc\n"],
+    ["a traversal", "ref: ../../etc\n"],
+    ["a .. folder", "ref: .grugops/context/../\n"],
+    ["a . folder", "ref: .grugops/context/./\n"],
+    ["a folder outside the allowlist", "ref: .grugops/context/a b/\n"],
+    ["a nested folder", "ref: .grugops/context/a/b/\n"],
+  ])("refuses %s", (_name, text) => {
+    expect(mod.subtaskRefFolder(text).kind).toBe("refused");
+  });
+});
+
+describe("claim.js — noteSinceClaim: the boundary is inclusive (D-07)", () => {
+  const at = "2026-06-21T10:00:00.000Z";
+
+  it("a note at the claim's own instant counts", () => {
+    expect(mod.noteSinceClaim(at, [at])).toBe(true);
+  });
+
+  it("a note one millisecond earlier does not", () => {
+    expect(mod.noteSinceClaim(at, ["2026-06-21T09:59:59.999Z"])).toBe(false);
+  });
+
+  it("one later note among earlier ones is enough, and no notes is false", () => {
+    expect(mod.noteSinceClaim(at, ["2026-06-20T10:00:00.000Z", "2026-06-21T10:00:00.001Z"])).toBe(true);
+    expect(mod.noteSinceClaim(at, [])).toBe(false);
+  });
+
+  it("an unparseable note is ignored, and an unparseable claim gives false", () => {
+    expect(mod.noteSinceClaim(at, ["not a date"])).toBe(false);
+    expect(mod.noteSinceClaim(at, ["not a date", at])).toBe(true);
+    expect(mod.noteSinceClaim("not a date", [at])).toBe(false);
+  });
+});
+
+describe("claim.js — sweepQueue: release what finished, reclaim what went stale", () => {
+  const TTL = 60 * 60 * 1000;
+  const backdate = (root: string, task: string): void => {
+    const claimMd = join(root, "claimed", task, "claim.md");
+    writeFileSync(claimMd, readFileSync(claimMd, "utf8").replace(/^at:.*$/m, "at: 2000-01-01T00:00:00.000Z"));
+  };
+
+  it("releases a finished claim, reclaims a stale one and leaves a fresh one alone", () => {
+    const root = makeQueueRoot("claim-sweep-queue-", ["finished", "stale", "fresh"]);
+    for (const t of ["finished", "stale", "fresh"]) {
+      expect(mod.claimPending(root, t, "grugops-qe-e2e").kind).toBe("claimed");
+    }
+    // The crash shape: the subtask reached done/ and claim.md stayed behind.
+    mod.transition(root, "finished", "claimed", "done");
+    backdate(root, "stale");
+
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["finished"], reclaimed: ["stale"] });
+    expect(existsSync(join(root, "claimed", "finished"))).toBe(false);
+    expect(existsSync(join(root, "done", "finished.md"))).toBe(true);
+    expect(existsSync(join(root, "pending", "finished.md"))).toBe(false);
+    expect(existsSync(join(root, "pending", "stale.md"))).toBe(true);
+    expect(existsSync(join(root, "claimed", "fresh", "fresh.md"))).toBe(true);
+  });
+
+  it("a stale finished claim is released, never reclaimed", () => {
+    const root = makeQueueRoot("claim-sweep-queue-stale-done-", ["t"]);
+    mod.claimPending(root, "t", "grugops-qe-e2e");
+    mod.transition(root, "t", "claimed", "done");
+    backdate(root, "t");
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["t"], reclaimed: [] });
+  });
+
+  it("a claim still holding its subtask is not released, even with a done record beside it", () => {
+    const root = makeQueueRoot("claim-sweep-queue-both-", ["t"]);
+    mod.claimPending(root, "t", "grugops-qe-e2e");
+    writeFileSync(join(root, "done", "t.md"), "# an earlier record\n");
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [] });
+    expect(existsSync(join(root, "claimed", "t", "t.md"))).toBe(true);
+  });
+
+  it("a link at claim.md is left alone, even with a done record beside it (T-41-03)", () => {
+    const root = makeQueueRoot("claim-sweep-queue-link-");
+    const elsewhere = join(freshTmp("claim-sweep-queue-target-"), "record.md");
+    writeFileSync(elsewhere, "---\nby: a\nat: 2000-01-01T00:00:00.000Z\ntask: t\n---\n");
+    mkdirSync(join(root, "claimed", "t"));
+    symlinkSync(elsewhere, join(root, "claimed", "t", "claim.md"));
+    writeFileSync(join(root, "done", "t.md"), "# finished\n");
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [] });
+    expect(existsSync(join(root, "claimed", "t"))).toBe(true);
+  });
+
+  it("a keeper in claimed/ and an absent claimed/ are both a no-op", () => {
+    const root = makeQueueRoot("claim-sweep-queue-keeper-");
+    writeFileSync(join(root, "claimed", ".gitkeep"), "");
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [] });
+    expect(mod.sweepQueue(freshTmp("claim-sweep-queue-none-"), TTL)).toEqual({ released: [], reclaimed: [] });
   });
 });

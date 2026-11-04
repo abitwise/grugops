@@ -14,16 +14,22 @@
 //   - the twin crisply distinguishes queue.wip_limit (concurrent agent WIDTH) from the pre-existing
 //     per-column `wip_limits` object (board-column flow) — the D-07 naming-collision care.
 //
-// Drives the COMMITTED config files on disk (no .ts build). Vitest globals:false → import explicitly.
+// The queue library holds a fourth copy of these numbers, QUEUE_DEFAULTS, because a host program must
+// answer when the config file is absent. A binding case keeps it equal to the seed (plan 41-01).
+//
+// Drives the COMMITTED config files on disk and the committed scripts/claim.js (no .ts build).
+// Vitest globals:false → import explicitly.
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = join(import.meta.dirname, "..");
 const KIT_JSON = join(ROOT, "agent-factory/config/factory.config.json");
 const SEED_JSON = join(ROOT, "agent-factory/seed/.grugops/factory.config.json");
 const TWIN_MD = join(ROOT, "agent-factory/config/factory.config.md");
+const CLAIM_JS = join(ROOT, "scripts", "claim.js");
 
 function loadJson(p: string): Record<string, unknown> {
   return JSON.parse(readFileSync(p, "utf8"));
@@ -51,6 +57,13 @@ describe("queue config dial — 3-surface consistency (D-06)", () => {
     expect(kit.wip_limits, "the per-column wip_limits object must still exist").toBeTruthy();
     expect(kit.wip_limits).not.toHaveProperty("wip_limit");
     expect(kit.queue).not.toHaveProperty("Ready"); // a board column key would mean queue swallowed wip_limits
+  });
+});
+
+describe("queue config dial — the library's defaults (plan 41-01)", () => {
+  it("QUEUE_DEFAULTS deep-equals the `queue` object of the seed config", async () => {
+    const claim: typeof import("./claim.js") = await import(pathToFileURL(CLAIM_JS).href);
+    expect({ ...claim.QUEUE_DEFAULTS }).toEqual(loadJson(SEED_JSON).queue);
   });
 });
 
