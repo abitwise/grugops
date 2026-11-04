@@ -154,7 +154,7 @@ status: complete
 
 ## TDD Evidence
 
-- **Task 1 RED:** the target was `the task-name pattern equals the one in scripts/context-io.ts, read as text`. `check tdd-red-evidence` returned `RED_EVIDENCE_OK`. Semantic assessment: the target ran and failed on its planned assertion, `expected undefined to be '^[A-Za-z0-9._-]+$'`, because the export did not exist. In the same run 15 other new cases failed, most with `claimPending is not a function`.
+- **Task 1 RED:** the target was `the task-name pattern equals the one in scripts/context-io.ts, read as text`. `check tdd-red-evidence` returned `RED_EVIDENCE_OK`. Semantic assessment: the target ran and failed on its planned assertion, `expected undefined to be '^[A-Za-z0-9._-]+$'`, because the export did not exist. In the full RED run of the two test files, 15 other new cases failed too, most with `claimPending is not a function`.
 - **Task 2 RED:** the target was `claimTask refuses a newline in agent or level, so neither can smuggle an at line`. `check tdd-red-evidence` returned `RED_EVIDENCE_OK`. Semantic assessment: the target ran and failed on its planned `toThrow`, because `claimTask` took no fields yet.
 - **GREEN:** both tasks passed their `<verify>` commands. The tracer gate re-ran the Task 1 verify, and it passed before Task 2 started (interactive, `end-of-phase`, automated-only verify, so no checkpoint).
 - **REFACTOR:** none as a separate commit.
@@ -191,7 +191,7 @@ The board-reader case the plan offers as a choice was added as a new case: `the 
 ## Decisions Made
 
 - `claimPending` gets its `at` from a private `takeClaim`, which `claimTask` also wraps. The plan says to call `claimTask`, which returns only a boolean. The order the plan sets is unchanged.
-- `isSafeQueueName` holds the allowlist check once, because the check now has five callers.
+- `isSafeQueueName` holds the allowlist check once, because the check now has six callers.
 - The note text for invalid JSON is `queue.KEY not read, the config is not valid JSON, default N`. The plan fixed the other two wordings and left this one open.
 
 ## Deviations from Plan
