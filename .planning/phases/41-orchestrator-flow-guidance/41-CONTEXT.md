@@ -71,6 +71,12 @@ Out of scope: any host-only mechanism (hooks, installer-written compaction setti
 - **D-26:** **Only the waiting ticket pauses.** While one ticket waits on a human, the Orchestrator keeps refilling with other ready work and lists the open human questions in its Next action line.
 - **D-27:** **WF04 shape:** add one short numbered "Stop precedence" list to step 15 covering D-22, D-23 and D-25, and state the ask-once pattern (D-21) once. Replace scattered sentences instead of adding more where possible, and keep WF04's existing guards green.
 
+### Planning clarifications (human, 2026-11-04, from RESEARCH open questions)
+
+- **D-28:** D-07 counts sealed notes only, on every host. On a host with no sealed-note writer, `claim.js done` refuses and names the unsealed notes it found. The gap is recorded as a residual until a writer ships there. No note writer ships to hosts in this phase. Resolves RESEARCH Open Question 1.
+- **D-29:** D-15's "sweep (D-11)" means "sweep when D-11 allows it". After an in-session compaction the Orchestrator re-reads `now-running.md` and the board, then refills, with no sweep. The stale sweep runs only at session start, including the fresh-session fallback. Resolves RESEARCH assumption A4 and Pitfall 4.
+- **D-30:** Keep D-03 as written: `claim.md` carries `agent:` (from `--by`) and `level:` (from `--level`) alongside `by:`. WF17 says `by` is kept for its three existing readers: the render, the sweep and the board reader. Resolves RESEARCH Open Question 2.
+
 ### Claude's Discretion
 - Exact exit-code numbers and line wording for the CLI, following `state-check.js` and `trace-render.js`.
 - How `free` behaves with a missing config or a malformed `wip_limit`: fall back to the documented default of 3 and say so, never guess silently.
