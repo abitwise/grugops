@@ -134,6 +134,27 @@ function numbered(body: string): { n: number; text: string }[] {
   return items;
 }
 
+/** The opening of Workflow 04 step 15's ask-once sub-bullet (plan 41-02, D-21). */
+const ASK = "Apply the ask-once rule at every human stop.";
+
+/**
+ * Workflow 04 step 15's sub-bullets, in order, from the lines of `## Steps`.
+ *
+ * Plan 41-02: a line with six leading spaces belongs to the sub-bullet above it (the stop precedence
+ * carries its order as a numbered list). It folds into that item, joined by one space with the leading
+ * spaces removed, the same text `numbered()` gives. Any other line ends the walk.
+ */
+function step15Subs(lines: readonly string[]): string[] {
+  const subs: string[] = [];
+  for (let i = lines.findIndex((l) => l.startsWith("15. ")) + 1; i < lines.length; i++) {
+    const l = lines[i] as string;
+    if (l.startsWith("    - ")) subs.push(l.slice("    - ".length));
+    else if (l.startsWith("      ") && subs.length > 0) subs[subs.length - 1] += ` ${l.trimStart()}`;
+    else break;
+  }
+  return subs;
+}
+
 /**
  * The Tech Lead's dev-raised-block item, found by its opening words. Plan 40-03 (D-20) inserted the
  * scope-first item, so the block item no longer sits at a fixed number.
@@ -1122,13 +1143,14 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s15).toContain("Leave the ticket in `Blocked` until then.");
     // WR-01 (iteration 2): the step names who writes the finding and the limit, and says honestly
     // that admission checks the stamp only at `context.human_admission: all`.
-    expect(s15).toContain("Once the named human answers, the Tech Lead records the answer as a `finding` per Workflow 16.");
+    // Plan 41-02 (D-21): the Tech Lead records from the Orchestrator's answer note, not from the human.
+    expect(s15).toContain("Once that answer note is published, the Tech Lead records the answer as a `finding` per Workflow 16.");
     expect(s15).toContain("Open its body with `Confirmed: yes` or `Confirmed: no`.");
     expect(s15).toContain("A `Confirmed: no` move is neither carried out nor counted.");
     // Plan 39-18 (WR-01): once the options are used up the confirmation no longer points at an
     // unconditional named-human stop. G-39-71 (plan 39-19): it points at the hand-off.
     expect(s15).toContain("Record a new move, or apply the hand-off once the options are used up.");
-    expect(s15).toContain("Stamp it `human:<name>`, with the move note's id among its refs.");
+    expect(s15).toContain("Stamp it `human:<name>`, with the move note's id and the answer note's id among its refs.");
     expect(s15).toContain("Never write that stamp without the human's answer.");
     expect(s15).toContain(
       "Only at `context.human_admission: all` does admission check that stamp, and only Claude Code binds it to the human's session grant.",
@@ -1449,20 +1471,27 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
   const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
   const lines = section(WF04, "Steps").split("\n");
   const at15 = lines.findIndex((l) => l.startsWith("15. "));
-  const subs: string[] = [];
-  for (let i = at15 + 1; i < lines.length && (lines[i] as string).startsWith("    - "); i++) {
-    subs.push((lines[i] as string).slice("    - ".length));
-  }
+  const subs = step15Subs(lines);
   const lead = (lines[at15] ?? "").slice("15. ".length);
   const STEP15 = "Read the `failed-attempt` note (Tech Lead).";
   const RESCORE_STOP = "At `block`, the default, stop for a named human, and record no move until the human answers.";
   const GATE_STOP = "At `block`, the default, stop until a named human confirms the move.";
 
   // G-39-71 (plan 39-19): the re-score stop became the hand-off and the human stop, so six became seven.
-  it("step 15 has exactly seven indented sub-bullets, followed directly by step 16", () => {
+  // Plan 41-02 (D-21): the ask-once rule is its own sub-bullet, so seven became eight.
+  it("step 15 has exactly eight indented sub-bullets, followed directly by step 16", () => {
     expect(at15).toBeGreaterThanOrEqual(0);
-    expect(subs).toHaveLength(7);
-    expect(lines[at15 + 1 + subs.length]?.startsWith("16. ")).toBe(true);
+    expect(subs).toHaveLength(8);
+    const body = lines.slice(at15 + 1, lines.findIndex((l) => l.startsWith("16. ")));
+    expect(body.filter((l) => /^ {4}- /.test(l))).toHaveLength(subs.length);
+    expect(body.every((l) => /^ {4}- |^ {6}\S/.test(l))).toBe(true);
+  });
+
+  it("step15Subs folds a six-space line into the sub-bullet above it and stops at anything else", () => {
+    expect(step15Subs(["14. a", "15. b", "    - c", "      1. d", "      2. e", "    - f", "16. g", "    - h"])).toEqual([
+      "c 1. d 2. e",
+      "f",
+    ]);
   });
 
   it("the lead line carries the choice of moves and no named-human stop", () => {
@@ -1471,16 +1500,18 @@ describe("WF04 step 15 is a lead line and labelled sub-bullets (G-39-7)", () => 
     expect(lead).not.toContain("named human");
   });
 
-  it("the sub-bullets open, in order, with the move limits, the hand-off, the human stop, the move record, the gate-failure stop, the confirmation and the board", () => {
+  it("the sub-bullets open, in order, with the move limits, the hand-off, the human stop, the move record, the gate-failure stop, the ask-once rule, the confirmation and the board", () => {
     // Plan 39-17 (CR-01): the human stop comes before the move record, so at `block` the Tech Lead
     // stops before any move note exists. G-39-71 (plan 39-19): the hand-off and the human stop replace the
-    // re-score stop.
+    // re-score stop. Plan 41-02 (D-21): the ask-once rule follows both stops and comes before the
+    // confirmation it feeds.
     const openings = [
       "Apply the move limits.",
       "Apply the hand-off.",
       "Apply the human stop.",
       "Record the move in a new `decision` note per Workflow 16.",
       "Apply the gate-failure stop.",
+      ASK,
       "Record the human's confirmation.",
       "Update the board.",
     ];
@@ -1516,11 +1547,7 @@ describe("WF04 step 15 holds the re-score stop before any move note, and step 16
   // answers, and step 16 holds for a `Stop: re-score` move note as it does for a `Cause: gate` note.
   const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
   const lines = section(WF04, "Steps").split("\n");
-  const at15 = lines.findIndex((l) => l.startsWith("15. "));
-  const subs: string[] = [];
-  for (let i = at15 + 1; i < lines.length && (lines[i] as string).startsWith("    - "); i++) {
-    subs.push((lines[i] as string).slice("    - ".length));
-  }
+  const subs = step15Subs(lines);
   const steps = numbered(section(WF04, "Steps"));
   const stepAt = (prefix: string) => {
     const s = steps.find((x) => x.text.startsWith(prefix));
@@ -1559,11 +1586,13 @@ describe("WF04 step 15 holds the re-score stop before any move note, and step 16
     for (const sentence of [
       NO_MOVE,
       "Leave the ticket in `Blocked` while the human decides.",
-      "Ask the human for a level, or for another move.",
       "The human's level stands, even past the move limits.",
     ]) {
       expect(hasSentence(t, sentence), `re-score sub-bullet lacks "${sentence}"`).toBe(true);
     }
+    // Plan 41-02 (D-21): the question moved to the ask-once sub-bullet, word for word.
+    const askLevel = "Ask the human for a level, or for another move.";
+    expect(hasSentence(subAt(ASK).text, askLevel), `ask-once sub-bullet lacks "${askLevel}"`).toBe(true);
   });
 
   it("CR-01 (c): the move record carries the human's level and a `Stop: human` line", () => {
@@ -1596,6 +1625,82 @@ describe("WF04 step 15 holds the re-score stop before any move note, and step 16
   });
 });
 
+describe("WF04 asks a human once, and the answer note wakes the Tech Lead at both human stops (plan 41-02; D-21, D-26)", () => {
+  // Phase 39 UAT test 71 residual (1): nothing said who wakes the Tech Lead after the human answers, and
+  // the human was asked twice, once by the Orchestrator and once by the Tech Lead. One rule now covers
+  // the human stop and the gate-failure stop.
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+  const subs = step15Subs(section(WF04, "Steps").split("\n"));
+  const indexOfSub = (opening: string) => {
+    const i = subs.findIndex((s) => s.startsWith(`${opening} `));
+    expect(i, `no sub-bullet opening "${opening}"`).toBeGreaterThanOrEqual(0);
+    return i;
+  };
+  const sub = (opening: string) => subs[indexOfSub(opening)] as string;
+  const hasSentence = (text: string, sentence: string) => (` ${text} `).includes(` ${sentence} `);
+  const GATE = "Apply the gate-failure stop.";
+  const STOP = "Apply the human stop.";
+  const CONFIRM = "Record the human's confirmation.";
+
+  it("the ask-once sub-bullet names who asks, what wakes the Tech Lead and that the Tech Lead never asks again", () => {
+    for (const sentence of [
+      "Only the Orchestrator asks the human.",
+      "That subtask is the wake-up.",
+      "The Tech Lead never asks the human again.",
+    ]) {
+      expect(hasSentence(sub(ASK), sentence), `ask-once sub-bullet lacks "${sentence}"`).toBe(true);
+    }
+  });
+
+  it("the ask-once sub-bullet holds the sentences moved out of the human stop, and the human stop no longer asks", () => {
+    for (const sentence of [
+      "Show the human the hand-off notes and the answers to them.",
+      "Ask the human for a level, or for another move.",
+      "After a `Fundamental:` note, ask the human to approve or reject the proposed change.",
+      "At every value, the Orchestrator records the answer in a `decision` note per Workflow 16, naming the human.",
+      "The Orchestrator then queues a `pending/` subtask for the Tech Lead, who reads that note at step 15.",
+    ]) {
+      expect(hasSentence(sub(ASK), sentence), `ask-once sub-bullet lacks "${sentence}"`).toBe(true);
+      expect(sub(STOP)).not.toContain(sentence);
+    }
+  });
+
+  it("the ask-once sub-bullet covers the gate-failure stop too", () => {
+    const sentence = "After a `Cause: gate` note, show the human the move note and ask for a yes or a no.";
+    expect(hasSentence(sub(ASK), sentence), `ask-once sub-bullet lacks "${sentence}"`).toBe(true);
+  });
+
+  it("D-26: only the waiting ticket pauses", () => {
+    const sentence = "Only the waiting ticket pauses: the Orchestrator keeps refilling other ready work per Workflow 17.";
+    expect(hasSentence(sub(ASK), sentence), `ask-once sub-bullet lacks "${sentence}"`).toBe(true);
+  });
+
+  it("the confirmation records from the answer note and cites it, and the double ask is gone", () => {
+    for (const sentence of [
+      "Once that answer note is published, the Tech Lead records the answer as a `finding` per Workflow 16.",
+      "Stamp it `human:<name>`, with the move note's id and the answer note's id among its refs.",
+    ]) {
+      expect(hasSentence(sub(CONFIRM), sentence), `confirmation sub-bullet lacks "${sentence}"`).toBe(true);
+    }
+    expect(subs.join(" ")).not.toContain("At the human stop, show the human the move note before recording the answer.");
+  });
+
+  it("the `human:<name>` stamp sentences stay word for word", () => {
+    for (const sentence of [
+      "Never write that stamp without the human's answer.",
+      "Only at `context.human_admission: all` does admission check that stamp, and only Claude Code binds it to the human's session grant.",
+      "At the default `off` it is a prose-tier record.",
+    ]) {
+      expect(hasSentence(sub(CONFIRM), sentence), `confirmation sub-bullet lacks "${sentence}"`).toBe(true);
+    }
+  });
+
+  it("the ask-once sub-bullet comes after the gate-failure stop and before the confirmation", () => {
+    expect(indexOfSub(ASK)).toBeGreaterThan(indexOfSub(GATE));
+    expect(indexOfSub(ASK)).toBeLessThan(indexOfSub(CONFIRM));
+  });
+});
+
 describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one outcome under every value (WR-01, 39-18)", () => {
   // Plan 39-18 (WR-01, option park-in-blocked, decided by Olger Oeselg on 2026-10-30): the used-up stop
   // is tagged `checkpoint: escalate_unadjudicable_result`, and step 15 says it follows the same value as
@@ -1606,11 +1711,7 @@ describe("WF04, tech-lead.md and factory.config.md give a used-up ticket one out
   const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
   const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
   const lines = section(WF04, "Steps").split("\n");
-  const at15 = lines.findIndex((l) => l.startsWith("15. "));
-  const subs: string[] = [];
-  for (let i = at15 + 1; i < lines.length && (lines[i] as string).startsWith("    - "); i++) {
-    subs.push((lines[i] as string).slice("    - ".length));
-  }
+  const subs = step15Subs(lines);
   const subAt = (opening: string) => {
     const i = subs.findIndex((s) => s.startsWith(`${opening} `));
     expect(i, `no sub-bullet opening "${opening}"`).toBeGreaterThanOrEqual(0);
@@ -1717,10 +1818,7 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
   const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
   const lines = section(WF04, "Steps").split("\n");
   const at15 = lines.findIndex((l) => l.startsWith("15. "));
-  const subs: string[] = [];
-  for (let i = at15 + 1; i < lines.length && (lines[i] as string).startsWith("    - "); i++) {
-    subs.push((lines[i] as string).slice("    - ".length));
-  }
+  const subs = step15Subs(lines);
   const subAt = (opening: string) => {
     const i = subs.findIndex((s) => s.startsWith(`${opening} `));
     expect(i, `no sub-bullet opening "${opening}"`).toBeGreaterThanOrEqual(0);
@@ -1770,8 +1868,6 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     const BLOCK = [
       "At `block`, the default, stop for a named human, and record no move until the human answers.",
       "Leave the ticket in `Blocked` while the human decides.",
-      "Show the human the hand-off notes and the answers to them.",
-      "Ask the human for a level, or for another move.",
       "The human's level stands, even past the move limits.",
       "A move or hand-off the human names counts toward no limit.",
     ];
@@ -1792,6 +1888,10 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
       "At `notify`, record an `observation` per Workflow 16 once, naming the last hand-off note.",
     ]);
     for (const sentence of BLOCK) expect(t.indexOf(sentence)).toBeLessThan(t.indexOf(LOWERED));
+    // Plan 41-02 (D-21): what the human is shown and asked moved to the ask-once sub-bullet, word for word.
+    const MOVED = ["Show the human the hand-off notes and the answers to them.", "Ask the human for a level, or for another move."];
+    holdsAll(subAt(ASK), "ask-once sub-bullet", MOVED);
+    for (const sentence of MOVED) expect(t).not.toContain(sentence);
   });
 
   it("(c) the move record carries five `Move:` values, the `To:` line and the `Stop: human` line", () => {
@@ -1803,11 +1903,13 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     ]);
   });
 
-  it("(d) at the human stop the human sees the move note before the answer is recorded", () => {
-    holdsAll(subAt("Record the human's confirmation."), "confirmation sub-bullet", [
-      "At the human stop, show the human the move note before recording the answer.",
-      "At the human stop, put the level the human named on a `Level:` line.",
-    ]);
+  // Plan 41-02 (D-21): this sentence asked the human a second time, so it is deleted. At `block` the
+  // human stop records no move before the answer, so the note it showed did not exist yet either.
+  it("(d) the confirmation carries the human's level and never shows the human a note", () => {
+    const t = subAt("Record the human's confirmation.");
+    holdsAll(t, "confirmation sub-bullet", ["At the human stop, put the level the human named on a `Level:` line."]);
+    expect(stepAt(STEP15).text).not.toContain("At the human stop, show the human the move note before recording the answer.");
+    expect(t).not.toContain("show the human");
   });
 
   it("(e) step 16 dispatches the receiving role through the queue and holds on a `Stop: human` move note", () => {
@@ -2004,10 +2106,11 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     const APPROVE = "After a `Fundamental:` note, ask the human to approve or reject the proposed change.";
     const HAND_BACK = "On approval, hand the ticket back to the proposing role to make the change.";
     const LOWERED = "At `notify` or `off`, the ticket stays in `Blocked` with no move until a human answers.";
-    holdsAll(stop, "human-stop sub-bullet", [APPROVE, HAND_BACK, LOWERED]);
-    expect(stop.indexOf(APPROVE)).toBeLessThan(stop.indexOf(LOWERED));
+    holdsAll(stop, "human-stop sub-bullet", [HAND_BACK, LOWERED]);
     expect(stop.indexOf(HAND_BACK)).toBeLessThan(stop.indexOf(LOWERED));
-    expect(stop.indexOf(HAND_BACK)).toBeGreaterThan(stop.indexOf(APPROVE));
+    // Plan 41-02 (D-21): the question moved to the ask-once sub-bullet, word for word.
+    holdsAll(subAt(ASK), "ask-once sub-bullet", [APPROVE]);
+    expect(stop).not.toContain(APPROVE);
 
     expect(escalateParagraph()).toContain(
       "A role only proposes such a change and leaves it unmade until a named human approves, and the Tech Lead checks every `Resolved:` note against that definition.",
@@ -2228,13 +2331,18 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
   // Tech Lead, at every value of the cell.
   it("(aa) R2: once a human answers the human stop, the Orchestrator records the answer and queues the Tech Lead at every value (quick 261031-rhv)", () => {
     const stop = subAt("Apply the human stop.");
+    const ask = subAt(ASK);
     const APPROVE = "After a `Fundamental:` note, ask the human to approve or reject the proposed change.";
     const RECORD_ANSWER = "At every value, the Orchestrator records the answer in a `decision` note per Workflow 16, naming the human.";
     const QUEUE_ANSWER = "The Orchestrator then queues a `pending/` subtask for the Tech Lead, who reads that note at step 15.";
-    const seq = [APPROVE, RECORD_ANSWER, QUEUE_ANSWER, HAND_BACK];
-    holdsAll(stop, "human-stop sub-bullet", seq);
-    const order = seq.map((x) => stop.indexOf(x));
+    // Plan 41-02 (D-21): the three sentences moved to the ask-once sub-bullet, word for word and in this
+    // order. The hand-back stays in the human stop, and each sentence now sits in step 15 exactly once.
+    const seq = [APPROVE, RECORD_ANSWER, QUEUE_ANSWER];
+    holdsAll(ask, "ask-once sub-bullet", seq);
+    const order = seq.map((x) => ask.indexOf(x));
     for (let i = 1; i < order.length; i++) expect(order[i] as number).toBeGreaterThan(order[i - 1] as number);
+    holdsAll(stop, "human-stop sub-bullet", [HAND_BACK]);
+    for (const sentence of seq) expect(stepAt(STEP15).text.split(sentence)).toHaveLength(2);
     expect(
       stop.endsWith("At `notify` or `off`, once a human answers, follow the `block` path: the move record, the confirmation and step 16."),
     ).toBe(true);
