@@ -6598,6 +6598,26 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(check.status, check.stdout + check.stderr).toBe(0);
   });
 
+  it("claim.js: a fresh install lays down the queue tool, and `claim` runs on the host and renders the row (plan 41-03, RUN-05, D-02)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rel = stateRunnableRel("claim.js");
+    expect(existsSync(join(target, ...rel.split("/"))), `${rel} was not installed`).toBe(true);
+    expect(readFileSync(join(target, ...rel.split("/")))).toEqual(readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "claim.js")));
+    mkdirSync(join(target, ".grugops", "queue", "pending"), { recursive: true });
+    writeFileSync(join(target, ".grugops", "queue", "pending", "t1.md"), "# subtask t1\nref: .grugops/context/t1/\n");
+    const claim = spawnSync("node", [join("tools", "grugops", "claim.js"), "claim", "t1", "--by", "grugops-qe-e2e"], {
+      encoding: "utf8",
+      cwd: target,
+      env: { PATH: process.env.PATH ?? "" },
+    });
+    expect(claim.error).toBeUndefined();
+    expect(claim.status, claim.stdout + claim.stderr).toBe(0);
+    expect(claim.stdout).toBe("claimed t1 by grugops-qe-e2e\n");
+    expect(readFileSync(join(target, ".grugops", "queue", "now-running.md"), "utf8")).toContain("| t1 | grugops-qe-e2e |");
+  });
+
   it("state runnables: uninstall removes untouched copies of all three, and keeps and reports a user-edited one (SPLIT-05)", () => {
     const untouched = mkTmp();
     const home = mkTmp();
