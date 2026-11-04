@@ -5,11 +5,11 @@ titles: json
 findings:
   - id: CR-05
     severity: critical
-    disposition: open
+    disposition: deferred
     title: "A \"kept\" row approves moving a frozen `## Hard limits` sentence into an unfrozen section (CR-04 bypass)"
   - id: CR-06
     severity: critical
-    disposition: open
+    disposition: deferred
     title: "A `# ` heading inside `## Hard limits` ends the frozen region, and a permission below it reaches the stand-in (CR-03 bypass)"
   - id: WR-10
     severity: warning
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The gate checks `role_standin` only for form, not for the expected value, and ignores duplicates"
-open: 8
+open: 6
 total: 28
 recorded: 2026-11-03T22:37:51.274Z
 ---
@@ -124,8 +124,8 @@ recorded: 2026-11-03T22:37:51.274Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-05 | critical | open | - |
-| CR-06 | critical | open | - |
+| CR-05 | critical | deferred | deferred by override: accepted as a residual of the D-30 stand-in by the named human Olger on 2026-11-04 (verbatim "accept CR-05 and CR-06"), recorded in 40-VERIFICATION.md `overrides:`; candidate fix in 40-REVIEW.md (region-aware rowMatches plus a red mirror case); tracked in deferred-items.md |
+| CR-06 | critical | deferred | deferred by override: accepted as a residual of the D-30 stand-in by the named human Olger on 2026-11-04 (verbatim "accept CR-05 and CR-06"), recorded in 40-VERIFICATION.md `overrides:`; candidate fix in 40-REVIEW.md (exactly one `# ` heading per role in checkHeadingOrder plus a red `# Notes` case); tracked in deferred-items.md |
 | WR-10 | warning | open | - |
 | WR-11 | warning | open | - |
 | WR-12 | warning | open | - |

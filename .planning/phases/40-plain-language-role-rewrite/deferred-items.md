@@ -116,3 +116,20 @@
   ambiguous or unmet criteria. With the UAT Planner's named-human sign-off unconditional, the dial cannot remove the
   named human; reword the cell if the human asks.
   status: open
+
+## Accepted at phase close (2026-11-04)
+
+- CR-05 (round-3 review): a "kept" disposition row matches its added clause by file, not by section, so a
+  `## Hard limits` sentence can be moved into an unfrozen section with no row. Accepted as a residual of the D-30
+  stand-in by Olger on 2026-11-04 ("accept CR-05 and CR-06"); override in 40-VERIFICATION.md. Candidate fix: a
+  region-aware `rowMatches` (a removed frozen clause matches only when its row's `after` is still inside a frozen
+  region), plus a red mirror case. Candidate: when the D-30 stand-in ends, or the next tooling round.
+  status: open
+- CR-06 (round-3 review): a `# ` heading inside `## Hard limits` ends the frozen region, so a permission below it is
+  admitted with no row. Accepted with CR-05 by Olger on 2026-11-04. Candidate fix: `checkHeadingOrder` refuses any
+  `# ` heading but the one `# Role: ` heading, plus a red `# Notes` case.
+  status: open
+- WR-12 (round-3 review): the stand-in admits changes to `_role-switch-protocol.md`, which it never inventories.
+  Needs a named-human ruling on whether D-30 covers that file: if yes, record it in
+  `docs/audit/40-disposition-base-move.md`; if no, narrow the stand-in scope. No ruling given at phase close.
+  status: open

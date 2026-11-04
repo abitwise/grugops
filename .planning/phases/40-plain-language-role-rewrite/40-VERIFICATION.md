@@ -1,8 +1,8 @@
 ---
 phase: 40-plain-language-role-rewrite
 verified: 2026-11-03T22:50:00Z
-status: gaps_found
-score: 6/7 must-haves verified
+status: passed
+score: 7/7 must-haves verified (1 override)
 covered_files:
   - ".planning/phases/40-plain-language-role-rewrite/40-01-PLAN.md"
   - ".planning/phases/40-plain-language-role-rewrite/40-01-SUMMARY.md"
@@ -66,7 +66,12 @@ covered_files:
   - "scripts/tier-kit-text.test.ts"
 covered_digest: "v3:sha256:14b53ec0a5b8164c8906a9bfde142b58e07613c58e3e1e3cb985c78a97e65fe6"
 behavior_unverified: 0
-overrides_applied: 0
+overrides_applied: 1
+overrides:
+  - must_have: "The rewrite keeps every rule that holds the factory safe, and a changed safety sentence owes a disposition row a named human reads (PLAIN-03)"
+    reason: "Accepted as residuals of the D-30 stand-in: CR-05 (a 'kept' row approves moving a `## Hard limits` sentence into an unfrozen section) and CR-06 (a `# ` heading inside `## Hard limits` ends the frozen region). Both are guard holes, not role-text defects; the shipped role text holds every safety rule and every round-2 form of the bypass is red. Both stay open in 40-REVIEW-DISPOSITION.md and deferred-items.md, with the reviewer's fixes (region-aware rowMatches; exactly one `# ` heading per role) as the candidate work. Verbatim human reply: 'accept CR-05 and CR-06'"
+    accepted_by: "Olger"
+    accepted_at: "2026-11-04T10:41:45Z"
 re_verification:
   previous_status: gaps_found
   previous_score: 6/7
@@ -94,18 +99,24 @@ gaps:
       - "Refuse a second `# ` heading in a role (`checkHeadingOrder`: exactly one `# Role: ` heading), plus a red case with the `# Notes` plant"
       - "Or the human records an overrides: entry accepting both as residuals of the D-30 stand-in (this report does not make that call)"
 deferred: []
-human_verification:
-  - test: "Decide the CR-05 / CR-06 residual, and rule on WR-12 and WR-11"
-    expected: "Either a fourth and last gap-closure round for CR-05, CR-06 (and ideally WR-10, WR-11, WR-12), or an explicit override recorded against the gap above with a name and date; and a ruling on whether the stand-in covers `_role-switch-protocol.md`"
-    why_human: "Accepting a weaker safety guard is a safety-policy call that belongs to the named human. The cap allows four gap rounds, so a round 4 is the last"
+human_verification: []
+human_verification_resolved:
+  - test: "Decide the CR-05 / CR-06 residual"
+    resolution: "Override accepted by Olger, 2026-11-04T10:41:45Z ('accept CR-05 and CR-06'); see overrides above"
+  - test: "Rule on WR-12 (does D-30 cover `_role-switch-protocol.md`) and WR-11"
+    resolution: "No ruling given. Both are warnings, not must-haves; they stay open in 40-REVIEW-DISPOSITION.md and deferred-items.md"
 ---
 
 # Phase 40: Plain-language role rewrite Verification Report
 
 **Phase Goal:** Every role reads as clear, compact English that says more about the role than today, within today's byte budget, and keeps every rule that holds the factory safe
 **Verified:** 2026-11-03T22:50:00Z
-**Status:** gaps_found
+**Status:** passed (1 override: CR-05 and CR-06 accepted by Olger, 2026-11-04)
 **Re-verification:** Yes, after gap-closure round 3 (plans 40-22 to 40-25). Three of four allowed rounds are used.
+
+## Override (2026-11-04)
+
+Olger accepted CR-05 and CR-06 as residuals of the D-30 stand-in on 2026-11-04T10:41:45Z (verbatim: "accept CR-05 and CR-06"). Truth 3 is scored `PASSED (override)` and the status moves from `gaps_found` to `passed`. No code or role text changed after the verification run below; the findings, probes and evidence are unchanged and both holes stay open in `40-REVIEW-DISPOSITION.md` and `deferred-items.md`. WR-11 and WR-12 got no ruling and remain open warnings.
 
 ## Verdict in one paragraph
 
@@ -129,7 +140,7 @@ The three round-2 criticals and their companions are closed in the form they wer
 |---|-------|--------|----------|
 | 1 | SC1 / PLAIN-01: no role carries a caveman block; constraint, section list, guards, profile, C-28-003, CLAUDE.md changed together | VERIFIED | `grep -rli caveman agent-factory/roles` = 0 files; `check-foundation-guards` exit 0 |
 | 2 | SC2a / PLAIN-02: all 19 roles and the protocol state goal, inputs, outputs, board moves, limits and stops in more detail | VERIFIED | `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` ALL CHECKS PASSED; `validate.test.ts` green; orchestrator.md, uat-planner.md, Workflow 06 lines 28-36 re-read |
-| 3 | SC2b / PLAIN-03: the inventory (no-fabrication, `UNKNOWN - verify`, WF16/WF18, absent-config fallback, board-move partition) still holds, and a changed safety sentence owes a row a named human reads | FAILED (partial) | Text and token facts hold (`check-role-rules` exit 0). Guard bypassed by CR-05 and CR-06, reproduced below |
+| 3 | SC2b / PLAIN-03: the inventory (no-fabrication, `UNKNOWN - verify`, WF16/WF18, absent-config fallback, board-move partition) still holds, and a changed safety sentence owes a row a named human reads | PASSED (override) | Text and token facts hold (`check-role-rules` exit 0). Guard bypassed by CR-05 and CR-06, reproduced below. Override: accepted as D-30 stand-in residuals by Olger on 2026-11-04 |
 | 4 | SC3 / PLAIN-04: role files within 67,383 B, guard, per-role ceilings | VERIFIED | `cat agent-factory/roles/*.md \| wc -c` = 59,793 B (headroom 7,590 B); `check-foundation-guards` exit 0 |
 | 5 | SC4 / PLAIN-05 and PLAIN-06: do-less rules, MIT attribution, no borrowed numbers; PR checklist lean lens | VERIFIED | `shortcut:` and `Not checked:` in software-engineer.md:50; ponytail MIT notice in `NOTICE:16-17`; "Lean lens (advisory)" in `pr-review-checklist.md:19`; `check-banned-claims` exit 0 |
 | 6 | SC5 / PLAIN-07: role text is a governed surface | VERIFIED | `check-imperative-lexicon` exit 0 |
@@ -205,7 +216,7 @@ SKIPPED: no probe scripts declared in the phase PLANs.
 |---|---|---|---|
 | PLAIN-01 | 40-01, 40-10, 40-15 | SATISFIED | Truth 1 |
 | PLAIN-02 | 40-02..40-08, 40-13, 40-15, 40-17 | SATISFIED | Truth 2 |
-| PLAIN-03 | 40-01..40-08, 40-11..40-14, 40-16..40-25 | NOT FULLY SATISFIED | Truth 3 (CR-05, CR-06) |
+| PLAIN-03 | 40-01..40-08, 40-11..40-14, 40-16..40-25 | SATISFIED (override) | Truth 3; CR-05, CR-06 accepted by Olger, 2026-11-04 |
 | PLAIN-04 | 40-09, 40-13, 40-17 | SATISFIED | Truth 4 |
 | PLAIN-05 | 40-02, 40-03 | SATISFIED | Truth 5 |
 | PLAIN-06 | 40-03 | SATISFIED | Truth 5 |
@@ -217,8 +228,8 @@ All seven IDs are in REQUIREMENTS.md (lines 56-62, traceability 146-152); no orp
 
 | File | Pattern | Severity | Impact |
 |---|---|---|---|
-| `scripts/check-diff-disposition.ts` ~1536, ~1968, ~2150 | Region-blind row match; region lost to a planted `# ` heading | Blocker (Truth 3) | CR-05, CR-06 |
-| `scripts/check-role-rules.ts` ~848 | Second `# ` heading not refused | Blocker (with CR-06) | CR-06 |
+| `scripts/check-diff-disposition.ts` ~1536, ~1968, ~2150 | Region-blind row match; region lost to a planted `# ` heading | Blocker (Truth 3), accepted by override | CR-05, CR-06 |
+| `scripts/check-role-rules.ts` ~848 | Second `# ` heading not refused | Blocker (with CR-06), accepted by override | CR-06 |
 | `scripts/check-role-rules.ts` ~657 | Rule 6 arm (d) false negatives | Warning | WR-10 |
 | `agent-factory/workflows/06-uat-pack.md:33,46` | Three scopes for `sign_off_acceptance` | Warning | WR-11, fails safe |
 | `scripts/check-diff-disposition.ts:367` | Stand-in scope includes an uninventoried file | Warning | WR-12 |
@@ -226,12 +237,14 @@ All seven IDs are in REQUIREMENTS.md (lines 56-62, traceability 146-152); no orp
 
 ## Human Verification Required
 
-1. **Decide the guard residual.** Close CR-05 and CR-06 in one narrow plan (a region-aware `rowMatches`, a one-`# `-heading rule in `checkHeadingOrder`, and a red case each), ideally together with WR-10, WR-11 and WR-12, since a fourth round is the last the cap allows. Or record an override against the gap above that names who accepts the residual and when. Deferred-items already accepts the narrower "stand-in while it holds" residual; CR-05 and CR-06 are new and unrecorded there.
-2. **Rule on WR-12.** Whether D-30 covers `_role-switch-protocol.md`. If yes, record it in `docs/audit/40-disposition-base-move.md`; if no, limit the stand-in scope.
+1. **Resolved 2026-11-04: override accepted by Olger.** **Decide the guard residual.** Close CR-05 and CR-06 in one narrow plan (a region-aware `rowMatches`, a one-`# `-heading rule in `checkHeadingOrder`, and a red case each), ideally together with WR-10, WR-11 and WR-12, since a fourth round is the last the cap allows. Or record an override against the gap above that names who accepts the residual and when. Deferred-items already accepts the narrower "stand-in while it holds" residual; CR-05 and CR-06 are new and unrecorded there.
+2. **Open, no ruling given (warning, not blocking).** **Rule on WR-12.** Whether D-30 covers `_role-switch-protocol.md`. If yes, record it in `docs/audit/40-disposition-base-move.md`; if no, limit the stand-in scope.
 
 ## Gaps Summary
 
 One gap, two reproduced causes, both bypasses of round-3 fixes. Round 3 closed the specific edits round 2 reported, and the round-3 disposition rows are side-correct and human-read. But each fix keys on one signal (content for CR-03, a clause string for CR-04) and a different spelling of the same weakening still passes: a prohibition moved into an unfrozen section (CR-05), and a heading that ends the frozen region (CR-06). The shipped role text is safe today, and no rule the factory depends on is missing from any role. The remaining risk is a later edit that weakens one, which is exactly what PLAIN-03 and the CR-01 promise say the guard prevents. The fixes are small and are specified in `40-REVIEW.md`. Three of four allowed gap rounds are spent.
+
+Olger accepted both causes as D-30 stand-in residuals on 2026-11-04, so the gap is closed by override, not by a fix.
 
 ---
 
