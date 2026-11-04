@@ -42,7 +42,7 @@ import { tmpdir } from "node:os";
 // Substrate primitives (committed .js twins) + the single-source equivalence comparator. The Tier-1
 // oracleDualPathEquivalence drives these directly to replay one seed two ways on disk (DOGF-01).
 import { appendNote } from "./context-io.js";
-import { claimTask, transition } from "./claim.js";
+import { claimPending, completeTask, renderNowRunning } from "./claim.js";
 import { projectTaskState, assertEquivalent } from "./dual-path-equivalence.js";
 // (Plan 34-06, D-11) The one registry of supported host tools. This is a DELIBERATE scripts→install
 // import edge (34-RESEARCH.md assumption A5): install/ still imports nothing from scripts/ (33.1
@@ -379,14 +379,17 @@ export function oracleWr05Wording() {
 // REPLACES the former structural-grep oracleParity. Instead of reading a doc's parity table, it drives
 // the committed substrate primitives (claim.js + context-io.js) to replay ONE seeded decomposition two
 // independent ways against two hermetic mkdtempSync roots:
-//   Mode A (parallel-spawn simulation) — claim all up to width, doWork in fan-out order, then transition
-//                                        every task to done (interleaved).
-//   Mode B (sequential drain)          — claim one, doWork, done, repeat (strict serial).
+//   Mode A (parallel-spawn simulation) — claim all up to width at dispatch, doWork in fan-out order,
+//                                        then complete every task (interleaved).
+//   Mode B (sequential drain)          — claim one at dispatch, doWork, complete, repeat (strict serial).
+// Both modes claim through claimPending in the adapter's name and finish through completeTask, the
+// shape D-04 and D-05 settle: the Orchestrator claims at dispatch, and the agent runs `done` itself.
 // Then it asserts the two final substrates are EQUAL order-independently: the same done/ record set,
-// the same per-task admitted-note set (via the single-source projectTaskState/assertEquivalent — the
-// SAME comparator convergence-spine.test.ts uses, so the definitions cannot drift), and the frozen
-// verdict string present on both. "verified means verified / degrade never break" becomes a substrate-
-// convergence proof, not a doc grep.
+// an empty claimed/ and the same header-only now-running.md, the same per-task admitted-note set (via
+// the single-source projectTaskState/assertEquivalent — the SAME comparator
+// convergence-spine.test.ts uses, so the definitions cannot drift), and the frozen verdict string
+// present on both. "verified means verified / degrade never break" becomes a substrate-convergence
+// proof, not a doc grep.
 //
 // 31-09 CORRECTION — THE SEEDED NOTE NO LONGER WEARS A GATE STAMP, AND THIS PARAGRAPH SAYS WHY.
 //
@@ -423,6 +426,7 @@ const FIXED_ID = "R26-DOGF01-0001";
 const SEEDED_REF = FIXED_ID;
 const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW"; // frozen verdict STRING (no live gate call)
 const EQUIV_TASKS = ["t1", "t2", "t3"]; // minimal seeded decomposition (honors wip_limit width of 3)
+const EQUIV_ADAPTER = "grugops-software-engineer-mid"; // the adapter both paths claim in the name of (D-04)
 function seedEquivSubstrate(subtasks) {
     const queueRoot = mkdtempSync(join(tmpdir(), "dpe-equiv-"));
     for (const stage of ["pending", "claimed", "done"]) {
@@ -504,27 +508,36 @@ export function oracleDualPathEquivalence() {
         const a = seedEquivSubstrate(EQUIV_TASKS);
         tmpRoots.push(a.queueRoot);
         for (const t of EQUIV_TASKS) {
-            if (!claimTask(a.queueRoot, t, "engineer")) {
-                fail(`Mode A (parallel-spawn) could not claim seeded task "${t}"`);
+            const claimed = claimPending(a.queueRoot, t, EQUIV_ADAPTER, "mid");
+            if (claimed.kind !== "claimed") {
+                fail(`Mode A (parallel-spawn) could not claim seeded task "${t}": ${JSON.stringify(claimed)}`);
                 return;
             }
-            transition(a.queueRoot, t, "pending", "claimed");
         }
         for (const t of [...EQUIV_TASKS].reverse())
             equivDoWork(a, t);
-        for (const t of EQUIV_TASKS)
-            transition(a.queueRoot, t, "claimed", "done");
+        for (const t of EQUIV_TASKS) {
+            const done = completeTask(a.queueRoot, t);
+            if (done.kind !== "done") {
+                fail(`Mode A (parallel-spawn) could not complete seeded task "${t}": ${JSON.stringify(done)}`);
+                return;
+            }
+        }
         // ── Mode B: SEQUENTIAL drain — claim one, work, done, repeat (strict serial).
         const b = seedEquivSubstrate(EQUIV_TASKS);
         tmpRoots.push(b.queueRoot);
         for (const t of EQUIV_TASKS) {
-            if (!claimTask(b.queueRoot, t, "engineer")) {
-                fail(`Mode B (sequential-drain) could not claim seeded task "${t}"`);
+            const claimed = claimPending(b.queueRoot, t, EQUIV_ADAPTER, "mid");
+            if (claimed.kind !== "claimed") {
+                fail(`Mode B (sequential-drain) could not claim seeded task "${t}": ${JSON.stringify(claimed)}`);
                 return;
             }
-            transition(b.queueRoot, t, "pending", "claimed");
             equivDoWork(b, t);
-            transition(b.queueRoot, t, "claimed", "done");
+            const done = completeTask(b.queueRoot, t);
+            if (done.kind !== "done") {
+                fail(`Mode B (sequential-drain) could not complete seeded task "${t}": ${JSON.stringify(done)}`);
+                return;
+            }
         }
         // ── Converge: the two final substrates must be EQUAL order-independently. ─────────────────────
         let divergence = "";
@@ -540,6 +553,26 @@ export function oracleDualPathEquivalence() {
         }
         else if (doneA !== doneExpected) {
             divergence += `\n  done/ artifact set does not match the expected per-task set: got ${doneA}, expected ${doneExpected}`;
+        }
+        // Both in-flight logs emptied (RUN-01). Each path is anchored to the expected empty claimed/ and
+        // to the expected empty table, for the reason the done/ check above gives: comparing the paths to
+        // each other ALONE is vacuous, because a `done` that stopped releasing the claim would leave the
+        // same rows on both sides. An empty table is exactly two table lines, its header and its separator.
+        const claimedA = JSON.stringify(readdirSync(join(a.queueRoot, "claimed")).sort());
+        const claimedB = JSON.stringify(readdirSync(join(b.queueRoot, "claimed")).sort());
+        if (claimedA !== "[]" || claimedB !== "[]") {
+            divergence += `\n  claimed/ is not empty after the last done: A=${claimedA} B=${claimedB}`;
+        }
+        renderNowRunning(a.queueRoot);
+        renderNowRunning(b.queueRoot);
+        const nowRunningA = readFileSync(join(a.queueRoot, "now-running.md"), "utf8");
+        const nowRunningB = readFileSync(join(b.queueRoot, "now-running.md"), "utf8");
+        const tableLines = nowRunningA.split("\n").filter((line) => line.startsWith("|"));
+        if (nowRunningA !== nowRunningB) {
+            divergence += `\n  now-running.md differs between the two paths: A=${JSON.stringify(nowRunningA)} B=${JSON.stringify(nowRunningB)}`;
+        }
+        else if (tableLines.length !== 2) {
+            divergence += `\n  now-running.md is not a header-only table after the last done: ${JSON.stringify(tableLines)}`;
         }
         // Same per-task admitted-note set (single-source comparator), plus the frozen verdict + the frozen
         // finding stamp present on BOTH paths (never fabricate — assert the finding actually landed).
@@ -573,7 +606,7 @@ export function oracleDualPathEquivalence() {
             }
         }
         if (divergence === "") {
-            pass("dual-path equivalence: parallel-spawn-sim and sequential-drain replays converge on the same admitted note-set, the same done/ artifact, and the frozen verdict on disk");
+            pass("dual-path equivalence: parallel-spawn-sim and sequential-drain replays converge on the same admitted note-set, the same done/ artifact, an empty in-flight log, and the frozen verdict on disk");
         }
         else {
             fail(`dual-path equivalence violation:${divergence}`);

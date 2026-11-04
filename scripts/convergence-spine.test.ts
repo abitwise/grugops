@@ -2,11 +2,14 @@
 //
 // "One substrate, two modes converge." The SAME seeded 2-3-subtask decomposition is replayed two
 // independent ways against two hermetic temp queue+context roots:
-//   (a) PARALLEL-spawn simulation — claim all up to the width budget, each task writes its notes,
-//       then mark every task done (interleaved, fan-out order).
-//   (b) SEQUENTIAL drain — claim one, write its notes, mark done, repeat (strict serial order).
-// Then the final ON-DISK substrate is asserted EQUAL order-independently:
-//   - the same set of done/ records, and
+//   (a) PARALLEL-spawn simulation — claim all up to the width budget at dispatch, each task writes
+//       its notes, then complete every task (interleaved, fan-out order).
+//   (b) SEQUENTIAL drain — claim one at dispatch, write its notes, complete it, repeat (strict serial
+//       order).
+// Both modes claim through claimPending in the adapter's name and finish through completeTask (D-04,
+// D-05). Then the final ON-DISK substrate is asserted EQUAL order-independently:
+//   - the same set of done/ records,
+//   - an empty claimed/ and the same header-only now-running.md on both paths, and
 //   - the same per-task .grugops/context/<task>/notes/ content, compared via context-io.js
 //     currentState() — the deterministic, file-position-independent canonical replay (sort by `at`
 //     then id, fold superseded). Per-task note SETS must match regardless of write order.
@@ -23,6 +26,7 @@ import {
   mkdirSync,
   writeFileSync,
   readdirSync,
+  readFileSync,
   existsSync,
   rmSync,
 } from "node:fs";
@@ -36,6 +40,8 @@ import { projectTaskState } from "./dual-path-equivalence.js";
 const ROOT = join(import.meta.dirname, "..");
 const CLAIM_JS = join(ROOT, "scripts", "claim.js");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+// The adapter both modes claim in the name of (D-04).
+const ADAPTER = "grugops-software-engineer-mid";
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -138,21 +144,19 @@ describe("convergence-spine — SC3/D-04 one substrate, two modes converge (PAR-
     // THEN every task is marked done (interleaved fan-out: claims first, work, then dones).
     const a = makeSubstrate("conv-parallel-", subtasks);
     for (const t of subtasks) {
-      expect(claim.claimTask(a.queueRoot, t, "engineer")).toBe(true);
-      claim.transition(a.queueRoot, t, "pending", "claimed");
+      expect(claim.claimPending(a.queueRoot, t, ADAPTER, "mid").kind).toBe("claimed");
     }
     // Work in a DIFFERENT order than claim/done to stress order-independence.
     for (const t of [...subtasks].reverse()) doWork(a, t);
-    for (const t of subtasks) claim.transition(a.queueRoot, t, "claimed", "done");
+    for (const t of subtasks) expect(claim.completeTask(a.queueRoot, t)).toEqual({ kind: "done" });
 
     // ── Mode B: SEQUENTIAL drain ───────────────────────────────────────────────────────────────
     // Claim one, work, done, repeat — strict serial order, no overlap.
     const b = makeSubstrate("conv-sequential-", subtasks);
     for (const t of subtasks) {
-      expect(claim.claimTask(b.queueRoot, t, "engineer")).toBe(true);
-      claim.transition(b.queueRoot, t, "pending", "claimed");
+      expect(claim.claimPending(b.queueRoot, t, ADAPTER, "mid").kind).toBe("claimed");
       doWork(b, t);
-      claim.transition(b.queueRoot, t, "claimed", "done");
+      expect(claim.completeTask(b.queueRoot, t)).toEqual({ kind: "done" });
     }
 
     // ── Converge: the final on-disk substrate is EQUAL order-independently ──────────────────────
@@ -170,16 +174,25 @@ describe("convergence-spine — SC3/D-04 one substrate, two modes converge (PAR-
     for (const t of subtasks) {
       expect(canonA.notes[t]).toHaveLength(2);
     }
+
+    // Both in-flight logs emptied. Each path is held to the expected empty state, because comparing
+    // the paths alone would pass if `done` stopped releasing the claim on both.
+    expect(readdirSync(join(a.queueRoot, "claimed"))).toEqual([]);
+    expect(readdirSync(join(b.queueRoot, "claimed"))).toEqual([]);
+    claim.renderNowRunning(a.queueRoot);
+    claim.renderNowRunning(b.queueRoot);
+    const nowRunning = readFileSync(join(a.queueRoot, "now-running.md"), "utf8");
+    expect(readFileSync(join(b.queueRoot, "now-running.md"), "utf8")).toBe(nowRunning);
+    expect(nowRunning.split("\n").filter((line) => line.startsWith("|"))).toHaveLength(2);
   });
 
   it("each substrate writes notes ONLY under its own context root (no agent-to-agent relay)", () => {
     // Independent roots: neither replay leaks state into the other — coordination is purely on-disk.
     const a = makeSubstrate("conv-isolation-a-", ["x"]);
     const b = makeSubstrate("conv-isolation-b-", ["x"]);
-    expect(claim.claimTask(a.queueRoot, "x", "engineer")).toBe(true);
-    claim.transition(a.queueRoot, "x", "pending", "claimed");
+    expect(claim.claimPending(a.queueRoot, "x", ADAPTER, "mid").kind).toBe("claimed");
     doWork(a, "x");
-    claim.transition(a.queueRoot, "x", "claimed", "done");
+    expect(claim.completeTask(a.queueRoot, "x")).toEqual({ kind: "done" });
 
     // b's context root saw NO writes from a's run — the only channel is each root's own filesystem.
     expect(existsSync(join(a.contextRoot, "x", "notes"))).toBe(true);
