@@ -176,6 +176,85 @@ describe("Workflow 16 tells a spawned role its last act (plan 41-04; D-05)", () 
   });
 });
 
+describe("The kit text names the host note writer (plan 41-11; CR-01, RUN-02, RUN-05, D-35)", () => {
+  /** The `finding` bullet of step 3. */
+  const findingBullet = (): string => {
+    const line = section(WF16, "Steps")
+      .split("\n")
+      .find((l) => l.startsWith("   - Record a `finding`"));
+    expect(line, "no finding bullet").toBeDefined();
+    return line as string;
+  };
+
+  it("says in `## When to use` that a host carries a generated copy of the writer", () => {
+    expect(section(WF16, "When to use")).toContain(
+      "On a host, `tools/grugops/note.js` carries a generated copy of that writer.",
+    );
+  });
+
+  it("gives the whole command in step 3 and says what its placeholders are", () => {
+    const record = step(WF16, 3);
+    for (const sentence of [
+      "Write a note on every host from the repository root.",
+      "Run `node tools/grugops/note.js add <folder> --kind <kind> --by <role> --confidence <confidence> --ref <ref> --body <text>`.",
+      "`<folder>` is the folder the subtask's `ref:` line names.",
+      "Pass its bare name, such as `abc-104`, and never the path.",
+      "`<role>` is the role file's name without `.md`, never the adapter name.",
+      "Repeat `--ref` for each trace id.",
+      "Pass `--body-file <path>` in place of `--body` for a long body.",
+      "`--verified-by`, `--supersedes`, `--sha`, `--gate-run` and `--content-hash` set those note fields.",
+      "The program stamps `at` itself.",
+    ]) {
+      expect(record, sentence).toContain(sentence);
+    }
+  });
+
+  it("says what each exit of the writer means, and stops when the program is absent", () => {
+    const record = step(WF16, 3);
+    for (const sentence of [
+      "Exit 0 prints `noted <folder> <id>`.",
+      "Exit 1 prints `refused <folder>: <reason>` and writes nothing, so read the reason per step 4.",
+      "Any other exit is a genuine failure: stop and surface it.",
+      "If `tools/grugops/note.js` is absent, stop and name the scripted install.",
+    ]) {
+      expect(record, sentence).toContain(sentence);
+    }
+  });
+
+  it("gives `propose_note` to the Orchestrator alone, and keeps the structured-argument sentence on that tool", () => {
+    const record = step(WF16, 3);
+    expect(record).toContain(
+      "On Claude Code the Orchestrator also holds the STRUCTURED tool `mcp__plugin_grugops_grugops__propose_note`, and a spawned role does not.",
+    );
+    expect(record).toContain("On that tool the agent admits a note by structured JSON arguments");
+    expect(record).not.toContain("the sanctioned admission path");
+  });
+
+  it("puts a spawned role on Claude Code in the weaker tier, because the writer runs outside the hook", () => {
+    expect(findingBullet()).toContain(
+      "A spawned role on Claude Code gets the same two, because `tools/grugops/note.js` runs outside the hook.",
+    );
+  });
+
+  it("says in step 5 that the writer makes the sealed note, and a hand-written one never counts", () => {
+    expect(step(WF16, 5)).toContain("`tools/grugops/note.js` writes one, and a hand-written note never counts.");
+  });
+
+  it("names the writer in steps 6 and 7 of Workflow 17", () => {
+    expect(step(WF17, 6)).toContain("Record results into the shared verified context ONLY via WF16, under the honest note kind.");
+    expect(step(WF17, 6)).toContain(
+      "The writer is `node tools/grugops/note.js add`, the host copy of `context-io.ts` `appendNote`.",
+    );
+    expect(step(WF17, 7)).toContain("Publish what is missing with `node tools/grugops/note.js add` per WF16, then run it again.");
+  });
+
+  it("names the writer in step 4 of the role-switch protocol, in the same indent", () => {
+    expect(ROLE_SWITCH).toContain(
+      "   Write each note with `node tools/grugops/note.js add`, per step 3 of Workflow 16.\n",
+    );
+  });
+});
+
 describe("Workflow 17 keeps capacity full (plan 41-04; RUN-02, D-06, D-09, D-10, D-26)", () => {
   it("names the refill's one trigger, with no timer and no polling", () => {
     const keep = section(WF17, "Keep capacity full");
