@@ -8118,6 +8118,89 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(mod.TRUSTED_ROOT_RESIDUALS.map((r) => r.id)).toContain("R-31-19-06");
     });
 
+    it("INVARIANCE 4 (41-13): an entry at a home position reads as the old probe read it, or refuses", () => {
+      // THE AMENDMENT, DRIVEN (T-41-59). `HOME_RULE_PUBLISHED_NAMES` moved the walk's evidence from a
+      // boolean probe onto `entryPresence`, and the count cannot show what that changed. So every
+      // shape of entry at a home position is read here. Each one the old probe saw as an entry that
+      // resolves gives the root and the verdict of a real one. Each one it saw as absence, or as an
+      // entry a read then failed on, refuses: none moves from refused to admitted.
+      const tree = tmp15("p41-13-home-");
+      const kit = kitAt(join(tree, "kit"));
+      writeConfig(kit, [".grugops", "factory.config.json"], LEAN);
+      const realConfig = join(tree, "real-config.json");
+      writeFileSync(realConfig, JSON.stringify({ context: ACTIVE }, null, 2));
+      const realMarker = join(tree, "real-marker");
+      mkdirSync(realMarker);
+      const gone = join(tree, "gone");
+      const CONFIG_REL = [".grugops", "factory.config.json"] as const;
+
+      /** A home at `name`, with `stage` given its path. */
+      function homeAt(name: string, stage: (home: string) => void): string {
+        const home = join(tree, name);
+        mkdirSync(home);
+        stage(home);
+        return home;
+      }
+      const atHome = (home: string): Driven => drive("appendNote", { cwd: home, env: asHome(home), kit });
+
+      /** A config position's parent, ready for a link to be staged at the position itself. */
+      function configLink(home: string, target: string, shape: string): ReturnType<typeof stageSymlinkOrSkip> {
+        mkdirSync(join(home, ".git"));
+        mkdirSync(join(home, ".grugops"));
+        return stageSymlinkOrSkip(target, join(home, ...CONFIG_REL), shape, "scripts/context-io.test.ts: INVARIANCE 4, a home position (41-13)");
+      }
+      function markerLink(home: string, target: string, shape: string): ReturnType<typeof stageSymlinkOrSkip> {
+        writeConfig(home, CONFIG_REL, ACTIVE);
+        return stageSymlinkOrSkip(target, join(home, ".git"), shape, "scripts/context-io.test.ts: INVARIANCE 4, a home position (41-13)");
+      }
+
+      const real = homeAt("real", (home) => {
+        mkdirSync(join(home, ".git"));
+        writeConfig(home, CONFIG_REL, ACTIVE);
+      });
+      const control = atHome(real);
+      expect(control.root, "the control: a real marker and configuration name the home").toBe(real);
+      expect(control.verdict, "the control: the dial of the home is in force").toBe("refuse");
+
+      const REFUSED = /refusing to name a governance root/;
+
+      // NO LINK NEEDED, SO THIS ROW RUNS ON EVERY PLATFORM. `entryPresence` calls it `unreadable` with
+      // ENOTDIR, the rule `readRegularFileOrNull` already applies to every error but ENOENT.
+      const fileAtState = homeAt("file-at-state", (home) => {
+        mkdirSync(join(home, ".git"));
+        writeFileSync(join(home, ".grugops"), "a regular file\n");
+      });
+      expect(() => atHome(fileAtState), "a regular file at .grugops").toThrow(REFUSED);
+
+      const rows: readonly {
+        readonly name: string;
+        readonly stage: (home: string) => ReturnType<typeof stageSymlinkOrSkip>;
+        readonly refuses: boolean;
+      }[] = [
+        { name: "dangling-config", stage: (home) => configLink(home, gone, "dangling symlink at a config position"), refuses: true },
+        { name: "dangling-marker", stage: (home) => markerLink(home, gone, "dangling symlink at a marker position"), refuses: true },
+        { name: "linked-config", stage: (home) => configLink(home, realConfig, "symlink to a file at a config position"), refuses: false },
+        { name: "linked-marker", stage: (home) => markerLink(home, realMarker, "symlink to a directory at a marker position"), refuses: false },
+      ];
+      for (const row of rows) {
+        let skipped: ReturnType<typeof stageSymlinkOrSkip> = null;
+        const home = homeAt(row.name, (at) => {
+          skipped = row.stage(at);
+        });
+        if (skipped !== null) {
+          console.warn(skipLine(skipped, "the regular-file row of this case, which stages no link"));
+          continue;
+        }
+        if (row.refuses) {
+          expect(() => atHome(home), row.name).toThrow(REFUSED);
+          continue;
+        }
+        const linked = atHome(home);
+        expect(linked.root, row.name).toBe(home);
+        expect(linked.verdict, row.name).toBe(control.verdict);
+      }
+    });
+
     it("INVARIANCE 4 (SEEDED MIRROR): one added identifier moves the count by exactly one", () => {
       const source = readFileSync(IO_TS, "utf8");
       const closure = homeDecisionClosure(source) as string;
