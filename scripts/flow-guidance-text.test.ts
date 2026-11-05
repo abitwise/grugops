@@ -37,6 +37,9 @@ function step(text: string, n: number): string {
   return line as string;
 }
 
+/** Any host's name, as a whole word. Workflow 17 may name a host in two sections only. */
+const HOST_NAME = new RegExp(`\\b(${["Claude Code", "Codex", "Antigravity", "OpenCode", "Copilot", "Pi"].join("|")})\\b`);
+
 /** The number of times `needle` occurs in `hay`, counted without overlap. */
 function occurrences(hay: string, needle: string): number {
   return hay.split(needle).length - 1;
@@ -259,7 +262,7 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
 
   it("names no host in either section", () => {
     for (const body of [section(WF17, "Keep capacity full"), section(WF17, "Session start")]) {
-      expect(body).not.toMatch(/Claude Code|Codex|Antigravity|OpenCode|Copilot|\bPi\b/);
+      expect(body).not.toMatch(HOST_NAME);
     }
   });
 
@@ -351,7 +354,7 @@ describe("Workflow 17 holds session compaction (plan 41-04; RUN-03, RUN-04, D-14
     expect(headings[at + 1]).toBe("## Stop conditions");
   });
 
-  it("gives the three host settings, and sends the other three hosts to the fallback", () => {
+  it("gives the host settings, and sends each host with no setting to the fallback", () => {
     const block = tips(WF17);
     expect(block).toContain("`/autocompact 400k`");
     expect(block).toContain("`model_auto_compact_token_limit = 400000`");
@@ -373,7 +376,7 @@ describe("Workflow 17 holds session compaction (plan 41-04; RUN-03, RUN-04, D-14
       seen.push(lines[start]);
       if (allowed.has(lines[start])) continue;
       const body = lines.slice(start, heads[n + 1] ?? lines.length).join("\n");
-      expect(body, lines[start]).not.toMatch(/Claude Code|Codex|Antigravity|OpenCode|Copilot|\bPi\b/);
+      expect(body, lines[start]).not.toMatch(HOST_NAME);
     }
     for (const heading of allowed) expect(seen).toContain(heading);
   });

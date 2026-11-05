@@ -134,7 +134,9 @@ const INSTALL_TEST_FILE_COUNT = 46;
 // SCRIPTS_TEST_FILE_COUNT 81 -> 82 (2026-11-01, plan 40-01, re-derived by listing scripts/, not incremented) for
 // check-role-rules.test.ts, which has no chmod call and no expected mode (it builds hermetic mirrors and spawns the
 // committed role-rule inventory check).
-const SCRIPTS_TEST_FILE_COUNT = 82;
+// SCRIPTS_TEST_FILE_COUNT 82 -> 83 (2026-11-05, plan 41-04, re-derived by listing scripts/, not incremented) for
+// flow-guidance-text.test.ts, which has no chmod call and no expected mode (it reads kit markdown and asserts phrases).
+const SCRIPTS_TEST_FILE_COUNT = 83;
 const SOURCE_FILE_COUNT = 11;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial

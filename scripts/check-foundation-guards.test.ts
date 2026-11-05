@@ -10027,7 +10027,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // for the derived role-rule inventory (D-27) and the re-derivation of its baseline from git objects at the recorded
 // source_commit. The pin moved because a module landed, not to make a red go away. Re-derived rather than
 // incremented: `ls scripts/*.test.ts | wc -l` reports 82 on this tree (2026-11-01, plan 40-01).
-const TRIPWIRE_MODULES = 82;
+//
+// 82 -> 83 (plan 41-04, 2026-11-05): ONE test module, `scripts/flow-guidance-text.test.ts` — the text assertions over
+// the flow guidance in Workflow 17, Workflow 16 and the `queue` rows. The pin moved because a module landed, not to make
+// a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 83 on this tree (2026-11-05,
+// plan 41-04).
+const TRIPWIRE_MODULES = 83;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
