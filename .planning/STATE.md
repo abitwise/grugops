@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
-status: executing
-stopped_at: Completed 41-10-PLAN.md; WR-04 fixed, Group B still open
-last_updated: "2026-11-05T13:50:09.550Z"
+status: verifying
+stopped_at: Completed 41-11-PLAN.md; CR-01 and Group B still open, live run awaits a named human
+last_updated: "2026-11-05T14:50:34.977Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 41 execution started
-state_head: 7d1088793e7eba253e6a73ec42d349a367328205
+state_head: 5b6177da965081402b7ab6875c947ad397be7a4b
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 125
-  completed_plans: 124
+  completed_plans: 125
   percent: 67
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
 Plan: 12 of 12
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-05 — Phase 41 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -842,6 +842,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P09 | 28 min | 3 tasks | 14 files |
 | Phase 41 P12 | 47 min | 2 tasks | 11 files |
 | Phase 41 P10 | 27 min | 2 tasks | 16 files |
+| Phase 41 P11 | 33min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -2336,6 +2337,9 @@ Recent decisions affecting current work:
 - [Phase 41]: RUN-02 and RUN-05 are not marked complete by plan 41-12, because Group B keeps READ-1 from being met
 - [Phase 41]: 41-10: the takeClaim double fault in deferred-items.md is now covered by the sweep, which reclaims a record-less directory past the TTL
 - [Phase 41]: 41-10: unknown rows go last through a partition after the existing sort; a parseable at such as Wed, 01 Jan 2020 sorted after unknown, and the one comparator stands
+- [Phase 41]: Plan 41-11 did not write the R-41-06 sentence that a high-severity finding under an active dial stays refused, because it is false under a lost dial; R-41-07 names the open dial loss, not accepted
+- [Phase 41]: Plan 41-11 left REQUIREMENTS.md unchanged: CR-01 stays open until a named human reads the live run
+- [Phase 41]: Workflow 16 step 3 says to pass the folder's bare name, because note.js exits 2 on the path a ref: line holds
 
 ### Pending Todos
 
@@ -2677,8 +2681,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-05T13:50:08.254Z
-Stopped at: Completed 41-10-PLAN.md; WR-04 fixed, Group B still open
+Last session: 2026-11-05T14:50:33.684Z
+Stopped at: Completed 41-11-PLAN.md; CR-01 and Group B still open, live run awaits a named human
 Resume file: None
 
 ## Operator Next Steps
