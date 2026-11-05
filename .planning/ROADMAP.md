@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 6/11 plans executed (5 gap-closure plans, 41-07 to 41-11, planned)
+**Plans**: 6/12 plans executed (6 gap-closure plans, 41-07 to 41-12, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -615,8 +615,9 @@ Gap wave 1 *(one code plan and one text plan, disjoint files)*
 - [ ] 41-07-PLAN.md — `note.js`, a host note writer built from the `context-io.ts` authority: a lone host copy writes the sealed note `done` accepts (CR-01; RUN-02, RUN-05)
 - [ ] 41-08-PLAN.md — stop precedence keeps the hand-off limit, the stamp sentence names the route that binds it, and `queue.claim_cap` is marked retired (WR-02, IN-01; RUN-02, RUN-06)
 
-Gap wave 2 *(blocked on gap wave 1)*
+Gap wave 2 *(blocked on gap wave 1; 41-12 was split out of 41-07 after the later plans were numbered, so its number does not follow wave order)*
 - [ ] 41-09-PLAN.md — `tools/grugops/note.js` ships through the installer, and the install guide says what Workflow 17 needs (CR-01, WR-01; RUN-02, RUN-05)
+- [ ] 41-12-PLAN.md — a failed read or a stopped render in `note.js` never reports a note, and the census pins move with the new generated copy (CR-01; RUN-02, RUN-05)
 
 Gap wave 3 *(blocked on gap wave 2; sequential because each rebuilds the committed `.js`)*
 - [ ] 41-10-PLAN.md — every entry `free` counts shows in `now-running.md`, and the session-start sweep frees a claim with no usable record (WR-04; RUN-01, RUN-02)
