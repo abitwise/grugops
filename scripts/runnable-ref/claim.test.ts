@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { skipLine, stageNameOrSkip, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import * as ctxio from "../context-io.js";
+import { treeDigest } from "../fault-inject.test-support.js";
 import {
   CONTEXT_REL,
   GRUGOPS_DIR_REL,
@@ -765,5 +766,324 @@ describe("done refuses what it cannot read (T-41-16)", () => {
     expectRefused(r, "the queue tool stopped unexpectedly", "t1 moved to done/", "The command did not finish.");
     expect(r.stderr).not.toContain("The queue was not changed.");
     expect(existsSync(join(root, QUEUE_DONE_REL, "t1.md"))).toBe(true);
+  });
+});
+
+// ── free and sweep (plan 41-05 Task 1, RUN-02, D-01, D-02, D-08, D-11) ──────────────────────────────────
+
+const CLAIM_TS = join(import.meta.dirname, "claim.ts");
+const SEED_STATE_DIR = join(import.meta.dirname, "..", "..", "agent-factory", "seed", GRUGOPS_DIR_REL);
+const CONFIG_REL = `${GRUGOPS_DIR_REL}/factory.config.json`;
+const MINUTE_MS = 60_000;
+
+/** Write `queue` as the `queue` block of the repository's config. */
+function configure(root: string, queue: unknown): void {
+  writeFileSync(join(root, CONFIG_REL), `${JSON.stringify({ queue })}\n`);
+}
+
+/** A repository with the seed's queue dial and `count` claims on disk, none of them through the program. */
+function repoWithClaims(count: number): string {
+  const root = repo();
+  configure(root, { wip_limit: 3, claim_cap: 2, stale_ttl_minutes: 30 });
+  holdClaims(root, count);
+  return root;
+}
+
+/** `count` claim directories under claimed/, each with its record and its subtask. */
+function holdClaims(root: string, count: number): void {
+  for (let i = 1; i <= count; i += 1) {
+    const dir = join(root, QUEUE_CLAIMED_REL, `t${i}`);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "claim.md"), `---\nby: x\nat: ${new Date().toISOString()}\ntask: t${i}\n---\n`);
+    writeFileSync(join(dir, `t${i}.md`), subtask(`t${i}`));
+  }
+}
+
+/** Move the `at` of the claim record of `task` back by `ms` milliseconds. */
+function age(root: string, task: string, ms: number): void {
+  const text = readFileSync(claimPath(root, task), "utf8");
+  writeFileSync(claimPath(root, task), text.replace(/^at: .+$/m, `at: ${shifted(claimAt(root, task), -ms)}`));
+}
+
+/** A repository with the seed's dial and each of `tasks` claimed through the program. */
+function repoClaiming(...tasks: string[]): string {
+  const root = repo(...tasks);
+  configure(root, { wip_limit: 3, claim_cap: 2, stale_ttl_minutes: 30 });
+  for (const task of tasks) {
+    const r = run(root, "claim", task, "--by", "grugops-qe-e2e");
+    expect(r.status, r.stderr).toBe(0);
+  }
+  return root;
+}
+
+describe("free (RUN-02, D-01, D-08)", () => {
+  for (const [count, line] of [
+    [0, "free 3\n"],
+    [1, "free 2\n"],
+    [2, "free 1\n"],
+    [3, "free 0\n"],
+    [4, "free 0 (4 claimed, wip_limit 3)\n"],
+  ] as const) {
+    it(`with limit 3 and ${count} claimed it prints ${line.trim()}`, () => {
+      const r = run(repoWithClaims(count), "free");
+      expect(r.status).toBe(0);
+      expect(r.stdout).toBe(line);
+      expect(r.stderr).toBe("");
+    });
+  }
+
+  it("reads the limit from the config, and a set limit carries no note", () => {
+    const root = repoWithClaims(0);
+    configure(root, { wip_limit: 5 });
+    const r = run(root, "free");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("free 5\n");
+  });
+
+  for (const [name, plant, note] of [
+    ["no config", () => undefined, "queue.wip_limit not set, default 3"],
+    ["no queue block", (root: string) => writeFileSync(join(root, CONFIG_REL), "{}\n"), "queue.wip_limit not set, default 3"],
+    ["a zero limit", (root: string) => configure(root, { wip_limit: 0 }), "queue.wip_limit is not a positive integer, default 3"],
+    ["a string limit", (root: string) => configure(root, { wip_limit: "3" }), "queue.wip_limit is not a positive integer, default 3"],
+    [
+      "a config that is not JSON",
+      (root: string) => writeFileSync(join(root, CONFIG_REL), "{ not json\n"),
+      "queue.wip_limit not read, the config is not valid JSON, default 3",
+    ],
+  ] as const) {
+    it(`with ${name} it prints the default and says so`, () => {
+      const root = repo();
+      plant(root);
+      const r = run(root, "free");
+      expect(r.status).toBe(0);
+      expect(r.stdout).toBe(`free 3 (${note})\n`);
+    });
+  }
+
+  it("names both when a defaulted limit is passed", () => {
+    const root = repo();
+    holdClaims(root, 4);
+    expect(run(root, "free").stdout).toBe("free 0 (4 claimed, wip_limit 3) (queue.wip_limit not set, default 3)\n");
+  });
+
+  it("does not count a .gitkeep in claimed/", () => {
+    const root = repoWithClaims(1);
+    writeFileSync(join(root, QUEUE_CLAIMED_REL, ".gitkeep"), "");
+    expect(run(root, "free").stdout).toBe("free 2\n");
+  });
+
+  it("with no claimed/ it prints the limit and creates nothing", () => {
+    const root = bareRepo();
+    configure(root, { wip_limit: 3 });
+    const before = treeDigest(root);
+    const r = run(root, "free");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("free 3\n");
+    expect(treeDigest(root)).toEqual(before);
+  });
+
+  it("changes nothing on a repository with claims", () => {
+    const root = repoWithClaims(2);
+    const before = treeDigest(root);
+    expect(run(root, "free").status).toBe(0);
+    expect(treeDigest(root)).toEqual(before);
+  });
+
+  it("a FIFO at the config path exits 2 and never hangs (T-41-19)", () => {
+    const root = repo();
+    const skipped = stageShapeOrSkip("FIFO", join(root, CONFIG_REL), "scripts/runnable-ref/claim.test.ts: the config path (plan 41-05)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the directory at the config path case below"));
+      return;
+    }
+    expectRefused(run(root, "free"), "factory.config.json", "is not a regular file");
+  });
+
+  it("a directory at the config path exits 2", () => {
+    const root = repo();
+    mkdirSync(join(root, CONFIG_REL));
+    expectRefused(run(root, "free"), "factory.config.json", "is not a regular file");
+  });
+
+  it("a symlink at the config path exits 2, and the file it points to is not read", () => {
+    const root = repo();
+    const elsewhere = join(root, "elsewhere.json");
+    writeFileSync(elsewhere, '{"queue":{"wip_limit":9}}\n');
+    const skipped = stageSymlinkOrSkip(
+      elsewhere,
+      join(root, CONFIG_REL),
+      "symlink inside the repository root",
+      "scripts/runnable-ref/claim.test.ts: the config path (plan 41-05)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the directory at the config path case above"));
+      return;
+    }
+    expectRefused(run(root, "free"), "factory.config.json", "symbolic link");
+  });
+
+  it("a config above the read ceiling exits 2 rather than read it", () => {
+    const root = repo();
+    writeFileSync(join(root, CONFIG_REL), " ".repeat(1024 * 1024 + 1));
+    expectRefused(run(root, "free"), "factory.config.json", "could not be read");
+  });
+
+  it("a claimed/ that is not a directory exits 2 and never counts as empty", () => {
+    const root = repo();
+    configure(root, { wip_limit: 3 });
+    writeFileSync(join(root, QUEUE_CLAIMED_REL), "");
+    expectRefused(run(root, "free"), QUEUE_CLAIMED_REL, "not a directory");
+  });
+
+  it("a symlinked claimed/ exits 2 and never counts what it points at", () => {
+    const root = repo();
+    configure(root, { wip_limit: 3 });
+    const elsewhere = mkTmp("grugops-claim-elsewhere-");
+    const skipped = stageSymlinkOrSkip(
+      elsewhere,
+      join(root, QUEUE_CLAIMED_REL),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/claim.test.ts: the claimed directory (plan 41-05)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the file at claimed/ case above"));
+      return;
+    }
+    expectRefused(run(root, "free"), QUEUE_CLAIMED_REL, "symbolic link");
+  });
+
+  it("takes no task and no owner", () => {
+    expectRefused(run(repo(), "free", "t1"), "Usage: node claim.js");
+    expectRefused(run(repo(), "free", "--by", "x"), "--by", "Usage: node claim.js");
+  });
+
+  it("the config name is typed once in the program, and it is the seed's file", () => {
+    const source = readFileSync(CLAIM_TS, "utf8");
+    const name = /^const CONFIG_NAME = "([^"]+)";$/m.exec(source)?.[1];
+    expect(name, "PREMISE: the program names its config once, as CONFIG_NAME").toBeDefined();
+    expect(source.split(name as string).length - 1).toBe(1);
+    expect(`${GRUGOPS_DIR_REL}/${name as string}`).toBe(CONFIG_REL);
+    expect(lstatSync(join(SEED_STATE_DIR, name as string)).isFile()).toBe(true);
+  });
+});
+
+describe("sweep (RUN-02, D-02, D-08, D-11)", () => {
+  it("returns a stale claim to pending/, says so and renders the log", () => {
+    const root = repoClaiming("t1");
+    age(root, "t1", 31 * MINUTE_MS);
+    expect(rows(root), "PREMISE: the claim has its row").toHaveLength(1);
+    const r = run(root, "sweep");
+    expect(r.stderr).toBe("");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 1\nreclaimed t1\n");
+    expect(readFileSync(join(root, QUEUE_PENDING_REL, "t1.md"), "utf8")).toBe(subtask("t1"));
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1"))).toBe(false);
+    expect(rows(root)).toEqual([]);
+  });
+
+  it("releases a claim whose subtask is already in done/, and counts it in no reclaim", () => {
+    const root = repoClaiming("t1");
+    mkdirSync(join(root, QUEUE_DONE_REL), { recursive: true });
+    writeFileSync(join(root, QUEUE_DONE_REL, "t1.md"), subtask("t1"));
+    rmSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"));
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 0\nreleased t1 (already done)\n");
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1"))).toBe(false);
+    expect(existsSync(join(root, QUEUE_PENDING_REL, "t1.md"))).toBe(false);
+    expect(rows(root)).toEqual([]);
+  });
+
+  it("leaves a fresh claim alone", () => {
+    const root = repoClaiming("t1");
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 0\n");
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"))).toBe(true);
+    expect(rows(root)).toHaveLength(1);
+  });
+
+  it("reads queue.stale_ttl_minutes: a claim two minutes old is reclaimed at 1 and left at the default", () => {
+    const short = repoClaiming("t1");
+    configure(short, { stale_ttl_minutes: 1 });
+    age(short, "t1", 2 * MINUTE_MS);
+    const reclaimed = run(short, "sweep");
+    expect(reclaimed.status).toBe(0);
+    expect(reclaimed.stdout.split("\n").slice(0, 2)).toEqual(["swept 1", "reclaimed t1"]);
+
+    const standard = repoClaiming("t1");
+    age(standard, "t1", 2 * MINUTE_MS);
+    const left = run(standard, "sweep");
+    expect(left.status).toBe(0);
+    expect(left.stdout).toBe("swept 0\n");
+    expect(existsSync(join(standard, QUEUE_CLAIMED_REL, "t1", "t1.md"))).toBe(true);
+  });
+
+  it("says so when the TTL fell back to the default, after the task lines", () => {
+    const root = repoClaiming("t1");
+    rmSync(join(root, CONFIG_REL));
+    age(root, "t1", 31 * MINUTE_MS);
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 1\nreclaimed t1\n(queue.stale_ttl_minutes not set, default 30)\n");
+  });
+
+  it("prints its task lines in name order", () => {
+    const root = repoClaiming("t2", "t1", "t3");
+    for (const task of ["t1", "t2", "t3"]) age(root, task, 31 * MINUTE_MS);
+    expect(run(root, "sweep").stdout).toBe("swept 3\nreclaimed t1\nreclaimed t2\nreclaimed t3\n");
+  });
+
+  it("on a repository with no queue directories it exits 0 with swept 0", () => {
+    const root = bareRepo();
+    configure(root, { stale_ttl_minutes: 30 });
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 0\n");
+    expect(rows(root)).toEqual([]);
+  });
+
+  it("a config it cannot read stops it before anything moves", () => {
+    const root = repoClaiming("t1");
+    age(root, "t1", 31 * MINUTE_MS);
+    rmSync(join(root, CONFIG_REL));
+    mkdirSync(join(root, CONFIG_REL));
+    const before = treeDigest(root);
+    expectRefused(run(root, "sweep"), "factory.config.json", "The queue was not changed.");
+    expect(treeDigest(root)).toEqual(before);
+  });
+
+  it("a symlinked claimed/ exits 2 with nothing written", () => {
+    const root = repo();
+    configure(root, { stale_ttl_minutes: 30 });
+    const elsewhere = mkTmp("grugops-claim-elsewhere-");
+    const skipped = stageSymlinkOrSkip(
+      elsewhere,
+      join(root, QUEUE_CLAIMED_REL),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/claim.test.ts: the claimed directory (plan 41-05)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the symlinked claimed/ case of free above"));
+      return;
+    }
+    expectRefused(run(root, "sweep"), QUEUE_CLAIMED_REL, "symbolic link");
+    expect(existsSync(join(root, NOW_RUNNING_REL))).toBe(false);
+  });
+
+  it("a render that fails after a reclaim exits 2 and says the reclaim stands", () => {
+    const root = repoClaiming("t1");
+    age(root, "t1", 31 * MINUTE_MS);
+    rmSync(join(root, NOW_RUNNING_REL));
+    mkdirSync(join(root, NOW_RUNNING_REL));
+    writeFileSync(join(root, NOW_RUNNING_REL, "keeps-the-directory-full"), "");
+    const r = run(root, "sweep");
+    expectRefused(r, "the queue tool stopped unexpectedly", "reclaimed t1", "The command did not finish.");
+    expect(r.stderr).not.toContain("The queue was not changed.");
+    expect(existsSync(join(root, QUEUE_PENDING_REL, "t1.md"))).toBe(true);
+  });
+
+  it("takes no task", () => {
+    expectRefused(run(repo(), "sweep", "t1"), "Usage: node claim.js");
   });
 });
