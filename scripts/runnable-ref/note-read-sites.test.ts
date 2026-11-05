@@ -18,12 +18,20 @@
 //
 // THE ROOT. note.js has no root flag: the store is the working directory's, and the dial comes from trustedRepoRoot().
 // Each run names all three ambient root names, blank or set by its mode, so the dial comes from the fixture.
+//
+// THE ONE EXCEPTION, AND WHAT IT DOES NOT COVER (human ruling, 2026-11-05, at the plan 41-12 checkpoint). A row in
+// SECOND_SOURCE below ends exit 0 after its read fails, because a designed second source gives the same answer. Such a
+// row is not judged by THE RULE. It is judged by a stricter test: its run must equal an unfaulted run of the same mode,
+// in the exit code, the output and every file. Each governed mode puts the dial where a lost answer changes the
+// outcome, so a row that lost the dial cannot pass. A row that takes a failed read as absence has no such proof. It
+// stays red in this file, by name, until the ladder in scripts/context-io.ts fails closed. It is not listed here.
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { skipLine, stageShapeOrSkip } from "../check-platform-shapes.js";
 import * as ctxio from "../context-io.js";
 import {
   FS_OTHER_FNS,
@@ -42,6 +50,18 @@ import { CONTEXT_REL, GRUGOPS_DIR_REL } from "../../install/state-layout.js";
 
 const MODES = ["observation", "retained", "gate-finding", "body-file", "delivered", "ambient", "home"] as const;
 type Mode = (typeof MODES)[number];
+
+/**
+ * The modes only a row of SECOND_SOURCE runs in. Each governed mode refuses a finding the dial would admit if the dial
+ * were lost: two of them hold the dial in a repository the working directory is not in, so the walk cannot supply it.
+ */
+const PROOF_MODES = ["governed", "governed-home", "governed-ambient", "governed-delivered", "ledger-present", "ledger-directory"] as const;
+type ProofMode = (typeof PROOF_MODES)[number];
+
+/** The modes that only prove the comparison can fail. No fault runs in them. */
+type ControlMode = "no-dial" | "other-body";
+
+type AnyMode = Mode | ProofMode | ControlMode;
 
 /**
  * The derived read sites of note.js.
@@ -77,6 +97,36 @@ const UNREACHED: ReadonlyMap<string, string> = new Map([
   ["canonicalDirectoryPath:realpathSync#0 via trustedRepoRoot#0", "Rung 2 runs only after rung 1 threw, and rung 1 answers for an ambient root that exists."],
 ]);
 const UNREACHED_SIZE = 17;
+
+const RUNG_TWO = "Rung 2 of canonicalDirectoryPath answers with the path rung 1 would have given.";
+const RUNG_THREE = "Rung 3 answers from the parent, the path rung 2 reaches anyway for a position that does not exist.";
+const OPEN_ANSWERS = "The open that follows classifies the ledger, so a type the stat would refuse is refused there.";
+
+/** Every mode a row of SECOND_SOURCE can run in, for a row every run reaches. */
+const EVERY_RUN: readonly AnyMode[] = [...MODES, ...PROOF_MODES];
+
+/** Every mode with no delivered or ambient root, so the run reads the working directory. */
+const EVERY_WALK: readonly AnyMode[] = EVERY_RUN.filter((m) => !["delivered", "ambient", "governed-ambient", "governed-delivered"].includes(m));
+
+/**
+ * A (site, via) pair whose failed read changes nothing, because a designed second source gives the same answer, with
+ * why and the exact modes that reach it. The human lifted the no-widening rule for these 9 rows and no other (ruling of
+ * 2026-11-05, plan 41-12). Each row must equal an unfaulted run in every one of its modes, so it goes red if the row
+ * ever answers differently. Its size is pinned, and the set is derived two-sided below. A row whose fault loses an
+ * answer does not belong here, and moving it here is not a fix.
+ */
+const SECOND_SOURCE: ReadonlyMap<string, { readonly why: string; readonly modes: readonly AnyMode[] }> = new Map([
+  ["canonicalDirectoryPath:realpathSync.native#0 via <top>#0", { why: RUNG_TWO, modes: EVERY_RUN }],
+  ["canonicalDirectoryPath:realpathSync#0 via <top>#0", { why: RUNG_THREE, modes: EVERY_RUN }],
+  ["canonicalDirectoryPath:realpathSync.native#0 via canonicalWorkingDirectory#0", { why: RUNG_TWO, modes: EVERY_WALK }],
+  ["canonicalDirectoryPath:realpathSync.native#0 via homeBoundary#0", { why: RUNG_TWO, modes: EVERY_RUN }],
+  ["canonicalDirectoryPath:realpathSync.native#0 via homeConfigPositionIsProjectOwned#0", { why: RUNG_TWO, modes: ["home", "governed-home"] }],
+  ["canonicalDirectoryPath:realpathSync.native#0 via hostDeliveredRoot#0", { why: RUNG_TWO, modes: ["delivered", "governed-delivered"] }],
+  ["canonicalDirectoryPath:realpathSync.native#0 via hostDeliveredRoot#1", { why: RUNG_TWO, modes: ["delivered", "governed-delivered"] }],
+  ["canonicalDirectoryPath:realpathSync.native#0 via trustedRepoRoot#0", { why: RUNG_TWO, modes: ["ambient", "governed-ambient"] }],
+  ["appendRegularFileLine:statSync#0", { why: OPEN_ANSWERS, modes: ["retained", "ledger-present", "ledger-directory"] }],
+]);
+const SECOND_SOURCE_SIZE = 9;
 
 /** The node:fs names note.js uses that neither shared list holds. */
 const OWN_OTHER_FNS: readonly string[] = ["linkSync", "writeSync"];
@@ -186,6 +236,10 @@ function template(config: string, sealed: boolean, verdict: boolean): string {
 const OBSERVATION = ["add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--ref", "ABC-1", "--body", "x"];
 const GATE_FINDING = ["add", "t1", "--kind", "finding", "--by", "qe-e2e", "--confidence", "high", "--verified-by", "§14-gate#run1", "--body", "x"];
 const BODY_FILE = ["add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--body-file", "body.md"];
+const OTHER_BODY = ["add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--ref", "ABC-1", "--body", "y"];
+
+/** A finding `human_admission: all` refuses from this role with this stamp, and a config with no dial admits. */
+const DIAL_REFUSES = ["add", "t1", "--kind", "finding", "--by", "security-nfr", "--confidence", "high", "--verified-by", "human:eve", "--body", "x"];
 
 /** Every ambient name that would answer the dial before the fixture does, blank, so each mode sets only its own. */
 const BLANK: Readonly<Record<string, string>> = { CLAUDE_PROJECT_DIR: "", GRUGOPS_PROJECT_DIR: "", GRUGOPS_HOST_DELIVERED_ROOT: "" };
@@ -194,26 +248,123 @@ interface ModeSpec {
   readonly fixture: string;
   readonly args: readonly string[];
   readonly env: (root: string) => Readonly<Record<string, string>>;
+  /** True when the refusal's last clause names which arm answered, so the comparison leaves that clause out. */
+  readonly reasonNamesTheArm?: boolean;
 }
 
 const LEAN = template("{}\n", false, false);
+const GOVERNED = template('{"context":{"human_admission":"all"}}\n', false, false);
+const RETAINED_CONFIG = '{"context":{"audit_retention":"retained"}}\n';
+
+/** The audit ledger under `root`. */
+function ledgerPath(root: string): string {
+  return join(root, GRUGOPS_DIR_REL, "audit", "admissions.jsonl");
+}
+
+/** A retained repository with `stage` applied at the ledger's position. */
+function ledgerTemplate(stage: (ledger: string) => void): string {
+  const root = template(RETAINED_CONFIG, false, false);
+  mkdirSync(dirname(ledgerPath(root)));
+  stage(ledgerPath(root));
+  return root;
+}
 
 /** What each mode reaches: the note walk, the config read, the ledger, the body file, and each rung of the root ladder. */
-const MODE_SPEC: Record<Mode, ModeSpec> = {
+const MODE_SPEC: Record<AnyMode, ModeSpec> = {
   observation: { fixture: LEAN, args: OBSERVATION, env: () => BLANK },
-  retained: { fixture: template('{"context":{"audit_retention":"retained"}}\n', true, false), args: OBSERVATION, env: () => BLANK },
+  retained: { fixture: template(RETAINED_CONFIG, true, false), args: OBSERVATION, env: () => BLANK },
   "gate-finding": { fixture: template("{}\n", true, true), args: GATE_FINDING, env: () => BLANK },
   "body-file": { fixture: LEAN, args: BODY_FILE, env: () => BLANK },
   delivered: { fixture: LEAN, args: OBSERVATION, env: (root) => ({ ...BLANK, GRUGOPS_HOST_DELIVERED_ROOT: root }) },
   ambient: { fixture: LEAN, args: OBSERVATION, env: (root) => ({ ...BLANK, GRUGOPS_PROJECT_DIR: root }) },
   home: { fixture: LEAN, args: OBSERVATION, env: (root) => ({ ...BLANK, HOME: root }) },
+  governed: { fixture: GOVERNED, args: DIAL_REFUSES, env: () => BLANK },
+  "governed-home": { fixture: GOVERNED, args: DIAL_REFUSES, env: (root) => ({ ...BLANK, HOME: root }) },
+  "governed-ambient": { fixture: LEAN, args: DIAL_REFUSES, env: () => ({ ...BLANK, GRUGOPS_PROJECT_DIR: GOVERNED }) },
+  "governed-delivered": { fixture: LEAN, args: DIAL_REFUSES, env: () => ({ ...BLANK, GRUGOPS_HOST_DELIVERED_ROOT: GOVERNED }) },
+  "ledger-present": { fixture: ledgerTemplate((ledger) => writeFileSync(ledger, '{"id":"earlier"}\n')), args: OBSERVATION, env: () => BLANK },
+  "ledger-directory": { fixture: ledgerTemplate((ledger) => mkdirSync(ledger)), args: OBSERVATION, env: () => BLANK, reasonNamesTheArm: true },
+  "no-dial": { fixture: LEAN, args: DIAL_REFUSES, env: () => BLANK },
+  "other-body": { fixture: LEAN, args: OTHER_BODY, env: () => BLANK },
 };
+
+/** What a reader of one run can see: the exit, the output and every file, with the run's own id, time and seal masked. */
+interface Outcome {
+  readonly status: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly tree: readonly (readonly [string, string])[];
+}
 
 interface PairRun {
   readonly r: FaultedRun;
   readonly before: ReadonlyMap<string, string>;
   readonly after: ReadonlyMap<string, string>;
+  readonly outcome: Outcome;
   readonly all: string;
+}
+
+/** `text` with this run's scratch root, note id, timestamps and seals masked, and nothing else. */
+function masked(text: string, root: string): string {
+  return text
+    .split(root)
+    .join("<root>")
+    .replace(/\d{8}T\d{6}Z-[a-z0-9-]+-[0-9a-f]{8}/g, "<id>")
+    .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, "<at>")
+    .replace(/sha256:[0-9a-f]{64}/g, "<seal>");
+}
+
+/** The outcome of a run that has ended in `root`: every file by its masked text, and every other entry by its shape. */
+function outcomeOf(root: string, r: Pick<FaultedRun, "status" | "signal" | "stdout" | "stderr">): Outcome {
+  const tree = [...treeDigest(root)].map(
+    ([rel, entry]) => [masked(rel, root), entry.startsWith("file:") ? masked(readFileSync(join(root, rel), "utf8"), root) : entry] as const,
+  );
+  return { status: r.status, signal: r.signal, stdout: masked(r.stdout, root), stderr: masked(r.stderr, root), tree };
+}
+
+/** The clause of a refusal that names which arm of the ledger check answered. */
+const UNDERLYING_REASON = / Underlying reason: .*$/s;
+
+/** `outcome` without that clause, which it must hold. */
+function withoutReason(outcome: Outcome, label: string): Outcome {
+  expect(outcome.stdout, label).toMatch(UNDERLYING_REASON);
+  return { ...outcome, stdout: outcome.stdout.replace(UNDERLYING_REASON, "") };
+}
+
+/** A fresh copy of the fixture of `mode`, with `stage` applied to it. */
+function freshRoot(mode: AnyMode, stage?: (root: string) => void): string {
+  const { fixture } = MODE_SPEC[mode];
+  const root = realpathSync(mkdtempSync(join(dirname(fixture), "grugops-note-read-run-")));
+  cpSync(fixture, root, { recursive: true });
+  stage?.(root);
+  return root;
+}
+
+/** `mode` run with no fault and no preload, on a fresh copy of its fixture. */
+function unfaulted(mode: AnyMode, stage?: (root: string) => void): Outcome {
+  const spec = MODE_SPEC[mode];
+  const root = freshRoot(mode, stage);
+  const r = spawnSync(process.execPath, [HOST_JS, ...spec.args], {
+    encoding: "utf8",
+    cwd: root,
+    timeout: 30_000,
+    env: { ...process.env, ...spec.env(root) },
+  });
+  const outcome = outcomeOf(root, r);
+  rmSync(root, { recursive: true, force: true });
+  return outcome;
+}
+
+const controls = new Map<AnyMode, Outcome>();
+
+/** The unfaulted outcome of `mode`, read once. */
+function control(mode: AnyMode): Outcome {
+  const known = controls.get(mode);
+  if (known !== undefined) return known;
+  const outcome = unfaulted(mode);
+  controls.set(mode, outcome);
+  return outcome;
 }
 
 /** The note files in a tree digest. */
@@ -222,10 +373,9 @@ function noteKeys(digest: ReadonlyMap<string, string>): readonly string[] {
 }
 
 /** `pair` failed with EIO on a fresh copy of the fixture of `mode`, with the tree digests before and after. */
-function runPair(pair: DerivedPair, mode: Mode): PairRun {
+function runPair(pair: DerivedPair, mode: AnyMode, stage?: (root: string) => void): PairRun {
   const spec = MODE_SPEC[mode];
-  const root = realpathSync(mkdtempSync(join(dirname(spec.fixture), "grugops-note-read-run-")));
-  cpSync(spec.fixture, root, { recursive: true });
+  const root = freshRoot(mode, stage);
   const url = scriptUrl(HOST_JS);
   const before = treeDigest(root);
   const scratch = mkdtempSync(join(dirname(root), "grugops-note-read-fault-"));
@@ -242,10 +392,19 @@ function runPair(pair: DerivedPair, mode: Mode): PairRun {
     { scratch, cwd: root, env: spec.env(root) },
   );
   const after = treeDigest(root);
+  const outcome = outcomeOf(root, r);
   rmSync(root, { recursive: true, force: true });
   rmSync(scratch, { recursive: true, force: true });
   const all = `${mode}, ${pairId(pair)}, line ${pair.site.line}, status ${r.status}, stdout ${JSON.stringify(r.stdout)}, stderr ${JSON.stringify(r.stderr)}`;
-  return { r, before, after, all };
+  return { r, before, after, outcome, all };
+}
+
+/** The test a row of SECOND_SOURCE meets in place of the read rule: this run equals an unfaulted run of `mode`. */
+function assertSameAsUnfaulted(run: PairRun, mode: AnyMode): void {
+  const armNamed = MODE_SPEC[mode].reasonNamesTheArm === true;
+  const faulted = armNamed ? withoutReason(run.outcome, run.all) : run.outcome;
+  const clean = armNamed ? withoutReason(control(mode), `the control of ${mode}`) : control(mode);
+  expect(faulted, `a failed read changed the outcome: ${run.all}`).toEqual(clean);
 }
 
 /** The read rule on one run in which the fault fired. */
@@ -291,6 +450,22 @@ describe("READ-1 on note.js: the derivation (plan 41-12, T-41-52)", () => {
     for (const name of UNREACHED.keys()) expect(ids, name).toContain(name);
   });
 
+  it("SECOND_SOURCE holds the pinned 9 rows, each a derived pair, none also in UNREACHED", () => {
+    expect(SECOND_SOURCE.size).toBe(SECOND_SOURCE_SIZE);
+    const ids = PAIRS.map(pairId);
+    for (const name of SECOND_SOURCE.keys()) {
+      expect(ids, `${name} is no longer a derived pair`).toContain(name);
+      expect(UNREACHED.has(name), `${name} is in both maps`).toBe(false);
+    }
+  });
+
+  it("SECOND_SOURCE equals the derived set, two-sided: every reached rung of the ladder, and the ledger's stat", () => {
+    const derived = PAIRS.map(pairId).filter(
+      (id) => id === "appendRegularFileLine:statSync#0" || (id.startsWith("canonicalDirectoryPath:") && !UNREACHED.has(id)),
+    );
+    expect([...SECOND_SOURCE.keys()].sort()).toEqual(derived.sort());
+  });
+
   it("every node:fs name note.js uses is a read, a shared non-read, or this file's own", () => {
     const known = new Set<string>([...FS_READ_FNS, ...FS_OTHER_FNS, ...OWN_OTHER_FNS]);
     const used = classifiedFsCalls(HOST_JS);
@@ -305,7 +480,8 @@ describe("READ-1 on note.js: the derivation (plan 41-12, T-41-52)", () => {
 describe("READ-1 on note.js: every derived pair, failed, never reports a note (plan 41-12, RUN-02, T-41-52)", () => {
   for (const pair of PAIRS) {
     it(pairId(pair), () => {
-      const fired: Mode[] = [];
+      const second = SECOND_SOURCE.get(pairId(pair));
+      const fired: AnyMode[] = [];
       for (const mode of MODES) {
         const run = runPair(pair, mode);
         if (run.r.fired === 0) {
@@ -313,12 +489,53 @@ describe("READ-1 on note.js: every derived pair, failed, never reports a note (p
           continue;
         }
         fired.push(mode);
-        assertReadRule(run);
+        if (second === undefined) assertReadRule(run);
+        else assertSameAsUnfaulted(run, mode);
+      }
+      if (second !== undefined) {
+        for (const mode of PROOF_MODES) {
+          const run = runPair(pair, mode);
+          if (run.r.fired === 0) continue;
+          fired.push(mode);
+          assertSameAsUnfaulted(run, mode);
+        }
+        expect(fired, `${pairId(pair)} reached other modes than its row names`).toEqual(second.modes);
+        return;
       }
       if (UNREACHED.has(pairId(pair))) expect(fired, `${pairId(pair)} is listed as unreached, and these modes reach it`).toEqual([]);
       else expect(fired.length, `no mode reached ${pairId(pair)}`).toBeGreaterThan(0);
     });
   }
+});
+
+describe("READ-1 on note.js: the comparison behind SECOND_SOURCE can fail (plan 41-12, ruling of 2026-11-05)", () => {
+  const GOVERNED_MODES = ["governed", "governed-home", "governed-ambient", "governed-delivered"] as const;
+
+  it("two unfaulted runs of one mode compare equal, so a difference is the fault's", () => {
+    for (const mode of [...MODES, ...PROOF_MODES]) expect(unfaulted(mode), mode).toEqual(unfaulted(mode));
+  });
+
+  it("the dial is in force in every governed mode: the run refuses, and the same finding with no dial is noted", () => {
+    expect(control("no-dial").status, "PREMISE: with no dial the finding is noted").toBe(0);
+    expect(control("no-dial").stdout).toMatch(SUCCESS_LINE);
+    for (const mode of GOVERNED_MODES) {
+      expect(control(mode).status, mode).toBe(1);
+      expect(control(mode).stdout.startsWith("refused t1: "), mode).toBe(true);
+      expect(control(mode), `${mode} compares different from a run with no dial`).not.toEqual(control("no-dial"));
+    }
+  });
+
+  it("a note with other words compares different, so the masks hide only the id, the time and the seal", () => {
+    expect(control("other-body").status).toBe(0);
+    expect(control("other-body")).not.toEqual(control("observation"));
+  });
+
+  it("the ledger line is in what a faulted run is compared to", () => {
+    const line = (mode: AnyMode): string | undefined => control(mode).tree.find(([rel]) => rel.endsWith("admissions.jsonl"))?.[1];
+    expect(line("retained")).toContain('"id":"<id>"');
+    expect(line("ledger-present")).toContain('{"id":"earlier"}\n{"id":"<id>"');
+    expect(control("ledger-directory").status, "PREMISE: a directory at the ledger is refused").toBe(1);
+  });
 });
 
 describe("READ-1 on note.js: the reads that have a named consequence (plan 41-12, RUN-02)", () => {
@@ -330,6 +547,26 @@ describe("READ-1 on note.js: the reads that have a named consequence (plan 41-12
     expect(found.length, `PREMISE: ${enclosing} has a derived pair${scope === undefined ? "" : ` under ${scope}`}`).toBeGreaterThan(0);
     return found;
   }
+
+  it("a failed stat of a FIFO at the ledger is answered by the open: no wait, exit 1, and no note is written", () => {
+    const probe = mkTmp("grugops-note-read-fifo-");
+    const skipped = stageShapeOrSkip("FIFO", join(probe, "fifo"), "scripts/runnable-ref/note-read-sites.test.ts: the audit ledger (plan 41-12)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the ledger-directory mode of the row above"));
+      return;
+    }
+    const stage = (root: string): void => {
+      mkdirSync(dirname(ledgerPath(root)));
+      expect(stageShapeOrSkip("FIFO", ledgerPath(root), "scripts/runnable-ref/note-read-sites.test.ts: the audit ledger (plan 41-12)")).toBeNull();
+    };
+    const [pair] = PAIRS.filter((p) => pairId(p) === "appendRegularFileLine:statSync#0");
+    expect(pair, "PREMISE: the ledger's stat is a derived pair").toBeDefined();
+    const run = runPair(pair as DerivedPair, "retained", stage);
+    expect(run.r.fired, `PREMISE: the fault fired: ${run.all}`).toBe(1);
+    expect(run.r.status, run.all).toBe(1);
+    expect(withoutReason(run.outcome, run.all)).toEqual(withoutReason(unfaulted("retained", stage), "the FIFO control"));
+    expect(noteKeys(run.after), run.all).toEqual(noteKeys(run.before));
+  });
 
   it("a failed read of the config refuses the note: exit 1, and no note is written", () => {
     for (const pair of pairsOf("readRegularFileOrNull", "readGovernanceConfigCandidate")) {
