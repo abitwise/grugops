@@ -8269,17 +8269,24 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(er)).not.toMatch(/PASS {2}role corpus/);
   }, 120_000);
 
-  it("corpus total: every file grown by one fraction below +12% stays under its per-file FAIL while the total WARNs (PLAIN-04, D-04)", () => {
+  // Plan 41-06, 2026-11-05: Phase 41 grew orchestrator.md and software-engineer.md with ROLE_CEILINGS
+  // held, so each now has about 6% to its per-file FAIL rather than the +12% those ceilings were set
+  // at. No one common fraction reaches 64,001 B under both, and 0.08 no longer fits. The two cases
+  // below keep their claim, that the total goes off while no role fails on its own: every role grows
+  // by 0.05 and the protocol, which only the total holds, takes the remainder.
+  const ROLE_GROWTH = 0.05;
+
+  it("corpus total: every role under its per-file FAIL and the protocol (total-only) carrying the rest WARNs (PLAIN-04, D-04)", () => {
     const m = consistentMirror();
     const sizes = corpusBytesIn(m);
-    const f = (CORPUS_WARN + 1) / sumOf(sizes) - 1;
-    // The case's own precondition: one fraction below the +12% per-file headroom must reach WARN.
-    expect(f).toBeGreaterThan(0);
-    expect(f).toBeLessThan(0.12);
-    for (const [name, b] of Object.entries(sizes)) padCorpusFile(m, name, Math.ceil(b * f));
+    for (const [name, b] of Object.entries(sizes)) {
+      if (name !== PROTOCOL_NAME) padCorpusFile(m, name, Math.floor(b * ROLE_GROWTH));
+    }
+    const rest = CORPUS_WARN + 1 - sumOf(corpusBytesIn(m));
+    expect(rest).toBeGreaterThanOrEqual(PAD_OVERHEAD);
+    padCorpusFile(m, PROTOCOL_NAME, rest);
     const total = sumOf(corpusBytesIn(m));
-    expect(total).toBeGreaterThan(CORPUS_WARN);
-    expect(total).toBeLessThanOrEqual(CORPUS_FAIL);
+    expect(total).toBe(CORPUS_WARN + 1);
     const r = runIn(m);
     expect(guardSection(out(r), "guard_role_size").some((l) => l.startsWith("  FAIL"))).toBe(false);
     expect(corpusVerdict(corpusSection(r))).toMatchObject({ level: "WARN", total });
@@ -8293,11 +8300,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // protocol, which has no per-file ceiling and is held only by this total, takes the remainder.
     const m = consistentMirror();
     const sizes = corpusBytesIn(m);
-    // 0.08 sits below the +12% per-file headroom with margin for the mirror's role normalization.
-    const g = 0.08;
-    expect(g).toBeLessThan(0.12);
     for (const [name, b] of Object.entries(sizes)) {
-      if (name !== PROTOCOL_NAME) padCorpusFile(m, name, Math.floor(b * g));
+      if (name !== PROTOCOL_NAME) padCorpusFile(m, name, Math.floor(b * ROLE_GROWTH));
     }
     const rest = CORPUS_FAIL + 1 - sumOf(corpusBytesIn(m));
     expect(rest).toBeGreaterThanOrEqual(PAD_OVERHEAD);
