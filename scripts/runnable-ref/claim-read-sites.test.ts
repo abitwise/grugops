@@ -83,6 +83,9 @@ const ALLOWED_STATUS: Record<Mode, readonly number[]> = {
 /** A success line of any command. `not-done` opens with another word, so it is no success line. */
 const SUCCESS_LINE = /^(claimed|done|free|swept|rendered) /m;
 
+/** A sentence that says a change happened for certain; a message says this only over a tree that changed. */
+const CERTAIN_CHANGE = /stays claimed|moved to done\/ and|and that stands|directories were created/;
+
 /** What stderr says when a queue change stands, for each mode that makes one. */
 const CHANGE_NAMED: Record<Mode, RegExp | null> = {
   claim: /t1 was claimed by grugops-qe-e2e and stays claimed\./,
@@ -267,7 +270,10 @@ function assertReadRule(mode: Mode, run: PairRun): void {
     expect(r.stdout.startsWith("not-done t1: "), all).toBe(true);
   }
   const changed = JSON.stringify([...after]) !== JSON.stringify([...before]);
-  if (!changed) return;
+  if (!changed) {
+    expect(CERTAIN_CHANGE.test(r.stderr), `the tree is as it was, and the message says a change stands: ${all}`).toBe(false);
+    return;
+  }
   expect(r.stderr, `the tree changed, and the message denies it: ${all}`).not.toContain("The queue was not changed.");
   const named = CHANGE_NAMED[mode];
   expect(named, `the tree changed in a mode that never changes it: ${all}`).not.toBeNull();
@@ -280,7 +286,8 @@ describe("READ-1 on claim.js: the derivation (plan 41-05, T-41-22)", () => {
     expect(deriveReadSites(HOST_JS).length).toBe(CLAIM_READ_SITES);
   });
 
-  it("the unreached count is printed, and it is the pinned size of UNREACHED", () => {
+  it("the reached and unreached counts are printed, and the unreached count is the pinned size of UNREACHED", () => {
+    console.log(`claim.js: ${PAIRS.length - UNREACHED.size} pairs reached, ${UNREACHED.size} unreached`);
     console.log(`UNREACHED (${UNREACHED.size}): ${[...UNREACHED].map(([k, v]) => `${k}: ${v}`).join("; ") || "none"}`);
     expect(UNREACHED.size).toBe(UNREACHED_SIZE);
   });

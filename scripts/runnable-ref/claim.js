@@ -946,8 +946,10 @@ export function normalizeKind(raw) {
     return (raw ?? "").trim();
 }
 // </runnable-embeds>
-/** The queue change that stands, once one was made; read by the unexpected-throw handler below. */
+/** The queue change that stands, once one was made; read by the two messages below. */
 let queueChange = "";
+/** True once this run created a queue directory: no task moved, but the tree is not what it was. */
+let createdQueueDirs = false;
 // EXIT-1 (plan 37-20): a throw that escapes every inner catch is could-not-run, never the outcome code. Registered
 // before argv is read, and every binding the handler reads is declared above it.
 process.on("uncaughtException", (e) => stoppedUnexpectedly(e));
@@ -957,9 +959,16 @@ process.on("uncaughtException", (e) => stoppedUnexpectedly(e));
  */
 function stoppedUnexpectedly(e) {
     const message = e instanceof Error ? e.message : String(e);
-    const stands = queueChange === "" ? "" : ` ${queueChange}`;
-    process.stderr.write(`Error: the queue tool stopped unexpectedly (${printable(message)}).${printable(stands)} The command did not finish.\n`);
+    const stands = whatStands();
+    process.stderr.write(`Error: the queue tool stopped unexpectedly (${printable(message)}).${stands === "" ? "" : ` ${printable(stands)}`} ` +
+        "The command did not finish.\n");
     process.exit(2);
+}
+/** What this run left behind, in one sentence, or the empty string when it left nothing. */
+function whatStands() {
+    if (queueChange !== "")
+        return queueChange;
+    return createdQueueDirs ? "Empty queue directories were created, and no task moved." : "";
 }
 /** One value made safe to print: the embedded rule removes every C0, C1 and DEL code point. */
 function printable(value) {
@@ -967,7 +976,8 @@ function printable(value) {
 }
 /** The command could not run: one sanitized message on stderr, nothing on stdout, exit 2. Never a pass. */
 function couldNotRun(message) {
-    process.stderr.write(`Error: ${printable(message)} The queue was not changed.\n`);
+    const stands = whatStands();
+    process.stderr.write(`Error: ${printable(message)} ${stands === "" ? "The queue was not changed." : printable(stands)}\n`);
     process.exit(2);
 }
 /** The errno code of a thrown filesystem error, for a message. */
@@ -1055,20 +1065,24 @@ const queueRoot = nodePath.join(root, QUEUE_REL);
 /**
  * Makes sure the queue directory and its three stages are real directories. The installer seeds no queue, and claimPending
  * needs the claimed/ parent. Each is created only on an `absent` answer, and asked again afterwards, so a directory another
- * claimant created first (EEXIST) is judged, not assumed.
+ * claimant created first (EEXIST) is judged, not assumed. The answer that is judged is the last one asked: a failed first
+ * ask is refused here, because a second ask that happened to pass would turn a failed read into a pass (READ-1).
  */
 function ensureQueueDirs() {
     for (const rel of [QUEUE_REL, QUEUE_PENDING_REL, QUEUE_CLAIMED_REL, QUEUE_DONE_REL]) {
-        if (rootChainPresence(root, rel, "directory").kind === "absent") {
+        let presence = rootChainPresence(root, rel, "directory");
+        if (presence.kind === "absent") {
             try {
                 nodeFs.mkdirSync(nodePath.join(root, rel));
+                createdQueueDirs = true;
             }
             catch (e) {
                 if (codeOf(e) !== "EEXIST")
                     couldNotRun(`${rel} could not be created (${codeOf(e)}).`);
             }
+            presence = rootChainPresence(root, rel, "directory");
         }
-        const problem = directoryProblem(rootChainPresence(root, rel, "directory"));
+        const problem = directoryProblem(presence);
         if (problem !== null)
             couldNotRun(`${rel} cannot be used: ${problem}.`);
     }
@@ -1227,8 +1241,10 @@ function runDone(task) {
     ensureQueueDirs();
     queueChange = `${task} may already have moved to done/; run done again to finish.`;
     const outcome = completeTask(queueRoot, task);
-    if (outcome.kind === "refused")
+    if (outcome.kind === "refused") {
+        queueChange = ""; // completeTask refuses only before it moves anything
         couldNotRun(`${outcome.reason}.`);
+    }
     renderAfter(`${task} moved to done/ and its claim was released.`);
     process.stdout.write(`done ${printable(task)}\n`);
 }
