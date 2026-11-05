@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
-status: executing
-stopped_at: Completed 41-05-PLAN.md
-last_updated: "2026-11-05T02:01:59.097Z"
+status: verifying
+stopped_at: Completed 41-06-PLAN.md
+last_updated: "2026-11-05T03:30:32.491Z"
 last_activity: 2026-11-04
 last_activity_desc: Phase 41 execution started
-state_head: 7918e2d1c6dd3488e6f9bd06cf66dc21d22753df
+state_head: 8c006127ecd6a52017eec623f070ec599c4accdd
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 119
-  completed_plans: 118
+  completed_plans: 119
   percent: 67
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-04 — Phase 41 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -836,6 +836,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P03 | 47 min | 3 tasks | 27 files |
 | Phase 41 P04 | 37 min | 3 tasks | 9 files |
 | Phase 41 P05 | 40 min | 3 tasks | 6 files |
+| Phase 41 P06 | 59 min | 3 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -2318,6 +2319,8 @@ Recent decisions affecting current work:
 - [Phase 41]: readQueueConfig reuses recordTextOrNull, so a FIFO, a link or a directory at the config path is refused before any open
 - [Phase 41]: sweep reads the config first and refuses a symbolic link under claimed/ before anything moves
 - [Phase 41]: The claimPending write-failure bug stays deferred: it needs a change to the generated region, which plan 41-05 holds unchanged
+- [Phase 41]: orchestrator.md keeps a ## Reads bullet naming _role-switch-protocol.md and ends at 6,176 B, not 6,087 B: the removed responsibility 7 was the role's only reference, and the validator requires one
+- [Phase 41]: The two corpus-total cases grow every role by 0.05 and let the protocol take the rest, because ROLE_CEILINGS is held and two roles now have about 6% to their per-file FAIL
 
 ### Pending Todos
 
@@ -2658,8 +2661,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-05T02:01:57.868Z
-Stopped at: Completed 41-05-PLAN.md
+Last session: 2026-11-05T03:30:31.262Z
+Stopped at: Completed 41-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
