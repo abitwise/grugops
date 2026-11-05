@@ -1,4 +1,4 @@
-// claim.ts — the host queue tool (phase 41, plan 41-03, RUN-01, RUN-05, D-01, D-02, D-08, D-13).
+// claim.ts — the host queue tool (phase 41, plans 41-03 and 41-05, RUN-01, RUN-02, RUN-05, D-01, D-02, D-08, D-11, D-13).
 //
 // WHAT IT IS. A kit-shipped runnable in the shape of state-roll.ts: authored here, compiled to a committed claim.js,
 // installed to tools/grugops/claim.js and run on a host with only Node present. It is the one program that moves a
@@ -6,19 +6,24 @@
 //   - `claim TASK --by ADAPTER [--level LEVEL]` takes pending/TASK.md into claimed/TASK/ and writes the claim record.
 //   - `done TASK` moves the subtask to done/ and releases claimed/TASK/, once a sealed note exists since the claim.
 //   - `now-running` renders .grugops/queue/now-running.md, the in-flight log, from claimed/.
+//   - `sweep` returns each stale claim to pending/ and releases each claim whose subtask already sits in done/. It reads
+//     queue.stale_ttl_minutes, and Workflow 17 runs it at session start only (D-11).
+//   - `free` prints queue.wip_limit minus the claimed/ count read from disk, the number a refill trusts. It writes nothing.
 // A command that changes the queue renders the log before it reports, so the log cannot go stale between steps (D-02).
 // It moves queue records and nothing else: it runs no git, pushes, merges or deploys nothing, and writes nowhere
 // outside .grugops/queue/. It reads .grugops/context/ for the note check and never writes there.
 //
 // THE D-12 CONTRACT (D-08).
 //   exit 0 → the command did its work; stdout holds one line (`claimed TASK by ADAPTER`, `done TASK`,
-//            `rendered .grugops/queue/now-running.md`).
+//            `rendered .grugops/queue/now-running.md`, `free N`), or for `sweep` the line `swept N`, then one
+//            `reclaimed TASK` or `released TASK (already done)` line each.
 //   exit 1 → an outcome to act on, never an error: stdout holds one line (`lost TASK`, or `not-done TASK: ...`, which
 //            leaves the task in claimed/).
 //   exit 2 → could not run or refused: a bad argument, a root with no .grugops directory, a symbolic link or a
 //            non-directory on the way to the queue, a task name outside the allowlist, a refused owner, a level outside
 //            the closed set, no pending subtask, a task already in done/, a task with no claim directory, a tampered
-//            claim record, a bad `ref:` line, notes that cannot be read. Exit 2 prints nothing on stdout and one
+//            claim record, a bad `ref:` line, notes that cannot be read, a config path that is not a regular file, a
+//            claimed/ that cannot be read. Exit 2 prints nothing on stdout and one
 //            `Error: ` line on stderr. An unexpected error is exit 2 too, and never surfaces as Node's own exit 1: that
 //            line names a queue change that stands, so a failed render never denies a claim or a finish that was made.
 //
@@ -27,6 +32,10 @@
 // check is the embedded note walk's, so it has one owner. A hand-written note does not count, on any host: the
 // `not-done` line names the unsealed notes it found, so a host with no sealed-note writer sees the gap and never a
 // silent pass. No flag and no environment variable skips this check.
+//
+// THE NUMBER IS EXACT OR REFUSED (RUN-02). `free` is what stops an over-spawn, so a read that fails is exit 2 and never a
+// number. A missing config, a missing key or a malformed value is not a failed read: it falls back to the documented
+// default, and the line says so.
 //
 // THE ROOT IS A BOUNDARY. The root is the current directory, or `--root DIR`, resolved once with realpath. Unlike
 // state-roll's root it is not positional, because the task is. A root with no .grugops directory is exit 2, so a wrong
@@ -966,16 +975,23 @@ function codeOf(e) {
     return e.code ?? "unknown error";
 }
 const USAGE = "Usage: node claim.js claim <task> --by <adapter> [--level <level>] [--root <dir>] | " +
-    "node claim.js done <task> [--root <dir>] | node claim.js now-running [--root <dir>]";
+    "node claim.js done <task> [--root <dir>] | node claim.js now-running [--root <dir>] | " +
+    "node claim.js sweep [--root <dir>] | node claim.js free [--root <dir>]";
+/** The config file under .grugops/. install/state-layout.ts has no constant for it, so it is typed here, once. */
+const CONFIG_NAME = "factory.config.json";
 /** The largest queue record this program reads, in bytes: a reader ceiling, as a claim record is a few lines. */
 const RECORD_CEILING_BYTES = 1024 * 1024;
 /** How many unsealed notes a `not-done` line names before it says how many more there are. */
 const MAX_NAMED_NOTES = 10;
+/** One minute, for the stale TTL, which the config gives in minutes. */
+const MINUTE_MS = 60_000;
 /** What each command takes on the command line. */
 const COMMANDS = new Map([
     ["claim", { task: true, flags: ["--by", "--level", "--root"] }],
     ["done", { task: true, flags: ["--root"] }],
     ["now-running", { task: false, flags: ["--root"] }],
+    ["sweep", { task: false, flags: ["--root"] }],
+    ["free", { task: false, flags: ["--root"] }],
 ]);
 const args = process.argv.slice(2);
 const command = args[0];
@@ -1110,6 +1126,13 @@ function recordTextOrNull(rel) {
     return text;
 }
 /**
+ * The `queue` dial. An absent config is the documented defaults, with the notes that say so. recordTextOrNull refuses
+ * every other position before it opens anything, so a FIFO here is exit 2 and never a hang (T-41-19).
+ */
+function readQueueConfig() {
+    return parseQueueConfig(recordTextOrNull(`${GRUGOPS_DIR_REL}/${CONFIG_NAME}`));
+}
+/**
  * The notes of `.grugops/context/<folder>/`, read through the embedded walk, so the seal check has one owner. An absent
  * folder is a folder with no notes. Anything else that stops the read is exit 2: a link, a path outside the root, or a
  * throw from the walk never reads as "no notes".
@@ -1204,9 +1227,61 @@ function runNowRunning() {
     renderNowRunning(queueRoot);
     process.stdout.write(`rendered ${QUEUE_REL}/now-running.md\n`);
 }
+/**
+ * `sweep`: the rules are all sweepQueue's. The config is read first, so a config that cannot be read stops this command
+ * before anything moves. sweepQueue moves tasks one at a time and reports only at the end, so a throw from it can leave
+ * moves behind that this program cannot list; `queueChange` says so before the call, and never that nothing changed.
+ */
+function runSweep() {
+    const config = readQueueConfig();
+    ensureQueueDirs();
+    queueChange = "The sweep may have moved tasks before it stopped; run sweep again.";
+    const swept = sweepQueue(queueRoot, config.stale_ttl_minutes * MINUTE_MS);
+    const reclaimed = [...swept.reclaimed].sort();
+    const released = [...swept.released].sort();
+    const lines = [
+        `swept ${reclaimed.length}`,
+        ...reclaimed.map((task) => `reclaimed ${task}`),
+        ...released.map((task) => `released ${task} (already done)`),
+    ];
+    queueChange = lines.length === 1 ? "" : `${lines.slice(1).join(", ")}, and that stands.`;
+    renderNowRunning(queueRoot);
+    for (const note of config.notes)
+        if (note.startsWith("queue.stale_ttl_minutes "))
+            lines.push(`(${note})`);
+    process.stdout.write(lines.map((line) => `${printable(line)}\n`).join(""));
+}
+/** `free`: the claimed/ count comes from disk on every call, and nothing is written. */
+function runFree() {
+    const config = readQueueConfig();
+    const claimedDir = rootChainPresence(root, QUEUE_CLAIMED_REL, "directory");
+    let claimed = 0;
+    if (claimedDir.kind !== "absent") {
+        const problem = directoryProblem(claimedDir);
+        if (problem !== null)
+            couldNotRun(`${QUEUE_CLAIMED_REL} cannot be used: ${problem}.`);
+        try {
+            claimed = claimedCount(queueRoot);
+        }
+        catch (e) {
+            couldNotRun(`${QUEUE_CLAIMED_REL} could not be read (${codeOf(e)}).`);
+        }
+    }
+    let line = `free ${freeSlots(config.wip_limit, claimed)}`;
+    if (claimed > config.wip_limit)
+        line += ` (${claimed} claimed, wip_limit ${config.wip_limit})`;
+    for (const note of config.notes)
+        if (note.startsWith("queue.wip_limit "))
+            line += ` (${note})`;
+    process.stdout.write(`${printable(line)}\n`);
+}
 if (command === "claim")
     runClaim(positional[0]);
 else if (command === "done")
     runDone(positional[0]);
+else if (command === "sweep")
+    runSweep();
+else if (command === "free")
+    runFree();
 else
     runNowRunning();
