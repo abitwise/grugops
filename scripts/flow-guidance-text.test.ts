@@ -6,6 +6,9 @@
 // step in agent-factory/workflows/16-context-read-write.md that tells a spawned role its last act, and
 // the `queue` rows of agent-factory/config/factory.config.md.
 //
+// Plan 41-06 points the Orchestrator at that workflow with one line, states the RUN-06 limit in its
+// `## Hard limits`, and moves the claim out of the role-switch step (D-04, D-05, D-12, D-13, D-32).
+//
 // No hook enforces this guidance on any host. The words are the control, so each case reads the
 // shipped file and asserts a stated phrase, an absence or an ordering.
 
@@ -17,6 +20,8 @@ const ROOT = join(import.meta.dirname, "..");
 const WF17 = readFileSync(join(ROOT, "agent-factory/workflows/17-task-claim.md"), "utf8");
 const WF16 = readFileSync(join(ROOT, "agent-factory/workflows/16-context-read-write.md"), "utf8");
 const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
+const ORCHESTRATOR = readFileSync(join(ROOT, "agent-factory/roles/orchestrator.md"), "utf8");
+const ROLE_SWITCH = readFileSync(join(ROOT, "agent-factory/roles/_role-switch-protocol.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -406,5 +411,95 @@ describe("factory.config.md agrees with Workflow 17 (plan 41-04; D-01, D-04, D-1
 
   it("says what `free` prints against the width", () => {
     expect(row("wip_limit")).toContain("`node tools/grugops/claim.js free` prints this limit minus the `claimed/` count read from disk.");
+  });
+});
+
+describe("orchestrator.md points at Workflow 17 and states the limit (plan 41-06; RUN-04, RUN-06, D-12, D-13, D-32)", () => {
+  /** The numbered items of `## Responsibilities`, before its first `###` block. */
+  const items = (): string[] =>
+    section(ORCHESTRATOR, "Responsibilities")
+      .split("\n")
+      .filter((l) => /^\d+\. /.test(l));
+
+  it("numbers the responsibilities 1 to 10 with no gap", () => {
+    expect(items().map((l) => Number(l.split(".")[0]))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+
+  it("holds the pointer line as item 6, word for word", () => {
+    expect(items()[5]).toBe("6. Start role agents, claim, refill, sweep and run session compaction per `agent-factory/workflows/17-task-claim.md`.");
+  });
+
+  it("no longer holds the flow text the pointer replaced", () => {
+    for (const gone of ["spawn role agents up to", "drain the same queue", "Have each role claim", "Sweep claims older"]) {
+      expect(ORCHESTRATOR, gone).not.toContain(gone);
+    }
+  });
+
+  it("keeps the items that are not flow text", () => {
+    for (const kept of [
+      "Run the gate before a ticket advances.",
+      "Require published notes and trace refs from each agent before its ticket advances.",
+      "Check each pull against the Definition of Ready.",
+      "Give one next action, not a menu.",
+    ]) {
+      expect(items().some((l) => l.endsWith(kept)), kept).toBe(true);
+    }
+  });
+
+  it("holds the D-13 and D-32 sentences in `## Hard limits`, word for word", () => {
+    const limits = section(ORCHESTRATOR, "Hard limits");
+    expect(limits).toContain(
+      "The Orchestrator claims a queue task only at dispatch and only in the name of the adapter it starts (`--by <adapter>`). " +
+        "It never claims with itself as owner and never does a task's work. " +
+        "Where the `Agent` tool does not exist, it does the work only after a role switch.",
+    );
+  });
+
+  it("sets the limit directly after the paragraph that names the platform limits, and keeps the paragraphs around it", () => {
+    const paragraphs = section(ORCHESTRATOR, "Hard limits")
+      .split("\n\n")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+    const at = paragraphs.findIndex((p) => p.startsWith("The Orchestrator claims a queue task only at dispatch"));
+    expect(at).toBe(2);
+    expect(paragraphs[0]).toBe(
+      "Never merge to a protected branch. Never deploy to production; merge and deploy stay with humans. " +
+        "Never pull past a WIP limit or exceed the queue width without a written reason. " +
+        "Never route around a stop condition because a request is urgent; urgency is when the gate matters most.",
+    );
+    expect(paragraphs[1]).toBe(
+      "You are the only role that may spawn, and you hold `Agent(<allowlist>)`. " +
+        "Never run more role agents at once than `queue.wip_limit`. Honor `queue.claim_cap` per delegation. " +
+        "Never relay data between agents; the shared verified context is the only channel. " +
+        "The grant holds because you run as the main thread. Workflow 17 holds the platform's depth and width limits.",
+    );
+    expect(paragraphs[3]).toBe("Never fake a gate result, a published note or a board move. Mark anything unverified `UNKNOWN - verify`.");
+    expect(paragraphs[4]).toBe("Follow the 12 coding rules in `AGENTS.md`.");
+  });
+
+  it("stays under its 6,195 B WARN", () => {
+    expect(Buffer.byteLength(ORCHESTRATOR, "utf8")).toBeLessThan(6195);
+  });
+});
+
+describe("the role-switch step agrees with Workflow 17 (plan 41-06; D-04, D-05)", () => {
+  /** Step 4 of `## The 5 steps`, with its indented lines. */
+  const stepFour = (): string => {
+    const body = section(ROLE_SWITCH, "The 5 steps");
+    return body.slice(body.indexOf("4. Do the one job"), body.indexOf("5. Print"));
+  };
+
+  it("says the Orchestrator already claimed, in the role's adapter name", () => {
+    expect(stepFour()).toContain("The Orchestrator already claimed queued work per Workflow 17");
+    expect(stepFour()).toContain("in this role's adapter name.");
+  });
+
+  it("gives the role the `done` command", () => {
+    expect(stepFour()).toContain("Run `node tools/grugops/claim.js done <task>` once its notes are published.");
+  });
+
+  it("no longer tells the role to claim", () => {
+    expect(stepFour()).not.toContain("claim the subtask");
+    expect(stepFour()).not.toContain("Mark the subtask done");
   });
 });
