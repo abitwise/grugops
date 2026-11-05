@@ -49,7 +49,7 @@
   **What:** the file passes 77 of 77 on the default `TMPDIR` and fails 1 of 77 with `TMPDIR` at `~/.cache/grugops-gate-tmp/tmp`. The failing check is the scoped `Edit(//ABS/**)` tool grant row. The wave gates and the plan runs after 41-02 all used that override, so their 22 failures are the 21 known baseline reds in `41-VALIDATION.md` plus this one.
   **Why deferred:** the override was a workaround for the `/tmp` quota, and the test passes without it. The test's sensitivity to the location of `TMPDIR` was not investigated.
 - The embedded root ladder can lose the governance dial, and `note.js` then admits what the dial refuses (found by plan 41-12)
-  status: open
+  status: closed by plan 41-13
   **What:** under `context.human_admission: gate`, a `finding` by `security-nfr` stamped `human:eve` is refused. It ends `noted`, exit 0, in three measured cases: an EIO at `projectRootFromWorkingDirectory:existsSync#0 via trustedRepoRoot#0`, an EIO at `directoryIdentity:statSync#0 via namedHomeDirectory#0`, and with no fault at all under `HOME=/nonexistent`, because `homeBoundary()` answers null, the walk does not run and the dial falls through to the kit's own base. `GRUGOPS_PROJECT_DIR` set to a directory with no config does the same. The note.ts header says no environment variable of this program skips admission.
   **Why deferred:** the ladder sits in `scripts/context-io.ts`, and plan 41-12 may not change that file or the generated region. It is the reason READ-1 cannot go green as written, so the decision is at the plan 41-12 checkpoint.
   **Ruling (human, 2026-11-05, at the plan 41-12 checkpoint):** the 21 red READ-1 rows split in two, and Task 2 ran with the tracer still red.
@@ -59,4 +59,13 @@
   - `projectRootFromWorkingDirectory:existsSync#0 via trustedRepoRoot#0`, `via governanceRootOf#0`
   - `projectRootFromWorkingDirectory:existsSync#1 via trustedRepoRoot#0`, `via governanceRootOf#0`
   - `hostDeliveredRoot:statSync#0`, `hostDeliveredRoot:existsSync#0`
-  **Still open:** CR-01, READ-1 and the fail-open are not closed. The fail-open was reproduced with no fault at all: under `HOME=/nonexistent`, a real `note.js` copy notes a `security-nfr` finding stamped `human:eve` that `human_admission: all` refuses.
+  **Closed:** plan 41-13 made the ladder fail closed. Of the 12 Group B rows, 7 pass under their own names: the six `directoryIdentity:statSync#0` rows and `hostDeliveredRoot:statSync#0`. The other 5 left the derived set, because a boolean probe cannot report a failed read. The four `projectRootFromWorkingDirectory:existsSync` rows became `entryPresence:{lstatSync,statSync,realpathSync}#0 via projectRootFromWorkingDirectory#0` and `via projectRootFromWorkingDirectory#1`. `hostDeliveredRoot:existsSync#0` became the same three sites `via hostDeliveredRoot#0`. All 9 pairs pass THE RULE, with no skip, no `.fails` and no `.todo`.
+  **Still open:** CR-01 stays open for the live run of spawn, publish and `done`, which a named human reads. READ-1 and the fail-open are closed by plan 41-13. Under `HOME=/nonexistent`, a real `note.js` copy now refuses the `security-nfr` finding stamped `human:eve`, and it refuses every other note until a human repairs `HOME`.
+- The hook's catch tells a reader to export the approval variable where a root cannot be named (found by plan 41-13, measured by plan 41-14)
+  status: open
+  **What:** the `catch` around `trustedRepoRoot()` in `hooks/admission-guard.ts` says a human can export `GRUGOPS_ADMISSION_APPROVED_BY` to authorize the admission. An undetermined root throws at that same call on the next try, so the export does not help. The hook still denies, so the dial holds and only the advice is wrong.
+  **Why deferred:** the hook is outside plan 41-14, and a change there moves the decider hash a named human reviews. The fix is one sentence that says the root could not be named.
+- The header of `scripts/context-io.ts` still lists `admit <task> <noteFile> [root]` (found by plan 41-14)
+  status: open
+  **What:** the `admit` verb takes exactly 2 positional arguments and refuses a third, so `[root]` in the CLI comment near the top of the file is stale. Plan 30-11 made it stale, and no plan of phase 41 caused it.
+  **Why deferred:** it is outside this gap, and a comment misleads no running program.

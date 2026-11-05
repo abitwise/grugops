@@ -127,6 +127,15 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   uninstall, and never written over a file you already have at that path. A repository installed
   before this fix gets the file by running install again.
 
+### Security
+
+- The governance root read by `tools/grugops/note.js` and the admission tools now fails closed. A
+  failed read or a home directory that cannot be determined refuses the note, and a project-directory
+  variable at a directory with no configuration no longer drops the repository's `human_admission`
+  dial. With `HOME` set to a path that does not exist, every note is refused until it is repaired.
+- `tools/grugops/note.js --by` refuses every spelling the severity check reads as an adapter name,
+  such as one that carries a zero-width character or a full-width letter. Pass the role file's name.
+
 ### Deprecated
 
 - The pre-v3 `plans/` state layout. Agents fall back to it with a one-line notice to run

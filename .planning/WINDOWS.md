@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 255
+open_count: 253
 waived_count: 28
-fixed_count: 47
+fixed_count: 49
 total_count: 330
-last_updated: 2026-11-05T14:50:25.486Z
+last_updated: 2026-11-05T18:57:28.889Z
 ---
 
 # Broken Windows Ledger
@@ -341,8 +341,8 @@ last_updated: 2026-11-05T14:50:25.486Z
 | 324 | 41 | unrun-verify | docs/audit/29-style-dispositions/41-06.md |  | Plan 41-06 human-check not run: five rows stay pending a named human read | open |  | 2026-11-05T03:30:24.420Z |  |
 | 325 | 41 | unrun-verify | docs/audit/41-residuals.md |  | Plan 41-06 human-check not run: R-41-01 awaits a human read | open |  | 2026-11-05T03:30:24.508Z |  |
 | 326 | 41 | deviation | agent-factory/roles/orchestrator.md |  | orchestrator.md ends at 6,176 B, not the planned 6,087 B, to keep the validator's protocol reference | open |  | 2026-11-05T03:30:24.589Z |  |
-| 327 | 41 | unmet-truth | scripts/context-io.ts |  | READ-1 Group B: 12 rows in scripts/runnable-ref/note-read-sites.test.ts end noted after a failed read, because the embedded root ladder takes the failed read as absence; assigned to a new gap plan, not yet written | open |  | 2026-11-05T12:56:13.903Z |  |
-| 328 | 41 | unmet-truth | scripts/runnable-ref/note-read-sites.test.ts |  | 12 Group B READ-1 rows stay red by the human ruling of 2026-11-05; a new gap plan owns them, so the 41-11 full-suite truth is not met | open |  | 2026-11-05T14:50:25.305Z |  |
+| 327 | 41 | unmet-truth | scripts/context-io.ts |  | READ-1 Group B: 12 rows in scripts/runnable-ref/note-read-sites.test.ts end noted after a failed read, because the embedded root ladder takes the failed read as absence; assigned to a new gap plan, not yet written | fixed |  | 2026-11-05T12:56:13.903Z | 2026-11-05T18:57:28.801Z |
+| 328 | 41 | unmet-truth | scripts/runnable-ref/note-read-sites.test.ts |  | 12 Group B READ-1 rows stay red by the human ruling of 2026-11-05; a new gap plan owns them, so the 41-11 full-suite truth is not met | fixed |  | 2026-11-05T14:50:25.305Z | 2026-11-05T18:57:28.889Z |
 | 329 | 41 | unrun-verify | .planning/phases/41-orchestrator-flow-guidance/41-11-PLAN.md |  | Live Claude Code run of spawn, publish and done, the evidence CR-01 requires, awaits a named human | open |  | 2026-11-05T14:50:25.416Z |  |
 | 330 | 41 | deviation | docs/audit/41-residuals.md |  | The plan's R-41-06 sentence on a refused high-severity finding was not written, because it is false under a lost dial; R-41-07 names the open dial loss, not accepted | open |  | 2026-11-05T14:50:25.486Z |  |
 
@@ -4417,10 +4417,10 @@ last_updated: 2026-11-05T14:50:25.486Z
     "file": "scripts/context-io.ts",
     "line": null,
     "description": "READ-1 Group B: 12 rows in scripts/runnable-ref/note-read-sites.test.ts end noted after a failed read, because the embedded root ladder takes the failed read as absence; assigned to a new gap plan, not yet written",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-11-05T12:56:13.903Z",
-    "resolved_at": null,
+    "resolved_at": "2026-11-05T18:57:28.801Z",
     "milestone": "v3.0"
   },
   {
@@ -4430,10 +4430,10 @@ last_updated: 2026-11-05T14:50:25.486Z
     "file": "scripts/runnable-ref/note-read-sites.test.ts",
     "line": null,
     "description": "12 Group B READ-1 rows stay red by the human ruling of 2026-11-05; a new gap plan owns them, so the 41-11 full-suite truth is not met",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-11-05T14:50:25.305Z",
-    "resolved_at": null,
+    "resolved_at": "2026-11-05T18:57:28.889Z",
     "milestone": "v3.0"
   },
   {
