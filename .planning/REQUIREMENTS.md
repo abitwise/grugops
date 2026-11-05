@@ -68,7 +68,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 - [ ] **RUN-03**: "Session compaction" guidance (named apart from WF18 note compaction) tells the Orchestrator when to compact using signals it can observe, with a fresh session that re-reads the in-flight log as the fallback on every host
 - [ ] **RUN-04**: The flow guidance lives in Workflow 17 with a one-line pointer in `orchestrator.md`, which stays under its size ceiling; it reads the same on all six hosts, with optional operator tips per host
 - [ ] **RUN-05**: The queue tool (`claim.js`) ships to host repos as a materialized runnable so agents claim and complete tasks with it instead of by hand
-- [ ] **RUN-06**: The Orchestrator starts tiered engineers by adapter name, never forks them and never overrides their model, and never claims a ticket itself
+- [x] **RUN-06**: The Orchestrator starts tiered engineers by adapter name, never forks them and never overrides their model, and never claims a ticket itself
 
 ### Skills (SKILL)
 
@@ -155,7 +155,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RUN-03 | Phase 41 | Pending |
 | RUN-04 | Phase 41 | Pending |
 | RUN-05 | Phase 41 | Gaps Found |
-| RUN-06 | Phase 41 | Pending |
+| RUN-06 | Phase 41 | Complete |
 | SKILL-01 | Phase 42 | Pending |
 | SKILL-02 | Phase 42 | Pending |
 | SKILL-03 | Phase 42 | Pending |
