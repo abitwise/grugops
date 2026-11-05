@@ -39,6 +39,8 @@ A note file is **append-only**: recording a note writes one new file. An existin
 is never mutated or deleted. Correcting or replacing an earlier note is done by writing a new
 note whose `supersedes` field names the earlier note's id (see below) — the earlier file
 stays in `notes/` as part of the permanent audit trail.
+A green gate verdict and a finding the `human_admission` dial gates are the exception:
+only a named human's disposition retires one.
 
 ## Note identity
 
