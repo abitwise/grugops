@@ -2803,6 +2803,8 @@ const RUNNABLES_MIRROR: Array<[string, string]> = [
   ["scripts/runnable-ref/state-roll.js", "tools/grugops/state-roll.js"],
   // The host queue tool (plan 41-03, 2026-11-04, RUN-05), in install.ts's order.
   ["scripts/runnable-ref/claim.js", "tools/grugops/claim.js"],
+  // The host note writer (plan 41-09, 2026-11-05, D-35), in install.ts's order.
+  ["scripts/runnable-ref/note.js", "tools/grugops/note.js"],
   // The MIT license for the programs above, copied beside them (quick task 261018-hs8, Task 4).
   ["LICENSE", "tools/grugops/LICENSE"],
   // The `{"type":"module"}` package file that lets Node load the programs above on a commonjs host (plan 37-40, D-21).
