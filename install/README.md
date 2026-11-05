@@ -28,6 +28,10 @@ That is it. The intelligence lives in the host coding agent; grugops only suppli
 the guardrail, the memory, the board, the proof, and the gates — all readable markdown. No
 runtime, no service, no database.
 
+The floor has no `tools/grugops/` folder. The queue steps of Workflow 17 run
+`tools/grugops/claim.js` and `tools/grugops/note.js`, so work on the queue needs the scripted
+install (§2). Workflow 17 stops and says so when either program is absent.
+
 ---
 
 ## 2. The scripted path — per-tool conveniences
@@ -447,19 +451,23 @@ are written only when that agent is chosen.
   modules whatever your own `package.json` says (npm 11's `npm init -y` writes `"type": "commonjs"`,
   which otherwise stops each program at its first import); like the license, it is recorded, removed
   with the programs, and never written over a file you already have at that path.
-  Four of the programs work on the planning state and the queue:
+  Five of the programs work on the planning state and the queue:
   - `tools/grugops/state-check.js` checks the state budgets and indexes and changes no file
   - `tools/grugops/trace-render.js` renders the per-ticket trace files and the trace index
   - `tools/grugops/state-roll.js` moves older Done rows and dated progress entries into archive files
   - `tools/grugops/claim.js` claims and completes queued tasks and reports free capacity
+  - `tools/grugops/note.js` writes a sealed note into the shared context, through the same writer
+    and admission rules as the kit
 
   Install never overwrites a copy that is already there, so an updated program reaches your
   repository only after you remove the old copy and install again.
-  The four programs are built together from one copy of the state model and carry one
+  A repository installed before a program shipped gets it by installing again.
+  The five programs are built together from one copy of the state model and carry one
   build stamp, so update them together: remove `state-check.js`, `trace-render.js`,
-  `state-roll.js` and `claim.js`, then install again. When the build stamp of `trace-render.js`,
-  `state-roll.js` or `claim.js` differs from the stamp of `state-check.js`, or is missing,
-  state-check reports a `runnable-version-skew` finding that names the program
+  `state-roll.js`, `claim.js` and `note.js`, then install again. When the build stamp of
+  `trace-render.js`, `state-roll.js`, `claim.js` or `note.js` differs from the stamp of
+  `state-check.js`, or is missing, state-check reports a `runnable-version-skew` finding that names
+  the program
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `memory-bank/plans/`, and `memory-bank/`
 - `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is
@@ -1673,6 +1681,11 @@ grugops-owned wiring + the install marker while the shared kit, the seeded state
 Claude Code can also install grugops as a plugin, which gives you the colon-namespaced
 commands (`/grugops:plan`, `/grugops:ticket`, …). The plugin form cannot carry Claude Code
 permission rules, so it adds no ask-rule speed bump; only the scripted installer writes those (§5).
+
+The plugin writes nothing under `tools/grugops/`. Workflow 17 needs `tools/grugops/claim.js` and
+`tools/grugops/note.js`, so run the scripted install (§2) in the repository as well. The two forms
+coexist.
+
 In Claude Code:
 
 ```
