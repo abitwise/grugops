@@ -130,6 +130,13 @@ describe("the kit text's own commands finish a task on host copies (plan 41-11, 
     expect(run(repo, FREE).stdout).toMatch(/^free 3\b/);
   });
 
+  it("a missing program exits 1 with no `lost` line, which step 3 of Workflow 17 reads as a stop (WR-01)", () => {
+    const missing = run(hostRepo(false), argvOf(commandInStep(WF17, 3, "node tools/grugops/claim.js claim")));
+    expect(missing.status, "Node's own exit for a missing module").toBe(1);
+    expect(missing.stdout.split("\n")).not.toContain(`lost ${TASK}`);
+    expect(steps(WF17).find((l) => l.startsWith("3. "))).toContain("or exit 1 without that line, is a genuine failure");
+  });
+
   it("stops on a placeholder it does not know, so a new flag in the text cannot pass unrun", () => {
     expect(() => argvOf("node tools/grugops/note.js add <folder> --new <unknown>")).toThrow("<unknown>");
   });

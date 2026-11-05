@@ -108,9 +108,9 @@ describe("Workflow 17 reads as one command per step (plan 41-04; RUN-05, D-01, D
   it("reads free capacity from disk in step 2 and treats a lost claim as no error in step 3", () => {
     expect(step(WF17, 2)).toContain("never a remembered count of running agents");
     const claim = step(WF17, 3);
-    expect(claim).toContain("Exit 1 prints `lost <task>`");
-    expect(claim).toContain("a lost claim is NOT an error");
-    expect(claim).toContain("Any other exit is a genuine failure");
+    expect(claim).toContain("Exit 1 with the line `lost <task>` on stdout is a lost claim, NOT an error.");
+    expect(claim).toContain("Take the next pending task.");
+    expect(claim).toContain("Any other exit, or exit 1 without that line, is a genuine failure: stop and surface it.");
   });
 
   it("starts a tiered engineer by adapter name in step 4, with no per-call override (D-13)", () => {
@@ -127,6 +127,24 @@ describe("Workflow 17 reads as one command per step (plan 41-04; RUN-05, D-01, D
     expect(done).toContain("no sealed note since the claim's `at`");
     expect(done).toContain("names any unsealed notes");
     expect(done).toContain("Never move a subtask by hand.");
+  });
+
+  it("stops when either program is absent, at the top of `## Steps` (WR-01)", () => {
+    expect(section(WF17, "Steps")).toContain(
+      "If `tools/grugops/claim.js` or `tools/grugops/note.js` is absent, stop and name the scripted install.",
+    );
+  });
+
+  it("reads exit 1 of `done` as `not-done` only with that line, so a missing module is a stop (WR-01)", () => {
+    const done = step(WF17, 7);
+    expect(done).toContain("Its `not-done <task>:` line names any unsealed notes it found.");
+    expect(done).toContain("Exit 1 without that line is a genuine failure: stop and surface it.");
+  });
+
+  it("says a refill that trusts `free` does not over-spawn, and claims no mechanism inside `claim` (IN-08)", () => {
+    const agents = section(WF17, "Agents involved");
+    expect(agents).toContain("so a refill that trusts `free` does not over-spawn.");
+    expect(WF17).not.toContain("cannot over-spawn");
   });
 
   it("keeps the record's `by` for its three readers, and calls the `--by` refusal a backstop", () => {
@@ -330,14 +348,66 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
     expect(start).toContain("Reclaiming it could hand a slow agent's task to a second agent.");
   });
 
-  it("orders session start as read, sweep, refill", () => {
+  it("orders session start as read, sweep, re-spawn, refill", () => {
     const ordered = section(WF17, "Session start")
       .split("\n")
       .filter((l) => /^\d+\. /.test(l));
-    expect(ordered).toHaveLength(3);
+    expect(ordered).toHaveLength(4);
     expect(ordered[0]).toContain("`now-running.md`");
     expect(ordered[1]).toContain("claim.js sweep");
-    expect(ordered[2]).toContain("`## Keep capacity full`");
+    expect(ordered[2]).toContain("Re-spawn the adapter named in `by`");
+    expect(ordered[3]).toContain("`## Keep capacity full`");
+  });
+
+  /** Step 3 of `## Session start`. */
+  const respawn = (): string => {
+    const line = section(WF17, "Session start")
+      .split("\n")
+      .find((l) => l.startsWith("3. "));
+    expect(line, "no session-start step 3").toBeDefined();
+    return line as string;
+  };
+
+  it("re-spawns the adapter named in `by` for each claim the sweep left, to finish it and run `done` (WR-03)", () => {
+    const step3 = respawn();
+    expect(step3).toContain("Finish each claim still in `now-running.md`.");
+    expect(step3).toContain("No agent runs it now.");
+    expect(step3).toContain("Re-spawn the adapter named in `by`, to finish the task and run `done`.");
+  });
+
+  it("keys the re-spawn on the `Agent` tool, and fills the slot the claim already holds (WR-03, RUN-04)", () => {
+    const step3 = respawn();
+    expect(step3).toContain("Where the `Agent` tool does not exist, switch to that role instead.");
+    expect(step3).toContain("The re-spawn fills the slot the claim already holds.");
+    expect(step3).not.toMatch(HOST_NAME);
+  });
+
+  it("leaves a row with an empty `by` for a later sweep (WR-03, plan 41-10)", () => {
+    expect(respawn()).toContain("Leave a row with an empty `by`: it names no adapter, and a later sweep reclaims it.");
+  });
+
+  it("does nothing when the sweep left no claim, so the refill still runs (RUN-03 empty)", () => {
+    expect(respawn()).toContain("each claim still in `now-running.md`");
+    expect(section(WF17, "Session start")).toContain("Refill per `## Keep capacity full`.");
+  });
+
+  it("says a claim with no usable `at` is judged by its directory's modified time", () => {
+    expect(section(WF17, "Session start")).toContain(
+      "It judges a claim with no usable `at` by its directory's modified time against the same TTL.",
+    );
+  });
+
+  it("says two sessions can sweep or re-spawn each other's claims", () => {
+    const start = section(WF17, "Session start");
+    expect(start).toContain(
+      "Two Orchestrator sessions on one repository can still sweep or re-spawn each other's claims, an accepted residual.",
+    );
+    expect(start).not.toContain("sweep each other's long claims");
+  });
+
+  it("keeps the re-spawn at session start: it runs in no other section (D-11, D-29)", () => {
+    expect(section(WF17, "Session compaction")).not.toContain("Re-spawn the adapter");
+    expect(section(WF17, "Session compaction")).toContain("No sweep runs here");
   });
 
   it("keeps the TTL key named", () => {
