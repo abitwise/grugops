@@ -1,5 +1,5 @@
 // runnable-exit-contract.test.ts — EXIT-1 for the host runnables: the three of phase 37 (plan 37-20, D-12, D-17,
-// 37-GAP-PLANNING-BRIEF.md §1 EXIT-1 and §2.1) and claim.js (plan 41-05, D-08).
+// 37-GAP-PLANNING-BRIEF.md §1 EXIT-1 and §2.1), claim.js (plan 41-05, D-08) and note.js (plan 41-12).
 //
 // THE RULE. Every runnable whose header promises exit 2 for could-not-run maps any throw that escapes every inner
 // catch to exit 2, an empty stdout and one stderr line that starts `Error: ` and ends with the runnable's own
@@ -17,10 +17,14 @@
 //
 // THE MESSAGE NEVER DENIES A WRITE. state-roll names a roll already written and proven, and says `No roll had
 // started.` only when none had; trace-render names the files it wrote and removed before it stopped; claim.js names
-// the claim, the finish or the sweep that stands, and says when the in-flight log was not rendered after it.
+// the claim, the finish or the sweep that stands, and says when the in-flight log was not rendered after it; note.js
+// names the note that stands, and says when its index was not rendered after it.
 //
 // CLAIM.JS TAKES NO POSITIONAL ROOT. Its first positional is a task, so its rows pass `--root`. No loop below hands a
 // positional root to every runnable: the census reads source text only, and each other row names its own program.
+//
+// NOTE.JS TAKES NO ROOT AT ALL. Its store is the working directory's, so its rows run through runNote, with the fixture
+// as the working directory and the ambient root names blank, so the dial comes from the fixture.
 //
 // NOT TESTED HERE, NAMED: a throw inside the handler's own stderr write ends the process with Node's own non-zero
 // code (7), never exit 0; no test forces a failing stderr write portably (backstop truth of plan 37-20).
@@ -61,7 +65,7 @@ import {
 } from "../fault-inject.test-support.js";
 
 const HERE = import.meta.dirname;
-const RUNNABLES = ["trace-render", "state-check", "state-roll", "claim"] as const;
+const RUNNABLES = ["trace-render", "state-check", "state-roll", "claim", "note"] as const;
 type Runnable = (typeof RUNNABLES)[number];
 
 /** Each runnable's could-not-run sentence for an unexpected throw: the last words of its one stderr line. */
@@ -70,6 +74,7 @@ const STOPPED: Record<Runnable, { readonly opens: string; readonly ends: string 
   "state-check": { opens: "Error: the state check stopped unexpectedly (", ends: " The state check did not run.\n" },
   "state-roll": { opens: "Error: the roll stopped unexpectedly (", ends: " The roll did not finish.\n" },
   claim: { opens: "Error: the queue tool stopped unexpectedly (", ends: " The command did not finish.\n" },
+  note: { opens: "Error: the note tool stopped unexpectedly (", ends: " The command did not finish.\n" },
 };
 
 const ctxio: typeof import("../context-io.js") = await import(pathToFileURL(join(HERE, "..", "context-io.js")).href);
@@ -97,6 +102,7 @@ const HOST: Record<Runnable, string> = {
   "state-check": hostCopy("state-check"),
   "state-roll": hostCopy("state-roll"),
   claim: hostCopy("claim"),
+  note: hostCopy("note"),
 };
 
 /** Run a runnable unfaulted (a fixture premise). */
@@ -233,16 +239,43 @@ function staleQueueRepo(): string {
   return root;
 }
 
-/** An EIO at the render's rename, the commit step of the in-flight log, found by its derived key. */
-function renderRenameFault(): Parameters<typeof runFaulted>[2] {
+/** An EIO at the render's rename, the commit step of what `name` renders, found by its derived key. */
+function renderRenameFault(name: Runnable = "claim"): Parameters<typeof runFaulted>[2] {
   const key = "atomicWrite:renameSync#0";
-  const at = deriveFsCallSites(HOST.claim, "renameSync").filter((s) => s.key === key);
-  expect(at.map((s) => s.key), `PREMISE: exactly one derived rename of claim.js is ${key}`).toEqual([key]);
-  const site = { url: scriptUrl(HOST.claim), line: (at[0] as { readonly line: number }).line };
+  const at = deriveFsCallSites(HOST[name], "renameSync").filter((s) => s.key === key);
+  expect(at.map((s) => s.key), `PREMISE: exactly one derived rename of ${name}.js is ${key}`).toEqual([key]);
+  const site = { url: scriptUrl(HOST[name]), line: (at[0] as { readonly line: number }).line };
   return { kind: "fs", fn: "renameSync", site, code: "EIO" };
 }
 
 const NOW_RUNNING_REL = `${QUEUE_REL}/now-running.md`;
+
+/** The ambient root names, blank, so the dial of a note.js row comes from its fixture. */
+const NO_AMBIENT_ROOT = { CLAUDE_PROJECT_DIR: "", GRUGOPS_PROJECT_DIR: "", GRUGOPS_HOST_DELIVERED_ROOT: "" };
+
+const NOTE_ADD = ["add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--ref", "ABC-1", "--body", "x"] as const;
+
+/** A repository note.js can write to: a boundary marker and the state directory. */
+function noteRepo(): string {
+  const root = mkTmp("grugops-exit-contract-note-");
+  mkdirSync(join(root, ".git"));
+  mkdirSync(join(root, GRUGOPS_DIR_REL));
+  return root;
+}
+
+/** `add` run in `root` with `spec` injected: note.js has no root flag, so `root` is the working directory. */
+function runNote(root: string, spec: Parameters<typeof runFaulted>[2]): FaultedRun {
+  return runFaulted(HOST.note, NOTE_ADD, spec, { scratch: mkTmp("grugops-exit-contract-fault-"), cwd: root, env: NO_AMBIENT_ROOT });
+}
+
+/** The one note file of `t1`, by the id the program named; it is on disk when the message says it stands. */
+function noteOnDisk(root: string, stderr: string): string {
+  const id = /Note (\S+) stands in /.exec(stderr)?.[1];
+  expect(id, `the message names a note\n${stderr}`).toBeDefined();
+  const notes = join(root, CONTEXT_REL, "t1", "notes");
+  expect(lstatSync(join(notes, `${id as string}.md`)).isFile(), "the note the message names is on disk").toBe(true);
+  return id as string;
+}
 
 describe("EXIT-1: an unexpected throw past every inner catch is exit 2 in every runnable and mode", () => {
   it("trace-render write mode: exit 2, and the message names the files written before it stopped", () => {
@@ -381,6 +414,28 @@ describe("EXIT-1: claim.js, an unexpected throw past every inner catch is exit 2
     expectStopped("claim", r);
     expect(r.stderr).not.toContain("reclaimed");
     expect(r.stderr).not.toContain("not rendered");
+  });
+});
+
+describe("EXIT-1: note.js, an unexpected throw past every inner catch is exit 2, and no message denies a note (plan 41-12)", () => {
+  it("add: a throw at its output after the render says the note stands, and the index was rendered", () => {
+    const root = noteRepo();
+    const r = runNote(root, STDOUT_THROW);
+    expectStopped("note", r);
+    expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
+    const id = noteOnDisk(root, r.stderr);
+    expect(r.stderr).not.toContain("not rendered");
+    expect(r.stderr).not.toContain("No note was written.");
+    expect(readFileSync(join(root, CONTEXT_REL, "t1", "index.jsonl"), "utf8")).toContain(id);
+  });
+
+  it("add: an EIO at the render's rename says the note stands and the index was not rendered", () => {
+    const root = noteRepo();
+    const r = runNote(root, renderRenameFault("note"));
+    expectStopped("note", r);
+    noteOnDisk(root, r.stderr);
+    expect(r.stderr).toContain("index.md and index.jsonl were not rendered.");
+    expect(r.stderr).not.toContain("No note was written.");
   });
 });
 

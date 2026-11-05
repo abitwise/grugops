@@ -57,6 +57,7 @@ export const FS_READ_FNS = Object.freeze([
   "fstatSync",
   "readSync",
   "accessSync",
+  "realpathSync.native",
 ] as const);
 
 /** One node:fs read function. */
@@ -224,6 +225,46 @@ function isCallee(id: ts.Node): boolean {
   return ts.isCallExpression(id.parent) && id.parent.expression === id;
 }
 
+/** The name a read through `realpathSync.native` has in FS_READ_FNS: the kernel's resolver, a read of its own. */
+const REALPATH_NATIVE = "realpathSync.native";
+
+/** The function around `node`, or null at the top of the file. */
+function enclosingFunction(node: ts.Node): ts.FunctionLikeDeclaration | null {
+  for (let p: ts.Node | undefined = node.parent; p !== undefined; p = p.parent) {
+    if (ts.isFunctionDeclaration(p) || ts.isFunctionExpression(p) || ts.isArrowFunction(p) || ts.isMethodDeclaration(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * The reads through `realpathSync.native` (plan 41-12). That member is the one reader the derivation follows through a
+ * local: scripts/context-io.ts asks `typeof native` before it calls, so the shape has to be `const native =
+ * realpathSync.native`, and the program then holds a read that no callee spells. Each call of the local is a read site,
+ * and `typeof` is the only other use allowed. Any other use of the local, or a local that is never called, is refused,
+ * so this adds read sites and hides none.
+ */
+function nativeRealpathUses(sf: ts.SourceFile, access: ts.PropertyAccessExpression): { name: string; node: ts.Node; called: boolean }[] {
+  if (isCallee(access)) return [{ name: REALPATH_NATIVE, node: access.name, called: true }];
+  const decl = access.parent;
+  const fn = enclosingFunction(access);
+  if (!ts.isVariableDeclaration(decl) || decl.initializer !== access || !ts.isIdentifier(decl.name) || fn === null) {
+    return refuse("deriveReadSites", sf, access, `the read function ${REALPATH_NATIVE} is used as a value`);
+  }
+  const local = decl.name;
+  const out: { name: string; node: ts.Node; called: boolean }[] = [];
+  const visit = (n: ts.Node): void => {
+    const isMemberName = ts.isPropertyAccessExpression(n.parent) && n.parent.name === n;
+    if (ts.isIdentifier(n) && n.text === local.text && n !== local && !isMemberName) {
+      if (isCallee(n)) out.push({ name: REALPATH_NATIVE, node: n, called: true });
+      else if (!ts.isTypeOfExpression(n.parent)) refuse("deriveReadSites", sf, n, `the local ${n.text} holding ${REALPATH_NATIVE} is used as a value`);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(fn);
+  if (out.length === 0) refuse("deriveReadSites", sf, access, `the local ${local.text} holding ${REALPATH_NATIVE} is never called`);
+  return out;
+}
+
 /**
  * Every node:fs use of `sf`, as [imported name, the node that names it, whether it is a callee]. A namespace
  * binding used other than as `<ns>.<member>`, or as `<ns>[...]`, is refused: a read could escape the derivation.
@@ -246,7 +287,12 @@ function fsUses(sf: ts.SourceFile): { name: string; node: ts.Node; called: boole
         }
         out.push({ name: p.name.text, node: p.name, called: isCallee(p) });
       } else if (named.has(n.text) && !isMemberName && !isKey) {
-        out.push({ name: named.get(n.text) as string, node: n, called: isCallee(n) });
+        const imported = named.get(n.text) as string;
+        if (imported === "realpathSync" && ts.isPropertyAccessExpression(p) && p.expression === n && p.name.text === "native") {
+          out.push(...nativeRealpathUses(sf, p));
+        } else {
+          out.push({ name: imported, node: n, called: isCallee(n) });
+        }
       }
     }
     ts.forEachChild(n, visit);
@@ -444,7 +490,9 @@ if (spec !== null && spec.kind === "stdout-throw") {
     throw new Error(${JSON.stringify(INJECTED_STDOUT_MESSAGE)});
   };
 } else if (spec !== null && spec.kind === "fs") {
-  const original = fs[spec.fn];
+  const holder = spec.fn === ${JSON.stringify(REALPATH_NATIVE)} ? fs.realpathSync : fs;
+  const member = spec.fn === ${JSON.stringify(REALPATH_NATIVE)} ? "native" : spec.fn;
+  const original = holder[member];
   if (typeof original !== "function") throw new Error("fault-preload: node:fs has no function " + spec.fn);
   const siteKey = spec.site.url + ":" + spec.site.line + ":";
   const viaKey = spec.via ? spec.via.url + ":" + spec.via.line + ":" : null;
@@ -473,7 +521,7 @@ if (spec !== null && spec.kind === "stdout-throw") {
     return original.apply(this, args);
   };
   Object.assign(wrapper, original);
-  fs[spec.fn] = wrapper;
+  holder[member] = wrapper;
   syncBuiltinESMExports();
   process.on("exit", () => log("summary site-not-via " + siteNotVia));
 }

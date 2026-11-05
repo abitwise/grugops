@@ -775,6 +775,35 @@ describe("deriveReadSites and callingSites on synthetic programs (plan 37-25)", 
     expect(() => deriveReadSites(synth(SYNTH))).toThrow(/synth\.js:13: the read function statSync is used as a value/);
   });
 
+  it("realpathSync.native read through a local is a read site at each call, and typeof is the only other use allowed (plan 41-12)", () => {
+    const text =
+      'import { realpathSync } from "node:fs";\n' +
+      "function canon(p) {\n" +
+      "  const native = realpathSync.native;\n" +
+      '  if (typeof native === "function") return native(p);\n' +
+      "  return realpathSync(p);\n" +
+      "}\n";
+    expect(deriveReadSites(synth(text)).map((s) => [s.key, s.fn, s.line])).toEqual([
+      ["canon:realpathSync.native#0", "realpathSync.native", 4],
+      ["canon:realpathSync#0", "realpathSync", 5],
+    ]);
+    expect(deriveReadSites(synth('import { realpathSync } from "node:fs";\nfunction f(p) {\n  return realpathSync.native(p);\n}\n')).map((s) => s.key)).toEqual([
+      "f:realpathSync.native#0",
+    ]);
+  });
+
+  it("realpathSync.native held any other way is refused by line, so no read leaves the derivation (plan 41-12)", () => {
+    const held = (rest: string): string => `import { realpathSync } from "node:fs";\nfunction f(p) {\n  const n = realpathSync.native;\n${rest}}\n`;
+    expect(() => deriveReadSites(synth(held("  return g(n);\n")))).toThrow(/synth\.js:4: the local n holding realpathSync\.native is used as a value/);
+    expect(() => deriveReadSites(synth(held("  return p;\n")))).toThrow(/synth\.js:3: the local n holding realpathSync\.native is never called/);
+    expect(() => deriveReadSites(synth('import { realpathSync } from "node:fs";\nconst n = realpathSync.native;\n'))).toThrow(
+      /synth\.js:2: the read function realpathSync\.native is used as a value/,
+    );
+    expect(() => deriveReadSites(synth('import { realpathSync } from "node:fs";\nfunction f() {\n  return realpathSync.native;\n}\n'))).toThrow(
+      /synth\.js:3: the read function realpathSync\.native is used as a value/,
+    );
+  });
+
   it("a namespace used as a value is refused by line", () => {
     expect(() => deriveReadSites(synth('import * as ns from "node:fs";\nconst f = ns;\n'))).toThrow(/synth\.js:2: the node:fs namespace ns/);
   });
