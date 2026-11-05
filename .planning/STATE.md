@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Completed 41-09-PLAN.md
-last_updated: "2026-11-05T11:48:56.752Z"
+stopped_at: Completed 41-12-PLAN.md under the human ruling; Group B open
+last_updated: "2026-11-05T12:58:16.394Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 41 execution started
-state_head: 5a38b87f517d58e4ea922457a2fd65f489643fb3
+state_head: eaf4c709f3bd2ee6dd3b0b78eb2f7ddfe93b1975
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 125
-  completed_plans: 122
+  completed_plans: 123
   percent: 67
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 ## Current Position
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
-Plan: 10 of 12
+Plan: 11 of 12
 Status: Ready to execute
 Last activity: 2026-11-05 — Phase 41 execution started
 
@@ -840,6 +840,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P07 | 62min | 2 tasks | 14 files |
 | Phase 41 P08 | 16 min | 2 tasks | 7 files |
 | Phase 41 P09 | 28 min | 3 tasks | 14 files |
+| Phase 41 P12 | 47 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -2329,6 +2330,9 @@ Recent decisions affecting current work:
 - [Phase 41]: The --by flag refuses the adapter prefix inline, because scripts/kit-model.ts is the one declaration of that namespace; a test drives the refusal with AGENT_ADAPTER_PREFIX
 - [Phase 41]: Plan 41-08 keeps queue.claim_cap in orchestrator.md Hard limits as a retired key, because the claim-cap fact needs the token there and its baseline cannot move
 - [Phase 41]: Plan 41-09: note.js ships through one RUNNABLES row and its RUNNABLES_MIRROR counterpart, and joined STATE_RUNNABLES so the existing install and uninstall cases hold it too
+- [Phase 41]: Plan 41-12 ruling (human, 2026-11-05): 21 red READ-1 rows split; 9 Group A rows are proven equal to an unfaulted run in SECOND_SOURCE, 12 Group B rows stay red by name for a new gap plan
+- [Phase 41]: A row exempt from READ-1 is proven in governed fixtures, because a lean fixture ends noted whichever root the ladder picks
+- [Phase 41]: RUN-02 and RUN-05 are not marked complete by plan 41-12, because Group B keeps READ-1 from being met
 
 ### Pending Todos
 
@@ -2401,6 +2405,7 @@ None yet.
 - Phase 32.1 plan 10: the live claude-CLI end-to-end lane ran once and FAILED — A1 (D-31) empty capture, A2-live (SAFE-02/V14, a safety case) deny marker absent, A3-live (DOG-02/D-05) no verdict convergence. Evidence in 32.1-10-LIVE-TRANSCRIPT.txt; disposition is plan 32.1-11 to decide. Also: uat-live.test.ts docblock falsely claims npm test excludes the live lane.
 - [Phase 33] prod-deploy guard: round-4 review CR-01 and CR-02 are LIVE bypasses accepted open at the Phase 33 close (D-33-R4-08), not fixed; WINDOWS.md rows 301-302; first in the next phase, ahead of every other carried item (D-33-R4-06 redesign is coupled).
 - [Phase 40] Role-safety guard residuals accepted open at the Phase 40 close (2026-11-04): CR-05 and CR-06 (the D-30 stand-in admits a `## Hard limits` sentence moved to an unfrozen section, or a permission under a planted `# ` heading, with no human row); WR-12 (`_role-switch-protocol.md` never inventoried) awaits a named-human ruling; WR-10, WR-11, IN-08..IN-10 open in 40-REVIEW-DISPOSITION.md
+- READ-1 Group B: 12 rows in scripts/runnable-ref/note-read-sites.test.ts stay red; the root ladder fail-open needs a new gap plan, not yet written. CR-01, READ-1 and the fail-open are open.
 
 ### Quick Tasks Completed
 
@@ -2669,8 +2674,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-05T11:48:55.504Z
-Stopped at: Completed 41-09-PLAN.md
+Last session: 2026-11-05T12:58:15.120Z
+Stopped at: Completed 41-12-PLAN.md under the human ruling; Group B open
 Resume file: None
 
 ## Operator Next Steps
