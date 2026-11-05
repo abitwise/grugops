@@ -1172,6 +1172,75 @@ describe("a claim directory with no usable record shows in the log and frees its
     expect(run(root, "free").stdout).toBe("free 3\n");
   });
 
+  it("free and the table agree on a mixed queue, but for the tampered record, and the sweep frees what is past the TTL", () => {
+    const root = repoClaiming("good");
+    configure(root, { wip_limit: 20, claim_cap: 2, stale_ttl_minutes: 30 });
+    const claimed = join(root, QUEUE_CLAIMED_REL);
+    const outside = join(mkTmp("grugops-claim-mixed-target-"), "record.md");
+    const outsideRecord = "---\nby: outsider\nat: 2000-01-01T00:00:00.000Z\ntask: t\n---\n";
+    writeFileSync(outside, outsideRecord);
+    const plant = (task: string, text: string | null): void => {
+      mkdirSync(join(claimed, task));
+      if (text !== null) writeFileSync(join(claimed, task, "claim.md"), text);
+    };
+    plant("no-record", null);
+    plant("no-at", "---\nby: nobody\n");
+    plant("bad-at", "---\nby: nobody\nat: not a time\n---\n");
+    plant("link-record", null);
+    plant("fifo-record", null);
+    const linkSkipped = stageSymlinkOrSkip(
+      outside,
+      join(claimed, "link-record", "claim.md"),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/claim.test.ts: a link at the claim record (plan 41-10)",
+    );
+    if (linkSkipped !== null) console.warn(skipLine(linkSkipped, "the link case of scripts/claim.test.ts"));
+    const fifoSkipped = stageShapeOrSkip(
+      "FIFO",
+      join(claimed, "fifo-record", "claim.md"),
+      "scripts/runnable-ref/claim.test.ts: a FIFO at the claim record (plan 41-10)",
+    );
+    if (fifoSkipped !== null) console.warn(skipLine(fifoSkipped, "the FIFO case of scripts/claim.test.ts"));
+    writeFileSync(join(claimed, "stray.txt"), "");
+    plant("unsafe name", null);
+    plant(".dot-dir", null);
+    writeFileSync(join(claimed, ".gitkeep"), "");
+    plant("tampered", "---\nby: attacker\nat: 2099-01-01T00:00:00.000Z\nat: 2000-01-01T00:00:00.000Z\ntask: tampered\n---\n");
+
+    // Ten entries take a slot: free reads 20 minus 10, and the table holds nine of them.
+    expect(run(root, "free").stdout).toBe("free 10\n");
+    expect(run(root, "now-running").status).toBe(0);
+    expect(rows(root)).toHaveLength(9);
+    const text = readFileSync(join(root, NOW_RUNNING_REL), "utf8");
+    for (const forged of ["tampered", "attacker", "2099", "outsider", "nobody"]) expect(text).not.toContain(forged);
+
+    // Inside the TTL only the tampered record is reclaimed. The link and the FIFO are not opened.
+    expect(run(root, "sweep").stdout).toBe("swept 1\nreclaimed tampered\n");
+    expect(run(root, "free").stdout).toBe("free 11\n");
+
+    const old = new Date(Date.now() - 31 * MINUTE_MS);
+    for (const task of ["no-record", "no-at", "bad-at", "link-record", "fifo-record", ".dot-dir"]) {
+      utimesSync(join(claimed, task), old, old);
+    }
+    const swept = run(root, "sweep");
+    expect(swept.status).toBe(0);
+    expect(swept.stdout.split("\n")[0]).toBe("swept 6");
+    expect(readFileSync(outside, "utf8")).toBe(outsideRecord);
+    // What stays: the live claim, a stray file and a name the sweep never joins. All three have a row.
+    expect(rows(root)).toHaveLength(3);
+    expect(run(root, "free").stdout).toBe("free 17\n");
+  });
+
+  it("a record-less claim directory with its subtask in done/ is released, reported apart from a reclaim", () => {
+    const root = repoWithOrphan();
+    mkdirSync(join(root, QUEUE_DONE_REL), { recursive: true });
+    writeFileSync(join(root, QUEUE_DONE_REL, "orphan.md"), subtask("orphan"));
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 0\nreleased orphan (already done)\n");
+    expect(rows(root)).toEqual([]);
+  });
+
   it("a truncated record behaves the same: its row has an empty by and a since of unknown", () => {
     const root = repoWithOrphan("---\nby: x\n");
     expect(run(root, "now-running").status).toBe(0);

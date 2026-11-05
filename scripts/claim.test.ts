@@ -19,6 +19,8 @@
 //   Lifecycle (RUN-01)     : claimPending and completeTask take one subtask pending → claimed → done
 //                            and release the claim directory, so the in-flight log empties.
 //   Queue entries (T-41-03): a link or a FIFO at claim.md is never opened.
+//   No usable record (WR-04): every entry the count sees has a row but for a tampered record, and the
+//                            sweep frees a directory with no usable record once it is past the TTL.
 //   The record (D-03, D-30): claim.md gains optional agent: and level: lines, and agent equals by.
 //   The rules the CLI needs: the owner rule, the free count, the config read, the ref: read, the
 //                            note-since-claim comparison and the sweep release.
@@ -35,8 +37,10 @@ import {
   readFileSync,
   readdirSync,
   existsSync,
+  lstatSync,
   rmSync,
   symlinkSync,
+  utimesSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -297,13 +301,15 @@ describe("claim.js — completeTask: done releases the claim (RUN-01, Pitfall 1)
 describe("claim.js — queue entries are asked by lstat, never opened blind (T-41-03)", () => {
   const STALE = "---\nby: a\nat: 2000-01-01T00:00:00.000Z\ntask: t\n---\n";
 
+  const TTL = 60 * 60 * 1000;
+
   // Runs the render and the sweep in a child process with a deadline: a FIFO opened for reading
   // blocks until a writer comes, and a blocked synchronous read inside this worker could never time out.
-  function renderAndSweepInChild(root: string): { status: number | null; signal: string | null } {
+  function renderAndSweepInChild(root: string, now: number): { status: number | null; signal: string | null } {
     const script =
       `const m = await import(${JSON.stringify(pathToFileURL(CLAIM_JS).href)});` +
       `m.renderNowRunning(${JSON.stringify(root)});` +
-      `m.sweepStale(${JSON.stringify(root)}, 1);`;
+      `m.sweepStale(${JSON.stringify(root)}, ${TTL}, ${now});`;
     const r = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
       encoding: "utf8",
       timeout: 10_000,
@@ -311,21 +317,27 @@ describe("claim.js — queue entries are asked by lstat, never opened blind (T-4
     return { status: r.status, signal: r.signal };
   }
 
-  it("a link at claimed/<task>/claim.md is never read: the render skips it and the sweep leaves it", () => {
+  it("a link at claimed/<task>/claim.md is never read: the row shows nothing of it, and the TTL is the directory's", () => {
     const root = makeQueueRoot("claim-link-");
     const elsewhere = join(freshTmp("claim-link-target-"), "record.md");
     writeFileSync(elsewhere, STALE);
     mkdirSync(join(root, "claimed", "t"));
     symlinkSync(elsewhere, join(root, "claimed", "t", "claim.md"));
 
+    // The target says the claim is stale and names `a`. Reading it would drop the `unknown` and reclaim.
     mod.renderNowRunning(root);
-    expect(readFileSync(join(root, "now-running.md"), "utf8")).not.toContain("| t |");
-    expect(mod.sweepStale(root, 1)).toEqual([]);
+    expect(readFileSync(join(root, "now-running.md"), "utf8")).toContain("| t |  |  |  | unknown |");
+    expect(mod.sweepStale(root, TTL)).toEqual([]);
     expect(existsSync(join(root, "claimed", "t"))).toBe(true);
+
+    // Past the TTL the directory goes, and the link goes with it: the target is untouched.
+    expect(mod.sweepStale(root, TTL, Date.now() + 2 * TTL)).toEqual(["t"]);
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+    expect(readFileSync(elsewhere, "utf8")).toBe(STALE);
   });
 
   it(
-    "a FIFO at claimed/<task>/claim.md is never opened: the render skips it and the sweep leaves it",
+    "a FIFO at claimed/<task>/claim.md is never opened: the row shows nothing of it, and the TTL is the directory's",
     () => {
       const root = makeQueueRoot("claim-fifo-");
       mkdirSync(join(root, "claimed", "t"));
@@ -339,9 +351,12 @@ describe("claim.js — queue entries are asked by lstat, never opened blind (T-4
         return;
       }
 
-      expect(renderAndSweepInChild(root)).toEqual({ status: 0, signal: null });
-      expect(readFileSync(join(root, "now-running.md"), "utf8")).not.toContain("| t |");
+      expect(renderAndSweepInChild(root, Date.now())).toEqual({ status: 0, signal: null });
+      expect(readFileSync(join(root, "now-running.md"), "utf8")).toContain("| t |  |  |  | unknown |");
       expect(existsSync(join(root, "claimed", "t"))).toBe(true);
+
+      expect(renderAndSweepInChild(root, Date.now() + 2 * TTL)).toEqual({ status: 0, signal: null });
+      expect(existsSync(join(root, "claimed", "t"))).toBe(false);
     },
     20_000,
   );
@@ -578,6 +593,157 @@ describe("claim.js — a claim directory with no usable record (plan 41-10, WR-0
     expect(mod.sweepStale(root, TTL, Date.now() + 2 * TTL)).toEqual(["orphan"]);
     expect(existsSync(join(root, "claimed", "orphan"))).toBe(false);
   });
+
+  it.each([
+    ["no at line", "---\nby: x\ntask: t\n---\n"],
+    ["an empty at", "---\nby: x\nat:\ntask: t\n---\n"],
+    ["an at that does not parse", "---\nby: x\nat: not a time\ntask: t\n---\n"],
+  ])("a record with %s: a row of the name alone, and judged by the directory's age", (_name, record) => {
+    const root = makeQueueRoot("claim-unusable-");
+    mkdirSync(join(root, "claimed", "t"));
+    writeFileSync(join(root, "claimed", "t", "claim.md"), record);
+    expect(renderedRows(root)).toEqual(["| t |  |  |  | unknown |"]);
+    expect(mod.sweepStale(root, TTL)).toEqual([]);
+    expect(mod.sweepStale(root, TTL, Date.now() + 2 * TTL)).toEqual(["t"]);
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+  });
+
+  it("a stale record-less directory holding a subtask returns it to pending/", () => {
+    const root = makeQueueRoot("claim-record-less-held-");
+    mkdirSync(join(root, "claimed", "t"));
+    writeFileSync(join(root, "claimed", "t", "t.md"), "# subtask t\n");
+    expect(mod.sweepStale(root, TTL, Date.now() + 2 * TTL)).toEqual(["t"]);
+    expect(readFileSync(join(root, "pending", "t.md"), "utf8")).toBe("# subtask t\n");
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+  });
+
+  it("a tampered record has no row, and is reclaimed at any age", () => {
+    const root = makeQueueRoot("claim-tampered-row-");
+    mkdirSync(join(root, "claimed", "t"));
+    writeFileSync(join(root, "claimed", "t", "claim.md"), "---\nby: attacker\nat: 2099-01-01T00:00:00.000Z\nat: 2000-01-01T00:00:00.000Z\n---\n");
+    expect(renderedRows(root)).toEqual([]);
+    expect(mod.claimedCount(root)).toBe(1);
+    expect(mod.sweepStale(root, TTL)).toEqual(["t"]);
+  });
+
+  it("the TTL boundary of a directory: an age equal to the TTL stays, one millisecond older is reclaimed", () => {
+    const root = makeQueueRoot("claim-boundary-");
+    mkdirSync(join(root, "claimed", "t"));
+    const { mtimeMs } = lstatSync(join(root, "claimed", "t"));
+    expect(mod.sweepStale(root, TTL, mtimeMs + TTL)).toEqual([]);
+    expect(existsSync(join(root, "claimed", "t"))).toBe(true);
+    expect(mod.sweepStale(root, TTL, mtimeMs + TTL + 1)).toEqual(["t"]);
+  });
+
+  it("the age uses the unrounded mtimeMs: a fraction of a millisecond decides, in both directions", () => {
+    const root = makeQueueRoot("claim-precision-");
+    mkdirSync(join(root, "claimed", "t"));
+    // 0.6 ms past a whole second, where the filesystem keeps it. Rounding either way moves the age by more than 0.25 ms.
+    utimesSync(join(root, "claimed", "t"), 1_700_000_000.0006, 1_700_000_000.0006);
+    const { mtimeMs } = lstatSync(join(root, "claimed", "t"));
+    expect(mod.sweepStale(root, TTL, mtimeMs + TTL - 0.25)).toEqual([]);
+    expect(mod.sweepStale(root, TTL, mtimeMs + TTL + 0.25)).toEqual(["t"]);
+  });
+
+  it("an entry that is not a directory stays where it is, past the TTL too", () => {
+    const root = makeQueueRoot("claim-stray-stays-");
+    writeFileSync(join(root, "claimed", "stray.txt"), "");
+    symlinkSync(join(root, "pending"), join(root, "claimed", "link"));
+    expect(mod.sweepStale(root, TTL, Date.now() + 2 * TTL)).toEqual([]);
+    expect(existsSync(join(root, "claimed", "stray.txt"))).toBe(true);
+    expect(lstatSync(join(root, "claimed", "link")).isSymbolicLink()).toBe(true);
+  });
+
+  it("a link directly under claimed/ is never read through: a row of the name alone", () => {
+    const root = makeQueueRoot("claim-entry-link-");
+    const elsewhere = freshTmp("claim-entry-link-target-");
+    writeFileSync(join(elsewhere, "claim.md"), "---\nby: outsider\nat: 2000-01-01T00:00:00.000Z\ntask: t\n---\n");
+    symlinkSync(elsewhere, join(root, "claimed", "t"));
+    expect(renderedRows(root)).toEqual(["| t |  |  |  | unknown |"]);
+  });
+
+  it("an unsafe name shows through cell(), and nothing under it is read", () => {
+    const root = makeQueueRoot("claim-unsafe-name-");
+    mkdirSync(join(root, "claimed", "a|b c"));
+    writeFileSync(join(root, "claimed", "a|b c", "claim.md"), "---\nby: outsider\nat: 2000-01-01T00:00:00.000Z\n---\n");
+    expect(renderedRows(root)).toEqual(["| a\\|b c |  |  |  | unknown |"]);
+    expect(mod.sweepStale(root, TTL, Date.now() + 2 * TTL)).toEqual([]);
+  });
+
+  it("two claims with one since sort by task, in a stable order", () => {
+    const root = makeQueueRoot("claim-sort-tie-");
+    for (const task of ["b", "a"]) {
+      mkdirSync(join(root, "claimed", task));
+      writeFileSync(join(root, "claimed", task, "claim.md"), `---\nby: x\nat: 2026-01-01T00:00:00.000Z\ntask: ${task}\n---\n`);
+    }
+    expect(renderedRows(root).map((row) => row.split(" | ")[0])).toEqual(["| a", "| b"]);
+  });
+
+  it("an unknown row sorts after every timed row, then by task", () => {
+    const root = makeQueueRoot("claim-sort-unknown-");
+    const timed = [
+      ["iso", "2026-01-01T00:00:00.000Z"],
+      // Date.parse reads this `at`, and its first letter sorts after the first letter of `unknown`.
+      ["words", "Wed, 01 Jan 2020 00:00:00 GMT"],
+    ];
+    for (const [task, at] of timed) {
+      mkdirSync(join(root, "claimed", task));
+      writeFileSync(join(root, "claimed", task, "claim.md"), `---\nby: x\nat: ${at}\ntask: ${task}\n---\n`);
+    }
+    mkdirSync(join(root, "claimed", "z-orphan"));
+    mkdirSync(join(root, "claimed", "a-orphan"));
+    expect(renderedRows(root).map((row) => row.split(" | ")[0])).toEqual(["| iso", "| words", "| a-orphan", "| z-orphan"]);
+  });
+
+  it("one mixed fixture: the row count is claimedCount minus the tampered entry, and two renders are the same bytes", () => {
+    const root = makeQueueRoot("claim-mixed-");
+    const claimed = join(root, "claimed");
+    const outside = join(freshTmp("claim-mixed-target-"), "record.md");
+    writeFileSync(outside, "---\nby: outsider\nat: 2000-01-01T00:00:00.000Z\ntask: t\n---\n");
+    const record = (task: string, text: string): void => {
+      mkdirSync(join(claimed, task));
+      writeFileSync(join(claimed, task, "claim.md"), text);
+    };
+    record("good", "---\nby: engineer\nat: 2026-01-01T00:00:00.000Z\ntask: good\n---\n");
+    mkdirSync(join(claimed, "no-record"));
+    record("no-at", "---\nby: nobody\n");
+    record("bad-at", "---\nby: nobody\nat: not a time\n---\n");
+    mkdirSync(join(claimed, "link-record"));
+    symlinkSync(outside, join(claimed, "link-record", "claim.md"));
+    mkdirSync(join(claimed, "fifo-record"));
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      join(claimed, "fifo-record", "claim.md"),
+      "scripts/claim.test.ts: a FIFO in the mixed fixture (plan 41-10)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the link record of this fixture (the same lstat rule)"));
+      rmSync(join(claimed, "fifo-record"), { recursive: true });
+    }
+    writeFileSync(join(claimed, "stray.txt"), "");
+    mkdirSync(join(claimed, "unsafe name"));
+    mkdirSync(join(claimed, ".dot-dir"));
+    writeFileSync(join(claimed, ".gitkeep"), "");
+    record("tampered", "---\nby: attacker\nat: 2099-01-01T00:00:00.000Z\nat: 2000-01-01T00:00:00.000Z\ntask: tampered\n---\n");
+
+    expect(renderInChild(root)).toEqual({ status: 0, signal: null });
+    const first = readFileSync(join(root, "now-running.md"), "utf8");
+    const rowCount = first.split("\n").filter((line) => line.startsWith("| ") && !/^\| (task|---) /.test(line)).length;
+    expect(rowCount).toBe(mod.claimedCount(root) - 1);
+    for (const forged of ["tampered", "attacker", "2099", "outsider", "nobody"]) expect(first).not.toContain(forged);
+
+    expect(renderInChild(root)).toEqual({ status: 0, signal: null });
+    expect(readFileSync(join(root, "now-running.md"), "utf8")).toBe(first);
+  }, 20_000);
+
+  // The render alone, in a child with a deadline: a FIFO opened for reading would block this worker for good.
+  function renderInChild(root: string): { status: number | null; signal: string | null } {
+    const script =
+      `const m = await import(${JSON.stringify(pathToFileURL(CLAIM_JS).href)});` +
+      `m.renderNowRunning(${JSON.stringify(root)});`;
+    const r = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
+    return { status: r.status, signal: r.signal };
+  }
 });
 
 describe("claim.js — freeSlots: never negative (RUN-02)", () => {
@@ -714,15 +880,42 @@ describe("claim.js — sweepQueue: release what finished, reclaim what went stal
     expect(existsSync(join(root, "claimed", "t", "t.md"))).toBe(true);
   });
 
-  it("a link at claim.md is left alone, even with a done record beside it (T-41-03)", () => {
+  it("a link at claim.md with a done record beside it is released unread, and its target is untouched (T-41-03, WR-04)", () => {
     const root = makeQueueRoot("claim-sweep-queue-link-");
     const elsewhere = join(freshTmp("claim-sweep-queue-target-"), "record.md");
-    writeFileSync(elsewhere, "---\nby: a\nat: 2000-01-01T00:00:00.000Z\ntask: t\n---\n");
+    const record = "---\nby: a\nat: 2000-01-01T00:00:00.000Z\ntask: t\n---\n";
+    writeFileSync(elsewhere, record);
     mkdirSync(join(root, "claimed", "t"));
     symlinkSync(elsewhere, join(root, "claimed", "t", "claim.md"));
     writeFileSync(join(root, "done", "t.md"), "# finished\n");
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["t"], reclaimed: [] });
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+    expect(readFileSync(elsewhere, "utf8")).toBe(record);
+  });
+
+  it("a record-less claim directory with its subtask in done/ is released at any age, never reclaimed (WR-04)", () => {
+    const root = makeQueueRoot("claim-sweep-queue-record-less-");
+    mkdirSync(join(root, "claimed", "t"));
+    writeFileSync(join(root, "done", "t.md"), "# finished\n");
+    const swept = mod.sweepQueue(root, TTL);
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+    expect(swept).toEqual({ released: ["t"], reclaimed: [] });
+    expect(existsSync(join(root, "done", "t.md"))).toBe(true);
+    expect(existsSync(join(root, "pending", "t.md"))).toBe(false);
+
+    mkdirSync(join(root, "claimed", "t"));
+    expect(mod.sweepQueue(root, TTL, Date.now() + 2 * TTL)).toEqual({ released: ["t"], reclaimed: [] });
+  });
+
+  it("a stray file or a link in claimed/ stays, even with a done record of its name beside it (WR-04)", () => {
+    const root = makeQueueRoot("claim-sweep-queue-stray-");
+    writeFileSync(join(root, "claimed", "stray"), "");
+    writeFileSync(join(root, "done", "stray.md"), "# a record of the same name\n");
+    symlinkSync(join(root, "pending"), join(root, "claimed", "link"));
+    writeFileSync(join(root, "done", "link.md"), "# a record of the same name\n");
     expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [] });
-    expect(existsSync(join(root, "claimed", "t"))).toBe(true);
+    expect(existsSync(join(root, "claimed", "stray"))).toBe(true);
+    expect(lstatSync(join(root, "claimed", "link")).isSymbolicLink()).toBe(true);
   });
 
   it("a keeper in claimed/ and an absent claimed/ are both a no-op", () => {
