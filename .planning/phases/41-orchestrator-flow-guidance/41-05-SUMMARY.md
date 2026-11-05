@@ -122,7 +122,7 @@ status: complete
 
 ## Performance
 
-- **Duration:** 40 min, of which about 18 was the full suite
+- **Duration:** 40 min, of which about 24 was the full suite
 - **Started:** 2026-11-05T01:20:36Z
 - **Completed:** 2026-11-05T02:00:37Z
 - **Tasks:** 3
@@ -182,9 +182,9 @@ Run at `7918e2d1`:
 ## Files Created/Modified
 
 - `scripts/runnable-ref/claim.ts`, `.js` - `free`, `sweep`, `readQueueConfig`, `CONFIG_NAME`, `renderAfter`, `refuseClaimLinks`, `whatStands`, and the `ensureQueueDirs` fix
-- `scripts/runnable-ref/claim.test.ts` - 37 new host-copy cases
+- `scripts/runnable-ref/claim.test.ts` - 36 new host-copy cases
 - `scripts/runnable-ref/runnable-exit-contract.test.ts` - `claim` in `RUNNABLES`, `STOPPED` and `HOST`, and eight rows
-- `scripts/runnable-ref/claim-read-sites.test.ts` - the derived read test, 61 cases
+- `scripts/runnable-ref/claim-read-sites.test.ts` - the derived read test, 65 cases
 - `scripts/context-io.test.ts` - `CONFIG_PATH_SITE_COUNT` 12 to 13, a table row and a history line
 - `.planning/phases/41-orchestrator-flow-guidance/deferred-items.md` - one entry updated with a reproduction, and one added
 
@@ -257,7 +257,7 @@ None - no external service configuration required.
 
 - Workflow 17's `free` and `sweep` lines now point at commands a host has, once it installs this `claim.js`.
 - Plan 41-06 can point `orchestrator.md` and `_role-switch-protocol.md` at Workflow 17.
-- RUN-02 and RUN-05 stay open until any sibling plan that declares them finishes, under `requirements.ready-ids`.
+- RUN-05 is marked complete. RUN-02 stays open until plan 41-06, which also declares it, finishes, under `requirements.ready-ids`.
 
 ## Self-Check: PASSED
 
