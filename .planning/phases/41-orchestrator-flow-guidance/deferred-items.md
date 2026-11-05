@@ -48,3 +48,7 @@
   status: open, not a phase 41 failure
   **What:** the file passes 77 of 77 on the default `TMPDIR` and fails 1 of 77 with `TMPDIR` at `~/.cache/grugops-gate-tmp/tmp`. The failing check is the scoped `Edit(//ABS/**)` tool grant row. The wave gates and the plan runs after 41-02 all used that override, so their 22 failures are the 21 known baseline reds in `41-VALIDATION.md` plus this one.
   **Why deferred:** the override was a workaround for the `/tmp` quota, and the test passes without it. The test's sensitivity to the location of `TMPDIR` was not investigated.
+- The embedded root ladder can lose the governance dial, and `note.js` then admits what the dial refuses (found by plan 41-12)
+  status: open
+  **What:** under `context.human_admission: gate`, a `finding` by `security-nfr` stamped `human:eve` is refused. It ends `noted`, exit 0, in three measured cases: an EIO at `projectRootFromWorkingDirectory:existsSync#0 via trustedRepoRoot#0`, an EIO at `directoryIdentity:statSync#0 via namedHomeDirectory#0`, and with no fault at all under `HOME=/nonexistent`, because `homeBoundary()` answers null, the walk does not run and the dial falls through to the kit's own base. `GRUGOPS_PROJECT_DIR` set to a directory with no config does the same. The note.ts header says no environment variable of this program skips admission.
+  **Why deferred:** the ladder sits in `scripts/context-io.ts`, and plan 41-12 may not change that file or the generated region. It is the reason READ-1 cannot go green as written, so the decision is at the plan 41-12 checkpoint.
