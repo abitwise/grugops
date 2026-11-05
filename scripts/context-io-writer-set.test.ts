@@ -2483,7 +2483,12 @@ describe("31-05 — the reachability remainder is written down", () => {
       // is a READ: it inspects a directory entry and creates, moves, removes and modifies nothing, so
       // it does not enter FS_WRITE_PRIMITIVES, and it never opens the path, so it cannot block on a
       // FIFO. `Stats` is a type and reaches nothing at run time.
-    ).toBe(17);
+      //
+      // 17 -> 16 (2026-11-05, plan 41-13, T-41-55), CLASSIFIED rather than bumped: `existsSync` was
+      // REMOVED. The root ladder was its last caller, and a boolean cannot report a failed read, so
+      // those reads moved onto `entryPresence`. A read primitive left, so the write alphabet this file
+      // derives its residual over is untouched.
+    ).toBe(16);
   });
 });
 

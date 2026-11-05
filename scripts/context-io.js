@@ -38,7 +38,7 @@ import { writeFileSync, writeSync,
 readdirSync, renameSync, 
 // `linkSync` publishes a note EXCLUSIVELY (33.1-12, WR-02): a hard link fails EEXIST when anything
 // occupies the final path, where a rename would replace it. See `publishNoteExclusive`.
-linkSync, unlinkSync, mkdirSync, existsSync, openSync, fstatSync, readSync, closeSync, statSync, realpathSync, 
+linkSync, unlinkSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, realpathSync, 
 // `lstatSync` is the one absence question (plan 37-28, D-18): `entryPresence` asks it of every component of a
 // path, so only an lstat ENOENT is "nothing there". See `entryPresence`. `rootChainPresence` (plan 37-33, D-20)
 // asks it of every component of a repository-relative state path and refuses a symbolic link there.
@@ -2037,8 +2037,8 @@ export function rootChainOf(rel) {
  *   (<code>)`); a realpath failure is `unreadable` (`"<prefix>" cannot be resolved (<code>)`); a real path for
  *   which isWithin(real, realRoot) is false is `outside`; otherwise `present`.
  *
- * The literal ENOENT is compared here, in entryPresence and in readRegularFileOrNull, and nowhere else. Every
- * repository-relative state path of the three runnables is asked here; positions below a context root (a task, its
+ * The literal ENOENT is compared here, in entryPresence, in readRegularFileOrNull and in refuseUnlessAbsent, and
+ * nowhere else. Every repository-relative state path of the three runnables is asked here; positions below a context root (a task, its
  * notes, a dot-named entry) stay entryPresence's, under the round-2 rules (D-20).
  */
 export function rootChainPresence(realRoot, rel, leaf) {
@@ -4766,13 +4766,37 @@ function undeterminedRoot(reason) {
  * compares the walk's answer with its anchor, so this keeps a store unowned there with no edit.
  */
 const WALK_DID_NOT_RUN = Symbol("the walk did not run");
-/** A directory's FILESYSTEM IDENTITY, or `null` when it cannot be stat-ed at all. */
+/**
+ * Answers a thrown read of the root ladder: a path that names nothing returns, and the caller takes the next rung. Any
+ * other failure refuses, because a read that failed is not the absence of a file (plan 41-13, READ-1).
+ */
+function refuseUnlessAbsent(path, e) {
+    const code = presenceCode(e);
+    if (code === "ENOENT" || code === "ENOTDIR")
+        return;
+    throw undeterminedRoot(`"${path}" cannot be inspected (${code})`);
+}
+/**
+ * Whether an entry is at a position, as the walk's evidence: `entryPresence`'s answer with its `real` field discarded.
+ * An entry that cannot be inspected refuses, where the boolean probe this replaces answered it as absent, so a failed
+ * read and a dangling link at a position can no longer lose the dial (plan 41-13, READ-1).
+ */
+function occupied(presence) {
+    if (presence.kind === "unreadable")
+        throw undeterminedRoot(presence.reason);
+    return presence.kind === "present";
+}
+/**
+ * A directory's FILESYSTEM IDENTITY, or `null` when nothing is there. A stat that fails any other way refuses, so an
+ * unknown identity is never read as a directory the search may pass (plan 41-13).
+ */
 function directoryIdentity(dir) {
     try {
         const st = statSync(dir);
         return `${String(st.dev)}:${String(st.ino)}`;
     }
-    catch {
+    catch (e) {
+        refuseUnlessAbsent(dir, e);
         return null;
     }
 }
@@ -4977,16 +5001,19 @@ function projectRootFromWorkingDirectory(startDir) {
         // before any inspection. This half of the bound is unchanged by plan 31-23.
         if (isAboveHome(dir, home))
             return nearest;
-        // INSPECT FIRST, THEN DECIDE ABOUT CLIMBING. `existsSync` is the right predicate here and its
-        // failure direction is the safe one: a position occupied by something that is not a readable
-        // regular file still ANSWERS this search, and `readGovernanceConfig` then maps it to
-        // `unreadable`, which is gate-or-stricter. A position that does not exist at all is not a
-        // configuration and the walk continues. The carrying candidate's INDEX is kept, not just the
-        // boolean, because at the home directory WHICH position carries the configuration decides.
+        // INSPECT FIRST, THEN DECIDE ABOUT CLIMBING. The question is whether an entry is at a position,
+        // and `entryPresence` is the one owner of that answer. A position occupied by something that is
+        // not a readable regular file still ANSWERS this search, and `readGovernanceConfig` then maps it
+        // to `unreadable`, which is gate-or-stricter. A position that does not exist at all is not a
+        // configuration and the walk continues. A position that cannot be inspected is neither, and the
+        // boolean probe that stood here read it as absent, which lost the dial on a failed read: `occupied`
+        // refuses instead (plan 41-13). Each site calls the owner itself, so each read fails on its own.
+        // The carrying candidate's INDEX is kept, not just the boolean, because at the home directory
+        // WHICH position carries the configuration decides.
         const candidates = governanceConfigCandidates(dir);
-        const carryingIndex = candidates.findIndex((candidate) => existsSync(candidate));
+        const carryingIndex = candidates.findIndex((candidate) => occupied(entryPresence(candidate)));
         const carriesConfig = carryingIndex >= 0;
-        const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(dir, marker)));
+        const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(dir, marker))));
         // RULE 1b — THE HOME DIRECTORY ANSWERS ONLY AS A REPOSITORY, AND ENDS THE WALK EITHER WAY. It
         // never becomes `nearest`: `nearest` is not assigned on this path at all.
         if (isHomeItself(dir, home)) {
@@ -5118,14 +5145,15 @@ export function hostDeliveredRoot() {
     try {
         st = statSync(canonical);
     }
-    catch {
+    catch (e) {
+        refuseUnlessAbsent(canonical, e); // only a failed read refuses (plan 41-13)
         return null; // names nothing real
     }
     if (!st.isDirectory())
         return null;
     // A REPOSITORY, by the marker set the walk already publishes — one authority for "where a
     // repository starts", never a second list here.
-    if (!REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(canonical, marker))))
+    if (!REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(canonical, marker)))))
         return null;
     // NOT the kit this module ships in. The kit is not a governed project, and adopting it is the
     // shape D-23 (4) and CR-13 both already refuse one tier down.

@@ -13,8 +13,8 @@
 // HOW A SITE IS FAILED. The committed .js is copied into a scratch directory and run under the fault-injection preload,
 // so the named node:fs call throws EIO when the stack holds the site line and, for a shared reader, the line of one
 // calling call expression. Every pair runs in every mode on a fresh copy of that mode's fixture, so a mode that reaches a
-// site is judged wherever it reaches it. existsSync never throws, so the preload fails it the way the platform does:
-// it answers false. Nothing here reads or writes grugops's own state.
+// site is judged wherever it reaches it. note.js holds no boolean probe: the root ladder asks entryPresence, whose reads
+// throw, so every derived pair fails by throwing. Nothing here reads or writes grugops's own state.
 //
 // THE ROOT. note.js has no root flag: the store is the working directory's, and the dial comes from trustedRepoRoot().
 // Each run names all three ambient root names, blank or set by its mode, so the dial comes from the fixture.
@@ -23,8 +23,8 @@
 // SECOND_SOURCE below ends exit 0 after its read fails, because a designed second source gives the same answer. Such a
 // row is not judged by THE RULE. It is judged by a stricter test: its run must equal an unfaulted run of the same mode,
 // in the exit code, the output and every file. Each governed mode puts the dial where a lost answer changes the
-// outcome, so a row that lost the dial cannot pass. A row that takes a failed read as absence has no such proof. It
-// stays red in this file, by name, until the ladder in scripts/context-io.ts fails closed. It is not listed here.
+// outcome, so a row that lost the dial cannot pass. A row that takes a failed read as absence has no such proof, so it
+// is not listed here. Plan 41-13 made the ladder in scripts/context-io.ts fail closed, and those rows now meet THE RULE.
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -67,8 +67,12 @@ type AnyMode = Mode | ProofMode | ControlMode;
  * The derived read sites of note.js.
  * 2026-11-05, plan 41-12: 22. Eight are this program's alone among the runnables, the root ladder of trustedRepoRoot():
  * canonicalDirectoryPath, directoryIdentity, projectRootFromWorkingDirectory, hostDeliveredRoot and isExistingDirectory.
+ * 2026-11-05, plan 41-13: 19. The three boolean probes left, in projectRootFromWorkingDirectory (two) and
+ * hostDeliveredRoot (one), because a boolean could not report a failed read. Those reads moved onto entryPresence,
+ * whose three read sites already count, so the pairs moved from 64 to 68: the 5 rows on the probes left, and the 9
+ * pairs of entryPresence under its three new calling sites replaced them.
  */
-const NOTE_READ_SITES = 22;
+const NOTE_READ_SITES = 19;
 
 const NOTE_ID_ONLY_BY_THE_CLOCK =
   "The id carries the time of the run and no flag sets it, so no fixture can plant a note at the destination.";

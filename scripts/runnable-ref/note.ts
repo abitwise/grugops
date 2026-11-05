@@ -58,10 +58,10 @@ import * as nodePath from "node:path";
 
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 import { createHash, randomUUID } from "node:crypto";
-import { type Stats, closeSync, constants as fsConstants, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
+import { type Stats, closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:ea1f81fe880e40489d987570d56c77c66ad5dfce9a453729b633c20d1c84f0cf";
+export const RUNNABLE_SET_STAMP = "sha256:8c4365557c8e6ec6187437ebe73d91d8f5323787e58d1afc9e0cf30e0e668a05";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -2213,11 +2213,21 @@ function undeterminedRoot(reason: string): Error {
   );
 }
 const WALK_DID_NOT_RUN = Symbol("the walk did not run");
+function refuseUnlessAbsent(path: string, e: unknown): void {
+  const code = presenceCode(e);
+  if (code === "ENOENT" || code === "ENOTDIR") return;
+  throw undeterminedRoot(`"${path}" cannot be inspected (${code})`);
+}
+function occupied(presence: EntryPresence): boolean {
+  if (presence.kind === "unreadable") throw undeterminedRoot(presence.reason);
+  return presence.kind === "present";
+}
 function directoryIdentity(dir: string): string | null {
   try {
     const st = statSync(dir);
     return `${String(st.dev)}:${String(st.ino)}`;
-  } catch {
+  } catch (e) {
+    refuseUnlessAbsent(dir, e);
     return null;
   }
 }
@@ -2342,16 +2352,19 @@ function projectRootFromWorkingDirectory(startDir: string): string | null | type
     // RULE 1 — ASCENT IS BOUNDED. A STRICT ancestor of the home directory is refused outright,
     // before any inspection. This half of the bound is unchanged by plan 31-23.
     if (isAboveHome(dir, home)) return nearest;
-    // INSPECT FIRST, THEN DECIDE ABOUT CLIMBING. `existsSync` is the right predicate here and its
-    // failure direction is the safe one: a position occupied by something that is not a readable
-    // regular file still ANSWERS this search, and `readGovernanceConfig` then maps it to
-    // `unreadable`, which is gate-or-stricter. A position that does not exist at all is not a
-    // configuration and the walk continues. The carrying candidate's INDEX is kept, not just the
-    // boolean, because at the home directory WHICH position carries the configuration decides.
+    // INSPECT FIRST, THEN DECIDE ABOUT CLIMBING. The question is whether an entry is at a position,
+    // and `entryPresence` is the one owner of that answer. A position occupied by something that is
+    // not a readable regular file still ANSWERS this search, and `readGovernanceConfig` then maps it
+    // to `unreadable`, which is gate-or-stricter. A position that does not exist at all is not a
+    // configuration and the walk continues. A position that cannot be inspected is neither, and the
+    // boolean probe that stood here read it as absent, which lost the dial on a failed read: `occupied`
+    // refuses instead (plan 41-13). Each site calls the owner itself, so each read fails on its own.
+    // The carrying candidate's INDEX is kept, not just the boolean, because at the home directory
+    // WHICH position carries the configuration decides.
     const candidates = governanceConfigCandidates(dir);
-    const carryingIndex = candidates.findIndex((candidate) => existsSync(candidate));
+    const carryingIndex = candidates.findIndex((candidate) => occupied(entryPresence(candidate)));
     const carriesConfig = carryingIndex >= 0;
-    const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(dir, marker)));
+    const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(dir, marker))));
     // RULE 1b — THE HOME DIRECTORY ANSWERS ONLY AS A REPOSITORY, AND ENDS THE WALK EITHER WAY. It
     // never becomes `nearest`: `nearest` is not assigned on this path at all.
     if (isHomeItself(dir, home)) {
@@ -2381,13 +2394,14 @@ export function hostDeliveredRoot(): string | null {
   let st: ReturnType<typeof statSync>;
   try {
     st = statSync(canonical);
-  } catch {
+  } catch (e) {
+    refuseUnlessAbsent(canonical, e); // only a failed read refuses (plan 41-13)
     return null; // names nothing real
   }
   if (!st.isDirectory()) return null;
   // A REPOSITORY, by the marker set the walk already publishes — one authority for "where a
   // repository starts", never a second list here.
-  if (!REPO_BOUNDARY_MARKERS.some((marker) => existsSync(join(canonical, marker)))) return null;
+  if (!REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(canonical, marker))))) return null;
   // NOT the kit this module ships in. The kit is not a governed project, and adopting it is the
   // shape D-23 (4) and CR-13 both already refuse one tier down.
   if (canonical === canonicalDirectoryPath(GOVERNANCE_FALLBACK_BASE)) return null;

@@ -8006,13 +8006,29 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
      *
      * The rest of the ban stands unchanged: no `statSync`, no `readFileSync`, no `homedir`, no
      * `process.env`, no `readdirSync`, no `lstatSync`, no `openSync` in this closure.
+     *
+     * AMENDED DELIBERATELY BY PLAN 41-13, FROM FIVE TO SEVEN, WITH THE REASON WRITTEN OUT.
+     *
+     * `entryPresence` and `occupied` are the SIXTH and SEVENTH names, and neither is new evidence.
+     * The walk's ordinary evidence is unchanged: it asks whether an entry is at a position. That
+     * evidence used to be a boolean probe, an import this closure could not see, and a boolean cannot
+     * report a failed read, which is how the dial was lost on one (T-41-55). The two names make the
+     * same evidence visible, and let a failed read refuse. The banned list above stays whole, and the
+     * closure's text still holds no node:fs name.
+     *
+     * WHAT THIS COUNT CANNOT SHOW. The guard reads the closure's TEXT, and `entryPresence`'s body sits
+     * outside that text, so the count of seven proves nothing about what the rule reaches. The
+     * amendment rests on the two `INVARIANCE 4 (41-13)` cases below: one derives every primitive the
+     * two names reach, one drives every shape of entry at a home position.
      */
     const HOME_RULE_PUBLISHED_NAMES = Object.freeze([
       "GOVERNANCE_CONFIG_CANDIDATE_KINDS",
       "MODULE_OWN_CONFIG_POSITIONS",
       "REPO_BOUNDARY_MARKERS",
       "canonicalDirectoryPath",
+      "entryPresence",
       "governanceConfigCandidates",
+      "occupied",
     ]);
 
     it("INVARIANCE 4 (PREMISE): the home branch is located, and a renamed branch is NOT", () => {
@@ -8042,17 +8058,21 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
           "ones. Every input to this rule beyond the walk's ordinary evidence must be a path, a " +
           "position or a load-time constant",
       ).toEqual([...HOME_RULE_PUBLISHED_NAMES]);
-      expect(consulted).toHaveLength(5);
-      // AND NO FILESYSTEM PROBE, NO ENVIRONMENT READ. `existsSync` is the walk's ORDINARY evidence
-      // and is priced as R-31-19-06; everything else here is the retracted design coming back.
-      // `realpathSync` LEFT this list by plan 31-27, deliberately and with a measurement — the
-      // argument is written at HOME_RULE_PUBLISHED_NAMES above and the flip it admits is driven by
-      // the case below. It is reached ONLY through `canonicalDirectoryPath`, which is asserted:
+      expect(consulted).toHaveLength(7);
+      // AND NO FILESYSTEM PROBE, NO ENVIRONMENT READ. Whether an entry is at a position is the walk's
+      // ORDINARY evidence and is priced as R-31-19-06; everything else here is the retracted design
+      // coming back. `realpathSync` LEFT this list by plan 31-27, deliberately and with a measurement
+      // — the argument is written at HOME_RULE_PUBLISHED_NAMES above and the flip it admits is driven
+      // by the case below. The closure's own text reaches it only through `canonicalDirectoryPath`,
+      // which is asserted here. It also runs inside `entryPresence` (plan 41-13), whose body this text
+      // does not hold: `occupied` discards the `real` field that read fills, and the derived 41-13
+      // case below bounds that route.
       expect(
         (closure as string).includes("realpathSync") &&
           !(closure as string).includes("canonicalDirectoryPath"),
-        "the home rule reaches realpathSync by some route OTHER than the one canonicaliser — that " +
-          "is the retracted probe design coming back under a new name",
+        "the closure's text reaches realpathSync by some route OTHER than the one canonicaliser, or " +
+          "`entryPresence`, whose read of it is bounded below — that is the retracted probe design " +
+          "coming back under a new name",
       ).toBe(false);
       for (const banned of [
         "statSync",
@@ -8116,6 +8136,59 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       // And a caller who can plant that symlink can already write the dial directly — R-31-19-06's
       // priced capability, not one this change created.
       expect(mod.TRUSTED_ROOT_RESIDUALS.map((r) => r.id)).toContain("R-31-19-06");
+    });
+
+    it("INVARIANCE 4 (41-13): the two names reach only the primitives the amendment priced", () => {
+      const source = readFileSync(IO_TS, "utf8");
+      // THE ALPHABET, FROM THE MODULE'S OWN IMPORT BLOCK. The block starts at the LAST `import {`
+      // before the line that closes it: the first in the file is another module's, and a lazy match
+      // from there would swallow every import between them. Comments inside it name primitives too.
+      const close = source.indexOf('} from "node:fs"');
+      expect(close, "PREMISE: the node:fs import block was not found").toBeGreaterThan(0);
+      const open = source.lastIndexOf("import {", close);
+      const bindings = source
+        .slice(open + "import {".length, close)
+        .replace(/\/\/.*$/gm, "")
+        .split(",")
+        .map((binding) => binding.trim())
+        .filter((binding) => binding !== "" && !binding.startsWith("type "))
+        .map((binding) => binding.split(/\s+as\s+/).pop() as string);
+      expect(bindings, "PREMISE: the block holds the read primitives").toEqual(
+        expect.arrayContaining(["lstatSync", "openSync", "realpathSync", "statSync"]),
+      );
+      const declared = moduleLevelNames(source);
+
+      /**
+       * Every binding and every banned word the text of `root` holds, through every module-level
+       * function it calls. Only a call-shaped token is followed: `consultedNames` also matches words
+       * in a message string, and a message reaches nothing.
+       */
+      function reached(root: string): { bindings: string[]; text: string } {
+        const seen = new Set<string>();
+        const queue = [root];
+        let text = "";
+        while (queue.length > 0) {
+          const name = queue.pop() as string;
+          if (seen.has(name)) continue;
+          seen.add(name);
+          const body = soleFunctionBody(source, name);
+          expect(body, `PREMISE: ${name} is called, and its body was not found`).not.toBeNull();
+          text += `${body as string}\n`;
+          for (const call of (body as string).matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
+            if (declared.has(call[1] as string)) queue.push(call[1] as string);
+          }
+        }
+        return { bindings: bindings.filter((b) => new RegExp(`(?<![\\w$])${b}(?![\\w$])`).test(text)).sort(), text };
+      }
+
+      const fromOccupied = reached("occupied");
+      const fromPresence = reached("entryPresence");
+      expect(fromOccupied.bindings, "occupied reads no filesystem, it reads an answer it is handed").toEqual([]);
+      expect(fromPresence.bindings).toEqual(["lstatSync", "realpathSync", "statSync"]);
+      for (const banned of ["readFileSync", "homedir", "process.env", "readdirSync", "openSync"]) {
+        expect(fromOccupied.text.includes(banned), `occupied reaches ${banned}`).toBe(false);
+        expect(fromPresence.text.includes(banned), `entryPresence reaches ${banned}`).toBe(false);
+      }
     });
 
     it("INVARIANCE 4 (41-13): an entry at a home position reads as the old probe read it, or refuses", () => {
