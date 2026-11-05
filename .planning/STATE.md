@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Completed 41-11-PLAN.md; CR-01 and Group B still open, live run awaits a named human
-last_updated: "2026-11-05T16:39:09.553Z"
+stopped_at: Completed 41-13-PLAN.md
+last_updated: "2026-11-05T17:58:57.896Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 41 execution started
-state_head: 0e780dfc35aafab9444bbe5e9f9813b7dd4e5426
+state_head: 40e24b999298616209f2d96a8fc7e0a81f3787f5
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 129
-  completed_plans: 125
+  completed_plans: 126
   percent: 67
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 ## Current Position
 
-Phase: 41 (Orchestrator flow guidance) — READY TO EXECUTE
-Plan: 12 of 12
+Phase: 41 (Orchestrator flow guidance) — EXECUTING
+Plan: 14 of 16
 Status: Ready to execute
 Last activity: 2026-11-05 — Phase 41 execution started
 
@@ -843,6 +843,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P12 | 47 min | 2 tasks | 11 files |
 | Phase 41 P10 | 27 min | 2 tasks | 16 files |
 | Phase 41 P11 | 33min | 3 tasks | 12 files |
+| Phase 41 P13 | 40 min | 3 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -2340,6 +2341,9 @@ Recent decisions affecting current work:
 - [Phase 41]: Plan 41-11 did not write the R-41-06 sentence that a high-severity finding under an active dial stays refused, because it is false under a lost dial; R-41-07 names the open dial loss, not accepted
 - [Phase 41]: Plan 41-11 left REQUIREMENTS.md unchanged: CR-01 stays open until a named human reads the live run
 - [Phase 41]: Workflow 16 step 3 says to pass the folder's bare name, because note.js exits 2 on the path a ref: line holds
+- [Phase 41]: 41-13: a ladder that could not finish names no root: an undeterminable home, a deleted working directory and a failed read each refuse rather than answer the kit
+- [Phase 41]: 41-13: a named root ends the search only when it carries a configuration or is not a directory; otherwise the walk answers, unless it lands on the kit's own root
+- [Phase 41]: 41-13: R-31-15-03 stays open on purpose: a name carrying its own lean configuration still chooses that dial, and plan 41-14 states it
 
 ### Pending Todos
 
@@ -2681,8 +2685,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-05T14:50:33.684Z
-Stopped at: Completed 41-11-PLAN.md; CR-01 and Group B still open, live run awaits a named human
+Last session: 2026-11-05T17:58:56.648Z
+Stopped at: Completed 41-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
