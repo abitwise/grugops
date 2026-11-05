@@ -17,7 +17,11 @@
 //
 // WHAT IT REFUSES, EACH AS A THROWN ERROR NAMING WHAT IT MET:
 //   * a closure that reaches an import whose specifier does not start with `node:` (the module and the
-//     specifier are named), because that import would not resolve on a host;
+//     specifier are named), because that import would not resolve on a host. One shape is admitted (plan 41-07,
+//     D-35): a named import, with no rename, of a name an EARLIER authority of the same row embeds. The name then
+//     resolves inside the region, so it needs no import line. A sibling listed at or after the importer, a renamed
+//     binding, a namespace or default binding and a name the sibling's closure does not hold are each refused, because
+//     the region would not resolve the name, or would read a constant before it is declared;
 //   * two embedded declarations, or an embedded declaration and an embedded import, with one name in one
 //     target (the name and both modules are named), because one of the two would silently win;
 //   * LEGACY_STATE_ROOT_REL, whose quoted value is the spelling the old-state-path gate counts (research
@@ -49,7 +53,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import type * as TS from "typescript";
 import { isEntrypoint } from "./is-entry.js";
 import { RUNNABLE_STAMP_DECLARED_NAMES, formatRunnableStampLines } from "./runnable-stamp.js";
@@ -175,6 +179,14 @@ export function runnableSpecs(set: readonly EmbedSpec[]): readonly EmbedSpec[] {
  * the non-blocking reader from scripts/context-io.ts. The scripts/claim.ts roots include what plan 41-05 calls, so
  * that plan needs no generator change. The note walk, readRawNotesWithSkips and recordFromParsed, reaches `done` from
  * the same module, so the seal check has one owner (D-07, D-28); install/state-layout.ts adds CONTEXT_REL for it.
+ * Plan 41-07 (2026-11-05) adds the row of the host note writer, scripts/runnable-ref/note.ts (RUN-02, RUN-05, D-35), a
+ * runnable, so note.js joins RUNNABLE_SET and the build stamp. Its authorities are listed in this order because a
+ * top-level constant must be declared before a later one reads it: the two state paths from install/state-layout.ts,
+ * the output sanitizer from scripts/state-rules.ts, the checkpoint names and dispositions from scripts/checkpoints.ts,
+ * then the one writer and its render from scripts/context-io.ts, which imports those checkpoint names from its row
+ * sibling (the rule in the header above). The seal, the note grammar and every admission rule reach the program through
+ * this row alone, so there is one authority (D-35). `appendNote` is the root and the combiner is not, so the program
+ * has the in-script tier and no route that trusts a `human:NAME` stamp.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -381,6 +393,30 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
     ],
   },
   {
+    target: "scripts/runnable-ref/note.ts",
+    authorities: [
+      { module: "install/state-layout.ts", roots: ["GRUGOPS_DIR_REL", "CONTEXT_REL"] },
+      { module: "scripts/state-rules.ts", roots: ["stripControlChars"] },
+      {
+        module: "scripts/checkpoints.ts",
+        roots: ["CHECKPOINTS", "CHECKPOINT_DEFAULTS", "STRICTEST_MATRIX", "canonicalizeDisposition"],
+      },
+      {
+        module: "scripts/context-io.ts",
+        roots: [
+          "appendNote",
+          "render",
+          "NOTE_KINDS",
+          "rootChainPresence",
+          "isWithin",
+          "ROOT_CHAIN_LINK_REFUSAL",
+          "readRegularFileOrNull",
+          "NOTE_FILE_MAX_BYTES",
+        ],
+      },
+    ],
+  },
+  {
     target: "install/state-migrate.ts",
     kind: "module",
     authorities: [
@@ -431,8 +467,9 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
  * 2026-10-22, plan 37-10: three rows; the third is the Done roll, scripts/runnable-ref/state-roll.ts (SPLIT-06, D-08).
  * 2026-10-28, plan 38-02: four rows; the fourth is the migrate planner, install/state-migrate.ts, of kind `module`.
  * 2026-11-04, plan 41-03: five rows; the new one is the host queue tool, scripts/runnable-ref/claim.ts (RUN-05, D-01).
+ * 2026-11-05, plan 41-07: six rows; the new one is the host note writer, scripts/runnable-ref/note.ts (RUN-02, D-35).
  */
-export const EMBED_SPEC_COUNT = 5;
+export const EMBED_SPEC_COUNT = 6;
 
 /** Names the generator never embeds, each with the reason it gives. */
 const REFUSED_NAMES: Readonly<Record<string, string>> = Object.freeze({
@@ -471,6 +508,12 @@ type ImportBinding = {
   readonly typeOnly: boolean;
 };
 
+/** An import a closure reaches whose module is another authority of the same row (plan 41-07). */
+type SiblingImport = ImportBinding & {
+  /** The authority the specifier names, as the row lists it. */
+  readonly sibling: string;
+};
+
 /** One authority's closure: the statements it embeds in source order, and the imports they use. */
 type Closure = {
   readonly module: string;
@@ -478,6 +521,8 @@ type Closure = {
   /** Every top-level name the embedded statements declare. */
   readonly names: readonly string[];
   readonly imports: readonly ImportBinding[];
+  /** The row-sibling imports the closure reaches. deriveBody judges them, and none emits an import line. */
+  readonly siblingImports: readonly SiblingImport[];
 };
 
 /** The identifiers a destructuring or plain binding name declares. */
@@ -513,8 +558,19 @@ function isMemberName(ts: typeof TS, id: TS.Identifier): boolean {
   return false;
 }
 
-/** The closure of `roots` in the authority at `root`/`module`. */
-function closeAuthority(root: string, authority: EmbedAuthority): Closure {
+/**
+ * The authority of the row that `specifier` names, or null. Only a relative `.js` specifier can name one: it resolves
+ * against `module`'s own directory, with `.js` read as `.ts`. A bare specifier that happens to spell a row module's
+ * path names a package, and stays refused.
+ */
+function rowSibling(module: string, specifier: string, rowModules: readonly string[]): string | null {
+  if (!/^\.\.?\//.test(specifier) || !specifier.endsWith(".js")) return null;
+  const resolved = posix.join(posix.dirname(module), `${specifier.slice(0, -".js".length)}.ts`);
+  return rowModules.includes(resolved) ? resolved : null;
+}
+
+/** The closure of `roots` in the authority at `root`/`module`, one of the row's `rowModules`. */
+function closeAuthority(root: string, authority: EmbedAuthority, rowModules: readonly string[]): Closure {
   const ts = compiler();
   const abs = join(root, ...authority.module.split("/"));
   let text: string;
@@ -600,6 +656,7 @@ function closeAuthority(root: string, authority: EmbedAuthority): Closure {
 
   const included = new Set<TS.Statement>();
   const used = new Map<string, ImportBinding>();
+  const siblings = new Map<string, SiblingImport>();
   const queue: string[] = [];
 
   const topLevelOf = (node: TS.Node): TS.Statement | undefined => {
@@ -619,6 +676,11 @@ function closeAuthority(root: string, authority: EmbedAuthority): Closure {
         const binding = importsByDecl.get(decl);
         if (binding !== undefined) {
           if (!binding.specifier.startsWith("node:")) {
+            const sibling = rowSibling(authority.module, binding.specifier, rowModules);
+            if (sibling !== null) {
+              siblings.set(binding.local, { ...binding, sibling });
+              continue;
+            }
             throw new Error(
               `generate-runnable-embeds: the closure of ${authority.roots.join(", ")} in ${authority.module} reaches ` +
                 `"${binding.local}", imported from "${binding.specifier}", which is not a node: builtin. A host ` +
@@ -665,6 +727,7 @@ function closeAuthority(root: string, authority: EmbedAuthority): Closure {
     statements: ordered.map((st) => st.getText(sf)),
     names: ordered.flatMap((st) => namesOf.get(st) ?? []),
     imports: [...used.values()],
+    siblingImports: [...siblings.values()],
   };
 }
 
@@ -692,6 +755,41 @@ export type EmbedBody = {
 const STAMP_LINES_OWNER = "the generated build stamp lines (scripts/runnable-stamp.ts)";
 
 /**
+ * Throws unless `sibling`, reached from the closure at index `at` of `closures`, is a named import with no rename of
+ * a name an earlier authority of the row embeds (plan 41-07, D-35). The name resolves inside the region only then. Each
+ * refusal names what it met.
+ */
+function refuseRowSibling(spec: EmbedSpec, closures: readonly Closure[], at: number, sibling: SiblingImport): void {
+  const importer = (closures[at] as Closure).module;
+  const reached = `${spec.target}: ${importer} reaches "${sibling.local}", imported from ${sibling.sibling}`;
+  if (sibling.form !== "named") {
+    throw new Error(
+      `generate-runnable-embeds: ${reached}, as a ${sibling.form} binding. A region holds declarations and no module ` +
+        "object, so only a named import of a row sibling can resolve there.",
+    );
+  }
+  if (sibling.imported !== sibling.local) {
+    throw new Error(
+      `generate-runnable-embeds: ${reached}, renamed from "${sibling.imported}". The region declares the name the ` +
+        "sibling gave it, so a renamed binding resolves to nothing. Import it under its own name.",
+    );
+  }
+  const source = closures.findIndex((c) => c.module === sibling.sibling);
+  if (source >= at) {
+    throw new Error(
+      `generate-runnable-embeds: ${reached}, which the row lists at or after ${importer}. A top-level constant must be ` +
+        `declared before a later one reads it, so list ${sibling.sibling} first.`,
+    );
+  }
+  if (!(closures[source] as Closure).names.includes(sibling.imported)) {
+    throw new Error(
+      `generate-runnable-embeds: ${spec.target}: "${sibling.imported}", which ${importer} imports from ` +
+        `${sibling.sibling}, is not in that authority's closure. Add it to the roots of ${sibling.sibling}.`,
+    );
+  }
+}
+
+/**
  * The import lines and declarations a fresh derivation gives for `spec`, without the markers and without the
  * build stamp lines. Throws on every refusal the module header lists.
  */
@@ -701,7 +799,10 @@ export function deriveBody(spec: EmbedSpec, root: string = ROOT): EmbedBody {
   if (repeated !== undefined) {
     throw new Error(`generate-runnable-embeds: ${spec.target} lists the authority ${repeated} twice; list it once with every root`);
   }
-  const closures = spec.authorities.map((a) => closeAuthority(root, a));
+  const closures = spec.authorities.map((a) => closeAuthority(root, a, modules));
+  closures.forEach((closure, at) => {
+    for (const sibling of closure.siblingImports) refuseRowSibling(spec, closures, at, sibling);
+  });
 
   // One name, one owner, across every authority's declarations and imports in this target. A name an authority
   // declares in more than one statement (a function's overloads) is one declaration of that authority. The three
