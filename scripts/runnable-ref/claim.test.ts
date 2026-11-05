@@ -1071,6 +1071,40 @@ describe("sweep (RUN-02, D-02, D-08, D-11)", () => {
     expect(existsSync(join(root, NOW_RUNNING_REL))).toBe(false);
   });
 
+  it("a symbolic link under claimed/ stops it before anything moves, and nothing outside the root is touched (T-41-08)", () => {
+    const root = repoClaiming("t1");
+    age(root, "t1", 31 * MINUTE_MS);
+    const elsewhere = mkTmp("grugops-claim-elsewhere-");
+    writeFileSync(join(elsewhere, "claim.md"), "---\nby: x\nat: 2020-01-01T00:00:00.000Z\ntask: t2\n---\n");
+    writeFileSync(join(elsewhere, "t2.md"), "a file outside the repository\n");
+    const skipped = stageSymlinkOrSkip(
+      elsewhere,
+      join(root, QUEUE_CLAIMED_REL, "t2"),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/claim.test.ts: an entry of claimed/ (plan 41-05)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the symlinked claimed/ case above"));
+      return;
+    }
+    const before = treeDigest(root);
+    const outside = treeDigest(elsewhere);
+    const r = run(root, "sweep");
+    expect(r.status).toBe(2);
+    expectRefused(r, `${QUEUE_CLAIMED_REL}/t2`, "symbolic link", "The queue was not changed.");
+    expect(treeDigest(root)).toEqual(before);
+    expect(treeDigest(elsewhere)).toEqual(outside);
+  });
+
+  it("a stray file in claimed/ does not stop it", () => {
+    const root = repoClaiming("t1");
+    age(root, "t1", 31 * MINUTE_MS);
+    writeFileSync(join(root, QUEUE_CLAIMED_REL, ".gitkeep"), "");
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 1\nreclaimed t1\n");
+  });
+
   it("a render that fails after a reclaim exits 2 and says the reclaim stands", () => {
     const root = repoClaiming("t1");
     age(root, "t1", 31 * MINUTE_MS);
