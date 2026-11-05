@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 6/12 plans executed (6 gap-closure plans, 41-07 to 41-12, planned)
+**Plans**: 7/12 plans executed (6 gap-closure plans, 41-07 to 41-12, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -612,7 +612,7 @@ Wave 4 *(blocked on wave 3)*
 **Gap closure, round 1** *(from 41-VERIFICATION.md and 41-REVIEW.md: CR-01, WR-01 to WR-04, IN-01, IN-08; human decisions D-35 and D-36 of 2026-11-05)*
 
 Gap wave 1 *(one code plan and one text plan, disjoint files)*
-- [ ] 41-07-PLAN.md — `note.js`, a host note writer built from the `context-io.ts` authority: a lone host copy writes the sealed note `done` accepts (CR-01; RUN-02, RUN-05)
+- [x] 41-07-PLAN.md — `note.js`, a host note writer built from the `context-io.ts` authority: a lone host copy writes the sealed note `done` accepts (CR-01; RUN-02, RUN-05)
 - [ ] 41-08-PLAN.md — stop precedence keeps the hand-off limit, the stamp sentence names the route that binds it, and `queue.claim_cap` is marked retired (WR-02, IN-01; RUN-02, RUN-06)
 
 Gap wave 2 *(blocked on gap wave 1; 41-12 was split out of 41-07 after the later plans were numbered, so its number does not follow wave order)*
@@ -673,7 +673,7 @@ Gap wave 4 *(blocked on gap wave 3)*
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
-| 41. Orchestrator flow guidance | v3.0 | 6/6 | In Progress | - |
+| 41. Orchestrator flow guidance | v3.0 | 7/12 | In Progress | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 

@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Completed 41-06-PLAN.md
-last_updated: "2026-11-05T09:26:00.275Z"
-last_activity: 2026-11-04
+stopped_at: Completed 41-07-PLAN.md
+last_updated: "2026-11-05T10:36:03.821Z"
+last_activity: 2026-11-05
 last_activity_desc: Phase 41 execution started
-state_head: acefeae4e4ccfd9bdefbcfdd25267ce9825064b7
+state_head: 51195fa8b13f829411dc3e0ae70a05295d2fc411
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 125
-  completed_plans: 119
+  completed_plans: 120
   percent: 67
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 ## Current Position
 
-Phase: 41 (Orchestrator flow guidance) — READY TO EXECUTE
-Plan: 6 of 6
+Phase: 41 (Orchestrator flow guidance) — EXECUTING
+Plan: 8 of 12
 Status: Ready to execute
-Last activity: 2026-11-04 — Phase 41 execution started
+Last activity: 2026-11-05 — Phase 41 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -837,6 +837,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P04 | 37 min | 3 tasks | 9 files |
 | Phase 41 P05 | 40 min | 3 tasks | 6 files |
 | Phase 41 P06 | 59 min | 3 tasks | 21 files |
+| Phase 41 P07 | 62min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -2321,6 +2322,8 @@ Recent decisions affecting current work:
 - [Phase 41]: The claimPending write-failure bug stays deferred: it needs a change to the generated region, which plan 41-05 holds unchanged
 - [Phase 41]: orchestrator.md keeps a ## Reads bullet naming _role-switch-protocol.md and ends at 6,176 B, not 6,087 B: the removed responsibility 7 was the role's only reference, and the validator requires one
 - [Phase 41]: The two corpus-total cases grow every role by 0.05 and let the protocol take the rest, because ROLE_CEILINGS is held and two roles now have about 6% to their per-file FAIL
+- [Phase 41]: note.js reaches notes through appendNote alone, so it holds the in-script tier and no route that trusts a human:NAME stamp
+- [Phase 41]: note.js has no root flag and no time flag: the store is the working directory's, the dial is trustedRepoRoot(), and the program stamps at
 
 ### Pending Todos
 
@@ -2661,8 +2664,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-05T03:30:31.262Z
-Stopped at: Completed 41-06-PLAN.md
+Last session: 2026-11-05T10:36:02.557Z
+Stopped at: Completed 41-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
