@@ -21,6 +21,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1119,5 +1120,68 @@ describe("sweep (RUN-02, D-02, D-08, D-11)", () => {
 
   it("takes no task", () => {
     expectRefused(run(repo(), "sweep", "t1"), "Usage: node claim.js");
+  });
+});
+
+// ── a claim with no usable record (plan 41-10, RUN-01, RUN-02, WR-04) ───────────────────────────────────
+
+describe("a claim directory with no usable record shows in the log and frees its slot (plan 41-10, WR-04)", () => {
+  /** A repository with the seed's dial and `claimed/orphan/`, holding `record` at claim.md when one is given. */
+  function repoWithOrphan(record?: string): string {
+    const root = repo();
+    configure(root, { wip_limit: 3, claim_cap: 2, stale_ttl_minutes: 30 });
+    const dir = join(root, QUEUE_CLAIMED_REL, "orphan");
+    mkdirSync(dir, { recursive: true });
+    if (record !== undefined) writeFileSync(join(dir, "claim.md"), record);
+    return root;
+  }
+
+  /** Set the modified time of `claimed/orphan/` `ms` milliseconds into the past. */
+  function ageDirectory(root: string, ms: number): void {
+    const when = new Date(Date.now() - ms);
+    utimesSync(join(root, QUEUE_CLAIMED_REL, "orphan"), when, when);
+  }
+
+  const ORPHAN_ROW = "| orphan |  |  |  | unknown |";
+
+  it("an orphan directory is a row with since unknown, and free counts it", () => {
+    const root = repoWithOrphan();
+    expect(run(root, "now-running").status).toBe(0);
+    expect(rows(root)).toEqual([ORPHAN_ROW]);
+    expect(run(root, "free").stdout).toBe("free 2\n");
+  });
+
+  it("an orphan directory younger than the TTL stays: swept 0, and the row and the slot stay", () => {
+    const root = repoWithOrphan();
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 0\n");
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "orphan"))).toBe(true);
+    expect(rows(root)).toEqual([ORPHAN_ROW]);
+    expect(run(root, "free").stdout).toBe("free 2\n");
+  });
+
+  it("an orphan directory past the TTL is reclaimed: the row goes and free rises", () => {
+    const root = repoWithOrphan();
+    ageDirectory(root, 31 * MINUTE_MS);
+    const r = run(root, "sweep");
+    expect(r.status).toBe(0);
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "orphan"))).toBe(false);
+    expect(r.stdout).toBe("swept 1\nreclaimed orphan\n");
+    expect(rows(root)).toEqual([]);
+    expect(run(root, "free").stdout).toBe("free 3\n");
+  });
+
+  it("a truncated record behaves the same: its row has an empty by and a since of unknown", () => {
+    const root = repoWithOrphan("---\nby: x\n");
+    expect(run(root, "now-running").status).toBe(0);
+    expect(rows(root)).toEqual([ORPHAN_ROW]);
+    expect(run(root, "free").stdout).toBe("free 2\n");
+    expect(run(root, "sweep").stdout).toBe("swept 0\n");
+
+    ageDirectory(root, 31 * MINUTE_MS);
+    expect(run(root, "sweep").stdout).toBe("swept 1\nreclaimed orphan\n");
+    expect(rows(root)).toEqual([]);
+    expect(run(root, "free").stdout).toBe("free 3\n");
   });
 });

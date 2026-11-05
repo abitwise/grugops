@@ -527,6 +527,59 @@ describe("claim.js — claimedCount: what takes a slot", () => {
   });
 });
 
+describe("claim.js — claimedEntryNames: one listing behind the count and the render (plan 41-10, WR-04)", () => {
+  it("claimedEntryNames holds what claimedCount counts: a keeper file is out, everything else is in", () => {
+    const root = makeQueueRoot("claim-names-");
+    mkdirSync(join(root, "claimed", "t"));
+    mkdirSync(join(root, "claimed", ".hidden"));
+    writeFileSync(join(root, "claimed", ".gitkeep"), "");
+    writeFileSync(join(root, "claimed", "stray.txt"), "");
+    symlinkSync(join(root, "pending"), join(root, "claimed", ".link"));
+    const names = mod.claimedEntryNames(root);
+    expect([...names].sort()).toEqual([".hidden", ".link", "stray.txt", "t"]);
+    expect(mod.claimedCount(root)).toBe(names.length);
+  });
+
+  it("claimedEntryNames is empty for an empty directory and throws when the directory cannot be read", () => {
+    expect(mod.claimedEntryNames(makeQueueRoot("claim-names-empty-"))).toEqual([]);
+    expect(() => mod.claimedEntryNames(freshTmp("claim-names-none-"))).toThrow();
+  });
+});
+
+describe("claim.js — a claim directory with no usable record (plan 41-10, WR-04)", () => {
+  const TTL = 60 * 60 * 1000;
+
+  /** The rows of the rendered table, under its header. */
+  function renderedRows(root: string): string[] {
+    mod.renderNowRunning(root);
+    const lines = readFileSync(join(root, "now-running.md"), "utf8").split("\n");
+    return lines.slice(lines.indexOf("| --- | --- | --- | --- | --- |") + 1).filter((l) => l !== "");
+  }
+
+  it("a record-less directory renders exactly one row, and an empty claimed/ the header alone", () => {
+    const root = makeQueueRoot("claim-record-less-");
+    expect(renderedRows(root)).toEqual([]);
+    mkdirSync(join(root, "claimed", "orphan"));
+    expect(renderedRows(root)).toEqual(["| orphan |  |  |  | unknown |"]);
+  });
+
+  it("a truncated record gives the same row, and none of its fields", () => {
+    const root = makeQueueRoot("claim-truncated-");
+    mkdirSync(join(root, "claimed", "t"));
+    writeFileSync(join(root, "claimed", "t", "claim.md"), "---\nby: x\n");
+    expect(renderedRows(root)).toEqual(["| t |  |  |  | unknown |"]);
+  });
+
+  it("a record-less directory is judged by the directory's age: fresh stays, stale is reclaimed", () => {
+    const root = makeQueueRoot("claim-record-less-sweep-");
+    mkdirSync(join(root, "claimed", "orphan"));
+    expect(mod.sweepStale(root, TTL)).toEqual([]);
+    expect(existsSync(join(root, "claimed", "orphan"))).toBe(true);
+    expect(mod.sweepStale(root, TTL, Date.now() + 2 * TTL)).toEqual(["orphan"]);
+    expect(existsSync(join(root, "claimed", "orphan"))).toBe(false);
+  });
+});
+
 describe("claim.js — freeSlots: never negative (RUN-02)", () => {
   it.each([
     [3, 2, 1],
