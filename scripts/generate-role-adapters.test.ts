@@ -2183,6 +2183,21 @@ const LEVEL_PINS = {
 } as const;
 
 describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)", () => {
+  it("Phase 41 D-31: the three engineer adapters differ only in name, description, model and effort", () => {
+    const m = levelsScratch();
+    expect(runIn(m).status).toBe(0);
+    const stripped = Object.keys(LEVEL_PINS).map((level) =>
+      readFileSync(join(agentsDir(m), `grugops-software-engineer-${level}.md`), "utf8")
+        .split("\n")
+        .filter((l) => !/^(name|description|model|effort): /.test(l))
+        .join("\n"),
+    );
+    expect(stripped[0]).toContain("Work at senior level: read the `## Levels` section of that role file.");
+    expect(stripped[0]).not.toContain("Work at the");
+    expect(stripped[1] === stripped[0], "the mid body equals the junior body").toBe(true);
+    expect(stripped[2] === stripped[0], "the senior body equals the junior body").toBe(true);
+  });
+
   it("levels: a leveled role emits one adapter per level and no base adapter, each pinned, described, pointed and granted", () => {
     // The unleveled mirror's software-engineer description is the base every level suffixes.
     const plain = unleveledScratch();
@@ -2221,7 +2236,7 @@ describe("generate-role-adapters.js — engineer levels (plan 39-02, D-13, D-14)
       expect(text).toContain(
         "Read `agent-factory/roles/software-engineer.md` now and act as that role. The role file does the\n" +
           "thinking; this adapter only points at it.\n\n" +
-          `Work at the \`${level}\` level: read the \`## Levels\` section of that role file for its scope.\n\n`,
+          "Work at senior level: read the `## Levels` section of that role file.\n\n",
       );
       expect(fmValue(text, "skills"), "a level adapter never carries a `skills:` line").toBeUndefined();
       expect(fmValue(text, "coordinator")).toBeUndefined();

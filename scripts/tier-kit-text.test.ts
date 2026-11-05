@@ -684,6 +684,8 @@ describe("pr-review-checklist.md lean lens (PLAIN-06; D-25)", () => {
 
 describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D-17, D-18, D-31)", () => {
   const levels = (): string => section(ENGINEER, "Levels");
+  /** The one sentence of `## Levels` that may name effort (Phase 41 D-31). */
+  const SENIOR_SENTENCE = "Every tier works as a senior engineer: the tiers differ in adapter name, model and effort, not in persona.";
 
   it("D-13: the frontmatter declares `levels: junior mid senior` once, as its last line", () => {
     const fm = ENGINEER.split("\n---\n")[0] as string;
@@ -705,11 +707,29 @@ describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D
 
   it("D-5 / D-17: on the other hosts the level in the ticket's `## Tech Lead plan` is scope guidance only, with no model advice", () => {
     const body = levels();
-    expect(body).toContain("On the other hosts, read the level in the ticket's `## Tech Lead plan` section and keep to that level's scope; the model does not change.");
-    // No model is named or advised anywhere in the section.
+    expect(body).toContain("Keep to that level's scope; on the other hosts the model does not change.");
+    // No model is named or advised anywhere in the section. Phase 41 D-31 names effort as a tier
+    // difference in one sentence, so only that sentence is stripped and any other use still fails.
+    expect(body).toContain(SENIOR_SENTENCE);
+    const rest = body.replace(SENIOR_SENTENCE, "");
     for (const word of ["haiku", "sonnet", "opus", "Haiku", "Sonnet", "Opus", "effort"]) {
-      expect(body, `the section must not advise a model: "${word}"`).not.toContain(word);
+      expect(rest, `the section must not advise a model: "${word}"`).not.toContain(word);
     }
+  });
+
+  it("Phase 41 D-31: every tier works as a senior engineer, and the tiers differ in adapter name, model and effort", () => {
+    expect(levels()).toContain(SENIOR_SENTENCE);
+  });
+
+  it("Phase 41 D-31: every host reads the plan before it starts, and no sentence scopes that read to some hosts", () => {
+    const naming = levels()
+      .split(/(?<=\.)\s+/)
+      .filter((sentence) => sentence.includes("## Tech Lead plan"));
+    expect(naming.length, "a sentence of the section names the plan").toBeGreaterThan(0);
+    for (const sentence of naming) {
+      expect(sentence.startsWith("On every host"), "a sentence naming the plan opens On every host").toBe(true);
+    }
+    expect(levels()).toContain("On every host, read the adapter or level named in the ticket's `## Tech Lead plan` section before you start.");
   });
 
   it("the scope of each level is the complexity rubric's, which it points at and does not restate", () => {
@@ -718,10 +738,11 @@ describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D
     expect(body).not.toContain("F1");
   });
 
-  it("TIER-03 / D-31: a junior takes only tasks whose plan fixes what to write, and stops `BLOCKED` on the four excluded kinds of work", () => {
+  it("TIER-03 / D-31: a junior plan takes only tasks whose plan fixes what to write, and stops `BLOCKED` on the four excluded kinds of work", () => {
     const body = levels();
-    expect(body).toContain("A junior takes only tasks whose plan already fixes what to write.");
-    expect(body).toContain("A junior that meets security, migration, concurrency or test-integrity work stops and reports `BLOCKED`.");
+    expect(body).toContain("A junior plan names the `grugops-software-engineer-junior` adapter, or the junior level on the other hosts.");
+    expect(body).toContain("Under a junior plan, take only tasks whose plan already fixes what to write.");
+    expect(body).toContain("Stop and report `BLOCKED` on security, migration, concurrency or test-integrity work.");
   });
 
   it("D-10: every level may deviate from the plan, recording what changed and why", () => {
@@ -736,9 +757,9 @@ describe("software-engineer.md `## Levels` (TIER-02, TIER-03; D-5, D-10, D-13, D
     expect(levels()).not.toContain("the gate fails a second time");
   });
 
-  it("WR-02 / TIER-03: a junior also stops on every other rubric risk tag, F3 = 1 included", () => {
+  it("WR-02 / TIER-03: a junior plan also stops on every other rubric risk tag, F3 = 1 included", () => {
     expect(levels()).toContain(
-      "So does a junior that meets any other risk tag the rubric lists: auth, money, PII, data writes, a public interface or config.",
+      "Stop the same way on any other risk tag the rubric lists: auth, money, PII, data writes, a public interface or config.",
     );
     expect(section(RUBRIC, "Junior exclusions")).toContain(
       "The F3 = 1 tags (data writes, public interface, config) also rule junior out, by mapping rule 4.",
@@ -809,9 +830,13 @@ describe("software-engineer.md plain rewrite (PLAIN-02, PLAIN-05; D-20..D-24)", 
     }
   });
 
+  it("Phase 41 D-31: the junior stop in `## Stop when` keys on a junior plan", () => {
+    expect(section(ENGINEER, "Stop when")).toContain("- When a junior plan meets work that `## Levels` excludes, stop as it says; the Tech Lead takes the ticket.");
+  });
+
   it("the `## Levels` section keeps its pinned sentences and points no level at a different do-less rule", () => {
     const levels = section(ENGINEER, "Levels");
-    expect(levels).toContain("A junior takes only tasks whose plan already fixes what to write.");
+    expect(levels).toContain("Under a junior plan, take only tasks whose plan already fixes what to write.");
     expect(levels).toContain("At any level you may deviate from the plan to fit the real code; record what changed and why in your notes.");
     expect(levels).not.toContain("Do less");
   });

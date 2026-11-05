@@ -489,7 +489,9 @@ describe("MODEL-01: the adapters are byte-identical to the Phase 39 start baseli
 
       // The five transforms, applied from the bottom up so earlier indexes stay valid.
       const out = [...lines];
-      out.splice((pointerAt[0] as number) + 1, 0, "", `Work at the \`${record.level}\` level: read the \`## Levels\` section of that role file for its scope.`);
+      // Phase 41 D-31, 2026-11-04: the human decided that every tier gets one senior instruction, so
+      // this line carries no level. A recorded transform, the comparison is not loosened (D-3).
+      out.splice((pointerAt[0] as number) + 1, 0, "", "Work at senior level: read the `## Levels` section of that role file.");
       out.splice(modelAt, 1, `${MODEL_LINE_PREFIX}${record.model}`, `${EFFORT_LINE_PREFIX}${record.effort}`);
       // Gap plan 39-11, WR-03, 2026-10-30: the level adapter's use-when clause names its own adapter so
       // a main thread cannot route unscored code work to it. A recorded transform, the comparison is
