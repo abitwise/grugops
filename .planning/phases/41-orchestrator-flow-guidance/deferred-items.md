@@ -26,3 +26,7 @@
   **Regression, fixed:** `scripts/claim.test.ts` spawned `mkfifo` itself, which `scripts/uat-gate-exit-contract.test.ts` forbids. Plan 41-01 introduced this. The case now stages the FIFO through `stageShapeOrSkip`.
   **Not code:** the `check-foundation-guards` case fails only because of the 7 `.js` files in the untracked `~/` directory (96 walked against 89 tracked).
   **Also settled:** `install/installer-write-set.test.ts`, `scripts/worktree-dogfood.test.ts` and `scripts/uat-spec-integrity` were not among the failures once `/tmp` quota was out of the way.
+- `claimPending` can leave an empty claim directory when the record write fails (found during 41-03)
+  status: open
+  **What:** `takeClaim` makes `claimed/TASK/` and then writes `claim.md`. When that write throws, `claimPending` returns `refused` with no removal, so the directory holds a slot and a retry reads `lost`. This comes from reading `scripts/claim.ts`; it was not reproduced.
+  **Why deferred:** the rule lives in the plan 41-01 authority and needs a disk failure between the two calls. `claim.js` reports exit 2 either way. A fix belongs in `scripts/claim.ts`, with a fault-injection case.
