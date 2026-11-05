@@ -52,6 +52,8 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   License; see [NOTICE](NOTICE) for the credit and the license text.
 - `tools/grugops/claim.js`, the host queue tool. It runs `free`, `claim`, `done`, `sweep` and
   `now-running` from the repository root, so a host needs no library call to work the queue.
+- `tools/grugops/note.js`, the host note writer. A role runs it to write the sealed note
+  `claim.js done` needs, on every host the scripted install reaches.
 
 ### Changed
 

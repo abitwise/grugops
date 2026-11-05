@@ -215,7 +215,7 @@ Two facts govern this table:
    receives when the plugin is installed. Only the coordinator declares it: on the spawn path the
    session's tool list is exactly the adapter's `tools` line, so without the token the coordinator
    cannot reach the sanctioned writer. Nested role sessions do not receive plugin MCP tools and
-   reach the writer in-process, so the token would resolve to nothing there. The bare
+   write notes with `tools/grugops/note.js`, so the token would resolve to nothing there. The bare
    `mcp__grugops__propose_note` is the server's own name and is exposed only by a standalone
    `.mcp.json` server, which the kit does not ship.
 

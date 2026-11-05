@@ -178,7 +178,8 @@ const fail: (m: string) => never = (m: string): never => {
 // sanctioned writer on the spawn path. The token exists so the coordinator's grant carries that
 // route, through this generator and never by a hand edit of the generated adapter. No other role
 // declares it: nested role sessions do not receive plugin MCP tools at all (A:784 — "No such tool
-// available ... does not offer this tool here") and reach the sanctioned writer in-process.
+// available ... does not offer this tool here") and write notes with `tools/grugops/note.js`
+// (phase 41 D-35).
 const CAPABILITY_TOOLS: readonly { readonly token: string; readonly tools: readonly string[] }[] = [
   { token: "read", tools: ["Read", "Grep", "Glob"] },
   { token: "edit", tools: ["Edit", "Write"] },

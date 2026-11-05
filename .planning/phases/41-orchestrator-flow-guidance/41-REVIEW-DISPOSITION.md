@@ -9,7 +9,7 @@ findings:
     title: "A spawned role agent cannot write the sealed note that `done` requires, so tasks stay claimed on Claude Code too"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Workflow 17 has no route on the minimal and plugin-only installs, and a missing tool exits 1"
   - id: WR-02
     severity: warning
@@ -17,7 +17,7 @@ findings:
     title: "Stop precedence line 1 takes away the limit on revert hand-offs"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "After a crash, a claim younger than the TTL holds its slot for the whole session"
   - id: WR-04
     severity: warning
@@ -69,9 +69,9 @@ findings:
     title: "The render is no longer single-writer"
   - id: IN-08
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 14
+open: 11
 total: 17
 recorded: 2026-11-05T04:17:45.222Z
 ---
@@ -80,10 +80,10 @@ recorded: 2026-11-05T04:17:45.222Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| WR-01 | warning | open | - |
+| CR-01 | critical | open | 41-07, 41-09, 41-11, 41-12; live run pending |
+| WR-01 | warning | fixed | 41-09, 41-11 |
 | WR-02 | warning | fixed | 41-08 |
-| WR-03 | warning | open | - |
+| WR-03 | warning | fixed | 41-11 |
 | WR-04 | warning | fixed | 41-10 |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
@@ -96,7 +96,7 @@ recorded: 2026-11-05T04:17:45.222Z
 | IN-05 | info | open | - |
 | IN-06 | info | open | - |
 | IN-07 | info | open | - |
-| IN-08 | info | open | - |
+| IN-08 | info | fixed | 41-11 |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
