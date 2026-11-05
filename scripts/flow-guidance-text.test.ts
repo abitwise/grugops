@@ -9,6 +9,9 @@
 // Plan 41-06 points the Orchestrator at that workflow with one line, states the RUN-06 limit in its
 // `## Hard limits`, and moves the claim out of the role-switch step (D-04, D-05, D-12, D-13, D-32).
 //
+// Plan 41-16 states the supersession rule of plan 41-15 where a role reads about `--supersedes`: step 3
+// of Workflow 16 and the correction paragraph of the note contract (CR-02, D-37).
+//
 // No hook enforces this guidance on any host. The words are the control, so each case reads the
 // shipped file and asserts a stated phrase, an absence or an ordering.
 
@@ -23,6 +26,7 @@ const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md")
 const ORCHESTRATOR = readFileSync(join(ROOT, "agent-factory/roles/orchestrator.md"), "utf8");
 const ROLE_SWITCH = readFileSync(join(ROOT, "agent-factory/roles/_role-switch-protocol.md"), "utf8");
 const KIT_README = readFileSync(join(ROOT, "agent-factory/README.md"), "utf8");
+const NOTE_CONTRACT = readFileSync(join(ROOT, "agent-factory/contracts/context-note.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -752,5 +756,26 @@ describe("the README says who claims (plan 41-06; D-04)", () => {
     expect(bullet.replace(/\n\s*/g, " ")).toContain("it claims each subtask at dispatch in its role's name");
     expect(bullet.replace(/\n\s*/g, " ")).not.toContain("each role claims its subtask");
     expect(bullet.split("\n")).toHaveLength(5);
+  });
+});
+
+describe("the kit says what a note cannot supersede (plan 41-16; CR-02, RUN-05, D-37)", () => {
+  it("states the rule in step 3 of Workflow 16, straight after the sentence that names `--supersedes`", () => {
+    expect(step(WF16, 3)).toContain(
+      "`--verified-by`, `--supersedes`, `--sha`, `--gate-run` and `--content-hash` set those note fields. " +
+        "A note cannot supersede a green gate verdict or a gated finding. " +
+        "Only a named human's disposition retires one. " +
+        "The program stamps `at` itself.",
+    );
+  });
+
+  it("states the same exception where the note contract says how a note is corrected", () => {
+    const lines = NOTE_CONTRACT.split("\n");
+    const trail = lines.indexOf("stays in `notes/` as part of the permanent audit trail.");
+    expect(trail, "no audit-trail line").toBeGreaterThanOrEqual(0);
+    expect(lines.slice(trail + 1, trail + 3).join(" | ")).toBe(
+      "A green gate verdict and a finding the `human_admission` dial gates are the exception: | " +
+        "only a named human's disposition retires one.",
+    );
   });
 });
