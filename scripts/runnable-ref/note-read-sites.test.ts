@@ -618,3 +618,49 @@ describe("READ-1 on note.js: the reads that have a named consequence (plan 41-12
     }
   });
 });
+
+describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
+  /** What one run with no fault and no preload left behind. */
+  interface NoFaultRun {
+    readonly status: number | null;
+    readonly stdout: string;
+    readonly stderr: string;
+    readonly notes: number;
+    readonly all: string;
+  }
+
+  /**
+   * `args` on the lone host copy, on a fresh copy of the fixture of `mode`, with no preload. `change` edits the
+   * environment the run gets, so a case can delete a name, which `{ ...process.env }` cannot express.
+   */
+  function noFault(mode: AnyMode, args: readonly string[], change: (env: NodeJS.ProcessEnv, root: string) => void): NoFaultRun {
+    const root = freshRoot(mode);
+    const env: NodeJS.ProcessEnv = { ...process.env, ...BLANK };
+    change(env, root);
+    const before = treeDigest(root);
+    const r = spawnSync(process.execPath, [HOST_JS, ...args], { encoding: "utf8", cwd: root, timeout: 30_000, env });
+    const after = treeDigest(root);
+    rmSync(root, { recursive: true, force: true });
+    const notes = noteKeys(after).length - noteKeys(before).length;
+    const all = `${mode}, status ${r.status}, stdout ${JSON.stringify(r.stdout)}, stderr ${JSON.stringify(r.stderr)}`;
+    return { status: r.status, stdout: r.stdout, stderr: r.stderr, notes, all };
+  }
+
+  /** The run stopped because no root could be named: exit 1, one `refused` line that says why, and no note. */
+  function assertRootRefused(run: NoFaultRun): void {
+    expect(run.status, run.all).toBe(1);
+    expect(run.stdout.startsWith("refused t1: "), run.all).toBe(true);
+    expect(run.stdout.trimEnd().split("\n"), run.all).toHaveLength(1);
+    expect(run.stdout, run.all).toContain("refusing to name a governance root");
+    expect(run.stderr, run.all).toBe("");
+    expect(run.notes, run.all).toBe(0);
+  }
+
+  it("HOME naming nothing refuses the finding the dial refuses, and writes no note", () => {
+    assertRootRefused(noFault("governed", DIAL_REFUSES, (env) => { env.HOME = "/nonexistent"; }));
+  });
+
+  it("HOME as the empty string refuses the finding the dial refuses, and writes no note (edge RUN-02 empty)", () => {
+    assertRootRefused(noFault("governed", DIAL_REFUSES, (env) => { env.HOME = ""; }));
+  });
+});
