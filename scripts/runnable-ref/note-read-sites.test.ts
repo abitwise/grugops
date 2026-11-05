@@ -630,6 +630,8 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
     readonly stdout: string;
     readonly stderr: string;
     readonly notes: number;
+    /** The lines of the fixture's own audit ledger. */
+    readonly ledger: readonly string[];
     readonly all: string;
   }
 
@@ -637,17 +639,25 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
    * `args` on the lone host copy, on a fresh copy of the fixture of `mode`, with no preload. `change` edits the
    * environment the run gets, so a case can delete a name, which `{ ...process.env }` cannot express.
    */
-  function noFault(mode: AnyMode, args: readonly string[], change: (env: NodeJS.ProcessEnv, root: string) => void): NoFaultRun {
-    const root = freshRoot(mode);
+  function noFault(
+    mode: AnyMode,
+    args: readonly string[],
+    change: (env: NodeJS.ProcessEnv, root: string) => void,
+    stage?: (root: string) => void,
+  ): NoFaultRun {
+    const root = freshRoot(mode, stage);
     const env: NodeJS.ProcessEnv = { ...process.env, ...BLANK };
     change(env, root);
     const before = treeDigest(root);
     const r = spawnSync(process.execPath, [HOST_JS, ...args], { encoding: "utf8", cwd: root, timeout: 30_000, env });
     const after = treeDigest(root);
+    const ledger = after.has(`${GRUGOPS_DIR_REL}/audit/admissions.jsonl`)
+      ? readFileSync(ledgerPath(root), "utf8").split("\n").filter((line) => line !== "")
+      : [];
     rmSync(root, { recursive: true, force: true });
     const notes = noteKeys(after).length - noteKeys(before).length;
     const all = `${mode}, status ${r.status}, stdout ${JSON.stringify(r.stdout)}, stderr ${JSON.stringify(r.stderr)}`;
-    return { status: r.status, stdout: r.stdout, stderr: r.stderr, notes, all };
+    return { status: r.status, stdout: r.stdout, stderr: r.stderr, notes, ledger, all };
   }
 
   /** The run stopped because no root could be named: exit 1, one `refused` line that says why, and no note. */
@@ -659,6 +669,88 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
     expect(run.stderr, run.all).toBe("");
     expect(run.notes, run.all).toBe(0);
   }
+
+  /** The dial itself refused: exit 1, one `refused` line that is not the ladder's, and no note. */
+  function assertDialRefused(run: NoFaultRun): void {
+    expect(run.status, run.all).toBe(1);
+    expect(run.stdout.startsWith("refused t1: "), run.all).toBe(true);
+    expect(run.stdout, run.all).not.toContain("refusing to name a governance root");
+    expect(run.notes, run.all).toBe(0);
+  }
+
+  /** The note stands: exit 0, the success line, and one note on disk. */
+  function assertNoted(run: NoFaultRun): void {
+    expect(run.status, run.all).toBe(0);
+    expect(run.stdout, run.all).toMatch(SUCCESS_LINE);
+    expect(run.notes, run.all).toBe(1);
+  }
+
+  /** An empty directory, and one that holds only a version-control marker. */
+  const emptyDir = (): string => mkTmp("grugops-note-read-empty-");
+  function bareRepository(): string {
+    const dir = mkTmp("grugops-note-read-bare-");
+    mkdirSync(join(dir, ".git"));
+    return dir;
+  }
+
+  /** The three names a process can set for itself, each with a value that carries no configuration. */
+  const EMPTY_NAMES: readonly (readonly [string, () => string])[] = [
+    ["GRUGOPS_PROJECT_DIR", emptyDir],
+    ["CLAUDE_PROJECT_DIR", emptyDir],
+    ["GRUGOPS_HOST_DELIVERED_ROOT", bareRepository],
+  ];
+
+  for (const [name, value] of EMPTY_NAMES) {
+    it(`${name} at a directory with no configuration does not outrank the dial of the working directory`, () => {
+      assertDialRefused(noFault("governed", DIAL_REFUSES, (env) => { env[name] = value(); }));
+    });
+  }
+
+  it("under that name a note the dial allows still lands, under the true dial", () => {
+    assertNoted(noFault("governed", OBSERVATION, (env) => { env.GRUGOPS_PROJECT_DIR = emptyDir(); }));
+  });
+
+  it("a retained repository under that name records its ledger line in its own ledger", () => {
+    const run = noFault("retained", OBSERVATION, (env) => { env.GRUGOPS_PROJECT_DIR = emptyDir(); });
+    assertNoted(run);
+    expect(run.ledger, run.all).toHaveLength(1);
+  });
+
+  it("a retained repository under an undeterminable home never prints noted without its ledger line", () => {
+    const run = noFault("retained", OBSERVATION, (env) => { env.HOME = "/nonexistent"; });
+    assertRootRefused(run);
+    expect(run.ledger, run.all).toEqual([]);
+  });
+
+  it("an unparseable config under an undeterminable home still refuses the note (GOV-02, D-14)", () => {
+    const unparseable = (root: string): void => writeFileSync(join(root, GRUGOPS_DIR_REL, "factory.config.json"), "{ not json\n");
+    const run = noFault("observation", OBSERVATION, (env) => { env.HOME = "/nonexistent"; }, unparseable);
+    expect(run.status, run.all).toBe(1);
+    expect(run.stdout.startsWith("refused t1: "), run.all).toBe(true);
+    expect(run.notes, run.all).toBe(0);
+  });
+
+  it("CONTROL: with HOME unset the dial holds, as it does today", () => {
+    assertDialRefused(noFault("governed", DIAL_REFUSES, (env) => { delete env.HOME; }));
+  });
+
+  it("CONTROL: with HOME naming a regular file the dial holds, as it does today", () => {
+    const file = join(emptyDir(), "a-file");
+    writeFileSync(file, "not a home\n");
+    assertDialRefused(noFault("governed", DIAL_REFUSES, (env) => { env.HOME = file; }));
+  });
+
+  it("CONTROL: a lean repository is noted, and so is one that names its own root", () => {
+    assertNoted(noFault("observation", OBSERVATION, () => undefined));
+    assertNoted(noFault("observation", OBSERVATION, (env, root) => { env.GRUGOPS_PROJECT_DIR = root; }));
+  });
+
+  it("a name that is not an existing directory stays refused in a lean repository, so nothing moves to admitted", () => {
+    const run = noFault("observation", OBSERVATION, (env) => { env.GRUGOPS_PROJECT_DIR = join(emptyDir(), "not-there"); });
+    expect(run.status, run.all).toBe(1);
+    expect(run.stdout.startsWith("refused t1: "), run.all).toBe(true);
+    expect(run.notes, run.all).toBe(0);
+  });
 
   it("HOME naming nothing refuses the finding the dial refuses, and writes no note", () => {
     assertRootRefused(noFault("governed", DIAL_REFUSES, (env) => { env.HOME = "/nonexistent"; }));

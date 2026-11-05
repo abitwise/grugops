@@ -4130,6 +4130,17 @@ describe("30-11 RA2-1 — the admit verb does not take the governance root from 
     return { status: r.status, msg: ((r.stdout ?? "") + (r.stderr ?? "")).trim() };
   }
 
+  it("an undeterminable home with no project variable exits 1 and names no root (plan 41-13)", () => {
+    const f = fixture();
+    const r = admitCli(["t", f.note], {
+      HOME: "/nonexistent",
+      GRUGOPS_PROJECT_DIR: "",
+      GRUGOPS_HOST_DELIVERED_ROOT: "",
+    });
+    expect(r.status, r.msg).toBe(1);
+    expect(r.msg).toContain("refusing to name a governance root");
+  });
+
   it("a caller-supplied contextRoot/repoRoot is refused as an arity error", () => {
     const f = fixture();
     for (const args of [

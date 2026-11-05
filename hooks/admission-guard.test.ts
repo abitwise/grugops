@@ -144,6 +144,17 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
     expectDeny(payload({ ...HIGH, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }) });
   });
 
+  it("deny: a finding under an undeterminable home with no project variable, because no root can be named (plan 41-13)", () => {
+    const { stdout } = runGuard(payload({ ...HIGH, verified_by: "human:eve" }), {
+      HOME: "/nonexistent",
+      CLAUDE_PROJECT_DIR: "",
+      GRUGOPS_PROJECT_DIR: "",
+      GRUGOPS_HOST_DELIVERED_ROOT: "",
+    });
+    expect(stdout).toContain('"permissionDecision":"deny"');
+    expect(stdout).toContain("fail-closed");
+  });
+
   it("deny: the deny reason names the gated authoring role", () => {
     const { stdout } = runGuard(payload({ ...HIGH, verified_by: "" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),

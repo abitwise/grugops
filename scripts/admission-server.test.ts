@@ -233,12 +233,13 @@ describe("admission-server — structured-channel write path via the call handle
 // ── End-to-end over real stdio JSON-RPC, proving the server reads NO approval env. ───────────────────
 describe("admission-server — end-to-end stdio JSON-RPC (the server is NOT the gate)", () => {
   // Drive the COMMITTED server over stdio: write newline-delimited JSON-RPC, collect the responses.
-  function driveServer(messages: object[], extraEnv: Record<string, string> = {}) {
+  function driveServer(messages: object[], extraEnv: Record<string, string> = {}, cwd?: string) {
     const input = messages.map((m) => JSON.stringify(m)).join("\n") + "\n";
     const r = spawnSync("node", [SERVER_JS], {
       input,
       encoding: "utf8",
       env: { ...process.env, ...extraEnv },
+      cwd,
     });
     const responses = r.stdout
       .split("\n")
@@ -287,6 +288,29 @@ describe("admission-server — end-to-end stdio JSON-RPC (the server is NOT the 
     expect(call.result.isError).toBe(true);
     expect(call.result.content[0].text).toMatch(/human:NAME|human disposition/);
     expect(noteFiles(root, "asrv-env")).toHaveLength(0);
+  });
+
+  it("an undetermined root answers isError and writes nothing, and the server stays up (plan 41-13)", () => {
+    // The stdio loop has no catch, so a throw outside the call's own `try` would end the server rather
+    // than answer. The later message is what proves it did not end.
+    const root = repoWithGovernance({ human_admission: "off" });
+    mkdirSync(join(root, ".git"));
+    const responses = driveServer(
+      [
+        { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } },
+        { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "propose_note", arguments: args({ task: "asrv-noroot" }) } },
+        { jsonrpc: "2.0", id: 3, method: "tools/list" },
+      ],
+      { HOME: "/nonexistent", CLAUDE_PROJECT_DIR: "", GRUGOPS_PROJECT_DIR: "", GRUGOPS_HOST_DELIVERED_ROOT: "" },
+      root,
+    );
+    const call = responses.find((r) => r.id === 2);
+    expect(call, "the call was never answered: the throw ended the server").toBeDefined();
+    expect(call.result.isError).toBe(true);
+    expect(call.result.content[0].text).toContain("refusing to name a governance root");
+    expect(noteFiles(root, "asrv-noroot")).toHaveLength(0);
+    expect(ledgerLines(root)).toHaveLength(0);
+    expect(responses.find((r) => r.id === 3), "the server stopped answering after the refusal").toBeDefined();
   });
 
   it("a clean routine note persists end-to-end over stdio (the structured channel works)", () => {
