@@ -208,7 +208,7 @@ Plan 41-12 owns 14:
 
 ## Gates
 
-All green at `51195fa8` or at the tree it changed one line of: `npm run build`, `npm run typecheck`, `node scripts/check-foundation-guards.js`, `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js`, `node scripts/check-state-paths.js`, `npm run freshness`, `npm run freshness:runnable-embeds`, `npm run freshness:hook-manifest`, `node scripts/check-diff-disposition.js`. After the fix commit, the build, typecheck, foundation guards, `freshness` and `freshness:runnable-embeds` were re-run; the rest ran at `f745da64`. `check-diff-disposition.js` showed no red line naming `agent-factory/`.
+All green at `f745da64`: `npm run build`, `npm run typecheck`, `node scripts/check-foundation-guards.js`, `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js`, `node scripts/check-state-paths.js`, `npm run freshness`, `npm run freshness:runnable-embeds`, `npm run freshness:hook-manifest`, `node scripts/check-diff-disposition.js`. After the fix commit, the build, typecheck, foundation guards, `freshness` and `freshness:runnable-embeds` were re-run; the rest ran at `f745da64`. `check-diff-disposition.js` showed no red line naming `agent-factory/`.
 
 ## Residual Risk
 

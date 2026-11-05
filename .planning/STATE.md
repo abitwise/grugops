@@ -6,10 +6,10 @@ current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
 stopped_at: Completed 41-07-PLAN.md
-last_updated: "2026-11-05T10:36:03.821Z"
+last_updated: "2026-11-05T10:36:15.969Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 41 execution started
-state_head: 51195fa8b13f829411dc3e0ae70a05295d2fc411
+state_head: 265799fdf1924b9a61957115b40e9bcd83084927
 progress:
   total_phases: 9
   completed_phases: 6
@@ -2324,6 +2324,7 @@ Recent decisions affecting current work:
 - [Phase 41]: The two corpus-total cases grow every role by 0.05 and let the protocol take the rest, because ROLE_CEILINGS is held and two roles now have about 6% to their per-file FAIL
 - [Phase 41]: note.js reaches notes through appendNote alone, so it holds the in-script tier and no route that trusts a human:NAME stamp
 - [Phase 41]: note.js has no root flag and no time flag: the store is the working directory's, the dial is trustedRepoRoot(), and the program stamps at
+- [Phase 41]: The --by flag refuses the adapter prefix inline, because scripts/kit-model.ts is the one declaration of that namespace; a test drives the refusal with AGENT_ADAPTER_PREFIX
 
 ### Pending Todos
 
