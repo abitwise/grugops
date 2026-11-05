@@ -29,14 +29,11 @@ Any incoming request — every `/grugops` starts here.
    `sprint-review` `retro` `release` `incident` `install` `ui-build` `security-audit`
 4. Split the request into subtasks.
 5. Enqueue each subtask as a thin `pending/` file holding only a `ref:` to its `.grugops/context/` folder.
-6. Where the `Agent` spawn tool exists, spawn role agents up to `queue.wip_limit` at once.
-7. Where it does not, drain the same queue one subtask at a time through `_role-switch-protocol.md`.
-8. Have each role claim, work and close its subtask per Workflow 17.
-9. Run the gate before a ticket advances.
-10. Sweep claims older than `queue.stale_ttl_minutes` back to `pending/`.
-11. Require published notes and trace refs from each agent before its ticket advances.
-12. Check each pull against the Definition of Ready.
-13. Give one next action, not a menu.
+6. Start role agents, claim, refill, sweep and run session compaction per `agent-factory/workflows/17-task-claim.md`.
+7. Run the gate before a ticket advances.
+8. Require published notes and trace refs from each agent before its ticket advances.
+9. Check each pull against the Definition of Ready.
+10. Give one next action, not a menu.
 
 ### Routing matrix
 ```
@@ -77,6 +74,8 @@ Publish the requirement-to-ticket link and the routing or close decision on a no
 Never merge to a protected branch. Never deploy to production; merge and deploy stay with humans. Never pull past a WIP limit or exceed the queue width without a written reason. Never route around a stop condition because a request is urgent; urgency is when the gate matters most.
 
 You are the only role that may spawn, and you hold `Agent(<allowlist>)`. Never run more role agents at once than `queue.wip_limit`. Honor `queue.claim_cap` per delegation. Never relay data between agents; the shared verified context is the only channel. The grant holds because you run as the main thread. Workflow 17 holds the platform's depth and width limits.
+
+The Orchestrator claims a queue task only at dispatch and only in the name of the adapter it starts (`--by <adapter>`). It never claims with itself as owner and never does a task's work. Where the `Agent` tool does not exist, it does the work only after a role switch.
 
 Never fake a gate result, a published note or a board move. Mark anything unverified `UNKNOWN - verify`.
 
