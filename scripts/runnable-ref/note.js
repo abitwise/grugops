@@ -3,18 +3,43 @@
 // WHAT IT IS. A kit-shipped runnable in the shape of claim.ts: authored here, compiled to a committed note.js, installed
 // to tools/grugops/note.js and run on a host with only Node present. `claim.js done` passes only on a sealed note, and a
 // spawned role has no other route to the sealed-note writer on a host with no MCP tool, so this program is that route:
-//   - `add FOLDER --kind KIND --by ROLE --confidence LEVEL --body TEXT` writes one sealed note under
-//     .grugops/context/FOLDER/notes/ and renders that folder's index.md and index.jsonl.
+//   - `add FOLDER --kind KIND --by ROLE --confidence LEVEL (--body TEXT | --body-file PATH)` writes one sealed note under
+//     .grugops/context/FOLDER/notes/ and renders that folder's index.md and index.jsonl (Workflow 16 `## Commit`).
+//     `--ref` repeats. `--verified-by`, `--supersedes`, `--sha`, `--gate-run` and `--content-hash` fill the fields of the
+//     same name. ROLE is the role file's name without `.md`, never the adapter name `claim.js --by` takes.
+// It moves no queue record and runs no git. It writes only under .grugops/context/ and, under
+// `context.audit_retention: retained`, to the GOV-02 ledger the embedded admit() appends to. It creates no queue
+// directory and reads no queue file.
 //
 // THE D-12 CONTRACT.
 //   exit 0 → the note stands: stdout holds one line, `noted FOLDER ID`.
 //   exit 1 → an outcome to act on, never an error: stdout holds one line, `refused FOLDER: REASON`, and nothing was written.
-//   exit 2 → could not run: nothing on stdout and one `Error: ` line on stderr. An unexpected error is exit 2 too, and
-//            never surfaces as Node's own exit 1. The line names a note that stands, so a failed render never denies it.
+//            The writer decided this, so the note must change: earn a real stamp, or record an honest `claim`.
+//   exit 2 → could not run: a bad argument, a root with no .grugops directory, a symbolic link or a non-directory on the
+//            way to notes/, a folder outside the allowlist, a body that is empty or cannot be read. Exit 2 prints nothing
+//            on stdout and one `Error: ` line on stderr. An unexpected error is exit 2 too, and never surfaces as Node's own
+//            exit 1. That line names a note that stands, so a failed render never denies a note that was written.
 //
 // THE NOTE CHECK (D-28, D-35). Every note goes through the embedded appendNote, the one writer, which validates the note,
-// asks the embedded admit() and seals what it writes. No flag and no environment variable of this program writes an
-// unsealed note or skips admission.
+// asks the embedded admit() and seals what it writes. That is the in-script tier Workflow 16 names for a host with no
+// hook. It never grants a high-severity admission, and it is the only tier this program holds: the combiner that trusts
+// a `human:NAME` stamp is not embedded, because that stamp is checked by a per-call hook no shell tool passes through. No
+// flag and no environment variable of this program writes an unsealed note or skips admission. This program adds no
+// predicate over what a note may say: kind, stamp and field rules are the authority's, so a value that reaches the
+// writer is refused there, with exit 1. The one exception is `--by`, an argv shape check and no severity rule: the
+// high-severity classifier reads the role name, so an adapter name would step around it (T-41-30).
+//
+// THE TIME IS STAMPED HERE. There is no flag for `at`, so this route cannot forge the time `done` compares (T-41-36).
+//
+// THE ROOT IS A BOUNDARY. The store is the working directory's .grugops/context/, resolved once with realpath. There is
+// no root flag: an admission may not point governance at a root the caller chose (the 30-11 rule, T-41-34). The dial comes
+// from the embedded trustedRepoRoot(), appendNote's own default, and never from the store. A working directory with no
+// .grugops directory is exit 2, so a wrong working directory never makes a stray store. The path to notes/ is asked of
+// the embedded rootChainPresence, which lstats each component, so a symbolic link on it is refused by name with nothing
+// written, wherever it points (T-41-33).
+//
+// OUTPUT IS SANITIZED. Every value this program prints has each C0, C1 and DEL code point removed by the embedded
+// stripControlChars (V7), and a reason that spans lines is flattened onto one.
 //
 // BUILTINS ONLY. A host runs this file with no kit and no node_modules, so it imports `node:` builtins and nothing
 // else. The hand-written part below imports them as namespaces, so the names the generated region imports never
@@ -2318,11 +2343,28 @@ function couldNotRun(message) {
     process.stderr.write(`Error: ${printable(message)} ${noteStands === "" ? "No note was written." : printable(noteStands)}\n`);
     process.exit(2);
 }
-const USAGE = "Usage: node note.js add <folder> --kind <kind> --by <role> --confidence <level> [--ref <ref>]... --body <text>";
-/** The flags `add` takes, each with one value. */
-const ADD_FLAGS = ["--kind", "--by", "--confidence", "--ref", "--body"];
-/** The one flag that may repeat. */
-const REPEATABLE_FLAG = "--ref";
+/** The errno code of a thrown filesystem error, for a message. */
+function codeOf(e) {
+    return e.code ?? "unknown error";
+}
+const USAGE = "Usage: node note.js add <folder> --kind <kind> --by <role> --confidence <level> (--body <text> | --body-file <path>) " +
+    "[--ref <ref>]... [--verified-by <stamp>] [--supersedes <id>] [--sha <hex>] [--gate-run <id>] [--content-hash <hex>]";
+/** The prefix of an adapter name, which `--by` refuses because the high-severity classifier reads the role name. */
+const ADAPTER_PREFIX = "grugops-";
+/** What `add` takes on the command line: each flag, and whether it may repeat. */
+const ADD_FLAGS = new Map([
+    ["--kind", false],
+    ["--by", false],
+    ["--confidence", false],
+    ["--ref", true],
+    ["--body", false],
+    ["--body-file", false],
+    ["--verified-by", false],
+    ["--supersedes", false],
+    ["--sha", false],
+    ["--gate-run", false],
+    ["--content-hash", false],
+]);
 const args = process.argv.slice(2);
 if (args[0] !== "add")
     couldNotRun(`${args[0] === undefined ? "no command was given" : `unknown command ${args[0]}`}. ${USAGE}.`);
@@ -2334,13 +2376,15 @@ for (let i = 1; i < args.length; i += 1) {
         positional.push(arg);
         continue;
     }
-    if (!ADD_FLAGS.includes(arg))
+    const repeats = ADD_FLAGS.get(arg);
+    if (repeats === undefined)
         couldNotRun(`unknown option ${arg}. ${USAGE}.`);
-    if (flags.has(arg) && arg !== REPEATABLE_FLAG)
+    if (flags.has(arg) && !repeats)
         couldNotRun(`${arg} was given more than once. ${USAGE}.`);
     const value = args[i + 1];
-    if (value === undefined || value.startsWith("--"))
-        couldNotRun(`${arg} needs a value. ${USAGE}.`);
+    if (value === undefined || value.startsWith("--")) {
+        couldNotRun(`${arg} needs a value, and a value may not start with two dashes. A body that does goes in a file. ${USAGE}.`);
+    }
     flags.set(arg, [...(flags.get(arg) ?? []), value]);
     i += 1;
 }
@@ -2350,17 +2394,101 @@ if (positional.length !== 1)
 function flagValue(flag) {
     return flags.get(flag)?.[0];
 }
-/** The note's fence, from argv. `at` is stamped here, so this route cannot forge the time `done` compares. */
+/** The value of a flag `add` cannot run without. */
+function requiredFlag(flag) {
+    const value = flagValue(flag);
+    if (value === undefined)
+        couldNotRun(`add needs ${flag}. ${USAGE}.`);
+    return value;
+}
+/** `--kind`, one of the six the embedded list names. */
+function noteKind() {
+    const kind = requiredFlag("--kind");
+    if (!NOTE_KINDS.includes(kind)) {
+        couldNotRun(`--kind ${kind} is not a note kind. Use one of: ${NOTE_KINDS.join(", ")}.`);
+    }
+    return kind;
+}
+/** `--by`, the role file's name. This is an argv shape check; every severity decision stays in the embedded admit(). */
+function noteAuthor() {
+    const by = flagValue("--by");
+    const named = by?.trim().toLowerCase() ?? "";
+    if (named === "")
+        couldNotRun(`add needs --by <role>, the role file's name without .md. ${USAGE}.`);
+    if (named.startsWith(ADAPTER_PREFIX)) {
+        couldNotRun(`--by ${by} is an adapter name. Pass the role file's name without .md: ${named.slice(ADAPTER_PREFIX.length)}.`);
+    }
+    return by;
+}
+/** The fence of the note, from argv. */
 function noteFromFlags() {
     return {
-        kind: flagValue("--kind"),
-        by: flagValue("--by"),
+        kind: noteKind(),
+        by: noteAuthor(),
         at: new Date().toISOString(),
-        verified_by: "",
-        confidence: flagValue("--confidence"),
-        refs: flags.get(REPEATABLE_FLAG) ?? [],
-        supersedes: null,
+        verified_by: flagValue("--verified-by") ?? "",
+        confidence: requiredFlag("--confidence"),
+        refs: flags.get("--ref") ?? [],
+        supersedes: flagValue("--supersedes") ?? null,
+        sha: flagValue("--sha"),
+        gate_run: flagValue("--gate-run"),
+        content_hash: flagValue("--content-hash"),
     };
+}
+/** The text at `--body-file`, through the embedded non-blocking reader, so a FIFO is refused and never waited on. */
+function bodyFromFile(path) {
+    let text;
+    try {
+        text = readRegularFileOrNull(path, NOTE_FILE_MAX_BYTES, "--body-file");
+    }
+    catch (e) {
+        couldNotRun(`--body-file ${path} could not be read (${e.message}).`);
+    }
+    if (text === null)
+        couldNotRun(`--body-file ${path} does not exist.`);
+    return text;
+}
+/** The note's body: exactly one body flag, holding more than white space, so an empty note cannot free a slot. */
+function noteBody() {
+    const text = flagValue("--body");
+    const file = flagValue("--body-file");
+    if ((text === undefined) === (file === undefined))
+        couldNotRun(`add takes exactly one of --body and --body-file. ${USAGE}.`);
+    const body = text ?? bodyFromFile(file);
+    if (body.trim() === "")
+        couldNotRun("the note body is empty.");
+    return body;
+}
+/** The real path of the working directory, the one root of this program. */
+function resolvedRoot() {
+    try {
+        return nodeFs.realpathSync(process.cwd());
+    }
+    catch (e) {
+        return couldNotRun(`the working directory cannot be resolved (${codeOf(e)}).`);
+    }
+}
+/** Why an answer of the root-chain owner is not a usable directory, or null when it is one. */
+function directoryProblem(presence) {
+    if (presence.kind === "absent")
+        return "nothing is there";
+    if (presence.kind === "unreadable" || presence.kind === "link")
+        return presence.reason;
+    if (presence.kind === "outside")
+        return "it resolves outside the repository root";
+    return presence.target.isDirectory() ? null : "it is not a directory";
+}
+/**
+ * Makes sure the path to `notes/` can be used. The owner walks every component in order, so one question covers
+ * .grugops/context, the folder and notes. `absent` is allowed, because the writer creates what is missing.
+ */
+function refuseUnusableStore(root, notesRel) {
+    const presence = rootChainPresence(root, notesRel, "directory");
+    if (presence.kind === "absent")
+        return;
+    const problem = directoryProblem(presence);
+    if (problem !== null)
+        couldNotRun(`${notesRel} cannot be used: ${problem}.`);
 }
 /** True for a refusal by the writer: an outcome to act on. Any other throw is could-not-run. */
 function isWriterRefusal(e) {
@@ -2368,12 +2496,26 @@ function isWriterRefusal(e) {
 }
 /** `add`: every rule about what a note may say is the embedded writer's. This maps its answer to the contract. */
 function runAdd(folder) {
-    const contextRoot = nodePath.join(nodeFs.realpathSync(process.cwd()), CONTEXT_REL);
-    const rel = `${CONTEXT_REL}/${folder}`;
-    noteStands = `The note may have been written; check ${rel}/notes/ before adding it again.`;
+    const note = noteFromFlags();
+    try {
+        assertSafeTask(folder);
+    }
+    catch (e) {
+        couldNotRun(`${e.message}.`);
+    }
+    const root = resolvedRoot();
+    const stateDirProblem = directoryProblem(rootChainPresence(root, GRUGOPS_DIR_REL, "directory"));
+    if (stateDirProblem !== null) {
+        couldNotRun(`${root} has no usable ${GRUGOPS_DIR_REL} directory (${stateDirProblem}). Run from the repository root.`);
+    }
+    const notesRel = `${CONTEXT_REL}/${folder}/notes`;
+    refuseUnusableStore(root, notesRel);
+    const body = noteBody();
+    const contextRoot = nodePath.join(root, CONTEXT_REL);
+    noteStands = `The note may have been written; check ${notesRel}/ before adding it again.`;
     let id;
     try {
-        id = appendNote(folder, noteFromFlags(), flagValue("--body"), contextRoot);
+        id = appendNote(folder, note, body, contextRoot);
     }
     catch (e) {
         if (!isWriterRefusal(e))
@@ -2383,9 +2525,9 @@ function runAdd(folder) {
         process.exitCode = 1;
         return;
     }
-    noteStands = `Note ${id} stands in ${rel}/notes/, and index.md and index.jsonl were not rendered.`;
+    noteStands = `Note ${id} stands in ${notesRel}/, and index.md and index.jsonl were not rendered.`;
     render(folder, contextRoot);
-    noteStands = `Note ${id} stands in ${rel}/notes/.`;
+    noteStands = `Note ${id} stands in ${notesRel}/.`;
     process.stdout.write(`noted ${printable(folder)} ${printable(id)}\n`);
 }
 runAdd(positional[0]);

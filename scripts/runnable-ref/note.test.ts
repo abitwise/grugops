@@ -205,9 +205,14 @@ const CONTENT_HASH = "0123456789abcdef";
 /** The note.js ceiling, read from the committed text so this file imports nothing from the authority. */
 const CEILING_BYTES = 8 * 1024 * 1024;
 
+/** What a run did, on one line, for an assertion message. */
+function described(r: Ran): string {
+  return `status ${String(r.status)}; stdout ${r.stdout.trimEnd()}; stderr ${r.stderr.trimEnd()}`.replace(/\n/g, " | ");
+}
+
 /** The exit-2 shape: exit 2, an empty stdout, one line on stderr that starts `Error: `. */
 function expectCouldNotRun(r: Ran, ...phrases: string[]): void {
-  const all = JSON.stringify(r);
+  const all = described(r);
   expect(r.status, all).toBe(2);
   expect(r.stdout, all).toBe("");
   expect(r.stderr.startsWith("Error: "), all).toBe(true);
@@ -218,7 +223,7 @@ function expectCouldNotRun(r: Ran, ...phrases: string[]): void {
 
 /** The exit-1 shape: exit 1, nothing on stderr, one `refused FOLDER: ` line on stdout. */
 function expectRefused(r: Ran, folder: string, ...phrases: string[]): void {
-  const all = JSON.stringify(r);
+  const all = described(r);
   expect(r.status, all).toBe(1);
   expect(r.stderr, all).toBe("");
   expect(r.stdout.startsWith(`refused ${folder}: `), all).toBe(true);
