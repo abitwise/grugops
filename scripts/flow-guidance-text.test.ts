@@ -147,3 +147,108 @@ describe("Workflow 16 tells a spawned role its last act (plan 41-04; D-05)", () 
     expect(steps[steps.length - 1].startsWith("5. ")).toBe(true);
   });
 });
+
+describe("Workflow 17 keeps capacity full (plan 41-04; RUN-02, D-06, D-09, D-10, D-26)", () => {
+  it("names the refill's one trigger, with no timer and no polling", () => {
+    const keep = section(WF17, "Keep capacity full");
+    expect(keep).toContain("on every agent return or completion notice and on every user turn");
+    expect(keep).toContain("No timer and no polling drives it.");
+    expect(keep).toContain("End the turn only after that.");
+  });
+
+  it("takes ready work by board priority, with a stated tie rule", () => {
+    const keep = section(WF17, "Keep capacity full");
+    expect(keep).toContain("by board priority");
+    expect(keep).toContain("the Definition of Ready");
+    expect(keep).toContain("ties keep board order");
+  });
+
+  it("claims nothing with no ready work, and ends the turn", () => {
+    expect(section(WF17, "Keep capacity full")).toContain("With no ready work, claim nothing and end the turn.");
+  });
+
+  it("never reuses a finished agent, and keeps the slot busy until a task is finished", () => {
+    const keep = section(WF17, "Keep capacity full");
+    expect(keep).toContain("by never reusing it");
+    expect(keep).toContain("New work always goes to a fresh spawn of the named adapter.");
+    expect(keep).toContain("Resume or re-spawn the same adapter");
+    expect(keep).toContain("The slot stays busy until then.");
+  });
+
+  it("keeps the slot busy where no sealed-note writer exists, and stops", () => {
+    const writer = bullets(section(WF17, "Keep capacity full")).find((b) => b.includes("no sealed-note writer"));
+    expect(writer).toBeDefined();
+    expect(writer).toContain("`done` keeps refusing and the slot stays busy");
+    expect(writer).toContain("`## Stop conditions`");
+    expect(writer).toContain("name the unsealed notes");
+  });
+
+  it("pauses only the waiting ticket, and lists the open questions in the Next action line", () => {
+    const keep = section(WF17, "Keep capacity full");
+    expect(keep).toContain("Only the waiting ticket pauses.");
+    expect(keep).toContain("keep refilling with other ready work");
+    expect(keep).toContain("Next action line");
+  });
+
+  it("states a refill on a host with no spawn tool without naming a host", () => {
+    expect(section(WF17, "Keep capacity full")).toContain(
+      "Where the `Agent` tool does not exist, a refill means taking the next ready task.",
+    );
+  });
+});
+
+describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-29)", () => {
+  it("runs the sweep command in `## Session start`, and in no other section", () => {
+    const sweep = "node tools/grugops/claim.js sweep";
+    const start = section(WF17, "Session start");
+    expect(start).toContain(sweep);
+    expect(WF17.split(sweep)).toHaveLength(2);
+  });
+
+  it("says when the sweep runs, and why no spawned agent can be hit", () => {
+    const start = section(WF17, "Session start");
+    expect(start).toContain("only at session start, including the fresh-session fallback");
+    expect(start).toContain("No agent the Orchestrator spawned can still be running then.");
+  });
+
+  it("releases a claim already in `done/`, and never reclaims it", () => {
+    expect(section(WF17, "Session start")).toContain(
+      "A claim whose subtask already sits in `done/` is released, not reclaimed.",
+    );
+  });
+
+  it("reports a long claim in a live session and leaves it", () => {
+    const start = section(WF17, "Session start");
+    expect(start).toContain("Inside a live session, report a long claim and leave it in place.");
+    expect(start).toContain("Reclaiming it could hand a slow agent's task to a second agent.");
+  });
+
+  it("orders session start as read, sweep, refill", () => {
+    const ordered = section(WF17, "Session start")
+      .split("\n")
+      .filter((l) => /^\d+\. /.test(l));
+    expect(ordered).toHaveLength(3);
+    expect(ordered[0]).toContain("`now-running.md`");
+    expect(ordered[1]).toContain("claim.js sweep");
+    expect(ordered[2]).toContain("`## Keep capacity full`");
+  });
+
+  it("keeps the TTL key named", () => {
+    expect(WF17).toContain("`queue.stale_ttl_minutes`");
+    expect(section(WF17, "Session start")).toContain("`queue.stale_ttl_minutes`");
+  });
+
+  it("names no host in either section", () => {
+    for (const body of [section(WF17, "Keep capacity full"), section(WF17, "Session start")]) {
+      expect(body).not.toMatch(/Claude Code|Codex|Antigravity|OpenCode|Copilot|\bPi\b/);
+    }
+  });
+
+  it("sets both sections after `## Steps` and before `## Stop conditions`", () => {
+    const at = (h: string): number => WF17.indexOf(`\n## ${h}\n`);
+    expect(at("Steps")).toBeGreaterThan(0);
+    expect(at("Keep capacity full")).toBeGreaterThan(at("Steps"));
+    expect(at("Session start")).toBeGreaterThan(at("Keep capacity full"));
+    expect(at("Stop conditions")).toBeGreaterThan(at("Session start"));
+  });
+});
