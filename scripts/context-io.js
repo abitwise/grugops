@@ -5198,8 +5198,11 @@ export const TRUSTED_ROOT_TIERS = Object.freeze([
         "predicate. The grugops installer does not set it.",
     "3. The configuration that governs the process working directory: the repository root's own when " +
         "the walk reaches a repository boundary carrying one, else the nearest ancestor carrying a " +
-        "factory configuration, bounded above by the user's home directory.",
-    "4. The kit this module ships in.",
+        "factory configuration, bounded above by the user's home directory. A root tier 0, 1 or 2 named " +
+        "yields to this tier when it carries no factory configuration and this tier finds a project's. " +
+        "When this tier cannot run, or any read of the order fails, no root is named and every consumer " +
+        "refuses.",
+    "4. The kit this module ships in, only after step 3 ran and found nothing.",
 ]);
 /**
  * THE ONE TRUSTED ROOT (plan 30-11 round 2, findings `RA2-1` and reviewer-1 observation 2; the
@@ -5454,14 +5457,19 @@ export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
             "outright, so the stop adds no capability an adversary did not have. The stop exists against " +
             "the ORDINARY case the review reproduced — a legitimate shared install at `~/.grugops` " +
             "adopted by a process that meant nothing by it — not against a process choosing its own root. " +
-            "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path, where tier 0 answers before the " +
-            "walk runs and `os.homedir()` is therefore never consulted. It is NOT closed on Codex, " +
+            "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path for a delivered root that carries a " +
+            "factory configuration, where tier 0 answers before the walk runs and `os.homedir()` is " +
+            "therefore never consulted. A delivered root that carries none runs the walk (plan 41-13), so " +
+            "this stop is real there too: a configured root the walk finds answers, the delivered root " +
+            "stands where it finds none, and an undeterminable home refuses. It is NOT closed on Codex, " +
             "Antigravity CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and this stop is real.",
         what_would_force_it_closed: "The same thing that would close R-31-15-01 and R-31-15-03: a governance root resolved by the " +
             "host from outside the agent's process tree and delivered through a channel the agent cannot " +
             "write, as the per-call admission hook's session grant already is — which tier 0 now IS, on " +
-            "the Claude Code hook path only. FIX (S1, plan 31-27): tier 0 answers before the walk, so " +
-            "`os.homedir()` is not consulted there at all. Still open on the hosts other than Claude Code.",
+            "the Claude Code hook path only. FIX (S1, plan 31-27): for a delivered root that carries a " +
+            "factory configuration, tier 0 answers before the walk, so `os.homedir()` is not consulted " +
+            "there at all. A delivered root that carries none runs the walk (plan 41-13). Still open on " +
+            "the hosts other than Claude Code.",
     }),
     Object.freeze({
         id: "R-31-19-03",
@@ -5519,15 +5527,19 @@ export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
             "shared install's own state. The marker is what tells the two apart, and requiring it is the " +
             "narrower of the two available errors. " +
             "DISPOSITION (plan 31-27): CLOSE — accepted by design. It is moot on the Claude Code hook " +
-            "path after tier 0, which answers before the walk reaches home at all, and it stands " +
-            "unchanged on the hosts where the walk is the answer.",
+            "path for a delivered root that carries a factory configuration, because tier 0 then answers " +
+            "before the walk reaches home at all. A delivered root that carries none runs the walk (plan " +
+            "41-13), and this member applies to that walk. It stands unchanged on the hosts where the walk " +
+            "is the answer.",
         what_would_force_it_closed: "An explicit opt-in the walk can read that a caller cannot author. Explicitly NOT the " +
             "installer's own `.grugops/install.json`: `install/install.ts:597-620` makes every " +
             "`InstallMarker` field optional and names no TARGET, so the two-byte document `{}` is a " +
             "schema-valid marker and a caller satisfies it in ONE write. " +
             "DISPOSITION (plan 31-27): CLOSE — accepted by design; requiring the marker is the narrower " +
-            "of the two available errors. It is moot on the Claude Code hook path after tier 0, which " +
-            "answers before the walk reaches home at all, and it stands unchanged elsewhere.",
+            "of the two available errors. It is moot on the Claude Code hook path for a delivered root " +
+            "that carries a factory configuration, because tier 0 then answers before the walk reaches " +
+            "home at all. A delivered root that carries none runs the walk (plan 41-13), and this member " +
+            "applies to that walk. It stands unchanged elsewhere.",
     }),
     Object.freeze({
         id: "R-31-19-06",
@@ -5549,16 +5561,21 @@ export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
             "would therefore have handed the caller a switch rather than taken one away. A refusal at " +
             "home is NOT the safe direction, because refusing home returns `nearest` and lands on the " +
             "lean fallback; the price is therefore stated in both directions rather than as monotonicity " +
-            "in one. FIX (S1, plan 31-27): CLOSED on the Claude Code hook path — tier 0 answers before " +
-            "the walk, so no write under `$HOME` can reach a decision the walk never makes. It is NOT " +
-            "closed on Codex, Antigravity CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and the " +
-            "prices stated above still stand exactly as written.",
+            "in one. FIX (S1, plan 31-27): CLOSED on the Claude Code hook path for a delivered root that " +
+            "carries a factory configuration — tier 0 answers before the walk, so no write under `$HOME` " +
+            "can reach a decision the walk never makes. A delivered root that carries none runs the walk " +
+            "(plan 41-13), so a write under `$HOME` can reach that walk: a configured root it finds " +
+            "answers, the delivered root stands where it finds none, and an undeterminable home refuses. " +
+            "It is NOT closed on Codex, Antigravity CLI, OpenCode, Copilot CLI or Pi, where the walk is the " +
+            "answer and the prices stated above still stand exactly as written.",
         what_would_force_it_closed: "`R-31-15-01`'s own criterion and nothing narrower: a governance root the calling process " +
             "cannot influence at all, resolved by the host from outside the agent's process tree and " +
             "delivered through a channel the agent cannot write — which tier 0 now IS, on the Claude " +
-            "Code hook path only. FIX (S1, plan 31-27): CLOSED there, because tier 0 answers before the " +
-            "walk and no `$HOME` write can reach a decision the walk never makes. Still open on the " +
-            "hosts other than Claude Code, where the walk is the answer and the price stated above still stands.",
+            "Code hook path only. FIX (S1, plan 31-27): CLOSED there for a delivered root that carries a " +
+            "factory configuration, because tier 0 answers before the walk and no `$HOME` write can reach " +
+            "a decision the walk never makes. A delivered root that carries none runs the walk (plan " +
+            "41-13). Still open on the hosts other than Claude Code, where the walk is the answer and the " +
+            "price stated above still stands.",
     }),
     Object.freeze({
         id: "R-31-19-07",
@@ -6163,10 +6180,10 @@ if (isMain) {
                 console.error("usage: context-io.js admit <task> <noteFile>");
                 console.error(`context-io: admit takes exactly 2 positional arguments and received ${rest.length}. ` +
                     `The governance root is NOT an argument: it is ${TRUSTED_ROOT_ENV_ORDER.join(", else ")}` +
-                    `, else the nearest ancestor of the working directory carrying a factory configuration ` +
-                    `(bounded by the repository marker), else the kit this script ships in. Set ` +
-                    `${TRUSTED_ROOT_ENV_ORDER[0]} to move it — an admission may not point governance at a ` +
-                    `root the caller chose.`);
+                    ` when that root carries a factory configuration, else the nearest ancestor of the ` +
+                    `working directory carrying one (bounded by the repository marker), else a named root, ` +
+                    `else the kit this script ships in. An admission may not point governance at a root the ` +
+                    `caller chose.`);
                 process.exit(1);
             }
             const admitRoot = trustedRepoRoot();

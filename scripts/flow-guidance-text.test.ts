@@ -335,7 +335,7 @@ describe("The kit text says what the governance-root order does (plan 41-14; RUN
     expect(stops[handWritten + 1]).toBe(rootStop());
   });
 
-  it("the stop names no variable a role could set, so it coaches no bypass", () => {
+  it("the stop names no project-directory variable, so it coaches no bypass", () => {
     for (const name of ["CLAUDE_PROJECT_DIR", "GRUGOPS_PROJECT_DIR", "GRUGOPS_HOST_DELIVERED_ROOT", "export "]) {
       expect(rootStop(), name).not.toContain(name);
     }

@@ -14,7 +14,9 @@
 // THE D-12 CONTRACT.
 //   exit 0 → the note stands and reads back: stdout holds one line, `noted FOLDER ID`.
 //   exit 1 → an outcome to act on, never an error: stdout holds one line, `refused FOLDER: REASON`, and nothing was written.
-//            The writer decided this, so the note must change: earn a real stamp, or record an honest `claim`.
+//            The writer decided this, so the note must change: earn a real stamp, or record an honest `claim`. A refusal
+//            that says the governance root could not be named is the exception: nothing about the note is wrong, so the
+//            role stops and surfaces it.
 //   exit 2 → could not run: a bad argument, a root with no .grugops directory, a symbolic link or a non-directory on the
 //            way to notes/, a folder outside the allowlist, a body that is empty or cannot be read. Exit 2 prints nothing
 //            on stdout and one `Error: ` line on stderr. An unexpected error is exit 2 too, and never surfaces as Node's own
@@ -24,10 +26,13 @@
 // asks the embedded admit() and seals what it writes. That is the in-script tier Workflow 16 names for a host with no
 // hook. It never grants a high-severity admission, and it is the only tier this program holds: the combiner that trusts
 // a `human:NAME` stamp is not embedded, because that stamp is checked by a per-call hook no shell tool passes through. No
-// flag and no environment variable of this program writes an unsealed note or skips admission. This program adds no
-// predicate over what a note may say: kind, stamp and field rules are the authority's, so a value that reaches the
-// writer is refused there, with exit 1. The one exception is `--by`, an argv shape check and no severity rule: the
-// high-severity classifier reads the role name, so an adapter name would step around it (T-41-30).
+// flag of this program writes an unsealed note or skips admission, and every note asks the authority. An environment
+// variable can still move the dial: CLAUDE_PROJECT_DIR, GRUGOPS_PROJECT_DIR and GRUGOPS_HOST_DELIVERED_ROOT name the root
+// it is read from, and a process sets its own environment (R-31-15-03). A named root with no configuration does not
+// outrank a configuration that governs the working directory, and a root the ladder cannot name refuses every note. This
+// program adds no predicate over what a note may say: kind, stamp and field rules are the authority's, so a value that
+// reaches the writer is refused there, with exit 1. The one exception is `--by`, an argv shape check and no severity
+// rule: the high-severity classifier reads the role name, so an adapter name would step around it (T-41-30).
 //
 // THE TIME IS STAMPED HERE. There is no flag for `at`, so this route cannot forge the time `done` compares (T-41-36).
 //
