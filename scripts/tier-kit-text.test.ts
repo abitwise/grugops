@@ -1177,9 +1177,10 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s15).toContain("Record a new move, or apply the hand-off once the options are used up.");
     expect(s15).toContain("Stamp it `human:<name>`, with the move note's id and the answer note's id among its refs.");
     expect(s15).toContain("Never write that stamp without the human's answer.");
-    expect(s15).toContain(
-      "Only at `context.human_admission: all` does admission check that stamp, and only Claude Code binds it to the human's session grant.",
-    );
+    // Plan 41-08 (D-35): a spawned Tech Lead writes this finding through `note.js`, which binds nothing.
+    expect(s15).toContain("Only at `context.human_admission: all` does admission check that stamp.");
+    expect(s15).toContain("Only the Claude Code `propose_note` tool binds it to the human's session grant.");
+    expect(s15).toContain("`tools/grugops/note.js` does not bind it.");
     expect(s15).toContain("At the default `off` it is a prose-tier record.");
     // The human stop stays tagged only in `## Stop conditions`; no step carries a checkpoint tag.
     expect(section(WF04, "Steps")).not.toContain("checkpoint:");
@@ -1716,7 +1717,9 @@ describe("WF04 asks a human once, and the answer note wakes the Tech Lead at bot
   it("the `human:<name>` stamp sentences stay word for word", () => {
     for (const sentence of [
       "Never write that stamp without the human's answer.",
-      "Only at `context.human_admission: all` does admission check that stamp, and only Claude Code binds it to the human's session grant.",
+      "Only at `context.human_admission: all` does admission check that stamp.",
+      "Only the Claude Code `propose_note` tool binds it to the human's session grant.",
+      "`tools/grugops/note.js` does not bind it.",
       "At the default `off` it is a prose-tier record.",
     ]) {
       expect(hasSentence(sub(CONFIRM), sentence), `confirmation sub-bullet lacks "${sentence}"`).toBe(true);
@@ -1773,9 +1776,15 @@ describe("WF04 gives competing stops one order, an approval names its proposal, 
     for (const sentence of sentences) expect(hasSentence(text, sentence), `${where} lacks "${sentence}"`).toBe(true);
   };
   const PRECEDENCE = "Apply the stop precedence.";
-  const LINE1 = "1. Apply step 17's revert hand-off to an unapproved fundamental change, never the human stop.";
+  // Plan 41-08 (WR-02): the list says to take the first line that fits, so a line that sends a ticket
+  // past the human stop has to carry the limit itself.
+  const LIMIT = "The three-hand-off limit and the stop before a fourth hand-off still apply.";
+  const LINE1 = `1. Apply step 17's revert hand-off to an unapproved fundamental change, not the stop for a proposed \`Fundamental:\` note. ${LIMIT}`;
   const LINE2 = "2. Apply the hand-off before a stop for a raise past the spent escalation, once the options are used up.";
   const LINE3 = "3. Apply the step 16 gate hold only to the move that answers its `Cause: gate` note.";
+
+  /** Numbered line `n` of the precedence list, on its own, so a sentence on one line cannot stand in for another. */
+  const precedenceLine = (n: number) => lines[lines.findIndex((l) => l.startsWith(`    - ${PRECEDENCE} `)) + n] as string;
 
   it("the precedence sub-bullet sits between the hand-off and the human stop and folds its three numbered lines", () => {
     expect(indexOfSub(PRECEDENCE)).toBe(indexOfSub("Apply the hand-off.") + 1);
@@ -1788,8 +1797,13 @@ describe("WF04 gives competing stops one order, an approval names its proposal, 
     expect(lines[at + 4]?.startsWith("    - Apply the human stop. ")).toBe(true);
   });
 
-  it("D-22: line 1 sends an unapproved fundamental change to the revert hand-off, never the human stop", () => {
+  it("D-22, WR-02: line 1 sends an unapproved fundamental change to the revert hand-off, not the `Fundamental:` stop, and keeps the hand-off limit", () => {
     holdsAll(sub(PRECEDENCE), "precedence sub-bullet", [LINE1]);
+    expect(precedenceLine(1).endsWith(` ${LIMIT}`), "line 1 ends in the limit sentence").toBe(true);
+    expect(WF04).not.toContain("never the human stop");
+    // The limit the line points at stays where it is set.
+    holdsAll(sub("Apply the hand-off."), "hand-off sub-bullet", ["Hand off one cause at most three times."]);
+    holdsAll(sub("Apply the human stop."), "human-stop sub-bullet", ["Apply it also before a fourth hand-off on one ticket."]);
   });
 
   it("D-23: line 2 puts the hand-off before the raise stop and keeps the three-rounds and fundamental rules", () => {
@@ -1800,11 +1814,13 @@ describe("WF04 gives competing stops one order, an approval names its proposal, 
     ]);
   });
 
-  it("D-25: line 3 binds the gate hold to the move that answers it, and a later revert hand-off does not wait", () => {
+  it("D-25, WR-02: line 3 binds the gate hold to the move that answers it, and a later revert hand-off does not wait but keeps the hand-off limit", () => {
     holdsAll(sub(PRECEDENCE), "precedence sub-bullet", [
       LINE3,
       "Dispatch a later revert hand-off on the same ticket without waiting.",
     ]);
+    // Line 1 holds the same sentence, so the sub-bullet alone cannot prove line 3 does.
+    expect(precedenceLine(3)).toContain(`Dispatch a later revert hand-off on the same ticket without waiting. ${LIMIT}`);
   });
 
   it("D-22: the human stop applies to a proposed `Fundamental:` note only", () => {
