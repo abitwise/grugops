@@ -12,7 +12,7 @@
 // directory and reads no queue file.
 //
 // THE D-12 CONTRACT.
-//   exit 0 → the note stands: stdout holds one line, `noted FOLDER ID`.
+//   exit 0 → the note stands and reads back: stdout holds one line, `noted FOLDER ID`.
 //   exit 1 → an outcome to act on, never an error: stdout holds one line, `refused FOLDER: REASON`, and nothing was written.
 //            The writer decided this, so the note must change: earn a real stamp, or record an honest `claim`.
 //   exit 2 → could not run: a bad argument, a root with no .grugops directory, a symbolic link or a non-directory on the
@@ -2741,6 +2741,14 @@ function isWriterRefusal(e: unknown): e is Error {
   return e instanceof Error && e.message.startsWith("context-io");
 }
 
+/**
+ * True when the read `claim.js done` makes finds the note `id`. render() files a note it cannot read under its skipped
+ * entries and returns, so `noted` would otherwise report a note neither the index nor `done` can see (READ-1).
+ */
+function noteReadsBack(folder: string, id: string, contextRoot: string): boolean {
+  return readRawNotesWithSkips(folder, contextRoot).notes.some((n) => n.id === id);
+}
+
 /** `add`: every rule about what a note may say is the embedded writer's. This maps its answer to the contract. */
 function runAdd(folder: string): void {
   const note = noteFromFlags();
@@ -2773,6 +2781,9 @@ function runAdd(folder: string): void {
   noteStands = `Note ${id} stands in ${notesRel}/, and index.md and index.jsonl were not rendered.`;
   render(folder, contextRoot);
   noteStands = `Note ${id} stands in ${notesRel}/.`;
+  if (!noteReadsBack(folder, id, contextRoot)) {
+    couldNotRun(`note ${id} could not be read back, so index.md and index.jsonl may not list it and \`done\` may not count it.`);
+  }
   process.stdout.write(`noted ${printable(folder)} ${printable(id)}\n`);
 }
 
