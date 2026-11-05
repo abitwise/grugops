@@ -806,6 +806,16 @@ describe("--supersedes never retires a verdict or a governed finding (CR-02)", (
     expect(currentStateOf(root, "t1")).not.toContain(row("observation", "qe-e2e"));
   });
 
+  it("the rule lives in the authority: the hand-written part of note.ts decides nothing about a target", () => {
+    const source = readFileSync(join(import.meta.dirname, "note.ts"), "utf8");
+    const marker = "// </runnable-embeds>";
+    expect(source).toContain(marker);
+    const handWritten = source.slice(source.lastIndexOf(marker));
+    for (const predicate of ["prior.by", "isGatedNote", "GATE_IDENTITY", "readContext"]) {
+      expect(handWritten, predicate).not.toContain(predicate);
+    }
+  });
+
   it("a target that names no note is noted and retires nothing (D-37, R-41-09)", () => {
     const { root } = disposedFinding("security-nfr", "all");
     const noted = notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", "nosuchid"), "t1");

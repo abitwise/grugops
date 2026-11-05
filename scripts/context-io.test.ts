@@ -2584,6 +2584,22 @@ describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-b
     expect(span.trimEnd().endsWith("}"), "the span does not end on the body's closing brace").toBe(true);
   });
 
+  it("the supersession block asks isGatedNote and states no gated composition of its own (41-15, CR-02)", () => {
+    const span = extractAdmitSpan(readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8"));
+    const start = span.indexOf("const supersededId =");
+    const end = span.indexOf("const isHighSeverity =");
+    expect(start, "the block is in the span").toBeGreaterThan(-1);
+    expect(end, "the block sits above the D-04 arm").toBeGreaterThan(start);
+    const code = span
+      .slice(start, end)
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("//"))
+      .join("\n");
+    expect(code).toContain("isGatedNote(prior.by, prior.kind, govResult)");
+    expect(code).not.toContain("isHighSeverityRole");
+    expect(code).not.toMatch(/\.human_admission/);
+  });
+
   it("admit()'s function span byte-hash equals the pinned pre-25-09 baseline (frozen, not green-inferred)", () => {
     const src = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
     const span = extractAdmitSpan(src);

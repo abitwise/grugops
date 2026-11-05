@@ -3495,6 +3495,19 @@ describe("Workflow 18 — both promotion routes hold against the supersession ru
     expect(liveIds(store)).toEqual([finding]);
   });
 
+  it("a finding the gated branch persists may name a governed finding, because a named human's route stands", () => {
+    const { root, store } = storeOf("wf18-human-", { human_admission: "all" });
+    const disposed = (over: Partial<Parameters<typeof ctxio.appendNote>[1]>): Parameters<typeof ctxio.appendNote>[1] =>
+      soft({ kind: "finding", by: "security-nfr", verified_by: "human:olger", confidence: "high", refs: ["REQ-SEC-01"], ...over });
+    const first = ctxio.admitAndAppend(TASK, disposed({ at: "2026-11-05T01:00:00Z" }), "the first disposition", store, root);
+    expect(first.findings).toEqual([]);
+
+    const second = ctxio.admitAndAppend(TASK, disposed({ supersedes: first.id }), "the human's revision", store, root);
+
+    expect(second.findings).toEqual([]);
+    expect(liveIds(store)).toEqual([second.id]);
+  });
+
   it("promote and promoteAdmitted's fall-through both refuse a note whose target is a green verdict", () => {
     const { root, store } = storeOf("wf18-verdict-");
     const origin = storeOf("wf18-verdict-origin-");
