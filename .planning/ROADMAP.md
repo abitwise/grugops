@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 6/6 plans executed
+**Plans**: 6/11 plans executed (5 gap-closure plans, 41-07 to 41-11, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -608,6 +608,21 @@ Wave 3 *(blocked on wave 2)*
 
 Wave 4 *(blocked on wave 3)*
 - [x] 41-06-PLAN.md — the Orchestrator pointer and hard limit, the README and registry, the software engineer prompt review (Phase 41 D-31), and the phase gate (RUN-02, RUN-03, RUN-04, RUN-06)
+
+**Gap closure, round 1** *(from 41-VERIFICATION.md and 41-REVIEW.md: CR-01, WR-01 to WR-04, IN-01, IN-08; human decisions D-35 and D-36 of 2026-11-05)*
+
+Gap wave 1 *(one code plan and one text plan, disjoint files)*
+- [ ] 41-07-PLAN.md — `note.js`, a host note writer built from the `context-io.ts` authority: a lone host copy writes the sealed note `done` accepts (CR-01; RUN-02, RUN-05)
+- [ ] 41-08-PLAN.md — stop precedence keeps the hand-off limit, the stamp sentence names the route that binds it, and `queue.claim_cap` is marked retired (WR-02, IN-01; RUN-02, RUN-06)
+
+Gap wave 2 *(blocked on gap wave 1)*
+- [ ] 41-09-PLAN.md — `tools/grugops/note.js` ships through the installer, and the install guide says what Workflow 17 needs (CR-01, WR-01; RUN-02, RUN-05)
+
+Gap wave 3 *(blocked on gap wave 2; sequential because each rebuilds the committed `.js`)*
+- [ ] 41-10-PLAN.md — every entry `free` counts shows in `now-running.md`, and the session-start sweep frees a claim with no usable record (WR-04; RUN-01, RUN-02)
+
+Gap wave 4 *(blocked on gap wave 3)*
+- [ ] 41-11-PLAN.md — a role reaches the writer by following the text, Workflow 17 stops on a missing program and re-spawns after a crash, the residuals name the spawned-role case, and the phase gate runs (CR-01, WR-01, WR-03, IN-08; RUN-01 to RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
