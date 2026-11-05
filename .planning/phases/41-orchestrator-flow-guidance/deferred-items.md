@@ -44,3 +44,7 @@
 - The two ideas `41-CONTEXT.md` § Deferred Ideas holds stay deferred, by reference (recorded in plan 41-06)
   status: open
   **What:** the three-rounds rule for the kit's other agent-resolvable checkpoints, and the host-specific speed-ups declined under the no-host-only-mechanism decision. That section holds the wording and what reopens each one.
+- `scripts/capture-live.test.ts` fails one case when `TMPDIR` is under the home directory (recorded by the orchestrator)
+  status: open, not a phase 41 failure
+  **What:** the file passes 77 of 77 on the default `TMPDIR` and fails 1 of 77 with `TMPDIR` at `~/.cache/grugops-gate-tmp/tmp`. The failing check is the scoped `Edit(//ABS/**)` tool grant row. The wave gates and the plan runs after 41-02 all used that override, so their 22 failures are the 21 known baseline reds in `41-VALIDATION.md` plus this one.
+  **Why deferred:** the override was a workaround for the `/tmp` quota, and the test passes without it. The test's sensitivity to the location of `TMPDIR` was not investigated.

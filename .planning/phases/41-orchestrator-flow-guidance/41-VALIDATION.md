@@ -3,9 +3,9 @@ phase: "41"
 slug: "orchestrator-flow-guidance"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-04"
 ---
 
@@ -40,24 +40,24 @@ created: "2026-11-04"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 41-01-T1 | 41-01 | 1 | RUN-01 | T-41-03 | `done` empties the log; no FIFO open | unit | `npm run build && npx vitest run scripts/claim.test.ts scripts/now-running-freshness.test.ts` | extend | ⬜ pending |
-| 41-01-T2 | 41-01 | 1 | RUN-02, RUN-06 | T-41-01, T-41-16 | record, owner, count and config rules | unit | `npm run build && npm run typecheck && npx vitest run scripts/claim.test.ts scripts/now-running-freshness.test.ts scripts/config-queue-consistency.test.ts` | extend | ⬜ pending |
-| 41-01-T3 | 41-01 | 1 | RUN-01 | — | both dispatch paths empty the log | oracle | `node scripts/check-uat-oracles.js` | extend | ⬜ pending |
-| 41-02-T1 | 41-02 | 1 | RUN-06 | T-41-07 | ask once; the answer note is cited | text | `npx vitest run scripts/tier-kit-text.test.ts` | extend | ⬜ pending |
-| 41-02-T2 | 41-02 | 1 | RUN-06 | T-41-05, T-41-06 | stop precedence; approval names its proposal | text | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` | extend | ⬜ pending |
-| 41-02-T3 | 41-02 | 1 | RUN-06 | — | role and config agree on who asks | gate | `node scripts/check-role-rules.js && node scripts/check-diff-disposition.js` | yes | ⬜ pending |
-| 41-03-T1 | 41-03 | 2 | RUN-05 | T-41-08, T-41-09 | installed `claim` runs; links refused | integration | `npx vitest run scripts/runnable-ref/claim.test.ts scripts/generate-runnable-embeds.test.ts` | Wave 0 | ⬜ pending |
-| 41-03-T2 | 41-03 | 2 | RUN-05 | T-41-10 | install, uninstall and skew know claim.js | integration | `npx vitest run install/install.test.ts install/uninstall-removal.test.ts scripts/runnable-ref/state-check.test.ts` | extend | ⬜ pending |
-| 41-03-T3 | 41-03 | 2 | RUN-01, RUN-05 | T-41-18 | `done` passes on a sealed note only | integration | `npx vitest run scripts/runnable-ref/claim.test.ts` | extend | ⬜ pending |
-| 41-04-T1 | 41-04 | 2 | RUN-05, RUN-06 | — | one command per step; a role reaches `done` | text | `npx vitest run scripts/flow-guidance-text.test.ts` | Wave 0 | ⬜ pending |
-| 41-04-T2 | 41-04 | 2 | RUN-02 | T-41-12, T-41-13 | refill rule; sweep at session start only | text | `npx vitest run scripts/flow-guidance-text.test.ts` | extend | ⬜ pending |
-| 41-04-T3 | 41-04 | 2 | RUN-03, RUN-04 | T-41-14, T-41-15 | session compaction; host names stay in two blocks | text | `npx vitest run scripts/flow-guidance-text.test.ts scripts/config-queue-consistency.test.ts` | extend | ⬜ pending |
-| 41-05-T1 | 41-05 | 3 | RUN-02 | T-41-19 | `free` is exact or refuses | integration | `npx vitest run scripts/runnable-ref/claim.test.ts` | extend | ⬜ pending |
-| 41-05-T2 | 41-05 | 3 | RUN-05 | T-41-23 | a crash never denies a change | integration | `npx vitest run scripts/runnable-ref/runnable-exit-contract.test.ts` | extend | ⬜ pending |
-| 41-05-T3 | 41-05 | 3 | RUN-02 | T-41-22 | a failed read is never a pass | fault injection | `npx vitest run scripts/runnable-ref/claim-read-sites.test.ts` | Wave 0 | ⬜ pending |
-| 41-06-T1 | 41-06 | 4 | RUN-04, RUN-06 | T-41-25 | pointer and limit; role under its ceiling | text | `npx vitest run scripts/flow-guidance-text.test.ts` | extend | ⬜ pending |
-| 41-06-T2 | 41-06 | 4 | RUN-04 | T-41-26 | README and registry agree | gate | `npm run check:claim-anchors` | yes | ⬜ pending |
-| 41-06-T3 | 41-06 | 4 | RUN-06 (Phase 41 D-31) | T-41-28 | senior prompt at every tier; junior stop stays | unit, text | `npx vitest run scripts/generate-role-adapters.test.ts scripts/adapter-byte-baseline.test.ts scripts/tier-kit-text.test.ts` | extend | ⬜ pending |
+| 41-01-T1 | 41-01 | 1 | RUN-01 | T-41-03 | `done` empties the log; no FIFO open | unit | `npm run build && npx vitest run scripts/claim.test.ts scripts/now-running-freshness.test.ts` | extend | ✅ green |
+| 41-01-T2 | 41-01 | 1 | RUN-02, RUN-06 | T-41-01, T-41-16 | record, owner, count and config rules | unit | `npm run build && npm run typecheck && npx vitest run scripts/claim.test.ts scripts/now-running-freshness.test.ts scripts/config-queue-consistency.test.ts` | extend | ✅ green |
+| 41-01-T3 | 41-01 | 1 | RUN-01 | — | both dispatch paths empty the log | oracle | `node scripts/check-uat-oracles.js` | extend | ✅ green |
+| 41-02-T1 | 41-02 | 1 | RUN-06 | T-41-07 | ask once; the answer note is cited | text | `npx vitest run scripts/tier-kit-text.test.ts` | extend | ✅ green |
+| 41-02-T2 | 41-02 | 1 | RUN-06 | T-41-05, T-41-06 | stop precedence; approval names its proposal | text | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` | extend | ✅ green |
+| 41-02-T3 | 41-02 | 1 | RUN-06 | — | role and config agree on who asks | gate | `node scripts/check-role-rules.js && node scripts/check-diff-disposition.js` | yes | ✅ green |
+| 41-03-T1 | 41-03 | 2 | RUN-05 | T-41-08, T-41-09 | installed `claim` runs; links refused | integration | `npx vitest run scripts/runnable-ref/claim.test.ts scripts/generate-runnable-embeds.test.ts` | Wave 0 | ✅ green |
+| 41-03-T2 | 41-03 | 2 | RUN-05 | T-41-10 | install, uninstall and skew know claim.js | integration | `npx vitest run install/install.test.ts install/uninstall-removal.test.ts scripts/runnable-ref/state-check.test.ts` | extend | ✅ green |
+| 41-03-T3 | 41-03 | 2 | RUN-01, RUN-05 | T-41-18 | `done` passes on a sealed note only | integration | `npx vitest run scripts/runnable-ref/claim.test.ts` | extend | ✅ green |
+| 41-04-T1 | 41-04 | 2 | RUN-05, RUN-06 | — | one command per step; a role reaches `done` | text | `npx vitest run scripts/flow-guidance-text.test.ts` | Wave 0 | ✅ green |
+| 41-04-T2 | 41-04 | 2 | RUN-02 | T-41-12, T-41-13 | refill rule; sweep at session start only | text | `npx vitest run scripts/flow-guidance-text.test.ts` | extend | ✅ green |
+| 41-04-T3 | 41-04 | 2 | RUN-03, RUN-04 | T-41-14, T-41-15 | session compaction; host names stay in two blocks | text | `npx vitest run scripts/flow-guidance-text.test.ts scripts/config-queue-consistency.test.ts` | extend | ✅ green |
+| 41-05-T1 | 41-05 | 3 | RUN-02 | T-41-19 | `free` is exact or refuses | integration | `npx vitest run scripts/runnable-ref/claim.test.ts` | extend | ✅ green |
+| 41-05-T2 | 41-05 | 3 | RUN-05 | T-41-23 | a crash never denies a change | integration | `npx vitest run scripts/runnable-ref/runnable-exit-contract.test.ts` | extend | ✅ green |
+| 41-05-T3 | 41-05 | 3 | RUN-02 | T-41-22 | a failed read is never a pass | fault injection | `npx vitest run scripts/runnable-ref/claim-read-sites.test.ts` | Wave 0 | ✅ green |
+| 41-06-T1 | 41-06 | 4 | RUN-04, RUN-06 | T-41-25 | pointer and limit; role under its ceiling | text | `npx vitest run scripts/flow-guidance-text.test.ts` | extend | ✅ green |
+| 41-06-T2 | 41-06 | 4 | RUN-04 | T-41-26 | README and registry agree | gate | `npm run check:claim-anchors` | yes | ✅ green |
+| 41-06-T3 | 41-06 | 4 | RUN-06 (Phase 41 D-31) | T-41-28 | senior prompt at every tier; junior stop stays | unit, text | `npx vitest run scripts/generate-role-adapters.test.ts scripts/adapter-byte-baseline.test.ts scripts/tier-kit-text.test.ts` | extend | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -65,9 +65,9 @@ created: "2026-11-04"
 
 ## Wave 0 Requirements
 
-- [ ] `scripts/runnable-ref/claim.test.ts` — RUN-05 host-copy cases (copy the committed `.js` alone into `mkdtempSync`, add `package.json`, spawn `node`)
-- [ ] Text cases for WF17 flow guidance and the orchestrator pointer (RUN-02/03/04/06)
-- [ ] A test binding the queue-default constant to `agent-factory/seed/.grugops/factory.config.json` `queue`
+- [x] `scripts/runnable-ref/claim.test.ts` — RUN-05 host-copy cases (copy the committed `.js` alone into `mkdtempSync`, add `package.json`, spawn `node`)
+- [x] Text cases for WF17 flow guidance and the orchestrator pointer (RUN-02/03/04/06)
+- [x] A test binding the queue-default constant to `agent-factory/seed/.grugops/factory.config.json` `queue`
 
 ---
 
@@ -113,11 +113,19 @@ Measured at planning at HEAD 3fd34220, before any plan ran: 7 files, 21 failed, 
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < {N}s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s per task
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** automated audit passed at `d5ab6f80`. The Manual-Only rows above still wait on a named human.
+
+## Validation Audit 2026-11-05
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
