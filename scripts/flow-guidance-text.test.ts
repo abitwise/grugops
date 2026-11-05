@@ -84,10 +84,15 @@ describe("Workflow 17 reads as one command per step (plan 41-04; RUN-05, D-01, D
   });
 
   it("gives the pending file's two exact lines in step 1, and no enqueue command", () => {
-    const first = step(WF17, 1);
-    expect(first).toContain("exactly two lines");
-    expect(first).toContain("Line one is `# subtask <task>`.");
-    expect(first).toContain("Line two is `ref: .grugops/context/<task>/`.");
+    expect(step(WF17, 1)).toContain("exactly two lines");
+    const steps = section(WF17, "Steps").split("\n");
+    const at = steps.findIndex((l) => l.startsWith("1. "));
+    expect(steps[at + 1]).toBe("   - Set line one to `# subtask <task>`.");
+    // The SCTX-05 guard reads a `>` beside the context path as a redirect, so this line holds an
+    // example id and no `<task>`. Written with the placeholder, it fails check-foundation-guards.
+    expect(steps[at + 2]).toBe(
+      "   - Set line two to the task's context folder: `ref: .grugops/context/abc-104/` for task `abc-104`.",
+    );
     expect(WF17).not.toContain("claim.js enqueue");
   });
 

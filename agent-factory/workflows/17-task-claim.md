@@ -47,7 +47,9 @@ Width is how many role agents run at once. Depth is how many layers a spawned ag
 ## Steps
 Run these in order, from the repository root. `<task>` is the subtask id.
 
-1. Write each subtask to `pending/<task>.md` as exactly two lines (Orchestrator). Line one is `# subtask <task>`. Line two is `ref: .grugops/context/<task>/`. A re-queued subtask keeps the `ref:` of its per-task context.
+1. Write each subtask to `pending/<task>.md` as exactly two lines (Orchestrator). A re-queued subtask keeps the `ref:` of its per-task context.
+   - Set line one to `# subtask <task>`.
+   - Set line two to the task's context folder: `ref: .grugops/context/abc-104/` for task `abc-104`.
 
 2. Run `node tools/grugops/claim.js free` (Orchestrator). It prints `free N`: `queue.wip_limit` minus the `claimed/` count read from disk. Trust that number, never a remembered count of running agents.
 
@@ -86,6 +88,34 @@ Run the stale sweep only at session start, including the fresh-session fallback.
 The sweep reclaims a claim whose `claim.md` `at` is older than `queue.stale_ttl_minutes`, and a tampered multi-`at` record. The subtask returns to `pending/` by atomic rename, and the claim directory is released. A claim whose subtask already sits in `done/` is released, not reclaimed. Wall-clock TTL only; no pid/host liveness. A fresh claim is left untouched.
 
 Inside a live session, report a long claim and leave it in place. Reclaiming it could hand a slow agent's task to a second agent. Two Orchestrator sessions on one repository can still sweep each other's long claims, an accepted residual.
+
+## Session compaction
+Session compaction is about the Orchestrator's own session context. It is not note compaction, which Workflow 18 owns under the name context compaction. Role agents are short-lived, one task each, so this guidance covers the Orchestrator only. It is guidance, not a gate, and it adds no config key.
+
+Three triggers apply, all observable by the Orchestrator:
+
+- A ticket boundary: a ticket reaches a PR, Done or a stop.
+- About 10 closed agents since the session started or last compacted. Keep this count in memory, with no on-disk counter. Any compaction or fresh session resets it.
+- A host signal: an auto-compact notice, a low-context warning, or the human saying the usage readout is near ~400k.
+
+When a trigger fires, follow these steps once, however many triggers fired together. Never ask the human.
+
+1. Pause dispatch: stop refilling and let running agents finish.
+2. Confirm the queue, the board and the notes are on disk.
+3. Compact the session if the host lets the Orchestrator do that.
+4. Otherwise checkpoint: commit queue and context state on the work branch per `## Commit`, then carry on refilling. Run the branch guard first, and never commit to a protected branch. A host auto-compaction then loses nothing. The tips below bring it forward.
+
+With nothing running, the pause ends at once. The first act after any compaction is to re-read `now-running.md` and the board, then refill. No sweep runs here, because agents the Orchestrator spawned can still be running.
+
+A fresh session is the fallback on every host. It starts from committed state, on this machine or another, and follows `## Session start`.
+
+### Operator tips (optional)
+These settings are the operator's choice, and the installer writes none of them.
+
+- Claude Code: run `/autocompact 400k`.
+- Codex CLI: set `model_auto_compact_token_limit = 400000` in `config.toml`.
+- Pi: set `compaction.reserveTokens` in `.pi/settings.json`. The right value depends on the model's context window.
+- Antigravity CLI, OpenCode and GitHub Copilot CLI: use the fresh-session fallback.
 
 ## Stop conditions
 - The claim is lost (`claim` prints `lost <task>` and exits 1) → do not proceed on that task; move to the next pending task. Do not retry the same claim in a tight loop.
