@@ -2597,9 +2597,6 @@ const USAGE =
   "Usage: node note.js add <folder> --kind <kind> --by <role> --confidence <level> (--body <text> | --body-file <path>) " +
   "[--ref <ref>]... [--verified-by <stamp>] [--supersedes <id>] [--sha <hex>] [--gate-run <id>] [--content-hash <hex>]";
 
-/** The prefix of an adapter name, which `--by` refuses because the high-severity classifier reads the role name. */
-const ADAPTER_PREFIX = "grugops-";
-
 /** What `add` takes on the command line: each flag, and whether it may repeat. */
 const ADD_FLAGS: ReadonlyMap<string, boolean> = new Map([
   ["--kind", false],
@@ -2659,14 +2656,17 @@ function noteKind(): NoteKind {
   return kind as NoteKind;
 }
 
-/** `--by`, the role file's name. This is an argv shape check; every severity decision stays in the embedded admit(). */
+/**
+ * `--by`, the role file's name. This is an argv shape check; every severity decision stays in the embedded admit(). The
+ * high-severity classifier reads the role name, so an adapter name is refused here. scripts/kit-model.ts owns the
+ * adapter namespace and a host program cannot import it, so note.test.ts drives this refusal with that owner's constant.
+ */
 function noteAuthor(): string {
   const by = flagValue("--by");
   const named = by?.trim().toLowerCase() ?? "";
   if (named === "") couldNotRun(`add needs --by <role>, the role file's name without .md. ${USAGE}.`);
-  if (named.startsWith(ADAPTER_PREFIX)) {
-    couldNotRun(`--by ${by as string} is an adapter name. Pass the role file's name without .md: ${named.slice(ADAPTER_PREFIX.length)}.`);
-  }
+  const role = named.replace(/^grugops-/, "");
+  if (role !== named) couldNotRun(`--by ${by as string} is an adapter name. Pass the role file's name without .md: ${role}.`);
   return by as string;
 }
 

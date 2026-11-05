@@ -30,6 +30,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import { treeDigest } from "../fault-inject.test-support.js";
+import { AGENT_ADAPTER_PREFIX } from "../kit-model.js";
 import { CONTEXT_REL, GRUGOPS_DIR_REL, QUEUE_CLAIMED_REL, QUEUE_DONE_REL, QUEUE_PENDING_REL } from "../../install/state-layout.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..");
@@ -446,6 +447,14 @@ describe("argv", () => {
         expectCouldNotRun(note(root, ...head, ...rest, "--by", by), "--by", "role file");
       }
     });
+  });
+
+  it("the prefix --by refuses is the one scripts/kit-model.ts owns, so a new namespace turns this case red", () => {
+    const root = repo();
+    const rest = ["--kind", "observation", "--confidence", "high", "--body", "x"];
+    expectNothingWritten(root, () =>
+      expectCouldNotRun(note(root, ...head, ...rest, "--by", `${AGENT_ADAPTER_PREFIX}qe-e2e`), "--by", "role file", ": qe-e2e."),
+    );
   });
 
   it("the measured bypass is closed: an adapter name cannot step around the high-severity classifier", () => {
