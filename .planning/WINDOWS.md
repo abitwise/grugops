@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 247
+open_count: 248
 waived_count: 28
 fixed_count: 47
-total_count: 322
-last_updated: 2026-10-12T03:22:36.081Z
+total_count: 323
+last_updated: 2026-11-05T00:53:21.793Z
 ---
 
 # Broken Windows Ledger
@@ -337,6 +337,7 @@ last_updated: 2026-10-12T03:22:36.081Z
 | 320 | 34 | skipped-test | install/canonical-path.test.ts | 268 | Plan 34-21 isOwnLink host cases (true for the own link, true under path.win32 in backslash spelling, false for another directory and for a relative target) skip with a printed SKIPPED line where the host cannot make a link (stageSymlinkOrSkip, EPERM/EACCES); the rule stays pinned by the pure sameRecordedPath table under both flavors. Whether these cases run or skip on windows-latest is UNKNOWN - verify (no human-pushed run measured this plan, WIN-3). | open |  | 2026-10-09T10:30:34.211Z |  |
 | 321 | 34 | unrun-verify | install/record-truth.test.ts |  | 34-22 (WR-10, D-23): the two L1 pointer-file writable-mode rows of install/record-truth.test.ts (CLAUDE.md, .github/copilot-instructions.md; the other-read bit toggled, owner write kept) are gated on the measured host capability 'POSIX permission bits beyond read-only' and skip with a printed SKIPPED line where it is absent (windows-latest), so uninstall's pointer-file mode comparison (removeOwnedEmptyFile, recordMatches with the pre-removal mode) is not reached end to end on Windows. The read-only L1 rows still run there, and the direct modeMatches / recordMatches case still runs there. A Windows case needs a writable mode change Windows stores, which is UNKNOWN - verify. No human-pushed run measured this plan (WIN-3). | open |  | 2026-10-09T10:39:08.545Z |  |
 | 322 | 34.1 | skipped-test | install/install.test.ts | 10841 | 34.1-12 (D-02): the six 'agent picker at a terminal' cases need script(1) for a pseudo-terminal (BSD or util-linux form, probed); where neither runs (expected on windows-latest) they skip with the printed reason 'script(1) is not available to give the installer a terminal'. The pure key class (install/agent-picker.test.ts) runs everywhere; raw-mode behaviour on Windows is UNKNOWN - verify. | open |  | 2026-10-12T03:22:36.081Z |  |
+| 323 | 41 | unrun-verify | docs/audit/29-style-dispositions/41-04.md |  | Plan 41-04 Task 3 human-check not run: eight frozen rows for Workflow 17 Stop conditions stay pending until a named human reads them against the diff | open |  | 2026-11-05T00:53:21.793Z |  |
 
 ````json
 [
@@ -4349,6 +4350,19 @@ last_updated: 2026-10-12T03:22:36.081Z
     "recorded_at": "2026-10-12T03:22:36.081Z",
     "resolved_at": null,
     "milestone": "v2.1"
+  },
+  {
+    "id": 323,
+    "kind": "unrun-verify",
+    "phase": "41",
+    "file": "docs/audit/29-style-dispositions/41-04.md",
+    "line": null,
+    "description": "Plan 41-04 Task 3 human-check not run: eight frozen rows for Workflow 17 Stop conditions stay pending until a named human reads them against the diff",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-05T00:53:21.793Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
   }
 ]
 ````

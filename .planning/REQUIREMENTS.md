@@ -63,7 +63,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 
 ### Orchestrator flow (RUN)
 
-- [ ] **RUN-01**: The Orchestrator's in-flight log is the queue's `claimed/` set rendered to `now-running.md`; it holds only running work and empties as tasks finish
+- [x] **RUN-01**: The Orchestrator's in-flight log is the queue's `claimed/` set rendered to `now-running.md`; it holds only running work and empties as tasks finish
 - [ ] **RUN-02**: On every task completion the Orchestrator closes the finished agent and refills free capacity (`wip_limit` minus `claimed/` count, read from disk) with ready work — no timers, no polling
 - [ ] **RUN-03**: "Session compaction" guidance (named apart from WF18 note compaction) tells the Orchestrator when to compact using signals it can observe, with a fresh session that re-reads the in-flight log as the fallback on every host
 - [ ] **RUN-04**: The flow guidance lives in Workflow 17 with a one-line pointer in `orchestrator.md`, which stays under its size ceiling; it reads the same on all six hosts, with optional operator tips per host
@@ -150,7 +150,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAIN-05 | Phase 40 | Complete |
 | PLAIN-06 | Phase 40 | Complete |
 | PLAIN-07 | Phase 40 | Complete |
-| RUN-01 | Phase 41 | Pending |
+| RUN-01 | Phase 41 | Complete |
 | RUN-02 | Phase 41 | Pending |
 | RUN-03 | Phase 41 | Pending |
 | RUN-04 | Phase 41 | Pending |
