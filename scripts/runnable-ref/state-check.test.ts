@@ -1622,7 +1622,7 @@ describe("state-check.js — a sibling built from other authorities is runnable-
     expect(lines[0]).toContain(`${realpathSync(dir)}/trace-render.js: `);
     expect(lines[0]).toContain(theirStamp);
     expect(lines[0]).toContain(own);
-    expect(lines[0]).toContain("remove claim.js, state-check.js, state-roll.js and trace-render.js and install them again together");
+    expect(lines[0]).toContain("remove claim.js, note.js, state-check.js, state-roll.js and trace-render.js and install them again together");
     expect(r.stdout.split("\n").filter((l) => /^(WARN|FINDING) /.test(l)), "the skew is the only finding").toHaveLength(1);
 
     const j = runSiblings(dir, root, "--json");

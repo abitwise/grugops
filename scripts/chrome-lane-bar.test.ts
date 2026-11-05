@@ -50,6 +50,7 @@ import {
 } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { tmpdir } from "node:os";
+import { EMBED_CLOSE, EMBED_OPEN } from "./generate-runnable-embeds.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -77,6 +78,14 @@ const VERDICT_EMITTER = "emitVerdict";
  * `appendNote/emitVerdict)` in a comment and `scripts/check-uat-oracles.ts` writes
  * `never calls emitVerdict (…)`. Both NAME the emitter in order to say they do not reach it, and a
  * bare-mention predicate would report each of them as an author of a note it never writes.
+ *
+ * A WHOLE-LINE COMMENT IS A PROSE MENTION TOO (plan 41-12, T-41-54). `deriveVerdictAuthors` reads
+ * this text line by line and skips a line whose first non-blank characters are `//`. The generator
+ * copies comments with an embedded body, so scripts/runnable-ref/note.ts holds the invocation in
+ * comments while it calls and declares no emitter. NO GENERATED REGION IS EXEMPT here, unlike the
+ * AUTO-06 rule for a governance reader: a copy of that reader is harmless, but a region that
+ * embedded the emitter would be a real route to the machine stamp, so a call or a declaration
+ * counts wherever it sits.
  */
 const INVOCATION = `${VERDICT_EMITTER}(`;
 
@@ -171,10 +180,12 @@ function walkTypeScriptSources(root: string): string[] {
   return out.sort();
 }
 
-/** The derived set: every walked source whose text invokes the verdict carve-out. */
+/** The derived set: every walked source with a line that invokes the verdict carve-out and is not a whole-line comment. */
 function deriveVerdictAuthors(root: string): string[] {
   return walkTypeScriptSources(root).filter((rel) =>
-    readFileSync(join(root, rel), "utf8").includes(INVOCATION),
+    readFileSync(join(root, rel), "utf8")
+      .split("\n")
+      .some((line) => line.includes(INVOCATION) && !line.trimStart().startsWith("//")),
   );
 }
 
@@ -357,6 +368,29 @@ describe("31-04 D-09: the author-set assertion is a control, not a coincidence",
     // …and it moved by exactly one, so the refusal is caused by the seeded file rather than by a
     // derivation that broke and started reporting some other number.
     expect(derived).toBe(EXPECTED_VERDICT_AUTHOR_COUNT + 1);
+  });
+
+  /** A fixture root holding `content` at scripts/seeded.ts, with the premise that the file holds the invocation. */
+  function rootHolding(content: string): string {
+    const root = mkTmp("grugops-chrome-lane-predicate-");
+    expect(content, "PREMISE: the seeded text holds the invocation").toContain(INVOCATION);
+    writeInto(root, "scripts/seeded.ts", content);
+    return root;
+  }
+
+  it("a whole-line comment holding the invocation is not an author", () => {
+    const root = rootHolding(`// the gate calls ${INVOCATION}"t", "i")\n    // and an indented copy, ${INVOCATION}"t")\nexport const x = 1;\n`);
+    expect(deriveVerdictAuthors(root)).toEqual([]);
+  });
+
+  it("a real call inside region markers is an author", () => {
+    const root = rootHolding(`${EMBED_OPEN}\nexport const x = ${INVOCATION}"t", "i", "clean", "abc", ".");\n${EMBED_CLOSE}\n`);
+    expect(deriveVerdictAuthors(root)).toEqual(["scripts/seeded.ts"]);
+  });
+
+  it("a real declaration inside region markers is an author", () => {
+    const root = rootHolding(`${EMBED_OPEN}\nexport function ${INVOCATION}task: string): void {\n  void task;\n}\n${EMBED_CLOSE}\n`);
+    expect(deriveVerdictAuthors(root)).toEqual(["scripts/seeded.ts"]);
   });
 });
 

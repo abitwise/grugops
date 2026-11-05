@@ -49,6 +49,7 @@ import ts from "typescript";
 // import closure, never from a hand-listed file set — a mirror that misses a module reproduces "the
 // module is missing" instead of the property under test.
 import { closureTargets } from "./js-import-closure.js";
+import { EMBED_SPECS, regionSpans, rewriteRunnable } from "./generate-runnable-embeds.js";
 // Phase 34.1 D-01: the installer spawn below names every registry agent, spelled by the registry (agent-flag census).
 import { HOST_TOOLS, agentFlag } from "../install/host-tools.js";
 import { LEGACY_STATE_ROOT_REL, STATE_ROOT_REL } from "../install/state-layout.js";
@@ -2126,6 +2127,8 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
       "the read-only git-host check (plan 33.1-04, D-19): reads only the `environments` list, taking its last entry as the production environment name to inspect. A NON-GOVERNANCE reader that decides no checkpoint; an unparseable file or a non-array value falls through to the next candidate and then to the documented default. It cannot import context-io.ts because the installer copies it alone into host repositories.",
     "scripts/runnable-ref/claim.ts":
       "the host queue tool (plan 41-05): reads only the `queue` block, for `free` and `sweep`. A NON-GOVERNANCE dial reader that decides no checkpoint, and it spells the file name itself because it is a kit-shipped runnable with no context-io.js beside it on a host.",
+    "scripts/runnable-ref/note.ts":
+      "the host note writer (plan 41-07, D-35): its generated region copies the one reader, because the embedded `appendNote` admits through it. A copy the freshness gate holds equal to the authority, so not a second reader, and its hand-written part reads no dial.",
   };
 
   /**
@@ -2174,8 +2177,17 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
    * `queue.stale_ttl_minutes`, and it decides no checkpoint. It spells the file name itself for the
    * reason host-protection.ts does: the installer copies the compiled file alone into a host
    * repository, where context-io.js is absent. AUTO-06's one governance reader is unmoved.
+   *
+   * 13 → 14 (2026-11-05, plan 41-07, D-35, pin moved by plan 41-12). ONE ENTRANT, and the question
+   * was asked of it: is `scripts/runnable-ref/note.ts` a second GOVERNANCE READER? It is not, and
+   * the answer differs from claim.ts's. This file does hold both dial keys, because D-35 ships the
+   * sanctioned note writer to hosts and that writer admits through the reader. They sit only in its
+   * generated region, which the freshness gate holds equal to scripts/context-io.ts, so the text
+   * can only say what the one reader says. AUTO-06's "a second must not be added" still binds: the
+   * reader case below strips a region only while it is fresh, and a hand-written read of a dial
+   * beside it stays red. AUTO-06's one governance reader is unmoved.
    */
-  const CONFIG_PATH_SITE_COUNT = 13;
+  const CONFIG_PATH_SITE_COUNT = 14;
 
   /**
    * Refuse a zero-length set BY NAME rather than reporting a pass over nothing. This mirrors
@@ -2311,19 +2323,73 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
     expect(sites).toEqual(annotated);
   });
 
+  /**
+   * `src` with its generated region removed, when `rel` is an EMBED_SPECS target and that region equals what the
+   * generator derives now; otherwise `src` unchanged. A fresh region is a copy of the one reader, held equal to it by
+   * the freshness gate. A stale or hand-edited region is not a copy, and no module is admitted by its name. This is the
+   * shape of `admittedGeneratedCopy` in scripts/check-foundation-guards.test.ts, for the question AUTO-06 asks.
+   */
+  function withoutFreshRegion(rel: string, src: string): string {
+    const spec = EMBED_SPECS.find((s) => s.target === rel);
+    if (spec === undefined) return src;
+    let spans: Array<readonly [number, number]>;
+    try {
+      spans = regionSpans(src);
+    } catch {
+      return src;
+    }
+    if (spans.length !== 1) return src;
+    const [a, b] = spans[0] as readonly [number, number];
+    const fresh = rewriteRunnable(spec, ROOT).text;
+    const [freshA, freshB] = regionSpans(fresh)[0] as readonly [number, number];
+    return src.slice(a, b) === fresh.slice(freshA, freshB) ? src.slice(0, a) + src.slice(b) : src;
+  }
+
+  /** True when the source of `rel` holds both governance dial keys outside every comment and every fresh region. */
+  function readsGovernanceKeys(rel: string, src: string): boolean {
+    const code = stripComments(withoutFreshRegion(rel, src));
+    return /human_admission/.test(code) && /audit_retention/.test(code);
+  }
+
   it("exactly ONE site is the governance reader, and it is scripts/context-io.ts (AUTO-06)", () => {
     const { sites } = scanConfigPathSites(trackedSources());
     expect(sites).toContain(GOVERNANCE_READER);
-    // The narrow claim D-13 is actually about: one reader of the governance dials. The other seven
-    // sites read a different key, or no key at all, and each says which above.
-    const governanceKeyReaders = sites.filter((rel) => {
-      const src = stripComments(readFileSync(join(ROOT, rel), "utf8"));
-      return /human_admission/.test(src) && /audit_retention/.test(src);
-    });
+    // The narrow claim D-13 is actually about: one reader of the governance dials. The other sites
+    // read a different key, or no key at all, or hold a fresh copy of the reader, and each says
+    // which above.
+    const governanceKeyReaders = sites.filter((rel) => readsGovernanceKeys(rel, readFileSync(join(ROOT, rel), "utf8")));
     expect(
       governanceKeyReaders,
       `sites reading the governance dials — AUTO-06 admits exactly one:\n${governanceKeyReaders.join("\n")}`,
     ).toEqual([GOVERNANCE_READER]);
+  });
+
+  describe("CONTROL: the fresh-region rule of the AUTO-06 case discriminates (plan 41-12, T-41-51)", () => {
+    const NOTE_REL = "scripts/runnable-ref/note.ts";
+    const noteSource = (): string => readFileSync(join(ROOT, NOTE_REL), "utf8");
+
+    it("PREMISE: the committed note.ts holds both keys in its code, and no hand-written read of them", () => {
+      const code = stripComments(noteSource());
+      expect(/human_admission/.test(code) && /audit_retention/.test(code), "the region holds both keys").toBe(true);
+      expect(readsGovernanceKeys(NOTE_REL, noteSource())).toBe(false);
+    });
+
+    it("the same two dial keys outside a region, in a mirror text, count as a second reader", () => {
+      const mirror = `${noteSource()}\nconst dials = ["human_admission", "audit_retention"];\n`;
+      expect(readsGovernanceKeys(NOTE_REL, mirror)).toBe(true);
+    });
+
+    it("a hand-edited region is not a copy, so its keys count", () => {
+      const src = noteSource();
+      const [a, b] = regionSpans(src)[0] as readonly [number, number];
+      const mirror = src.slice(0, a) + src.slice(a, b).replace("function appendNote(", "function appendNot3(") + src.slice(b);
+      expect(mirror, "PREMISE: the mirror's region differs").not.toBe(src);
+      expect(readsGovernanceKeys(NOTE_REL, mirror)).toBe(true);
+    });
+
+    it("no module is admitted by its text alone: the same source under a name outside EMBED_SPECS counts", () => {
+      expect(readsGovernanceKeys("scripts/not-an-embed-target.ts", noteSource())).toBe(true);
+    });
   });
 
   it("MENTIONS is a strict superset of SITES — naming the config in prose is not resolving it", () => {

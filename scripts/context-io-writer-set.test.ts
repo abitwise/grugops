@@ -155,8 +155,19 @@ const NON_NOTE_WRITER_RESIDUALS = Object.freeze(["atomicWrite", "publishNoteExcl
  * and independently of it — that is the whole point of plan 31-30's R-03 work — so it cannot live in
  * a test module. The cost is one more counted call site; the alternative was a Windows measurement
  * that only runs if the suite does.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (2026-11-05, plan 41-07, D-35, pin moved by plan 41-12):
+ * 6 -> 8, and the DECISION this pin exists to force is D-35: the sanctioned note writer ships to
+ * hosts, because `claim.js done` needs a sealed note and a host has no other way to write one. Both
+ * new occurrences are in `scripts/runnable-ref/note.ts`: the generated `export function appendNote(`
+ * declaration, and the one call in `runAdd`.
+ *
+ * IS IT A PLACE AN `artifact-ref` COULD BE AUTHORED? Yes, so it is counted. What bounds it is that
+ * the declaration is a fresh copy of the authority, and `appendNote` is note.js's one route to a
+ * note: the program declares no `admitAndAppend`, `appendPreAdmittedNote` or `emitVerdict`, so it
+ * holds the in-script admission tier and grants nothing beyond it (T-41-29).
  */
-const EXPECTED_APPEND_NOTE_CALL_SITES = 6;
+const EXPECTED_APPEND_NOTE_CALL_SITES = 8;
 
 /** Files under agent-factory/ whose prose names `appendNote`. */
 const EXPECTED_AGENT_FACTORY_MENTIONS = 4;
