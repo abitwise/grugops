@@ -4,6 +4,8 @@
 //   * a closure is copied verbatim, in source order, with one merged import line per `node:` specifier;
 //   * the generator refuses a closure reaching a non-`node:` import, two declarations with one name in one
 //     target, and LEGACY_STATE_ROOT_REL, each naming what it met;
+//   * a closure may import a name from an earlier authority of its own row, and every other shape of that import
+//     is refused, naming what it met (plan 41-07, D-35);
 //   * every committed region is fresh, and a one-character hand edit inside a region makes the freshness gate
 //     exit 1 naming the target (run in a temporary mirror, never on the tree);
 //   * EMBED_SPECS is pinned two-sided against EMBED_SPEC_COUNT;
@@ -204,6 +206,133 @@ describe("deriveRegion — the closure, verbatim and in source order", () => {
   }
 });
 
+describe("the row-sibling rule (plan 41-07, D-35)", () => {
+  /** An authority with a value, a function, a type and one name no root reaches. */
+  const LOW = [
+    'export type Mode = "a" | "b";',
+    "export const LIMIT = 3;",
+    "export function twice(n: number): number {",
+    "  return n * 2;",
+    "}",
+    "export const UNREACHED = 1;",
+    "",
+  ].join("\n");
+  /** An authority whose root reaches `use`, with `imports` as its import lines. */
+  const high = (imports: string, use: string = "twice(LIMIT)"): string =>
+    [imports, "export function top(): number {", `  return ${use};`, "}", ""].join("\n");
+  const lowFirst = (roots: readonly string[] = ["LIMIT", "twice"]): EmbedSpec => ({
+    target: "out.ts",
+    authorities: [
+      { module: "lib/low.ts", roots },
+      { module: "lib/high.ts", roots: ["top"] },
+    ],
+  });
+
+  it("a closure that imports a name from an earlier authority of its row embeds with no import line for it", () => {
+    const root = fixtureRoot({ "lib/low.ts": LOW, "lib/high.ts": high('import { LIMIT, twice } from "./low.js";') });
+    const spec = lowFirst();
+    const region = deriveRegion(spec, root, [spec]);
+    expect(region).toContain("export const LIMIT = 3;");
+    expect(region).toContain("export function top(): number {");
+    expect(region.indexOf("// from lib/low.ts")).toBeLessThan(region.indexOf("// from lib/high.ts"));
+    expect(region.split("\n").filter((l) => l.startsWith("import ")), "no import line for a row sibling").toEqual([]);
+    expect(region, "the specifier is not carried").not.toContain("low.js");
+  });
+
+  it("a type imported from an earlier authority of the row needs no import line either", () => {
+    const root = fixtureRoot({
+      "lib/low.ts": LOW,
+      "lib/high.ts": [
+        'import { LIMIT, twice, type Mode } from "./low.js";',
+        'export const MODE: Mode = "a";',
+        "export function top(): number {",
+        "  return MODE.length + twice(LIMIT);",
+        "}",
+        "",
+      ].join("\n"),
+    });
+    const spec = lowFirst(["LIMIT", "twice", "Mode"]);
+    const region = deriveRegion(spec, root, [spec]);
+    expect(region).toContain('export type Mode = "a" | "b";');
+    expect(region.split("\n").filter((l) => l.startsWith("import ")), "no import line for a row sibling").toEqual([]);
+  });
+
+  it("a sibling in another directory of the row resolves through the authority's own directory", () => {
+    const root = fixtureRoot({
+      "base/low.ts": LOW,
+      "lib/high.ts": high('import { LIMIT, twice } from "../base/low.js";'),
+    });
+    const spec: EmbedSpec = {
+      target: "out.ts",
+      authorities: [
+        { module: "base/low.ts", roots: ["LIMIT", "twice"] },
+        { module: "lib/high.ts", roots: ["top"] },
+      ],
+    };
+    expect(deriveRegion(spec, root, [spec])).toContain("export function top(): number {");
+  });
+
+  it("a sibling listed after the importer throws naming both modules", () => {
+    const root = fixtureRoot({ "lib/low.ts": LOW, "lib/high.ts": high('import { LIMIT, twice } from "./low.js";') });
+    const spec: EmbedSpec = {
+      target: "out.ts",
+      authorities: [
+        { module: "lib/high.ts", roots: ["top"] },
+        { module: "lib/low.ts", roots: ["LIMIT", "twice"] },
+      ],
+    };
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/lib\/high\.ts.*lib\/low\.ts/);
+  });
+
+  it("an authority that imports from its own module throws naming it, because it is listed at the importer", () => {
+    const root = fixtureRoot({ "lib/low.ts": LOW, "lib/high.ts": high('import { HIDDEN } from "./high.js";', "HIDDEN") });
+    const spec = lowFirst();
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/lib\/high\.ts.*lib\/high\.ts/);
+  });
+
+  it("a renamed binding throws naming the name", () => {
+    const root = fixtureRoot({
+      "lib/low.ts": LOW,
+      "lib/high.ts": high('import { LIMIT as CAP, twice } from "./low.js";', "twice(CAP)"),
+    });
+    const spec = lowFirst();
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/"CAP".*renamed.*"LIMIT"/);
+  });
+
+  it("a namespace binding throws naming the name", () => {
+    const root = fixtureRoot({ "lib/low.ts": LOW, "lib/high.ts": high('import * as low from "./low.js";', "low.twice(low.LIMIT)") });
+    const spec = lowFirst();
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/"low".*namespace/);
+  });
+
+  it("a default binding throws naming the name", () => {
+    const root = fixtureRoot({ "lib/low.ts": LOW, "lib/high.ts": high('import low from "./low.js";', "low") });
+    const spec = lowFirst();
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/"low".*default/);
+  });
+
+  it("a name the sibling's closure does not hold throws naming the name and both modules", () => {
+    const root = fixtureRoot({
+      "lib/low.ts": LOW,
+      "lib/high.ts": high('import { LIMIT, UNREACHED, twice } from "./low.js";', "twice(LIMIT) + UNREACHED"),
+    });
+    const spec = lowFirst();
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/"UNREACHED".*lib\/high\.ts.*lib\/low\.ts/);
+  });
+
+  it("a bare specifier that spells a row module's path is not a sibling, and keeps today's refusal", () => {
+    const root = fixtureRoot({ "lib/low.ts": LOW, "lib/high.ts": high('import { LIMIT, twice } from "low.js";') });
+    const spec = lowFirst();
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/lib\/high\.ts.*"low\.js".*not a node: builtin/);
+  });
+
+  it("a relative specifier with no .js ending is not a sibling, and keeps today's refusal", () => {
+    const root = fixtureRoot({ "lib/low.ts": LOW, "lib/high.ts": high('import { LIMIT, twice } from "./low.ts";') });
+    const spec = lowFirst();
+    expect(() => deriveRegion(spec, root, [spec])).toThrow(/lib\/high\.ts.*"\.\/low\.ts".*not a node: builtin/);
+  });
+});
+
 describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AUTH-1)", () => {
   /** The stamp lines inside a source's one region, as [line, captured stamp]. */
   const regionStamps = (text: string): string[] => {
@@ -217,12 +346,13 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
       });
   };
 
-  it("each of the four runnable targets holds exactly one stamp line inside its region, and the four stamps are equal", () => {
+  it("each of the five runnable targets holds exactly one stamp line inside its region, and the five stamps are equal", () => {
     expect(RUNNABLES.map((s) => s.target)).toEqual([
       "scripts/runnable-ref/state-check.ts",
       "scripts/runnable-ref/trace-render.ts",
       "scripts/runnable-ref/state-roll.ts",
       "scripts/runnable-ref/claim.ts",
+      "scripts/runnable-ref/note.ts",
     ]);
     const stamps = RUNNABLES.map((s) => {
       const text = readFileSync(join(ROOT, s.target), "utf8");
@@ -241,7 +371,7 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
       const js = join(ROOT, s.target.replace(/\.ts$/, ".js"));
       const text = readFileSync(js, "utf8");
       expect(readRunnableStamp(text), js).toEqual({ kind: "stamp", stamp: own });
-      expect(text).toContain('export const RUNNABLE_SET = Object.freeze(["claim.js", "state-check.js", "state-roll.js", "trace-render.js"]);');
+      expect(text).toContain('export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);');
       const self = s.target.split("/").pop()?.replace(/\.ts$/, ".js") ?? "";
       expect(text.split("\n").filter((l) => l.startsWith("export const RUNNABLE_SELF = "))).toEqual([
         `export const RUNNABLE_SELF = ${JSON.stringify(self)};`,
@@ -461,10 +591,10 @@ describe("the build stamp moves with every authority and cannot be hand-written 
 // ── Module rows (plan 38-02, research Pitfall 9) ───────────────────────────────────────────────────────────────
 
 describe("a module row is generated and fresh but never stamped (plan 38-02)", () => {
-  it("EMBED_SPEC_COUNT is 5: four runnables and one module, install/state-migrate.ts", () => {
-    expect(EMBED_SPEC_COUNT).toBe(5);
-    expect(EMBED_SPECS.length).toBe(5);
-    expect(RUNNABLES).toHaveLength(4);
+  it("EMBED_SPEC_COUNT is 6: five runnables and one module, install/state-migrate.ts", () => {
+    expect(EMBED_SPEC_COUNT).toBe(6);
+    expect(EMBED_SPECS.length).toBe(6);
+    expect(RUNNABLES).toHaveLength(5);
     expect(MODULES.map((s) => s.target)).toEqual(["install/state-migrate.ts"]);
   });
 
