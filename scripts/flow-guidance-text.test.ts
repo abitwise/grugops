@@ -478,6 +478,11 @@ describe("orchestrator.md points at Workflow 17 and states the limit (plan 41-06
     expect(paragraphs[4]).toBe("Follow the 12 coding rules in `AGENTS.md`.");
   });
 
+  it("still names the role-switch protocol, because the pointer carries the role no path to it", () => {
+    const named = section(ORCHESTRATOR, "Reads").includes("- `agent-factory/roles/_role-switch-protocol.md`, where the `Agent` tool does not exist.");
+    expect(named, "the Reads section names the protocol").toBe(true);
+  });
+
   it("stays under its 6,195 B WARN", () => {
     expect(Buffer.byteLength(ORCHESTRATOR, "utf8")).toBeLessThan(6195);
   });
