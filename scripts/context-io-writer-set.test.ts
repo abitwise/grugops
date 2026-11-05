@@ -592,7 +592,7 @@ const REFUSAL_SITE_SPECS: readonly RefusalSiteSpec[] = Object.freeze([
     key: "S4",
     family: "D-03 b — two live green verdicts share one per-run id",
     signature:
-      "admission FAIL: more than one live green §14-gate verdict exists for \"\" under task \"\" ( found), so there is no single commit this artifact-ref can be bound to. A per-run id names one gate run; the evidence is refused and nothing is written until the duplicate is superseded.",
+      "admission FAIL: more than one live green §14-gate verdict exists for \"\" under task \"\" ( found), so there is no single commit this artifact-ref can be bound to. A per-run id names one gate run; the evidence is refused and nothing is written until a named human resolves the duplicate.",
   },
   {
     key: "S5",
@@ -623,6 +623,12 @@ const REFUSAL_SITE_SPECS: readonly RefusalSiteSpec[] = Object.freeze([
     family: "D-39 — a GOV-02 record would be written and the owning repository cannot be named",
     signature:
       "admission REFUSED (): the context store \"\" does not resolve to a governed store, so the repository whose audit trail would record this admission cannot be named. No note was written.",
+  },
+  {
+    key: "S10",
+    family: "CR-02 — a verdict or a gated finding may be superseded only through a human disposition",
+    signature:
+      "admission REFUSED: note \"\" under task \"\" is a green gate verdict or a finding the human_admission dial gates, so it may be superseded only through a named human's disposition. Nothing was written. Record the new result in a note that does not name it, and ask a named human.",
   },
 ]);
 
@@ -657,8 +663,19 @@ const REFUSAL_FAMILY_LABELS: Readonly<Record<string, string>> = Object.freeze(
  * `promoteAdmitted`, which refuses the identical input shape EARLIER and STRICTER by its own
  * clause. Read off the parse after the fix, with the other eight signatures asserted BYTE-IDENTICAL
  * across the change so that an ADDED site could not be confused with a re-worded one.
+ *
+ * MOVED 9 -> 10 ON 2026-11-05 BY PLAN 41-15 (CR-02 / D-37), WITH THE REASON WRITTEN HERE RATHER THAN
+ * THE CONSTANT BUMPED. The authority gained a TENTH reason a note can be refused, and it records a
+ * decision a named human took at a checkpoint: Olger answered `narrow` at plan 41-15's Task 1, so a
+ * `supersedes` target that is a green gate verdict or a finding the dial gates is refused, and a
+ * target that names no note is not. The new site is S10. Every writer in the matrix below owes it a
+ * row: `appendNote`, `admitAndAppend` and `promoteAdmitted`'s fall-through are driven by its probe,
+ * and `emitVerdict` stays under `neverReachesAuthority`. Read off the parse after the fix. The
+ * measured cost of the same change is one re-worded site as well: S4's closing clause promised a
+ * supersession no route offers once S10 lands, so its signature moved with it. The other eight
+ * signatures are byte-identical across the change.
  */
-const EXPECTED_ADMIT_REFUSAL_SITE_COUNT = 9;
+const EXPECTED_ADMIT_REFUSAL_SITE_COUNT = 10;
 
 /**
  * THE DERIVATION'S BOUNDARY, WRITTEN DOWN RATHER THAN LEFT AS A SILENCE.
@@ -1093,6 +1110,17 @@ function seedShalessVerdict(contextRoot: string, task: string, runId: string): v
   );
 }
 
+/** The S10 probe: its seed emits a real green verdict, and its note names that verdict's id. */
+function supersededVerdictProbe(): RefusalProbe {
+  let verdictId = "";
+  return {
+    note: () => softNote({ supersedes: verdictId }),
+    seed: (contextRoot, task) => {
+      verdictId = mod.emitVerdict(task, "RUN-SUPERSEDED", "clean", FABRICATED_SHA, contextRoot) as string;
+    },
+  };
+}
+
 /** A soft-kind note with no stamp — the shape that reaches the governance read without a stamp arm. */
 function softNote(over: Partial<Parameters<typeof mod.appendNote>[1]> = {}) {
   return {
@@ -1219,6 +1247,10 @@ const REFUSAL_PROBE_SPECS: Readonly<Record<string, RefusalProbe>> = Object.freez
     // longer produces.
     ledgerOwner: (contextRoot) => mod.actionOwnerRoot(contextRoot),
   },
+  // CR-02: a soft note that names a real green verdict in `supersedes`. A SOFT kind and no stamp, so
+  // no stamp arm can answer first. The verdict's id is minted at seed time, and every consumer stages
+  // the probe before it asks for the note, so the note always names the verdict of its own world.
+  S10: supersededVerdictProbe(),
 });
 
 /** The site handle for a derived signature, or "" when the site has no spec row. */

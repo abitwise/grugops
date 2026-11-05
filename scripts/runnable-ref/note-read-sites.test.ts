@@ -48,7 +48,7 @@ import {
 } from "../fault-inject.test-support.js";
 import { CONTEXT_REL, GRUGOPS_DIR_REL } from "../../install/state-layout.js";
 
-const MODES = ["observation", "retained", "gate-finding", "body-file", "delivered", "ambient", "home"] as const;
+const MODES = ["observation", "retained", "gate-finding", "body-file", "delivered", "ambient", "home", "supersede"] as const;
 type Mode = (typeof MODES)[number];
 
 /**
@@ -283,6 +283,7 @@ const MODE_SPEC: Record<AnyMode, ModeSpec> = {
   delivered: { fixture: LEAN, args: OBSERVATION, env: (root) => ({ ...BLANK, GRUGOPS_HOST_DELIVERED_ROOT: root }) },
   ambient: { fixture: LEAN, args: OBSERVATION, env: (root) => ({ ...BLANK, GRUGOPS_PROJECT_DIR: root }) },
   home: { fixture: LEAN, args: OBSERVATION, env: (root) => ({ ...BLANK, HOME: root }) },
+  supersede: { fixture: template("{}\n", true, false), args: [...OBSERVATION, "--supersedes", "n1"], env: () => BLANK },
   governed: { fixture: GOVERNED, args: DIAL_REFUSES, env: () => BLANK },
   "governed-home": { fixture: GOVERNED, args: DIAL_REFUSES, env: (root) => ({ ...BLANK, HOME: root }) },
   "governed-ambient": { fixture: LEAN, args: DIAL_REFUSES, env: () => ({ ...BLANK, GRUGOPS_PROJECT_DIR: GOVERNED }) },

@@ -3398,3 +3398,114 @@ describe("33-26 — the sibling composer asks the same guard; the interpolation-
     expect(compactorSrc).toMatch(/import \{[^}]*assertNoteFields[^}]*\} from "\.\/context-io\.js"/);
   });
 });
+
+// Workflow 18 steps 3 and 4 against the supersession rule in `admit()` (plan 41-15, CR-02, D-37).
+//
+// A soft raw note folded out raw-side is the one sanctioned removal. Its successor is promoted alone,
+// and the carve-out keeps `supersedes` byte-equal, so a promoted note can name an id the destination
+// never held. The rule must admit that and still refuse a target the destination does hold.
+describe("Workflow 18 — both promotion routes hold against the supersession rule (41-15, D-37)", () => {
+  const TASK = "TICKET-WF18";
+
+  /** A governed store, whose repository's dial reads `context`. */
+  function storeOf(prefix: string, context: Record<string, string> = {}): { root: string; store: string } {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    const store = join(root, ".grugops", "context");
+    mkdirSync(store, { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), JSON.stringify({ context }));
+    return { root, store };
+  }
+
+  /** Runs `fn` with the host naming `root`, the way the promotion routes read their dial. */
+  function under<T>(root: string, fn: () => T): T {
+    const previous = process.env.CLAUDE_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = root;
+    try {
+      return fn();
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+      else process.env.CLAUDE_PROJECT_DIR = previous;
+    }
+  }
+
+  function soft(over: Partial<Parameters<typeof ctxio.appendNote>[1]> = {}): Parameters<typeof ctxio.appendNote>[1] {
+    return {
+      kind: "claim",
+      by: "software-engineer",
+      at: "2026-11-05T02:00:00Z",
+      verified_by: "",
+      confidence: "low",
+      refs: [],
+      supersedes: null,
+      ...over,
+    } as Parameters<typeof ctxio.appendNote>[1];
+  }
+
+  const liveIds = (store: string): string[] => ctxio.currentState(ctxio.readContext(TASK, store)).map((n) => n.id);
+
+  it("promote admits a successor whose target lived only in threads/, and the store loses nothing", () => {
+    const { root, store } = storeOf("wf18-threads-");
+    const raw = soft({ kind: "observation", by: "qe-e2e", at: "2026-11-05T01:00:00Z" });
+    const threadFile = mod.writeThread(TASK, "qe-e2e", "a soft raw note", store, raw);
+    const rawId = /^id: (.+)$/m.exec(readFileSync(threadFile, "utf8"))?.[1] as string;
+    expect(rawId, "the thread record carries the id the successor names").toBeTruthy();
+    const standing = ctxio.appendNote(TASK, soft({ at: "2026-11-05T00:00:00Z" }), "standing", store, undefined, root);
+
+    const id = under(root, () => mod.promote(TASK, soft({ supersedes: rawId }), "the successor", store));
+
+    expect(ctxio.readContext(TASK, store).find((n) => n.id === id)?.supersedes).toBe(rawId);
+    expect(liveIds(store).sort()).toEqual([id, standing].sort());
+  });
+
+  it("promote admits a note whose supersedes names an id no store holds", () => {
+    const { root, store } = storeOf("wf18-none-");
+    const id = under(root, () => mod.promote(TASK, soft({ supersedes: "20260101T000000Z-qe-e2e-claim-deadbeef" }), "x", store));
+    expect(liveIds(store)).toEqual([id]);
+  });
+
+  it("promoteAdmitted admits a note carried from an origin that holds its target into a store that does not", () => {
+    const origin = storeOf("wf18-origin-");
+    const dest = storeOf("wf18-dest-");
+    const target = ctxio.appendNote(TASK, soft({ at: "2026-11-05T01:00:00Z" }), "target", origin.store, undefined, origin.root);
+    const successor = soft({ supersedes: target });
+    const sourceId = ctxio.appendNote(TASK, successor, "successor", origin.store, undefined, origin.root);
+
+    const id = under(dest.root, () => mod.promoteAdmitted(TASK, sourceId, successor, "successor", origin.store, dest.store));
+
+    expect(liveIds(dest.store)).toEqual([id]);
+    expect(ctxio.readContext(TASK, dest.store)[0]?.supersedes).toBe(target);
+  });
+
+  it("promote refuses a note whose target is a governed finding in the destination, and the finding stays", () => {
+    const { root, store } = storeOf("wf18-governed-", { human_admission: "all" });
+    const disposed = ctxio.admitAndAppend(
+      TASK,
+      soft({ kind: "finding", by: "security-nfr", verified_by: "human:olger", confidence: "high", refs: ["REQ-SEC-01"] }),
+      "a disposed finding",
+      store,
+      root,
+    );
+    expect(disposed.findings).toEqual([]);
+    const finding = disposed.id as string;
+
+    expect(() => under(root, () => mod.promote(TASK, soft({ supersedes: finding }), "x", store))).toThrow(
+      /may be superseded only through/,
+    );
+    expect(liveIds(store)).toEqual([finding]);
+  });
+
+  it("promote and promoteAdmitted's fall-through both refuse a note whose target is a green verdict", () => {
+    const { root, store } = storeOf("wf18-verdict-");
+    const origin = storeOf("wf18-verdict-origin-");
+    const verdict = ctxio.emitVerdict(TASK, "run1", "clean", GATE_RUN_SHA, store) as string;
+    const successor = soft({ supersedes: verdict });
+    const sourceId = ctxio.appendNote(TASK, successor, "x", origin.store, undefined, origin.root);
+
+    expect(() => under(root, () => mod.promote(TASK, successor, "x", store))).toThrow(/may be superseded only through/);
+    expect(() => under(root, () => mod.promoteAdmitted(TASK, sourceId, successor, "x", origin.store, store))).toThrow(
+      /may be superseded only through/,
+    );
+    expect(liveIds(store)).toEqual([verdict]);
+  });
+});
