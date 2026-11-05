@@ -18,6 +18,7 @@ Any incoming request — every `/grugops` starts here.
 - `memory-bank/plans/board.md` for column state and WIP, and `memory-bank/00-index.md` on start.
 - `memory-bank/plans/traceability.md` and the per-ticket trace files it links.
 - `agent-factory/checklists/definition-of-ready.md`, the pull gate.
+- `agent-factory/roles/_role-switch-protocol.md`, where the `Agent` tool does not exist.
 - Context: read and write per `agent-factory/workflows/16-context-read-write.md`, claim per `agent-factory/workflows/17-task-claim.md`, compact per `agent-factory/workflows/18-context-compaction.md`.
 
 ## Responsibilities
