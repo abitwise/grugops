@@ -13,7 +13,7 @@ findings:
     title: "Workflow 17 has no route on the minimal and plugin-only installs, and a missing tool exits 1"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Stop precedence line 1 takes away the limit on revert hand-offs"
   - id: WR-03
     severity: warning
@@ -41,7 +41,7 @@ findings:
     title: "A new sentence changes who the pronoun means, so `factory.config.md` says the Orchestrator makes the hand-back"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`queue.claim_cap` no longer does anything"
   - id: IN-02
     severity: info
@@ -71,7 +71,7 @@ findings:
     severity: info
     disposition: open
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 17
+open: 15
 total: 17
 recorded: 2026-11-05T04:17:45.222Z
 ---
@@ -82,14 +82,14 @@ recorded: 2026-11-05T04:17:45.222Z
 |---------|----------|-------------|--------|
 | CR-01 | critical | open | - |
 | WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
+| WR-02 | warning | fixed | 41-08 |
 | WR-03 | warning | open | - |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
 | WR-08 | warning | open | - |
-| IN-01 | info | open | - |
+| IN-01 | info | fixed | 41-08 |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
