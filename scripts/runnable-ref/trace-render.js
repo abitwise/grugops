@@ -105,7 +105,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:17e24ec5af62a8ff1b76f9ba326ffc4932a41cb516d80cc74b98a4b666e198f5";
+export const RUNNABLE_SET_STAMP = "sha256:467fa8c9be20c8c7bca5ea0ff81ed0083021be9b851e432f635875b8ee095abd";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "trace-render.js";
 // from install/state-layout.ts

@@ -27,7 +27,8 @@
   **Not code:** the `check-foundation-guards` case fails only because of the 7 `.js` files in the untracked `~/` directory (96 walked against 89 tracked).
   **Also settled:** `install/installer-write-set.test.ts`, `scripts/worktree-dogfood.test.ts` and `scripts/uat-spec-integrity` were not among the failures once `/tmp` quota was out of the way.
 - `claimPending` can leave an empty claim directory when the record write fails (found during 41-03)
-  status: open
+  status: closed by the orchestrator after plan 41-05
+  **Fix:** `takeClaim` removes the directory when the `claim.md` write throws, and `scripts/runnable-ref/runnable-exit-contract.test.ts` holds it with a fault-injection case that also proves a retry wins. One case stays open: if that removal also fails, the slot stays and the message still says no task moved. It needs two disk faults in a row.
   **What:** `takeClaim` makes `claimed/TASK/` and then writes `claim.md`. When that write throws, `claimPending` returns `refused` with no removal, so the directory holds a slot and a retry reads `lost`.
   **Reproduced in plan 41-05:** with an EIO at the `claim.md` write, `claim` printed `Error: claim of t1 failed: EIO: injected. The queue was not changed.` and exited 2, and `claimed/t1/` stayed. A retry printed `lost t1`, and `free` counted the slot (`free 2`). `sweep` cannot clear it, because it skips a directory with no record. So this one path still breaks plan 41-05's truth that no message denies a change that stands.
   **Why deferred:** the rule lives in the plan 41-01 authority, and plan 41-05 holds the generated regions unchanged. It needs a disk failure between the two calls. A fix belongs in `scripts/claim.ts`: remove the directory when the write throws, regenerate, and add a fault-injection case.

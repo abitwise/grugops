@@ -159,7 +159,14 @@ function takeClaim(queueRoot, task, by, fields) {
     const at = new Date().toISOString();
     const agent = fields.agent === undefined ? "" : `agent: ${fields.agent}\n`;
     const level = fields.level === undefined ? "" : `level: ${fields.level}\n`;
-    writeFileSync(join(claimDir, "claim.md"), `---\nby: ${by}\n${agent}${level}at: ${at}\ntask: ${task}\n---\n`, "utf8");
+    try {
+        writeFileSync(join(claimDir, "claim.md"), `---\nby: ${by}\n${agent}${level}at: ${at}\ntask: ${task}\n---\n`, "utf8");
+    }
+    catch (e) {
+        // Give the slot back: no sweep clears a claim with no record, so the directory would hold it for good.
+        rmSync(claimDir, { recursive: true, force: true });
+        throw e;
+    }
     return at;
 }
 // ── claimOwnerRefusal: who may own a claim (D-13, T-41-04). ─────────────────────────────────────
