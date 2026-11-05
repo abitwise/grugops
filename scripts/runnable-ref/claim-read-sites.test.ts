@@ -51,11 +51,11 @@ type Mode = (typeof MODES)[number];
 
 /**
  * The derived read sites of claim.js.
- * 2026-11-05, plan 41-05: 17. Six are this program's alone, in no owner it shares with the three phase-37 runnables:
+ * 2026-11-05, plan 41-05: 18. Seven are this program's alone, in no owner it shares with the three phase-37 runnables:
  * the record reads of the queue (queueEntry, readClaimRecord) and the claimed/ walks of sweepStale, sweepQueue,
- * claimedCount and renderNowRunning.
+ * claimedCount, renderNowRunning and refuseClaimLinks.
  */
-const CLAIM_READ_SITES = 17;
+const CLAIM_READ_SITES = 18;
 
 /**
  * A (site, via) pair no fixture reaches, by `<key>` or `<key> via <via>`, with a one-line reason. A pair belongs here
@@ -379,7 +379,7 @@ describe("READ-1 on claim.js: the reads that have a named consequence (plan 41-0
   });
 
   it("a failed walk of claimed/ is no clean sweep: `sweep` is exit 2 and prints no `swept` line", () => {
-    for (const pair of [...pairsOf("sweepQueue"), ...pairsOf("sweepStale")]) {
+    for (const pair of [...pairsOf("refuseClaimLinks"), ...pairsOf("sweepQueue"), ...pairsOf("sweepStale")]) {
       const run = runPair(pair, "sweep");
       expect(run.r.fired, `PREMISE: the fault fired: ${run.all}`).toBeGreaterThan(0);
       expect(run.r.status, run.all).toBe(2);

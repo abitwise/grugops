@@ -41,8 +41,9 @@
 // state-roll's root it is not positional, because the task is. A root with no .grugops directory is exit 2, so a wrong
 // working directory never makes a stray queue (T-41-09). Every queue directory is asked of the embedded
 // rootChainPresence, the root-chain owner of the runnables, which lstats each component, so a symbolic link on the path
-// is refused by name with nothing written, wherever it points (T-41-08). The installer seeds no queue, so a queue
-// directory is created only on an `absent` answer.
+// is refused by name with nothing written, wherever it points (T-41-08). `sweep` asks the same of each entry of claimed/
+// before it moves anything, because the embedded sweep reads and renames through them. The installer seeds no queue, so a
+// queue directory is created only on an `absent` answer.
 //
 // OUTPUT IS SANITIZED. Every value this program prints has each C0, C1 and DEL code point removed by the embedded
 // stripControlChars (V7).
@@ -1342,13 +1343,37 @@ function runNowRunning(): void {
 }
 
 /**
- * `sweep`: the rules are all sweepQueue's. The config is read first, so a config that cannot be read stops this command
- * before anything moves. sweepQueue moves tasks one at a time and reports only at the end, so a throw from it can leave
- * moves behind that this program cannot list; `queueChange` says so before the call, and never that nothing changed.
+ * Refuses a symbolic link directly under claimed/. sweepQueue reads and renames through each entry there, so a link would
+ * move a file from outside the root into pending/ (T-41-08). Each entry is asked of the root-chain owner before anything
+ * moves. An entry that is no directory stays: the sweep skips it, and a stray file is no reason to stop.
+ */
+function refuseClaimLinks(): void {
+  let names: readonly string[];
+  try {
+    names = nodeFs.readdirSync(nodePath.join(root, QUEUE_CLAIMED_REL));
+  } catch (e) {
+    couldNotRun(`${QUEUE_CLAIMED_REL} could not be read (${codeOf(e)}).`);
+  }
+  for (const name of names) {
+    if (!isSafeQueueName(name)) continue;
+    const rel = `${QUEUE_CLAIMED_REL}/${name}`;
+    const presence = rootChainPresence(root, rel, "directory");
+    if (presence.kind === "unreadable" || presence.kind === "link" || presence.kind === "outside") {
+      couldNotRun(`${rel} cannot be used: ${directoryProblem(presence) as string}.`);
+    }
+  }
+}
+
+/**
+ * `sweep`: the rules are all sweepQueue's. The config is read first and the entries of claimed/ are asked next, so a
+ * config that cannot be read or a link stops this command before anything moves. sweepQueue moves tasks one at a time
+ * and reports only at the end, so a throw from it can leave moves behind that this program cannot list; `queueChange`
+ * says so before the call, and never that nothing changed.
  */
 function runSweep(): void {
   const config = readQueueConfig();
   ensureQueueDirs();
+  refuseClaimLinks();
   queueChange = "The sweep may have moved tasks before it stopped; run sweep again.";
   const swept = sweepQueue(queueRoot, config.stale_ttl_minutes * MINUTE_MS);
   const reclaimed = [...swept.reclaimed].sort();
