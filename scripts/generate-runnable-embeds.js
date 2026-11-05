@@ -380,6 +380,7 @@ export const EMBED_SPECS = Object.freeze([
                     "ROOT_CHAIN_LINK_REFUSAL",
                     "readRegularFileOrNull",
                     "NOTE_FILE_MAX_BYTES",
+                    "canonicalRoleName",
                 ],
             },
         ],

@@ -59,7 +59,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:eb77b50b9edf9a92dd3ef864349dcda9b0e5e7fd19bc28d333a3a87974f71542";
+export const RUNNABLE_SET_STAMP = "sha256:4817ae0ad1bad5aacdca348257c1ed9ed0a6900533d94d0a44a1ab814e5b88ab";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -2360,12 +2360,14 @@ export function readGovernanceConfig(repoRoot) {
 export function normalizeKind(raw) {
     return (raw ?? "").trim();
 }
-export function isHighSeverityRole(by) {
-    const canonical = (by ?? "")
+export function canonicalRoleName(by) {
+    return (by ?? "")
         .normalize("NFKC")
         .replace(/[\s\u200B\u200C\u200D\u2060\uFEFF]/gu, "")
         .toLowerCase();
-    return HIGH_SEVERITY_ROLES.includes(canonical);
+}
+export function isHighSeverityRole(by) {
+    return HIGH_SEVERITY_ROLES.includes(canonicalRoleName(by));
 }
 // </runnable-embeds>
 /** The note that stands, once one may have been written; read by the two messages below. */
@@ -2458,12 +2460,14 @@ function noteKind() {
 }
 /**
  * `--by`, the role file's name. This is an argv shape check; every severity decision stays in the embedded admit(). The
- * high-severity classifier reads the role name, so an adapter name is refused here. scripts/kit-model.ts owns the
- * adapter namespace and a host program cannot import it, so note.test.ts drives this refusal with that owner's constant.
+ * high-severity classifier reads the role name, so an adapter name is refused here. The fold is the embedded authority's
+ * own, so a value the classifier reads as an adapter name is refused here too, however it is spelled (T-41-30). The note
+ * keeps the spelling the role gave. scripts/kit-model.ts owns the adapter namespace and a host program cannot import it,
+ * so note.test.ts drives this refusal with that owner's constant.
  */
 function noteAuthor() {
     const by = flagValue("--by");
-    const named = by?.trim().toLowerCase() ?? "";
+    const named = canonicalRoleName(by ?? "");
     if (named === "")
         couldNotRun(`add needs --by <role>, the role file's name without .md. ${USAGE}.`);
     const role = named.replace(/^grugops-/, "");

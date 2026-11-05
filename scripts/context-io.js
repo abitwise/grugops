@@ -5774,20 +5774,27 @@ export function readGovernanceConfig(repoRoot) {
 export function normalizeKind(raw) {
     return (raw ?? "").trim();
 }
-// ── isHighSeverityRole — the SINGLE-SOURCE severity classifier (W-A, round-8 anti-drift). ────────
-// Severity is the AUTHORING ROLE (D-06). Canonicalize the `by` value before the allowlist test so a
-// homoglyph/spacing/case variant of a role literal cannot dodge the `high-severity` dial: NFKC-fold
-// (collapses full-width and compatibility forms), strip ALL whitespace AND zero-width code points
+// ── canonicalRoleName — the ONE fold of a role name (plan 41-14, T-41-30). ──────────────────────
+// Equality of a role name has this one definition. Canonicalize the `by` value before any comparison
+// so a homoglyph/spacing/case variant of a role literal reads as that literal: NFKC-fold (collapses
+// full-width and compatibility forms), strip ALL whitespace AND zero-width code points
 // (U+200B/C/D, U+2060, U+FEFF; ordinary whitespace incl. U+00A0 is covered by \s), then lowercase.
-// A TRUE cross-script homoglyph `by` is the accepted D-06 residual (escape via human_admission: all).
-// This is the ONLY severity classifier isGatedNote depends on; admit()'s frozen .trim().toLowerCase()
-// D-04 classifier is a separate, WEAKER, intentionally-frozen degrade tier whose coverage ⊆ this one.
-export function isHighSeverityRole(by) {
-    const canonical = (by ?? "")
+// isHighSeverityRole and the --by shape check in scripts/runnable-ref/note.ts both ask it, so the two
+// cannot disagree on a spelling. A TRUE cross-script homoglyph `by` is not folded: that is the accepted
+// D-06 residual (escape via human_admission: all).
+export function canonicalRoleName(by) {
+    return (by ?? "")
         .normalize("NFKC")
         .replace(/[\s\u200B\u200C\u200D\u2060\uFEFF]/gu, "")
         .toLowerCase();
-    return HIGH_SEVERITY_ROLES.includes(canonical);
+}
+// ── isHighSeverityRole — the SINGLE-SOURCE severity classifier (W-A, round-8 anti-drift). ────────
+// Severity is the AUTHORING ROLE (D-06). The `by` value goes through canonicalRoleName before the
+// allowlist test, so a spelling variant of a role literal cannot dodge the `high-severity` dial.
+// This is the ONLY severity classifier isGatedNote depends on; admit()'s frozen .trim().toLowerCase()
+// D-04 classifier is a separate, WEAKER, intentionally-frozen degrade tier whose coverage ⊆ this one.
+export function isHighSeverityRole(by) {
+    return HIGH_SEVERITY_ROLES.includes(canonicalRoleName(by));
 }
 // ── isGatedNote — the SINGLE-SOURCE FULL gated decision (W-A, round-8 anti-drift). ───────────────
 // The COMPLETE gated predicate lives HERE and only here: a note is gated when
