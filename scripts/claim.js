@@ -23,7 +23,8 @@
 //     unlinkSync(dst) then retries — the locked unlink-then-rename branch.
 //
 //   sweepStale (Task 2, DOGF-02 seed): an explicit generous-configurable wall-clock TTL reclaim of
-//     a claim whose claim.md `at` is older than the TTL — NO pid/host liveness.
+//     a claim whose claim.md `at` is older than the TTL — NO pid/host liveness. A claim directory with
+//     no usable record is judged by the directory's own modified time instead (WR-04).
 //
 //   The whole lifecycle (RUN-01, plan 41-01): claimPending takes a pending subtask into claimed/ in
 //     one call, and completeTask moves it to done/ and removes claimed/<task>/. That removal is what
@@ -163,7 +164,7 @@ function takeClaim(queueRoot, task, by, fields) {
         writeFileSync(join(claimDir, "claim.md"), `---\nby: ${by}\n${agent}${level}at: ${at}\ntask: ${task}\n---\n`, "utf8");
     }
     catch (e) {
-        // Give the slot back: no sweep clears a claim with no record, so the directory would hold it for good.
+        // Give the slot back now: a directory with no record would hold it until the sweep's TTL passes.
         rmSync(claimDir, { recursive: true, force: true });
         throw e;
     }
@@ -272,6 +273,12 @@ function stagePath(queueRoot, task, stage) {
 // names (DOGF-02 asserts a stale claim is reclaimed). A fresh claim (within the TTL) is left
 // untouched — the sweep is conservative, so it has a real no-op path too (no-fabrication).
 //
+// A DIRECTORY WITH NO USABLE RECORD (WR-04): a record that is absent, a link, a FIFO or any other
+// non-regular file, one with no `at`, or one whose `at` does not parse gives no time to judge. Such a
+// directory holds a slot, so it is judged by its own modified time with the same `<=`: inside the TTL
+// it stays, and past it the directory is reclaimed. The age is taken from the unrounded `mtimeMs`. A
+// tampered record is reclaimed at any age. A claimed entry that is not a directory stays where it is.
+//
 // WALL-CLOCK TTL ONLY — this deliberately reads NO pid/host or any liveness signal. pid/host liveness
 // is rejected as not portable cross-machine / on NFS (heartbeat/advisory-lease liveness is deferred
 // to v2.x, PAR-05). The TTL VALUE is supplied by the CALLER — a config dial wiring it is a LATER
@@ -287,31 +294,28 @@ export function sweepStale(queueRoot, ttlMs, now = Date.now()) {
         // Defensive: skip anything whose name would not be a safe task (never join an unsafe segment).
         if (!isSafeQueueName(task))
             continue;
-        const claimText = readClaimRecord(join(claimedDir, task, "claim.md"));
-        if (claimText === null)
-            continue;
+        const claimDir = join(claimedDir, task);
+        const entry = queueEntry(claimDir);
+        if (entry === null || !entry.isDirectory())
+            continue; // no claim directory; it stays where it is
         // Defense-in-depth (CR-02): the design writes EXACTLY ONE `at:` line. More than one is a
         // tampered/malformed record (the on-disk signature of a `by`-injection that smuggled a forged
         // `at:`). Do NOT trust the first match — treat the claim as compromised and reclaim it, rather
         // than leaving it un-sweepable forever.
-        const record = claimRecordFields(claimText);
-        if (record.kind === "no-at")
-            continue; // cannot judge staleness; leave the claim alone
-        if (record.kind === "record") {
-            const at = Date.parse(record.at);
-            if (Number.isNaN(at))
-                continue; // unparseable timestamp → leave it alone (conservative)
-            if (now - at <= ttlMs)
+        const claim = claimStateOf(claimDir);
+        if (claim.kind !== "tampered") {
+            const since = claim.kind === "usable" ? claim.atMs : entry.mtimeMs;
+            if (now - since <= ttlMs)
                 continue; // fresh (within TTL) → leave it alone
         }
         // Reclaim: stale-by-TTL OR tampered (multi-`at`). Return the subtask to pending/ (atomic
         // rename) BEFORE releasing the claim dir, then remove the claim directory. Wall-clock only —
         // no liveness probe.
-        const subtask = join(claimedDir, task, `${task}.md`);
+        const subtask = join(claimDir, `${task}.md`);
         if (queueEntry(subtask) !== null) {
             atomicRename(subtask, join(queueRoot, "pending", `${task}.md`));
         }
-        rmSync(join(claimedDir, task), { recursive: true, force: true });
+        rmSync(claimDir, { recursive: true, force: true });
         reclaimed.push(task);
     }
     return reclaimed;
@@ -340,14 +344,18 @@ export function sweepQueue(queueRoot, ttlMs, now = Date.now()) {
     }
     return { released, reclaimed: sweepStale(queueRoot, ttlMs, now) };
 }
-// ── claimedCount / freeSlots: what the width cap sees (RUN-02). ─────────────────────────────────
-// Counts every entry in claimed/ except a keeper: a name that starts with `.` and is a regular file,
+// ── claimedEntryNames / claimedCount / freeSlots: what the width cap sees (RUN-02). ─────────────
+// Names every entry in claimed/ except a keeper: a name that starts with `.` and is a regular file,
 // such as git's `.gitkeep`. That is the keeper rule of claimedQueueRefusal in install/install.ts.
-// Anything else counts, link and stray file included: over-counting can never over-spawn. It throws
-// when the directory cannot be read; a host program asks the root-chain owner first.
-export function claimedCount(queueRoot) {
+// Anything else is named, link and stray file included: over-counting can never over-spawn. It throws
+// when the directory cannot be read; a host program asks the root-chain owner first. The count and
+// the render both start from this one listing, so `free` and the in-flight log cannot disagree (WR-04).
+export function claimedEntryNames(queueRoot) {
     const entries = readdirSync(join(queueRoot, "claimed"), { withFileTypes: true });
-    return entries.filter((entry) => !(entry.name.startsWith(".") && entry.isFile())).length;
+    return entries.filter((entry) => !(entry.name.startsWith(".") && entry.isFile())).map((entry) => entry.name);
+}
+export function claimedCount(queueRoot) {
+    return claimedEntryNames(queueRoot).length;
 }
 export function freeSlots(wipLimit, claimed) {
     return Math.max(0, wipLimit - claimed);
@@ -467,15 +475,37 @@ export function claimRecordFields(text) {
         return { kind: "no-at" };
     return { kind: "record", by: value("by"), agent: value("agent"), level: value("level"), at };
 }
+function claimStateOf(claimDir) {
+    const text = readClaimRecord(join(claimDir, "claim.md"));
+    if (text === null)
+        return { kind: "unusable" };
+    const record = claimRecordFields(text);
+    if (record.kind === "tampered")
+        return { kind: "tampered" };
+    if (record.kind === "no-at")
+        return { kind: "unusable" };
+    const atMs = Date.parse(record.at);
+    if (Number.isNaN(atMs))
+        return { kind: "unusable" };
+    return { kind: "usable", by: record.by, agent: record.agent, level: record.level, at: record.at, atMs };
+}
+// The `since` of a row that has no time to show.
+const UNKNOWN_SINCE = "unknown";
 // ── renderNowRunning: derive .grugops/queue/now-running.md from the claim registry (D-14). ──────
 //
-// Reads every claimed/<task>/claim.md and emits a deterministic, GENERATED-headered markdown table
+// Lists claimed/ through claimedEntryNames and emits a deterministic, GENERATED-headered markdown table
 // (task, by, agent, level, since), sorted by `at` then `task`, with a single trailing newline — byte-reproducible
 // (running twice over the same registry produces identical bytes; it carries no wall-clock of its own).
 // An empty/absent claimed/ yields a header-only render (vacuous, no crash). This is the human-facing
 // "what is running" view and the SC2 width-evidence source.
 //
-// SECURITY CARVE-OUT (T-23-01, V5 — load-bearing): the parse is claimRecordFields, the same reading
+// EVERY ENTRY THE COUNT SEES HAS A ROW (WR-04), but for a tampered record. A safe-named directory with
+// a usable record keeps its fields. Anything else shows only its name, with empty `by`, `agent` and
+// `level` and a `since` of `unknown`: a directory with no usable record, a stray file, a link, and a
+// name outside the allowlist. An unsafe name is never joined into a path, and an entry that is not a
+// directory is never read through. No field of an unusable record reaches the table.
+//
+// SECURITY CARVE-OUT (T-23-01, V5 — load-bearing): the parse is claimStateOf, the same reading
 // sweepStale uses. A claim.md is written with EXACTLY ONE `at:`
 // line; MORE than one is a tampered/malformed record (the on-disk signature of a `by`-injection that
 // smuggled a forged `at:`). A tampered record is NEVER emitted as a trusted row — it is skipped, never
@@ -486,19 +516,17 @@ export function renderNowRunning(queueRoot) {
     const claimedDir = join(queueRoot, "claimed");
     const rows = [];
     if (queueEntry(claimedDir) !== null) {
-        for (const task of readdirSync(claimedDir)) {
-            // Defensive: never read through an unsafe segment.
-            if (!isSafeQueueName(task))
+        for (const task of claimedEntryNames(queueRoot)) {
+            // Defensive: never read through an unsafe segment, or through an entry that is no directory.
+            const claimDir = isSafeQueueName(task) ? join(claimedDir, task) : null;
+            const readable = claimDir !== null && queueEntry(claimDir)?.isDirectory() === true;
+            const claim = readable ? claimStateOf(claimDir) : { kind: "unusable" };
+            // A multi-`at` record is tampered: skip it, and never emit a forged second line as a trusted row.
+            if (claim.kind === "tampered")
                 continue;
-            const claimText = readClaimRecord(join(claimedDir, task, "claim.md"));
-            if (claimText === null)
-                continue;
-            // A multi-`at` record is tampered: skip it, and never emit a forged second line as a trusted
-            // row. A record with no `at` cannot be placed on the timeline: skip it too.
-            const record = claimRecordFields(claimText);
-            if (record.kind !== "record")
-                continue;
-            rows.push({ task, by: record.by, agent: record.agent, level: record.level, at: record.at });
+            rows.push(claim.kind === "usable"
+                ? { task, by: claim.by, agent: claim.agent, level: claim.level, at: claim.at }
+                : { task, by: "", agent: "", level: "", at: UNKNOWN_SINCE });
         }
     }
     // Deterministic order: by `at` (ISO lexicographic), then by `task` as a stable tiebreak.
