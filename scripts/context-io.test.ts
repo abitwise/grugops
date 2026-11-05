@@ -2491,10 +2491,26 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
 // `ledgerRecordsId` — through a fail-closed wrapper — and is skipped when the id is already recorded.
 // Every refusal family above the retention guard is untouched, which the planted-identical-bytes
 // case in the 33.1-12 block asserts. The freeze RE-LOCKS at the new baseline.
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39, 33.1-12)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 33.1-12 (WR-01) for
-  // the deliberate ledger-look unfreeze described above — the SEVENTH re-base. admit() must hash to
+//
+// PLAN 41-15 DELIBERATE UNFREEZE + RE-BASELINE (CR-02) — the EIGHTH re-base. The review reproduced
+// a `software-engineer` claim retiring a sealed `security-nfr` finding stamped `human:olger`, under
+// `human_admission: all`, through `--supersedes`: `admit()` never read that field, and `currentState`
+// folds out any note a later note names. The same route retired a green verdict, so later findings
+// stamped with that run were refused. Only `admit()` sees every route a role reaches, so the rule
+// cannot be added outside this function. The span change is ONE new block and ONE reworded clause.
+// The block sits below the D-14 read and above the D-04 arm and the ledger. It reads `supersedes`,
+// and refuses a target that is a green gate verdict or that `isGatedNote` gates. The D-03
+// duplicate-verdict arm no longer ends `until the duplicate is superseded`, because no route
+// supersedes a verdict now, and it says a named human resolves the duplicate. The decided option,
+// `narrow`, adds a comment to that block and no parameter: a target that names no note reaches
+// neither arm. Every other refusal family is untouched. The authorisation came from a named human
+// at plan 41-15's Task 1 checkpoint (D-37), not from a plan author. The freeze RE-LOCKS at the new
+// baseline.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39, 33.1-12, 41-15)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 41-15 (CR-02) for
+  // the deliberate supersession unfreeze described above — the EIGHTH re-base. admit() must hash to
   // this exactly; the prior baselines, newest first, were:
+  //   1bc759a5…813f  (33.1-12, WR-01's ledger look — the seventh re-base)
   //   bb920698…81cd  (31-39, D-39's dial/record split — the sixth re-base)
   //   08df9e5c…09e9  (31-01, the red-team round-1 ambiguity arm)
   //   ee418ce3…f06f  (31-01, D-03's artifact-ref commit binding)
@@ -2502,10 +2518,10 @@ describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-b
   //   ae159bb3…5551  (30-03, D-14's unreadable-config refusal)
   //   dbf66ac7…ebf7  (25-13)
   //   b7998cbd…be3d  (pre-25-13, the original pin)
-  // — the list above ending at 31-39 is the record 31-39 wrote; 33.1-12 adds its predecessor on top
-  // and the value below is the seventh re-base.
+  // — the list above ending at 31-39 is the record 31-39 wrote; 33.1-12 and 41-15 each add their
+  // predecessor on top, and the value below is the eighth re-base.
   const ADMIT_FROZEN_SHA256 =
-    "1bc759a516e5cd076cb318898ad1620166d8d406018d6a562eab01f5dc8b813f";
+    "4750c1aa37910baf6b9c071da6b7c56315d6b93ff90aea897f4e9eb22ce30e7b";
 
 
   // Extract the span `export function admit(` … matching `}` by brace-counting. HARDENED BY PLAN

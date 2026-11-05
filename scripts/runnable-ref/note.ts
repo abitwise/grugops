@@ -66,7 +66,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:4817ae0ad1bad5aacdca348257c1ed9ed0a6900533d94d0a44a1ab814e5b88ab";
+export const RUNNABLE_SET_STAMP = "sha256:51f7bdd7242411d45d300fa5c7f618c1c662503b53b7a249f80b462206f516b3";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -1696,7 +1696,8 @@ export function admit(
         `admission FAIL: more than one live green §14-gate verdict exists for ` +
           `"${verdictStampFor(runId)}" under task "${task}" (${matches.length} found), so there is ` +
           `no single commit this artifact-ref can be bound to. A per-run id names one gate run; ` +
-          `the evidence is refused and nothing is written until the duplicate is superseded.`,
+          `the evidence is refused and nothing is written ` +
+          `until a named human resolves the duplicate.`,
       ];
     }
     const verdict = matches[0];
@@ -1757,6 +1758,36 @@ export function admit(
     ];
   }
   const gov = govResult.config;
+  // ── CR-02 (41-15, D-37): a verdict or a gated finding leaves the current state only by a human ──
+  // `currentState` folds out any note a later note names, so naming a note in `supersedes` removes
+  // it from what every reader sees. The dial guards writing a governed finding, and this block
+  // guards removing one. It also guards a green verdict, because `isLiveGreenVerdict` reads the
+  // current state, so a retired verdict would refuse every later finding stamped with its run.
+  //
+  // It sits below the D-14 read so an unknown dial refuses first, and above the D-04 arm and the
+  // GOV-02 append so a refusal writes no ledger line. `isGatedNote` is the one gated predicate, so
+  // this block states no composition of its own. Only a route that reaches this function meets it:
+  // `admitAndAppend`'s gated branch and `promoteAdmitted`'s gated arm do not call `admit()`, because
+  // the per-call hook has disposed those notes, so a named human's route stands.
+  const supersededId = (scalars.supersedes ?? "").trim();
+  if (supersededId !== "") {
+    const prior = readContext(task, contextRoot).find((n) => n.id === supersededId);
+    // A target that names no note reaches neither arm, and that is decided, not left open. It
+    // retires nothing while the id is absent, and Workflow 18 carries such targets: `promote` of a
+    // successor whose target lived only in `threads/`, and `promoteAdmitted` into a store that does
+    // not hold the target. D-37 and residual R-41-09 record the decision and what stays open.
+    if (
+      prior !== undefined &&
+      (prior.by === GATE_IDENTITY || isGatedNote(prior.by, prior.kind, govResult))
+    ) {
+      return [
+        `admission REFUSED: note "${supersededId}" under task "${task}" is a green gate verdict or ` +
+          `a finding the human_admission dial gates, so it ` +
+          `may be superseded only through a named human's disposition. Nothing was written. ` +
+          `Record the new result in a note that does not name it, and ask a named human.`,
+      ];
+    }
+  }
   // SINGLE-SOURCE high-severity classification (round-8 GAP-R7-1 Lever-2). admit()'s D-04 backstop now
   // classifies severity through the ONE classifier isHighSeverityRole — NOT a separate inline
   // `.trim().toLowerCase()` membership test. isHighSeverityRole is a STRICT SUPERSET of the former check:
@@ -2606,6 +2637,25 @@ export function canonicalRoleName(by: string): string {
 }
 export function isHighSeverityRole(by: string): boolean {
   return (HIGH_SEVERITY_ROLES as readonly string[]).includes(canonicalRoleName(by));
+}
+export function isGatedNote(
+  by: string,
+  kind: string,
+  configResult: GovernanceConfigResult,
+): boolean {
+  // Only a finding is ever gated — soft kinds carry no stamp (D-08). Consult the single-source kind
+  // authority (round-8 GAP-R7-1 Lever-1): a whitespace-padded `kind:"finding "` normalizes to "finding"
+  // here EXACTLY as parseNote persists it, so the gate's finding-view can never be narrower than the
+  // store's. This is the SAME normalizeKind the admission-guard hook and the admission-server consult.
+  if (normalizeKind(kind) !== "finding") return false;
+  // A config file that EXISTS but cannot be read/parsed → fail closed (gate-or-stricter, SC3).
+  if (configResult.source === "unreadable") return true;
+  const dial = configResult.config.human_admission;
+  if (dial === "off") return false; // lean / explicitly off → never gated
+  if (dial === "all") return true; // strictest → every finding gated
+  if (dial === "high-severity") return isHighSeverityRole(by); // gated iff a high-severity role
+  // Any other PRESENT value (a typo, garbage, or a canonicalized non-string) → gate-or-stricter.
+  return true;
 }
 // </runnable-embeds>
 
