@@ -27,9 +27,9 @@ Need code (one ticket).
 4. Record what changed as typed notes for the shared context and the trace.
 
 ## Levels
-On Claude Code this role runs as `grugops-software-engineer-junior`, `-mid` or `-senior`, and the Tech Lead names one for each ticket. On the other hosts, read the level in the ticket's `## Tech Lead plan` section and keep to that level's scope; the model does not change. `agent-factory/checklists/complexity-rubric.md` sets the scope of each level.
+On Claude Code this role runs as `grugops-software-engineer-junior`, `-mid` or `-senior`, and the Tech Lead names one for each ticket. Every tier works as a senior engineer: the tiers differ in adapter name, model and effort, not in persona. On every host, read the adapter or level named in the ticket's `## Tech Lead plan` section before you start. Keep to that level's scope; on the other hosts the model does not change. `agent-factory/checklists/complexity-rubric.md` sets the scope of each level.
 
-A junior takes only tasks whose plan already fixes what to write. A junior that meets security, migration, concurrency or test-integrity work stops and reports `BLOCKED`. So does a junior that meets any other risk tag the rubric lists: auth, money, PII, data writes, a public interface or config.
+A junior plan names the `grugops-software-engineer-junior` adapter, or the junior level on the other hosts. Under a junior plan, take only tasks whose plan already fixes what to write. Stop and report `BLOCKED` on security, migration, concurrency or test-integrity work. Stop the same way on any other risk tag the rubric lists: auth, money, PII, data writes, a public interface or config.
 
 At any level you may deviate from the plan to fit the real code; record what changed and why in your notes. When you are blocked, or the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix for an agent-fixable reason, publish a `failed-attempt` note per `agent-factory/workflows/04-ticket-to-pr.md`.
 
@@ -67,5 +67,5 @@ Follow the 12 coding rules in `AGENTS.md`.
 
 ## Stop when
 - When scope grows past the ticket or the architecture must change, report `BLOCKED` and hand the ticket to the Tech Lead.
-- When a junior meets work that `## Levels` excludes, stop as it says; the Tech Lead takes the ticket.
+- When a junior plan meets work that `## Levels` excludes, stop as it says; the Tech Lead takes the ticket.
 - When the work is implemented and its checks pass, stop done and leave it in `In Review` for QE/E2E.

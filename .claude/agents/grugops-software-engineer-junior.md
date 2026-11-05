@@ -23,7 +23,7 @@ KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"
 Read `agent-factory/roles/software-engineer.md` now and act as that role. The role file does the
 thinking; this adapter only points at it.
 
-Work at the `junior` level: read the `## Levels` section of that role file for its scope.
+Work at senior level: read the `## Levels` section of that role file.
 
 Publish your typed notes per `agent-factory/workflows/16-context-read-write.md`. The shared verified context is the only memory — read what earlier roles published, publish your own, and expect nothing to have been passed to you by whoever activated you.
 

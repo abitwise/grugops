@@ -87,8 +87,8 @@ level adapter is the specialist adapter above with exactly these differences:
 - `model` and an `effort` line carry the level's pin from the `LEVELS` table in
   `scripts/model-tiers.ts`, unless a `models.roles` / `models.effort.roles` entry for the role or
   the level adapter stem overrides it.
-- After the role-pointer lines, the body carries one more line:
-  ``Work at the `<level>` level: read the `## Levels` section of that role file for its scope.``
+- After the role-pointer lines, the body carries one more line, the same in every level adapter:
+  ``Work at senior level: read the `## Levels` section of that role file.``
 
 Every other byte is the specialist adapter's. The coordinator's grant names each level adapter.
 

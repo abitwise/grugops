@@ -446,12 +446,14 @@ function specialistBody(a) {
         "",
         `Read \`agent-factory/roles/${a.file}\` now and act as that role. The role file does the`,
         "thinking; this adapter only points at it.",
-        // A level adapter names its level once, and the role file says what that level covers (D-13).
+        // Every level adapter carries one senior line and names no level (Phase 41 D-31, which revises
+        // Phase 39 D-13). The tier lives in the adapter name, `model` and `effort`; `## Levels` sends the
+        // engineer to the plan that names it.
         ...(a.level === null
             ? []
             : [
                 "",
-                `Work at the \`${a.level}\` level: read the \`## Levels\` section of that role file for its scope.`,
+                "Work at senior level: read the `## Levels` section of that role file.",
             ]),
         "",
         "Publish your typed notes per `agent-factory/workflows/16-context-read-write.md`. The shared verified context is the only memory — read what earlier roles published, publish your own, and expect nothing to have been passed to you by whoever activated you.",
