@@ -410,6 +410,15 @@ describe("factory.config.md agrees with Workflow 17 (plan 41-04; D-01, D-04, D-1
     expect(cap).not.toContain("it claims at most this many and yields");
   });
 
+  it("says the key is retired: nothing reads it, and an existing config stays valid (plan 41-08, IN-01)", () => {
+    const cap = row("claim_cap");
+    expect(cap).toContain("| `claim_cap` | `2` | Retired: no code reads this key, and its value has no effect. ");
+    expect(cap).toContain("so a delegation holds one task whatever the value is.");
+    expect(cap).toContain("The key stays in the seed config so an existing file stays valid.");
+    expect(cap).not.toContain("Maximum number of tasks");
+    expect(cap).not.toContain("anti-flood");
+  });
+
   it("says what `free` prints against the width", () => {
     expect(row("wip_limit")).toContain("`node tools/grugops/claim.js free` prints this limit minus the `claimed/` count read from disk.");
   });
@@ -470,7 +479,7 @@ describe("orchestrator.md points at Workflow 17 and states the limit (plan 41-06
     );
     expect(paragraphs[1]).toBe(
       "You are the only role that may spawn, and you hold `Agent(<allowlist>)`. " +
-        "Never run more role agents at once than `queue.wip_limit`. Honor `queue.claim_cap` per delegation. " +
+        "Never run more role agents at once than `queue.wip_limit`. Give each agent one task; `queue.claim_cap` is retired. " +
         "Never relay data between agents; the shared verified context is the only channel. " +
         "The grant holds because you run as the main thread. Workflow 17 holds the platform's depth and width limits.",
     );
