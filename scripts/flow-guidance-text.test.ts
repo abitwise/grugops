@@ -16,6 +16,7 @@ import { join } from "node:path";
 const ROOT = join(import.meta.dirname, "..");
 const WF17 = readFileSync(join(ROOT, "agent-factory/workflows/17-task-claim.md"), "utf8");
 const WF16 = readFileSync(join(ROOT, "agent-factory/workflows/16-context-read-write.md"), "utf8");
+const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -34,6 +35,19 @@ function step(text: string, n: number): string {
     .find((l) => l.startsWith(`${n}. `));
   expect(line, `no step ${n}`).toBeDefined();
   return line as string;
+}
+
+/** The number of times `needle` occurs in `hay`, counted without overlap. */
+function occurrences(hay: string, needle: string): number {
+  return hay.split(needle).length - 1;
+}
+
+/** The `### Operator tips (optional)` block, up to the next `## ` heading. */
+function tips(text: string): string {
+  const body = section(text, "Session compaction");
+  const at = body.indexOf("### Operator tips (optional)");
+  expect(at, "no operator tips block").toBeGreaterThanOrEqual(0);
+  return body.slice(at);
 }
 
 /** The `- ` bullets of a section body, one string per bullet. */
@@ -250,5 +264,139 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
     expect(at("Keep capacity full")).toBeGreaterThan(at("Steps"));
     expect(at("Session start")).toBeGreaterThan(at("Keep capacity full"));
     expect(at("Stop conditions")).toBeGreaterThan(at("Session start"));
+  });
+});
+
+describe("Workflow 17 holds session compaction (plan 41-04; RUN-03, RUN-04, D-14 to D-20, D-29)", () => {
+  /** The section up to its operator tips, which is what the Orchestrator acts on. */
+  const rules = (): string => section(WF17, "Session compaction").split("### Operator tips (optional)")[0];
+
+  it("opens by naming Workflow 18 as a different thing", () => {
+    const opening = rules().trimStart().split("\n")[0];
+    expect(opening).toContain("It is not note compaction, which Workflow 18 owns under the name context compaction.");
+  });
+
+  it("covers the Orchestrator only, and says it is guidance with no config key", () => {
+    const opening = rules().trimStart().split("\n")[0];
+    expect(opening).toContain("this guidance covers the Orchestrator only");
+    expect(opening).toContain("It is guidance, not a gate, and it adds no config key.");
+  });
+
+  it("lists exactly the three observable triggers", () => {
+    const triggers = bullets(rules());
+    expect(triggers).toHaveLength(3);
+    expect(triggers[0].startsWith("- A ticket boundary")).toBe(true);
+    expect(triggers[1].startsWith("- About 10 closed agents")).toBe(true);
+    expect(triggers[2].startsWith("- A host signal")).toBe(true);
+  });
+
+  it("keeps the count in memory, with no on-disk counter", () => {
+    expect(rules()).toContain("Keep this count in memory, with no on-disk counter.");
+    expect(rules()).toContain("Any compaction or fresh session resets it.");
+  });
+
+  it("runs pause, confirm, compact, otherwise checkpoint, in that written order", () => {
+    const ordered = rules()
+      .split("\n")
+      .filter((l) => /^\d+\. /.test(l));
+    expect(ordered).toHaveLength(4);
+    expect(ordered[0].startsWith("1. Pause dispatch")).toBe(true);
+    expect(ordered[1].startsWith("2. Confirm the queue, the board and the notes are on disk.")).toBe(true);
+    expect(ordered[2].startsWith("3. Compact the session")).toBe(true);
+    expect(ordered[3].startsWith("4. Otherwise checkpoint")).toBe(true);
+  });
+
+  it("runs one pause however many triggers fired, and never asks the human", () => {
+    expect(rules()).toContain("follow these steps once, however many triggers fired together.");
+    expect(rules()).toContain("Never ask the human.");
+  });
+
+  it("points the checkpoint at `## Commit` with its branch guard, and never restates that section", () => {
+    const checkpoint = rules()
+      .split("\n")
+      .find((l) => l.startsWith("4. "));
+    expect(checkpoint).toContain("per `## Commit`");
+    expect(checkpoint).toContain("Run the branch guard first, and never commit to a protected branch.");
+    expect(checkpoint).toContain("carry on refilling");
+  });
+
+  it("ends the pause at once with nothing running, and runs no sweep after a compaction", () => {
+    expect(rules()).toContain("With nothing running, the pause ends at once.");
+    expect(rules()).toContain("re-read `now-running.md` and the board, then refill");
+    expect(rules()).toContain("No sweep runs here, because agents the Orchestrator spawned can still be running.");
+  });
+
+  it("keeps a fresh session as the fallback on every host, through `## Session start`", () => {
+    expect(rules()).toContain("A fresh session is the fallback on every host.");
+    expect(rules()).toContain("follows `## Session start`");
+  });
+
+  it("uses the session name, promises no number and makes no token or cost claim", () => {
+    expect(occurrences(WF17.toLowerCase(), "session compaction")).toBeGreaterThanOrEqual(2);
+    for (const absent of ["compact at", "compacts at", "compact near", "tokens", "cheaper"]) {
+      expect(WF17, absent).not.toContain(absent);
+    }
+  });
+
+  it("sets the operator tips last in the section, directly before `## Stop conditions`", () => {
+    const headings = WF17.split("\n").filter((l) => /^#{2,3} /.test(l));
+    const at = headings.indexOf("### Operator tips (optional)");
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(headings[at - 1]).toBe("## Session compaction");
+    expect(headings[at + 1]).toBe("## Stop conditions");
+  });
+
+  it("gives the three host settings, and sends the other three hosts to the fallback", () => {
+    const block = tips(WF17);
+    expect(block).toContain("`/autocompact 400k`");
+    expect(block).toContain("`model_auto_compact_token_limit = 400000`");
+    expect(block).toContain("`compaction.reserveTokens`");
+    expect(block).toContain("Antigravity CLI, OpenCode and GitHub Copilot CLI: use the fresh-session fallback.");
+  });
+
+  it("says the installer writes none of the tips", () => {
+    expect(tips(WF17)).toContain("the installer writes none of them");
+  });
+
+  it("names a host only in the Platform section and the operator tips, across the whole file", () => {
+    const lines = WF17.split("\n");
+    const heads = lines.flatMap((l, i) => (/^#{2,3} /.test(l) ? [i] : []));
+    expect(heads.length).toBeGreaterThan(10);
+    const allowed = new Set(["## Platform depth and width", "### Operator tips (optional)"]);
+    const seen: string[] = [];
+    for (const [n, start] of heads.entries()) {
+      seen.push(lines[start]);
+      if (allowed.has(lines[start])) continue;
+      const body = lines.slice(start, heads[n + 1] ?? lines.length).join("\n");
+      expect(body, lines[start]).not.toMatch(/Claude Code|Codex|Antigravity|OpenCode|Copilot|\bPi\b/);
+    }
+    for (const heading of allowed) expect(seen).toContain(heading);
+  });
+});
+
+describe("factory.config.md agrees with Workflow 17 (plan 41-04; D-01, D-04, D-11)", () => {
+  /** The table row of one `queue` key. */
+  const row = (key: string): string => {
+    const line = CONFIG.split("\n").find((l) => l.startsWith(`| \`${key}\` |`));
+    expect(line, key).toBeDefined();
+    return line as string;
+  };
+
+  it("says the sweep runs only at session start", () => {
+    const stale = row("stale_ttl_minutes");
+    expect(stale).toContain("`node tools/grugops/claim.js sweep`");
+    expect(stale).toContain("The sweep runs only at session start, including the fresh-session fallback");
+    expect(stale).toContain("a long claim is reported, not reclaimed");
+    expect(stale).not.toContain("coordinator's stale-claim sweep");
+  });
+
+  it("says the Orchestrator claims one task per agent it starts", () => {
+    const cap = row("claim_cap");
+    expect(cap).toContain("one task per agent it starts");
+    expect(cap).not.toContain("it claims at most this many and yields");
+  });
+
+  it("says what `free` prints against the width", () => {
+    expect(row("wip_limit")).toContain("`node tools/grugops/claim.js free` prints this limit minus the `claimed/` count read from disk.");
   });
 });
