@@ -546,7 +546,7 @@ describe("the build stamp moves with every authority and cannot be hand-written 
     expect(ok.status, ok.stdout + ok.stderr).toBe(0);
   });
 
-  it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 4", () => {
+  it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 5", () => {
     // The RUNNABLES rows are read from install/install.ts's syntax tree: the array literal bound to `RUNNABLES`.
     // install.ts runs on import, so it is never imported here.
     const installTs = join(ROOT, "install", "install.ts");
@@ -581,7 +581,7 @@ describe("the build stamp moves with every authority and cannot be hand-written 
       const m = /^export const RUNNABLE_SET = Object\.freeze\((\[.*\]) as const\);$/.exec(line[0] as string);
       expect(m, s.target).not.toBeNull();
       const set = JSON.parse((m as RegExpExecArray)[1] as string) as string[];
-      expect(set).toHaveLength(4);
+      expect(set).toHaveLength(5);
       expect([...set].sort(), `${s.target}: RUNNABLE_SET against the installer`).toEqual([...installed].sort());
       expect([...installed].sort(), "the other direction").toEqual([...set].sort());
     }

@@ -6362,9 +6362,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // 8 -> 9 on 2026-10-27, plan 37-40 (D-21, G-37-2): tools/grugops/package.json, the `{"type":"module"}`
     // file that lets Node load the programs on a commonjs host. Still seven programs; two non-program rows.
     // 9 -> 10 on 2026-11-04, plan 41-03 (RUN-05): tools/grugops/claim.js, the host queue tool, so eight programs.
-    expect(RUNNABLE_RELS.length).toBe(10);
-    expect(mirror.length).toBe(10);
-    expect(PROGRAM_RELS.length).toBe(8);
+    // 10 -> 11 on 2026-11-05, plan 41-09 (RUN-05, D-35): tools/grugops/note.js, the host note writer, so nine programs.
+    expect(RUNNABLE_RELS.length).toBe(11);
+    expect(mirror.length).toBe(11);
+    expect(PROGRAM_RELS.length).toBe(9);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
     // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
     // this half can no longer come back short while its own integer still passes.
@@ -6373,7 +6374,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(srcSideUninstall).toEqual(srcSideInstall);
     // 8 -> 9 on 2026-10-27, plan 37-40 (D-21, G-37-2): the package file's kit source install/runnable-package.json.
     // 9 -> 10 on 2026-11-04, plan 41-03 (RUN-05): the host queue tool's kit source scripts/runnable-ref/claim.js.
-    expect(srcSideInstall.length).toBe(10);
+    // 10 -> 11 on 2026-11-05, plan 41-09 (RUN-05, D-35): the host note writer's kit source scripts/runnable-ref/note.js.
+    expect(srcSideInstall.length).toBe(11);
     // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
     // explicit assertions so routing both halves through one parser lost none of what it checked:
     // every program source lives under the runnable reference directory and every dest under the one
@@ -6383,7 +6385,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const rows = parseMapping("install.ts", "RUNNABLES");
     const programRows = rows.filter(([, d]) => d.endsWith(".js"));
     // 7 -> 8 on 2026-11-04, plan 41-03 (RUN-05): tools/grugops/claim.js.
-    expect(programRows.length).toBe(8);
+    // 8 -> 9 on 2026-11-05, plan 41-09 (RUN-05, D-35): tools/grugops/note.js.
+    expect(programRows.length).toBe(9);
     for (const [s] of programRows) expect(s.startsWith("scripts/runnable-ref/")).toBe(true);
     expect(rows.filter(([, d]) => !d.endsWith(".js")).sort()).toEqual([
       ["LICENSE", LICENSE_REL],
@@ -6570,10 +6573,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // cases are what the host's own `node tools/grugops/<name>.js` relies on (state-check names
   // `node tools/grugops/trace-render.js <root>` as the remedy for a stale trace).
   // 2026-11-04, plan 41-03 (RUN-05): claim.js joined the list; Workflow 17 runs each queue step through its path.
-  const STATE_RUNNABLES = ["state-check.js", "trace-render.js", "state-roll.js", "claim.js"] as const;
+  // 2026-11-05, plan 41-09 (RUN-05, D-35): note.js joined the list; Workflow 16 writes each note through its path.
+  const STATE_RUNNABLES = ["state-check.js", "trace-render.js", "state-roll.js", "claim.js", "note.js"] as const;
   const stateRunnableRel = (name: string): string => `tools/grugops/${name}`;
 
-  it("state runnables: a fresh install materializes state-check, trace-render, state-roll and claim byte-identical to scripts/runnable-ref/ (SPLIT-05, RUN-05)", () => {
+  it("state runnables: a fresh install materializes state-check, trace-render, state-roll, claim and note byte-identical to scripts/runnable-ref/ (SPLIT-05, RUN-05)", () => {
     const target = mkTmp();
     const home = mkTmp();
     const r = runInstall(target, home);
@@ -6635,7 +6639,65 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(u.stdout).toContain(`${rel} (it does not hold what the install ledger records install wrote there`);
   });
 
-  it("state runnables: uninstall removes untouched copies of all four, and keeps and reports a user-edited one (SPLIT-05, RUN-05)", () => {
+  // CR-01 (41-VERIFICATION.md): `done` passes only on a sealed note, and a spawned role has no other route to the
+  // writer on a host with no MCP tool. So the whole path runs here, on the installed programs, with `PATH` alone.
+  it("note.js: a fresh install lays down the note writer, and Node alone takes a claimed task from not-done to done (plan 41-09, RUN-02, RUN-05, D-35)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rel = stateRunnableRel("note.js");
+    expect(existsSync(join(target, ...rel.split("/"))), `${rel} was not installed`).toBe(true);
+    expect(readFileSync(join(target, ...rel.split("/")))).toEqual(readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "note.js")));
+    mkdirSync(join(target, ".grugops", "queue", "pending"), { recursive: true });
+    writeFileSync(join(target, ".grugops", "queue", "pending", "t1.md"), "# subtask t1\nref: .grugops/context/t1/\n");
+    const host = (program: string, ...args: string[]) =>
+      spawnSync("node", [join("tools", "grugops", program), ...args], {
+        encoding: "utf8",
+        cwd: target,
+        env: { PATH: process.env.PATH ?? "" },
+      });
+
+    const claim = host("claim.js", "claim", "t1", "--by", "grugops-qe-e2e");
+    expect(claim.status, claim.stdout + claim.stderr).toBe(0);
+
+    // Before the note: the outcome line, exit 1, and the claim stays where it was.
+    const early = host("claim.js", "done", "t1");
+    expect(early.status, early.stdout + early.stderr).toBe(1);
+    expect(early.stdout).toContain("not-done t1:");
+    expect(existsSync(join(target, ".grugops", "queue", "done", "t1.md"))).toBe(false);
+
+    const note = host("note.js", "add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--ref", "ABC-1", "--body", "x");
+    expect(note.status, note.stdout + note.stderr).toBe(0);
+    expect(note.stdout).toMatch(/^noted t1 \S+\n$/);
+
+    const done = host("claim.js", "done", "t1");
+    expect(done.status, done.stdout + done.stderr).toBe(0);
+    expect(existsSync(join(target, ".grugops", "queue", "done", "t1.md"))).toBe(true);
+  });
+
+  it("note.js: uninstall keeps and reports a user-edited copy, and removes an untouched one (plan 41-09, T-41-42)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rel = stateRunnableRel("note.js");
+    const body = "// USER-EDITED note — an uninstall must never destroy this.\n";
+    writeFileSync(join(target, ...rel.split("/")), body);
+    const u = runUninstall(target, home);
+    expect(u.status, u.stdout).toBe(0);
+    expect(readFileSync(join(target, ...rel.split("/")), "utf8")).toBe(body);
+    expect(u.stdout).toContain(`${rel} (it does not hold what the install ledger records install wrote there`);
+
+    const untouched = mkTmp();
+    const home2 = mkTmp();
+    expect(runInstall(untouched, home2).status).toBe(0);
+    expect(existsSync(join(untouched, ...rel.split("/"))), `${rel} was not installed`).toBe(true);
+    const v = runUninstall(untouched, home2);
+    expect(v.status, v.stdout).toBe(0);
+    expect(existsSync(join(untouched, ...rel.split("/"))), `${rel} survived an untouched uninstall`).toBe(false);
+    expect(v.stdout).toContain(`${rel} (grugops runnable, recorded in the install ledger)`);
+  });
+
+  it("state runnables: uninstall removes untouched copies of all five, and keeps and reports a user-edited one (SPLIT-05, RUN-05)", () => {
     const untouched = mkTmp();
     const home = mkTmp();
     expect(runInstall(untouched, home).status).toBe(0);
@@ -6657,7 +6719,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(v.status, v.stdout).toBe(0);
     expect(readFileSync(join(edited, ...editedRel.split("/")), "utf8")).toBe(editedBody);
     expect(v.stdout).toContain(`${editedRel} (it does not hold what the install ledger records install wrote there`);
-    for (const name of ["state-check.js", "trace-render.js", "claim.js"]) {
+    for (const name of ["state-check.js", "trace-render.js", "claim.js", "note.js"]) {
       expect(existsSync(join(edited, "tools", "grugops", name)), name).toBe(false);
     }
   });
@@ -6761,7 +6823,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // that need an input reach their own usage or could-not-run line (exit 2), and the three state programs
   // run to their success line (exit 0). The keys are checked two-sided against PROGRAM_RELS, so a new program
   // without a row is red, and so is a stale row. claim.js joined on 2026-11-04 (plan 41-03): it takes no
-  // positional root, so its row passes `--root`.
+  // positional root, so its row passes `--root`. note.js joined on 2026-11-05 (plan 41-09, D-35): `add` with no
+  // folder reaches its own usage line, exit 2, before it reads anything.
   const PACKAGE_KIT_REL = "install/runnable-package.json";
   const COMMONJS_HOST = '{"name":"host","version":"1.0.0","type":"commonjs"}\n';
   const TYPELESS_HOST = '{"name":"host","version":"1.0.0"}\n';
@@ -6776,6 +6839,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     "trace-render.js": { args: (t) => [t], status: 0, text: "Rendered the trace" },
     "state-roll.js": { args: (t) => [t, "--dry-run"], status: 0, text: "Nothing to roll" },
     "claim.js": { args: (t) => ["now-running", "--root", t], status: 0, text: "rendered" },
+    "note.js": { args: () => ["add"], status: 2, text: "Usage: node note.js add" },
   };
   /** Each program of PROGRAM_RELS run with Node alone (cwd the target, PATH only), in the table's order. */
   function runPrograms(target: string): Array<{ rel: string; name: string; status: number | null; out: string }> {
@@ -6802,7 +6866,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   it("tools/grugops/package.json: the invocation table has one row per program of RUNNABLES, two-sided", () => {
     expect(Object.keys(OWN_BODY).sort()).toEqual(PROGRAM_RELS.map((rel) => basename(rel)).sort());
     // 7 -> 8 on 2026-11-04, plan 41-03 (RUN-05): tools/grugops/claim.js.
-    expect(PROGRAM_RELS.length).toBe(8);
+    // 8 -> 9 on 2026-11-05, plan 41-09 (RUN-05, D-35): tools/grugops/note.js.
+    expect(PROGRAM_RELS.length).toBe(9);
   });
 
   it("tools/grugops/package.json: an install into a commonjs host writes the kit file there, leaves the host's package.json byte for byte, and every program runs its own body (D-21, G-37-2)", () => {
