@@ -65,6 +65,10 @@
   status: open
   **What:** the `catch` around `trustedRepoRoot()` in `hooks/admission-guard.ts` says a human can export `GRUGOPS_ADMISSION_APPROVED_BY` to authorize the admission. An undetermined root throws at that same call on the next try, so the export does not help. The hook still denies, so the dial holds and only the advice is wrong.
   **Why deferred:** the hook is outside plan 41-14, and a change there moves the decider hash a named human reviews. The fix is one sentence that says the root could not be named.
+- Workflow 18's stop tells a role to supersede a note the rule may now refuse (found by plan 41-15)
+  status: open
+  **What:** the stop for a destination that holds a different note under the promoted id says `Record the new result as a NEW note that supersedes the old one`. Since plan 41-15, `admit()` refuses that note when the old one is a green verdict or a finding the dial gates. Plan 41-16 adds the rule to Workflow 16 step 3, and it does not name this sentence.
+  **Why deferred:** plan 41-15 changes no kit text. A role that follows the sentence meets a refusal that names the fix, so no note is lost. A change to the stop moves pins and a disposition row, which belong with plan 41-16's kit text.
 - The header of `scripts/context-io.ts` still lists `admit <task> <noteFile> [root]` (found by plan 41-14)
   status: open
   **What:** the `admit` verb takes exactly 2 positional arguments and refuses a third, so `[root]` in the CLI comment near the top of the file is stale. Plan 30-11 made it stale, and no plan of phase 41 caused it.
