@@ -1,5 +1,5 @@
-// runnable-exit-contract.test.ts — EXIT-1 for the three phase-37 runnables (plan 37-20, D-12, D-17,
-// 37-GAP-PLANNING-BRIEF.md §1 EXIT-1 and §2.1).
+// runnable-exit-contract.test.ts — EXIT-1 for the host runnables: the three of phase 37 (plan 37-20, D-12, D-17,
+// 37-GAP-PLANNING-BRIEF.md §1 EXIT-1 and §2.1) and claim.js (plan 41-05, D-08).
 //
 // THE RULE. Every runnable whose header promises exit 2 for could-not-run maps any throw that escapes every inner
 // catch to exit 2, an empty stdout and one stderr line that starts `Error: ` and ends with the runnable's own
@@ -16,7 +16,11 @@
 // TR-6's caller), never by a line or a text lookup.
 //
 // THE MESSAGE NEVER DENIES A WRITE. state-roll names a roll already written and proven, and says `No roll had
-// started.` only when none had; trace-render names the files it wrote and removed before it stopped.
+// started.` only when none had; trace-render names the files it wrote and removed before it stopped; claim.js names
+// the claim, the finish or the sweep that stands, and says when the in-flight log was not rendered after it.
+//
+// CLAIM.JS TAKES NO POSITIONAL ROOT. Its first positional is a task, so its rows pass `--root`. No loop below hands a
+// positional root to every runnable: the census reads source text only, and each other row names its own program.
 //
 // NOT TESTED HERE, NAMED: a throw inside the handler's own stderr write ends the process with Node's own non-zero
 // code (7), never exit 0; no test forces a failing stderr write portably (backstop truth of plan 37-20).
@@ -33,8 +37,13 @@ import {
   BUDGETS,
   CONTEXT_ARCHIVE_REL,
   CONTEXT_REL,
+  GRUGOPS_DIR_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
+  QUEUE_CLAIMED_REL,
+  QUEUE_DONE_REL,
+  QUEUE_PENDING_REL,
+  QUEUE_REL,
   TRACE_DIR_REL,
 } from "../../install/state-layout.js";
 import {
@@ -42,6 +51,7 @@ import {
   FAULT_SPEC_ENV,
   INJECTED_STDOUT_MESSAGE,
   callingSites,
+  deriveFsCallSites,
   hasNodeStack,
   runFaulted,
   deriveReadSites,
@@ -51,7 +61,7 @@ import {
 } from "../fault-inject.test-support.js";
 
 const HERE = import.meta.dirname;
-const RUNNABLES = ["trace-render", "state-check", "state-roll"] as const;
+const RUNNABLES = ["trace-render", "state-check", "state-roll", "claim"] as const;
 type Runnable = (typeof RUNNABLES)[number];
 
 /** Each runnable's could-not-run sentence for an unexpected throw: the last words of its one stderr line. */
@@ -59,6 +69,7 @@ const STOPPED: Record<Runnable, { readonly opens: string; readonly ends: string 
   "trace-render": { opens: "Error: the trace render stopped unexpectedly (", ends: " The trace render did not finish.\n" },
   "state-check": { opens: "Error: the state check stopped unexpectedly (", ends: " The state check did not run.\n" },
   "state-roll": { opens: "Error: the roll stopped unexpectedly (", ends: " The roll did not finish.\n" },
+  claim: { opens: "Error: the queue tool stopped unexpectedly (", ends: " The command did not finish.\n" },
 };
 
 const ctxio: typeof import("../context-io.js") = await import(pathToFileURL(join(HERE, "..", "context-io.js")).href);
@@ -85,6 +96,7 @@ const HOST: Record<Runnable, string> = {
   "trace-render": hostCopy("trace-render"),
   "state-check": hostCopy("state-check"),
   "state-roll": hostCopy("state-roll"),
+  claim: hostCopy("claim"),
 };
 
 /** Run a runnable unfaulted (a fixture premise). */
@@ -110,13 +122,13 @@ function expectStopped(name: Runnable, r: FaultedRun): void {
   expect(r.stderr.split("\n").filter((l) => l !== ""), all).toHaveLength(1);
 }
 
-/** The text of a sealed note carrying `refs`, sealed through the committed seal export. */
-function noteText(name: string, refs: readonly string[]): string {
+/** The text of a sealed note carrying `refs`, written at `at`, sealed through the committed seal export. */
+function noteText(name: string, refs: readonly string[], at = "2026-10-22T10:00:00Z"): string {
   const fence =
     `id: ${name}\n` +
     "kind: artifact-ref\n" +
     "by: engineer\n" +
-    "at: 2026-10-22T10:00:00Z\n" +
+    `at: ${at}\n` +
     "verified_by: \n" +
     "confidence: high\n" +
     "refs:\n" +
@@ -178,6 +190,60 @@ function siteLine(name: Runnable, key: string): number {
 
 const STDOUT_THROW = { kind: "stdout-throw" } as const;
 
+/** A repository with `t1` pending and the seed's queue dial. */
+function queueRepo(): string {
+  const root = mkTmp("grugops-exit-contract-queue-");
+  mkdirSync(join(root, QUEUE_PENDING_REL), { recursive: true });
+  writeFileSync(join(root, QUEUE_PENDING_REL, "t1.md"), "# subtask t1\nref: .grugops/context/t1/\n", "utf8");
+  writeFileSync(join(root, GRUGOPS_DIR_REL, "factory.config.json"), '{"queue":{"wip_limit":3,"stale_ttl_minutes":30}}\n', "utf8");
+  return root;
+}
+
+/** `queueRepo` with `t1` claimed through the program, unfaulted. */
+function claimedQueueRepo(): string {
+  const root = queueRepo();
+  const r = runPlain("claim", "claim", "t1", "--by", "grugops-qe-e2e", "--root", root);
+  expect(r.status, `PREMISE: the fixture claims\n${r.stderr}`).toBe(0);
+  return root;
+}
+
+/** The `at` of the claim record of `t1`, moved by `ms`. */
+function claimAtShifted(root: string, ms: number): string {
+  const text = readFileSync(join(root, QUEUE_CLAIMED_REL, "t1", "claim.md"), "utf8");
+  const at = /^at: (.+)$/m.exec(text)?.[1];
+  expect(at, "PREMISE: the claim record carries an at line").toBeDefined();
+  return new Date(Date.parse(at as string) + ms).toISOString();
+}
+
+/** `claimedQueueRepo` with a sealed note written after the claim, so `done` passes. */
+function finishableQueueRepo(): string {
+  const root = claimedQueueRepo();
+  const dir = join(root, CONTEXT_REL, "t1", "notes");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "n1.md"), noteText("n1", [], claimAtShifted(root, 1000)), "utf8");
+  return root;
+}
+
+/** `claimedQueueRepo` with its claim older than the TTL of 30 minutes, so `sweep` reclaims it. */
+function staleQueueRepo(): string {
+  const root = claimedQueueRepo();
+  const path = join(root, QUEUE_CLAIMED_REL, "t1", "claim.md");
+  const aged = readFileSync(path, "utf8").replace(/^at: .+$/m, `at: ${claimAtShifted(root, -31 * 60_000)}`);
+  writeFileSync(path, aged, "utf8");
+  return root;
+}
+
+/** An EIO at the render's rename, the commit step of the in-flight log, found by its derived key. */
+function renderRenameFault(): Parameters<typeof runFaulted>[2] {
+  const key = "atomicWrite:renameSync#0";
+  const at = deriveFsCallSites(HOST.claim, "renameSync").filter((s) => s.key === key);
+  expect(at.map((s) => s.key), `PREMISE: exactly one derived rename of claim.js is ${key}`).toEqual([key]);
+  const site = { url: scriptUrl(HOST.claim), line: (at[0] as { readonly line: number }).line };
+  return { kind: "fs", fn: "renameSync", site, code: "EIO" };
+}
+
+const NOW_RUNNING_REL = `${QUEUE_REL}/now-running.md`;
+
 describe("EXIT-1: an unexpected throw past every inner catch is exit 2 in every runnable and mode", () => {
   it("trace-render write mode: exit 2, and the message names the files written before it stopped", () => {
     const root = twoRootRepo();
@@ -227,6 +293,76 @@ describe("EXIT-1: an unexpected throw past every inner catch is exit 2 in every 
     expectStopped("state-roll", r);
     expect(r.stderr).toContain(" No roll had started.");
     expect(treeDigest(root)).toEqual(before);
+  });
+});
+
+describe("EXIT-1: claim.js, an unexpected throw past every inner catch is exit 2, and no message denies a change (plan 41-05)", () => {
+  it("free: a throw at its output is exit 2, and nothing changed", () => {
+    const root = queueRepo();
+    const before = treeDigest(root);
+    const r = runWith("claim", ["free", "--root", root], STDOUT_THROW);
+    expectStopped("claim", r);
+    expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
+    expect(treeDigest(root)).toEqual(before);
+  });
+
+  it("now-running: a throw at its output is exit 2", () => {
+    const r = runWith("claim", ["now-running", "--root", queueRepo()], STDOUT_THROW);
+    expectStopped("claim", r);
+  });
+
+  it("claim: a throw at its output after the render says the claim stands, and the log was rendered", () => {
+    const root = queueRepo();
+    const r = runWith("claim", ["claim", "t1", "--by", "grugops-qe-e2e", "--root", root], STDOUT_THROW);
+    expectStopped("claim", r);
+    expect(r.stderr).toContain("t1 was claimed by grugops-qe-e2e and stays claimed.");
+    expect(r.stderr).not.toContain("not rendered");
+    expect(readFileSync(join(root, NOW_RUNNING_REL), "utf8")).toContain("| t1 |");
+  });
+
+  it("claim: an EIO at the render's rename after a won claim says the claim stands and the log was not rendered", () => {
+    const root = queueRepo();
+    const r = runWith("claim", ["claim", "t1", "--by", "grugops-qe-e2e", "--root", root], renderRenameFault());
+    expectStopped("claim", r);
+    expect(r.stderr.includes("t1 was claimed by grugops-qe-e2e and stays claimed."), r.stderr.trimEnd()).toBe(true);
+    expect(r.stderr.includes(`${NOW_RUNNING_REL} was not rendered.`), r.stderr.trimEnd()).toBe(true);
+    expect(r.stderr).not.toContain("The queue was not changed.");
+    expect(lstatSync(join(root, QUEUE_CLAIMED_REL, "t1", "claim.md")).isFile(), "the claim the message names is on disk").toBe(true);
+  });
+
+  it("done: an EIO at the render's rename says the task is done and the log was not rendered", () => {
+    const root = finishableQueueRepo();
+    const r = runWith("claim", ["done", "t1", "--root", root], renderRenameFault());
+    expectStopped("claim", r);
+    expect(r.stderr.includes("t1 moved to done/"), r.stderr.trimEnd()).toBe(true);
+    expect(r.stderr.includes(`${NOW_RUNNING_REL} was not rendered.`), r.stderr.trimEnd()).toBe(true);
+    expect(r.stderr).not.toContain("The queue was not changed.");
+    expect(lstatSync(join(root, QUEUE_DONE_REL, "t1.md")).isFile(), "the finish the message names is on disk").toBe(true);
+  });
+
+  it("done: a throw at its output after the render says the task is done, and the log was rendered", () => {
+    const r = runWith("claim", ["done", "t1", "--root", finishableQueueRepo()], STDOUT_THROW);
+    expectStopped("claim", r);
+    expect(r.stderr).toContain("t1 moved to done/");
+    expect(r.stderr).not.toContain("not rendered");
+  });
+
+  it("sweep: an EIO at the render's rename says the reclaim stands and the log was not rendered", () => {
+    const root = staleQueueRepo();
+    const r = runWith("claim", ["sweep", "--root", root], renderRenameFault());
+    expectStopped("claim", r);
+    expect(r.stderr).toContain("reclaimed t1");
+    expect(r.stderr).toContain(`${NOW_RUNNING_REL} was not rendered.`);
+    expect(r.stderr).not.toContain("The queue was not changed.");
+    expect(lstatSync(join(root, QUEUE_PENDING_REL, "t1.md")).isFile(), "the reclaim the message names is on disk").toBe(true);
+  });
+
+  it("sweep: a render failure with nothing moved names no change", () => {
+    const root = claimedQueueRepo();
+    const r = runWith("claim", ["sweep", "--root", root], renderRenameFault());
+    expectStopped("claim", r);
+    expect(r.stderr).not.toContain("reclaimed");
+    expect(r.stderr).not.toContain("not rendered");
   });
 });
 
