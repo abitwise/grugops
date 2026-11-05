@@ -385,10 +385,10 @@ export function sweepStale(
 }
 
 // ── sweepQueue: release what finished, then reclaim what went stale. ────────────────────────────
-// A claim whose subtask has left claimed/<task>/ and sits in done/ is finished work, whatever its
-// age: an earlier run stopped between the rename and the removal. It is released and reported apart
-// from a reclaim, because a release returns nothing to pending/. A claim record that is absent, a
-// link or a FIFO is left alone, as sweepStale leaves it.
+// A claim directory whose subtask has left it and sits in done/ is finished work, whatever its age
+// and whatever its record, which is not read here: an earlier run stopped between the rename and the
+// removal. It is released and reported apart from a reclaim, because a release returns nothing to
+// pending/. A claimed entry that is not a directory stays where it is, as sweepStale leaves it.
 export function sweepQueue(
   queueRoot: string,
   ttlMs: number,
@@ -399,7 +399,7 @@ export function sweepQueue(
   if (queueEntry(claimedDir) !== null) {
     for (const task of readdirSync(claimedDir)) {
       if (!isSafeQueueName(task)) continue;
-      if (readClaimRecord(join(claimedDir, task, "claim.md")) === null) continue;
+      if (queueEntry(join(claimedDir, task))?.isDirectory() !== true) continue;
       if (queueEntry(stagePath(queueRoot, task, "claimed")) !== null) continue;
       if (queueEntry(stagePath(queueRoot, task, "done")) === null) continue;
       rmSync(join(claimedDir, task), { recursive: true, force: true });
@@ -593,8 +593,9 @@ interface NowRunningRow {
 // ── renderNowRunning: derive .grugops/queue/now-running.md from the claim registry (D-14). ──────
 //
 // Lists claimed/ through claimedEntryNames and emits a deterministic, GENERATED-headered markdown table
-// (task, by, agent, level, since), sorted by `at` then `task`, with a single trailing newline — byte-reproducible
-// (running twice over the same registry produces identical bytes; it carries no wall-clock of its own).
+// (task, by, agent, level, since), sorted by `at` then `task` with every `unknown` row last, with a
+// single trailing newline — byte-reproducible (running twice over the same registry produces identical
+// bytes; it carries no wall-clock of its own).
 // An empty/absent claimed/ yields a header-only render (vacuous, no crash). This is the human-facing
 // "what is running" view and the SC2 width-evidence source.
 //
@@ -635,6 +636,10 @@ export function renderNowRunning(queueRoot: string): void {
 
   // Deterministic order: by `at` (ISO lexicographic), then by `task` as a stable tiebreak.
   rows.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.task.localeCompare(b.task)));
+  // A row with no time goes after every timed row, whatever letter a timed `at` opens with. The filter
+  // keeps the sorted order on each side, so the `unknown` rows stay in task order.
+  const timed = rows.filter((r) => r.at !== UNKNOWN_SINCE);
+  const untimed = rows.filter((r) => r.at === UNKNOWN_SINCE);
 
   const md: string[] = [];
   md.push("<!-- GENERATED — do not hand-edit. Re-run: node tools/grugops/claim.js now-running -->");
@@ -642,7 +647,7 @@ export function renderNowRunning(queueRoot: string): void {
   md.push("");
   md.push("| task | by | agent | level | since |");
   md.push("| --- | --- | --- | --- | --- |");
-  for (const r of rows) {
+  for (const r of [...timed, ...untimed]) {
     md.push(`| ${cell(r.task)} | ${cell(r.by)} | ${cell(r.agent)} | ${cell(r.level)} | ${cell(r.at)} |`);
   }
   md.push(""); // trailing element → exactly one final "\n"

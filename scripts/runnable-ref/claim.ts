@@ -68,7 +68,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:aa4d5125a4eae452daa114e07ceae1cb75b4f733e7a1e0d8f5a1dfd260adb9cd";
+export const RUNNABLE_SET_STAMP = "sha256:53e9730b980c89fd8a178a85b3d1d1fe320f02484137b1df51ad6630f1808b53";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "claim.js";
 // from install/state-layout.ts
@@ -317,7 +317,7 @@ export function sweepQueue(
   if (queueEntry(claimedDir) !== null) {
     for (const task of readdirSync(claimedDir)) {
       if (!isSafeQueueName(task)) continue;
-      if (readClaimRecord(join(claimedDir, task, "claim.md")) === null) continue;
+      if (queueEntry(join(claimedDir, task))?.isDirectory() !== true) continue;
       if (queueEntry(stagePath(queueRoot, task, "claimed")) !== null) continue;
       if (queueEntry(stagePath(queueRoot, task, "done")) === null) continue;
       rmSync(join(claimedDir, task), { recursive: true, force: true });
@@ -478,6 +478,10 @@ export function renderNowRunning(queueRoot: string): void {
 
   // Deterministic order: by `at` (ISO lexicographic), then by `task` as a stable tiebreak.
   rows.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.task.localeCompare(b.task)));
+  // A row with no time goes after every timed row, whatever letter a timed `at` opens with. The filter
+  // keeps the sorted order on each side, so the `unknown` rows stay in task order.
+  const timed = rows.filter((r) => r.at !== UNKNOWN_SINCE);
+  const untimed = rows.filter((r) => r.at === UNKNOWN_SINCE);
 
   const md: string[] = [];
   md.push("<!-- GENERATED — do not hand-edit. Re-run: node tools/grugops/claim.js now-running -->");
@@ -485,7 +489,7 @@ export function renderNowRunning(queueRoot: string): void {
   md.push("");
   md.push("| task | by | agent | level | since |");
   md.push("| --- | --- | --- | --- | --- |");
-  for (const r of rows) {
+  for (const r of [...timed, ...untimed]) {
     md.push(`| ${cell(r.task)} | ${cell(r.by)} | ${cell(r.agent)} | ${cell(r.level)} | ${cell(r.at)} |`);
   }
   md.push(""); // trailing element → exactly one final "\n"
@@ -1369,9 +1373,9 @@ function runNowRunning(): void {
 }
 
 /**
- * Refuses a symbolic link directly under claimed/. sweepQueue reads and renames through each entry there, so a link would
- * move a file from outside the root into pending/ (T-41-08). Each entry is asked of the root-chain owner before anything
- * moves. An entry that is no directory stays: the sweep skips it, and a stray file is no reason to stop.
+ * Refuses a symbolic link directly under claimed/, so a planted link stops the command and is named, where sweepQueue on its
+ * own would only pass over it (T-41-08). Each entry is asked of the root-chain owner before anything moves. An entry that
+ * is no directory stays: the sweep skips it, and a stray file is no reason to stop.
  */
 function refuseClaimLinks(): void {
   let names: readonly string[];

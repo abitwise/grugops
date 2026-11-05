@@ -54,8 +54,10 @@ type Mode = (typeof MODES)[number];
  * 2026-11-05, plan 41-05: 18. Seven are this program's alone, in no owner it shares with the three phase-37 runnables:
  * the record reads of the queue (queueEntry, readClaimRecord) and the claimed/ walks of sweepStale, sweepQueue,
  * claimedCount, renderNowRunning and refuseClaimLinks.
+ * 2026-11-05, plan 41-10: 17. claimedCount and renderNowRunning now share one walk, in claimedEntryNames, so two sites
+ * became one, with a calling pair for each of the two (WR-04).
  */
-const CLAIM_READ_SITES = 18;
+const CLAIM_READ_SITES = 17;
 
 /**
  * A (site, via) pair no fixture reaches, by `<key>` or `<key> via <via>`, with a one-line reason. A pair belongs here
@@ -359,7 +361,7 @@ describe("READ-1 on claim.js: the reads that have a named consequence (plan 41-0
   });
 
   it("a failed count prints no number: `free` is exit 2 with an empty stdout at the claimed/ walk", () => {
-    for (const pair of pairsOf("claimedCount")) {
+    for (const pair of pairsOf("claimedEntryNames", "claimedCount")) {
       const run = runPair(pair, "free");
       expect(run.r.fired, `PREMISE: the fault fired: ${run.all}`).toBeGreaterThan(0);
       expect(run.r.status, run.all).toBe(2);
