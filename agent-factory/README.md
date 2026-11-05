@@ -103,9 +103,9 @@ Which safety claims still hold on this repository, joined to the live checkpoint
   shipped change is accountable end to end.
 - **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues
   them for whichever stages the work actually needs (analysis, design, engineering, QE,
-  security/NFR, UAT, release); each role claims its subtask, pulls the shared verified
-  context and publishes typed notes back into it (Workflow 16), so the next role inherits
-  exactly what it needs — never a relay from the role before it.
+  security/NFR, UAT, release); it claims each subtask at dispatch in its role's name, and
+  the role pulls the shared verified context and publishes typed notes back into it
+  (Workflow 16), so the next role inherits exactly what it needs — never a relay from the role before it.
 
 ## Copy-paste Orchestrator prompts
 

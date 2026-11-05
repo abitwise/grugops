@@ -50,9 +50,20 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - "Do less" rules for the Software Engineer and the Tech Lead, and an advisory lean-review lens in
   `agent-factory/checklists/pr-review-checklist.md`. They are adapted from ponytail under the MIT
   License; see [NOTICE](NOTICE) for the credit and the license text.
+- `tools/grugops/claim.js`, the host queue tool. It runs `free`, `claim`, `done`, `sweep` and
+  `now-running` from the repository root, so a host needs no library call to work the queue.
 
 ### Changed
 
+- The Orchestrator now claims each subtask at dispatch in its role's name, and the role runs
+  `done` as its last act. It refills free slots from the `claimed/` count on disk, and the sweep runs
+  only at session start. See `agent-factory/workflows/17-task-claim.md`.
+- Workflow 17 holds session compaction guidance for the Orchestrator: when to pause, confirm and
+  compact, and when to checkpoint for a fresh session. No config key is added.
+- Workflow 04 has an ask-once rule: at each human stop, only the Orchestrator asks the human. A stop
+  precedence says which hand-off or stop comes first.
+- Every software engineer tier now works at senior level. The tiers differ in adapter name, model
+  and effort, not in persona. A junior plan still stops on every risk tag the rubric lists.
 - The 19 roles and the role-switch protocol are rewritten in clear, compact English. Every role
   states when it activates and ends with a `## Stop when` section, and each board move is named as
   an exact `From → To` pair. The caveman prompt blocks are retired. Run

@@ -22,6 +22,7 @@ const WF16 = readFileSync(join(ROOT, "agent-factory/workflows/16-context-read-wr
 const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
 const ORCHESTRATOR = readFileSync(join(ROOT, "agent-factory/roles/orchestrator.md"), "utf8");
 const ROLE_SWITCH = readFileSync(join(ROOT, "agent-factory/roles/_role-switch-protocol.md"), "utf8");
+const KIT_README = readFileSync(join(ROOT, "agent-factory/README.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
 function section(text: string, heading: string): string {
@@ -501,5 +502,16 @@ describe("the role-switch step agrees with Workflow 17 (plan 41-06; D-04, D-05)"
   it("no longer tells the role to claim", () => {
     expect(stepFour()).not.toContain("claim the subtask");
     expect(stepFour()).not.toContain("Mark the subtask done");
+  });
+});
+
+describe("the README says who claims (plan 41-06; D-04)", () => {
+  it("says the Orchestrator claims at dispatch, and no longer says a role claims its subtask", () => {
+    const at = KIT_README.indexOf("- **The lifecycle**");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const bullet = KIT_README.slice(at, KIT_README.indexOf("\n\n", at));
+    expect(bullet.replace(/\n\s*/g, " ")).toContain("it claims each subtask at dispatch in its role's name");
+    expect(bullet.replace(/\n\s*/g, " ")).not.toContain("each role claims its subtask");
+    expect(bullet.split("\n")).toHaveLength(5);
   });
 });

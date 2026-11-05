@@ -36,3 +36,11 @@
   status: open
   **What:** `sweep` now refuses such a link before it moves anything. `renderNowRunning` still reads `claim.md` through it, so a planted link adds a row taken from a file outside the root, and `free` counts it as a claim. Neither writes outside the queue. This comes from reading the code; it was not reproduced.
   **Why deferred:** the read is in the generated region, and plan 41-05 holds the regions unchanged. A fix belongs in `scripts/claim.ts`: skip an entry whose lstat is not a directory in `sweepStale`, `sweepQueue` and `renderNowRunning`. That would also make `refuseClaimLinks` in `scripts/runnable-ref/claim.ts` a second check rather than the only one.
+- IN-05, the coordinator adapter's size WARN, is re-deferred (decided in plan 41-06, Open Question 5)
+  status: open
+  **What:** `check-foundation-guards` warns that `.claude/agents/grugops-orchestrator.md` is 3,368 B, past the 3,072 B pointer ceiling. The `tools:` line with the enumerated grant is 576 B, so the file is 2,792 B without it. The WARN marks the grant, not a copied role body.
+  **Why deferred:** plan 41-06 touches `scripts/generate-role-adapters.ts`, but only the level line in `specialistBody`. That line changes neither the coordinator body nor the grant. A coordinator-only warn tier would be a guard change with no link to this work.
+  **Trigger:** the next grant change decides between a warn tier and a shorter grant rendering.
+- The two ideas `41-CONTEXT.md` § Deferred Ideas holds stay deferred, by reference (recorded in plan 41-06)
+  status: open
+  **What:** the three-rounds rule for the kit's other agent-resolvable checkpoints, and the host-specific speed-ups declined under the no-host-only-mechanism decision. That section holds the wording and what reopens each one.
