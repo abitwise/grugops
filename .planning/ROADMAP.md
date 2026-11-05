@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 12/12 plans executed (6 gap-closure plans, 41-07 to 41-12, planned)
+**Plans**: 12/16 plans executed (10 gap-closure plans, 41-07 to 41-16, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -624,6 +624,20 @@ Gap wave 3 *(blocked on gap wave 2; sequential because each rebuilds the committ
 
 Gap wave 4 *(blocked on gap wave 3)*
 - [x] 41-11-PLAN.md — a role reaches the writer by following the text, Workflow 17 stops on a missing program and re-spawns after a crash, the residuals name the spawned-role case, and the phase gate runs (CR-01, WR-01, WR-03, IN-08; RUN-01 to RUN-05)
+
+**Gap closure, round 2** *(from 41-VERIFICATION.md of 2026-11-05: READ-1 and T-41-55, CR-02, T-41-30 and the false sentences; sequential because each rebuilds the committed `.js` from `scripts/context-io.ts`)*
+
+Gap wave 1
+- [ ] 41-13-PLAN.md — the `trustedRepoRoot` ladder fails closed: every read reports failure, a named root with no configuration keeps the dial, and every consumer refuses on an undetermined root (READ-1, T-41-55; RUN-02, RUN-05)
+
+Gap wave 2 *(blocked on gap wave 1)*
+- [ ] 41-14-PLAN.md — one fold of a role name closes T-41-30, and the note.ts header, Workflows 16 and 17, the residuals and the ledger say what is true (T-41-30, false sentences; RUN-02, RUN-05)
+
+Gap wave 3 *(blocked on gap wave 2; holds a blocking human decision)*
+- [ ] 41-15-PLAN.md — a named human authorises the `admit()` unfreeze and decides what a target naming no note does, then `admit()` refuses a note that retires a green verdict or a governed finding (CR-02; RUN-02, RUN-05)
+
+Gap wave 4 *(blocked on gap wave 3)*
+- [ ] 41-16-PLAN.md — the supersession rule reaches the kit text, CR-02 is recorded as fixed, and the phase gate runs by name (CR-02; RUN-02, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
