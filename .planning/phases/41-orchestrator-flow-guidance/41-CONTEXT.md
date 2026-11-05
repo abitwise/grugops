@@ -81,6 +81,11 @@ Out of scope: any host-only mechanism (hooks, installer-written compaction setti
 - **D-33:** Plan 41-03 stays one plan at its 120,000-token low-confidence estimate and 27 files; most of the excess is mechanical count-pin edits. The human accepted this risk on 2026-11-04 rather than add a wave.
 - **D-34:** D-12 is amended: its size limit is `orchestrator.md` under the 6,195 B WARN, with the D-32 sentence added. The "net size goes down" and "one compact RUN-06 sentence" wording no longer bind; the file is expected to end at 6,087 B with three sentences in that paragraph. `ROLE_CEILINGS` stays unchanged. Decided by the human on 2026-11-04 from a planner revision conflict.
 
+### Gap closure decisions (human, 2026-11-05, from 41-VERIFICATION.md and 41-REVIEW.md)
+
+- **D-35:** D-28 is amended: its last sentence, "No note writer ships to hosts in this phase", no longer binds. CR-01 is closed by shipping a note-writing host runnable, for example `tools/grugops/note.js`, built from the `scripts/context-io.ts` authority, so a spawned role on any host can write the sealed note `claim.js done` requires. The rest of D-28 stands: D-07 counts sealed notes only, and `done` refuses and names the unsealed notes it found. Residual R-41-01 and the comment in `scripts/generate-role-adapters.ts` are corrected to match. The other two CR-01 routes, granting the admission tool to role adapters and moving the close to the Orchestrator, were declined. Decided by the human on 2026-11-05.
+- **D-36:** Gap closure covers CR-01, WR-01, WR-02, WR-03 and WR-04, plus IN-01 and IN-08, the two false claims that sit against the no-fabrication constraint. WR-05 to WR-08 and IN-02 to IN-07 stay open in `41-REVIEW-DISPOSITION.md` for triage. Decided by the human on 2026-11-05.
+
 ### Claude's Discretion
 - Exact exit-code numbers and line wording for the CLI, following `state-check.js` and `trace-render.js`.
 - How `free` behaves with a missing config or a malformed `wip_limit`: fall back to the documented default of 3 and say so, never guess silently.
