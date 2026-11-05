@@ -7312,20 +7312,20 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       ).toBe(false);
     });
 
-    it("EMPTY INPUT: a home directory that cannot be determined degrades to the KIT, not to a walk", () => {
+    it("EMPTY INPUT: a home directory that cannot be determined stops the search and refuses, naming no root", () => {
+      // TIGHTENED BY PLAN 41-13. This case pinned the kit answer, and the kit answer is T-41-55: the
+      // kit's lean dial read for a repository the walk never reached. The search still does not run.
       const mutant = mirrorKit("p31-19-nohome-", [HOME_UNKNOWN_ANCHOR]);
       const project = projectWith(ACTIVE, "p31-19-nohome-proj-");
       const src = join(project, "src");
       mkdirSync(src, { recursive: true });
-      // PREMISE, ASSERTED: the committed program DOES answer this project, so the mutant's KIT
-      // answer is the undeterminable home degrading rather than a tree the search never had.
+      // PREMISE, ASSERTED: the committed program DOES answer this project, so the mutant's refusal
+      // is the undeterminable home stopping the search rather than a tree the search never had.
       expect(drive("trustedRepoRoot", { cwd: src, kit: KIT }).root).toBe(project);
-      // The mutant's own kit is its step-4 answer, so THAT is the "kit answer" for the mutant.
-      const r = drive("trustedRepoRoot", { cwd: src, kit: mutant });
       expect(
-        r.root,
+        () => drive("trustedRepoRoot", { cwd: src, kit: mutant }),
         "an undeterminable home directory must stop the search, never license an unbounded one",
-      ).toBe(mutant);
+      ).toThrow(/refusing to name a governance root/);
     });
 
     it("the boundary is not one tool's: EVERY named marker ends the walk, and the set is derived", () => {
@@ -8200,7 +8200,8 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(drive("trustedRepoRoot", { cwd: home, env: asHome(home) }).root).toBe(KIT);
     });
 
-    it("EMPTY: a home directory that cannot be determined still stops the search entirely", () => {
+    it("EMPTY: a home directory that cannot be determined still stops the search entirely, and refuses", () => {
+      // TIGHTENED BY PLAN 41-13: the kit answer this pinned is T-41-55. The stop is the same stop.
       const mutant = mirror("p31-23-nohome-", [
         ["const named = namedHomeDirectory();", "const named = null;"],
       ]);
@@ -8209,9 +8210,9 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       mkdirSync(src, { recursive: true });
       expect(drive("trustedRepoRoot", { cwd: src, kit: KIT }).root).toBe(project);
       expect(
-        drive("trustedRepoRoot", { cwd: src, kit: mutant }).root,
+        () => drive("trustedRepoRoot", { cwd: src, kit: mutant }),
         "an undeterminable home must stop the search, never license an unbounded one",
-      ).toBe(mutant);
+      ).toThrow(/refusing to name a governance root/);
     });
 
     it("ADJACENCY: a SYMLINKED spelling of home is still recognised as home by the identity set", () => {

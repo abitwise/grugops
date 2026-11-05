@@ -59,7 +59,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:53e9730b980c89fd8a178a85b3d1d1fe320f02484137b1df51ad6630f1808b53";
+export const RUNNABLE_SET_STAMP = "sha256:ea1f81fe880e40489d987570d56c77c66ad5dfce9a453729b633c20d1c84f0cf";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -1958,6 +1958,12 @@ export const REPO_BOUNDARY_MARKERS = Object.freeze([
     "_FOSSIL_", // Fossil, Windows checkout marker
 ]);
 const TRUSTED_ROOT_SEARCH_MAX_ANCESTORS = 64;
+function undeterminedRoot(reason) {
+    return new Error(`context-io.trustedRepoRoot: refusing to name a governance root: ${reason}. The human_admission dial is ` +
+        "UNKNOWN - verify, nothing was admitted and nothing was written. An unknown dial is never read as the lean " +
+        "default. Nothing about the note is wrong, so stop and surface this to a human.");
+}
+const WALK_DID_NOT_RUN = Symbol("the walk did not run");
 function directoryIdentity(dir) {
     try {
         const st = statSync(dir);
@@ -1979,7 +1985,8 @@ function namedHomeDirectory() {
         return null;
     const home = resolve(raw.trim());
     // A home directory that cannot be STAT-ED AT ALL has not been DETERMINED. Saying so here is what
-    // lets the caller degrade to the kit instead of walking on with an unenforceable bound.
+    // stops the walk, and `trustedRepoRoot` then refuses to name a root (plan 41-13): it neither walks
+    // on with an unenforceable bound nor answers the kit.
     //
     // WHAT THIS PREDICATE ACTUALLY CHECKS, STATED BECAUSE THE EARLIER SENTENCE HERE DID NOT (plan
     // 31-23, PROBE 3). It read "a home directory that is not an existing DIRECTORY", and
@@ -1989,12 +1996,12 @@ function namedHomeDirectory() {
     // is the WR-21 class, so the CLAIM is corrected rather than the behaviour.
     //
     // WHY THE BEHAVIOUR IS NOT CHANGED TO MATCH THE OLD SENTENCE. Rejecting a non-directory here
-    // would return `null`, which stops the search and lands the caller on `GOVERNANCE_FALLBACK_BASE`
-    // — the kit's LEAN default. A refusal is NOT the safe direction (D-26 (4), `R-31-19-06`), so
-    // tightening this on the strength of a comment would lower a gate. A `$HOME` naming a file is a
-    // misconfigured environment, and the capability it represents is `R-31-19-02`'s: `os.homedir()`
-    // reads an ambient value a process controls in its own child environment, which already names
-    // the governance root outright through either project-directory variable.
+    // would return `null`, which stops the search and, since plan 41-13, refuses every note in a
+    // repository the walk would have answered. A `$HOME` naming a file still bounds the walk: its
+    // ancestors exist and the dial holds there, so nothing is lost and a refusal buys nothing (D-26
+    // (4), `R-31-19-06`). A `$HOME` naming a file is a misconfigured environment, and the capability
+    // it represents is `R-31-19-02`'s: `os.homedir()` reads an ambient value a process controls in its
+    // own child environment.
     return directoryIdentity(home) === null ? null : home;
 }
 function homeBoundary() {
@@ -2072,11 +2079,12 @@ function projectRootFromWorkingDirectory(startDir) {
         return null;
     }
     // A HOME DIRECTORY THAT CANNOT BE DETERMINED IS NOT A LICENCE TO WALK PAST IT. The search does
-    // not run at all, and the caller falls through to the kit — the answer the pre-31-15 program gave
-    // unconditionally. An unbounded search is the one outcome this case may not degrade to.
+    // not run at all, and the walk says so rather than answering null, because a null ends on the kit
+    // and the kit's lean dial is not this repository's (plan 41-13, T-41-55). `trustedRepoRoot` refuses
+    // on this answer. An unbounded search is the other outcome this case may not degrade to.
     const home = homeBoundary();
     if (home === null)
-        return null;
+        return WALK_DID_NOT_RUN;
     let nearest = null;
     for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
         // RULE 1 — ASCENT IS BOUNDED. A STRICT ancestor of the home directory is refused outright,
@@ -2174,8 +2182,8 @@ export function trustedRepoRoot() {
         cwd = canonicalWorkingDirectory(process.cwd());
     }
     catch {
-        // A deleted working directory is not a project root. Fall through to the kit rather than throw
-        // inside a governance read — the reader's job is to answer, and the un-lowered answer is safe.
+        // A deleted working directory is not a project root, and it is not the kit either: the walk
+        // cannot run, so the refusal below answers. The kit's lean dial is a lowered answer, not a safe one.
         cwd = null;
     }
     // ANCHORED FOR THE MONOTONICITY MIRROR (`scripts/context-io.test.ts`, plan 31-15). That case
@@ -2187,6 +2195,14 @@ export function trustedRepoRoot() {
     // The 33-16 canonicalisation lives on the READ line inside the `try` above, so the mirror's two
     // anchors — this line and the loop's first element — are byte-untouched by it.
     const discovered = cwd === null ? null : projectRootFromWorkingDirectory(cwd);
+    // A LADDER THAT COULD NOT FINISH NAMES NO ROOT (plan 41-13, T-41-55). The kit is the answer of a walk
+    // that ran and found nothing. Where the walk could not run, the dial is unknown, and every consumer
+    // holds this throw as a refusal.
+    if (cwd === null)
+        throw undeterminedRoot("the working directory cannot be read, so the search cannot start");
+    if (discovered === WALK_DID_NOT_RUN) {
+        throw undeterminedRoot("the home directory cannot be determined, so the search has no bound and did not run");
+    }
     if (discovered !== null)
         return discovered;
     return GOVERNANCE_FALLBACK_BASE;
