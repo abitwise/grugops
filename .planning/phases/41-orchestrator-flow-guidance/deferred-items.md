@@ -28,5 +28,10 @@
   **Also settled:** `install/installer-write-set.test.ts`, `scripts/worktree-dogfood.test.ts` and `scripts/uat-spec-integrity` were not among the failures once `/tmp` quota was out of the way.
 - `claimPending` can leave an empty claim directory when the record write fails (found during 41-03)
   status: open
-  **What:** `takeClaim` makes `claimed/TASK/` and then writes `claim.md`. When that write throws, `claimPending` returns `refused` with no removal, so the directory holds a slot and a retry reads `lost`. This comes from reading `scripts/claim.ts`; it was not reproduced.
-  **Why deferred:** the rule lives in the plan 41-01 authority and needs a disk failure between the two calls. `claim.js` reports exit 2 either way. A fix belongs in `scripts/claim.ts`, with a fault-injection case.
+  **What:** `takeClaim` makes `claimed/TASK/` and then writes `claim.md`. When that write throws, `claimPending` returns `refused` with no removal, so the directory holds a slot and a retry reads `lost`.
+  **Reproduced in plan 41-05:** with an EIO at the `claim.md` write, `claim` printed `Error: claim of t1 failed: EIO: injected. The queue was not changed.` and exited 2, and `claimed/t1/` stayed. A retry printed `lost t1`, and `free` counted the slot (`free 2`). `sweep` cannot clear it, because it skips a directory with no record. So this one path still breaks plan 41-05's truth that no message denies a change that stands.
+  **Why deferred:** the rule lives in the plan 41-01 authority, and plan 41-05 holds the generated regions unchanged. It needs a disk failure between the two calls. A fix belongs in `scripts/claim.ts`: remove the directory when the write throws, regenerate, and add a fault-injection case.
+- The render and `free` read through a symbolic link directly under `claimed/` (found during 41-05)
+  status: open
+  **What:** `sweep` now refuses such a link before it moves anything. `renderNowRunning` still reads `claim.md` through it, so a planted link adds a row taken from a file outside the root, and `free` counts it as a claim. Neither writes outside the queue. This comes from reading the code; it was not reproduced.
+  **Why deferred:** the read is in the generated region, and plan 41-05 holds the regions unchanged. A fix belongs in `scripts/claim.ts`: skip an entry whose lstat is not a directory in `sweepStale`, `sweepQueue` and `renderNowRunning`. That would also make `refuseClaimLinks` in `scripts/runnable-ref/claim.ts` a second check rather than the only one.

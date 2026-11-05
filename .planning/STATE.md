@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Completed 41-04-PLAN.md
-last_updated: "2026-11-05T00:53:29.501Z"
+stopped_at: Completed 41-05-PLAN.md
+last_updated: "2026-11-05T02:01:59.097Z"
 last_activity: 2026-11-04
 last_activity_desc: Phase 41 execution started
-state_head: 31f8a4f77739e13229d042527a6866e749d1621b
+state_head: 7918e2d1c6dd3488e6f9bd06cf66dc21d22753df
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 119
-  completed_plans: 117
+  completed_plans: 118
   percent: 67
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 ## Current Position
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-11-04 — Phase 41 execution started
 
@@ -835,6 +835,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P02 | 24 min | 3 tasks | 6 files |
 | Phase 41 P03 | 47 min | 3 tasks | 27 files |
 | Phase 41 P04 | 37 min | 3 tasks | 9 files |
+| Phase 41 P05 | 40 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2314,6 +2315,9 @@ Recent decisions affecting current work:
 - [Phase 41]: done creates no directory until every read has passed, and a claim record whose at: is not a timestamp is exit 2
 - [Phase 41]: Workflow 17 step 1 sets the pending file lines in sub-bullets with an example id, because the target text `<task>` beside the context path fails the SCTX-05 guard
 - [Phase 41]: The disposition row for the Claude Code host limit carries rule RUN-04, because no human decision set that figure; it corrects a host fact from research Pitfall 10
+- [Phase 41]: readQueueConfig reuses recordTextOrNull, so a FIFO, a link or a directory at the config path is refused before any open
+- [Phase 41]: sweep reads the config first and refuses a symbolic link under claimed/ before anything moves
+- [Phase 41]: The claimPending write-failure bug stays deferred: it needs a change to the generated region, which plan 41-05 holds unchanged
 
 ### Pending Todos
 
@@ -2654,8 +2658,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-05T00:53:28.317Z
-Stopped at: Completed 41-04-PLAN.md
+Last session: 2026-11-05T02:01:57.868Z
+Stopped at: Completed 41-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
