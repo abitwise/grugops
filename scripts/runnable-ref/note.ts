@@ -61,7 +61,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:8c4365557c8e6ec6187437ebe73d91d8f5323787e58d1afc9e0cf30e0e668a05";
+export const RUNNABLE_SET_STAMP = "sha256:eb77b50b9edf9a92dd3ef864349dcda9b0e5e7fd19bc28d333a3a87974f71542";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -2407,6 +2407,12 @@ export function hostDeliveredRoot(): string | null {
   if (canonical === canonicalDirectoryPath(GOVERNANCE_FALLBACK_BASE)) return null;
   return canonical;
 }
+function namedRootAnswers(named: string): boolean {
+  const root = entryPresence(named);
+  if (root.kind === "unreadable") throw undeterminedRoot(root.reason);
+  if (root.kind === "absent" || !root.target.isDirectory()) return true;
+  return governanceConfigCandidates(named).some((candidate) => occupied(entryPresence(candidate)));
+}
 export function trustedRepoRoot(): string {
   // TIER 0, ABOVE THE LOOP AND ABOVE THE WALK (plan 31-27, S1). It is placed here rather than woven
   // into the loop for two reasons. It is a DIFFERENT KIND of signal — a host-built channel, not an
@@ -2415,17 +2421,22 @@ export function trustedRepoRoot(): string {
   // reverting exactly two anchors — the loop's first element and the walk call below — so a step
   // added ABOVE them leaves that reconstruction intact rather than silently changing what the mirror
   // compares against.
-  const delivered = hostDeliveredRoot();
-  if (delivered !== null) return delivered;
+  let named = hostDeliveredRoot();
   for (const name of TRUSTED_ROOT_ENV_ORDER) {
+    if (named !== null) break;
     const fromEnv = process.env[name];
     // THROUGH THE ONE LADDER, not a bare `resolve` (plan 33-24, D-33-R3-01, closing 33-REVIEW
     // WR-05 (b)). A link-spelled or 8.3-spelled project directory handed over in this variable names
     // the directory the cwd tier and tier 0 would name; a bare lexical spelling here was two answers
     // for one directory, one tier apart. The loop header above is a monotonicity-mirror anchor and
-    // stays byte-identical; the change is on the RETURN line only.
-    if (typeof fromEnv === "string" && fromEnv.trim() !== "") return canonicalDirectoryPath(fromEnv.trim());
+    // stays byte-identical. Tier 0 answering skips the variables, and the first variable set ends the
+    // loop, so the precedence is unchanged; the name now waits for `namedRootAnswers` below.
+    if (typeof fromEnv === "string" && fromEnv.trim() !== "") named = canonicalDirectoryPath(fromEnv.trim());
   }
+  // A NAME THAT CARRIES NO CONFIGURATION SAYS NOTHING ABOUT GOVERNANCE (plan 41-13, T-41-55). It used
+  // to end the search, so one empty directory in one variable lost the dial of the repository the
+  // process stood in. A name that answers still ends it here, before the walk.
+  if (named !== null && namedRootAnswers(named)) return named;
   let cwd: string | null = null;
   try {
     // CANONICALISED WHERE IT IS READ (plan 33-16, W-21). On darwin `process.cwd()` answers the
@@ -2455,8 +2466,11 @@ export function trustedRepoRoot(): string {
   if (discovered === WALK_DID_NOT_RUN) {
     throw undeterminedRoot("the home directory cannot be determined, so the search has no bound and did not run");
   }
-  if (discovered !== null) return discovered;
-  return GOVERNANCE_FALLBACK_BASE;
+  // The walk's answer outranks a name that carries no configuration, because that answer carries one.
+  // The kit's own root never does: it is not a governed project, so where nothing governs the working
+  // directory the name still answers, and a lean repository's store does not move (R-31-15-02).
+  if (discovered !== null && (named === null || discovered !== GOVERNANCE_FALLBACK_BASE)) return discovered;
+  return named ?? GOVERNANCE_FALLBACK_BASE;
 }
 const GOVERNANCE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
 function isExistingDirectory(path: string): boolean {

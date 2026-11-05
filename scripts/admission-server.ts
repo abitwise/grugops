@@ -188,10 +188,11 @@ export function handleProposeNote(args: Record<string, unknown>): ToolResult {
   // GAP-R6-2: derive the governance/persist root from the trusted source (CLAUDE_PROJECT_DIR), NEVER
   // from agent-supplied args. The context root is the trusted root's .grugops/context subpath. Any
   // `args.repoRoot`/`args.contextRoot` an agent sends is ignored (they are no longer in the schema).
-  const repoRoot = trustedRepoRoot();
-  const contextRoot = join(repoRoot, ".grugops", "context");
-
+  // Both sit inside the `try`, because a ladder that could not finish throws (plan 41-13) and the stdio
+  // loop has no catch: that throw must answer as a refusal, not end the server.
   try {
+    const repoRoot = trustedRepoRoot();
+    const contextRoot = join(repoRoot, ".grugops", "context");
     const result = admitAndAppend(task, note, body, contextRoot, repoRoot);
     if (result.findings.length > 0) {
       return { content: [{ type: "text", text: result.findings.join("\n") }], isError: true };

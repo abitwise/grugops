@@ -5162,6 +5162,20 @@ export function hostDeliveredRoot() {
     return canonical;
 }
 /**
+ * Whether a root a process named decides the search before the walk runs (plan 41-13). A name that carries a
+ * configuration does, wherever the working directory is. A name that carries none says nothing about governance, so
+ * it waits for the walk. A name that is not a directory answers too, so `readGovernanceConfig` reports it `unreadable`
+ * as it always has: waiting would move a mistyped root in a lean repository from refused to admitted.
+ */
+function namedRootAnswers(named) {
+    const root = entryPresence(named);
+    if (root.kind === "unreadable")
+        throw undeterminedRoot(root.reason);
+    if (root.kind === "absent" || !root.target.isDirectory())
+        return true;
+    return governanceConfigCandidates(named).some((candidate) => occupied(entryPresence(candidate)));
+}
+/**
  * THE RESOLUTION ORDER, IN WORDS, PUBLISHED ONCE (plan 31-27).
  *
  * `agent-factory/workflows/16-context-read-write.md` is asserted equal to this array in BOTH
@@ -5222,6 +5236,13 @@ export const TRUSTED_ROOT_TIERS = Object.freeze([
  *      search never inspects — see `TRUSTED_ROOT_STOP_CONDITIONS` for the complete stop set.
  *   4. The kit this module ships in.
  *
+ * WHAT A NAME NO LONGER DOES, AND WHERE THE LADDER STOPS (plan 41-13, T-41-55). A root named by tier 0, step 1 or step
+ * 2 ends the search only when `namedRootAnswers` says so: it carries a configuration, or it is not a directory at all.
+ * Otherwise the walk runs, and its answer outranks the name unless that answer is the kit's own root. A ladder that
+ * could not finish, because a read failed, the home directory cannot be determined or the working directory cannot be
+ * read, names no root: it throws `undeterminedRoot`, and every consumer holds that throw as a refusal. Step 4 is the
+ * answer of a walk that ran and found nothing, never of one that did not run.
+ *
  * WHY STEPS 2 AND 3 EXIST (WR-15, reproduced by the round-3 verifier as spot-check row 6). Step 1's
  * variable is a CLAUDE CODE variable, and step 4 under the shipped two-root install is `~/.grugops`,
  * whose only configuration is the shipped LEAN default. So on Codex, Antigravity CLI, OpenCode,
@@ -5267,19 +5288,25 @@ export function trustedRepoRoot() {
     // reverting exactly two anchors — the loop's first element and the walk call below — so a step
     // added ABOVE them leaves that reconstruction intact rather than silently changing what the mirror
     // compares against.
-    const delivered = hostDeliveredRoot();
-    if (delivered !== null)
-        return delivered;
+    let named = hostDeliveredRoot();
     for (const name of TRUSTED_ROOT_ENV_ORDER) {
+        if (named !== null)
+            break;
         const fromEnv = process.env[name];
         // THROUGH THE ONE LADDER, not a bare `resolve` (plan 33-24, D-33-R3-01, closing 33-REVIEW
         // WR-05 (b)). A link-spelled or 8.3-spelled project directory handed over in this variable names
         // the directory the cwd tier and tier 0 would name; a bare lexical spelling here was two answers
         // for one directory, one tier apart. The loop header above is a monotonicity-mirror anchor and
-        // stays byte-identical; the change is on the RETURN line only.
+        // stays byte-identical. Tier 0 answering skips the variables, and the first variable set ends the
+        // loop, so the precedence is unchanged; the name now waits for `namedRootAnswers` below.
         if (typeof fromEnv === "string" && fromEnv.trim() !== "")
-            return canonicalDirectoryPath(fromEnv.trim());
+            named = canonicalDirectoryPath(fromEnv.trim());
     }
+    // A NAME THAT CARRIES NO CONFIGURATION SAYS NOTHING ABOUT GOVERNANCE (plan 41-13, T-41-55). It used
+    // to end the search, so one empty directory in one variable lost the dial of the repository the
+    // process stood in. A name that answers still ends it here, before the walk.
+    if (named !== null && namedRootAnswers(named))
+        return named;
     let cwd = null;
     try {
         // CANONICALISED WHERE IT IS READ (plan 33-16, W-21). On darwin `process.cwd()` answers the
@@ -5311,9 +5338,12 @@ export function trustedRepoRoot() {
     if (discovered === WALK_DID_NOT_RUN) {
         throw undeterminedRoot("the home directory cannot be determined, so the search has no bound and did not run");
     }
-    if (discovered !== null)
+    // The walk's answer outranks a name that carries no configuration, because that answer carries one.
+    // The kit's own root never does: it is not a governed project, so where nothing governs the working
+    // directory the name still answers, and a lean repository's store does not move (R-31-15-02).
+    if (discovered !== null && (named === null || discovered !== GOVERNANCE_FALLBACK_BASE))
         return discovered;
-    return GOVERNANCE_FALLBACK_BASE;
+    return named ?? GOVERNANCE_FALLBACK_BASE;
 }
 /**
  * WHAT THE RESOLUTION ORDER STILL CANNOT ANSWER, ENUMERATED (plan 31-15, extended by plan 31-19).

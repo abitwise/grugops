@@ -70,7 +70,8 @@ type AnyMode = Mode | ProofMode | ControlMode;
  * 2026-11-05, plan 41-13: 19. The three boolean probes left, in projectRootFromWorkingDirectory (two) and
  * hostDeliveredRoot (one), because a boolean could not report a failed read. Those reads moved onto entryPresence,
  * whose three read sites already count, so the pairs moved from 64 to 68: the 5 rows on the probes left, and the 9
- * pairs of entryPresence under its three new calling sites replaced them.
+ * pairs of entryPresence under its three new calling sites replaced them. namedRootAnswers then added 6 more, 3 sites
+ * under each of its two calls of entryPresence, so the pairs end at 74. The site count did not move again.
  */
 const NOTE_READ_SITES = 19;
 
@@ -743,6 +744,11 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
   it("CONTROL: a lean repository is noted, and so is one that names its own root", () => {
     assertNoted(noFault("observation", OBSERVATION, () => undefined));
     assertNoted(noFault("observation", OBSERVATION, (env, root) => { env.GRUGOPS_PROJECT_DIR = root; }));
+  });
+
+  it("a name with no configuration still answers where nothing governs the working directory (R-31-15-02)", () => {
+    const noConfig = (root: string): void => rmSync(join(root, GRUGOPS_DIR_REL, "factory.config.json"));
+    assertNoted(noFault("observation", OBSERVATION, (env) => { env.GRUGOPS_PROJECT_DIR = emptyDir(); }, noConfig));
   });
 
   it("a name that is not an existing directory stays refused in a lean repository, so nothing moves to admitted", () => {

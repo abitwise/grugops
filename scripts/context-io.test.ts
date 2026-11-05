@@ -8382,6 +8382,32 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       ).toThrow(/refusing to name a governance root/);
     });
 
+    it("ADJACENCY (41-13): a name with no configuration yields to a governing walk, and answers where nothing governs", () => {
+      const named = tmp15("p41-13-named-");
+      const asName = { GRUGOPS_PROJECT_DIR: named };
+
+      const governed = projectWith(ACTIVE, "p41-13-governed-");
+      expect(drive("trustedRepoRoot", { cwd: governed, env: asName }).root, "the walk's configuration outranks the name").toBe(governed);
+
+      const bare = tmp15("p41-13-bare-");
+      mkdirSync(join(bare, ".git"));
+      expect(drive("trustedRepoRoot", { cwd: bare, env: asName }).root, "nothing governs, so the name still answers").toBe(named);
+
+      // THE KIT'S OWN ROOT IS NOT A GOVERNED PROJECT, so a walk that lands on it never outranks a name.
+      const kit = kitAt(join(tmp15("p41-13-kit-"), "kit"));
+      writeConfig(kit, [".grugops", "factory.config.json"], LEAN);
+      mkdirSync(join(kit, ".git"));
+      expect(drive("trustedRepoRoot", { cwd: kit, kit, env: asName }).root, "the kit's root does not outrank a name").toBe(named);
+
+      // A NAME THAT CARRIES A CONFIGURATION STILL CHOOSES THE DIAL, wherever the process stands. That is
+      // R-31-15-03, kept on purpose: `governed-ambient` needs it.
+      const configured = projectWith(ACTIVE, "p41-13-configured-");
+      expect(
+        drive("trustedRepoRoot", { cwd: governed, env: { GRUGOPS_PROJECT_DIR: configured } }).root,
+        "a configured name answers before the walk",
+      ).toBe(configured);
+    });
+
     it("ADJACENCY: a SYMLINKED spelling of home is still recognised as home by the identity set", () => {
       const base = tmp15("p31-23-symlink-");
       const real = join(base, "real-home");
