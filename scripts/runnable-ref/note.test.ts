@@ -464,6 +464,26 @@ describe("argv", () => {
     );
   });
 
+  it("--by folds as the classifier folds, so no spelling of an adapter name steps around it (T-41-30)", () => {
+    const root = governed({ human_admission: "all" });
+    const spellings = [
+      "gru\u200Bgops-security-nfr",
+      "grugops\u200B-security-nfr",
+      "\uFF47rugops-security-nfr",
+      "grugops\uFF0Dsecurity-nfr",
+      "grug ops-security-nfr",
+    ];
+    expectNothingWritten(root, () => {
+      for (const by of spellings) {
+        expectCouldNotRun(note(root, ...head, ...finding(by, "human:eve")), "--by", "role file", ": security-nfr.");
+      }
+    });
+    expect(noteFiles(root, "t1"), "no spelling left a note").toEqual([]);
+
+    const id = notedId(note(root, ...head, ...OBSERVATION), "t1");
+    expect(fenceOf(root, "t1", id)).toContain("by: qe-e2e\n");
+  });
+
   it("--kind outside the six kinds, and a missing --kind, are exit 2", () => {
     const root = repo();
     const rest = ["--by", "qe-e2e", "--confidence", "high", "--body", "x"];
