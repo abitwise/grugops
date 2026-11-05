@@ -7983,7 +7983,9 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // takes its exact bytes too.
     // 19 -> 20 on 2026-11-04, plan 41-03 (RUN-05): the host queue tool `tools/grugops/claim.js` entered the derived
     // list; the plant takes its bytes too. Measured by this test's failing run (expected 20).
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(20);
+    // 20 -> 21 on 2026-11-05, plan 41-09 (RUN-05, D-35): the host note writer `tools/grugops/note.js` entered the derived
+    // list; the plant takes its bytes too. Measured by this test's failing run (expected 21).
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(21);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {

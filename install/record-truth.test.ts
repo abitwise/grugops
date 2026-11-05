@@ -368,8 +368,10 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * failing run (expected 49).
  * 49 -> 50 on 2026-11-04, plan 41-03 (RUN-05): `tools/grugops/claim.js` entered, because install materializes the host
  * queue tool (one more RUNNABLES row) and records it; measured by this test's failing run (expected 50).
+ * 50 -> 51 on 2026-11-05, plan 41-09 (RUN-05, D-35): `tools/grugops/note.js` entered, because install materializes the
+ * host note writer (one more RUNNABLES row) and records it; measured by this test's failing run (expected 51).
  */
-const REMOVABLE_COUNT = 50;
+const REMOVABLE_COUNT = 51;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a
