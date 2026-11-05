@@ -52,3 +52,11 @@
   status: open
   **What:** under `context.human_admission: gate`, a `finding` by `security-nfr` stamped `human:eve` is refused. It ends `noted`, exit 0, in three measured cases: an EIO at `projectRootFromWorkingDirectory:existsSync#0 via trustedRepoRoot#0`, an EIO at `directoryIdentity:statSync#0 via namedHomeDirectory#0`, and with no fault at all under `HOME=/nonexistent`, because `homeBoundary()` answers null, the walk does not run and the dial falls through to the kit's own base. `GRUGOPS_PROJECT_DIR` set to a directory with no config does the same. The note.ts header says no environment variable of this program skips admission.
   **Why deferred:** the ladder sits in `scripts/context-io.ts`, and plan 41-12 may not change that file or the generated region. It is the reason READ-1 cannot go green as written, so the decision is at the plan 41-12 checkpoint.
+  **Ruling (human, 2026-11-05, at the plan 41-12 checkpoint):** the 21 red READ-1 rows split in two, and Task 2 ran with the tracer still red.
+  **Group A, 9 rows, closed by proof:** a designed second source gives the answer. The no-widening rule was lifted for these rows only. They sit in `SECOND_SOURCE` in `scripts/runnable-ref/note-read-sites.test.ts`, and each row must equal an unfaulted run by a running assertion, in fixtures where a lost dial changes the outcome.
+  **Group B, 12 rows, assigned to a new gap plan that is not yet written:** that plan will make the ladder fail closed in `scripts/context-io.ts`. These rows stay red by name, with no skip, no `.fails`, no `.todo` and no exception entry:
+  - `directoryIdentity:statSync#0 via namedHomeDirectory#0`, `via homeBoundary#0`, `via homeBoundary#1`, `via homeBoundary#2`, `via isAboveHome#0`, `via isHomeItself#0`
+  - `projectRootFromWorkingDirectory:existsSync#0 via trustedRepoRoot#0`, `via governanceRootOf#0`
+  - `projectRootFromWorkingDirectory:existsSync#1 via trustedRepoRoot#0`, `via governanceRootOf#0`
+  - `hostDeliveredRoot:statSync#0`, `hostDeliveredRoot:existsSync#0`
+  **Still open:** CR-01, READ-1 and the fail-open are not closed. The fail-open was reproduced with no fault at all: under `HOME=/nonexistent`, a real `note.js` copy notes a `security-nfr` finding stamped `human:eve` that `human_admission: all` refuses.

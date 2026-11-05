@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 251
+open_count: 252
 waived_count: 28
 fixed_count: 47
-total_count: 326
-last_updated: 2026-11-05T03:30:24.589Z
+total_count: 327
+last_updated: 2026-11-05T12:56:13.903Z
 ---
 
 # Broken Windows Ledger
@@ -341,6 +341,7 @@ last_updated: 2026-11-05T03:30:24.589Z
 | 324 | 41 | unrun-verify | docs/audit/29-style-dispositions/41-06.md |  | Plan 41-06 human-check not run: five rows stay pending a named human read | open |  | 2026-11-05T03:30:24.420Z |  |
 | 325 | 41 | unrun-verify | docs/audit/41-residuals.md |  | Plan 41-06 human-check not run: R-41-01 awaits a human read | open |  | 2026-11-05T03:30:24.508Z |  |
 | 326 | 41 | deviation | agent-factory/roles/orchestrator.md |  | orchestrator.md ends at 6,176 B, not the planned 6,087 B, to keep the validator's protocol reference | open |  | 2026-11-05T03:30:24.589Z |  |
+| 327 | 41 | unmet-truth | scripts/context-io.ts |  | READ-1 Group B: 12 rows in scripts/runnable-ref/note-read-sites.test.ts end noted after a failed read, because the embedded root ladder takes the failed read as absence; assigned to a new gap plan, not yet written | open |  | 2026-11-05T12:56:13.903Z |  |
 
 ````json
 [
@@ -4403,6 +4404,19 @@ last_updated: 2026-11-05T03:30:24.589Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-11-05T03:30:24.589Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 327,
+    "kind": "unmet-truth",
+    "phase": "41",
+    "file": "scripts/context-io.ts",
+    "line": null,
+    "description": "READ-1 Group B: 12 rows in scripts/runnable-ref/note-read-sites.test.ts end noted after a failed read, because the embedded root ladder takes the failed read as absence; assigned to a new gap plan, not yet written",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-05T12:56:13.903Z",
     "resolved_at": null,
     "milestone": "v3.0"
   }
