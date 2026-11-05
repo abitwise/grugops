@@ -63,6 +63,30 @@ Run these in order, from the repository root. `<task>` is the subtask id.
 
 8. Verify each close when the agent returns (Orchestrator). Confirm `done/<task>.md` exists and the notes are published. A task still in `claimed/` follows `## Keep capacity full`.
 
+## Keep capacity full
+A refill runs on every agent return or completion notice and on every user turn. No timer and no polling drives it. The same text holds on every host: the rules turn on whether the `Agent` spawn tool exists, never on a host name.
+
+- Read `free`, then claim and dispatch up to that many subtasks per steps 3 and 4. End the turn only after that.
+- Take ready work by board priority. A started ticket outranks a new one, each pull passes the Definition of Ready, and ties keep board order.
+- Where the `Agent` tool does not exist, a refill means taking the next ready task.
+- With no ready work, claim nothing and end the turn.
+- Close a finished agent by never reusing it. New work always goes to a fresh spawn of the named adapter.
+- When an agent returned and its task is still in `claimed/`, leave the claim alone. Resume or re-spawn the same adapter to publish what is missing and run `done`. The slot stays busy until then.
+- A resume only finishes the agent's own unfinished task, and that task still counts as claimed. After a fresh session, prefer a re-spawn.
+- Where no sealed-note writer exists, `done` keeps refusing and the slot stays busy. Stop per `## Stop conditions` and name the unsealed notes.
+- Only the waiting ticket pauses. While one ticket waits on a human, keep refilling with other ready work. List the open human questions in the Next action line.
+
+## Session start
+Run the stale sweep only at session start, including the fresh-session fallback. No agent the Orchestrator spawned can still be running then.
+
+1. Read `now-running.md` and `memory-bank/plans/board.md`.
+2. Run `node tools/grugops/claim.js sweep`.
+3. Refill per `## Keep capacity full`.
+
+The sweep reclaims a claim whose `claim.md` `at` is older than `queue.stale_ttl_minutes`, and a tampered multi-`at` record. The subtask returns to `pending/` by atomic rename, and the claim directory is released. A claim whose subtask already sits in `done/` is released, not reclaimed. Wall-clock TTL only; no pid/host liveness. A fresh claim is left untouched.
+
+Inside a live session, report a long claim and leave it in place. Reclaiming it could hand a slow agent's task to a second agent. Two Orchestrator sessions on one repository can still sweep each other's long claims, an accepted residual.
+
 ## Stop conditions
 - The claim is lost (`claim` prints `lost <task>` and exits 1) → do not proceed on that task; move to the next pending task. Do not retry the same claim in a tight loop.
 - `claim` exits 2 (a missing subtask, a refused owner, a permission failure) → stop; a real error is never swallowed into a false "lost". Surface it.
