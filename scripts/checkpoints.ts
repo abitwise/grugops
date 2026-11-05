@@ -351,8 +351,15 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * printed 48 before this line moved. THE TAGGING LIST WAS RE-WALKED: the bullet hands the ticket to
  * the Designer, a role, not to a human, so it is UNTAGGED and neither the roster nor any site count
  * moves.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (41-14, 2026-11-05): 48 -> 49. Plan `41-14` gave
+ * `agent-factory/workflows/16-context-read-write.md` a stop for a governance root that could not be
+ * named. The derivation printed 49 before this line moved. THE TAGGING LIST WAS RE-WALKED: the program
+ * refuses that note at every value of every dial, so no human disposes the stop and no checkpoint
+ * value can lower it. A tag would say one could, so the bullet is UNTAGGED and neither the roster nor
+ * any site count moves.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 48;
+export const WORKFLOW_STOP_BULLET_COUNT = 49;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the
