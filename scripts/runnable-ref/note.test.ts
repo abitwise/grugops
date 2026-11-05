@@ -712,6 +712,108 @@ describe("the writer's refusals (WF16 step 4, D-28, D-35)", () => {
   });
 });
 
+describe("--supersedes never retires a verdict or a governed finding (CR-02)", () => {
+  /** A claim by a routine role with no stamp: the note the review retired a finding with. */
+  const RETIRING = ["--kind", "claim", "--by", "software-engineer", "--confidence", "low", "--body", "x"];
+
+  /** The `## Current state` section of the index of `folder`. A row names a note by its kind and author, not its id. */
+  function currentStateOf(root: string, folder: string): string {
+    const index = readFileSync(join(root, CONTEXT_REL, folder, "index.md"), "utf8");
+    const start = index.indexOf("## Current state");
+    expect(start, "the index has a current state section").toBeGreaterThan(-1);
+    const end = index.indexOf("\n## ", start);
+    return end === -1 ? index.slice(start) : index.slice(start, end);
+  }
+
+  /** The start of the index row of a `kind` note by `by`. */
+  const row = (kind: string, by: string): string => `| ${kind} | ${by} |`;
+
+  /**
+   * A sealed finding by `by` stamped `human:olger`, in a repository whose dial then reads `dial`.
+   *
+   * This file imports nothing from the authority, so the finding gets its seal from note.js. The writer takes it at
+   * `off`, and the dial moves afterwards. Only the dial differs from a finding a human disposed through the hook.
+   */
+  function disposedFinding(by: string, dial: string): { root: string; id: string } {
+    const root = governed({ human_admission: "off", audit_retention: "retained" });
+    const id = notedId(note(root, "add", "t1", ...finding(by, "human:olger")), "t1");
+    writeFileSync(join(root, CONFIG_REL), JSON.stringify({ context: { human_admission: dial, audit_retention: "retained" } }, null, 2));
+    return { root, id };
+  }
+
+  /** Runs `note.js add t1 ARGS`, and asserts the supersession refusal and an unchanged tree. */
+  function expectSupersessionRefused(root: string, ...args: string[]): void {
+    const before = treeDigest(root);
+    expectRefused(note(root, "add", "t1", ...args), "t1", "may be superseded only through");
+    expect(treeDigest(root), "nothing was written").toEqual(before);
+  }
+
+  /** The id of the one verdict `greenVerdict` staged under `folder`. */
+  function verdictId(root: string, folder: string): string {
+    const names = readdirSync(notesDir(root, folder));
+    expect(names).toHaveLength(1);
+    return (names[0] as string).replace(/\.md$/, "");
+  }
+
+  it("under human_admission: all, a claim that names a human-disposed security finding is refused and the finding stays", () => {
+    const { root, id } = disposedFinding("security-nfr", "all");
+    expectSupersessionRefused(root, ...RETIRING, "--supersedes", id);
+    expect(currentStateOf(root, "t1")).toContain(row("finding", "security-nfr"));
+  });
+
+  it("under human_admission: all, a self-stamped finding cannot retire a governed finding either", () => {
+    const { root, id } = disposedFinding("qe-e2e", "all");
+    expectSupersessionRefused(root, ...finding("qe-e2e", "human:eve"), "--supersedes", id);
+  });
+
+  it("under human_admission: high-severity, a security-nfr finding is refused and a qe-e2e finding folds out as today", () => {
+    const high = disposedFinding("security-nfr", "high-severity");
+    expectSupersessionRefused(high.root, ...RETIRING, "--supersedes", high.id);
+
+    const routine = disposedFinding("qe-e2e", "high-severity");
+    notedId(note(routine.root, "add", "t1", ...RETIRING, "--supersedes", routine.id), "t1");
+    expect(currentStateOf(routine.root, "t1")).not.toContain(row("finding", "qe-e2e"));
+  });
+
+  it("under human_admission: off, a security-nfr finding folds out as today", () => {
+    const { root, id } = disposedFinding("security-nfr", "off");
+    expect(currentStateOf(root, "t1")).toContain(row("finding", "security-nfr"));
+    notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", id), "t1");
+    expect(currentStateOf(root, "t1")).not.toContain(row("finding", "security-nfr"));
+  });
+
+  for (const dial of ["off", "all"]) {
+    it(`under human_admission: ${dial}, a green verdict is refused as a target, and a finding stamped with its run is still admitted`, () => {
+      const root = governed({ human_admission: dial });
+      greenVerdict(root, "t1", "run1");
+      expectSupersessionRefused(root, ...RETIRING, "--supersedes", verdictId(root, "t1"));
+      notedId(note(root, "add", "t1", ...finding("qe-e2e", "§14-gate#run1")), "t1");
+    });
+  }
+
+  it("--supersedes with an empty value is no target: it is noted and retires nothing", () => {
+    const { root } = disposedFinding("security-nfr", "all");
+    const noted = notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", ""), "t1");
+    expect(fenceOf(root, "t1", noted)).toContain("supersedes: \n");
+    expect(currentStateOf(root, "t1")).toContain(row("finding", "security-nfr"));
+  });
+
+  it("under human_admission: all, a claim that names an ordinary note still folds it out", () => {
+    const root = governed({ human_admission: "all" });
+    const first = notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    expect(currentStateOf(root, "t1")).toContain(row("observation", "qe-e2e"));
+    notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", first), "t1");
+    expect(currentStateOf(root, "t1")).not.toContain(row("observation", "qe-e2e"));
+  });
+
+  it("a target that names no note is noted and retires nothing (D-37, R-41-09)", () => {
+    const { root } = disposedFinding("security-nfr", "all");
+    const noted = notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", "nosuchid"), "t1");
+    expect(fenceOf(root, "t1", noted)).toContain("supersedes: nosuchid\n");
+    expect(currentStateOf(root, "t1")).toContain(row("finding", "security-nfr"));
+  });
+});
+
 describe("what the program prints", () => {
   /** Every C0 code point but the line feed, DEL and every C1 code point. */
   const CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/;
