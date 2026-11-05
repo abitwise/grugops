@@ -27,7 +27,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -328,6 +328,24 @@ describe("EXIT-1: claim.js, an unexpected throw past every inner catch is exit 2
     expect(r.stderr.includes(`${NOW_RUNNING_REL} was not rendered.`), r.stderr.trimEnd()).toBe(true);
     expect(r.stderr).not.toContain("The queue was not changed.");
     expect(lstatSync(join(root, QUEUE_CLAIMED_REL, "t1", "claim.md")).isFile(), "the claim the message names is on disk").toBe(true);
+  });
+
+  it("claim: an EIO at the claim record's write leaves no claim behind, so no slot is lost and a retry wins", () => {
+    const root = queueRepo();
+    const key = "takeClaim:writeFileSync#0";
+    const at = deriveFsCallSites(HOST.claim, "writeFileSync").filter((s) => s.key === key);
+    expect(at.map((s) => s.key), `PREMISE: exactly one derived write of claim.js is ${key}`).toEqual([key]);
+    const site = { url: scriptUrl(HOST.claim), line: (at[0] as { readonly line: number }).line };
+    const args = ["claim", "t1", "--by", "grugops-qe-e2e", "--root", root];
+    const r = runWith("claim", args, { kind: "fs", fn: "writeFileSync", site, code: "EIO" });
+    expect(r.fired, `PREMISE: the injected fault fired\n${r.stderr}`).toBeGreaterThan(0);
+    expect(r.status, r.stderr).toBe(2);
+    expect(r.stderr).toContain("no task moved.");
+    // The message is only true if the directory is gone: no sweep clears a claim with no record.
+    expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1")), "the refused claim left its directory").toBe(false);
+    expect(lstatSync(join(root, QUEUE_PENDING_REL, "t1.md")).isFile(), "the subtask stays in pending/").toBe(true);
+    const retry = runPlain("claim", ...args);
+    expect(retry.status, `the retry did not win the claim\n${retry.stdout}${retry.stderr}`).toBe(0);
   });
 
   it("done: an EIO at the render's rename says the task is done and the log was not rendered", () => {
