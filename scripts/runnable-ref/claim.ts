@@ -1066,6 +1066,9 @@ const USAGE =
 /** The config file under .grugops/. install/state-layout.ts has no constant for it, so it is typed here, once. */
 const CONFIG_NAME = "factory.config.json";
 
+/** The in-flight log this program renders. */
+const NOW_RUNNING_REL = `${QUEUE_REL}/now-running.md`;
+
 /** The largest queue record this program reads, in bytes: a reader ceiling, as a claim record is a few lines. */
 const RECORD_CEILING_BYTES = 1024 * 1024;
 
@@ -1157,6 +1160,17 @@ function ensureQueueDirs(): void {
   }
 }
 
+/**
+ * Renders the in-flight log after `change`, a queue change that stands whatever the render does. `queueChange` carries
+ * the change before the render starts, so a stop inside the render names the change and says the log is behind it. The
+ * empty string means nothing moved, so a stop has no change to name.
+ */
+function renderAfter(change: string): void {
+  queueChange = change === "" ? "" : `${change} ${NOW_RUNNING_REL} was not rendered.`;
+  renderNowRunning(queueRoot);
+  queueChange = change;
+}
+
 /** `claim`: the rules are all claimPending's; this maps its outcome to the contract. */
 function runClaim(task: string): void {
   const by = flags.get("--by");
@@ -1174,8 +1188,7 @@ function runClaim(task: string): void {
     process.exitCode = 1;
     return;
   }
-  queueChange = `${task} was claimed by ${by} and stays claimed.`;
-  renderNowRunning(queueRoot);
+  renderAfter(`${task} was claimed by ${by} and stays claimed.`);
   process.stdout.write(`claimed ${printable(task)} by ${printable(by)}\n`);
 }
 
@@ -1296,10 +1309,10 @@ function runDone(task: string): void {
   }
 
   ensureQueueDirs();
+  queueChange = `${task} may already have moved to done/; run done again to finish.`;
   const outcome = completeTask(queueRoot, task);
   if (outcome.kind === "refused") couldNotRun(`${outcome.reason}.`);
-  queueChange = `${task} moved to done/ and its claim was released.`;
-  renderNowRunning(queueRoot);
+  renderAfter(`${task} moved to done/ and its claim was released.`);
   process.stdout.write(`done ${printable(task)}\n`);
 }
 
@@ -1307,7 +1320,7 @@ function runDone(task: string): void {
 function runNowRunning(): void {
   ensureQueueDirs();
   renderNowRunning(queueRoot);
-  process.stdout.write(`rendered ${QUEUE_REL}/now-running.md\n`);
+  process.stdout.write(`rendered ${NOW_RUNNING_REL}\n`);
 }
 
 /**
@@ -1327,8 +1340,7 @@ function runSweep(): void {
     ...reclaimed.map((task) => `reclaimed ${task}`),
     ...released.map((task) => `released ${task} (already done)`),
   ];
-  queueChange = lines.length === 1 ? "" : `${lines.slice(1).join(", ")}, and that stands.`;
-  renderNowRunning(queueRoot);
+  renderAfter(lines.length === 1 ? "" : `${lines.slice(1).join(", ")}, and that stands.`);
   for (const note of config.notes) if (note.startsWith("queue.stale_ttl_minutes ")) lines.push(`(${note})`);
   process.stdout.write(lines.map((line) => `${printable(line)}\n`).join(""));
 }

@@ -979,6 +979,8 @@ const USAGE = "Usage: node claim.js claim <task> --by <adapter> [--level <level>
     "node claim.js sweep [--root <dir>] | node claim.js free [--root <dir>]";
 /** The config file under .grugops/. install/state-layout.ts has no constant for it, so it is typed here, once. */
 const CONFIG_NAME = "factory.config.json";
+/** The in-flight log this program renders. */
+const NOW_RUNNING_REL = `${QUEUE_REL}/now-running.md`;
 /** The largest queue record this program reads, in bytes: a reader ceiling, as a claim record is a few lines. */
 const RECORD_CEILING_BYTES = 1024 * 1024;
 /** How many unsealed notes a `not-done` line names before it says how many more there are. */
@@ -1071,6 +1073,16 @@ function ensureQueueDirs() {
             couldNotRun(`${rel} cannot be used: ${problem}.`);
     }
 }
+/**
+ * Renders the in-flight log after `change`, a queue change that stands whatever the render does. `queueChange` carries
+ * the change before the render starts, so a stop inside the render names the change and says the log is behind it. The
+ * empty string means nothing moved, so a stop has no change to name.
+ */
+function renderAfter(change) {
+    queueChange = change === "" ? "" : `${change} ${NOW_RUNNING_REL} was not rendered.`;
+    renderNowRunning(queueRoot);
+    queueChange = change;
+}
 /** `claim`: the rules are all claimPending's; this maps its outcome to the contract. */
 function runClaim(task) {
     const by = flags.get("--by");
@@ -1091,8 +1103,7 @@ function runClaim(task) {
         process.exitCode = 1;
         return;
     }
-    queueChange = `${task} was claimed by ${by} and stays claimed.`;
-    renderNowRunning(queueRoot);
+    renderAfter(`${task} was claimed by ${by} and stays claimed.`);
     process.stdout.write(`claimed ${printable(task)} by ${printable(by)}\n`);
 }
 /**
@@ -1214,18 +1225,18 @@ function runDone(task) {
         }
     }
     ensureQueueDirs();
+    queueChange = `${task} may already have moved to done/; run done again to finish.`;
     const outcome = completeTask(queueRoot, task);
     if (outcome.kind === "refused")
         couldNotRun(`${outcome.reason}.`);
-    queueChange = `${task} moved to done/ and its claim was released.`;
-    renderNowRunning(queueRoot);
+    renderAfter(`${task} moved to done/ and its claim was released.`);
     process.stdout.write(`done ${printable(task)}\n`);
 }
 /** `now-running`: render the in-flight log from claimed/. */
 function runNowRunning() {
     ensureQueueDirs();
     renderNowRunning(queueRoot);
-    process.stdout.write(`rendered ${QUEUE_REL}/now-running.md\n`);
+    process.stdout.write(`rendered ${NOW_RUNNING_REL}\n`);
 }
 /**
  * `sweep`: the rules are all sweepQueue's. The config is read first, so a config that cannot be read stops this command
@@ -1244,8 +1255,7 @@ function runSweep() {
         ...reclaimed.map((task) => `reclaimed ${task}`),
         ...released.map((task) => `released ${task} (already done)`),
     ];
-    queueChange = lines.length === 1 ? "" : `${lines.slice(1).join(", ")}, and that stands.`;
-    renderNowRunning(queueRoot);
+    renderAfter(lines.length === 1 ? "" : `${lines.slice(1).join(", ")}, and that stands.`);
     for (const note of config.notes)
         if (note.startsWith("queue.stale_ttl_minutes "))
             lines.push(`(${note})`);
