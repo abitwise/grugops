@@ -4151,6 +4151,9 @@ describe("30-11 RA2-1 — the admit verb does not take the governance root from 
       expect(r.status, `argv ${args.length} must not be accepted`).toBe(1);
       expect(r.msg).toContain("exactly 2 positional arguments");
       expect(r.msg).toContain("CLAUDE_PROJECT_DIR");
+      // A name with no configuration moves nothing (plan 41-13), and no line tells a caller to set one.
+      expect(r.msg).toContain("when that root carries a factory configuration");
+      expect(r.msg).not.toContain("to move it");
     }
   });
 
@@ -12089,6 +12092,29 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
       expect(tier.startsWith(`${String(i)}. `), `tier ${String(i)} does not name its index`).toBe(true);
       expect(tier.length, `tier ${String(i)} states nothing`).toBeGreaterThan(25);
     });
+  });
+
+  it("the published order says when the kit answers and what happens to a root with no configuration (plan 41-14)", () => {
+    expect(mod.TRUSTED_ROOT_TIERS[4]).toBe("4. The kit this module ships in, only after step 3 ran and found nothing.");
+    expect(mod.TRUSTED_ROOT_TIERS[3]).toContain(
+      "A root tier 0, 1 or 2 named yields to this tier when it carries no factory configuration and this tier finds a project's.",
+    );
+    expect(mod.TRUSTED_ROOT_TIERS[3]).toContain(
+      "When this tier cannot run, or any read of the order fails, no root is named and every consumer refuses.",
+    );
+  });
+
+  it("each residual that said tier 0 never reaches the walk states the condition plan 41-13 added", () => {
+    for (const id of ["R-31-19-02", "R-31-19-05", "R-31-19-06"]) {
+      const r = mod.TRUSTED_ROOT_RESIDUALS.find((x) => x.id === id);
+      for (const [field, text] of [
+        ["reason", r?.reason],
+        ["what_would_force_it_closed", r?.what_would_force_it_closed],
+      ] as const) {
+        expect(text, `${id} ${field} does not state the condition`).toContain("that carries a factory configuration");
+        expect(text, `${id} ${field} does not say what the other case does`).toContain("runs the walk");
+      }
+    }
   });
 
   it("the workflow's published resolution order equals TRUSTED_ROOT_TIERS in BOTH directions", () => {

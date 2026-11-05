@@ -254,6 +254,24 @@ describe("The kit text names the host note writer (plan 41-11; CR-01, RUN-02, RU
     );
   });
 
+  it("says in step 3 that a root with no configuration does not outrank, and that an unfinished order refuses (plan 41-14)", () => {
+    const bullet = findingBullet();
+    const order = [
+      "The last is the shared kit.",
+      "A root from the first two steps with no configuration does not outrank one that governs the working directory.",
+      "When the order cannot finish, it names no root and every note is refused.",
+    ];
+    for (const sentence of order) expect(bullet, sentence).toContain(sentence);
+    expect(bullet).toContain(order.join(" "));
+  });
+
+  it("states the limit of the writer beside the capability the agent controls (plan 41-14, R-31-15-03)", () => {
+    expect(findingBullet()).toContain(
+      "The accepted residual `R-31-15-01` records that capability. `tools/grugops/note.js` has the same limit: " +
+        "a process that names a root carrying its own configuration moves the dial (`R-31-15-03`).",
+    );
+  });
+
   it("says in step 5 that the writer makes the sealed note, and a hand-written one never counts", () => {
     expect(step(WF16, 5)).toContain("`tools/grugops/note.js` writes one, and a hand-written note never counts.");
   });
@@ -269,6 +287,64 @@ describe("The kit text names the host note writer (plan 41-11; CR-01, RUN-02, RU
   it("names the writer in step 4 of the role-switch protocol, in the same indent", () => {
     expect(ROLE_SWITCH).toContain(
       "   Write each note with `node tools/grugops/note.js add`, per step 3 of Workflow 16.\n",
+    );
+  });
+});
+
+describe("The kit text says what the governance-root order does (plan 41-14; RUN-02, RUN-05, T-41-62)", () => {
+  const ORDER = "The governance-root resolution order";
+
+  /** The bullet of `## Stop conditions` for a root that could not be named. */
+  const rootStop = (): string => {
+    const line = section(WF16, "Stop conditions")
+      .split("\n")
+      .find((l) => l.startsWith("- A refusal says the governance root could not be named"));
+    expect(line, "no stop for a root that could not be named").toBeDefined();
+    return line as string;
+  };
+
+  it("says tier 4 answers only after tier 3 ran and found nothing", () => {
+    expect(section(WF16, ORDER)).toContain(
+      "4. **Tier 4** — the shared kit this reader ships in, whose shipped dial is the lean default. " +
+        "It answers only after tier 3 ran and found nothing.\n",
+    );
+  });
+
+  it("states the two ladder rules after the tier list and before what tier 0 does not establish", () => {
+    const order = section(WF16, ORDER);
+    const named =
+      "**A named root with no configuration.** A root from tier 0, 1 or 2 that carries no factory configuration does " +
+      "not answer alone. Tier 3 then runs. A project configuration it finds answers instead. Otherwise the named root stands.";
+    const unfinished =
+      "**When the order cannot finish.** A failed read, an undeterminable home directory or an unreadable working " +
+      "directory stops the order. No root is named, and every admission is refused.";
+    expect(order).toContain(named);
+    expect(order).toContain(unfinished);
+    expect(order.indexOf("4. **Tier 4**")).toBeLessThan(order.indexOf(named));
+    expect(order.indexOf(named)).toBeLessThan(order.indexOf(unfinished));
+    expect(order.indexOf(unfinished)).toBeLessThan(order.indexOf("**What tier 0 does not establish.**"));
+  });
+
+  it("gives a role a written stop for a root that could not be named, after the hand-written path bullet", () => {
+    const stops = section(WF16, "Stop conditions").trimEnd().split("\n");
+    expect(rootStop()).toBe(
+      "- A refusal says the governance root could not be named → stop and surface it. Nothing about the note is wrong. " +
+        "A human repairs `HOME` or the working directory. Do not set a project-directory variable to pass the refusal.",
+    );
+    const handWritten = stops.findIndex((l) => l.startsWith("- The only way to record the result"));
+    expect(stops[handWritten + 1]).toBe(rootStop());
+  });
+
+  it("the stop names no variable a role could set, so it coaches no bypass", () => {
+    for (const name of ["CLAUDE_PROJECT_DIR", "GRUGOPS_PROJECT_DIR", "GRUGOPS_HOST_DELIVERED_ROOT", "export "]) {
+      expect(rootStop(), name).not.toContain(name);
+    }
+  });
+
+  it("says in step 6 of Workflow 17 that every note is refused, and points at the stop", () => {
+    expect(step(WF17, 6)).toContain(
+      "Anything the authority refuses is refused here, and nothing is written. " +
+        "When the governance root cannot be named, every note is refused. WF16 names the stop.",
     );
   });
 });
