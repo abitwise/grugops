@@ -58,6 +58,16 @@ created: "2026-11-04"
 | 41-06-T1 | 41-06 | 4 | RUN-04, RUN-06 | T-41-25 | pointer and limit; role under its ceiling | text | `npx vitest run scripts/flow-guidance-text.test.ts` | extend | ✅ green |
 | 41-06-T2 | 41-06 | 4 | RUN-04 | T-41-26 | README and registry agree | gate | `npm run check:claim-anchors` | yes | ✅ green |
 | 41-06-T3 | 41-06 | 4 | RUN-06 (Phase 41 D-31) | T-41-28 | senior prompt at every tier; junior stop stays | unit, text | `npx vitest run scripts/generate-role-adapters.test.ts scripts/adapter-byte-baseline.test.ts scripts/tier-kit-text.test.ts` | extend | ✅ green |
+| 41-13-T1 | 41-13 | 1 | RUN-02, RUN-05 | T-41-55 | an undeterminable home refuses the note on a lone host copy | integration | `npx vitest run scripts/runnable-ref/note-read-sites.test.ts -t "the dial holds with no fault"` | extend | ✅ green |
+| 41-13-T2 | 41-13 | 1 | RUN-02, RUN-05 | T-41-52 | every read of the root ladder reports its failure | fault injection | `npx vitest run scripts/runnable-ref/note-read-sites.test.ts` | extend | ✅ green |
+| 41-13-T3 | 41-13 | 1 | RUN-02, RUN-05 | T-41-55 | a named root with no configuration keeps the dial; every consumer fails closed | integration | `npx vitest run scripts/runnable-ref/note.test.ts scripts/compactor.test.ts` | extend | ✅ green |
+| 41-14-T1 | 41-14 | 2 | RUN-02, RUN-05 | T-41-30 | every spelling the classifier folds to an adapter name is refused | integration | `npx vitest run scripts/runnable-ref/note.test.ts` | extend | ✅ green |
+| 41-14-T2 | 41-14 | 2 | RUN-02, RUN-05 | — | the header and Workflows 16 and 17 say what the code does | text | `npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts` | extend | ✅ green |
+| 41-14-T3 | 41-14 | 2 | RUN-02, RUN-05 | — | the records say what closed and what stays open | gate | `npm run check:residual-citations && npm run check:audit-register` | yes | ✅ green |
+| 41-15-T2 | 41-15 | 3 | RUN-02, RUN-05 | T-41-64 | no unstamped note retires a green verdict or a gated finding | integration | `npx vitest run scripts/runnable-ref/note.test.ts scripts/compactor.test.ts` | extend | ✅ green |
+| 41-15-T3 | 41-15 | 3 | RUN-02, RUN-05 | T-41-65, T-41-67 | the census holds S10; both Workflow 18 routes work under the rule | integration | `npx vitest run scripts/context-io-writer-set.test.ts scripts/compactor.test.ts` | extend | ✅ green |
+| 41-16-T1 | 41-16 | 4 | RUN-02, RUN-05 | — | a role reads the rule the authority refuses by, and what it leaves open | text | `npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts` | extend | ✅ green |
+| 41-16-T2 | 41-16 | 4 | RUN-02, RUN-05 | T-41-66 | the records name the fix; the suite compares by name | gate | `npm run check:residual-citations && npm run check:audit-register && npm run freshness` | yes | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -77,6 +87,8 @@ created: "2026-11-04"
 |----------|-------------|------------|-------------------|
 | Frozen and safety disposition rows read | RUN-04, RUN-06 | The gate proves a row exists and cannot judge meaning | Read each `pending (named human)` row in `41-04.md` and `41-06.md` against its diff, then reply with a name |
 | R-41-01 accepted in its shipped form | RUN-05 | A human decision whose consequence should be seen in the text | Read R-41-01 in `docs/audit/41-residuals.md` |
+| R-41-09 read against D-37 | RUN-02, RUN-05 | No agent may accept a residual | Read R-41-09 in `docs/audit/41-residuals.md` against D-37 in `41-CONTEXT.md` |
+| The sentence directed at plan 41-16's Task 1 check | RUN-02, RUN-05 | Olger directed it; its row has not been read against the diff | Read the last row of `docs/audit/29-style-dispositions/41-16.md` against the Workflow 16 diff |
 | Live run on the other five hosts | RUN-04 | The CLIs are absent on this machine | Milestone UAT; `UNKNOWN - verify` until then (R-41-05) |
 
 ---
@@ -129,3 +141,12 @@ Measured at planning at HEAD 3fd34220, before any plan ran: 7 files, 21 failed, 
 | Gaps found | 0 |
 | Resolved | 0 |
 | Escalated | 0 |
+
+## Validation Audit 2026-11-06
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Rows added for plans 41-13 to 41-16 | 10 |
