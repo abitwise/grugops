@@ -3,7 +3,7 @@ phase: "41"
 slug: "orchestrator-flow-guidance"
 status: open
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 2
+threats_open: 3
 asvs_level: 1
 created: "2026-11-05"
 ---
@@ -61,7 +61,7 @@ created: "2026-11-05"
 | T-41-27 | Repudiation | a human acceptance written without the human | high | mitigate | Frozen and safety rows stay `pending (named human)`; a human-check collects the read | closed |
 | T-41-28 | Elevation of privilege | a junior-tier agent taking risk-tagged work once the adapter body names no tier | high | mitigate | The stop keys on the adapter name in `## Tech Lead plan`, which WF04 step 4 dispatches from; `## Levels` sends every host to that section before work starts, and a text pin fails a host-scoped read; `junior:` facts stay under check-role-rules | closed |
 | T-41-29 | Elevation of privilege | `note.js` reaching a route that trusts a stamp | high | mitigate | `runAdd` calls `appendNote` only; no privileged writer is declared in note.ts; note.test.ts holds the refusal under `high-severity` and `all`. A lost dial is T-41-55 | closed |
-| T-41-30 | Spoofing | `--by` carrying an adapter name past `isHighSeverityRole` | high | mitigate | `noteAuthor` refuses the literal prefix in any letter case, but folds with trim and lowercase only, while the classifier also applies NFKC and strips white space and zero-width characters. Five spellings that fold to `grugops-security-nfr` end `noted`, exit 0, under `human_admission: all` | open |
+| T-41-30 | Spoofing | `--by` carrying an adapter name past `isHighSeverityRole` | high | mitigate | Plan 41-14: `noteAuthor` and `isHighSeverityRole` ask `canonicalRoleName`, the one fold. 12 spellings end exit 2 with no note on a lone host copy; `note.test.ts` holds them | closed |
 | T-41-31 | Repudiation | a forged `human:NAME` on a routine finding, outside the hook | medium | accept | Recorded as R-41-06 and confirmed: a `tech-lead` finding stamped `human:eve` is noted at `all`. No accepted-risks entry; the named human's read is owed | open — below high threshold (non-blocking) |
 | T-41-32 | Tampering | a second seal authority drifting from `context-io.ts` | high | mitigate | `runnable-embeds-freshness` exits 0 on 6 targets; all five programs carry one stamp; note.test.ts proves on host copies that `done` accepts the seal | closed |
 | T-41-33 | Tampering | a link or traversal sending a note outside the store | high | mitigate | `assertSafeTask`, `refuseUnusableStore` and containment in `decideNoteDestination`; probes of bad folders, traversal `--by` values and links were all refused | closed |
@@ -83,10 +83,25 @@ created: "2026-11-05"
 | T-41-49 | Denial of service | a re-spawn doubling an agent that a second session is running | medium | accept | R-41-02 now names the re-spawn. The log links R-41-02 to T-41-24 only, and the named human's read is owed | open — below high threshold (non-blocking) |
 | T-41-50 | Repudiation | a sentence claiming the hook covers a role's note | medium | mitigate | Workflow 16 says `note.js` runs outside the hook, pinned in flow-guidance-text.test.ts; R-41-06 records it | closed |
 | T-41-51 | Elevation of privilege | the AUTO-06 rule admitting a hand-written second governance reader | high | mitigate | `withoutFreshRegion` strips only a fresh `EMBED_SPECS` region, with no exception list; its controls pass | closed |
-| T-41-52 | Repudiation | a failed read reporting a note that does not stand | medium | mitigate | `noteReadsBack` was added, but 12 READ-1 rows stay red by human ruling and their fix belongs outside note.ts. The rule was widened for 9 rows by the same ruling | open — below high threshold (non-blocking) |
+| T-41-52 | Repudiation | a failed read reporting a note that does not stand | medium | mitigate | Plan 41-13: all 74 READ-1 pairs pass with no skip. The 7 Group B rows pass by name and the 5 boolean rows are gone. The 9 `SECOND_SOURCE` rows stay judged by the human ruling, not by the rule | closed |
 | T-41-53 | Tampering | a pin moved to pass, hiding an unreviewed writer or reader | medium | mitigate | The moved pins each carry a written reason; the module recount and site-count cases pass | closed |
 | T-41-54 | Elevation of privilege | the verdict census missing a real second author of the machine stamp | high | mitigate | The predicate skips whole-line comments only; its controls pass | closed |
-| T-41-55 | Elevation of privilege | the `trustedRepoRoot` ladder embedded in `note.js` losing the `human_admission` dial | high | mitigate | Planned: the ladder fails closed in `scripts/context-io.ts`; the gap plan is not yet written. Absent at HEAD. Recorded as R-41-07, "Not accepted" | open |
+| T-41-55 | Elevation of privilege | the `trustedRepoRoot` ladder embedded in `note.js` losing the `human_admission` dial | high | mitigate | Plan 41-13 closed every case this file named. `HOME` at a real directory below the repository still loses the dial with no fault: see the audit of 2026-11-06 | open |
+| T-41-56 | Elevation of privilege | `trustedRepoRoot` losing the dial on a failed read or an undeterminable home | high | mitigate | Plan 41-13: `undeterminedRoot` and every read of the ladder report failure. Closed as scoped; its claim to close T-41-55 does not hold | closed |
+| T-41-57 | Elevation of privilege | a named root with no configuration outranking a governed working directory | high | mitigate | Plan 41-13; all three names reproduced. The configured-name limit is stated in Workflow 16, the `note.ts` header and R-41-07 | closed |
+| T-41-58 | Denial of service | a fail-closed read stranding the normal route | medium | mitigate | A lean repository ends `noted`; role-route, note and claim tests pass | closed |
+| T-41-59 | Tampering | a guard or pin moved to pass, hiding an unreviewed read | medium | mitigate | The map blocks hash the same at `0e780dfc` and HEAD; each moved pin has a written reason | closed |
+| T-41-60 | Spoofing | `--by` carrying an adapter name past `isHighSeverityRole` | high | mitigate | Same evidence as T-41-30. The hand-written part of `note.ts` decides nothing | closed |
+| T-41-61 | Elevation of privilege | a high-severity role renaming itself, such as `x-security-nfr` | high | transfer | R-41-08 records the route and reads Not accepted, but names no recipient and has no row in `.planning/WINDOWS.md` or the Manual-Only table. The route is live: `x-security-nfr`, `security-nfr-x` and `securitynfr` end `noted` under `all` | open |
+| T-41-62 | Repudiation | a sentence claiming more than the code holds | medium | mitigate | The header and Workflows 16 and 17 are rewritten. CHANGELOG.md line 138 says `can no longer supersede`, which the arrival route shows is too strong | open — below high threshold (non-blocking) |
+| T-41-63 | Repudiation | an agent accepting a residual or a row | high | mitigate | `41-14.md` has 17 of 17 rows pending; R-41-07 and R-41-08 read Not accepted | closed |
+| T-41-64 | Elevation of privilege | an unstamped note retiring a governed finding or a green verdict (CR-02) | high | mitigate | The rule is at `scripts/context-io.ts:4494-4512` and the CR-02 reproduction is refused. A target that cannot be read passes both arms: see the audit of 2026-11-06 | open |
+| T-41-65 | Tampering | a pin moved, or a READ-1 map edited, to pass | medium | mitigate | The refusal count moved from 9 to 10 with a written reason; sizes 9 and 17 hold | closed |
+| T-41-66 | Tampering | a target naming no note folding out a note that arrives later | medium | accept | D-37 records `narrow` and R-41-09 records the residual. There is no accepted-risks row, and the read of R-41-09 is owed | open — below high threshold (non-blocking) |
+| T-41-67 | Denial of service | the rule refusing a Workflow 18 promotion | medium | mitigate | Six `Workflow 18` cases in `scripts/compactor.test.ts` pass, including both promotion routes | closed |
+| T-41-68 | Repudiation | a decision recorded, or the `admit()` span changed, without the human | high | mitigate | D-37 at `01c27aa3` precedes the span change at `fe51aa46`; the span hash moved once, and the re-base cites D-37 | closed |
+| T-41-69 | Repudiation | a ledger row moved past its evidence, or an agent writing an acceptance | high | mitigate | Olger's reply precedes `3fee450b`, and `41-16.md` matches it: row 1 flagged, rows 2 and 3 accepted, row 4 pending | closed |
+| T-41-70 | Repudiation | a full-suite result read by count | medium | mitigate | The summary and `41-VALIDATION.md` agree on 21 of 21 names | closed |
 | T-41-SC | Tampering | npm/pip/cargo installs | low | accept | No package is installed by this plan | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -109,6 +124,21 @@ This audit covers T-41-29 to T-41-55 at `7d0bb17a` and replaces the earlier verd
 - **Not verified here.** The auditor did not inject the EIO faults; the split of 5 dial-losing rows comes from plan 41-12's measurement. It ran targeted test files only.
 
 ---
+
+## Gap-closure audit, 2026-11-06
+
+This audit covers T-41-30, T-41-52, T-41-55 and T-41-56 to T-41-70 at `f4bce501`. **Three threats at the block threshold are open, so phase advancement is blocked.** Each needs a named human's ruling: a fix or a recorded limit. The auditor marked all three as judgment calls: at grep depth each mitigation or document is present, and each stays open on a measured route around the threat as worded. The orchestrator reproduced the T-41-55 and T-41-64 routes and the live T-41-61 route on lone host copies.
+
+- **T-41-55, `HOME` below the repository.** Every case this file named now holds. With no fault and no named root, `HOME=<repo>/src`, `<repo>/.grugops` or `<repo>/.git` ends `noted`, exit 0, for a `security-nfr` finding stamped `human:eve` under `all`. With `HOME=<repo>/.grugops`, `retained` ends `noted` with no ledger line, and an unparseable config ends `noted`. `scripts/context-io.ts:5730` returns null at step 0 having inspected nothing, and `:6075` then answers the kit. This is not a regression: `note.js` at `0e780dfc` behaves the same. The fix is for the ladder not to answer the kit when the walk inspected nothing, or a named human records it as a limit. R-41-07 says the gap is closed and lists two limits; this is a third.
+- **T-41-64, an unreadable target.** With the target note at mode `000` as a non-root process, an unstamped claim under `all` ended `noted`, exit 0, and the finding had left `## Current state` once the mode was restored. The readable control was refused. `:4496` uses `readContext`, which drops the skipped list, so `prior` is undefined. D-37 admits a target that names no note in the store, and this note is in the store. A fix moves the `admit()` span, so it needs a ninth re-base on a named human's word, or a human rules it into R-41-09. The route needs a failed read of that one file, and an actor who can chmod can already hand-compute a seal (the T-41-18 condition).
+- **CR-02 through a lost dial.** Under the T-41-55 route, or a name carrying its own lean config (R-31-15-03, stated), the same claim retires the finding, because the dial reads lean.
+- **T-41-61, no recipient.** R-41-08 records the rename route, but it names no human and has no tracking row, so it documents an unowned gap rather than a transfer. A named human's read clears it.
+- **T-41-66, not yet accepted.** D-37 and R-41-09 record the decision, and there is no accepted-risks row. The arrival route was reproduced. The dial-raised-after-retirement case is a separate shape that no human has accepted.
+- **T-41-62, one sentence.** CHANGELOG.md line 138 is a public sentence at the strength Olger flagged in row 1 of `41-16.md`, with no qualifier. Workflow 18 line 74 is stale but fails safe, and `deferred-items.md` tracks it.
+- **Not verified here.** The auditor ran 18 test files, not the full suite, and did not re-seed the mutants. Windows stays `UNKNOWN - verify`, and no live host run was made.
+
+---
+
 
 ## Conditions on these closures
 
@@ -151,6 +181,7 @@ The phase decisions accepted these at planning. No named human has signed this l
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-05 | 29 | 29 | 0 | gsd-security-auditor at `72dfbdec`, with probes against a host copy of `claim.js` |
+| 2026-11-06 | 18 | 13 | 5 (3 blocking) | gsd-security-auditor at `f4bce501`, gap-closure scope, with probes against host copies of `note.js` |
 
 ---
 
@@ -158,10 +189,10 @@ The phase decisions accepted these at planning. No named human has signed this l
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed (2 open: T-41-30, T-41-55)
+- [ ] `threats_open: 0` confirmed (3 open: T-41-55, T-41-61, T-41-64)
 - [ ] `status: verified` set in frontmatter
 
-**Approval:** not verified. The gap-closure audit of 2026-11-05 left two blocking threats open. The T-41-27 ruling and the human reads above are still open.
+**Approval:** not verified. The gap-closure audit of 2026-11-06 left three blocking threats open, each awaiting a named human's ruling. The T-41-27 ruling and the human reads above are still open.
 
 ## Security Audit 2026-11-05
 
@@ -170,3 +201,11 @@ The phase decisions accepted these at planning. No named human has signed this l
 | Threats found | 27 |
 | Closed | 21 |
 | Open | 6 |
+
+## Security Audit 2026-11-06
+
+| Metric | Count |
+|---|---|
+| Threats found | 18 |
+| Closed | 13 |
+| Open | 5 |
