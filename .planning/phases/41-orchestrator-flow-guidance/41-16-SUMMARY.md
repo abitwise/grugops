@@ -177,9 +177,7 @@ Compared by name, added 0 and missing 0. The failed names are the 21 of 41-VALID
 | `scripts/uat-gate-exit-contract.test.ts` | the harness-false-result tally is ONE list with the numbering read off it > SEPARATOR SEAM (test AE, plan 33-18): scannedDocumentsWith(win32) publishes POSIX members, so the docs/audit/ filter and the split("/") key see ONE spelling on every host |
 | `scripts/uat-gate-exit-contract.test.ts` | the harness-false-result tally is ONE list with the numbering read off it > every ordinal-claiming sentence in the scanned set appears in the tracked list |
 | `scripts/uat-gate-exit-contract.test.ts` | the harness-false-result tally is ONE list with the numbering read off it > the round-5 collision is ANNOTATED in the list rather than repaired in either SUMMARY |
-| `scripts/uat-gate-exit-contract.test.ts` | the harness-false-result tally is ONE list with the numbering read off it > the scanned document set is DERIVED and its cardinality is asserted, so a short... |
-
-The last name is cut here where this file's copy was shortened. The comparison used the full name from § Known baseline reds and matched it exactly.
+| `scripts/uat-gate-exit-contract.test.ts` | the harness-false-result tally is ONE list with the numbering read off it > the scanned document set is DERIVED and its cardinality is asserted, so a short scan is red |
 
 ## Verification
 
