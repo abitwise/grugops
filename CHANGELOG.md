@@ -135,6 +135,8 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   dial. With `HOME` set to a path that does not exist, every note is refused until it is repaired.
 - `tools/grugops/note.js --by` refuses every spelling the severity check reads as an adapter name,
   such as one that carries a zero-width character or a full-width letter. Pass the role file's name.
+- A note can no longer supersede a green gate verdict or a finding the `human_admission` dial gates,
+  and only a named human's disposition retires one.
 
 ### Deprecated
 

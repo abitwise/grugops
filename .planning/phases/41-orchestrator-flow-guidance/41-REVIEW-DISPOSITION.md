@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: CR-02
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Any role can retire a human-disposed security finding with an unstamped note, under `human_admission: all`"
   - id: CR-03
     severity: critical
@@ -119,7 +119,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 23
+open: 22
 total: 29
 recorded: 2026-11-05T15:17:13.500Z
 ---
@@ -128,7 +128,7 @@ recorded: 2026-11-05T15:17:13.500Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-02 | critical | open | - |
+| CR-02 | critical | fixed | 41-15, 41-16 |
 | CR-03 | critical | open | - |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
