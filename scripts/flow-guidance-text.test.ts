@@ -764,7 +764,17 @@ describe("the kit says what a note cannot supersede (plan 41-16; CR-02, RUN-05, 
     expect(step(WF16, 3)).toContain(
       "`--verified-by`, `--supersedes`, `--sha`, `--gate-run` and `--content-hash` set those note fields. " +
         "A note cannot supersede a green gate verdict or a gated finding. " +
+        "Only a named human's disposition retires one.",
+    );
+  });
+
+  // The human flagged the first sentence at Task 1's check: under `narrow` a target that names no note
+  // is admitted, and that note can still retire a governed finding that arrives later (D-37, R-41-09).
+  it("says, straight after the rule, what a target that names no note leaves open", () => {
+    expect(step(WF16, 3)).toContain(
+      "A note cannot supersede a green gate verdict or a gated finding. " +
         "Only a named human's disposition retires one. " +
+        "A target that names no note is still admitted, and residual R-41-09 records what that leaves open. " +
         "The program stamps `at` itself.",
     );
   });
