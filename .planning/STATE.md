@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
-status: executing
-stopped_at: Completed 41-15-PLAN.md
-last_updated: "2026-11-05T21:05:40.654Z"
+status: verifying
+stopped_at: Completed 41-16-PLAN.md
+last_updated: "2026-11-06T21:24:40.702Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 41 execution started
-state_head: c0a14da8ff0f675a9d164f75f02c9af58399c7f7
+state_head: 63315cb3ef526acf7c942ee8a033aa37a9bc56da
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 129
-  completed_plans: 128
+  completed_plans: 129
   percent: 67
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
 Plan: 16 of 16
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-05 — Phase 41 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -846,6 +846,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P13 | 40 min | 3 tasks | 21 files |
 | Phase 41 P14 | 63 min | 3 tasks | 28 files |
 | Phase 41 P15 | 49 min | 3 tasks | 21 files |
+| Phase 41 P16 | 31min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -2349,6 +2350,8 @@ Recent decisions affecting current work:
 - [Phase 41]: Plan 41-14: the root-refusal stop in Workflow 16 carries no checkpoint tag, because the program refuses at every dial value and no checkpoint can lower it
 - [Phase 41]: Plan 41-14: equality of a role name has one definition, canonicalRoleName, which isHighSeverityRole and note.js --by both ask
 - [Phase 41]: D-37: option narrow, by Olger, on 2026-11-05: admit() refuses a green verdict or a gated finding as a supersedes target, and a target that names no note is admitted
+- [Phase 41]: 41-16: Olger's reply at the Task 1 check on 2026-11-06, verbatim: `flag 1: add the R-41-09 sentence; accept 2 3, Olger`. Row 1 of 41-16.md is recorded as flagged and not accepted, rows 2 and 3 as accepted, and the added sentence's row stays pending a read against the diff.
+- [Phase 41]: 41-16: R-41-09 says D-37 does not speak of a dial raised after a retirement, so no human has accepted that case, and a named human still owes the read of the entry.
 
 ### Pending Todos
 
@@ -2690,8 +2693,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-05T21:05:39.401Z
-Stopped at: Completed 41-15-PLAN.md
+Last session: 2026-11-06T21:24:39.708Z
+Stopped at: Completed 41-16-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

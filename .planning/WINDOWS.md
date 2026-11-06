@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 253
+open_count: 255
 waived_count: 28
 fixed_count: 49
-total_count: 330
-last_updated: 2026-11-05T18:57:28.889Z
+total_count: 332
+last_updated: 2026-11-06T21:23:16.074Z
 ---
 
 # Broken Windows Ledger
@@ -345,6 +345,8 @@ last_updated: 2026-11-05T18:57:28.889Z
 | 328 | 41 | unmet-truth | scripts/runnable-ref/note-read-sites.test.ts |  | 12 Group B READ-1 rows stay red by the human ruling of 2026-11-05; a new gap plan owns them, so the 41-11 full-suite truth is not met | fixed |  | 2026-11-05T14:50:25.305Z | 2026-11-05T18:57:28.889Z |
 | 329 | 41 | unrun-verify | .planning/phases/41-orchestrator-flow-guidance/41-11-PLAN.md |  | Live Claude Code run of spawn, publish and done, the evidence CR-01 requires, awaits a named human | open |  | 2026-11-05T14:50:25.416Z |  |
 | 330 | 41 | deviation | docs/audit/41-residuals.md |  | The plan's R-41-06 sentence on a refused high-severity finding was not written, because it is false under a lost dial; R-41-07 names the open dial loss, not accepted | open |  | 2026-11-05T14:50:25.486Z |  |
+| 331 | 41 | unrun-verify | docs/audit/41-residuals.md |  | Plan 41-16 Task 2 human check: a named human owes the read of R-41-09 against D-37 | open |  | 2026-11-06T21:23:15.985Z |  |
+| 332 | 41 | unrun-verify | docs/audit/29-style-dispositions/41-16.md |  | Plan 41-16 Task 1: the row for the sentence Olger directed stays pending a read against the diff | open |  | 2026-11-06T21:23:16.074Z |  |
 
 ````json
 [
@@ -4459,6 +4461,32 @@ last_updated: 2026-11-05T18:57:28.889Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-11-05T14:50:25.486Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 331,
+    "kind": "unrun-verify",
+    "phase": "41",
+    "file": "docs/audit/41-residuals.md",
+    "line": null,
+    "description": "Plan 41-16 Task 2 human check: a named human owes the read of R-41-09 against D-37",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-06T21:23:15.985Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 332,
+    "kind": "unrun-verify",
+    "phase": "41",
+    "file": "docs/audit/29-style-dispositions/41-16.md",
+    "line": null,
+    "description": "Plan 41-16 Task 1: the row for the sentence Olger directed stays pending a read against the diff",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-06T21:23:16.074Z",
     "resolved_at": null,
     "milestone": "v3.0"
   }

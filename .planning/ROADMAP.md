@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 15/16 plans executed (10 gap-closure plans, 41-07 to 41-16, planned)
+**Plans**: 16/16 plans executed (10 gap-closure plans, 41-07 to 41-16, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -637,7 +637,7 @@ Gap wave 3 *(blocked on gap wave 2; holds a blocking human decision)*
 - [x] 41-15-PLAN.md — a named human authorises the `admit()` unfreeze and decides what a target naming no note does, then `admit()` refuses a note that retires a green verdict or a governed finding (CR-02; RUN-02, RUN-05)
 
 Gap wave 4 *(blocked on gap wave 3)*
-- [ ] 41-16-PLAN.md — the supersession rule reaches the kit text, CR-02 is recorded as fixed, and the phase gate runs by name (CR-02; RUN-02, RUN-05)
+- [x] 41-16-PLAN.md — the supersession rule reaches the kit text, CR-02 is recorded as fixed, and the phase gate runs by name (CR-02; RUN-02, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
@@ -687,7 +687,7 @@ Gap wave 4 *(blocked on gap wave 3)*
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
-| 41. Orchestrator flow guidance | v3.0 | 15/16 | In Progress | - |
+| 41. Orchestrator flow guidance | v3.0 | 16/16 | In Progress | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
