@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Completed 41-16-PLAN.md
-last_updated: "2026-11-07T19:14:56.688Z"
-last_activity: 2026-11-05
+stopped_at: Completed 41-17-PLAN.md
+last_updated: "2026-11-07T21:45:56.751Z"
+last_activity: 2026-11-07
 last_activity_desc: Phase 41 execution started
-state_head: d926f3cd0af2f8f12c3f97edbd838612e15d4ec1
+state_head: 0364078f33ab2d0e1a570095f34450b44791ce93
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 131
-  completed_plans: 129
+  completed_plans: 130
   percent: 67
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 ## Current Position
 
-Phase: 41 (Orchestrator flow guidance) — READY TO EXECUTE
-Plan: 16 of 16
+Phase: 41 (Orchestrator flow guidance) — EXECUTING
+Plan: 18 of 18
 Status: Ready to execute
-Last activity: 2026-11-05 — Phase 41 execution started
+Last activity: 2026-11-07 — Phase 41 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -847,6 +847,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P14 | 63 min | 3 tasks | 28 files |
 | Phase 41 P15 | 49 min | 3 tasks | 21 files |
 | Phase 41 P16 | 31min | 2 tasks | 7 files |
+| Phase 41 P17 | 12 min | 3 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -2352,6 +2353,8 @@ Recent decisions affecting current work:
 - [Phase 41]: D-37: option narrow, by Olger, on 2026-11-05: admit() refuses a green verdict or a gated finding as a supersedes target, and a target that names no note is admitted
 - [Phase 41]: 41-16: Olger's reply at the Task 1 check on 2026-11-06, verbatim: `flag 1: add the R-41-09 sentence; accept 2 3, Olger`. Row 1 of 41-16.md is recorded as flagged and not accepted, rows 2 and 3 as accepted, and the added sentence's row stays pending a read against the diff.
 - [Phase 41]: 41-16: R-41-09 says D-37 does not speak of a dial raised after a retirement, so no human has accepted that case, and a named human still owes the read of the entry.
+- [Phase 41]: 41-17: the root ladder refuses a walk that inspected nothing (WALK_STARTED_ABOVE_HOME, thrown before the tail of trustedRepoRoot); admit() is byte-identical
+- [Phase 41]: 41-17: the walk is not widened past D-38; a walk that starts below the bound still reads the lean dial, recorded as R-41-07's fourth limit and T-41-74, which no human has accepted
 
 ### Pending Todos
 
@@ -2693,9 +2696,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-07
-Stopped at: Rulings D-38, D-39 and D-40 signed by Olger, next is /gsd-plan-phase 41 --gaps
-Resume file: .planning/phases/41-orchestrator-flow-guidance/.continue-here.md
+Last session: 2026-11-07T21:45:55.765Z
+Stopped at: Completed 41-17-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
