@@ -15,6 +15,8 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  appendFileSync,
+  chmodSync,
   copyFileSync,
   existsSync,
   lstatSync,
@@ -28,7 +30,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
+import { hostCapabilityOrSkip, skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import { treeDigest } from "../fault-inject.test-support.js";
 import { AGENT_ADAPTER_PREFIX } from "../kit-model.js";
 import { CONTEXT_REL, GRUGOPS_DIR_REL, QUEUE_CLAIMED_REL, QUEUE_DONE_REL, QUEUE_PENDING_REL } from "../../install/state-layout.js";
@@ -821,6 +823,57 @@ describe("--supersedes never retires a verdict or a governed finding (CR-02)", (
     const noted = notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", "nosuchid"), "t1");
     expect(fenceOf(root, "t1", noted)).toContain("supersedes: nosuchid\n");
     expect(currentStateOf(root, "t1")).toContain(row("finding", "security-nfr"));
+  });
+
+  // ── T-41-64, D-39: a target in the store that cannot be read ──────────────────────────────────────────────────────
+  // The walk skips a note file it cannot read, so a reader of the current state sees no target and nothing to judge.
+  // Such a file may be a green verdict or a gated finding, and a note naming it folds it out once the read recovers.
+
+  /** The note file of `id` under t1. */
+  const fileOf = (root: string, id: string): string => join(notesDir(root, "t1"), `${id}.md`);
+
+  /** Runs the `RETIRING` claim naming `id`, and asserts the unreadable-target refusal and an unchanged tree. */
+  function expectUnreadableRefused(root: string, id: string): void {
+    const before = treeDigest(root);
+    expectRefused(note(root, "add", "t1", ...RETIRING, "--supersedes", id), "t1", "is in the store and cannot be read");
+    expect(treeDigest(root), "nothing was written").toEqual(before);
+  }
+
+  // A `chmod 000` case passes on an account that can read the file only if it is never run there. So the account is
+  // probed once, the case is skipped by name where `chmod 000` is a no-op, and when it runs it asserts its premise.
+  const CHMOD_POSITION = "scripts/runnable-ref/note.test.ts: a supersedes target at mode 000 (T-41-64)";
+  const chmodSkip = hostCapabilityOrSkip("chmod 000 enforcement", CHMOD_POSITION);
+  if (chmodSkip !== null) {
+    console.log(
+      skipLine(chmodSkip, "the READ-1 supersede case in scripts/runnable-ref/note-read-sites.test.ts and the unreadable shapes in this describe"),
+    );
+  }
+
+  it.skipIf(chmodSkip !== null)(
+    "the audit's route: a target at mode 000 is refused, and the finding stays once the mode is restored (T-41-64, D-39)",
+    () => {
+      const { root, id } = disposedFinding("security-nfr", "all");
+      const file = fileOf(root, id);
+      // `treeDigest` reads every file and throws on this one, so the note list is compared while the mode is down.
+      const before = noteFiles(root, "t1");
+      chmodSync(file, 0o000);
+      try {
+        expect(() => readFileSync(file), "PREMISE: this account cannot read a file at mode 000").toThrow(/EACCES|EPERM/);
+        expectRefused(note(root, "add", "t1", ...RETIRING, "--supersedes", id), "t1", "is in the store and cannot be read");
+        expect(noteFiles(root, "t1"), "no note was written").toEqual(before);
+      } finally {
+        chmodSync(file, 0o644);
+      }
+      // A routine note re-renders the index, so the current state is read after the mode is restored.
+      notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+      expect(currentStateOf(root, "t1")).toContain(row("finding", "security-nfr"));
+    },
+  );
+
+  it("a target that is a broken seal is refused, because it is in the store and cannot be read (T-41-64, D-39)", () => {
+    const { root, id } = disposedFinding("security-nfr", "all");
+    appendFileSync(fileOf(root, id), "one more line\n");
+    expectUnreadableRefused(root, id);
   });
 });
 
