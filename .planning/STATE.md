@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
-status: executing
-stopped_at: Completed 41-17-PLAN.md
-last_updated: "2026-11-07T21:45:56.751Z"
+status: verifying
+stopped_at: Completed 41-18-PLAN.md
+last_updated: "2026-11-07T22:29:29.528Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 41 execution started
-state_head: 0364078f33ab2d0e1a570095f34450b44791ce93
+state_head: 95213d2d7bb360dd576e4b3c47e08f06459d8e77
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 131
-  completed_plans: 130
+  completed_plans: 131
   percent: 67
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
 Plan: 18 of 18
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-07 — Phase 41 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -848,6 +848,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P15 | 49 min | 3 tasks | 21 files |
 | Phase 41 P16 | 31min | 2 tasks | 7 files |
 | Phase 41 P17 | 12 min | 3 tasks | 21 files |
+| Phase 41 P18 | 41 min | 3 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -2355,6 +2356,8 @@ Recent decisions affecting current work:
 - [Phase 41]: 41-16: R-41-09 says D-37 does not speak of a dial raised after a retirement, so no human has accepted that case, and a named human still owes the read of the entry.
 - [Phase 41]: 41-17: the root ladder refuses a walk that inspected nothing (WALK_STARTED_ABOVE_HOME, thrown before the tail of trustedRepoRoot); admit() is byte-identical
 - [Phase 41]: 41-17: the walk is not widened past D-38; a walk that starts below the bound still reads the lean dial, recorded as R-41-07's fourth limit and T-41-74, which no human has accepted
+- [Phase 41]: 41-18: admit() refuses a supersedes target in the store that cannot be read, at every dial, through one walk; D-37 stands (D-39)
+- [Phase 41]: 41-18: ninth re-base of the admit() freeze on Olger's reply recorded as D-39; a renamed unreadable note file reads as no note, recorded in R-41-09 and T-41-81 as not accepted
 
 ### Pending Todos
 
@@ -2696,8 +2699,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-07T21:45:55.765Z
-Stopped at: Completed 41-17-PLAN.md
+Last session: 2026-11-07T22:29:28.550Z
+Stopped at: Completed 41-18-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
