@@ -29,10 +29,11 @@
 // flag of this program writes an unsealed note or skips admission, and every note asks the authority. An environment
 // variable can still move the dial: CLAUDE_PROJECT_DIR, GRUGOPS_PROJECT_DIR and GRUGOPS_HOST_DELIVERED_ROOT name the root
 // it is read from, and a process sets its own environment (R-31-15-03). A named root with no configuration does not
-// outrank a configuration that governs the working directory, and a root the ladder cannot name refuses every note. This
-// program adds no predicate over what a note may say: kind, stamp and field rules are the authority's, so a value that
-// reaches the writer is refused there, with exit 1. The one exception is `--by`, an argv shape check and no severity
-// rule: the high-severity classifier reads the role name, so an adapter name would step around it (T-41-30).
+// outrank a configuration that governs the working directory, and a root the ladder cannot name refuses every note.
+// That covers a working directory above the home directory, in a lean repository too (D-38). This program adds no
+// predicate over what a note may say: kind, stamp and field rules are the authority's, so a value that reaches the writer
+// is refused there, with exit 1. The one exception is `--by`, an argv shape check and no severity rule: the high-severity
+// classifier reads the role name, so an adapter name would step around it (T-41-30).
 //
 // THE TIME IS STAMPED HERE. There is no flag for `at`, so this route cannot forge the time `done` compares (T-41-36).
 //

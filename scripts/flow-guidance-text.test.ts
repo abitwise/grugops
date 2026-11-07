@@ -321,7 +321,8 @@ describe("The kit text says what the governance-root order does (plan 41-14; RUN
       "not answer alone. Tier 3 then runs. A project configuration it finds answers instead. Otherwise the named root stands.";
     const unfinished =
       "**When the order cannot finish.** A failed read, an undeterminable home directory or an unreadable working " +
-      "directory stops the order. No root is named, and every admission is refused.";
+      "directory stops the order. So does a working directory above the home directory, where tier 3 inspects " +
+      "nothing. No root is named, and every admission is refused. A lean repository is refused the same way.";
     expect(order).toContain(named);
     expect(order).toContain(unfinished);
     expect(order.indexOf("4. **Tier 4**")).toBeLessThan(order.indexOf(named));

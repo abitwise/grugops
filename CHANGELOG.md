@@ -133,6 +133,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   failed read or a home directory that cannot be determined refuses the note, and a project-directory
   variable at a directory with no configuration no longer drops the repository's `human_admission`
   dial. With `HOME` set to a path that does not exist, every note is refused until it is repaired.
+- A note run from a directory above `HOME` is now refused rather than run lean, in a lean repository
+  too. It used to read the shipped lean dial, so `HOME` at a directory below a repository dropped that
+  repository's `human_admission` dial.
 - `tools/grugops/note.js --by` refuses every spelling the severity check reads as an adapter name,
   such as one that carries a zero-width character or a full-width letter. Pass the role file's name.
 - A note can no longer supersede a green gate verdict or a finding the `human_admission` dial gates,
