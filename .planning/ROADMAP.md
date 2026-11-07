@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 16/16 plans executed (10 gap-closure plans, 41-07 to 41-16, planned)
+**Plans**: 16/18 plans executed (12 gap-closure plans, 41-07 to 41-18, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -638,6 +638,14 @@ Gap wave 3 *(blocked on gap wave 2; holds a blocking human decision)*
 
 Gap wave 4 *(blocked on gap wave 3)*
 - [x] 41-16-PLAN.md — the supersession rule reaches the kit text, CR-02 is recorded as fixed, and the phase gate runs by name (CR-02; RUN-02, RUN-05)
+
+**Gap closure, round 3** *(from the human rulings of 2026-11-07 on the audit of 2026-11-06: D-38 and D-39; D-40 takes no plan; sequential because each rebuilds the committed `.js` from `scripts/context-io.ts`)*
+
+Gap wave 1
+- [ ] 41-17-PLAN.md — the ladder refuses when the walk inspected nothing, so `HOME` at a real directory below the repository keeps the dial or fails closed, and the text states the rule, its cost and what stays open (T-41-55, D-38; RUN-02, RUN-05)
+
+Gap wave 2 *(blocked on gap wave 1)*
+- [ ] 41-18-PLAN.md — `admit()` refuses a `supersedes` target in the store that cannot be read, on the ninth re-base, and the phase gate runs by name (T-41-64, D-39; RUN-02, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
