@@ -4796,6 +4796,13 @@ function undeterminedRoot(reason) {
  */
 const WALK_DID_NOT_RUN = Symbol("the walk did not run");
 /**
+ * The walk's answer when its first directory is strictly above the home directory (plan 41-17, D-38). The bound stops
+ * the walk before it inspects anything, so it inspected nothing, and that is not `null`, which says the walk looked and
+ * found nothing. Only the second may end on the kit: the kit's lean dial is not the dial of a repository the walk never
+ * looked at. `trustedRepoRoot` refuses on this answer, and `governanceRootOf` keeps a store unowned on it with no edit.
+ */
+const WALK_STARTED_ABOVE_HOME = Symbol("the walk started above the home directory");
+/**
  * Answers a thrown read of the root ladder: a path that names nothing returns, and the caller takes the next rung. Any
  * other failure refuses, because a read that failed is not the absence of a file (plan 41-13, READ-1).
  */
@@ -4957,7 +4964,9 @@ function isHomeItself(dir, home) {
  * 1. THE BOUND BOUNDS ASCENT, NOT OBSERVATION (plan 31-23 / D-26, review finding CR-13; this
  *    AMENDS D-23's "never inspects it or anything above it" — the halt stays, the blanket
  *    non-inspection does not). A directory STRICTLY ABOVE the home directory is never inspected.
- *    The home directory ITSELF is inspected exactly once, and the walk ends there either way.
+ *    The home directory ITSELF is inspected exactly once, and the walk ends there either way. A walk
+ *    whose FIRST directory sits above the bound has inspected nothing, and it says so with
+ *    `WALK_STARTED_ABOVE_HOME` rather than a null (plan 41-17, D-38).
  * 1b. THE HOME DIRECTORY ANSWERS ONLY AS A REPOSITORY, ON THREE CONJUNCTS. It is adopted only when
  *    it carries a version-control MARKER, AND the candidate carrying its configuration is the
  *    `repository-state-plane` position rather than the `in-kit` one, AND that candidate is not a
@@ -5015,7 +5024,8 @@ function projectRootFromWorkingDirectory(startDir) {
         dir = resolve(startDir);
     }
     catch {
-        return null;
+        // A start that cannot be resolved inspected nothing either, so it says the walk did not run (plan 41-17).
+        return WALK_DID_NOT_RUN;
     }
     // A HOME DIRECTORY THAT CANNOT BE DETERMINED IS NOT A LICENCE TO WALK PAST IT. The search does
     // not run at all, and the walk says so rather than answering null, because a null ends on the kit
@@ -5027,9 +5037,10 @@ function projectRootFromWorkingDirectory(startDir) {
     let nearest = null;
     for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
         // RULE 1 — ASCENT IS BOUNDED. A STRICT ancestor of the home directory is refused outright,
-        // before any inspection. This half of the bound is unchanged by plan 31-23.
+        // before any inspection. This half of the bound is unchanged by plan 31-23. A FIRST step above the
+        // bound inspected nothing, and the walk says so, because a null would end on the kit (plan 41-17, D-38).
         if (isAboveHome(dir, home))
-            return nearest;
+            return step === 0 ? WALK_STARTED_ABOVE_HOME : nearest;
         // INSPECT FIRST, THEN DECIDE ABOUT CLIMBING. The question is whether an entry is at a position,
         // and `entryPresence` is the one owner of that answer. A position occupied by something that is
         // not a readable regular file still ANSWERS this search, and `readGovernanceConfig` then maps it
@@ -5271,9 +5282,10 @@ export const TRUSTED_ROOT_TIERS = Object.freeze([
  * WHAT A NAME NO LONGER DOES, AND WHERE THE LADDER STOPS (plan 41-13, T-41-55). A root named by tier 0, step 1 or step
  * 2 ends the search only when `namedRootAnswers` says so: it carries a configuration, or it is not a directory at all.
  * Otherwise the walk runs, and its answer outranks the name unless that answer is the kit's own root. A ladder that
- * could not finish, because a read failed, the home directory cannot be determined or the working directory cannot be
- * read, names no root: it throws `undeterminedRoot`, and every consumer holds that throw as a refusal. Step 4 is the
- * answer of a walk that ran and found nothing, never of one that did not run.
+ * could not finish, because a read failed, the home directory cannot be determined, the working directory cannot be
+ * read or the working directory is above the home directory (plan 41-17, D-38), names no root: it throws
+ * `undeterminedRoot`, and every consumer holds that throw as a refusal. Step 4 is the answer of a walk that ran and
+ * found nothing, never of one that did not run or one that inspected nothing.
  *
  * WHY STEPS 2 AND 3 EXIST (WR-15, reproduced by the round-3 verifier as spot-check row 6). Step 1's
  * variable is a CLAUDE CODE variable, and step 4 under the shipped two-root install is `~/.grugops`,
@@ -5369,6 +5381,12 @@ export function trustedRepoRoot() {
         throw undeterminedRoot("the working directory cannot be read, so the search cannot start");
     if (discovered === WALK_DID_NOT_RUN) {
         throw undeterminedRoot("the home directory cannot be determined, so the search has no bound and did not run");
+    }
+    // A WALK THAT INSPECTED NOTHING NAMES NO ROOT EITHER (plan 41-17, D-38, T-41-55). Its first directory is above the
+    // home directory, so the bound stopped it before it looked. This sits before the tail, so a name that carries no
+    // configuration cannot answer here; a name that carries one has already answered above, which keeps the dial.
+    if (discovered === WALK_STARTED_ABOVE_HOME) {
+        throw undeterminedRoot("the working directory is above the home directory, so the search inspected nothing");
     }
     // The walk's answer outranks a name that carries no configuration, because that answer carries one.
     // The kit's own root never does: it is not a governed project, so where nothing governs the working
@@ -5490,7 +5508,8 @@ export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
             "factory configuration, where tier 0 answers before the walk runs and `os.homedir()` is " +
             "therefore never consulted. A delivered root that carries none runs the walk (plan 41-13), so " +
             "this stop is real there too: a configured root the walk finds answers, the delivered root " +
-            "stands where it finds none, and an undeterminable home refuses. It is NOT closed on Codex, " +
+            "stands where it finds none, and an undeterminable home or a working directory above it " +
+            "refuses. It is NOT closed on Codex, " +
             "Antigravity CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and this stop is real.",
         what_would_force_it_closed: "The same thing that would close R-31-15-01 and R-31-15-03: a governance root resolved by the " +
             "host from outside the agent's process tree and delivered through a channel the agent cannot " +
@@ -5594,7 +5613,8 @@ export const TRUSTED_ROOT_RESIDUALS = Object.freeze([
             "carries a factory configuration — tier 0 answers before the walk, so no write under `$HOME` " +
             "can reach a decision the walk never makes. A delivered root that carries none runs the walk " +
             "(plan 41-13), so a write under `$HOME` can reach that walk: a configured root it finds " +
-            "answers, the delivered root stands where it finds none, and an undeterminable home refuses. " +
+            "answers, the delivered root stands where it finds none, and an undeterminable home or a working " +
+            "directory above it refuses. " +
             "It is NOT closed on Codex, Antigravity CLI, OpenCode, Copilot CLI or Pi, where the walk is the " +
             "answer and the prices stated above still stand exactly as written.",
         what_would_force_it_closed: "`R-31-15-01`'s own criterion and nothing narrower: a governance root the calling process " +

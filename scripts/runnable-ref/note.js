@@ -64,7 +64,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:51f7bdd7242411d45d300fa5c7f618c1c662503b53b7a249f80b462206f516b3";
+export const RUNNABLE_SET_STAMP = "sha256:aaa42e2f58a1cf18302d3df45e1c1269a8983a783038931e69be3fe31fdbc859";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -1998,6 +1998,7 @@ function undeterminedRoot(reason) {
         "default. Nothing about the note is wrong, so stop and surface this to a human.");
 }
 const WALK_DID_NOT_RUN = Symbol("the walk did not run");
+const WALK_STARTED_ABOVE_HOME = Symbol("the walk started above the home directory");
 function refuseUnlessAbsent(path, e) {
     const code = presenceCode(e);
     if (code === "ENOENT" || code === "ENOTDIR")
@@ -2122,7 +2123,8 @@ function projectRootFromWorkingDirectory(startDir) {
         dir = resolve(startDir);
     }
     catch {
-        return null;
+        // A start that cannot be resolved inspected nothing either, so it says the walk did not run (plan 41-17).
+        return WALK_DID_NOT_RUN;
     }
     // A HOME DIRECTORY THAT CANNOT BE DETERMINED IS NOT A LICENCE TO WALK PAST IT. The search does
     // not run at all, and the walk says so rather than answering null, because a null ends on the kit
@@ -2134,9 +2136,10 @@ function projectRootFromWorkingDirectory(startDir) {
     let nearest = null;
     for (let step = 0; step < TRUSTED_ROOT_SEARCH_MAX_ANCESTORS; step++) {
         // RULE 1 — ASCENT IS BOUNDED. A STRICT ancestor of the home directory is refused outright,
-        // before any inspection. This half of the bound is unchanged by plan 31-23.
+        // before any inspection. This half of the bound is unchanged by plan 31-23. A FIRST step above the
+        // bound inspected nothing, and the walk says so, because a null would end on the kit (plan 41-17, D-38).
         if (isAboveHome(dir, home))
-            return nearest;
+            return step === 0 ? WALK_STARTED_ABOVE_HOME : nearest;
         // INSPECT FIRST, THEN DECIDE ABOUT CLIMBING. The question is whether an entry is at a position,
         // and `entryPresence` is the one owner of that answer. A position occupied by something that is
         // not a readable regular file still ANSWERS this search, and `readGovernanceConfig` then maps it
@@ -2266,6 +2269,12 @@ export function trustedRepoRoot() {
         throw undeterminedRoot("the working directory cannot be read, so the search cannot start");
     if (discovered === WALK_DID_NOT_RUN) {
         throw undeterminedRoot("the home directory cannot be determined, so the search has no bound and did not run");
+    }
+    // A WALK THAT INSPECTED NOTHING NAMES NO ROOT EITHER (plan 41-17, D-38, T-41-55). Its first directory is above the
+    // home directory, so the bound stopped it before it looked. This sits before the tail, so a name that carries no
+    // configuration cannot answer here; a name that carries one has already answered above, which keeps the dial.
+    if (discovered === WALK_STARTED_ABOVE_HOME) {
+        throw undeterminedRoot("the working directory is above the home directory, so the search inspected nothing");
     }
     // The walk's answer outranks a name that carries no configuration, because that answer carries one.
     // The kit's own root never does: it is not a governed project, so where nothing governs the working

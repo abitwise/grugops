@@ -7163,7 +7163,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(r.root, "the home directory is a candidate the walk must never inspect").toBe(KIT);
     });
 
-    it("ABOVE: an ANCESTOR of the home directory is never inspected either", () => {
+    it("ABOVE: an ANCESTOR of the home directory is never inspected, and the search refuses", () => {
       const above = tmp15("p31-19-above-");
       const home = join(above, "home");
       mkdirSync(home, { recursive: true });
@@ -7174,8 +7174,13 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       );
       // The working directory IS the ancestor that carries the configuration, so nothing but the
       // stop can prevent the adoption.
-      const r = drive("trustedRepoRoot", { cwd: above, env: asHome(home) });
-      expect(r.root, "a directory ABOVE the home directory was adopted").toBe(KIT);
+      // TIGHTENED BY PLAN 41-17 (D-38). This case pinned the kit answer, and the kit answer is T-41-55:
+      // the walk inspected nothing, and the kit's lean dial answered for a directory it never looked at.
+      // The stop is the same stop; the ladder now refuses where it used to answer the kit.
+      expect(
+        () => drive("trustedRepoRoot", { cwd: above, env: asHome(home) }),
+        "a directory ABOVE the home directory was adopted",
+      ).toThrow(/refusing to name a governance root/);
     });
 
     it("THE REVIEW'S REQUESTED CASE: cwd below a planted ancestor config, no marker, answers the KIT", () => {
@@ -7280,7 +7285,15 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
      * stop" is therefore removing BOTH branches, and the mirror says so with two anchors whose
      * occurrence counts are each asserted exactly, as before.
      */
-    const HOME_STOP_ANCHOR = ["if (isAboveHome(dir, home))\n            return nearest;", "if (false)\n            return nearest;"] as const;
+    //
+    // MOVED WITH THE EXPRESSION IT MUTATES (plan 41-17, D-38). The home stop now returns
+    // `WALK_STARTED_ABOVE_HOME` on the walk's first step, so its compiled text changed. Removing the
+    // home stop now also removes that refusal, which is still exactly "the home stop removed", so the
+    // mutation's meaning is unchanged and its `to` stays.
+    const HOME_STOP_ANCHOR = [
+      "if (isAboveHome(dir, home))\n            return step === 0 ? WALK_STARTED_ABOVE_HOME : nearest;",
+      "if (false)\n            return nearest;",
+    ] as const;
     /** The second half of the same removal: the home directory treated as an ordinary ancestor. */
     const HOME_SELF_ANCHOR = ["if (isHomeItself(dir, home)) {", "if (false) {"] as const;
     /** The home directory made undeterminable, and nothing else. */
@@ -8398,7 +8411,9 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       writeConfig(above, [".grugops", "factory.config.json"], { human_admission: "all" });
       // Even carrying BOTH a marker and a state-plane configuration — the evidence that adopts HOME
       // — a strict ancestor is refused outright, because the bound on ASCENT is unchanged.
-      expect(drive("trustedRepoRoot", { cwd: above, env: asHome(home) }).root).toBe(KIT);
+      // TIGHTENED BY PLAN 41-17 (D-38): the kit answer this pinned is T-41-55, a walk that inspected
+      // nothing answered by the kit's lean dial. The stop is the same stop, and the ladder refuses there.
+      expect(() => drive("trustedRepoRoot", { cwd: above, env: asHome(home) })).toThrow(/refusing to name a governance root/);
       expect(drive("trustedRepoRoot", { cwd: home, env: asHome(home) }).root).toBe(KIT);
     });
 
