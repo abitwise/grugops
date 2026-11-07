@@ -687,6 +687,21 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
     expect(run.notes, run.all).toBe(1);
   }
 
+  /**
+   * The ladder refused because the working directory sits above the home directory (D-38). It names the reason,
+   * because `HOME` at a path that does not exist also refuses through `assertRootRefused`, so a case that forgot to
+   * stage its directory would otherwise pass for the wrong reason.
+   */
+  function assertRefusedAboveHome(run: NoFaultRun): void {
+    assertRootRefused(run);
+    expect(run.stdout, run.all).toContain("the working directory is above the home directory");
+  }
+
+  /** A real directory below the repository, for `HOME` to name. */
+  const belowRepository = (root: string): void => {
+    mkdirSync(join(root, "src"), { recursive: true });
+  };
+
   /** An empty directory, and one that holds only a version-control marker. */
   const emptyDir = (): string => mkTmp("grugops-note-read-empty-");
   function bareRepository(): string {
@@ -766,4 +781,13 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
   it("HOME as the empty string refuses the finding the dial refuses, and writes no note (edge RUN-02 empty)", () => {
     assertRootRefused(noFault("governed", DIAL_REFUSES, (env) => { env.HOME = ""; }));
   });
+
+  // D-38: with HOME at a real directory below the repository and the working directory at its root, the walk's first
+  // directory is above the bound, so it inspected nothing. The ladder refuses there rather than answering the kit.
+  for (const sub of ["src", GRUGOPS_DIR_REL, ".git"]) {
+    it(`HOME at ${sub} below the repository refuses the finding the dial refuses (D-38, T-41-55)`, () => {
+      const stage = sub === "src" ? belowRepository : undefined;
+      assertRefusedAboveHome(noFault("governed", DIAL_REFUSES, (env, root) => { env.HOME = join(root, sub); }, stage));
+    });
+  }
 });
