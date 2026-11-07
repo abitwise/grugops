@@ -163,13 +163,14 @@ This audit covers T-41-30, T-41-52, T-41-55 and T-41-56 to T-41-70 at `f4bce501`
 
 ## Accepted Risks Log
 
-The phase decisions accepted these at planning. No named human has signed this log; R-41-01 is the one residual `41-VALIDATION.md` lists for a human read.
+The phase decisions accepted these at planning, except R-41-08, which Olger accepted by name on 2026-11-07. No named human has signed the other rows; R-41-01 is the one residual `41-VALIDATION.md` lists for a human read.
 
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | R-41-03 | T-41-04 | The `--by` refusal catches a mistake, not a choice; an agent can edit files | Phase decision D-04 | 2026-11-05 |
 | R-41-04 | T-41-17 | `done` proves a note exists; Workflow 16 admission governs its content | Phase decision D-07 | 2026-11-05 |
 | R-41-02 | T-41-24 | The sweep reads no session liveness; the TTL still applies | Phase decision D-11 | 2026-11-05 |
+| R-41-08 | T-41-61 | No argv check can close the rename route, because the role comes from a flag the agent chooses | Olger (D-40) | 2026-11-07 |
 | — | T-41-SC | No package was added: `package.json` and the lockfile are unchanged since `6d05da1f` | Plan register | 2026-11-05 |
 
 *Accepted risks do not resurface in future audit runs.*

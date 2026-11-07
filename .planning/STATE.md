@@ -2693,9 +2693,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-06T21:24:39.708Z
-Stopped at: Completed 41-16-PLAN.md
-Resume file: None
+Last session: 2026-11-07
+Stopped at: Rulings D-38, D-39 and D-40 signed by Olger, next is /gsd-plan-phase 41 --gaps
+Resume file: .planning/phases/41-orchestrator-flow-guidance/.continue-here.md
 
 ## Operator Next Steps
 
