@@ -68,6 +68,12 @@ created: "2026-11-04"
 | 41-15-T3 | 41-15 | 3 | RUN-02, RUN-05 | T-41-65, T-41-67 | the census holds S10; both Workflow 18 routes work under the rule | integration | `npx vitest run scripts/context-io-writer-set.test.ts scripts/compactor.test.ts` | extend | ✅ green |
 | 41-16-T1 | 41-16 | 4 | RUN-02, RUN-05 | — | a role reads the rule the authority refuses by, and what it leaves open | text | `npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts` | extend | ✅ green |
 | 41-16-T2 | 41-16 | 4 | RUN-02, RUN-05 | T-41-66 | the records name the fix; the suite compares by name | gate | `npm run check:residual-citations && npm run check:audit-register && npm run freshness` | yes | ✅ green |
+| 41-17-T1 | 41-17 | 1 | RUN-02, RUN-05 | T-41-71 | `HOME` below the repository refuses the note, down to a lone host copy; `admit()` stays byte-frozen | integration | `npm run build && npm run typecheck && npx vitest run scripts/runnable-ref/note-read-sites.test.ts -t "the dial holds with no fault" && npx vitest run scripts/context-io.test.ts -t "WR-21\|CR-13\|byte-freeze"` | extend | ✅ green |
+| 41-17-T2 | 41-17 | 1 | RUN-02, RUN-05 | T-41-72, T-41-74, T-41-75 | every audit route, the name bypass, the cost and the limit are held with no fault | integration | `npx vitest run scripts/runnable-ref/note-read-sites.test.ts scripts/runnable-ref/note.test.ts scripts/runnable-ref/role-route.test.ts scripts/runnable-ref/claim.test.ts scripts/admission-server.test.ts hooks/admission-guard.test.ts scripts/context-io.test.ts scripts/context-io-writer-set.test.ts scripts/compactor.test.ts` | extend | ✅ green |
+| 41-17-T3 | 41-17 | 1 | RUN-02, RUN-05 | T-41-76 | the text names the refusal, its cost and the fourth limit of R-41-07 | text, gate | `npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts && npm run check:residual-citations && npm run check:audit-register && node scripts/check-diff-disposition.js` | extend | ✅ green |
+| 41-18-T1 | 41-18 | 2 | RUN-02, RUN-05 | T-41-77, T-41-79 | on D-39, a `supersedes` target in the store that cannot be read is refused; the ninth re-base holds | integration | `npm run build && npm run typecheck && npx vitest run scripts/runnable-ref/note.test.ts scripts/compactor.test.ts scripts/context-io-writer-set.test.ts && npx vitest run scripts/context-io.test.ts -t "byte-freeze"` | extend | ✅ green |
+| 41-18-T2 | 41-18 | 2 | RUN-02, RUN-05 | T-41-78, T-41-80, T-41-81, T-41-82 | every unreadable shape refuses; D-37's control and both Workflow 18 routes hold; the file-name limit is pinned | integration | `npx vitest run scripts/runnable-ref/note.test.ts scripts/runnable-ref/note-read-sites.test.ts scripts/compactor.test.ts hooks/admission-guard.test.ts scripts/admission-server.test.ts scripts/context-io.test.ts scripts/context-io-writer-set.test.ts` | extend | ✅ green |
+| 41-18-T3 | 41-18 | 2 | RUN-02, RUN-05 | T-41-83 | the records name the fix and R-41-09; the full suite is compared by name | text, gate | `npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts && npm run check:residual-citations && npm run check:audit-register && npm run freshness && npx vitest run --exclude '**/scripts/e2e/**'` | extend | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -87,8 +93,11 @@ created: "2026-11-04"
 |----------|-------------|------------|-------------------|
 | Frozen and safety disposition rows read | RUN-04, RUN-06 | The gate proves a row exists and cannot judge meaning | Read each `pending (named human)` row in `41-04.md` and `41-06.md` against its diff, then reply with a name |
 | R-41-01 accepted in its shipped form | RUN-05 | A human decision whose consequence should be seen in the text | Read R-41-01 in `docs/audit/41-residuals.md` |
-| R-41-09 read against D-37 | RUN-02, RUN-05 | No agent may accept a residual | Read R-41-09 in `docs/audit/41-residuals.md` against D-37 in `41-CONTEXT.md` |
+| R-41-09 read against D-37 and D-39 | RUN-02, RUN-05 | No agent may accept a residual; T-41-81 reads `pending (named human): accept` | Read R-41-09 in `docs/audit/41-residuals.md` against D-37 and D-39 in `41-CONTEXT.md`: a renamed note made unreadable still reads as naming no note |
 | The sentence directed at plan 41-16's Task 1 check | RUN-02, RUN-05 | Olger directed it; its row has not been read against the diff | Read the last row of `docs/audit/29-style-dispositions/41-16.md` against the Workflow 16 diff |
+| R-41-07's fourth limit read against D-38 | RUN-02, RUN-05 | No agent may accept a residual; T-41-74 reads `pending (named human): accept` | Read R-41-07 in `docs/audit/41-residuals.md` against D-38: with `HOME=<repo>/src` and a working directory `<repo>/docs` holding its own `.grugops`, a governed finding still ends `noted` |
+| T-41-73 logged as accepted | RUN-02, RUN-05 | D-38 accepts the cost by name, but the Accepted Risks Log in `41-SECURITY.md` has no row, so a re-audit reads it open | A named human confirms the row when `/gsd-secure-phase 41` runs |
+| The `pending (named human)` rows of plans 41-17 and 41-18 | RUN-02, RUN-05 | The gate proves a row exists and cannot judge meaning | Read each such row in `docs/audit/29-style-dispositions/41-17.md` and `41-18.md` against the Workflow 16 diff, then reply with a name |
 | Live run on the other five hosts | RUN-04 | The CLIs are absent on this machine | Milestone UAT; `UNKNOWN - verify` until then (R-41-05) |
 
 ---
@@ -132,7 +141,7 @@ Measured at planning at HEAD 3fd34220, before any plan ran: 7 files, 21 failed, 
 - [x] Feedback latency < 60s per task
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** automated audit passed at `d5ab6f80`. The Manual-Only rows above still wait on a named human.
+**Approval:** automated audit passed at `d5ab6f80`; rows for plans 41-17 and 41-18 added and their commands passed at `86947a1e` (full suite: 22 failed, all 21 baseline names plus the root-disk `TMPDIR` false failure in `scripts/capture-live.test.ts`, which passed 77 of 77 alone). The Manual-Only rows above still wait on a named human.
 
 ## Validation Audit 2026-11-05
 
@@ -150,3 +159,12 @@ Measured at planning at HEAD 3fd34220, before any plan ran: 7 files, 21 failed, 
 | Resolved | 0 |
 | Escalated | 0 |
 | Rows added for plans 41-13 to 41-16 | 10 |
+
+## Validation Audit 2026-11-07
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Rows added for plans 41-17 and 41-18 | 6 |
