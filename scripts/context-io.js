@@ -3943,11 +3943,31 @@ stored = false) {
     // the per-call hook has disposed those notes, so a named human's route stands.
     const supersededId = (scalars.supersedes ?? "").trim();
     if (supersededId !== "") {
-        const prior = readContext(task, contextRoot).find((n) => n.id === supersededId);
-        // A target that names no note reaches neither arm, and that is decided, not left open. It
+        const stored = readRawNotesWithSkips(task, contextRoot);
+        const prior = stored.notes
+            .map((raw) => recordFromParsed(raw.parsed, raw.id))
+            .find((n) => n.id === supersededId);
+        // A target that names no note reaches no arm, and that is decided, not left open. It
         // retires nothing while the id is absent, and Workflow 18 carries such targets: `promote` of a
         // successor whose target lived only in `threads/`, and `promoteAdmitted` into a store that does
         // not hold the target. D-37 and residual R-41-09 record the decision and what stays open.
+        //
+        // T-41-64 (D-39): a file the walk skipped under the target's name is not a target that names no
+        // note. It may be a green verdict or a gated finding, and a note that names it folds it out of
+        // the current state once the read recovers, so it is refused at every dial. The walk files a
+        // skip by its file name, which is the name asked here. No other skipped entry is asked, so a
+        // target that names no note stays admitted while some other note cannot be read (D-37).
+        const unreadable = prior !== undefined
+            ? undefined
+            : stored.skipped.find((entry) => entry.file === `${supersededId}.md`);
+        if (unreadable !== undefined) {
+            return [
+                `admission REFUSED: note "${supersededId}" under task "${task}" ` +
+                    `is in the store and cannot be read (${unreadable.arm}), so it may be a green gate ` +
+                    `verdict or a finding the human_admission dial gates. Nothing was written. Record the ` +
+                    `new result in a note that does not name it, and ask a named human to repair that note.`,
+            ];
+        }
         if (prior !== undefined &&
             (prior.by === GATE_IDENTITY || isGatedNote(prior.by, prior.kind, govResult))) {
             return [

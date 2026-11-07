@@ -65,7 +65,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:aaa42e2f58a1cf18302d3df45e1c1269a8983a783038931e69be3fe31fdbc859";
+export const RUNNABLE_SET_STAMP = "sha256:0e746209155f5aa9ffeee7af9c46274aa9a0bb5955726cc45d71c166d960c625";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -1582,11 +1582,31 @@ stored = false) {
     // the per-call hook has disposed those notes, so a named human's route stands.
     const supersededId = (scalars.supersedes ?? "").trim();
     if (supersededId !== "") {
-        const prior = readContext(task, contextRoot).find((n) => n.id === supersededId);
-        // A target that names no note reaches neither arm, and that is decided, not left open. It
+        const stored = readRawNotesWithSkips(task, contextRoot);
+        const prior = stored.notes
+            .map((raw) => recordFromParsed(raw.parsed, raw.id))
+            .find((n) => n.id === supersededId);
+        // A target that names no note reaches no arm, and that is decided, not left open. It
         // retires nothing while the id is absent, and Workflow 18 carries such targets: `promote` of a
         // successor whose target lived only in `threads/`, and `promoteAdmitted` into a store that does
         // not hold the target. D-37 and residual R-41-09 record the decision and what stays open.
+        //
+        // T-41-64 (D-39): a file the walk skipped under the target's name is not a target that names no
+        // note. It may be a green verdict or a gated finding, and a note that names it folds it out of
+        // the current state once the read recovers, so it is refused at every dial. The walk files a
+        // skip by its file name, which is the name asked here. No other skipped entry is asked, so a
+        // target that names no note stays admitted while some other note cannot be read (D-37).
+        const unreadable = prior !== undefined
+            ? undefined
+            : stored.skipped.find((entry) => entry.file === `${supersededId}.md`);
+        if (unreadable !== undefined) {
+            return [
+                `admission REFUSED: note "${supersededId}" under task "${task}" ` +
+                    `is in the store and cannot be read (${unreadable.arm}), so it may be a green gate ` +
+                    `verdict or a finding the human_admission dial gates. Nothing was written. Record the ` +
+                    `new result in a note that does not name it, and ask a named human to repair that note.`,
+            ];
+        }
         if (prior !== undefined &&
             (prior.by === GATE_IDENTITY || isGatedNote(prior.by, prior.kind, govResult))) {
             return [

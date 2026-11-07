@@ -2506,10 +2506,27 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
 // neither arm. Every other refusal family is untouched. The authorisation came from a named human
 // at plan 41-15's Task 1 checkpoint (D-37), not from a plan author. The freeze RE-LOCKS at the new
 // baseline.
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39, 33.1-12, 41-15)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 41-15 (CR-02) for
-  // the deliberate supersession unfreeze described above — the EIGHTH re-base. admit() must hash to
-  // this exactly; the prior baselines, newest first, were:
+//
+// PLAN 41-18 DELIBERATE UNFREEZE + RE-BASELINE (T-41-64) — the NINTH re-base. The audit measured a
+// `software-engineer` claim retiring a sealed `security-nfr` finding under `human_admission: all`
+// whose note file was at mode `000`: the claim ended `noted`, exit 0, and the finding had left
+// `## Current state` once the mode was restored. The supersession block read its target through
+// `readContext`, which drops the walk's skipped list, so an unreadable target read as no note and
+// neither arm saw it. The same held at `off`, and for a broken seal, text that is not a note, a
+// directory, a FIFO, a dangling link and a file above the note ceiling. The span change is ONE read
+// and ONE refusal. The read is one walk, `readRawNotesWithSkips`, so the note and the skipped entry
+// come from the same read. The refusal fires when no readable note carries the target's id and the
+// walk skipped a file of the target's name, at every dial, because such a file may be a green
+// verdict. It asks no other entry, so a target that names no note stays admitted (D-37). One comment
+// word moved (`reaches neither arm` became `reaches no arm`). Every other refusal family is
+// untouched. The authorisation came from a named human, Olger, on 2026-11-07, in the reply
+// `fix 55, ninth re-base for 64, accept R-41-08, Olger`, recorded as D-39 of phase 41, not from a
+// plan author. The freeze RE-LOCKS at the new baseline.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39, 33.1-12, 41-15, 41-18)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 41-18 (T-41-64) for
+  // the deliberate unreadable-target unfreeze described above — the NINTH re-base. admit() must hash
+  // to this exactly; the prior baselines, newest first, were:
+  //   4750c1aa…0e7b  (41-15, CR-02's supersession rule — the eighth re-base)
   //   1bc759a5…813f  (33.1-12, WR-01's ledger look — the seventh re-base)
   //   bb920698…81cd  (31-39, D-39's dial/record split — the sixth re-base)
   //   08df9e5c…09e9  (31-01, the red-team round-1 ambiguity arm)
@@ -2518,10 +2535,10 @@ describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-b
   //   ae159bb3…5551  (30-03, D-14's unreadable-config refusal)
   //   dbf66ac7…ebf7  (25-13)
   //   b7998cbd…be3d  (pre-25-13, the original pin)
-  // — the list above ending at 31-39 is the record 31-39 wrote; 33.1-12 and 41-15 each add their
-  // predecessor on top, and the value below is the eighth re-base.
+  // — the list above ending at 31-39 is the record 31-39 wrote; 33.1-12, 41-15 and 41-18 each add
+  // their predecessor on top, and the value below is the ninth re-base.
   const ADMIT_FROZEN_SHA256 =
-    "4750c1aa37910baf6b9c071da6b7c56315d6b93ff90aea897f4e9eb22ce30e7b";
+    "dfb5f2fb63c12a9aaef058a69c11e22b4b0f59fcbaf56fe05830e9a4420f09ac";
 
 
   // Extract the span `export function admit(` … matching `}` by brace-counting. HARDENED BY PLAN

@@ -630,6 +630,12 @@ const REFUSAL_SITE_SPECS: readonly RefusalSiteSpec[] = Object.freeze([
     signature:
       "admission REFUSED: note \"\" under task \"\" is a green gate verdict or a finding the human_admission dial gates, so it may be superseded only through a named human's disposition. Nothing was written. Record the new result in a note that does not name it, and ask a named human.",
   },
+  {
+    key: "S11",
+    family: "T-41-64 — a supersedes target is in the store and cannot be read",
+    signature:
+      "admission REFUSED: note \"\" under task \"\" is in the store and cannot be read (), so it may be a green gate verdict or a finding the human_admission dial gates. Nothing was written. Record the new result in a note that does not name it, and ask a named human to repair that note.",
+  },
 ]);
 
 /** The expected member set, sorted — the second axis, on the same footing as EXPECTED_NOTE_WRITERS. */
@@ -674,8 +680,18 @@ const REFUSAL_FAMILY_LABELS: Readonly<Record<string, string>> = Object.freeze(
  * measured cost of the same change is one re-worded site as well: S4's closing clause promised a
  * supersession no route offers once S10 lands, so its signature moved with it. The other eight
  * signatures are byte-identical across the change.
+ *
+ * MOVED 10 -> 11 ON 2026-11-07 BY PLAN 41-18 (T-41-64 / phase 41 D-39), WITH THE REASON WRITTEN HERE
+ * RATHER THAN THE CONSTANT BUMPED. The authority gained an ELEVENTH reason a note can be refused, and
+ * it records a decision a named human took: Olger ruled on 2026-11-07, in the reply
+ * `fix 55, ninth re-base for 64, accept R-41-08, Olger`, that a `supersedes` target in the store that
+ * cannot be read is refused. The new site is S11. Every writer in the matrix below owes it a row:
+ * `appendNote`, `admitAndAppend` and `promoteAdmitted`'s fall-through are driven by its probe, which
+ * needs no privilege and so trips the site on any account, and `emitVerdict` stays under
+ * `neverReachesAuthority`. Read off the parse after the fix. The other ten signatures are
+ * byte-identical across the change.
  */
-const EXPECTED_ADMIT_REFUSAL_SITE_COUNT = 10;
+const EXPECTED_ADMIT_REFUSAL_SITE_COUNT = 11;
 
 /**
  * THE DERIVATION'S BOUNDARY, WRITTEN DOWN RATHER THAN LEFT AS A SILENCE.
@@ -1121,6 +1137,24 @@ function supersededVerdictProbe(): RefusalProbe {
   };
 }
 
+/**
+ * The S11 probe: its seed writes text that is not a note at a fixed id's file, and its note names that id.
+ *
+ * The walk skips the file as `unparseable`, so no readable note carries the id and the file of its name is in the
+ * store. Staging it needs no privilege, so the probe trips the site on any account, root included.
+ */
+function unreadableTargetProbe(): RefusalProbe {
+  const targetId = "20261107T000000Z-security-nfr-finding-unread01";
+  return {
+    note: () => softNote({ supersedes: targetId }),
+    seed: (contextRoot, task) => {
+      const dir = join(contextRoot, task, "notes");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, `${targetId}.md`), "not a note\n");
+    },
+  };
+}
+
 /** A soft-kind note with no stamp — the shape that reaches the governance read without a stamp arm. */
 function softNote(over: Partial<Parameters<typeof mod.appendNote>[1]> = {}) {
   return {
@@ -1251,6 +1285,9 @@ const REFUSAL_PROBE_SPECS: Readonly<Record<string, RefusalProbe>> = Object.freez
   // no stamp arm can answer first. The verdict's id is minted at seed time, and every consumer stages
   // the probe before it asks for the note, so the note always names the verdict of its own world.
   S10: supersededVerdictProbe(),
+  // T-41-64 (phase 41 D-39): a soft note whose `supersedes` names a file in the store that is not a note. No readable
+  // note carries the id, so S10 cannot answer, and the walk's skip of that file name is the only thing left to decide it.
+  S11: unreadableTargetProbe(),
 });
 
 /** The site handle for a derived signature, or "" when the site has no spec row. */
