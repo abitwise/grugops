@@ -593,6 +593,18 @@ describe("READ-1 on note.js: the reads that have a named consequence (plan 41-12
     }
   });
 
+  it("a failed read of a supersedes target refuses the note on any account: exit 1, and no note is written (T-41-64, D-39)", () => {
+    // An EIO needs no privilege, so this holds where `chmod 000` is a no-op, root included. The walk files the target
+    // under its own name, so the supersession block meets a file in the store that it cannot read and refuses.
+    for (const pair of pairsOf("readRegularFileOrNull", "readRawNotesWithSkips")) {
+      const run = runPair(pair, "supersede");
+      expect(run.r.fired, `PREMISE: the fault fired: ${run.all}`).toBeGreaterThan(0);
+      expect(run.r.status, run.all).toBe(1);
+      expect(run.r.stdout, run.all).toContain("is in the store and cannot be read");
+      expect(noteKeys(run.after), run.all).toEqual(noteKeys(run.before));
+    }
+  });
+
   it("a failed read of the body file writes no note: exit 2", () => {
     for (const pair of pairsOf("readRegularFileOrNull", "bodyFromFile")) {
       const run = runPair(pair, "body-file");

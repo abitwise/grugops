@@ -25,7 +25,9 @@ import {
   readdirSync,
   readFileSync,
   readlinkSync,
+  renameSync,
   rmSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -870,10 +872,93 @@ describe("--supersedes never retires a verdict or a governed finding (CR-02)", (
     },
   );
 
-  it("a target that is a broken seal is refused, because it is in the store and cannot be read (T-41-64, D-39)", () => {
+  /** Each way a file in the store cannot be read that needs no privilege to stage, applied to the target's file. */
+  const UNREADABLE_SHAPES: readonly { readonly shape: string; readonly stage: (file: string) => void }[] = [
+    { shape: "a broken seal", stage: (file) => appendFileSync(file, "one more line\n") },
+    { shape: "text that is not a note", stage: (file) => writeFileSync(file, "not a note\n") },
+    {
+      shape: "a directory",
+      stage: (file) => {
+        rmSync(file);
+        mkdirSync(file);
+      },
+    },
+    {
+      shape: "a file above the note ceiling",
+      stage: (file) => {
+        truncateSync(file, CEILING_BYTES + 1);
+        expect(lstatSync(file).size, "PREMISE: the file is one byte over the note ceiling").toBe(CEILING_BYTES + 1);
+      },
+    },
+  ];
+
+  for (const { shape, stage } of UNREADABLE_SHAPES) {
+    it(`a target that is ${shape} is refused, because it is in the store and cannot be read (T-41-64, D-39)`, () => {
+      const { root, id } = disposedFinding("security-nfr", "all");
+      stage(fileOf(root, id));
+      expectUnreadableRefused(root, id);
+    });
+  }
+
+  const SHAPE_POSITION = "scripts/runnable-ref/note.test.ts: a supersedes target in the store that cannot be read (T-41-64)";
+  const SHAPES_PINNED_BY = "the shapes table in this describe and the READ-1 supersede case in scripts/runnable-ref/note-read-sites.test.ts";
+
+  it("a target that is a FIFO is refused, and never waited on (T-41-64, D-39)", () => {
     const { root, id } = disposedFinding("security-nfr", "all");
+    const file = fileOf(root, id);
+    rmSync(file);
+    const skipped = stageShapeOrSkip("FIFO", file, SHAPE_POSITION);
+    if (skipped !== null) {
+      console.log(skipLine(skipped, SHAPES_PINNED_BY));
+      return;
+    }
+    expectUnreadableRefused(root, id);
+  });
+
+  it("a target that is a dangling link is refused (T-41-64, D-39)", () => {
+    const { root, id } = disposedFinding("security-nfr", "all");
+    const file = fileOf(root, id);
+    rmSync(file);
+    const skipped = stageSymlinkOrSkip(join(notesDir(root, "t1"), "nowhere.md"), file, "dangling symlink", SHAPE_POSITION);
+    if (skipped !== null) {
+      console.log(skipLine(skipped, SHAPES_PINNED_BY));
+      return;
+    }
+    expectUnreadableRefused(root, id);
+  });
+
+  it("an unreadable target is refused at off too, because it may be a green verdict (D-39)", () => {
+    const { root, id } = disposedFinding("security-nfr", "off");
     appendFileSync(fileOf(root, id), "one more line\n");
     expectUnreadableRefused(root, id);
+  });
+
+  it("CONTROL: a target that names no note stays admitted while a different note cannot be read (D-37 stands)", () => {
+    const { root, id } = disposedFinding("security-nfr", "all");
+    appendFileSync(fileOf(root, id), "one more line\n");
+    const noted = notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", "nosuchid"), "t1");
+    expect(fenceOf(root, "t1", noted)).toContain("supersedes: nosuchid\n");
+  });
+
+  it("a readable note under the id outranks an unreadable file of that name, so the rule still judges it (edge RUN-02 adjacency)", () => {
+    const { root, id } = disposedFinding("security-nfr", "all");
+    renameSync(fileOf(root, id), join(notesDir(root, "t1"), "renamed.md"));
+    writeFileSync(fileOf(root, id), "not a note\n");
+    expectSupersessionRefused(root, ...RETIRING, "--supersedes", id);
+  });
+
+  it("LIMIT (R-41-09): a target is matched by its file name, so a renamed file that cannot be read reads as no note", () => {
+    // This pins what stays open; it does not close it. An unreadable file gives no frozen id, so the walk's skip under
+    // `renamed.md` matches no target, and the claim is admitted. The finding folds out once the file reads again.
+    const { root, id } = disposedFinding("security-nfr", "all");
+    const renamed = join(notesDir(root, "t1"), "renamed.md");
+    const sealed = readFileSync(fileOf(root, id));
+    renameSync(fileOf(root, id), renamed);
+    appendFileSync(renamed, "one more line\n");
+    notedId(note(root, "add", "t1", ...RETIRING, "--supersedes", id), "t1");
+    writeFileSync(renamed, sealed);
+    notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    expect(currentStateOf(root, "t1")).not.toContain(row("finding", "security-nfr"));
   });
 });
 

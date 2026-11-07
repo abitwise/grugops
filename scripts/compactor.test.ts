@@ -26,6 +26,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  appendFileSync,
   mkdtempSync,
   mkdirSync,
   writeFileSync,
@@ -3520,5 +3521,41 @@ describe("Workflow 18 — both promotion routes hold against the supersession ru
       /may be superseded only through/,
     );
     expect(liveIds(store)).toEqual([verdict]);
+  });
+
+  it("promote refuses a note whose target is in the destination and cannot be read (T-41-64, D-39)", () => {
+    const { root, store } = storeOf("wf18-unreadable-", { human_admission: "all" });
+    const disposed = ctxio.admitAndAppend(
+      TASK,
+      soft({ kind: "finding", by: "security-nfr", verified_by: "human:olger", confidence: "high", refs: ["REQ-SEC-01"] }),
+      "a disposed finding",
+      store,
+      root,
+    );
+    expect(disposed.findings).toEqual([]);
+    const finding = disposed.id as string;
+    const notes = join(store, TASK, "notes");
+    appendFileSync(join(notes, `${finding}.md`), "one more line\n");
+
+    expect(() => under(root, () => mod.promote(TASK, soft({ supersedes: finding }), "x", store))).toThrow(
+      /is in the store and cannot be read/,
+    );
+    expect(readdirSync(notes)).toEqual([`${finding}.md`]);
+  });
+
+  it("promoteAdmitted refuses on its fall-through when the destination holds the target and cannot read it (T-41-64, D-39)", () => {
+    const origin = storeOf("wf18-unreadable-origin-");
+    const dest = storeOf("wf18-unreadable-dest-");
+    const target = "20261107T000000Z-security-nfr-finding-unread01";
+    const destNotes = join(dest.store, TASK, "notes");
+    mkdirSync(destNotes, { recursive: true });
+    writeFileSync(join(destNotes, `${target}.md`), "not a note\n");
+    const successor = soft({ supersedes: target });
+    const sourceId = ctxio.appendNote(TASK, successor, "successor", origin.store, undefined, origin.root);
+
+    expect(() =>
+      under(dest.root, () => mod.promoteAdmitted(TASK, sourceId, successor, "successor", origin.store, dest.store)),
+    ).toThrow(/is in the store and cannot be read/);
+    expect(readdirSync(destNotes)).toEqual([`${target}.md`]);
   });
 });
