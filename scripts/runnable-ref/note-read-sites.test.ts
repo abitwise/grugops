@@ -790,4 +790,91 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
       assertRefusedAboveHome(noFault("governed", DIAL_REFUSES, (env, root) => { env.HOME = join(root, sub); }, stage));
     });
   }
+
+  it("under that HOME a retained repository never prints noted without its ledger line (D-38, GOV-02)", () => {
+    const run = noFault("retained", OBSERVATION, (env, root) => { env.HOME = join(root, GRUGOPS_DIR_REL); });
+    assertRefusedAboveHome(run);
+    expect(run.ledger, run.all).toEqual([]);
+  });
+
+  it("under that HOME an unparseable config still refuses the note (D-38, D-14)", () => {
+    const unparseable = (root: string): void => writeFileSync(join(root, GRUGOPS_DIR_REL, "factory.config.json"), "{ not json\n");
+    assertRefusedAboveHome(noFault("observation", OBSERVATION, (env, root) => { env.HOME = join(root, GRUGOPS_DIR_REL); }, unparseable));
+  });
+
+  for (const [name, value] of EMPTY_NAMES) {
+    it(`under that HOME, ${name} at a directory with no configuration does not step around the refusal (D-38)`, () => {
+      const change = (env: NodeJS.ProcessEnv, root: string): void => { env.HOME = join(root, "src"); env[name] = value(); };
+      assertRefusedAboveHome(noFault("governed", DIAL_REFUSES, change, belowRepository));
+    });
+  }
+
+  it("under that HOME a named root carrying the configuration keeps the dial (D-38)", () => {
+    const change = (env: NodeJS.ProcessEnv, root: string): void => { env.HOME = join(root, "src"); env.GRUGOPS_PROJECT_DIR = root; };
+    assertDialRefused(noFault("governed", DIAL_REFUSES, change, belowRepository));
+    assertNoted(noFault("governed", OBSERVATION, change, belowRepository));
+  });
+
+  it("THE STATED COST (D-38): a lean repository above HOME is refused rather than run lean", () => {
+    const belowHome = (env: NodeJS.ProcessEnv, root: string): void => { env.HOME = join(root, "src"); };
+    const noConfig = (root: string): void => {
+      belowRepository(root);
+      rmSync(join(root, GRUGOPS_DIR_REL, "factory.config.json"));
+    };
+    assertRefusedAboveHome(noFault("observation", OBSERVATION, belowHome, belowRepository));
+    assertRefusedAboveHome(noFault("observation", OBSERVATION, belowHome, noConfig));
+    const namedOwnRoot = (env: NodeJS.ProcessEnv, root: string): void => { belowHome(env, root); env.GRUGOPS_PROJECT_DIR = root; };
+    assertRefusedAboveHome(noFault("observation", OBSERVATION, namedOwnRoot, noConfig));
+  });
+
+  it("CONTROL: at the bound itself the walk runs, so HOME at the working directory keeps today's answers (edge RUN-02 boundary)", () => {
+    assertDialRefused(noFault("governed", DIAL_REFUSES, (env, root) => { env.HOME = root; }));
+    assertNoted(noFault("observation", OBSERVATION, (env, root) => { env.HOME = root; }));
+  });
+
+  it("CONTROL: a walk that ran and found nothing still ends lean, outside any repository (D-38 refuses only a walk that inspected nothing)", () => {
+    // BOTH the marker and the configuration go. With the marker alone, `LEAN`'s `{}` still sets `nearest`, and the
+    // case would pass even if every stop above HOME refused (mutant 3 of plan 41-17).
+    const outsideAnyRepository = (root: string): void => {
+      rmSync(join(root, ".git"), { recursive: true });
+      rmSync(join(root, GRUGOPS_DIR_REL, "factory.config.json"));
+    };
+    assertNoted(noFault("observation", OBSERVATION, () => undefined, outsideAnyRepository));
+  });
+
+  /**
+   * One run with the working directory at `<root>/docs`, which holds its own `.grugops` directory, on a fresh copy of
+   * the `governed` fixture. `noFault` runs at the fixture root, so this spawns the host copy itself.
+   */
+  function runInDocs(stage: (root: string, docs: string) => void, change: (env: NodeJS.ProcessEnv, root: string) => void) {
+    const root = freshRoot("governed");
+    const docs = join(root, "docs");
+    mkdirSync(join(docs, GRUGOPS_DIR_REL), { recursive: true });
+    stage(root, docs);
+    const env: NodeJS.ProcessEnv = { ...process.env, ...BLANK };
+    change(env, root);
+    const r = spawnSync(process.execPath, [HOST_JS, ...DIAL_REFUSES], { encoding: "utf8", cwd: docs, timeout: 30_000, env });
+    const inDocs = noteKeys(treeDigest(docs)).length;
+    const inRoot = noteKeys(treeDigest(root));
+    rmSync(root, { recursive: true, force: true });
+    const all = `docs, status ${r.status}, stdout ${JSON.stringify(r.stdout)}, stderr ${JSON.stringify(r.stderr)}`;
+    return { r, inDocs, inRoot, all };
+  }
+
+  it("LIMIT (R-41-07): a walk that starts below the bound stops there, and the repository's store gains nothing", () => {
+    // Not accepted by any human: D-38 refuses a walk that inspected nothing, and this walk inspected `docs`.
+    const run = runInDocs((root) => belowRepository(root), (env, root) => { env.HOME = join(root, "src"); });
+    expect(run.r.status, run.all).toBe(0);
+    expect(run.r.stdout, run.all).toMatch(SUCCESS_LINE);
+    expect(run.inDocs, run.all).toBe(1);
+    expect(run.inRoot, run.all).toEqual([]);
+  });
+
+  it("LIMIT (R-41-07): a subdirectory with its own marker reads a lean dial with no change to HOME", () => {
+    const run = runInDocs((_root, docs) => { mkdirSync(join(docs, ".git")); }, () => undefined);
+    expect(run.r.status, run.all).toBe(0);
+    expect(run.r.stdout, run.all).toMatch(SUCCESS_LINE);
+    expect(run.inDocs, run.all).toBe(1);
+    expect(run.inRoot, run.all).toEqual([]);
+  });
 });
