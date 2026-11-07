@@ -776,7 +776,17 @@ describe("the kit says what a note cannot supersede (plan 41-16; CR-02, RUN-05, 
       "A note cannot supersede a green gate verdict or a gated finding. " +
         "Only a named human's disposition retires one. " +
         "A target that names no note is still admitted, and residual R-41-09 records what that leaves open. " +
-        "The program stamps `at` itself.",
+        "A target in the store that cannot be read is refused.",
+    );
+  });
+
+  // D-39 (plan 41-18): a target the walk skipped is not a target that names no note, so the rule a role reads sits
+  // beside the one it qualifies.
+  it("says, straight after the target that names no note, that an unreadable target is refused (T-41-64, D-39)", () => {
+    expect(step(WF16, 3)).toContain(
+      "residual R-41-09 records what that leaves open. " +
+        "A target in the store that cannot be read is refused. " +
+        "The program stamps",
     );
   });
 

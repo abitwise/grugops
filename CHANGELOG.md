@@ -140,6 +140,7 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   such as one that carries a zero-width character or a full-width letter. Pass the role file's name.
 - A note can no longer supersede a green gate verdict or a finding the `human_admission` dial gates,
   and only a named human's disposition retires one.
+- A note whose `supersedes` target is in the store and cannot be read is refused at every dial.
 
 ### Deprecated
 
