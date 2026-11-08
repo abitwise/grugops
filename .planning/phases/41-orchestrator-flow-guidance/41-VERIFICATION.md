@@ -1,8 +1,8 @@
 ---
 phase: 41-orchestrator-flow-guidance
-verified: 2026-11-05T15:30:00Z
-status: gaps_found
-score: 5/7 must-haves verified
+verified: 2026-11-08T19:10:00Z
+status: human_needed
+score: 7/7 must-haves verified
 covered_files:
   - .planning/phases/41-orchestrator-flow-guidance/41-01-PLAN.md
   - .planning/phases/41-orchestrator-flow-guidance/41-01-SUMMARY.md
@@ -28,10 +28,19 @@ covered_files:
   - .planning/phases/41-orchestrator-flow-guidance/41-11-SUMMARY.md
   - .planning/phases/41-orchestrator-flow-guidance/41-12-PLAN.md
   - .planning/phases/41-orchestrator-flow-guidance/41-12-SUMMARY.md
-  - agent-factory/config/factory.config.md
-  - agent-factory/roles/_role-switch-protocol.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-13-PLAN.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-13-SUMMARY.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-14-PLAN.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-14-SUMMARY.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-15-PLAN.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-15-SUMMARY.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-16-PLAN.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-16-SUMMARY.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-17-PLAN.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-17-SUMMARY.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-18-PLAN.md
+  - .planning/phases/41-orchestrator-flow-guidance/41-18-SUMMARY.md
   - agent-factory/roles/orchestrator.md
-  - agent-factory/workflows/04-ticket-to-pr.md
   - agent-factory/workflows/16-context-read-write.md
   - agent-factory/workflows/17-task-claim.md
   - docs/audit/41-residuals.md
@@ -39,86 +48,63 @@ covered_files:
   - install/install.ts
   - install/uninstall.ts
   - scripts/claim.ts
-  - scripts/generate-runnable-embeds.ts
+  - scripts/context-io.ts
   - scripts/runnable-ref/claim.js
   - scripts/runnable-ref/claim.ts
-  - scripts/runnable-ref/note-read-sites.test.ts
   - scripts/runnable-ref/note.js
   - scripts/runnable-ref/note.ts
-  - scripts/runnable-ref/role-route.test.ts
-covered_digest: "v3:sha256:35b614fa31237faecf3cb099675d2cfb770028597af17d09716b007a2bad596b"
+covered_digest: "v3:sha256:42e0eac53a93abbd1c0f769d2475e64166a528b068c8197ba081d7d3c112a99a"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
-  previous_score: 5/6
+  previous_score: 5/7
   gaps_closed:
-    - "CR-01 (mechanism): a spawned role can write a sealed note by following the text, with note.js on a lone host copy"
-    - "WR-01: Workflow 17 stops on a missing claim.js or note.js; install/README.md sections 1 and 3 name both"
-    - "WR-02: Workflow 04 stop precedence lines 1 and 3 keep the three-hand-off limit"
-    - "WR-03: Session start re-spawns the adapter named in `by` for each claim the sweep leaves"
-    - "WR-04: every entry `free` counts has a row in now-running.md; the sweep reclaims a record-less directory by its modified time"
-  gaps_remaining:
-    - "READ-1 on note.js: a failed read can still print `noted` (12 rows red)"
+    - "READ-1 / T-41-55 (plan 41-12 truth): a failed read in note.js never prints `noted`; the 12 red rows are green (plans 41-13, 41-17)"
+    - "CR-02 / T-41-64 (plan 41-07 prohibition): a note can no longer retire a green gate verdict or a governed finding, including through a target that cannot be read (plans 41-15, 41-18)"
+    - "T-41-30 adapter-spelling fold (plan 41-14)"
+  gaps_remaining: []
   regressions: []
-gaps:
-  - truth: "READ-1, CR-01 (plan 41-12): a read that fails in note.js never prints `noted`; every derived pair ends non-zero or names the note that stands"
-    status: failed
-    reason: "Reproduced by running scripts/runnable-ref/note-read-sites.test.ts: 12 of the 64 derived (site, via) rows fail. Each ends `noted`, exit 0, after its read fails. The 9 other rows that also end `noted` were moved into a pinned second map by the human ruling of 2026-11-05. The ruling let plan 41-12 run; it does not make the truth hold. The plan's own success criterion, 'no failed read in the shipped program reports a note', is stated as NOT met in 41-12-SUMMARY.md. Five of the 12 rows lose the human_admission dial: under `human_admission: all`, a security-nfr finding stamped `human:eve` is refused by an unfaulted run and noted by the faulted one (41-SECURITY.md T-41-55, high, open, R-41-07 'Not accepted')."
-    artifacts:
-      - path: "scripts/runnable-ref/note.ts"
-        issue: "The trustedRepoRoot ladder embedded in the generated region fails open: statSync and existsSync failures at directoryIdentity, projectRootFromWorkingDirectory and hostDeliveredRoot lose the dial"
-      - path: "scripts/context-io.ts"
-        issue: "The authority the region is generated from. The fix is named for a gap plan that is not yet written; the plan prohibits editing the region from note.ts"
-    missing:
-      - "A gap plan that makes the ladder fail closed in scripts/context-io.ts, regenerates note.js, and turns the 12 rows green with no widening"
-      - "A named human decision on T-41-55 and T-41-30 (both open at the block threshold in 41-SECURITY.md, threats_open: 2), or the fix"
-  - truth: "Plan 41-07 and the phase 41 safety posture: note.js, which every spawned role now runs, can never relax what human_admission protects"
-    status: failed
-    reason: "CR-02 from 41-REVIEW.md, reproduced here on lone host copies. With a sealed security-nfr finding stamped `human:olger` and the config at `human_admission: all`, `note.js add t2 --kind claim --by software-engineer --confidence low --supersedes <finding id> --body ...` ended `noted`, exit 0, and the finding moved to `## Superseded (history)` in index.md. admit() never reads `supersedes`, so any role retires a human-disposed security finding with no stamp. It needs no hostile agent, because Workflow 18 names supersession as the honest update route. The finding is critical and `open` in 41-REVIEW-DISPOSITION.md, with no residual and no acceptance."
-    artifacts:
-      - path: "scripts/context-io.ts"
-        issue: "admit() ignores `supersedes`; currentState drops any note a later note names"
-      - path: "scripts/runnable-ref/note.ts"
-        issue: "Passes --supersedes through to the authority; hands the route to every role on every host"
-    missing:
-      - "Decide supersession in admit() in scripts/context-io.ts (refuse a target that names no note, a green gate verdict, or a governed finding), regenerate, and add the case to note.test.ts. Check Workflow 18's promotion routes first. Or a named human accepts a narrower rule and a residual records it"
+gaps: []
 deferred: []
+behavior_unverified_items: []
+coincidental_reliance_items: []
 human_verification:
-  - test: "One live Claude Code run on a plugin install and one on a standalone install: spawn a role, have it publish a note by the command in Workflow 16 step 3, have it run `claim.js done`"
+  - test: "One live Claude Code run on a plugin install and one on a standalone install: spawn a role, have it publish a note with the command in Workflow 16 step 3, have it run `claim.js done`"
     expected: "The role writes through tools/grugops/note.js, `done` exits 0, the row leaves now-running.md and `free` rises"
-    why_human: "role-route.test.ts reads the commands from the kit text and runs them on lone copies, and I ran the same sequence here. Neither shows what a host's permission model lets a spawned role run. R-41-01 and CR-01 stay open until a named human reads that run."
-  - test: "Read the `pending (named human)` rows: 68 across docs/audit/29-style-dispositions/41-*.md (counted by grep), including those in 41-04.md, 41-06.md, 41-08.md and 41-11.md, and WF04 line 48 against its diff"
+    why_human: "role-route.test.ts and my own scratch run execute the literal commands on lone copies. Neither shows what a host's permission model lets a spawned role run. R-41-01 stays open until a named human reads a live run."
+  - test: "Live run of the flow guidance on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi (RUN-04)"
+    expected: "The Orchestrator claims, refills and sweeps from Workflow 17 alone; a role writes and closes with note.js"
+    why_human: "These CLIs are absent here (R-41-05, `UNKNOWN - verify`). RUN-04's 'reads the same on all six hosts' is proven for the text only."
+  - test: "Windows run of note.js's trustedRepoRoot ladder"
+    expected: "Rung 1 and rung 2 spell a path the same way (for example RUNNER~1)"
+    why_human: "Windows is `UNKNOWN - verify`; Linux only was measured."
+  - test: "Read the `pending (named human)` rows in docs/audit/29-style-dispositions/41-*.md (93 lines match the phrase, counted by grep; includes 41-14, 41-17 and 41-18), the last row of 41-16.md, and the Manual-Only rows of 41-VALIDATION.md"
     expected: "A named human replies with a name, or rejects a row"
-    why_human: "The gate proves a row exists and cannot judge meaning. 41-SECURITY.md T-41-27 holds only while these rows stay pending. Not filled here."
-  - test: "Read residuals R-41-01 to R-41-07 in docs/audit/41-residuals.md"
-    expected: "A named human accepts each in a form that names its scope, or rejects it. R-41-07 (the dial loss) is marked 'Not accepted'"
-    why_human: "No agent may accept a residual. 41-SECURITY.md records that no human has signed the accepted-risks log."
-  - test: "Live run of the flow guidance on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi"
-    expected: "The Orchestrator claims, refills and sweeps from Workflow 17 alone, and a role writes and closes with note.js"
-    why_human: "These CLIs are absent here (R-41-05, `UNKNOWN - verify`)"
-  - test: "Windows run of note.js's trustedRepoRoot ladder (rung 1 against rung 2 can spell a path differently, for example RUNNER~1)"
-    expected: "The 9 Group A rows still equal an unfaulted run"
-    why_human: "41-12 proved equality on Linux only; Windows is `UNKNOWN - verify`"
+    why_human: "The gate proves a row exists and cannot judge meaning. 41-SECURITY.md T-41-27 holds only on the plan's own definition of a safety row, and the T-41-27 ruling is the human's."
+  - test: "Read residuals R-41-01 to R-41-09 in docs/audit/41-residuals.md, in particular R-41-07's fourth limit (T-41-74) and R-41-09 (T-41-81)"
+    expected: "A named human accepts each in a form that names its scope, or sends it back for closing"
+    why_human: "No agent may accept a residual. T-41-74 and T-41-81 read `pending (named human): accept`; T-41-73 needs its Accepted Risks Log row; T-41-66 has no log row. All five open threats are below the high threshold."
+  - test: "Decide CR-03: ship a verdict verb for hosts, or state that a scripted host has no gate stamp, and fix Workflow 16 line 41 ('the workhorse path') accordingly"
+    expected: "A recorded decision that either closes CR-03 or records a residual"
+    why_human: "The plain fix lets any agent mint a green verdict on a host (the human's call, per the review). It fails closed today, so no false finding enters the context."
+  - test: "Triage the 26 open rows of 41-REVIEW-DISPOSITION.md (CR-03, WR-09, WR-10, WR-12, WR-13, WR-14, WR-15 and the carried WR-05 to WR-08, WR-11)"
+    expected: "Each row fixed, accepted or sent to a later phase by a named human"
+    why_human: "Disposition is a human ruling. WR-12 (no host read verb) and WR-15 (changelog states the supersession rules without R-41-09's limits) bear most on a role's day-to-day route."
 ---
 
 # Phase 41: Orchestrator flow guidance Verification Report
 
 **Phase Goal:** The Orchestrator keeps parallel work moving: it reads what is running from disk, refills free capacity as each task finishes, knows when to start a fresh session, and the same guidance works on all six hosts
-**Verified:** 2026-11-05T15:30:00Z
-**Status:** gaps_found
-**Re-verification:** Yes, after gap-closure plans 41-07 to 41-12
+**Verified:** 2026-11-08T19:10:00Z
+**Status:** human_needed
+**Re-verification:** Yes, after gap-closure rounds 1 to 3 (plans 41-07 to 41-18). This report replaces the 2026-11-05 report, which predated plans 41-13 to 41-18.
 
 ## Verdict
 
-The five gaps of the first report are closed in the way they were stated, and I confirmed each against the code and by running the shipped programs. A spawned role now has a text-reachable route to the sealed note `done` needs. The two goals on the flow side, refill from disk and the fresh-session fallback, hold.
+The goal is achieved in the code. Both gaps the 2026-11-05 report held (READ-1 / T-41-55 and CR-02) are closed, each re-proved here by running the tests and the shipped programs, not by reading the summaries. No must-have is FAILED, so there is no BLOCKER.
 
-The phase is still `gaps_found`, for two reasons that sit in the new writer, `note.js`, which plans 41-07 to 41-12 added to close CR-01:
-
-1. **READ-1 is unmet.** 12 rows of `scripts/runnable-ref/note-read-sites.test.ts` fail on the committed tree, and each ends `noted`, exit 0, after a failed read. This is plan 41-12's central must-have. The human ruling of 2026-11-05 let the plan run and sent the 12 rows to a gap plan that is not written. It did not make the truth true. 41-SECURITY.md carries it as T-41-55 (high, open, unaccepted).
-2. **CR-02 is reproduced.** Any role can retire a human-disposed security finding with an unstamped `--supersedes` note under `human_admission: all`. Open and critical in the disposition ledger, with no residual.
-
-41-SECURITY.md also reports `threats_open: 2` (T-41-30 and T-41-55), so its own gate blocks advancement.
+The status is `human_needed`, not `passed`. Step 8 yields real human items, and none may be closed by an agent: the live runs on the five other hosts, the pending-named-human disposition and residual reads, and a decision on CR-03. I also kept the phase out of `gaps_found` on purpose, because none of the open review or security items falsifies a roadmap success criterion (reasoning in "Judgement on the open items").
 
 ## Goal Achievement
 
@@ -126,65 +112,64 @@ The phase is still `gaps_found`, for two reasons that sit in the new writer, `no
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | SC1, RUN-01: `now-running.md`, rendered from `claimed/`, is the only in-flight log, holds only running work and empties as tasks finish | VERIFIED | Scratch host with `claim.js` and `note.js` beside a `package.json` of `{"type":"module"}`: two claims rendered two rows. After `done t1` the t1 row was gone. WR-04 is fixed: a bare `claimed/ghost` directory rendered as a row with `since` `unknown`, and `free` counted it. A 3-hour-old `ghost` was reclaimed by `sweep` (`swept 1 / reclaimed ghost`). Warning WR-11 below: a stray file and a directory with an unsafe name get a row but are never reclaimed |
-| 2 | SC2, RUN-02 and RUN-05: on completion the Orchestrator refills `wip_limit` minus the `claimed/` count read from disk with no timers; agents claim and complete with the shipped `claim.js` | VERIFIED (mechanism); live host run owed | `free 2`, then `free 0` after two claims. `done t1` first printed `not-done t1: no sealed note ...`, exit 1. Then `node tools/grugops/note.js add t1 --kind observation --by software-engineer --confidence medium --body ...` printed `noted t1 <id>`, and `done t1` exited 0, the row left and `done/t1.md` existed. That is the first report's CR-01 route, now present. `role-route.test.ts` runs the literal commands read from Workflow 16 and 17. It passed in my run (3 files, 199 of 199) and `note.test.ts` and `claim.test.ts` passed. Whether a host permits a spawned role to run it is a human item. The finding that can be written here is limited by CR-02, CR-03 and READ-1 below |
-| 3 | SC3, RUN-03 and RUN-04: Workflow 17 holds `## Session compaction` named apart from WF18, with observable triggers and a fresh-session fallback that re-reads the in-flight log; `orchestrator.md` carries a one-line pointer and stays under its ceiling | VERIFIED | WR-03 is fixed: `## Session start` step 3 re-spawns the adapter named in `by` for each claim the sweep leaves, fills the slot the claim holds, and leaves an empty-`by` row. Step 3 sits after the sweep and before the refill. `orchestrator.md` is 6,192 B against the 6,195 B WARN; `node scripts/check-foundation-guards.js` passed |
-| 4 | SC4, RUN-04: the flow guidance reads the same on all six hosts, with only optional operator tips per host | VERIFIED (text only) | The new steps key on whether the `Agent` tool exists and name no host. Host names sit in `## Platform depth and width` and `### Operator tips (optional)`. `flow-guidance-text.test.ts` passed. Live behavior on five hosts is not run (R-41-05) |
-| 5 | SC5, RUN-06: the Orchestrator starts tiered engineers by adapter name, never forks, never overrides the model, never claims a ticket itself | VERIFIED | Workflow 17 step 4 says non-fork and passes no `model` or `effort`. WR-02 is fixed: Workflow 04 step 15 lines 1 and 3 each end `The three-hand-off limit and the stop before a fourth hand-off still apply.` `claim --by` refuses an Orchestrator owner (checked in the first report, `claim.test.ts` still passes) |
-| 6 | Plan 41-12, READ-1 (CR-01, RUN-02, RUN-05): a read that fails in `note.js` never prints `noted`; no failed read ends exit 0 | FAILED | `npx vitest run scripts/runnable-ref/note-read-sites.test.ts`: 12 failed, 228 passed across the three files I ran. Failing rows: `directoryIdentity:statSync#0` via `namedHomeDirectory#0`, `homeBoundary#0..2`, `isAboveHome#0`, `isHomeItself#0`; `projectRootFromWorkingDirectory:existsSync#0` and `#1` via `trustedRepoRoot#0` and `governanceRootOf#0`; `hostDeliveredRoot:statSync#0` and `existsSync#0`. These match the 12 names in 41-12-SUMMARY.md and the 12 extra failures in the orchestrator's full run. No skip, `.fails` or `.todo` hides them. See Gaps |
-| 7 | Plan 41-07 prohibition and phase safety: `note.js` can never grant or relax a high-severity admission | FAILED | CR-02 reproduced (see Verdict and Gaps). The write of a finding is guarded by the dial; the removal of one from the current state is not |
+| 1 | SC1, RUN-01: `now-running.md`, rendered from `claimed/`, is the only in-flight log, holds only running work and empties as tasks finish | VERIFIED | Scratch host with the committed `claim.js` and `note.js` beside `{"type":"module"}`: two claims rendered two rows (`t1` by `grugops-software-engineer-mid`, level `mid`; `t2` by `grugops-qe`). After `done t1` the t1 row was gone and the t2 row stayed. |
+| 2 | SC2, RUN-02 and RUN-05: on completion the Orchestrator refills `wip_limit` minus the `claimed/` count read from disk, with no timers or polling; agents claim and complete with the shipped `claim.js` | VERIFIED (mechanism); live host run owed | `free 2`, then `free 0` after two claims, then `free 1` after `done t1`. `claim t1` a second time printed `lost t1`, exit 1 (a lost claim, not an error). `done t1` before any note: `not-done t1: no sealed note ...`, exit 1. After `note.js add t1 --kind observation ...` printed `noted t1 <id>`, `done t1` exited 0. WF17 "Keep capacity full" says a refill runs on every return and user turn, with no timer and no polling. `install.js --codex --target <scratch>` laid down `tools/grugops/claim.js` and `note.js`, and `claim.js free` ran there (`free 3`). `RUNNABLES` has no host condition, so the program reaches every host the installer serves. |
+| 3 | SC3, RUN-03 and RUN-04: Workflow 17 holds `## Session compaction` named apart from WF18 note compaction, with observable triggers and a fresh-session fallback that re-reads the in-flight log; `orchestrator.md` has a one-line pointer and stays under its ceiling | VERIFIED | `## Session compaction` is in WF17: three triggers (ticket boundary, about 10 closed agents, host signal), a pause / confirm / compact-or-checkpoint sequence, "The first act after any compaction is to re-read `now-running.md` and the board", and "A fresh session is the fallback on every host" that follows `## Session start` (read in-flight log, sweep, re-spawn the adapter in `by`, refill). It states it is not note compaction, which WF18 owns. `orchestrator.md` is 6,192 B against the 7,165 B WARN ceiling; line 33 is the one-line pointer. `check-foundation-guards.js` passed. |
+| 4 | SC4, RUN-04: the guidance reads the same on all six hosts, with only optional operator tips per host | VERIFIED (text only); live runs owed | WF17 says rules turn on whether the `Agent` tool exists, never on a host name. Host names appear only in `## Platform depth and width` and `### Operator tips (optional)` (Claude Code `/autocompact 400k`, Codex `model_auto_compact_token_limit`, Pi `compaction.reserveTokens`, the other three "use the fresh-session fallback"). `flow-guidance-text.test.ts` passed. |
+| 5 | SC5, RUN-06: the Orchestrator starts tiered engineers by adapter name, never forks them, never overrides the model, never claims a ticket itself | VERIFIED | WF17 step 4: "Start a tiered engineer by adapter name, as a non-fork sub-agent. Pass no `model` or `effort` parameter." `claim.js claim t3 --by grugops-orchestrator` and `--by GRUGOPS-ORCHESTRATOR` both exit 2 and change nothing. `orchestrator.md` line 79 holds the no-self-claim limit. The refusal is an instruction backstop, which WF17 states. |
+| 6 | Plan 41-12 truth (READ-1, T-41-55): a failed read in `note.js` never prints `noted`; the dial is never lost on a failed read or a walk that inspected nothing | VERIFIED | `npx vitest run scripts/runnable-ref/note-read-sites.test.ts` and five other files: 6 files, 512 of 512 passed, with no skip, `.fails` or `.todo` (41-17 and 41-18 summaries state none added). The 12 rows red at the previous report are green. The cases cover HOME below the repository, the stated cost, controls and the `LIMIT (R-41-07)` pins. One route stays open and pinned: a working directory with its own `.grugops` under a `HOME` below the repository reads the lean dial (R-41-07 fourth limit, T-41-74, not accepted). |
+| 7 | Plan 41-07 prohibition / phase safety (CR-02, T-41-64): `note.js`, which every spawned role runs, cannot retire a green verdict or a human-disposed governed finding | VERIFIED | `describe("--supersedes never retires a verdict or a governed finding (CR-02)")` in `note.test.ts` passed (59 of 59). Plan 41-18 adds the refusal of a target in the store that cannot be read (mode 000, broken seal, directory, FIFO, dangling link, oversize), and the D-37 control (a target naming no note is admitted) still holds. `admit()` is re-based with the human's recorded words (D-37, D-39). Open and pinned: a renamed unreadable note reads as naming no note (R-41-09, T-41-81, not accepted). |
 
-**Score:** 5/7 truths verified. 0 present-but-behavior-unverified.
+**Score:** 7/7 truths verified. 0 present-but-behavior-unverified: every behavior-dependent truth (1, 2, 6, 7) has a passing behavioral test or a run I made here.
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `scripts/runnable-ref/note.ts` and `note.js` | Host note writer from the `context-io.ts` authority | VERIFIED as shipped, with the fail-open above | Runs on a lone copy. Output lines `noted`, `refused`, exit codes 0, 1, 2 as designed. `freshness` passed: 91 committed `.js` match a rebuild |
-| `scripts/claim.ts`, `scripts/runnable-ref/claim.ts` and `.js` | Lifecycle, `claimedEntryNames` listing behind count and render | VERIFIED | `free` and the render agree on a bare directory (reproduced) |
-| `install/install.ts` `RUNNABLES` and `install/uninstall.ts` `RUNNABLES_MIRROR` | Row for `tools/grugops/note.js` | VERIFIED | Present at install.ts:6058 and uninstall.ts:2807. I did not run the install tests (full-suite run by the orchestrator shows no new failure outside the 12 rows) |
-| `install/README.md` | Sections 1 and 3 name both programs and the scripted install | VERIFIED | Lines 32, 458-468, 1685 |
-| `agent-factory/workflows/17-task-claim.md` | Stop on a missing program, exit rules, crash re-spawn, session compaction | VERIFIED | Read in full |
-| `agent-factory/workflows/16-context-read-write.md` | Full `note.js add` command | VERIFIED | Step 3 and step 5. It says `<folder>` is the bare task name; passing a path exits 2, which I confirmed |
-| `scripts/runnable-ref/role-route.test.ts`, `note-read-sites.test.ts` | Route proof, READ-1 over all pairs | VERIFIED as tests | The route test passes; the READ-1 test correctly fails on 12 rows |
-| `docs/audit/41-residuals.md` | R-41-01 to R-41-07 | VERIFIED as recorded, none accepted | R-41-01 now names the spawned-role case |
+| `scripts/claim.ts`, `scripts/runnable-ref/claim.ts` and `claim.js` | Full lifecycle: claim, done, free, sweep, now-running | VERIFIED | Ran every verb on a lone copy; `claim.test.ts` and `runnable-ref/claim.test.ts` pass |
+| `scripts/runnable-ref/note.ts` and `note.js` | Host note writer built from the `context-io.ts` authority | VERIFIED | `add` ran on a lone copy; `note.test.ts`, `note-read-sites.test.ts` pass |
+| `scripts/context-io.ts` | Fail-closed root ladder and the supersession block in `admit()` | VERIFIED | Behavior proven by the tests above; `npm run freshness`: 91 committed `.js` fresh |
+| `install/install.ts` `RUNNABLES` and `install/uninstall.ts` mirror | Rows for `claim.js` and `note.js` | VERIFIED | Present; a real `--codex` install wrote both to `tools/grugops/` |
+| `agent-factory/workflows/17-task-claim.md` | Steps, refill, session start, session compaction, operator tips | VERIFIED | Read in full |
+| `agent-factory/workflows/16-context-read-write.md` | Full `note.js add` command, supersession rule | VERIFIED with warnings | Overstatements recorded as WR-12, WR-15, CR-03 below |
+| `agent-factory/roles/orchestrator.md` | Pointer, hard limit, under ceiling | VERIFIED | 6,192 B; lines 22, 33, 77, 79 |
+| `install/README.md` | Names both programs and the scripted install | VERIFIED | 7 matches for `claim.js` or `note.js` |
+| `docs/audit/41-residuals.md` | R-41-01 to R-41-09 recorded, none accepted by an agent | VERIFIED as recorded | None is accepted; see human items |
 
 ### Key Link Verification
 
 | From | To | Status | Details |
 |---|---|---|---|
-| WF16 step 3 | `note.ts` `USAGE` | WIRED | The literal command ran against a lone copy |
-| `note.js add` | `claim.js done` | WIRED | Sealed note accepted, row removed |
-| WF17 Session start step 3 | `now-running.md` `by` cell | WIRED (text) | Names the adapter in `by`, leaves an empty one |
-| `RUNNABLES` | `RUNNABLES_MIRROR` | WIRED | Same row in both |
-| `note.js` generated region | `scripts/context-io.ts` authority | PARTIAL | Region is fresh, but the `trustedRepoRoot` ladder inside it fails open on a failed read (READ-1) |
+| WF17 step 3 | `claim.js claim` | WIRED | Command ran as written |
+| WF16 step 3 | `note.js add` | WIRED | Literal command ran; `role-route.test.ts` passed |
+| `note.js add` to `claim.js done` | sealed-note check | WIRED | `done` refused, then accepted after `add` |
+| WF17 session start step 3 | `now-running.md` `by` cell | WIRED (text) | Names the adapter in `by` and leaves an empty row |
+| `RUNNABLES` to `RUNNABLES_MIRROR` | install and uninstall | WIRED | Same rows |
+| `note.js` generated region to `context-io.ts` | authority | WIRED | Freshness green; the ladder now fails closed |
 
 ### Data-Flow Trace (Level 4)
 
 | Artifact | Data variable | Source | Real data | Status |
 |---|---|---|---|---|
 | `now-running.md` | rows | `claimedEntryNames` listing of `claimed/` | Yes (reproduced) | FLOWING |
-| `free` | claimed count | the same listing | Yes | FLOWING |
+| `free` | claimed count | the same listing | Yes (2, 0, 1 observed) | FLOWING |
 | `done` | sealed-note check | notes under the `ref:` folder since `at` | Yes | FLOWING |
 
 ### Behavioral Spot-Checks
 
-Run in a scratch repo under the session scratchpad, with the committed `claim.js` and `note.js` copied alone into `tools/grugops/` beside a `package.json` of `{"type":"module"}`, which is what the installer writes there.
+Run in scratch dirs under the session scratchpad, with the committed programs. No project state was changed.
 
 | Behavior | Result | Status |
 |---|---|---|
-| `free` at wip_limit 2, then after two claims | `free 2`, then `free 0` | PASS |
-| `done` with no note | `not-done t1: no sealed note ...`, exit 1 | PASS |
-| `note.js add t1 ...` then `done t1` | `noted t1 <id>`, exit 0; `done t1`, exit 0; row gone | PASS |
-| `note.js add` with a path as `<folder>` | exit 2, nothing written | PASS (matches WF16 text) |
-| Record-less `claimed/ghost` | `free` counts it, render shows `unknown`, aged 3 h `sweep` reclaims it | PASS (WR-04 closed) |
-| Stray file and unsafe-name directory in `claimed/`, aged 3 h | Rows shown, `sweep` leaves both, slot stays held | WARNING (WR-11 reproduced) |
-| CR-02: `--supersedes` of a human-disposed security finding under `human_admission: all`, `audit_retention: retained` | `noted`, exit 0, finding moved to `## Superseded (history)` | FAIL (reproduced) |
-| `scripts/runnable-ref/note-read-sites.test.ts` | 12 rows red | FAIL |
-| Single files: `role-route.test.ts`, `flow-guidance-text.test.ts`, `claim.test.ts`, `note.test.ts`, `runnable-ref/claim.test.ts` | all passed | PASS |
-| `npm run freshness`; `node scripts/check-uat-oracles.js`; `npm run check:claim-anchors`; `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js`; `node scripts/check-foundation-guards.js` | all report `ALL CHECKS PASSED` / fresh | PASS |
+| `free`, two claims, `free`, duplicate claim | `free 2`, `claimed` x2, `free 0`, `lost t1` exit 1 | PASS |
+| `--by grugops-orchestrator` in two letter cases | exit 2, queue unchanged | PASS |
+| `done` with no note, `note.js add`, `done` | exit 1 `not-done`, `noted`, exit 0; row gone; `free 1` | PASS |
+| `sweep` on a fresh claim | `swept 0`, exit 0 | PASS |
+| Installer on a Codex target | `claim.js`, `note.js`, `package.json` in `tools/grugops/`; `claim.js free` ran | PASS |
+| `note-read-sites`, `role-route`, `flow-guidance-text`, `claim`, `runnable-ref/claim`, `note` test files | 6 files, 512 of 512 | PASS |
+| `npx tsc --noEmit`; `npm run freshness`; `check-foundation-guards.js`; `check-uat-oracles.js`; `validate-agent-factory.js` | exit 0; 91 `.js` fresh; each `ALL CHECKS PASSED` | PASS |
 
-I did not run the full suite, as instructed. I rely on the orchestrator's measure at 7d0bb17a: 33 failed, which are the 21 named in `41-VALIDATION.md` § Known baseline reds plus the 12 READ-1 rows I reproduced above. Plan 41-11's truth 'the full suite adds no failure name beyond the baseline' therefore does not hold either; the cause is the same 12 rows.
+I did not re-run the full suite, as instructed. I rely on the orchestrator's two measurements at HEAD (11,625 cases, 22 failed). The 22 are the 21 names in `41-VALIDATION.md` "Known baseline reds" plus the `capture-live` dry-run case, which the orchestrator reports passed 77 of 77 alone on the default `TMPDIR`. I did not re-run that file.
 
 ### Probe Execution
 
@@ -192,50 +177,49 @@ Step 7c: SKIPPED. No `scripts/*/tests/probe-*.sh` exists and no plan declares a 
 
 ### Requirements Coverage
 
-| Requirement | Source plans | Status | Evidence |
-|---|---|---|---|
-| RUN-01 | 41-01, 41-03, 41-04, 41-10 | SATISFIED, with warning WR-11 | Truth 1 |
-| RUN-02 | 41-01, 41-03, 41-04, 41-05, 41-06, 41-07, 41-09, 41-10, 41-11, 41-12 | SATISFIED for refill and for completion by the shipped route; live run owed | Truths 2 and 3. Tied to READ-1 through plan 41-12 |
-| RUN-03 | 41-04, 41-06, 41-11 | SATISFIED | Truth 3 |
-| RUN-04 | 41-04, 41-06, 41-11 | SATISFIED as text; live runs pending (R-41-05) | Truths 3 and 4 |
-| RUN-05 | 41-01, 41-03, 41-04, 41-05, 41-07, 41-09, 41-11, 41-12 | PARTIAL | `claim.js` and `note.js` ship and run. The shipped writer fails open on 12 read-failure rows (truth 6) and carries CR-02 (truth 7) |
-| RUN-06 | 41-01, 41-02, 41-03, 41-04, 41-06, 41-08 | SATISFIED | Truth 5 |
+| Requirement | Plans | Description | Status | Evidence |
+|---|---|---|---|---|
+| RUN-01 | 41-01, 41-03, 41-04, 41-10 | In-flight log is `claimed/` rendered to `now-running.md` | SATISFIED | Truth 1 |
+| RUN-02 | 41-01, 41-03 to 41-07, 41-09 to 41-18 | Refill from `wip_limit` minus `claimed/`, no timers | SATISFIED (live run owed) | Truths 2, 6, 7 |
+| RUN-03 | 41-04, 41-06, 41-11 | Session compaction guidance and fresh-session fallback | SATISFIED | Truth 3 |
+| RUN-04 | 41-04, 41-06, 41-11 | Same guidance on six hosts, one-line pointer, under ceiling | SATISFIED as text; five live runs owed | Truths 3, 4 |
+| RUN-05 | 41-01, 41-03, 41-04, 41-05, 41-07, 41-09 to 41-18 | `claim.js` ships as a materialized runnable | SATISFIED | Truth 2 and the Codex install run |
+| RUN-06 | 41-01, 41-02, 41-03, 41-04, 41-06, 41-08 | Tiered engineers by adapter name, no fork, no model override, no self-claim | SATISFIED | Truth 5 |
 
-All six IDs appear in plan `requirements` fields; none is orphaned (I read the plan frontmatter, not only the roadmap). Bookkeeping, not changed here: `REQUIREMENTS.md` marks only RUN-06 `[x]` and its table reads `Gaps Found` for RUN-01 and RUN-05, `Pending` for RUN-02, 03, 04, and `Complete` for RUN-06.
+All six IDs are claimed by plan `requirements` fields. None is orphaned. **Bookkeeping, not changed here:** `.planning/REQUIREMENTS.md` still shows RUN-01, RUN-03, RUN-04 and RUN-06 as `[ ]`, and its table reads `Gaps Found` for RUN-01 and RUN-06 and `Pending` for RUN-03 and RUN-04. Those marks are stale against this report. RUN-04's checkbox is the one a human may prefer to hold until the live host runs.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |---|---|---|---|---|
-| `scripts/runnable-ref/note.ts` (generated region) | n/a | Read failure ends `noted`, exit 0 (12 rows) | Blocker | Truth 6 |
-| `scripts/context-io.ts` `admit()` | n/a | `supersedes` never read | Blocker | Truth 7 (CR-02) |
-| `agent-factory/workflows/17-task-claim.md` | Session start step 3 | Says a later sweep reclaims an empty-`by` row; for a stray file or an unsafe name it never does (WR-11, reproduced) | Warning | A slot is held with no route out except a human removing the entry. The row shows, so it is visible |
-| `agent-factory/workflows/16-context-read-write.md` | step 3 and the 'workhorse path' line | A `§14-gate#<id>` finding and every `artifact-ref` are refused on a scripted host: no host program can write a green verdict (CR-03). Fails closed | Warning | The text overstates the path; a task can still close on a `claim` or `observation` |
-| `41-REVIEW-DISPOSITION.md` | 23 rows `open` of 29 | Untriaged, including CR-02, CR-03, WR-05 to WR-13 | Warning | Needs triage |
+| `agent-factory/workflows/16-context-read-write.md` | 41 | Calls the gate route "the workhorse path", yet no scripted host can write a green verdict (CR-03, reproduced by the review; I confirmed `note.ts` has no verdict verb) | Warning | Fails closed; a task can still close on a `claim` or `observation` |
+| `agent-factory/workflows/16-context-read-write.md`, `17-task-claim.md` | step 1 / step 5 | Name `readContext` / `render` as the read route; a host has no `context-io.js` and `note.js` has one verb (WR-12) | Warning | A role on a host has no scripted read; a pre-existing seam |
+| `CHANGELOG.md` | 141-143; WF16 line 31 | Supersession rules stated without R-41-09's limits (WR-15, T-41-62) | Warning | Overstates a control under `### Security` |
+| `scripts/context-io.ts` | `emitVerdict`, D-03 clause | A duplicate green verdict has no sanctioned clearing route (WR-14) | Warning | Narrow corner: a retried emission step |
+| `scripts/runnable-ref/note.ts` | 2877 | Exit 1 `refused` still covers some I/O faults (WR-09) | Warning | Ambiguous exit meaning |
 
-TBD, FIXME and XXX grep over `scripts/claim.ts`, `scripts/runnable-ref/claim.ts`, `scripts/runnable-ref/note.ts`, `17-task-claim.md` and `orchestrator.md` found no marker. No stub code found.
+The TBD / FIXME / XXX grep over `scripts/claim.ts`, `scripts/runnable-ref/claim.ts`, `scripts/runnable-ref/note.ts`, `17-task-claim.md` and `orchestrator.md` found no marker. No stub code found.
+
+### Judgement on the open items
+
+- **Open security threats (5, all below the high threshold):** T-41-62 (overstated sentences), T-41-66 and T-41-73 (accepted by D-37 and D-38, no Accepted Risks Log row), T-41-74 and T-41-81 (`pending (named human): accept`). `threats_open` is 0 against the block threshold. Each is a pinned, documented limit of the safety hardening around `note.js`, not a failure of a success criterion. **Tracked residuals.** Only a named human can accept T-41-74 and T-41-81.
+- **CR-03 (critical, open):** it concerns the admission model for gate-stamped findings and `artifact-ref` on a scripted host. It does not falsify SC2: closing a task needs only a sealed note, and an `observation` closed one in my run. It fails closed and nothing false enters the context. The review itself says it needs a human decision, because the plain fix lets an agent mint a green verdict on a host. **Human decision item, not a gap.** If the maintainer reads "agents complete tasks" as including gate-verified findings, they should rule CR-03 a gap.
+- **WR-12 and WR-13:** both predate plan 41-18 and sit in the WF16 read and admission layer that this phase reaches only through the writer. Tracked, open, human triage.
+- **Human-owned items** (`<human-check>` of 41-17 and 41-18 Task 3, `pending (named human)` rows, the T-41-27 ruling, the Manual-Only rows, the five other-host live runs and Windows): not closed here. They are `human_needed` items, because only a human can accept them and they gate no code truth.
+- **Gap-closure cap:** the roadmap allows four rounds. Three were used (41-07 to 41-12, 41-13 to 41-16, 41-17 and 41-18). A further round is still open, but I propose none: no must-have fails.
 
 ### Security and Validation Records
 
-- `41-SECURITY.md`: `status: open`, `threats_open: 2`. T-41-55 (the `trustedRepoRoot` dial loss, high) and T-41-30 (adapter spellings, high) are open and unaccepted. T-41-52 (a failed read reporting a note, medium) is open. T-41-27 holds only while the `pending (named human)` rows stay pending. Its own header says phase advancement is blocked.
-- Human rulings stand on record: the 9 Group A rows in a pinned second map, the 12 Group B rows red for a gap plan not yet written. That ruling is respected as a process decision and not read as proof.
-- `deferred-items.md`: open entries (symlink under `claimed/`, the double-fault `takeClaim` cleanup, the untracked `~/` directory failing `LIVE COUNT`) are low severity and do not change a truth above. `LIVE COUNT` passes in a clean clone, per 41-12-SUMMARY.md; I did not clone.
-- No later roadmap phase names the ladder fix or the supersession rule, so nothing is deferred.
-
-### Human Verification Required
-
-See the `human_verification` frontmatter list: the live Claude Code run for CR-01, the `pending (named human)` rows, the residual reads (R-41-01 to R-41-07), the five-host live run, and the Windows ladder check. All are owed to a named human and none was filled here.
+- `41-SECURITY.md`: `threats_open: 0`, audited 2026-11-08 with host-copy probes. Not a human sign-off.
+- `41-VALIDATION.md`: `nyquist_compliant: true`; Manual-Only rows still wait on a named human.
+- `41-REVIEW.md` (1019bf40): 1 critical, 6 warnings, 5 info; `41-REVIEW-DISPOSITION.md` has 26 of 33 rows open (human triage owed).
+- No later roadmap phase (42, 43) names any open item, so nothing is deferred.
 
 ### Gaps Summary
 
-Two gaps, both in `note.js`, the writer the closing plans added. They are separate and each needs a decision or a plan.
-
-1. **READ-1 and T-41-55.** The fix lives in `scripts/context-io.ts` (make the `trustedRepoRoot` ladder fail closed), which plan 41-12 prohibits editing from note.ts. A gap plan is named and not written. Until it lands, 12 tests stay red and a governed repository can lose its `human_admission` dial on a failed `stat`.
-2. **CR-02.** Decide supersession in `admit()`, or have a named human accept a narrower rule and record a residual.
-
-Warnings that do not block a truth: WR-11 (Workflow 17 promises a reclaim that never comes for a stray file or unsafe name), CR-03 (no scripted host can write a green verdict), and the 21 other open review rows.
+None. Every roadmap success criterion and every gap-closure truth holds against the code, and I reproduced the behavior on lone host copies. The phase is not ready to be called complete until a named human supplies the live-host evidence and reads or accepts the items in `human_verification`.
 
 ---
 
-_Verified: 2026-11-05T15:30:00Z_
+_Verified: 2026-11-08T19:10:00Z_
 _Verifier: Claude (gsd-verifier)_
