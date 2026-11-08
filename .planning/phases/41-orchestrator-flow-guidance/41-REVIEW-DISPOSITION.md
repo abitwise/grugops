@@ -3,14 +3,58 @@ phase: 41
 review: 41-REVIEW.md
 titles: json
 findings:
+  - id: CR-03
+    severity: critical
+    disposition: open
+    title: "No scripted host can write a green gate verdict, so `§14-gate#<id>` findings and every `artifact-ref` are refused on every host (carried forward)"
+  - id: WR-14
+    severity: warning
+    disposition: open
+    title: "A duplicate green verdict can no longer be cleared by any sanctioned route, and the refusal says a named human will resolve it"
+  - id: WR-15
+    severity: warning
+    disposition: open
+    title: "The changelog and Workflow 16 state the supersession rules without the limits R-41-09 records (confirms the 2026-11-08 audit flag)"
+  - id: WR-09
+    severity: warning
+    disposition: open
+    title: "An exit-1 `refused` line still covers I/O faults, and plan 41-13 adds a second exit-1 class that means \"stop\" (carried forward)"
+  - id: WR-10
+    severity: warning
+    disposition: open
+    title: "A link on `.grugops/audit` still sends the audit ledger outside the repository (carried forward)"
+  - id: WR-12
+    severity: warning
+    disposition: open
+    title: "Workflows 16 and 17 name a read route no role on a host can run (carried forward)"
+  - id: WR-13
+    severity: warning
+    disposition: open
+    title: "Under an active dial, a spawned high-severity role has no route to admit a finding (carried forward)"
+  - id: IN-14
+    severity: info
+    disposition: open
+    title: "The text says an undeterminable `HOME` refuses every note, but a named root with a configuration still admits"
+  - id: IN-15
+    severity: info
+    disposition: open
+    title: "The root refusal and its stop name a cause narrower than the code's, and the refusal is labelled `trustedRepoRoot` when `governanceRootOf` throws it"
+  - id: IN-09
+    severity: info
+    disposition: open
+    title: "The `index.md` banner on a host names a program no host has (carried forward)"
+  - id: IN-10
+    severity: info
+    disposition: open
+    title: "A body that opens with two dashes stops the role (carried forward)"
+  - id: IN-13
+    severity: info
+    disposition: open
+    title: "Workflow 16 does not carry WR-01's exit 1 fix to `note.js` (carried forward)"
   - id: CR-02
     severity: critical
     disposition: fixed
     title: "Any role can retire a human-disposed security finding with an unstamped note, under `human_admission: all`"
-  - id: CR-03
-    severity: critical
-    disposition: open
-    title: "No scripted host can write a green gate verdict, so `§14-gate#<id>` findings and every `artifact-ref` are refused on every host"
   - id: WR-05
     severity: warning
     disposition: open
@@ -27,26 +71,10 @@ findings:
     severity: warning
     disposition: open
     title: "A new sentence changes who the pronoun means, so `factory.config.md` says the Orchestrator makes the hand-back"
-  - id: WR-09
-    severity: warning
-    disposition: open
-    title: "An I/O failure in the writer prints `refused`, exit 1, and tells the role to change a sound note"
-  - id: WR-10
-    severity: warning
-    disposition: open
-    title: "A link on `.grugops/audit` sends the audit ledger outside the repository, exit 0"
   - id: WR-11
     severity: warning
     disposition: open
     title: "Workflow 17 says a later sweep reclaims a row with an empty `by`, but a stray file or an unsafe name is never reclaimed"
-  - id: WR-12
-    severity: warning
-    disposition: open
-    title: "Workflows 16 and 17 name a read route no role on a host can run, and the full note text is only in the unfiltered `notes/` folder"
-  - id: WR-13
-    severity: warning
-    disposition: open
-    title: "Under an active dial, a spawned high-severity role has no route to admit a finding, even with a real human answer"
   - id: IN-02
     severity: info
     disposition: open
@@ -71,14 +99,6 @@ findings:
     severity: info
     disposition: open
     title: "The render is no longer single-writer"
-  - id: IN-09
-    severity: info
-    disposition: open
-    title: "The `index.md` banner on a host names a program no host has"
-  - id: IN-10
-    severity: info
-    disposition: open
-    title: "A body that opens with two dashes stops the role"
   - id: IN-11
     severity: info
     disposition: open
@@ -87,10 +107,6 @@ findings:
     severity: info
     disposition: open
     title: "Two comments no longer match the code"
-  - id: IN-13
-    severity: info
-    disposition: open
-    title: "Workflow 16 does not carry WR-01's exit 1 fix to `note.js`"
   - id: CR-01
     severity: critical
     disposition: open
@@ -119,37 +135,41 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 22
-total: 29
-recorded: 2026-11-05T15:17:13.500Z
+open: 26
+total: 33
+recorded: 2026-11-08T18:28:05.357Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-02 | critical | fixed | 41-15, 41-16 |
 | CR-03 | critical | open | - |
-| WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
-| WR-07 | warning | open | - |
-| WR-08 | warning | open | - |
+| WR-14 | warning | open | - |
+| WR-15 | warning | open | - |
 | WR-09 | warning | open | - |
 | WR-10 | warning | open | - |
-| WR-11 | warning | open | - |
 | WR-12 | warning | open | - |
 | WR-13 | warning | open | - |
-| IN-02 | info | open | - |
-| IN-03 | info | open | - |
-| IN-04 | info | open | - |
-| IN-05 | info | open | - |
-| IN-06 | info | open | - |
-| IN-07 | info | open | - |
+| IN-14 | info | open | - |
+| IN-15 | info | open | - |
 | IN-09 | info | open | - |
 | IN-10 | info | open | - |
-| IN-11 | info | open | - |
-| IN-12 | info | open | - |
 | IN-13 | info | open | - |
+| CR-02 | critical | fixed | 41-15, 41-16 (not in the current review) |
+| WR-05 | warning | open | - (not in the current review) |
+| WR-06 | warning | open | - (not in the current review) |
+| WR-07 | warning | open | - (not in the current review) |
+| WR-08 | warning | open | - (not in the current review) |
+| WR-11 | warning | open | - (not in the current review) |
+| IN-02 | info | open | - (not in the current review) |
+| IN-03 | info | open | - (not in the current review) |
+| IN-04 | info | open | - (not in the current review) |
+| IN-05 | info | open | - (not in the current review) |
+| IN-06 | info | open | - (not in the current review) |
+| IN-07 | info | open | - (not in the current review) |
+| IN-11 | info | open | - (not in the current review) |
+| IN-12 | info | open | - (not in the current review) |
 | CR-01 | critical | open | 41-07, 41-09, 41-11, 41-12; live run pending (not in the current review) |
 | WR-01 | warning | fixed | 41-09, 41-11 (not in the current review) |
 | WR-02 | warning | fixed | 41-08 (not in the current review) |
