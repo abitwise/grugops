@@ -97,15 +97,15 @@ created: "2026-11-05"
 | T-41-63 | Repudiation | an agent accepting a residual or a row | high | mitigate | `41-14.md` has 17 of 17 rows pending; R-41-07 and R-41-08 read Not accepted | closed |
 | T-41-64 | Elevation of privilege | an unstamped note retiring a governed finding or a green verdict (CR-02) | high | mitigate | Plan 41-18 (T-41-77): `admit()` reads with `readRawNotesWithSkips` and refuses a target in the store that cannot be read (`scripts/context-io.ts:4494-4521`). As uid 1000 on a lone host copy, the mode-000 route exits 1 and the finding stays in `## Current state`; a broken seal, a non-note, a directory, a FIFO, an 8 MiB + 1 file and a dangling link each exit 1. The renamed-file route stays open as T-41-81 | closed |
 | T-41-65 | Tampering | a pin moved, or a READ-1 map edited, to pass | medium | mitigate | The refusal count moved from 9 to 10 with a written reason; sizes 9 and 17 hold | closed |
-| T-41-66 | Tampering | a target naming no note folding out a note that arrives later | medium | accept | D-37 records `narrow` and R-41-09 records the residual. There is no accepted-risks row, and the read of R-41-09 is owed | open — below high threshold (non-blocking) |
+| T-41-66 | Tampering | a target naming no note folding out a note that arrives later | medium | accept | D-37 records `narrow` and R-41-09 records the residual. Olger accepted it in `41-UAT.md` test 5 on 2026-11-10; the Accepted Risks Log carries the row | closed |
 | T-41-67 | Denial of service | the rule refusing a Workflow 18 promotion | medium | mitigate | Six `Workflow 18` cases in `scripts/compactor.test.ts` pass, including both promotion routes | closed |
 | T-41-68 | Repudiation | a decision recorded, or the `admit()` span changed, without the human | high | mitigate | D-37 at `01c27aa3` precedes the span change at `fe51aa46`; the span hash moved once, and the re-base cites D-37 | closed |
 | T-41-69 | Repudiation | a ledger row moved past its evidence, or an agent writing an acceptance | high | mitigate | Olger's reply precedes `3fee450b`, and `41-16.md` matches it: row 1 flagged, rows 2 and 3 accepted, row 4 pending | closed |
 | T-41-70 | Repudiation | a full-suite result read by count | medium | mitigate | The summary and `41-VALIDATION.md` agree on 21 of 21 names | closed |
 | T-41-71 | Elevation of privilege | `trustedRepoRoot` answering the kit when the walk inspected nothing (closes T-41-55) | high | mitigate | `WALK_STARTED_ABOVE_HOME` at `scripts/context-io.ts:5765`; the throw at `:6110-6112` precedes the tail at `:6116-6117`; `note.js:2163,2297`. Probed as T-41-55 | closed |
 | T-41-72 | Elevation of privilege | a name with no configuration answering where the walk inspected nothing | high | mitigate | The throw sits before `named ?? GOVERNANCE_FALLBACK_BASE`; `GRUGOPS_PROJECT_DIR` or `CLAUDE_PROJECT_DIR` at an empty directory and `GRUGOPS_HOST_DELIVERED_ROOT` at a bare `.git` each exit 1 under `HOME=<repo>/src`. A named root carrying the configuration keeps the dial | closed |
-| T-41-73 | Denial of service | the refusal stranding a note run from above `HOME` | medium | accept | D-38 (`41-CONTEXT.md:89`) records Olger accepting the cost; a lean repository under `HOME=<repo>/src` exits 1 as stated. The Accepted Risks Log has no row for it | open — below high threshold (non-blocking) |
-| T-41-74 | Elevation of privilege | a walk that starts below the bound reading the lean dial under a `HOME` below the repository | low | pending (named human): accept | R-41-07's fourth limit, not accepted. With the working directory at `<repo>/docs` holding its own `.grugops` and `HOME=<repo>/src`, a governed finding exits 0 `noted` into `docs/.grugops`. Two `LIMIT (R-41-07)` cases pin it | open — below high threshold (non-blocking) |
+| T-41-73 | Denial of service | the refusal stranding a note run from above `HOME` | medium | accept | D-38 (`41-CONTEXT.md:89`) records Olger accepting the cost; a lean repository under `HOME=<repo>/src` exits 1 as stated. Olger accepted it in `41-UAT.md` test 5 on 2026-11-10; the Accepted Risks Log carries the row | closed |
+| T-41-74 | Elevation of privilege | a walk that starts below the bound reading the lean dial under a `HOME` below the repository | low | accept | R-41-07's fourth limit. With the working directory at `<repo>/docs` holding its own `.grugops` and `HOME=<repo>/src`, a governed finding exits 0 `noted` into `docs/.grugops`. Two `LIMIT (R-41-07)` cases pin it. Olger accepted it in `41-UAT.md` test 5 on 2026-11-10; the Accepted Risks Log carries the row | closed |
 | T-41-75 | Tampering | a pin or a mutation anchor moved to pass | medium | mitigate | Three pin edits, each with a written reason; `NOTE_READ_SITES` 19, `SECOND_SOURCE` 9 and `UNREACHED` 17 hold; no `.skip`, `.fails` or `.todo` added | closed |
 | T-41-76 | Repudiation | a sentence claiming more than the measured routes, or an agent writing an acceptance | high | mitigate | R-41-07 lists four limits and reads Not accepted; both rows of `41-17.md` are `pending (named human)` | closed |
 | T-41-77 | Elevation of privilege | an unstamped note retiring a governed finding or a green verdict through a target that cannot be read (closes T-41-64) | high | mitigate | The refusal at `scripts/context-io.ts:4494` follows the D-14 read and precedes the D-04 arm and the ledger append; census S11 covers `appendNote`, `admitAndAppend` and `promoteAdmitted`. Probed as T-41-64 | closed |
@@ -189,7 +189,7 @@ This audit covers plans 41-17 and 41-18 (T-41-71 to T-41-83) and the three threa
 
 ## Accepted Risks Log
 
-The phase decisions accepted these at planning, except R-41-08, which Olger accepted by name on 2026-11-07. No named human has signed the other rows; R-41-01 is the one residual `41-VALIDATION.md` lists for a human read.
+The phase decisions accepted these at planning, except R-41-08, which Olger accepted by name on 2026-11-07. On 2026-11-10, in `41-UAT.md` test 5, Olger accepted R-41-02, R-41-03, R-41-04 and R-41-06 by name, closed R-41-01 on the live run of test 1, and accepted the rows dated 2026-11-10 below. T-41-81 (R-41-09 (c)) is not accepted; its wording is fixed under gap G-41-7-WR-15.
 
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
@@ -197,6 +197,11 @@ The phase decisions accepted these at planning, except R-41-08, which Olger acce
 | R-41-04 | T-41-17 | `done` proves a note exists; Workflow 16 admission governs its content | Phase decision D-07 | 2026-11-05 |
 | R-41-02 | T-41-24 | The sweep reads no session liveness; the TTL still applies | Phase decision D-11 | 2026-11-05 |
 | R-41-08 | T-41-61 | No argv check can close the rename route, because the role comes from a flag the agent chooses | Olger (D-40) | 2026-11-07 |
+| R-41-07 (D-38 cost) | T-41-73 | With no named root carrying a configuration, a note run from above `HOME` is refused until a human repairs it; D-38 states this cost | Olger (41-UAT test 5) | 2026-11-10 |
+| R-41-09 (a) | T-41-66 | A target naming no note is admitted and folds out a note that arrives later under that id; D-37 chose `narrow` | Olger (41-UAT test 5) | 2026-11-10 |
+| R-41-07 (fourth limit) | T-41-74 | A walk that starts below the bound reads the lean dial under a `HOME` below the repository; two `LIMIT (R-41-07)` cases pin it | Olger (41-UAT test 5) | 2026-11-10 |
+| R-41-05 | — | No live run on Codex, Antigravity, OpenCode, Copilot or Pi; carried to the milestone UAT | Olger (41-UAT test 5) | 2026-11-10 |
+| R-41-06 | — | `note.js` is the in-script admission tier; a `human:<name>` stamp it writes is not bound to a human | Olger (41-UAT test 5) | 2026-11-10 |
 | — | T-41-SC | No package was added: `package.json` and the lockfile are unchanged since `6d05da1f` | Plan register | 2026-11-05 |
 
 *Accepted risks do not resurface in future audit runs.*

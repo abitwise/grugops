@@ -77,11 +77,11 @@ findings:
     title: "Workflow 17 says a later sweep reclaims a row with an empty `by`, but a stray file or an unsafe name is never reclaimed"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: deferred
     title: "`--level` is not tied to the adapter"
   - id: IN-03
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The `not-done` line is silent about sealed notes older than the claim"
   - id: IN-04
     severity: info
@@ -93,7 +93,7 @@ findings:
     title: "The role-switch step lost its condition"
   - id: IN-06
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The render banner names a path that does not exist in the kit repository"
   - id: IN-07
     severity: info
@@ -109,7 +109,7 @@ findings:
     title: "Two comments no longer match the code"
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "A spawned role agent cannot write the sealed note that `done` requires, so tasks stay claimed on Claude Code too"
   - id: WR-01
     severity: warning
@@ -135,7 +135,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 26
+open: 22
 total: 33
 recorded: 2026-11-08T18:28:05.357Z
 ---
@@ -162,15 +162,15 @@ recorded: 2026-11-08T18:28:05.357Z
 | WR-07 | warning | open | - (not in the current review) |
 | WR-08 | warning | open | - (not in the current review) |
 | WR-11 | warning | open | - (not in the current review) |
-| IN-02 | info | open | - (not in the current review) |
-| IN-03 | info | open | - (not in the current review) |
+| IN-02 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 7, 2026-11-11: low value, small code change (not in the current review) |
+| IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 7, 2026-11-11: low value, small code change (not in the current review) |
 | IN-04 | info | open | - (not in the current review) |
 | IN-05 | info | open | - (not in the current review) |
-| IN-06 | info | open | - (not in the current review) |
+| IN-06 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 7, 2026-11-11: low value, small code change (not in the current review) |
 | IN-07 | info | open | - (not in the current review) |
 | IN-11 | info | open | - (not in the current review) |
 | IN-12 | info | open | - (not in the current review) |
-| CR-01 | critical | open | 41-07, 41-09, 41-11, 41-12; live run pending (not in the current review) |
+| CR-01 | critical | fixed | 41-07, 41-09, 41-11, 41-12; live runs in 41-UAT.md test 1, closed by Olger 2026-11-10 (not in the current review) |
 | WR-01 | warning | fixed | 41-09, 41-11 (not in the current review) |
 | WR-02 | warning | fixed | 41-08 (not in the current review) |
 | WR-03 | warning | fixed | 41-11 (not in the current review) |
