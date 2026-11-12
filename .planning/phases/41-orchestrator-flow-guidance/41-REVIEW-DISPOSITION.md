@@ -3,6 +3,42 @@ phase: 41
 review: 41-REVIEW.md
 titles: json
 findings:
+  - id: CR-01
+    severity: critical
+    disposition: open
+    title: "WR-18 is recorded fixed, but Workflow 16 and the note contract still tell a standalone Claude Code install the hook protects its `human:<name>` stamp"
+  - id: WR-01
+    severity: warning
+    disposition: open
+    title: "\"like the other hosts\" contradicts D-44, under which a plugin install is a host that has the hook"
+  - id: WR-02
+    severity: warning
+    disposition: open
+    title: "R-41-11 reads as accepted for a scope the human did not read, and the residual does not record the owed read"
+  - id: WR-03
+    severity: warning
+    disposition: open
+    title: "Session start step 3 now opens with \"Stop\", which can read as halting session start before the other claims and the refill"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "A pin title now says the opposite of the step it pins"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "A fourth local copy of `CHANGELOG` and `flat`"
+  - id: IN-03
+    severity: info
+    disposition: open
+    title: "The R-41-11 rewrite is held only by the plan's one-time grep, not by a pin"
+  - id: IN-04
+    severity: info
+    disposition: open
+    title: "The role files still send every deliverable to `artifact-ref`, so the IN-19 fix covers only the protocol"
+  - id: IN-05
+    severity: info
+    disposition: open
+    title: "The dated ruling of 2026-11-10 still says no human has accepted R-41-09 (c)"
   - id: WR-16
     severity: warning
     disposition: deferred
@@ -111,22 +147,6 @@ findings:
     severity: warning
     disposition: fixed
     title: "Workflow 17 says a later sweep reclaims a row with an empty `by`, but a stray file or an unsafe name is never reclaimed"
-  - id: IN-02
-    severity: info
-    disposition: deferred
-    title: "`--level` is not tied to the adapter"
-  - id: IN-03
-    severity: info
-    disposition: deferred
-    title: "The `not-done` line is silent about sealed notes older than the claim"
-  - id: IN-04
-    severity: info
-    disposition: fixed
-    title: "Three descriptions of the subtask file disagree"
-  - id: IN-05
-    severity: info
-    disposition: fixed
-    title: "The role-switch step lost its condition"
   - id: IN-06
     severity: info
     disposition: deferred
@@ -143,52 +163,41 @@ findings:
     severity: info
     disposition: fixed
     title: "Two comments no longer match the code"
-  - id: CR-01
-    severity: critical
-    disposition: fixed
-    title: "A spawned role agent cannot write the sealed note that `done` requires, so tasks stay claimed on Claude Code too"
-  - id: WR-01
-    severity: warning
-    disposition: fixed
-    title: "Workflow 17 has no route on the minimal and plugin-only installs, and a missing tool exits 1"
-  - id: WR-02
-    severity: warning
-    disposition: fixed
-    title: "Stop precedence line 1 takes away the limit on revert hand-offs"
-  - id: WR-03
-    severity: warning
-    disposition: fixed
-    title: "After a crash, a claim younger than the TTL holds its slot for the whole session"
   - id: WR-04
     severity: warning
     disposition: fixed
     title: "A claim directory with a missing or unreadable record holds a slot forever and shows nowhere"
-  - id: IN-01
-    severity: info
-    disposition: fixed
-    title: "`queue.claim_cap` no longer does anything"
   - id: IN-08
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 0
+open: 9
 total: 42
-recorded: 2026-11-12T19:38:38.573Z
+recorded: 2026-11-12T21:56:37.300Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
-| WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
-| WR-18 | warning | fixed | 41-26 |
-| WR-19 | warning | fixed | 41-26 |
-| IN-16 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
-| IN-17 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
-| IN-18 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
-| IN-19 | info | fixed | 41-26 |
-| IN-20 | info | fixed | 41-26 |
+| CR-01 | critical | open | - |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
+| IN-03 | info | open | - |
+| IN-04 | info | open | - |
+| IN-05 | info | open | - |
+| WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
+| WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
+| WR-18 | warning | fixed | 41-26 (not in the current review) |
+| WR-19 | warning | fixed | 41-26 (not in the current review) |
+| IN-16 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
+| IN-17 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
+| IN-18 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
+| IN-19 | info | fixed | 41-26 (not in the current review) |
+| IN-20 | info | fixed | 41-26 (not in the current review) |
 | CR-03 | critical | fixed | 41-23 (not in the current review) |
 | WR-14 | warning | fixed | 41-20 (not in the current review) |
 | WR-15 | warning | fixed | 41-24 (not in the current review) |
@@ -207,20 +216,11 @@ recorded: 2026-11-12T19:38:38.573Z
 | WR-07 | warning | fixed | 41-19 (not in the current review) |
 | WR-08 | warning | fixed | 41-24 (not in the current review) |
 | WR-11 | warning | fixed | 41-19 (not in the current review) |
-| IN-02 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 7, 2026-11-11: low value, small code change (not in the current review) |
-| IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 7, 2026-11-11: low value, small code change (not in the current review) |
-| IN-04 | info | fixed | 41-19 (not in the current review) |
-| IN-05 | info | fixed | 41-19 (not in the current review) |
 | IN-06 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 7, 2026-11-11: low value, small code change (not in the current review) |
 | IN-07 | info | fixed | 41-19 (not in the current review) |
 | IN-11 | info | fixed | 41-22 (not in the current review) |
 | IN-12 | info | fixed | 41-19 (not in the current review) |
-| CR-01 | critical | fixed | 41-07, 41-09, 41-11, 41-12; live runs in 41-UAT.md test 1, closed by Olger 2026-11-10 (not in the current review) |
-| WR-01 | warning | fixed | 41-09, 41-11 (not in the current review) |
-| WR-02 | warning | fixed | 41-08 (not in the current review) |
-| WR-03 | warning | fixed | 41-11 (not in the current review) |
 | WR-04 | warning | fixed | 41-10 (not in the current review) |
-| IN-01 | info | fixed | 41-08 (not in the current review) |
 | IN-08 | info | fixed | 41-11 (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
