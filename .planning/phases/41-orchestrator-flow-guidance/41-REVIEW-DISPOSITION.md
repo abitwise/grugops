@@ -13,11 +13,11 @@ findings:
     title: "Every exit-2 refusal raised before the write now says \"The note may have been written; check notes/\""
   - id: WR-18
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The new route text says \"on Claude Code\", but only a plugin install has `propose_note` and the hook"
   - id: WR-19
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Session start tells the Orchestrator to re-spawn a claim the sweep kept, and doing so strands the newer subtask"
   - id: IN-16
     severity: info
@@ -33,11 +33,11 @@ findings:
     title: "`read` of a mistyped folder reads as an empty context, and files without `.md` are not named"
   - id: IN-19
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The role-switch protocol still sends deliverables to `artifact-ref`, which every host refuses"
   - id: IN-20
     severity: info
-    disposition: open
+    disposition: fixed
     title: "Workflow 05's escape-hatch paragraph still promises the real stamp from the Step-4 loop on a host"
   - id: CR-03
     severity: critical
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 4
+open: 0
 total: 42
 recorded: 2026-11-12T19:38:38.573Z
 ---
@@ -182,13 +182,13 @@ recorded: 2026-11-12T19:38:38.573Z
 |---------|----------|-------------|--------|
 | WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
 | WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
-| WR-18 | warning | open | - |
-| WR-19 | warning | open | - |
+| WR-18 | warning | fixed | 41-26 |
+| WR-19 | warning | fixed | 41-26 |
 | IN-16 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
 | IN-17 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
 | IN-18 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached |
-| IN-19 | info | open | - |
-| IN-20 | info | open | - |
+| IN-19 | info | fixed | 41-26 |
+| IN-20 | info | fixed | 41-26 |
 | CR-03 | critical | fixed | 41-23 (not in the current review) |
 | WR-14 | warning | fixed | 41-20 (not in the current review) |
 | WR-15 | warning | fixed | 41-24 (not in the current review) |
