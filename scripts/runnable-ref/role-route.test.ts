@@ -236,3 +236,68 @@ describe("a scripted host has no gate stamp (plan 41-23, CR-03, D-41)", () => {
     expect(readFileSync(join(notes, readdirSync(notes)[0] as string), "utf8")).toContain("UNKNOWN - verify");
   });
 });
+
+describe("LIMIT (R-41-10): a Claude Code plugin install carries the verdict verb (plan 41-25, T-41-100)", () => {
+  // The ruling on T-41-100 of 2026-11-12, option (a): a Claude Code plugin install counts as a host. The plugin is the whole
+  // repository (`.claude-plugin/marketplace.json` names its source `./`), so this repository's checkout stands in for
+  // `${CLAUDE_PLUGIN_ROOT}`: its committed scripts/context-io.js is the file a plugin install puts on the host machine.
+  // Spawning that `.js` is the plugin route itself, so nothing is imported from scripts/context-io.ts. Every command runs
+  // through `run`, with only PATH in the environment: the emission needs nothing more. The host repository holds only
+  // `.grugops/` and the committed host copies under tools/grugops/, as in the plan 41-23 describe above.
+  // These cases pin what the code does. Only the kit text tells a role on a plugin install not to run the verb (R-41-10).
+
+  const GATE_RUN = "run-1";
+  const SHA = "0123456789abcdef0123456789abcdef01234567";
+
+  /** The note command of Workflow 16 step 3, filled as a `finding` stamped by the gate run `GATE_RUN`. */
+  function findingArgv(): string[] {
+    const command = commandInStep(WF16, 3, "node tools/grugops/note.js add");
+    const words = command.split(/\s+/).map((word) => (word === "<kind>" ? "finding" : (argvOf(word)[0] as string)));
+    return [...words, "--verified-by", `§14-gate#${GATE_RUN}`];
+  }
+
+  /** The note files under the task's context folder of `repo`. */
+  function notesIn(repo: string): string[] {
+    const dir = join(repo, CONTEXT_REL, TASK, "notes");
+    return existsSync(dir) ? readdirSync(dir) : [];
+  }
+
+  it("PREMISE: the plugin source is the whole repository, and the repository root holds scripts/context-io.js with its emit-verdict verb", () => {
+    const market = JSON.parse(readFileSync(join(ROOT, ".claude-plugin", "marketplace.json"), "utf8")) as {
+      plugins: { name: string; source: unknown }[];
+    };
+    const entry = market.plugins.find((p) => p.name === "grugops");
+    expect(entry, "no plugin entry named grugops").toBeDefined();
+    expect(entry?.source).toBe("./");
+    const program = join(ROOT, "scripts", "context-io.js");
+    expect(existsSync(program)).toBe(true);
+    expect(readFileSync(program, "utf8")).toContain("emit-verdict");
+  });
+
+  it("CONTROL: without a verdict, the host's note.js refuses a finding stamped §14-gate#<id>, and no note is written", () => {
+    const repo = hostRepo(true);
+    const r = run(repo, findingArgv());
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout.startsWith(`refused ${TASK}: `), r.stdout).toBe(true);
+    expect(notesIn(repo)).toHaveLength(0);
+  });
+
+  it("LIMIT (R-41-10): the plugin's context-io.js mints a green verdict into the host repository, and note.js then notes the finding", () => {
+    const repo = hostRepo(true);
+    const emit = run(repo, [
+      "node",
+      join(ROOT, "scripts", "context-io.js"),
+      "emit-verdict",
+      TASK,
+      GATE_RUN,
+      "clean",
+      SHA,
+      join(repo, CONTEXT_REL),
+    ]);
+    expect(emit.status, emit.stderr).toBe(0);
+    expect(emit.stdout.startsWith("verdict emitted: "), emit.stdout).toBe(true);
+    const r = run(repo, findingArgv());
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout.startsWith(`noted ${TASK} `), r.stdout).toBe(true);
+  });
+});

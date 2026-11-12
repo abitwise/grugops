@@ -1075,11 +1075,14 @@ describe("Workflow 05 says what a green run publishes on a host (plan 41-23; CR-
   // records an observation and publishes READY_FOR_HUMAN_REVIEW with the no-stamp line. No agent chose the option.
   const steps = section(WF05, "Steps");
 
-  it("says a host has no gate stamp, straight after the sentence that delegates the emission to context-io.ts", () => {
+  it("says a host with only a scripted install has no gate stamp, straight after the sentence that delegates the emission to context-io.ts", () => {
+    // Moved by plan 41-25 under the ruling on T-41-100 of 2026-11-12 (option (a)): the label and the program sentence now
+    // scope the missing stamp to a scripted install, because a Claude Code plugin install carries the program.
     expect(steps).toContain(
       "the emission is delegated to `context-io.ts` by name.\n\n" +
-        "   **A host repository has no gate stamp** (residual R-41-10). " +
-        "`scripts/context-io.js`, the one program that runs `emitVerdict`, ships with grugops's own tooling and is not installed to a host. " +
+        "   **A host repository with only a scripted install has no gate stamp** (residual R-41-10). " +
+        "`scripts/context-io.js`, the one program that runs `emitVerdict`, ships with grugops's own tooling. " +
+        "A scripted install does not copy it into a host repository. " +
         "So the emission step cannot run there, and no `§14-gate#<id>` finding and no `artifact-ref` can be admitted there.",
     );
   });
@@ -1102,6 +1105,41 @@ describe("Workflow 05 says what a green run publishes on a host (plan 41-23; CR-
     expect(section(WF05, "Commit")).toContain(
       "Where `emitVerdict` runs, on a `READY_FOR_HUMAN_REVIEW` result they include the green `§14-gate` verdict context note",
     );
+  });
+});
+
+describe("a plugin install counts as a host (plan 41-25; T-41-100)", () => {
+  // The ruling on T-41-100 of 2026-11-12, option (a): a Claude Code plugin install counts as a host. It carries
+  // scripts/context-io.js and its emit-verdict verb, so a gate stamp there is no proof that a gate ran. The route is pinned
+  // by the LIMIT (R-41-10) case in scripts/runnable-ref/role-route.test.ts. The ruling's words "proves no gate ran" are
+  // written as "is no proof that a gate ran", which is what the audit measured; plan 41-25 Task 3 shows the human that.
+  const wf05Steps = section(WF05, "Steps");
+
+  it("Workflow 05 counts a plugin install as a host, straight after the sentence on the emission step", () => {
+    expect(wf05Steps).toContain(
+      "So the emission step cannot run there, and no `§14-gate#<id>` finding and no `artifact-ref` can be admitted there. " +
+        "**A Claude Code plugin install counts as a host too.**",
+    );
+  });
+
+  it("Workflow 05 says a plugin install carries the program, so any agent there can mint a green verdict", () => {
+    expect(wf05Steps).toContain(
+      "It carries `scripts/context-io.js`, so its `emit-verdict` verb lets any agent there mint a green verdict.",
+    );
+  });
+
+  it("Workflow 05 says a gate stamp on a plugin install is no proof that a gate ran", () => {
+    expect(wf05Steps).toContain("So a gate stamp there is no proof that a gate ran.");
+  });
+
+  it("Workflow 05 says the gate never runs that verb on a host, before the green-run sentences the reply `advise, Olger` chose", () => {
+    expect(wf05Steps).toContain(
+      "The gate never runs that verb on a host. On a host, when every check passes, the gate records an `observation`",
+    );
+  });
+
+  it("Workflow 05 keeps no not-installed clause", () => {
+    expect(WF05).not.toContain("is not installed to a host");
   });
 });
 
