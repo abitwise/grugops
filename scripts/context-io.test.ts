@@ -4418,6 +4418,41 @@ function artifactRefText(over: Partial<Record<string, string>> = {}): string {
   );
 }
 
+/**
+ * A live green verdict with a `sha` line, written to disk by hand and sealed (plan 41-20, WR-14).
+ *
+ * The emitter now refuses a second verdict for one per-run id (WR-14, D-42), so a duplicate is a
+ * store written before that fix or by hand. That is the shape the D-03 ambiguity arm (S4) still
+ * refuses, and this helper writes it. The fence follows `composeNote`'s order, and the seal comes
+ * from the one exported digest, as `seedShalessVerdict` in scripts/context-io-writer-set.test.ts
+ * does. Returns the note id.
+ */
+function seedVerdictByHand(
+  contextRoot: string,
+  task: string,
+  runId: string,
+  sha: string,
+  at: string,
+): string {
+  const atCompact = at.replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const id = `${atCompact}-§14-gate-finding-byhand01`;
+  const dir = join(contextRoot, task, "notes");
+  mkdirSync(dir, { recursive: true });
+  const fence =
+    `id: ${id}\n` +
+    `kind: finding\nby: §14-gate\nat: ${at}\nverified_by: \nconfidence: high\n` +
+    `sha: ${sha}\n` +
+    `refs:\n  - §14-gate#${runId}\n` +
+    "supersedes: \n";
+  const rest =
+    "---\n\n" + `READY_FOR_HUMAN_REVIEW: the §14 quality gate run ${runId} passed (all checks green).\n`;
+  writeFileSync(
+    join(dir, `${id}.md`),
+    "---\n" + fence + `${mod.NOTE_SEAL_KEY}: ${mod.noteSeal("---\n" + fence + rest)}\n` + rest,
+  );
+  return id;
+}
+
 /** Read the single note file a task holds, as bytes. */
 function soleNoteText(contextRoot: string, task: string): string {
   const snap = notesSnapshot(contextRoot, task);
@@ -5080,11 +5115,15 @@ describe("31-01 red-team — the residuals the D-03 probes surfaced", () => {
     // refusal's own message says "THE live green verdict", and with two of them there is no such
     // thing. An ambiguous pair is refused in BOTH directions rather than silently resolved by
     // replay order, which is the fail-closed posture every other arm of this branch keeps.
+    //
+    // Since plan 41-20 the emitter refuses a second verdict for one per-run id (WR-14, D-42), so the
+    // second verdict is written by hand, sealed: a store written before that fix, or by hand, is the
+    // shape this arm still refuses.
     for (const claimed of [P31_SHA_A, P31_SHA_B]) {
       const contextRoot = freshTmp("p31-rt-dup-");
       const repoRoot = freshTmp("p31-rt-dup-repo-");
       mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot, "2026-09-07T08:00:00Z");
-      mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_B, contextRoot, "2026-09-07T09:00:00Z");
+      seedVerdictByHand(contextRoot, TASK, "RUN-A", P31_SHA_B, "2026-09-07T09:00:00Z");
       const text = artifactRefText({ sha: claimed, gate_run: "RUN-A" });
       const joined = mod.admit(TASK, text, contextRoot, repoRoot).join("\n");
       expect(joined, `sha ${claimed} was admitted against an ambiguous verdict pair`).toContain(
@@ -5132,6 +5171,71 @@ describe("31-01 red-team — the residuals the D-03 probes surfaced", () => {
     expect(() => mod.appendNote(TASK, evidenceNote(P31_SHA_B), "body", contextRoot)).toThrow(
       /admission FAIL/,
     );
+    expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 41-20 (WR-14, D-42) — ONE GATE RUN STAMPS ONE VERDICT.
+//
+// The review reproduced a retried emission writing a second live green verdict for one per-run id.
+// Since plan 41-15 no ordinary note can supersede a verdict, so the pair stood, and the D-03 arm
+// refused every artifact-ref naming that run. The emitter now reads the store and refuses the second
+// verdict; a store that already holds two names the route out: run the gate again.
+// Authorised by Olger in 41-UAT.md test 7, Olger, 2026-11-11 (D-42 of phase 41).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("41-20 WR-14 — one gate run stamps one verdict", () => {
+  const TASK = "p41-20-wr14";
+
+  it("a second emitVerdict for one run id writes nothing and names the verdict that stands (WR-14)", () => {
+    const contextRoot = freshTmp("p41-20-dup-");
+    const first = mod.emitVerdict(TASK, "RUN-ONCE", "clean", P31_SHA_A, contextRoot, "2026-11-11T08:00:00Z");
+    expect(first).toBeTruthy();
+    const before = notesSnapshot(contextRoot, TASK);
+    expect(before).toHaveLength(1);
+    expect(() =>
+      mod.emitVerdict(TASK, "RUN-ONCE", "clean", P31_SHA_B, contextRoot, "2026-11-11T09:00:00Z"),
+    ).toThrow(/already has a live green verdict/);
+    expect(() =>
+      mod.emitVerdict(TASK, "RUN-ONCE", "clean", P31_SHA_B, contextRoot, "2026-11-11T09:00:00Z"),
+    ).toThrow(new RegExp(String(first)));
+    expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
+  });
+
+  it("a second emit-verdict through the CLI exits non-zero and leaves one verdict (WR-14)", () => {
+    const contextRoot = freshTmp("p41-20-cli-");
+    const argv = [CONTEXT_IO_JS, "emit-verdict", TASK, "RUN-CLI-ONCE", "clean", P31_SHA_A, contextRoot];
+    const first = spawnSync("node", argv, { encoding: "utf8" });
+    expect(first.status, first.stderr).toBe(0);
+    const second = spawnSync("node", argv, { encoding: "utf8" });
+    expect(second.status).not.toBe(0);
+    expect(second.stderr).toContain("already has a live green verdict");
+    // The CLI's null message speaks of the test-integrity result; it would be false here.
+    expect(second.stderr).not.toContain("test-integrity result was");
+    expect(notesSnapshot(contextRoot, TASK).filter(([f]) => f.endsWith(".md"))).toHaveLength(1);
+  });
+
+  it("CONTROL: a different run id under the same task still emits (WR-14)", () => {
+    const contextRoot = freshTmp("p41-20-ctl-");
+    expect(mod.emitVerdict(TASK, "RUN-FIRST", "clean", P31_SHA_A, contextRoot)).toBeTruthy();
+    expect(mod.emitVerdict(TASK, "RUN-SECOND", "clean", P31_SHA_B, contextRoot)).toBeTruthy();
+    expect(notesSnapshot(contextRoot, TASK)).toHaveLength(2);
+  });
+
+  it("the D-03 arm still refuses an artifact-ref when the store holds two verdicts for one run id, and names the route (WR-14)", () => {
+    const contextRoot = freshTmp("p41-20-d03-");
+    const repoRoot = freshTmp("p41-20-d03-repo-");
+    mod.emitVerdict(TASK, "RUN-A", "clean", P31_SHA_A, contextRoot, "2026-11-11T08:00:00Z");
+    seedVerdictByHand(contextRoot, TASK, "RUN-A", P31_SHA_B, "2026-11-11T09:00:00Z");
+    const before = notesSnapshot(contextRoot, TASK);
+    expect(before).toHaveLength(2);
+    const joined = mod
+      .admit(TASK, artifactRefText({ sha: P31_SHA_A, gate_run: "RUN-A" }), contextRoot, repoRoot)
+      .join("\n");
+    expect(joined).toContain("more than one");
+    expect(joined).toContain("Run the gate again");
+    expect(joined).not.toContain("until a named human resolves the duplicate");
     expect(notesSnapshot(contextRoot, TASK)).toEqual(before);
   });
 });
