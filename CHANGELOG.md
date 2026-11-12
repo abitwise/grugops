@@ -173,8 +173,11 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - A note can no longer supersede a green gate verdict or a finding the `human_admission` dial gates,
   and only a named human's disposition retires one. That disposition is a finding the dial gates,
   admitted on Claude Code through `propose_note`; under `off`, and on a host with no hook, nothing
-  retires one.
+  retires one. Residual R-41-09 records the routes that stay open: a target that arrives later, a
+  dial raised after a retirement, and a note file that was renamed and cannot be read.
 - A note whose `supersedes` target is in the store and cannot be read is refused at every dial.
+  Residual R-41-09 records the routes that stay open: a target that arrives later, a dial raised
+  after a retirement, and a note file that was renamed and cannot be read.
 - `tools/grugops/note.js` refuses a symbolic link at `.grugops/audit` or at its ledger file, so the
   admission ledger cannot be sent outside the repository.
 

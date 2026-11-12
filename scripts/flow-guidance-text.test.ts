@@ -791,7 +791,8 @@ describe("the kit says what a note cannot supersede (plan 41-16; CR-02, RUN-05, 
     expect(step(WF16, 3)).toContain(
       "Run the gate again and name the new run. " +
         "A target that names no note is still admitted, and residual R-41-09 records what that leaves open. " +
-        "A target in the store that cannot be read is refused.",
+        // Moved by plan 41-24 (WR-15, D-43; 41-UAT.md test 7, Olger, 2026-11-11): the sentence names the renamed-file route.
+        "A target in the store that cannot be read is refused, unless its file was renamed (R-41-09).",
     );
   });
 
@@ -800,7 +801,8 @@ describe("the kit says what a note cannot supersede (plan 41-16; CR-02, RUN-05, 
   it("says, straight after the target that names no note, that an unreadable target is refused (T-41-64, D-39)", () => {
     expect(step(WF16, 3)).toContain(
       "residual R-41-09 records what that leaves open. " +
-        "A target in the store that cannot be read is refused. " +
+        // Moved by plan 41-24 (WR-15, D-43; 41-UAT.md test 7, Olger, 2026-11-11).
+        "A target in the store that cannot be read is refused, unless its file was renamed (R-41-09). " +
         "The program stamps",
     );
   });
@@ -1098,5 +1100,40 @@ describe("Workflow 05 says what a green run publishes on a host (plan 41-23; CR-
     expect(section(WF05, "Commit")).toContain(
       "Where `emitVerdict` runs, on a `READY_FOR_HUMAN_REVIEW` result they include the green `§14-gate` verdict context note",
     );
+  });
+});
+
+describe("the supersession rules carry their limits (plan 41-24; WR-15, D-43)", () => {
+  const CHANGELOG = readFileSync(join(ROOT, "CHANGELOG.md"), "utf8");
+  const flat = (text: string): string => text.replace(/\s+/g, " ");
+  const LIMITS =
+    "Residual R-41-09 records the routes that stay open: a target that arrives later, a dial raised after a retirement, " +
+    "and a note file that was renamed and cannot be read.";
+  const security = (): string => {
+    const unreleased = CHANGELOG.slice(CHANGELOG.indexOf("## [Unreleased]"));
+    const at = unreleased.indexOf("### Security");
+    expect(at, "no ### Security section in [Unreleased]").toBeGreaterThanOrEqual(0);
+    const rest = unreleased.slice(at + 1);
+    return rest.slice(0, rest.indexOf("\n### "));
+  };
+
+  it("step 3 of Workflow 16 says an unreadable target is refused unless its file was renamed (WR-15, D-43)", () => {
+    expect(step(WF16, 3)).toContain(
+      "A target in the store that cannot be read is refused, unless its file was renamed (R-41-09).",
+    );
+  });
+
+  it("the changelog bullet on a named human's disposition ends with the routes R-41-09 records (WR-15)", () => {
+    expect(flat(security())).toContain("under `off`, and on a host with no hook, nothing retires one. " + LIMITS);
+  });
+
+  it("the changelog bullet on an unreadable target ends with the routes R-41-09 records (WR-15)", () => {
+    expect(flat(security())).toContain(
+      "A note whose `supersedes` target is in the store and cannot be read is refused at every dial. " + LIMITS,
+    );
+  });
+
+  it("keeps the renamed-file phrase on one line in each bullet, because a gate counts it (WR-15)", () => {
+    expect(occurrences(security(), "a note file that was renamed and cannot be read")).toBe(2);
   });
 });

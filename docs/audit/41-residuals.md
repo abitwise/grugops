@@ -3,7 +3,7 @@
 This file records what phase 41 accepted. Each entry is a gap the phase knows about and did not close. The decisions behind it are in
 `.planning/phases/41-orchestrator-flow-guidance/41-CONTEXT.md`, and the host facts are in `41-RESEARCH.md` beside it.
 
-**Written:** 2026-11-05, by plan 41-04, amended by plan 41-11, plan 41-14, plan 41-16, plan 41-17, plan 41-18, plan 41-23 and decision D-40.
+**Written:** 2026-11-05, by plan 41-04, amended by plan 41-11, plan 41-14, plan 41-16, plan 41-17, plan 41-18, plan 41-23, plan 41-24 and decision D-40.
 **Status of every entry:** open, unless its row says closed. A later phase closes an entry by naming it here and saying what closed it.
 
 ## The residuals
@@ -30,7 +30,7 @@ Olger read R-41-01 to R-41-09 in `41-UAT.md` test 5 and replied: `accept R-41-02
 - **R-41-02, R-41-03, R-41-04, R-41-06:** accepted by Olger.
 - **R-41-05:** accepted, carried to the milestone UAT.
 - **R-41-07:** the fourth limit (a walk that starts below the bound reads the lean dial; T-41-74) is accepted by Olger. The D-38 cost (T-41-73) is logged as accepted.
-- **R-41-09:** (a) the dangling target and the fold-out on arrival (T-41-66) and (b) the repeated append after the dial moves are accepted by Olger. (c) the renamed-file route (T-41-81) went to test 7, where its wording is fixed under review finding WR-15 (gap G-41-7-WR-15). The route itself is not yet accepted.
+- **R-41-09:** (a) the dangling target and the fold-out on arrival (T-41-66) and (b) the repeated append after the dial moves are accepted by Olger. (c) the renamed-file route (T-41-81) went to test 7, where its wording is fixed under review finding WR-15 (gap G-41-7-WR-15). The route itself is not yet accepted. Plan 41-24 stated those routes in CHANGELOG.md and Workflow 16 under review finding WR-15 (D-43). The renamed-file route itself stays open, and no human has accepted it.
 
 ## Assumptions carried from research
 
