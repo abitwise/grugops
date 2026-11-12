@@ -62,7 +62,7 @@ Every tier of the resolution order is quoted from `TRUSTED_ROOT_TIERS` in `scrip
 
 **A named root with no configuration.** A root from tier 0, 1 or 2 that carries no factory configuration does not answer alone. Tier 3 then runs. A project configuration it finds answers instead. Otherwise the named root stands.
 
-**When the order cannot finish.** A failed read, an undeterminable home directory or an unreadable working directory stops the order. So does a working directory above the home directory, where tier 3 inspects nothing. No root is named, and every admission is refused. A lean repository is refused the same way.
+**When the order cannot finish.** A failed read stops the order. With no named root carrying a factory configuration, an undeterminable home directory or an unreadable working directory stops it too. The same holds for a working directory above the home directory, where tier 3 inspects nothing. No root is named, and every admission is refused. A lean repository is refused the same way.
 
 **What tier 0 does not establish.** It closes the tier that decides whether a force push runs. It closes nothing about a process acting as itself. An agent can invoke `scripts/context-io.js` directly from its own Bash tool. That agent builds its own environment and can set that name. It is an already-accepted capability, recorded as `R-31-15-01`. Members of `TRUSTED_ROOT_RESIDUALS` that tier 0 closes here carry `hosts: non-cc-hook-path`. They remain open on the hosts other than Claude Code, where no such channel exists. Members that stand everywhere carry `hosts: all`.
 

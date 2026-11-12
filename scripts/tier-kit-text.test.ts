@@ -2357,9 +2357,10 @@ describe("A blocked ticket the Tech Lead cannot resolve goes to the role whose j
     expect(stop.indexOf(REJECT)).toBeLessThan(stop.indexOf(WITHOUT));
     expect(stop.indexOf(WITHOUT)).toBeLessThan(stop.indexOf(RECORD_BACK));
     const para = escalateParagraph();
+    // Moved by plan 41-24 (WR-08, D-42; 41-UAT.md test 7, Olger, 2026-11-11): the Tech Lead, not the Orchestrator, hands back.
     for (const sentence of [
-      "On approval it hands the ticket back to the proposing role to make the change.",
-      "On rejection it applies the move the human names, or else hands the ticket back to fix it within the current requirement and rules.",
+      "On approval the Tech Lead hands the ticket back to the proposing role to make the change.",
+      "On rejection the Tech Lead applies the move the human names, or else hands the ticket back to fix it within the current requirement and rules.",
       "Neither hand-back counts toward a limit.",
     ]) {
       expect(para, `config paragraph lacks "${sentence}"`).toContain(sentence);

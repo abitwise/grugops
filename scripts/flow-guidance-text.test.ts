@@ -322,9 +322,11 @@ describe("The kit text says what the governance-root order does (plan 41-14; RUN
     const named =
       "**A named root with no configuration.** A root from tier 0, 1 or 2 that carries no factory configuration does " +
       "not answer alone. Tier 3 then runs. A project configuration it finds answers instead. Otherwise the named root stands.";
+    // Moved by plan 41-24 (IN-14, D-42; 41-UAT.md test 7, Olger, 2026-11-11): a named root with a configuration pre-empts the stop.
     const unfinished =
-      "**When the order cannot finish.** A failed read, an undeterminable home directory or an unreadable working " +
-      "directory stops the order. So does a working directory above the home directory, where tier 3 inspects " +
+      "**When the order cannot finish.** A failed read stops the order. " +
+      "With no named root carrying a factory configuration, an undeterminable home directory or an unreadable working " +
+      "directory stops it too. The same holds for a working directory above the home directory, where tier 3 inspects " +
       "nothing. No root is named, and every admission is refused. A lean repository is refused the same way.";
     expect(order).toContain(named);
     expect(order).toContain(unfinished);
@@ -1135,5 +1137,36 @@ describe("the supersession rules carry their limits (plan 41-24; WR-15, D-43)", 
 
   it("keeps the renamed-file phrase on one line in each bullet, because a gate counts it (WR-15)", () => {
     expect(occurrences(security(), "a note file that was renamed and cannot be read")).toBe(2);
+  });
+
+  const NAMED_ROOT = "unless a named root such as `CLAUDE_PROJECT_DIR` carries a factory configuration";
+
+  it("the changelog home-directory sentences say a named root with a configuration pre-empts the refusal (IN-14, D-42)", () => {
+    expect(flat(security())).toContain(
+      "With `HOME` set to a path that does not exist, every note is refused until it is repaired, " + NAMED_ROOT + ".",
+    );
+    expect(flat(security())).toContain(
+      "A note run from a directory above `HOME` is now refused rather than run lean, in a lean repository too, " +
+        NAMED_ROOT + ".",
+    );
+    expect(occurrences(security(), NAMED_ROOT)).toBe(2);
+  });
+
+  it("Workflow 16 says the order stops on an undeterminable home only with no named root carrying a configuration (IN-14)", () => {
+    expect(section(WF16, "The governance-root resolution order")).toContain(
+      "**When the order cannot finish.** A failed read stops the order. " +
+        "With no named root carrying a factory configuration, an undeterminable home directory or an unreadable working " +
+        "directory stops it too. The same holds for a working directory above the home directory, where tier 3 inspects nothing. " +
+        "No root is named, and every admission is refused. A lean repository is refused the same way.",
+    );
+  });
+
+  it("factory.config.md names the Tech Lead as the role that hands the ticket back after a `Fundamental:` ruling (WR-08, D-42)", () => {
+    expect(CONFIG).toContain(
+      "The Orchestrator asks the human to approve or reject a `Fundamental:` proposal. " +
+        "On approval the Tech Lead hands the ticket back to the proposing role to make the change. " +
+        "On rejection the Tech Lead applies the move the human names, or else hands the ticket back to fix it within the current requirement and rules.",
+    );
+    expect(CONFIG).not.toContain("On approval it hands");
   });
 });
