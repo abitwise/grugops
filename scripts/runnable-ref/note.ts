@@ -7,11 +7,15 @@
 //     .grugops/context/FOLDER/notes/ and renders that folder's index.md and index.jsonl (Workflow 16 `## Commit`).
 //     `--ref` repeats. `--verified-by`, `--supersedes`, `--sha`, `--gate-run` and `--content-hash` fill the fields of the
 //     same name. ROLE is the role file's name without `.md`, never the adapter name `claim.js --by` takes.
-// It moves no queue record and runs no git. It writes only under .grugops/context/ and, under
+//   - `read FOLDER` prints the sealed notes of that folder's current state in full, and names on a `skipped` line each
+//     file in notes/ that the seal check did not read as a note (WR-12, D-42). It is the host copy of the authority's
+//     context read followed by currentState: one embedded walk, through the seal check `done` and the render use. It
+//     writes nothing and never asks the governance root ladder.
+// It moves no queue record and runs no git. `add` writes only under .grugops/context/ and, under
 // `context.audit_retention: retained`, to the GOV-02 ledger the embedded admit() appends to. It creates no queue
 // directory and reads no queue file.
 //
-// THE D-12 CONTRACT.
+// THE D-12 CONTRACT, for `add`.
 //   exit 0 → the note stands and reads back: stdout holds one line, `noted FOLDER ID`.
 //   exit 1 → an outcome to act on, never an error: stdout holds one line, `refused FOLDER: REASON`, and nothing was written.
 //            It is the writer's judgement of the note (validation, an admission finding, the size ceiling), so the note
@@ -23,6 +27,16 @@
 //            published and an occupied destination: each says nothing about the note. Exit 2 prints nothing on stdout
 //            and one `Error: ` line on stderr. An unexpected error is exit 2 too, and never surfaces as Node's own exit 1.
 //            That line names a note that stands, so a failed render never denies a note that was written.
+//
+// THE D-12 CONTRACT, for `read`. It has no exit 1, because it judges no note.
+//   exit 0 → the context was read in full. stdout holds `read FOLDER: N current, M superseded, K skipped`, then for each
+//            current note, in currentState order, a `note ID` line followed by its fields and body, each indented. A
+//            `skipped FILE (ARM)` line follows for each file the walk named unsealed or unparseable. Only `read`, `note`
+//            and `skipped` lines start at column 0, so no body line can pass for a header (T-41-97).
+//   exit 2 → could not run: a bad argument, a root with no .grugops directory, a symbolic link or a non-directory on the
+//            way to notes/, a folder outside the allowlist, a walk that threw, or a file in notes/ that could not be read
+//            (a FIFO, a dangling link, an unopenable file, one above the ceiling). A partial state can hide a note, so
+//            nothing is printed on stdout then, and one `Error: ` line on stderr names each such file (T-41-98).
 //
 // THE NOTE CHECK (D-28, D-35). Every note goes through the embedded appendNote, the one writer, which validates the note,
 // asks the embedded admit() and seals what it writes. That is the in-script tier Workflow 16 names for a host with no
@@ -2754,7 +2768,8 @@ function codeOf(e: unknown): string {
 
 const USAGE =
   "Usage: node note.js add <folder> --kind <kind> --by <role> --confidence <level> (--body <text> | --body-file <path>) " +
-  "[--ref <ref>]... [--verified-by <stamp>] [--supersedes <id>] [--sha <hex>] [--gate-run <id>] [--content-hash <hex>]";
+  "[--ref <ref>]... [--verified-by <stamp>] [--supersedes <id>] [--sha <hex>] [--gate-run <id>] [--content-hash <hex>], " +
+  "or node note.js read <folder>";
 
 /** What `add` takes on the command line: each flag, and whether it may repeat. */
 const ADD_FLAGS: ReadonlyMap<string, boolean> = new Map([
@@ -2772,11 +2787,14 @@ const ADD_FLAGS: ReadonlyMap<string, boolean> = new Map([
 ]);
 
 const args = process.argv.slice(2);
-if (args[0] !== "add") couldNotRun(`${args[0] === undefined ? "no command was given" : `unknown command ${args[0]}`}. ${USAGE}.`);
+const command = args[0];
+if (command !== "add" && command !== "read") {
+  couldNotRun(`${command === undefined ? "no command was given" : `unknown command ${command}`}. ${USAGE}.`);
+}
 
 const flags = new Map<string, string[]>();
 const positional: string[] = [];
-for (let i = 1; i < args.length; i += 1) {
+for (let i = 1; i < args.length && command === "add"; i += 1) {
   const arg = args[i] as string;
   if (!arg.startsWith("--")) {
     positional.push(arg);
@@ -2792,7 +2810,7 @@ for (let i = 1; i < args.length; i += 1) {
   flags.set(arg, [...(flags.get(arg) ?? []), value]);
   i += 1;
 }
-if (positional.length !== 1) couldNotRun(`add takes one folder; it was given ${positional.length}. ${USAGE}.`);
+if (command === "add" && positional.length !== 1) couldNotRun(`add takes one folder; it was given ${positional.length}. ${USAGE}.`);
 
 /** The one value of `flag`, or undefined when it was not given. */
 function flagValue(flag: string): string | undefined {
@@ -2965,4 +2983,85 @@ function runAdd(folder: string): void {
   process.stdout.write(`noted ${printable(folder)} ${printable(id)}\n`);
 }
 
-runAdd(positional[0] as string);
+/** The one folder `read` takes. It takes no flag, so any argument that opens with `--` is could-not-run. */
+function readFolder(): string {
+  const rest = args.slice(1);
+  const flag = rest.find((arg) => arg.startsWith("--"));
+  if (flag !== undefined) couldNotRun(`read takes no option; it was given ${flag}. ${USAGE}.`);
+  if (rest.length !== 1) couldNotRun(`read takes one folder; it was given ${rest.length}. ${USAGE}.`);
+  return rest[0] as string;
+}
+
+/** The skip arms that name a file the walk read and found not to be a sealed note. Every other arm is a failed read. */
+const NOT_A_NOTE_ARMS: ReadonlySet<string> = new Set(["unsealed", "unparseable"]);
+
+/** One value of a note on its own indented line; each body line is passed separately, so none can span lines. */
+function fieldLine(name: string, value: string): string {
+  return `  ${name}: ${printable(value)}`;
+}
+
+/** The lines of one current note: its id at column 0, then every field and body line indented below it. */
+function noteLines(note: NoteRecord): string[] {
+  const lines = [`note ${printable(note.id)}`, fieldLine("kind", note.kind), fieldLine("by", note.by), fieldLine("at", note.at)];
+  lines.push(fieldLine("confidence", note.confidence));
+  const optional: readonly (readonly [string, string])[] = [
+    ["verified_by", note.verified_by],
+    ["refs", note.refs.join(", ")],
+    ["supersedes", note.supersedes ?? ""],
+    ["sha", note.sha ?? ""],
+    ["gate_run", note.gate_run ?? ""],
+    ["content_hash", note.content_hash ?? ""],
+  ];
+  for (const [name, value] of optional) if (value !== "") lines.push(fieldLine(name, value));
+  lines.push("  body:");
+  for (const line of note.body.split(/\r\n|\r|\n/)) lines.push(`    ${printable(line)}`);
+  return lines;
+}
+
+/**
+ * `read` (WR-12, D-42): the host copy of the authority's context read followed by currentState. One embedded walk reads
+ * notes/ through the seal check, so the printed notes and the skipped names come from the same read. A file the walk
+ * could not read ends exit 2 with nothing printed, because a partial state can hide a note; this is the only check on a
+ * skip arm here, and it decides the exit, never what a note says. It writes nothing and asks no governance root.
+ */
+function runRead(folder: string): void {
+  try {
+    assertSafeTask(folder);
+  } catch (e) {
+    couldNotRun(`${(e as Error).message}.`);
+  }
+  const root = resolvedRoot();
+  const stateDirProblem = directoryProblem(rootChainPresence(root, GRUGOPS_DIR_REL, "directory"));
+  if (stateDirProblem !== null) {
+    couldNotRun(`${root} has no usable ${GRUGOPS_DIR_REL} directory (${stateDirProblem}). Run from the repository root.`);
+  }
+  const notesRel = `${CONTEXT_REL}/${folder}/notes`;
+  const presence = rootChainPresence(root, notesRel, "directory");
+  let walk: RawNoteRead = { notes: [], skipped: [] };
+  if (presence.kind !== "absent") {
+    const problem = directoryProblem(presence);
+    if (problem !== null) couldNotRun(`${notesRel} cannot be used: ${problem}.`);
+    try {
+      walk = readRawNotesWithSkips(folder, nodePath.join(root, CONTEXT_REL), root);
+    } catch (e) {
+      couldNotRun(`the notes of ${CONTEXT_REL}/${folder} could not be read (${e instanceof Error ? e.message : String(e)}).`);
+    }
+  }
+  const skipped = [...walk.skipped].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  const unread = skipped.filter((s) => !NOT_A_NOTE_ARMS.has(s.arm));
+  if (unread.length > 0) {
+    couldNotRun(
+      `${notesRel} could not be read in full: ${unread.map((s) => `${s.file} (${s.arm})`).join(", ")}. ` +
+        "The notes were not printed, because a partial state can hide a note. A human repairs or removes each file named.",
+    );
+  }
+  const records = walk.notes.map((raw) => recordFromParsed(raw.parsed, raw.id));
+  const current = currentState(records);
+  const out = [`read ${printable(folder)}: ${current.length} current, ${records.length - current.length} superseded, ${skipped.length} skipped`];
+  for (const note of current) out.push(...noteLines(note));
+  for (const s of skipped) out.push(`skipped ${printable(s.file)} (${printable(s.arm)})`);
+  process.stdout.write(`${out.join("\n")}\n`);
+}
+
+if (command === "read") runRead(readFolder());
+else runAdd(positional[0] as string);

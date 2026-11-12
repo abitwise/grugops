@@ -16,7 +16,7 @@ The only sanctioned writer of the shared context is `scripts/context-io.ts` (com
 
 ## Inputs required
 - The task id whose shared context is being read or written.
-- The existing verified context for that task, read through `context-io.ts` (`readContext` / `render`) — the prior findings, decisions and recorded dead ends.
+- The existing verified context for that task, read with `node tools/grugops/note.js read <folder>`, per step 1 — the prior findings, decisions and recorded dead ends.
 - The note schema `agent-factory/contracts/context-note.md` — the shape a note must take to be admissible.
 - A real verification stamp for a `finding`, and for no other kind: a live green `§14-gate#<id>` verdict, or `human:<name>` under a named human's session grant.
 - The `human_admission` dial from the target repository's factory configuration, on EVERY host. Which repository that is comes from the resolution order `context-io.ts` publishes and step 3 below states; it is not a Claude-Code-only read.
@@ -24,7 +24,7 @@ The only sanctioned writer of the shared context is `scripts/context-io.ts` (com
 ## Steps
 Run these in order. The order is the protocol — read the verified state first, work, then record only what verification admits.
 
-1. Read the shared context for the task through `context-io.ts` (`readContext` / `render`) before doing the work. Start from the verified state, not a blank slate. The prior verified findings, decisions, and recorded failed attempts are the memory you build on. Do not re-derive what the context already holds. Do not retry a recorded failed attempt.
+1. Read the shared context for the task before doing the work. Run `node tools/grugops/note.js read <folder>` from the repository root, with the folder step 3 names. It prints each sealed note of the current state in full. It names each file in `notes/` that is not a sealed note on a `skipped` line. A skipped file is not part of the context, so never read one as a note. Never read `notes/` by hand. Exit 2 means the context was not read in full: stop and surface it. Start from the verified state, not a blank slate. The prior verified findings, decisions, and recorded failed attempts are the memory you build on. Do not re-derive what the context already holds. Do not retry a recorded failed attempt.
 
 2. Implement the change, run the analysis, or make the decision the task needs.
 
