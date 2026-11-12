@@ -107,6 +107,10 @@ created: "2026-11-04"
 | 41-25-T2 | 41-25 | 7 | RUN-04, RUN-05 | T-41-109, T-41-112 | Workflows 16 and 17 and the CHANGELOG agree; every changed clause has a pending row | text, gate | `npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts scripts/runnable-ref/role-route.test.ts && node scripts/check-diff-disposition.js && npm run check:audit-register && npm run check:public-docs && npm run check:claim-anchors && node scripts/guarantees-freshness.js && npm run freshness` | extend | ✅ green |
 | 41-25-T4 | 41-25 | 7 | RUN-04, RUN-05 | T-41-108, T-41-111 | the named acceptance is recorded in R-41-10, the Accepted Risks Log and D-44 | gate | `node scripts/check-kit-refs.js && node scripts/check-banned-claims.js && node scripts/check-diff-disposition.js && npm run check:residual-citations && npm run check:audit-register && npx vitest run scripts/flow-guidance-text.test.ts scripts/runnable-ref/role-route.test.ts` | yes | ✅ green |
 
+| 41-26-T1 | 41-26 | 8 | RUN-01, RUN-02, RUN-03, RUN-04, RUN-05 | T-41-113, T-41-116 | the admission route is scoped to a Claude Code plugin install; a standalone install has no hook; R-41-11's acceptance cells are unchanged | text, gate | `npm run build && npm run typecheck && npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts scripts/runnable-ref/role-route.test.ts scripts/admission-protocol-docs.test.ts && node scripts/check-imperative-lexicon.js && node scripts/check-kit-refs.js && node scripts/check-banned-claims.js && npm run check:residual-citations && npm run check:public-docs` | extend | ✅ green |
+| 41-26-T2 | 41-26 | 8 | RUN-01, RUN-02, RUN-03, RUN-04, RUN-05 | T-41-114, T-41-115, T-41-117 | session start stops on a kept claim before any re-spawn; deliverables and the Step-4 stamp route by host; every changed clause has a pending row | text, gate | `npx vitest run scripts/flow-guidance-text.test.ts scripts/tier-kit-text.test.ts scripts/runnable-ref/role-route.test.ts scripts/admission-protocol-docs.test.ts && node scripts/check-role-rules.js && node scripts/check-diff-disposition.js && npm run check:audit-register && npm run check:claim-anchors && node scripts/check-foundation-guards.js` | extend | ✅ green |
+| 41-26-T3 | 41-26 | 8 | RUN-01, RUN-02, RUN-03, RUN-04, RUN-05 | T-41-118 | the four review rows read fixed with `open: 0`; the full suite is compared by name | gate | `npm run freshness && npx vitest run scripts/floor-invariance.test.ts && npx vitest run --exclude '**/scripts/e2e/**'` | yes | ✅ green (failures are § Known baseline reds by name) |
+
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
 ---
@@ -178,7 +182,7 @@ Measured at planning at HEAD 3fd34220, before any plan ran: 7 files, 21 failed, 
 - [x] Feedback latency < 60s per task
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** automated audit passed at `d5ab6f80`; rows for plans 41-17 and 41-18 added and their commands passed at `86947a1e` (full suite: 22 failed, all 21 baseline names plus the root-disk `TMPDIR` false failure in `scripts/capture-live.test.ts`, which passed 77 of 77 alone). Rows for plans 41-19 to 41-24 added on 2026-11-12: the full suite at `25e466bd` ended 21 failed, 11,699 passed, every failed name in § Known baseline reds; the text pins and the new context-io cases re-ran green at `351dad64`. Rows for plans 41-07 to 41-12 and 41-25 added at `e50e5ce8`, 2026-11-12: build and typecheck passed, 28 test files ran with 2 failed and 2,844 passed, and both failed names are in § Known baseline reds. `context-io.test.ts` and `check-foundation-guards.test.ts` ended 8 failed and 1,094 passed, every failed name in § Known baseline reds. All 22 gate and freshness scripts the tasks name exited 0. The Manual-Only rows not marked Resolved still wait on a named human.
+**Approval:** automated audit passed at `d5ab6f80`; rows for plans 41-17 and 41-18 added and their commands passed at `86947a1e` (full suite: 22 failed, all 21 baseline names plus the root-disk `TMPDIR` false failure in `scripts/capture-live.test.ts`, which passed 77 of 77 alone). Rows for plans 41-19 to 41-24 added on 2026-11-12: the full suite at `25e466bd` ended 21 failed, 11,699 passed, every failed name in § Known baseline reds; the text pins and the new context-io cases re-ran green at `351dad64`. Rows for plans 41-07 to 41-12 and 41-25 added at `e50e5ce8`, 2026-11-12: build and typecheck passed, 28 test files ran with 2 failed and 2,844 passed, and both failed names are in § Known baseline reds. `context-io.test.ts` and `check-foundation-guards.test.ts` ended 8 failed and 1,094 passed, every failed name in § Known baseline reds. All 22 gate and freshness scripts the tasks name exited 0. Rows for plan 41-26 added at `99cc670f`, 2026-11-12: build and typecheck passed, the five pinned test files ran 557 of 557 green, and the 11 gate and freshness scripts the tasks name exited 0; the full suite ended 21 failed, 11,729 passed, every failed name in § Known baseline reds. The Manual-Only rows not marked Resolved still wait on a named human.
 
 ## Validation Audit 2026-11-05
 
@@ -226,3 +230,12 @@ Measured at planning at HEAD 3fd34220, before any plan ran: 7 files, 21 failed, 
 | Rows added for plans 41-07 to 41-12 and 41-25 | 17 |
 | Manual-only rows resolved | 3 |
 | Manual-only rows added | 2 |
+
+## Validation Audit 2026-11-12
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Rows added for plan 41-26 | 3 |
