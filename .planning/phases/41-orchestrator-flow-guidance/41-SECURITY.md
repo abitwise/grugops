@@ -227,6 +227,8 @@ This audit covers plans 41-19 to 41-24 (T-41-84 to T-41-106) and re-checks T-41-
 
 The phase decisions accepted these at planning, except R-41-08, which Olger accepted by name on 2026-11-07. On 2026-11-10, in `41-UAT.md` test 5, Olger accepted R-41-02, R-41-03, R-41-04 and R-41-06 by name, closed R-41-01 on the live run of test 1, and accepted the rows dated 2026-11-10 below. T-41-81 (R-41-09 (c)) is not accepted; its wording is fixed under gap G-41-7-WR-15.
 
+On 2026-11-12, at plan 41-25's checkpoint, Olger accepted R-41-10 (plugin install) by name; the row below quotes the reply.
+
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | R-41-03 | T-41-04 | The `--by` refusal catches a mistake, not a choice; an agent can edit files | Phase decision D-04 | 2026-11-05 |
@@ -238,6 +240,7 @@ The phase decisions accepted these at planning, except R-41-08, which Olger acce
 | R-41-07 (fourth limit) | T-41-74 | A walk that starts below the bound reads the lean dial under a `HOME` below the repository; two `LIMIT (R-41-07)` cases pin it | Olger (41-UAT test 5) | 2026-11-10 |
 | R-41-05 | — | No live run on Codex, Antigravity, OpenCode, Copilot or Pi; carried to the milestone UAT | Olger (41-UAT test 5) | 2026-11-10 |
 | R-41-06 | — | `note.js` is the in-script admission tier; a `human:<name>` stamp it writes is not bound to a human | Olger (41-UAT test 5) | 2026-11-10 |
+| R-41-10 (plugin install) | T-41-100 | A Claude Code plugin install carries `scripts/context-io.js` and its `emit-verdict` verb, so any agent there can mint a green verdict, and a gate stamp in a repository with a plugin install is no proof that a gate ran; Workflows 05, 16 and 17 say so, and the `LIMIT (R-41-10)` case pins the route | Olger (D-44), in the reply `accept, Olger` | 2026-11-12 |
 | — | T-41-SC | No package was added: `package.json` and the lockfile are unchanged since `6d05da1f` | Plan register | 2026-11-05 |
 
 *Accepted risks do not resurface in future audit runs.*
