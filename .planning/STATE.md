@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: verifying
-stopped_at: Completed 41-18-PLAN.md
-last_updated: "2026-11-07T22:29:29.528Z"
+stopped_at: Completed 41-19-PLAN.md
+last_updated: "2026-11-12T08:12:19.239Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 41 execution started
-state_head: 95213d2d7bb360dd576e4b3c47e08f06459d8e77
+state_head: b8cf20555d9b373f6ec897db106455e0063dbe49
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 131
-  completed_plans: 131
+  total_plans: 137
+  completed_plans: 132
   percent: 67
 ---
 
@@ -849,6 +849,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P16 | 31min | 2 tasks | 7 files |
 | Phase 41 P17 | 12 min | 3 tasks | 21 files |
 | Phase 41 P18 | 41 min | 3 tasks | 24 files |
+| Phase 41 P19 | 18 min | 3 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -2358,6 +2359,8 @@ Recent decisions affecting current work:
 - [Phase 41]: 41-17: the walk is not widened past D-38; a walk that starts below the bound still reads the lean dial, recorded as R-41-07's fourth limit and T-41-74, which no human has accepted
 - [Phase 41]: 41-18: admit() refuses a supersedes target in the store that cannot be read, at every dial, through one walk; D-37 stands (D-39)
 - [Phase 41]: 41-18: ninth re-base of the admit() freeze on Olger's reply recorded as D-39; a renamed unreadable note file reads as no note, recorded in R-41-09 and T-41-81 as not accepted
+- [Phase 41]: 41-19: claim refuses a pending subtask whose ref: line done would refuse, before takeClaim; a vanished pending file is left to the later refusal so a lost race still reads lost (D-08)
+- [Phase 41]: 41-19: sweep keeps a stale claim whose pending/<task>.md exists (kept) and names each claimed/ entry it cannot judge (left); both print after the change lines, exit 0 stays
 
 ### Pending Todos
 
@@ -2699,8 +2702,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-07T22:29:28.550Z
-Stopped at: Completed 41-18-PLAN.md
+Last session: 2026-11-12T08:12:18.047Z
+Stopped at: Completed 41-19-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
