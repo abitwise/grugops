@@ -631,6 +631,54 @@ describe("the root and the path to notes/ (T-41-33)", () => {
     expectCouldNotRun(note(atNotes, "add", "t1", ...OBSERVATION), `${CONTEXT_REL}/t1/notes`);
   });
 
+  // WR-10, D-42 (41-UAT.md test 7, Olger, 2026-11-11): the GOV-02 ledger is asked of the root-chain owner too, so a
+  // link cannot send an admission record out of the repository.
+  it("a link at .grugops/audit is refused: exit 2, no note, and the target gains no ledger line (WR-10)", () => {
+    const root = governed({ audit_retention: "retained" });
+    const outside = mkTmp("grugops-note-audit-outside-");
+    const skipped = stageSymlinkOrSkip(
+      outside,
+      join(root, GRUGOPS_DIR_REL, "audit"),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/note.test.ts: .grugops/audit (plan 41-21)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the link cases at the path to notes/ above (the same owner)"));
+      return;
+    }
+    expectCouldNotRun(note(root, "add", "t1", ...OBSERVATION), `${GRUGOPS_DIR_REL}/audit`, "symbolic link");
+    expect(noteFiles(root, "t1"), "no note was written").toEqual([]);
+    expect(readdirSync(outside), "the link target gained no ledger").toEqual([]);
+  });
+
+  it("a link at .grugops/audit/admissions.jsonl is refused the same way (WR-10)", () => {
+    const root = governed({ audit_retention: "retained" });
+    mkdirSync(join(root, GRUGOPS_DIR_REL, "audit"));
+    const outside = mkTmp("grugops-note-ledger-outside-");
+    const target = join(outside, "admissions.jsonl");
+    writeFileSync(target, "");
+    const skipped = stageSymlinkOrSkip(
+      target,
+      join(root, LEDGER_REL),
+      "symlink leaving the repository root",
+      "scripts/runnable-ref/note.test.ts: the ledger file (plan 41-21)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the link cases at the path to notes/ above (the same owner)"));
+      return;
+    }
+    expectCouldNotRun(note(root, "add", "t1", ...OBSERVATION), LEDGER_REL);
+    expect(noteFiles(root, "t1"), "no note was written").toEqual([]);
+    expect(readFileSync(target, "utf8"), "the link target gained no ledger line").toBe("");
+  });
+
+  it("CONTROL: an absent .grugops/audit under retained is still created and gains the ledger line (WR-10)", () => {
+    const root = governed({ audit_retention: "retained" });
+    expect(existsSync(join(root, GRUGOPS_DIR_REL, "audit")), "PREMISE: no audit directory").toBe(false);
+    notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    expect(readFileSync(join(root, LEDGER_REL), "utf8").trimEnd().split("\n")).toHaveLength(1);
+  });
+
   it("the program creates no queue directory", () => {
     const root = mkTmp("grugops-note-noqueue-");
     mkdirSync(join(root, GRUGOPS_DIR_REL));

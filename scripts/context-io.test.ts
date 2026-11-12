@@ -8553,6 +8553,26 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(drive("trustedRepoRoot", { cwd: home, env: asHome(home) }).root).toBe(KIT);
     });
 
+    // PLAN 41-21 (IN-15, D-42; 41-UAT.md test 7, Olger, 2026-11-11): the refusal is raised for the dial and for a
+    // store's owner, so it names the ladder rather than one function, and it names the paths a human repairs.
+    it("the root refusal names the ladder and the working directory it stood in (IN-15)", () => {
+      const above = tmp15("p41-21-in15-");
+      const home = join(above, "home");
+      mkdirSync(home, { recursive: true });
+      let message = "";
+      try {
+        drive("trustedRepoRoot", { cwd: above, env: asHome(home) });
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, "PREMISE: the ladder refused").toContain("refusing to name a governance root");
+      expect(message).toContain("context-io (the governance root ladder): refusing to name a governance root");
+      expect(message).toContain(`the working directory "${realpathSync(above)}"`);
+      expect(message).toContain(`the home directory "${home}"`);
+      expect(message).toContain("have a human repair HOME, the working directory or the path this line names");
+      expect(message).not.toContain("context-io.trustedRepoRoot:");
+    });
+
     it("EMPTY: a home directory that cannot be determined still stops the search entirely, and refuses", () => {
       // TIGHTENED BY PLAN 41-13: the kit answer this pinned is T-41-55. The stop is the same stop.
       const mutant = mirror("p31-23-nohome-", [
