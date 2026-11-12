@@ -1143,6 +1143,40 @@ describe("sweep (RUN-02, D-02, D-08, D-11)", () => {
     expect(r.stdout).toBe("swept 1\nreclaimed t1\n");
   });
 
+  it("sweep prints kept for a stale claim whose subtask is already pending, and moves nothing for it (WR-07)", () => {
+    const root = repoClaiming("z");
+    age(root, "z", 31 * MINUTE_MS);
+    const newer = "# subtask z\nref: .grugops/context/NEW/\n";
+    writeFileSync(join(root, QUEUE_PENDING_REL, "z.md"), newer);
+    const r = run(root, "sweep");
+    expect(r.stderr).toBe("");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("swept 0\nkept z (pending/z.md already exists, so the claim stays)\n");
+    expect(readFileSync(join(root, QUEUE_PENDING_REL, "z.md"), "utf8")).toBe(newer);
+    expect(readFileSync(join(root, QUEUE_CLAIMED_REL, "z", "z.md"), "utf8")).toBe(subtask("z"));
+    expect(rows(root)).toHaveLength(1);
+  });
+
+  it("sweep prints a left line for a stray file and an unsafe name, dated 2020, and free still counts them (WR-11)", () => {
+    const root = repo();
+    configure(root, { wip_limit: 3, claim_cap: 2, stale_ttl_minutes: 30 });
+    const claimed = join(root, QUEUE_CLAIMED_REL);
+    mkdirSync(claimed, { recursive: true });
+    writeFileSync(join(claimed, "stray"), "");
+    mkdirSync(join(claimed, "bad+name"));
+    const old = new Date("2020-01-01T00:00:00.000Z");
+    for (const name of ["stray", "bad+name"]) utimesSync(join(claimed, name), old, old);
+    const r = run(root, "sweep");
+    expect(r.stderr).toBe("");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe(
+      "swept 0\nleft bad+name (not a claim the sweep can judge)\nleft stray (not a claim the sweep can judge)\n",
+    );
+    expect(existsSync(join(claimed, "stray"))).toBe(true);
+    expect(existsSync(join(claimed, "bad+name"))).toBe(true);
+    expect(run(root, "free").stdout).toBe("free 1\n");
+  });
+
   it("a render that fails after a reclaim exits 2 and says the reclaim stands", () => {
     const root = repoClaiming("t1");
     age(root, "t1", 31 * MINUTE_MS);
@@ -1252,7 +1286,10 @@ describe("a claim directory with no usable record shows in the log and frees its
     for (const forged of ["tampered", "attacker", "2099", "outsider", "nobody"]) expect(text).not.toContain(forged);
 
     // Inside the TTL only the tampered record is reclaimed. The link and the FIFO are not opened.
-    expect(run(root, "sweep").stdout).toBe("swept 1\nreclaimed tampered\n");
+    expect(run(root, "sweep").stdout).toBe(
+      "swept 1\nreclaimed tampered\n" +
+        "left stray.txt (not a claim the sweep can judge)\nleft unsafe name (not a claim the sweep can judge)\n",
+    );
     expect(run(root, "free").stdout).toBe("free 11\n");
 
     const old = new Date(Date.now() - 31 * MINUTE_MS);
@@ -1263,7 +1300,8 @@ describe("a claim directory with no usable record shows in the log and frees its
     expect(swept.status).toBe(0);
     expect(swept.stdout.split("\n")[0]).toBe("swept 6");
     expect(readFileSync(outside, "utf8")).toBe(outsideRecord);
-    // What stays: the live claim, a stray file and a name the sweep never joins. All three have a row.
+    // What stays: the live claim, and the stray file and the unsafe name, which the sweep names on `left` lines. All
+    // three have a row.
     expect(rows(root)).toHaveLength(3);
     expect(run(root, "free").stdout).toBe("free 17\n");
   });

@@ -898,7 +898,7 @@ describe("claim.js — sweepQueue: release what finished, reclaim what went stal
     mod.transition(root, "finished", "claimed", "done");
     backdate(root, "stale");
 
-    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["finished"], reclaimed: ["stale"] });
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["finished"], reclaimed: ["stale"], kept: [], left: [] });
     expect(existsSync(join(root, "claimed", "finished"))).toBe(false);
     expect(existsSync(join(root, "done", "finished.md"))).toBe(true);
     expect(existsSync(join(root, "pending", "finished.md"))).toBe(false);
@@ -911,14 +911,14 @@ describe("claim.js — sweepQueue: release what finished, reclaim what went stal
     mod.claimPending(root, "t", "grugops-qe-e2e");
     mod.transition(root, "t", "claimed", "done");
     backdate(root, "t");
-    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["t"], reclaimed: [] });
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["t"], reclaimed: [], kept: [], left: [] });
   });
 
   it("a claim still holding its subtask is not released, even with a done record beside it", () => {
     const root = makeQueueRoot("claim-sweep-queue-both-", ["t"]);
     mod.claimPending(root, "t", "grugops-qe-e2e");
     writeFileSync(join(root, "done", "t.md"), "# an earlier record\n");
-    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [] });
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [], kept: [], left: [] });
     expect(existsSync(join(root, "claimed", "t", "t.md"))).toBe(true);
   });
 
@@ -930,7 +930,7 @@ describe("claim.js — sweepQueue: release what finished, reclaim what went stal
     mkdirSync(join(root, "claimed", "t"));
     symlinkSync(elsewhere, join(root, "claimed", "t", "claim.md"));
     writeFileSync(join(root, "done", "t.md"), "# finished\n");
-    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["t"], reclaimed: [] });
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: ["t"], reclaimed: [], kept: [], left: [] });
     expect(existsSync(join(root, "claimed", "t"))).toBe(false);
     expect(readFileSync(elsewhere, "utf8")).toBe(record);
   });
@@ -941,12 +941,12 @@ describe("claim.js — sweepQueue: release what finished, reclaim what went stal
     writeFileSync(join(root, "done", "t.md"), "# finished\n");
     const swept = mod.sweepQueue(root, TTL);
     expect(existsSync(join(root, "claimed", "t"))).toBe(false);
-    expect(swept).toEqual({ released: ["t"], reclaimed: [] });
+    expect(swept).toEqual({ released: ["t"], reclaimed: [], kept: [], left: [] });
     expect(existsSync(join(root, "done", "t.md"))).toBe(true);
     expect(existsSync(join(root, "pending", "t.md"))).toBe(false);
 
     mkdirSync(join(root, "claimed", "t"));
-    expect(mod.sweepQueue(root, TTL, Date.now() + 2 * TTL)).toEqual({ released: ["t"], reclaimed: [] });
+    expect(mod.sweepQueue(root, TTL, Date.now() + 2 * TTL)).toEqual({ released: ["t"], reclaimed: [], kept: [], left: [] });
   });
 
   it("a stray file or a link in claimed/ stays, even with a done record of its name beside it (WR-04)", () => {
@@ -955,15 +955,40 @@ describe("claim.js — sweepQueue: release what finished, reclaim what went stal
     writeFileSync(join(root, "done", "stray.md"), "# a record of the same name\n");
     symlinkSync(join(root, "pending"), join(root, "claimed", "link"));
     writeFileSync(join(root, "done", "link.md"), "# a record of the same name\n");
-    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [] });
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [], kept: [], left: ["link", "stray"] });
     expect(existsSync(join(root, "claimed", "stray"))).toBe(true);
     expect(lstatSync(join(root, "claimed", "link")).isSymbolicLink()).toBe(true);
+  });
+
+  it("sweep keeps a stale claim whose pending file exists, and the newer pending file keeps its bytes (WR-07)", () => {
+    const root = makeQueueRoot("claim-sweep-queue-kept-");
+    mkdirSync(join(root, "claimed", "z"));
+    writeFileSync(join(root, "claimed", "z", "claim.md"), "---\nby: a\nat: 2000-01-01T00:00:00.000Z\ntask: z\n---\n");
+    writeFileSync(join(root, "claimed", "z", "z.md"), "# subtask z\nref: .grugops/context/OLD/\n");
+    const newer = "# subtask z\nref: .grugops/context/NEW/\n";
+    writeFileSync(join(root, "pending", "z.md"), newer);
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [], kept: ["z"], left: [] });
+    expect(readFileSync(join(root, "pending", "z.md"), "utf8")).toBe(newer);
+    expect(existsSync(join(root, "claimed", "z"))).toBe(true);
+    expect(readFileSync(join(root, "claimed", "z", "z.md"), "utf8")).toBe("# subtask z\nref: .grugops/context/OLD/\n");
+  });
+
+  it("sweepQueue names each entry it cannot judge in left (WR-11)", () => {
+    const root = makeQueueRoot("claim-sweep-queue-left-");
+    writeFileSync(join(root, "claimed", "stray"), "");
+    mkdirSync(join(root, "claimed", "bad+name"));
+    writeFileSync(join(root, "claimed", ".gitkeep"), "");
+    const swept = mod.sweepQueue(root, TTL, Date.now() + 2 * TTL);
+    expect(swept.left).toEqual(["bad+name", "stray"]);
+    expect(swept.reclaimed).toEqual([]);
+    expect(existsSync(join(root, "claimed", "stray"))).toBe(true);
+    expect(existsSync(join(root, "claimed", "bad+name"))).toBe(true);
   });
 
   it("a keeper in claimed/ and an absent claimed/ are both a no-op", () => {
     const root = makeQueueRoot("claim-sweep-queue-keeper-");
     writeFileSync(join(root, "claimed", ".gitkeep"), "");
-    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [] });
-    expect(mod.sweepQueue(freshTmp("claim-sweep-queue-none-"), TTL)).toEqual({ released: [], reclaimed: [] });
+    expect(mod.sweepQueue(root, TTL)).toEqual({ released: [], reclaimed: [], kept: [], left: [] });
+    expect(mod.sweepQueue(freshTmp("claim-sweep-queue-none-"), TTL)).toEqual({ released: [], reclaimed: [], kept: [], left: [] });
   });
 });
