@@ -3671,6 +3671,21 @@ export function emitVerdict(task, id, integrity, sha, contextRoot = DEFAULT_CONT
     // contract promises a degraded finding at `UNKNOWN - verify`.
     if (integrity !== TEST_INTEGRITY_CLEAN)
         return null;
+    // ONE GATE RUN, ONE VERDICT (plan 41-20, WR-14, D-42). A retried emission in one gate run used to
+    // write a second live green verdict for the same per-run id. No ordinary note can supersede a
+    // verdict (41-15), so the pair stood, and the D-03 arm in admit() refused all evidence that named
+    // the run. This reads the store once, with the recognizer admit() uses, so it refuses exactly
+    // the verdict that arm would count twice. It is still above the first composing line, so nothing is
+    // written. A re-run of the gate mints a new per-run id, so this never refuses it. It throws rather
+    // than returns null: the CLI's null message speaks of the integrity result and would be false here.
+    const standing = currentState(readContext(task, contextRoot)).find((n) => isLiveGreenVerdict(n, id));
+    if (standing) {
+        throw new Error(`context-io.emitVerdict: refusing to emit — run "${id}" ` +
+            `already has a live green verdict ` +
+            `under task "${task}" (${standing.id}). A per-run id names one gate run, and a second ` +
+            `verdict would leave all evidence that names the run with no single commit to bind to. ` +
+            `Nothing was written.`);
+    }
     const note = {
         kind: "finding",
         by: GATE_IDENTITY,
@@ -3868,8 +3883,8 @@ stored = false) {
                 `admission FAIL: more than one live green §14-gate verdict exists for ` +
                     `"${verdictStampFor(runId)}" under task "${task}" (${matches.length} found), so there is ` +
                     `no single commit this artifact-ref can be bound to. A per-run id names one gate run; ` +
-                    `the evidence is refused and nothing is written ` +
-                    `until a named human resolves the duplicate.`,
+                    `the evidence is refused and nothing is written. ` +
+                    `Run the gate again: the new run mints a new id, and evidence names that run.`,
             ];
         }
         const verdict = matches[0];

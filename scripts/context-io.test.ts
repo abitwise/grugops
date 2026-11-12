@@ -2522,10 +2522,23 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
 // untouched. The authorisation came from a named human, Olger, on 2026-11-07, in the reply
 // `fix 55, ninth re-base for 64, accept R-41-08, Olger`, recorded as D-39 of phase 41, not from a
 // plan author. The freeze RE-LOCKS at the new baseline.
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39, 33.1-12, 41-15, 41-18)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 41-18 (T-41-64) for
-  // the deliberate unreadable-target unfreeze described above — the NINTH re-base. admit() must hash
-  // to this exactly; the prior baselines, newest first, were:
+//
+// PLAN 41-20 DELIBERATE UNFREEZE + RE-BASELINE (WR-14) — the TENTH re-base. The review reproduced a
+// retried emission in one gate run writing a second live green verdict for one per-run id. Since
+// plan 41-15 no ordinary note can supersede a verdict, so the pair stood, and the D-03 duplicate arm
+// refused every artifact-ref naming that run while its message deferred to a named human who had no
+// route to act. The source is now closed outside this function: `emitVerdict` reads the store with
+// `isLiveGreenVerdict` and refuses a second verdict for one run id. The span change is ONE message:
+// the duplicate arm's closing clause now tells the reader to run the gate again, because the new run
+// mints a new id and evidence names that run. No refusal family moves, and the other ten census
+// signatures are byte-identical. The authorisation came from a named human, Olger, recorded as D-42
+// of phase 41, in "41-UAT.md test 7, Olger, 2026-11-11", not from a plan author. The freeze RE-LOCKS
+// at the new baseline.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39, 33.1-12, 41-15, 41-18, 41-20)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 41-20 (WR-14) for
+  // the deliberate duplicate-verdict message unfreeze described above — the TENTH re-base. admit()
+  // must hash to this exactly; the prior baselines, newest first, were:
+  //   dfb5f2fb…09ac  (41-18, T-41-64's unreadable target — the ninth re-base)
   //   4750c1aa…0e7b  (41-15, CR-02's supersession rule — the eighth re-base)
   //   1bc759a5…813f  (33.1-12, WR-01's ledger look — the seventh re-base)
   //   bb920698…81cd  (31-39, D-39's dial/record split — the sixth re-base)
@@ -2535,10 +2548,10 @@ describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-b
   //   ae159bb3…5551  (30-03, D-14's unreadable-config refusal)
   //   dbf66ac7…ebf7  (25-13)
   //   b7998cbd…be3d  (pre-25-13, the original pin)
-  // — the list above ending at 31-39 is the record 31-39 wrote; 33.1-12, 41-15 and 41-18 each add
-  // their predecessor on top, and the value below is the ninth re-base.
+  // — the list above ending at 31-39 is the record 31-39 wrote; 33.1-12, 41-15, 41-18 and 41-20 each
+  // add their predecessor on top, and the value below is the tenth re-base.
   const ADMIT_FROZEN_SHA256 =
-    "dfb5f2fb63c12a9aaef058a69c11e22b4b0f59fcbaf56fe05830e9a4420f09ac";
+    "0d7d6bb0843e70f2be84b3efba3886a8e38d8ed659e9df21ef0b64e3f504ccca";
 
 
   // Extract the span `export function admit(` … matching `}` by brace-counting. HARDENED BY PLAN

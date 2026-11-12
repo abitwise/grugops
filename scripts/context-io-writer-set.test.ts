@@ -589,10 +589,11 @@ const REFUSAL_SITE_SPECS: readonly RefusalSiteSpec[] = Object.freeze([
       "admission FAIL: no live green §14-gate verdict found for \"\" under task \"\". An artifact-ref naming gate_run \"\" is evidence only when a real green gate verdict with that per-run id exists in the task context.",
   },
   {
+    // Its message moved by plan 41-20 (WR-14, D-42), "41-UAT.md test 7, Olger, 2026-11-11".
     key: "S4",
     family: "D-03 b — two live green verdicts share one per-run id",
     signature:
-      "admission FAIL: more than one live green §14-gate verdict exists for \"\" under task \"\" ( found), so there is no single commit this artifact-ref can be bound to. A per-run id names one gate run; the evidence is refused and nothing is written until a named human resolves the duplicate.",
+      "admission FAIL: more than one live green §14-gate verdict exists for \"\" under task \"\" ( found), so there is no single commit this artifact-ref can be bound to. A per-run id names one gate run; the evidence is refused and nothing is written. Run the gate again: the new run mints a new id, and evidence names that run.",
   },
   {
     key: "S5",
@@ -1126,6 +1127,38 @@ function seedShalessVerdict(contextRoot: string, task: string, runId: string): v
   );
 }
 
+/**
+ * A live green verdict WITH a sha, written to disk by hand and sealed, in `seedShalessVerdict`'s form.
+ *
+ * Since plan 41-20 the emitter refuses a second verdict for one per-run id (WR-14, D-42), so a
+ * duplicate is a store written before that fix or by hand. That is the shape S4 still refuses, and
+ * the S4 probe writes its second verdict through this helper so the site is still driven.
+ */
+function seedVerdictByHand(
+  contextRoot: string,
+  task: string,
+  runId: string,
+  sha: string,
+  at: string,
+): void {
+  const atCompact = at.replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const id = `${atCompact}-§14-gate-finding-byhand01`;
+  const dir = join(contextRoot, task, "notes");
+  mkdirSync(dir, { recursive: true });
+  const fence =
+    `id: ${id}\n` +
+    `kind: finding\nby: §14-gate\nat: ${at}\nverified_by: \nconfidence: high\n` +
+    `sha: ${sha}\n` +
+    `refs:\n  - §14-gate#${runId}\n` +
+    "supersedes: \n";
+  const rest =
+    "---\n\n" + `READY_FOR_HUMAN_REVIEW: the §14 quality gate run ${runId} passed (all checks green).\n`;
+  writeFileSync(
+    join(dir, `${id}.md`),
+    "---\n" + fence + `${mod.NOTE_SEAL_KEY}: ${mod.noteSeal("---\n" + fence + rest)}\n` + rest,
+  );
+}
+
 /** The S10 probe: its seed emits a real green verdict, and its note names that verdict's id. */
 function supersededVerdictProbe(): RefusalProbe {
   let verdictId = "";
@@ -1240,7 +1273,7 @@ const REFUSAL_PROBE_SPECS: Readonly<Record<string, RefusalProbe>> = Object.freez
     note: () => artifactRefNote({ gate_run: "RUN-DUPLICATE" }),
     seed: (contextRoot, task) => {
       seedGreenVerdict(contextRoot, task, "RUN-DUPLICATE", "2026-09-08T03:00:00Z");
-      seedGreenVerdict(contextRoot, task, "RUN-DUPLICATE", "2026-09-08T04:00:00Z");
+      seedVerdictByHand(contextRoot, task, "RUN-DUPLICATE", FABRICATED_SHA, "2026-09-08T04:00:00Z");
     },
   },
   // D-03 c: the matched verdict recorded no commit, so the evidence is unbindable.
