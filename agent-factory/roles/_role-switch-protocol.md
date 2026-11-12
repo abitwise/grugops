@@ -22,7 +22,7 @@ When a role activates, run these five steps in order.
    Each note carries the trace ids in its `refs` field. Publish several one-kind notes, never one large packet.
    Write each note with `node tools/grugops/note.js add`, per step 3 of Workflow 16.
    The Orchestrator already claimed queued work per Workflow 17 (`agent-factory/workflows/17-task-claim.md`), in this role's adapter name.
-   Run `node tools/grugops/claim.js done <task>` once its notes are published. Workflows 16 and 17 hold the mechanics.
+   When the work was queued, run `node tools/grugops/claim.js done <task>` once its notes are published. Workflows 16 and 17 hold the mechanics.
 5. Print `■ exiting <ROLE>`; control returns to the Orchestrator.
    The Orchestrator reads the role's published notes, never its running chatter.
 

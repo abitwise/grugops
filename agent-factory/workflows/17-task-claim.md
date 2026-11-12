@@ -47,7 +47,7 @@ Width is how many role agents run at once. Depth is how many layers a spawned ag
 ## Steps
 Run these in order, from the repository root. `<task>` is the subtask id. If `tools/grugops/claim.js` or `tools/grugops/note.js` is absent, stop and name the scripted install.
 
-1. Write each subtask to `pending/<task>.md` as exactly two lines (Orchestrator). A re-queued subtask keeps the `ref:` of its per-task context.
+1. Write each subtask to `pending/<task>.md` as exactly two lines (Orchestrator). A re-queued subtask takes a new id, such as `abc-104-r2`, and keeps the `ref:` of its per-task context. The `claim` command refuses an id already in `done/`.
    - Set line one to `# subtask <task>`.
    - Set line two to the task's context folder: `ref: .grugops/context/abc-104/` for task `abc-104`.
 
@@ -61,7 +61,7 @@ Run these in order, from the repository root. `<task>` is the subtask id. If `to
 
 6. Implement the subtask (role). Write only after you verify. Record results into the shared verified context ONLY via WF16, under the honest note kind. The writer is `node tools/grugops/note.js add`, the host copy of `context-io.ts` `appendNote`. A `finding` needs a real stamp; soft results go in as `claim` / `observation`. Evidence pointing at a committed UAT spec goes in as an `artifact-ref`. It carries `sha`, `gate_run` and `content_hash`. `appendNote` consults the admission authority for EVERY note it takes, whatever its kind. A `finding` stamped `§14-gate#<id>` is admitted only against a live green verdict with that per-run id. An `artifact-ref` is admitted only against a live green verdict for its `gate_run`. Anything the authority refuses is refused here, and nothing is written. When the governance root cannot be named, every note is refused. WF16 names the stop. The admission rules live in WF16; this workflow references them and does not restate them. Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent.
 
-7. Run `node tools/grugops/claim.js done <task>` as the role's last act, once its notes are published (role). It moves the subtask to `done/`, releases the claim directory and re-renders `now-running.md`. It refuses with exit 1 when the task's context folder holds no sealed note since the claim's `at`. Its `not-done <task>:` line names any unsealed notes it found. Publish what is missing with `node tools/grugops/note.js add` per WF16, then run it again. Any other exit, or exit 1 without that line, is a genuine failure: stop, surface it and leave the claim in place. Never move a subtask by hand.
+7. Run `node tools/grugops/claim.js done <task>` as the role's last act, once its notes are published (role). It moves the subtask to `done/`, releases the claim directory and re-renders `now-running.md`. It refuses with exit 1 when the task's context folder holds no sealed note since the claim's `at`. Its `not-done <task>:` line names any unsealed notes it found. Publish what is missing with `node tools/grugops/note.js add` per WF16, then run it again. Any other exit, or exit 1 without that line, is a genuine failure. Stop, surface it and leave the claim in place. Never move a subtask by hand.
 
 8. Verify each close when the agent returns (Orchestrator). Confirm `done/<task>.md` exists and the notes are published. A task still in `claimed/` follows `## Keep capacity full`.
 
@@ -83,10 +83,10 @@ Run the stale sweep only at session start, including the fresh-session fallback.
 
 1. Read `now-running.md` and `memory-bank/plans/board.md`.
 2. Run `node tools/grugops/claim.js sweep`.
-3. Finish each claim still in `now-running.md`. No agent runs it now. Re-spawn the adapter named in `by`, to finish the task and run `done`. Where the `Agent` tool does not exist, switch to that role instead. The re-spawn fills the slot the claim already holds. Leave a row with an empty `by`: it names no adapter, and a later sweep reclaims it.
+3. Finish each claim still in `now-running.md`. No agent runs it now. Re-spawn the adapter named in `by`, to finish the task and run `done`. Where the `Agent` tool does not exist, switch to that role instead. The re-spawn fills the slot the claim already holds. A row with an empty `by` names no adapter. A sweep after the TTL reclaims one whose directory holds no usable record. Stop and name each entry `sweep` prints on a `kept` or `left` line, so a human resolves it.
 4. Refill per `## Keep capacity full`.
 
-The sweep reclaims a claim whose `claim.md` `at` is older than `queue.stale_ttl_minutes`, and a tampered multi-`at` record. It judges a claim with no usable `at` by its directory's modified time against the same TTL. The subtask returns to `pending/` by atomic rename, and the claim directory is released. A claim whose subtask already sits in `done/` is released, not reclaimed. Wall-clock TTL only; no pid/host liveness. A fresh claim is left untouched.
+The sweep reclaims a claim whose `claim.md` `at` is older than `queue.stale_ttl_minutes`, and a tampered multi-`at` record. It judges a claim with no usable `at` by its directory's modified time against the same TTL. The subtask returns to `pending/` by atomic rename, and the claim directory is released. A claim whose subtask already sits in `done/` is released, not reclaimed. Wall-clock TTL only; no pid/host liveness. A fresh claim is left untouched. A stale claim whose subtask already sits in `pending/` is kept and printed as `kept <task>`, and the pending copy stands. A stray file or an unsafe name in `claimed/` is never reclaimed, and the sweep prints it as `left <name>`.
 
 Inside a live session, report a long claim and leave it in place. Reclaiming it could hand a slow agent's task to a second agent. Two Orchestrator sessions on one repository can still sweep or re-spawn each other's claims, an accepted residual.
 

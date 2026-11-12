@@ -29,7 +29,7 @@ Any incoming request — every `/grugops` starts here.
    `ticket-to-pr` `quality-gate` `uat` `refinement` `sprint-planning` `daily-sweep`
    `sprint-review` `retro` `release` `incident` `install` `ui-build` `security-audit`
 4. Split the request into subtasks.
-5. Enqueue each subtask as a thin `pending/` file holding only a `ref:` to its `.grugops/context/` folder.
+5. Enqueue each subtask as a `pending/` file, per step 1 of Workflow 17.
 6. Start role agents, claim, refill, sweep and run session compaction per `agent-factory/workflows/17-task-claim.md`.
 7. Run the gate before a ticket advances.
 8. Require published notes and trace refs from each agent before its ticket advances.

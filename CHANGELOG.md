@@ -60,6 +60,13 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - The Orchestrator now claims each subtask at dispatch in its role's name, and the role runs
   `done` as its last act. It refills free slots from the `claimed/` count on disk, and the sweep runs
   only at session start. See `agent-factory/workflows/17-task-claim.md`.
+- `tools/grugops/claim.js claim` refuses a pending subtask whose `ref:` line `done` would refuse, with
+  exit `2`, so a task never stops at `done` for a subtask file it was claimed with. A re-queued
+  subtask takes a new id, such as `abc-104-r2`.
+- `tools/grugops/claim.js sweep` no longer replaces a newer `pending/<task>.md` with a stale claim's
+  copy: it keeps both and prints `kept <task>`. It prints `left <name>` for each entry in `claimed/`
+  it cannot judge, such as a stray file or an unsafe name, and the Orchestrator stops and names each
+  one so a human resolves it.
 - Workflow 17 holds session compaction guidance for the Orchestrator: when to pause, confirm and
   compact, and when to checkpoint for a fresh session. No config key is added.
 - Workflow 04 has an ask-once rule: at each human stop, only the Orchestrator asks the human. A stop

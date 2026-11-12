@@ -143,7 +143,7 @@ describe("Workflow 17 reads as one command per step (plan 41-04; RUN-05, D-01, D
     const done = step(WF17, 7);
     expect(done).toContain("Its `not-done <task>:` line names any unsealed notes it found.");
     expect(done).toContain(
-      "Any other exit, or exit 1 without that line, is a genuine failure: stop, surface it and leave the claim in place.",
+      "Any other exit, or exit 1 without that line, is a genuine failure. Stop, surface it and leave the claim in place.",
     );
   });
 
@@ -465,8 +465,13 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
     expect(step3).not.toMatch(HOST_NAME);
   });
 
-  it("leaves a row with an empty `by` for a later sweep (WR-03, plan 41-10)", () => {
-    expect(respawn()).toContain("Leave a row with an empty `by`: it names no adapter, and a later sweep reclaims it.");
+  it("says what clears a row with an empty `by`, and stops on what the sweep cannot clear (WR-03, plan 41-10; WR-11, plan 41-19)", () => {
+    expect(respawn()).toContain(
+      "A row with an empty `by` names no adapter. " +
+        "A sweep after the TTL reclaims one whose directory holds no usable record. " +
+        "Stop and name each entry `sweep` prints on a `kept` or `left` line, so a human resolves it.",
+    );
+    expect(respawn()).not.toContain("a later sweep reclaims it");
   });
 
   it("does nothing when the sweep left no claim, so the refill still runs (RUN-03 empty)", () => {
@@ -741,8 +746,10 @@ describe("the role-switch step agrees with Workflow 17 (plan 41-06; D-04, D-05)"
     expect(stepFour()).toContain("in this role's adapter name.");
   });
 
-  it("gives the role the `done` command", () => {
-    expect(stepFour()).toContain("Run `node tools/grugops/claim.js done <task>` once its notes are published.");
+  it("gives the role the `done` command, on queued work only (IN-05, plan 41-19)", () => {
+    expect(stepFour()).toContain(
+      "When the work was queued, run `node tools/grugops/claim.js done <task>` once its notes are published.",
+    );
   });
 
   it("no longer tells the role to claim", () => {
@@ -799,6 +806,51 @@ describe("the kit says what a note cannot supersede (plan 41-16; CR-02, RUN-05, 
     expect(lines.slice(trail + 1, trail + 3).join(" | ")).toBe(
       "A green gate verdict and a finding the `human_admission` dial gates are the exception: | " +
         "only a named human's disposition retires one.",
+    );
+  });
+});
+
+describe("the queue text names a re-queued subtask and what the sweep leaves (plan 41-19; WR-05, WR-06, WR-07, WR-11, IN-04, IN-05, D-42)", () => {
+  const WF04 = readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8");
+
+  it("step 1 of Workflow 17 gives a re-queued subtask a new id, and keeps the two exact lines (WR-06)", () => {
+    expect(step(WF17, 1)).toContain(
+      "A re-queued subtask takes a new id, such as `abc-104-r2`, and keeps the `ref:` of its per-task context. " +
+        "The `claim` command refuses an id already in `done/`.",
+    );
+    expect(step(WF17, 1)).toContain("exactly two lines");
+  });
+
+  it("step 16 of Workflow 04 points at step 1 of Workflow 17, straight after the re-pend rule (WR-06)", () => {
+    expect(WF04).toContain(
+      "Never re-pend a `done/` subtask. " +
+        "Give a re-queued subtask a new id, per step 1 of `agent-factory/workflows/17-task-claim.md`.",
+    );
+  });
+
+  it("session start step 3 stops on each `kept` or `left` line (WR-07, WR-11)", () => {
+    const line = section(WF17, "Session start")
+      .split("\n")
+      .find((l) => l.startsWith("3. "));
+    expect(line).toContain("Stop and name each entry `sweep` prints on a `kept` or `left` line, so a human resolves it.");
+  });
+
+  it("the sweep paragraph says a newer pending copy stands and names what is never reclaimed (WR-07, WR-11)", () => {
+    expect(section(WF17, "Session start")).toContain(
+      "A fresh claim is left untouched. " +
+        "A stale claim whose subtask already sits in `pending/` is kept and printed as `kept <task>`, and the pending copy stands. " +
+        "A stray file or an unsafe name in `claimed/` is never reclaimed, and the sweep prints it as `left <name>`.",
+    );
+  });
+
+  it("the Orchestrator points at step 1 of Workflow 17 for the subtask file, and no longer describes it itself (IN-04)", () => {
+    expect(ORCHESTRATOR).toContain("5. Enqueue each subtask as a `pending/` file, per step 1 of Workflow 17.");
+    expect(ORCHESTRATOR).not.toContain("holding only a");
+  });
+
+  it("the role-switch `done` line keeps its condition (IN-05)", () => {
+    expect(ROLE_SWITCH).toContain(
+      "   When the work was queued, run `node tools/grugops/claim.js done <task>` once its notes are published.",
     );
   });
 });
