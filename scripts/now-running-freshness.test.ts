@@ -123,7 +123,7 @@ describe("renderNowRunning — agent and level columns, and row order (D-03, RUN
     ]);
     mkdirSync(join(queueRoot, "pending"), { recursive: true });
     mkdirSync(join(queueRoot, "done"), { recursive: true });
-    writeFileSync(join(queueRoot, "pending", "new.md"), "# subtask new\n");
+    writeFileSync(join(queueRoot, "pending", "new.md"), "# subtask new\nref: .grugops/context/new/\n");
     const outcome = mod.claimPending(queueRoot, "new", "grugops-software-engineer-mid", "mid");
     if (outcome.kind !== "claimed") throw new Error("the claim was not made");
 
@@ -161,8 +161,8 @@ describe("renderNowRunning — the in-flight log empties as work finishes (RUN-0
     const { queueRoot } = makeCheckRoot("nr-empties-", []);
     mkdirSync(join(queueRoot, "pending"), { recursive: true });
     mkdirSync(join(queueRoot, "done"), { recursive: true });
-    writeFileSync(join(queueRoot, "pending", "one.md"), "# subtask one\n");
-    writeFileSync(join(queueRoot, "pending", "two.md"), "# subtask two\n");
+    writeFileSync(join(queueRoot, "pending", "one.md"), "# subtask one\nref: .grugops/context/one/\n");
+    writeFileSync(join(queueRoot, "pending", "two.md"), "# subtask two\nref: .grugops/context/two/\n");
 
     expect(mod.claimPending(queueRoot, "one", "grugops-qe-e2e").kind).toBe("claimed");
     expect(mod.claimPending(queueRoot, "two", "grugops-qe-e2e").kind).toBe("claimed");

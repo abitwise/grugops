@@ -238,9 +238,51 @@ describe("claim.js — claimPending: one call claims and moves the subtask (RUN-
   it("a real failure is a refusal, never a false lost (a missing claimed/ directory)", () => {
     const root = freshTmp("claim-pending-noparent-");
     mkdirSync(join(root, "pending"), { recursive: true });
-    writeFileSync(join(root, "pending", "t.md"), "# subtask t\n");
+    writeFileSync(join(root, "pending", "t.md"), "# subtask t\nref: .grugops/context/t/\n");
     expect(mod.claimPending(root, "t", "grugops-qe-e2e").kind).toBe("refused");
     expect(existsSync(join(root, "pending", "t.md"))).toBe(true);
+  });
+
+  it.each([
+    ["no ref: line", "# subtask t\n", "0 ref: lines"],
+    ["two ref: lines", "# subtask t\nref: .grugops/context/t/\nref: .grugops/context/u/\n", "2 ref: lines"],
+    ["a ref: line outside .grugops/context/", "# subtask t\nref: .grugops/context/../x/\n", "does not name one folder"],
+  ])(
+    "claimPending refuses a pending subtask whose ref subtaskRefFolder refuses, before takeClaim (WR-05): %s",
+    (_name, text, phrase) => {
+      const root = makeQueueRoot("claim-pending-badref-");
+      writeFileSync(join(root, "pending", "t.md"), text);
+      const outcome = mod.claimPending(root, "t", "grugops-qe-e2e");
+      expect(outcome.kind).toBe("refused");
+      if (outcome.kind !== "refused") throw new Error("unreachable");
+      expect(outcome.reason).toContain(phrase);
+      expect(outcome.reason).toContain("so done would refuse it; fix pending/t.md before it is claimed");
+      expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+      expect(readFileSync(join(root, "pending", "t.md"), "utf8")).toBe(text);
+    },
+  );
+
+  it("a pending file that is not a regular file is refused, never opened (WR-05)", () => {
+    const root = makeQueueRoot("claim-pending-fifo-");
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      join(root, "pending", "t.md"),
+      "scripts/claim.test.ts: a FIFO at the pending subtask (plan 41-19)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the ref: refusal cases beside this one (the same check before takeClaim)"));
+      return;
+    }
+    // In a child, so a read that opened the FIFO would end in the timeout rather than hang the suite.
+    const script =
+      `const m = await import(${JSON.stringify(pathToFileURL(CLAIM_JS).href)});` +
+      `process.stdout.write(JSON.stringify(m.claimPending(${JSON.stringify(root)}, "t", "grugops-qe-e2e")));`;
+    const r = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
+    expect(r.signal, r.stderr).toBeNull();
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({ kind: "refused", reason: "pending/t.md is not a regular file" });
+    expect(existsSync(join(root, "claimed", "t"))).toBe(false);
+    expect(lstatSync(join(root, "pending", "t.md")).isFIFO()).toBe(true);
   });
 
   it("throws on a path-traversal task name before any join (T-20-04)", () => {
@@ -461,7 +503,7 @@ describe("claim.js — the record carries agent and level (D-03, D-30, T-41-01)"
     const repo = freshTmp("claim-record-board-");
     const queueRoot = join(repo, ".grugops", "queue");
     for (const sub of ["pending", "claimed", "done"]) mkdirSync(join(queueRoot, sub), { recursive: true });
-    writeFileSync(join(queueRoot, "pending", "t.md"), "# subtask t\n");
+    writeFileSync(join(queueRoot, "pending", "t.md"), "# subtask t\nref: .grugops/context/t/\n");
     const outcome = mod.claimPending(queueRoot, "t", "grugops-software-engineer-mid", "mid");
     if (outcome.kind !== "claimed") throw new Error("the claim was not made");
 

@@ -612,7 +612,9 @@ describe("done refuses what it cannot read (T-41-16)", () => {
   ];
   for (const c of badRefs) {
     it(`${c.name}: exit 2 with claimed/t1/ unchanged`, () => {
-      const root = claimedRepo("t1", c.text);
+      // `claim` refuses these shapes (WR-05), so the claim is taken on a sound subtask and the bad one is planted after.
+      const root = claimedRepo("t1");
+      writeFileSync(join(root, QUEUE_CLAIMED_REL, "t1", "t1.md"), c.text);
       const before = claimTree(root, "t1");
       expectRefused(run(root, "done", "t1"), c.phrase);
       expectNothingMoved(root, "t1", before);
@@ -767,6 +769,41 @@ describe("done refuses what it cannot read (T-41-16)", () => {
     expectRefused(r, "the queue tool stopped unexpectedly", "t1 moved to done/", "The command did not finish.");
     expect(r.stderr).not.toContain("The queue was not changed.");
     expect(existsSync(join(root, QUEUE_DONE_REL, "t1.md"))).toBe(true);
+  });
+});
+
+// ── claim and done read a subtask the same way (plan 41-19, WR-05, D-42) ─────────────────────────────────
+
+describe("claim refuses a subtask done would refuse (plan 41-19, WR-05, D-42)", () => {
+  const badSubtasks: readonly { name: string; text: string; phrase: string }[] = [
+    { name: "no ref: line", text: "# subtask t1\n", phrase: "0 ref: lines" },
+    { name: "two ref: lines", text: "# subtask t1\nref: .grugops/context/t1/\nref: .grugops/context/t2/\n", phrase: "2 ref: lines" },
+    { name: "a ref: line outside .grugops/context/", text: "# subtask t1\nref: .grugops/context/../x/\n", phrase: "does not name one folder" },
+  ];
+  for (const c of badSubtasks) {
+    it(`claim refuses a subtask done would refuse: exit 2, no claim directory, the subtask stays pending (WR-05): ${c.name}`, () => {
+      const root = repo();
+      writeFileSync(join(root, QUEUE_PENDING_REL, "t1.md"), c.text);
+      const r = run(root, "claim", "t1", "--by", "grugops-qe-e2e");
+      expectRefused(r, c.phrase, "so done would refuse it", "pending/t1.md");
+      expect(existsSync(join(root, QUEUE_CLAIMED_REL, "t1"))).toBe(false);
+      expect(readFileSync(join(root, QUEUE_PENDING_REL, "t1.md"), "utf8")).toBe(c.text);
+    });
+  }
+
+  it("after the subtask is fixed, the same claim succeeds and done finishes it (WR-05)", () => {
+    const root = repo();
+    writeFileSync(join(root, QUEUE_PENDING_REL, "t1.md"), "# subtask t1\n");
+    expectRefused(run(root, "claim", "t1", "--by", "grugops-qe-e2e"), "0 ref: lines");
+    writeFileSync(join(root, QUEUE_PENDING_REL, "t1.md"), subtask("t1"));
+    const claimed = run(root, "claim", "t1", "--by", "grugops-qe-e2e");
+    expect(claimed.status, claimed.stderr).toBe(0);
+    plantNote(root, "t1", "n1", sealedNote("n1", shifted(claimAt(root, "t1"), 1000)));
+    const r = run(root, "done", "t1");
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe("done t1\n");
+    expect(r.status).toBe(0);
+    expect(readFileSync(join(root, QUEUE_DONE_REL, "t1.md"), "utf8")).toBe(subtask("t1"));
   });
 });
 

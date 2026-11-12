@@ -139,10 +139,12 @@ describe("Workflow 17 reads as one command per step (plan 41-04; RUN-05, D-01, D
     );
   });
 
-  it("reads exit 1 of `done` as `not-done` only with that line, so a missing module is a stop (WR-01)", () => {
+  it("reads exit 1 of `done` as `not-done` only with that line, and any other exit is a stop that leaves the claim (WR-01, WR-05)", () => {
     const done = step(WF17, 7);
     expect(done).toContain("Its `not-done <task>:` line names any unsealed notes it found.");
-    expect(done).toContain("Exit 1 without that line is a genuine failure: stop and surface it.");
+    expect(done).toContain(
+      "Any other exit, or exit 1 without that line, is a genuine failure: stop, surface it and leave the claim in place.",
+    );
   });
 
   it("says a refill that trusts `free` does not over-spawn, and claims no mechanism inside `claim` (IN-08)", () => {
