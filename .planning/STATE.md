@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: verifying
-stopped_at: Completed 41-19-PLAN.md
-last_updated: "2026-11-12T08:12:19.239Z"
+stopped_at: Completed 41-20-PLAN.md
+last_updated: "2026-11-12T08:32:08.779Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 41 execution started
-state_head: b8cf20555d9b373f6ec897db106455e0063dbe49
+state_head: 530ebef6bc3bc181b1d12e46844d8c145b4acc4d
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 137
-  completed_plans: 132
+  completed_plans: 133
   percent: 67
 ---
 
@@ -850,6 +850,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P17 | 12 min | 3 tasks | 21 files |
 | Phase 41 P18 | 41 min | 3 tasks | 24 files |
 | Phase 41 P19 | 18 min | 3 tasks | 23 files |
+| Phase 41 P20 | 17 min | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -2361,6 +2362,9 @@ Recent decisions affecting current work:
 - [Phase 41]: 41-18: ninth re-base of the admit() freeze on Olger's reply recorded as D-39; a renamed unreadable note file reads as no note, recorded in R-41-09 and T-41-81 as not accepted
 - [Phase 41]: 41-19: claim refuses a pending subtask whose ref: line done would refuse, before takeClaim; a vanished pending file is left to the later refusal so a lost race still reads lost (D-08)
 - [Phase 41]: 41-19: sweep keeps a stale claim whose pending/<task>.md exists (kept) and names each claimed/ entry it cannot judge (left); both print after the change lines, exit 0 stays
+- [Phase 41]: 41-20: emitVerdict refuses a second live green verdict for one per-run id by throwing (CLI exit 1), reading the store with isLiveGreenVerdict; S4 now says run the gate again (tenth admit() re-base, D-42)
+- [Phase 41]: 41-20: emitVerdict's refusal names 'all evidence', not 'artifact-ref', so the census proof that emitVerdict never names that kind still holds
+- [Phase 41]: 41-20: index.md banner names no program: Rendered by the note writer from the notes/ folder
 
 ### Pending Todos
 
@@ -2702,8 +2706,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-12T08:12:18.047Z
-Stopped at: Completed 41-19-PLAN.md
+Last session: 2026-11-12T08:32:07.590Z
+Stopped at: Completed 41-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
