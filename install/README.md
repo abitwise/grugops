@@ -456,8 +456,9 @@ are written only when that agent is chosen.
   - `tools/grugops/trace-render.js` renders the per-ticket trace files and the trace index
   - `tools/grugops/state-roll.js` moves older Done rows and dated progress entries into archive files
   - `tools/grugops/claim.js` claims and completes queued tasks and reports free capacity
-  - `tools/grugops/note.js` writes a sealed note into the shared context, through the same writer
-    and admission rules as the kit
+  - `tools/grugops/note.js` writes a sealed note into the shared context through the same writer
+    and the in-script admission tier, outside the Claude Code hook, and prints a task's current
+    notes with `read`
 
   Install never overwrites a copy that is already there, so an updated program reaches your
   repository only after you remove the old copy and install again.

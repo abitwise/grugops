@@ -54,6 +54,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   `now-running` from the repository root, so a host needs no library call to work the queue.
 - `tools/grugops/note.js`, the host note writer. A role runs it to write the sealed note
   `claim.js done` needs, on every host the scripted install reaches.
+- `tools/grugops/note.js read <folder>` prints the sealed notes of a task's current state in full
+  and names each file in `notes/` that is not a sealed note, so a role on any host reads the
+  context through the seal check. Workflows 16 and 17 point at it.
 
 ### Changed
 
