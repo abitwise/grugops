@@ -714,6 +714,38 @@ describe("the writer's refusals (WF16 step 4, D-28, D-35)", () => {
     notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
     expect(lines()).toBe(2);
   });
+
+  // WR-09, D-42 (41-UAT.md test 7, Olger, 2026-11-11): exit 1 tells a role to change its note, so only a decision the
+  // writer made about the note may print `refused`. An admission that cannot be recorded says nothing about the note.
+  it("an admission that cannot be recorded is exit 2, never refused (WR-09)", () => {
+    const root = governed({ audit_retention: "retained" });
+    mkdirSync(join(root, GRUGOPS_DIR_REL, "audit"));
+    const skipped = stageShapeOrSkip("FIFO", join(root, LEDGER_REL), "scripts/runnable-ref/note.test.ts: the audit ledger (plan 41-21)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "scripts/runnable-ref/note-read-sites.test.ts's ledger-directory control (the same exit)"));
+      return;
+    }
+    expectCouldNotRun(note(root, "add", "t1", ...OBSERVATION), "could not be recorded");
+    expect(noteFiles(root, "t1"), "no note was written").toEqual([]);
+  });
+
+  it("a note admit() refuses is still exit 1 with a refused line (WR-09 control)", () => {
+    const root = repo();
+    expectNothingWritten(root, () =>
+      expectRefused(note(root, "add", "t1", ...finding("qe-e2e", "§14-gate#no-such-run")), "t1", "no live green"),
+    );
+  });
+
+  it("an invalid field is still exit 1 (WR-09 control)", () => {
+    const root = repo();
+    expectNothingWritten(root, () =>
+      expectRefused(
+        note(root, "add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high\nkind: finding", "--body", "x"),
+        "t1",
+        "confidence",
+      ),
+    );
+  });
 });
 
 describe("--supersedes never retires a verdict or a governed finding (CR-02)", () => {
