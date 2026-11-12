@@ -5491,16 +5491,34 @@ const TRUSTED_ROOT_SEARCH_MAX_ANCESTORS = 64;
 
 /**
  * The refusal of a ladder that could not finish (plan 41-13, closing T-41-55). It names no root, so nothing can read
- * the dial of a repository it did not reach: an unknown dial is never the lean default. The `context-io` prefix is
- * what makes a writer's caller report an outcome rather than a crash, as an unreadable configuration does (D-14). The
- * line tells a role to stop. It names no variable to set, because no value a process sets for itself may decide this.
+ * the dial of a repository it did not reach: an unknown dial is never the lean default. It is raised for the
+ * governance dial, by `trustedRepoRoot`, and for a store's owner, by `governanceRootOf`, so it names the ladder for
+ * both rather than one function (plan 41-21, IN-15, D-42). Each reason names the path it is about where the code holds
+ * one. The `context-io` start is what makes a writer's caller report an outcome rather than a crash, as an unreadable
+ * configuration does (D-14). The line tells a role to stop and names what a human repairs. It names no variable to
+ * set, because no value a process sets for itself may decide this.
  */
 function undeterminedRoot(reason: string): Error {
   return new Error(
-    `context-io.trustedRepoRoot: refusing to name a governance root: ${reason}. The human_admission dial is ` +
-      "UNKNOWN - verify, nothing was admitted and nothing was written. An unknown dial is never read as the lean " +
-      "default. Nothing about the note is wrong, so stop and surface this to a human.",
+    `context-io (the governance root ladder): refusing to name a governance root: ${reason}. ` +
+      "The root this action needs is UNKNOWN - verify, so nothing was admitted and nothing was written. An unknown " +
+      "dial is never read as the lean default. Nothing about the note is wrong: stop, and have a human repair HOME, " +
+      "the working directory or the path this line names.",
   );
+}
+
+/** `reason` naming `path`, unless it already does (plan 41-21, IN-15). */
+function reasonNaming(path: string, reason: string): string {
+  return reason.includes(path) || reason.includes(resolve(path)) ? reason : `"${path}": ${reason}`;
+}
+
+/** The home directory as the platform reports it, for a message only; it reads no file. */
+function homeForMessage(): string {
+  try {
+    return `"${homedir()}"`;
+  } catch {
+    return "(the platform reports none)";
+  }
 }
 
 /**
@@ -5531,10 +5549,11 @@ function refuseUnlessAbsent(path: string, e: unknown): void {
 /**
  * Whether an entry is at a position, as the walk's evidence: `entryPresence`'s answer with its `real` field discarded.
  * An entry that cannot be inspected refuses, where the boolean probe this replaces answered it as absent, so a failed
- * read and a dangling link at a position can no longer lose the dial (plan 41-13, READ-1).
+ * read and a dangling link at a position can no longer lose the dial (plan 41-13, READ-1). `path` is the position
+ * asked, so the refusal names it when the reason does not (plan 41-21, IN-15).
  */
-function occupied(presence: EntryPresence): boolean {
-  if (presence.kind === "unreadable") throw undeterminedRoot(presence.reason);
+function occupied(presence: EntryPresence, path: string): boolean {
+  if (presence.kind === "unreadable") throw undeterminedRoot(reasonNaming(path, presence.reason));
   return presence.kind === "present";
 }
 
@@ -5805,9 +5824,9 @@ function projectRootFromWorkingDirectory(
     // The carrying candidate's INDEX is kept, not just the boolean, because at the home directory
     // WHICH position carries the configuration decides.
     const candidates = governanceConfigCandidates(dir);
-    const carryingIndex = candidates.findIndex((candidate) => occupied(entryPresence(candidate)));
+    const carryingIndex = candidates.findIndex((candidate) => occupied(entryPresence(candidate), candidate));
     const carriesConfig = carryingIndex >= 0;
-    const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(dir, marker))));
+    const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(dir, marker)), join(dir, marker)));
     // RULE 1b — THE HOME DIRECTORY ANSWERS ONLY AS A REPOSITORY, AND ENDS THE WALK EITHER WAY. It
     // never becomes `nearest`: `nearest` is not assigned on this path at all.
     if (isHomeItself(dir, home)) {
@@ -5953,7 +5972,7 @@ export function hostDeliveredRoot(): string | null {
   if (!st.isDirectory()) return null;
   // A REPOSITORY, by the marker set the walk already publishes — one authority for "where a
   // repository starts", never a second list here.
-  if (!REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(canonical, marker))))) return null;
+  if (!REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(canonical, marker)), join(canonical, marker)))) return null;
   // NOT the kit this module ships in. The kit is not a governed project, and adopting it is the
   // shape D-23 (4) and CR-13 both already refuse one tier down.
   if (canonical === canonicalDirectoryPath(GOVERNANCE_FALLBACK_BASE)) return null;
@@ -5968,9 +5987,9 @@ export function hostDeliveredRoot(): string | null {
  */
 function namedRootAnswers(named: string): boolean {
   const root = entryPresence(named);
-  if (root.kind === "unreadable") throw undeterminedRoot(root.reason);
+  if (root.kind === "unreadable") throw undeterminedRoot(reasonNaming(named, root.reason));
   if (root.kind === "absent" || !root.target.isDirectory()) return true;
-  return governanceConfigCandidates(named).some((candidate) => occupied(entryPresence(candidate)));
+  return governanceConfigCandidates(named).some((candidate) => occupied(entryPresence(candidate), candidate));
 }
 
 /**
@@ -6134,13 +6153,17 @@ export function trustedRepoRoot(): string {
   // holds this throw as a refusal.
   if (cwd === null) throw undeterminedRoot("the working directory cannot be read, so the search cannot start");
   if (discovered === WALK_DID_NOT_RUN) {
-    throw undeterminedRoot("the home directory cannot be determined, so the search has no bound and did not run");
+    const home = process.env.HOME === undefined ? "HOME is not set" : `HOME is "${process.env.HOME}"`;
+    throw undeterminedRoot(`the home directory cannot be determined (${home}), so the search has no bound and did not run`);
   }
   // A WALK THAT INSPECTED NOTHING NAMES NO ROOT EITHER (plan 41-17, D-38, T-41-55). Its first directory is above the
   // home directory, so the bound stopped it before it looked. This sits before the tail, so a name that carries no
   // configuration cannot answer here; a name that carries one has already answered above, which keeps the dial.
   if (discovered === WALK_STARTED_ABOVE_HOME) {
-    throw undeterminedRoot("the working directory is above the home directory, so the search inspected nothing");
+    throw undeterminedRoot(
+      `the working directory is above the home directory, so the search inspected nothing (the working directory ` +
+        `"${cwd}", the home directory ${homeForMessage()})`,
+    );
   }
   // The walk's answer outranks a name that carries no configuration, because that answer carries one.
   // The kit's own root never does: it is not a governed project, so where nothing governs the working

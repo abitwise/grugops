@@ -44,7 +44,8 @@
 // from the embedded trustedRepoRoot(), appendNote's own default, and never from the store. A working directory with no
 // .grugops directory is exit 2, so a wrong working directory never makes a stray store. The path to notes/ is asked of
 // the embedded rootChainPresence, which lstats each component, so a symbolic link on it is refused by name with nothing
-// written, wherever it points (T-41-33).
+// written, wherever it points (T-41-33). `.grugops/audit` and its ledger file are asked of the same owner, so the GOV-02
+// ledger the embedded admit() appends to cannot be sent outside the repository by a link (WR-10).
 //
 // OUTPUT IS SANITIZED. Every value this program prints has each C0, C1 and DEL code point removed by the embedded
 // stripControlChars (V7), and a reason that spans lines is flattened onto one.
@@ -67,7 +68,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:2ecbcda81d4eca5bc6886941f6b929a2f391ea8c3a89654c4a3b943fb5930d50";
+export const RUNNABLE_SET_STAMP = "sha256:f675debc523bddbaf4fa8fa932afc23032304324ea2f1f8158da580cd1465323";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -2022,9 +2023,21 @@ export const REPO_BOUNDARY_MARKERS = Object.freeze([
 ]);
 const TRUSTED_ROOT_SEARCH_MAX_ANCESTORS = 64;
 function undeterminedRoot(reason) {
-    return new Error(`context-io.trustedRepoRoot: refusing to name a governance root: ${reason}. The human_admission dial is ` +
-        "UNKNOWN - verify, nothing was admitted and nothing was written. An unknown dial is never read as the lean " +
-        "default. Nothing about the note is wrong, so stop and surface this to a human.");
+    return new Error(`context-io (the governance root ladder): refusing to name a governance root: ${reason}. ` +
+        "The root this action needs is UNKNOWN - verify, so nothing was admitted and nothing was written. An unknown " +
+        "dial is never read as the lean default. Nothing about the note is wrong: stop, and have a human repair HOME, " +
+        "the working directory or the path this line names.");
+}
+function reasonNaming(path, reason) {
+    return reason.includes(path) || reason.includes(resolve(path)) ? reason : `"${path}": ${reason}`;
+}
+function homeForMessage() {
+    try {
+        return `"${homedir()}"`;
+    }
+    catch {
+        return "(the platform reports none)";
+    }
 }
 const WALK_DID_NOT_RUN = Symbol("the walk did not run");
 const WALK_STARTED_ABOVE_HOME = Symbol("the walk started above the home directory");
@@ -2034,9 +2047,9 @@ function refuseUnlessAbsent(path, e) {
         return;
     throw undeterminedRoot(`"${path}" cannot be inspected (${code})`);
 }
-function occupied(presence) {
+function occupied(presence, path) {
     if (presence.kind === "unreadable")
-        throw undeterminedRoot(presence.reason);
+        throw undeterminedRoot(reasonNaming(path, presence.reason));
     return presence.kind === "present";
 }
 function directoryIdentity(dir) {
@@ -2179,9 +2192,9 @@ function projectRootFromWorkingDirectory(startDir) {
         // The carrying candidate's INDEX is kept, not just the boolean, because at the home directory
         // WHICH position carries the configuration decides.
         const candidates = governanceConfigCandidates(dir);
-        const carryingIndex = candidates.findIndex((candidate) => occupied(entryPresence(candidate)));
+        const carryingIndex = candidates.findIndex((candidate) => occupied(entryPresence(candidate), candidate));
         const carriesConfig = carryingIndex >= 0;
-        const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(dir, marker))));
+        const isBoundary = REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(dir, marker)), join(dir, marker)));
         // RULE 1b — THE HOME DIRECTORY ANSWERS ONLY AS A REPOSITORY, AND ENDS THE WALK EITHER WAY. It
         // never becomes `nearest`: `nearest` is not assigned on this path at all.
         if (isHomeItself(dir, home)) {
@@ -2225,7 +2238,7 @@ export function hostDeliveredRoot() {
         return null;
     // A REPOSITORY, by the marker set the walk already publishes — one authority for "where a
     // repository starts", never a second list here.
-    if (!REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(canonical, marker)))))
+    if (!REPO_BOUNDARY_MARKERS.some((marker) => occupied(entryPresence(join(canonical, marker)), join(canonical, marker))))
         return null;
     // NOT the kit this module ships in. The kit is not a governed project, and adopting it is the
     // shape D-23 (4) and CR-13 both already refuse one tier down.
@@ -2236,10 +2249,10 @@ export function hostDeliveredRoot() {
 function namedRootAnswers(named) {
     const root = entryPresence(named);
     if (root.kind === "unreadable")
-        throw undeterminedRoot(root.reason);
+        throw undeterminedRoot(reasonNaming(named, root.reason));
     if (root.kind === "absent" || !root.target.isDirectory())
         return true;
-    return governanceConfigCandidates(named).some((candidate) => occupied(entryPresence(candidate)));
+    return governanceConfigCandidates(named).some((candidate) => occupied(entryPresence(candidate), candidate));
 }
 export function trustedRepoRoot() {
     // TIER 0, ABOVE THE LOOP AND ABOVE THE WALK (plan 31-27, S1). It is placed here rather than woven
@@ -2297,13 +2310,15 @@ export function trustedRepoRoot() {
     if (cwd === null)
         throw undeterminedRoot("the working directory cannot be read, so the search cannot start");
     if (discovered === WALK_DID_NOT_RUN) {
-        throw undeterminedRoot("the home directory cannot be determined, so the search has no bound and did not run");
+        const home = process.env.HOME === undefined ? "HOME is not set" : `HOME is "${process.env.HOME}"`;
+        throw undeterminedRoot(`the home directory cannot be determined (${home}), so the search has no bound and did not run`);
     }
     // A WALK THAT INSPECTED NOTHING NAMES NO ROOT EITHER (plan 41-17, D-38, T-41-55). Its first directory is above the
     // home directory, so the bound stopped it before it looked. This sits before the tail, so a name that carries no
     // configuration cannot answer here; a name that carries one has already answered above, which keeps the dial.
     if (discovered === WALK_STARTED_ABOVE_HOME) {
-        throw undeterminedRoot("the working directory is above the home directory, so the search inspected nothing");
+        throw undeterminedRoot(`the working directory is above the home directory, so the search inspected nothing (the working directory ` +
+            `"${cwd}", the home directory ${homeForMessage()})`);
     }
     // The walk's answer outranks a name that carries no configuration, because that answer carries one.
     // The kit's own root never does: it is not a governed project, so where nothing governs the working
@@ -2637,6 +2652,27 @@ function refuseUnusableStore(root, notesRel) {
     if (problem !== null)
         couldNotRun(`${notesRel} cannot be used: ${problem}.`);
 }
+/** The GOV-02 ledger the embedded admit() appends to under `audit_retention: retained`, relative to the root. */
+const AUDIT_DIR_REL = `${GRUGOPS_DIR_REL}/audit`;
+const AUDIT_LEDGER_REL = `${GRUGOPS_DIR_REL}/audit/admissions.jsonl`;
+/**
+ * Makes sure the ledger cannot leave the repository (WR-10, D-42). `.grugops/audit` and its ledger file are asked of
+ * the root-chain owner, as the path to notes/ is, so a symbolic link at either is refused by name before anything is
+ * written. `absent` is allowed, because the writer creates the ledger. It holds at every `audit_retention` value: no
+ * link there is ever correct, and the check writes nothing.
+ */
+function refuseUnusableLedger(root) {
+    refuseUnusableStore(root, AUDIT_DIR_REL);
+    const presence = rootChainPresence(root, AUDIT_LEDGER_REL, "entry");
+    if (presence.kind === "absent")
+        return;
+    if (presence.kind === "link" || presence.kind === "unreadable")
+        couldNotRun(`${AUDIT_LEDGER_REL} cannot be used: ${presence.reason}.`);
+    if (presence.kind === "outside")
+        couldNotRun(`${AUDIT_LEDGER_REL} cannot be used: it resolves outside the repository root.`);
+    if (presence.entry.isSymbolicLink())
+        couldNotRun(`${AUDIT_LEDGER_REL} cannot be used: it is a symbolic link.`);
+}
 /**
  * True when the read `claim.js done` makes finds the note `id`. render() files a note it cannot read under its skipped
  * entries and returns, so `noted` would otherwise report a note neither the index nor `done` can see (READ-1).
@@ -2660,6 +2696,7 @@ function runAdd(folder) {
     }
     const notesRel = `${CONTEXT_REL}/${folder}/notes`;
     refuseUnusableStore(root, notesRel);
+    refuseUnusableLedger(root);
     const body = noteBody();
     const contextRoot = nodePath.join(root, CONTEXT_REL);
     noteStands = `The note may have been written; check ${notesRel}/ before adding it again.`;

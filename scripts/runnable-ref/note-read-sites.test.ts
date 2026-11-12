@@ -48,14 +48,18 @@ import {
 } from "../fault-inject.test-support.js";
 import { CONTEXT_REL, GRUGOPS_DIR_REL } from "../../install/state-layout.js";
 
-const MODES = ["observation", "retained", "gate-finding", "body-file", "delivered", "ambient", "home", "supersede"] as const;
+// 2026-11-12, plan 41-21 (WR-10, D-42; 41-UAT.md test 7, Olger, 2026-11-11): "ledger-present" moved here from
+// PROOF_MODES. note.js now asks the root-chain owner about the ledger file before the write, and that call's stat and
+// realpath read only a ledger that exists, so a mode with a ledger in place is the one that reaches them. It is judged
+// by THE RULE like every mode here, and still runs for the SECOND_SOURCE rows that name it.
+const MODES = ["observation", "retained", "gate-finding", "body-file", "delivered", "ambient", "home", "supersede", "ledger-present"] as const;
 type Mode = (typeof MODES)[number];
 
 /**
  * The modes only a row of SECOND_SOURCE runs in. Each governed mode refuses a finding the dial would admit if the dial
  * were lost: two of them hold the dial in a repository the working directory is not in, so the walk cannot supply it.
  */
-const PROOF_MODES = ["governed", "governed-home", "governed-ambient", "governed-delivered", "ledger-present", "ledger-directory"] as const;
+const PROOF_MODES = ["governed", "governed-home", "governed-ambient", "governed-delivered", "ledger-directory"] as const;
 type ProofMode = (typeof PROOF_MODES)[number];
 
 /** The modes that only prove the comparison can fail. No fault runs in them. */
@@ -332,10 +336,13 @@ function outcomeOf(root: string, r: Pick<FaultedRun, "status" | "signal" | "stdo
 /** The clause of a refusal that names which arm of the ledger check answered. */
 const UNDERLYING_REASON = / Underlying reason: .*$/s;
 
-/** `outcome` without that clause, which it must hold. */
+/**
+ * `outcome` without that clause, which it must hold. The clause is on stderr: an admission that cannot be recorded is
+ * exit 2 with one `Error:` line, never a `refused` line (plan 41-21, WR-09, D-42).
+ */
 function withoutReason(outcome: Outcome, label: string): Outcome {
-  expect(outcome.stdout, label).toMatch(UNDERLYING_REASON);
-  return { ...outcome, stdout: outcome.stdout.replace(UNDERLYING_REASON, "") };
+  expect(outcome.stderr, label).toMatch(UNDERLYING_REASON);
+  return { ...outcome, stderr: outcome.stderr.replace(UNDERLYING_REASON, "") };
 }
 
 /** A fresh copy of the fixture of `mode`, with `stage` applied to it. */
@@ -540,7 +547,8 @@ describe("READ-1 on note.js: the comparison behind SECOND_SOURCE can fail (plan 
     const line = (mode: AnyMode): string | undefined => control(mode).tree.find(([rel]) => rel.endsWith("admissions.jsonl"))?.[1];
     expect(line("retained")).toContain('"id":"<id>"');
     expect(line("ledger-present")).toContain('{"id":"earlier"}\n{"id":"<id>"');
-    expect(control("ledger-directory").status, "PREMISE: a directory at the ledger is refused").toBe(1);
+    // Plan 41-21 (WR-09, D-42): an admission that cannot be recorded says nothing about the note, so it is exit 2.
+    expect(control("ledger-directory").status, "PREMISE: a directory at the ledger is refused").toBe(2);
   });
 });
 
@@ -554,7 +562,8 @@ describe("READ-1 on note.js: the reads that have a named consequence (plan 41-12
     return found;
   }
 
-  it("a failed stat of a FIFO at the ledger is answered by the open: no wait, exit 1, and no note is written", () => {
+  // Plan 41-21 (WR-09, D-42): exit 1 → exit 2. The refusal is an admission that cannot be recorded.
+  it("a failed stat of a FIFO at the ledger is answered by the open: no wait, exit 2, and no note is written", () => {
     const probe = mkTmp("grugops-note-read-fifo-");
     const skipped = stageShapeOrSkip("FIFO", join(probe, "fifo"), "scripts/runnable-ref/note-read-sites.test.ts: the audit ledger (plan 41-12)");
     if (skipped !== null) {
@@ -569,7 +578,7 @@ describe("READ-1 on note.js: the reads that have a named consequence (plan 41-12
     expect(pair, "PREMISE: the ledger's stat is a derived pair").toBeDefined();
     const run = runPair(pair as DerivedPair, "retained", stage);
     expect(run.r.fired, `PREMISE: the fault fired: ${run.all}`).toBe(1);
-    expect(run.r.status, run.all).toBe(1);
+    expect(run.r.status, run.all).toBe(2);
     expect(withoutReason(run.outcome, run.all)).toEqual(withoutReason(unfaulted("retained", stage), "the FIFO control"));
     expect(noteKeys(run.after), run.all).toEqual(noteKeys(run.before));
   });
@@ -584,11 +593,14 @@ describe("READ-1 on note.js: the reads that have a named consequence (plan 41-12
     }
   });
 
-  it("a failed walk of the notes behind a gate-stamped finding refuses it: exit 1, and no note is written", () => {
+  // Plan 41-21 (WR-09, D-42): exit 1 → exit 2. admit() threw on the failed walk, so the writer's refusal is the one for
+  // an admission that could not be decided or recorded, which says nothing about the note.
+  it("a failed walk of the notes behind a gate-stamped finding refuses it: exit 2, and no note is written", () => {
     for (const pair of pairsOf("readRawNotesWithSkips", "readRawNotes")) {
       const run = runPair(pair, "gate-finding");
       expect(run.r.fired, `PREMISE: the fault fired: ${run.all}`).toBeGreaterThan(0);
-      expect(run.r.status, run.all).toBe(1);
+      expect(run.r.status, run.all).toBe(2);
+      expect(run.r.stderr, run.all).toContain("could not be decided or could not be recorded");
       expect(noteKeys(run.after), run.all).toEqual(noteKeys(run.before));
     }
   });
@@ -674,13 +686,16 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
     return { status: r.status, stdout: r.stdout, stderr: r.stderr, notes, ledger, all };
   }
 
-  /** The run stopped because no root could be named: exit 1, one `refused` line that says why, and no note. */
+  /**
+   * The run stopped because no root could be named: exit 2, nothing on stdout, one `Error:` line that says why, and no
+   * note. Plan 41-21 (WR-09, D-42) moved this from exit 1 with a `refused` line: nothing about the note is wrong.
+   */
   function assertRootRefused(run: NoFaultRun): void {
-    expect(run.status, run.all).toBe(1);
-    expect(run.stdout.startsWith("refused t1: "), run.all).toBe(true);
-    expect(run.stdout.trimEnd().split("\n"), run.all).toHaveLength(1);
-    expect(run.stdout, run.all).toContain("refusing to name a governance root");
-    expect(run.stderr, run.all).toBe("");
+    expect(run.status, run.all).toBe(2);
+    expect(run.stdout, run.all).toBe("");
+    expect(run.stderr.startsWith("Error: "), run.all).toBe(true);
+    expect(run.stderr.trimEnd().split("\n"), run.all).toHaveLength(1);
+    expect(run.stderr, run.all).toContain("refusing to name a governance root");
     expect(run.notes, run.all).toBe(0);
   }
 
@@ -706,7 +721,7 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
    */
   function assertRefusedAboveHome(run: NoFaultRun): void {
     assertRootRefused(run);
-    expect(run.stdout, run.all).toContain("the working directory is above the home directory");
+    expect(run.stderr, run.all).toContain("the working directory is above the home directory");
   }
 
   /** A real directory below the repository, for `HOME` to name. */
@@ -751,12 +766,11 @@ describe("READ-1 on note.js: the dial holds with no fault (T-41-55)", () => {
     expect(run.ledger, run.all).toEqual([]);
   });
 
+  // Plan 41-21 (WR-09, D-42): exit 1 → exit 2. The ladder refuses before the config is read, so the refusal is the
+  // root refusal, not admit()'s D-14 finding.
   it("an unparseable config under an undeterminable home still refuses the note (GOV-02, D-14)", () => {
     const unparseable = (root: string): void => writeFileSync(join(root, GRUGOPS_DIR_REL, "factory.config.json"), "{ not json\n");
-    const run = noFault("observation", OBSERVATION, (env) => { env.HOME = "/nonexistent"; }, unparseable);
-    expect(run.status, run.all).toBe(1);
-    expect(run.stdout.startsWith("refused t1: "), run.all).toBe(true);
-    expect(run.notes, run.all).toBe(0);
+    assertRootRefused(noFault("observation", OBSERVATION, (env) => { env.HOME = "/nonexistent"; }, unparseable));
   });
 
   it("CONTROL: with HOME unset the dial holds, as it does today", () => {
