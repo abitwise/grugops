@@ -122,6 +122,17 @@ function readClaimRecord(path: string): string | null {
   return readFileSync(path, "utf8");
 }
 
+// The text of a pending subtask, or null when the winner of a claim race moved it away between the look and the read
+// (WR-05). Only a vanished file is null; every other failure is rethrown.
+function pendingTextOrNull(path: string): string | null {
+  try {
+    return readClaimRecord(path);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
+}
+
 // ── atomicRename: rename src → dst; on the Windows MoveFileEx case, unlink dst then retry. ───────
 // POSIX renameSync atomically replaces an existing destination. Windows (MoveFileEx) is not atomic
 // and fails with EPERM/EEXIST/EACCES when the destination already exists — the unlink-then-rename
@@ -255,6 +266,22 @@ export function claimPending(
   try {
     if (queueEntry(stagePath(queueRoot, task, "done")) !== null) {
       return { kind: "refused", reason: `done/${task}.md already exists, so ${task} is finished` };
+    }
+    // WR-05: refuse what `done` would refuse; a file gone is left to the refusal after takeClaim, so a lost race reads `lost`.
+    const pendingPath = stagePath(queueRoot, task, "pending");
+    const pendingEntry = queueEntry(pendingPath);
+    if (pendingEntry !== null && !pendingEntry.isFile()) {
+      return { kind: "refused", reason: `pending/${task}.md is not a regular file` };
+    }
+    const pendingText = pendingEntry === null ? null : pendingTextOrNull(pendingPath);
+    if (pendingText !== null) {
+      const ref = subtaskRefFolder(pendingText);
+      if (ref.kind === "refused") {
+        return {
+          kind: "refused",
+          reason: `${ref.reason}, so done would refuse it; fix pending/${task}.md before it is claimed`,
+        };
+      }
     }
     // `agent` repeats `by` (D-30): the three readers of `by` stay as they are, and the two lines
     // cannot differ here.

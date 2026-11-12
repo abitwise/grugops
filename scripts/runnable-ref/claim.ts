@@ -68,7 +68,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:0e746209155f5aa9ffeee7af9c46274aa9a0bb5955726cc45d71c166d960c625";
+export const RUNNABLE_SET_STAMP = "sha256:6c9c92742b1ecf7560b3b69922e31e41c1d17bbcd26fce9c8e9d67320f98eaa7";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"] as const);
 export const RUNNABLE_SELF = "claim.js";
 // from install/state-layout.ts
@@ -117,6 +117,14 @@ function readClaimRecord(path: string): string | null {
   const entry = queueEntry(path);
   if (entry === null || !entry.isFile()) return null;
   return readFileSync(path, "utf8");
+}
+function pendingTextOrNull(path: string): string | null {
+  try {
+    return readClaimRecord(path);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
 }
 function atomicRename(src: string, dst: string): void {
   try {
@@ -215,6 +223,22 @@ export function claimPending(
   try {
     if (queueEntry(stagePath(queueRoot, task, "done")) !== null) {
       return { kind: "refused", reason: `done/${task}.md already exists, so ${task} is finished` };
+    }
+    // WR-05: refuse what `done` would refuse; a file gone is left to the refusal after takeClaim, so a lost race reads `lost`.
+    const pendingPath = stagePath(queueRoot, task, "pending");
+    const pendingEntry = queueEntry(pendingPath);
+    if (pendingEntry !== null && !pendingEntry.isFile()) {
+      return { kind: "refused", reason: `pending/${task}.md is not a regular file` };
+    }
+    const pendingText = pendingEntry === null ? null : pendingTextOrNull(pendingPath);
+    if (pendingText !== null) {
+      const ref = subtaskRefFolder(pendingText);
+      if (ref.kind === "refused") {
+        return {
+          kind: "refused",
+          reason: `${ref.reason}, so done would refuse it; fix pending/${task}.md before it is claimed`,
+        };
+      }
     }
     // `agent` repeats `by` (D-30): the three readers of `by` stay as they are, and the two lines
     // cannot differ here.
