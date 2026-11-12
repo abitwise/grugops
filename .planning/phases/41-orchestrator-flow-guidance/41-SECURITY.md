@@ -1,9 +1,9 @@
 ---
 phase: "41"
 slug: "orchestrator-flow-guidance"
-status: verified
+status: open
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 0
+threats_open: 1
 asvs_level: 1
 created: "2026-11-05"
 ---
@@ -95,7 +95,7 @@ created: "2026-11-05"
 | T-41-61 | Elevation of privilege | a high-severity role renaming itself, such as `x-security-nfr` | high | accept | Olger accepted R-41-08 by name in D-40 (`41-CONTEXT.md:91`); the Accepted Risks Log carries the row. The route stays live | closed |
 | T-41-62 | Repudiation | a sentence claiming more than the code holds | medium | mitigate | The header and Workflows 16 and 17 are rewritten. CHANGELOG.md lines 141-142 still say `can no longer supersede`, which the arrival route shows is too strong. A second instance: CHANGELOG.md line 143 ("at every dial") and Workflow 16 line 31 do not name the renamed-file route of R-41-09 | open — below high threshold (non-blocking) |
 | T-41-63 | Repudiation | an agent accepting a residual or a row | high | mitigate | `41-14.md` has 17 of 17 rows pending; R-41-07 and R-41-08 read Not accepted | closed |
-| T-41-64 | Elevation of privilege | an unstamped note retiring a governed finding or a green verdict (CR-02) | high | mitigate | Plan 41-18 (T-41-77): `admit()` reads with `readRawNotesWithSkips` and refuses a target in the store that cannot be read (`scripts/context-io.ts:4494-4521`). As uid 1000 on a lone host copy, the mode-000 route exits 1 and the finding stays in `## Current state`; a broken seal, a non-note, a directory, a FIFO, an 8 MiB + 1 file and a dangling link each exit 1. The renamed-file route stays open as T-41-81 | closed |
+| T-41-64 | Elevation of privilege | an unstamped note retiring a governed finding or a green verdict (CR-02) | high | mitigate | Plan 41-18 (T-41-77): `admit()` reads with `readRawNotesWithSkips` and refuses a target in the store that cannot be read (`scripts/context-io.ts:4494-4521`). As uid 1000 on a lone host copy, the mode-000 route exits 1 and the finding stays in `## Current state`; a broken seal, a non-note, a directory, a FIFO, an 8 MiB + 1 file and a dangling link each exit 1. The renamed-file route stays open as T-41-81. Re-probed 2026-11-12 at `cc2df87d`, after the tenth re-base: the refusal is at `scripts/context-io.ts:4542-4553`; a mode-000 target exits 1 with no note written; the renamed-file route stays open as T-41-81 | closed |
 | T-41-65 | Tampering | a pin moved, or a READ-1 map edited, to pass | medium | mitigate | The refusal count moved from 9 to 10 with a written reason; sizes 9 and 17 hold | closed |
 | T-41-66 | Tampering | a target naming no note folding out a note that arrives later | medium | accept | D-37 records `narrow` and R-41-09 records the residual. Olger accepted it in `41-UAT.md` test 5 on 2026-11-10; the Accepted Risks Log carries the row | closed |
 | T-41-67 | Denial of service | the rule refusing a Workflow 18 promotion | medium | mitigate | Six `Workflow 18` cases in `scripts/compactor.test.ts` pass, including both promotion routes | closed |
@@ -115,6 +115,29 @@ created: "2026-11-05"
 | T-41-81 | Elevation of privilege | a renamed note that cannot be read, matched by nothing and folded out once the read recovers | low | pending (named human): accept | R-41-09, not accepted. A finding renamed to `renamed.md` at mode 000 lets the claim exit 0, and the finding leaves `## Current state` once the mode is restored. The `LIMIT (R-41-09)` case pins it | open — below high threshold (non-blocking) |
 | T-41-82 | Repudiation | a `chmod 000` case passing on an account that can read the file | medium | mitigate | `scripts/runnable-ref/note.test.ts:846-866` skips by name through `hostCapabilityOrSkip` and asserts its premise; the READ-1 EIO case covers root | closed |
 | T-41-83 | Repudiation | a full-suite result read by count, or an agent writing an acceptance | high | mitigate | The 41-18 summary and `41-VALIDATION.md` compare by name: the 21 baseline names plus one `capture-live` case that passed 77 of 77 alone. The `41-18.md` row stays pending | closed |
+| T-41-84 | Denial of service | `claim` turning a lost race into a refusal | medium | mitigate | `claimPending` checks the pending file before `takeClaim` (`scripts/claim.ts:271-286`); a vanished file reads as absent (`:128-135`); the D-08 lost case passes | closed |
+| T-41-85 | Tampering | `sweep` replacing a newer pending subtask with a stale copy (WR-07) | medium | mitigate | `sweepStale` keeps both and pushes `kept` (`scripts/claim.ts:412-417`); the WR-07 case holds the newer bytes. The check and the rename are two steps (see the 2026-11-12 audit) | closed |
+| T-41-86 | Denial of service | a stray entry in `claimed/` holding a slot with no one told (WR-11) | low | mitigate | `left` lines at `scripts/runnable-ref/claim.ts:1461`; Workflow 17 line 86 stops on them; the host case passes | closed |
+| T-41-87 | Repudiation | an agent writing an acceptance, or a READ-1 pin moved to pass | high | mitigate | 25 of 25 rows of `41-19.md` are `pending (named human)`; `claim-read-sites.test.ts` is unchanged, `UNREACHED_SIZE = 0` | closed |
+| T-41-88 | Denial of service | a retried emission writing a second verdict for one run (WR-14) | medium | mitigate | `scripts/context-io.ts:4216-4232`; probed: a second emission threw and wrote nothing, another run id emitted; the WR-14 cases pass | closed |
+| T-41-89 | Tampering | a duplicate fixture rewritten so S4 is no longer driven | medium | mitigate | `seedVerdictByHand` seals by hand; the S4 seed is at `context-io-writer-set.test.ts:1272-1277`; the census holds 11 | closed |
+| T-41-90 | Repudiation | the `admit()` span moved past what the ruling covers | high | mitigate | One message moved (`context-io.ts:4453-4454`); hash `0d7d6bb0…` set once at `d7fe6d5b`; the re-base quotes D-42, recorded at `a09b13de`; the other ten signatures are unchanged | closed |
+| T-41-91 | Repudiation | text that promises a route that does not exist | medium | mitigate | Workflow 16 line 31, `context-note.md:42-45`, CHANGELOG 175-178; probed: `admitAndAppend` retires a verdict under `all`, and is refused under `off` | closed |
+| T-41-92 | Tampering | a link at `.grugops/audit` or its ledger routing GOV-02 records out of the repository (WR-10) | high | mitigate | `refuseUnusableLedger` (`note.ts:2928-2935`, called at `:2960`); probed: a linked audit directory, a ledger linked outside and a ledger linked inside each exit 2 and the target gains no line. A hard link and a swap between check and append were not probed | closed |
+| T-41-93 | Repudiation | exit 1 telling a role to change a sound note (WR-09) | medium | mitigate | `note.ts:2971`; probed: a ledger directory or FIFO ends exit 2. An unreadable config (D-14) is still exit 1 by the plan's rule | closed |
+| T-41-94 | Tampering | an expectation moved to pass a regression | high | mitigate | Each move in `82d46315` cites plan 41-21 and D-42 and matches the SUMMARY table | closed |
+| T-41-95 | Repudiation | a refusal naming the wrong function or too narrow a cause (IN-15) | low | mitigate | `context-io.ts:5503`; Workflow 16 line 51 | closed |
+| T-41-96 | Spoofing | a hand-written note read by a role as a sealed one (WR-12) | high | mitigate | `runRead` (`note.ts:3027-3064`); probed: an edited copy and a forged finding print as `skipped (unsealed)`. The seal is unkeyed (T-41-18), and `read` walks `.md` names only | closed |
+| T-41-97 | Spoofing | a note body forging a following note's header | medium | mitigate | `noteLines` (`note.ts:2998-3019`); probed: forged header lines stay indented, CR and ESC are stripped | closed |
+| T-41-98 | Denial of service | a failed read hiding a note while `read` reports the state as whole | medium | mitigate | `note.ts:3051-3057`; probed: a FIFO, mode 000, a dangling link and an oversized file each end exit 2 with stdout empty; READ-1 read mode passes | closed |
+| T-41-99 | Repudiation | README text claiming more than the in-script tier gives (IN-11) | low | mitigate | `install/README.md:459-461` | closed |
+| T-41-100 | Elevation of privilege | a host verdict verb that would let any agent mint a green verdict | high | mitigate | No verb under `tools/grugops/`; `RUNNABLES` ships no `context-io.js`; R-41-10 records the limit. Reproduced: a Claude Code plugin install (`marketplace.json` `source: "./"`) carries `${CLAUDE_PLUGIN_ROOT}/scripts/context-io.js emit-verdict`; at HEAD bytes it minted a verdict into a scratch host repository, and the host's `note.js` then noted a `§14-gate#<id>` finding, exit 0. R-41-10 and Workflow 05 line 53 say the program "is not installed to a host" | open |
+| T-41-101 | Repudiation | a host gate result that reads as stamped with no verdict behind it | medium | mitigate | `05-pr-quality-gate.md:53` carries the no-stamp line, and a pin holds it. The reply `advise, Olger` was typed by Olger in the execute-phase session of 2026-11-12, as the orchestrator records; no decision row exists in 41-CONTEXT.md | closed |
+| T-41-102 | Spoofing | the Orchestrator writing a finding as a high-severity role (WR-13) | medium | mitigate | Workflow 16 line 43; R-41-11; probed: `note.js` refuses a stamped `security-nfr` finding under `all`. An agent that starts `admission-server.js` itself meets no per-call hook (existing hook-tier scope) | closed |
+| T-41-103 | Repudiation | an agent writing an acceptance of R-41-10 or R-41-11 | high | mitigate | R-41-10 says a named human's read is owed; R-41-11 reads Not accepted; no log row | closed |
+| T-41-104 | Repudiation | a `### Security` line stating a supersession rule without its open routes (WR-15) | medium | mitigate | CHANGELOG 178-182 names all three routes; Workflow 16 line 31; the pins pass | closed |
+| T-41-105 | Repudiation | an agent writing that the renamed-file route is accepted or closed | high | mitigate | The ruling note at `41-residuals.md:33`; the negative grep prints 0 at HEAD, but it is a plan acceptance grep, not a committed check; T-41-81 stays pending | closed |
+| T-41-106 | Repudiation | a full-suite result read by count, or a pin moved to clear a new red | high | mitigate | The 41-24 SUMMARY compares 21 names with no outsider, and the orchestrator re-compared the names from the run output; moved pins cite 41-UAT test 7 | closed |
 | T-41-SC | Tampering | npm/pip/cargo installs | low | accept | No package is installed by this plan | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -163,6 +186,18 @@ This audit covers plans 41-17 and 41-18 (T-41-71 to T-41-83) and the three threa
 - **Span wording.** The summary and the re-base text name one comment word; the diff also adds a five-line comment paragraph at `scripts/context-io.ts:4505-4509`. It is comment only, and the plan authorised it.
 - **Provenance.** The auditor verified that the record in `d926f3cd` quotes the reply; it cannot verify the reply itself.
 - **Not verified here.** The auditor did not re-run the full suite or re-seed the mutants; the orchestrator's post-plan run at `86947a1e` failed 22 cases, the 21 baseline names and the `capture-live` false failure. Nothing ran as root. The hook and admission-server routes were covered by the S11 census only. Windows stays `UNKNOWN - verify`.
+
+---
+
+## Gap-closure audit, 2026-11-12
+
+This audit covers plans 41-19 to 41-24 (T-41-84 to T-41-106) and re-checks T-41-64 after the tenth `admit()` re-base, at `cc2df87d`. **One threat at the block threshold is open, so phase advancement is blocked.** 24 of 25 rows close.
+
+- **T-41-100 is open on a reproduced route, as a judgment call.** For a scripted host install the mitigation holds: no program under `tools/grugops/` carries `emit-verdict`. A Claude Code plugin install is the whole repository (`marketplace.json` `source: "./"`), so `${CLAUDE_PLUGIN_ROOT}/scripts/context-io.js emit-verdict` is on the host machine; the orchestrator confirmed it in this machine's plugin cache. At HEAD bytes it minted a green verdict into a scratch host repository, and the host's `note.js` then admitted a `§14-gate#<id>` finding. R-41-10 and Workflow 05 line 53 say the program "is not installed to a host", which is false for that install form. The route predates plan 41-23. Closing it needs a named human's ruling: (a) scope the text to a scripted install and accept the plugin-install limit with a log row, (b) a code plan keeping the CLI verb out of the plugin, or (c) read D-41's "host" as a scripted install only and scope R-41-10.
+- **Conditions on closures, none blocking.** T-41-85: the check and the rename in `sweep` are two steps. T-41-92: a hard link at the ledger and a swap between check and append were not probed. T-41-93: an unreadable configuration is still exit 1 by the plan's rule. T-41-96: the seal is unkeyed (T-41-18). T-41-102: an agent that starts `admission-server.js` itself meets no per-call hook. T-41-105: the negative check is a plan grep, not a committed check.
+- **Provenance.** The reply `advise, Olger` at 41-23's checkpoint was typed by Olger in the execute-phase session of 2026-11-12. No decision row for it exists in 41-CONTEXT.md.
+- **Informational.** T-41-62's recorded instances are now qualified (CHANGELOG lines 175-182, Workflow 16 line 31); it stays open below the threshold until re-ruled.
+- **T-41-64** re-probed: the refusal is at `scripts/context-io.ts:4542-4553`; a mode-000 target exits 1 with no note written; the renamed-file route stays open as T-41-81.
 
 ---
 
@@ -215,6 +250,7 @@ The phase decisions accepted these at planning, except R-41-08, which Olger acce
 | 2026-11-05 | 29 | 29 | 0 | gsd-security-auditor at `72dfbdec`, with probes against a host copy of `claim.js` |
 | 2026-11-06 | 18 | 13 | 5 (3 blocking) | gsd-security-auditor at `f4bce501`, gap-closure scope, with probes against host copies of `note.js` |
 | 2026-11-08 | 18 | 13 | 5 (0 blocking) | gsd-security-auditor at `eab814fd`, gap-closure round 3, with probes against host copies of `note.js`; re-run by the orchestrator |
+| 2026-11-12 | 25 | 24 | 1 (1 blocking) | gsd-security-auditor at `cc2df87d`, gap round 4 (T-41-84 to T-41-106, T-41-64 re-checked), with probes against lone host copies of `note.js` and `claim.js` and a HEAD plugin tree |
 
 ---
 
@@ -222,7 +258,7 @@ The phase decisions accepted these at planning, except R-41-08, which Olger acce
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [x] `threats_open: 0` confirmed (2026-11-08; 5 open below the threshold: T-41-62, T-41-66, T-41-73, T-41-74, T-41-81)
+- [ ] `threats_open: 0` confirmed — 2026-11-12: 1 open at the threshold (T-41-100). Earlier: (2026-11-08; 5 open below the threshold: T-41-62, T-41-66, T-41-73, T-41-74, T-41-81)
 - [x] `status: verified` set in frontmatter
 
 **Approval:** the gate passes on the audit of 2026-11-08, with no blocking threat open. This is not a human sign-off: T-41-74 and T-41-81 await a named human's read, T-41-73 needs its log row, and the T-41-27 ruling and the human reads in § Conditions are still open.
@@ -242,3 +278,11 @@ The phase decisions accepted these at planning, except R-41-08, which Olger acce
 | Threats found | 18 |
 | Closed | 13 |
 | Open | 5 |
+
+## Security Audit 2026-11-12
+
+| Metric | Count |
+|---|---|
+| Threats found | 25 |
+| Closed | 24 |
+| Open | 1 |
