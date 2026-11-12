@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
-status: executing
-stopped_at: "Phase 41 verification re-run: human_needed (8/8); next /gsd-verify-work 41"
-last_updated: "2026-11-12T20:00:23.355Z"
+status: verifying
+stopped_at: Completed 41-26-PLAN.md
+last_updated: "2026-11-12T21:20:57.801Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 41 execution resumed (wave continue)
-state_head: 215cf1887cc822c8d7934161bf46783c7b102eec
+state_head: 3733d96d1ea28ef3ac057d689cd656c3e75495c2
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 138
-  completed_plans: 138
+  total_plans: 139
+  completed_plans: 139
   percent: 67
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
 Plan: 25 of 25
-Status: Executing Phase 41
+Status: Phase complete — ready for verification
 Last activity: 2026-11-12 — Phase 41 execution resumed (wave continue)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -855,6 +855,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P22 | 14 min | 2 tasks | 12 files |
 | Phase 41 P23 | 50 min | 3 tasks | 9 files |
 | Phase 41 P24 | 32 min | 3 tasks | 9 files |
+| Phase 41 P26 | 33 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -2380,6 +2381,9 @@ Recent decisions affecting current work:
 - [Phase 41]: 41-23: Workflows 05, 16 and 17 say a host repository has no gate stamp (R-41-10, D-41); Workflow 16 names the high-severity route under an active dial, and R-41-11 (D-42) records its limit as not accepted
 - [Phase 41]: 41-24: WR-15 states R-41-09's open routes in CHANGELOG.md and Workflow 16; the renamed-file route stays open and unaccepted (D-43)
 - [Phase 41]: 41-24: the 22 gap rows of 41-REVIEW-DISPOSITION.md read fixed with their plans, open: 0; full suite fails exactly the 21 baseline names (D-42)
+- [Phase 41]: 41-26: WR-18 scopes propose_note and the hook to a Claude Code plugin install and names a standalone Claude Code install as having no hook; R-41-11 acceptance cells unchanged
+- [Phase 41]: 41-26: WR-19 session start stops on kept/left lines first and never re-spawns such a task; claim refusal stays deferred as code
+- [Phase 41]: 41-26: IN-19 and IN-20 defer the deliverable and stamp-route condition to Workflow 16 steps 3 and 4 (D-44)
 
 ### Pending Todos
 
@@ -2721,8 +2725,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-12T20:00:22.230Z
-Stopped at: Phase 41 verification re-run: human_needed (8/8); next /gsd-verify-work 41
+Last session: 2026-11-12T21:20:56.531Z
+Stopped at: Completed 41-26-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

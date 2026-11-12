@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 25/26 plans executed (20 gap-closure plans, 41-07 to 41-26, planned)
+**Plans**: 26/26 plans executed (20 gap-closure plans, 41-07 to 41-26, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -675,7 +675,7 @@ Gap wave 7 *(blocked on gap wave 6)*
 **Gap closure, round 6, one override round past the gap-round cap** *(from 41-UAT.md test 9: Olger's ruling of 2026-11-12, D-45; text only, no program code change; WR-16, WR-17 and IN-16 to IN-18 deferred to a later phase)*
 
 Gap wave 8 *(blocked on gap wave 7)*
-- [ ] 41-26-PLAN.md — the text-only four: `propose_note` and the hook are scoped to a Claude Code plugin install and a standalone install is named as having no hook, session start stops on a kept claim before any re-spawn, the role-switch protocol and Workflow 05 route a host to the record it admits, and the four rows are recorded fixed (WR-18, WR-19, IN-19, IN-20; RUN-01 to RUN-05)
+- [x] 41-26-PLAN.md — the text-only four: `propose_note` and the hook are scoped to a Claude Code plugin install and a standalone install is named as having no hook, session start stops on a kept claim before any re-spawn, the role-switch protocol and Workflow 05 route a host to the record it admits, and the four rows are recorded fixed (WR-18, WR-19, IN-19, IN-20; RUN-01 to RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
@@ -725,7 +725,7 @@ Gap wave 8 *(blocked on gap wave 7)*
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
-| 41. Orchestrator flow guidance | v3.0 | 25/25 | In Progress | - |
+| 41. Orchestrator flow guidance | v3.0 | 26/26 | In Progress | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
