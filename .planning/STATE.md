@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: verifying
-stopped_at: Completed 41-20-PLAN.md
-last_updated: "2026-11-12T08:32:08.779Z"
+stopped_at: Completed 41-21-PLAN.md
+last_updated: "2026-11-12T08:53:10.839Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 41 execution started
-state_head: 530ebef6bc3bc181b1d12e46844d8c145b4acc4d
+state_head: fcfaff97c331e3620001a0d6634167d34c9efea1
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 137
-  completed_plans: 133
+  completed_plans: 134
   percent: 67
 ---
 
@@ -851,6 +851,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P18 | 41 min | 3 tasks | 24 files |
 | Phase 41 P19 | 18 min | 3 tasks | 23 files |
 | Phase 41 P20 | 17 min | 2 tasks | 22 files |
+| Phase 41 P21 | 17 min | 3 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -2365,6 +2366,10 @@ Recent decisions affecting current work:
 - [Phase 41]: 41-20: emitVerdict refuses a second live green verdict for one per-run id by throwing (CLI exit 1), reading the store with isLiveGreenVerdict; S4 now says run the gate again (tenth admit() re-base, D-42)
 - [Phase 41]: 41-20: emitVerdict's refusal names 'all evidence', not 'artifact-ref', so the census proof that emitVerdict never names that kind still holds
 - [Phase 41]: 41-20: index.md banner names no program: Rendered by the note writer from the notes/ folder
+- [Phase 41]: note.js exits 1 only on the authority's NoteRefusal class; an unnamed root, an unrecordable admission, a failed publish and an occupied destination are exit 2 (WR-09, D-42)
+- [Phase 41]: note.js refuses any symbolic link at .grugops/audit or its ledger file, including one that resolves inside the repository (WR-10, D-42)
+- [Phase 41]: The root refusal names the governance root ladder and the paths a human repairs (IN-15, D-42)
+- [Phase 41]: ledger-present moved from PROOF_MODES to MODES in note-read-sites so the ledger's stat and realpath pairs are judged by THE RULE (41-21)
 
 ### Pending Todos
 
@@ -2706,8 +2711,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-12T08:32:07.590Z
-Stopped at: Completed 41-20-PLAN.md
+Last session: 2026-11-12T08:53:09.649Z
+Stopped at: Completed 41-21-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
