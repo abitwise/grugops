@@ -18,7 +18,8 @@ When a role activates, run these five steps in order.
    Read nothing else: no other role's scratch, no scrolling back through the conversation.
 3. Drop the instructions and scratch context of the role that ran before.
 4. Do the one job; publish its output as typed notes per Workflow 16.
-   Publish decisions as `decision` notes, risks as `finding` or `observation`, and deliverables as `artifact-ref`.
+   Publish decisions as `decision` notes, and risks as `finding` or `observation`.
+   Publish deliverables as `artifact-ref` where step 3 of Workflow 16 admits one, and otherwise as an `observation` carrying their refs.
    Each note carries the trace ids in its `refs` field. Publish several one-kind notes, never one large packet.
    Write each note with `node tools/grugops/note.js add`, per step 3 of Workflow 16.
    The Orchestrator already claimed queued work per Workflow 17 (`agent-factory/workflows/17-task-claim.md`), in this role's adapter name.
