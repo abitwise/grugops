@@ -336,7 +336,8 @@ describe("The kit text says what the governance-root order does (plan 41-14; RUN
     const stops = section(WF16, "Stop conditions").trimEnd().split("\n");
     expect(rootStop()).toBe(
       "- A refusal says the governance root could not be named → stop and surface it. Nothing about the note is wrong. " +
-        "A human repairs `HOME` or the working directory. Do not set a project-directory variable to pass the refusal.",
+        // Moved by plan 41-21 (IN-15, D-42; 41-UAT.md test 7, Olger, 2026-11-11): the refusal now names its path.
+        "A human repairs `HOME`, the working directory, or the path the refusal names. Do not set a project-directory variable to pass the refusal.",
     );
     const handWritten = stops.findIndex((l) => l.startsWith("- The only way to record the result"));
     expect(stops[handWritten + 1]).toBe(rootStop());
@@ -936,7 +937,7 @@ describe("Workflow 16 step 3 reads every exit of note.js (plan 41-21; WR-09, IN-
       "Any other exit is a genuine failure: stop and surface it. Exit 2 prints one `Error:` line.",
     );
     expect(step(WF16, 3)).toContain(
-      "It also covers a governance root that could not be named and an admission that could not be recorded or published.",
+      "It also covers an unnamed governance root, an admission the ledger failed to record, and a failed publish.",
     );
     expect(step(WF16, 3)).toContain("Nothing about the note is wrong then.");
   });

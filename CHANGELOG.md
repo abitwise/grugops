@@ -125,6 +125,11 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   `decision` note and queues the Tech Lead. Any raise past the spent escalation goes to the human
   stop, and the Tech Lead publishes no plan note naming that level before the human answers. At
   `notify` or `off`, a parked ticket resumes as at `block` once a human answers.
+- `tools/grugops/note.js` now exits `2` with one `Error:` line when the governance root cannot be
+  named, the admission cannot be recorded, or the note cannot be published. It used to print
+  `refused` with exit `1`, so exit `1` now means only that the note itself must change.
+- The governance-root refusal now names the governance root ladder, not one function, and the path
+  it failed on, such as the working directory and the home directory.
 
 ### Fixed
 
@@ -156,6 +161,8 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   admitted on Claude Code through `propose_note`; under `off`, and on a host with no hook, nothing
   retires one.
 - A note whose `supersedes` target is in the store and cannot be read is refused at every dial.
+- `tools/grugops/note.js` refuses a symbolic link at `.grugops/audit` or at its ledger file, so the
+  admission ledger cannot be sent outside the repository.
 
 ### Deprecated
 
