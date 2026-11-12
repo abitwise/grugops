@@ -994,20 +994,24 @@ describe("the kit says a host has no gate stamp (plan 41-23; CR-03, D-41)", () =
     return line.split(/(?<=\.)\s+/);
   }
 
-  it("step 3 of Workflow 16 says a host has no gate stamp, straight after the sentence that says the program stamps `at`", () => {
+  it("step 3 of Workflow 16 says a host with only a scripted install has no gate stamp, straight after the sentence that says the program stamps `at`", () => {
     // Plan 41-23 named the flags sentence as the anchor. The pins of plans 41-16, 41-18 and 41-20 hold every sentence
     // from there to "The program stamps" in order, so the host block follows that run instead.
+    // Moved by plan 41-25 under the ruling on T-41-100 of 2026-11-12 (option (a)): a host with only a scripted install has
+    // no gate stamp, and a Claude Code plugin install counts as a host too.
     expect(step(WF16, 3)).toContain(
       "The program stamps `at` itself. " +
-        "A host repository has no gate stamp (residual R-41-10). " +
+        "A host repository with only a scripted install has no gate stamp (residual R-41-10). " +
         "`emitVerdict`, the one writer of a green verdict, runs through `scripts/context-io.js`. " +
-        "That program ships with grugops's own tooling and is not installed to a host.",
+        "That program ships with grugops's own tooling, and a scripted install does not copy it into a host repository.",
     );
   });
 
   it("step 3 says what a host refuses and the record to write instead", () => {
+    // Moved by plan 41-25 under the ruling on T-41-100 of 2026-11-12 (option (a)): a host with only a scripted install has
+    // no gate stamp, and a Claude Code plugin install counts as a host too.
     const line = step(WF16, 3);
-    expect(line).toContain("So on a host a `finding` stamped `§14-gate#<id>` and every `artifact-ref` are refused.");
+    expect(line).toContain("So on such a host a `finding` stamped `§14-gate#<id>` and every `artifact-ref` are refused.");
     expect(line).toContain(
       "Record a gate-verifiable result there as a `claim` with `confidence: UNKNOWN - verify`, or as a `human:<name>` finding.",
     );
@@ -1017,26 +1021,35 @@ describe("the kit says a host has no gate stamp (plan 41-23; CR-03, D-41)", () =
   });
 
   it("step 4 scopes the stamp route to where emitVerdict runs", () => {
+    // Moved by plan 41-25 under the ruling on T-41-100 of 2026-11-12 (option (a)): a host with only a scripted install has
+    // no gate stamp, and a Claude Code plugin install counts as a host too.
     expect(section(WF16, "Steps")).toContain(
-      "After the budget is spent, stop and hand to a human. This route exists only where `emitVerdict` runs. " +
-        "A host repository has no gate stamp, so there take the second route or escalate.",
+      "After the budget is spent, stop and hand to a human. " +
+        "This route exists only where `emitVerdict` runs, in a repository holding grugops's own `scripts/context-io.js`. " +
+        "No host repository holds that copy, even with a plugin install, so there take the second route or escalate.",
     );
   });
 
   it("the first admission outcome scopes the workhorse path to where emitVerdict runs", () => {
     const outcomes = section(WF16, "Steps");
     expect(outcomes).not.toContain("The workhorse path; no human is bothered.");
+    // Moved by plan 41-25 under the ruling on T-41-100 of 2026-11-12 (option (a)): a host with only a scripted install has
+    // no gate stamp, and a Claude Code plugin install counts as a host too.
     expect(outcomes).toContain(
       "The workhorse path where `emitVerdict` runs, in a repository holding grugops's own `scripts/context-io.js`; no human is bothered. " +
-        "A host repository has no gate stamp. " +
+        "No host repository holds that copy, even with a plugin install. " +
         "There a gate-verifiable result takes the next outcome, or the last one when it is high-stakes.",
     );
   });
 
-  it("step 6 of Workflow 17 says a host refuses both, straight after the artifact-ref sentence", () => {
+  it("step 6 of Workflow 17 says a host with only a scripted install refuses both, straight after the artifact-ref sentence", () => {
+    // Moved by plan 41-25 under the ruling on T-41-100 of 2026-11-12 (option (a)): a host with only a scripted install has
+    // no gate stamp, and a Claude Code plugin install counts as a host too.
     expect(step(WF17, 6)).toContain(
       "An `artifact-ref` is admitted only against a live green verdict for its `gate_run`. " +
-        "A host repository has no gate stamp, so there both are refused. " +
+        "A host repository with only a scripted install has no gate stamp, so there both are refused. " +
+        "A plugin install counts as a host too, and it carries the verdict verb. " +
+        "So a gate stamp there is no proof that a gate ran. " +
         "WF16 step 3 names the record to write instead (residual R-41-10).",
     );
   });
@@ -1140,6 +1153,80 @@ describe("a plugin install counts as a host (plan 41-25; T-41-100)", () => {
 
   it("Workflow 05 keeps no not-installed clause", () => {
     expect(WF05).not.toContain("is not installed to a host");
+  });
+
+  it("step 3 of Workflow 16 counts a plugin install as a host, straight after the trace-render sentence", () => {
+    expect(step(WF16, 3)).toContain(
+      "The trace render reads those refs like any other. " +
+        "A Claude Code plugin install counts as a host too (residual R-41-10).",
+    );
+  });
+
+  it("step 3 of Workflow 16 says a plugin install carries the program, so any agent there can mint a green verdict", () => {
+    expect(step(WF16, 3)).toContain(
+      "It carries `scripts/context-io.js`, so its `emit-verdict` verb lets any agent there mint a green verdict.",
+    );
+  });
+
+  it("step 3 of Workflow 16 says a gate stamp on a plugin install is no proof that a gate ran", () => {
+    expect(step(WF16, 3)).toContain("So a gate stamp there is no proof that a gate ran.");
+  });
+
+  it("step 3 of Workflow 16 tells every role never to run the plugin's emit-verdict, and to write the scripted host's records", () => {
+    expect(step(WF16, 3)).toContain(
+      "Never run the plugin's `emit-verdict`. Write the same records there as on a scripted host. Exit 0 prints",
+    );
+  });
+
+  it("step 4 of Workflow 16 scopes the stamp route to a repository holding grugops's own scripts/context-io.js", () => {
+    expect(section(WF16, "Steps")).toContain(
+      "This route exists only where `emitVerdict` runs, in a repository holding grugops's own `scripts/context-io.js`.",
+    );
+  });
+
+  it("step 4 and the first admission outcome of Workflow 16 say no host repository holds that copy, even with a plugin install", () => {
+    expect(occurrences(section(WF16, "Steps"), "No host repository holds that copy, even with a plugin install")).toBe(2);
+  });
+
+  it("step 6 of Workflow 17 scopes the missing stamp to a scripted install", () => {
+    expect(step(WF17, 6)).toContain(
+      "A host repository with only a scripted install has no gate stamp, so there both are refused.",
+    );
+  });
+
+  it("step 6 of Workflow 17 counts a plugin install as a host carrying the verdict verb, naming no host", () => {
+    // Workflow 17 names a host only in its Platform section and operator tips (plan 41-04, RUN-04), so step 6 says
+    // "A plugin install" where Workflows 05 and 16 say "A Claude Code plugin install". grugops ships its plugin for
+    // Claude Code only, so the sentence names the same install form.
+    expect(step(WF17, 6)).toContain("A plugin install counts as a host too, and it carries the verdict verb.");
+  });
+
+  it("step 6 of Workflow 17 says a gate stamp on a plugin install is no proof that a gate ran", () => {
+    expect(step(WF17, 6)).toContain("So a gate stamp there is no proof that a gate ran.");
+  });
+
+  it("the changelog counts a plugin install as a host whose gate stamp is no proof that a gate ran", () => {
+    const CHANGELOG = readFileSync(join(ROOT, "CHANGELOG.md"), "utf8");
+    expect(CHANGELOG.replace(/\s+/g, " ")).toContain(
+      "A Claude Code plugin install counts as a host too, yet it carries `scripts/context-io.js` and its `emit-verdict` verb, " +
+        "so any agent there can mint a green verdict, and a gate stamp there is no proof that a gate ran.",
+    );
+  });
+
+  it("no sentence of Workflow 05 or 16 Steps, or Workflow 17 step 6, says has no gate stamp without a scripted install", () => {
+    const sentences = (text: string): string[] => text.split(/(?<=\.)\s+/);
+    for (const text of [section(WF05, "Steps"), section(WF16, "Steps"), step(WF17, 6)]) {
+      const bare = sentences(text).filter((s) => s.includes("has no gate stamp") && !s.includes("with only a scripted install"));
+      expect(bare, "a sentence says a host has no gate stamp without naming a scripted install").toEqual([]);
+    }
+  });
+
+  it("no Workflow 05, 16 or 17 text keeps the old not-installed clause (moved from plan 41-23)", () => {
+    // The plan 41-23 pins held "ships with grugops's own tooling and is not installed to a host"; plan 41-25 removed it under
+    // the ruling on T-41-100 of 2026-11-12, because a Claude Code plugin install carries the program.
+    for (const text of [WF05, WF16, WF17]) {
+      expect(text).not.toContain("ships with grugops's own tooling and is not installed to a host");
+    }
   });
 });
 
