@@ -1,215 +1,229 @@
 ---
 phase: 41-orchestrator-flow-guidance
-reviewed: 2026-11-08T18:26:21Z
+reviewed: 2026-11-12T19:40:00Z
 depth: standard
-files_reviewed: 23
+files_reviewed: 50
 files_reviewed_list:
-  - CHANGELOG.md
+  - agent-factory/config/factory.config.md
   - agent-factory/contracts/context-note.md
+  - agent-factory/roles/orchestrator.md
+  - agent-factory/roles/_role-switch-protocol.md
+  - agent-factory/workflows/04-ticket-to-pr.md
+  - agent-factory/workflows/05-pr-quality-gate.md
   - agent-factory/workflows/16-context-read-write.md
   - agent-factory/workflows/17-task-claim.md
-  - docs/audit/29-style-dispositions/41-14.md
-  - docs/audit/29-style-dispositions/41-16.md
-  - docs/audit/29-style-dispositions/41-17.md
+  - CHANGELOG.md
+  - docs/audit/29-style-dispositions/41-11.md
   - docs/audit/29-style-dispositions/41-18.md
+  - docs/audit/29-style-dispositions/41-19.md
+  - docs/audit/29-style-dispositions/41-20.md
+  - docs/audit/29-style-dispositions/41-21.md
+  - docs/audit/29-style-dispositions/41-22.md
+  - docs/audit/29-style-dispositions/41-23.md
+  - docs/audit/29-style-dispositions/41-24.md
+  - docs/audit/29-style-dispositions/41-25.md
   - docs/audit/41-residuals.md
-  - hooks/admission-guard.test.ts
-  - scripts/admission-server.test.ts
-  - scripts/admission-server.ts
-  - scripts/checkpoints.ts
-  - scripts/compactor.test.ts
-  - scripts/context-io-writer-set.test.ts
+  - hooks/hook-entry.js
+  - hooks/hook-entry.ts
+  - install/README.md
+  - scripts/claim.js
+  - scripts/claim.test.ts
+  - scripts/claim.ts
+  - scripts/context-io.js
   - scripts/context-io.test.ts
   - scripts/context-io.ts
+  - scripts/context-io-writer-set.test.ts
+  - scripts/fixtures/board-snapshot/.grugops/context/abc-104-implement/index.md
   - scripts/flow-guidance-text.test.ts
+  - scripts/generate-runnable-embeds.js
   - scripts/generate-runnable-embeds.ts
-  - scripts/runnable-ref/note-read-sites.test.ts
+  - scripts/now-running-freshness.test.ts
+  - scripts/runnable-ref/claim.js
+  - scripts/runnable-ref/claim.test.ts
+  - scripts/runnable-ref/claim.ts
   - scripts/runnable-ref/note.js
-  - scripts/runnable-ref/note.ts
+  - scripts/runnable-ref/note-read-sites.test.ts
   - scripts/runnable-ref/note.test.ts
+  - scripts/runnable-ref/note.ts
+  - scripts/runnable-ref/role-route.test.ts
+  - scripts/runnable-ref/runnable-exit-contract.test.ts
+  - scripts/runnable-ref/state-check.js
+  - scripts/runnable-ref/state-check.ts
+  - scripts/runnable-ref/state-roll.js
+  - scripts/runnable-ref/state-roll.ts
+  - scripts/runnable-ref/trace-render.js
+  - scripts/runnable-ref/trace-render.ts
+  - scripts/tier-kit-text.test.ts
 findings:
-  critical: 1
-  warning: 6
+  critical: 0
+  warning: 4
   info: 5
-  total: 12
+  total: 9
 status: issues_found
 ---
 
 # Phase 41: Code Review Report
 
-**Reviewed:** 2026-11-08T18:26:21Z
+**Reviewed:** 2026-11-12T19:40:00Z
 **Depth:** standard
-**Files Reviewed:** 23
+**Files Reviewed:** 50
 **Status:** issues_found
 
 ## Narrative Findings (AI reviewer)
 
 ## Summary
 
-I reviewed the changes since `1786df78`, from gap plans 41-13 to 41-18:
+This is an incremental re-review of the changes from `1019bf40` to HEAD, made by gap plans 41-19 to 41-25. I checked whether each of the 22 earlier findings those plans claim to fix is fixed in the code and text, and I looked for new defects the fixes introduced.
 
-- the fail-closed root ladder in `scripts/context-io.ts` (`undeterminedRoot`, `WALK_DID_NOT_RUN`, `WALK_STARTED_ABOVE_HOME`, `namedRootAnswers`, `occupied`);
-- the supersession block added to `admit()`, and the `canonicalRoleName` fold;
-- the hand-written part of `note.ts`, the admission server's `try`, and the kit text, changelog, residual and disposition records.
+**How findings were checked.** "Reproduced" means a run against a scratch copy of the committed `scripts/runnable-ref/note.js` or `claim.js`, or against the committed `scripts/context-io.js`, in a temporary repository with `CLAUDE_PROJECT_DIR` and `GRUGOPS_PROJECT_DIR` unset. Everything else comes from reading the code.
 
-For `note.js` I read the generated region only where the hand-written part depends on it.
+**Build and drift.** I compiled the `.ts` sources with `tsc` into a scratch directory. Every committed `.js` in scope is byte-identical to that build. The decider manifest in `hooks/hook-entry.ts` matches the sha256 of the committed `scripts/context-io.js`. `ADMIT_FROZEN_SHA256` was re-based for the change to `admit()`'s duplicate message, and the re-base is recorded. The eight focused test files (`note`, `claim` in both trees, `flow-guidance-text`, `role-route`, `runnable-exit-contract`, `tier-kit-text`, `now-running-freshness`) pass: 744 tests. I did not run the full suite.
 
-The ladder change holds up. I traced every way a named root can yield to the walk. A root with no configuration reads the lean defaults, and the walk cannot answer with anything weaker, so the yield never lowers `human_admission` or `audit_retention`. The supersession block also held against padded and whitespace variants of `--supersedes`, reproduced on a lone host copy. Every variant was refused.
+**Earlier findings: what the gap plans fixed.**
 
-The main concerns:
+| id | plan | verdict |
+|---|---|---|
+| CR-03 | 41-23, 41-25 | Fixed as text, by the human decisions D-41 and D-44. Workflows 05, 16 and 17 and R-41-10 now state that a host has no gate stamp. IN-20 notes one sentence in Workflow 05 that was left unqualified. |
+| WR-14 | 41-20 | Fixed. Reproduced: a second `emit-verdict` for one run id is refused, exit 1, and nothing is written. The S4 message now names a route. |
+| WR-15 | 41-24 | Fixed. The changelog and Workflow 16 cite R-41-09's open routes. |
+| WR-09 | 41-21 | Partly fixed. I/O faults, the root refusal and publish failures now exit 2. Two `admit()` refusals that say nothing about the note still exit 1 (WR-16). The fix also added a contradictory suffix to every exit-2 line (WR-17). |
+| WR-10 | 41-21 | Fixed. Reproduced: a link at `.grugops/audit` and a dangling link at `admissions.jsonl` both exit 2 with nothing written. A plain directory still writes the ledger. |
+| WR-12 | 41-22 | Fixed. Reproduced: `note.js read` prints the sealed current notes, names a hand-written note as `skipped zz.md (unsealed)`, and exits 2 on a FIFO. IN-17 and IN-18 are small residues. |
+| WR-13 | 41-23 | Fixed in the text. The new text names a route that only a plugin install has (WR-18). |
+| IN-14 | 41-24 | Fixed in Workflow 16, the changelog and R-41-07. |
+| IN-15 | 41-21 | Fixed. Reproduced: the refusal names the ladder, the working directory and the home directory. |
+| IN-09 | 41-20 | Fixed in `render()` and the fixture. |
+| IN-10 | 41-21 | Fixed in Workflow 16 step 3. |
+| IN-13 | 41-21 | Fixed in Workflow 16 step 3. |
+| WR-05 | 41-19 | Fixed for `ref:` lines. Reproduced: a pending file with no `ref:` is refused at `claim`, exit 2. IN-16 is a residue. |
+| WR-06 | 41-19 | Fixed in Workflow 17 step 1 and Workflow 04 step 16. |
+| WR-07 | 41-19 | Fixed in code. Reproduced: `kept z`, and `pending/z.md` keeps the newer `ref:`. Session start now gives two conflicting instructions for a kept claim (WR-19). |
+| WR-08 | 41-24 | Fixed. |
+| WR-11 | 41-19 | Fixed. Reproduced: `left bad+name` and `left stray`. |
+| IN-04, IN-05, IN-07, IN-12 | 41-19 | Fixed. |
+| IN-11 | 41-22 | Fixed. |
 
-- **WR-14:** the CR-02 fix removes the only sanctioned way to clear a duplicate green verdict. The refusal now promises "a named human resolves the duplicate", and no route exists for that.
-- **WR-15:** the changelog and Workflow 16 state the supersession rules without the limits R-41-09 records. This confirms the 2026-11-08 security audit's flag.
-
-**How findings were checked.** "Reproduced" means a run against a scratch copy of the committed `scripts/runnable-ref/note.js`, or against `scripts/context-io.js` in-process, in a temporary repository that has since been removed. Everything else comes from reading the code. I ran no test suite.
-
-**Earlier findings.** Ids stay stable so the disposition ledger keeps its decisions.
-
-- **Carried forward, re-checked at this head:** CR-03, WR-09, WR-10, WR-12, WR-13, IN-09, IN-10 and IN-13. Each is still present in a file in this scope, and each is restated briefly below. The full text is in the 2026-11-05 review at `1786df78`.
-- **CR-02** reads fixed for the route it named. Its remaining routes are recorded in R-41-09, and WR-15 covers how the text describes them.
-- **Not re-checked:** WR-05, WR-06, WR-07, WR-08, WR-11, IN-02 to IN-07, IN-11 and IN-12. They sit in files outside this review's scope (`scripts/claim.ts`, `scripts/runnable-ref/claim.ts`, `scripts/runnable-ref/state-check.ts`, `agent-factory/config/factory.config.md`, `agent-factory/roles/*`, `install/README.md`). The ledger will flag them "not in the current review". That flag means they were out of scope, not that they were fixed.
-
-**Not repeated:**
-
-- The recorded limits R-41-07 (including T-41-74), R-41-08 and R-41-09.
-- The D-38 cost: a lean named root with a working directory above `HOME` refuses.
+**Not repeated:** the recorded limits R-41-07 to R-41-11 and the deferred IN-02, IN-03 and IN-06.
 
 **No findings** in:
 
-- `scripts/admission-server.ts`: the root read now sits inside the `try`, and the end-to-end test proves the server keeps answering;
-- `scripts/checkpoints.ts`;
-- `scripts/generate-runnable-embeds.ts`;
-- the `canonicalRoleName` fold and the `--by` check.
+- `hooks/hook-entry.*`, `scripts/generate-runnable-embeds.*`, and the stamp-only changes to `state-check`, `state-roll` and `trace-render`;
+- `agent-factory/config/factory.config.md`, `agent-factory/roles/orchestrator.md` and `agent-factory/workflows/04-ticket-to-pr.md`;
+- the `emitVerdict` duplicate check itself.
 
-The changed test files show no weakened assertion. Every removed expectation was replaced by a stricter one with a recorded reason.
-
-## Critical Issues
-
-### CR-03: No scripted host can write a green gate verdict, so `§14-gate#<id>` findings and every `artifact-ref` are refused on every host (carried forward)
-
-**File:** `agent-factory/workflows/16-context-read-write.md:31`, `agent-factory/workflows/16-context-read-write.md:41`, `agent-factory/workflows/17-task-claim.md:62`, `scripts/runnable-ref/note.ts` (the `add` verb is the only verb)
-
-**Issue:** Unchanged at this head. Workflow 16 line 41 still calls the gate route "The workhorse path", and Workflow 17 step 6 still names `note.js` as the writer of an `artifact-ref`. Both depend on a live green verdict. Only `emitVerdict` writes one, and a host has neither `scripts/context-io.js` nor a verdict verb in `note.js`. Plan 41-15 adds a second reason a verdict matters on a host: `admit()` now refuses to supersede one, so a verdict is permanent once it exists.
-
-**Fix:** Unchanged, and it needs a human decision. Either ship a host verb for `emit-verdict` and record that a verdict becomes agent-mintable on a host, or state in Workflows 05, 16 and 17 that a scripted host has no gate stamp, and remove the "every host" reading from the `artifact-ref` text.
+The changed test files show no weakened assertion. Each moved exit-1 expectation was moved to exit 2 under the rule plan 41-21 states.
 
 ## Warnings
 
-### WR-14: A duplicate green verdict can no longer be cleared by any sanctioned route, and the refusal says a named human will resolve it
+### WR-16: Exit 1 still covers two refusals that say nothing about the note, and the changelog says it no longer does
 
-**File:** `scripts/context-io.ts:4415-4424` (the D-03 duplicate clause), `scripts/context-io.ts:4494-4531` (the supersession block), `scripts/context-io.ts:4169-4218` (`emitVerdict`)
+**File:** `scripts/context-io.ts:4506` (the D-14 arm of `admit()`), `scripts/context-io.ts:4628` (the unnameable-owner arm), `scripts/context-io.ts:240-253` (`NoteRefusal`), `scripts/runnable-ref/note.ts:20-23`, `CHANGELOG.md:131-133`, `agent-factory/workflows/16-context-read-write.md:31`
 
-**Issue:** Reproduced in-process against `scripts/context-io.js`, in a repository at `human_admission: off`:
+**Issue:** Both cases reproduced against the committed `note.js`:
 
-1. `emitVerdict("t1", "run1", "clean", sha, store)` twice wrote two live green verdicts for `§14-gate#run1`. `emitVerdict` does not check whether the run id already has a live verdict, so a retried emission step in one gate run is enough.
-2. An `artifact-ref` with `gate_run: run1` was refused: `more than one live green §14-gate verdict exists ... until a named human resolves the duplicate.`
-3. A `claim` by a routine role with `supersedes: <second verdict>` was refused: `may be superseded only through a named human's disposition`.
-4. `admitAndAppend` with a `human:olger` stamp was refused under `off` (W3): a note that is not gated may not carry a human stamp.
+1. With an unparseable `.grugops/factory.config.json`, `note.js add t1 --kind observation ...` printed `refused t1: ... admission REFUSED (UNKNOWN - verify): a governance configuration file exists ... could not be read or parsed`, exit 1.
+2. With `audit_retention: retained` set in a parent repository, and the command run from a subdirectory that holds its own `.grugops/`, the run printed `refused t1: ... admission REFUSED (destination-outside-governed-store) ...`, exit 1.
 
-Before plan 41-15 the duplicate cleared through one supersession. Now every route that reaches `admit()` refuses a target with `by === GATE_IDENTITY`, at every dial. The only route left is the gated branch of `admitAndAppend`. That branch exists only on Claude Code, only behind the hook, and only when the dial gates the new note. So under `off`, and on the five hosts with no hook, a duplicate verdict blocks every `artifact-ref` for that run permanently. The message's "a named human resolves the duplicate" then names no action except editing the store by hand, which Workflow 16 forbids. The same applies to "Only a named human's disposition retires one" in Workflow 16 step 3 and in `context-note.md:42-43` for any verdict on those hosts and dials.
+Neither case judges the note. Both are `admit()` findings, so `appendNote` wraps them in `NoteRefusal`, and every finding of `admit()` gets the same class. The plan chose this on purpose (41-21-PLAN: "an `admit()` finding (D-04, D-14, S11 and the rest) ... keeps exit 1"). The stated contract says otherwise:
 
-**Fix:** Stop the duplicate at its source, outside the frozen span. In `emitVerdict`, before composing:
+- `CHANGELOG.md:133` says "so exit `1` now means only that the note itself must change".
+- The `NoteRefusal` comment calls it "the one class a caller may report as 'change the note'".
 
-```ts
-const live = currentState(readContext(task, contextRoot));
-if (live.some((n) => isLiveGreenVerdict(n, id))) return null; // or throw a named refusal
+Workflow 16 sends every exit-1 line to step 4. There a role earns a stamp or degrades to a `claim`. Under D-14 the `claim` is refused too, so the role spends `self_fix_attempts` on a sound note. That is the harm WR-09 named.
+
+**Fix:** The plain fix sits outside the frozen span. In `appendNote`, before `admit()`, throw a plain `Error` (exit 2) in two cases:
+
+- when `readGovernanceConfig(repoRoot).source === "unreadable"`;
+- when the retention value is `retained` and `ledgerOwner.answered` is false.
+
+`admit()` keeps its own arms as the backstop. Otherwise, correct the text. In the changelog, write "exit 1 means the writer refused the note, or the configuration or the store's owner could not be read". Add both causes to Workflow 16's `## Stop conditions`.
+
+### WR-17: Every exit-2 refusal raised before the write now says "The note may have been written; check notes/"
+
+**File:** `scripts/runnable-ref/note.ts:2964`, `scripts/runnable-ref/note.ts:2971`, `scripts/runnable-ref/note.ts:2759-2761`
+
+**Issue:** This is new with the WR-09 fix. `runAdd` sets `noteStands` to "The note may have been written; check .grugops/context/<f>/notes/ before adding it again." before it calls `appendNote`. Every non-`NoteRefusal` throw now goes to `couldNotRun`, which appends that text. Before the fix, the root refusal was a `refused` line, and the catch cleared `noteStands`. Reproduced with the working directory above `HOME`:
+
+```
+Error: context-io (the governance root ladder): refusing to name a governance root: ... nothing was admitted
+and nothing was written. ... The note may have been written; check .grugops/context/t1/notes/ before adding it again.
 ```
 
-Return or throw according to the emitter's existing contract, and add a test that a second `emitVerdict` for the same run id writes nothing. For a duplicate already in a store, name the human route in Workflow 16 and in the S4 message: what the human runs, and on which hosts. A fix that lets one verdict supersede another of the same run id would change `admit()`. That needs a named human's word and a re-base of `ADMIT_FROZEN_SHA256`.
+The same suffix lands on the unrecordable-admission refusal, which itself says "Nothing was written", and on the differing-occupant and containment refusals. All of these are raised before `writeNoteFile`. So the line contradicts itself. It also tells the role to inspect `notes/`, which Workflow 16 step 1 now forbids ("Never read `notes/` by hand"). No test checks the suffix: `assertRootRefused` in `note-read-sites.test.ts:721-728` checks only the start of the line.
 
-### WR-15: The changelog and Workflow 16 state the supersession rules without the limits R-41-09 records (confirms the 2026-11-08 audit flag)
+**Fix:** Keep the uncertain wording only where a write may have happened. Set `noteStands = ""` before the call, and let the writer mark the point of no return. A small option: throw a distinct class from `writeNoteFile`/`publishNoteExclusive`, and in the catch set `noteStands` to the "may have been written" text only for that class. Add `expect(run.stderr).toContain("No note was written.")` to `assertRootRefused`.
 
-**File:** `CHANGELOG.md:141-143`, `agent-factory/workflows/16-context-read-write.md:31`, `docs/audit/29-style-dispositions/41-18.md:23`
+### WR-18: The new route text says "on Claude Code", but only a plugin install has `propose_note` and the hook
 
-**Issue:** Confirmed against the code and the pinned `LIMIT (R-41-09)` case in `scripts/runnable-ref/note.test.ts`.
+**File:** `agent-factory/workflows/16-context-read-write.md:31` ("The Orchestrator admits it through `propose_note` under the human's grant on Claude Code."), `agent-factory/workflows/16-context-read-write.md:43` ("Where the Orchestrator holds `propose_note` (Claude Code)"), `agent-factory/contracts/context-note.md:44`, `CHANGELOG.md:148`, `CHANGELOG.md:180`, `docs/audit/41-residuals.md:23` (R-41-11)
 
-- `CHANGELOG.md:143` says "A note whose `supersedes` target is in the store and cannot be read is refused at every dial." This is false for a note file that was renamed and cannot be read. `admit()` matches a skipped entry only by `${supersededId}.md` (`context-io.ts:4515-4518`), so a renamed file reads as naming no note. The claim is admitted, and the finding folds out once the file reads again.
-- `CHANGELOG.md:141-142` says "A note can no longer supersede a green gate verdict or a finding the dial gates". That is also unqualified. A note naming an id that arrives later still folds it out on arrival, and a retirement admitted at `off` stands after the dial is raised. Both are recorded in R-41-09, and the changelog never points there.
-- Workflow 16 line 31 places its R-41-09 pointer on the sentence about a target that names no note. The next sentence, "A target in the store that cannot be read is refused.", stands unqualified. The 41-18 disposition row names the renamed-file route only in its comparison cell, which a role never reads.
+**Issue:** These sentences are new with the WR-13 and WR-14 fixes. They name `propose_note` behind the hook as the route that retires a verdict or a gated finding, and as the route that admits a high-severity finding, "on Claude Code".
 
-These lines sit under `### Security`, and the project rule is never to overstate a control. A reader takes them as complete.
+The admission server and the hook ship only in the plugin. `.claude-plugin/plugin.json` declares `mcpServers`, `hooks/hooks.json` is plugin-only, and `install/install.ts` writes neither. R-41-01 states it already: "only the Orchestrator holds `propose_note`, and only on a Claude Code plugin install".
 
-**Fix:** In `CHANGELOG.md`, end the two bullets with "Residual R-41-09 records the routes that stay open: a target that arrives later, a dial raised after a retirement, and a note file that was renamed and cannot be read." In Workflow 16 step 3, write "A target in the store that cannot be read is refused, unless its file was renamed (R-41-09)." Add a disposition row for the changed clause.
+So the standalone Claude Code install, the scripted form that gives the literal `/grug`, has no route. A reader of Workflow 16 or the contract takes it to have one, and the phrase "a host with no hook" does not obviously cover a Claude Code install. These lines sit under governance text and `### Security`, where the project rule is never to overstate a control.
 
-### WR-09: An exit-1 `refused` line still covers I/O faults, and plan 41-13 adds a second exit-1 class that means "stop" (carried forward)
+**Fix:** Write "on a Claude Code plugin install" in each of the six places. In Workflow 16 line 43 write "Where the Orchestrator holds `propose_note` (a Claude Code plugin install)". In R-41-11 and Workflow 16 step 3, state that a standalone Claude Code install has no hook, like the other hosts.
 
-**File:** `scripts/runnable-ref/note.ts:2877-2879`, `scripts/runnable-ref/note.ts:14-19`, `agent-factory/workflows/16-context-read-write.md:31`
+### WR-19: Session start tells the Orchestrator to re-spawn a claim the sweep kept, and doing so strands the newer subtask
 
-**Issue:** `isWriterRefusal` still matches any message that starts with `context-io`, so an unrecordable admission and an `EIO` from `publishNoteExclusive` still print `refused`, exit 1. Plan 41-13 adds `undeterminedRoot`, deliberately prefixed `context-io.trustedRepoRoot` so that it lands in the same class. The header now carves out that exception by message text. Exit 1 therefore means "change the note" for some lines and "stop, nothing about the note is wrong" for others, and the only way to tell them apart is the wording. Workflow 16 step 3 still sends every exit-1 line to step 4. The root refusal is the exception, through the new stop bullet at line 51.
+**File:** `agent-factory/workflows/17-task-claim.md:86`, `scripts/runnable-ref/claim.ts:330-335`
 
-**Fix:** As before, give the writer a typed refusal for the decisions that judge the note (validate, `admit()` findings, size ceiling), and test `instanceof` in `note.ts`. Map `undeterminedRoot` and the I/O faults to exit 2, or to a distinct printed prefix such as `stopped FOLDER: REASON` that Workflow 16 names.
+**Issue:** Reproduced. With a stale `claimed/z/` holding `ref: .grugops/context/OLD/` and a newer `pending/z.md` holding `NEW/`, `sweep` printed `kept z (pending/z.md already exists, so the claim stays)`. `now-running.md` still shows `z` with `by: grugops-x`. Session start step 3 then gives two instructions for that row:
 
-### WR-10: A link on `.grugops/audit` still sends the audit ledger outside the repository (carried forward)
+- "Finish each claim still in `now-running.md` ... Re-spawn the adapter named in `by`, to finish the task and run `done`"
+- "Stop and name each entry `sweep` prints on a `kept` or `left` line"
 
-**File:** `scripts/runnable-ref/note.ts:2890-2905` (`runAdd`)
+Nothing says the first sentence excludes a kept row. A re-spawn finishes the stale `OLD` copy and moves it to `done/z.md`. After that, `claim z` on the newer `pending/z.md` is refused with "`done/z.md` already exists". Before that, `claim z` prints `lost z`, exit 1, which step 3 tells the Orchestrator to read as "take the next pending task". Either way the newer subtask is never run, the outcome WR-07 was raised to prevent.
 
-**Issue:** Unchanged. `runAdd` asks the root-chain owner about `.grugops` and the path to `notes/` only. The ledger append under `retained` follows a link at `.grugops/audit`.
+The precondition is rare now that step 1 gives a re-queued subtask a new id. `claim` refuses only an id already in `done/`, though, not one still in `claimed/`.
 
-**Fix:** As before, run `refuseUnusableStore(root, \`${GRUGOPS_DIR_REL}/audit\`)` before the write, refuse a link at `admissions.jsonl`, and add a case beside the T-41-33 link cases.
-
-### WR-12: Workflows 16 and 17 name a read route no role on a host can run (carried forward)
-
-**File:** `agent-factory/workflows/16-context-read-write.md:19`, `agent-factory/workflows/16-context-read-write.md:27`, `agent-factory/workflows/17-task-claim.md:60`
-
-**Issue:** Unchanged. Each still says to read through `context-io.ts` (`readContext` / `render`), which a host does not have, and `note.js` still has only `add`. Plan 41-18 makes this more pressing: a role is now told that an unreadable target is refused, but it has no supported way to see which notes are sealed and current before it names one.
-
-**Fix:** As before, add a `read FOLDER` verb to `note.js`, or state the `index.md`-first rule in step 1.
-
-### WR-13: Under an active dial, a spawned high-severity role has no route to admit a finding (carried forward)
-
-**File:** `agent-factory/workflows/16-context-read-write.md:43`, `agent-factory/workflows/16-context-read-write.md:49`
-
-**Issue:** Unchanged. Plan 41-15 adds a twin. The supersession refusal tells a role to "ask a named human", and Workflow 16 still says nothing about who then writes the note, as which `by`, or with which tool. On a host with no hook the answer is that no one can (see WR-14).
-
-**Fix:** As before, name the route in step 4 for Claude Code, and state for the other hosts that no route exists.
+**Fix:** In step 3, put the stop first and scope the re-spawn: "Stop and name each entry `sweep` prints on a `kept` or `left` line, so a human resolves it, and do not re-spawn a kept task. Finish each other claim still in `now-running.md` ...". Optionally, have `claim` refuse a task whose `claimed/<task>/` exists with exit 2 rather than `lost`, when its pending file is also present.
 
 ## Info
 
-### IN-14: The text says an undeterminable `HOME` refuses every note, but a named root with a configuration still admits
+### IN-16: `claim` still accepts a subtask `done` will refuse: one above the 1 MiB record ceiling
 
-**File:** `CHANGELOG.md:135`, `agent-factory/workflows/16-context-read-write.md:65`, `docs/audit/41-residuals.md:19` (R-41-07, second limit)
+**File:** `scripts/runnable-ref/claim.ts:236` (`pendingTextOrNull`, an unbounded `readFileSync`), `scripts/runnable-ref/claim.ts:1297` (`recordTextOrNull`, `RECORD_CEILING_BYTES`), `CHANGELOG.md:66-67`
 
-**Issue:** Reproduced. In a repository set to `human_admission: all`, with `HOME=/nonexistent` and `CLAUDE_PROJECT_DIR` naming that repository, `note.js add t1 --kind observation ...` printed `noted`, exit 0. With no name set, the same run was refused. `trustedRepoRoot` returns a named root that carries a configuration (`context-io.ts:6077`) before it reads the home directory, so the refusal applies only when no named root carries one.
+**Issue:** Reproduced. A `pending/b.md` with one valid `ref:` line padded to 1,100,038 bytes claimed with exit 0. A sealed note was then written, and `done b` exited 2 ("above the 1048576-byte ceiling"). The claim stays, and step 7 forbids moving the subtask by hand. The changelog says "a task never stops at `done` for a subtask file it was claimed with". This is contrived, since step 1 makes the file two lines, but the WR-05 rule is "refuse what `done` would refuse".
 
-- `CHANGELOG.md:135` says "every note is refused until it is repaired".
-- R-41-07 says "A host where the home directory cannot be determined refuses every note".
-- Workflow 16 line 65 says an undeterminable home "stops the order ... every admission is refused".
+**Fix:** In `claimPending`, read the pending file with `readRegularFileOrNull(path, RECORD_CEILING_BYTES, ...)`, or check `pendingEntry.size` against the same ceiling, and refuse above it.
 
-On Claude Code, which sets `CLAUDE_PROJECT_DIR` for every Bash call, none of these holds for a configured repository. The 41-17 disposition row draws this distinction for the above-`HOME` case, but these sentences do not. The error runs in the safe direction: more is said to be refused than is.
+### IN-17: `note.js read` ends each error line with "No note was written."
 
-**Fix:** Qualify each sentence with "when no named root carries a factory configuration".
+**File:** `scripts/runnable-ref/note.ts:2759-2761`, `scripts/runnable-ref/note.ts:2987-2993` (`readFolder`), `scripts/runnable-ref/note.ts:3027-3066` (`runRead`)
 
-### IN-15: The root refusal and its stop name a cause narrower than the code's, and the refusal is labelled `trustedRepoRoot` when `governanceRootOf` throws it
+**Issue:** Reproduced: `note.js read t1 --x` and a FIFO in `notes/` each print an `Error:` line that ends "No note was written." `read` never writes, so the clause is noise on a command whose header says it "writes nothing".
 
-**File:** `scripts/context-io.ts:5466-5472`, `scripts/context-io.ts:3659-3667`, `agent-factory/workflows/16-context-read-write.md:51`
+**Fix:** Give `couldNotRun` a suffix parameter, or have it check `command === "read"` and omit the clause.
 
-**Issue:** `occupied` and `refuseUnlessAbsent` throw `undeterminedRoot` from `projectRootFromWorkingDirectory`. That function is also reached through `governanceRootOf`, from `actionOwnerRoot` (the ledger-owner default of `appendNote` and `admitAndAppend`) and from `originIsTrusted` in `promoteAdmitted`. There the message says `context-io.trustedRepoRoot: refusing to name a governance root ... The human_admission dial is UNKNOWN`, even when the dial root was read and the failed read was under a different store's anchor. The stop at line 51 tells the role "A human repairs `HOME` or the working directory". But the causes in code also include any failed read on the walk, such as a dangling `.grugops` link, an `EACCES` directory, or a non-directory where a candidate's parent should be. The 41-14 disposition row already asks a human to check whether those two causes are enough. This is from reading the code, not reproduced.
+### IN-18: `read` of a mistyped folder reads as an empty context, and files without `.md` are not named
 
-**Fix:** Pass the asking function into `undeterminedRoot`, or word it as "the governance root ladder", and include the path that failed. Change the stop to "A human repairs `HOME`, the working directory, or the path the refusal names."
+**File:** `scripts/runnable-ref/note.ts:3040-3049`, `scripts/runnable-ref/note.ts:1381`, `agent-factory/workflows/16-context-read-write.md:27`
 
-### IN-09: The `index.md` banner on a host names a program no host has (carried forward)
+**Issue:** Reproduced: `note.js read nope` printed `read nope: 0 current, 0 superseded, 0 skipped`, exit 0. A typo in the folder name gives the same output as a new task with no context, and Workflow 16 step 1 then has the role start from a blank slate. Separately, step 1 says `read` "names each file in `notes/` that is not a sealed note". The walk skips any name not ending in `.md` without a record (`if (!file.endsWith(".md")) continue;`), so a stray `notes/x.txt` or `.tmp-x` is not named.
 
-**File:** `scripts/context-io.ts:4818`
+**Fix:** Print `read <folder>: no context folder` when `.grugops/context/<folder>` is absent, so the two cases differ. Change step 1 to "names each `.md` file in `notes/` that is not a sealed note".
 
-**Issue:** Unchanged. The banner still reads `Re-run: node scripts/context-io.js render <task>`.
-**Fix:** As before.
+### IN-19: The role-switch protocol still sends deliverables to `artifact-ref`, which every host refuses
 
-### IN-10: A body that opens with two dashes stops the role (carried forward)
+**File:** `agent-factory/roles/_role-switch-protocol.md:21`
 
-**File:** `agent-factory/workflows/16-context-read-write.md:31`
+**Issue:** Reproduced: every `artifact-ref` written on a host is refused, exit 1. Without `--sha`, `--gate-run` and `--content-hash` it fails validation, and with them it finds no verdict. The protocol is the path for hosts with no `Agent` tool, and none of those hosts has a gate stamp. Step 4 still says "deliverables as `artifact-ref`", so a role there meets a refusal on every deliverable before Workflow 16 step 3 tells it to write an `observation`. R-41-10 records this ("a role text that names `artifact-ref` for a deliverable meets that refusal there"). It also says no human has accepted that part. This file was edited in this range and the fix is one clause.
 
-**Issue:** Unchanged. Step 3 still mentions `--body-file` only for a long body.
-**Fix:** As before.
+**Fix:** "Publish deliverables as `artifact-ref` where a gate stamp exists, and otherwise as an `observation` carrying their refs, per step 3 of Workflow 16."
 
-### IN-13: Workflow 16 does not carry WR-01's exit 1 fix to `note.js` (carried forward)
+### IN-20: Workflow 05's escape-hatch paragraph still promises the real stamp from the Step-4 loop on a host
 
-**File:** `agent-factory/workflows/16-context-read-write.md:31`
+**File:** `agent-factory/workflows/05-pr-quality-gate.md:57`
 
-**Issue:** Unchanged. Step 3 has no "Exit 1 without that line is a genuine failure" clause.
-**Fix:** As before.
+**Issue:** The new host paragraph at line 53 says no `§14-gate#<id>` finding can be admitted on a host. Four lines later, "No faked pass (escape hatch)" still says the bounded Step-4 attempts "obtain the real `§14-gate#<id>` stamp", with no qualifier. Workflow 16 step 4 was qualified for the same route ("This route exists only where `emitVerdict` runs"). This paragraph was not.
+
+**Fix:** Append to the paragraph: "This route exists only where `emitVerdict` runs; on a host, degrade to a `claim` or escalate, per Workflow 16 step 4."
 
 ---
 
-_Reviewed: 2026-11-08T18:26:21Z_
+_Reviewed: 2026-11-12T19:40:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
