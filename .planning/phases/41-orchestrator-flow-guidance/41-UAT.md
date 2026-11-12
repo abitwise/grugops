@@ -3,7 +3,7 @@ status: partial
 phase: 41-orchestrator-flow-guidance
 source: [41-VERIFICATION.md]
 started: 2026-11-08T18:57:45Z
-updated: 2026-11-11T18:03:23.097Z
+updated: 2026-11-12T20:15:13.843Z
 ---
 
 ## Current Test
@@ -59,12 +59,27 @@ result: issue
 reported: "pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
 severity: major
 note: Olger replied "pass", then on the follow-up question chose "Adopt suggestion" (2026-11-11). CR-01 closes on test 1's live run (disposition fixed). IN-02, IN-03 and IN-06 are deferred to a later phase (disposition deferred). The other 22 rows are gaps G-41-7-* below. Diagnosis is taken from the code review, which already gives each finding's cause with file and line; the carried rows' text is in 41-REVIEW.md at commit 1786df78. No debug agents were spawned.
+retest: "2026-11-12, verify-work resume: all 22 gaps reconciled as resolved by executed plans 41-19 to 41-24 (each listed in its gap entry). 41-REVIEW-DISPOSITION.md records the 22 rows fixed (commit 0c1d2db7). The re-verification of 2026-11-12 (41-VERIFICATION.md) found every gap-closure truth holds. New review rows from that range are test 9."
+
+### 8. Read the three unaccepted residuals R-41-09 (c), R-41-10 scripted-install limit, R-41-11
+expected: A named human accepts each in a form that names its scope, or sends it back
+why_human: From 41-VERIFICATION.md (2026-11-12) human item 3. docs/audit/41-residuals.md says these three are not accepted, and no agent may accept a residual.
+result: pass
+note: "Ruled by Olger on 2026-11-12, reply verbatim: 'accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger'. Written back: docs/audit/41-residuals.md (R-41-09, R-41-10, R-41-11 rows and a Ruling of 2026-11-12 section); 41-SECURITY.md Accepted Risks Log rows for R-41-09 (c) / T-41-81, R-41-10 (scripted install) and R-41-11, and T-41-81 set to accept, closed."
+
+### 9. Triage the nine open rows of 41-REVIEW-DISPOSITION.md (WR-16, WR-17, WR-18, WR-19, IN-16 to IN-20)
+expected: Each row fixed, accepted or sent to a later phase by a named human
+why_human: From 41-VERIFICATION.md (2026-11-12) human item 4. Disposition is a human ruling. The roadmap's four gap rounds are used up (plan 41-25 was round 5).
+result: issue
+reported: "accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
+severity: major
+note: Olger ruled one override round past the gap-round cap for the text-only rows WR-18, WR-19, IN-19 and IN-20 (gaps G-41-9-* below). WR-16, WR-17, IN-16, IN-17 and IN-18 are deferred to a later phase (disposition deferred in 41-REVIEW-DISPOSITION.md, and listed under Deferred Follow-Ups). Diagnosis is taken from 41-REVIEW.md, which gives each finding's cause and fix with file and line; no debug agents were spawned.
 
 ## Summary
 
-total: 7
-passed: 4
-issues: 1
+total: 9
+passed: 5
+issues: 2
 pending: 0
 skipped: 0
 blocked: 2
@@ -73,7 +88,9 @@ blocked: 2
 
 - gap_id: G-41-7-CR-03
   truth: "Review finding CR-03 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-23-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -95,7 +112,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-14
   truth: "Review finding WR-14 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-20-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -113,7 +132,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-15
   truth: "Review finding WR-15 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-24-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -133,7 +154,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-09
   truth: "Review finding WR-09 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-21-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -151,7 +174,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-10
   truth: "Review finding WR-10 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-21-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -165,7 +190,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-12
   truth: "Review finding WR-12 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-22-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -183,7 +210,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-13
   truth: "Review finding WR-13 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-23-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -199,7 +228,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-14
   truth: "Review finding IN-14 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-24-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -217,7 +248,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-15
   truth: "Review finding IN-15 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-21-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -235,7 +268,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-09
   truth: "Review finding IN-09 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-20-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -249,7 +284,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-10
   truth: "Review finding IN-10 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-21-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -263,7 +300,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-13
   truth: "Review finding IN-13 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-21-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -277,7 +316,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-05
   truth: "Review finding WR-05 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -295,7 +336,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-06
   truth: "Review finding WR-06 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -313,7 +356,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-07
   truth: "Review finding WR-07 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -329,7 +374,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-08
   truth: "Review finding WR-08 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-24-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -343,7 +390,9 @@ blocked: 2
 
 - gap_id: G-41-7-WR-11
   truth: "Review finding WR-11 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: major
   test: 7
@@ -361,7 +410,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-04
   truth: "Review finding IN-04 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -379,7 +430,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-05
   truth: "Review finding IN-05 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -393,7 +446,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-07
   truth: "Review finding IN-07 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -409,7 +464,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-11
   truth: "Review finding IN-11 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-22-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: minor
   test: 7
@@ -423,7 +480,9 @@ blocked: 2
 
 - gap_id: G-41-7-IN-12
   truth: "Review finding IN-12 is fixed, as ruled by a named human in test 7"
-  status: failed
+  status: resolved
+  resolved_by: 41-19-PLAN.md
+  resolved_at: 2026-11-12
   reason: "User reported: pass (clarified: Adopt suggestion) — CR-01 fixed on test 1's live run; fix the other 22 rows now; defer IN-02, IN-03 and IN-06 to a later phase, Olger"
   severity: cosmetic
   test: 7
@@ -436,3 +495,87 @@ blocked: 2
   missing:
     - "Apply the fix in 41-REVIEW.md @ 1786df78 (git show 1786df78:.planning/phases/41-orchestrator-flow-guidance/41-REVIEW.md) section IN-12; add or adjust a test where the fix changes code"
   debug_session: "41-REVIEW.md @ 1786df78 (git show 1786df78:.planning/phases/41-orchestrator-flow-guidance/41-REVIEW.md)"
+
+- gap_id: G-41-9-WR-18
+  truth: "Review finding WR-18 is fixed, as ruled by a named human in test 9"
+  status: failed
+  reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
+  severity: major
+  test: 9
+  root_cause: "Workflow 16 (lines 31, 43), agent-factory/contracts/context-note.md:44, CHANGELOG.md:148 and :180 and R-41-11 say `propose_note` and the hook exist 'on Claude Code'; only a Claude Code plugin install has them, so a standalone install is told it has a route it lacks"
+  artifacts:
+    - path: "agent-factory/workflows/16-context-read-write.md:31"
+      issue: "WR-18"
+    - path: "agent-factory/workflows/16-context-read-write.md:43"
+      issue: "WR-18"
+    - path: "agent-factory/contracts/context-note.md:44"
+      issue: "WR-18"
+    - path: "CHANGELOG.md:148"
+      issue: "WR-18"
+    - path: "CHANGELOG.md:180"
+      issue: "WR-18"
+    - path: "docs/audit/41-residuals.md:23 (R-41-11)"
+      issue: "WR-18"
+  missing:
+    - "Apply the text fix in 41-REVIEW.md section WR-18 (text only; no code change); pin it in a test where the existing wording tests cover the line"
+  debug_session: "41-REVIEW.md"
+
+- gap_id: G-41-9-WR-19
+  truth: "Review finding WR-19 is fixed, as ruled by a named human in test 9"
+  status: failed
+  reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
+  severity: major
+  test: 9
+  root_cause: "Workflow 17 `## Session start` step 3 tells the Orchestrator to re-spawn every claim in now-running.md before it says to stop on a `kept` line, so a kept claim is re-spawned and the newer pending subtask is stranded"
+  artifacts:
+    - path: "agent-factory/workflows/17-task-claim.md:86"
+      issue: "WR-19"
+  missing:
+    - "Apply the text fix in 41-REVIEW.md section WR-19 (text only; no code change); pin it in a test where the existing wording tests cover the line"
+  debug_session: "41-REVIEW.md"
+
+- gap_id: G-41-9-IN-19
+  truth: "Review finding IN-19 is fixed, as ruled by a named human in test 9"
+  status: failed
+  reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
+  severity: minor
+  test: 9
+  root_cause: "The role-switch protocol step 4 still sends deliverables to `artifact-ref`, which every host without a gate stamp refuses"
+  artifacts:
+    - path: "agent-factory/roles/_role-switch-protocol.md:21"
+      issue: "IN-19"
+  missing:
+    - "Apply the text fix in 41-REVIEW.md section IN-19 (text only; no code change); pin it in a test where the existing wording tests cover the line"
+  debug_session: "41-REVIEW.md"
+
+- gap_id: G-41-9-IN-20
+  truth: "Review finding IN-20 is fixed, as ruled by a named human in test 9"
+  status: failed
+  reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
+  severity: minor
+  test: 9
+  root_cause: "Workflow 05's 'No faked pass (escape hatch)' paragraph promises the real `§14-gate#<id>` stamp from the Step-4 loop with no host qualifier"
+  artifacts:
+    - path: "agent-factory/workflows/05-pr-quality-gate.md:57"
+      issue: "IN-20"
+  missing:
+    - "Apply the text fix in 41-REVIEW.md section IN-20 (text only; no code change); pin it in a test where the existing wording tests cover the line"
+  debug_session: "41-REVIEW.md"
+
+## Deferred Follow-Ups
+
+- test: 9
+  idea: "Review finding WR-16 (41-REVIEW.md, 2026-11-12): deferred to a later phase by Olger"
+  deferred_at: 2026-11-12
+- test: 9
+  idea: "Review finding WR-17 (41-REVIEW.md, 2026-11-12): deferred to a later phase by Olger"
+  deferred_at: 2026-11-12
+- test: 9
+  idea: "Review finding IN-16 (41-REVIEW.md, 2026-11-12): deferred to a later phase by Olger"
+  deferred_at: 2026-11-12
+- test: 9
+  idea: "Review finding IN-17 (41-REVIEW.md, 2026-11-12): deferred to a later phase by Olger"
+  deferred_at: 2026-11-12
+- test: 9
+  idea: "Review finding IN-18 (41-REVIEW.md, 2026-11-12): deferred to a later phase by Olger"
+  deferred_at: 2026-11-12
