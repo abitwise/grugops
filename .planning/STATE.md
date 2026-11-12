@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 41
 current_phase_name: Orchestrator flow guidance
 status: executing
-stopped_at: Completed 41-24-PLAN.md
-last_updated: "2026-11-12T12:28:58.843Z"
+stopped_at: "Phase 41 verification re-run: human_needed (8/8); next /gsd-verify-work 41"
+last_updated: "2026-11-12T20:00:23.355Z"
 last_activity: 2026-11-12
-last_activity_desc: Phase 41 execution started
-state_head: 7f348ae0210a01526359964317da3225e52e2354
+last_activity_desc: Phase 41 execution resumed (wave continue)
+state_head: 215cf1887cc822c8d7934161bf46783c7b102eec
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 138
-  completed_plans: 137
+  completed_plans: 138
   percent: 67
 ---
 
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
 Phase: 41 (Orchestrator flow guidance) — EXECUTING
 Plan: 25 of 25
 Status: Executing Phase 41
-Last activity: 2026-11-12 — Phase 41 execution started
+Last activity: 2026-11-12 — Phase 41 execution resumed (wave continue)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2721,8 +2721,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-12T10:10:28.862Z
-Stopped at: Completed 41-24-PLAN.md
+Last session: 2026-11-12T20:00:22.230Z
+Stopped at: Phase 41 verification re-run: human_needed (8/8); next /gsd-verify-work 41
 Resume file: None
 
 ## Operator Next Steps
