@@ -145,8 +145,8 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   in `docs/audit/41-residuals.md`.
 - Workflow 16 names the route a `security-nfr`, `architect-design` or `release-manager` finding takes
   when `human_admission` is not `off`: the role publishes a `claim`, the Orchestrator asks the human,
-  and on Claude Code it admits the finding through `propose_note` under the human's grant. A host
-  with no hook has no such route. See residual R-41-11 in `docs/audit/41-residuals.md`.
+  and on a Claude Code plugin install it admits the finding through `propose_note` under the human's
+  grant. A host with no hook has no such route. See residual R-41-11 in `docs/audit/41-residuals.md`.
 
 ### Fixed
 
@@ -177,9 +177,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   such as one that carries a zero-width character or a full-width letter. Pass the role file's name.
 - A note can no longer supersede a green gate verdict or a finding the `human_admission` dial gates,
   and only a named human's disposition retires one. That disposition is a finding the dial gates,
-  admitted on Claude Code through `propose_note`; under `off`, and on a host with no hook, nothing
-  retires one. Residual R-41-09 records the routes that stay open: a target that arrives later, a
-  dial raised after a retirement, and a note file that was renamed and cannot be read.
+  admitted on a Claude Code plugin install through `propose_note`; under `off`, and on a host with
+  no hook, nothing retires one. Residual R-41-09 records the routes that stay open: a target that
+  arrives later, a dial raised after a retirement, and a note file that was renamed and cannot be read.
 - A note whose `supersedes` target is in the store and cannot be read is refused at every dial.
   Residual R-41-09 records the routes that stay open: a target that arrives later, a dial raised
   after a retirement, and a note file that was renamed and cannot be read.
