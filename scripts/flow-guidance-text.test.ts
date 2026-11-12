@@ -457,8 +457,9 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
   };
 
   it("re-spawns the adapter named in `by` for each claim the sweep left, to finish it and run `done` (WR-03)", () => {
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-19.
     const step3 = respawn();
-    expect(step3).toContain("Finish each claim still in `now-running.md`.");
+    expect(step3).toContain("Finish each other claim still in `now-running.md`.");
     expect(step3).toContain("No agent runs it now.");
     expect(step3).toContain("Re-spawn the adapter named in `by`, to finish the task and run `done`.");
   });
@@ -471,16 +472,20 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
   });
 
   it("says what clears a row with an empty `by`, and stops on what the sweep cannot clear (WR-03, plan 41-10; WR-11, plan 41-19)", () => {
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-19.
+    // The stop sentence now opens the step, so the two empty-`by` sentences end it.
     expect(respawn()).toContain(
       "A row with an empty `by` names no adapter. " +
-        "A sweep after the TTL reclaims one whose directory holds no usable record. " +
-        "Stop and name each entry `sweep` prints on a `kept` or `left` line, so a human resolves it.",
+        "A sweep after the TTL reclaims one whose directory holds no usable record.",
     );
+    expect(respawn()).toContain("Stop and name each entry `sweep` prints on a `kept` or `left` line, so a human resolves it.");
+    expect(respawn()).not.toContain("holds no usable record. Stop and name each entry");
     expect(respawn()).not.toContain("a later sweep reclaims it");
   });
 
   it("does nothing when the sweep left no claim, so the refill still runs (RUN-03 empty)", () => {
-    expect(respawn()).toContain("each claim still in `now-running.md`");
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-19.
+    expect(respawn()).toContain("each other claim still in `now-running.md`");
     expect(section(WF17, "Session start")).toContain("Refill per `## Keep capacity full`.");
   });
 
@@ -1362,5 +1367,63 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
         expect(text, old).not.toContain(old);
       }
     }
+  });
+
+  // WR-19: the sweep prints `kept <task>` when a newer pending copy stands. A re-spawn of that claim would finish the stale
+  // copy and strand the newer subtask, so the stop comes first and forbids the re-spawn.
+  const sessionStep3 = (): string => {
+    const line = section(WF17, "Session start")
+      .split("\n")
+      .find((l) => l.startsWith("3. "));
+    expect(line, "no session-start step 3").toBeDefined();
+    return line as string;
+  };
+
+  it("session start step 3 opens with the stop on a kept or left line, before any re-spawn (WR-19)", () => {
+    expect(
+      sessionStep3().startsWith(
+        "3. Stop and name each entry `sweep` prints on a `kept` or `left` line, so a human resolves it. " +
+          "Never re-spawn a task named on such a line. " +
+          "Finish each other claim still in `now-running.md`.",
+      ),
+    ).toBe(true);
+  });
+
+  it("session start step 3 forbids the re-spawn of a kept task before it names the re-spawn (WR-19)", () => {
+    const line = sessionStep3();
+    const never = line.indexOf("Never re-spawn a task named on such a line.");
+    const respawnAt = line.indexOf("Re-spawn the adapter named in `by`");
+    expect(never, "no never-re-spawn sentence").toBeGreaterThanOrEqual(0);
+    expect(respawnAt, "no re-spawn sentence").toBeGreaterThanOrEqual(0);
+    expect(never).toBeLessThan(respawnAt);
+  });
+
+  it("session start step 3 ends on the slot and the empty-`by` sentences (WR-19)", () => {
+    expect(
+      sessionStep3().endsWith(
+        "The re-spawn fills the slot the claim already holds. A row with an empty `by` names no adapter. " +
+          "A sweep after the TTL reclaims one whose directory holds no usable record.",
+      ),
+    ).toBe(true);
+  });
+
+  // IN-19: under D-44 a plugin install counts as a host, so the condition stays in Workflow 16 step 3, its one home.
+  it("the role-switch protocol routes a deliverable by step 3 of Workflow 16 (IN-19, D-44)", () => {
+    expect(ROLE_SWITCH).toContain("   Publish decisions as `decision` notes, and risks as `finding` or `observation`.\n");
+    expect(ROLE_SWITCH).toContain(
+      "   Publish deliverables as `artifact-ref` where step 3 of Workflow 16 admits one, " +
+        "and otherwise as an `observation` carrying their refs.\n",
+    );
+    expect(ROLE_SWITCH).not.toContain("and deliverables as `artifact-ref`.");
+  });
+
+  // IN-20: the Step-4 stamp route exists only where `emitVerdict` runs, which Workflow 16 step 4 scopes since plan 41-25.
+  it("Workflow 05 scopes the escape-hatch stamp route and names the host route, before the closing sentences (IN-20, D-44)", () => {
+    expect(section(WF05, "Steps")).toContain(
+      "Those attempts obtain the real `§14-gate#<id>` stamp, and then the gate stops and hands to a human. " +
+        "This route exists only where `emitVerdict` runs, in a repository holding grugops's own `scripts/context-io.js`. " +
+        "On a host, degrade to a `claim` or escalate, per Workflow 16 step 4. " +
+        "No new dial, no second loop",
+    );
   });
 });
