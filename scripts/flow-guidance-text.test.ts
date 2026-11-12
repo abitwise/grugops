@@ -989,9 +989,11 @@ describe("the kit says a host has no gate stamp (plan 41-23; CR-03, D-41)", () =
     return line.split(/(?<=\.)\s+/);
   }
 
-  it("step 3 of Workflow 16 says a host has no gate stamp, straight after the flags that set the note fields", () => {
+  it("step 3 of Workflow 16 says a host has no gate stamp, straight after the sentence that says the program stamps `at`", () => {
+    // Plan 41-23 named the flags sentence as the anchor. The pins of plans 41-16, 41-18 and 41-20 hold every sentence
+    // from there to "The program stamps" in order, so the host block follows that run instead.
     expect(step(WF16, 3)).toContain(
-      "`--verified-by`, `--supersedes`, `--sha`, `--gate-run` and `--content-hash` set those note fields. " +
+      "The program stamps `at` itself. " +
         "A host repository has no gate stamp (residual R-41-10). " +
         "`emitVerdict`, the one writer of a green verdict, runs through `scripts/context-io.js`. " +
         "That program ships with grugops's own tooling and is not installed to a host.",
