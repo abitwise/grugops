@@ -40,13 +40,13 @@ Run these in order. The order is the protocol — read the verified state first,
 The three admission outcomes, stated once:
 - Run the §14 gate when the result is **gate-verifiable** → green verdict → `finding` with `§14-gate#<id>` admitted. The workhorse path where `emitVerdict` runs, in a repository holding grugops's own `scripts/context-io.js`; no human is bothered. A host repository has no gate stamp. There a gate-verifiable result takes the next outcome, or the last one when it is high-stakes.
 - Record an honest `claim` with `confidence: UNKNOWN - verify` when the result is **not gate-verifiable and low-stakes**. The escape hatch; no human is bothered.
-- Escalate to a named human → `human:<name>` when the result is **not gate-verifiable and high-stakes**, or when agents disagree. The rare path.
+- Escalate to a named human → `human:<name>` when the result is **not gate-verifiable and high-stakes**, or when agents disagree. The rare path. A `finding` by `security-nfr`, `architect-design` or `release-manager` is refused by `note.js` whenever `human_admission` is not `off`. The human's answer does not lift that refusal. That role publishes the result as a `claim` and ends its task per step 5. The Orchestrator then asks the human once. Where the Orchestrator holds `propose_note` (Claude Code), it then admits the finding through that tool under the human's grant. The note carries the role's name as `by`, the `human:<name>` stamp and the role's `claim` in `supersedes`. Where no hook exists, that finding cannot be admitted. The record there is the role's `claim` with `confidence: UNKNOWN - verify`. The Orchestrator's `decision` note names the human (residual R-41-11).
 
 5. Run `node tools/grugops/claim.js done <task>` as the last act of a queued task, per `agent-factory/workflows/17-task-claim.md`. It needs a sealed note written since the claim. `tools/grugops/note.js` writes one, and a hand-written note never counts.
 
 ## Stop conditions
 - A `finding`'s admission is refused, and the bounded `self_fix_attempts` budget is exhausted without a real stamp → stop and hand to a human. The budget is referenced from `05-pr-quality-gate.md`. Do not loop, do not fake a stamp. `checkpoint: exhaust_self_fix_budget`
-- The result is high-stakes and not gate-adjudicable, or agents disagree and cannot resolve it → escalate to a named human (`human:<name>`); do not self-stamp. `checkpoint: escalate_unadjudicable_result`
+- The result is high-stakes and not gate-adjudicable, or agents disagree and cannot resolve it → escalate to a named human (`human:<name>`); do not self-stamp. The third admission outcome names the route. `checkpoint: escalate_unadjudicable_result`
 - The only way to record the result would be to hand-write the `.grugops/context/` path → stop; the sanctioned writer is `context-io.ts`.
 - A refusal says the governance root could not be named → stop and surface it. Nothing about the note is wrong. A human repairs `HOME`, the working directory, or the path the refusal names. Do not set a project-directory variable to pass the refusal.
 

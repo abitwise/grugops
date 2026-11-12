@@ -133,6 +133,17 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   `refused` with exit `1`, so exit `1` now means only that the note itself must change.
 - The governance-root refusal now names the governance root ladder, not one function, and the path
   it failed on, such as the working directory and the home directory.
+- Workflows 05, 16 and 17 now say that a host repository has no gate stamp: `emitVerdict` runs only
+  through `scripts/context-io.js`, which is not installed to a host. A gate-verifiable result there
+  is a `claim` with `confidence: UNKNOWN - verify` or a `human:<name>` finding, and every
+  `artifact-ref` is refused. When every check of a gate run on a host passes, Workflow 05 records an
+  `observation` that no verdict stands behind the run and publishes `READY_FOR_HUMAN_REVIEW` with the
+  line `no gate stamp on this host: no verdict stands behind this result`. See residual R-41-10 in
+  `docs/audit/41-residuals.md`.
+- Workflow 16 names the route a `security-nfr`, `architect-design` or `release-manager` finding takes
+  when `human_admission` is not `off`: the role publishes a `claim`, the Orchestrator asks the human,
+  and on Claude Code it admits the finding through `propose_note` under the human's grant. A host
+  with no hook has no such route. See residual R-41-11 in `docs/audit/41-residuals.md`.
 
 ### Fixed
 

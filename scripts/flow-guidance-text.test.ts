@@ -22,6 +22,7 @@ import { join } from "node:path";
 const ROOT = join(import.meta.dirname, "..");
 const WF17 = readFileSync(join(ROOT, "agent-factory/workflows/17-task-claim.md"), "utf8");
 const WF16 = readFileSync(join(ROOT, "agent-factory/workflows/16-context-read-write.md"), "utf8");
+const WF05 = readFileSync(join(ROOT, "agent-factory/workflows/05-pr-quality-gate.md"), "utf8");
 const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md"), "utf8");
 const ORCHESTRATOR = readFileSync(join(ROOT, "agent-factory/roles/orchestrator.md"), "utf8");
 const ROLE_SWITCH = readFileSync(join(ROOT, "agent-factory/roles/_role-switch-protocol.md"), "utf8");
@@ -1041,5 +1042,61 @@ describe("the kit says a host has no gate stamp (plan 41-23; CR-03, D-41)", () =
       const paired = sentences(line).filter((s) => s.includes("every host") && s.includes("artifact-ref"));
       expect(paired, "a sentence reads an artifact-ref as admissible on every host").toEqual([]);
     }
+  });
+
+  it("the third admission outcome names the route a high-severity finding takes under an active dial (WR-13, D-42)", () => {
+    // Olger's ruling of 2026-11-11 (D-42) fixed the text under WR-13. The limit where no hook exists is residual R-41-11.
+    expect(section(WF16, "Steps")).toContain(
+      "or when agents disagree. The rare path. " +
+        "A `finding` by `security-nfr`, `architect-design` or `release-manager` is refused by `note.js` whenever `human_admission` is not `off`. " +
+        "The human's answer does not lift that refusal. " +
+        "That role publishes the result as a `claim` and ends its task per step 5. The Orchestrator then asks the human once. " +
+        "Where the Orchestrator holds `propose_note` (Claude Code), it then admits the finding through that tool under the human's grant. " +
+        "The note carries the role's name as `by`, the `human:<name>` stamp and the role's `claim` in `supersedes`. " +
+        "Where no hook exists, that finding cannot be admitted. " +
+        "The record there is the role's `claim` with `confidence: UNKNOWN - verify`. " +
+        "The Orchestrator's `decision` note names the human (residual R-41-11).",
+    );
+  });
+
+  it("the escalation stop of Workflow 16 points at the third admission outcome, before its checkpoint tag", () => {
+    expect(section(WF16, "Stop conditions")).toContain(
+      "do not self-stamp. The third admission outcome names the route. `checkpoint: escalate_unadjudicable_result`",
+    );
+  });
+});
+
+describe("Workflow 05 says what a green run publishes on a host (plan 41-23; CR-03, D-41)", () => {
+  // Plan 41-23 Task 2, a blocking checkpoint: the named human answered `advise, Olger` on 2026-11-12. A green run on a host
+  // records an observation and publishes READY_FOR_HUMAN_REVIEW with the no-stamp line. No agent chose the option.
+  const steps = section(WF05, "Steps");
+
+  it("says a host has no gate stamp, straight after the sentence that delegates the emission to context-io.ts", () => {
+    expect(steps).toContain(
+      "the emission is delegated to `context-io.ts` by name.\n\n" +
+        "   **A host repository has no gate stamp** (residual R-41-10). " +
+        "`scripts/context-io.js`, the one program that runs `emitVerdict`, ships with grugops's own tooling and is not installed to a host. " +
+        "So the emission step cannot run there, and no `§14-gate#<id>` finding and no `artifact-ref` can be admitted there.",
+    );
+  });
+
+  it("says a green run on a host records an observation and publishes READY_FOR_HUMAN_REVIEW with the no-stamp line", () => {
+    expect(steps).toContain(
+      "On a host, when every check passes, the gate records an `observation` that no verdict stands behind the run. " +
+        "It then publishes `READY_FOR_HUMAN_REVIEW` with the line `no gate stamp on this host: no verdict stands behind this result`. " +
+        "Everywhere else the rule above holds.",
+    );
+  });
+
+  it("keeps the fail-closed rule where emitVerdict runs, and writes no fail-closed host sentence", () => {
+    expect(steps).toContain("Publish `READY_FOR_HUMAN_REVIEW` only after `emit-verdict` exits `0`.");
+    expect(steps).toContain("An unrecordable pass is not a pass.");
+    expect(WF05).not.toContain("A green run on a host therefore ends `BLOCKED_NEEDS_FIX`");
+  });
+
+  it("scopes the verdict note of `## Commit` to where emitVerdict runs", () => {
+    expect(section(WF05, "Commit")).toContain(
+      "Where `emitVerdict` runs, on a `READY_FOR_HUMAN_REVIEW` result they include the green `§14-gate` verdict context note",
+    );
   });
 });
