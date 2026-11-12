@@ -112,7 +112,7 @@ created: "2026-11-05"
 | T-41-78 | Denial of service | the refusal reaching a target that names no note, which would break D-37 and a Workflow 18 route | medium | mitigate | `--supersedes nosuchid` exits 0 with the store readable and with another note at mode 000; the Workflow 18 cases in `scripts/compactor.test.ts` pass | closed |
 | T-41-79 | Repudiation | the `admit()` span changed past what the human authorised | high | mitigate | The span hash moved once, at `98bbdafd`, to `dfb5f2fb…09ac`: one read, one refusal, one comment word and a comment paragraph the plan names. D-39 (`41-CONTEXT.md:90`, in `d926f3cd`) precedes it, and the re-base text quotes the reply | closed |
 | T-41-80 | Tampering | a pin moved, or a READ-1 map edited, to pass | medium | mitigate | The census adds the S11 row only and moves its count from 10 to 11 with a written reason | closed |
-| T-41-81 | Elevation of privilege | a renamed note that cannot be read, matched by nothing and folded out once the read recovers | low | pending (named human): accept | R-41-09, not accepted. A finding renamed to `renamed.md` at mode 000 lets the claim exit 0, and the finding leaves `## Current state` once the mode is restored. The `LIMIT (R-41-09)` case pins it | open — below high threshold (non-blocking) |
+| T-41-81 | Elevation of privilege | a renamed note that cannot be read, matched by nothing and folded out once the read recovers | low | accept | R-41-09; accepted by Olger in `41-UAT.md` test 8 on 2026-11-12, and the Accepted Risks Log carries the row. A finding renamed to `renamed.md` at mode 000 lets the claim exit 0, and the finding leaves `## Current state` once the mode is restored. The `LIMIT (R-41-09)` case pins it | closed |
 | T-41-82 | Repudiation | a `chmod 000` case passing on an account that can read the file | medium | mitigate | `scripts/runnable-ref/note.test.ts:846-866` skips by name through `hostCapabilityOrSkip` and asserts its premise; the READ-1 EIO case covers root | closed |
 | T-41-83 | Repudiation | a full-suite result read by count, or an agent writing an acceptance | high | mitigate | The 41-18 summary and `41-VALIDATION.md` compare by name: the 21 baseline names plus one `capture-live` case that passed 77 of 77 alone. The `41-18.md` row stays pending | closed |
 | T-41-84 | Denial of service | `claim` turning a lost race into a refusal | medium | mitigate | `claimPending` checks the pending file before `takeClaim` (`scripts/claim.ts:271-286`); a vanished file reads as absent (`:128-135`); the D-08 lost case passes | closed |
@@ -247,6 +247,8 @@ The phase decisions accepted these at planning, except R-41-08, which Olger acce
 
 On 2026-11-12, at plan 41-25's checkpoint, Olger accepted R-41-10 (plugin install) by name; the row below quotes the reply.
 
+On 2026-11-12, in `41-UAT.md` test 8, Olger accepted R-41-09 (c) (T-41-81), the scripted-install limit of R-41-10 and R-41-11 by name, in the reply `accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger`
+
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | R-41-03 | T-41-04 | The `--by` refusal catches a mistake, not a choice; an agent can edit files | Phase decision D-04 | 2026-11-05 |
@@ -259,6 +261,9 @@ On 2026-11-12, at plan 41-25's checkpoint, Olger accepted R-41-10 (plugin instal
 | R-41-05 | — | No live run on Codex, Antigravity, OpenCode, Copilot or Pi; carried to the milestone UAT | Olger (41-UAT test 5) | 2026-11-10 |
 | R-41-06 | — | `note.js` is the in-script admission tier; a `human:<name>` stamp it writes is not bound to a human | Olger (41-UAT test 5) | 2026-11-10 |
 | R-41-10 (plugin install) | T-41-100 | A Claude Code plugin install carries `scripts/context-io.js` and its `emit-verdict` verb, so any agent there can mint a green verdict, and a gate stamp in a repository with a plugin install is no proof that a gate ran; Workflows 05, 16 and 17 say so, and the `LIMIT (R-41-10)` case pins the route | Olger (D-44), in the reply `accept, Olger` | 2026-11-12 |
+| R-41-09 (c) | T-41-81 | A renamed note that cannot be read is matched by nothing and folds out once the read recovers; nothing is lost, because the note stays stored | Olger (41-UAT test 8) | 2026-11-12 |
+| R-41-10 (scripted install) | — | A host with only a scripted install has no gate stamp, so `§14-gate#<id>` findings and every `artifact-ref` are refused there; it fails closed | Olger (41-UAT test 8) | 2026-11-12 |
+| R-41-11 | — | Under an active `human_admission` dial a high-severity finding is admitted only through `propose_note` behind the hook; a host with no hook has no route, and it fails closed | Olger (41-UAT test 8) | 2026-11-12 |
 | — | T-41-SC | No package was added: `package.json` and the lockfile are unchanged since `6d05da1f` | Plan register | 2026-11-05 |
 
 *Accepted risks do not resurface in future audit runs.*
