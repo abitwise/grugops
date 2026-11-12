@@ -979,3 +979,65 @@ describe("the kit names the read route (plan 41-22; WR-12, D-42)", () => {
     expect(WF17).not.toContain("readContext");
   });
 });
+
+describe("the kit says a host has no gate stamp (plan 41-23; CR-03, D-41)", () => {
+  // 41-UAT.md test 6, Olger, 2026-11-10, in the reply `B, Olger` (D-41): no host verdict verb ships, so the kit says a host
+  // repository has no gate stamp. scripts/runnable-ref/role-route.test.ts proves the route on host copies with no kit file.
+
+  /** The sentences of `line`, split after a full stop that ends a sentence. */
+  function sentences(line: string): string[] {
+    return line.split(/(?<=\.)\s+/);
+  }
+
+  it("step 3 of Workflow 16 says a host has no gate stamp, straight after the flags that set the note fields", () => {
+    expect(step(WF16, 3)).toContain(
+      "`--verified-by`, `--supersedes`, `--sha`, `--gate-run` and `--content-hash` set those note fields. " +
+        "A host repository has no gate stamp (residual R-41-10). " +
+        "`emitVerdict`, the one writer of a green verdict, runs through `scripts/context-io.js`. " +
+        "That program ships with grugops's own tooling and is not installed to a host.",
+    );
+  });
+
+  it("step 3 says what a host refuses and the record to write instead", () => {
+    const line = step(WF16, 3);
+    expect(line).toContain("So on a host a `finding` stamped `§14-gate#<id>` and every `artifact-ref` are refused.");
+    expect(line).toContain(
+      "Record a gate-verifiable result there as a `claim` with `confidence: UNKNOWN - verify`, or as a `human:<name>` finding.",
+    );
+    expect(line).toContain(
+      "Record a pointer to an artifact there as an `observation` carrying its refs. The trace render reads those refs like any other.",
+    );
+  });
+
+  it("step 4 scopes the stamp route to where emitVerdict runs", () => {
+    expect(section(WF16, "Steps")).toContain(
+      "After the budget is spent, stop and hand to a human. This route exists only where `emitVerdict` runs. " +
+        "A host repository has no gate stamp, so there take the second route or escalate.",
+    );
+  });
+
+  it("the first admission outcome scopes the workhorse path to where emitVerdict runs", () => {
+    const outcomes = section(WF16, "Steps");
+    expect(outcomes).not.toContain("The workhorse path; no human is bothered.");
+    expect(outcomes).toContain(
+      "The workhorse path where `emitVerdict` runs, in a repository holding grugops's own `scripts/context-io.js`; no human is bothered. " +
+        "A host repository has no gate stamp. " +
+        "There a gate-verifiable result takes the next outcome, or the last one when it is high-stakes.",
+    );
+  });
+
+  it("step 6 of Workflow 17 says a host refuses both, straight after the artifact-ref sentence", () => {
+    expect(step(WF17, 6)).toContain(
+      "An `artifact-ref` is admitted only against a live green verdict for its `gate_run`. " +
+        "A host repository has no gate stamp, so there both are refused. " +
+        "WF16 step 3 names the record to write instead (residual R-41-10).",
+    );
+  });
+
+  it("no sentence of Workflow 16 step 3 or Workflow 17 step 6 pairs every host with artifact-ref", () => {
+    for (const line of [step(WF16, 3), step(WF17, 6)]) {
+      const paired = sentences(line).filter((s) => s.includes("every host") && s.includes("artifact-ref"));
+      expect(paired, "a sentence reads an artifact-ref as admissible on every host").toEqual([]);
+    }
+  });
+});

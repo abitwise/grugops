@@ -176,3 +176,63 @@ describe("the kit text's read command reads the context through the seal check o
     expect(r.stdout).not.toContain("FORGED");
   });
 });
+
+describe("a scripted host has no gate stamp (plan 41-23, CR-03, D-41)", () => {
+  // 41-UAT.md test 6, Olger, 2026-11-10, in the reply `B, Olger` (D-41): no host verdict verb ships. `emitVerdict` runs only
+  // through scripts/context-io.js, which the installer does not copy to a host, so on a host a `§14-gate#<id>` finding and
+  // every `artifact-ref` are refused, and a gate-verifiable result is a `claim` with `confidence: UNKNOWN - verify`.
+  // This repository holds only `.grugops/` and the committed host copies, and the process holds only PATH: no kit file.
+
+  /** The note command of Workflow 16 step 3 as argv, with `<kind>` and `<confidence>` given, and `extra` flags appended. */
+  function noteArgv(kind: string, confidence: string, extra: readonly string[]): string[] {
+    const command = commandInStep(WF16, 3, "node tools/grugops/note.js add");
+    const words = command.split(/\s+/).map((word) => {
+      if (word === "<kind>") return kind;
+      if (word === "<confidence>") return confidence;
+      return argvOf(word)[0] as string;
+    });
+    return [...words, ...extra];
+  }
+
+  /** Every file name under `dir`, recursively. */
+  function namesUnder(dir: string): string[] {
+    return readdirSync(dir, { recursive: true, encoding: "utf8" }).map((p) => p.split(/[\\/]/).pop() as string);
+  }
+
+  it("ships no emitter: no context-io.js exists in the host repository, and note.js has no verdict verb (CR-03)", () => {
+    const repo = hostRepo(true);
+    expect(namesUnder(repo)).not.toContain("context-io.js");
+    const r = run(repo, ["node", "tools/grugops/note.js", "emit-verdict", TASK]);
+    expect(r.status, r.stderr).toBe(2);
+    expect(r.stdout).toBe("");
+  });
+
+  it("refuses an artifact-ref written by the step 3 command, because no live green verdict exists there (CR-03)", () => {
+    const repo = hostRepo(true);
+    const r = run(
+      repo,
+      noteArgv("artifact-ref", "high", [
+        "--sha",
+        "0123456789abcdef0123456789abcdef01234567",
+        "--gate-run",
+        "run-1",
+        "--content-hash",
+        "0123456789abcdef",
+      ]),
+    );
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stdout.startsWith(`refused ${TASK}: `), r.stdout).toBe(true);
+    expect(r.stdout).toContain("no live green");
+    expect(existsSync(join(repo, CONTEXT_REL, TASK, "notes")) ? readdirSync(join(repo, CONTEXT_REL, TASK, "notes")) : []).toHaveLength(0);
+  });
+
+  it("notes an honest claim with confidence UNKNOWN - verify, written by the same command (CR-03)", () => {
+    const repo = hostRepo(true);
+    const r = run(repo, noteArgv("claim", "UNKNOWN - verify", []));
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout.startsWith(`noted ${TASK} `), r.stdout).toBe(true);
+    const notes = join(repo, CONTEXT_REL, TASK, "notes");
+    expect(readdirSync(notes)).toHaveLength(1);
+    expect(readFileSync(join(notes, readdirSync(notes)[0] as string), "utf8")).toContain("UNKNOWN - verify");
+  });
+});
