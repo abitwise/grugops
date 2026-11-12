@@ -917,3 +917,34 @@ describe("the kit says which route retires a verdict or a gated finding (plan 41
     expect(fixed).toContain("`index.md` no longer opens with a command a host cannot run");
   });
 });
+
+describe("Workflow 16 step 3 reads every exit of note.js (plan 41-21; WR-09, IN-10, IN-13, IN-15, D-42)", () => {
+  it("says to pass --body-file for a body that opens with two dashes, after the long-body sentence (IN-10)", () => {
+    expect(step(WF16, 3)).toContain(
+      "Pass `--body-file <path>` in place of `--body` for a long body. Pass it too for a body that opens with `--`, which `--body` refuses.",
+    );
+  });
+
+  it("says exit 1 without a refused line is a genuine failure, after the exit 1 sentence (IN-13)", () => {
+    expect(step(WF16, 3)).toContain(
+      "Exit 1 prints `refused <folder>: <reason>` and writes nothing, so read the reason per step 4. Exit 1 without that line is a genuine failure.",
+    );
+  });
+
+  it("says what exit 2 covers, after the genuine-failure sentence (WR-09)", () => {
+    expect(step(WF16, 3)).toContain(
+      "Any other exit is a genuine failure: stop and surface it. Exit 2 prints one `Error:` line.",
+    );
+    expect(step(WF16, 3)).toContain(
+      "It also covers a governance root that could not be named and an admission that could not be recorded or published.",
+    );
+    expect(step(WF16, 3)).toContain("Nothing about the note is wrong then.");
+  });
+
+  it("names every repair in the stop for a root that could not be named (IN-15)", () => {
+    const line = section(WF16, "Stop conditions")
+      .split("\n")
+      .find((l) => l.startsWith("- A refusal says the governance root could not be named"));
+    expect(line).toContain("A human repairs `HOME`, the working directory, or the path the refusal names.");
+  });
+});
