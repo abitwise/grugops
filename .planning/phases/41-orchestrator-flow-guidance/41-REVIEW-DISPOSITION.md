@@ -3,6 +3,42 @@ phase: 41
 review: 41-REVIEW.md
 titles: json
 findings:
+  - id: WR-16
+    severity: warning
+    disposition: open
+    title: "Exit 1 still covers two refusals that say nothing about the note, and the changelog says it no longer does"
+  - id: WR-17
+    severity: warning
+    disposition: open
+    title: "Every exit-2 refusal raised before the write now says \"The note may have been written; check notes/\""
+  - id: WR-18
+    severity: warning
+    disposition: open
+    title: "The new route text says \"on Claude Code\", but only a plugin install has `propose_note` and the hook"
+  - id: WR-19
+    severity: warning
+    disposition: open
+    title: "Session start tells the Orchestrator to re-spawn a claim the sweep kept, and doing so strands the newer subtask"
+  - id: IN-16
+    severity: info
+    disposition: open
+    title: "`claim` still accepts a subtask `done` will refuse: one above the 1 MiB record ceiling"
+  - id: IN-17
+    severity: info
+    disposition: open
+    title: "`note.js read` ends each error line with \"No note was written.\""
+  - id: IN-18
+    severity: info
+    disposition: open
+    title: "`read` of a mistyped folder reads as an empty context, and files without `.md` are not named"
+  - id: IN-19
+    severity: info
+    disposition: open
+    title: "The role-switch protocol still sends deliverables to `artifact-ref`, which every host refuses"
+  - id: IN-20
+    severity: info
+    disposition: open
+    title: "Workflow 05's escape-hatch paragraph still promises the real stamp from the Step-4 loop on a host"
   - id: CR-03
     severity: critical
     disposition: fixed
@@ -135,27 +171,36 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 0
-total: 33
-recorded: 2026-11-08T18:28:05.357Z
+open: 9
+total: 42
+recorded: 2026-11-12T19:38:38.573Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-03 | critical | fixed | 41-23 |
-| WR-14 | warning | fixed | 41-20 |
-| WR-15 | warning | fixed | 41-24 |
-| WR-09 | warning | fixed | 41-21 |
-| WR-10 | warning | fixed | 41-21 |
-| WR-12 | warning | fixed | 41-22 |
-| WR-13 | warning | fixed | 41-23 |
-| IN-14 | info | fixed | 41-24 |
-| IN-15 | info | fixed | 41-21 |
-| IN-09 | info | fixed | 41-20 |
-| IN-10 | info | fixed | 41-21 |
-| IN-13 | info | fixed | 41-21 |
+| WR-16 | warning | open | - |
+| WR-17 | warning | open | - |
+| WR-18 | warning | open | - |
+| WR-19 | warning | open | - |
+| IN-16 | info | open | - |
+| IN-17 | info | open | - |
+| IN-18 | info | open | - |
+| IN-19 | info | open | - |
+| IN-20 | info | open | - |
+| CR-03 | critical | fixed | 41-23 (not in the current review) |
+| WR-14 | warning | fixed | 41-20 (not in the current review) |
+| WR-15 | warning | fixed | 41-24 (not in the current review) |
+| WR-09 | warning | fixed | 41-21 (not in the current review) |
+| WR-10 | warning | fixed | 41-21 (not in the current review) |
+| WR-12 | warning | fixed | 41-22 (not in the current review) |
+| WR-13 | warning | fixed | 41-23 (not in the current review) |
+| IN-14 | info | fixed | 41-24 (not in the current review) |
+| IN-15 | info | fixed | 41-21 (not in the current review) |
+| IN-09 | info | fixed | 41-20 (not in the current review) |
+| IN-10 | info | fixed | 41-21 (not in the current review) |
+| IN-13 | info | fixed | 41-21 (not in the current review) |
 | CR-02 | critical | fixed | 41-15, 41-16 (not in the current review) |
 | WR-05 | warning | fixed | 41-19 (not in the current review) |
 | WR-06 | warning | fixed | 41-19 (not in the current review) |
