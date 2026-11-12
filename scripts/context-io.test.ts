@@ -5003,7 +5003,7 @@ describe("31-01 — the derived index carries the provenance, and only when ther
       }) + "\n",
     );
     expect(md).toBe(
-      "<!-- GENERATED — do not hand-edit. Re-run: node scripts/context-io.js render <task> -->\n" +
+      "<!-- GENERATED — do not hand-edit. Rendered by the note writer from the notes/ folder. -->\n" +
         `# Context: ${task}\n` +
         "\n" +
         "## Current state\n" +
@@ -5012,6 +5012,8 @@ describe("31-01 — the derived index carries the provenance, and only when ther
         "| --- | --- | --- | --- | --- | --- |\n" +
         "| 2026-09-07T09:00:00Z | decision | qe-e2e | high |  | We chose the boring option. |\n",
     );
+    // IN-09 (plan 41-20, D-42): a host has no scripts/ folder, so the banner names no program.
+    expect(md.split("\n")[0]).not.toMatch(/\bnode\b|scripts\//);
     // The provenance section is CONDITIONAL — nothing to report, nothing rendered.
     expect(md).not.toContain("Evidence provenance");
   });

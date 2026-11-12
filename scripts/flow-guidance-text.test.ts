@@ -854,3 +854,60 @@ describe("the queue text names a re-queued subtask and what the sweep leaves (pl
     );
   });
 });
+
+describe("the kit says which route retires a verdict or a gated finding (plan 41-20; WR-14, IN-09, D-42)", () => {
+  const CHANGELOG = readFileSync(join(ROOT, "CHANGELOG.md"), "utf8");
+  const flat = (text: string): string => text.replace(/\s+/g, " ");
+
+  it("step 3 of Workflow 16 still says only a named human's disposition retires one", () => {
+    expect(step(WF16, 3)).toContain("Only a named human's disposition retires one.");
+  });
+
+  it("step 3 names the disposition that retires one, straight after that sentence (WR-14)", () => {
+    expect(step(WF16, 3)).toContain(
+      "Only a named human's disposition retires one. " +
+        "That disposition is a `finding` the dial gates, which the Orchestrator admits through `propose_note` under the human's grant on Claude Code.",
+    );
+  });
+
+  it("step 3 says where nothing retires one (WR-14)", () => {
+    expect(step(WF16, 3)).toContain("Under `human_admission: off`, and on a host with no hook, nothing retires one.");
+  });
+
+  it("step 3 says the emitter writes one verdict per gate run (WR-14)", () => {
+    expect(step(WF16, 3)).toContain("`emitVerdict` writes one verdict per gate run.");
+  });
+
+  it("step 3 names the route out of a store that already holds two (WR-14)", () => {
+    expect(step(WF16, 3)).toContain(
+      "A store that already holds two for one run refuses every `artifact-ref` that names the run: run the gate again and name the new run.",
+    );
+  });
+
+  it("the note contract names the disposition and where nothing retires one (WR-14)", () => {
+    expect(flat(NOTE_CONTRACT)).toContain(
+      "only a named human's disposition retires one. " +
+        "That disposition is a `finding` the dial gates, admitted on Claude Code through `propose_note` under the human's grant. " +
+        "Under `off`, and on a host with no hook, nothing retires one.",
+    );
+  });
+
+  it("the changelog Security bullet names the disposition and where nothing retires one (WR-14)", () => {
+    expect(flat(CHANGELOG)).toContain(
+      "only a named human's disposition retires one. " +
+        "That disposition is a finding the dial gates, admitted on Claude Code through `propose_note`; " +
+        "under `off`, and on a host with no hook, nothing retires one.",
+    );
+  });
+
+  it("the changelog Fixed section names the duplicate-verdict refusal and the banner (WR-14, IN-09)", () => {
+    const unreleased = CHANGELOG.slice(CHANGELOG.indexOf("## [Unreleased]"));
+    const fixed = flat(unreleased.slice(unreleased.indexOf("### Fixed"), unreleased.indexOf("### Security")));
+    expect(fixed.startsWith("### Fixed"), "no ### Fixed section above ### Security in [Unreleased]").toBe(true);
+    expect(fixed).toContain(
+      "`emitVerdict` (`node scripts/context-io.js emit-verdict`) now refuses a second green verdict for one gate run id",
+    );
+    expect(fixed).toContain("run the gate again");
+    expect(fixed).toContain("`index.md` no longer opens with a command a host cannot run");
+  });
+});
