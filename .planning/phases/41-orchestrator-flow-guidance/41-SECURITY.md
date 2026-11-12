@@ -144,6 +144,12 @@ created: "2026-11-05"
 | T-41-110 | Tampering | a pin moved to pass, or the LIMIT case weakened | medium | mitigate | Each moved pin in `flow-guidance-text.test.ts` carries a comment citing plan 41-25 and the ruling; the 41-25 diff adds no `.skip`, `.fails` or `.todo`; both files pass, 157 of 157 at `933dd29f` | closed |
 | T-41-111 | Repudiation | an agent closing T-41-100 or recounting `threats_open` | high | mitigate | Plan 41-25's diff of this file has 3 added lines and 0 removed; T-41-100 stayed `open` and `threats_open: 1` until this audit | closed |
 | T-41-112 | Repudiation | a full-suite result read by count | high | mitigate | The 41-25 summary compares by name with `comm`: 21 baseline names matched, and the one outsider, `capture-live`, passed 77 of 77 alone | closed |
+| T-41-113 | Spoofing | a `human:<name>` finding on a standalone Claude Code install read as bound by a hook that is not installed there (WR-18) | medium | mitigate | Workflow 16 lines 31 and 43 and R-41-11 say "A standalone Claude Code install has no hook"; Workflow 16, the note contract, both CHANGELOG bullets and R-41-11 name a Claude Code plugin install; no `only Claude Code` route claim remains in Workflow 16 or the contract; pins from `93a3f77c` pass | closed |
+| T-41-114 | Tampering | session start re-spawning a kept claim, stranding the newer pending subtask (WR-19) | medium | mitigate | Workflow 17 line 86 opens step 3 with the stop and reads "Never re-spawn a task named on such a line." before the re-spawn instruction; the order pin from `38240e86` passes | closed |
+| T-41-115 | Repudiation | a role on a host told to publish an `artifact-ref`, or a gate told the Step-4 loop yields the real stamp (IN-19, IN-20) | low | mitigate | `_role-switch-protocol.md` line 22 routes by "where step 3 of Workflow 16 admits one"; Workflow 05 line 57 scopes the stamp route to a repository holding `scripts/context-io.js` and sends a host to a `claim` or an escalation; pins pass | closed |
+| T-41-116 | Repudiation | an agent changing Olger's acceptance of R-41-11 while scoping its route | high | mitigate | A cell-by-cell diff of the R-41-11 row against `a9557964`: the decision, why and what-closes-it cells are byte-identical, and only what-stays-open changed; plan 41-26's commits leave this file, 41-UAT.md and 41-VERIFICATION.md untouched. Olger's read of the rewritten row is still owed | closed |
+| T-41-117 | Tampering | a pin moved to pass without a recorded reason | medium | mitigate | RED commits `93a3f77c` and `38240e86` precede the text fixes; `flow-guidance-text.test.ts` cites plan 41-26 nine times and has no `.skip`, `.fails` or `.todo` | closed |
+| T-41-118 | Repudiation | a full-suite result read by count, or a pin moved to clear a new red | high | mitigate | The executor's run at `44c27679` and the orchestrator's test gate at `0720323c`'s parent each ended 21 failed; the orchestrator matched all 21 by file and test name to § Known baseline reds with `comm`, with no outsider | closed |
 | T-41-SC | Tampering | npm/pip/cargo installs | low | accept | No package is installed by this plan | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -218,6 +224,15 @@ This audit covers plan 41-25 (T-41-107 to T-41-112) and re-checks T-41-100, at `
 - **Still open below the threshold.** T-41-31, T-41-38, T-41-49, T-41-62 and T-41-81, plus the two flags outside the register.
 - **Not verified here.** Plan 41-25's full-suite result comes from its summary; this audit did not re-run the suite. A plugin install on another Claude Code version, and Windows, stay `UNKNOWN - verify`.
 
+## Gap-closure audit, 2026-11-12 (plan 41-26)
+
+This audit covers plan 41-26 (T-41-113 to T-41-118) at `0720323c`. The orchestrator ran it at ASVS level 1, so it checks only that each mitigation is present. The evidence is grep results, a cell-by-cell diff of R-41-11, and the five pinned test files, which passed 557 of 557. No auditor subagent ran. The plan changed text and one test file only. **No threat at or above high is open, so the gate passes.**
+
+- **T-41-116 closes on the diff, not on Olger's read.** His acceptance cells in R-41-11 are unchanged. Whether that acceptance covers a standalone Claude Code install having no route is still his to say.
+- **Owed by a named human, none blocking.** The 17 `pending (named human)` rows of `docs/audit/29-style-dispositions/41-26.md`; Olger's read of R-41-11 as rewritten; and the earlier items in this file's § Conditions.
+- **Still open below the threshold.** Unchanged from the 41-25 audit.
+- **Not verified here.** A live run on a standalone install or a plugin install; Windows. Both stay `UNKNOWN - verify`.
+
 ---
 
 ## Conditions on these closures
@@ -279,6 +294,7 @@ On 2026-11-12, in `41-UAT.md` test 8, Olger accepted R-41-09 (c) (T-41-81), the 
 | 2026-11-08 | 18 | 13 | 5 (0 blocking) | gsd-security-auditor at `eab814fd`, gap-closure round 3, with probes against host copies of `note.js`; re-run by the orchestrator |
 | 2026-11-12 | 25 | 24 | 1 (1 blocking) | gsd-security-auditor at `cc2df87d`, gap round 4 (T-41-84 to T-41-106, T-41-64 re-checked), with probes against lone host copies of `note.js` and `claim.js` and a HEAD plugin tree |
 | 2026-11-12 | 7 | 7 | 0 | orchestrator at `933dd29f`, plan 41-25 scope (T-41-107 to T-41-112, T-41-100 re-checked), ASVS L1 grep evidence plus `role-route` and `flow-guidance-text` tests, 157 of 157 passed |
+| 2026-11-12 | 6 | 6 | 0 | orchestrator at `0720323c`, plan 41-26 scope (T-41-113 to T-41-118), ASVS L1 grep evidence, an R-41-11 cell diff against `a9557964`, and five pinned test files, 557 of 557 passed |
 
 ---
 
@@ -321,4 +337,12 @@ On 2026-11-12, in `41-UAT.md` test 8, Olger accepted R-41-09 (c) (T-41-81), the 
 |---|---|
 | Threats found | 7 |
 | Closed | 7 |
+| Open | 0 |
+
+## Security Audit 2026-11-12
+
+| Metric | Count |
+|---|---|
+| Threats found | 6 |
+| Closed | 6 |
 | Open | 0 |
