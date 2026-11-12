@@ -14,13 +14,15 @@
 // THE D-12 CONTRACT.
 //   exit 0 → the note stands and reads back: stdout holds one line, `noted FOLDER ID`.
 //   exit 1 → an outcome to act on, never an error: stdout holds one line, `refused FOLDER: REASON`, and nothing was written.
-//            The writer decided this, so the note must change: earn a real stamp, or record an honest `claim`. A refusal
-//            that says the governance root could not be named is the exception: nothing about the note is wrong, so the
-//            role stops and surfaces it.
+//            It is the writer's judgement of the note (validation, an admission finding, the size ceiling), so the note
+//            must change: earn a real stamp, or record an honest `claim`. Only the authority's NoteRefusal class reaches
+//            this exit, so it never rests on message text (WR-09, D-42).
 //   exit 2 → could not run: a bad argument, a root with no .grugops directory, a symbolic link or a non-directory on the
-//            way to notes/, a folder outside the allowlist, a body that is empty or cannot be read. Exit 2 prints nothing
-//            on stdout and one `Error: ` line on stderr. An unexpected error is exit 2 too, and never surfaces as Node's own
-//            exit 1. That line names a note that stands, so a failed render never denies a note that was written.
+//            way to notes/, a folder outside the allowlist, a body that is empty or cannot be read. It also covers a
+//            governance root the ladder cannot name, an admission that could not be recorded, a note that could not be
+//            published and an occupied destination: each says nothing about the note. Exit 2 prints nothing on stdout
+//            and one `Error: ` line on stderr. An unexpected error is exit 2 too, and never surfaces as Node's own exit 1.
+//            That line names a note that stands, so a failed render never denies a note that was written.
 //
 // THE NOTE CHECK (D-28, D-35). Every note goes through the embedded appendNote, the one writer, which validates the note,
 // asks the embedded admit() and seals what it writes. That is the in-script tier Workflow 16 names for a host with no
@@ -65,7 +67,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:af033222a53639c1626fd08616175640b6a2154dfdf4af35049df45269273eed";
+export const RUNNABLE_SET_STAMP = "sha256:2ecbcda81d4eca5bc6886941f6b929a2f391ea8c3a89654c4a3b943fb5930d50";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -164,21 +166,27 @@ function isInvalidEvidencePhrase(value) {
     }
     return false;
 }
+export class NoteRefusal extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "NoteRefusal";
+    }
+}
 export function assertNoteScalar(name, value) {
     if (typeof value !== "string") {
         const shape = value === undefined ? "absent (undefined)" : value === null ? "null" : `a ${typeof value}`;
-        throw new Error(`context-io: field "${name}" is ${shape}, not a string — refusing to compose. A missing or ` +
+        throw new NoteRefusal(`context-io: field "${name}" is ${shape}, not a string — refusing to compose. A missing or ` +
             `mistyped caller field would otherwise reach the fence as literal text; the writer does not ` +
             `invent a value the caller did not give.`);
     }
     if (/[\r\n]/.test(value)) {
-        throw new Error(`context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`);
+        throw new NoteRefusal(`context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`);
     }
 }
 export function assertNoteRefs(refs) {
     if (!Array.isArray(refs)) {
         const shape = refs === undefined ? "absent (undefined)" : refs === null ? "null" : `a ${typeof refs}`;
-        throw new Error(`context-io: field "refs" is ${shape}, not a list — refusing to compose. The writer does not ` +
+        throw new NoteRefusal(`context-io: field "refs" is ${shape}, not a list — refusing to compose. The writer does not ` +
             `invent a value the caller did not give.`);
     }
     for (const r of refs)
@@ -186,7 +194,7 @@ export function assertNoteRefs(refs) {
 }
 function assertHexScalar(name, value) {
     if (!SHA_HEX_RE.test(value)) {
-        throw new Error(`context-io: field "${name}" must be lowercase hex matching ${SHA_HEX_RE} — an abbreviated ` +
+        throw new NoteRefusal(`context-io: field "${name}" must be lowercase hex matching ${SHA_HEX_RE} — an abbreviated ` +
             `or full git object id, or a sha256 digest: ${JSON.stringify(value)}`);
     }
 }
@@ -760,7 +768,7 @@ function decideNoteDestination(notesDir, id, text, who = "writeNoteFile") {
     // about WHERE, and it stays the first thing this chokepoint answers.
     const candidateBytes = Buffer.byteLength(text, "utf8");
     if (candidateBytes > NOTE_FILE_MAX_BYTES) {
-        throw new Error(`context-io.${who}: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the composed ` +
+        throw new NoteRefusal(`context-io.${who}: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the composed ` +
             `note under id "${id}" is ${candidateBytes} bytes, above the ${NOTE_FILE_MAX_BYTES}-byte ` +
             `ceiling every reader of this store enforces. Writing it would create a note this module's ` +
             `own readers are required to refuse, which is silent loss rather than storage. No file was ` +
@@ -882,7 +890,7 @@ function composeValidatedNote(task, note, body, precomputedId) {
     const text = composeNote(note, body, id);
     const findings = validate(text);
     if (findings.length > 0) {
-        throw new Error(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
+        throw new NoteRefusal(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
     }
     return { id, text };
 }
@@ -1002,7 +1010,7 @@ ledgerOwner = actionOwnerRoot(contextRoot)) {
             `${e.message}`);
     }
     if (admission.length > 0) {
-        throw new Error(`context-io.appendNote: refusing to write a note the admission authority did not accept. ` +
+        throw new NoteRefusal(`context-io.appendNote: refusing to write a note the admission authority did not accept. ` +
             `Nothing was written:\n${admission.join("\n")}`);
     }
     // Route through the SINGLE write chokepoint (R6-1): containment is a property of the write, so a
@@ -2629,10 +2637,6 @@ function refuseUnusableStore(root, notesRel) {
     if (problem !== null)
         couldNotRun(`${notesRel} cannot be used: ${problem}.`);
 }
-/** True for a refusal by the writer: an outcome to act on. Any other throw is could-not-run. */
-function isWriterRefusal(e) {
-    return e instanceof Error && e.message.startsWith("context-io");
-}
 /**
  * True when the read `claim.js done` makes finds the note `id`. render() files a note it cannot read under its skipped
  * entries and returns, so `noted` would otherwise report a note neither the index nor `done` can see (READ-1).
@@ -2664,8 +2668,10 @@ function runAdd(folder) {
         id = appendNote(folder, note, body, contextRoot);
     }
     catch (e) {
-        if (!isWriterRefusal(e))
-            throw e;
+        // WR-09, D-42: exit 1 rests on the class the authority throws for a decision about the note, never on message
+        // text. Every other throw is a fault or a refusal that says nothing about the note, so it is could-not-run.
+        if (!(e instanceof NoteRefusal))
+            couldNotRun(e instanceof Error ? e.message : String(e));
         noteStands = "";
         process.stdout.write(`refused ${printable(folder)}: ${printable(e.message)}\n`);
         process.exitCode = 1;

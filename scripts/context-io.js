@@ -161,6 +161,20 @@ function isInvalidEvidencePhrase(value) {
     }
     return false;
 }
+// ── NoteRefusal: the writer's decision about the note itself (plan 41-21, WR-09, D-42). ──────────
+// A writer's decision about the note itself: validation, an admission finding, or the size ceiling.
+// It is the one class a caller may report as "change the note". Every other throw from the writer is a
+// fault or a refusal that says nothing about the note: an admission that could not be recorded, a
+// publish that failed, an occupied destination, a containment refusal, or a governance root the ladder
+// cannot name. note.js exits 1 only on this class and exits 2 on every other throw, so a role is never
+// told to change a sound note (41-UAT.md test 7, Olger, 2026-11-11). Messages keep their `context-io`
+// start, which other callers still read as an outcome; a subclass passes every `instanceof Error` check.
+export class NoteRefusal extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "NoteRefusal";
+    }
+}
 // ── THE ONE scalar field guard (CR-01 single-line rule + the 33-26 string-type rule) ────────────
 // Every NoteInput scalar is interpolated RAW into the YAML provenance fence by composeNote. Two
 // rules, one guard, in this order:
@@ -186,12 +200,12 @@ function isInvalidEvidencePhrase(value) {
 export function assertNoteScalar(name, value) {
     if (typeof value !== "string") {
         const shape = value === undefined ? "absent (undefined)" : value === null ? "null" : `a ${typeof value}`;
-        throw new Error(`context-io: field "${name}" is ${shape}, not a string — refusing to compose. A missing or ` +
+        throw new NoteRefusal(`context-io: field "${name}" is ${shape}, not a string — refusing to compose. A missing or ` +
             `mistyped caller field would otherwise reach the fence as literal text; the writer does not ` +
             `invent a value the caller did not give.`);
     }
     if (/[\r\n]/.test(value)) {
-        throw new Error(`context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`);
+        throw new NoteRefusal(`context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`);
     }
 }
 // ── The `refs` list guard (plan 33-26, the list companion of the scalar guard above) ────────────
@@ -203,7 +217,7 @@ export function assertNoteScalar(name, value) {
 export function assertNoteRefs(refs) {
     if (!Array.isArray(refs)) {
         const shape = refs === undefined ? "absent (undefined)" : refs === null ? "null" : `a ${typeof refs}`;
-        throw new Error(`context-io: field "refs" is ${shape}, not a list — refusing to compose. The writer does not ` +
+        throw new NoteRefusal(`context-io: field "refs" is ${shape}, not a list — refusing to compose. The writer does not ` +
             `invent a value the caller did not give.`);
     }
     for (const r of refs)
@@ -217,7 +231,7 @@ export function assertNoteRefs(refs) {
 // charset miss.
 function assertHexScalar(name, value) {
     if (!SHA_HEX_RE.test(value)) {
-        throw new Error(`context-io: field "${name}" must be lowercase hex matching ${SHA_HEX_RE} — an abbreviated ` +
+        throw new NoteRefusal(`context-io: field "${name}" must be lowercase hex matching ${SHA_HEX_RE} — an abbreviated ` +
             `or full git object id, or a sha256 digest: ${JSON.stringify(value)}`);
     }
 }
@@ -1458,7 +1472,7 @@ function decideNoteDestination(notesDir, id, text, who = "writeNoteFile") {
     // about WHERE, and it stays the first thing this chokepoint answers.
     const candidateBytes = Buffer.byteLength(text, "utf8");
     if (candidateBytes > NOTE_FILE_MAX_BYTES) {
-        throw new Error(`context-io.${who}: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the composed ` +
+        throw new NoteRefusal(`context-io.${who}: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the composed ` +
             `note under id "${id}" is ${candidateBytes} bytes, above the ${NOTE_FILE_MAX_BYTES}-byte ` +
             `ceiling every reader of this store enforces. Writing it would create a note this module's ` +
             `own readers are required to refuse, which is silent loss rather than storage. No file was ` +
@@ -1688,7 +1702,7 @@ function composeValidatedNote(task, note, body, precomputedId) {
     const text = composeNote(note, body, id);
     const findings = validate(text);
     if (findings.length > 0) {
-        throw new Error(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
+        throw new NoteRefusal(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
     }
     return { id, text };
 }
@@ -1834,7 +1848,7 @@ ledgerOwner = actionOwnerRoot(contextRoot)) {
             `${e.message}`);
     }
     if (admission.length > 0) {
-        throw new Error(`context-io.appendNote: refusing to write a note the admission authority did not accept. ` +
+        throw new NoteRefusal(`context-io.appendNote: refusing to write a note the admission authority did not accept. ` +
             `Nothing was written:\n${admission.join("\n")}`);
     }
     // Route through the SINGLE write chokepoint (R6-1): containment is a property of the write, so a
