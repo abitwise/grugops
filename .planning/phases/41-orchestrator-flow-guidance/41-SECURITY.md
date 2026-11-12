@@ -1,9 +1,9 @@
 ---
 phase: "41"
 slug: "orchestrator-flow-guidance"
-status: open
+status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 1
+threats_open: 0
 asvs_level: 1
 created: "2026-11-05"
 ---
@@ -131,13 +131,19 @@ created: "2026-11-05"
 | T-41-97 | Spoofing | a note body forging a following note's header | medium | mitigate | `noteLines` (`note.ts:2998-3019`); probed: forged header lines stay indented, CR and ESC are stripped | closed |
 | T-41-98 | Denial of service | a failed read hiding a note while `read` reports the state as whole | medium | mitigate | `note.ts:3051-3057`; probed: a FIFO, mode 000, a dangling link and an oversized file each end exit 2 with stdout empty; READ-1 read mode passes | closed |
 | T-41-99 | Repudiation | README text claiming more than the in-script tier gives (IN-11) | low | mitigate | `install/README.md:459-461` | closed |
-| T-41-100 | Elevation of privilege | a host verdict verb that would let any agent mint a green verdict | high | mitigate | No verb under `tools/grugops/`; `RUNNABLES` ships no `context-io.js`; R-41-10 records the limit. Reproduced: a Claude Code plugin install (`marketplace.json` `source: "./"`) carries `${CLAUDE_PLUGIN_ROOT}/scripts/context-io.js emit-verdict`; at HEAD bytes it minted a verdict into a scratch host repository, and the host's `note.js` then noted a `§14-gate#<id>` finding, exit 0. R-41-10 and Workflow 05 line 53 say the program "is not installed to a host" | open |
+| T-41-100 | Elevation of privilege | a host verdict verb that would let any agent mint a green verdict | high | mitigate | No verb under `tools/grugops/`; `RUNNABLES` ships no `context-io.js`; R-41-10 records the limit. Reproduced: a Claude Code plugin install (`marketplace.json` `source: "./"`) carries `${CLAUDE_PLUGIN_ROOT}/scripts/context-io.js emit-verdict`; at HEAD bytes it minted a verdict into a scratch host repository, and the host's `note.js` then noted a `§14-gate#<id>` finding, exit 0. Plan 41-25 (option (a), D-44) scoped the text: Workflow 05 line 53, Workflow 16 step 3, Workflow 17, R-41-10 and the CHANGELOG now say a plugin install counts as a host and a gate stamp there is no proof that a gate ran; "is not installed to a host" no longer appears. The `LIMIT (R-41-10)` case pins the route. Closed as an accepted risk: the Accepted Risks Log row `R-41-10 (plugin install)` quotes Olger's reply `accept, Olger`. The route stays live | closed |
 | T-41-101 | Repudiation | a host gate result that reads as stamped with no verdict behind it | medium | mitigate | `05-pr-quality-gate.md:53` carries the no-stamp line, and a pin holds it. The reply `advise, Olger` was typed by Olger in the execute-phase session of 2026-11-12, as the orchestrator records; no decision row exists in 41-CONTEXT.md | closed |
 | T-41-102 | Spoofing | the Orchestrator writing a finding as a high-severity role (WR-13) | medium | mitigate | Workflow 16 line 43; R-41-11; probed: `note.js` refuses a stamped `security-nfr` finding under `all`. An agent that starts `admission-server.js` itself meets no per-call hook (existing hook-tier scope) | closed |
 | T-41-103 | Repudiation | an agent writing an acceptance of R-41-10 or R-41-11 | high | mitigate | R-41-10 says a named human's read is owed; R-41-11 reads Not accepted; no log row | closed |
 | T-41-104 | Repudiation | a `### Security` line stating a supersession rule without its open routes (WR-15) | medium | mitigate | CHANGELOG 178-182 names all three routes; Workflow 16 line 31; the pins pass | closed |
 | T-41-105 | Repudiation | an agent writing that the renamed-file route is accepted or closed | high | mitigate | The ruling note at `41-residuals.md:33`; the negative grep prints 0 at HEAD, but it is a plan acceptance grep, not a committed check; T-41-81 stays pending | closed |
 | T-41-106 | Repudiation | a full-suite result read by count, or a pin moved to clear a new red | high | mitigate | The 41-24 SUMMARY compares 21 names with no outsider, and the orchestrator re-compared the names from the run output; moved pins cite 41-UAT test 7 | closed |
+| T-41-107 | Spoofing | a `§14-gate` stamp on a plugin install read as proof that a gate ran (T-41-100) | high | accept | The five sites say a stamp there is no proof; `role-route.test.ts:240-285` holds the PREMISE, CONTROL and `LIMIT (R-41-10)` cases, which pass. Accepted by Olger in the log row `R-41-10 (plugin install)`, which names T-41-100 | closed |
+| T-41-108 | Repudiation | an agent writing an acceptance, a name or a date the human did not type | high | mitigate | Accepted By quotes `accept, Olger` verbatim, and the same reply appears in D-44 (`41-CONTEXT.md:101`) and R-41-10. D-44 records that the earlier option (a) choice carried no typed name. The auditor cannot verify the reply itself (see Provenance) | closed |
+| T-41-109 | Elevation of privilege | a gate or role on a plugin install running the plugin's `emit-verdict` | medium | mitigate | Workflow 16 line 31: "Never run the plugin's `emit-verdict`"; Workflow 05 line 53: "The gate never runs that verb on a host". R-41-10 states that text is the only control | closed |
+| T-41-110 | Tampering | a pin moved to pass, or the LIMIT case weakened | medium | mitigate | Each moved pin in `flow-guidance-text.test.ts` carries a comment citing plan 41-25 and the ruling; the 41-25 diff adds no `.skip`, `.fails` or `.todo`; both files pass, 157 of 157 at `933dd29f` | closed |
+| T-41-111 | Repudiation | an agent closing T-41-100 or recounting `threats_open` | high | mitigate | Plan 41-25's diff of this file has 3 added lines and 0 removed; T-41-100 stayed `open` and `threats_open: 1` until this audit | closed |
+| T-41-112 | Repudiation | a full-suite result read by count | high | mitigate | The 41-25 summary compares by name with `comm`: 21 baseline names matched, and the one outsider, `capture-live`, passed 77 of 77 alone | closed |
 | T-41-SC | Tampering | npm/pip/cargo installs | low | accept | No package is installed by this plan | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -202,6 +208,18 @@ This audit covers plans 41-19 to 41-24 (T-41-84 to T-41-106) and re-checks T-41-
 
 ---
 
+## Gap-closure audit, 2026-11-12 (plan 41-25)
+
+This audit covers plan 41-25 (T-41-107 to T-41-112) and re-checks T-41-100, at `933dd29f`. It was run by the orchestrator at ASVS level 1, so it checks only that each mitigation is present: grep evidence plus the two pinned test files. No auditor subagent ran, and no new probe of a plugin tree was made. **No threat at or above high is open, so the gate passes.**
+
+- **T-41-100 closes as an accepted risk, not as a fix.** A plugin install still carries `emit-verdict`, and any agent there can still mint a green verdict. The text now says so, and Olger accepted the limit by name. Only text controls the route (T-41-109).
+- **Provenance.** The reply `accept, Olger` is recorded in three places that agree. The auditor cannot verify the reply itself.
+- **Owed by a named human, none blocking.** The `pending (named human)` rows of `docs/audit/29-style-dispositions/41-25.md`; the scripted-install part of R-41-10, which no reply accepts; R-41-11; and the T-41-27 ruling and reads in § Conditions.
+- **Still open below the threshold.** T-41-31, T-41-38, T-41-49, T-41-62 and T-41-81, plus the two flags outside the register.
+- **Not verified here.** Plan 41-25's full-suite result comes from its summary; this audit did not re-run the suite. A plugin install on another Claude Code version, and Windows, stay `UNKNOWN - verify`.
+
+---
+
 ## Conditions on these closures
 
 - **T-41-27 (high), needs a human ruling.** It closes on plan 41-06's definition: rows in `## Hard limits` or `## Stop when`, or carrying a safety fact, where the gate applies the safety-fact rule to role files only. Under that definition all 13 rows are `pending (named human)`. A wider reading finds 10 agent-written rows that are not pending: 3 README rows in `41-06.md` frozen by the claim registry, and 7 workflow rows where `carriesSafetyFact` fires (4 in `41-02.md`, 3 in `41-04.md`). None of the 10 claims a human read. On the wider reading, T-41-27 is open and blocking.
@@ -255,6 +273,7 @@ On 2026-11-12, at plan 41-25's checkpoint, Olger accepted R-41-10 (plugin instal
 | 2026-11-06 | 18 | 13 | 5 (3 blocking) | gsd-security-auditor at `f4bce501`, gap-closure scope, with probes against host copies of `note.js` |
 | 2026-11-08 | 18 | 13 | 5 (0 blocking) | gsd-security-auditor at `eab814fd`, gap-closure round 3, with probes against host copies of `note.js`; re-run by the orchestrator |
 | 2026-11-12 | 25 | 24 | 1 (1 blocking) | gsd-security-auditor at `cc2df87d`, gap round 4 (T-41-84 to T-41-106, T-41-64 re-checked), with probes against lone host copies of `note.js` and `claim.js` and a HEAD plugin tree |
+| 2026-11-12 | 7 | 7 | 0 | orchestrator at `933dd29f`, plan 41-25 scope (T-41-107 to T-41-112, T-41-100 re-checked), ASVS L1 grep evidence plus `role-route` and `flow-guidance-text` tests, 157 of 157 passed |
 
 ---
 
@@ -262,10 +281,10 @@ On 2026-11-12, at plan 41-25's checkpoint, Olger accepted R-41-10 (plugin instal
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed — 2026-11-12: 1 open at the threshold (T-41-100). Earlier: (2026-11-08; 5 open below the threshold: T-41-62, T-41-66, T-41-73, T-41-74, T-41-81)
+- [x] `threats_open: 0` confirmed — 2026-11-12, after plan 41-25: T-41-100 closed as an accepted risk (R-41-10, plugin install). Earlier, 2026-11-12: 1 open at the threshold (T-41-100). Earlier: (2026-11-08; 5 open below the threshold: T-41-62, T-41-66, T-41-73, T-41-74, T-41-81)
 - [x] `status: verified` set in frontmatter
 
-**Approval:** the gate passes on the audit of 2026-11-08, with no blocking threat open. This is not a human sign-off: T-41-74 and T-41-81 await a named human's read, T-41-73 needs its log row, and the T-41-27 ruling and the human reads in § Conditions are still open.
+**Approval:** the gate passes on the plan 41-25 audit of 2026-11-12, with no blocking threat open. This is not a human sign-off: T-41-81 (R-41-09) is not accepted, the scripted-install part of R-41-10 and R-41-11 await a named human's read, and the T-41-27 ruling and the human reads in § Conditions are still open.
 
 ## Security Audit 2026-11-05
 
@@ -290,3 +309,11 @@ On 2026-11-12, at plan 41-25's checkpoint, Olger accepted R-41-10 (plugin instal
 | Threats found | 25 |
 | Closed | 24 |
 | Open | 1 |
+
+## Security Audit 2026-11-12
+
+| Metric | Count |
+|---|---|
+| Threats found | 7 |
+| Closed | 7 |
+| Open | 0 |
