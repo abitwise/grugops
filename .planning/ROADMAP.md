@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 24/25 plans executed (19 gap-closure plans, 41-07 to 41-25, planned)
+**Plans**: 25/25 plans executed (19 gap-closure plans, 41-07 to 41-25, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -670,7 +670,7 @@ Gap wave 6 *(blocked on gap wave 5)*
 **Gap closure, round 5** *(from 41-SECURITY.md, audit of 2026-11-12: T-41-100, the human's option (a) ruling; holds a blocking human acceptance)*
 
 Gap wave 7 *(blocked on gap wave 6)*
-- [ ] 41-25-PLAN.md — a host repository with only a scripted install has no gate stamp, and a Claude Code plugin install counts as a host that carries the verdict verb, so a stamp there is no proof that a gate ran: a `LIMIT (R-41-10)` case pins the route, five texts say so, and a named human accepts the limit for an Accepted Risks Log row (T-41-100; RUN-04, RUN-05)
+- [x] 41-25-PLAN.md — a host repository with only a scripted install has no gate stamp, and a Claude Code plugin install counts as a host that carries the verdict verb, so a stamp there is no proof that a gate ran: a `LIMIT (R-41-10)` case pins the route, five texts say so, and a named human accepts the limit for an Accepted Risks Log row (T-41-100; RUN-04, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
@@ -720,7 +720,7 @@ Gap wave 7 *(blocked on gap wave 6)*
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
-| 41. Orchestrator flow guidance | v3.0 | 24/24 | In Progress | - |
+| 41. Orchestrator flow guidance | v3.0 | 25/25 | In Progress | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
