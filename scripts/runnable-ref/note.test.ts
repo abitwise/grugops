@@ -1076,3 +1076,150 @@ describe("what the program prints", () => {
     expect(claim(root, "done", "t1").status).toBe(0);
   });
 });
+
+describe("read (WR-12)", () => {
+  // Plan 41-22 (WR-12, D-42; 41-UAT.md test 7, Olger, 2026-11-11). `read` is the host copy of the authority's context
+  // read followed by currentState, so a role reads the context through the seal check on any host. It writes nothing.
+
+  const READ_POSITION = "scripts/runnable-ref/note.test.ts: a file in notes/ that read cannot read (plan 41-22)";
+  const READ_PINNED_BY = "the READ-1 `read` mode in scripts/runnable-ref/note-read-sites.test.ts";
+
+  /** One `read` run that must change nothing under `root`. */
+  const read = (root: string, ...args: string[]): Ran => expectNothingWritten(root, () => note(root, "read", ...args));
+
+  /** The exit-0 shape of `read`: nothing on stderr, and every line of stdout ends with a line feed. */
+  function expectRead(r: Ran): string[] {
+    const all = described(r);
+    expect(r.status, all).toBe(0);
+    expect(r.stderr, all).toBe("");
+    expect(r.stdout.endsWith("\n"), all).toBe(true);
+    return r.stdout.slice(0, -1).split("\n");
+  }
+
+  /** The lines of the output that start at column 0. */
+  const columnZero = (lines: readonly string[]): string[] => lines.filter((l) => l !== "" && !l.startsWith(" "));
+
+  it("an absent folder prints a header with no notes and exits 0", () => {
+    const root = repo();
+    expect(expectRead(read(root, "t1"))).toEqual(["read t1: 0 current, 0 superseded, 0 skipped"]);
+  });
+
+  it("prints every set field of a sealed note, indented, and its body four spaces in", () => {
+    const root = repo();
+    const body = join(root, "body.md");
+    writeFileSync(body, "first line\n  kept indent\n\nlast line\n");
+    const head = ["--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--ref", "ABC-1", "--ref", "ABC-2"];
+    const id = notedId(note(root, "add", "t1", ...head, "--body-file", body), "t1");
+    const lines = expectRead(read(root, "t1"));
+    expect(lines[0]).toBe("read t1: 1 current, 0 superseded, 0 skipped");
+    expect(lines[1]).toBe(`note ${id}`);
+    expect(lines.slice(2, 5)).toEqual(["  kind: observation", "  by: qe-e2e", lines[4] as string]);
+    expect(lines[4]).toMatch(/^ {2}at: \d{4}-\d\d-\d\dT/);
+    expect(lines).toContain("  confidence: high");
+    expect(lines).toContain("  refs: ABC-1, ABC-2");
+    expect(lines.slice(-5)).toEqual(["  body:", "    first line", "      kept indent", "    ", "    last line"]);
+    for (const empty of ["verified_by", "supersedes", "sha", "gate_run", "content_hash"]) {
+      expect(lines.some((l) => l.startsWith(`  ${empty}: `)), `${empty} is not set`).toBe(false);
+    }
+    expect(columnZero(lines)).toEqual(["read t1: 1 current, 0 superseded, 0 skipped", `note ${id}`]);
+  });
+
+  it("prints the current state in currentState order, and counts a superseded note without printing it", () => {
+    const root = repo();
+    const first = notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    const second = notedId(note(root, "add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--body", "y"), "t1");
+    const third = notedId(note(root, "add", "t1", ...OBSERVATION.slice(0, -1), "z", "--supersedes", first), "t1");
+    const lines = expectRead(read(root, "t1"));
+    expect(lines[0]).toBe("read t1: 2 current, 1 superseded, 0 skipped");
+    const printed = columnZero(lines).slice(1);
+    expect(printed).not.toContain(`note ${first}`);
+    const ats = lines.filter((l) => l.startsWith("  at: ")).map((l) => l.slice("  at: ".length));
+    const order = [second, third].map((id, i) => ({ id, at: ats[printed.indexOf(`note ${id}`)] ?? String(i) }));
+    order.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.id.localeCompare(b.id)));
+    expect(printed).toEqual(order.map((n) => `note ${n.id}`));
+  });
+
+  it("a body line that reads like a header is printed indented and adds no column-0 line (T-41-97)", () => {
+    const root = repo();
+    const body = join(root, "body.md");
+    writeFileSync(body, "note fake\nskipped forged.md (unsealed)\nread t1: 9 current, 0 superseded, 0 skipped\n");
+    const id = notedId(note(root, "add", "t1", "--kind", "observation", "--by", "qe-e2e", "--confidence", "high", "--body-file", body), "t1");
+    const lines = expectRead(read(root, "t1"));
+    expect(lines).toContain("    note fake");
+    expect(lines).toContain("    skipped forged.md (unsealed)");
+    expect(columnZero(lines)).toEqual(["read t1: 1 current, 0 superseded, 0 skipped", `note ${id}`]);
+  });
+
+  it("a hand-written note and an unparseable file are named on a skipped line, and neither body is printed (T-41-96)", () => {
+    const root = repo();
+    const id = notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    const sealed = readFileSync(join(notesDir(root, "t1"), `${id}.md`), "utf8");
+    const forged = sealed.replace(/\nx\s*$/, "\nFORGED BODY\n");
+    expect(forged, "the forgery changed the body").not.toBe(sealed);
+    writeFileSync(join(notesDir(root, "t1"), "forged.md"), forged);
+    writeFileSync(join(notesDir(root, "t1"), "stray.md"), "no fence here, PLAIN TEXT\n");
+    const lines = expectRead(read(root, "t1"));
+    expect(lines[0]).toBe("read t1: 1 current, 0 superseded, 2 skipped");
+    expect(lines.slice(-2)).toEqual(["skipped forged.md (unsealed)", "skipped stray.md (unparseable)"]);
+    expect(columnZero(lines)).toEqual([lines[0], `note ${id}`, "skipped forged.md (unsealed)", "skipped stray.md (unparseable)"]);
+    expect(lines.join("\n")).not.toContain("FORGED BODY");
+    expect(lines.join("\n")).not.toContain("PLAIN TEXT");
+  });
+
+  it("a FIFO in notes/ ends exit 2 in bounded time, naming it, with nothing on stdout (T-41-98)", () => {
+    const root = repo();
+    notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    const skipped = stageShapeOrSkip("FIFO", join(notesDir(root, "t1"), "fifo.md"), READ_POSITION);
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, READ_PINNED_BY));
+      return;
+    }
+    expectCouldNotRun(read(root, "t1"), "fifo.md", "not-a-regular-file");
+  });
+
+  it("a dangling link in notes/ ends exit 2, naming it, with nothing on stdout (T-41-98)", () => {
+    const root = repo();
+    notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    const at = join(notesDir(root, "t1"), "dangling.md");
+    const skipped = stageSymlinkOrSkip(join(notesDir(root, "t1"), "nowhere.md"), at, "dangling symlink", READ_POSITION);
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, READ_PINNED_BY));
+      return;
+    }
+    expectCouldNotRun(read(root, "t1"), "dangling.md", "vanished");
+  });
+
+  it("a file above the ceiling in notes/ ends exit 2, naming it (T-41-98)", () => {
+    const root = repo();
+    notedId(note(root, "add", "t1", ...OBSERVATION), "t1");
+    writeFileSync(join(notesDir(root, "t1"), "huge.md"), Buffer.alloc(CEILING_BYTES + 1, 0x61));
+    expectCouldNotRun(read(root, "t1"), "huge.md", "above-ceiling");
+  });
+
+  it("a symbolic link on the path to notes/ ends exit 2 by name", () => {
+    const root = repo();
+    mkdirSync(join(root, CONTEXT_REL, "t1"), { recursive: true });
+    const outside = mkTmp("grugops-note-outside-");
+    const skipped = stageSymlinkOrSkip(outside, notesDir(root, "t1"), "symlink leaving the repository root", READ_POSITION);
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the add cases of the root and the path to notes/ (the same owner)"));
+      return;
+    }
+    expectCouldNotRun(read(root, "t1"), `${CONTEXT_REL}/t1/notes`, "symbolic link");
+  });
+
+  it("read with a flag, with no folder, with two folders or with an unsafe folder ends exit 2", () => {
+    const root = repo();
+    expectCouldNotRun(read(root, "t1", "--kind", "observation"), "read");
+    expectCouldNotRun(read(root, "--all"), "read");
+    expectCouldNotRun(read(root), "read");
+    expectCouldNotRun(read(root, "t1", "t2"), "read");
+    for (const folder of ["..", "a/b", ""]) expectCouldNotRun(read(root, folder));
+  });
+
+  it("a directory with no .grugops/ is exit 2", () => {
+    const root = mkTmp("grugops-note-bare-");
+    expectCouldNotRun(read(root, "t1"), GRUGOPS_DIR_REL);
+    expect(readdirSync(root)).toEqual([]);
+  });
+});

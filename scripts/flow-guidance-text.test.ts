@@ -949,3 +949,33 @@ describe("Workflow 16 step 3 reads every exit of note.js (plan 41-21; WR-09, IN-
     expect(line).toContain("A human repairs `HOME`, the working directory, or the path the refusal names.");
   });
 });
+
+describe("the kit names the read route (plan 41-22; WR-12, D-42)", () => {
+  // 41-UAT.md test 7, Olger, 2026-11-11: the read route was context-io.ts, which no host has. The route is now
+  // `note.js read`, which reads through the seal check; scripts/runnable-ref/role-route.test.ts runs it from step 1.
+
+  it("names the read command in the input bullet of Workflow 16", () => {
+    expect(section(WF16, "Inputs required")).toContain(
+      "- The existing verified context for that task, read with `node tools/grugops/note.js read <folder>`, per step 1 — the prior findings, decisions and recorded dead ends.",
+    );
+  });
+
+  it("says in step 1 of Workflow 16 how to read the context and what a skipped file is", () => {
+    const line = step(WF16, 1);
+    expect(line).toContain(
+      "1. Read the shared context for the task before doing the work. Run `node tools/grugops/note.js read <folder>` from the repository root, with the folder step 3 names.",
+    );
+    expect(line).toContain("It prints each sealed note of the current state in full.");
+    expect(line).toContain("It names each file in `notes/` that is not a sealed note on a `skipped` line.");
+    expect(line).toContain("A skipped file is not part of the context, so never read one as a note. Never read `notes/` by hand.");
+    expect(line).toContain("Exit 2 means the context was not read in full: stop and surface it. Start from the verified state");
+    expect(line).not.toContain("context-io.ts");
+  });
+
+  it("points step 5 of Workflow 17 at step 1 of Workflow 16 and names no context-io read function", () => {
+    expect(step(WF17, 5)).toContain(
+      "5. Read the subtask's shared context per step 1 of WF16 (`node tools/grugops/note.js read <folder>`) before the work starts (role).",
+    );
+    expect(WF17).not.toContain("readContext");
+  });
+});

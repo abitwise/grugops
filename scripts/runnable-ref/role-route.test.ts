@@ -141,3 +141,38 @@ describe("the kit text's own commands finish a task on host copies (plan 41-11, 
     expect(() => argvOf("node tools/grugops/note.js add <folder> --new <unknown>")).toThrow("<unknown>");
   });
 });
+
+describe("the kit text's read command reads the context through the seal check on host copies (plan 41-22, WR-12, D-42)", () => {
+  // 41-UAT.md test 7, Olger, 2026-11-11: Workflows 16 and 17 named a read route through context-io.ts, which no host
+  // has, so a role read notes/ by hand, where a hand-written note reads exactly like a sealed one.
+
+  it("names the read command in step 1 of Workflow 16 (WR-12)", () => {
+    expect(commandInStep(WF16, 1, "node tools/grugops/note.js read")).toBe("node tools/grugops/note.js read <folder>");
+  });
+
+  it("the read command, read from the text, prints the note add wrote and names a hand-written file as skipped (WR-12)", () => {
+    const add = argvOf(commandInStep(WF16, 3, "node tools/grugops/note.js add"));
+    const read = argvOf(commandInStep(WF16, 1, "node tools/grugops/note.js read"));
+    const repo = hostRepo(true);
+
+    const noted = run(repo, add);
+    expect(noted.status, noted.stderr).toBe(0);
+    const id = /^noted t1 (\S+)\n$/.exec(noted.stdout)?.[1];
+    expect(id, noted.stdout).toBeDefined();
+    const notes = join(repo, CONTEXT_REL, TASK, "notes");
+    const sealed = readFileSync(join(notes, `${id as string}.md`), "utf8");
+    const forged = sealed.replace("The route ran from the text.", "A FORGED BODY the writer never sealed.");
+    expect(forged, "the planted file differs from the sealed note").not.toBe(sealed);
+    writeFileSync(join(notes, "hand-written.md"), forged);
+
+    const r = run(repo, read);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toBe("");
+    const lines = r.stdout.split("\n");
+    expect(lines[0]).toBe(`read ${TASK}: 1 current, 0 superseded, 1 skipped`);
+    expect(lines).toContain(`note ${id as string}`);
+    expect(lines).toContain("    The route ran from the text.");
+    expect(lines).toContain("skipped hand-written.md (unsealed)");
+    expect(r.stdout).not.toContain("FORGED");
+  });
+});
