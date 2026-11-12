@@ -77,9 +77,9 @@
 // layout marker, stops the check at the marker first (exit 2, plan 37-35). Only an lstat ENOENT on a component whose
 // earlier components are real directories is an absent root.
 //
-// SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js, state-roll.js and claim.js are installed
-// side by side and never updated in place, and each embeds its own generated copy of shared authorities (the trace
-// model, BUDGETS). Each generated region therefore carries a build stamp, RUNNABLE_SET_STAMP, which the generator
+// SIBLINGS (plan 37-24, D-17, WR-05, AUTH-1). state-check.js, trace-render.js, state-roll.js, claim.js and note.js are
+// installed side by side and never updated in place, and each embeds its own generated copy of shared authorities (the
+// trace model, BUDGETS). Each generated region therefore carries a build stamp, RUNNABLE_SET_STAMP, which the generator
 // computes over every program's generated body, with RUNNABLE_SET (the programs built together) and
 // RUNNABLE_SELF. After the trace report, this file reads every other program in RUNNABLE_SET from its own directory
 // through the embedded non-blocking reader, and asks the embedded readRunnableStamp (scripts/runnable-stamp.ts, the
@@ -146,7 +146,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:6c9c92742b1ecf7560b3b69922e31e41c1d17bbcd26fce9c8e9d67320f98eaa7";
+export const RUNNABLE_SET_STAMP = "sha256:815e4d17f2ca777ace68f0ab81b5db6c699e5bd1345c216ed798225744dbbef8";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts

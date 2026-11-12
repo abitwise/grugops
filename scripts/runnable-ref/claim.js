@@ -8,16 +8,19 @@
 //   - `now-running` renders .grugops/queue/now-running.md, the in-flight log, from claimed/.
 //   - `sweep` returns each stale claim to pending/ and releases each claim whose subtask already sits in done/. It reads
 //     queue.stale_ttl_minutes, and Workflow 17 runs it at session start only (D-11). A claim directory with no usable
-//     record counts as stale once the directory's modified time is older than that TTL (WR-04).
+//     record counts as stale once the directory's modified time is older than that TTL (WR-04). A stale claim whose
+//     subtask is already pending is kept and reported (WR-07), and so is each claimed/ entry it cannot judge (WR-11).
 //   - `free` prints queue.wip_limit minus the claimed/ count read from disk, the number a refill trusts. It writes nothing.
-// A command that changes the queue renders the log before it reports, so the log cannot go stale between steps (D-02).
+// A command that changes the queue renders the log before it reports (D-02). Two commands run in parallel each render
+// and the last rename wins, so the log can lag the disk until the next render, and `free` counts claimed/ from disk.
 // It moves queue records and nothing else: it runs no git, pushes, merges or deploys nothing, and writes nowhere
 // outside .grugops/queue/. It reads .grugops/context/ for the note check and never writes there.
 //
 // THE D-12 CONTRACT (D-08).
 //   exit 0 → the command did its work; stdout holds one line (`claimed TASK by ADAPTER`, `done TASK`,
 //            `rendered .grugops/queue/now-running.md`, `free N`), or for `sweep` the line `swept N`, then one
-//            `reclaimed TASK` or `released TASK (already done)` line each.
+//            `reclaimed TASK`, `released TASK (already done)`, `kept TASK (...)` or `left NAME (...)` line each, where a
+//            kept task's pending file already exists and a left name is a claimed/ entry the sweep cannot judge.
 //   exit 1 → an outcome to act on, never an error: stdout holds one line (`lost TASK`, or `not-done TASK: ...`, which
 //            leaves the task in claimed/).
 //   exit 2 → could not run or refused: a bad argument, a root with no .grugops directory, a symbolic link or a
@@ -66,7 +69,7 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:6c9c92742b1ecf7560b3b69922e31e41c1d17bbcd26fce9c8e9d67320f98eaa7";
+export const RUNNABLE_SET_STAMP = "sha256:815e4d17f2ca777ace68f0ab81b5db6c699e5bd1345c216ed798225744dbbef8";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "claim.js";
 // from install/state-layout.ts
@@ -282,7 +285,7 @@ function stagePath(queueRoot, task, stage) {
         ? join(queueRoot, "claimed", task, `${task}.md`)
         : join(queueRoot, stage, `${task}.md`);
 }
-export function sweepStale(queueRoot, ttlMs, now = Date.now()) {
+export function sweepStale(queueRoot, ttlMs, now = Date.now(), kept = []) {
     const claimedDir = join(queueRoot, "claimed");
     if (queueEntry(claimedDir) === null)
         return [];
@@ -310,7 +313,12 @@ export function sweepStale(queueRoot, ttlMs, now = Date.now()) {
         // no liveness probe.
         const subtask = join(claimDir, `${task}.md`);
         if (queueEntry(subtask) !== null) {
-            atomicRename(subtask, join(queueRoot, "pending", `${task}.md`));
+            const pending = stagePath(queueRoot, task, "pending");
+            if (queueEntry(pending) !== null) {
+                kept.push(task); // a newer pending file stands (WR-07)
+                continue;
+            }
+            atomicRename(subtask, pending);
         }
         rmSync(claimDir, { recursive: true, force: true });
         reclaimed.push(task);
@@ -334,7 +342,16 @@ export function sweepQueue(queueRoot, ttlMs, now = Date.now()) {
             released.push(task);
         }
     }
-    return { released, reclaimed: sweepStale(queueRoot, ttlMs, now) };
+    const kept = [];
+    const reclaimed = sweepStale(queueRoot, ttlMs, now, kept);
+    const left = [];
+    if (queueEntry(claimedDir) !== null) {
+        for (const name of claimedEntryNames(queueRoot)) {
+            if (!isSafeQueueName(name) || queueEntry(join(claimedDir, name))?.isDirectory() !== true)
+                left.push(name);
+        }
+    }
+    return { released, reclaimed, kept, left: left.sort() };
 }
 export function claimedEntryNames(queueRoot) {
     const entries = readdirSync(join(queueRoot, "claimed"), { withFileTypes: true });
@@ -1343,12 +1360,17 @@ function runSweep() {
     const swept = sweepQueue(queueRoot, config.stale_ttl_minutes * MINUTE_MS);
     const reclaimed = [...swept.reclaimed].sort();
     const released = [...swept.released].sort();
-    const lines = [
-        `swept ${reclaimed.length}`,
+    const changes = [
         ...reclaimed.map((task) => `reclaimed ${task}`),
         ...released.map((task) => `released ${task} (already done)`),
     ];
-    renderAfter(lines.length === 1 ? "" : `${lines.slice(1).join(", ")}, and that stands.`);
+    renderAfter(changes.length === 0 ? "" : `${changes.join(", ")}, and that stands.`);
+    const lines = [
+        `swept ${reclaimed.length}`,
+        ...changes,
+        ...[...swept.kept].sort().map((task) => `kept ${task} (pending/${task}.md already exists, so the claim stays)`),
+        ...[...swept.left].sort().map((name) => `left ${name} (not a claim the sweep can judge)`),
+    ];
     for (const note of config.notes)
         if (note.startsWith("queue.stale_ttl_minutes "))
             lines.push(`(${note})`);

@@ -5,8 +5,9 @@
 // path safe. There is NO central lock manager: the directory IS the state.
 //
 //   Queue layout (CLAIM-01):  .grugops/queue/{pending,claimed,done}/
-//     pending/<task>.md       a thin, self-contained subtask file (what-to-do + a ref to its
-//                             .grugops/context/<task>/ folder + the originating ticket)
+//     pending/<task>.md       the two-line subtask file of Workflow 17 step 1: a `# subtask <task>` line
+//                             and one `ref:` line naming its .grugops/context/ folder, which a
+//                             re-queued subtask shares with the task it repeats
 //     claimed/<task>/         the claim directory — its existence IS the claim (atomic mkdir)
 //       claim.md              the "now-running" registry record: by / at / task, plus the optional
 //                             agent / level lines (D-03) (frontmatter)
@@ -369,6 +370,11 @@ function stagePath(queueRoot: string, task: string, stage: QueueStage): string {
 // it stays, and past it the directory is reclaimed. The age is taken from the unrounded `mtimeMs`. A
 // tampered record is reclaimed at any age. A claimed entry that is not a directory stays where it is.
 //
+// A NEWER PENDING FILE ALWAYS STANDS (WR-07). When pending/<task>.md already exists, a stale claim's
+// subtask is not moved onto it, because a rename would replace it. Nothing moves for that task: the
+// claim directory and its subtask stay, the task is not counted as reclaimed, and it is pushed onto
+// `kept` so the caller can name it. A human decides which copy is right.
+//
 // WALL-CLOCK TTL ONLY — this deliberately reads NO pid/host or any liveness signal. pid/host liveness
 // is rejected as not portable cross-machine / on NFS (heartbeat/advisory-lease liveness is deferred
 // to v2.x, PAR-05). The TTL VALUE is supplied by the CALLER — a config dial wiring it is a LATER
@@ -379,6 +385,7 @@ export function sweepStale(
   queueRoot: string,
   ttlMs: number,
   now: number = Date.now(),
+  kept: string[] = [],
 ): string[] {
   const claimedDir = join(queueRoot, "claimed");
   if (queueEntry(claimedDir) === null) return [];
@@ -403,7 +410,12 @@ export function sweepStale(
     // no liveness probe.
     const subtask = join(claimDir, `${task}.md`);
     if (queueEntry(subtask) !== null) {
-      atomicRename(subtask, join(queueRoot, "pending", `${task}.md`));
+      const pending = stagePath(queueRoot, task, "pending");
+      if (queueEntry(pending) !== null) {
+        kept.push(task); // a newer pending file stands (WR-07)
+        continue;
+      }
+      atomicRename(subtask, pending);
     }
     rmSync(claimDir, { recursive: true, force: true });
     reclaimed.push(task);
@@ -415,12 +427,14 @@ export function sweepStale(
 // A claim directory whose subtask has left it and sits in done/ is finished work, whatever its age
 // and whatever its record, which is not read here: an earlier run stopped between the rename and the
 // removal. It is released and reported apart from a reclaim, because a release returns nothing to
-// pending/. A claimed entry that is not a directory stays where it is, as sweepStale leaves it.
+// pending/. A claimed entry that is not a directory stays where it is, as sweepStale leaves it, and
+// is named on `left` with every name that is not a safe queue name, so a human can remove it (WR-11).
+// `kept` names each stale claim sweepStale left because its subtask already sits in pending/ (WR-07).
 export function sweepQueue(
   queueRoot: string,
   ttlMs: number,
   now: number = Date.now(),
-): { released: string[]; reclaimed: string[] } {
+): { released: string[]; reclaimed: string[]; kept: string[]; left: string[] } {
   const claimedDir = join(queueRoot, "claimed");
   const released: string[] = [];
   if (queueEntry(claimedDir) !== null) {
@@ -433,7 +447,15 @@ export function sweepQueue(
       released.push(task);
     }
   }
-  return { released, reclaimed: sweepStale(queueRoot, ttlMs, now) };
+  const kept: string[] = [];
+  const reclaimed = sweepStale(queueRoot, ttlMs, now, kept);
+  const left: string[] = [];
+  if (queueEntry(claimedDir) !== null) {
+    for (const name of claimedEntryNames(queueRoot)) {
+      if (!isSafeQueueName(name) || queueEntry(join(claimedDir, name))?.isDirectory() !== true) left.push(name);
+    }
+  }
+  return { released, reclaimed, kept, left: left.sort() };
 }
 
 // ── claimedEntryNames / claimedCount / freeSlots: what the width cap sees (RUN-02). ─────────────
@@ -441,7 +463,8 @@ export function sweepQueue(
 // such as git's `.gitkeep`. That is the keeper rule of claimedQueueRefusal in install/install.ts.
 // Anything else is named, link and stray file included: over-counting can never over-spawn. It throws
 // when the directory cannot be read; a host program asks the root-chain owner first. The count and
-// the render both start from this one listing, so `free` and the in-flight log cannot disagree (WR-04).
+// the render both start from this one listing, so `free` and the in-flight log agree on every entry but
+// a tampered record, which is counted and shows no row (WR-04).
 export function claimedEntryNames(queueRoot: string): string[] {
   const entries = readdirSync(join(queueRoot, "claimed"), { withFileTypes: true });
   return entries.filter((entry) => !(entry.name.startsWith(".") && entry.isFile())).map((entry) => entry.name);
@@ -532,9 +555,12 @@ export function noteSinceClaim(claimAt: string, noteAts: readonly string[]): boo
 // ── atomicWrite: write a unique temp sibling, then rename onto the final path. ──────────────────
 // Cloned from context-io.ts atomicWrite (l.622-647). POSIX renameSync atomically replaces; Windows
 // (MoveFileEx) is not atomic and fails EPERM/EEXIST/EACCES when the destination exists — the
-// unlink-then-rename branch handles that. now-running.md is a single-writer derived artifact that is
-// regenerated wholesale, so the Windows branch may fire on regen; on any other error the temp is
-// cleaned up and the error rethrown (a broken write never leaves a half-file as the "render").
+// unlink-then-rename branch handles that. now-running.md is a derived artifact regenerated wholesale,
+// so the Windows branch may fire on regen. More than one process writes it: agents running `done` in
+// parallel each render, and the rename that lands last wins even when its listing is older, so the log
+// can lag the disk until the next render; the `claimed/` count read from disk stays the truth
+// (Workflow 17). On any other error the temp is cleaned up and the error rethrown (a broken write never
+// leaves a half-file as the "render").
 function atomicWrite(finalPath: string, data: string): void {
   const tmp = `${finalPath}.tmp-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}`;
   writeFileSync(tmp, data, "utf8");
