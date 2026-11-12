@@ -247,9 +247,10 @@ describe("The kit text names the host note writer (plan 41-11; CR-01, RUN-02, RU
   });
 
   it("gives `propose_note` to the Orchestrator alone, and keeps the structured-argument sentence on that tool", () => {
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-18.
     const record = step(WF16, 3);
     expect(record).toContain(
-      "On Claude Code the Orchestrator also holds the STRUCTURED tool `mcp__plugin_grugops_grugops__propose_note`, and a spawned role does not.",
+      "On a Claude Code plugin install the Orchestrator also holds the STRUCTURED tool `mcp__plugin_grugops_grugops__propose_note`, and a spawned role does not.",
     );
     expect(record).toContain("On that tool the agent admits a note by structured JSON arguments");
     expect(record).not.toContain("the sanctioned admission path");
@@ -874,10 +875,11 @@ describe("the kit says which route retires a verdict or a gated finding (plan 41
   });
 
   it("step 3 names the disposition that retires one, straight after that sentence (WR-14)", () => {
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-18.
     expect(step(WF16, 3)).toContain(
       "Only a named human's disposition retires one. " +
         "That disposition is a `finding` the dial gates. " +
-        "The Orchestrator admits it through `propose_note` under the human's grant on Claude Code.",
+        "The Orchestrator admits it through `propose_note` under the human's grant on a Claude Code plugin install.",
     );
   });
 
@@ -897,17 +899,19 @@ describe("the kit says which route retires a verdict or a gated finding (plan 41
   });
 
   it("the note contract names the disposition and where nothing retires one (WR-14)", () => {
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-18.
     expect(flat(NOTE_CONTRACT)).toContain(
       "only a named human's disposition retires one. " +
-        "That disposition is a `finding` the dial gates, admitted on Claude Code through `propose_note` under the human's grant. " +
+        "That disposition is a `finding` the dial gates, admitted on a Claude Code plugin install through `propose_note` under the human's grant. " +
         "Under `off`, and on a host with no hook, nothing retires one.",
     );
   });
 
   it("the changelog Security bullet names the disposition and where nothing retires one (WR-14)", () => {
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-18.
     expect(flat(CHANGELOG)).toContain(
       "only a named human's disposition retires one. " +
-        "That disposition is a finding the dial gates, admitted on Claude Code through `propose_note`; " +
+        "That disposition is a finding the dial gates, admitted on a Claude Code plugin install through `propose_note`; " +
         "under `off`, and on a host with no hook, nothing retires one.",
     );
   });
@@ -1063,14 +1067,15 @@ describe("the kit says a host has no gate stamp (plan 41-23; CR-03, D-41)", () =
 
   it("the third admission outcome names the route a high-severity finding takes under an active dial (WR-13, D-42)", () => {
     // Olger's ruling of 2026-11-11 (D-42) fixed the text under WR-13. The limit where no hook exists is residual R-41-11.
+    // Moved by plan 41-26 under D-45 (41-UAT.md test 9, Olger, 2026-11-12): review finding WR-18.
     expect(section(WF16, "Steps")).toContain(
       "or when agents disagree. The rare path. " +
         "A `finding` by `security-nfr`, `architect-design` or `release-manager` is refused by `note.js` whenever `human_admission` is not `off`. " +
         "The human's answer does not lift that refusal. " +
         "That role publishes the result as a `claim` and ends its task per step 5. The Orchestrator then asks the human once. " +
-        "Where the Orchestrator holds `propose_note` (Claude Code), it then admits the finding through that tool under the human's grant. " +
+        "On a Claude Code plugin install, the Orchestrator then admits the finding through `propose_note` under the human's grant. " +
         "The note carries the role's name as `by`, the `human:<name>` stamp and the role's `claim` in `supersedes`. " +
-        "Where no hook exists, that finding cannot be admitted. " +
+        "Where no hook exists, as on a standalone Claude Code install, that finding cannot be admitted. " +
         "The record there is the role's `claim` with `confidence: UNKNOWN - verify`. " +
         "The Orchestrator's `decision` note names the human (residual R-41-11).",
     );
@@ -1293,5 +1298,69 @@ describe("the supersession rules carry their limits (plan 41-24; WR-15, D-43)", 
         "On rejection the Tech Lead applies the move the human names, or else hands the ticket back to fix it within the current requirement and rules.",
     );
     expect(CONFIG).not.toContain("On approval it hands");
+  });
+});
+
+// Plan 41-26 fixes the four text-only review findings Olger sent to one override round past the gap-round cap
+// (41-UAT.md test 9, Olger, 2026-11-12; recorded as D-45). The text changes only: no program code moves.
+describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN-19, IN-20, D-45)", () => {
+  const CHANGELOG = readFileSync(join(ROOT, "CHANGELOG.md"), "utf8");
+  const flat = (text: string): string => text.replace(/\s+/g, " ");
+
+  // WR-18: the admission server and the hook ship only in the plugin. install/install.ts writes neither, so a
+  // standalone Claude Code install has no route, like the other hosts.
+  it("step 3 of Workflow 16 scopes the route to a plugin install and says a standalone install has no hook (WR-18)", () => {
+    expect(step(WF16, 3)).toContain(
+      "The Orchestrator admits it through `propose_note` under the human's grant on a Claude Code plugin install. " +
+        "Under `human_admission: off`, and on a host with no hook, nothing retires one. " +
+        "A standalone Claude Code install has no hook, like the other hosts.",
+    );
+  });
+
+  it("step 3 of Workflow 16 scopes the STRUCTURED tool to a plugin install (WR-18)", () => {
+    expect(step(WF16, 3)).toContain(
+      "On a Claude Code plugin install the Orchestrator also holds the STRUCTURED tool " +
+        "`mcp__plugin_grugops_grugops__propose_note`, and a spawned role does not.",
+    );
+  });
+
+  it("the third admission outcome asks the human, admits on a plugin install, then names where no hook exists (WR-18)", () => {
+    const steps = section(WF16, "Steps");
+    const ask = steps.indexOf("The Orchestrator then asks the human once.");
+    const route = steps.indexOf(
+      "On a Claude Code plugin install, the Orchestrator then admits the finding through `propose_note` under the human's grant.",
+    );
+    const supersedes = steps.indexOf("the `human:<name>` stamp and the role's `claim` in `supersedes`.");
+    const noHook = steps.indexOf("Where no hook exists, as on a standalone Claude Code install, that finding cannot be admitted.");
+    expect(ask, "no ask sentence").toBeGreaterThanOrEqual(0);
+    expect(route, "the route sentence does not follow the ask").toBeGreaterThan(ask);
+    expect(supersedes, "the supersedes sentence does not follow the route").toBeGreaterThan(route);
+    expect(noHook, "the no-hook sentence does not follow the supersedes sentence").toBeGreaterThan(supersedes);
+  });
+
+  it("the note contract and both changelog bullets scope the route to a plugin install (WR-18)", () => {
+    expect(flat(NOTE_CONTRACT)).toContain(
+      "That disposition is a `finding` the dial gates, admitted on a Claude Code plugin install through `propose_note` under the human's grant.",
+    );
+    expect(flat(CHANGELOG)).toContain(
+      "and on a Claude Code plugin install it admits the finding through `propose_note` under the human's grant",
+    );
+    expect(flat(CHANGELOG)).toContain(
+      "admitted on a Claude Code plugin install through `propose_note`; under `off`, and on a host with no hook, nothing retires one.",
+    );
+  });
+
+  it("no route sentence of Workflow 16, the note contract or the changelog keeps a bare Claude Code claim (WR-18)", () => {
+    for (const text of [WF16, flat(NOTE_CONTRACT), flat(CHANGELOG)]) {
+      for (const old of [
+        "under the human's grant on Claude Code.",
+        "Where the Orchestrator holds `propose_note` (Claude Code), it then admits",
+        "On Claude Code the Orchestrator also holds the STRUCTURED tool",
+        "admitted on Claude Code through `propose_note`",
+        "and on Claude Code it admits the finding",
+      ]) {
+        expect(text, old).not.toContain(old);
+      }
+    }
   });
 });
