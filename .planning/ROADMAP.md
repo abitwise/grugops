@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 24/24 plans executed (18 gap-closure plans, 41-07 to 41-24, planned)
+**Plans**: 24/25 plans executed (19 gap-closure plans, 41-07 to 41-25, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -666,6 +666,11 @@ Gap wave 5 *(blocked on gap wave 4; holds a blocking human decision)*
 
 Gap wave 6 *(blocked on gap wave 5)*
 - [x] 41-24-PLAN.md — the supersession and home-directory texts carry their limits, the config reference names the Tech Lead, the 22 rows are recorded fixed, and the phase gate runs by name (WR-15, IN-14, WR-08; RUN-02, RUN-05, RUN-06)
+
+**Gap closure, round 5** *(from 41-SECURITY.md, audit of 2026-11-12: T-41-100, the human's option (a) ruling; holds a blocking human acceptance)*
+
+Gap wave 7 *(blocked on gap wave 6)*
+- [ ] 41-25-PLAN.md — a host repository with only a scripted install has no gate stamp, and a Claude Code plugin install counts as a host that carries the verdict verb, so a stamp there is no proof that a gate ran: a `LIMIT (R-41-10)` case pins the route, five texts say so, and a named human accepts the limit for an Accepted Risks Log row (T-41-100; RUN-04, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
