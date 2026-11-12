@@ -1,4 +1,4 @@
-<!-- GENERATED — do not hand-edit. Re-run: node scripts/context-io.js render <task> -->
+<!-- GENERATED — do not hand-edit. Rendered by the note writer from the notes/ folder. -->
 # Context: abc-104-implement
 
 ## Current state

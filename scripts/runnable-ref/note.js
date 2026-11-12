@@ -65,7 +65,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:f90d6a9c83df99f130e7b352ce004945318c86844b690a3c4d33ca043e0c3765";
+export const RUNNABLE_SET_STAMP = "sha256:af033222a53639c1626fd08616175640b6a2154dfdf4af35049df45269273eed";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
 export const RUNNABLE_SELF = "note.js";
 // from install/state-layout.ts
@@ -1812,7 +1812,7 @@ export function render(task, contextRoot = DEFAULT_CONTEXT_ROOT) {
     atomicWrite(join(taskDir, "index.jsonl"), jsonlLines.join("\n"));
     // ── index.md: generated header + title + current-state table + history table. ──
     const md = [];
-    md.push("<!-- GENERATED — do not hand-edit. Re-run: node scripts/context-io.js render <task> -->");
+    md.push("<!-- GENERATED — do not hand-edit. Rendered by the note writer from the notes/ folder. -->");
     md.push(`# Context: ${cell(task)}`);
     md.push("");
     md.push("## Current state");

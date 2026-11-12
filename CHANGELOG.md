@@ -133,6 +133,12 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   `tools/grugops/package.json` with `"type": "module"` beside them; it is recorded, removed by
   uninstall, and never written over a file you already have at that path. A repository installed
   before this fix gets the file by running install again.
+- `emitVerdict` (`node scripts/context-io.js emit-verdict`) now refuses a second green verdict for one
+  gate run id and writes nothing. A retried emission used to write a second verdict for the run, and
+  every `artifact-ref` that names that run was then refused, with no commit to bind to. For a store
+  that already holds two, the refusal now says to run the gate again and name the new run.
+- `index.md` no longer opens with a command a host cannot run. Its banner now says the note writer
+  renders it from the `notes/` folder.
 
 ### Security
 
@@ -146,7 +152,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - `tools/grugops/note.js --by` refuses every spelling the severity check reads as an adapter name,
   such as one that carries a zero-width character or a full-width letter. Pass the role file's name.
 - A note can no longer supersede a green gate verdict or a finding the `human_admission` dial gates,
-  and only a named human's disposition retires one.
+  and only a named human's disposition retires one. That disposition is a finding the dial gates,
+  admitted on Claude Code through `propose_note`; under `off`, and on a host with no hook, nothing
+  retires one.
 - A note whose `supersedes` target is in the store and cannot be read is refused at every dial.
 
 ### Deprecated

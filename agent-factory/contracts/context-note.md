@@ -41,6 +41,8 @@ note whose `supersedes` field names the earlier note's id (see below) — the ea
 stays in `notes/` as part of the permanent audit trail.
 A green gate verdict and a finding the `human_admission` dial gates are the exception:
 only a named human's disposition retires one.
+That disposition is a `finding` the dial gates, admitted on Claude Code through `propose_note`
+under the human's grant. Under `off`, and on a host with no hook, nothing retires one.
 
 ## Note identity
 

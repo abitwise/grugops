@@ -4255,7 +4255,7 @@ export function render(task, contextRoot = DEFAULT_CONTEXT_ROOT) {
     atomicWrite(join(taskDir, "index.jsonl"), jsonlLines.join("\n"));
     // ── index.md: generated header + title + current-state table + history table. ──
     const md = [];
-    md.push("<!-- GENERATED — do not hand-edit. Re-run: node scripts/context-io.js render <task> -->");
+    md.push("<!-- GENERATED — do not hand-edit. Rendered by the note writer from the notes/ folder. -->");
     md.push(`# Context: ${cell(task)}`);
     md.push("");
     md.push("## Current state");

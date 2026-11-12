@@ -780,10 +780,14 @@ describe("the kit says what a note cannot supersede (plan 41-16; CR-02, RUN-05, 
 
   // The human flagged the first sentence at Task 1's check: under `narrow` a target that names no note
   // is admitted, and that note can still retire a governed finding that arrives later (D-37, R-41-09).
-  it("says, straight after the rule, what a target that names no note leaves open", () => {
+  // Plan 41-20 (WR-14, D-42) put the sentences on the route that retires one between the rule and this one.
+  it("says, straight after the rule and its route, what a target that names no note leaves open", () => {
     expect(step(WF16, 3)).toContain(
       "A note cannot supersede a green gate verdict or a gated finding. " +
-        "Only a named human's disposition retires one. " +
+        "Only a named human's disposition retires one. ",
+    );
+    expect(step(WF16, 3)).toContain(
+      "Run the gate again and name the new run. " +
         "A target that names no note is still admitted, and residual R-41-09 records what that leaves open. " +
         "A target in the store that cannot be read is refused.",
     );
@@ -866,7 +870,8 @@ describe("the kit says which route retires a verdict or a gated finding (plan 41
   it("step 3 names the disposition that retires one, straight after that sentence (WR-14)", () => {
     expect(step(WF16, 3)).toContain(
       "Only a named human's disposition retires one. " +
-        "That disposition is a `finding` the dial gates, which the Orchestrator admits through `propose_note` under the human's grant on Claude Code.",
+        "That disposition is a `finding` the dial gates. " +
+        "The Orchestrator admits it through `propose_note` under the human's grant on Claude Code.",
     );
   });
 
@@ -880,7 +885,8 @@ describe("the kit says which route retires a verdict or a gated finding (plan 41
 
   it("step 3 names the route out of a store that already holds two (WR-14)", () => {
     expect(step(WF16, 3)).toContain(
-      "A store that already holds two for one run refuses every `artifact-ref` that names the run: run the gate again and name the new run.",
+      "A store that already holds two for one run refuses every `artifact-ref` that names the run. " +
+        "Run the gate again and name the new run.",
     );
   });
 

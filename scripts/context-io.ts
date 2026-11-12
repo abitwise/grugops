@@ -4832,7 +4832,7 @@ export function render(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT)
 
   // ── index.md: generated header + title + current-state table + history table. ──
   const md: string[] = [];
-  md.push("<!-- GENERATED — do not hand-edit. Re-run: node scripts/context-io.js render <task> -->");
+  md.push("<!-- GENERATED — do not hand-edit. Rendered by the note writer from the notes/ folder. -->");
   md.push(`# Context: ${cell(task)}`);
   md.push("");
   md.push("## Current state");
