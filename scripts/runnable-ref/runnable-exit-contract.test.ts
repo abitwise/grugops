@@ -437,6 +437,22 @@ describe("EXIT-1: note.js, an unexpected throw past every inner catch is exit 2,
     expect(r.stderr).toContain("index.md and index.jsonl were not rendered.");
     expect(r.stderr).not.toContain("No note was written.");
   });
+
+  // Plan 41-22 (WR-12, D-42; 41-UAT.md test 7, Olger, 2026-11-11): `read` is a command of note.js, so it gets a row.
+  it("read: a throw at its output is exit 2 with nothing on stdout, names no note, and writes nothing", () => {
+    const root = noteRepo();
+    plant(root, CONTEXT_REL, "t1", "n1", []);
+    const before = treeDigest(root);
+    const r = runFaulted(HOST.note, ["read", "t1"], STDOUT_THROW, {
+      scratch: mkTmp("grugops-exit-contract-fault-"),
+      cwd: root,
+      env: NO_AMBIENT_ROOT,
+    });
+    expectStopped("note", r);
+    expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
+    expect(r.stderr).not.toContain("stands");
+    expect(treeDigest(root)).toEqual(before);
+  });
 });
 
 describe("EXIT-1: a failing follow-up read after a symbolic link or a created directory is exit 2 by name", () => {

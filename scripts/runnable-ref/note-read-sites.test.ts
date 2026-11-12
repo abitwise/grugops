@@ -52,7 +52,21 @@ import { CONTEXT_REL, GRUGOPS_DIR_REL } from "../../install/state-layout.js";
 // PROOF_MODES. note.js now asks the root-chain owner about the ledger file before the write, and that call's stat and
 // realpath read only a ledger that exists, so a mode with a ledger in place is the one that reaches them. It is judged
 // by THE RULE like every mode here, and still runs for the SECOND_SOURCE rows that name it.
-const MODES = ["observation", "retained", "gate-finding", "body-file", "delivered", "ambient", "home", "supersede", "ledger-present"] as const;
+// 2026-11-12, plan 41-22 (WR-12, D-42; 41-UAT.md test 7, Olger, 2026-11-11): "read" joined. `note.js read` reaches the
+// note walk through runRead, so its new pairs are reached here and judged by THE RULE, and every pair that fires in it
+// must end exit 2, because a failed read of the context never prints a partial state.
+const MODES = [
+  "observation",
+  "retained",
+  "gate-finding",
+  "body-file",
+  "delivered",
+  "ambient",
+  "home",
+  "supersede",
+  "ledger-present",
+  "read",
+] as const;
 type Mode = (typeof MODES)[number];
 
 /**
@@ -114,8 +128,16 @@ const OPEN_ANSWERS = "The open that follows classifies the ledger, so a type the
 /** Every mode a row of SECOND_SOURCE can run in, for a row every run reaches. */
 const EVERY_RUN: readonly AnyMode[] = [...MODES, ...PROOF_MODES];
 
-/** Every mode with no delivered or ambient root, so the run reads the working directory. */
-const EVERY_WALK: readonly AnyMode[] = EVERY_RUN.filter((m) => !["delivered", "ambient", "governed-ambient", "governed-delivered"].includes(m));
+/**
+ * Every mode that runs `add`, the one verb that asks the governance root ladder.
+ * 2026-11-12, plan 41-22 (WR-12, D-42; 41-UAT.md test 7, Olger, 2026-11-11): the rows of the ladder's own rungs moved
+ * from EVERY_RUN to this list, because `read` asks no governance root, so the ladder's reads are never reached there.
+ * The rung reads at module load stay on EVERY_RUN, because `read` loads the module too. No row was added or removed.
+ */
+const EVERY_ADD: readonly AnyMode[] = EVERY_RUN.filter((m) => m !== "read");
+
+/** Every `add` mode with no delivered or ambient root, so the run reads the working directory. */
+const EVERY_WALK: readonly AnyMode[] = EVERY_ADD.filter((m) => !["delivered", "ambient", "governed-ambient", "governed-delivered"].includes(m));
 
 /**
  * A (site, via) pair whose failed read changes nothing, because a designed second source gives the same answer, with
@@ -128,7 +150,7 @@ const SECOND_SOURCE: ReadonlyMap<string, { readonly why: string; readonly modes:
   ["canonicalDirectoryPath:realpathSync.native#0 via <top>#0", { why: RUNG_TWO, modes: EVERY_RUN }],
   ["canonicalDirectoryPath:realpathSync#0 via <top>#0", { why: RUNG_THREE, modes: EVERY_RUN }],
   ["canonicalDirectoryPath:realpathSync.native#0 via canonicalWorkingDirectory#0", { why: RUNG_TWO, modes: EVERY_WALK }],
-  ["canonicalDirectoryPath:realpathSync.native#0 via homeBoundary#0", { why: RUNG_TWO, modes: EVERY_RUN }],
+  ["canonicalDirectoryPath:realpathSync.native#0 via homeBoundary#0", { why: RUNG_TWO, modes: EVERY_ADD }],
   ["canonicalDirectoryPath:realpathSync.native#0 via homeConfigPositionIsProjectOwned#0", { why: RUNG_TWO, modes: ["home", "governed-home"] }],
   ["canonicalDirectoryPath:realpathSync.native#0 via hostDeliveredRoot#0", { why: RUNG_TWO, modes: ["delivered", "governed-delivered"] }],
   ["canonicalDirectoryPath:realpathSync.native#0 via hostDeliveredRoot#1", { why: RUNG_TWO, modes: ["delivered", "governed-delivered"] }],
@@ -294,6 +316,7 @@ const MODE_SPEC: Record<AnyMode, ModeSpec> = {
   "governed-delivered": { fixture: LEAN, args: DIAL_REFUSES, env: () => ({ ...BLANK, GRUGOPS_HOST_DELIVERED_ROOT: GOVERNED }) },
   "ledger-present": { fixture: ledgerTemplate((ledger) => writeFileSync(ledger, '{"id":"earlier"}\n')), args: OBSERVATION, env: () => BLANK },
   "ledger-directory": { fixture: ledgerTemplate((ledger) => mkdirSync(ledger)), args: OBSERVATION, env: () => BLANK, reasonNamesTheArm: true },
+  read: { fixture: template("{}\n", true, false), args: ["read", "t1"], env: () => BLANK },
   "no-dial": { fixture: LEAN, args: DIAL_REFUSES, env: () => BLANK },
   "other-body": { fixture: LEAN, args: OTHER_BODY, env: () => BLANK },
 };
@@ -502,8 +525,13 @@ describe("READ-1 on note.js: every derived pair, failed, never reports a note (p
           continue;
         }
         fired.push(mode);
-        if (second === undefined) assertReadRule(run);
-        else assertSameAsUnfaulted(run, mode);
+        if (second !== undefined) {
+          assertSameAsUnfaulted(run, mode);
+          continue;
+        }
+        // Plan 41-22 (WR-12, D-42): `read` judges no note, so it has no exit 1. A failed read is exit 2.
+        if (mode === "read") expect(run.r.status, `a failed read of the context did not end exit 2: ${run.all}`).toBe(2);
+        assertReadRule(run);
       }
       if (second !== undefined) {
         for (const mode of PROOF_MODES) {
