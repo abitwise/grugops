@@ -185,6 +185,13 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   after a retirement, and a note file that was renamed and cannot be read.
 - `tools/grugops/note.js` refuses a symbolic link at `.grugops/audit` or at its ledger file, so the
   admission ledger cannot be sent outside the repository.
+- Workflow 16 and the note contract no longer say the per-call `admission-guard` hook makes a
+  `human:<name>` stamp un-forgeable on any Claude Code install. The hook and `propose_note` exist
+  only on a Claude Code plugin install, and Workflow 04 and the install guide now say so too. The
+  attended browser lane, in Workflow 06 and the browser UAT recipe, now says the witnessing human's
+  name is bound to the human only on a Claude Code plugin install. On every other install, a
+  standalone Claude Code install included, nothing binds a `human:<name>` stamp to a human
+  (residual R-41-06).
 
 ### Deprecated
 

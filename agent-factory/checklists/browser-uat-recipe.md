@@ -451,9 +451,11 @@ lane is attended by definition and is structurally unable to produce a gate stam
 
 - The lane's only outputs are a human-stamped `finding` and an `artifact-ref` describing what a
   named person witnessed. Nothing in the lane reaches the gate's verdict emitter.
-- The witnessing human's name arrives only through the existing admission grant,
-  `GRUGOPS_ADMISSION_APPROVED_BY`, read by the `admission-guard` hook. The agent can never author
-  the name, and there is no lane-specific variable.
+- The witnessing human's name is bound to the human only on a Claude Code plugin install. There
+  the `admission-guard` hook checks each note sent through `propose_note` that the `human_admission`
+  dial gates. It matches the note's `human:<name>` stamp against the existing admission grant,
+  `GRUGOPS_ADMISSION_APPROVED_BY`. Everywhere else, a standalone Claude Code install included,
+  nothing binds the name to the human (residual R-41-06). There is no lane-specific variable.
 - The lane runs in the main thread rather than in a spawned subagent. Loading browser tools costs
   context permanently, and an attended lane has a human present in the main thread anyway.
 - Whether the Chrome tools are reachable from inside a spawned subagent is `UNKNOWN - verify`.

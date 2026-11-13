@@ -1934,12 +1934,13 @@ release on its own; a human invokes it.
 
 ### What changed: the Bash command guard is retired
 
-Earlier releases shipped a Claude Code hook that tried to recognise production deploys from the
-text of a Bash command. It was retired by 33.1 D-17, because no parser of shell text could be
-closed: each round of fixes left other ways to write the same command. Mechanical enforcement now
-means the git host plus the ask rules above, and grugops makes no promise that depends on reading
-shell text. The one hook grugops still ships is the MCP admission gate for the shared verified
-context, which checks structured tool calls, not shell text.
+Earlier releases shipped a Claude Code hook that tried to recognise production deploys from the text
+of a Bash command. It was retired by 33.1 D-17, because no parser of shell text could be closed:
+each round of fixes left other ways to write the same command. Mechanical enforcement now means the
+git host plus the ask rules above, and grugops makes no promise that depends on reading shell text.
+The one hook grugops still ships is the MCP admission gate for the shared verified context, which
+checks structured tool calls, not shell text. Only a Claude Code plugin install loads that hook.
+`install.js` writes no hook and no MCP server, so a standalone Claude Code install has neither.
 
 ### Other tools (documentation only)
 
