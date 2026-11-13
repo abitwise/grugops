@@ -216,6 +216,7 @@ None - plan executed exactly as written. Two notes on order and form, not on con
 
 - Task 3's records were committed before the full suite finished, rather than after it, so that the suite's uncommitted-path case would not see them; the suite had started after Tasks 1 and 2 were committed, as the plan requires.
 - The Workflow 06 case keeps plan 41-27's explanatory comment and adds the plan 41-28 comment beneath it.
+- REQUIREMENTS.md is not changed. `requirements.mark-complete RUN-04 RUN-05` flipped both to Complete while phase 41 still waits on re-verification; commit `f9a2c2c1` already reverted such a premature Complete once, and plan 41-27 left the file alone. The edit was restored, so `/gsd-verify-work` decides RUN-04 and RUN-05. `requirements-completed` above still copies the plan's `requirements` field, as the template asks.
 
 **Total deviations:** 0 auto-fixed. **Impact on plan:** none.
 

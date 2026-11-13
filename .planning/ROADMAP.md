@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 27/28 plans executed (22 gap-closure plans, 41-07 to 41-28, planned)
+**Plans**: 28/28 plans executed (22 gap-closure plans, 41-07 to 41-28, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -685,7 +685,7 @@ Gap wave 9 *(blocked on gap wave 8)*
 **Gap closure, round 8, past the gap-round cap** *(from 41-UAT.md test 10: Olger's "fix first" ruling of 2026-11-13 on CR-01, WR-01 and WR-02 of the 41-REVIEW.md of 2026-11-13; text, the CHANGELOG, one test file and records, no program code change)*
 
 Gap wave 10 *(blocked on gap wave 9)*
-- [ ] 41-28-PLAN.md — Workflow 06, the browser UAT recipe and the CHANGELOG state that the witness's name is bound only for a finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates, and that the default `off` gates none; the install guide names no Claude Code hook on a scripted install; the route scan is rebuilt to fail on every shape the review tried; CR-01, WR-01 and WR-02 are recorded fixed (G-41-10-CR-01, G-41-10-WR-01, G-41-10-WR-02; RUN-04, RUN-05)
+- [x] 41-28-PLAN.md — Workflow 06, the browser UAT recipe and the CHANGELOG state that the witness's name is bound only for a finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates, and that the default `off` gates none; the install guide names no Claude Code hook on a scripted install; the route scan is rebuilt to fail on every shape the review tried; CR-01, WR-01 and WR-02 are recorded fixed (G-41-10-CR-01, G-41-10-WR-01, G-41-10-WR-02; RUN-04, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
@@ -735,7 +735,7 @@ Gap wave 10 *(blocked on gap wave 9)*
 | 38. install --migrate v3 | v3.0 | 11/11 | Complete    | 2026-10-28 |
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
-| 41. Orchestrator flow guidance | v3.0 | 26/26 | In Progress | - |
+| 41. Orchestrator flow guidance | v3.0 | 28/28 | In Progress | - |
 | 42. Skills per role and evaluation | v3.0 | 0/TBD | Not started | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
