@@ -1446,6 +1446,55 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
     }
   });
 
+  // WR-18 under D-45, plan 41-27: the attended lane said the agent can never author the witness's name. The hook that
+  // reads the grant loads only on a Claude Code plugin install, and checks only a note the dial gates
+  // (hooks/admission-guard.ts); elsewhere nothing binds the name (residual R-41-06).
+  it("the attended Chrome lane of Workflow 06 binds the witness's name only on a plugin install (WR-18, D-45; plan 41-27)", () => {
+    const lane = flat(
+      section(readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8"), "The attended Chrome lane"),
+    );
+    const bound = lane.indexOf(
+      "Only a Claude Code plugin install binds the witnessing human's name to the human, through the admission grant the `admission-guard` hook reads.",
+    );
+    const elsewhere = lane.indexOf("Elsewhere, a standalone Claude Code install included, nothing binds it (residual R-41-06).");
+    expect(bound, "no binding sentence").toBeGreaterThanOrEqual(0);
+    expect(elsewhere, "the elsewhere sentence does not follow the binding sentence").toBeGreaterThan(bound);
+    expect(lane).not.toContain("the agent can never author it");
+    expect(lane).not.toContain("a separate process reads");
+  });
+
+  it("the attended Chrome lane of the recipe binds the witness's name only on a plugin install and a gated note (WR-18, D-45; plan 41-27)", () => {
+    const lane = flat(
+      section(readFileSync(join(ROOT, "agent-factory/checklists/browser-uat-recipe.md"), "utf8"), "The attended Chrome lane"),
+    );
+    expect(lane).toContain(
+      "The witnessing human's name is bound to the human only on a Claude Code plugin install. " +
+        "There the `admission-guard` hook checks each note sent through `propose_note` that the `human_admission` dial gates. " +
+        "It matches the note's `human:<name>` stamp against the existing admission grant, `GRUGOPS_ADMISSION_APPROVED_BY`. " +
+        "Everywhere else, a standalone Claude Code install included, nothing binds the name to the human (residual R-41-06). " +
+        "There is no lane-specific variable.",
+    );
+    expect(lane).not.toContain("The agent can never author");
+    expect(lane).not.toContain("read by the `admission-guard` hook");
+  });
+
+  it("the install guide says only a plugin install loads the admission hook (WR-18, D-45; plan 41-27)", () => {
+    expect(flat(readFileSync(join(ROOT, "install/README.md"), "utf8"))).toContain(
+      "The one hook grugops still ships is the MCP admission gate for the shared verified context, which checks structured tool calls, not shell text. " +
+        "Only a Claude Code plugin install loads that hook. " +
+        "`install.js` writes no hook and no MCP server, so a standalone Claude Code install has neither.",
+    );
+  });
+
+  it("the changelog Security bullet records the scoped hook and the scoped witness name (CR-01, WR-18; plan 41-27)", () => {
+    expect(flat(CHANGELOG)).toContain(
+      "- Workflow 16 and the note contract no longer say the per-call `admission-guard` hook makes a `human:<name>` stamp un-forgeable on any Claude Code install.",
+    );
+    expect(flat(CHANGELOG)).toContain(
+      "The attended browser lane, in Workflow 06 and the browser UAT recipe, now says the witnessing human's name is bound to the human only on a Claude Code plugin install.",
+    );
+  });
+
   // WR-19: the sweep prints `kept <task>` when a newer pending copy stands. A re-spawn of that claim would finish the stale
   // copy and strand the newer subtask, so the stop comes first and forbids the re-spawn.
   const sessionStep3 = (): string => {
