@@ -1179,7 +1179,9 @@ describe("WF04 escalation path (TIER-04; D-18, D-19, D-20, D-21)", () => {
     expect(s15).toContain("Never write that stamp without the human's answer.");
     // Plan 41-08 (D-35): a spawned Tech Lead writes this finding through `note.js`, which binds nothing.
     expect(s15).toContain("Only at `context.human_admission: all` does admission check that stamp.");
-    expect(s15).toContain("Only the Claude Code `propose_note` tool binds it to the human's session grant.");
+    // Moved by plan 41-27 under D-45 (41-REVIEW.md CR-01; WR-18): the tool is scoped to a Claude Code plugin install.
+    expect(s15).toContain("Only the `propose_note` tool of a Claude Code plugin install binds it to the human's session grant.");
+    expect(s15).not.toContain("Only the Claude Code `propose_note` tool");
     expect(s15).toContain("`tools/grugops/note.js` does not bind it.");
     expect(s15).toContain("At the default `off` it is a prose-tier record.");
     // The human stop stays tagged only in `## Stop conditions`; no step carries a checkpoint tag.
@@ -1718,7 +1720,8 @@ describe("WF04 asks a human once, and the answer note wakes the Tech Lead at bot
     for (const sentence of [
       "Never write that stamp without the human's answer.",
       "Only at `context.human_admission: all` does admission check that stamp.",
-      "Only the Claude Code `propose_note` tool binds it to the human's session grant.",
+      // Moved by plan 41-27 under D-45 (41-REVIEW.md CR-01; WR-18): the tool is scoped to a Claude Code plugin install.
+      "Only the `propose_note` tool of a Claude Code plugin install binds it to the human's session grant.",
       "`tools/grugops/note.js` does not bind it.",
       "At the default `off` it is a prose-tier record.",
     ]) {

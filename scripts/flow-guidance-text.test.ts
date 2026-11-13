@@ -256,9 +256,10 @@ describe("The kit text names the host note writer (plan 41-11; CR-01, RUN-02, RU
     expect(record).not.toContain("the sanctioned admission path");
   });
 
-  it("puts a spawned role on Claude Code in the weaker tier, because the writer runs outside the hook", () => {
+  it("puts a spawned role on a Claude Code plugin install in the weaker tier, because the writer runs outside the hook", () => {
+    // Moved by plan 41-27 under D-45 (41-VERIFICATION.md gap of 2026-11-12; 41-REVIEW.md CR-01): review finding WR-18.
     expect(findingBullet()).toContain(
-      "A spawned role on Claude Code gets the same two, because `tools/grugops/note.js` runs outside the hook.",
+      "A spawned role on a Claude Code plugin install gets the same two, because `tools/grugops/note.js` runs outside the hook.",
     );
   });
 
@@ -1355,7 +1356,10 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
     );
   });
 
-  it("no route sentence of Workflow 16, the note contract or the changelog keeps a bare Claude Code claim (WR-18)", () => {
+  // Plan 41-27 closes the WR-18 sites plan 41-26 left (41-VERIFICATION.md gap of 2026-11-12; 41-REVIEW.md CR-01 of
+  // 2026-11-12T21:55Z; D-45, 41-UAT.md test 9, Olger, 2026-11-12). The five phrases above missed two sentences with the
+  // same claim.
+  it("no route or hook sentence of Workflow 16, the note contract or the changelog keeps a bare Claude Code claim (WR-18; CR-01, plan 41-27)", () => {
     for (const text of [WF16, flat(NOTE_CONTRACT), flat(CHANGELOG)]) {
       for (const old of [
         "under the human's grant on Claude Code.",
@@ -1363,9 +1367,82 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
         "On Claude Code the Orchestrator also holds the STRUCTURED tool",
         "admitted on Claude Code through `propose_note`",
         "and on Claude Code it admits the finding",
+        "On Claude Code the separate PER-CALL",
+        "The non-Claude-Code host CLIs degrade",
+        "on Claude Code its un-forgeable",
+        "non-Claude-Code host CLIs degrade",
+        "Claude Code primary tier",
+        "A spawned role on Claude Code gets",
       ]) {
         expect(text, old).not.toContain(old);
       }
+    }
+  });
+
+  it("the finding bullet of step 3 scopes the per-call hook and its tier to a plugin install (CR-01, WR-18; plan 41-27)", () => {
+    const line = section(WF16, "Steps")
+      .split("\n")
+      .find((l) => l.startsWith("   - Record a `finding`"));
+    expect(line, "no finding bullet").toBeDefined();
+    const bullet = line as string;
+    expect(bullet).toContain(
+      "On a Claude Code plugin install the separate PER-CALL PreToolUse `admission-guard` hook makes the `human:<name>` signal un-forgeable.",
+    );
+    expect(bullet).toContain(
+      "The Claude Code plugin-install tier is gated by the `human_admission` dial. " +
+        "Every other install, a standalone Claude Code install included, degrades to two weaker signals. " +
+        'They get the in-script `admit()` refusal plus a prompt-level "stop, ask a named human" (D-04/D-05). ' +
+        "A spawned role on a Claude Code plugin install gets the same two, because `tools/grugops/note.js` runs outside the hook.",
+    );
+  });
+
+  it("the note contract scopes the hook's signal and its tier to a plugin install (CR-01, WR-18; plan 41-27)", () => {
+    expect(flat(NOTE_CONTRACT)).toContain(
+      "A `human:<name>` stamp is accepted structurally; on a Claude Code plugin install its un-forgeable human-set signal " +
+        "is delivered by the separate PER-CALL PreToolUse `admission-guard` hook that gates the STRUCTURED",
+    );
+    expect(flat(NOTE_CONTRACT)).toContain(
+      "That hook is the Claude Code plugin-install tier, gated by the `human_admission` dial; every other install, " +
+        "a standalone Claude Code install included, degrades to the in-script `admit()` refusal plus a prompt-level " +
+        '"stop, ask a named human," documented honestly as not mechanically un-forgeable (D-04/D-05).',
+    );
+  });
+
+  // A phrase list only refuses what it names, which is how CR-01 survived plan 41-26. This scan reads every sentence
+  // of the five files that describe the admission route, and refuses one that names Claude Code with a route token and
+  // names no install form.
+  it("no sentence of Workflows 04, 06 and 16, the note contract or the browser UAT recipe names Claude Code with a route token and no install form (CR-01, WR-18; plan 41-27)", () => {
+    const texts: Array<[string, string]> = [
+      ["agent-factory/workflows/16-context-read-write.md", WF16],
+      ["agent-factory/contracts/context-note.md", NOTE_CONTRACT],
+      ["agent-factory/workflows/04-ticket-to-pr.md", readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8")],
+      ["agent-factory/workflows/06-uat-pack.md", readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8")],
+      [
+        "agent-factory/checklists/browser-uat-recipe.md",
+        readFileSync(join(ROOT, "agent-factory/checklists/browser-uat-recipe.md"), "utf8"),
+      ],
+    ];
+    const ROUTE = /propose_note|admission-guard|un-forgeable|\bthe hook\b/;
+    const SCOPED = /plugin install|plugin-install|standalone Claude Code install/;
+    const offenders: string[] = [];
+    const routeCount = new Map<string, number>();
+    for (const [label, text] of texts) {
+      const sentences = flat(text).split(/(?<=[.;])\s+(?=[A-Z`(*])/);
+      let count = 0;
+      for (const sentence of sentences) {
+        if (!sentence.includes("Claude Code") || !ROUTE.test(sentence)) continue;
+        count += 1;
+        if (!SCOPED.test(sentence)) offenders.push(`${label}: ${sentence}`);
+      }
+      routeCount.set(label, count);
+    }
+    expect(offenders).toEqual([]);
+    for (const label of [
+      "agent-factory/workflows/16-context-read-write.md",
+      "agent-factory/contracts/context-note.md",
+      "agent-factory/workflows/04-ticket-to-pr.md",
+    ]) {
+      expect(routeCount.get(label), `no route sentence in ${label}`).toBeGreaterThan(0);
     }
   });
 
