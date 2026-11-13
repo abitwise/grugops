@@ -3,7 +3,7 @@ status: complete
 phase: 41-orchestrator-flow-guidance
 source: [41-VERIFICATION.md]
 started: 2026-11-08T18:57:45Z
-updated: 2026-11-13T16:26:35.022Z
+updated: 2026-11-13T21:18:46.137Z
 ---
 
 ## Current Test
@@ -80,12 +80,29 @@ result: issue
 reported: "Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
 severity: major
 note: Diagnosis is taken from 41-REVIEW.md (2026-11-13), which gives each finding's cause and fix with file and line; CR-01 was confirmed in code this session (isGatedNote returns false at human_admission off, scripts/context-io.ts; hooks/admission-guard.ts allows every ungated note). No debug agents were spawned. IN-01 to IN-04 of the same review stay open and were not ruled.
+retest: "2026-11-13, verify-work resume (last fixes only): G-41-10-CR-01, WR-01 and WR-02 reconciled as resolved by executed plan 41-28 (plan window 98077952..556100cb, 5 commits, all ancestors of HEAD). Checked at HEAD by Claude: Workflow 06 line 37, the CHANGELOG Security bullet (lines 188-197) and the recipe (lines 454-461) state the plugin-install, propose_note and dial conditions and say the default off binds nothing; install/README.md lines 459-461 name no hook for note.js; scripts/flow-guidance-text.test.ts passes 164/164. The 2026-11-13T19:23Z incremental review of plan 41-28 raised WR-01 to WR-03 and IN-01 to IN-07 (test 11); the 17 pending rows of 41-28.md are test 12."
+
+### 11. Rule WR-01, WR-02 and WR-03 and IN-01 to IN-07 of the 2026-11-13T19:23Z review of plan 41-28 (41-REVIEW.md; all 10 rows open in 41-REVIEW-DISPOSITION.md)
+expected: Each finding fixed, accepted or sent to a later phase by a named human
+why_human: From 41-VERIFICATION.md (2026-11-13T19:45Z) human item 1. WR-01 asks whether Workflow 06 and the CHANGELOG overstate a control at high-severity (a governance wording ruling); WR-02 asks whether the weaker route scan is acceptable. No agent may accept either.
+result: issue
+reported: "pass (clarified: Adopt suggestion) — fix WR-01 now as one more override round (add the high-severity sentence to Workflow 06 and the CHANGELOG, pin it); defer WR-02, WR-03 and IN-01 to IN-07 to a later phase, Olger"
+severity: major
+note: "Checked by Claude 2026-11-13: WR-01 holds as stated. Workflow 06 line 37 and the CHANGELOG bullet stop at the default-off sentence; only the recipe (lines 458-459) names the high-severity role condition. WR-02 was confirmed by the verifier from the code (R4 is block-wide, DENIES_ROUTE masks the whole sentence, NEGATED_FORM knows only without/not). Today's text passes honestly; the gap is in the guard, not the tree."
+ruling: "Olger replied 'pass', then on the follow-up question chose 'Adopt suggestion' (2026-11-13). One override round past the gap-round cap for WR-01 only (gap G-41-11-WR-01 below). WR-02, WR-03 and IN-01 to IN-07 are deferred to a later phase (disposition deferred in 41-REVIEW-DISPOSITION.md, listed under Deferred Follow-Ups). Diagnosis is taken from 41-REVIEW.md (2026-11-13T19:23Z), which gives the cause and fix with file and line; no debug agents were spawned."
+
+### 12. Rule the 15 pending (named human) rows of docs/audit/29-style-dispositions/41-28.md
+expected: Each row accepted or sent back by a named human
+why_human: From 41-VERIFICATION.md (2026-11-13T19:45Z) human item 4. The diff-disposition gate proves each changed clause has a row; it cannot prove the disposition is right, and no agent may write accepted.
+result: pass
+note: "Counted by Claude 2026-11-13: the Dispositions table holds 15 rows (Workflow 06 line 37 x4, recipe x5, CHANGELOG x5, install/README.md x1); the verifier's 17 counted two prose mentions of the phrase. Spot-checked the rows' code claims: HIGH_SEVERITY_ROLES (scripts/context-io.ts:4305) is security-nfr, architect-design, release-manager; isGatedNote returns false for any kind but finding; factory.config.md line 94 ships human_admission off; hooks/admission-guard.ts imports isGatedNote and calls allow() for an ungated note."
+ruling: "Olger replied 'pass' (2026-11-13): all 15 rows accepted. Written back: each row in docs/audit/29-style-dispositions/41-28.md now reads 'accepted by Olger (41-UAT test 12, 2026-11-13)'."
 
 ## Summary
 
-total: 10
-passed: 5
-issues: 3
+total: 12
+passed: 6
+issues: 4
 pending: 0
 skipped: 2
 blocked: 0
@@ -578,7 +595,9 @@ blocked: 0
 
 - gap_id: G-41-10-CR-01
   truth: "At the default human_admission off, no kit text says a Claude Code plugin install binds the witnessing human's name; Workflow 06 and the CHANGELOG state the dial condition"
-  status: failed
+  status: resolved
+  resolved_by: 41-28-PLAN.md
+  resolved_at: 2026-11-13
   reason: "User reported: Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
   severity: major
   test: 10
@@ -598,7 +617,9 @@ blocked: 0
 
 - gap_id: G-41-10-WR-01
   truth: "install/README.md puts no Claude Code hook on the scripted install"
-  status: failed
+  status: resolved
+  resolved_by: 41-28-PLAN.md
+  resolved_at: 2026-11-13
   reason: "User reported: Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
   severity: major
   test: 10
@@ -612,7 +633,9 @@ blocked: 0
 
 - gap_id: G-41-10-WR-02
   truth: "The 'no unscoped sentence' scan in flow-guidance-text.test.ts fails on the shapes it was written for"
-  status: failed
+  status: resolved
+  resolved_by: 41-28-PLAN.md
+  resolved_at: 2026-11-13
   reason: "User reported: Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
   severity: major
   test: 10
@@ -622,6 +645,24 @@ blocked: 0
       issue: "WR-02"
   missing:
     - "Apply the fix in 41-REVIEW.md (2026-11-13) section WR-02: split on bullet markers too, widen the route tokens, refuse a standalone install named as having the hook, cover install/README.md, Workflow 06 and the recipe, and add red cases that prove the scan can fail"
+  debug_session: "41-REVIEW.md"
+
+- gap_id: G-41-11-WR-01
+  truth: "Workflow 06 and the CHANGELOG Security bullet state that at high-severity the dial gates only a finding by security-nfr, architect-design or release-manager, so a reader at high-severity is not led to think the witness finding is checked"
+  status: failed
+  reason: "User reported: pass (clarified: Adopt suggestion) — fix WR-01 now as one more override round (add the high-severity sentence to Workflow 06 and the CHANGELOG, pin it); defer WR-02, WR-03 and IN-01 to IN-07 to a later phase, Olger"
+  severity: major
+  test: 11
+  root_cause: "agent-factory/workflows/06-uat-pack.md:37 and CHANGELOG.md:192-194 stop at 'At the default off the dial gates no note'. At high-severity isGatedNote (scripts/context-io.ts:6741, :4305) gates only a finding whose by is security-nfr, architect-design or release-manager; the Orchestrator writes the witness finding, so the hook normally allows it unchecked. Only the recipe (browser-uat-recipe.md:458-459) says so, and neither Workflow 06's pointer nor the CHANGELOG sends the reader there."
+  artifacts:
+    - path: "agent-factory/workflows/06-uat-pack.md:37"
+      issue: "WR-01"
+    - path: "CHANGELOG.md:192-194"
+      issue: "WR-01"
+    - path: "scripts/flow-guidance-text.test.ts"
+      issue: "WR-01 (pin the new sentence in both files)"
+  missing:
+    - "Apply the fix in 41-REVIEW.md (2026-11-13T19:23Z) section WR-01: add 'At `high-severity` it gates only a finding by `security-nfr`, `architect-design` or `release-manager`.' after the default-off sentence in Workflow 06 and its twin in the CHANGELOG bullet, and pin both (text only; no code change)"
   debug_session: "41-REVIEW.md"
 
 ## Deferred Follow-Ups
@@ -648,3 +689,31 @@ blocked: 0
 - test: 9
   idea: "Review finding IN-18 (41-REVIEW.md, 2026-11-12): deferred to a later phase by Olger"
   deferred_at: 2026-11-12
+
+- test: 11
+  idea: "Review finding WR-02 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding WR-03 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding IN-01 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding IN-02 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding IN-03 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding IN-04 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding IN-05 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding IN-06 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
+- test: 11
+  idea: "Review finding IN-07 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
+  deferred_at: 2026-11-13
