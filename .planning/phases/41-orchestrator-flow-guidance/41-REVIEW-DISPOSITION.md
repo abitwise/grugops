@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "WR-18 is recorded fixed, but Workflow 16 and the note contract still tell a standalone Claude Code install the hook protects its `human:<name>` stamp"
   - id: WR-01
     severity: warning
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 9
+open: 8
 total: 42
 recorded: 2026-11-12T21:56:37.300Z
 ---
@@ -180,7 +180,7 @@ recorded: 2026-11-12T21:56:37.300Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
+| CR-01 | critical | fixed | 41-27 |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
@@ -191,7 +191,7 @@ recorded: 2026-11-12T21:56:37.300Z
 | IN-05 | info | open | - |
 | WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
-| WR-18 | warning | fixed | 41-26 (not in the current review) |
+| WR-18 | warning | fixed | 41-26, 41-27 (not in the current review) |
 | WR-19 | warning | fixed | 41-26 (not in the current review) |
 | IN-16 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | IN-17 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
