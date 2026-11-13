@@ -1408,57 +1408,209 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
     );
   });
 
-  // A phrase list only refuses what it names, which is how CR-01 survived plan 41-26. This scan reads every sentence
-  // of the five files that describe the admission route, and refuses one that names Claude Code with a route token and
-  // names no install form.
-  it("no sentence of Workflows 04, 06 and 16, the note contract or the browser UAT recipe names Claude Code with a route token and no install form (CR-01, WR-18; plan 41-27)", () => {
-    const texts: Array<[string, string]> = [
-      ["agent-factory/workflows/16-context-read-write.md", WF16],
-      ["agent-factory/contracts/context-note.md", NOTE_CONTRACT],
-      ["agent-factory/workflows/04-ticket-to-pr.md", readFileSync(join(ROOT, "agent-factory/workflows/04-ticket-to-pr.md"), "utf8")],
-      ["agent-factory/workflows/06-uat-pack.md", readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8")],
-      [
-        "agent-factory/checklists/browser-uat-recipe.md",
-        readFileSync(join(ROOT, "agent-factory/checklists/browser-uat-recipe.md"), "utf8"),
-      ],
-    ];
-    const ROUTE = /propose_note|admission-guard|un-forgeable|\bthe hook\b/;
-    const SCOPED = /plugin install|plugin-install|standalone Claude Code install/;
-    const offenders: string[] = [];
-    const routeCount = new Map<string, number>();
-    for (const [label, text] of texts) {
-      const sentences = flat(text).split(/(?<=[.;])\s+(?=[A-Z`(*])/);
-      let count = 0;
-      for (const sentence of sentences) {
-        if (!sentence.includes("Claude Code") || !ROUTE.test(sentence)) continue;
+  // Plan 41-27's scan missed seven of the eight sentences the 2026-11-13 review tried (WR-02; 41-UAT.md test 10,
+  // Olger, 2026-11-13). This scan reads every sentence of the six files that describe the admission route or the
+  // scripted install's programs. A block ends at a list marker, a heading, a table row or a blank line, and a sentence
+  // ends at every `.`, `;`, `!` or `?` outside a code span. Four rules:
+  // R1: a route sentence names Claude Code outside an install form, or names a negated install form.
+  // R2: a route sentence names a standalone Claude Code install and does not deny it the route.
+  // R3: a sentence binds a human's name, names no install form and follows no plugin-install sentence of its block.
+  // R4: a sentence binds a human's name on a plugin install, and its block never names the `human_admission` dial.
+  // Limits, stated honestly: the file list is a hand list, so a file outside it is not read. A binding claim that names
+  // no host passes R3 when an earlier sentence of its block names a plugin install; R4 still asks for the dial there.
+  const ROUTE_FILES = [
+    "agent-factory/workflows/16-context-read-write.md",
+    "agent-factory/contracts/context-note.md",
+    "agent-factory/workflows/04-ticket-to-pr.md",
+    "agent-factory/workflows/06-uat-pack.md",
+    "agent-factory/checklists/browser-uat-recipe.md",
+    "install/README.md",
+  ];
+  const BLOCK_MARKER = /^\s*([-*+]|\d+\.)\s/;
+  const routeBlocks = (text: string): string[][] => {
+    const raw: string[][] = [];
+    let current: string[] = [];
+    const close = (): void => {
+      if (current.length > 0) raw.push(current);
+      current = [];
+    };
+    for (const line of text.split("\n")) {
+      if (line.trim() === "" || BLOCK_MARKER.test(line) || /^\s*[#|]/.test(line)) close();
+      if (line.trim() !== "") current.push(line);
+    }
+    close();
+    return raw.map((lines) => {
+      const joined = flat(lines.join(" "))
+        .trim()
+        .replace(/^([-*+]|\d+\.)\s+/, "");
+      const masked = joined.replace(/`[^`]*`/g, (span) => span.replace(/\s/g, "\u0000"));
+      return masked
+        .split(/(?<=[.;!?])\s+/)
+        .map((piece) => piece.replace(/\u0000/g, " ").trim())
+        .filter((piece) => piece.length > 0);
+    });
+  };
+  const HOST_ROUTE =
+    /\bhooks?\b|propose_note|admission-guard|un-forgeable|admission grant|APPROVED_BY|\bbinds?\b|\bbound to\b|never author|primary tier|human_admission/;
+  const NAME_BINDING = /\bbinds?\b|\bbound to\b|un-forgeable|never author|admission grant|APPROVED_BY/;
+  const NAMES_A_NAME = /human:<name>|human's name|\bthe name\b|\bits name\b|\bstamp\b|human-set|named human|witness/;
+  const DENIES_ROUTE =
+    /\bno hook\b|has neither|nothing binds|binds no\b|does not bind|bound to no\b|degrades|passes no hook|outside the hook|not mechanically un-forgeable/i;
+  // A `g` pattern keeps `lastIndex` between `.test` calls, so INSTALL_FORMS is used only with `replace`.
+  const INSTALL_FORMS = /Claude Code plugin install|Claude Code plugin-install|standalone Claude Code install/g;
+  const ANY_INSTALL_FORM = /Claude Code plugin install|Claude Code plugin-install|standalone Claude Code install/;
+  const PLUGIN_FORM = /Claude Code plugin install|Claude Code plugin-install/;
+  const NEGATED_FORM = /\b(without|not) (a|on a|the) Claude Code plugin/i;
+  const NAMES_DIAL = /human_admission|\bthe dial\b/;
+  const ROUTE_EXEMPT = new Map<string, string>([
+    [
+      "This tier exists on the **Claude Code hook path only**.",
+      "Workflow 16 tier 0 names the hook's own process and gives no install a control; line 31 says a standalone install has no hook.",
+    ],
+    [
+      "Earlier releases shipped a Claude Code hook that tried to recognise production deploys from the text of a Bash command.",
+      "The install guide names the retired Bash command guard (33.1 D-17), not the admission hook.",
+    ],
+  ]);
+  const routeOffenders = (
+    text: string,
+  ): { offenders: Array<{ rules: string[]; sentence: string }>; count: number; exempted: string[] } => {
+    const offenders: Array<{ rules: string[]; sentence: string }> = [];
+    const exempted: string[] = [];
+    let count = 0;
+    for (const block of routeBlocks(text)) {
+      const blockText = block.join(" ");
+      block.forEach((s, i) => {
+        const hostRoute = s.includes("Claude Code") && HOST_ROUTE.test(s);
+        const nameBinding = NAME_BINDING.test(s) && NAMES_A_NAME.test(s);
+        if (!hostRoute && !nameBinding) return;
         count += 1;
-        if (!SCOPED.test(sentence)) offenders.push(`${label}: ${sentence}`);
-      }
-      routeCount.set(label, count);
+        if (ROUTE_EXEMPT.has(s)) {
+          exempted.push(s);
+          return;
+        }
+        const rules: string[] = [];
+        if (hostRoute && (s.replace(INSTALL_FORMS, "").includes("Claude Code") || NEGATED_FORM.test(s))) rules.push("R1");
+        if (hostRoute && s.includes("standalone Claude Code install") && !DENIES_ROUTE.test(s)) rules.push("R2");
+        if (nameBinding && !DENIES_ROUTE.test(s)) {
+          const scopedHere = ANY_INSTALL_FORM.test(s);
+          const scopedBefore = block.slice(0, i).some((earlier) => PLUGIN_FORM.test(earlier));
+          if (!scopedHere && !scopedBefore) rules.push("R3");
+          if ((scopedHere || scopedBefore) && !NAMES_DIAL.test(blockText)) rules.push("R4");
+        }
+        if (rules.length > 0) offenders.push({ rules, sentence: s });
+      });
+    }
+    return { offenders, count, exempted };
+  };
+
+  it("no sentence of the six admission-route files names the route without its install form or its dial (CR-01, WR-01, WR-02; plan 41-28)", () => {
+    const offenders: string[] = [];
+    const exempted: string[] = [];
+    for (const path of ROUTE_FILES) {
+      const result = routeOffenders(readFileSync(join(ROOT, path), "utf8"));
+      for (const offender of result.offenders) offenders.push(`${path}: [${offender.rules.join(", ")}] ${offender.sentence}`);
+      expect(result.count, `no route sentence in ${path}`).toBeGreaterThan(0);
+      exempted.push(...result.exempted);
     }
     expect(offenders).toEqual([]);
-    for (const label of [
-      "agent-factory/workflows/16-context-read-write.md",
-      "agent-factory/contracts/context-note.md",
-      "agent-factory/workflows/04-ticket-to-pr.md",
-    ]) {
-      expect(routeCount.get(label), `no route sentence in ${label}`).toBeGreaterThan(0);
+    for (const sentence of ROUTE_EXEMPT.keys()) {
+      expect(
+        exempted.filter((s) => s === sentence).length,
+        `the exemption does not match exactly one sentence: ${sentence}`,
+      ).toBe(1);
     }
+  });
+
+  it("the route scan flags each shape it was written for, and passes a scoped paragraph (WR-02; plan 41-28)", () => {
+    const fixtures: Array<[string, string, string]> = [
+      [
+        "standalone-has-hook",
+        "Some text. On a standalone Claude Code install the `admission-guard` hook binds the stamp.",
+        "R2",
+      ],
+      ["per-call-hook", "Some text. On Claude Code the per-call hook binds the stamp to the human.", "R1"],
+      ["that-hook", "Some text. That hook is the Claude Code tier that binds the stamp.", "R1"],
+      ["primary-tier", "Some text. The Claude Code primary tier is gated by the `human_admission` dial.", "R1"],
+      [
+        "merged-bullets",
+        ["- The name is bound only on a Claude Code plugin install.", "- On Claude Code `propose_note` binds the name."].join(
+          "\n",
+        ),
+        "R1",
+      ],
+      ["lowercase-start", "It holds on a plugin install. on Claude Code `propose_note` binds the name.", "R1"],
+      [
+        "host-less",
+        "The witnessing human's name arrives only through the existing admission grant that a separate process reads; the agent can never author it.",
+        "R3",
+      ],
+      ["control", "Some text. On Claude Code `propose_note` binds the name.", "R1"],
+      [
+        "install-guide clause",
+        "- `tools/grugops/note.js` writes a sealed note through the in-script admission tier, outside the Claude Code hook, and prints notes",
+        "R1",
+      ],
+      ["admission-hook", "On Claude Code the admission hook checks the stamp.", "R1"],
+      ["negated-form", "Without a Claude Code plugin install the `admission-guard` hook binds the stamp.", "R1"],
+      [
+        "cr01-paragraph",
+        "The lane writes a finding. " +
+          "Only a Claude Code plugin install binds the witnessing human's name to the human, through the admission grant the `admission-guard` hook reads. " +
+          "Elsewhere, a standalone Claude Code install included, nothing binds it (residual R-41-06).",
+        "R4",
+      ],
+      ["deny-mask", "On Claude Code the hook binds the stamp, and a standalone install has no hook.", "R1"],
+    ];
+    for (const [label, text, rule] of fixtures) {
+      expect(
+        routeOffenders(text).offenders.some((offender) => offender.rules.includes(rule)),
+        `${label} is not flagged ${rule}`,
+      ).toBe(true);
+    }
+
+    expect(routeBlocks(["- a b", "- c d"].join("\n"))).toHaveLength(2);
+    expect(routeBlocks("It holds. on Claude Code it binds.")[0]).toHaveLength(2);
+    expect(routeBlocks("Only at `context.human_admission: all` does it check.")[0]).toHaveLength(1);
+
+    const scoped = routeOffenders(
+      [
+        "Only a Claude Code plugin install can bind the witnessing human's name to the human, through the admission grant the `admission-guard` hook reads.",
+        "The hook checks the name only on a finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates.",
+        "At the default `off` the dial gates no note, so nothing binds the name.",
+        "For a note written with `tools/grugops/note.js`, and on any other install, a standalone Claude Code install included, nothing binds it either (residual R-41-06).",
+      ].join(" "),
+    );
+    expect(scoped.offenders).toEqual([]);
+    expect(scoped.count).toBe(3);
   });
 
   // WR-18 under D-45, plan 41-27: the attended lane said the agent can never author the witness's name. The hook that
   // reads the grant loads only on a Claude Code plugin install, and checks only a note the dial gates
   // (hooks/admission-guard.ts); elsewhere nothing binds the name (residual R-41-06).
-  it("the attended Chrome lane of Workflow 06 binds the witness's name only on a plugin install (WR-18, D-45; plan 41-27)", () => {
+  // Moved by plan 41-28 under the test-10 ruling (41-UAT.md, Olger, 2026-11-13): review finding CR-01 of 2026-11-13.
+  // The hook checks a stamp only on a finding the dial gates, and the default dial gates none.
+  it("the attended Chrome lane of Workflow 06 states the plugin-install, propose_note and dial conditions (CR-01; plan 41-28)", () => {
     const lane = flat(
       section(readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8"), "The attended Chrome lane"),
     );
-    const bound = lane.indexOf(
-      "Only a Claude Code plugin install binds the witnessing human's name to the human, through the admission grant the `admission-guard` hook reads.",
+    const sentences = [
+      "Only a Claude Code plugin install can bind the witnessing human's name to the human, through the admission grant the `admission-guard` hook reads.",
+      "The hook checks the name only on a finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates.",
+      "At the default `off` the dial gates no note, so nothing binds the name.",
+      "For a note written with `tools/grugops/note.js`, and on any other install, a standalone Claude Code install included, nothing binds it either (residual R-41-06).",
+    ];
+    let previous = -1;
+    for (const sentence of sentences) {
+      const at = lane.indexOf(sentence);
+      expect(at, `missing or out of order: ${sentence}`).toBeGreaterThan(previous);
+      previous = at;
+    }
+    expect(lane.indexOf("The lane cannot produce a gate stamp"), "the conditions do not come before the gate-stamp sentence").toBeGreaterThan(
+      previous,
     );
-    const elsewhere = lane.indexOf("Elsewhere, a standalone Claude Code install included, nothing binds it (residual R-41-06).");
-    expect(bound, "no binding sentence").toBeGreaterThanOrEqual(0);
-    expect(elsewhere, "the elsewhere sentence does not follow the binding sentence").toBeGreaterThan(bound);
+    expect(lane).not.toContain("Only a Claude Code plugin install binds");
+    expect(lane).not.toContain("Elsewhere, a standalone");
     expect(lane).not.toContain("the agent can never author it");
     expect(lane).not.toContain("a separate process reads");
   });
@@ -1484,6 +1636,17 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
         "Only a Claude Code plugin install loads that hook. " +
         "`install.js` writes no hook and no MCP server, so a standalone Claude Code install has neither.",
     );
+  });
+
+  // Plan 41-28 under the test-10 ruling (Olger, 2026-11-13): review finding WR-01. install.js writes no hook, so the
+  // scripted-install program list names none.
+  it("the install guide's program list puts no Claude Code hook on a scripted install (WR-01; plan 41-28)", () => {
+    const guide = flat(readFileSync(join(ROOT, "install/README.md"), "utf8"));
+    expect(guide).toContain(
+      "`tools/grugops/note.js` writes a sealed note into the shared context through the same writer and the in-script admission tier, " +
+        "binds no `human:<name>` stamp to a human, and prints a task's current notes with `read`",
+    );
+    expect(guide).not.toContain("outside the Claude Code hook");
   });
 
   it("the changelog Security bullet records the scoped hook and the scoped witness name (CR-01, WR-18; plan 41-27)", () => {
