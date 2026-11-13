@@ -135,8 +135,8 @@ FAIL when `verified_by` is empty, is a literal `self` / `me` / `agent`, equals t
 `by` (self-stamp), is a DeLM invalid-evidence phrase, or matches neither accepted grammar — the
 refuse-self FAIL set. A `verified_by: §14-gate#<id>` stamp additionally cross-checks a live GREEN
 gate verdict carrying that per-run id (Posture B): a stamp that matches no live green verdict is
-refused. A `human:<name>` stamp is accepted structurally; on Claude Code its un-forgeable human-set
-signal is delivered by the separate PER-CALL PreToolUse `admission-guard` hook that gates the
+refused. A `human:<name>` stamp is accepted structurally; on a Claude Code plugin install its un-forgeable
+human-set signal is delivered by the separate PER-CALL PreToolUse `admission-guard` hook that gates the
 STRUCTURED `mcp__plugin_grugops_grugops__propose_note` admission channel (the platform's scoped name
 for the plugin's bundled server; the bare `mcp__grugops__propose_note` is the server's own name, and
 the hook's matcher covers both spellings) — a distinct process that reads the FRESH
@@ -150,9 +150,10 @@ disposition (the per-call hook re-reads the fresh env, so an unset takes effect 
 is not a mechanically-enforced per-note nonce. The GOV-02 ledger's `disposed_by: human:<name>`
 therefore means "admitted under <name>'s session grant," not "individually reviewed each entry." The structured channel routes its persistence through `context-io.ts`
 (`admitAndAppend` → `appendNote`), so `context-io.ts` remains the single sanctioned writer. That hook
-is the Claude Code primary tier, gated by the `human_admission` dial; the non-Claude-Code host CLIs degrade to
-the in-script `admit()` refusal plus a prompt-level "stop, ask a named human," documented honestly as
-not mechanically un-forgeable (D-04/D-05). The reserved `by: §14-gate` identity is itself
+is the Claude Code plugin-install tier, gated by the `human_admission` dial; every other install,
+a standalone Claude Code install included, degrades to the in-script `admit()` refusal plus a
+prompt-level "stop, ask a named human," documented honestly as not mechanically un-forgeable
+(D-04/D-05). The reserved `by: §14-gate` identity is itself
 a structural FAIL on any note except the gate's own verdict emission — the one root-of-trust carve-out.
 
 ## The six note kinds
