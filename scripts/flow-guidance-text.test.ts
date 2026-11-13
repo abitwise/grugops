@@ -1615,17 +1615,24 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
     expect(lane).not.toContain("a separate process reads");
   });
 
-  it("the attended Chrome lane of the recipe binds the witness's name only on a plugin install and a gated note (WR-18, D-45; plan 41-27)", () => {
+  // Moved by plan 41-28 under the test-10 ruling (Olger, 2026-11-13): review finding CR-01. The recipe says the default
+  // dial gates no note.
+  it("the attended Chrome lane of the recipe says the default dial gates no note (CR-01; plan 41-28)", () => {
     const lane = flat(
       section(readFileSync(join(ROOT, "agent-factory/checklists/browser-uat-recipe.md"), "utf8"), "The attended Chrome lane"),
     );
     expect(lane).toContain(
-      "The witnessing human's name is bound to the human only on a Claude Code plugin install. " +
-        "There the `admission-guard` hook checks each note sent through `propose_note` that the `human_admission` dial gates. " +
+      "The witnessing human's name can be bound to the human only on a Claude Code plugin install. " +
+        "There the `admission-guard` hook checks each finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates. " +
         "It matches the note's `human:<name>` stamp against the existing admission grant, `GRUGOPS_ADMISSION_APPROVED_BY`. " +
+        "At the default `off` the dial gates no note, so nothing binds the name. " +
+        "At `high-severity` it gates only a finding by `security-nfr`, `architect-design` or `release-manager`. " +
+        "A note written with `tools/grugops/note.js` passes no hook, so nothing binds its stamp to a human. " +
         "Everywhere else, a standalone Claude Code install included, nothing binds the name to the human (residual R-41-06). " +
         "There is no lane-specific variable.",
     );
+    expect(lane).not.toContain("The witnessing human's name is bound");
+    expect(lane).not.toContain("checks each note sent through");
     expect(lane).not.toContain("The agent can never author");
     expect(lane).not.toContain("read by the `admission-guard` hook");
   });
@@ -1649,13 +1656,23 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
     expect(guide).not.toContain("outside the Claude Code hook");
   });
 
-  it("the changelog Security bullet records the scoped hook and the scoped witness name (CR-01, WR-18; plan 41-27)", () => {
+  // Moved by plan 41-28 under the test-10 ruling (Olger, 2026-11-13): review finding CR-01. The bullet states the dial
+  // condition.
+  it("the changelog Security bullet states the dial condition for the witness's name (CR-01; plan 41-28)", () => {
     expect(flat(CHANGELOG)).toContain(
       "- Workflow 16 and the note contract no longer say the per-call `admission-guard` hook makes a `human:<name>` stamp un-forgeable on any Claude Code install.",
     );
     expect(flat(CHANGELOG)).toContain(
-      "The attended browser lane, in Workflow 06 and the browser UAT recipe, now says the witnessing human's name is bound to the human only on a Claude Code plugin install.",
+      "The attended browser lane, in Workflow 06 and the browser UAT recipe, now says the witnessing human's name can be bound to the human only on a Claude Code plugin install. " +
+        "There the hook binds it only for a finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates. " +
+        "At the default `off` the dial gates no note, so nothing binds the name. " +
+        "For a note written with `tools/grugops/note.js`, and on every other install, a standalone Claude Code install included, nothing binds a `human:<name>` stamp to a human (residual R-41-06). " +
+        "The install guide's list of programs no longer implies that a scripted install has a Claude Code hook.",
     );
+    expect(flat(CHANGELOG)).not.toContain(
+      "now says the witnessing human's name is bound to the human only on a Claude Code plugin install.",
+    );
+    expect(flat(CHANGELOG)).not.toContain("On every other install, a standalone");
   });
 
   // WR-19: the sweep prints `kept <task>` when a newer pending copy stands. A re-spawn of that claim would finish the stale
