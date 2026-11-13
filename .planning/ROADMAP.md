@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 26/26 plans executed (20 gap-closure plans, 41-07 to 41-26, planned)
+**Plans**: 26/27 plans executed (21 gap-closure plans, 41-07 to 41-27, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -676,6 +676,11 @@ Gap wave 7 *(blocked on gap wave 6)*
 
 Gap wave 8 *(blocked on gap wave 7)*
 - [x] 41-26-PLAN.md — the text-only four: `propose_note` and the hook are scoped to a Claude Code plugin install and a standalone install is named as having no hook, session start stops on a kept claim before any re-spawn, the role-switch protocol and Workflow 05 route a host to the record it admits, and the four rows are recorded fixed (WR-18, WR-19, IN-19, IN-20; RUN-01 to RUN-05)
+
+**Gap closure, round 7, completing D-45's WR-18 scope past the gap-round cap** *(from the 41-VERIFICATION.md gap of 2026-11-12, which is CR-01 of the 41-REVIEW.md of 2026-11-12T21:55Z; text only, no program code change)*
+
+Gap wave 9 *(blocked on gap wave 8)*
+- [ ] 41-27-PLAN.md — the per-call hook, its tier, `propose_note` and the witness-name binding are scoped to a Claude Code plugin install in Workflows 04, 06 and 16, the note contract, the browser UAT recipe and the install guide; an invariant pin refuses an unscoped sentence; every changed clause gets a pending row and CR-01 is recorded fixed (CR-01, WR-18, D-45; RUN-04, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
