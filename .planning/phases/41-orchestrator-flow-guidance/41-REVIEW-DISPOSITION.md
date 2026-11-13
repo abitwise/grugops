@@ -9,39 +9,39 @@ findings:
     title: "Workflow 06 and the changelog still leave out `high-severity`, where the lane's finding is usually not gated"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: deferred
     title: "The rebuilt route scan passes the CR-01 paragraph and its reverse, and its comment on limits does not say so"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: deferred
     title: "Session start step 3 still opens with \"Stop\" (carried forward; file outside this review's scope)"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The changelog pins still do not check which section the bullet is in (carried forward)"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: deferred
     title: "\"Every other install\" claims the in-script `admit()` refusal for the markdown-only copy (carried forward)"
   - id: IN-03
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The 41-11.md pointer line can be read as saying a rewritten sentence was kept (carried forward)"
   - id: IN-04
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The standalone Orchestrator adapter still declares the plugin-only tool (carried forward; outside scope)"
   - id: IN-05
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The 2026-11-10 ruling still says no human has accepted R-41-09 (c) (carried forward; outside scope)"
   - id: IN-06
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The in-script refusal message still names an \"un-forgeable\" Claude Code hook on every install (outside scope)"
   - id: IN-07
     severity: info
-    disposition: open
+    disposition: deferred
     title: "\"Binds the witnessing human's name\" means the session approver, not the witness"
   - id: CR-01
     severity: critical
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 10
+open: 1
 total: 42
 recorded: 2026-11-13T19:25:08.233Z
 ---
@@ -180,16 +180,16 @@ recorded: 2026-11-13T19:25:08.233Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
-| IN-03 | info | open | - |
-| IN-04 | info | open | - |
-| IN-05 | info | open | - |
-| IN-06 | info | open | - |
-| IN-07 | info | open | - |
+| WR-01 | warning | open | Fix ruled by Olger in 41-UAT.md test 11, 2026-11-13 (gap G-41-11-WR-01) |
+| WR-02 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| WR-03 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| IN-01 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| IN-02 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| IN-04 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| IN-05 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| IN-06 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| IN-07 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
 | CR-01 | critical | fixed | 41-28 (not in the current review) |
 | WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
