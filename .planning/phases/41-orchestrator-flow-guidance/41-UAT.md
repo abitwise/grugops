@@ -3,7 +3,7 @@ status: complete
 phase: 41-orchestrator-flow-guidance
 source: [41-VERIFICATION.md]
 started: 2026-11-08T18:57:45Z
-updated: 2026-11-13T12:43:17.029Z
+updated: 2026-11-13T16:26:35.022Z
 ---
 
 ## Current Test
@@ -73,11 +73,19 @@ reported: "accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four 
 severity: major
 note: Olger ruled one override round past the gap-round cap for the text-only rows WR-18, WR-19, IN-19 and IN-20 (gaps G-41-9-* below). WR-16, WR-17, IN-16, IN-17 and IN-18 are deferred to a later phase (disposition deferred in 41-REVIEW-DISPOSITION.md, and listed under Deferred Follow-Ups). Diagnosis is taken from 41-REVIEW.md, which gives each finding's cause and fix with file and line; no debug agents were spawned.
 
+### 10. Rule CR-01, WR-01 and WR-02 of the 2026-11-13 review (41-REVIEW.md, rows open in 41-REVIEW-DISPOSITION.md)
+expected: Each finding fixed, accepted or sent to a later phase by a named human
+why_human: From 41-VERIFICATION.md (2026-11-13) human item 1. The re-verification after plan 41-27 is human_needed only on this ruling; a wording ruling on governance text belongs to a named human.
+result: issue
+reported: "Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
+severity: major
+note: Diagnosis is taken from 41-REVIEW.md (2026-11-13), which gives each finding's cause and fix with file and line; CR-01 was confirmed in code this session (isGatedNote returns false at human_admission off, scripts/context-io.ts; hooks/admission-guard.ts allows every ungated note). No debug agents were spawned. IN-01 to IN-04 of the same review stay open and were not ruled.
+
 ## Summary
 
-total: 9
+total: 10
 passed: 5
-issues: 2
+issues: 3
 pending: 0
 skipped: 2
 blocked: 0
@@ -566,6 +574,54 @@ blocked: 0
       issue: "IN-20"
   missing:
     - "Apply the text fix in 41-REVIEW.md section IN-20 (text only; no code change); pin it in a test where the existing wording tests cover the line"
+  debug_session: "41-REVIEW.md"
+
+- gap_id: G-41-10-CR-01
+  truth: "At the default human_admission off, no kit text says a Claude Code plugin install binds the witnessing human's name; Workflow 06 and the CHANGELOG state the dial condition"
+  status: failed
+  reason: "User reported: Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
+  severity: major
+  test: 10
+  root_cause: "Workflow 06 line 37 and the CHANGELOG Security bullet say 'Only a Claude Code plugin install binds the witnessing human's name', with no condition. The admission-guard hook gates a note only when isGatedNote is true: never at human_admission off (the default), only security-nfr, architect-design and release-manager at high-severity, and a note written with note.js never passes the hook. The pin in flow-guidance-text.test.ts:216-221 locks the overclaim in."
+  artifacts:
+    - path: "agent-factory/workflows/06-uat-pack.md:37"
+      issue: "CR-01"
+    - path: "CHANGELOG.md:190-194"
+      issue: "CR-01"
+    - path: "scripts/flow-guidance-text.test.ts:216-221"
+      issue: "CR-01 (pin)"
+    - path: "agent-factory/checklists/browser-uat-recipe.md:454-458"
+      issue: "CR-01 (never says no note is gated at off)"
+  missing:
+    - "Apply the fix in 41-REVIEW.md (2026-11-13) section CR-01: state the plugin-install, dial and propose_note-route conditions in Workflow 06, the CHANGELOG bullet and the recipe, and update the pin (text only; no code change)"
+  debug_session: "41-REVIEW.md"
+
+- gap_id: G-41-10-WR-01
+  truth: "install/README.md puts no Claude Code hook on the scripted install"
+  status: failed
+  reason: "User reported: Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
+  severity: major
+  test: 10
+  root_cause: "install/README.md:459-461, in the scripted-install list, says tools/grugops/note.js runs 'outside the Claude Code hook', which contradicts line 1943 (install.js writes no hook); plan 41-27's grep and its scan did not read install/README.md"
+  artifacts:
+    - path: "install/README.md:459-461"
+      issue: "WR-01"
+  missing:
+    - "Apply the fix in 41-REVIEW.md (2026-11-13) section WR-01: rewrite the clause and add install/README.md to the scan of WR-02"
+  debug_session: "41-REVIEW.md"
+
+- gap_id: G-41-10-WR-02
+  truth: "The 'no unscoped sentence' scan in flow-guidance-text.test.ts fails on the shapes it was written for"
+  status: failed
+  reason: "User reported: Fix first: plan a gap-closure fix for CR-01, WR-01 and WR-02 of the 2026-11-13 review (add the dial condition to Workflow 06 and the CHANGELOG, reword install/README.md line 460, tighten the scan), then re-verify, Olger"
+  severity: major
+  test: 10
+  root_cause: "scripts/flow-guidance-text.test.ts:171-207 splits only on sentence ends, matches only the exact words 'the hook', accepts a standalone-install sentence as scoped, ignores sentences naming no host, and checks the route sentence only in Workflows 16 and 04 and the note contract; the reviewer's probe missed 7 of 8 test sentences (scratchpad scan.mjs)"
+  artifacts:
+    - path: "scripts/flow-guidance-text.test.ts:171-207"
+      issue: "WR-02"
+  missing:
+    - "Apply the fix in 41-REVIEW.md (2026-11-13) section WR-02: split on bullet markers too, widen the route tokens, refuse a standalone install named as having the hook, cover install/README.md, Workflow 06 and the recipe, and add red cases that prove the scan can fail"
   debug_session: "41-REVIEW.md"
 
 ## Deferred Follow-Ups
