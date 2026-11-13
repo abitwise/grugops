@@ -5,36 +5,36 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: fixed
-    title: "WR-18 is recorded fixed, but Workflow 16 and the note contract still tell a standalone Claude Code install the hook protects its `human:<name>` stamp"
+    disposition: open
+    title: "Workflow 06 and the changelog say a plugin install binds the witness's name with no condition; at the default dial it binds nothing"
   - id: WR-01
     severity: warning
     disposition: open
-    title: "\"like the other hosts\" contradicts D-44, under which a plugin install is a host that has the hook"
+    title: "The install guide still puts a Claude Code hook on the scripted install"
   - id: WR-02
     severity: warning
     disposition: open
-    title: "R-41-11 reads as accepted for a scope the human did not read, and the residual does not record the owed read"
+    title: "The new \"no unscoped sentence\" scan cannot catch the defect it was written for"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The changelog pin does not check which section the bullet is in"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "\"Every other install\" now claims the in-script `admit()` refusal for the markdown-copy install"
+  - id: IN-03
+    severity: info
+    disposition: open
+    title: "The 41-11.md pointer line can be read as saying a rewritten sentence was kept"
+  - id: IN-04
+    severity: info
+    disposition: open
+    title: "The standalone Orchestrator adapter still declares the plugin-only tool (outside scope)"
   - id: WR-03
     severity: warning
     disposition: open
     title: "Session start step 3 now opens with \"Stop\", which can read as halting session start before the other claims and the refill"
-  - id: IN-01
-    severity: info
-    disposition: open
-    title: "A pin title now says the opposite of the step it pins"
-  - id: IN-02
-    severity: info
-    disposition: open
-    title: "A fourth local copy of `CHANGELOG` and `flat`"
-  - id: IN-03
-    severity: info
-    disposition: open
-    title: "The R-41-11 rewrite is held only by the plan's one-time grep, not by a pin"
-  - id: IN-04
-    severity: info
-    disposition: open
-    title: "The role files still send every deliverable to `artifact-ref`, so the IN-19 fix covers only the protocol"
   - id: IN-05
     severity: info
     disposition: open
@@ -171,24 +171,24 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 8
+open: 9
 total: 42
-recorded: 2026-11-12T21:56:37.300Z
+recorded: 2026-11-13T13:45:54.311Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | 41-27 |
+| CR-01 | critical | open | - |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
-| IN-05 | info | open | - |
+| WR-03 | warning | open | - (not in the current review) |
+| IN-05 | info | open | - (not in the current review) |
 | WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | WR-18 | warning | fixed | 41-26, 41-27 (not in the current review) |
