@@ -593,7 +593,7 @@ Waves: 40-01 → 40-02 (human checkpoint) → 40-03..40-07 in parallel (markdown
   4. The flow guidance reads the same on all six hosts, with only optional operator tips per host (RUN-04)
   5. The Orchestrator starts tiered engineers by adapter name, never forks them, never overrides their model, and never claims a ticket itself (RUN-06)
 
-**Plans**: 28/28 plans executed (22 gap-closure plans, 41-07 to 41-28, planned)
+**Plans**: 28/29 plans executed (23 gap-closure plans, 41-07 to 41-29, planned)
 
 Wave 1 *(one code plan and one text plan, disjoint files)*
 - [x] 41-01-PLAN.md — the queue library gains the full lifecycle, `done` empties the in-flight log, and the dual-path oracle runs claim at dispatch (RUN-01, RUN-02, RUN-05, RUN-06)
@@ -686,6 +686,11 @@ Gap wave 9 *(blocked on gap wave 8)*
 
 Gap wave 10 *(blocked on gap wave 9)*
 - [x] 41-28-PLAN.md — Workflow 06, the browser UAT recipe and the CHANGELOG state that the witness's name is bound only for a finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates, and that the default `off` gates none; the install guide names no Claude Code hook on a scripted install; the route scan is rebuilt to fail on every shape the review tried; CR-01, WR-01 and WR-02 are recorded fixed (G-41-10-CR-01, G-41-10-WR-01, G-41-10-WR-02; RUN-04, RUN-05)
+
+**Gap closure, round 9, one more override round past the gap-round cap** *(from 41-UAT.md test 11: Olger's ruling of 2026-11-13 on WR-01 of the 41-REVIEW.md of 2026-11-13T19:23Z; one sentence in Workflow 06 and the CHANGELOG, one test file and records, no program code change; WR-02, WR-03 and IN-01 to IN-07 deferred to a later phase)*
+
+Gap wave 11 *(blocked on gap wave 10)*
+- [ ] 41-29-PLAN.md — Workflow 06 and the CHANGELOG Security bullet say that at `high-severity` the dial gates only a finding by `security-nfr`, `architect-design` or `release-manager`; a pin holds the sentence in both files, its two rows are pending a named human, and WR-01 is recorded fixed (G-41-11-WR-01; RUN-04, RUN-05)
 
 **Research flag**: plan with `--research-phase` (what each host exposes about context use, assumed invisible; whether Claude Code allows a per-invocation `effort`; how `claim.js` ships as a materialized runnable).
 **Notes**: D-9 (`claim.js` ships to host repos). `orchestrator.md` stays under its 7,165 B WARN ceiling and the dual-path equivalence oracle stays green.
