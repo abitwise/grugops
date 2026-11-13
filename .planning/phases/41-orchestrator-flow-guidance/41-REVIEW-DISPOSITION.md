@@ -5,15 +5,15 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Workflow 06 and the changelog say a plugin install binds the witness's name with no condition; at the default dial it binds nothing"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The install guide still puts a Claude Code hook on the scripted install"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The new \"no unscoped sentence\" scan cannot catch the defect it was written for"
   - id: IN-01
     severity: info
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 9
+open: 6
 total: 42
 recorded: 2026-11-13T13:45:54.311Z
 ---
@@ -180,9 +180,9 @@ recorded: 2026-11-13T13:45:54.311Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
+| CR-01 | critical | fixed | 41-28 |
+| WR-01 | warning | fixed | 41-28 |
+| WR-02 | warning | fixed | 41-28 |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
