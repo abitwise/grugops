@@ -3,42 +3,50 @@ phase: 41
 review: 41-REVIEW.md
 titles: json
 findings:
+  - id: WR-01
+    severity: warning
+    disposition: open
+    title: "Workflow 06 and the changelog still leave out `high-severity`, where the lane's finding is usually not gated"
+  - id: WR-02
+    severity: warning
+    disposition: open
+    title: "The rebuilt route scan passes the CR-01 paragraph and its reverse, and its comment on limits does not say so"
+  - id: WR-03
+    severity: warning
+    disposition: open
+    title: "Session start step 3 still opens with \"Stop\" (carried forward; file outside this review's scope)"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The changelog pins still do not check which section the bullet is in (carried forward)"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "\"Every other install\" claims the in-script `admit()` refusal for the markdown-only copy (carried forward)"
+  - id: IN-03
+    severity: info
+    disposition: open
+    title: "The 41-11.md pointer line can be read as saying a rewritten sentence was kept (carried forward)"
+  - id: IN-04
+    severity: info
+    disposition: open
+    title: "The standalone Orchestrator adapter still declares the plugin-only tool (carried forward; outside scope)"
+  - id: IN-05
+    severity: info
+    disposition: open
+    title: "The 2026-11-10 ruling still says no human has accepted R-41-09 (c) (carried forward; outside scope)"
+  - id: IN-06
+    severity: info
+    disposition: open
+    title: "The in-script refusal message still names an \"un-forgeable\" Claude Code hook on every install (outside scope)"
+  - id: IN-07
+    severity: info
+    disposition: open
+    title: "\"Binds the witnessing human's name\" means the session approver, not the witness"
   - id: CR-01
     severity: critical
     disposition: fixed
     title: "Workflow 06 and the changelog say a plugin install binds the witness's name with no condition; at the default dial it binds nothing"
-  - id: WR-01
-    severity: warning
-    disposition: fixed
-    title: "The install guide still puts a Claude Code hook on the scripted install"
-  - id: WR-02
-    severity: warning
-    disposition: fixed
-    title: "The new \"no unscoped sentence\" scan cannot catch the defect it was written for"
-  - id: IN-01
-    severity: info
-    disposition: open
-    title: "The changelog pin does not check which section the bullet is in"
-  - id: IN-02
-    severity: info
-    disposition: open
-    title: "\"Every other install\" now claims the in-script `admit()` refusal for the markdown-copy install"
-  - id: IN-03
-    severity: info
-    disposition: open
-    title: "The 41-11.md pointer line can be read as saying a rewritten sentence was kept"
-  - id: IN-04
-    severity: info
-    disposition: open
-    title: "The standalone Orchestrator adapter still declares the plugin-only tool (outside scope)"
-  - id: WR-03
-    severity: warning
-    disposition: open
-    title: "Session start step 3 now opens with \"Stop\", which can read as halting session start before the other claims and the refill"
-  - id: IN-05
-    severity: info
-    disposition: open
-    title: "The dated ruling of 2026-11-10 still says no human has accepted R-41-09 (c)"
   - id: WR-16
     severity: warning
     disposition: deferred
@@ -147,14 +155,6 @@ findings:
     severity: warning
     disposition: fixed
     title: "Workflow 17 says a later sweep reclaims a row with an empty `by`, but a stray file or an unsafe name is never reclaimed"
-  - id: IN-06
-    severity: info
-    disposition: deferred
-    title: "The render banner names a path that does not exist in the kit repository"
-  - id: IN-07
-    severity: info
-    disposition: fixed
-    title: "The render is no longer single-writer"
   - id: IN-11
     severity: info
     disposition: fixed
@@ -171,24 +171,26 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 6
+open: 10
 total: 42
-recorded: 2026-11-13T13:45:54.311Z
+recorded: 2026-11-13T19:25:08.233Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | 41-28 |
-| WR-01 | warning | fixed | 41-28 |
-| WR-02 | warning | fixed | 41-28 |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
-| WR-03 | warning | open | - (not in the current review) |
-| IN-05 | info | open | - (not in the current review) |
+| IN-05 | info | open | - |
+| IN-06 | info | open | - |
+| IN-07 | info | open | - |
+| CR-01 | critical | fixed | 41-28 (not in the current review) |
 | WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | WR-18 | warning | fixed | 41-26, 41-27 (not in the current review) |
@@ -216,8 +218,6 @@ recorded: 2026-11-13T13:45:54.311Z
 | WR-07 | warning | fixed | 41-19 (not in the current review) |
 | WR-08 | warning | fixed | 41-24 (not in the current review) |
 | WR-11 | warning | fixed | 41-19 (not in the current review) |
-| IN-06 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 7, 2026-11-11: low value, small code change (not in the current review) |
-| IN-07 | info | fixed | 41-19 (not in the current review) |
 | IN-11 | info | fixed | 41-22 (not in the current review) |
 | IN-12 | info | fixed | 41-19 (not in the current review) |
 | WR-04 | warning | fixed | 41-10 (not in the current review) |
