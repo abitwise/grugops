@@ -1,9 +1,9 @@
 ---
-status: partial
+status: complete
 phase: 41-orchestrator-flow-guidance
 source: [41-VERIFICATION.md]
 started: 2026-11-08T18:57:45Z
-updated: 2026-11-12T20:15:13.843Z
+updated: 2026-11-13T12:43:17.029Z
 ---
 
 ## Current Test
@@ -23,16 +23,14 @@ note: "Live headless runs on Claude Code 2.1.319, 2026-11-08, in scratch repos. 
 ### 2. Live run of the flow guidance on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi (RUN-04)
 expected: The Orchestrator claims, refills and sweeps from Workflow 17 alone; a role writes and closes with note.js
 why_human: These CLIs are absent here (R-41-05, `UNKNOWN - verify`). RUN-04's 'reads the same on all six hosts' is proven for the text only.
-result: blocked
-blocked_by: third-party
-reason: "Checked 2026-11-08: codex, agy/antigravity, opencode, copilot and pi are not installed on this machine; only claude is. R-41-05 stays open."
+result: skipped
+reason: "Deferred follow-up: carried to the milestone UAT, ruled by Olger on 2026-11-13 ('Defer both'), in line with the R-41-05 ruling of 2026-11-10. Rechecked 2026-11-13: codex, agy/antigravity, opencode, copilot and pi are still not installed here."
 
 ### 3. Windows run of note.js's trustedRepoRoot ladder
 expected: Rung 1 and rung 2 spell a path the same way (for example RUNNER~1)
 why_human: Windows is `UNKNOWN - verify`; Linux only was measured.
-result: blocked
-blocked_by: physical-device
-reason: "Needs a Windows machine; none is reachable from this session."
+result: skipped
+reason: "Deferred follow-up: carried to the milestone UAT, ruled by Olger on 2026-11-13 ('Defer both'). Needs a Windows machine; none is reachable from this session (no pwsh or wine either). No residual row covers it yet."
 
 ### 4. Read the `pending (named human)` rows in docs/audit/29-style-dispositions/41-*.md (93 lines match the phrase, counted by grep; includes 41-14, 41-17 and 41-18), the last row of 41-16.md, and the Manual-Only rows of 41-VALIDATION.md
 expected: A named human replies with a name, or rejects a row
@@ -81,8 +79,8 @@ total: 9
 passed: 5
 issues: 2
 pending: 0
-skipped: 0
-blocked: 2
+skipped: 2
+blocked: 0
 
 ## Gaps
 
@@ -498,7 +496,9 @@ blocked: 2
 
 - gap_id: G-41-9-WR-18
   truth: "Review finding WR-18 is fixed, as ruled by a named human in test 9"
-  status: failed
+  status: resolved
+  resolved_by: 41-27-PLAN.md
+  resolved_at: 2026-11-13
   reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
   severity: major
   test: 9
@@ -522,7 +522,9 @@ blocked: 2
 
 - gap_id: G-41-9-WR-19
   truth: "Review finding WR-19 is fixed, as ruled by a named human in test 9"
-  status: failed
+  status: resolved
+  resolved_by: 41-26-PLAN.md
+  resolved_at: 2026-11-13
   reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
   severity: major
   test: 9
@@ -536,7 +538,9 @@ blocked: 2
 
 - gap_id: G-41-9-IN-19
   truth: "Review finding IN-19 is fixed, as ruled by a named human in test 9"
-  status: failed
+  status: resolved
+  resolved_by: 41-26-PLAN.md
+  resolved_at: 2026-11-13
   reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
   severity: minor
   test: 9
@@ -550,7 +554,9 @@ blocked: 2
 
 - gap_id: G-41-9-IN-20
   truth: "Review finding IN-20 is fixed, as ruled by a named human in test 9"
-  status: failed
+  status: resolved
+  resolved_by: 41-26-PLAN.md
+  resolved_at: 2026-11-13
   reason: "User reported: accept R-41-09c/10/11; fix WR-18/19 IN-19/20, fix the text-only four (WR-18, WR-19, IN-19, IN-20) now as one override round. Defer the five code rows (WR-16, WR-17, IN-16, IN-17, IN-18) to a later phase., Olger"
   severity: minor
   test: 9
@@ -563,6 +569,13 @@ blocked: 2
   debug_session: "41-REVIEW.md"
 
 ## Deferred Follow-Ups
+
+- test: 2
+  idea: "Live run of the flow guidance on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi (RUN-04, R-41-05): carried to the milestone UAT by Olger"
+  deferred_at: 2026-11-13
+- test: 3
+  idea: "Windows run of note.js's trustedRepoRoot ladder: carried to the milestone UAT by Olger"
+  deferred_at: 2026-11-13
 
 - test: 9
   idea: "Review finding WR-16 (41-REVIEW.md, 2026-11-12): deferred to a later phase by Olger"
