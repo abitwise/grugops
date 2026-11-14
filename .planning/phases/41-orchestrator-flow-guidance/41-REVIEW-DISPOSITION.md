@@ -5,16 +5,28 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: fixed
-    title: "Pointer sentences say \"pending a named human\" or \"No row above changed\", and this commit made them false"
+    disposition: open
+    title: "The IN-02 fix cites \"41-19.md lines 49-50\", but this commit moved those rows to lines 48-49"
   - id: WR-02
     severity: warning
-    disposition: fixed
-    title: "Each \"How these rows were made\" section still says every row reads `pending (named human):`"
+    disposition: open
+    title: "41-28's lead-in \"**No accepted row is superseded.**\" is still present tense, and the new next sentence contradicts it"
   - id: WR-03
     severity: warning
-    disposition: fixed
-    title: "\"Accepted by Olger\" is written onto 160 rows from replies with no typed name, which the phase's own standard treats as insufficient"
+    disposition: open
+    title: "The residuals' Ruling of 2026-11-14 still quotes only the untyped `pass`, so the authoritative record does not show the typed-name confirmation"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The WR-02 edits broke the files' hard wrap; long joined lines now appear in 14 files"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "\"the Workflow 17 line 86 row\" does not name one row, because 41-11 holds five rows at that line"
+  - id: IN-03
+    severity: info
+    disposition: open
+    title: "41-08.md, which this delta touched, still has the present-tense \"stays pending\" paragraph, and the known-out-of-scope list leaves it out"
   - id: WR-04
     severity: warning
     disposition: fixed
@@ -23,18 +35,6 @@ findings:
     severity: warning
     disposition: fixed
     title: "Residual R-41-11 and the security log still describe Olger's read of the rewritten row as owed"
-  - id: IN-01
-    severity: info
-    disposition: fixed
-    title: "The new ruling section was appended after \"Assumptions carried from research\", away from the other ruling sections"
-  - id: IN-02
-    severity: info
-    disposition: fixed
-    title: "\"its row accepted\" is singular, but plan 41-19 replaced the clause with two rows"
-  - id: IN-03
-    severity: info
-    disposition: deferred
-    title: "The 41-11.md pointer line can be read as saying a rewritten sentence was kept (carried forward)"
   - id: IN-04
     severity: info
     disposition: deferred
@@ -171,23 +171,23 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 0
+open: 6
 total: 42
-recorded: 2026-11-14T20:02:14.769Z
+recorded: 2026-11-14T21:40:39.656Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) |
-| WR-02 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) |
-| WR-03 | warning | fixed | Typed-name confirmation by Olger, 2026-11-14: 'confirm tests 12, 13, 14, 15 as recorded, Olger' (recorded on 41-UAT.md tests 12-15) |
-| WR-04 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) |
-| WR-05 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) |
-| IN-01 | info | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) |
-| IN-02 | info | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) |
-| IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
+| IN-03 | info | open | - |
+| WR-04 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) (not in the current review) |
+| WR-05 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) (not in the current review) |
 | IN-04 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
 | IN-05 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
 | IN-06 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
