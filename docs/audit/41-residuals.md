@@ -44,6 +44,8 @@ Olger read R-41-09 (c), the scripted-install limit of R-41-10 and R-41-11 in `41
 
 Olger read R-41-11 as plan 41-26 rewrote it, with the added sentence "A standalone Claude Code install has no hook, like the other hosts.", in `41-UAT.md` test 15 and replied: `pass`.
 
+He confirmed it by typed name the same day, after the review of 2026-11-14 asked for one: `confirm tests 12, 13, 14, 15 as recorded, Olger`.
+
 - **R-41-11:** Olger confirmed that his acceptance of 2026-11-12 covers a standalone Claude Code install having no route.
 
 ## Assumptions carried from research
