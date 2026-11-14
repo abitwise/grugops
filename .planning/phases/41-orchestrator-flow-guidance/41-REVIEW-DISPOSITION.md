@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Workflow 06 and the changelog still leave out `high-severity`, where the lane's finding is usually not gated"
   - id: WR-02
     severity: warning
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 1
+open: 0
 total: 42
 recorded: 2026-11-13T19:25:08.233Z
 ---
@@ -180,7 +180,7 @@ recorded: 2026-11-13T19:25:08.233Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | Fix ruled by Olger in 41-UAT.md test 11, 2026-11-13 (gap G-41-11-WR-01) |
+| WR-01 | warning | fixed | 41-29 |
 | WR-02 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
 | WR-03 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
 | IN-01 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
