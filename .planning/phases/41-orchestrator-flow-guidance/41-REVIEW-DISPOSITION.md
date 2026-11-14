@@ -5,8 +5,16 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: fixed
-    title: "Workflow 06 and the changelog still leave out `high-severity`, where the lane's finding is usually not gated"
+    disposition: open
+    title: "Workflow 06's \"nothing binds it either\" now follows a sentence that says the dial gates something"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "\"gates only\" leaves out the hook's fail-closed refusals at `high-severity`"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "The CHANGELOG sentence is pinned twice"
   - id: WR-02
     severity: warning
     disposition: deferred
@@ -15,14 +23,6 @@ findings:
     severity: warning
     disposition: deferred
     title: "Session start step 3 still opens with \"Stop\" (carried forward; file outside this review's scope)"
-  - id: IN-01
-    severity: info
-    disposition: deferred
-    title: "The changelog pins still do not check which section the bullet is in (carried forward)"
-  - id: IN-02
-    severity: info
-    disposition: deferred
-    title: "\"Every other install\" claims the in-script `admit()` refusal for the markdown-only copy (carried forward)"
   - id: IN-03
     severity: info
     disposition: deferred
@@ -171,25 +171,25 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 0
+open: 3
 total: 42
-recorded: 2026-11-13T19:25:08.233Z
+recorded: 2026-11-14T09:57:14.170Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | fixed | 41-29 |
-| WR-02 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| WR-03 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| IN-01 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| IN-02 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| IN-04 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| IN-05 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| IN-06 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
-| IN-07 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 |
+| WR-01 | warning | open | - |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
+| WR-02 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| WR-03 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| IN-04 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| IN-05 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| IN-06 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| IN-07 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
 | CR-01 | critical | fixed | 41-28 (not in the current review) |
 | WR-16 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
 | WR-17 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 9, 2026-11-12: code change, gap-round cap reached (not in the current review) |
