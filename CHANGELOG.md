@@ -191,8 +191,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   attended browser lane, in Workflow 06 and the browser UAT recipe, now says the witnessing human's
   name can be bound to the human only on a Claude Code plugin install. There the hook binds it only
   for a finding the Orchestrator sends through `propose_note` that the `human_admission` dial
-  gates. At the default `off` the dial gates no note, so nothing binds the name. For a note written
-  with `tools/grugops/note.js`, and on every other install, a standalone Claude Code install
+  gates. At the default `off` the dial gates no note, so nothing binds the name. At `high-severity`
+  it gates only a finding by `security-nfr`, `architect-design` or `release-manager`. For a note
+  written with `tools/grugops/note.js`, and on every other install, a standalone Claude Code install
   included, nothing binds a `human:<name>` stamp to a human (residual R-41-06). The install guide's
   list of programs no longer implies that a scripted install has a Claude Code hook.
 
