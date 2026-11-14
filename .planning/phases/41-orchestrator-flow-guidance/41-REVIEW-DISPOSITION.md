@@ -5,24 +5,32 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: deferred
-    title: "Workflow 06's \"nothing binds it either\" now follows a sentence that says the dial gates something"
-  - id: IN-01
-    severity: info
-    disposition: deferred
-    title: "\"gates only\" leaves out the hook's fail-closed refusals at `high-severity`"
-  - id: IN-02
-    severity: info
-    disposition: deferred
-    title: "The CHANGELOG sentence is pinned twice"
+    disposition: open
+    title: "Pointer sentences say \"pending a named human\" or \"No row above changed\", and this commit made them false"
   - id: WR-02
     severity: warning
-    disposition: deferred
-    title: "The rebuilt route scan passes the CR-01 paragraph and its reverse, and its comment on limits does not say so"
+    disposition: open
+    title: "Each \"How these rows were made\" section still says every row reads `pending (named human):`"
   - id: WR-03
     severity: warning
-    disposition: deferred
-    title: "Session start step 3 still opens with \"Stop\" (carried forward; file outside this review's scope)"
+    disposition: open
+    title: "\"Accepted by Olger\" is written onto 160 rows from replies with no typed name, which the phase's own standard treats as insufficient"
+  - id: WR-04
+    severity: warning
+    disposition: open
+    title: "The superseded rows cite test 15 as their ruling, but test 15 as recorded never put those rows to Olger"
+  - id: WR-05
+    severity: warning
+    disposition: open
+    title: "Residual R-41-11 and the security log still describe Olger's read of the rewritten row as owed"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The new ruling section was appended after \"Assumptions carried from research\", away from the other ruling sections"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "\"its row accepted\" is singular, but plan 41-19 replaced the clause with two rows"
   - id: IN-03
     severity: info
     disposition: deferred
@@ -135,10 +143,6 @@ findings:
     severity: critical
     disposition: fixed
     title: "Any role can retire a human-disposed security finding with an unstamped note, under `human_admission: all`"
-  - id: WR-05
-    severity: warning
-    disposition: fixed
-    title: "`claim` accepts a subtask that `done` will refuse, and `done` exit 2 has no instruction"
   - id: WR-06
     severity: warning
     disposition: fixed
@@ -163,28 +167,26 @@ findings:
     severity: info
     disposition: fixed
     title: "Two comments no longer match the code"
-  - id: WR-04
-    severity: warning
-    disposition: fixed
-    title: "A claim directory with a missing or unreadable record holds a slot forever and shows nowhere"
   - id: IN-08
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 0
+open: 7
 total: 42
-recorded: 2026-11-14T09:57:14.170Z
+recorded: 2026-11-14T20:02:14.769Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 13, 2026-11-14 |
-| IN-01 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 13, 2026-11-14 |
-| IN-02 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 13, 2026-11-14 |
-| WR-02 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
-| WR-03 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
+| WR-04 | warning | open | - |
+| WR-05 | warning | open | - |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
 | IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
 | IN-04 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
 | IN-05 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
@@ -213,14 +215,12 @@ recorded: 2026-11-14T09:57:14.170Z
 | IN-10 | info | fixed | 41-21 (not in the current review) |
 | IN-13 | info | fixed | 41-21 (not in the current review) |
 | CR-02 | critical | fixed | 41-15, 41-16 (not in the current review) |
-| WR-05 | warning | fixed | 41-19 (not in the current review) |
 | WR-06 | warning | fixed | 41-19 (not in the current review) |
 | WR-07 | warning | fixed | 41-19 (not in the current review) |
 | WR-08 | warning | fixed | 41-24 (not in the current review) |
 | WR-11 | warning | fixed | 41-19 (not in the current review) |
 | IN-11 | info | fixed | 41-22 (not in the current review) |
 | IN-12 | info | fixed | 41-19 (not in the current review) |
-| WR-04 | warning | fixed | 41-10 (not in the current review) |
 | IN-08 | info | fixed | 41-11 (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
