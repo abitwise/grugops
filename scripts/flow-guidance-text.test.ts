@@ -1666,6 +1666,7 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
       "The attended browser lane, in Workflow 06 and the browser UAT recipe, now says the witnessing human's name can be bound to the human only on a Claude Code plugin install. " +
         "There the hook binds it only for a finding the Orchestrator sends through `propose_note` that the `human_admission` dial gates. " +
         "At the default `off` the dial gates no note, so nothing binds the name. " +
+        "At `high-severity` it gates only a finding by `security-nfr`, `architect-design` or `release-manager`. " +
         "For a note written with `tools/grugops/note.js`, and on every other install, a standalone Claude Code install included, nothing binds a `human:<name>` stamp to a human (residual R-41-06). " +
         "The install guide's list of programs no longer implies that a scripted install has a Claude Code hook.",
     );
@@ -1673,6 +1674,25 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
       "now says the witnessing human's name is bound to the human only on a Claude Code plugin install.",
     );
     expect(flat(CHANGELOG)).not.toContain("On every other install, a standalone");
+  });
+
+  // Plan 41-29 under the test-11 ruling (41-UAT.md, Olger, 2026-11-13): review finding WR-01 of 2026-11-13T19:23Z.
+  // At high-severity the dial gates only a finding by a high-severity role (`HIGH_SEVERITY_ROLES`, scripts/context-io.ts).
+  // So Workflow 06 and the changelog bullet say so right after the default-off sentence, as the recipe does.
+  it("Workflow 06 and the changelog bullet name the roles the high-severity dial gates (WR-01; plan 41-29)", () => {
+    const lane = flat(
+      section(readFileSync(join(ROOT, "agent-factory/workflows/06-uat-pack.md"), "utf8"), "The attended Chrome lane"),
+    );
+    expect(lane).toContain(
+      "At the default `off` the dial gates no note, so nothing binds the name. " +
+        "At `high-severity` it gates only a finding by `security-nfr`, `architect-design` or `release-manager`. " +
+        "For a note written with `tools/grugops/note.js`, and on any other install,",
+    );
+    expect(flat(CHANGELOG)).toContain(
+      "At the default `off` the dial gates no note, so nothing binds the name. " +
+        "At `high-severity` it gates only a finding by `security-nfr`, `architect-design` or `release-manager`. " +
+        "For a note written with `tools/grugops/note.js`, and on every other install,",
+    );
   });
 
   // WR-19: the sweep prints `kept <task>` when a newer pending copy stands. A re-spawn of that claim would finish the stale
