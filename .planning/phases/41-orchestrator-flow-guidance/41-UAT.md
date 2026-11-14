@@ -3,7 +3,7 @@ status: complete
 phase: 41-orchestrator-flow-guidance
 source: [41-VERIFICATION.md]
 started: 2026-11-08T18:57:45Z
-updated: 2026-11-13T21:18:46.137Z
+updated: 2026-11-14T11:40:07.074Z
 ---
 
 ## Current Test
@@ -90,6 +90,7 @@ reported: "pass (clarified: Adopt suggestion) — fix WR-01 now as one more over
 severity: major
 note: "Checked by Claude 2026-11-13: WR-01 holds as stated. Workflow 06 line 37 and the CHANGELOG bullet stop at the default-off sentence; only the recipe (lines 458-459) names the high-severity role condition. WR-02 was confirmed by the verifier from the code (R4 is block-wide, DENIES_ROUTE masks the whole sentence, NEGATED_FORM knows only without/not). Today's text passes honestly; the gap is in the guard, not the tree."
 ruling: "Olger replied 'pass', then on the follow-up question chose 'Adopt suggestion' (2026-11-13). One override round past the gap-round cap for WR-01 only (gap G-41-11-WR-01 below). WR-02, WR-03 and IN-01 to IN-07 are deferred to a later phase (disposition deferred in 41-REVIEW-DISPOSITION.md, listed under Deferred Follow-Ups). Diagnosis is taken from 41-REVIEW.md (2026-11-13T19:23Z), which gives the cause and fix with file and line; no debug agents were spawned."
+retest: "2026-11-14, verify-work resume: G-41-11-WR-01 reconciled as resolved by executed plan 41-29 (window 260f3709..ec2ac224, 3 commits, ancestor of HEAD). The re-verification of 2026-11-14T10:05Z found the sentence in Workflow 06 line 37 and the CHANGELOG bullet, and 632 of 632 focused tests passing. The 2026-11-14T09:56Z review of plan 41-29 raised WR-01, IN-01 and IN-02 (test 13)."
 
 ### 12. Rule the 15 pending (named human) rows of docs/audit/29-style-dispositions/41-28.md
 expected: Each row accepted or sent back by a named human
@@ -98,10 +99,31 @@ result: pass
 note: "Counted by Claude 2026-11-13: the Dispositions table holds 15 rows (Workflow 06 line 37 x4, recipe x5, CHANGELOG x5, install/README.md x1); the verifier's 17 counted two prose mentions of the phrase. Spot-checked the rows' code claims: HIGH_SEVERITY_ROLES (scripts/context-io.ts:4305) is security-nfr, architect-design, release-manager; isGatedNote returns false for any kind but finding; factory.config.md line 94 ships human_admission off; hooks/admission-guard.ts imports isGatedNote and calls allow() for an ungated note."
 ruling: "Olger replied 'pass' (2026-11-13): all 15 rows accepted. Written back: each row in docs/audit/29-style-dispositions/41-28.md now reads 'accepted by Olger (41-UAT test 12, 2026-11-13)'."
 
+### 13. Rule WR-01, IN-01 and IN-02 of the 2026-11-14T09:56Z review of plan 41-29, and the 2 pending (named human) rows of docs/audit/29-style-dispositions/41-29.md
+expected: Each finding fixed, accepted or sent to a later phase, and each 41-29.md row accepted or sent back, by a named human
+why_human: From 41-VERIFICATION.md (2026-11-14T10:05Z) human item 1. WR-01 is governance wording on the admission route (Workflow 06 line 37, "nothing binds it either" now follows a sentence that says the dial gates something); the diff-disposition gate proves a row exists, not that it is right, and no agent may write accepted.
+result: pass
+note: "Checked by Claude 2026-11-14: WR-01 holds as stated (Workflow 06 line 37 'nothing binds it either' follows the high-severity sentence; the misreading only understates the control). The 41-29.md rows' code claims hold: HIGH_SEVERITY_ROLES at scripts/context-io.ts:4305, isGatedNote at :6741, hooks/admission-guard.ts calls allow() when isGatedNote is false."
+ruling: "Olger replied 'pass', then on the follow-up question chose 'Adopt suggestion: defer' (2026-11-14). Both 41-29.md rows accepted; WR-01, IN-01 and IN-02 deferred to a later phase, with no new gap round. Written back: each 41-29.md row reads 'accepted by Olger (41-UAT test 13, 2026-11-14)'; 41-REVIEW-DISPOSITION.md lists the three at deferred, open: 0 (check-diff-disposition passes)."
+
+### 14. Rule the 156 pending (named human) rows of docs/audit/29-style-dispositions/41-19.md to 41-27.md
+expected: Each row accepted or sent back by a named human
+why_human: From 41-VERIFICATION.md (2026-11-14T10:05Z) human item 4. No agent may write accepted.
+note: "Counted by Claude 2026-11-14 over table rows only: 41-19 25, 41-20 6, 41-21 6, 41-22 13, 41-23 40, 41-24 4, 41-25 20, 41-26 17, 41-27 25 (156). 41-28's 15 rows were accepted in test 12; 41-29's 2 rows are test 13."
+result: pass
+retest: "Checked by Claude 2026-11-14 before the ruling: 138 of the 156 rows' after-text is at HEAD word for word; the other 18 (1 in 41-20, 11 in 41-23, 6 in 41-27) name sentences later rewritten by plans 41-25, 41-26 and 41-28, whose own rows record the new wording."
+ruling: "Olger replied 'accept all 156' (2026-11-14). Written back: each of the 156 rows in docs/audit/29-style-dispositions/41-19.md to 41-27.md now reads 'accepted by Olger (41-UAT test 14, 2026-11-14)'; check-diff-disposition passes. Still pending after this: one row in 41-11.md (Workflow 17:86, WR-11) and one in 41-18.md (Workflow 16:31, WR-15), held back in test 4 and since rewritten by plans 41-19 and 41-24 (taken up with test 15)."
+
+### 15. Read R-41-11 as plan 41-26 rewrote it (docs/audit/41-residuals.md line 23)
+expected: Olger confirms his test 8 acceptance covers a standalone Claude Code install having no route, or sends it back
+why_human: From 41-VERIFICATION.md (2026-11-14T10:05Z) human item 5. Plan 41-26 added "A standalone Claude Code install has no hook, like the other hosts" after Olger accepted R-41-11; no agent may extend a named human's acceptance.
+result: pass
+ruling: "Olger replied 'pass' (2026-11-14) to R-41-11 as rewritten and to the suggestion presented with it. Written back: a Ruling of 2026-11-14 section in docs/audit/41-residuals.md (R-41-11 acceptance covers a standalone Claude Code install having no route); the held-back rows in 41-11.md (Workflow 17:86) and 41-18.md (Workflow 16:31) marked superseded by plans 41-19 and 41-24, ruled by Olger. No pending (named human) row remains in docs/audit/29-style-dispositions/41-*.md; check-diff-disposition passes."
+
 ## Summary
 
-total: 12
-passed: 6
+total: 15
+passed: 9
 issues: 4
 pending: 0
 skipped: 2
@@ -649,7 +671,9 @@ blocked: 0
 
 - gap_id: G-41-11-WR-01
   truth: "Workflow 06 and the CHANGELOG Security bullet state that at high-severity the dial gates only a finding by security-nfr, architect-design or release-manager, so a reader at high-severity is not led to think the witness finding is checked"
-  status: failed
+  status: resolved
+  resolved_by: 41-29-PLAN.md
+  resolved_at: 2026-11-14
   reason: "User reported: pass (clarified: Adopt suggestion) — fix WR-01 now as one more override round (add the high-severity sentence to Workflow 06 and the CHANGELOG, pin it); defer WR-02, WR-03 and IN-01 to IN-07 to a later phase, Olger"
   severity: major
   test: 11
@@ -717,3 +741,13 @@ blocked: 0
 - test: 11
   idea: "Review finding IN-07 (41-REVIEW.md, 2026-11-13T19:23Z): deferred to a later phase by Olger"
   deferred_at: 2026-11-13
+
+- test: 13
+  idea: "Review finding WR-01 (41-REVIEW.md, 2026-11-14T09:56Z): Workflow 06 line 37 'nothing binds it either' after the high-severity sentence; option (a) 'nothing binds the name'. Deferred to a later phase by Olger"
+  deferred_at: 2026-11-14
+- test: 13
+  idea: "Review finding IN-01 (41-REVIEW.md, 2026-11-14T09:56Z): 'gates only' leaves out the hook's fail-closed refusals. Deferred to a later phase by Olger"
+  deferred_at: 2026-11-14
+- test: 13
+  idea: "Review finding IN-02 (41-REVIEW.md, 2026-11-14T09:56Z): the CHANGELOG sentence is pinned twice. Deferred to a later phase by Olger"
+  deferred_at: 2026-11-14
