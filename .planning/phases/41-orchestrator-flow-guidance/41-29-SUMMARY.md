@@ -190,3 +190,9 @@ Phase 41 has no open review row. `/gsd-verify-work` reconciles gap G-41-11-WR-01
 ---
 *Phase: 41-orchestrator-flow-guidance*
 *Completed: 2026-11-14*
+
+## Self-Check: PASSED
+
+- Files found: docs/audit/29-style-dispositions/41-29.md, 41-29-SUMMARY.md
+- Commits on this branch: 3757b701, 5b735f8f, ec2ac224 (and the SUMMARY commit); evaluation-scope resolved them by plan subject
+- Every acceptance criterion of both tasks re-ran PASS; the TDD gate finds test(41-29) before feat(41-29)
