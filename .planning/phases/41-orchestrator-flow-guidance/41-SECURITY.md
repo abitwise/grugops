@@ -230,6 +230,7 @@ This audit covers plan 41-26 (T-41-113 to T-41-118) at `0720323c`. The orchestra
 
 - **T-41-116 closes on the diff, not on Olger's read.** His acceptance cells in R-41-11 are unchanged. Whether that acceptance covers a standalone Claude Code install having no route is still his to say.
 - **Owed by a named human, none blocking.** The 17 `pending (named human)` rows of `docs/audit/29-style-dispositions/41-26.md`; Olger's read of R-41-11 as rewritten; and the earlier items in this file's § Conditions.
+- **Closed 2026-11-14 by a named human.** Olger confirmed in `41-UAT.md` test 15 that his acceptance of R-41-11 covers a standalone Claude Code install having no route, and accepted the 17 rows of `41-26.md` in test 14. He confirmed both by typed name: `confirm tests 12, 13, 14, 15 as recorded, Olger`.
 - **Still open below the threshold.** Unchanged from the 41-25 audit.
 - **Not verified here.** A live run on a standalone install or a plugin install; Windows. Both stay `UNKNOWN - verify`.
 
@@ -278,7 +279,7 @@ On 2026-11-12, in `41-UAT.md` test 8, Olger accepted R-41-09 (c) (T-41-81), the 
 | R-41-10 (plugin install) | T-41-100 | A Claude Code plugin install carries `scripts/context-io.js` and its `emit-verdict` verb, so any agent there can mint a green verdict, and a gate stamp in a repository with a plugin install is no proof that a gate ran; Workflows 05, 16 and 17 say so, and the `LIMIT (R-41-10)` case pins the route | Olger (D-44), in the reply `accept, Olger` | 2026-11-12 |
 | R-41-09 (c) | T-41-81 | A renamed note that cannot be read is matched by nothing and folds out once the read recovers; nothing is lost, because the note stays stored | Olger (41-UAT test 8) | 2026-11-12 |
 | R-41-10 (scripted install) | — | A host with only a scripted install has no gate stamp, so `§14-gate#<id>` findings and every `artifact-ref` are refused there; it fails closed | Olger (41-UAT test 8) | 2026-11-12 |
-| R-41-11 | — | Under an active `human_admission` dial a high-severity finding is admitted only through `propose_note` behind the hook; a host with no hook has no route, and it fails closed | Olger (41-UAT test 8) | 2026-11-12 |
+| R-41-11 | — | Under an active `human_admission` dial a high-severity finding is admitted only through `propose_note` behind the hook; a host with no hook has no route, and it fails closed | Olger (41-UAT test 8; standalone-install scope confirmed in test 15, 2026-11-14) | 2026-11-12 |
 | — | T-41-SC | No package was added: `package.json` and the lockfile are unchanged since `6d05da1f` | Plan register | 2026-11-05 |
 
 *Accepted risks do not resurface in future audit runs.*

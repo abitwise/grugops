@@ -120,9 +120,11 @@ confirmed: "Olger confirmed by typed name on 2026-11-14, reply verbatim: 'confir
 ### 15. Read R-41-11 as plan 41-26 rewrote it (docs/audit/41-residuals.md line 23)
 expected: Olger confirms his test 8 acceptance covers a standalone Claude Code install having no route, or sends it back
 why_human: From 41-VERIFICATION.md (2026-11-14T10:05Z) human item 5. Plan 41-26 added "A standalone Claude Code install has no hook, like the other hosts" after Olger accepted R-41-11; no agent may extend a named human's acceptance.
+suggestion: "Presented with test 15 and covered by the same 'pass': two rows held back in test 4, 41-11.md (Workflow 17:86, WR-11) and 41-18.md (Workflow 16:31, WR-15). 'Plans 41-19 and 41-24 have since rewritten both sentences, and you accepted those rewrites in test 14. My suggestion is to mark the two old rows \"superseded\".'"
 result: pass
 ruling: "Olger replied 'pass' (2026-11-14) to R-41-11 as rewritten and to the suggestion presented with it. Written back: a Ruling of 2026-11-14 section in docs/audit/41-residuals.md (R-41-11 acceptance covers a standalone Claude Code install having no route); the held-back rows in 41-11.md (Workflow 17:86) and 41-18.md (Workflow 16:31) marked superseded by plans 41-19 and 41-24, ruled by Olger. No pending (named human) row remains in docs/audit/29-style-dispositions/41-*.md; check-diff-disposition passes."
 confirmed: "Olger confirmed by typed name on 2026-11-14, reply verbatim: 'confirm tests 12, 13, 14, 15 as recorded, Olger'. Asked for after the 2026-11-14T20:00Z review (WR-03) found the earlier reply carried no typed name."
+review: "The 2026-11-14T20:00Z review of the test 13-15 write-back raised WR-01 to WR-05, IN-01 and IN-02 on the record text. WR-03 (no typed name) closed on Olger's typed confirmation above. Olger chose 'Fix all six now' for the rest; Claude fixed them as record text only (pointer sentences, the 'stays pending' paragraphs of 41-11, 41-18 and 41-19 to 41-29, test 15's suggestion, the R-41-11 row and 41-SECURITY.md, the ruling section order, and the 41-11 prefix). check-diff-disposition passes; flow-guidance-text and check-diff-disposition tests pass 318/318."
 
 ## Summary
 
