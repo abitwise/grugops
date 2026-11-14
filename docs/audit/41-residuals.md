@@ -46,3 +46,9 @@ Research assumption ids A1 and A2 stand as written in `41-RESEARCH.md`. Neither 
 
 - **A1:** no host lets the agent see its own context use. Claude Code's documentation is silent on it. The session compaction triggers use only signals the Orchestrator can see, so nothing rests on this.
 - **A2:** no host lets the agent compact itself without a host extension. Step 3 of `## Session compaction` in Workflow 17 compacts only where a host allows it, and step 4 covers every other case.
+
+## Ruling of 2026-11-14
+
+Olger read R-41-11 as plan 41-26 rewrote it, with the added sentence "A standalone Claude Code install has no hook, like the other hosts.", in `41-UAT.md` test 15 and replied: `pass`.
+
+- **R-41-11:** Olger confirmed that his acceptance of 2026-11-12 covers a standalone Claude Code install having no route.

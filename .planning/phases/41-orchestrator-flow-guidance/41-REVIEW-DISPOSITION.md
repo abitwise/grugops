@@ -5,15 +5,15 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: deferred
     title: "Workflow 06's \"nothing binds it either\" now follows a sentence that says the dial gates something"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: deferred
     title: "\"gates only\" leaves out the hook's fail-closed refusals at `high-severity`"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The CHANGELOG sentence is pinned twice"
   - id: WR-02
     severity: warning
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 3
+open: 0
 total: 42
 recorded: 2026-11-14T09:57:14.170Z
 ---
@@ -180,9 +180,9 @@ recorded: 2026-11-14T09:57:14.170Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
+| WR-01 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 13, 2026-11-14 |
+| IN-01 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 13, 2026-11-14 |
+| IN-02 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 13, 2026-11-14 |
 | WR-02 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
 | WR-03 | warning | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
 | IN-03 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
