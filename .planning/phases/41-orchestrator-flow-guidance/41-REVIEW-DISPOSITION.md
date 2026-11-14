@@ -5,8 +5,20 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: fixed
-    title: "The IN-02 fix cites \"41-19.md lines 49-50\", but this commit moved those rows to lines 48-49"
+    disposition: open
+    title: "The rewrap of 41-18.md moved its WR-15 row from line 23 to line 24, and 41-UAT.md still cites `41-18.md:23`"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "\"its two Workflow 17 line 86 rows in 41-19.md\" can be read as a count, but 41-19.md has three rows at that line"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "\"the review of 2026-11-14\" does not say which review, because several reviews carry that date"
+  - id: IN-03
+    severity: info
+    disposition: open
+    title: "41-11 and 41-18 still describe the test 15 ruling as a reply of `pass`, without the typed-name confirmation the residuals now record"
   - id: WR-02
     severity: warning
     disposition: fixed
@@ -15,18 +27,6 @@ findings:
     severity: warning
     disposition: fixed
     title: "The residuals' Ruling of 2026-11-14 still quotes only the untyped `pass`, so the authoritative record does not show the typed-name confirmation"
-  - id: IN-01
-    severity: info
-    disposition: fixed
-    title: "The WR-02 edits broke the files' hard wrap; long joined lines now appear in 14 files"
-  - id: IN-02
-    severity: info
-    disposition: fixed
-    title: "\"the Workflow 17 line 86 row\" does not name one row, because 41-11 holds five rows at that line"
-  - id: IN-03
-    severity: info
-    disposition: fixed
-    title: "41-08.md, which this delta touched, still has the present-tense \"stays pending\" paragraph, and the known-out-of-scope list leaves it out"
   - id: WR-04
     severity: warning
     disposition: fixed
@@ -171,21 +171,21 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 0
+open: 4
 total: 42
-recorded: 2026-11-14T21:40:39.656Z
+recorded: 2026-11-14T22:31:38.645Z
 ---
 
 # Phase 41: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) |
-| WR-02 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) |
-| WR-03 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) |
-| IN-01 | info | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) |
-| IN-02 | info | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) |
-| IN-03 | info | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) |
+| WR-01 | warning | open | - |
+| IN-01 | info | open | - |
+| IN-02 | info | open | - |
+| IN-03 | info | open | - |
+| WR-02 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) (not in the current review) |
+| WR-03 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) (not in the current review) |
 | WR-04 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) (not in the current review) |
 | WR-05 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) (not in the current review) |
 | IN-04 | info | deferred | Deferred to a later phase by Olger in 41-UAT.md test 11, 2026-11-13 (not in the current review) |
