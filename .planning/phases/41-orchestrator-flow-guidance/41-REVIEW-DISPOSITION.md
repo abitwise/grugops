@@ -13,7 +13,7 @@ findings:
     title: "Each \"How these rows were made\" section still says every row reads `pending (named human):`"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "\"Accepted by Olger\" is written onto 160 rows from replies with no typed name, which the phase's own standard treats as insufficient"
   - id: WR-04
     severity: warning
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 7
+open: 6
 total: 42
 recorded: 2026-11-14T20:02:14.769Z
 ---
@@ -182,7 +182,7 @@ recorded: 2026-11-14T20:02:14.769Z
 |---------|----------|-------------|--------|
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
+| WR-03 | warning | fixed | Typed-name confirmation by Olger, 2026-11-14: 'confirm tests 12, 13, 14, 15 as recorded, Olger' (recorded on 41-UAT.md tests 12-15) |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | IN-01 | info | open | - |
