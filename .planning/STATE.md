@@ -2,37 +2,37 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: 41
-current_phase_name: Orchestrator flow guidance
-status: verifying
-stopped_at: Completed 41-29-PLAN.md
-last_updated: "2026-11-14T09:53:17.813Z"
-last_activity: 2026-11-14
-last_activity_desc: Phase 41 execution started
-state_head: bdf5434b3977d1145d5e901173348e29671b55c2
+current_phase: 42
+current_phase_name: Skills per role and evaluation
+status: planning
+stopped_at: Phase 41 complete, ready to plan Phase 42
+last_updated: "2026-11-15T17:44:52.558Z"
+last_activity: 2026-11-15
+last_activity_desc: Phase 41 complete, transitioned to Phase 42
+state_head: eaa7467846c3fc6eb3276227da3d832902cf7bd9
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 142
   completed_plans: 142
-  percent: 67
+  percent: 78
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-04 after Phase 40)
+See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 41 — Orchestrator flow guidance
+**Current focus:** Phase 42 — Skills per role and evaluation
 
 ## Current Position
 
-Phase: 41 (Orchestrator flow guidance) — EXECUTING
-Plan: 29 of 29
-Status: Phase complete — ready for verification
-Last activity: 2026-11-14 — Phase 41 execution started
+Phase: 42 — Skills per role and evaluation
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-15 — Phase 41 complete, transitioned to Phase 42
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 508
+- Total plans completed: 537
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -147,6 +147,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 38 | 11 | - | - |
 | 39 | 20 | - | - |
 | 40 | 25 | - | - |
+| 41 | 29 | - | - |
 
 **Recent Trend:**
 
@@ -2391,6 +2392,9 @@ Recent decisions affecting current work:
 - [Phase 41]: 41-29: WR-01 fixed with the review's first suggested sentence word for word (test-11 ruling, Olger, 2026-11-13); the pointer rewording option is not taken
 - [Phase 41]: 41-29: 'nothing binds it either' in Workflow 06 line 37 keeps its wording; the two-'it' pronoun question goes to a named human in the 41-29.md row
 - [Phase 41]: 41-29: 41-28.md is not edited although two CHANGELOG line cells now read one short; Olger accepted those rows in test 12 and the gate reads no CHANGELOG line
+- [Phase 41]: UAT close 2026-11-14/15: an acceptance written on a named human's behalf needs a typed name (T-41-108); Olger confirmed tests 12-15 by typed name, and a later reply without one is asked for again
+- [Phase 41]: The five other hosts' live run (RUN-04, R-41-05) and the Windows run of note.js are deferred to the milestone UAT; RUN-04 is proven for the text only
+- [Phase 41]: The full suite needs more than the gate's 600 s default here (about 11,760 tests); run it with a longer bound and compare failures by name against 41-VALIDATION.md § Known baseline reds
 
 ### Pending Todos
 
@@ -2732,8 +2736,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-14T09:53:16.518Z
-Stopped at: Completed 41-29-PLAN.md
+Last session: 2026-11-15T17:45:25Z
+Stopped at: Phase 41 complete, ready to plan Phase 42
 Resume file: None
 
 ## Operator Next Steps
