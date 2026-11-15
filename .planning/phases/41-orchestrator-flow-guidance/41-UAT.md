@@ -126,6 +126,7 @@ ruling: "Olger replied 'pass' (2026-11-14) to R-41-11 as rewritten and to the su
 confirmed: "Olger confirmed by typed name on 2026-11-14, reply verbatim: 'confirm tests 12, 13, 14, 15 as recorded, Olger'. Asked for after the 2026-11-14T20:00Z review (WR-03) found the earlier reply carried no typed name."
 review: "The 2026-11-14T20:00Z review of the test 13-15 write-back raised WR-01 to WR-05, IN-01 and IN-02 on the record text. WR-03 (no typed name) closed on Olger's typed confirmation above. Olger chose 'Fix all six now' for the rest; Claude fixed them as record text only (pointer sentences, the 'stays pending' paragraphs of 41-11, 41-18 and 41-19 to 41-29, test 15's suggestion, the R-41-11 row and 41-SECURITY.md, the ruling section order, and the 41-11 prefix). check-diff-disposition passes; flow-guidance-text and check-diff-disposition tests pass 318/318."
 review2: "The second review (of commit 227be3fb) raised WR-01 to WR-03 and IN-01 to IN-03, three of them errors in that fix. Olger chose 'Fix all six now'; fixed as record text (41-11 prefix cites the 41-19 rows by text, 41-28 lead-in dated, the typed confirmation quoted in the 2026-11-14 ruling of 41-residuals.md, the line 86 row named, 41-08 paragraph in past tense, joined lines rewrapped). Regression gate at 674f753b: 11,762 tests, 21 failed, all 21 in 41-VALIDATION.md Known baseline reds by name (the 600 s default timed out; re-run with a 1,800 s bound)."
+review3: "The third review (of commit 6ee6d8fe) confirmed the six fixes and raised WR-01 (this file's gap G-41-7-WR-15 cited 41-18.md:23 after the rewrap) and IN-01 to IN-03 (wording). Olger ruled on 2026-11-15: fix WR-01, now :24; defer IN-01 to IN-03 to a later phase."
 
 ## Summary
 
@@ -196,7 +197,7 @@ blocked: 0
       issue: "WR-15"
     - path: "agent-factory/workflows/16-context-read-write.md:31"
       issue: "WR-15"
-    - path: "docs/audit/29-style-dispositions/41-18.md:23"
+    - path: "docs/audit/29-style-dispositions/41-18.md:24"
       issue: "WR-15"
     - path: "docs/audit/41-residuals.md (R-41-09)"
       issue: "WR-15"
@@ -758,3 +759,6 @@ blocked: 0
 - test: 13
   idea: "Review finding IN-02 (41-REVIEW.md, 2026-11-14T09:56Z): the CHANGELOG sentence is pinned twice. Deferred to a later phase by Olger"
   deferred_at: 2026-11-14
+- test: 15
+  idea: "Third review of 2026-11-14 (41-REVIEW.md): IN-01 '41-11.md: two of its line 86 rows', IN-02 'name the 20:00Z review in the 2026-11-14 ruling of 41-residuals.md', IN-03 'quote the typed confirmation in 41-11.md and 41-18.md too'. Deferred to a later phase by Olger"
+  deferred_at: 2026-11-15

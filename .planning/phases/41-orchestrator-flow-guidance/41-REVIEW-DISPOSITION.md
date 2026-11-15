@@ -5,19 +5,19 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The rewrap of 41-18.md moved its WR-15 row from line 23 to line 24, and 41-UAT.md still cites `41-18.md:23`"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: deferred
     title: "\"its two Workflow 17 line 86 rows in 41-19.md\" can be read as a count, but 41-19.md has three rows at that line"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: deferred
     title: "\"the review of 2026-11-14\" does not say which review, because several reviews carry that date"
   - id: IN-03
     severity: info
-    disposition: open
+    disposition: deferred
     title: "41-11 and 41-18 still describe the test 15 ruling as a reply of `pass`, without the typed-name confirmation the residuals now record"
   - id: WR-02
     severity: warning
@@ -171,7 +171,7 @@ findings:
     severity: info
     disposition: fixed
     title: "The D-04 note overstates what prevents an over-spawn"
-open: 4
+open: 0
 total: 42
 recorded: 2026-11-14T22:31:38.645Z
 ---
@@ -180,10 +180,10 @@ recorded: 2026-11-14T22:31:38.645Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
-| IN-03 | info | open | - |
+| WR-01 | warning | fixed | Fixed 2026-11-15 on Olger's ruling (41-UAT.md line 199 now cites 41-18.md:24) |
+| IN-01 | info | deferred | Deferred to a later phase by Olger, 2026-11-15 (third review) |
+| IN-02 | info | deferred | Deferred to a later phase by Olger, 2026-11-15 (third review) |
+| IN-03 | info | deferred | Deferred to a later phase by Olger, 2026-11-15 (third review) |
 | WR-02 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) (not in the current review) |
 | WR-03 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (second review) (not in the current review) |
 | WR-04 | warning | fixed | Fixed 2026-11-14 as record text on Olger's ruling 'Fix all six now' (41-UAT.md, after test 15) (not in the current review) |
