@@ -1,7 +1,7 @@
 ---
 phase: 41-orchestrator-flow-guidance
-verified: 2026-11-14T10:05:00Z
-status: human_needed
+verified: 2026-11-15T06:20:00Z
+status: passed
 score: 11/11 independently verified must-haves (plus 1 taken from the orchestrator's measurement, not re-run)
 covered_files:
   - .planning/phases/41-orchestrator-flow-guidance/41-01-PLAN.md
@@ -74,70 +74,59 @@ covered_files:
   - install/README.md
   - scripts/flow-guidance-text.test.ts
   - scripts/tier-kit-text.test.ts
-covered_digest: "v3:sha256:06514270739d70cd0481568312f2fc7b6d9813da18de9990dc8475281341b991"
+covered_digest: "v3:sha256:023ec88db5f3919c824f3b2c0feea2253489045c6d45ec06dab0a206cc6e2f4c"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: human_needed
-  previous_score: 14/14 independently verified (plus 1 from the orchestrator)
+  previous_score: 11/11 independently verified (plus 1 from the orchestrator)
   gaps_closed: []
   gaps_remaining: []
   regressions: []
 gaps: []
-deferred: []
-advisory:
-  - finding: "WR-01 of 41-REVIEW.md (2026-11-14T09:56Z, new, open): in Workflow 06 line 37 the sentence 'nothing binds it either (residual R-41-06)' now follows the inserted high-severity sentence, so 'either' and 'it' can be misread (the new sentence is about gating, the next about nothing binding; 'it' has two referents in a row)"
-    category: other
-    reason: "Read at HEAD (sed -n 37p). The misreading would say the control is weaker than it is (the hook does check a finding by the three roles), so it does not overstate a control. Plan 41-29 forbids changing that sentence and its 41-28.md row was accepted by Olger. The 41-29.md Workflow 06 row records the pronoun note but not 'either'. A named human rules."
-    evidence_status: "text read here; reviewer account of hooks/admission-guard.ts not re-read"
-  - finding: "IN-01 of 41-REVIEW.md (new, open): 'gates only' is narrower than the hook, which also refuses a no-`by` note and an unreadable config at high-severity"
-    category: other
-    reason: "Review account; not re-derived from scripts/context-io.ts here. Wording, no plan truth concerns it."
-    evidence_status: "review account"
-  - finding: "IN-02 of 41-REVIEW.md (new, open): the new CHANGELOG sentence is pinned twice (plan 41-28 case and plan 41-29 case)"
-    category: other
-    reason: "Pin duplication; harmless to behavior."
-    evidence_status: "tests read by name, both pass"
-  - finding: "WR-02, WR-03, IN-03 to IN-07 of the 2026-11-13T19:23Z review, deferred to a later phase by Olger (41-UAT test 11)"
-    category: other
-    reason: "Deferred by a named human in the ledger (14 rows). Not raised again. Not applied by plan 41-29, as its prohibitions require."
-    evidence_status: "41-REVIEW-DISPOSITION.md rows at deferred"
+deferred:
+  - truth: "RUN-04 live run of the flow guidance on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi (41-UAT test 2)"
+    addressed_in: "Milestone UAT (v3.0), by Olger's ruling of 2026-11-13 ('Defer both') and of 2026-11-10 (R-41-05)"
+    evidence: "41-UAT.md test 2 result skipped with the deferral recorded; ROADMAP.md line 134 lists 'live per-host runs' under 'Carried from v2.1 and not scheduled here'. The five CLIs are absent on this machine (UNKNOWN - verify)."
+  - truth: "Windows run of note.js's trustedRepoRoot ladder (41-UAT test 3)"
+    addressed_in: "Milestone UAT (v3.0), by Olger's ruling of 2026-11-13 ('Defer both')"
+    evidence: "41-UAT.md test 3 result skipped with the deferral recorded; ROADMAP.md line 134 lists 'Windows (CAP-02, HOST-02)' under 'Carried from v2.1 and not scheduled here'."
+  - truth: "WR-02, WR-03, IN-01 to IN-07 of the 2026-11-13 review; WR-01, IN-01, IN-02 of the 2026-11-14 review; IN-01 to IN-07 of the later reviews; the five code rows WR-16, WR-17, IN-16, IN-17, IN-18"
+    addressed_in: "A later phase, by Olger's rulings in 41-UAT tests 7, 9, 11, 13 and 15"
+    evidence: "41-REVIEW-DISPOSITION.md records each at deferred; open count is 0."
+advisory: []
 behavior_unverified_items: []
 coincidental_reliance_items: []
-human_verification:
-  - test: "Rule the three open rows of 41-REVIEW-DISPOSITION.md (WR-01, IN-01, IN-02 of the 2026-11-14 review) and the 2 pending (named human) rows of docs/audit/29-style-dispositions/41-29.md"
-    expected: "A named human either accepts Workflow 06 line 37 as it reads (or asks that 'nothing binds it either' be reworded), accepts or sends back IN-01 and IN-02, and accepts or sends back each 41-29.md row"
-    why_human: "Governance wording on the admission route; the diff-disposition gate proves a row exists, not that it is right, and no agent may write accepted"
-  - test: "Live run of the flow guidance on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi (RUN-04; 41-UAT test 2, deferred to the milestone UAT)"
-    expected: "The Orchestrator claims, refills and sweeps from Workflow 17 alone; a role writes and closes with note.js"
-    why_human: "These CLIs are absent on this machine (R-41-05, UNKNOWN - verify). RUN-04's 'reads the same on all six hosts' is proven for the text only."
-  - test: "Windows run of note.js's trustedRepoRoot ladder (41-UAT test 3, deferred)"
-    expected: "Rung 1 and rung 2 spell a path the same way (for example RUNNER~1)"
-    why_human: "No Windows machine is reachable; Windows is UNKNOWN - verify."
-  - test: "Rule the earlier pending (named human) rows of docs/audit/29-style-dispositions (41-19.md to 41-28.md) that no named human has accepted"
-    expected: "Each row accepted or sent back by a named human"
-    why_human: "No agent may write accepted."
-  - test: "Olger reads R-41-11 as plan 41-26 rewrote it (docs/audit/41-residuals.md)"
-    expected: "He confirms his acceptance covers a standalone Claude Code install having no route, or sends it back"
-    why_human: "No agent may write a named human's acceptance of a residual."
 ---
 
 # Phase 41: Orchestrator flow guidance Verification Report
 
 **Phase Goal:** The Orchestrator keeps parallel work moving: it reads what is running from disk, refills free capacity as each task finishes, knows when to start a fresh session, and the same guidance works on all six hosts
-**Verified:** 2026-11-14T10:05:00Z
-**Status:** human_needed
-**Re-verification:** Yes. It follows the 2026-11-13T19:45Z report (`human_needed`) and covers gap-closure plan 41-29 (commits 3757b701 RED, 5b735f8f GREEN, ec2ac224, bdf5434b, abe2cf6e). That report is replaced.
+**Verified:** 2026-11-15T06:20:00Z
+**Status:** passed
+**Re-verification:** Yes. It follows the 2026-11-14T10:05Z report (`human_needed`, covering plan 41-29). That report is replaced.
 
 ## Verdict
 
-The phase goal holds in the code, as far as the routes measured here go. RUN-01 to RUN-06 and the five roadmap success criteria are met in the code and text. Plan 41-29 did what it set out to do: the sentence `At \`high-severity\` it gates only a finding by \`security-nfr\`, \`architect-design\` or \`release-manager\`.` sits in Workflow 06 line 37 right after the default-off sentence and right before the `note.js` sentence, and in the CHANGELOG bullet. I found no regression and no failed truth.
+The phase goal holds in the code and text, and nothing a named human owes for this phase remains open. RUN-01 to RUN-06 and the five roadmap success criteria are met. The earlier report was `human_needed` only because rulings were owed. Those rulings are now on record in `41-UAT.md` (status complete), so the status moves to `passed`.
 
-The status stays `human_needed`, not `passed`: the live runs on five hosts and Windows are owed, every `pending (named human)` row is owed to a named human, and the new 2026-11-14 review has three rows at `open` (WR-01, IN-01, IN-02) that only a named human may rule on.
+Two items stay unrun, and I record them as deferred, not open: the live run on five hosts (UAT test 2) and the Windows run (UAT test 3). Olger deferred both to the milestone UAT on 2026-11-13, and ROADMAP.md line 134 already lists "live per-host runs" and "Windows" as carried and not scheduled in this milestone. That is how this project records an item a human has chosen to carry, so I judge it consistent. RUN-04's "reads the same on all six hosts" is proven for the text only; a live run on those hosts is `UNKNOWN - verify`.
 
-## What plan 41-29 changed, read at HEAD
+## What changed since the last report
 
-`git diff 260f3709 HEAD` over non-`.planning` files lists four files: `CHANGELOG.md`, `agent-factory/workflows/06-uat-pack.md`, `docs/audit/29-style-dispositions/41-29.md` (new) and `scripts/flow-guidance-text.test.ts`. The only `.ts`, `.js` or `.json` file touched is the test file. The `+`/`-` lines of the two text files are exactly the one inserted sentence in each (the CHANGELOG lines re-wrap around it). No other sentence of Workflow 06 line 37 changed, so "nothing binds it either (residual R-41-06)" keeps its wording, as the plan's prohibition requires.
+`git diff --name-only d1a0db9f HEAD` lists 19 files. None is outside `.planning/` or `docs/audit/`: four phase files (`41-REVIEW-DISPOSITION.md`, `41-REVIEW.md`, `41-SECURITY.md`, `41-UAT.md`) and fifteen files under `docs/audit/` (`29-style-dispositions/41-08.md`, `41-11.md`, `41-18.md` to `41-29.md`, and `41-residuals.md`). No kit text, program code or test file changed. The previous report's code-level truths therefore stand, and I treated them as regression checks. The uncommitted `docs/audit/28-prepass-evidence.md` edit and the untracked `brand/readme-art.txt` and `~/` are outside this phase and were not read.
+
+## Human items from the previous report, now closed
+
+| Previous human item | Where it is closed | State |
+|---|---|---|
+| Rule WR-01, IN-01, IN-02 (2026-11-14 review) and the 2 rows of `41-29.md` | 41-UAT test 13, ruled 2026-11-14, confirmed by typed name | Rows accepted; three findings deferred to a later phase |
+| Rule the earlier pending rows of `41-19.md` to `41-28.md` | 41-UAT tests 12 and 14 | 15 rows (test 12) and 156 rows (test 14) accepted by Olger |
+| Olger reads R-41-11 as plan 41-26 rewrote it | 41-UAT test 15 | Accepted; the held-back `41-11.md` and `41-18.md` rows marked superseded |
+| Live run on five other hosts | 41-UAT test 2 | Deferred by Olger to the milestone UAT |
+| Windows run of `note.js` | 41-UAT test 3 | Deferred by Olger to the milestone UAT |
+
+The typed confirmation `confirm tests 12, 13, 14, 15 as recorded, Olger` is quoted in `41-UAT.md` under each of tests 12 to 15. A named human wrote it, which is what the project asks for.
 
 ## Goal Achievement
 
@@ -145,103 +134,96 @@ The status stays `human_needed`, not `passed`: the live runs on five hosts and W
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | SC1, RUN-01: `now-running.md`, rendered from `claimed/`, is the only in-flight log, holds only running work, empties as tasks finish | VERIFIED (regression check) | `scripts/runnable-ref/claim.ts` and `claim.js` unchanged by 41-29 (no `.ts`/`.js` change but the test file). `now-running-freshness`, `claim.test`, `claim-read-sites`, `runnable-exit-contract` pass in my run. Workflow 17 line 56 and 64 say the claim and `done` re-render `now-running.md`. |
-| 2 | SC2, RUN-02 and RUN-05: refill from `wip_limit` minus `claimed/` count read from disk, no timers; agents claim and complete with the shipped `claim.js` | VERIFIED (mechanism); live host runs owed | Workflow 17 line 54 runs `claim.js free` ("Trust that number, never a remembered count"); `## Keep capacity full` at line 68. `node scripts/runnable-ref/claim.js` with no command prints the usage naming `claim`, `done`, `now-running`, `sweep`, `free`. |
-| 3 | SC3, RUN-03 and RUN-04: Workflow 17 holds `## Session compaction` named apart from WF18; `orchestrator.md` has a pointer and stays under its ceiling | VERIFIED | `17-task-claim.md` line 93 `## Session compaction`; `orchestrator.md` line 33 points to Workflow 17 for "claim, refill, sweep and run session compaction"; `orchestrator.md` is 6,158 bytes, unchanged from the prior report. |
-| 4 | SC4, RUN-04: the guidance reads the same on all six hosts, with only optional operator tips per host | VERIFIED (text only); live runs owed | `flow-guidance-text.test.ts` passes. The five-host live run is deferred (R-41-05, `UNKNOWN - verify`). |
-| 5 | SC5, RUN-06: tiered engineers started by adapter name, never forked, no model override, no self-claim | VERIFIED | Workflow 17 line 58: "Start a tiered engineer by adapter name, as a non-fork sub-agent. Pass no `model` or `effort` parameter"; `orchestrator.md` line 79 and `claim.js` refuse `--by grugops-orchestrator`; `tier-kit-text.test.ts` passes. |
-| 6 | 41-29 truth 1: Workflow 06 line 37 carries the high-severity sentence between the default-off and `note.js` sentences, nothing else on the line changes | VERIFIED | `sed -n 37p` read at HEAD; diff shows only that insertion. |
-| 7 | 41-29 truth 2: the CHANGELOG `### Security` bullet carries the same sentence after the default-off sentence, nothing else changes once flattened | VERIFIED | Diff shows the sentence inserted and the lines re-wrapped; no other wording changed. |
-| 8 | 41-29 truth 3: a plan 41-29 pin holds the three sentences as one run in both files; the plan 41-28 changelog case carries the new sentence; it failed before the edit and passes after; the route scan has no new offender | VERIFIED (green re-observed; red from commit order and SUMMARY) | 7 files, 632 of 632 tests pass in my run, including the named cases and the route scan. RED commit 3757b701 precedes GREEN 5b735f8f in `git log`. I did not check out the RED commit to re-observe the failure. |
-| 9 | 41-29 truth 4: `41-29.md` holds one `pending (named human)` row per changed clause and `check-diff-disposition` exits 0 | VERIFIED | File read: 2 rows (Workflow 06 line 37, CHANGELOG line 194), both `pending (named human)`. `node scripts/check-diff-disposition.js` prints ALL CHECKS PASSED. |
-| 10 | 41-29 truth 5: ledger reads `WR-01 \| warning \| fixed \| 41-29` with `open: 0` | SUPERSEDED (not a failure) | The plan wrote that row, then the 2026-11-14T09:56Z review reused the id WR-01 for a new finding. `41-REVIEW-DISPOSITION.md` now lists WR-01, IN-01 and IN-02 at `open`, 14 at `deferred`. The fix of the earlier WR-01 is recorded in commits 5b735f8f and ec2ac224 and 41-29-SUMMARY.md. Same pattern as the 41-28 round. |
-| 11 | 41-29 truth 6: no program code changed; only the test file is a `.ts`/`.js`/`.json` change | VERIFIED | `git diff --name-only 260f3709 HEAD -- '*.ts' '*.js' '*.json'` prints `scripts/flow-guidance-text.test.ts` only. |
-| 12 | 41-29 truth 7: the full suite ends on exactly the 21 baseline names | NOT RE-RUN here (taken from the orchestrator) | The orchestrator reports 21 failed, 11,739 passed, 2 skipped at ec2ac224, names equal to `41-VALIDATION.md` § Known baseline reds, and no non-`.planning` file changed between ec2ac224 and HEAD. I did not re-run the full suite. I re-ran `npx tsc --noEmit` (exit 0) and 7 focused files. Not counted in the independent score. |
+| 1 | SC1, RUN-01: `now-running.md`, rendered from `claimed/`, is the only in-flight log, holds only running work, empties as tasks finish | VERIFIED (regression check) | `scripts/runnable-ref/claim.ts` and `claim.js` unchanged since the last report (no code file in the diff above). `claim.test.ts` passes in my run (661 of 661 across four files). Live run in 41-UAT test 1: `now-running.md` had no rows after `done`, `free` went 3, 2, 3. |
+| 2 | SC2, RUN-02 and RUN-05: refill from `wip_limit` minus `claimed/` count read from disk, no timers; agents claim and complete with the shipped `claim.js` | VERIFIED | `scripts/runnable-ref/claim.js` and `note.js` exist. Workflow 17 carries `## Keep capacity full` and runs `claim.js free`. UAT test 1 (live Claude Code run, plugin and standalone) shows the route end to end. |
+| 3 | SC3, RUN-03 and RUN-04: Workflow 17 holds `## Session compaction` named apart from Workflow 18 note compaction; `orchestrator.md` has a pointer and stays under its ceiling | VERIFIED | `agent-factory/workflows/17-task-claim.md` line 93 `## Session compaction`, which says it "is not note compaction, which Workflow 18 owns". `orchestrator.md` is 6,158 bytes, the same size as the last report. |
+| 4 | SC4, RUN-04: the guidance reads the same on all six hosts, with only optional operator tips per host | VERIFIED (text only); live runs deferred | `scripts/flow-guidance-text.test.ts` passes. The five-host live run is deferred (R-41-05). |
+| 5 | SC5, RUN-06: tiered engineers started by adapter name, never forked, no model override, no self-claim | VERIFIED | `tier-kit-text.test.ts` passes; `claim.js` refuses `--by grugops-orchestrator` (unchanged code, tested in `claim.test.ts`). |
+| 6 | 41-29 truths 1 and 2: the high-severity sentence is in Workflow 06 line 37 and the CHANGELOG Security bullet | VERIFIED (regression check) | Neither file is in the diff since the last report; `flow-guidance-text.test.ts` holds the pin and passes. |
+| 7 | 41-29 truth 3: the plan 41-29 pin and the plan 41-28 changelog case hold | VERIFIED | `flow-guidance-text.test.ts` passes in my run. |
+| 8 | 41-29 truth 4: `check-diff-disposition` exits 0 and each changed clause has a row | VERIFIED | `node scripts/check-diff-disposition.js` prints `diff disposition: 0 findings over 28/28 elements` and `ALL CHECKS PASSED`. |
+| 9 | 41-29 truth 6: no program code changed; the only `.ts`/`.js`/`.json` file is the test file | VERIFIED | The diff since the last report touches no code; the earlier check of plan 41-29's own range stands. |
+| 10 | Nothing a named human owes for the phase remains open | VERIFIED | (a) `41-UAT.md` status complete, 15 tests, 9 pass, 4 issue, 2 skipped, pending 0, 30 gap entries all `status: resolved`. (b) `phase uat-passed 41 --uat-only` returns `passed: true` with `blockers: []` (two results deferred, four results `issue` all resolved). (c) No table row of `docs/audit/29-style-dispositions/41-*.md` reads `pending (named human)`: my grep for table rows returned none, and the 18 files that still contain the phrase carry it in prose that explains how rows were written (read for `41-28.md` lines 39 and 63 and `41-29.md` line 40). (d) `41-REVIEW-DISPOSITION.md` holds `fixed` or `deferred` for every finding; I found no `open` row in the part read, and the UAT records `open: 0`. |
+| 11 | The 2026-11-14 review rows (WR-01, IN-01, IN-02) are ruled | VERIFIED | Deferred to a later phase by Olger, 41-UAT test 13. |
+| 12 | The full suite ends on exactly the 21 baseline names | NOT RE-RUN here (taken from the orchestrator) | The orchestrator reports 11,762 tests, 21 failed, all 21 named in `41-VALIDATION.md` § Known baseline reds, at 674f753b, with only docs changes since. I did not re-run the full suite. Not counted in the independent score. |
 
-**Score:** 11/11 independently verified truths; truth 12 rests on the orchestrator's measurement; truth 10 is superseded by a new review that reused the finding id. 0 present-but-behavior-unverified. No override applied.
+**Score:** 11/11 independently verified truths; truth 12 rests on the orchestrator's measurement. 0 present-but-behavior-unverified. No override applied.
 
 ### Deferred Items
 
-None. (The 14 `deferred` ledger rows are human-deferred review findings, not roadmap deferrals to a later phase.)
+| # | Item | Addressed In | Evidence |
+|---|------|-------------|----------|
+| 1 | Live run on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, Pi | Milestone UAT | 41-UAT test 2; ROADMAP.md line 134 |
+| 2 | Windows run of `note.js` `trustedRepoRoot` | Milestone UAT | 41-UAT test 3; ROADMAP.md line 134 |
+| 3 | Human-deferred review rows (info and code rows) | A later phase | 41-REVIEW-DISPOSITION.md rows at `deferred` |
 
-### Advisory
-
-| # | Finding | Why advisory |
-|---|---------|--------------|
-| 1 | Review WR-01 (new): "nothing binds it either" in Workflow 06 now follows a gating sentence | Misreading errs toward understating the control; plan forbids touching that sentence; a named human rules |
-| 2 | Review IN-01: "gates only" narrower than the hook's fail-closed refusals | Review account, wording |
-| 3 | Review IN-02: new CHANGELOG sentence pinned twice | Pin duplication |
-| 4 | WR-02, WR-03, IN-03 to IN-07 (2026-11-13 review) | Deferred by Olger in test 11 |
+These are human-deferred, not matched to a later phase's success criteria by me. I accepted them because Olger ruled each one and the roadmap lists the first two as carried. A caller who disagrees with that reading should treat the status as `human_needed`.
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `agent-factory/workflows/06-uat-pack.md` | Line 37 with the roles the high-severity dial gates | VERIFIED | Sentence present once, in place |
-| `CHANGELOG.md` | Security bullet with the same sentence | VERIFIED | In the diff |
-| `scripts/flow-guidance-text.test.ts` | WR-01 pin over both files | VERIFIED | Cases pass |
-| `docs/audit/29-style-dispositions/41-29.md` | A pending row per changed clause | VERIFIED | 2 rows, 0 accepted |
-| `scripts/runnable-ref/claim.js` | Shipped queue runnable | VERIFIED | Present, runs, tested |
-| `agent-factory/workflows/17-task-claim.md` | Flow guidance home | VERIFIED | Sections at lines 47-121 |
+| `scripts/runnable-ref/claim.js` | Shipped queue runnable | VERIFIED | Present; its test passes |
+| `scripts/runnable-ref/note.js` | Host note writer | VERIFIED | Present; exercised live in UAT test 1 |
+| `agent-factory/workflows/17-task-claim.md` | Flow guidance home | VERIFIED | `## Session compaction` at line 93 |
+| `agent-factory/roles/orchestrator.md` | Pointer, under ceiling | VERIFIED | 6,158 bytes |
+| `agent-factory/workflows/06-uat-pack.md`, `CHANGELOG.md` | High-severity sentence | VERIFIED | Unchanged since last report; pinned by test |
+| `docs/audit/29-style-dispositions/41-*.md` | A ruled row per changed clause | VERIFIED | No pending table row; gate passes |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| Plan 41-29 pin | Workflow 06 line 37 and CHANGELOG | three sentences as one run | WIRED | Passes at HEAD |
-| Workflow 06 attended lane | Recipe attended lane | Same sentence word for word | WIRED | Recipe carries it (41-28 round) |
-| `orchestrator.md` | Workflow 17 | One-line pointer | WIRED | Line 33 |
+| `orchestrator.md` | Workflow 17 | One-line pointer | WIRED | Unchanged since last report |
+| Plan 41-29 pin | Workflow 06 line 37 and CHANGELOG | Three sentences as one run | WIRED | `flow-guidance-text.test.ts` passes |
+| Disposition records | `check-diff-disposition` | Gate over `docs/audit/29-style-dispositions` | WIRED | ALL CHECKS PASSED |
 
 ### Data-Flow Trace (Level 4)
 
-Not applicable to plan 41-29: it changed kit text, the CHANGELOG, a test file and records. The queue programs that render `now-running.md` are unchanged.
+Not applicable to this re-verification: only records changed. The queue programs that render `now-running.md` are unchanged and were exercised live in UAT test 1.
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Flow, tier, claim, freshness, read-site, exit-contract and chrome-lane suites | `npx vitest run` over 7 named files | 7 files, 632 of 632 passed | PASS |
+| Flow text, tier text, claim and disposition suites | `npx vitest run` over `flow-guidance-text`, `tier-kit-text`, `runnable-ref/claim`, `check-diff-disposition` tests | 4 files, 661 of 661 passed | PASS |
 | Type check | `npx tsc --noEmit` | exit 0 | PASS |
 | Disposition gate | `node scripts/check-diff-disposition.js` | ALL CHECKS PASSED | PASS |
-| `claim.js` CLI surface | `node scripts/runnable-ref/claim.js` | exit 2, usage lists claim, done, now-running, sweep, free; "The queue was not changed." | PASS |
+| UAT gate | `gsd-tools phase uat-passed 41 --uat-only` | `passed: true`, `blockers: []` | PASS |
 | Full suite | not run here | orchestrator reports 21 failed, all baseline names | taken on trust |
 
 ### Probe Execution
 
-SKIPPED: the plan declares no `probe-*.sh` probes.
+SKIPPED: the plans declare no `probe-*.sh` probes.
 
 ### Requirements Coverage
 
-Every ID appears in at least one PLAN's `requirements:` field (plan 41-29 declares RUN-04 and RUN-05; 41-01 to 41-28 cover the rest). No orphaned ID in REQUIREMENTS.md.
+Every ID is declared in at least one PLAN's `requirements:` field (plan 41-29 declares RUN-04 and RUN-05; plans 41-01 to 41-28 cover the rest). REQUIREMENTS.md maps no other ID to Phase 41, so there is no orphan.
 
 | Requirement | Status | Evidence |
 |-------------|--------|----------|
 | RUN-01 | SATISFIED | Truth 1 |
 | RUN-02 | SATISFIED | Truth 2 |
 | RUN-03 | SATISFIED | Truth 3 |
-| RUN-04 | SATISFIED (text); live runs owed | Truths 3, 4, 6-9 |
+| RUN-04 | SATISFIED (text); live five-host run deferred to the milestone UAT | Truths 3, 4, 6, 7 |
 | RUN-05 | SATISFIED | Truth 2 |
 | RUN-06 | SATISFIED | Truth 5 |
 
-REQUIREMENTS.md still shows RUN-01 to RUN-06 as `[ ]` with "Gaps Found" in the traceability table (lines 66-71, 153-158). I did not edit it. All six are satisfied in the code; RUN-04's "reads the same on all six hosts" is proven for the text only, and whether to flip the boxes now or at the milestone UAT is for the caller and a named human.
+REQUIREMENTS.md still shows RUN-01 to RUN-06 as `[ ]` (lines 66-71) and "Gaps Found" in the traceability table (lines 153-158), and ROADMAP.md still shows Phase 41 as `[ ]`. I did not edit them. Flipping them is for the caller.
 
 ### Anti-Patterns Found
 
-No `TBD`, `FIXME` or `XXX` in the added lines of `git diff 260f3709 HEAD` over the CHANGELOG, `agent-factory`, `docs` and the test file. No stub or hollow-data pattern applies to a text and test change.
+No kit text, code or test changed since the last report, so there is no new line to scan. The last report found no `TBD`, `FIXME` or `XXX` in the phase's added lines, and nothing in the diff above changes that.
 
 ### Human Verification Required
 
-1. **Rule WR-01, IN-01, IN-02 of the new review and the two rows of `41-29.md`.** Expected: Workflow 06 line 37 accepted as it reads, or "nothing binds it either" reworded; each row accepted or sent back. Why human: governance wording; no agent may accept.
-2. **Live run on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi** (41-UAT test 2, deferred). Why human: the CLIs are absent here.
-3. **Windows run of `note.js`'s `trustedRepoRoot` ladder** (41-UAT test 3, deferred). Why human: no Windows machine.
-4. **Earlier pending rows (41-19.md to 41-28.md) no named human has accepted.** Why human: no agent may write `accepted`.
-5. **Olger's read of R-41-11** as plan 41-26 rewrote it. Why human: no agent may write a named human's acceptance of a residual.
+None open. The two items in Deferred Items are the milestone UAT's.
 
 ### Gaps Summary
 
-No gaps. Plan 41-29's sentence landed in both files, is pinned, and the one `.ts` file touched is the test file. The disposition gate, type check and 632 focused tests pass. What remains is human work: rulings on the new open review rows and pending disposition rows, and the live runs on hosts not on this machine. No override was written. The full-suite baseline comparison is the orchestrator's measurement and was not re-run here.
+No gaps. Every must-have holds at HEAD, no code changed since the last report, the focused suites and type check pass, and the human rulings the last report asked for are on record. The residual risk is the deferred live runs on five hosts and on Windows, which Olger carried to the milestone UAT. The full-suite baseline comparison is the orchestrator's measurement and was not re-run here.
 
 ---
 
-_Verified: 2026-11-14T10:05:00Z_
+_Verified: 2026-11-15T06:20:00Z_
 _Verifier: Claude (gsd-verifier)_
