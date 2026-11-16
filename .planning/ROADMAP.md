@@ -882,3 +882,14 @@ Plans:
 **Deferred at:** 2026-10-26 during /gsd-verify-work 37 session completion
 **Follow-ups:**
 - [ ] Test 1: Unblock CI so a push reaches state-check.js . and the validator: re-point the 19 archive-path tests to .planning/milestones/v2.1-phases/; re-base or retire the GAP-D1 flip manifest (check-flip-manifest.ts:66 plus 6 stale derivations); human review of the 31 FROZEN diff-disposition clauses, then a recorded decision on the 690 others (write rows, move base 4d2b8f0, or retire the gate). (deferred 2026-10-24)
+
+### Phase 999.13: Consultant and business-domain packs (BACKLOG)
+
+**Goal:** [Captured for future planning] Let a team add advisory consultant roles for its business domain: business-type domain experts, and non-software roles such as a game studio's game designer, artist and sound artist. Consultants support the BA/PM and answer business questions. They are advisory only: no code, no claims, no gates. A pack is a folder of role and checklist markdown, admitted by the existing role guards (`admitRole`, byte ceilings) and ratified by typed name. Milestone-sized; shape after v3.0. See `999.13-consultant-and-business-domain-packs/999.13-IDEA.md`.
+**Source phase:** 42
+**Deferred at:** 2026-11-16 during /gsd-execute-phase 42 (human)
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
