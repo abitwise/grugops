@@ -809,6 +809,10 @@ reads every file first and reports afterwards, in this order:
   host reaches the Orchestrator and through which of these files (for Claude Code, also through the
   adapters' `KIT=` line). A host that cannot reach always has a counted finding behind it, and a
   counted finding always has a host that cannot reach behind it.
+- **Advisory lines.** A line labelled `advisory` reports something optional, such as a skill a role
+  declares that is not installed or a Claude Code version below the junior level's floor, or
+  something `--check` could not check. It never changes the exit code, and `--strict` does not
+  promote it to a failure.
 
 `--check` also prints one `state layout:` line before its stat lines: `ok` when the board is under
 `memory-bank/plans/`, and a `WARN`, never a `FAIL`, when the repository is still on the pre-v3 layout
@@ -2088,8 +2092,10 @@ fetched 2026-10-29). On Claude Platform on AWS, Amazon Bedrock, Google Cloud's A
 Microsoft Foundry, `haiku` resolves to Haiku 4.5, which that page does not list as supporting an effort
 level, so what Claude Code does with the junior adapter's `effort: xhigh` line there is
 `UNKNOWN - verify`. On those providers `sonnet` can map to Sonnet 4.5, which is not in that list either,
-so the mid adapter's effort there is `UNKNOWN - verify` too. `install.js --check` does not probe the
-Claude Code version yet; check it yourself before you rely on the junior level.
+so the mid adapter's effort there is `UNKNOWN - verify` too. When Claude Code is installed,
+`install.js --check` runs `claude --version`, the first `claude` on your PATH, with no shell. It prints
+an `advisory` line when the version is below v2.1.293, or one saying it could not check the version
+and why.
 
 **What can flatten the levels at run time.** The pins are adapter frontmatter, and these run-time
 settings take precedence over them: a `model` or `effort` parameter on the spawn call;
