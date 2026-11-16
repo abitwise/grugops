@@ -3,12 +3,13 @@
 // The precedence rule is stated once (D-14), so the first case walks the kit's reader-facing
 // markdown and derives where the phrase occurs, rather than trusting a list of files.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { ROLE_HEADING_ORDER, checkHeadingOrder } from "./check-role-rules.js";
 import { readRoleSkills, type RoleSkillsReport } from "./role-skills-reader.js";
 import { ROLE_COUNT, ROLES_SUBPATH, listRoles } from "./kit-model.js";
+import { HOST_SKILL_DIRS, HOST_TOOLS, type HostSkillDirs, type HostTool } from "../install/host-tools.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const AGENTS = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
@@ -343,5 +344,164 @@ describe("a role may declare a skill with a built-in fallback, and every shipped
     const findings = checkHeadingOrder("fixture", fixtureRole("example-skill", skillsBody([ROW]), true));
     expect(findings).toHaveLength(1);
     expect(findings[0]).toContain("`## Skills`");
+  });
+});
+
+// Phase 42 plan 42-07: docs/skills.md, pinned two ways to the code it describes (amended SKILL-01, SKILL-03; SKILL-05;
+// D-01, D-06, D-24). The page recommends no skill (42-04: ratify-none), so its skill set must equal the set the shipped
+// roles declare, which is empty today; its host table must equal HOST_SKILL_DIRS; and its spawn-mode sentence must hold
+// for every Claude Code adapter's `tools:` line.
+
+const SKILLS_DOC_PATH = join(ROOT, "docs", "skills.md");
+const NO_RECOMMENDATION = "grugops recommends no third-party skill.";
+const HOST_TABLE_HEADER = "| Host | Project folders | User folders | Plugin installs | May be moved by |";
+
+/** The page, or an empty string when it does not exist yet, so each case fails on its own assertion. */
+function skillsDoc(): string {
+  return existsSync(SKILLS_DOC_PATH) ? readFileSync(SKILLS_DOC_PATH, "utf8") : "";
+}
+
+/** The `|`-led lines of a section body, in order. */
+function tableLines(body: string): string[] {
+  return body.split("\n").filter((l) => l.trim().startsWith("|"));
+}
+
+/** The data rows of a markdown table: the lines after the header, without the separator row. */
+function dataRows(lines: readonly string[]): string[] {
+  return lines.slice(1).filter((l) => !/^\|(\s*:?-+:?\s*\|)+\s*$/.test(l.trim()));
+}
+
+/** The cells of one table row, trimmed. */
+function cellsOf(row: string): string[] {
+  return row.trim().slice(1, -1).split("|").map((c) => c.trim());
+}
+
+/**
+ * The one rendering of a host row (D-06, D-24). The page copies what this returns, so the page and HOST_SKILL_DIRS
+ * cannot drift apart silently.
+ */
+function renderHostRow(host: HostTool, dirs: HostSkillDirs): string {
+  const folders = (paths: readonly string[], prefix: string): string => paths.map((p) => `\`${prefix}${p}/\``).join(", ");
+  const plugins =
+    dirs.plugins.kind === "claude-installed-plugins"
+      ? "each plugin in Claude Code's installed-plugin record"
+      : dirs.plugins.kind === "plugin-folders"
+        ? `the \`skills/\` folder of each plugin under \`~/${dirs.plugins.userRoot}/\``
+        : "`UNKNOWN - verify`";
+  const overrides = dirs.userOverrides.length === 0 ? "none" : dirs.userOverrides.map((v) => `\`${v}\``).join(", ");
+  return `| ${[host.name, folders(dirs.project, ""), folders(dirs.user, "~/"), plugins, overrides].join(" | ")} |`;
+}
+
+/**
+ * The findings for the `## Recommended skills` section against the skills the shipped roles declare (D-01). With no
+ * declared skill the section carries the no-recommendation sentence and no table; with any, it carries no such sentence
+ * and its table names exactly the declared skills, each in its first cell.
+ */
+function recommendedSkillsFindings(body: string, declared: readonly string[]): string[] {
+  const out: string[] = [];
+  const lines = tableLines(body);
+  const named = dataRows(lines).map((r) => (cellsOf(r)[0] ?? "").replaceAll("`", ""));
+  if (declared.length === 0) {
+    if (!body.includes(NO_RECOMMENDATION)) out.push(`no role declares a skill, but the section lacks "${NO_RECOMMENDATION}"`);
+    if (lines.length > 0) out.push("no role declares a skill, but the section has a table");
+    return out;
+  }
+  if (body.includes(NO_RECOMMENDATION)) out.push(`a role declares a skill, but the section still says "${NO_RECOMMENDATION}"`);
+  for (const skill of declared) if (!named.includes(skill)) out.push(`declared skill \`${skill}\` is not named in the section`);
+  for (const skill of named) if (!declared.includes(skill)) out.push(`the section names \`${skill}\`, which no role declares`);
+  return out;
+}
+
+/** The comma-separated tokens of a `tools:` value, trimmed. A `Skill` grant is the token `Skill` or `Skill(...)`. */
+function toolTokens(line: string): string[] {
+  return line.replace(/^tools:\s*/, "").split(",").map((t) => t.trim());
+}
+
+describe("docs/skills.md: no recommended skill, pinned to the declarations, the host table and the adapters (amended SKILL-01, SKILL-03; SKILL-05)", () => {
+  it("§ Recommended skills names exactly the skills the shipped roles declare, both ways", () => {
+    const report = readRoleSkills(ROOT);
+    expect(report.refusals).toEqual([]);
+    const declared = Object.keys(report.skills).sort();
+    expect(recommendedSkillsFindings(section(skillsDoc(), "Recommended skills"), declared)).toEqual([]);
+  });
+
+  it("the Recommended-skills pin fails both ways: a declaration the page does not name, and a table with no declaration", () => {
+    const empty = `${NO_RECOMMENDATION}\n\nA maintainer declined the proposals.`;
+    expect(recommendedSkillsFindings(empty, [])).toEqual([]);
+    const gained = recommendedSkillsFindings(empty, ["example-skill"]);
+    expect(gained.some((f) => f.includes("example-skill"))).toBe(true);
+    expect(gained.some((f) => f.includes(NO_RECOMMENDATION))).toBe(true);
+    const table = "| Skill | Roles |\n|---|---|\n| `example-skill` | designer |";
+    expect(recommendedSkillsFindings(table, ["example-skill"])).toEqual([]);
+    expect(recommendedSkillsFindings(table, [])).toHaveLength(2);
+    expect(recommendedSkillsFindings(table, ["example-skill", "second-example-skill"])).toEqual([
+      "declared skill `second-example-skill` is not named in the section",
+    ]);
+  });
+
+  it("§ Where each host looks for skills has one row per HOST_TOOLS host, in registry order, equal cell by cell to HOST_SKILL_DIRS", () => {
+    expect(Object.keys(HOST_SKILL_DIRS).sort()).toEqual(HOST_TOOLS.map((h) => h.id).sort());
+    const lines = tableLines(section(skillsDoc(), "Where each host looks for skills"));
+    expect(lines[0]?.trim()).toBe(HOST_TABLE_HEADER);
+    const rows = dataRows(lines);
+    expect(rows.map((r) => cellsOf(r)[0]), "the host rows, by name and order").toEqual(HOST_TOOLS.map((h) => h.name));
+    for (const host of HOST_TOOLS) {
+      const dirs = HOST_SKILL_DIRS[host.id];
+      expect(dirs, `HOST_SKILL_DIRS has no row for ${host.name}`).toBeDefined();
+      const row = rows.find((r) => cellsOf(r)[0] === host.name);
+      expect(row?.trim(), `the ${host.name} row`).toBe(renderHostRow(host, dirs as HostSkillDirs));
+    }
+  });
+
+  it("§ How a role declares a skill carries the role contract's table header and record line, and the spawn-mode limit", () => {
+    const body = section(skillsDoc(), "How a role declares a skill");
+    expect(body).toContain(SKILLS_TABLE_HEADER);
+    for (const fragment of SKILLS_RECORD_FRAGMENTS) expect(body).toContain(fragment);
+    expect(body).toContain("skills:");
+    expect(body).toContain("no `Skill` tool");
+  });
+
+  it("no Claude Code role adapter has a `Skill` tool, so the page's spawn-mode sentence holds", () => {
+    const dir = join(ROOT, ".claude", "agents");
+    const adapters = readdirSync(dir).filter((f) => f.endsWith(".md"));
+    expect(adapters.length).toBeGreaterThan(0);
+    for (const file of adapters) {
+      const line = readFileSync(join(dir, file), "utf8").split("\n").find((l) => l.startsWith("tools:"));
+      expect(line, `${file} has no tools: line`).toBeDefined();
+      const grants = toolTokens(line ?? "").filter((t) => t === "Skill" || t.startsWith("Skill("));
+      expect(grants, `${file} grants a Skill tool`).toEqual([]);
+    }
+  });
+
+  it("§ Read this first carries the vet-it-yourself notice and points to AGENTS.md without restating its line", () => {
+    const page = skillsDoc();
+    const body = section(page, "Read this first");
+    expect(body).toContain("Any skill you install is third-party code you vet yourself.");
+    expect(body).toContain("never vendors or installs a skill");
+    expect(body).toContain("AGENTS.md");
+    expect(page).not.toContain(PHRASE);
+  });
+
+  it("§ What install.js --check does and § Design-system files say what the doctor and the two roles do", () => {
+    const page = skillsDoc();
+    const check = section(page, "What install.js --check does");
+    expect(check).toContain("installs nothing");
+    expect(check).toContain("no skill line");
+    expect(check).toContain("`--strict`");
+    const design = section(page, "Design-system files");
+    expect(design).toContain("design-system files");
+    expect(design).toContain("never write them");
+  });
+
+  it("§ How these were chosen names a record that exists and both re-evaluation triggers; the page prints no pin or install command", () => {
+    const page = skillsDoc();
+    const body = section(page, "How these were chosen");
+    const paths = [...body.matchAll(/`([^`\s]+\.md)`/g)].map((m) => m[1] ?? "");
+    expect(paths.length, "the section names no .md path").toBeGreaterThan(0);
+    for (const p of paths) expect(existsSync(join(ROOT, p)), p).toBe(true);
+    expect(body).toContain("asks to bump");
+    expect(body).toContain("security advisory");
+    expect(page).not.toMatch(/[0-9a-f]{40}/);
+    for (const command of ["/plugin install", "npm install", "npx ", "pip install"]) expect(page).not.toContain(command);
   });
 });
