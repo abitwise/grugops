@@ -194,14 +194,17 @@ interface ManifestSpec {
   omitFlipRowIds?: string[];
 }
 
+// (Plan 42-07) docs/skills.md is a named member of the public-docs corpus, which refuses by name when the page is
+// absent, so the planted corpus carries it beside docs/GUARANTEES.md: publicDocs 4 -> 5, docsTree 2 -> 3, overlap
+// 1 -> 2, pin 9 -> 10.
 const DEFAULT_MEMBERS: Record<(typeof LIVE_SURFACE_PART_NAMES)[number], string[]> = {
-  publicDocs: ["README.md", "agent-factory/README.md", "docs/GUARANTEES.md", PARITY_REL],
-  docsTree: ["docs/GUARANTEES.md", RUNBOOK_REL],
+  publicDocs: ["README.md", "agent-factory/README.md", "docs/GUARANTEES.md", "docs/skills.md", PARITY_REL],
+  docsTree: ["docs/GUARANTEES.md", RUNBOOK_REL, "docs/skills.md"],
   planningLedgers: [STATE_REL, LEDGER_REL],
   archivedRecords: [RECORD_REL],
   runtimeEvidence: [EVIDENCE_REL],
 };
-const DEFAULT_PIN = 9;
+const DEFAULT_PIN = 10;
 
 /** Render a manifest in exactly the table grammar the gate reads. */
 function renderManifest(spec: ManifestSpec): string {
@@ -270,6 +273,7 @@ function writeCorpus(root: string): void {
   write(root, "README.md", "# Planted\n\nA root document.\n");
   write(root, "agent-factory/README.md", "# Kit\n");
   write(root, "docs/GUARANTEES.md", "# Guarantees\n");
+  write(root, "docs/skills.md", "# Third-party skills\n");
   write(root, RUNBOOK_REL, "# Runbook\n\nA human fallback description.\n");
   write(root, PARITY_REL, PARITY_DOC(PARITY_TABLE_PRE, INTRO_PRE));
   write(root, STATE_REL, STATE_PRE);
@@ -355,7 +359,7 @@ describe("check-flip-manifest — the planted pre-capture tree (control)", () =>
     const r = runGate(root);
     expect(r.stdout).toContain("status: pre-capture");
     expect(r.stdout).toContain(
-      "live-surface parts: publicDocs 4, docsTree 2, planningLedgers 2, archivedRecords 1, runtimeEvidence 1; overlap 1; derived total 9, pinned 9",
+      "live-surface parts: publicDocs 5, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 1; overlap 2; derived total 10, pinned 10",
     );
     expect(r.stdout).toContain("ALL CHECKS PASSED");
     expect(r.status).toBe(0);
@@ -607,7 +611,7 @@ describe("check-flip-manifest — the floored, pinned live-surface set", () => {
     });
     const r = runGate(root);
     expect(r.stdout).toContain('the "runtimeEvidence" part of the live-surface set derived ZERO members');
-    expect(r.stdout).toContain("publicDocs 4, docsTree 2, planningLedgers 2, archivedRecords 1, runtimeEvidence 0");
+    expect(r.stdout).toContain("publicDocs 5, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 0");
     expect(r.stdout).not.toContain("ALL CHECKS PASSED");
     expect(r.status).toBe(1);
   });
@@ -616,14 +620,14 @@ describe("check-flip-manifest — the floored, pinned live-surface set", () => {
     const root = plantPreCapture("flip-pin-", {}, { manifest: { status: "pre-capture", pin: DEFAULT_PIN + 1 } });
     const r = runGate(root);
     expect(r.stdout).toContain(`derived ${DEFAULT_PIN} document(s), expected exactly ${DEFAULT_PIN + 1}`);
-    expect(r.stdout).toContain("publicDocs 4, docsTree 2, planningLedgers 2, archivedRecords 1, runtimeEvidence 1, overlap 1");
+    expect(r.stdout).toContain("publicDocs 5, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 1, overlap 2");
     expect(r.stdout).toContain("moving the pin is how you acknowledge that the set changed, not how you make the failure go away");
     expect(r.status).toBe(1);
   });
 
   it("a listing that disagrees with the derivation is refused in both directions", () => {
     const root = plantPreCapture("flip-listing-", {}, {
-      manifest: { status: "pre-capture", members: { docsTree: ["docs/GUARANTEES.md", "docs/not-there.md"] } },
+      manifest: { status: "pre-capture", members: { docsTree: ["docs/GUARANTEES.md", "docs/skills.md", "docs/not-there.md"] } },
     });
     const r = runGate(root);
     expect(r.stdout).toContain(`derived but not listed: [${RUNBOOK_REL}]; listed but not derived: [docs/not-there.md]`);
