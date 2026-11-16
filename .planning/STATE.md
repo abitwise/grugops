@@ -5,11 +5,11 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 42
 current_phase_name: Skills per role and evaluation
 status: planning
-stopped_at: Phase 41 complete, ready to plan Phase 42
-last_updated: "2026-11-15T17:44:52.558Z"
+stopped_at: Phase 42 context gathered
+last_updated: "2026-11-16T11:24:16.657Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 41 complete, transitioned to Phase 42
-state_head: eaa7467846c3fc6eb3276227da3d832902cf7bd9
+state_head: 49539466749f813c4a67f6ddb9c2856341fbbf0a
 progress:
   total_phases: 9
   completed_phases: 7
@@ -2736,9 +2736,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-15T17:45:25Z
-Stopped at: Phase 41 complete, ready to plan Phase 42
-Resume file: None
+Last session: 2026-11-16T11:24:15.491Z
+Stopped at: Phase 42 context gathered
+Resume file: .planning/phases/42-skills-per-role-and-evaluation/42-CONTEXT.md
 
 ## Operator Next Steps
 
