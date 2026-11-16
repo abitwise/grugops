@@ -71,8 +71,8 @@ function installedWithPlantedSkill(): Row {
   return row;
 }
 
-const check = (row: Row, extra: readonly string[] = []): Run =>
-  spawnBin(INSTALL_JS, ["--check", ...extra], row.target, row.kitHome, { home: row.home, env: hermeticEnv(row.home, row.bin) });
+const check = (row: Row, extra: readonly string[] = [], env: Readonly<Record<string, string | undefined>> = {}): Run =>
+  spawnBin(INSTALL_JS, ["--check", ...extra], row.target, row.kitHome, { home: row.home, env: { ...hermeticEnv(row.home, row.bin), ...env } });
 
 const lines = (out: string): string[] => out.split("\n");
 const MISSING_CLAUDE = /^ {2}advisory\s+skill ui-ux-pro-max \(designer\) not found for Claude Code; optional, see docs\/skills\.md$/;
@@ -232,6 +232,192 @@ describe("--check: the skill line is advisory in fact (plan 42-02, D-25)", () =>
     const homeBefore = snapshotTree(row.home);
     const c = check(row);
     expect(lines(c.stdout).filter((l) => MISSING_CLAUDE.test(l)).length, c.stdout).toBe(1);
+    expect(snapshotTree(row.target)).toBe(targetBefore);
+    expect(snapshotTree(row.home)).toBe(homeBefore);
+  });
+});
+
+// ── Claude Code plugin installs (plan 42-08, D-24) ────────────────────────────────────────────────────────────────
+// A Claude Code plugin records each install in `<plugins root>/installed_plugins.json` (`installPath`), and carries its
+// skills in `<installPath>/skills/` and in each `skills` path of `<installPath>/.claude-plugin/plugin.json`. The plugins
+// root is CLAUDE_CODE_PLUGIN_CACHE_DIR when set, else `<home>/.claude/plugins`.
+
+const NOT_CHECKED_CLAUDE = /^ {2}advisory\s+skill ui-ux-pro-max \(designer\) not checked for Claude Code: (\S.*); optional, see docs\/skills\.md$/;
+const PLUGIN_KEY = "ui-ux-pro-max@ui-ux-pro-max-skill";
+const SKILL_TEXT = "---\nname: ui-ux-pro-max\ndescription: test skill\n---\n";
+
+interface PluginSpec {
+  /** The plugin key in the record. */
+  readonly key?: string;
+  /** The `.claude-plugin/plugin.json` object; no manifest when omitted. */
+  readonly manifest?: Readonly<Record<string, unknown>>;
+  /** The folder, relative to installPath, that gets `ui-ux-pro-max/SKILL.md`; no skill when omitted. */
+  readonly skillRel?: string;
+}
+
+/** Write `<pluginsRoot>/installed_plugins.json` naming one plugin under `<pluginsRoot>/cache`, as Claude Code lays it out. */
+function plantClaudePlugin(pluginsRoot: string, spec: PluginSpec): string {
+  const key = spec.key ?? PLUGIN_KEY;
+  const installPath = join(pluginsRoot, "cache", key.replace("@", "-"), "1.0.0");
+  mkdirSync(installPath, { recursive: true });
+  if (spec.manifest !== undefined) {
+    mkdirSync(join(installPath, ".claude-plugin"), { recursive: true });
+    writeFileSync(join(installPath, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "ui-ux-pro-max", ...spec.manifest }));
+  }
+  if (spec.skillRel !== undefined) {
+    const dir = join(installPath, ...spec.skillRel.split("/"), "ui-ux-pro-max");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "SKILL.md"), SKILL_TEXT);
+  }
+  const record = { version: 2, plugins: { [key]: [{ scope: "user", installPath, version: "1.0.0" }] } };
+  writeFileSync(join(pluginsRoot, "installed_plugins.json"), JSON.stringify(record));
+  return installPath;
+}
+const homePlugins = (row: Row): string => {
+  const dir = join(row.home, ".claude", "plugins");
+  mkdirSync(dir, { recursive: true });
+  return dir;
+};
+const only = (out: string, re: RegExp): string[] => lines(out).filter((l) => re.test(l));
+
+describe("--check: a skill a Claude Code plugin installs is found through installed_plugins.json (plan 42-08, D-24)", () => {
+  it("tracer: the manifest layout `\"skills\": \"./.claude/skills/\"` (ui-ux-pro-max's) is found, not reported missing", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { manifest: { skills: "./.claude/skills/" }, skillRel: ".claude/skills" });
+    const c = check(row);
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, MISSING_CLAUDE), c.stdout).toEqual([]);
+    expect(only(c.stdout, NOT_CHECKED_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("a manifest `skills` list is read path by path", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { manifest: { skills: ["./other", "./.claude/skills"] }, skillRel: ".claude/skills" });
+    const c = check(row);
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("the default layout `skills/` with no manifest `skills` field is found", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { manifest: {}, skillRel: "skills" });
+    const c = check(row);
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("the default layout `skills/` with no manifest at all is found", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { skillRel: "skills" });
+    const c = check(row);
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("a plugin that does not carry the skill leaves the missing line", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { manifest: {} });
+    const c = check(row);
+    expect(only(c.stdout, MISSING_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("CLAUDE_CODE_PLUGIN_CACHE_DIR set: that folder's installed_plugins.json is read", () => {
+    const row = installedWithPlantedSkill();
+    const cache = join(row.home, "elsewhere", "plugins");
+    mkdirSync(cache, { recursive: true });
+    plantClaudePlugin(cache, { skillRel: "skills" });
+    const c = check(row, [], { CLAUDE_CODE_PLUGIN_CACHE_DIR: cache });
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("CLAUDE_CODE_PLUGIN_CACHE_DIR set: the record under <HOME>/.claude/plugins is not consulted", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { skillRel: "skills" });
+    const cache = join(row.home, "elsewhere", "plugins");
+    mkdirSync(cache, { recursive: true });
+    const c = check(row, [], { CLAUDE_CODE_PLUGIN_CACHE_DIR: cache });
+    expect(only(c.stdout, FOUND_CLAUDE), c.stdout).toEqual([]);
+    expect(only(c.stdout, MISSING_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("an installed_plugins.json that is not JSON gives a Claude Code `not checked` line with the reason, never `not found`", () => {
+    const row = installedWithPlantedSkill();
+    writeFileSync(join(homePlugins(row), "installed_plugins.json"), "{ not json");
+    const c = check(row);
+    const nc = only(c.stdout, NOT_CHECKED_CLAUDE);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain("installed_plugins.json");
+    expect(only(c.stdout, MISSING_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("an installed_plugins.json of another shape gives a Claude Code `not checked` line, never `not found`", () => {
+    const row = installedWithPlantedSkill();
+    writeFileSync(join(homePlugins(row), "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { [PLUGIN_KEY]: { installPath: "/x" } } }));
+    const c = check(row);
+    expect(only(c.stdout, NOT_CHECKED_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, MISSING_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("a manifest `skills` path `../outside` is refused: `not checked` naming the plugin key, never followed and never `not found`", () => {
+    const row = installedWithPlantedSkill();
+    const installPath = plantClaudePlugin(homePlugins(row), { manifest: { skills: "../outside" } });
+    // The escaping path does hold the skill, so a lookup that followed it would print `found`.
+    const out = join(installPath, "..", "outside", "ui-ux-pro-max");
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, "SKILL.md"), SKILL_TEXT);
+    const c = check(row);
+    const nc = only(c.stdout, NOT_CHECKED_CLAUDE);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain(PLUGIN_KEY);
+    expect(only(c.stdout, FOUND_CLAUDE), c.stdout).toEqual([]);
+    expect(only(c.stdout, MISSING_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("an absolute manifest `skills` path is refused: `not checked` naming the plugin key", () => {
+    const row = installedWithPlantedSkill();
+    const installPath = plantClaudePlugin(homePlugins(row), { manifest: {} });
+    const abs = join(installPath, "abs");
+    const dir = join(abs, "ui-ux-pro-max");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "SKILL.md"), SKILL_TEXT);
+    writeFileSync(join(installPath, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "x", skills: abs }));
+    const c = check(row);
+    const nc = only(c.stdout, NOT_CHECKED_CLAUDE);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain(PLUGIN_KEY);
+    expect(only(c.stdout, FOUND_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("a skill found in the user folder is found even when the plugin record cannot be read", () => {
+    const row = installedWithPlantedSkill();
+    writeFileSync(join(homePlugins(row), "installed_plugins.json"), "{ not json");
+    placeUserSkill(row);
+    const c = check(row);
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, NOT_CHECKED_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("the plugin-present and plugin-absent runs exit the same, with and without --strict, with the same counted lines", () => {
+    const absentRow = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(absentRow), { manifest: {} });
+    const presentRow = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(presentRow), { manifest: { skills: "./.claude/skills/" }, skillRel: ".claude/skills" });
+    const absent = check(absentRow);
+    const present = check(presentRow);
+    const absentStrict = check(absentRow, ["--strict"]);
+    const presentStrict = check(presentRow, ["--strict"]);
+    expect(only(absent.stdout, MISSING_CLAUDE).length, absent.stdout).toBe(1);
+    expect(only(present.stdout, FOUND_CLAUDE).length, present.stdout).toBe(1);
+    expect(absent.status, absent.stdout).toBe(present.status);
+    expect(absentStrict.status, absentStrict.stdout).toBe(presentStrict.status);
+    expect(counted(absent.stdout)).toEqual(counted(present.stdout));
+    expect(summaryLine(absent.stdout)).toBe(summaryLine(present.stdout));
+  });
+
+  it("a --check run with a plugin record leaves the scratch target and the scratch HOME byte-identical", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { manifest: { skills: "./.claude/skills/" }, skillRel: ".claude/skills" });
+    const targetBefore = snapshotTree(row.target);
+    const homeBefore = snapshotTree(row.home);
+    const c = check(row);
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
     expect(snapshotTree(row.target)).toBe(targetBefore);
     expect(snapshotTree(row.home)).toBe(homeBefore);
   });
