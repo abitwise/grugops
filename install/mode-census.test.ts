@@ -131,9 +131,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * 2026-11-16, phase 42 gate fix (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 46 -> 48 for
  * skills-doctor.test.ts (plans 42-02, 42-07, 42-08), which has no chmod call and no expected mode (it plants role
  * declarations, skill folders and plugin records and matches printed skill lines and snapshotTree manifests), and
- * claude-version-doctor.test.ts (plan 42-05), which has no expected mode and one chmod call: fakeClaude sets 0o755 so
- * the fake `claude` script can be spawned, in cases skipped on win32. That call is not yet tagged under rule (a); its
- * kind is a decision left open in the phase 42 deferred items. */
+ * claude-version-doctor.test.ts (plan 42-05), which has no expected mode and, since 2026-11-16, no chmod call. Its
+ * fakeClaude had `chmodSync(file, 0o755)` so the fake `claude` script can be spawned (in cases skipped on win32); by a
+ * human decision it now creates the file with `writeFileSync(file, …, { mode: 0o755 })` instead, and no tag kind was
+ * added. A mode passed at create time (writeFileSync, mkdirSync, openSync) is outside what this census scans, like a
+ * chmod reached through an alias (see LIMITS above). */
 const INSTALL_TEST_FILE_COUNT = 48;
 // SCRIPTS_TEST_FILE_COUNT 80 -> 81 (2026-10-29, plan 39-05, re-derived by listing scripts/, not incremented) for
 // tier-kit-text.test.ts, which has no chmod call and no expected mode (it reads kit markdown and asserts phrases).

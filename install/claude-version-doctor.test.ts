@@ -17,7 +17,7 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -52,11 +52,12 @@ function installedWith(flags: readonly string[]): Row {
   return row;
 }
 
-/** Write `<bin>/claude` as a POSIX shell script with `body` after the `#!/bin/sh` line, mode 0755. */
+/**
+ * Write `<bin>/claude` as a POSIX shell script with `body` after the `#!/bin/sh` line. The file is created with mode 0755
+ * (less the umask), so it can be spawned; a later call on the same row rewrites the bytes and keeps that mode.
+ */
 function fakeClaude(row: Row, body: string): void {
-  const file = join(row.bin, "claude");
-  writeFileSync(file, `#!/bin/sh\n${body}\n`);
-  chmodSync(file, 0o755);
+  writeFileSync(join(row.bin, "claude"), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
 }
 
 /** A fake `claude` whose stdout is `firstLine` and a newline. */
