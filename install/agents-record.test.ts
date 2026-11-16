@@ -104,6 +104,7 @@ import { tmpdir } from "node:os";
 import ts from "typescript";
 import {
   AGENT_SKILL_REL,
+  HOST_SKILL_DIRS,
   HOST_TOOLS,
   PI_PROMPT_REL,
   agentCommand,
@@ -5470,7 +5471,10 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // Code plugin record and of each plugin manifest, under the home directory or CLAUDE_CODE_PLUGIN_CACHE_DIR),
 // folderInsidePlugin (path arithmetic) and skillFileIn (one stat); readDeclaredSkills' local isObject became the
 // module-level isJsonObject. None reads the marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 74;
+// Re-pinned 2026-11-16 by plan 42-08 Task 2 (D-24): 75, measured by this census. The section gains
+// pluginFolderSkillFolders (one readdir of the Antigravity CLI plugin folder under the home directory). It reads no
+// marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 75;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -5979,7 +5983,8 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
 //   - home: HOME through homedir(), the default kit home (`<HOME>/.grugops`), which every printed command overrides
 //     with GRUGOPS_HOME, in install.ts kitRulePattern the user's own home for the OpenCode kit-path pattern, and in
 //     install.ts doctor the user's own home whose skill folders `--check` looks in (plan 42-02);
-//   - host location: a variable a host reads to move where it keeps skills (CLAUDE_CODE_PLUGIN_CACHE_DIR, plan 42-08).
+//   - host location: a variable a host reads to move where it keeps skills (CLAUDE_CODE_PLUGIN_CACHE_DIR and the
+//     HOST_SKILL_DIRS userOverrides names, plan 42-08; the set is pinned to exactly those below).
 //     Only install.ts hostSkillEnv reads one, by name, for the doctor's advisory declared-skills section, which looks
 //     where it points or says it did not look; it decides no kit home, mode, checkout or target, so no printed command
 //     needs to state it;
@@ -6020,6 +6025,14 @@ const ENV_READ_TABLE: Readonly<Record<string, { readonly count: number; readonly
   // Plan 42-08 (2026-11-16, SKILL-05, D-24): the Claude Code plugins root the declared-skills section reads the plugin
   // record from.
   "install.ts :: CLAUDE_CODE_PLUGIN_CACHE_DIR :: hostSkillEnv": { count: 1, cls: "host location" },
+  // The HOST_SKILL_DIRS userOverrides names: one set means the host's user skill folders may have moved, so that host's
+  // line says `not checked` rather than `not found`.
+  "install.ts :: CLAUDE_CONFIG_DIR :: hostSkillEnv": { count: 1, cls: "host location" },
+  "install.ts :: CODEX_HOME :: hostSkillEnv": { count: 1, cls: "host location" },
+  "install.ts :: OPENCODE_CONFIG_DIR :: hostSkillEnv": { count: 1, cls: "host location" },
+  "install.ts :: XDG_CONFIG_HOME :: hostSkillEnv": { count: 1, cls: "host location" },
+  "install.ts :: COPILOT_HOME :: hostSkillEnv": { count: 1, cls: "host location" },
+  "install.ts :: PI_CODING_AGENT_DIR :: hostSkillEnv": { count: 1, cls: "host location" },
   "uninstall.ts :: GRUGOPS_SRC :: <module>": { count: 2, cls: "stated" },
   "uninstall.ts :: DRY_RUN :: <module>": { count: 1, cls: "preview" },
   "uninstall.ts :: TARGET :: <module>": { count: 1, cls: "overridden" },
@@ -6137,6 +6150,12 @@ describe("D-38: every environment variable a binary reads is stated in its print
       if (r.cls === "whole environment") expect(k, k).toBe("install.ts :: * :: renderAdaptersInMirror");
     }
     expect(Object.keys(ENV_READ_TABLE).filter((k) => k.startsWith("uninstall.ts :: INSTALL_MODE ")), "uninstall.ts reads no INSTALL_MODE").toEqual([]);
+  });
+
+  it("the host location reads are exactly CLAUDE_CODE_PLUGIN_CACHE_DIR and the HOST_SKILL_DIRS userOverrides names (plan 42-08)", () => {
+    const hostLocation = Object.entries(ENV_READ_TABLE).filter(([, r]) => r.cls === "host location").map(([k]) => k.split(" :: ")[1]).sort();
+    const overrides = Object.values(HOST_SKILL_DIRS).flatMap((row) => row.userOverrides);
+    expect(hostLocation).toEqual([...new Set(["CLAUDE_CODE_PLUGIN_CACHE_DIR", ...overrides])].sort());
   });
 
   it("the whole environment goes only to the adapter render child, whose comment says it reads no resolution-affecting variable, and whose module graph reads none", () => {
@@ -6258,7 +6277,10 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // claudePluginSkillFolders, manifestSkillFolders, folderInsidePlugin, skillFileIn and the module-level isJsonObject.
 // They read the user's home passed in by doctor(), CLAUDE_CODE_PLUGIN_CACHE_DIR, the plugin record and the plugin
 // folders it names; none reads GRUGOPS_HOME, GIVEN_KIT_HOME or KIT_ROOT or calls homedir(), so C3's table gains no row.
-const WR24_REACH_SIZE = 65;
+// Re-pinned 2026-11-16 by plan 42-08 Task 2 (D-24): 66, measured by this walk. The section gains
+// pluginFolderSkillFolders, which lists a folder under the user's home passed in by doctor(); it reads no kit home and
+// calls no homedir(), so C3's table gains no row.
+const WR24_REACH_SIZE = 66;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run

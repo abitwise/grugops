@@ -2088,6 +2088,8 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
 // non-empty line of the report's shape fails closed to one `declared skills not checked` line, and every skill key and
 // role name is checked against the kebab pattern before any path is joined (T-42-26). Presence is a stat of
 // `<folder>/<skill>/SKILL.md` followed through links; no file content is read. Every line is uncounted (D-25).
+/** The tail of every per-skill line: the skill is optional, and docs/skills.md says how to get it. */
+const OPTIONAL_SKILL = "; optional, see docs/skills.md";
 /** A role name or a skill name as the one grammar admits it: lower-case kebab, compared byte for byte (D-03). */
 const KEBAB_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** A parsed JSON value that is an object (not null, not an array). */
@@ -2127,10 +2129,14 @@ function readDeclaredSkills() {
     const notShape = `the role-skills reader ${reader} printed JSON that is not its report`;
     if (!isJsonObject(parsed) || !isJsonObject(parsed.skills) || !Array.isArray(parsed.refusals))
         return notShape;
+    const refusals = [];
     for (const ref of parsed.refusals) {
         if (!isJsonObject(ref) || typeof ref.role !== "string" || !KEBAB_NAME.test(ref.role) || typeof ref.reason !== "string") {
             return notShape;
         }
+        // One line on the report: whitespace runs collapse to one space and a long reason is cut.
+        const reason = ref.reason.replace(/\s+/g, " ").trim();
+        refusals.push({ role: ref.role, reason: reason.length > 300 ? reason.slice(0, 300) + "..." : reason });
     }
     const skills = new Map();
     for (const [name, roles] of Object.entries(parsed.skills)) {
@@ -2141,7 +2147,7 @@ function readDeclaredSkills() {
         skills.set(name, [...roles]);
     }
     // A role the reader refused declares nothing here; the role-frontmatter guard reports the refusal as a failure.
-    return new Map([...skills.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    return { skills, refusals };
 }
 /**
  * Whether `<root>/<rel>/<skill>/SKILL.md` is a regular file, the path followed. `rel` is a POSIX path. A stat that fails
@@ -2166,14 +2172,25 @@ function skillFileIn(folder, skill) {
 }
 /**
  * The environment variables that move where a host keeps skills, each read by name (plan 42-08, D-24).
- * CLAUDE_CODE_PLUGIN_CACHE_DIR moves Claude Code's plugins root. A blank value counts as unset. The doctor only looks
- * where they point, or says it did not look; they decide no kit home, mode, checkout or target.
+ * CLAUDE_CODE_PLUGIN_CACHE_DIR moves Claude Code's plugins root; the others are the HOST_SKILL_DIRS `userOverrides`
+ * names (install/agents-record.test.ts pins this set to theirs). `read` is every name read; `set` holds the ones with a
+ * value, a blank value counting as unset. The doctor only looks where they point, or says it did not look; they decide
+ * no kit home, mode, checkout or target.
  */
 function hostSkillEnv() {
-    const read = {
+    const values = {
         CLAUDE_CODE_PLUGIN_CACHE_DIR: process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR,
+        CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+        CODEX_HOME: process.env.CODEX_HOME,
+        OPENCODE_CONFIG_DIR: process.env.OPENCODE_CONFIG_DIR,
+        XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+        COPILOT_HOME: process.env.COPILOT_HOME,
+        PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
     };
-    return new Map(Object.entries(read).filter((e) => e[1] !== undefined && e[1] !== ""));
+    return {
+        read: new Set(Object.keys(values)),
+        set: new Map(Object.entries(values).filter((e) => e[1] !== undefined && e[1] !== "")),
+    };
 }
 /**
  * Read `<plugins root>/installed_plugins.json` and each plugin's manifest through readUserFile. The plugins root is
@@ -2277,6 +2294,25 @@ function folderInsidePlugin(installPath, p) {
     return abs;
 }
 /**
+ * The skill folders of a host that keeps each plugin in its own folder under `<home>/<userRoot>` (Antigravity CLI):
+ * `<child>/skills` for every child. An absent root means no plugin is installed; a root that cannot be listed makes the
+ * lookup not checked. Only a directory listing: no file content is read.
+ */
+function pluginFolderSkillFolders(home, userRoot) {
+    const root = join(home, ...userRoot.split("/"));
+    let names;
+    try {
+        names = readdirSync(root);
+    }
+    catch (e) {
+        const code = errCode(e);
+        if (code === "ENOENT")
+            return { folders: [], notChecked: null };
+        return { folders: [], notChecked: `the plugin folder ${root} could not be listed (${code})` };
+    }
+    return { folders: names.sort().map((name) => join(root, name, "skills")), notChecked: null };
+}
+/**
  * Print the declared-skills lines for `hosts`: one line per declared skill per installed agent. `home` is the user's
  * home directory, the root of every HOST_SKILL_DIRS user folder. The per-skill, per-agent decision is made in this one
  * function, so the plugin lookups and the not-checked cases join it here.
@@ -2289,34 +2325,59 @@ function doctorDeclaredSkills(hosts, home) {
         docReport("advisory", `declared skills not checked: ${declared}`);
         return;
     }
+    for (const { role, reason } of declared.refusals) {
+        docReport("advisory", `declared skills of ${role} not read: ${reason} (the role-frontmatter guard reports this)`);
+    }
     const env = hostSkillEnv();
-    // The Claude Code plugin lookup reads files, so it runs at most once per run and only when a skill needs it.
+    // The plugin lookups read the filesystem, so each runs at most once per run and only when a skill needs it.
     let claudePlugins;
-    for (const [skill, roles] of declared) {
+    const pluginFolders = new Map();
+    for (const [skill, roles] of declared.skills) {
         const who = `${skill} (${roles.join(", ")})`;
         for (const h of hosts) {
             const dirs = HOST_SKILL_DIRS[h.id];
             if (dirs === undefined) {
-                docReport("advisory", `skill ${who} not checked for ${h.name}: this build lists no skill folders for it; optional, see docs/skills.md`);
+                docReport("advisory", `skill ${who} not checked for ${h.name}: this build lists no skill folders for it${OPTIONAL_SKILL}`);
                 continue;
             }
             let found = dirs.project.some((rel) => skillFileAt(TARGET, rel, skill)) || dirs.user.some((rel) => skillFileAt(home, rel, skill));
             let pluginsNotChecked = null;
-            if (!found && dirs.plugins.kind === "claude-installed-plugins") {
-                claudePlugins ??= claudePluginSkillFolders(home, env);
-                found = claudePlugins.folders.some((folder) => skillFileIn(folder, skill));
-                pluginsNotChecked = claudePlugins.notChecked;
+            if (!found && dirs.plugins.kind !== "unknown") {
+                let lookup;
+                if (dirs.plugins.kind === "claude-installed-plugins") {
+                    lookup = claudePlugins ??= claudePluginSkillFolders(home, env.set);
+                }
+                else {
+                    const userRoot = dirs.plugins.userRoot;
+                    lookup = pluginFolders.get(userRoot) ?? pluginFolderSkillFolders(home, userRoot);
+                    pluginFolders.set(userRoot, lookup);
+                }
+                found = lookup.folders.some((folder) => skillFileIn(folder, skill));
+                pluginsNotChecked = lookup.notChecked;
             }
             if (found) {
                 docReport("ok", `skill ${who} found for ${h.name}`);
                 continue;
             }
+            // A variable that may move the user folders: the doctor did not look where the host looks, so it does not guess.
+            const unread = dirs.userOverrides.filter((v) => !env.read.has(v));
+            const moved = dirs.userOverrides.filter((v) => env.set.has(v));
+            if (unread.length > 0) {
+                docReport("advisory", `skill ${who} not checked for ${h.name}: this build does not read ${unread.join(", ")}${OPTIONAL_SKILL}`);
+                continue;
+            }
+            if (moved.length > 0) {
+                const verb = moved.length === 1 ? "is" : "are";
+                docReport("advisory", `skill ${who} not checked for ${h.name}: ${moved.join(", ")} ${verb} set and may move where ${h.name} keeps user skills, ` +
+                    `which this check does not follow${OPTIONAL_SKILL}`);
+                continue;
+            }
             if (pluginsNotChecked !== null) {
-                docReport("advisory", `skill ${who} not checked for ${h.name}: ${pluginsNotChecked}; optional, see docs/skills.md`);
+                docReport("advisory", `skill ${who} not checked for ${h.name}: ${pluginsNotChecked}${OPTIONAL_SKILL}`);
                 continue;
             }
             const pluginClause = dirs.plugins.kind === "unknown" ? ` (plugin installs on ${h.name} are not checked: UNKNOWN - verify)` : "";
-            docReport("advisory", `skill ${who} not found for ${h.name}; optional, see docs/skills.md${pluginClause}`);
+            docReport("advisory", `skill ${who} not found for ${h.name}${OPTIONAL_SKILL}${pluginClause}`);
         }
     }
 }
