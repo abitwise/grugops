@@ -10075,7 +10075,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // the flow guidance in Workflow 17, Workflow 16 and the `queue` rows. The pin moved because a module landed, not to make
 // a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 83 on this tree (2026-11-05,
 // plan 41-04).
-const TRIPWIRE_MODULES = 83;
+//
+// 83 -> 84 (plan 42-03, 2026-11-16): ONE test module, `scripts/skills-kit-text.test.ts` — the text assertions over the
+// skills precedence line in AGENTS.md and the role-switch protocol's skills line. The pin moved because a module landed,
+// not to make a red go away; plan 42-03 added the module without moving the pin, and the wave-1 post-merge gate caught
+// it. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 84 on this tree (2026-11-16, plan 42-03).
+const TRIPWIRE_MODULES = 84;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
