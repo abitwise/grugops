@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 42
 current_phase_name: Skills per role and evaluation
 status: executing
-stopped_at: Completed 42-03-PLAN.md
-last_updated: "2026-11-16T13:17:00.465Z"
+stopped_at: Completed 42-08-PLAN.md
+last_updated: "2026-11-16T13:49:00.341Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 42 execution started
-state_head: 141fe1d9139083e0ae15d1e5c34536f4d8c8cf9e
+state_head: 53a9b16c1817a99f6b03d6a96a93a8a717990c7f
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 150
-  completed_plans: 145
+  completed_plans: 146
   percent: 78
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
 ## Current Position
 
 Phase: 42 (Skills per role and evaluation) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 42 execution started
 
@@ -862,6 +862,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 42 P01 | 13 min | 3 tasks | 1 files |
 | Phase 42 P02 | 23 min | 2 tasks | 10 files |
 | Phase 42 P03 | 3 min | 2 tasks | 5 files |
+| Phase 42 P08 | 25 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -2403,6 +2404,8 @@ Recent decisions affecting current work:
 - [Phase 42]: 42-02: the doctor's declared-skills line is labelled advisory (uncounted), never WARN; a found skill prints an uncounted ok line
 - [Phase 42]: 42-02: doctor() calls homedir() once for the user's skill folders and passes it to doctorDeclaredSkills; it is a named WR24_EXEMPT row (doctor :: homedir()), never a kit-home read; human to confirm the classification
 - [Phase 42]: 42-03: skills precedence stated once in AGENTS.md (technique, never process); protocol step 2 limits skills to the host's list, fallback at once, no disk search
+- [Phase 42]: 42-08: env variables that only move where a host keeps skills are read by name in install.ts hostSkillEnv and classed host location in the D-38 env census, pinned to CLAUDE_CODE_PLUGIN_CACHE_DIR plus the HOST_SKILL_DIRS userOverrides names
+- [Phase 42]: 42-08: any plugin lookup the doctor cannot finish (Claude Code record, Antigravity CLI plugin folder) prints not checked with the reason; found wins first, so one refused plugin never hides a skill found elsewhere
 
 ### Pending Todos
 
@@ -2744,8 +2747,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-16T13:16:59.407Z
-Stopped at: Completed 42-03-PLAN.md
+Last session: 2026-11-16T13:48:59.256Z
+Stopped at: Completed 42-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
