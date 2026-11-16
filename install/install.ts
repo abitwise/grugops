@@ -2493,17 +2493,17 @@ function skillFileAt(root: string, rel: string, skill: string): boolean {
 }
 
 /**
- * Print the declared-skills lines for `hosts`: one line per declared skill per installed agent. The per-skill, per-agent
- * decision is made in this one function, so the plugin lookups and the not-checked cases join it here.
+ * Print the declared-skills lines for `hosts`: one line per declared skill per installed agent. `home` is the user's
+ * home directory, the root of every HOST_SKILL_DIRS user folder. The per-skill, per-agent decision is made in this one
+ * function, so the plugin lookups and the not-checked cases join it here.
  */
-function doctorDeclaredSkills(hosts: readonly HostTool[]): void {
+function doctorDeclaredSkills(hosts: readonly HostTool[], home: string): void {
   if (hosts.length === 0) return;
   const declared = readDeclaredSkills();
   if (typeof declared === "string") {
     docReport("advisory", `declared skills not checked: ${declared}`);
     return;
   }
-  const home = homedir();
   for (const [skill, roles] of declared) {
     const who = `${skill} (${roles.join(", ")})`;
     for (const h of hosts) {
@@ -3163,7 +3163,8 @@ function doctor(): number {
   // A role may declare optional skills. This section says, for every installed agent, whether each declared skill is
   // present where that agent looks (HOST_SKILL_DIRS). It is advisory only: it prints through docReport and never
   // through docWarn or docFail, so neither counter, --strict nor the exit status moves, and it writes nothing.
-  doctorDeclaredSkills(hosts);
+  // The user's own home, whose skill folders the hosts read; never a kit home (the reader reads DOCTOR_KIT_HOME).
+  doctorDeclaredSkills(hosts, homedir());
 
   // --- exit-code matrix (SC2) ----------------------------------------------------------------
   console.log("");

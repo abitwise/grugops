@@ -5461,7 +5461,11 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // .claude/agents), shippedAdapter (the shipped rule, now shared with staleKitAdapters), ledgerSays,
 // unrecordedStaleAdapterText and unrecordedAdaptersUnreadableText (wording only). None reads the marker; the DI-19 rows
 // below still hold.
-const DOCTOR_REACH_SIZE = 65;
+// Re-pinned 2026-11-16 by plan 42-02 (SKILL-05): 69, measured by this census. The doctor's declared-skills section
+// reaches doctorDeclaredSkills, readDeclaredSkills (one spawn of the committed scripts/role-skills-reader.js over
+// DOCTOR_KIT_HOME), its local isObject (a shape test of the reader's JSON) and skillFileAt (one stat of a SKILL.md under
+// TARGET or the home directory). None reads the marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 69;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -5968,7 +5972,8 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
 //     row in install/closing-claims.test.ts runs it under a conflicting TARGET that stays empty);
 //   - preview: DRY_RUN, the preview a user chose by exporting it; a run under it writes nothing;
 //   - home: HOME through homedir(), the default kit home (`<HOME>/.grugops`), which every printed command overrides
-//     with GRUGOPS_HOME, and in install.ts kitRulePattern the user's own home for the OpenCode kit-path pattern;
+//     with GRUGOPS_HOME, in install.ts kitRulePattern the user's own home for the OpenCode kit-path pattern, and in
+//     install.ts doctor the user's own home whose skill folders `--check` looks in (plan 42-02);
 //   - temp: TMPDIR through tmpdir(), the scratch directory install.ts renders the adapters in and removes; it decides no
 //     kit home, mode, checkout or target;
 //   - whole environment: install.ts passes process.env to the adapter render child and its resolution probe. Their own
@@ -6000,6 +6005,9 @@ const ENV_READ_TABLE: Readonly<Record<string, { readonly count: number; readonly
   "install.ts :: * :: renderAdaptersInMirror": { count: 2, cls: "whole environment" },
   "install.ts :: TMPDIR :: renderAdaptersInMirror": { count: 2, cls: "temp" },
   "install.ts :: HOME :: kitRulePattern": { count: 1, cls: "home" },
+  // Plan 42-02 (2026-11-16, SKILL-05): the doctor's declared-skills section looks for user skills under the user's own
+  // home (HOST_SKILL_DIRS user folders). It decides no kit home, mode, checkout or target.
+  "install.ts :: HOME :: doctor": { count: 1, cls: "home" },
   "uninstall.ts :: GRUGOPS_SRC :: <module>": { count: 2, cls: "stated" },
   "uninstall.ts :: DRY_RUN :: <module>": { count: 1, cls: "preview" },
   "uninstall.ts :: TARGET :: <module>": { count: 1, cls: "overridden" },
@@ -6201,7 +6209,8 @@ describe("D-38: every environment variable a binary reads is stated in its print
 //   C3 (the rule): inside the reach set, every reference to a C2 name, every process.env.GRUGOPS_HOME read and every
 //      homedir() call, keyed `function :: name` with a count, equals WR24_EXEMPT both ways. The table holds only
 //      doctor()'s header line that names this run's kit home as not used, and (since plan 34.1-56, 2026-10-14, D-42)
-//      doctor()'s moved-kit FAIL, which compares the kit home this run was given with the recorded one and names both.
+//      doctor()'s moved-kit FAIL, which compares the kit home this run was given with the recorded one and names both,
+//      and (since plan 42-02, 2026-11-16) doctor()'s one homedir() call, the user's home for the declared-skills section.
 // Functions the doctor imports from other modules are outside this walk: an environment read added to any product
 // module is an unpinned row of the env-read census above (plan 34.1-49), so the two censuses cover both arms.
 // Outside the reach set, KIT_ROOT and GRUGOPS_HOME are this run's by design (install, --migrate, --update and
@@ -6227,7 +6236,12 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // unrecordedStaleAdapters (the ledger it is passed, srcAdapterFiles over GRUGOPS_SRC, the kit checkout, and TARGET),
 // shippedAdapter, ledgerSays, unrecordedStaleAdapterText and unrecordedAdaptersUnreadableText (wording over TARGET);
 // none reads GRUGOPS_HOME, GIVEN_KIT_HOME or KIT_ROOT, so C3's table gains no row.
-const WR24_REACH_SIZE = 56;
+// Re-pinned 2026-11-16 by plan 42-02 (SKILL-05): 59, measured by this walk. The doctor's declared-skills section
+// reaches doctorDeclaredSkills, readDeclaredSkills (the reader spawned over DOCTOR_KIT_HOME, the kit home the doctor
+// reads) and skillFileAt. None reads GRUGOPS_HOME, GIVEN_KIT_HOME or KIT_ROOT. doctor() passes them homedir() once,
+// the user's own skill folders, not a kit home; C3 counts every homedir() call in the reach, so that call has its own
+// row in C3's table below.
+const WR24_REACH_SIZE = 59;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run
@@ -6247,10 +6261,17 @@ const WR24_RUN_KIT_HOME_NAMES = ["GIVEN_KIT_HOME", "GRUGOPS_HOME", "KIT_ROOT"] a
  * Re-pinned 2026-10-14 by plan 34.1-58 (D-45, review CR-08): the moved-kit FAIL's row is 6, measured by this walk. The
  * one added reference is readKitHomeRecord(GIVEN_KIT_HOME): the condition reads the given kit home's own kit-home record
  * to learn whether it was written for the recorded kit home (a move the record proves). Still one row, no new one.
+ * One more row since plan 42-02 (2026-11-16, SKILL-05): doctor() calls homedir() once. It is not a kit-home
+ * read: the result is the user's own home, under which the hosts keep user skills (HOST_SKILL_DIRS user folders), and it
+ * is joined only to those folders. The declared skills themselves are read from DOCTOR_KIT_HOME through the reader, so
+ * the doctor still reads one kit home. The row exists because C3 counts every homedir() call, the kit-home default's
+ * source, whatever it is used for. The call sits in doctor() itself, beside the call it feeds, so it is visible where
+ * the doctor's other exemptions are.
  */
 const WR24_EXEMPT: Readonly<Record<string, { readonly count: number; readonly why: string }>> = {
   "doctor :: GRUGOPS_HOME": { count: 2, why: "the `given:` header line: the comparison with DOCTOR_KIT_HOME and the printed path of this run's kit home, named as not used" },
   "doctor :: GIVEN_KIT_HOME": { count: 6, why: "the moved-kit FAIL (D-42, D-45): compares the kit home this run was given with the recorded one, reads its kit-home record, and names it" },
+  "doctor :: homedir()": { count: 1, why: "the user's own home, whose host skill folders the declared-skills section looks in (plan 42-02); never a kit home" },
 };
 
 /** Whether an identifier is a reference (not a property name, a declared name, or a type name). */
