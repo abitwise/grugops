@@ -2090,6 +2090,10 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
 // `<folder>/<skill>/SKILL.md` followed through links; no file content is read. Every line is uncounted (D-25).
 /** A role name or a skill name as the one grammar admits it: lower-case kebab, compared byte for byte (D-03). */
 const KEBAB_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** A parsed JSON value that is an object (not null, not an array). */
+function isJsonObject(v) {
+    return v !== null && typeof v === "object" && !Array.isArray(v);
+}
 /** Spawn the reader over DOCTOR_KIT_HOME. A string is the reason the declared skills could not be read. */
 function readDeclaredSkills() {
     const reader = join(GRUGOPS_SRC, "scripts", "role-skills-reader.js");
@@ -2121,11 +2125,10 @@ function readDeclaredSkills() {
         return `the role-skills reader ${reader} printed a line that is not JSON`;
     }
     const notShape = `the role-skills reader ${reader} printed JSON that is not its report`;
-    const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-    if (!isObject(parsed) || !isObject(parsed.skills) || !Array.isArray(parsed.refusals))
+    if (!isJsonObject(parsed) || !isJsonObject(parsed.skills) || !Array.isArray(parsed.refusals))
         return notShape;
     for (const ref of parsed.refusals) {
-        if (!isObject(ref) || typeof ref.role !== "string" || !KEBAB_NAME.test(ref.role) || typeof ref.reason !== "string") {
+        if (!isJsonObject(ref) || typeof ref.role !== "string" || !KEBAB_NAME.test(ref.role) || typeof ref.reason !== "string") {
             return notShape;
         }
     }
@@ -2145,12 +2148,133 @@ function readDeclaredSkills() {
  * for any other reason than an absent entry (a file where a folder should be, no permission) reads as not present.
  */
 function skillFileAt(root, rel, skill) {
+    return skillFileIn(join(root, ...rel.split("/")), skill);
+}
+/**
+ * Whether `<folder>/<skill>/SKILL.md` is a regular file, the path followed. A name that is not lower-case kebab is never
+ * joined into a path and reads as not present. Only a stat: no file content is read.
+ */
+function skillFileIn(folder, skill) {
+    if (!KEBAB_NAME.test(skill))
+        return false;
     try {
-        return statSync(join(root, ...rel.split("/"), skill, "SKILL.md"), { throwIfNoEntry: false })?.isFile() === true;
+        return statSync(join(folder, skill, "SKILL.md"), { throwIfNoEntry: false })?.isFile() === true;
     }
     catch {
         return false;
     }
+}
+/**
+ * The environment variables that move where a host keeps skills, each read by name (plan 42-08, D-24).
+ * CLAUDE_CODE_PLUGIN_CACHE_DIR moves Claude Code's plugins root. A blank value counts as unset. The doctor only looks
+ * where they point, or says it did not look; they decide no kit home, mode, checkout or target.
+ */
+function hostSkillEnv() {
+    const read = {
+        CLAUDE_CODE_PLUGIN_CACHE_DIR: process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR,
+    };
+    return new Map(Object.entries(read).filter((e) => e[1] !== undefined && e[1] !== ""));
+}
+/**
+ * Read `<plugins root>/installed_plugins.json` and each plugin's manifest through readUserFile. The plugins root is
+ * CLAUDE_CODE_PLUGIN_CACHE_DIR when set, else `<home>/.claude/plugins`. An absent record means no plugin is installed.
+ * Anything else this check cannot read (an unreadable file, not JSON, another shape) makes the whole lookup not
+ * checked (T-42-04).
+ */
+function claudePluginSkillFolders(home, env) {
+    const given = env.get("CLAUDE_CODE_PLUGIN_CACHE_DIR");
+    if (given !== undefined && !isAbsolute(given)) {
+        return { folders: [], notChecked: `CLAUDE_CODE_PLUGIN_CACHE_DIR is ${given}, which is not an absolute path` };
+    }
+    const record = join(given ?? join(home, ".claude", "plugins"), "installed_plugins.json");
+    const read = readUserFile(record);
+    if (read.state === "absent")
+        return { folders: [], notChecked: null };
+    if (read.state !== "ok")
+        return { folders: [], notChecked: `the plugin record ${record} ${readStateText(read)}` };
+    let parsed;
+    try {
+        parsed = JSON.parse(read.text);
+    }
+    catch {
+        return { folders: [], notChecked: `the plugin record ${record} is not JSON` };
+    }
+    const notShape = { folders: [], notChecked: `the plugin record ${record} is not in the shape this check reads` };
+    if (!isJsonObject(parsed) || !isJsonObject(parsed.plugins))
+        return notShape;
+    const folders = [];
+    const refused = [];
+    for (const [key, entries] of Object.entries(parsed.plugins)) {
+        if (!Array.isArray(entries))
+            return notShape;
+        for (const entry of entries) {
+            if (!isJsonObject(entry) || typeof entry.installPath !== "string")
+                return notShape;
+            const installPath = entry.installPath;
+            if (!isAbsolute(installPath)) {
+                refused.push(`plugin ${key} has an installPath that is not an absolute path`);
+                continue;
+            }
+            folders.push(join(installPath, "skills"));
+            const listed = manifestSkillFolders(key, installPath);
+            if (typeof listed === "string")
+                refused.push(listed);
+            else
+                folders.push(...listed);
+        }
+    }
+    const notChecked = refused.length === 0 ? null : refused.length === 1 ? refused[0] : `${refused[0]} (and ${refused.length - 1} more)`;
+    return { folders, notChecked: notChecked ?? null };
+}
+/**
+ * The absolute folders the `skills` field of `<installPath>/.claude-plugin/plugin.json` adds (a path or a list of
+ * paths), or why they could not be listed. No manifest, or no `skills` field, adds none. A path that is absolute, has a
+ * `..` segment or resolves outside installPath is refused before anything under it is looked at (T-42-05).
+ */
+function manifestSkillFolders(key, installPath) {
+    const manifest = join(installPath, ".claude-plugin", "plugin.json");
+    const read = readUserFile(manifest);
+    if (read.state === "absent")
+        return [];
+    if (read.state !== "ok")
+        return `the manifest of plugin ${key}, ${manifest}, ${readStateText(read)}`;
+    let parsed;
+    try {
+        parsed = JSON.parse(read.text);
+    }
+    catch {
+        return `the manifest of plugin ${key}, ${manifest}, is not JSON`;
+    }
+    if (!isJsonObject(parsed))
+        return `the manifest of plugin ${key}, ${manifest}, is not a JSON object`;
+    const skills = parsed.skills;
+    if (skills === undefined)
+        return [];
+    const paths = typeof skills === "string" ? [skills] : Array.isArray(skills) && skills.every((x) => typeof x === "string") ? skills : null;
+    if (paths === null)
+        return `the manifest of plugin ${key} has a skills value that is not a path or a list of paths`;
+    const out = [];
+    for (const p of paths) {
+        const inside = folderInsidePlugin(installPath, p);
+        if (inside === null) {
+            return `the manifest of plugin ${key} names the skills path ${JSON.stringify(p)}, which is absolute, has a .. segment or leaves the plugin folder`;
+        }
+        out.push(inside);
+    }
+    return out;
+}
+/** `p` resolved under `installPath`, or null when it is empty, absolute, has a `..` segment or lands outside it. */
+function folderInsidePlugin(installPath, p) {
+    if (p === "" || isAbsolute(p) || /^[A-Za-z]:/.test(p) || p.startsWith("/") || p.startsWith("\\"))
+        return null;
+    const segments = p.split(/[\\/]/);
+    if (segments.includes(".."))
+        return null;
+    const abs = resolve(installPath, ...segments.filter((x) => x !== "" && x !== "."));
+    const rel = relative(installPath, abs);
+    if (rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel))
+        return null;
+    return abs;
 }
 /**
  * Print the declared-skills lines for `hosts`: one line per declared skill per installed agent. `home` is the user's
@@ -2165,6 +2289,9 @@ function doctorDeclaredSkills(hosts, home) {
         docReport("advisory", `declared skills not checked: ${declared}`);
         return;
     }
+    const env = hostSkillEnv();
+    // The Claude Code plugin lookup reads files, so it runs at most once per run and only when a skill needs it.
+    let claudePlugins;
     for (const [skill, roles] of declared) {
         const who = `${skill} (${roles.join(", ")})`;
         for (const h of hosts) {
@@ -2173,9 +2300,19 @@ function doctorDeclaredSkills(hosts, home) {
                 docReport("advisory", `skill ${who} not checked for ${h.name}: this build lists no skill folders for it; optional, see docs/skills.md`);
                 continue;
             }
-            const found = dirs.project.some((rel) => skillFileAt(TARGET, rel, skill)) || dirs.user.some((rel) => skillFileAt(home, rel, skill));
+            let found = dirs.project.some((rel) => skillFileAt(TARGET, rel, skill)) || dirs.user.some((rel) => skillFileAt(home, rel, skill));
+            let pluginsNotChecked = null;
+            if (!found && dirs.plugins.kind === "claude-installed-plugins") {
+                claudePlugins ??= claudePluginSkillFolders(home, env);
+                found = claudePlugins.folders.some((folder) => skillFileIn(folder, skill));
+                pluginsNotChecked = claudePlugins.notChecked;
+            }
             if (found) {
                 docReport("ok", `skill ${who} found for ${h.name}`);
+                continue;
+            }
+            if (pluginsNotChecked !== null) {
+                docReport("advisory", `skill ${who} not checked for ${h.name}: ${pluginsNotChecked}; optional, see docs/skills.md`);
                 continue;
             }
             const pluginClause = dirs.plugins.kind === "unknown" ? ` (plugin installs on ${h.name} are not checked: UNKNOWN - verify)` : "";
