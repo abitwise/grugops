@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 42
 current_phase_name: Skills per role and evaluation
 status: executing
-stopped_at: Completed 42-02-PLAN.md
-last_updated: "2026-11-16T13:12:30.380Z"
+stopped_at: Completed 42-03-PLAN.md
+last_updated: "2026-11-16T13:17:00.465Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 42 execution started
-state_head: 3e5d86e3ca9bd470d4e225c37948758a773d4302
+state_head: 141fe1d9139083e0ae15d1e5c34536f4d8c8cf9e
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 150
-  completed_plans: 144
+  completed_plans: 145
   percent: 78
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
 ## Current Position
 
 Phase: 42 (Skills per role and evaluation) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 42 execution started
 
@@ -861,6 +861,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P29 | 29 min | 2 tasks | 5 files |
 | Phase 42 P01 | 13 min | 3 tasks | 1 files |
 | Phase 42 P02 | 23 min | 2 tasks | 10 files |
+| Phase 42 P03 | 3 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2401,6 +2402,7 @@ Recent decisions affecting current work:
 - [Phase 42]: 42-01: superpowers test-driven-development fails planning authority (overrides WF04 quality.tdd dial); receiving-code-review fails network (gh api reply)
 - [Phase 42]: 42-02: the doctor's declared-skills line is labelled advisory (uncounted), never WARN; a found skill prints an uncounted ok line
 - [Phase 42]: 42-02: doctor() calls homedir() once for the user's skill folders and passes it to doctorDeclaredSkills; it is a named WR24_EXEMPT row (doctor :: homedir()), never a kit-home read; human to confirm the classification
+- [Phase 42]: 42-03: skills precedence stated once in AGENTS.md (technique, never process); protocol step 2 limits skills to the host's list, fallback at once, no disk search
 
 ### Pending Todos
 
@@ -2742,8 +2744,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-16T13:12:29.338Z
-Stopped at: Completed 42-02-PLAN.md
+Last session: 2026-11-16T13:16:59.407Z
+Stopped at: Completed 42-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
