@@ -470,6 +470,76 @@ export const HOST_TOOLS: readonly HostTool[] = [
 ];
 
 /**
+ * Where a host looks for a skill a user installed (phase 42, plan 42-02; SKILL-01, SKILL-05). One row per registry
+ * host, keyed by its id. `--check` reads it to say whether a skill a role declares is present (install.ts doctor), and
+ * docs/skills.md renders it. A skill is present in a folder when `<folder>/<skill>/SKILL.md` is a regular file.
+ */
+export interface HostSkillDirs {
+  /** POSIX paths relative to the target root that the host reads project skills from. */
+  readonly project: readonly string[];
+  /** POSIX paths relative to the home directory that the host reads user skills from. */
+  readonly user: readonly string[];
+  /**
+   * How the host's plugin installs carry skills: Claude Code's installed-plugin record, a folder of plugin folders
+   * (each child folder's `skills/`) under `userRoot` relative to the home directory, or not known.
+   */
+  readonly plugins:
+    | { readonly kind: "claude-installed-plugins" }
+    | { readonly kind: "plugin-folders"; readonly userRoot: string }
+    | { readonly kind: "unknown" };
+  /**
+   * The environment variables that may move the user folders. That they do is an assumption from the hosts'
+   * documentation, not a live run, so a set one means the user folders cannot be checked rather than guessed.
+   */
+  readonly userOverrides: readonly string[];
+}
+
+/**
+ * THE ONE PER-HOST SKILL-FOLDER TABLE (phase 42, D-24). Values from 42-RESEARCH § "Per-host skill discovery",
+ * retrieved 2026-11-16. A new registry row needs a row here too: install/skills-doctor.test.ts pins the key set to
+ * HOST_TOOLS. Project folders are relative to the target root and user folders to the home directory, both with
+ * forward slashes.
+ */
+export const HOST_SKILL_DIRS: Readonly<Record<string, HostSkillDirs>> = {
+  claude: {
+    project: [".claude/skills"],
+    user: [".claude/skills"],
+    plugins: { kind: "claude-installed-plugins" },
+    userOverrides: ["CLAUDE_CONFIG_DIR"],
+  },
+  codex: {
+    project: [".agents/skills"],
+    user: [".agents/skills"],
+    plugins: { kind: "unknown" },
+    userOverrides: ["CODEX_HOME"],
+  },
+  antigravity: {
+    project: [".agents/skills", ".agent/skills"],
+    user: [".gemini/config/skills", ".gemini/antigravity-cli/skills", ".gemini/skills"],
+    plugins: { kind: "plugin-folders", userRoot: ".gemini/config/plugins" },
+    userOverrides: [],
+  },
+  opencode: {
+    project: [".opencode/skills", ".claude/skills", ".agents/skills"],
+    user: [".config/opencode/skills", ".claude/skills", ".agents/skills"],
+    plugins: { kind: "unknown" },
+    userOverrides: ["OPENCODE_CONFIG_DIR", "XDG_CONFIG_HOME"],
+  },
+  copilot: {
+    project: [".github/skills", ".claude/skills", ".agents/skills"],
+    user: [".copilot/skills", ".agents/skills"],
+    plugins: { kind: "unknown" },
+    userOverrides: ["COPILOT_HOME"],
+  },
+  pi: {
+    project: [".pi/skills", ".agents/skills"],
+    user: [".pi/agent/skills", ".agents/skills"],
+    plugins: { kind: "unknown" },
+    userOverrides: ["PI_CODING_AGENT_DIR"],
+  },
+};
+
+/**
  * THE ONE AUTHORITY for the per-agent flag spelling (D-01): a new registry row gets its flag with no installer edit;
  * there is no all-agents flag. The flag is `--` followed by the row's id, so `--claude`, `--codex` and so on. Both
  * binaries and the test support read flags through this function and hostForFlag; nothing else spells one.

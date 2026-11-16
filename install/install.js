@@ -15,7 +15,10 @@
 // the installer renders a target's adapters by SPAWNING the committed generator inside a temp
 // mirror (D-01), which is what keeps the `model:` line rendered by its one owner instead of
 // re-implemented here. The spawn is also the boundary that preserves D-18/D-28 — install/ still
-// imports nothing from scripts/.
+// imports nothing from scripts/. Phase 42 (plan 42-02) added a second spawn of the same kind: `--check`
+// reads the skills each role declares by spawning the committed scripts/role-skills-reader.js over the
+// kit home it checks, so the one `skills:` parser (scripts/canonical-frontmatter.ts roleSkillsOf) stays
+// the only one and install/ still imports nothing from scripts/.
 //
 // Contract (CLEAR PROFESSIONAL VOICE governs every report/warning/error string — safety surface):
 //   - additive    — never overwrites or deletes user content; appends via unique sentinels
@@ -83,7 +86,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
+import { HOST_SKILL_DIRS, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
 import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, CONTEXT_ARCHIVE_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, CONTEXT_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TICKETS_REL, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
@@ -2077,6 +2080,109 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
 }
 // doctor: the INSTALL-05 verifier. Read-only by construction. Returns 0 on pass / WARN-only,
 // nonzero on any FAIL (or WARN + --strict).
+// --- THE DOCTOR'S DECLARED-SKILLS SECTION (phase 42, plan 42-02; SKILL-05, D-24 to D-26) -------------------------
+// The declared skills come from ONE parser, scripts/canonical-frontmatter.ts roleSkillsOf behind admitRole, which
+// install/ cannot import (33.1 D-18/D-28). So the doctor SPAWNS the committed reader scripts/role-skills-reader.js over
+// the kit home it checks and reads its one line of JSON. The spawn is process.execPath and a fixed script path under
+// GRUGOPS_SRC, with no shell, stdin ignored, a timeout and an output cap (T-42-06). Anything but exit 0 and one
+// non-empty line of the report's shape fails closed to one `declared skills not checked` line, and every skill key and
+// role name is checked against the kebab pattern before any path is joined (T-42-26). Presence is a stat of
+// `<folder>/<skill>/SKILL.md` followed through links; no file content is read. Every line is uncounted (D-25).
+/** A role name or a skill name as the one grammar admits it: lower-case kebab, compared byte for byte (D-03). */
+const KEBAB_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** Spawn the reader over DOCTOR_KIT_HOME. A string is the reason the declared skills could not be read. */
+function readDeclaredSkills() {
+    const reader = join(GRUGOPS_SRC, "scripts", "role-skills-reader.js");
+    const r = spawnSync(process.execPath, [reader, DOCTOR_KIT_HOME], {
+        encoding: "utf8",
+        timeout: 15000,
+        maxBuffer: 1048576,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+    });
+    const firstErr = (r.stderr ?? "").trim().split("\n")[0] ?? "";
+    const said = firstErr === "" ? "" : `: ${firstErr.length > 300 ? firstErr.slice(0, 300) + "..." : firstErr}`;
+    if (r.error !== undefined)
+        return `the role-skills reader ${reader} could not be run (${errCode(r.error)})`;
+    if (r.signal !== null)
+        return `the role-skills reader ${reader} was stopped by the signal ${r.signal}`;
+    if (r.status !== 0)
+        return `the role-skills reader ${reader} exited ${String(r.status)}${said}`;
+    const out = r.stdout ?? "";
+    const body = out.endsWith("\n") ? out.slice(0, -1) : out;
+    if (body.trim() === "" || body.includes("\n")) {
+        return `the role-skills reader ${reader} did not print exactly one line of output`;
+    }
+    let parsed;
+    try {
+        parsed = JSON.parse(body);
+    }
+    catch {
+        return `the role-skills reader ${reader} printed a line that is not JSON`;
+    }
+    const notShape = `the role-skills reader ${reader} printed JSON that is not its report`;
+    const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+    if (!isObject(parsed) || !isObject(parsed.skills) || !Array.isArray(parsed.refusals))
+        return notShape;
+    for (const ref of parsed.refusals) {
+        if (!isObject(ref) || typeof ref.role !== "string" || !KEBAB_NAME.test(ref.role) || typeof ref.reason !== "string") {
+            return notShape;
+        }
+    }
+    const skills = new Map();
+    for (const [name, roles] of Object.entries(parsed.skills)) {
+        if (!KEBAB_NAME.test(name) || !Array.isArray(roles) || roles.length === 0)
+            return notShape;
+        if (!roles.every((x) => typeof x === "string" && KEBAB_NAME.test(x)))
+            return notShape;
+        skills.set(name, [...roles]);
+    }
+    // A role the reader refused declares nothing here; the role-frontmatter guard reports the refusal as a failure.
+    return new Map([...skills.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+/**
+ * Whether `<root>/<rel>/<skill>/SKILL.md` is a regular file, the path followed. `rel` is a POSIX path. A stat that fails
+ * for any other reason than an absent entry (a file where a folder should be, no permission) reads as not present.
+ */
+function skillFileAt(root, rel, skill) {
+    try {
+        return statSync(join(root, ...rel.split("/"), skill, "SKILL.md"), { throwIfNoEntry: false })?.isFile() === true;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Print the declared-skills lines for `hosts`: one line per declared skill per installed agent. The per-skill, per-agent
+ * decision is made in this one function, so the plugin lookups and the not-checked cases join it here.
+ */
+function doctorDeclaredSkills(hosts) {
+    if (hosts.length === 0)
+        return;
+    const declared = readDeclaredSkills();
+    if (typeof declared === "string") {
+        docReport("advisory", `declared skills not checked: ${declared}`);
+        return;
+    }
+    const home = homedir();
+    for (const [skill, roles] of declared) {
+        const who = `${skill} (${roles.join(", ")})`;
+        for (const h of hosts) {
+            const dirs = HOST_SKILL_DIRS[h.id];
+            if (dirs === undefined) {
+                docReport("advisory", `skill ${who} not checked for ${h.name}: this build lists no skill folders for it; optional, see docs/skills.md`);
+                continue;
+            }
+            const found = dirs.project.some((rel) => skillFileAt(TARGET, rel, skill)) || dirs.user.some((rel) => skillFileAt(home, rel, skill));
+            if (found) {
+                docReport("ok", `skill ${who} found for ${h.name}`);
+                continue;
+            }
+            const pluginClause = dirs.plugins.kind === "unknown" ? ` (plugin installs on ${h.name} are not checked: UNKNOWN - verify)` : "";
+            docReport("advisory", `skill ${who} not found for ${h.name}; optional, see docs/skills.md${pluginClause}`);
+        }
+    }
+}
 function doctor() {
     DOC_FAILS = 0;
     DOC_WARNS = 0;
@@ -2675,6 +2781,11 @@ function doctor() {
             }
         }
     }
+    // --- Declared skills (phase 42, plan 42-02; SKILL-05) -------------------------------------------
+    // A role may declare optional skills. This section says, for every installed agent, whether each declared skill is
+    // present where that agent looks (HOST_SKILL_DIRS). It is advisory only: it prints through docReport and never
+    // through docWarn or docFail, so neither counter, --strict nor the exit status moves, and it writes nothing.
+    doctorDeclaredSkills(hosts);
     // --- exit-code matrix (SC2) ----------------------------------------------------------------
     console.log("");
     if (DOC_FAILS > 0) {

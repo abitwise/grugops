@@ -330,6 +330,50 @@ export const HOST_TOOLS = [
     },
 ];
 /**
+ * THE ONE PER-HOST SKILL-FOLDER TABLE (phase 42, D-24). Values from 42-RESEARCH § "Per-host skill discovery",
+ * retrieved 2026-11-16. A new registry row needs a row here too: install/skills-doctor.test.ts pins the key set to
+ * HOST_TOOLS. Project folders are relative to the target root and user folders to the home directory, both with
+ * forward slashes.
+ */
+export const HOST_SKILL_DIRS = {
+    claude: {
+        project: [".claude/skills"],
+        user: [".claude/skills"],
+        plugins: { kind: "claude-installed-plugins" },
+        userOverrides: ["CLAUDE_CONFIG_DIR"],
+    },
+    codex: {
+        project: [".agents/skills"],
+        user: [".agents/skills"],
+        plugins: { kind: "unknown" },
+        userOverrides: ["CODEX_HOME"],
+    },
+    antigravity: {
+        project: [".agents/skills", ".agent/skills"],
+        user: [".gemini/config/skills", ".gemini/antigravity-cli/skills", ".gemini/skills"],
+        plugins: { kind: "plugin-folders", userRoot: ".gemini/config/plugins" },
+        userOverrides: [],
+    },
+    opencode: {
+        project: [".opencode/skills", ".claude/skills", ".agents/skills"],
+        user: [".config/opencode/skills", ".claude/skills", ".agents/skills"],
+        plugins: { kind: "unknown" },
+        userOverrides: ["OPENCODE_CONFIG_DIR", "XDG_CONFIG_HOME"],
+    },
+    copilot: {
+        project: [".github/skills", ".claude/skills", ".agents/skills"],
+        user: [".copilot/skills", ".agents/skills"],
+        plugins: { kind: "unknown" },
+        userOverrides: ["COPILOT_HOME"],
+    },
+    pi: {
+        project: [".pi/skills", ".agents/skills"],
+        user: [".pi/agent/skills", ".agents/skills"],
+        plugins: { kind: "unknown" },
+        userOverrides: ["PI_CODING_AGENT_DIR"],
+    },
+};
+/**
  * THE ONE AUTHORITY for the per-agent flag spelling (D-01): a new registry row gets its flag with no installer edit;
  * there is no all-agents flag. The flag is `--` followed by the row's id, so `--claude`, `--codex` and so on. Both
  * binaries and the test support read flags through this function and hostForFlag; nothing else spells one.

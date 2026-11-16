@@ -1104,10 +1104,15 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // anticipated. It derives the installed coordinator's grant through `admittedGrantedNames` and
     // cross-derives it against the adapter census, and it imports nothing from `./frontmatter.js`.
     // Re-derived rather than edited blind: the filter reports exactly these three on this tree.
+    // ARRIVAL (plan 42-02, SKILL-05): `role-skills-reader.ts` reads each role through `admitRole` and its declared
+    // skills through `roleSkillsOf`, and prints them for `install.js --check`. It renders no spawn verdict, but it
+    // imports the canonical module and nothing from `./frontmatter.js`, so the checks below hold for it too.
+    // Re-derived rather than edited blind: the filter reports exactly these four on this tree.
     expect(cutover).toEqual([
       "capture-live.ts",
       "check-foundation-guards.ts",
       "coordinator-resolution-precheck.ts",
+      "role-skills-reader.ts",
     ]);
 
     for (const f of cutover) {
@@ -1121,8 +1126,11 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
         fromParser,
         `${f} renders a spawn verdict and still takes ${fromParser.join(", ")} from ./frontmatter.js`,
       ).toEqual([]);
-      // And it really does take the admission entry point, not merely some constant.
-      expect(importedSymbols(f, "canonical-frontmatter")).toContain("admit");
+      // And it really does take an admission entry point, not merely some constant: `admit` (the adapter schema)
+      // or `admitRole` (ROLE_SCHEMA, plan 39-04). Plan 42-02 named the second here because
+      // `role-skills-reader.ts` admits role files only, and a role file admitted under the adapter schema is refused.
+      const entry = importedSymbols(f, "canonical-frontmatter").filter((s) => s === "admit" || s === "admitRole");
+      expect(entry, `${f} imports no admission entry point from ./canonical-frontmatter.js`).not.toEqual([]);
     }
   });
 
@@ -2361,8 +2369,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     twin landed in the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 114 with this module tracked (2026-11-05, plan 41-12).
+ *
+ * 114 -> 115 (plan 42-02, SKILL-05, D-24), ONE MODULE:
+ *   - `scripts/role-skills-reader.ts` — the reader `install.js --check` spawns to learn which skills each role
+ *     declares: kit home in, one JSON line out. It imports `node:` builtins, `admitRole` and `roleSkillsOf` from
+ *     ./canonical-frontmatter.js, `ROLES_SUBPATH` and `listRoleDirEntries` from ./kit-model.js, and `isEntrypoint`
+ *     from ./is-entry.js.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser and no `skills:`
+ *     grammar of its own (every role goes through the one admission and the one projection), builds no section
+ *     bound, reads no grant and renders no spawn verdict. Its committed `.js` twin landed in the same commit as the
+ *     module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 115 with this module tracked (2026-11-16, plan 42-02).
  */
-const NON_TEST_MODULE_COUNT = 114;
+const NON_TEST_MODULE_COUNT = 115;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -3004,7 +3024,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `fencedLineFlags`, `unfencedHeadingIndex` and `sectionEndIndex` from ./frontmatter.js, and both readers must
     // agree on that import set like every other module both can see. Re-derived: the scoped walk over `scripts/`
     // minus tests reports 72 with the module tracked (2026-11-01).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(72);
+    // 72 → 73 (plan 42-02, SKILL-05): `scripts/role-skills-reader.ts`, the reader `install.js --check` spawns. It
+    // imports `admitRole` and `roleSkillsOf` from ./canonical-frontmatter.js, and both readers must agree on that
+    // import set like every other module both can see. Re-derived: the scoped walk over `scripts/` minus tests
+    // reports 73 with the module tracked (2026-11-16).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(73);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3041,7 +3065,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 69 → 70 (plan 37-20): `fault-inject.test-support.ts`, three specs per module as ever (2026-10-23).
     // 70 → 71 (plan 37-24): `runnable-stamp.ts`, three specs per module as ever (2026-10-23).
     // 71 → 72 (plan 40-01): `check-role-rules.ts`, three specs per module as ever (2026-11-01).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(72 * 3);
+    // 72 → 73 (plan 42-02): `role-skills-reader.ts`, three specs per module as ever (2026-11-16).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(73 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3278,7 +3303,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 71 (2026-10-23).
       // 71 → 72 (plan 40-01): `check-role-rules.ts`, the same module the flat reader gained; both pins move in
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 72 (2026-11-01).
-    ).toBe(72);
+      // 72 → 73 (plan 42-02): `role-skills-reader.ts`, the same module the flat reader gained; both pins move in
+      // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 73 (2026-11-16).
+    ).toBe(73);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
