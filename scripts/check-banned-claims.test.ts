@@ -73,6 +73,9 @@ import {
 // (Plan 30-07) The generated guarantees page's path, taken from the generator that declares it —
 // the same import both gates make, so this harness cannot come to disagree with them.
 import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
+// (Plan 42-07, D-11) The public skills page's path, declared once in the vocabulary gate and
+// imported by this gate for its named `skills` part — the same import here, for the same reason.
+import { SKILLS_DOC } from "./check-public-docs-vocabulary.js";
 import { STATE_ROOT_REL } from "../install/state-layout.js";
 import {
   BANNED_CLAIM_LITERALS,
@@ -409,6 +412,8 @@ const KIT_README = "agent-factory/README.md";
 // (Plan 30-07) The `guarantees` part's one member. Imported from the GENERATOR that declares it,
 // exactly as both gates do, so this harness cannot come to disagree with them about the path.
 const GUARANTEES = GUARANTEES_DOC;
+// (Plan 42-07) The `skills` part's one member, imported for the same reason.
+const SKILLS = SKILLS_DOC;
 
 // ── PLAN 30-07: THE ONE MEMBER ADMITTED BY NAME UNDER AN EXCLUDED SEGMENT, AND WHY IT IS A ─────
 // ── FINDING RATHER THAN A QUIET WIDENING. ──────────────────────────────────────────────────────
@@ -439,7 +444,12 @@ const GUARANTEES = GUARANTEES_DOC;
 // move the render to the repository root, where membership follows by construction — and D-17
 // records the path under `docs/`. Honouring the recorded path costs this enumerated exception; the
 // exception is the smaller error, and it is stated rather than absorbed.
-const ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT: readonly string[] = [GUARANTEES];
+//
+// SECOND MEMBER, PLAN 42-07 (D-11): `docs/skills.md`, the public third-party skills page. It is
+// contributed by the gate's named `skills` part, the same mechanism, under the same `docs/`
+// segment class, so it is enumerated here by name and the pinned cardinality moves 1 → 2 in the
+// commit that admits it. Nothing about the walk or the exclusion list changed.
+const ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT: readonly string[] = [GUARANTEES, SKILLS];
 
 /** The parts whose members arrive through THIS module's walk. The exclusion's actual subject. */
 const WALK_DERIVED_PART_NAMES = [
@@ -802,6 +812,12 @@ type MirrorSpec = {
    * exercises the two refusal channels together, which is the shape a reader should meet.
    */
   omitGuarantees?: boolean;
+  /**
+   * (Plan 42-07) Omit docs/skills.md — the `skills` part's vanished-file case. Like the guarantees
+   * page it is a member of this gate's own named part and of the imported public-docs corpus, so
+   * omitting it exercises both refusal channels together.
+   */
+  omitSkillsDoc?: boolean;
   /** Per-path content overrides, keyed by the same repo-relative path the gate reports. */
   plant?: Record<string, string>;
 };
@@ -821,17 +837,21 @@ const PUBLIC_DOCS =
   1 + // CHANGELOG.md — in the corpus, exempt only from the VOCABULARY gate
   DEFAULT_EXAMPLES.length +
   1 + // agent-factory/README.md, the kit README part
-  1; // (plan 30-07) docs/GUARANTEES.md, the corpus's fourth part
+  1 + // (plan 30-07) docs/GUARANTEES.md, the corpus's fourth part
+  1; // (plan 42-07) docs/skills.md, the corpus's fifth part
 const INSTALL_README_COUNT = 1;
 const SKILL_SOURCES = DEFAULT_SKILL_SOURCES.length;
 const CLAUDE_ADAPTERS = DEFAULT_CLAUDE_ADAPTERS.length;
 const PLUGIN_MANIFEST_COUNT = PLUGIN_MANIFESTS.length;
 const GUARANTEES_COUNT = 1; // (plan 30-07) docs/GUARANTEES.md, this gate's own named part
+const SKILLS_COUNT = 1; // (plan 42-07) docs/skills.md, this gate's own named part
 // (Plan 30-07) TWO overlaps now, both named: agent-factory/README.md is in the kit part and the
 // public-docs part, and docs/GUARANTEES.md is in the public-docs part and this gate's own
 // `guarantees` part. The second membership is deliberate — see the part's own reasoning in the
 // gate — and the overlap is counted rather than subtracted in silence.
-const OVERLAP = 2;
+// (Plan 42-07) THREE now: docs/skills.md is in the public-docs part and this gate's own `skills`
+// part, by the same deliberate second route.
+const OVERLAP = 3;
 const FILLER_COUNT =
   BANNED_CLAIM_SCAN_COUNT -
   (KIT_NAMED +
@@ -840,7 +860,8 @@ const FILLER_COUNT =
     SKILL_SOURCES +
     CLAUDE_ADAPTERS +
     PLUGIN_MANIFEST_COUNT +
-    GUARANTEES_COUNT -
+    GUARANTEES_COUNT +
+    SKILLS_COUNT -
     OVERLAP);
 
 function defaultFillers(): string[] {
@@ -904,6 +925,8 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   // mechanisms, and the distinction is asserted directly by the segment-class case near the end of
   // this file.
   if (spec.omitGuarantees !== true) write(GUARANTEES);
+  // (Plan 42-07) The eighth part, written by name under docs/ for the same reason as the seventh.
+  if (spec.omitSkillsDoc !== true) write(SKILLS);
   return mirror;
 }
 
@@ -1759,7 +1782,10 @@ describe("check-banned-claims — the imported corpus's derivation-refusal chann
     // could miss, because the derived count never counted it; it now refuses through this channel
     // rather than being absent. ONE push site serves BOTH parts, which is why the number moves by
     // one and not by two, and it moves in the SAME commit that adds it.
-    expect(pushes).toBe(5);
+    //
+    // 5 → 6 (plan 42-07, D-11): the `skills` part's named refusal for a missing docs/skills.md, the
+    // sixth push site in that module, moved in the SAME commit that adds the site.
+    expect(pushes).toBe(6);
     // The prose mention must be GONE from the stripped text but PRESENT in the raw text — the two
     // halves together prove the strip removed comments and only comments.
     expect(raw).toContain("`DERIVATION_REFUSALS.push` sites");
@@ -2886,6 +2912,43 @@ describe("check-banned-claims — CHANGELOG.md is INSIDE the scan set (round 6, 
     expect(live.length).toBeGreaterThan(1);
   });
 
+  // ── PLAN 42-07, D-11: THE PUBLIC SKILLS PAGE, PROVEN A MEMBER BY PLANTING, AND ITS ABSENCE ───
+  // ── REPORTED BY NAME. The page joined this gate in a commit before the commit that wrote it, ─
+  // ── so the missing-page case below is the refusal that first commit reported on the live tree.
+  it("PLANT: a banned literal in docs/skills.md is named at file:line:column", () => {
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-skills-", {
+        plant: { [SKILLS]: CHANGELOG_PLANT },
+      }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `${SKILLS}:${CHANGELOG_PLANT_AT.line}:${CHANGELOG_PLANT_AT.column} — ` +
+        `banned ${TOKEN_CLAIM.group} literal "${TOKEN_CLAIM.literal}"`,
+    );
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("REPORTS a missing docs/skills.md by name rather than dying with a stack trace", () => {
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-noskills-", { omitSkillsDoc: true }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `${SKILLS} is a NAMED member of the banned-claim scan set and does not exist`,
+    );
+    expect(stdout).toMatch(/refusing to report a verdict/);
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    // BOTH channels, as for the guarantees page: this gate's own named part, and the imported
+    // corpus's derivation refusal.
+    expect(stdout).toContain(
+      'the "skills" part of the banned-claim scan set derived ZERO members',
+    );
+    expect(stdout).toContain("public-document corpus derivation refused");
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
   it("the changelog is a MEMBER of the derived scan set, and the pin counts it", () => {
     // The membership half, stated over the LIVE tree rather than inferred from the finding above.
     // Deliberately NOT the mirror: the finding case already proves the mirror's changelog is read,
@@ -3422,8 +3485,12 @@ describe("check-banned-claims — vacuity is refused by name, per part, before t
     // floor is per-part precisely so one part emptying out cannot hide behind the other's members.
     // (Plan 30-07) `omitGuarantees` because docs/GUARANTEES.md is a member of the imported
     // public-docs corpus too: leaving it in place would keep that part at one member and this case
-    // would assert a floor that never fired.
-    const mirror = makeMirror("gops-banned-vacuous-pub-", { omitGuarantees: true });
+    // would assert a floor that never fired. (Plan 42-07) `omitSkillsDoc` for the same reason:
+    // docs/skills.md is the corpus's fifth part.
+    const mirror = makeMirror("gops-banned-vacuous-pub-", {
+      omitGuarantees: true,
+      omitSkillsDoc: true,
+    });
     for (const f of [...DEFAULT_ROOT_DOCS, CHANGELOG])
       rmSync(join(mirror, f), { force: true });
     rmSync(join(mirror, "examples"), { recursive: true, force: true });
@@ -3511,6 +3578,7 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
       "claudeAdapters",
       "pluginManifests",
       "guarantees",
+      "skills",
     ]);
     for (const part of BANNED_CLAIM_SCAN_PARTS) {
       expect(part.members.length).toBeGreaterThan(0);
@@ -3539,7 +3607,8 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
     expect(overlapping).toEqual([...ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT].sort());
     // …AND THE CARDINALITY, PINNED, so the equality above cannot be satisfied by both sides
     // emptying out together.
-    expect(ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT.length).toBe(1);
+    // 1 → 2 (plan 42-07): docs/skills.md, recorded at the constant.
+    expect(ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT.length).toBe(2);
 
     // THE ORIGINAL PREDICATE, KEPT EXACTLY, OVER THE SET IT WAS WRITTEN ABOUT. The exclusion is
     // enforced at the walk, so the walk's own members must still overlap it NOWHERE. A widened

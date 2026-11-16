@@ -177,6 +177,9 @@ import {
   // because taking the one without the other is exactly the defect: the parts are built at import
   // time, so a refusal is already raised before this gate asks for a single member.
   publicDocsDerivationRefusals,
+  // (Plan 42-07, D-11) The public skills page's path, declared once in that module. See the
+  // `skills` part below for why this gate names the page itself rather than inheriting it.
+  SKILLS_DOC,
 } from "./check-public-docs-vocabulary.js";
 // The generated guarantees page's path, taken from the module that DECLARES it. See the
 // `guarantees` part below for why this gate names the document itself rather than inheriting it
@@ -1282,6 +1285,35 @@ function guaranteesMembers(): string[] {
   return [GUARANTEES_DOC];
 }
 
+// Part `skills`: the public third-party skills page, named by this gate rather than inherited
+// (plan 42-07, D-11).
+//
+// The `publicDocs` part reaches it too: `docs/skills.md` is a member of the public-docs corpus as
+// of the same plan, so the member appears in both parts and `bannedClaimScanOverlap()` counts it.
+// The second route is deliberate, for the reason the `guarantees` part records above: a page whose
+// subject is which third-party code a reader should trust must not have its place in the CLAIM gate
+// depend on a sibling gate's corpus, which is maintained for the retired-vocabulary question.
+//
+// THE PATH IS IMPORTED as `SKILLS_DOC` from check-public-docs-vocabulary.ts, which declares it;
+// this gate writes no second literal, so a rename moves both scan memberships together.
+//
+// DERIVED AGAINST THE DISK, for the two reasons `installReadmeMembers()` records: a literal part
+// can never reach the per-part vacuity floor, and `readText()` is called unguarded downstream, so
+// returning [] with a named refusal is the only way an absent page produces a verdict rather than
+// a node:internal stack trace. D-11 relies on that refusal: the page joined this gate in a commit
+// before the commit that wrote it, and this refusal is what that first commit reported.
+function skillsDocMembers(): string[] {
+  if (!existsSync(abs(SKILLS_DOC))) {
+    DERIVATION_REFUSALS.push(
+      `${SKILLS_DOC} is a NAMED member of the banned-claim scan set and does not exist at ` +
+        `${abs(SKILLS_DOC)} — refusing to report a verdict over a part whose one member could ` +
+        `not be read. A missing document is not a clean one`,
+    );
+    return [];
+  }
+  return [SKILLS_DOC];
+}
+
 // ── THE `encoding` PROBE ROW, ANSWERED IN CODE (round 7, LANG-04) ──────────────────────────────
 //
 // THE QUESTION: whose definition of the text applies — raw bytes, or the values a JSON parse
@@ -1368,7 +1400,8 @@ export const BANNED_CLAIM_SCAN_PARTS: readonly {
     | "skillSources"
     | "claudeAdapters"
     | "pluginManifests"
-    | "guarantees";
+    | "guarantees"
+    | "skills";
   members: readonly string[];
 }[] = [
   { name: "kit", members: kitMarkdown() },
@@ -1378,14 +1411,16 @@ export const BANNED_CLAIM_SCAN_PARTS: readonly {
   { name: "claudeAdapters", members: claudeAdapterMarkdown() },
   { name: "pluginManifests", members: pluginManifestMembers() },
   { name: "guarantees", members: guaranteesMembers() },
+  { name: "skills", members: skillsDocMembers() },
 ];
 
 /**
  * The DEDUPED union of the two parts, sorted.
  *
- * The parts OVERLAP by exactly two members today — agent-factory/README.md is both a kit document
- * and a public document, and docs/GUARANTEES.md (plan 30-07) is both a public document and this
- * gate's own named `guarantees` part — and both overlaps are real rather than a derivation bug. Deduping is what
+ * The parts OVERLAP by exactly three members today — agent-factory/README.md is both a kit document
+ * and a public document, docs/GUARANTEES.md (plan 30-07) is both a public document and this gate's
+ * own named `guarantees` part, and docs/skills.md (plan 42-07) is both a public document and this
+ * gate's own named `skills` part — and all three overlaps are real rather than a derivation bug. Deduping is what
  * makes a finding in that file one finding instead of two identical ones; the arithmetic
  * `kit + publicDocs - overlap = total` is reported in the PASS line so a reader can check it rather
  * than take it. Sorted, so two runs over one tree produce byte-identical output.
@@ -1556,8 +1591,22 @@ export function bannedClaimScanOverlap(
  *         guarantees 1, overlap 2)
  *
  * The same run reported 0 findings over 128/128 elements.
+ *
+ * MOVED AGAIN 128 → 129 ON 2026-11-16 IN PLAN 42-07, AND THE ENTRANT IS NAMED: `docs/skills.md`,
+ * the public third-party skills page (D-11). It enters TWICE, as `docs/GUARANTEES.md` did: through
+ * the `publicDocs` corpus (12 → 13) and through this gate's own named `skills` part, so the overlap
+ * moves 2 → 3 while the deduped total moves by one. Read off this gate's own refusal on an
+ * intermediate build with a placeholder page on disk, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 129 document(s), expected exactly 128 (kit 79,
+ *         publicDocs 13, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, skills 1, overlap 3)
+ *
+ * The pin moved in the commit that joined the page to this gate, BEFORE the page was written, so
+ * that commit's run refuses with the `skills` part's named-member message. The run over the written
+ * page is the admission test: zero findings over 129/129 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 128;
+export const BANNED_CLAIM_SCAN_COUNT = 129;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.

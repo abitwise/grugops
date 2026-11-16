@@ -424,6 +424,32 @@ function guaranteesMembers() {
     }
     return [GUARANTEES_DOC];
 }
+// Part `skills`: the public third-party skills page, one named member (plan 42-07, D-11).
+//
+// `docs/skills.md` tells a reader that grugops recommends no third-party skill, that any skill they
+// install is theirs to vet, and where each host looks for skills. It is public and it ships, and
+// D-11 orders it to join BOTH claim gates in a commit before the commit that writes it, so the
+// page is never readable outside a scan set.
+//
+// THE PATH IS DECLARED ONCE, HERE, AND EXPORTED. No generator owns this page, so this module is the
+// declaration; check-banned-claims.ts imports `SKILLS_DOC` for its own named `skills` part rather
+// than writing a second literal, exactly as both gates import `GUARANTEES_DOC`.
+//
+// DERIVED AGAINST THE DISK, for `kitReadmeMembers()`'s two recorded reasons and no others: the
+// per-part vacuity floor can never fire for a literal part, so returning [] on an absent file is
+// the only way this gate notices the page is gone; and `grepSubstring` calls `readText()`
+// unguarded, so an absent file would otherwise kill the gate with a node:internal stack trace
+// instead of a verdict.
+export const SKILLS_DOC = "docs/skills.md";
+function skillsDocMembers() {
+    if (!existsSync(abs(SKILLS_DOC))) {
+        DERIVATION_REFUSALS.push(`${SKILLS_DOC} is a NAMED member of the public-docs scan set and does not exist at ` +
+            `${abs(SKILLS_DOC)} — refusing to report a verdict over a part whose one member could ` +
+            `not be read. A missing document is not a clean one`);
+        return [];
+    }
+    return [SKILLS_DOC];
+}
 // ---------------------------------------------------------------------------
 // ONE DERIVATION, TWO QUESTIONS, AND THE SUBTRACTION AT EXACTLY ONE PLACE (round 6 / CR-01).
 //
@@ -447,6 +473,7 @@ export const PUBLIC_DOCS_CORPUS_PARTS = [
     { name: "examples", members: examplesMarkdown() },
     { name: "kitReadme", members: kitReadmeMembers() },
     { name: "guarantees", members: guaranteesMembers() },
+    { name: "skills", members: skillsDocMembers() },
 ];
 /**
  * QUESTION ONE: **which documents are public?**
@@ -486,10 +513,11 @@ export function publicDocsCorpus() {
  * a derivation had refused.
  *
  * WHAT THIS CHANNEL ENUMERATES, AND WHAT BOUNDS IT. The set is *the refusals the public-docs corpus
- * derivation raised in this process*. It is derived by the five `DERIVATION_REFUSALS.push` sites
+ * derivation raised in this process*. It is derived by the six `DERIVATION_REFUSALS.push` sites
  * above — an unreadable repository root, a walk that exceeded its entry budget, a missing
- * `agent-factory/README.md`, (plan 30-07) a missing `docs/GUARANTEES.md`, and (plan 30-10, round 2,
- * finding F4) an entry that imitates the canonical markdown extension. **Nothing pins its
+ * `agent-factory/README.md`, (plan 30-07) a missing `docs/GUARANTEES.md`, (plan 30-10, round 2,
+ * finding F4) an entry that imitates the canonical markdown extension, and (plan 42-07) a missing
+ * `docs/skills.md`. **Nothing pins its
  * count, and nothing should:** a refusal count is an
  * EVENT count, not a set cardinality, so there is no correct number for it to be compared against
  * and a vacuity floor over it would fail on every healthy run. This is stated plainly rather than
@@ -524,8 +552,8 @@ export const PUBLIC_DOCS_SCAN_PARTS = PUBLIC_DOCS_CORPUS_PARTS.map((p) => ({
 export function publicDocsScan() {
     return PUBLIC_DOCS_SCAN_PARTS.flatMap((p) => [...p.members]);
 }
-// The pinned cardinality OF THE SCAN. 11 today: 4 root markdown files (5 in the corpus, minus the
-// CHANGELOG.md exemption) + 5 examples + 1 kit README + 1 generated guarantees page.
+// The pinned cardinality OF THE SCAN. 12 today: 4 root markdown files (5 in the corpus, minus the
+// CHANGELOG.md exemption) + 5 examples + 1 kit README + 1 generated guarantees page + 1 skills page.
 //
 // MOVED 10 -> 11 IN PLAN 30-07, AND THE ENTRANT IS NAMED RATHER THAN LEFT AS ARITHMETIC:
 // `docs/GUARANTEES.md`. Read off this gate's own refusal on the intermediate build rather than
@@ -537,6 +565,17 @@ export function publicDocsScan() {
 // That run reported ZERO retired-vocabulary hits, which is the admission test: the entrant costs
 // zero reds on correct text.
 //
+// MOVED 11 -> 12 ON 2026-11-16 IN PLAN 42-07, AND THE ENTRANT IS NAMED: `docs/skills.md`, the
+// public third-party skills page (D-11). Read off this gate's own refusal on an intermediate build
+// with a placeholder page on disk, verbatim:
+//
+//   FAIL  the public-docs scan set derived 12 document(s), expected exactly 11
+//         (root 4, examples 5, kitReadme 1, guarantees 1, skills 1)
+//
+// The pin moved in the commit that joined the page to this gate, BEFORE the page was written, so
+// that commit's run refuses with the `skills` part's named-member message and this count reads 11.
+// The run over the written page is the admission test: zero retired-vocabulary hits.
+//
 // THE CORPUS CARRIES NO SECOND PIN, AND THAT IS ARITHMETIC RATHER THAN AN OVERSIGHT. The corpus and
 // the scan differ by exactly PUBLIC_DOCS_EXEMPT, which is a frozen one-member array: a corpus that
 // grew by a NON-exempt document grows the scan and trips this pin, and a corpus that grew by an
@@ -544,7 +583,7 @@ export function publicDocsScan() {
 // The corpus is additionally pinned from the other side by BANNED_CLAIM_SCAN_COUNT, which is
 // two-sided over a union this corpus is half of. A third pin would be a number to maintain, not a
 // question nobody is asking.
-export const PUBLIC_DOCS_SCAN_COUNT = 11;
+export const PUBLIC_DOCS_SCAN_COUNT = 12;
 // ---------------------------------------------------------------------------
 // The check.
 // ---------------------------------------------------------------------------

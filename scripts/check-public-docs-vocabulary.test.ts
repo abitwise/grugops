@@ -44,6 +44,9 @@ import { join, sep, win32 } from "node:path";
 import {
   PUBLIC_DOCS_SCAN_COUNT,
   PUBLIC_DOCS_EXEMPT,
+  // (Plan 42-07, D-11) The skills page's path, declared once in the gate. Imported rather than
+  // typed, so this harness and the gate cannot disagree about which document the `skills` part names.
+  SKILLS_DOC,
   PUBLIC_DOCS_SCAN_PARTS,
   PUBLIC_DOCS_CORPUS_PARTS,
   publicDocsScan,
@@ -114,6 +117,8 @@ const KIT_README = "agent-factory/README.md";
 // The fourth named corpus part's one member (plan 30-07). Imported from the GENERATOR that
 // declares it, exactly as the gate does — a literal here would be a third spelling of one path.
 const GUARANTEES = GUARANTEES_DOC;
+// The fifth named corpus part's one member (plan 42-07).
+const SKILLS = SKILLS_DOC;
 
 type MirrorSpec = {
   // Root markdown file names (excluding CHANGELOG.md, which is written separately so the exemption
@@ -128,6 +133,10 @@ type MirrorSpec = {
   // part can never reach the per-part vacuity floor by shrinking, so this is the only way that
   // floor and the part's named refusal are reachable at all.
   omitGuarantees?: boolean;
+  // (Plan 42-07) Omit docs/skills.md — the `skills` part's vanished-file case, for the reason
+  // `omitGuarantees` records: a literal part reaches its vacuity floor and its named refusal only
+  // when its one member is gone.
+  omitSkillsDoc?: boolean;
 };
 
 function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
@@ -150,6 +159,7 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   for (const f of examples) write(`examples/${f}`);
   write(KIT_README);
   if (spec.omitGuarantees !== true) write(GUARANTEES);
+  if (spec.omitSkillsDoc !== true) write(SKILLS);
   return mirror;
 }
 
@@ -349,6 +359,34 @@ describe("check-public-docs-vocabulary — vacuity is refused by name", () => {
       /the "guarantees" part of the public-docs scan set derived ZERO members/,
     );
   });
+
+  // ── PLAN 42-07: THE PUBLIC SKILLS PAGE IS A MEMBER, PROVEN BY PLANTING, AND ITS ABSENCE IS ───
+  // ── REPORTED BY NAME. D-11 orders the page into this gate before it is written, so the ───────
+  // ── missing-page refusal below is exactly what the joining commit reported on the live tree. ─
+  it("PLANT: a retired PROSE form in docs/skills.md is NAMED by this gate", () => {
+    const mirror = makeMirror("gops-pubdocs-skills-plant-", {
+      plant: { [SKILLS]: PROSE_PLANT },
+    });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toMatch(/docs\/skills\.md:\d+:/);
+    expect(stdout).toContain(RETIRED_PROSE_FORMS[0]);
+  });
+
+  it("REPORTS a missing docs/skills.md by name rather than crashing with ENOENT", () => {
+    const mirror = makeMirror("gops-pubdocs-noskills-", { omitSkillsDoc: true });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `${SKILLS} is a NAMED member of the public-docs scan set and does not exist`,
+    );
+    expect(stdout).toMatch(/refusing to report a verdict/);
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    expect(stdout).toMatch(
+      /the "skills" part of the public-docs scan set derived ZERO members/,
+    );
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
 });
 
 describe("check-public-docs-vocabulary — the derived pin and the D-10 control", () => {
@@ -359,7 +397,7 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
     expect(live.length).not.toBe(PUBLIC_DOCS_SCAN_COUNT + 1);
   });
 
-  it("the scan set is the concatenation of its four named parts, none empty", () => {
+  it("the scan set is the concatenation of its five named parts, none empty", () => {
     // Partition the composition by the SAME parts it was built from rather than restating a
     // directory literal. A claim about one part says nothing about the others, so every part is
     // asserted — a widening that swapped one part for another would hold the total at the pin.
@@ -368,6 +406,7 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
       "examples",
       "kitReadme",
       "guarantees",
+      "skills",
     ]);
     for (const part of PUBLIC_DOCS_SCAN_PARTS) {
       expect(part.members.length).toBeGreaterThan(0);
@@ -457,7 +496,9 @@ function corpusFromDisk(): string[] {
   // DISK — so this remains an independent second enumeration rather than a restatement of the
   // gate's derivation. The PATH is imported for the reason the gate imports it: one declaration.
   const guarantees = existsSync(join(ROOT, GUARANTEES_DOC)) ? [GUARANTEES_DOC] : [];
-  return [...root, ...examples, ...kitReadme, ...guarantees];
+  // (Plan 42-07) The fifth part, asked of the disk the same way.
+  const skills = existsSync(join(ROOT, SKILLS_DOC)) ? [SKILLS_DOC] : [];
+  return [...root, ...examples, ...kitReadme, ...guarantees, ...skills];
 }
 
 describe("check-public-docs-vocabulary — the corpus, the scan, and the difference between them", () => {
