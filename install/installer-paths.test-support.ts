@@ -65,7 +65,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
 import { BOARD_REL, CONTEXT_REL, LEGACY_BOARD_REL, LEGACY_STATE_ROOT_REL, PROGRESS_REL } from "./state-layout.js";
-import { HOST_TOOLS, agentFlag, commandContextFromRecord, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
+import { HOST_SKILL_DIRS, HOST_TOOLS, agentFlag, commandContextFromRecord, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -382,6 +382,11 @@ export interface RunOptions {
    * in a shell that exports INSTALL_MODE=symlink (R50, WR-25's mode half).
    */
   readonly installMode?: "copy" | "symlink";
+  /**
+   * Environment entries applied last, after every option above (plan 42-02): a string sets the variable, `undefined`
+   * deletes it. hermeticEnv below builds the map the skill-doctor tests pass.
+   */
+  readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
 /**
@@ -400,6 +405,10 @@ export function spawnBin(bin: string, args: readonly string[], target: string, g
   if (opts.home !== undefined) env.HOME = opts.home;
   if (opts.dryRun) env.DRY_RUN = "1";
   else delete env.DRY_RUN;
+  for (const [k, v] of Object.entries(opts.env ?? {})) {
+    if (v === undefined) delete env[k];
+    else env[k] = v;
+  }
   const r = spawnSync(process.execPath, [bin, ...args], {
     encoding: "utf8",
     env,
@@ -407,6 +416,20 @@ export function spawnBin(bin: string, args: readonly string[], target: string, g
     maxBuffer: 64 * 1024 * 1024,
   });
   return { status: r.status, signal: r.signal, error: r.error, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+/**
+ * THE HERMETIC SKILL ENVIRONMENT (plan 42-02, research Pitfall 9). The doctor's declared-skills section looks for skill
+ * folders under the home directory, so a check that inherits the caller's environment reads the real home. This map
+ * points HOME and USERPROFILE at the scratch home (so `homedir()` is the scratch home on Windows too), sets PATH to
+ * `binDir` alone (an empty scratch folder unless a test puts a fake binary there), and deletes
+ * CLAUDE_CODE_PLUGIN_CACHE_DIR and every variable a HOST_SKILL_DIRS row names as moving its user folders. Pass it as
+ * RunOptions.env.
+ */
+export function hermeticEnv(home: string, binDir: string): Readonly<Record<string, string | undefined>> {
+  const env: Record<string, string | undefined> = { HOME: home, USERPROFILE: home, PATH: binDir, CLAUDE_CODE_PLUGIN_CACHE_DIR: undefined };
+  for (const row of Object.values(HOST_SKILL_DIRS)) for (const name of row.userOverrides) env[name] = undefined;
+  return env;
 }
 
 // ── naming the agents (phase 34.1, D-01; research Pitfall 2) ──────────────────────────────────────
