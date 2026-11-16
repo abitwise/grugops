@@ -127,8 +127,14 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * printed lines of a dry run).
  * 2026-10-28, plan 38-10 (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 45 -> 46 for
  * migrate-v3-context.test.ts, which has no chmod call and no expected mode (it compares snapshotTree manifests and
- * printed lines of the context archive). */
-const INSTALL_TEST_FILE_COUNT = 46;
+ * printed lines of the context archive).
+ * 2026-11-16, phase 42 gate fix (re-derived by listing install/, not incremented): INSTALL_TEST_FILE_COUNT 46 -> 48 for
+ * skills-doctor.test.ts (plans 42-02, 42-07, 42-08), which has no chmod call and no expected mode (it plants role
+ * declarations, skill folders and plugin records and matches printed skill lines and snapshotTree manifests), and
+ * claude-version-doctor.test.ts (plan 42-05), which has no expected mode and one chmod call: fakeClaude sets 0o755 so
+ * the fake `claude` script can be spawned, in cases skipped on win32. That call is not yet tagged under rule (a); its
+ * kind is a decision left open in the phase 42 deferred items. */
+const INSTALL_TEST_FILE_COUNT = 48;
 // SCRIPTS_TEST_FILE_COUNT 80 -> 81 (2026-10-29, plan 39-05, re-derived by listing scripts/, not incremented) for
 // tier-kit-text.test.ts, which has no chmod call and no expected mode (it reads kit markdown and asserts phrases).
 // SCRIPTS_TEST_FILE_COUNT 81 -> 82 (2026-11-01, plan 40-01, re-derived by listing scripts/, not incremented) for
@@ -136,7 +142,11 @@ const INSTALL_TEST_FILE_COUNT = 46;
 // committed role-rule inventory check).
 // SCRIPTS_TEST_FILE_COUNT 82 -> 83 (2026-11-05, plan 41-04, re-derived by listing scripts/, not incremented) for
 // flow-guidance-text.test.ts, which has no chmod call and no expected mode (it reads kit markdown and asserts phrases).
-const SCRIPTS_TEST_FILE_COUNT = 83;
+// SCRIPTS_TEST_FILE_COUNT 83 -> 85 (2026-11-16, phase 42 gate fix, re-derived by listing scripts/, not incremented) for
+// role-skills-reader.test.ts (plans 42-02, 42-08), which has no chmod call and reads no `.mode` (it writes scratch kits
+// and reads the reader's report and its CLI's stdout), and skills-kit-text.test.ts (plans 42-03, 42-06, 42-07), which
+// has neither either (it reads kit markdown and asserts phrases and tables).
+const SCRIPTS_TEST_FILE_COUNT = 85;
 const SOURCE_FILE_COUNT = 11;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
