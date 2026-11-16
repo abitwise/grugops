@@ -122,3 +122,66 @@ describe("the role-switch protocol's skills line (D-05, D-06)", () => {
     expect(PROTOCOL).not.toContain(PHRASE);
   });
 });
+
+// Phase 42 plan 42-06: design-system files in the user's repo are user artifacts (amended SKILL-04; D-19, D-23).
+
+const DESIGNER = readFileSync(join(ROOT, "agent-factory/roles/designer.md"), "utf8");
+const FRONTEND_UI = readFileSync(join(ROOT, "agent-factory/roles/frontend-ui.md"), "utf8");
+const WF14 = readFileSync(join(ROOT, "agent-factory/workflows/14-ui-design-to-build.md"), "utf8");
+
+/** The five sentences that close Workflow 14 step 1 (D-19), in order. */
+const WF14_DESIGN_SYSTEM = [
+  "Read the design-system files in the user's repo, such as token, theme or style-guide files.",
+  "Never write them; they are user artifacts.",
+  "When they disagree with the Designer's notes, the files win.",
+  "Align the notes to the files.",
+  "Record each conflict in a note for the human.",
+];
+
+describe("design-system files are user artifacts the Designer and Frontend/UI read, never write (amended SKILL-04; D-19, D-23)", () => {
+  it("names `design-system files` in exactly the two roles and Workflow 14, walking AGENTS.md and agent-factory/", () => {
+    const files = [join(ROOT, "AGENTS.md"), ...markdownUnder(join(ROOT, "agent-factory"))];
+    expect(files.length, "the walk found too few files to mean anything").toBeGreaterThan(50);
+    const hits = files
+      .filter((f) => readFileSync(f, "utf8").includes("design-system files"))
+      .map((f) => relative(ROOT, f))
+      .sort();
+    expect(hits).toEqual([
+      "agent-factory/roles/designer.md",
+      "agent-factory/roles/frontend-ui.md",
+      "agent-factory/workflows/14-ui-design-to-build.md",
+    ]);
+  });
+
+  it("puts the never-write sentence in designer.md § Hard limits, pointing to Workflow 14 step 1", () => {
+    expect(section(DESIGNER, "Hard limits")).toContain(
+      "Never write design-system files in the user's repo; they are user artifacts you read per Workflow 14 step 1.",
+    );
+  });
+
+  it("puts the never-write sentence in frontend-ui.md § Hard limits", () => {
+    expect(section(FRONTEND_UI, "Hard limits")).toContain(
+      "Never write design-system files in the user's repo; they are user artifacts you read.",
+    );
+  });
+
+  it("closes Workflow 14 step 1 with the read, never-write and conflict sentences, in order, on the step's one line", () => {
+    const step = section(WF14, "Steps")
+      .split("\n")
+      .find((l) => l.startsWith("1. Establish the design system once per product (Designer)."));
+    expect(step, "no Workflow 14 step 1").toBeDefined();
+    expect(step?.endsWith(` ${WF14_DESIGN_SYSTEM.join(" ")}`), "step 1 does not end with the five sentences").toBe(true);
+  });
+
+  it("carries no general rule in the role-switch protocol or AGENTS.md (D-23)", () => {
+    expect(PROTOCOL).not.toContain("design-system");
+    expect(AGENTS).not.toContain("design-system");
+  });
+
+  it("keeps both roles' capabilities and declares no skill (42-04: no kit change)", () => {
+    for (const [name, text] of [["designer.md", DESIGNER], ["frontend-ui.md", FRONTEND_UI]] as const) {
+      expect(text.split("\n").filter((l) => l.startsWith("capabilities:")), name).toEqual(["capabilities: read edit shell"]);
+      expect(text.split("\n").some((l) => l.startsWith("skills:")), `${name} has a skills: line`).toBe(false);
+    }
+  });
+});
