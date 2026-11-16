@@ -17,14 +17,15 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { CLAUDE_CODE_LEVEL_FLOOR } from "./host-tools.js";
 import { INSTALL_JS, hermeticEnv, runInstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "grugops-claude-version-"));
+const README = readFileSync(resolve(import.meta.dirname, "README.md"), "utf8");
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
 
 /** A fake `claude` is a POSIX shell script; Node does not spawn one without a shell on Windows. */
@@ -77,6 +78,7 @@ const below = (v: string): RegExp =>
     `^ {2}advisory\\s+Claude Code ${v.replace(/\./g, "\\.")} is below v2\\.1\\.293, the version the junior engineer level needs; ` +
       `see install/README\\.md "The engineer level adapters \\(Claude Code only\\)"$`,
   );
+const notChecked = (reason: string): string => `the Claude Code version was not checked: ${reason}`;
 const meets = (v: string): RegExp =>
   new RegExp(`^ {2}ok\\s+Claude Code ${v.replace(/\./g, "\\.")} meets the v2\\.1\\.293 floor for the junior engineer level$`);
 const counted = (out: string): string[] => lines(out).filter((l) => /^ {2}(FAIL|WARN)\s/.test(l));
@@ -121,4 +123,139 @@ describe("--check probes the Claude Code version when Claude Code is installed (
       expect(lowOutcome, low.stdout).toEqual(atOutcome);
     },
   );
+});
+
+describe("--check: version comparison and the cases the probe cannot read (plan 42-05, SKILL-05, D-27)", () => {
+  /** One Claude Code install shared by the cases below; --check writes nothing, so each case only swaps the fake. */
+  let shared: Row | undefined;
+  const claudeRow = (): Row => (shared ??= installedWith(["--claude"]));
+  /** The outcome of a run whose fake prints a version at the floor: the status every other case is compared with. */
+  let okOutcome: ReturnType<typeof outcome> | undefined;
+  const okBaseline = (): ReturnType<typeof outcome> => {
+    if (okOutcome === undefined) {
+      const row = claudeRow();
+      printing(row, "2.1.293 (Claude Code)");
+      okOutcome = outcome(row);
+    }
+    return okOutcome;
+  };
+  /** The one version line of a check with the current fake, after asserting it is the only one. */
+  const onlyVersionLine = (row: Row): { line: string; out: string } => {
+    const c = check(row);
+    const v = versionLines(c.stdout);
+    expect(v, c.stdout).toHaveLength(1);
+    return { line: v[0] ?? "", out: c.stdout };
+  };
+
+  it.skipIf(NO_SCRIPT_BINARIES)("versions compare as three integers: 2.1.1000 and 2.2.0 meet the floor, 1.9.999 is below it", () => {
+    const row = claudeRow();
+    const base = okBaseline();
+    for (const [v, want] of [
+      ["2.1.1000", meets("2.1.1000")],
+      ["2.2.0", meets("2.2.0")],
+      ["1.9.999", below("1.9.999")],
+    ] as const) {
+      printing(row, `${v} (Claude Code)`);
+      const { line, out } = onlyVersionLine(row);
+      expect(line, out).toMatch(want);
+      expect(outcome(row), out).toEqual(base);
+    }
+  });
+
+  it.skipIf(NO_SCRIPT_BINARIES)("a first line with no version number is not checked, and the exit code does not move", () => {
+    const row = claudeRow();
+    const base = okBaseline();
+    printing(row, "Claude Code");
+    const { line, out } = onlyVersionLine(row);
+    expect(line, out).toMatch(/^ {2}advisory\s/);
+    expect(line.trim().replace(/^advisory\s+/, ""), out).toBe(notChecked("its first line does not start with a version number"));
+    expect(outcome(row), out).toEqual(base);
+  });
+
+  it.skipIf(NO_SCRIPT_BINARIES)("a claude that exits 3 is not checked, naming the exit status", () => {
+    const row = claudeRow();
+    const base = okBaseline();
+    fakeClaude(row, "exit 3");
+    const { line, out } = onlyVersionLine(row);
+    expect(line, out).toMatch(/^ {2}advisory\s/);
+    expect(line.trim().replace(/^advisory\s+/, ""), out).toBe(notChecked("`claude --version` exited 3"));
+    expect(outcome(row), out).toEqual(base);
+  });
+
+  it.skipIf(NO_SCRIPT_BINARIES)("a claude that does not finish within 5 seconds is not checked", () => {
+    const row = claudeRow();
+    const base = okBaseline();
+    const sleep = existsSync("/bin/sleep") ? "/bin/sleep" : "/usr/bin/sleep";
+    // exec, so the timeout's signal reaches the sleeping process itself and no grandchild holds the pipe open.
+    fakeClaude(row, `exec ${sleep} 8`);
+    const { line, out } = onlyVersionLine(row);
+    expect(line, out).toMatch(/^ {2}advisory\s/);
+    expect(line.trim().replace(/^advisory\s+/, ""), out).toBe(notChecked("`claude --version` did not finish within 5 seconds"));
+    expect(outcome(row), out).toEqual(base);
+  });
+
+  it.skipIf(NO_SCRIPT_BINARIES)("only the parsed version digits reach the output: an ESC sequence after the version is not printed", () => {
+    const row = claudeRow();
+    const base = okBaseline();
+    fakeClaude(row, "printf '2.1.292\\033[31m (Claude Code)\\n'");
+    const raw = spawnSync(join(row.bin, "claude"), [], { encoding: "utf8" });
+    expect(raw.stdout, "PREMISE: the fake prints an ESC byte").toContain("\u001b");
+    const c = check(row);
+    expect(c.stdout.includes("\u001b"), c.stdout).toBe(false);
+    expect(c.stderr.includes("\u001b"), c.stderr).toBe(false);
+    const v = versionLines(c.stdout);
+    expect(v, c.stdout).toHaveLength(1);
+    expect(v[0], c.stdout).toMatch(below("2.1.292"));
+    expect(outcome(row), c.stdout).toEqual(base);
+  });
+
+  // Not skipped on Windows: no fake is needed, and a missing `claude` is reported the same way there.
+  it("with no claude on PATH the version is not checked: `claude` was not found on PATH", () => {
+    const row = installedWith(["--claude"]);
+    const { line, out } = onlyVersionLine(row);
+    expect(line, out).toMatch(/^ {2}advisory\s/);
+    expect(line.trim().replace(/^advisory\s+/, ""), out).toBe(notChecked("`claude` was not found on PATH"));
+    const absent = outcome(row);
+    expect(absent.status[0], out).toBe(absent.status[1]);
+    if (!NO_SCRIPT_BINARIES) expect(absent, out).toEqual(okBaseline());
+  });
+
+  it.skipIf(NO_SCRIPT_BINARIES)("without Claude Code installed no version line is printed and claude is never run", () => {
+    const row = installedWith(["--codex"]);
+    const marker = join(row.bin, "claude-was-run");
+    fakeClaude(row, `: > '${marker}'\nprintf '%s\\n' '2.1.300 (Claude Code)'`);
+    const c = check(row);
+    const strict = check(row, ["--strict"]);
+    expect(versionLines(c.stdout), c.stdout).toEqual([]);
+    expect(versionLines(strict.stdout), strict.stdout).toEqual([]);
+    expect(existsSync(marker), `claude was run: ${c.stdout}`).toBe(false);
+  });
+});
+
+describe("install/README.md tells the truth about the probe (plan 42-05, D-27)", () => {
+  const flat = README.replace(/\s+/g, " ");
+
+  it("names the floor as CLAUDE_CODE_LEVEL_FLOOR spells it", () => {
+    expect(README).toContain(`v${CLAUDE_CODE_LEVEL_FLOOR}`);
+  });
+
+  it("no longer says --check does not probe the Claude Code version", () => {
+    expect(flat).not.toMatch(/does not probe the Claude Code version yet/);
+  });
+
+  it("says what the probe runs and what it prints", () => {
+    expect(flat).toContain(
+      "When Claude Code is installed, `install.js --check` runs `claude --version`, the first `claude` on your PATH, with no shell.",
+    );
+    expect(flat).toContain(
+      `It prints an \`advisory\` line when the version is below v${CLAUDE_CODE_LEVEL_FLOOR}, or one saying it could not check the version and why.`,
+    );
+  });
+
+  it("the --check list has an Advisory lines bullet: never changes the exit code, never promoted by --strict", () => {
+    const bullet = flat.split("- **Advisory lines.**")[1]?.split(" - **")[0] ?? "";
+    expect(bullet, "no **Advisory lines.** bullet").not.toBe("");
+    expect(bullet).toContain("never changes the exit code");
+    expect(bullet).toContain("`--strict` does not promote it");
+  });
 });

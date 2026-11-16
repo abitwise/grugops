@@ -1311,10 +1311,12 @@ describe("WF14 runs the Designer before Frontend/UI, and Frontend/UI reads the D
 describe("install/README.md documents the engineer level adapters and the stale-adapter report (TIER-03, TIER-06; D-5, D-13, D-17, D-22)", () => {
   const README = readFileSync(join(ROOT, "install/README.md"), "utf8");
 
-  it("D-22: names the Claude Code v2.1.293 floor, the Haiku 4.5 effort `UNKNOWN - verify`, and that --check does not probe the version", () => {
+  // Plan 42-05 (2026-11-16, D-27): `--check` now probes the version, so this case pins the sentence that says so.
+  it("D-22: names the Claude Code v2.1.293 floor, the Haiku 4.5 effort `UNKNOWN - verify`, and that --check probes the version", () => {
     expect(README).toContain("v2.1.293");
     expect(README).toContain("Haiku 4.5");
-    expect(README).toContain("`install.js --check` does not probe the\nClaude Code version yet");
+    expect(README.replace(/\s+/g, " ")).toContain("When Claude Code is installed, `install.js --check` runs `claude --version`");
+    expect(README.replace(/\s+/g, " ")).not.toContain("does not probe the Claude Code version yet");
   });
 
   it("G-39-5: the level table carries the 2026-10-30 re-decided pins (D-14 as amended)", () => {
