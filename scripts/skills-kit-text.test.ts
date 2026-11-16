@@ -79,3 +79,46 @@ describe("the skills precedence line (D-14)", () => {
     expect(lines[at - 1]).not.toMatch(/<!--\s*claim:/);
   });
 });
+
+const PROTOCOL = readFileSync(join(ROOT, "agent-factory/roles/_role-switch-protocol.md"), "utf8");
+
+/** The five sentences of the skills line under step 2 (D-05, D-06), in order. */
+const SKILLS_LINE = [
+  "Use a skill the role names only when the host lists it.",
+  "A listed `<plugin>:<name>` counts as `<name>`.",
+  "Otherwise take the role's fallback at once.",
+  "Never search the disk for a skill.",
+  "`AGENTS.md` says which rules win over a skill.",
+];
+
+describe("the role-switch protocol's skills line (D-05, D-06)", () => {
+  /** Step 2 of `## The 5 steps`, with its indented lines. */
+  const stepTwo = (): string => {
+    const body = section(PROTOCOL, "The 5 steps");
+    const from = body.indexOf("2. Read the role's file");
+    const to = body.indexOf("3. Drop");
+    expect(from, "no step 2").toBeGreaterThanOrEqual(0);
+    expect(to, "no step 3 after step 2").toBeGreaterThan(from);
+    return body.slice(from, to);
+  };
+
+  it("keeps `## The 5 steps` with exactly five numbered steps", () => {
+    const numbered = section(PROTOCOL, "The 5 steps")
+      .split("\n")
+      .filter((l) => /^\d+\. /.test(l))
+      .map((l) => l.slice(0, l.indexOf(" ") + 1));
+    expect(numbered).toEqual(["1. ", "2. ", "3. ", "4. ", "5. "]);
+  });
+
+  it("puts the five skills sentences under step 2, in order, on one line", () => {
+    const step = stepTwo();
+    expect(step).toContain(`   ${SKILLS_LINE.join(" ")}\n`);
+    for (const sentence of SKILLS_LINE) expect(occurrences(PROTOCOL, sentence), sentence).toBe(1);
+  });
+
+  it("carries no per-host skill path table and does not restate the precedence rule", () => {
+    expect(PROTOCOL).not.toContain(".agents/skills");
+    expect(PROTOCOL).not.toContain(".claude/skills");
+    expect(PROTOCOL).not.toContain(PHRASE);
+  });
+});
