@@ -708,21 +708,24 @@ Gap wave 11 *(blocked on gap wave 10)*
   4. Frontend/UI uses ui-ux-pro-max when it is installed and treats the design-system files it creates as user artifacts that grugops reads but never writes (SKILL-04)
   5. `install --check` warns, and never fails or installs anything, when a role declares a skill that is not found (SKILL-05)
 
-**Plans**: 7 plans
+**Plans**: 8 plans
 
 Wave 1 *(one record plan, one code plan and one text plan, disjoint files)*
 - [ ] 42-01-PLAN.md — the SKILL-02 evaluation record: six candidates against six floors, as install units and per sub-skill, full-SHA pins, proposals and revisit triggers (SKILL-02)
-- [ ] 42-02-PLAN.md — `--check` warns, never fails, on a declared skill it cannot find: the committed `roleSkillsOf` reader, `HOST_SKILL_DIRS`, Claude Code plugin skills and the not-checked cases (SKILL-05, SKILL-01)
+- [ ] 42-02-PLAN.md — `--check` warns, never fails, on a declared skill it cannot find: the committed `roleSkillsOf` reader, `HOST_SKILL_DIRS`, project and user folders, and the unchanged exit code (SKILL-05, SKILL-01)
 - [ ] 42-03-PLAN.md — the one AGENTS.md precedence line and the role-switch protocol's skills line under step 2 (SKILL-03, SKILL-01)
 
-Wave 2
+Wave 2 *(one human checkpoint and one code plan, disjoint files)*
 - [ ] 42-04-PLAN.md — a named human ratifies each recommendation by typed name, and decides the spawn-mode `Skill` grant and the role byte ceilings (SKILL-02, SKILL-03, SKILL-04)
-- [ ] 42-05-PLAN.md — the `claude --version` probe deferred by Phase 39: an advisory line below v2.1.293, and the README says so (SKILL-05)
+- [ ] 42-08-PLAN.md — the doctor's skill check completed: Claude Code plugin skills, Antigravity CLI plugin folders, the not-checked cases, the two-way table pin and the reader's tests (SKILL-05, SKILL-01)
 
 Wave 3
-- [ ] 42-06-PLAN.md — the Designer and Frontend/UI declare their ratified skills with fallbacks, and the `design-system/` rule lands in designer.md and Workflow 14 (SKILL-01, SKILL-04)
+- [ ] 42-05-PLAN.md — the `claude --version` probe deferred by Phase 39: an advisory line below v2.1.293, and the README says so (SKILL-05)
 
 Wave 4
+- [ ] 42-06-PLAN.md — the Designer and Frontend/UI declare their ratified skills with fallbacks, and the `design-system/` rule lands in designer.md and Workflow 14 (SKILL-01, SKILL-04)
+
+Wave 5
 - [ ] 42-07-PLAN.md — docs/skills.md joins both claim gates, then publishes the pinned, optional skills and each host's skill folders; the README's doctor bullet (SKILL-03, SKILL-01, SKILL-05)
 
 **Research flag**: plan with `--research-phase` (`allowed-tools` vs `permissions.ask` evaluation order, per-host skill discovery).
