@@ -207,10 +207,38 @@ describe("design-system files are user artifacts the Designer and Frontend/UI re
  * Each finding starts with the role name.
  */
 function skillsSectionFindings(role: string, text: string, declared: readonly string[]): string[] {
-  void role;
-  void text;
-  void declared;
-  return [];
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l.trimEnd() === "## Skills");
+  if (start === -1) return declared.length === 0 ? [] : [`${role}: declares ${declared.join(", ")} but has no \`## Skills\` section`];
+  if (declared.length === 0) return [`${role}: has a \`## Skills\` section but declares no skill`];
+
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((l) => l.startsWith("## "));
+  const body = end === -1 ? rest : rest.slice(0, end);
+  const out: string[] = [];
+
+  const header = body.findIndex((l) => l.trim() === SKILLS_TABLE_HEADER);
+  const rows: { skill: string; without: string }[] = [];
+  if (header === -1) out.push(`${role}: \`## Skills\` has no \`${SKILLS_TABLE_HEADER}\` table`);
+  else {
+    for (const line of body.slice(header + 1)) {
+      if (!line.trim().startsWith("|")) break;
+      const cells = line.trim().slice(1, -1).split("|").map((c) => c.trim());
+      if (cells.every((c) => /^:?-+:?$/.test(c))) continue;
+      rows.push({ skill: (cells[1] ?? "").replaceAll("`", ""), without: cells[2] ?? "" });
+    }
+  }
+  const named = rows.map((r) => r.skill);
+  for (const skill of declared) if (!named.includes(skill)) out.push(`${role}: declared skill \`${skill}\` has no \`## Skills\` row`);
+  for (const { skill, without } of rows) {
+    if (!declared.includes(skill)) out.push(`${role}: a \`## Skills\` row names \`${skill}\`, which the role does not declare`);
+    else if (without === "" || /^[-—–]$/.test(without)) out.push(`${role}: the \`${skill}\` row has an empty \`Without it\` cell`);
+  }
+  const joined = body.join("\n");
+  for (const fragment of SKILLS_RECORD_FRAGMENTS) {
+    if (!joined.includes(fragment)) out.push(`${role}: \`## Skills\` lacks the record line fragment \`${fragment}\``);
+  }
+  return out;
 }
 
 /** The skills `report` lists `role` under, in report order. */
