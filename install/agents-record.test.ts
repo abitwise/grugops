@@ -5474,7 +5474,10 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // Re-pinned 2026-11-16 by plan 42-08 Task 2 (D-24): 75, measured by this census. The section gains
 // pluginFolderSkillFolders (one readdir of the Antigravity CLI plugin folder under the home directory). It reads no
 // marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 75;
+// Re-pinned 2026-11-16 by plan 42-05 (SKILL-05, D-27): 77, measured by this census. The doctor's Claude Code version
+// line reaches doctorClaudeVersion (one spawn of `claude --version`, only when Claude Code is installed) and its local
+// notChecked (wording only). Neither reads the marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 77;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -6280,7 +6283,10 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // Re-pinned 2026-11-16 by plan 42-08 Task 2 (D-24): 66, measured by this walk. The section gains
 // pluginFolderSkillFolders, which lists a folder under the user's home passed in by doctor(); it reads no kit home and
 // calls no homedir(), so C3's table gains no row.
-const WR24_REACH_SIZE = 66;
+// Re-pinned 2026-11-16 by plan 42-05 (SKILL-05, D-27): 67, measured by this walk. The doctor gains
+// doctorClaudeVersion, which runs `claude --version` and compares its output with CLAUDE_CODE_LEVEL_FLOOR; it reads no
+// kit home, no file and no environment variable by name, and calls no homedir(), so C3's table gains no row.
+const WR24_REACH_SIZE = 67;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run

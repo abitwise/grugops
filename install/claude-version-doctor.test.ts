@@ -17,7 +17,7 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";

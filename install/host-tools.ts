@@ -540,6 +540,15 @@ export const HOST_SKILL_DIRS: Readonly<Record<string, HostSkillDirs>> = {
 };
 
 /**
+ * The lowest Claude Code version the junior engineer level needs (phase 42, plan 42-05; SKILL-05). On the Anthropic API
+ * the junior adapter's `haiku` alias resolves to Haiku 5.5, and Haiku 5.5 needs Claude Code v2.1.293 or later
+ * (code.claude.com/docs/en/model-config, fetched 2026-10-29, as install/README.md "The engineer level adapters (Claude
+ * Code only)" records it). This is the one install-side spelling of the floor: `--check` compares the version
+ * `claude --version` prints with it, and a test pins the README's `v2.1.293` to it.
+ */
+export const CLAUDE_CODE_LEVEL_FLOOR = "2.1.293";
+
+/**
  * THE ONE AUTHORITY for the per-agent flag spelling (D-01): a new registry row gets its flag with no installer edit;
  * there is no all-agents flag. The flag is `--` followed by the row's id, so `--claude`, `--codex` and so on. Both
  * binaries and the test support read flags through this function and hostForFlag; nothing else spells one.

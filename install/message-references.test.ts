@@ -290,6 +290,8 @@ const REFERENCE_TABLE: readonly Row[] = [
   ["install.ts", "(see the note above); uninstall and --prune-old-kit leave it.", "printed reference", "--migrate handoffs backup: its note, printed just before"],
   ["install.ts", "below it was therefore neither installed nor refused by name, so the kit source was not fully", "not a line reference", "\"below it\" in the directory sense"],
   ["install.ts", "— the nested-adapter walk COULD NOT READ this directory, so anything below", "not a line reference", "\"below\" in the directory sense"],
+  // Plan 42-05 (2026-11-16, D-27): the doctor's Claude Code version line compares a version with the floor.
+  ["install.ts", "is below v", "not a line reference", "\"below\" a version: the Claude Code version is lower than CLAUDE_CODE_LEVEL_FLOOR"],
   ["install.ts", "was left exactly as it was. Resolve each verify above and re-run.", "printed reference", "the kit step: its verify(why) loop over go.verifies, printed just before"],
   ["install.ts", "refusal(s) above", "printed reference", "the kit step: its verify(why) loop over kitPlan.refusals, printed just before"],
   ["install.ts", "verify above and re-run.", "printed reference", "the kit step: its verify(why) loop over kitPlan.refusals, printed just before"],
@@ -499,8 +501,10 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
     // point at the verify loop just before it, so install.ts 25 -> 27 and "printed reference" 45 -> 47.
     // Plan 38-07 (2026-10-28, MIGRATE-04): the report's state-layout-refusal reading, two more fragments pointing at the
     // same verify loop, so install.ts 27 -> 29 and "printed reference" 47 -> 49.
-    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 29, "uninstall.ts": 24 });
-    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 2, "printed reference": 49, "same block": 1 });
+    // Plan 42-05 (2026-11-16, D-27): the Claude Code version line's "is below v" is a version comparison, not a line
+    // pointer, so install.ts 29 -> 30 and "not a line reference" 2 -> 3.
+    expect(countBy(found, (f) => f.module)).toEqual({ "install.ts": 30, "uninstall.ts": 24 });
+    expect(countBy(REFERENCE_TABLE, (r) => r[2])).toEqual({ "file text": 1, "not a line reference": 3, "printed reference": 49, "same block": 1 });
   });
 
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {

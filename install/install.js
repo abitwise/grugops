@@ -18,7 +18,12 @@
 // imports nothing from scripts/. Phase 42 (plan 42-02) added a second spawn of the same kind: `--check`
 // reads the skills each role declares by spawning the committed scripts/role-skills-reader.js over the
 // kit home it checks, so the one `skills:` parser (scripts/canonical-frontmatter.ts roleSkillsOf) stays
-// the only one and install/ still imports nothing from scripts/.
+// the only one and install/ still imports nothing from scripts/. Phase 42 (plan 42-05) added the one spawn that is
+// resolved through PATH rather than run with process.execPath: when Claude Code is an installed host, `--check` runs
+// `claude --version` to compare its version with CLAUDE_CODE_LEVEL_FLOOR. It runs whatever `claude` is first on PATH,
+// the same program the user's own `claude` command runs, so it is bounded instead: only when Claude Code is installed,
+// with no shell, the one argument `--version`, stdin ignored, a 5-second timeout and a 64 KiB output cap, and only the
+// parsed version digits of its output are printed. install/README.md says that `--check` runs it.
 //
 // Contract (CLEAR PROFESSIONAL VOICE governs every report/warning/error string — safety surface):
 //   - additive    — never overwrites or deletes user content; appends via unique sentinels
@@ -86,7 +91,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_SKILL_DIRS, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
+import { CLAUDE_CODE_LEVEL_FLOOR, HOST_SKILL_DIRS, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, POINTER_LINE, agentCommand, agentFlag, carriesKitRoute, commandContextFromRecord, entryOwners, hostFootprint, hostForFlag, hostPointers, launchInvoke, launchLiveNote, launchSession, routeCarriers, reachVia, scriptCommand, strandedBy, } from "./host-tools.js";
 // Phase 36 D-13: the one state path authority. Constants only, imports nothing, so this edge keeps install/
 // free of scripts/ imports. STATE_ROOTS is the one protected root list isPruneProtected reads.
 import { BOARD_DONE_ARCHIVE_REL, BOARD_REL, CONTEXT_ARCHIVE_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, LEGACY_BOARD_REL, LEGACY_HANDOFFS_REL, LEGACY_STATE_ROOT_REL, MEMORY_BANK_REL, CONTEXT_REL, MIGRATE_STAGING_REL, NFR_CATALOG_REL, PROGRESS_REL, QUEUE_CLAIMED_REL, QUEUE_PENDING_REL, STATE_ROOT_REL, STATE_ROOTS, TICKETS_REL, TRACEABILITY_REL, TRACE_DIR_REL, BUDGETS, } from "./state-layout.js";
@@ -2381,6 +2386,67 @@ function doctorDeclaredSkills(hosts, home) {
         }
     }
 }
+/**
+ * The Claude Code version check (phase 42, plan 42-05; SKILL-05). Runs `claude --version` once and compares the
+ * version on the first line of its stdout with CLAUDE_CODE_LEVEL_FLOOR, the version the junior engineer level needs.
+ * The caller runs it only when Claude Code is an installed host. Every line prints through docReport: below the floor
+ * or not checked is `advisory`, at or above it is `ok`, and neither counter, --strict nor the exit status moves. Only
+ * the parsed version digits reach the output, never the program's own text. A `claude` the doctor cannot run or read
+ * gives "not checked" with the reason; the doctor never guesses a version. On Windows an npm-installed `claude` is
+ * usually a `.cmd` shim, which Node does not spawn without a shell, so there the line is "not checked".
+ */
+function doctorClaudeVersion() {
+    const notChecked = (reason) => docReport("advisory", `the Claude Code version was not checked: ${reason}`);
+    const r = spawnSync("claude", ["--version"], {
+        encoding: "utf8",
+        timeout: 5000,
+        shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+        maxBuffer: 65536,
+    });
+    if (r.error !== undefined) {
+        const code = errCode(r.error);
+        if (code === "ENOENT" || code === "EINVAL")
+            notChecked("`claude` was not found on PATH");
+        else if (code === "ETIMEDOUT")
+            notChecked("`claude --version` did not finish within 5 seconds");
+        else
+            notChecked(`\`claude --version\` could not be run (${code})`);
+        return;
+    }
+    if (r.signal !== null) {
+        notChecked(`\`claude --version\` was stopped by the signal ${r.signal}`);
+        return;
+    }
+    if (r.status !== 0) {
+        notChecked(`\`claude --version\` exited ${String(r.status)}`);
+        return;
+    }
+    const firstLine = (r.stdout ?? "").split("\n")[0] ?? "";
+    const found = /^(\d+)\.(\d+)\.(\d+)\b/.exec(firstLine);
+    const floor = /^(\d+)\.(\d+)\.(\d+)$/.exec(CLAUDE_CODE_LEVEL_FLOOR);
+    if (found === null || floor === null) {
+        notChecked("its first line does not start with a version number");
+        return;
+    }
+    // Three integers, compared in order, so 2.1.1000 is above 2.1.293. BigInt keeps a long digit run exact.
+    const have = [found[1], found[2], found[3]].map((d) => BigInt(d ?? "0"));
+    const need = [floor[1], floor[2], floor[3]].map((d) => BigInt(d ?? "0"));
+    let cmp = 0;
+    for (let i = 0; i < 3 && cmp === 0; i += 1) {
+        const a = have[i] ?? 0n;
+        const b = need[i] ?? 0n;
+        cmp = a < b ? -1 : a > b ? 1 : 0;
+    }
+    const version = `${String(found[1])}.${String(found[2])}.${String(found[3])}`;
+    if (cmp < 0) {
+        docReport("advisory", `Claude Code ${version} is below v${CLAUDE_CODE_LEVEL_FLOOR}, the version the junior engineer level needs; ` +
+            `see install/README.md "The engineer level adapters (Claude Code only)"`);
+        return;
+    }
+    docReport("ok", `Claude Code ${version} meets the v${CLAUDE_CODE_LEVEL_FLOOR} floor for the junior engineer level`);
+}
 function doctor() {
     DOC_FAILS = 0;
     DOC_WARNS = 0;
@@ -2985,6 +3051,11 @@ function doctor() {
     // through docWarn or docFail, so neither counter, --strict nor the exit status moves, and it writes nothing.
     // The user's own home, whose skill folders the hosts read; never a kit home (the reader reads DOCTOR_KIT_HOME).
     doctorDeclaredSkills(hosts, homedir());
+    // --- Claude Code version (phase 42, plan 42-05; SKILL-05) ---------------------------------------
+    // Only when Claude Code is installed here: a target without it never runs `claude`. Advisory only, like the section
+    // above: it prints through docReport, so the exit status and --strict do not move.
+    if (claudeInstalled)
+        doctorClaudeVersion();
     // --- exit-code matrix (SC2) ----------------------------------------------------------------
     console.log("");
     if (DOC_FAILS > 0) {
