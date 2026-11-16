@@ -4,6 +4,8 @@
 
 ## Decision
 
+**Ratified set (42-04, 2026-11-16, accepted by Olger): none.** The human declined all four proposed skills, so grugops recommends no third-party skill (§ Ratification). The rest of this section is the evaluation as it stood before that decision.
+
 This record proposes four third-party skills for an optional, pinned install, and recommends none yet. The `ui-ux-pro-max` sub-skill and `frontend-design` are proposed for the Designer and Frontend/UI, in that order (D-17, D-22). superpowers' `systematic-debugging` and `verification-before-completion` are proposed for the Software Engineer, each with the finding that installing it brings the whole superpowers plugin, which fails five floors and injects a mandatory-skill rule into every session. superpowers and ui-ux-pro-max are not recommendable as whole plugins; code-simplifier, feature-dev and commit-commands are not recommendable, and none of the three is a skill. A named human ratifies each proposal by typed name in plan 42-04 (D-15); until then no role declares a skill and no doc names one. Five requirement conflicts go to the same checkpoint (§ Requirement conflicts).
 
 ## Floors
@@ -173,4 +175,53 @@ There is no calendar check and no per-release check. A source that moves after t
 
 ## Ratification
 
-A named human ratifies each proposed recommendation by typed name in plan 42-04, and nothing is recommended, and no role declares a skill, until then (D-15).
+**Date:** 2026-11-16 · **Plan:** 42-04, Task 1 (D-15) · **Option:** `ratify-none`
+
+The human answered both 42-04 checkpoints in one reply, after reviewing a draft the orchestrator prepared at their request. The reply, verbatim:
+
+> Task 1: ratify-none — all four declined (ui-ux-pro-max, frontend-design, systematic-debugging, verification-before-completion) for security, complexity/performance and licensing reasons. grugops recommends no third-party skill.
+> SKILL-01: amend "A role may declare skills with a built-in fallback checklist for when a skill is absent; the role-switch protocol tells non-Claude hosts how to find skills"
+> SKILL-03: amend "A written evaluation recommends no third-party skill; one rule, stated once, says grugops rules outrank any skill text a user installs"
+> SKILL-04: amend "Frontend/UI and the Designer treat design-system files in the user's repo as user artifacts they read but never write"
+> Task 2: no skill ratified, no kit change
+> 42-02 A (doctor :: homedir() census exemption): accept
+> 42-02 B ("found" means a SKILL.md exists where the host looks, not that the host loads it): accept
+> 42-08 C ("host location" env-read class, pinned to CLAUDE_CODE_PLUGIN_CACHE_DIR plus the host override variables): accept
+> 42.1 grugops-native skills: not now
+>  , Olger
+
+accepted by Olger
+
+| Skill | Ratified | Roles | Pin |
+|---|---|---|---|
+| ui-ux-pro-max | no |  | tag `v2.15.0` @ `a38d04c3d5c298c851dbe5e6ee1965ee3de42cb5` |
+| frontend-design | no |  | plugin version `1.1.1` @ `30202c767cfaf325212b3921ab484f83adaec850` |
+| systematic-debugging | no |  | tag `v7.0.2` @ `22f0b463e7a5e579904dd6211a520321035526f7` |
+| verification-before-completion | no |  | tag `v7.0.2` @ `22f0b463e7a5e579904dd6211a520321035526f7` |
+
+The reasons the human gave for declining all four: "security, complexity/performance and licensing reasons". grugops recommends no third-party skill, so no role declares a skill.
+
+- **Question 2 (D-13, `allowed-tools`):** did not apply. No proposed skill carries `allowed-tools` (§ allowed-tools and the ask rules), and none was ratified.
+- **Question 3 (naming the npm `ui-ux-pro-max-cli` route in docs/skills.md):** did not apply, because ui-ux-pro-max was declined. docs/skills.md names neither the npm route nor the marketplace route.
+- **Question 4 (SKILL-04 when ui-ux-pro-max is not ratified):** amend. The human gave the new words: "Frontend/UI and the Designer treat design-system files in the user's repo as user artifacts they read but never write". The same reply also amended SKILL-01 and SKILL-03 with the words quoted above. All three are applied to `.planning/REQUIREMENTS.md`, marked "amended 42-04, 2026-11-16, by Olger".
+
+### Other confirmations in the same reply
+
+The reply also answered items raised outside this plan. They are recorded here, quoted, so the answers are not lost:
+
+- 42-02 A: "42-02 A (doctor :: homedir() census exemption): accept"
+- 42-02 B: "42-02 B ("found" means a SKILL.md exists where the host looks, not that the host loads it): accept"
+- 42-08 C: "42-08 C ("host location" env-read class, pinned to CLAUDE_CODE_PLUGIN_CACHE_DIR plus the host override variables): accept"
+- grugops-native skills: "42.1 grugops-native skills: not now"
+
+## Kit decisions
+
+**Date:** 2026-11-16 · **Plan:** 42-04, Task 2 (D-08)
+
+The Task 2 answer, quoted verbatim from the same reply:
+
+> Task 2: no skill ratified, no kit change
+
+no skill ratified, no kit change
+
+Task 1 ratified nothing, so this checkpoint was skipped as the plan directs, and no option id among `fallback-rebaseline`, `grant-rebaseline` and `fallback-hold` was chosen. The Claude Code role adapters keep their `tools:` lines without `Skill`, so the grant authority does not change (D-08). No role gains a `## Skills` section listing third-party skills, so the role byte ceilings in `scripts/check-foundation-guards.ts` `ROLE_CEILINGS` stay where they are.

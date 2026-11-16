@@ -72,10 +72,10 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 
 ### Skills (SKILL)
 
-- [ ] **SKILL-01**: Each role lists the skills it may use, with a built-in fallback checklist for when a skill is absent; the role-switch protocol tells non-Claude hosts how to find skills
+- [ ] **SKILL-01**: "A role may declare skills with a built-in fallback checklist for when a skill is absent; the role-switch protocol tells non-Claude hosts how to find skills" (amended 42-04, 2026-11-16, by Olger)
 - [ ] **SKILL-02**: A written evaluation of superpowers, code-simplifier, feature-dev, commit-commands, frontend-design and ui-ux-pro-max against grugops's floors (merge, branching, planning authority, telemetry, network, runtime deps) decides which are recommended
-- [ ] **SKILL-03**: Recommended third-party skills are documented as optional, pinned installs — never vendored, never installed by grugops — and a rule stated once says grugops rules outrank any skill text
-- [ ] **SKILL-04**: Frontend/UI uses ui-ux-pro-max when it is installed; the design-system files it creates are treated as user artifacts grugops reads but never writes
+- [ ] **SKILL-03**: "A written evaluation recommends no third-party skill; one rule, stated once, says grugops rules outrank any skill text a user installs" (amended 42-04, 2026-11-16, by Olger)
+- [ ] **SKILL-04**: "Frontend/UI and the Designer treat design-system files in the user's repo as user artifacts they read but never write" (amended 42-04, 2026-11-16, by Olger)
 - [ ] **SKILL-05**: `install --check` warns (never fails, never installs) when a role declares a skill that is not found
 
 ### Story and docs (STORY)
