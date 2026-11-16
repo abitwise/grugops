@@ -2,12 +2,24 @@
 //
 // The precedence rule is stated once (D-14), so the first case walks the kit's reader-facing
 // markdown and derives where the phrase occurs, rather than trusting a list of files.
-import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { describe, it, expect, afterAll } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { tmpdir } from "node:os";
+import { ROLE_HEADING_ORDER, checkHeadingOrder } from "./check-role-rules.js";
+import { readRoleSkills, type RoleSkillsReport } from "./role-skills-reader.js";
+import { ROLE_COUNT, ROLES_SUBPATH, listRoles } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const AGENTS = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
+
+/**
+ * The `## Skills` contract (plan 42-06; D-02, D-04, D-07), declared once so plan 42-07 can hold docs/skills.md to the same
+ * text. A role that declares a skill carries a `## Skills` section whose table starts with this header line.
+ */
+const SKILLS_TABLE_HEADER = "| Situation | Skill | Without it |";
+/** The two fragments of the record line every `## Skills` section carries. */
+const SKILLS_RECORD_FRAGMENTS: readonly string[] = ["not available; used fallback", "Never claim a skill ran."];
 
 const PHRASE = "for technique, never for process";
 const PRECEDENCE =
@@ -183,5 +195,125 @@ describe("design-system files are user artifacts the Designer and Frontend/UI re
       expect(text.split("\n").filter((l) => l.startsWith("capabilities:")), name).toEqual(["capabilities: read edit shell"]);
       expect(text.split("\n").some((l) => l.startsWith("skills:")), `${name} has a skills: line`).toBe(false);
     }
+  });
+});
+
+// Phase 42 plan 42-06: the declare-plus-fallback contract (amended SKILL-01; D-02, D-03, D-04, D-07), and the invariant test the
+// 42-03 assumption-delta decision accepted. No shipped role declares a skill (42-04: ratify-none), so the positive case is a
+// fixture role; every fixture skill name is invented, so no fixture reads as a recommendation.
+
+/**
+ * The `## Skills` contract findings for one role, given its raw text and the skills `readRoleSkills` reports it declares.
+ * Each finding starts with the role name.
+ */
+function skillsSectionFindings(role: string, text: string, declared: readonly string[]): string[] {
+  void role;
+  void text;
+  void declared;
+  return [];
+}
+
+/** The skills `report` lists `role` under, in report order. */
+function declaredBy(report: RoleSkillsReport, role: string): string[] {
+  return Object.entries(report.skills)
+    .filter(([, roles]) => roles.includes(role))
+    .map(([skill]) => skill);
+}
+
+const SCRATCH = mkdtempSync(join(tmpdir(), "grugops-skills-contract-"));
+afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
+
+let kits = 0;
+/** A scratch kit home holding one role file, `fixture.md`; returns the kit home. */
+function kitWithRole(text: string): string {
+  const kit = join(SCRATCH, `k${kits++}`);
+  mkdirSync(join(kit, ROLES_SUBPATH), { recursive: true });
+  writeFileSync(join(kit, ROLES_SUBPATH, "fixture.md"), text);
+  return kit;
+}
+
+const RECORD_LINE = `When the host does not list a skill, note \`<skill> ${SKILLS_RECORD_FRAGMENTS[0]}\`. ${SKILLS_RECORD_FRAGMENTS[1]}`;
+const ROW = "| A UI ticket needs a token audit | `example-skill` | Follow `agent-factory/checklists/accessibility-checklist.md`. |";
+
+/** A `## Skills` section body: the table, its rows, a blank line and the record line. */
+function skillsBody(rows: readonly string[], record: string = RECORD_LINE): string {
+  return [SKILLS_TABLE_HEADER, "|---|---|---|", ...rows, "", record].join("\n");
+}
+
+/**
+ * A fixture role composed from `ROLE_HEADING_ORDER`, so a change to the order cannot leave the fixtures behind. `skills` is the
+ * frontmatter value, or null for no `skills:` line; `body` is the `## Skills` body, or null for no section; `afterOutput` moves
+ * the section out of the open slot to just after `## Output`.
+ */
+function fixtureRole(skills: string | null, body: string | null, afterOutput = false): string {
+  const out = ["---", "kind: role", "tier: core", "capabilities: read edit shell"];
+  if (skills !== null) out.push(`skills: ${skills}`);
+  out.push("---", "# Role: Fixture", "");
+  for (const heading of ROLE_HEADING_ORDER) {
+    out.push(heading, "Fixture text.", "");
+    const slot = afterOutput ? "## Output" : "## Responsibilities";
+    if (body !== null && heading === slot) out.push("## Skills", body, "");
+  }
+  return out.join("\n");
+}
+
+/** Read the fixture back through the one parser the doctor uses, and run the contract checker on it. */
+function contractOf(text: string): { declared: string[]; findings: string[] } {
+  const report = readRoleSkills(kitWithRole(text));
+  expect(report.refusals, "the fixture role was refused").toEqual([]);
+  const declared = declaredBy(report, "fixture");
+  return { declared, findings: skillsSectionFindings("fixture", text, declared) };
+}
+
+describe("a role may declare a skill with a built-in fallback, and every shipped role holds the contract (amended SKILL-01; D-02, D-04, D-07)", () => {
+  it("every shipped role has a `## Skills` section exactly when it declares a skill, and no declaration is refused", () => {
+    const roles = listRoles(ROOT);
+    expect(roles.length, "the role walk is not the whole role set").toBe(ROLE_COUNT);
+    const report = readRoleSkills(ROOT);
+    expect(report.refusals).toEqual([]);
+    const findings: string[] = [];
+    for (const file of roles) {
+      const role = file.slice(0, -".md".length);
+      const text = readFileSync(join(ROOT, ROLES_SUBPATH, file), "utf8");
+      const declared = declaredBy(report, role);
+      const hasSection = text.split("\n").some((l) => l.trimEnd() === "## Skills");
+      expect(hasSection, `${role}: a \`## Skills\` section exactly when a skill is declared`).toBe(declared.length > 0);
+      findings.push(...skillsSectionFindings(role, text, declared));
+    }
+    expect(findings).toEqual([]);
+  });
+
+  it("a fixture role declaring `example-skill` with a fallback row and the record line passes the checker and the heading order", () => {
+    const text = fixtureRole("example-skill", skillsBody([ROW]));
+    const { declared, findings } = contractOf(text);
+    expect(declared).toEqual(["example-skill"]);
+    expect(findings).toEqual([]);
+    expect(checkHeadingOrder("fixture", text)).toEqual([]);
+  });
+
+  it.each([
+    ["declared with no section", fixtureRole("example-skill", null)],
+    ["a section with no declaration", fixtureRole(null, skillsBody([ROW]))],
+    ["a row with an empty `Without it` cell", fixtureRole("example-skill", skillsBody(["| A UI ticket needs a token audit | `example-skill` |  |"]))],
+    ["a row whose `Without it` cell is a dash", fixtureRole("example-skill", skillsBody(["| A UI ticket needs a token audit | `example-skill` | — |"]))],
+    ["a declared skill with no row", fixtureRole("example-skill", skillsBody([]))],
+    ["a section missing `Never claim a skill ran.`", fixtureRole("example-skill", skillsBody([ROW], RECORD_LINE.replace(` ${SKILLS_RECORD_FRAGMENTS[1]}`, "")))],
+  ])("refuses %s with exactly one finding naming the role", (_case, text) => {
+    const { findings } = contractOf(text);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.startsWith("fixture:"), findings[0]).toBe(true);
+  });
+
+  it("refuses a row naming a skill the role does not declare with exactly one finding naming that skill", () => {
+    const stray = "| A second case | `undeclared-example-skill` | Follow the role's own rule. |";
+    const { findings } = contractOf(fixtureRole("example-skill", skillsBody([ROW, stray])));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain("undeclared-example-skill");
+  });
+
+  it("refuses a `## Skills` section after `## Output` through checkHeadingOrder", () => {
+    const findings = checkHeadingOrder("fixture", fixtureRole("example-skill", skillsBody([ROW]), true));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain("`## Skills`");
   });
 });
