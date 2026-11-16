@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 42
 current_phase_name: Skills per role and evaluation
 status: executing
-stopped_at: Phase 42 context gathered
-last_updated: "2026-11-16T12:28:49.181Z"
-last_activity: 2026-11-15
-last_activity_desc: Phase 41 complete, transitioned to Phase 42
-state_head: 39d5bcdf65d46f01295a66ac744ff4ef1c12f2fe
+stopped_at: Completed 42-01-PLAN.md
+last_updated: "2026-11-16T12:46:55.499Z"
+last_activity: 2026-11-16
+last_activity_desc: Phase 42 execution started
+state_head: d161d0d220f88061032cc8d8b2b2a794af9c2f31
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 150
-  completed_plans: 142
+  completed_plans: 143
   percent: 78
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
 
 ## Current Position
 
-Phase: 42 (Skills per role and evaluation) — READY TO EXECUTE
-Plan: Not started
+Phase: 42 (Skills per role and evaluation) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-11-15 — Phase 41 complete, transitioned to Phase 42
+Last activity: 2026-11-16 — Phase 42 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -859,6 +859,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 41 P26 | 33 min | 3 tasks | 13 files |
 | Phase 41 P28 | 33 min | 3 tasks | 8 files |
 | Phase 41 P29 | 29 min | 2 tasks | 5 files |
+| Phase 42 P01 | 13 min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -2395,6 +2396,8 @@ Recent decisions affecting current work:
 - [Phase 41]: UAT close 2026-11-14/15: an acceptance written on a named human's behalf needs a typed name (T-41-108); Olger confirmed tests 12-15 by typed name, and a later reply without one is asked for again
 - [Phase 41]: The five other hosts' live run (RUN-04, R-41-05) and the Windows run of note.js are deferred to the milestone UAT; RUN-04 is proven for the text only
 - [Phase 41]: The full suite needs more than the gate's 600 s default here (about 11,760 tests); run it with a longer bound and compare failures by name against 41-VALIDATION.md § Known baseline reds
+- [Phase 42]: 42-01: SKILL-02 record proposes ui-ux-pro-max (sub-skill) and frontend-design for designer/frontend-ui, and superpowers systematic-debugging and verification-before-completion for software-engineer; nothing recommended until 42-04 ratifies by typed name
+- [Phase 42]: 42-01: superpowers test-driven-development fails planning authority (overrides WF04 quality.tdd dial); receiving-code-review fails network (gh api reply)
 
 ### Pending Todos
 
@@ -2736,9 +2739,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-16T11:24:15.491Z
-Stopped at: Phase 42 context gathered
-Resume file: .planning/phases/42-skills-per-role-and-evaluation/42-CONTEXT.md
+Last session: 2026-11-16T12:46:54.455Z
+Stopped at: Completed 42-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
