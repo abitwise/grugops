@@ -708,7 +708,7 @@ Gap wave 11 *(blocked on gap wave 10)*
   4. Frontend/UI uses ui-ux-pro-max when it is installed and treats the design-system files it creates as user artifacts that grugops reads but never writes (SKILL-04)
   5. `install --check` warns, and never fails or installs anything, when a role declares a skill that is not found (SKILL-05)
 
-**Plans**: 5/8 plans executed
+**Plans**: 6/8 plans executed
 
 Wave 1 *(one record plan, one code plan and one text plan, disjoint files)*
 - [x] 42-01-PLAN.md — the SKILL-02 evaluation record: six candidates against six floors, as install units and per sub-skill, full-SHA pins, proposals and revisit triggers (SKILL-02)
@@ -720,7 +720,7 @@ Wave 2 *(one human checkpoint and one code plan, disjoint files)*
 - [x] 42-08-PLAN.md — the doctor's skill check completed: Claude Code plugin skills, Antigravity CLI plugin folders, the not-checked cases, the two-way table pin and the reader's tests (SKILL-05, SKILL-01)
 
 Wave 3
-- [ ] 42-05-PLAN.md — the `claude --version` probe deferred by Phase 39: an advisory line below v2.1.293, and the README says so (SKILL-05)
+- [x] 42-05-PLAN.md — the `claude --version` probe deferred by Phase 39: an advisory line below v2.1.293, and the README says so (SKILL-05)
 
 Wave 4
 - [ ] 42-06-PLAN.md — the Designer and Frontend/UI declare their ratified skills with fallbacks, and the `design-system/` rule lands in designer.md and Workflow 14 (SKILL-01, SKILL-04)
@@ -760,7 +760,7 @@ Wave 5
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
-| 42. Skills per role and evaluation | v3.0 | 5/8 | In Progress | - |
+| 42. Skills per role and evaluation | v3.0 | 6/8 | In Progress | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
 ## Backlog

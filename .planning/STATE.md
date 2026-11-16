@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 42
 current_phase_name: Skills per role and evaluation
 status: executing
-stopped_at: Completed 42-04-PLAN.md
-last_updated: "2026-11-16T14:23:46.668Z"
+stopped_at: Completed 42-05-PLAN.md
+last_updated: "2026-11-16T14:37:36.561Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 42 execution started
-state_head: fa18677f495e887f7783f38691870536c63b7e8a
+state_head: 727b11280e400083e3a0ecdf86cb12fad2bfd0c8
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 150
-  completed_plans: 147
+  completed_plans: 148
   percent: 78
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
 ## Current Position
 
 Phase: 42 (Skills per role and evaluation) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 42 execution started
 
@@ -864,6 +864,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 42 P03 | 3 min | 2 tasks | 5 files |
 | Phase 42 P08 | 25 min | 2 tasks | 7 files |
 | Phase 42 P04 | 2 min | 3 tasks | 2 files |
+| Phase 42 P05 | 12min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -2411,6 +2412,8 @@ Recent decisions affecting current work:
 - [Phase 42]: 42-04 Task 2: no skill ratified, no kit change (no Skill grant, role ceilings unchanged)
 - [Phase 42]: SKILL-01, SKILL-03, SKILL-04 amended to Olger's words (42-04, 2026-11-16); 42-06 and 42-07 need re-planning for an empty recommended set
 - [Phase 42]: Same reply: 42-02 A, 42-02 B, 42-08 C accepted; 42.1 grugops-native skills not now
+- [Phase 42]: 42-05: --check's Claude Code version probe compares three BigInt components against CLAUDE_CODE_LEVEL_FLOOR (2.1.293); any unreadable result, including other spawn errors and signals, prints 'not checked' with the reason
+- [Phase 42]: 42-05: the MSG-1 census classes 'is below v' as not a line reference (a version comparison)
 
 ### Pending Todos
 
@@ -2752,8 +2755,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-16T14:23:45.571Z
-Stopped at: Completed 42-04-PLAN.md
+Last session: 2026-11-16T14:37:35.289Z
+Stopped at: Completed 42-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
