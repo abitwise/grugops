@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 42
 current_phase_name: Skills per role and evaluation
 status: executing
-stopped_at: Completed 42-05-PLAN.md
-last_updated: "2026-11-16T16:25:00.118Z"
+stopped_at: Completed 42-06-PLAN.md
+last_updated: "2026-11-16T19:44:33.941Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 42 execution started
-state_head: ea0804cf232f31a07ea190e8c02b53267da10b3a
+state_head: 3822a2c78031b969c306adbebdb17028d74704ba
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 150
-  completed_plans: 148
+  completed_plans: 149
   percent: 78
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
 
 ## Current Position
 
-Phase: 42 (Skills per role and evaluation) — READY TO EXECUTE
+Phase: 42 (Skills per role and evaluation) — EXECUTING
 Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 42 execution started
@@ -865,6 +865,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 42 P08 | 25 min | 2 tasks | 7 files |
 | Phase 42 P04 | 2 min | 3 tasks | 2 files |
 | Phase 42 P05 | 12min | 2 tasks | 9 files |
+| Phase 42 P06 | 7 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2414,6 +2415,8 @@ Recent decisions affecting current work:
 - [Phase 42]: Same reply: 42-02 A, 42-02 B, 42-08 C accepted; 42.1 grugops-native skills not now
 - [Phase 42]: 42-05: --check's Claude Code version probe compares three BigInt components against CLAUDE_CODE_LEVEL_FLOOR (2.1.293); any unreadable result, including other spawn errors and signals, prints 'not checked' with the reason
 - [Phase 42]: 42-05: the MSG-1 census classes 'is below v' as not a line reference (a version comparison)
+- [Phase 42]: 42-06: Design-system files in the user's repo are user artifacts: designer.md and frontend-ui.md Hard limits say never write them; Workflow 14 step 1 says the files win over the Designer's notes and each conflict is recorded for the human. Both roles fit under WARN ceilings (2,749 B and 3,082 B); ROLE_CEILINGS unchanged.
+- [Phase 42]: 42-06: The Skills contract is pinned in scripts/skills-kit-text.test.ts (SKILLS_TABLE_HEADER, SKILLS_RECORD_FRAGMENTS, skillsSectionFindings) on example-skill fixture roles; every shipped role has a ## Skills section exactly when it declares a skill, and none does.
 
 ### Pending Todos
 
@@ -2755,8 +2758,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-16T14:37:35.289Z
-Stopped at: Completed 42-05-PLAN.md
+Last session: 2026-11-16T19:44:22.528Z
+Stopped at: Completed 42-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
