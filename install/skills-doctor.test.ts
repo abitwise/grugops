@@ -12,6 +12,9 @@
 // The planted kit home has every `skills:` line removed first, so a role the kit ships with a declaration cannot add a
 // line this file does not expect.
 //
+// The reader's own cases are in scripts/role-skills-reader.test.ts, and the two-way pin of HOST_SKILL_DIRS to the
+// registry is in install/host-tools.test.ts (plan 42-08).
+//
 // Drives the COMMITTED install/install.js and scripts/role-skills-reader.js (npm run build first).
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
@@ -21,13 +24,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_SKILL_DIRS, HOST_TOOLS } from "./host-tools.js";
-import { INSTALL_JS, REPO_ROOT, hermeticEnv, runInstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, hermeticEnv, runInstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "grugops-skills-doctor-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
-
-const READER_JS = join(REPO_ROOT, "scripts", "role-skills-reader.js");
 
 let n = 0;
 interface Row {
@@ -58,17 +58,24 @@ function plantSkills(kitHome: string, declared: Readonly<Record<string, string>>
       .join("\n");
     const value = declared[f.replace(/\.md$/, "")];
     // The frontmatter opens on line 1; the declaration goes right after the opening delimiter.
-    writeFileSync(file, value === undefined ? text : text.replace(/^---\n/, `---\nskills: ${value}\n`));
+    // A value that starts with a newline is written as is after `skills:` (a block sequence, for the refusal case).
+    const line = value === undefined ? "" : value.startsWith("\n") ? `skills:${value}` : `skills: ${value}`;
+    writeFileSync(file, value === undefined ? text : text.replace(/^---\n/, `---\n${line}\n`));
   }
+}
+
+/** An install for `flags` into a fresh row whose kit home declares `declared` (every other `skills:` line removed). */
+function installedWith(flags: readonly string[], declared: Readonly<Record<string, string>>): Row {
+  const row = scratchRow();
+  const r = runInstall(row.target, row.kitHome, flags, { home: row.home, env: hermeticEnv(row.home, row.bin) });
+  expect(r.status, r.stdout + r.stderr).toBe(0);
+  plantSkills(row.kitHome, declared);
+  return row;
 }
 
 /** A Claude Code install into a fresh row whose kit home declares `skills: ui-ux-pro-max` on designer.md alone. */
 function installedWithPlantedSkill(): Row {
-  const row = scratchRow();
-  const r = runInstall(row.target, row.kitHome, ["--claude"], { home: row.home, env: hermeticEnv(row.home, row.bin) });
-  expect(r.status, r.stdout + r.stderr).toBe(0);
-  plantSkills(row.kitHome, { designer: "ui-ux-pro-max" });
-  return row;
+  return installedWith(["--claude"], { designer: "ui-ux-pro-max" });
 }
 
 const check = (row: Row, extra: readonly string[] = [], env: Readonly<Record<string, string | undefined>> = {}): Run =>
@@ -87,80 +94,6 @@ function placeUserSkill(row: Row): void {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), "---\nname: ui-ux-pro-max\ndescription: test skill\n---\n");
 }
-
-// ── the reader (plan 42-08 moves these cases to scripts/role-skills-reader.test.ts) ─────────────────────────────────
-describe("role-skills reader: kit home in, one JSON report out (plan 42-02, D-24)", () => {
-  /** A scratch kit home holding only the given roles. */
-  function kitWith(roles: Readonly<Record<string, string>>): string {
-    const kit = join(ROOT, `k${n++}`);
-    const dir = join(kit, "agent-factory", "roles");
-    mkdirSync(dir, { recursive: true });
-    for (const [name, text] of Object.entries(roles)) writeFileSync(join(dir, `${name}.md`), text);
-    return kit;
-  }
-  const role = (front: string): string => `---\nkind: role\ntier: core\n${front}---\n# Role\n`;
-
-  it("two roles declaring one skill: the skill names both roles in sorted order, no refusal", async () => {
-    const { readRoleSkills } = await import("../scripts/role-skills-reader.js");
-    const kit = kitWith({
-      "frontend-ui": role("skills: ui-ux-pro-max\n"),
-      designer: role("skills: ui-ux-pro-max\n"),
-      "tech-lead": role(""),
-    });
-    expect(readRoleSkills(kit)).toEqual({ skills: { "ui-ux-pro-max": ["designer", "frontend-ui"] }, refusals: [] });
-  });
-
-  it("a refused role becomes a refusal with its reason and declares nothing", async () => {
-    const { readRoleSkills } = await import("../scripts/role-skills-reader.js");
-    const kit = kitWith({ designer: role("skills: Not-Kebab\n"), "frontend-ui": role("skills: frontend-design\n") });
-    const report = readRoleSkills(kit);
-    expect(report.skills).toEqual({ "frontend-design": ["frontend-ui"] });
-    expect(report.refusals.map((r) => r.role)).toEqual(["designer"]);
-    expect(report.refusals[0]?.reason ?? "").toContain("lower-case kebab");
-  });
-
-  it("the CLI prints exactly one line of JSON and exits 0; with no argument it exits 2 and prints nothing on stdout", () => {
-    const kit = kitWith({ designer: role("skills: ui-ux-pro-max\n") });
-    const ok = spawnSync(process.execPath, [READER_JS, kit], { encoding: "utf8" });
-    expect(ok.status, ok.stderr).toBe(0);
-    expect(ok.stdout.endsWith("\n")).toBe(true);
-    expect(ok.stdout.slice(0, -1).includes("\n")).toBe(false);
-    expect(JSON.parse(ok.stdout)).toEqual({ skills: { "ui-ux-pro-max": ["designer"] }, refusals: [] });
-    const bare = spawnSync(process.execPath, [READER_JS], { encoding: "utf8" });
-    expect(bare.status).toBe(2);
-    expect(bare.stdout).toBe("");
-    expect(bare.stderr).not.toBe("");
-  });
-
-  it("an unreadable roles folder exits 1 with a stderr message and no stdout", () => {
-    const kit = join(ROOT, `k${n++}`);
-    mkdirSync(kit, { recursive: true });
-    const r = spawnSync(process.execPath, [READER_JS, kit], { encoding: "utf8" });
-    expect(r.status).toBe(1);
-    expect(r.stdout).toBe("");
-    expect(r.stderr).not.toBe("");
-  });
-});
-
-// ── the table ─────────────────────────────────────────────────────────────────────────────────────────────────────
-describe("HOST_SKILL_DIRS: one full row per registry host (plan 42-02, D-24)", () => {
-  it("has exactly the registry ids, each with project and user folders written with forward slashes", () => {
-    expect(Object.keys(HOST_SKILL_DIRS).sort()).toEqual(HOST_TOOLS.map((h) => h.id).sort());
-    for (const h of HOST_TOOLS) {
-      const row = HOST_SKILL_DIRS[h.id];
-      expect(row, h.id).toBeDefined();
-      if (row === undefined) continue;
-      expect(row.project.length, h.id).toBeGreaterThan(0);
-      expect(row.user.length, h.id).toBeGreaterThan(0);
-      for (const p of [...row.project, ...row.user]) {
-        expect(p.includes("\\"), `${h.id}: ${p}`).toBe(false);
-        expect(p.startsWith("/"), `${h.id}: ${p}`).toBe(false);
-      }
-    }
-    expect(HOST_SKILL_DIRS.claude?.project).toEqual([".claude/skills"]);
-    expect(HOST_SKILL_DIRS.claude?.user).toEqual([".claude/skills"]);
-  });
-});
 
 // ── the doctor ────────────────────────────────────────────────────────────────────────────────────────────────────
 describe("--check: a declared skill no checked folder holds is one advisory line (plan 42-02, SKILL-05, D-25, D-26)", () => {
@@ -420,5 +353,129 @@ describe("--check: a skill a Claude Code plugin installs is found through instal
     expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
     expect(snapshotTree(row.target)).toBe(targetBefore);
     expect(snapshotTree(row.home)).toBe(homeBefore);
+  });
+});
+
+// ── every installed host from its own HOST_SKILL_DIRS row, and the not-checked cases (plan 42-08, D-24) ─────────────
+const skillLine = (label: "advisory" | "ok", rest: string): RegExp =>
+  new RegExp(`^ {2}${label}\\s+skill ${rest.replace(/[().]/g, (c) => `\\${c}`)}$`);
+const OPT = "; optional, see docs/skills.md";
+
+/** Create `<root>/<rel>/<skill>/SKILL.md`. */
+function placeSkill(root: string, rel: string, skill = "ui-ux-pro-max"): void {
+  const dir = join(root, ...rel.split("/"), skill);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "SKILL.md"), `---\nname: ${skill}\ndescription: test skill\n---\n`);
+}
+
+describe("--check: each installed host is checked from its own row (plan 42-08, D-24)", () => {
+  it("--claude --codex with the skill only in <HOME>/.agents/skills: Claude Code is missing, Codex CLI is found", () => {
+    const row = installedWith(["--claude", "--codex"], { designer: "ui-ux-pro-max" });
+    placeSkill(row.home, ".agents/skills");
+    const c = check(row);
+    expect(only(c.stdout, MISSING_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, skillLine("ok", "ui-ux-pro-max (designer) found for Codex CLI")).length, c.stdout).toBe(1);
+    expect(only(c.stdout, /^ {2}\S+\s+skill /).length, c.stdout).toBe(2);
+  });
+
+  it("the Codex CLI missing line carries the plugin clause, because its plugin installs are not known", () => {
+    const row = installedWith(["--codex"], { designer: "ui-ux-pro-max" });
+    const c = check(row);
+    const want = skillLine(
+      "advisory",
+      `ui-ux-pro-max (designer) not found for Codex CLI${OPT} (plugin installs on Codex CLI are not checked: UNKNOWN - verify)`,
+    );
+    expect(only(c.stdout, want).length, c.stdout).toBe(1);
+  });
+
+  it("CODEX_HOME set and the skill absent: the Codex CLI line is `not checked` and names CODEX_HOME, never `not found`", () => {
+    const row = installedWith(["--codex"], { designer: "ui-ux-pro-max" });
+    const c = check(row, [], { CODEX_HOME: join(row.home, "codex-home") });
+    const nc = only(c.stdout, /^ {2}advisory\s+skill ui-ux-pro-max \(designer\) not checked for Codex CLI: .*; optional, see docs\/skills\.md$/);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain("CODEX_HOME");
+    expect(only(c.stdout, /not found for Codex CLI/), c.stdout).toEqual([]);
+  });
+
+  it("CODEX_HOME set and the skill in the target's .agents/skills: found", () => {
+    const row = installedWith(["--codex"], { designer: "ui-ux-pro-max" });
+    placeSkill(row.target, ".agents/skills");
+    const c = check(row, [], { CODEX_HOME: join(row.home, "codex-home") });
+    expect(only(c.stdout, skillLine("ok", "ui-ux-pro-max (designer) found for Codex CLI")).length, c.stdout).toBe(1);
+  });
+
+  it("CLAUDE_CONFIG_DIR set and the skill absent: the Claude Code line is `not checked` and names CLAUDE_CONFIG_DIR", () => {
+    const row = installedWithPlantedSkill();
+    const c = check(row, [], { CLAUDE_CONFIG_DIR: join(row.home, "claude-config") });
+    const nc = only(c.stdout, NOT_CHECKED_CLAUDE);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain("CLAUDE_CONFIG_DIR");
+    expect(only(c.stdout, MISSING_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("--antigravity with the skill in <HOME>/.gemini/config/plugins/<plugin>/skills: found for Antigravity CLI", () => {
+    const row = installedWith(["--antigravity"], { designer: "ui-ux-pro-max" });
+    placeSkill(row.home, ".gemini/config/plugins/some-plugin/skills");
+    const c = check(row);
+    expect(only(c.stdout, skillLine("ok", "ui-ux-pro-max (designer) found for Antigravity CLI")).length, c.stdout).toBe(1);
+  });
+
+  it("--antigravity with the skill nowhere: the missing line, without the plugin clause, because its plugin folders were checked", () => {
+    const row = installedWith(["--antigravity"], { designer: "ui-ux-pro-max" });
+    mkdirSync(join(row.home, ".gemini", "config", "plugins", "some-plugin", "skills"), { recursive: true });
+    const c = check(row);
+    expect(only(c.stdout, skillLine("advisory", `ui-ux-pro-max (designer) not found for Antigravity CLI${OPT}`)).length, c.stdout).toBe(1);
+  });
+
+  it("--antigravity whose plugins folder is a file: the Antigravity CLI line is `not checked`, never `not found`", () => {
+    const row = installedWith(["--antigravity"], { designer: "ui-ux-pro-max" });
+    mkdirSync(join(row.home, ".gemini", "config"), { recursive: true });
+    writeFileSync(join(row.home, ".gemini", "config", "plugins"), "not a folder\n");
+    const c = check(row);
+    const nc = only(c.stdout, /^ {2}advisory\s+skill ui-ux-pro-max \(designer\) not checked for Antigravity CLI: .*; optional, see docs\/skills\.md$/);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(only(c.stdout, /not found for Antigravity CLI/), c.stdout).toEqual([]);
+  });
+
+  it("two roles declaring one skill: one line per host naming both roles in sorted order", () => {
+    const row = installedWith(["--claude", "--codex"], { "frontend-ui": "ui-ux-pro-max", designer: "ui-ux-pro-max" });
+    const c = check(row);
+    const lns = only(c.stdout, /^ {2}\S+\s+skill /);
+    expect(lns.length, c.stdout).toBe(2);
+    expect(lns.every((l) => l.includes("skill ui-ux-pro-max (designer, frontend-ui) ")), c.stdout).toBe(true);
+    expect(lns.filter((l) => l.includes(" for Claude Code")).length, c.stdout).toBe(1);
+    expect(lns.filter((l) => l.includes(" for Codex CLI")).length, c.stdout).toBe(1);
+  });
+
+  it("a role whose `skills:` is refused gives the reader-refusal line naming it, and the other roles' skills are still checked", () => {
+    const row = installedWith(["--claude"], { designer: "\n  - ui-ux-pro-max", "frontend-ui": "frontend-design" });
+    const c = check(row);
+    const refused = only(c.stdout, /^ {2}advisory\s+declared skills of designer not read: \S.* \(the role-frontmatter guard reports this\)$/);
+    expect(refused.length, c.stdout).toBe(1);
+    expect(refused[0], c.stdout).toContain("block sequence");
+    expect(only(c.stdout, skillLine("advisory", `frontend-design (frontend-ui) not found for Claude Code${OPT}`)).length, c.stdout).toBe(1);
+    expect(only(c.stdout, /skill ui-ux-pro-max/), c.stdout).toEqual([]);
+  });
+
+  it("no role declares a skill: no skill line at all", () => {
+    const row = installedWith(["--claude", "--codex", "--antigravity"], {});
+    const c = check(row);
+    expect(only(c.stdout, /^ {2}(advisory|ok)\s+skill /), c.stdout).toEqual([]);
+    expect(only(c.stdout, /declared skills/), c.stdout).toEqual([]);
+  });
+
+  it("every not-checked and refusal run exits as the plain missing run does, with and without --strict, with the same counted lines", () => {
+    const plain = installedWith(["--claude", "--codex"], { designer: "ui-ux-pro-max" });
+    const odd = installedWith(["--claude", "--codex"], { designer: "\n  - ui-ux-pro-max", "frontend-ui": "ui-ux-pro-max" });
+    writeFileSync(join(homePlugins(odd), "installed_plugins.json"), "{ not json");
+    const env = { CODEX_HOME: join(odd.home, "codex-home") };
+    for (const extra of [[], ["--strict"]] as const) {
+      const a = check(plain, extra);
+      const b = check(odd, extra, env);
+      expect(only(b.stdout, /not checked for/).length, b.stdout).toBe(2);
+      expect(a.status, a.stdout).toBe(b.status);
+      expect(counted(a.stdout)).toEqual(counted(b.stdout));
+      expect(summaryLine(a.stdout)).toBe(summaryLine(b.stdout));
+    }
   });
 });

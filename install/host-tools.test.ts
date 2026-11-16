@@ -19,6 +19,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import ts from "typescript";
 import {
+  HOST_SKILL_DIRS,
   HOST_TOOLS,
   HOST_TOOL_COUNT,
   HOST_ADAPTER_KINDS,
@@ -1849,5 +1850,42 @@ describe("census: ROUTE_POINTERS and ADAPTER_FOOTPRINT are indexed only by hostP
     expect(refs.kinds).toEqual({ "planted.ts@<module>:import": 1 });
     expect(hostToolsLoads(clean, "planted.ts").violations).toEqual([]);
     expect(hostToolsLoads(parse('export const MIRRORED = ["install/host-tools.js"];'), "planted.ts")).toEqual({ violations: [], data: { "planted.ts@<module>": 1 } });
+  });
+});
+
+// ── HOST_SKILL_DIRS: the one per-host skill-folder table (phase 42, plans 42-02 and 42-08; D-24) ───────────────────
+describe("HOST_SKILL_DIRS is keyed by exactly the registry ids, both ways (plan 42-08)", () => {
+  const ids = HOST_TOOLS.map((h) => h.id);
+  const keys = Object.keys(HOST_SKILL_DIRS);
+
+  it("every registry id has a row, and every row is a registry id", () => {
+    expect(ids.filter((id) => !keys.includes(id)), "a registry host with no HOST_SKILL_DIRS row").toEqual([]);
+    expect(keys.filter((k) => !ids.includes(k)), "a HOST_SKILL_DIRS row with no registry host").toEqual([]);
+    expect(keys.length).toBe(HOST_TOOL_COUNT);
+  });
+
+  it("every folder in the table is relative, written with `/`, and has no `..` segment", () => {
+    for (const [id, row] of Object.entries(HOST_SKILL_DIRS)) {
+      expect(row.project.length, id).toBeGreaterThan(0);
+      expect(row.user.length, id).toBeGreaterThan(0);
+      const folders = [...row.project, ...row.user, ...(row.plugins.kind === "plugin-folders" ? [row.plugins.userRoot] : [])];
+      for (const p of folders) {
+        expect(p, `${id}: an empty folder`).not.toBe("");
+        expect(p.includes("\\"), `${id}: ${p} has a backslash`).toBe(false);
+        expect(p.startsWith("/") || /^[A-Za-z]:/.test(p), `${id}: ${p} is absolute`).toBe(false);
+        expect(p.split("/").includes(".."), `${id}: ${p} has a .. segment`).toBe(false);
+      }
+    }
+  });
+
+  it("only Claude Code reads an installed-plugin record and only Antigravity CLI a plugin folder; every override name is an environment variable name", () => {
+    const kinds = Object.fromEntries(Object.entries(HOST_SKILL_DIRS).map(([id, row]) => [id, row.plugins.kind]));
+    expect(Object.entries(kinds).filter(([, k]) => k === "claude-installed-plugins").map(([id]) => id)).toEqual(["claude"]);
+    expect(Object.entries(kinds).filter(([, k]) => k === "plugin-folders").map(([id]) => id)).toEqual(["antigravity"]);
+    expect(HOST_SKILL_DIRS.claude?.project).toEqual([".claude/skills"]);
+    expect(HOST_SKILL_DIRS.claude?.user).toEqual([".claude/skills"]);
+    for (const [id, row] of Object.entries(HOST_SKILL_DIRS)) {
+      for (const v of row.userOverrides) expect(v, id).toMatch(/^[A-Z][A-Z0-9_]*$/);
+    }
   });
 });
