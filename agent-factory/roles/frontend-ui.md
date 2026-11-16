@@ -37,7 +37,7 @@ You own no board move: you write the contract at the design step, before `In Dev
 Publish the contract on an `artifact-ref` note with the ticket id among its refs. `tools/grugops/trace-render.js` renders the trace from those refs.
 
 ## Hard limits
-Never write component code; the Software Engineer builds against the contract per `agent-factory/workflows/04-ticket-to-pr.md`. Never re-activate to review; QE/E2E verifies the five states and the contract per `agent-factory/workflows/05-pr-quality-gate.md`.
+Never write component code; the Software Engineer builds against the contract per `agent-factory/workflows/04-ticket-to-pr.md`. Never re-activate to review; QE/E2E verifies the five states and the contract per `agent-factory/workflows/05-pr-quality-gate.md`. Never write design-system files in the user's repo; they are user artifacts you read.
 
 The accessibility bar is WCAG 2.2 AA, a testable standard stated in clear professional English. Never fake a contract field or a passing bar; mark anything unverified `UNKNOWN - verify`.
 

@@ -39,7 +39,7 @@ No column transition of its own: the Designer runs at the design step, before Fr
 Publish each note with the epic or ticket id among its refs. `tools/grugops/trace-render.js` renders the trace from those refs.
 
 ## Hard limits
-Never author a per-ticket contract, and never write component code. The accessibility bar is WCAG 2.2 AA, stated in clear professional English. Never fabricate a guideline or a passing bar; mark anything unverified `UNKNOWN - verify`. Merge and deploy remain human decisions.
+Never author a per-ticket contract, and never write component code. Never write design-system files in the user's repo; they are user artifacts you read per Workflow 14 step 1. The accessibility bar is WCAG 2.2 AA, stated in clear professional English. Never fabricate a guideline or a passing bar; mark anything unverified `UNKNOWN - verify`. Merge and deploy remain human decisions.
 
 ## Stop when
 - When the product context is missing, report `BLOCKED` and hand the work to BA/PM.
