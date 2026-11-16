@@ -10,7 +10,9 @@
 // HERMETIC. Every install and check runs with a scratch target, a scratch kit home (GRUGOPS_HOME), a scratch HOME and
 // a PATH holding only an empty scratch folder (hermeticEnv), so neither the real home nor a real host binary is read.
 // The planted kit home has every `skills:` line removed first, so a role the kit ships with a declaration cannot add a
-// line this file does not expect.
+// line this file does not expect. One case (plan 42-07) never plants: it checks the kit as it ships, so its expected
+// line count is derived from the shipped roles' declarations (zero today), and the README case pins the
+// `**Declared skills.**` bullet of install/README.md that describes these lines.
 //
 // The reader's own cases are in scripts/role-skills-reader.test.ts, and the two-way pin of HOST_SKILL_DIRS to the
 // registry is in install/host-tools.test.ts (plan 42-08).
@@ -24,7 +26,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { INSTALL_JS, hermeticEnv, runInstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, REPO_ROOT, hermeticEnv, runInstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { readRoleSkills } from "../scripts/role-skills-reader.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "grugops-skills-doctor-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -477,5 +480,34 @@ describe("--check: each installed host is checked from its own row (plan 42-08, 
       expect(counted(a.stdout)).toEqual(counted(b.stdout));
       expect(summaryLine(a.stdout)).toBe(summaryLine(b.stdout));
     }
+  });
+});
+
+// ── the shipped kit and the README (plan 42-07; SKILL-05, D-24 to D-26) ───────────────────────────────────────────
+describe("--check on the kit as it ships, and the README bullet that describes the skill lines (plan 42-07, SKILL-05)", () => {
+  it("an install of the shipped kit for Claude Code and Codex CLI prints one skill line per declared skill per agent, and exits as the no-declaration run does", () => {
+    const shipped = scratchRow();
+    const r = runInstall(shipped.target, shipped.kitHome, ["--claude", "--codex"], {
+      home: shipped.home,
+      env: hermeticEnv(shipped.home, shipped.bin),
+    });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const c = check(shipped);
+    const declared = Object.keys(readRoleSkills(REPO_ROOT).skills).length;
+    expect(only(c.stdout, /^ {2}(advisory|ok)\s+skill /).length, c.stdout).toBe(declared * 2);
+    expect(only(c.stdout, /declared skills/), c.stdout).toEqual([]);
+    const none = check(installedWith(["--claude", "--codex"], {}));
+    expect(c.status, c.stdout).toBe(none.status);
+  });
+
+  it("install/README.md's --check list has one **Declared skills.** bullet that says what the lines are and links docs/skills.md", () => {
+    const flat = readFileSync(join(REPO_ROOT, "install", "README.md"), "utf8").replace(/\s+/g, " ");
+    const parts = flat.split("- **Declared skills.**");
+    expect(parts.length - 1, "the number of **Declared skills.** bullets").toBe(1);
+    const bullet = parts[1]?.split(" - **")[0] ?? "";
+    expect(bullet).toContain("installs nothing");
+    expect(bullet).toContain("no skill line");
+    expect(bullet).toContain("`not checked`");
+    expect(bullet).toContain("[docs/skills.md](../docs/skills.md)");
   });
 });
