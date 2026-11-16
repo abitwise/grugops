@@ -2563,11 +2563,12 @@ interface PluginSkillFolders {
  * Read `<plugins root>/installed_plugins.json` and each plugin's manifest through readUserFile. The plugins root is
  * CLAUDE_CODE_PLUGIN_CACHE_DIR when set, else `<home>/.claude/plugins`. An absent record means no plugin is installed.
  * Anything else this check cannot read (an unreadable file, not JSON, another shape) makes the whole lookup not
- * checked (T-42-04).
+ * checked (T-42-04). Whether CLAUDE_CODE_PLUGIN_CACHE_DIR and each recorded installPath are absolute is decided by
+ * user-file.ts isRecordedAbsolute, the one absoluteness rule (install/path-spelling-census.test.ts rule (f)).
  */
 function claudePluginSkillFolders(home: string, env: ReadonlyMap<string, string>): PluginSkillFolders {
   const given = env.get("CLAUDE_CODE_PLUGIN_CACHE_DIR");
-  if (given !== undefined && !isAbsolute(given)) {
+  if (given !== undefined && !isRecordedAbsolute(given)) {
     return { folders: [], notChecked: `CLAUDE_CODE_PLUGIN_CACHE_DIR is ${given}, which is not an absolute path` };
   }
   const record = join(given ?? join(home, ".claude", "plugins"), "installed_plugins.json");
@@ -2589,7 +2590,7 @@ function claudePluginSkillFolders(home: string, env: ReadonlyMap<string, string>
     for (const entry of entries) {
       if (!isJsonObject(entry) || typeof entry.installPath !== "string") return notShape;
       const installPath = entry.installPath;
-      if (!isAbsolute(installPath)) {
+      if (!isRecordedAbsolute(installPath)) {
         refused.push(`plugin ${key} has an installPath that is not an absolute path`);
         continue;
       }
@@ -2635,7 +2636,12 @@ function manifestSkillFolders(key: string, installPath: string): string[] | stri
   return out;
 }
 
-/** `p` resolved under `installPath`, or null when it is empty, absolute, has a `..` segment or lands outside it. */
+/**
+ * `p` resolved under `installPath`, or null when it is empty, absolute, has a `..` segment or lands outside it. The
+ * first test refuses a path that is absolute or drive-qualified under either path flavor, whatever the host, and the
+ * last is a containment test on the result relative() just computed; install/path-spelling-census.test.ts rule (f)
+ * classifies both with this reason.
+ */
 function folderInsidePlugin(installPath: string, p: string): string | null {
   if (p === "" || isAbsolute(p) || /^[A-Za-z]:/.test(p) || p.startsWith("/") || p.startsWith("\\")) return null;
   const segments = p.split(/[\\/]/);

@@ -14,7 +14,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, posix, win32 } from "node:path";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import ts from "typescript";
@@ -1872,7 +1872,9 @@ describe("HOST_SKILL_DIRS is keyed by exactly the registry ids, both ways (plan 
       for (const p of folders) {
         expect(p, `${id}: an empty folder`).not.toBe("");
         expect(p.includes("\\"), `${id}: ${p} has a backslash`).toBe(false);
-        expect(p.startsWith("/") || /^[A-Za-z]:/.test(p), `${id}: ${p} is absolute`).toBe(false);
+        // Absolute by either flavor's own isAbsolute (never a leading-`/` test, which reads `C:\…` as relative), or
+        // drive-qualified (`C:x`, which win32 resolves against that drive's working directory).
+        expect(win32.isAbsolute(p) || posix.isAbsolute(p) || /^[A-Za-z]:/.test(p), `${id}: ${p} is absolute`).toBe(false);
         expect(p.split("/").includes(".."), `${id}: ${p} has a .. segment`).toBe(false);
       }
     }
