@@ -3761,8 +3761,9 @@ describe("check-banned-claims — the scan set derives one cardinality whichever
       expect(m, m).not.toContain("\\");
       expect(m, m).toBe(scanKey(m, win32.sep));
     }
-    // …and the gate's own two named overlaps both collide, which is the number the pin counts.
-    expect(bannedClaimScanOverlap()).toBe(2);
+    // …and the gate's own named overlaps all collide, which is the number the pin counts.
+    // 2 → 3 (plan 42-07): docs/skills.md is in the public-docs part and the `skills` part.
+    expect(bannedClaimScanOverlap()).toBe(3);
   });
 });
 
