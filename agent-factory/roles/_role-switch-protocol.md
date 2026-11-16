@@ -15,6 +15,7 @@ When a role activates, run these five steps in order.
 1. Print `▶ entering <ROLE>` so the window shows which role holds the work.
 2. Read the role's file, `agent-factory/roles/<role>.md`, plus the shared verified context it needs.
    Pull that context on demand per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`).
+   Use a skill the role names only when the host lists it. A listed `<plugin>:<name>` counts as `<name>`. Otherwise take the role's fallback at once. Never search the disk for a skill. `AGENTS.md` says which rules win over a skill.
    Read nothing else: no other role's scratch, no scrolling back through the conversation.
 3. Drop the instructions and scratch context of the role that ran before.
 4. Do the one job; publish its output as typed notes per Workflow 16.
