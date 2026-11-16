@@ -809,6 +809,12 @@ reads every file first and reports afterwards, in this order:
   host reaches the Orchestrator and through which of these files (for Claude Code, also through the
   adapters' `KIT=` line). A host that cannot reach always has a counted finding behind it, and a
   counted finding always has a host that cannot reach behind it.
+- **Declared skills.** For each installed agent, `--check` reads the skills the kit's roles declare
+  and looks for each one where that host looks. A skill it finds gives an `ok` line, a skill it
+  cannot find gives an `advisory` line, and a place it cannot see gives a `not checked` line. When
+  no role declares a skill, it prints no skill line. It installs nothing.
+  [docs/skills.md](../docs/skills.md) lists the folders each host reads and how a role declares a
+  skill.
 - **Advisory lines.** A line labelled `advisory` reports something optional, such as a skill a role
   declares that is not installed or a Claude Code version below the junior level's floor, or
   something `--check` could not check. It never changes the exit code, and `--strict` does not
