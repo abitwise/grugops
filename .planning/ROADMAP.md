@@ -702,10 +702,10 @@ Gap wave 11 *(blocked on gap wave 10)*
 **Depends on**: Phase 39, Phase 40
 **Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05
 **Success Criteria** (what must be TRUE):
-  1. Each role lists the skills it may use with a built-in fallback checklist for when a skill is absent, and the role-switch protocol tells non-Claude hosts where to find skills (SKILL-01)
+  1. A role may declare skills with a built-in fallback checklist for when a skill is absent; the role-switch protocol tells non-Claude hosts how to find skills (SKILL-01, amended 42-04)
   2. A maintainer can read a written evaluation of superpowers, code-simplifier, feature-dev, commit-commands, frontend-design and ui-ux-pro-max against grugops's floors (merge, branching, planning authority, telemetry, network, runtime deps) that decides which are recommended (SKILL-02)
-  3. Recommended skills are documented as optional, pinned installs that grugops never vendors or installs, and one rule, stated once, says grugops rules outrank any skill text (SKILL-03)
-  4. Frontend/UI uses ui-ux-pro-max when it is installed and treats the design-system files it creates as user artifacts that grugops reads but never writes (SKILL-04)
+  3. A written evaluation recommends no third-party skill; one rule, stated once, says grugops rules outrank any skill text a user installs (SKILL-03, amended 42-04)
+  4. Frontend/UI and the Designer treat design-system files in the user's repo as user artifacts they read but never write (SKILL-04, amended 42-04)
   5. `install --check` warns, and never fails or installs anything, when a role declares a skill that is not found (SKILL-05)
 
 **Plans**: 6/8 plans executed
@@ -723,10 +723,10 @@ Wave 3
 - [x] 42-05-PLAN.md — the `claude --version` probe deferred by Phase 39: an advisory line below v2.1.293, and the README says so (SKILL-05)
 
 Wave 4
-- [ ] 42-06-PLAN.md — the Designer and Frontend/UI declare their ratified skills with fallbacks, and the `design-system/` rule lands in designer.md and Workflow 14 (SKILL-01, SKILL-04)
+- [ ] 42-06-PLAN.md — the Designer and Frontend/UI never write the user's design-system files (Workflow 14 step 1 holds the conflict rule); the `## Skills` contract is proved on fixture roles (SKILL-04, SKILL-01)
 
 Wave 5
-- [ ] 42-07-PLAN.md — docs/skills.md joins both claim gates, then publishes the pinned, optional skills and each host's skill folders; the README's doctor bullet (SKILL-03, SKILL-01, SKILL-05)
+- [ ] 42-07-PLAN.md — docs/skills.md joins both claim gates, then publishes the empty-state skills page and each host's skill folders; the README's Declared skills bullet and the shipped-kit doctor case (SKILL-03, SKILL-01, SKILL-05)
 
 **Research flag**: plan with `--research-phase` (`allowed-tools` vs `permissions.ask` evaluation order, per-host skill discovery).
 **Notes**: No third-party skill is preloaded or made process-defining.
