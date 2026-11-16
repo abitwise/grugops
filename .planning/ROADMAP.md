@@ -708,7 +708,7 @@ Gap wave 11 *(blocked on gap wave 10)*
   4. Frontend/UI and the Designer treat design-system files in the user's repo as user artifacts they read but never write (SKILL-04, amended 42-04)
   5. `install --check` warns, and never fails or installs anything, when a role declares a skill that is not found (SKILL-05)
 
-**Plans**: 7/8 plans executed
+**Plans**: 8/8 plans executed
 
 Wave 1 *(one record plan, one code plan and one text plan, disjoint files)*
 - [x] 42-01-PLAN.md — the SKILL-02 evaluation record: six candidates against six floors, as install units and per sub-skill, full-SHA pins, proposals and revisit triggers (SKILL-02)
@@ -726,7 +726,7 @@ Wave 4
 - [x] 42-06-PLAN.md — the Designer and Frontend/UI never write the user's design-system files (Workflow 14 step 1 holds the conflict rule); the `## Skills` contract is proved on fixture roles (SKILL-04, SKILL-01)
 
 Wave 5
-- [ ] 42-07-PLAN.md — docs/skills.md joins both claim gates, then publishes the empty-state skills page and each host's skill folders; the README's Declared skills bullet and the shipped-kit doctor case (SKILL-03, SKILL-01, SKILL-05)
+- [x] 42-07-PLAN.md — docs/skills.md joins both claim gates, then publishes the empty-state skills page and each host's skill folders; the README's Declared skills bullet and the shipped-kit doctor case (SKILL-03, SKILL-01, SKILL-05)
 
 **Research flag**: plan with `--research-phase` (`allowed-tools` vs `permissions.ask` evaluation order, per-host skill discovery).
 **Notes**: No third-party skill is preloaded or made process-defining.
@@ -760,7 +760,7 @@ Wave 5
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
-| 42. Skills per role and evaluation | v3.0 | 7/8 | In Progress | - |
+| 42. Skills per role and evaluation | v3.0 | 8/8 | In Progress | - |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
 ## Backlog

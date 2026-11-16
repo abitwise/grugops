@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 42
 current_phase_name: Skills per role and evaluation
 status: executing
-stopped_at: Completed 42-06-PLAN.md
-last_updated: "2026-11-16T19:44:33.941Z"
+stopped_at: Completed 42-07-PLAN.md
+last_updated: "2026-11-16T20:24:50.713Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 42 execution started
-state_head: 3822a2c78031b969c306adbebdb17028d74704ba
+state_head: 05adf093ac7a69540efc8b1425c6a612e5fdaa78
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 150
-  completed_plans: 149
+  completed_plans: 150
   percent: 78
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
 ## Current Position
 
 Phase: 42 (Skills per role and evaluation) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 42 execution started
 
@@ -866,6 +866,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 42 P04 | 2 min | 3 tasks | 2 files |
 | Phase 42 P05 | 12min | 2 tasks | 9 files |
 | Phase 42 P06 | 7 min | 2 tasks | 5 files |
+| Phase 42 P07 | 37 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -2417,6 +2418,9 @@ Recent decisions affecting current work:
 - [Phase 42]: 42-05: the MSG-1 census classes 'is below v' as not a line reference (a version comparison)
 - [Phase 42]: 42-06: Design-system files in the user's repo are user artifacts: designer.md and frontend-ui.md Hard limits say never write them; Workflow 14 step 1 says the files win over the Designer's notes and each conflict is recorded for the human. Both roles fit under WARN ceilings (2,749 B and 3,082 B); ROLE_CEILINGS unchanged.
 - [Phase 42]: 42-06: The Skills contract is pinned in scripts/skills-kit-text.test.ts (SKILLS_TABLE_HEADER, SKILLS_RECORD_FRAGMENTS, skillsSectionFindings) on example-skill fixture roles; every shipped role has a ## Skills section exactly when it declares a skill, and none does.
+- [Phase 42]: docs/skills.md joins both claim gates as a named skills part before it exists; SKILLS_DOC is declared once in check-public-docs-vocabulary.ts
+- [Phase 42]: Scan pins moved to the values each gate reported: PUBLIC_DOCS_SCAN_COUNT 12, BANNED_CLAIM_SCAN_COUNT 129
+- [Phase 42]: The docs/skills.md host table is rendered by renderHostRow from HOST_SKILL_DIRS and pinned row by row; its recommended set is pinned both ways to readRoleSkills
 
 ### Pending Todos
 
@@ -2758,8 +2762,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-16T19:44:22.528Z
-Stopped at: Completed 42-06-PLAN.md
+Last session: 2026-11-16T20:24:49.363Z
+Stopped at: Completed 42-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
