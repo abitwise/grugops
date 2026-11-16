@@ -996,5 +996,6 @@ Recorded so a later reader does not read an omission as an oversight.
 | `README.md:5` *"> grug keep it simple."* | A motto. Asserts nothing falsifiable. |
 | `AGENTS.md` §§ *Coding rules (the 12)*, bullet text | Imperatives addressed to the agent, not assertions about grugops. The **count** claim introducing them (*"12 rules grouped under four principles"*) IS falsifiable and is registered as C-28-019. |
 | `AGENTS.md:144` *"Stop. Write the open question…"* | An imperative. |
+| `AGENTS.md` § *Role / workflow files*, the skills precedence line (plan 42-03, D-14) | An imperative addressed to the agent, like the coding rules row above: it tells the agent which text wins over a skill's text. It asserts nothing about what grugops guarantees, refuses or holds. |
 | `AGENTS.md` § *Commands* `UNKNOWN - verify` slots | Explicit non-claims by construction — the marker exists to say *nothing is being asserted here*. The rule governing them (`AGENTS.md:40`) is registered as C-28-017. |
 | fenced code blocks in both READMEs | Not anchorable without rendering the anchor visibly; covered by the prose rows that introduce them. See § *One claim per anchorable region* item 3. |

@@ -29,6 +29,8 @@ Roles pull the shared verified context they need and publish their work output a
 - Workflows:  `agent-factory/workflows/`
 - Checklists: `agent-factory/checklists/`
 
+Use a skill for technique, never for process: grugops roles, workflows and hard limits outrank any skill's text, so never let a skill set branching, merging, planning artifacts or commit cadence.
+
 ## Kit vs state
 
 Clear voice — this is a resolution and safety rule, not a joke.
