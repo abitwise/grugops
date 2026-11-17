@@ -2366,9 +2366,15 @@ function doctorDeclaredSkills(hosts, home) {
                 say("advisory", `skill ${who} not checked for ${h.name}: this build lists no skill folders for it${OPTIONAL_SKILL}`);
                 continue;
             }
-            let found = dirs.project.some((rel) => skillFileAt(TARGET, rel, skill)) || dirs.user.some((rel) => skillFileAt(home, rel, skill));
+            // A set override may move where the host reads user skills (review WR-01): then the default user folders, and for
+            // Claude Code the default plugins root unless CLAUDE_CODE_PLUGIN_CACHE_DIR names one, are not where the host
+            // looks, so a copy there is not counted as found. The project folders are always checked.
+            const moved = dirs.userOverrides.filter((v) => env.set.has(v));
+            const userRead = moved.length === 0;
+            let found = dirs.project.some((rel) => skillFileAt(TARGET, rel, skill)) || (userRead && dirs.user.some((rel) => skillFileAt(home, rel, skill)));
             let pluginsNotChecked = null;
-            if (!found && dirs.plugins.kind !== "unknown") {
+            const pluginsRead = dirs.plugins.kind === "claude-installed-plugins" ? userRead || env.set.has("CLAUDE_CODE_PLUGIN_CACHE_DIR") : userRead;
+            if (!found && dirs.plugins.kind !== "unknown" && pluginsRead) {
                 let lookup;
                 if (dirs.plugins.kind === "claude-installed-plugins") {
                     lookup = claudePlugins ??= claudePluginSkillFolders(home, env.set);
@@ -2387,7 +2393,6 @@ function doctorDeclaredSkills(hosts, home) {
             }
             // A variable that may move the user folders: the doctor did not look where the host looks, so it does not guess.
             const unread = dirs.userOverrides.filter((v) => !env.read.has(v));
-            const moved = dirs.userOverrides.filter((v) => env.set.has(v));
             if (unread.length > 0) {
                 say("advisory", `skill ${who} not checked for ${h.name}: this build does not read ${unread.join(", ")}${OPTIONAL_SKILL}`);
                 continue;

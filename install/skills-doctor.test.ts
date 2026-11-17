@@ -416,6 +416,45 @@ describe("--check: each installed host is checked from its own row (plan 42-08, 
     expect(only(c.stdout, MISSING_CLAUDE), c.stdout).toEqual([]);
   });
 
+  // Review WR-01 of phase 42: a set override means the host reads its user folders elsewhere, so a copy in the default
+  // user folder (or, for Claude Code, in the default plugins root) is not evidence of anything the host reads.
+  it("CLAUDE_CONFIG_DIR set and the skill only in <HOME>/.claude/skills: `not checked`, never `found` (review WR-01)", () => {
+    const row = installedWithPlantedSkill();
+    placeUserSkill(row);
+    const c = check(row, [], { CLAUDE_CONFIG_DIR: join(row.home, "claude-config") });
+    const nc = only(c.stdout, NOT_CHECKED_CLAUDE);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain("CLAUDE_CONFIG_DIR");
+    expect(only(c.stdout, FOUND_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("CLAUDE_CONFIG_DIR set and the skill only in a plugin under <HOME>/.claude/plugins: `not checked`, never `found` (review WR-01)", () => {
+    const row = installedWithPlantedSkill();
+    plantClaudePlugin(homePlugins(row), { skillRel: "skills" });
+    const c = check(row, [], { CLAUDE_CONFIG_DIR: join(row.home, "claude-config") });
+    expect(only(c.stdout, NOT_CHECKED_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, FOUND_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it("CLAUDE_CONFIG_DIR and CLAUDE_CODE_PLUGIN_CACHE_DIR set: a plugin in the named cache is still found (review WR-01)", () => {
+    const row = installedWithPlantedSkill();
+    const cache = join(row.home, "elsewhere", "plugins");
+    mkdirSync(cache, { recursive: true });
+    plantClaudePlugin(cache, { skillRel: "skills" });
+    const c = check(row, [], { CLAUDE_CONFIG_DIR: join(row.home, "claude-config"), CLAUDE_CODE_PLUGIN_CACHE_DIR: cache });
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("CODEX_HOME set and the skill only in <HOME>/.agents/skills: the Codex CLI line is `not checked`, never `found` (review WR-01)", () => {
+    const row = installedWith(["--codex"], { designer: "ui-ux-pro-max" });
+    placeSkill(row.home, ".agents/skills");
+    const c = check(row, [], { CODEX_HOME: join(row.home, "codex-home") });
+    const nc = only(c.stdout, /^ {2}advisory\s+skill ui-ux-pro-max \(designer\) not checked for Codex CLI: .*; optional, see docs\/skills\.md$/);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain("CODEX_HOME");
+    expect(only(c.stdout, /found for Codex CLI/), c.stdout).toEqual([]);
+  });
+
   it("--antigravity with the skill in <HOME>/.gemini/config/plugins/<plugin>/skills: found for Antigravity CLI", () => {
     const row = installedWith(["--antigravity"], { designer: "ui-ux-pro-max" });
     placeSkill(row.home, ".gemini/config/plugins/some-plugin/skills");
