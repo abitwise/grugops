@@ -1080,3 +1080,86 @@ describe("check-claim-anchors: the anchored-line set of the exemption document (
     }
   });
 });
+
+// ── (Plan 43-01, D-25) THE RETIRED STATUS ─────────────────────────────────────────────────────
+//
+// A retired row is a claim the docs WITHDREW. Its row and id stay in the registry; its text and its
+// anchor leave the named file. The gate holds the withdrawal by checking ABSENCE, the inverse of the
+// unanchorable PRESENCE check above, so a retirement that left the sentence on the page is red.
+
+/** A retired row's mechanism names the reason and the last commit where the text stood. */
+const RETIRED_MECHANISM =
+  "Withdrawn by the docs rewrite; the text last stood in PUBLIC.md at `a067c6e`.";
+
+const RETIRED_TEXT = "Every agent runs in parallel.";
+
+/**
+ * The baseline mirror plus one retired `architecture` row, C-28-003, naming PUBLIC.md. Its text is
+ * NOT in the document and no anchor for it is, which is the only state the retired arm admits.
+ */
+function retiredMirror(over: Partial<ClaimSpec> = {}): { root: string; docBody: string } {
+  const { root, docBody } = baseline();
+  writeAt(
+    root,
+    REGISTRY_PATH,
+    registry(
+      {
+        id: "C-28-001",
+        file: "PUBLIC.md",
+        line: "4",
+        kind: "safety",
+        dependsOn: FLOORS,
+        text: "Humans always hold merge and deploy.",
+      },
+      {
+        id: "C-28-002",
+        file: "PUBLIC.md",
+        line: "7-8",
+        text: "The installer never overwrites your content.\nand it removes only what it added.",
+      },
+      {
+        id: "C-28-003",
+        file: "PUBLIC.md",
+        line: "10",
+        status: "retired",
+        mechanism: RETIRED_MECHANISM,
+        text: RETIRED_TEXT,
+        ...over,
+      },
+    ),
+  );
+  return { root, docBody };
+}
+
+describe("check-claim-anchors: a retired row (D-25) passes only while its text and anchor are gone", () => {
+  it("PASSES a retired row whose text is absent from its named file, and counts it in the PASS line", () => {
+    const { root } = retiredMirror();
+    const r = run(root);
+    expect(r.out).toMatch(/ALL CHECKS PASSED/);
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(/3 registry row\(s\)/);
+    expect(r.out).toMatch(/1 retired/);
+  });
+
+  it("refuses a retired row whose verbatim text is still in the named file, naming the id and the file", () => {
+    const { root, docBody } = retiredMirror();
+    writeAt(root, "PUBLIC.md", `${docBody}\n${RETIRED_TEXT}\n`);
+    const r = run(root);
+    expect(r.status).toBe(1);
+    // The refusal is the retired arm's, not a parse refusal that merely mentions the id.
+    expect(r.out).not.toMatch(/could not be parsed/);
+    expect(r.out).toMatch(/FAIL .*C-28-003.*retired.*PUBLIC\.md|FAIL .*PUBLIC\.md.*C-28-003.*retired/);
+    expect(r.out).toMatch(/1 CHECK\(S\) FAILED/);
+  });
+
+  it("refuses a retired row whose anchor is still in the named file, naming the id", () => {
+    const { root, docBody } = retiredMirror();
+    writeAt(root, "PUBLIC.md", `${docBody}\n<!-- claim: C-28-003 -->\nA sentence that replaced it.\n`);
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).not.toMatch(/could not be parsed/);
+    expect(r.out).toMatch(/FAIL .*C-28-003.*anchor/);
+    // Reported once, by the retired arm, and not a second time as an unexpected anchor.
+    expect(r.out).toMatch(/1 CHECK\(S\) FAILED/);
+  });
+});

@@ -240,12 +240,12 @@ describe("audit-model: the closed sets", () => {
     expect(SAFETY_FLOORS.length).not.toBe(3);
     expect(SAFETY_FLOORS.length).not.toBe(5);
 
-    // Plan 30-09 (D-18): the status vocabulary grew by one, `dropped`. It is pinned two-sided in
-    // the same shape as its four siblings, so a fifth value cannot arrive unreviewed and the fourth
-    // cannot be removed without this line moving.
-    expect(CLAIM_STATUSES.length).toBe(4);
-    expect(CLAIM_STATUSES.length).not.toBe(3);
-    expect(CLAIM_STATUSES.length).not.toBe(5);
+    // Plan 30-09 (D-18): the status vocabulary grew by one, `dropped`. Plan 43-01 (D-25) grew it by
+    // one more, `retired`. It is pinned two-sided in the same shape as its siblings, so a sixth value
+    // cannot arrive unreviewed and the fifth cannot be removed without this line moving.
+    expect(CLAIM_STATUSES.length).toBe(5);
+    expect(CLAIM_STATUSES.length).not.toBe(4);
+    expect(CLAIM_STATUSES.length).not.toBe(6);
   });
 
   it("DISPOSITIONS holds exactly AUDIT-01's three names, nothing invented", () => {
@@ -256,11 +256,12 @@ describe("audit-model: the closed sets", () => {
     expect([...CLAIM_KINDS]).toEqual(["safety", "architecture", "install"]);
   });
 
-  it("CLAIM_STATUSES holds D-17's three statuses plus D-18's `dropped`", () => {
-    // TWO-SIDED, and the fourth member is named rather than counted. Plan 30-09 added `dropped`
-    // (D-18); a fifth value arriving without this line moving is the set-literal drift this
-    // repository has diagnosed as one of its two systemic failure classes.
-    expect([...CLAIM_STATUSES]).toEqual(["true", "overstated", "false", "dropped"]);
+  it("CLAIM_STATUSES holds D-17's three statuses plus D-18's `dropped` and D-25's `retired`", () => {
+    // TWO-SIDED, and the fourth and fifth members are named rather than counted. Plan 30-09 added
+    // `dropped` (D-18) and plan 43-01 added `retired` (D-25); a sixth value arriving without this
+    // line moving is the set-literal drift this repository has diagnosed as one of its two systemic
+    // failure classes.
+    expect([...CLAIM_STATUSES]).toEqual(["true", "overstated", "false", "dropped", "retired"]);
   });
 
   it("RUBRIC_CATEGORY 6 is record-only and names Phase 29 as its only legal target", () => {
