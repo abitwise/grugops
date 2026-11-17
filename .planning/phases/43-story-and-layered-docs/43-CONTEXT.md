@@ -123,7 +123,7 @@ Not in this phase: new roles, skills or workflows; per-workflow reference pages;
 - `agent-factory/README.md` — the in-kit start-here guide (sections that move under D-10)
 - `install/README.md` — per-host "Using grugops on" sections, §5 and §6 (tiers)
 - `install/install.ts` — `KIT_COPY_SOURCE` / `copyKit` (only `agent-factory/` ships today; D-11 extends it)
-- `scripts/state-layout.ts` — `STATE_ROOTS` (never touched by install, prune or uninstall)
+- `install/state-layout.ts` — `STATE_ROOTS` (never touched by install, prune or uninstall)
 - `docs/skills.md` — third-party skills page (already in the public-docs corpus; links to `.planning/`)
 - `CLAUDE.md` — `/grug` mentions at the Core Value, Brand constraint and stack research block (D-23)
 
