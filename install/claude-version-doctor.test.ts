@@ -17,11 +17,11 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { delimiter, join, posix, resolve, win32 } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { CLAUDE_CODE_LEVEL_FLOOR } from "./host-tools.js";
+import { CLAUDE_CODE_LEVEL_FLOOR, findClaudeOnPath } from "./host-tools.js";
 import { INSTALL_JS, hermeticEnv, runInstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "grugops-claude-version-"));
@@ -67,6 +67,15 @@ const check = (row: Row, extra: readonly string[] = []): Run =>
   spawnBin(INSTALL_JS, ["--check", ...extra], row.target, row.kitHome, {
     home: row.home,
     env: hermeticEnv(row.home, row.bin),
+    timeoutMs: 60_000,
+  });
+
+/** A check run from inside the target, as install/README.md documents, with `path` as the whole PATH. */
+const checkFromTarget = (row: Row, path: string): Run =>
+  spawnBin(INSTALL_JS, ["--check"], row.target, row.kitHome, {
+    home: row.home,
+    env: { ...hermeticEnv(row.home, row.bin), PATH: path },
+    cwd: row.target,
     timeoutMs: 60_000,
   });
 
@@ -233,6 +242,82 @@ describe("--check: version comparison and the cases the probe cannot read (plan 
   });
 });
 
+describe("--check never runs a `claude` planted in the target (review CR-01 of phase 42)", () => {
+  /** A `claude` at the target root that leaves a marker when run: what a cloned repository could commit. */
+  const plantInTarget = (row: Row): string => {
+    const marker = join(row.target, "planted-claude-was-run");
+    writeFileSync(join(row.target, "claude"), `#!/bin/sh\n: > '${marker}'\nprintf '%s\\n' '2.1.300 (Claude Code)'\n`, { mode: 0o755 });
+    return marker;
+  };
+  const SKIPPED = notChecked("`claude` was not found on PATH; PATH entries that are empty or not absolute are not searched");
+
+  it.skipIf(NO_SCRIPT_BINARIES)("a `.` entry on PATH: the planted claude is not run, and the line says relative entries are not searched", () => {
+    const row = installedWith(["--claude"]);
+    const marker = plantInTarget(row);
+    const c = checkFromTarget(row, `.${delimiter}${row.bin}`);
+    expect(existsSync(marker), `the planted claude was run: ${c.stdout}`).toBe(false);
+    const v = versionLines(c.stdout);
+    expect(v, c.stdout).toHaveLength(1);
+    expect((v[0] ?? "").trim().replace(/^advisory\s+/, ""), c.stdout).toBe(SKIPPED);
+  });
+
+  it.skipIf(NO_SCRIPT_BINARIES)("an empty PATH entry (a leading delimiter) is not the current folder either", () => {
+    const row = installedWith(["--claude"]);
+    const marker = plantInTarget(row);
+    for (const path of [`${delimiter}${row.bin}`, `${row.bin}${delimiter}`, `../t${delimiter}${row.bin}`]) {
+      const c = checkFromTarget(row, path);
+      expect(existsSync(marker), `the planted claude was run with PATH=${path}: ${c.stdout}`).toBe(false);
+      expect(versionLines(c.stdout).map((l) => l.trim().replace(/^advisory\s+/, "")), c.stdout).toEqual([SKIPPED]);
+    }
+  });
+
+  it.skipIf(NO_SCRIPT_BINARIES)("the claude of an absolute PATH entry is run by its full path, from the home folder, never from the target", () => {
+    const row = installedWith(["--claude"]);
+    const marker = plantInTarget(row);
+    const cwdFile = join(row.bin, "cwd-of-claude");
+    fakeClaude(row, `pwd > '${cwdFile}'\nprintf '%s\\n' '2.1.293 (Claude Code)'`);
+    const c = checkFromTarget(row, `.${delimiter}${row.bin}`);
+    expect(existsSync(marker), `the planted claude was run: ${c.stdout}`).toBe(false);
+    const v = versionLines(c.stdout);
+    expect(v, c.stdout).toHaveLength(1);
+    expect(v[0], c.stdout).toMatch(meets("2.1.293"));
+    expect(readFileSync(cwdFile, "utf8").trim()).toBe(realpathSync(row.home));
+  });
+});
+
+describe("findClaudeOnPath: the PATH walk under each path flavor (review CR-01 and WR-04 of phase 42)", () => {
+  /** An isFile over a fixed set of paths: the lookup is tested without a filesystem, so win32 runs on any host. */
+  const files = (...ps: string[]): ((p: string) => boolean) => {
+    const set = new Set(ps);
+    return (p) => set.has(p);
+  };
+  /** The same over a Windows volume, whose names compare without regard to case (PATHEXT is upper-case by default). */
+  const winFiles = (...ps: string[]): ((p: string) => boolean) => {
+    const set = new Set(ps.map((x) => x.toLowerCase()));
+    return (p) => set.has(p.toLowerCase());
+  };
+
+  it("posix: relative and empty entries are skipped, the first absolute entry holding claude wins", () => {
+    const isFile = files("bin/claude", "/a/claude", "/b/claude");
+    expect(findClaudeOnPath(":.:bin:/a:/b", undefined, posix, isFile)).toEqual({ kind: "program", path: "/a/claude", relativeSkipped: true });
+    expect(findClaudeOnPath("/b", undefined, posix, isFile)).toEqual({ kind: "program", path: "/b/claude", relativeSkipped: false });
+    expect(findClaudeOnPath("bin:.", undefined, posix, isFile)).toEqual({ kind: "absent", relativeSkipped: true });
+    expect(findClaudeOnPath(undefined, undefined, posix, isFile)).toEqual({ kind: "absent", relativeSkipped: false });
+  });
+
+  it("win32: a drive-relative or relative entry is skipped, and only claude.com or claude.exe is a program (UNKNOWN - verify on a Windows host)", () => {
+    const isFile = winFiles("claude.exe", "C:claude.exe", "C:\\tools\\claude.exe", "D:\\x\\claude.com");
+    expect(findClaudeOnPath(".;C:;C:\\tools", ".COM;.EXE", win32, isFile)).toEqual({
+      kind: "program",
+      path: "C:\\tools\\claude.EXE",
+      relativeSkipped: true,
+    });
+    expect(findClaudeOnPath("D:\\x;C:\\tools", ".COM;.EXE", win32, isFile)).toEqual({ kind: "program", path: "D:\\x\\claude.COM", relativeSkipped: false });
+    // A quoted entry, as Windows allows in PATH, is read without its quotes. The name is spelled with PATHEXT's case.
+    expect(findClaudeOnPath('"C:\\tools"', undefined, win32, isFile)).toEqual({ kind: "program", path: "C:\\tools\\claude.EXE", relativeSkipped: false });
+  });
+});
+
 describe("install/README.md tells the truth about the probe (plan 42-05, D-27)", () => {
   const flat = README.replace(/\s+/g, " ");
 
@@ -246,7 +331,11 @@ describe("install/README.md tells the truth about the probe (plan 42-05, D-27)",
 
   it("says what the probe runs and what it prints", () => {
     expect(flat).toContain(
-      "When Claude Code is installed, `install.js --check` runs `claude --version`, the first `claude` on your PATH, with no shell.",
+      "When Claude Code is installed, `install.js --check` runs `claude --version`, the first `claude` in a PATH folder given as an absolute path, with no shell.",
+    );
+    // Review CR-01 of phase 42: the README says the target's own folder never supplies the program.
+    expect(flat).toContain(
+      "It runs that file by its full path from your home folder, and never runs a `claude` from the current folder or from an empty or relative PATH entry.",
     );
     expect(flat).toContain(
       `It prints an \`advisory\` line when the version is below v${CLAUDE_CODE_LEVEL_FLOOR}, or one saying it could not check the version and why.`,

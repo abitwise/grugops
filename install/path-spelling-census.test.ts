@@ -345,7 +345,9 @@ const ABSOLUTENESS_OWNERS = ["canonicalPathSpelling", "isRecordedAbsolute"];
 // four sites, classified below under three keys: an isAbsolute, a drive-letter pattern and a `.startsWith("/")` in its
 // first test, and an isAbsolute over relative() in its containment test. claudePluginSkillFolders' two tests (the
 // CLAUDE_CODE_PLUGIN_CACHE_DIR value and each recorded installPath) ask isRecordedAbsolute, so they are not sites.
-const DERIVED_ABSOLUTENESS_COUNT = 12;
+// 12 -> 13 on 2026-11-17 (phase 42 review fix CR-01): host-tools.ts findClaudeOnPath asks the injected flavor's
+// isAbsolute of each PATH entry, so `--check` searches only absolute entries for `claude`. It is classified below.
+const DERIVED_ABSOLUTENESS_COUNT = 13;
 
 /** An absoluteness site outside the owners, with its reason. Keyed by file, scope and kind. */
 const CLASSIFIED_ABSOLUTENESS = new Map<string, string>([
@@ -368,6 +370,10 @@ const CLASSIFIED_ABSOLUTENESS = new Map<string, string>([
   [
     "install.ts:folderInsidePlugin:drive-letter pattern",
     "`/^[A-Za-z]:/` in the refusal of a plugin manifest's `skills` path (phase 42 gate fix, plan 42-08, T-42-05): the manifest value must be relative under every path flavor, so a drive-qualified value is refused on any host; a relativity rule of the manifest format (P9), not a host absoluteness test",
+  ],
+  [
+    "host-tools.ts:findClaudeOnPath:isAbsolute",
+    "flavor.isAbsolute(entry) over each PATH entry (phase 42 review fix CR-01): the path the process is about to search for a program on this host (P8), not a recorded value; an entry that is not absolute is skipped so the current folder never supplies `claude`. host-tools.ts imports nothing, so it asks the injected node:path flavor, as canonicalPathSpelling does",
   ],
   [
     'install.ts:folderInsidePlugin:startsWith("/")',
@@ -495,7 +501,8 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
     ).toHaveLength(DERIVED_ABSOLUTENESS_COUNT);
     // 5 -> 6 on 2026-10-19 (quick task 261019-mq1): host-tools.ts isPiRefusedRel's case fold, classified above.
     // 6 -> 9 on 2026-11-16 (phase 42 gate fix): install.ts folderInsidePlugin's three keys, classified above.
-    expect(CLASSIFIED_ABSOLUTENESS.size, "the classified absoluteness map changed size").toBe(9);
+    // 9 -> 10 on 2026-11-17 (phase 42 review fix CR-01): host-tools.ts findClaudeOnPath's PATH-entry test, classified above.
+    expect(CLASSIFIED_ABSOLUTENESS.size, "the classified absoluteness map changed size").toBe(10);
     expect([...CLASSIFIED_ABSOLUTENESS.keys()].filter((k) => !used.has(k)), "a stale exemption: a classified absoluteness key that no derived site matched").toEqual([]);
   });
 

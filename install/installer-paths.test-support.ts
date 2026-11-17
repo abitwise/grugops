@@ -387,6 +387,11 @@ export interface RunOptions {
    * deletes it. hermeticEnv below builds the map the skill-doctor tests pass.
    */
   readonly env?: Readonly<Record<string, string | undefined>>;
+  /**
+   * The child's working directory (review CR-01 of phase 42): the test process's own when omitted. A case that runs
+   * `--check` from inside the target, as install/README.md documents, sets it to the target.
+   */
+  readonly cwd?: string;
 }
 
 /**
@@ -412,6 +417,7 @@ export function spawnBin(bin: string, args: readonly string[], target: string, g
   const r = spawnSync(process.execPath, [bin, ...args], {
     encoding: "utf8",
     env,
+    cwd: opts.cwd,
     timeout: opts.timeoutMs,
     maxBuffer: 64 * 1024 * 1024,
   });

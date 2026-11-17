@@ -2099,7 +2099,9 @@ Microsoft Foundry, `haiku` resolves to Haiku 4.5, which that page does not list 
 level, so what Claude Code does with the junior adapter's `effort: xhigh` line there is
 `UNKNOWN - verify`. On those providers `sonnet` can map to Sonnet 4.5, which is not in that list either,
 so the mid adapter's effort there is `UNKNOWN - verify` too. When Claude Code is installed,
-`install.js --check` runs `claude --version`, the first `claude` on your PATH, with no shell. It prints
+`install.js --check` runs `claude --version`, the first `claude` in a PATH folder given as an absolute
+path, with no shell. It runs that file by its full path from your home folder, and never runs a
+`claude` from the current folder or from an empty or relative PATH entry. It prints
 an `advisory` line when the version is below v2.1.293, or one saying it could not check the version
 and why.
 

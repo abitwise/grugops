@@ -19,11 +19,12 @@
 // reads the skills each role declares by spawning the committed scripts/role-skills-reader.js over the
 // kit home it checks, so the one `skills:` parser (scripts/canonical-frontmatter.ts roleSkillsOf) stays
 // the only one and install/ still imports nothing from scripts/. Phase 42 (plan 42-05) added the one spawn that is
-// resolved through PATH rather than run with process.execPath: when Claude Code is an installed host, `--check` runs
-// `claude --version` to compare its version with CLAUDE_CODE_LEVEL_FLOOR. It runs whatever `claude` is first on PATH,
-// the same program the user's own `claude` command runs, so it is bounded instead: only when Claude Code is installed,
-// with no shell, the one argument `--version`, stdin ignored, a 5-second timeout and a 64 KiB output cap, and only the
-// parsed version digits of its output are printed. install/README.md says that `--check` runs it.
+// found through PATH rather than run with process.execPath: when Claude Code is an installed host, `--check` runs
+// `claude --version` to compare its version with CLAUDE_CODE_LEVEL_FLOOR. host-tools.ts findClaudeOnPath finds it in
+// the absolute PATH entries only (review CR-01: never the current folder, which is usually the target, and never an
+// empty or relative entry), and it is run by that absolute path from the home folder. It is bounded too: only when
+// Claude Code is installed, with no shell, the one argument `--version`, stdin ignored, a 5-second timeout and a 64 KiB
+// output cap, and only the parsed version digits of its output are printed. install/README.md says that `--check` runs it.
 //
 // Contract (CLEAR PROFESSIONAL VOICE governs every report/warning/error string — safety surface):
 //   - additive    — never overwrites or deletes user content; appends via unique sentinels
@@ -63,6 +64,8 @@
 // its bytes: install/installer-fs-census.test.ts refuses readFileSync, copyFileSync,
 // createReadStream and openSync in this module and in the committed install.js.
 import {
+  accessSync,
+  constants,
   existsSync,
   mkdirSync,
   writeFileSync,
@@ -82,7 +85,7 @@ import {
   mkdtempSync,
   realpathSync,
 } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 // The mirror spawn (D-01). This is the ONLY import this file has ever needed beyond fs/path/os, and
 // it buys the whole render path: the generator stays the single renderer of the `model:` line, and
@@ -198,6 +201,7 @@ import {
   carriesKitRoute,
   commandContextFromRecord,
   entryOwners,
+  findClaudeOnPath,
   hostFootprint,
   hostForFlag,
   hostPointers,
@@ -2743,28 +2747,54 @@ function doctorDeclaredSkills(hosts: readonly HostTool[], home: string): void {
 }
 
 /**
+ * Whether `p` is a regular file this process may execute, the path followed: the `isFile` of findClaudeOnPath. A stat or
+ * access that fails for any reason reads as no.
+ */
+function executableFile(p: string): boolean {
+  try {
+    if (statSync(p, { throwIfNoEntry: false })?.isFile() !== true) return false;
+    accessSync(p, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The Claude Code version check (phase 42, plan 42-05; SKILL-05). Runs `claude --version` once and compares the
  * version on the first line of its stdout with CLAUDE_CODE_LEVEL_FLOOR, the version the junior engineer level needs.
  * The caller runs it only when Claude Code is an installed host. Every line prints through docReport: below the floor
  * or not checked is `advisory`, at or above it is `ok`, and neither counter, --strict nor the exit status moves. Only
  * the parsed version digits reach the output, never the program's own text. A `claude` the doctor cannot run or read
- * gives "not checked" with the reason; the doctor never guesses a version. On Windows an npm-installed `claude` is
- * usually a `.cmd` shim, which Node does not spawn without a shell, so there the line is "not checked".
+ * gives "not checked" with the reason; the doctor never guesses a version.
+ *
+ * Review CR-01: `claude` is found by findClaudeOnPath in the absolute PATH entries only and run by that absolute path,
+ * with `home` (the user's home folder) as its working folder, so neither the target nor a relative PATH entry can
+ * supply it. On Windows the child also gets NoDefaultCurrentDirectoryInExePath=1. The Windows half was not run on a
+ * Windows host: `UNKNOWN - verify`.
  */
-function doctorClaudeVersion(): void {
+function doctorClaudeVersion(home: string): void {
   const notChecked = (reason: string): void => docReport("advisory", `the Claude Code version was not checked: ${reason}`);
-  const r = spawnSync("claude", ["--version"], {
+  const onPath = findClaudeOnPath(process.env.PATH, process.env.PATHEXT, { sep, delimiter, isAbsolute, join }, executableFile);
+  if (onPath.kind === "absent") {
+    const skipped = onPath.relativeSkipped ? "; PATH entries that are empty or not absolute are not searched" : "";
+    notChecked(`\`claude\` was not found on PATH${skipped}`);
+    return;
+  }
+  const r = spawnSync(onPath.path, ["--version"], {
     encoding: "utf8",
     timeout: 5000,
     shell: false,
+    cwd: home,
+    // The whole environment, as the child inherits it anyway; on Windows also NoDefaultCurrentDirectoryInExePath=1.
+    env: { ...process.env, ...(sep === "\\" ? { NoDefaultCurrentDirectoryInExePath: "1" } : {}) },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
     maxBuffer: 65536,
   });
   if (r.error !== undefined) {
     const code = errCode(r.error);
-    if (code === "ENOENT" || code === "EINVAL") notChecked("`claude` was not found on PATH");
-    else if (code === "ETIMEDOUT") notChecked("`claude --version` did not finish within 5 seconds");
+    if (code === "ETIMEDOUT") notChecked("`claude --version` did not finish within 5 seconds");
     else notChecked(`\`claude --version\` could not be run (${code})`);
     return;
   }
@@ -3443,13 +3473,15 @@ function doctor(): number {
   // A role may declare optional skills. This section says, for every installed agent, whether each declared skill is
   // present where that agent looks (HOST_SKILL_DIRS). It is advisory only: it prints through docReport and never
   // through docWarn or docFail, so neither counter, --strict nor the exit status moves, and it writes nothing.
-  // The user's own home, whose skill folders the hosts read; never a kit home (the reader reads DOCTOR_KIT_HOME).
-  doctorDeclaredSkills(hosts, homedir());
+  // The user's own home, whose skill folders the hosts read; never a kit home (the reader reads DOCTOR_KIT_HOME). It is
+  // also the working folder of the Claude Code version probe below (review CR-01), so that probe never runs in the target.
+  const userHome = homedir();
+  doctorDeclaredSkills(hosts, userHome);
 
   // --- Claude Code version (phase 42, plan 42-05; SKILL-05) ---------------------------------------
   // Only when Claude Code is installed here: a target without it never runs `claude`. Advisory only, like the section
   // above: it prints through docReport, so the exit status and --strict do not move.
-  if (claudeInstalled) doctorClaudeVersion();
+  if (claudeInstalled) doctorClaudeVersion(userHome);
 
   // --- exit-code matrix (SC2) ----------------------------------------------------------------
   console.log("");

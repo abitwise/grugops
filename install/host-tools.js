@@ -381,6 +381,47 @@ export const HOST_SKILL_DIRS = {
  * `claude --version` prints with it, and a test pins the README's `v2.1.293` to it.
  */
 export const CLAUDE_CODE_LEVEL_FLOOR = "2.1.293";
+/** The extensions Windows tries when PATHEXT is unset. */
+const DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC";
+/**
+ * THE `claude` LOOKUP OF `--check` (phase 42 review CR-01). The doctor runs `claude --version` by the absolute path this
+ * returns, never by the bare name, so the operating system never searches the current folder for it. On Windows the
+ * system searches the current folder before PATH, and on POSIX an empty or `.` PATH entry names the current folder, which
+ * is usually the target repository: a repository could commit a `claude` there and have `--check` run it.
+ *
+ * PATH is split on `flavor.delimiter`, and only an entry `flavor.isAbsolute` accepts is searched; an empty or relative
+ * entry is skipped. Under POSIX the candidate is `<entry>/claude`. Under Windows (`flavor.sep` is a backslash) an entry
+ * may be wrapped in double quotes, which are taken off, and the candidates are `<entry>\claude<ext>` for each extension
+ * of `pathext` (PATHEXT, or Windows' default list) in order; only `.com` and `.exe` are programs Node runs without a
+ * shell, so another extension is passed over. The first candidate `isFile` accepts is returned. The flavor is a parameter
+ * so a test proves the Windows half on any host; a live Windows run is `UNKNOWN - verify`.
+ */
+export function findClaudeOnPath(pathValue, pathext, flavor, isFile) {
+    const windows = flavor.sep === "\\";
+    const exts = windows
+        ? (pathext ?? DEFAULT_PATHEXT)
+            .split(";")
+            .map((e) => e.trim())
+            .filter((e) => e.length > 1 && e.startsWith("."))
+        : [""];
+    let relativeSkipped = false;
+    for (const raw of (pathValue ?? "").split(flavor.delimiter)) {
+        const entry = windows && raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
+        if (entry === "" || !flavor.isAbsolute(entry)) {
+            if (pathValue !== undefined && pathValue !== "")
+                relativeSkipped = true;
+            continue;
+        }
+        for (const ext of exts) {
+            if (windows && ext.toLowerCase() !== ".com" && ext.toLowerCase() !== ".exe")
+                continue;
+            const p = flavor.join(entry, "claude" + ext);
+            if (isFile(p))
+                return { kind: "program", path: p, relativeSkipped };
+        }
+    }
+    return { kind: "absent", relativeSkipped };
+}
 /**
  * THE ONE AUTHORITY for the per-agent flag spelling (D-01): a new registry row gets its flag with no installer edit;
  * there is no all-agents flag. The flag is `--` followed by the row's id, so `--claude`, `--codex` and so on. Both

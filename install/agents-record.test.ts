@@ -5477,7 +5477,11 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // Re-pinned 2026-11-16 by plan 42-05 (SKILL-05, D-27): 77, measured by this census. The doctor's Claude Code version
 // line reaches doctorClaudeVersion (one spawn of `claude --version`, only when Claude Code is installed) and its local
 // notChecked (wording only). Neither reads the marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 77;
+// Re-pinned 2026-11-17 by the phase 42 review fix CR-01: 78, measured by this census. doctorClaudeVersion now finds
+// `claude` with host-tools.ts findClaudeOnPath in the absolute PATH entries only and runs it by that path from the
+// user's home; the doctor gains executableFile, the stat and access(2) X_OK test findClaudeOnPath is given. It reads no
+// marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 78;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -5991,16 +5995,22 @@ describe("D-36: one CommandContext constructor (WR-21, WR-22)", () => {
 //     Only install.ts hostSkillEnv reads one, by name, for the doctor's advisory declared-skills section, which looks
 //     where it points or says it did not look; it decides no kit home, mode, checkout or target, so no printed command
 //     needs to state it;
+//   - program lookup: PATH and PATHEXT, read by name in install.ts doctorClaudeVersion only (phase 42 review CR-01), to
+//     find the `claude` the doctor's advisory version line runs, in the absolute PATH entries only. They decide which
+//     program that one advisory probe runs, and no kit home, mode, checkout or target, so no printed command needs to
+//     state them;
 //   - temp: TMPDIR through tmpdir(), the scratch directory install.ts renders the adapters in and removes; it decides no
 //     kit home, mode, checkout or target;
 //   - whole environment: install.ts passes process.env to the adapter render child and its resolution probe. Their own
 //     comment says the generator reads no resolution-affecting variable, and the walk below asks that of the child's
 //     module graph (scripts/generate-role-adapters.ts and the probe's scripts/model-tiers.ts, through their relative
-//     imports): zero environment reads.
+//     imports): zero environment reads. Since the phase 42 review fix CR-01, install.ts doctorClaudeVersion also passes
+//     it, with NoDefaultCurrentDirectoryInExePath=1 added on Windows, to the `claude --version` child, which inherited it
+//     before as the default; that child is the user's own program, and only its parsed version digits are printed.
 // A later plan that adds a read re-pins ENV_READ_TABLE here with its class and the reason.
 
 /** The classes an environment read may have (D-38). */
-type EnvReadClass = "stated" | "overridden" | "preview" | "home" | "host location" | "temp" | "whole environment";
+type EnvReadClass = "stated" | "overridden" | "preview" | "home" | "host location" | "program lookup" | "temp" | "whole environment";
 /** node:os functions that read the environment, and the variable each reads. */
 const ENV_OS_READS: Readonly<Record<string, string>> = { homedir: "HOME", tmpdir: "TMPDIR" };
 /** node:os names that read no environment variable; a product module may import them unclassed. */
@@ -6022,6 +6032,11 @@ const ENV_READ_TABLE: Readonly<Record<string, { readonly count: number; readonly
   "install.ts :: * :: renderAdaptersInMirror": { count: 2, cls: "whole environment" },
   "install.ts :: TMPDIR :: renderAdaptersInMirror": { count: 2, cls: "temp" },
   "install.ts :: HOME :: kitRulePattern": { count: 1, cls: "home" },
+  // Phase 42 review fix CR-01 (2026-11-17): the doctor's Claude Code version line finds `claude` in the absolute PATH
+  // entries (PATHEXT for the Windows extensions) and passes the whole environment to it, as the child inherited before.
+  "install.ts :: PATH :: doctorClaudeVersion": { count: 1, cls: "program lookup" },
+  "install.ts :: PATHEXT :: doctorClaudeVersion": { count: 1, cls: "program lookup" },
+  "install.ts :: * :: doctorClaudeVersion": { count: 1, cls: "whole environment" },
   // Plan 42-02 (2026-11-16, SKILL-05): the doctor's declared-skills section looks for user skills under the user's own
   // home (HOST_SKILL_DIRS user folders). It decides no kit home, mode, checkout or target.
   "install.ts :: HOME :: doctor": { count: 1, cls: "home" },
@@ -6150,7 +6165,8 @@ describe("D-38: every environment variable a binary reads is stated in its print
       if (r.cls === "home") expect(k.split(" :: ")[1], k).toBe("HOME");
       if (r.cls === "temp") expect(k.split(" :: ")[1], k).toBe("TMPDIR");
       if (r.cls === "host location") expect(k, k).toMatch(/^install\.ts :: [A-Z_]+ :: hostSkillEnv$/);
-      if (r.cls === "whole environment") expect(k, k).toBe("install.ts :: * :: renderAdaptersInMirror");
+      if (r.cls === "program lookup") expect(k, k).toMatch(/^install\.ts :: (PATH|PATHEXT) :: doctorClaudeVersion$/);
+      if (r.cls === "whole environment") expect(["install.ts :: * :: renderAdaptersInMirror", "install.ts :: * :: doctorClaudeVersion"], k).toContain(k);
     }
     expect(Object.keys(ENV_READ_TABLE).filter((k) => k.startsWith("uninstall.ts :: INSTALL_MODE ")), "uninstall.ts reads no INSTALL_MODE").toEqual([]);
   });
@@ -6286,7 +6302,12 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // Re-pinned 2026-11-16 by plan 42-05 (SKILL-05, D-27): 67, measured by this walk. The doctor gains
 // doctorClaudeVersion, which runs `claude --version` and compares its output with CLAUDE_CODE_LEVEL_FLOOR; it reads no
 // kit home, no file and no environment variable by name, and calls no homedir(), so C3's table gains no row.
-const WR24_REACH_SIZE = 67;
+// Re-pinned 2026-11-17 by the phase 42 review fix CR-01: 68, measured by this walk. The doctor gains executableFile, a
+// stat and an access(2) X_OK test of one candidate `claude` path from PATH. doctorClaudeVersion now reads PATH and
+// PATHEXT by name (ENV_READ_TABLE class "program lookup") and runs the program from the user's home, which doctor()
+// passes in from its one homedir() call; neither reads GRUGOPS_HOME, GIVEN_KIT_HOME or KIT_ROOT or calls homedir(), so
+// C3's table gains no row.
+const WR24_REACH_SIZE = 68;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run
