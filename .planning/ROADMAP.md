@@ -744,35 +744,39 @@ Wave 5
   5. The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug` (STORY-05)
   6. Milestone UAT, carried from Phase 39 UAT tests 10 and 14 (human, 2026-10-31): on a live Claude Code host in a scratch repo, unscored work is never auto-delegated to a junior, mid or senior engineer adapter (each level is reached only when the Tech Lead's plan names it), and a `grugops-designer` design note reaches `scripts/context-io.js` through Bash and is admitted, not refused as unsealed
 
-**Plans**: 13 plans
+**Plans**: 15 plans (plan revision 1 split 43-04 into 43-04 and 43-14, and 43-06 into 43-06 and 43-15; plans run by wave, not by number)
 
 Wave 1 *(one registry plan, one corpus plan, disjoint files)*
 - [ ] 43-01-PLAN.md — the pre-phase baseline, and the `retired` claim status: row and id kept, text and anchor absence-checked (STORY-04)
 - [ ] 43-02-PLAN.md — the shipped user docs declared once (`shippedDocs`) and joined to the public-docs corpus before any page is written (STORY-04, STORY-02, STORY-05)
 
-Wave 2 *(the story gate and the reference generator, disjoint files)*
+Wave 2
 - [ ] 43-03-PLAN.md — `check:story-docs`: no `/grug` in CLAUDE.md, the GAP-D1 sentence wherever parallel work is described, no dead shipped link; CLAUDE.md fixed (STORY-05, STORY-02)
-- [ ] 43-04-PLAN.md — the catalog generator writes docs/reference/ with one page per role; docs/catalog/ retired; the tree freshness gate (STORY-03, STORY-02)
 
-Wave 3 *(reference skills, the installer and the examples, disjoint files)*
-- [ ] 43-05-PLAN.md — one generated page per grugops skill, invocation per host from the registry, and the engineer levels section (STORY-03, STORY-02)
-- [ ] 43-06-PLAN.md — install ships docs/ and examples/ into the kit home beside agent-factory/, with the kit's record, update, dry-run and prune arms (STORY-02)
+Wave 3 *(the reference tracer, the installer tracer and the examples, disjoint files)*
+- [ ] 43-04-PLAN.md — the catalog generator writes docs/reference/ with the index and one page per role; docs/catalog/ retired; the tree freshness gate (STORY-03, STORY-02)
+- [ ] 43-06-PLAN.md — install ships docs/ and examples/ into the kit home beside agent-factory/: record, fresh and backup arms, census (STORY-02)
 - [ ] 43-07-PLAN.md — worked examples 01-03 rewritten to v3; 01 and 03 relabeled illustrative (STORY-02, STORY-05)
 - [ ] 43-08-PLAN.md — worked examples 04-05 rewritten to v3 with an honest deploy gate (STORY-02, STORY-05)
 
-Wave 4
+Wave 4 *(reference skills and the remaining installer arms, disjoint files)*
+- [ ] 43-05-PLAN.md — one generated page per grugops skill, invocation per host from the registry, workflows and roles reached (STORY-03, STORY-02)
+- [ ] 43-15-PLAN.md — docs/ and examples/ take the kit's replace, update, dry-run and prune arms; the install guide describes the kit home (STORY-02)
+
+Wave 5 *(full role pages and the concept pages, disjoint files)*
+- [ ] 43-14-PLAN.md — each role page gains its header block, adapters per host and six extracted sections, and the engineer levels section (STORY-03, STORY-02)
 - [ ] 43-09-PLAN.md — docs/how-it-works.md (mermaid plus numbered steps, open gaps) and docs/concepts.md; C-28-033 moves with its id (STORY-02, STORY-04, STORY-05)
 
-Wave 5
+Wave 6
 - [ ] 43-10-PLAN.md — docs/usage.md by job with examples; the start table, host usage, commands and prompts move there with their claims (STORY-02, STORY-04, STORY-01)
 
-Wave 6
+Wave 7
 - [ ] 43-11-PLAN.md — the README front door with the new tagline and story; C-28-002/003/008 retired, C-28-001 to concepts; the docs index (STORY-01, STORY-04, STORY-02)
 
-Wave 7
+Wave 8
 - [ ] 43-12-PLAN.md — examples join the hand-trace scan, faq and changelog, the reader review and the phase gate (STORY-05, STORY-02, STORY-04)
 
-Wave 8 *(human checkpoint)*
+Wave 9 *(human checkpoint)*
 - [ ] 43-13-PLAN.md — the milestone UAT carried from Phase 39 tests 10 and 14, run headless, decided by the human's typed name (success criterion 6)
 
 **Notes**: Reference pages come from the existing catalog generator; claim anchors keep their ids.
