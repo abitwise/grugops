@@ -2995,6 +2995,52 @@ describe("check-banned-claims — CHANGELOG.md is INSIDE the scan set (round 6, 
     expect(stdout).not.toContain("ALL CHECKS PASSED");
   });
 
+  // ── PLAN 43-02 (STORY-04, D-21): THE RULE COVERS A PAGE BEFORE THE PAGE IS WRITTEN. ────────────
+  //
+  // docs/planted-new-page.md is named in no list anywhere: not in this gate, not in the public-docs
+  // corpus, not in install/kit-source.ts. It reaches this gate only because shippedDocs() derives
+  // every .md under docs/ outside the checkout-only paths, and the public-docs corpus turns that into
+  // its `docs` part. So a page this phase has not written yet is already inside the checked file set:
+  // the day it lands with a banned literal, this gate goes red naming it, with no code change. The
+  // mirror writes the planted page INSTEAD of the default shipped page, so the scan still equals the
+  // pin and the red below is the finding's, not the pin's. The control is the same mirror without the
+  // literal.
+  const PLANTED_NEW_PAGE = "docs/planted-new-page.md";
+  const plantedNewPageMirror = (body: string): string => {
+    const mirror = makeMirror("gops-banned-planted-page-", { omitShippedDocs: true });
+    writeFileSync(join(mirror, ...PLANTED_NEW_PAGE.split("/")), body, "utf8");
+    return mirror;
+  };
+
+  it("PLANT: a page planted under docs/ joins the scan with no code change, and `fewer tokens` in it is named", () => {
+    const { status, stdout } = runGate(
+      plantedNewPageMirror(`${CLEAN}\nThis kit uses fewer tokens than a plain agent.\n`),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toMatch(
+      /docs\/planted-new-page\.md:\d+:\d+ — banned token-economy literal "fewer tokens"/,
+    );
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("CONTROL: the same planted page without the literal passes — the red above is the literal's", () => {
+    const { status, stdout } = runGate(plantedNewPageMirror(CLEAN));
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("REPORTS an empty `docs` corpus part through the imported refusal channel (omitShippedDocs)", () => {
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-noshipped-", { omitShippedDocs: true }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain("public-document corpus derivation refused");
+    expect(stdout).toContain('the "docs" part derived no shipped docs page');
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
   it("the changelog is a MEMBER of the derived scan set, and the pin counts it", () => {
     // The membership half, stated over the LIVE tree rather than inferred from the finding above.
     // Deliberately NOT the mirror: the finding case already proves the mirror's changelog is read,

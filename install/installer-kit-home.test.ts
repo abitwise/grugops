@@ -41,6 +41,7 @@ import {
   readlinkSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -61,6 +62,8 @@ import {
 } from "./installer-paths.test-support.js";
 import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
 import { realTargetPath } from "./user-file.js";
+// (Plan 43-02, D-11, D-27) The shipped user docs, declared once. Unit cases at the foot of this file.
+import { CHECKOUT_ONLY_DOCS, SHIPPED_DOCS_ROOTS, shippedDocs } from "./kit-source.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-kit-home-")));
@@ -436,5 +439,113 @@ describe("the kit carries the MIT license and NOTICE (quick task 261018-hs8, Tas
     const section = readme.slice(start, end);
     for (const name of LICENSE_FILES) expect(section, `§1 does not name \`${name}\``).toContain(`\`${name}\``);
     expect(section).toMatch(/stay with the copy/);
+  });
+});
+
+// ── PLAN 43-02 (D-11, D-27): THE SHIPPED USER DOCS, DERIVED ONCE ─────────────────────────────────────
+//
+// install/kit-source.ts declares which user docs ship: every `.md` under SHIPPED_DOCS_ROOTS minus
+// CHECKOUT_ONLY_DOCS. The public-docs corpus reads it now (plan 43-02); the installer (plan 43-06) and the
+// story gate's link check (plan 43-03) read it later. These cases pin the derivation's contract on scratch
+// roots, and its two live-tree facts: every checkout-only entry exists, and the pages that persist through
+// phase 43 are members. No case names a page a later plan of this phase deletes.
+
+/** The pages that persist through phase 43, asserted present on the live tree. */
+const PERSISTING_SHIPPED_DOCS = [
+  "docs/GUARANTEES.md",
+  "docs/faq.md",
+  "docs/skills.md",
+  "examples/01-greenfield-bootstrap.md",
+  "examples/02-brownfield-bootstrap.md",
+  "examples/03-ticket-to-pr.md",
+  "examples/04-sprint-cycle.md",
+  "examples/05-release-run.md",
+];
+
+function writeAt(root: string, rel: string, body = "# page\n"): void {
+  const dst = join(root, ...rel.split("/"));
+  mkdirSync(join(dst, ".."), { recursive: true });
+  writeFileSync(dst, body, "utf8");
+}
+
+describe("shippedDocs: the shipped user docs, declared once (plan 43-02, D-11, D-27)", () => {
+  it("the source roots are docs and examples, and the checkout-only list is the five recorded paths", () => {
+    expect(SHIPPED_DOCS_ROOTS).toEqual(["docs", "examples"]);
+    expect(CHECKOUT_ONLY_DOCS.map((e) => e.path)).toEqual([
+      "docs/audit/",
+      "docs/design/",
+      "docs/initial/",
+      "docs/dogfood-human-runbook.md",
+      "docs/pre-v3-state-layout.md",
+    ]);
+  });
+
+  it("every CHECKOUT_ONLY_DOCS entry names a path that exists in this checkout and carries a reason", () => {
+    for (const e of CHECKOUT_ONLY_DOCS) {
+      const abs = join(REPO, ...e.path.split("/").filter((s) => s !== ""));
+      expect(existsSync(abs), `${e.path} does not exist, so the entry is stale`).toBe(true);
+      // A directory entry ends in `/` and must be a directory; a file entry must be a file.
+      expect(statSync(abs).isDirectory(), e.path).toBe(e.path.endsWith("/"));
+      expect(e.why.trim().length, `${e.path} has no reason`).toBeGreaterThan(0);
+    }
+  });
+
+  it("returns sorted POSIX paths, keeps nested pages, and leaves out checkout-only paths and non-.md files", () => {
+    const root = fresh("shipped-docs-contract");
+    for (const rel of ["docs/z.md", "docs/a/b.md", "docs/faq.md", "examples/01-x.md"]) writeAt(root, rel);
+    writeAt(root, "docs/notes.txt");
+    writeAt(root, "examples/diagram.png");
+    for (const e of CHECKOUT_ONLY_DOCS) {
+      if (e.path.endsWith("/")) {
+        writeAt(root, `${e.path}inside.md`);
+        writeAt(root, `${e.path}deeper/nested.md`);
+      } else {
+        writeAt(root, e.path);
+      }
+    }
+    expect(shippedDocs(root)).toEqual(["docs/a/b.md", "docs/faq.md", "docs/z.md", "examples/01-x.md"]);
+  });
+
+  it("a symlinked page is a page, and a symlink cycle ends the descent without repeating a page", () => {
+    const root = fresh("shipped-docs-links");
+    writeAt(root, "docs/real.md");
+    writeAt(root, "examples/01-x.md");
+    writeAt(root, "outside/linked.md");
+    symlinkSync(join(root, "outside", "linked.md"), join(root, "docs", "linked.md"));
+    // docs/loop points back at docs/: on the current path it repeats, so it is not walked again.
+    symlinkSync(join(root, "docs"), join(root, "docs", "loop"));
+    expect(shippedDocs(root)).toEqual(["docs/linked.md", "docs/real.md", "examples/01-x.md"]);
+  });
+
+  it("returns [] when docs/ and examples/ exist and hold no shipped page", () => {
+    const root = fresh("shipped-docs-empty");
+    mkdirSync(join(root, "docs"), { recursive: true });
+    mkdirSync(join(root, "examples"), { recursive: true });
+    // Only checkout-only content: read, and nothing in it ships.
+    writeAt(root, "docs/audit/record.md");
+    writeAt(root, "docs/dogfood-human-runbook.md");
+    expect(shippedDocs(root)).toEqual([]);
+  });
+
+  it("returns null when a source root cannot be read, never a partial list", () => {
+    // The whole source root is missing.
+    expect(shippedDocs(join(SCRATCH, "no-such-source-root"))).toBeNull();
+    // docs/ is readable and holds a page, but examples/ is missing: null, not ["docs/faq.md"].
+    const root = fresh("shipped-docs-one-root");
+    writeAt(root, "docs/faq.md");
+    expect(shippedDocs(root)).toBeNull();
+  });
+
+  it("on the live tree: the persisting pages are members and no checkout-only path is", () => {
+    const live = shippedDocs(REPO);
+    expect(live).not.toBeNull();
+    for (const page of PERSISTING_SHIPPED_DOCS) expect(live, page).toContain(page);
+    const leaked = (live ?? []).filter((p) =>
+      CHECKOUT_ONLY_DOCS.some((e) => (e.path.endsWith("/") ? p.startsWith(e.path) : p === e.path)),
+    );
+    expect(leaked).toEqual([]);
+    for (const p of live ?? []) {
+      expect(p.startsWith("docs/audit/") || p.startsWith("docs/design/") || p.startsWith("docs/initial/"), p).toBe(false);
+    }
   });
 });

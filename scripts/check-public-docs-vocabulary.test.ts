@@ -414,6 +414,39 @@ describe("check-public-docs-vocabulary — vacuity is refused by name", () => {
     );
     expect(stdout).not.toContain("ALL CHECKS PASSED");
   });
+
+  // ── PLAN 43-02 (D-21): THE `docs` PART REFUSES AN EMPTY OR UNREADABLE DERIVATION BY NAME. ──────
+  // The part is derived by install/kit-source.ts shippedDocs(). A mirror with no shipped page under
+  // docs/ (docs/ still holds the guarantees and skills pages, which are their own parts) must not
+  // pass over an empty part, and a mirror whose examples/ root is gone must not either: shippedDocs()
+  // returns null there rather than a partial list.
+  it("REFUSES an empty `docs` part by name (omitShippedDocs)", () => {
+    const { status, stdout } = runGate(
+      makeMirror("gops-pubdocs-noshipped-", { omitShippedDocs: true }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      'public-docs scan derivation refused: the "docs" part derived no shipped docs page',
+    );
+    expect(stdout).toMatch(
+      /the "docs" part of the public-docs scan set derived ZERO members/,
+    );
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("REFUSES a `docs` part whose derivation could not read a source root", () => {
+    const mirror = makeMirror("gops-pubdocs-noexamplesroot-");
+    rmSync(join(mirror, "examples"), { recursive: true, force: true });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      'public-docs scan derivation refused: the "docs" part could not be derived: ' +
+        "install/kit-source.ts shippedDocs() returned null",
+    );
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
 });
 
 describe("check-public-docs-vocabulary — the derived pin and the D-10 control", () => {
