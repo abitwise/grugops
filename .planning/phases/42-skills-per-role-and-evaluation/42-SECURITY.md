@@ -106,3 +106,11 @@ created: "2026-11-17"
 - [x] `status: verified` set in frontmatter
 
 **Approval:** verified 2026-11-17; R-42-01 accepted by Olger (42-UAT test 5, 2026-11-17)
+
+## Security Audit 2026-11-17
+
+| Metric | Count |
+|---|---|
+| Threats found | 28 |
+| Closed | 28 |
+| Open | 0 |
