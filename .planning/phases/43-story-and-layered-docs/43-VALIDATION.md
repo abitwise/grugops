@@ -61,6 +61,31 @@ Filled in by the planner from the plans. Requirement-to-command map from researc
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
+### Per-task map (from the plans, 2026-11-17)
+
+| Plan | Task | Requirement | Automated command (first verify line) | Status |
+|------|------|-------------|----------------------------------------|--------|
+| 43-01 | 1 tracer | STORY-04 | `npm run build && npx vitest run scripts/check-claim-anchors.test.ts scripts/audit-model.test.ts` | ⬜ |
+| 43-01 | 2 | STORY-04 | same files plus `scripts/check-audit-register.test.ts scripts/generate-guarantees.test.ts` | ⬜ |
+| 43-01 | 3 | STORY-04 | `node scripts/check-claim-anchors.js && node scripts/check-audit-register.js && npx vitest run scripts/audit-model.test.ts` | ⬜ |
+| 43-02 | 1 tracer | STORY-04 | `npx vitest run scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts` | ⬜ |
+| 43-02 | 2 | STORY-04 | `npx vitest run install/installer-kit-home.test.ts scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts` | ⬜ |
+| 43-03 | 1 tracer | STORY-05 | `npx vitest run scripts/check-story-docs.test.ts scripts/model-dial-consistency.test.ts install/host-entry-docs.test.ts …` | ⬜ |
+| 43-03 | 2 | STORY-05 | `npx vitest run scripts/check-story-docs.test.ts install/message-references.test.ts …` | ⬜ |
+| 43-03 | 3 | STORY-05, STORY-02 | `npx vitest run scripts/check-story-docs.test.ts scripts/skills-kit-text.test.ts scripts/check-claim-anchors.test.ts scripts/frontmatter.test.ts` | ⬜ |
+| 43-04 | 1 tracer | STORY-03 | `npm run generate:catalog && git diff --exit-code -- docs/reference && npx vitest run scripts/catalog-freshness.test.ts` | ⬜ |
+| 43-04 | 2 | STORY-03 | `npx vitest run scripts/generate-catalog.test.ts scripts/catalog-freshness.test.ts install/host-entry-docs.test.ts …` | ⬜ |
+| 43-04 | 3 | STORY-03 | `npx vitest run scripts/catalog-freshness.test.ts scripts/generate-catalog.test.ts scripts/kit-model.test.ts scripts/frontmatter.test.ts …` | ⬜ |
+| 43-05 | 1-3 | STORY-03 | `npm run freshness:catalog` plus `npx vitest run scripts/generate-catalog.test.ts scripts/catalog-freshness.test.ts …` | ⬜ |
+| 43-06 | 1-3 | STORY-02 (D-11, D-27) | `npx vitest run install/installer-kit-home.test.ts install/ledger.test.ts install/installer-dry-run.test.ts install/installer-prune.test.ts install/installer-fs-census.test.ts …` | ⬜ |
+| 43-07 | 1-3 | STORY-02 | the ad hoc four-pattern hand-trace scan over examples/01-03 plus `check:story-docs` and the corpus gates | ⬜ |
+| 43-08 | 1-2 | STORY-02, STORY-05 | the ad hoc four-pattern hand-trace scan over examples/04-05 plus the corpus gates | ⬜ |
+| 43-09 | 1-3 | STORY-02, STORY-04 | `node scripts/check-claim-anchors.js && node scripts/check-audit-register.js && … && npm run check:story-docs` | ⬜ |
+| 43-10 | 1-3 | STORY-02, STORY-04 | `npx vitest run install/host-entry-docs.test.ts install/host-tools.test.ts scripts/check-uat-oracles.test.ts …` and the job-section check | ⬜ |
+| 43-11 | 1-3 | STORY-01, STORY-04 | the claim gates, `npm run freshness:guarantees`, `npx vitest run scripts/check-story-docs.test.ts …` | ⬜ |
+| 43-12 | 1-3 | STORY-05 | `npx vitest run scripts/trace-instructions.test.ts`; the reader review; the phase gate against 43-BASELINE.md | ⬜ |
+| 43-13 | 1-3 | SC-6 | evidence files exist and carry no home path; the human decides by typed name (manual) | ⬜ |
+
 ---
 
 ## Wave 0 Requirements

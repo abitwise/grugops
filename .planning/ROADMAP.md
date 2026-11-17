@@ -744,7 +744,37 @@ Wave 5
   5. The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug` (STORY-05)
   6. Milestone UAT, carried from Phase 39 UAT tests 10 and 14 (human, 2026-10-31): on a live Claude Code host in a scratch repo, unscored work is never auto-delegated to a junior, mid or senior engineer adapter (each level is reached only when the Tech Lead's plan names it), and a `grugops-designer` design note reaches `scripts/context-io.js` through Bash and is admitted, not refused as unsealed
 
-**Plans**: TBD
+**Plans**: 13 plans
+
+Wave 1 *(one registry plan, one corpus plan, disjoint files)*
+- [ ] 43-01-PLAN.md — the pre-phase baseline, and the `retired` claim status: row and id kept, text and anchor absence-checked (STORY-04)
+- [ ] 43-02-PLAN.md — the shipped user docs declared once (`shippedDocs`) and joined to the public-docs corpus before any page is written (STORY-04, STORY-02, STORY-05)
+
+Wave 2 *(the story gate and the reference generator, disjoint files)*
+- [ ] 43-03-PLAN.md — `check:story-docs`: no `/grug` in CLAUDE.md, the GAP-D1 sentence wherever parallel work is described, no dead shipped link; CLAUDE.md fixed (STORY-05, STORY-02)
+- [ ] 43-04-PLAN.md — the catalog generator writes docs/reference/ with one page per role; docs/catalog/ retired; the tree freshness gate (STORY-03, STORY-02)
+
+Wave 3 *(reference skills, the installer and the examples, disjoint files)*
+- [ ] 43-05-PLAN.md — one generated page per grugops skill, invocation per host from the registry, and the engineer levels section (STORY-03, STORY-02)
+- [ ] 43-06-PLAN.md — install ships docs/ and examples/ into the kit home beside agent-factory/, with the kit's record, update, dry-run and prune arms (STORY-02)
+- [ ] 43-07-PLAN.md — worked examples 01-03 rewritten to v3; 01 and 03 relabeled illustrative (STORY-02, STORY-05)
+- [ ] 43-08-PLAN.md — worked examples 04-05 rewritten to v3 with an honest deploy gate (STORY-02, STORY-05)
+
+Wave 4
+- [ ] 43-09-PLAN.md — docs/how-it-works.md (mermaid plus numbered steps, open gaps) and docs/concepts.md; C-28-033 moves with its id (STORY-02, STORY-04, STORY-05)
+
+Wave 5
+- [ ] 43-10-PLAN.md — docs/usage.md by job with examples; the start table, host usage, commands and prompts move there with their claims (STORY-02, STORY-04, STORY-01)
+
+Wave 6
+- [ ] 43-11-PLAN.md — the README front door with the new tagline and story; C-28-002/003/008 retired, C-28-001 to concepts; the docs index (STORY-01, STORY-04, STORY-02)
+
+Wave 7
+- [ ] 43-12-PLAN.md — examples join the hand-trace scan, faq and changelog, the reader review and the phase gate (STORY-05, STORY-02, STORY-04)
+
+Wave 8 *(human checkpoint)*
+- [ ] 43-13-PLAN.md — the milestone UAT carried from Phase 39 tests 10 and 14, run headless, decided by the human's typed name (success criterion 6)
+
 **Notes**: Reference pages come from the existing catalog generator; claim anchors keep their ids.
 
 ## Progress
@@ -761,7 +791,7 @@ Wave 5
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
 | 42. Skills per role and evaluation | v3.0 | 8/8 | Complete    | 2026-11-17 |
-| 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
+| 43. Story and layered docs | v3.0 | 0/13 | Planned | - |
 
 ## Backlog
 
