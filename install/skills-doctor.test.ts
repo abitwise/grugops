@@ -22,7 +22,7 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -480,6 +480,48 @@ describe("--check: each installed host is checked from its own row (plan 42-08, 
       expect(counted(a.stdout)).toEqual(counted(b.stdout));
       expect(summaryLine(a.stdout)).toBe(summaryLine(b.stdout));
     }
+  });
+});
+
+// ── terminal control bytes from the kit home never reach the terminal (phase 42 review CR-02) ─────────────────────
+/** A C0 control other than tab and newline, DEL, a C1 control, or a bidirectional format character. */
+const UNPRINTABLE = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
+
+describe("--check prints no control or bidi character that a role file or the reader's stderr carries (review CR-02)", () => {
+  it("a role whose first line holds an OSC title, BEL, an SGR colour and U+202E: the refusal line is printed without them", () => {
+    const row = installedWithPlantedSkill();
+    const evil = "\u001b]0;pwned\u0007\u001b[31mRED \u202ehello\u001b[0m";
+    writeFileSync(join(row.kitHome, "agent-factory", "roles", "zz-evil.md"), `${evil}\nno frontmatter here\n`);
+    const c = check(row);
+    expect(UNPRINTABLE.test(c.stdout), JSON.stringify(c.stdout.split("\n").filter((l) => UNPRINTABLE.test(l)))).toBe(false);
+    const refused = only(c.stdout, /^ {2}advisory\s+declared skills of zz-evil not read: \S/);
+    expect(refused.length, c.stdout).toBe(1);
+    expect(refused[0], c.stdout).toContain("]0;pwned[31mRED hello[0m");
+    expect(only(c.stdout, MISSING_CLAUDE).length, c.stdout).toBe(1);
+  });
+
+  it("a plugin key in installed_plugins.json holding ESC and BEL is named in the `not checked` line without them", () => {
+    const row = installedWithPlantedSkill();
+    const key = "evil\u001b]0;pwned\u0007@m";
+    const record = { version: 2, plugins: { [key]: [{ scope: "user", installPath: "relative/path", version: "1.0.0" }] } };
+    writeFileSync(join(homePlugins(row), "installed_plugins.json"), JSON.stringify(record));
+    const c = check(row);
+    expect(UNPRINTABLE.test(c.stdout), JSON.stringify(c.stdout.split("\n").filter((l) => UNPRINTABLE.test(l)))).toBe(false);
+    const nc = only(c.stdout, NOT_CHECKED_CLAUDE);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain("plugin evil]0;pwned@m has an installPath that is not an absolute path");
+  });
+
+  // A file name with an ESC byte cannot exist on Windows, and a link there needs a privilege.
+  it.skipIf(process.platform === "win32")("the reader's stderr, naming a role file whose name holds ESC and BEL, is printed without them", () => {
+    const row = installedWithPlantedSkill();
+    // A dangling link: the reader lists it, its read fails, and the error it prints names the file.
+    symlinkSync(join(row.kitHome, "nowhere"), join(row.kitHome, "agent-factory", "roles", "bad\u001b]0;pwned\u0007.md"));
+    const c = check(row);
+    expect(UNPRINTABLE.test(c.stdout), JSON.stringify(c.stdout.split("\n").filter((l) => UNPRINTABLE.test(l)))).toBe(false);
+    const notChecked = only(c.stdout, /^ {2}advisory\s+declared skills not checked: the role-skills reader \S+ exited 1: /);
+    expect(notChecked.length, c.stdout).toBe(1);
+    expect(notChecked[0], c.stdout).toContain("]0;pwned");
   });
 });
 

@@ -5481,7 +5481,11 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // `claude` with host-tools.ts findClaudeOnPath in the absolute PATH entries only and runs it by that path from the
 // user's home; the doctor gains executableFile, the stat and access(2) X_OK test findClaudeOnPath is given. It reads no
 // marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 78;
+// Re-pinned 2026-11-17 by the phase 42 review fix CR-02: 80, measured by this census. The declared-skills section and
+// the Claude Code version line print through printableLine (state-migrate.ts stripControlChars plus the bidi format
+// characters taken out), and doctorDeclaredSkills prints through its local say, which calls it. Neither reads the
+// marker; the DI-19 rows below still hold.
+const DOCTOR_REACH_SIZE = 80;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {
@@ -6307,7 +6311,10 @@ const WR24_REACH_MEMBERS = ["doctor", "kitRouteFindings", "notInstalled", "marke
 // PATHEXT by name (ENV_READ_TABLE class "program lookup") and runs the program from the user's home, which doctor()
 // passes in from its one homedir() call; neither reads GRUGOPS_HOME, GIVEN_KIT_HOME or KIT_ROOT or calls homedir(), so
 // C3's table gains no row.
-const WR24_REACH_SIZE = 68;
+// Re-pinned 2026-11-17 by the phase 42 review fix CR-02: 69, measured by this walk. The doctor gains printableLine, which
+// takes control and bidi format characters out of a line before it is printed; it reads no kit home and calls no
+// homedir(), so C3's table gains no row.
+const WR24_REACH_SIZE = 69;
 /**
  * C2: the module-level names holding this run's kit home (plan 34.1-50, 2026-10-13, D-38; DEFAULT_KIT_HOME was removed
  * by plan 34.1-47). Re-pinned 2026-10-14 by plan 34.1-56 (D-42, review WR-37): GIVEN_KIT_HOME is the kit home this run

@@ -2446,6 +2446,19 @@ const OPTIONAL_SKILL = "; optional, see docs/skills.md";
 /** A role name or a skill name as the one grammar admits it: lower-case kebab, compared byte for byte (D-03). */
 const KEBAB_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** The bidirectional format characters: U+061C, U+200E, U+200F, U+202A to U+202E and U+2066 to U+2069. */
+const BIDI_FORMAT = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+
+/**
+ * `text` safe in one printed line (phase 42 review CR-02): C0 and C1 control characters and DEL taken out by
+ * stripControlChars, and the bidirectional format characters too, so a role file, the reader's stderr, a plugin record or
+ * an environment value cannot send an escape sequence to the terminal or reorder the line. Every line the declared-skills
+ * section and the Claude Code version line print passes through it.
+ */
+function printableLine(text: string): string {
+  return stripControlChars(text, false).replace(BIDI_FORMAT, "");
+}
+
 /** A parsed JSON value that is an object (not null, not an array). */
 function isJsonObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -2470,7 +2483,7 @@ function readDeclaredSkills(): DeclaredSkills | string {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
-  const firstErr = (r.stderr ?? "").trim().split("\n")[0] ?? "";
+  const firstErr = printableLine((r.stderr ?? "").trim().split("\n")[0] ?? "");
   const said = firstErr === "" ? "" : `: ${firstErr.length > 300 ? firstErr.slice(0, 300) + "..." : firstErr}`;
   if (r.error !== undefined) return `the role-skills reader ${reader} could not be run (${errCode(r.error)})`;
   if (r.signal !== null) return `the role-skills reader ${reader} was stopped by the signal ${r.signal}`;
@@ -2493,8 +2506,9 @@ function readDeclaredSkills(): DeclaredSkills | string {
     if (!isJsonObject(ref) || typeof ref.role !== "string" || !KEBAB_NAME.test(ref.role) || typeof ref.reason !== "string") {
       return notShape;
     }
-    // One line on the report: whitespace runs collapse to one space and a long reason is cut.
-    const reason = ref.reason.replace(/\s+/g, " ").trim();
+    // One line on the report: whitespace runs collapse to one space, control and bidi characters are taken out (the
+    // reason quotes role-file bytes, review CR-02) and a long reason is cut.
+    const reason = printableLine(ref.reason.replace(/\s+/g, " ")).trim();
     refusals.push({ role: ref.role, reason: reason.length > 300 ? reason.slice(0, 300) + "..." : reason });
   }
   const skills = new Map<string, readonly string[]>();
@@ -2681,13 +2695,15 @@ function pluginFolderSkillFolders(home: string, userRoot: string): PluginSkillFo
  */
 function doctorDeclaredSkills(hosts: readonly HostTool[], home: string): void {
   if (hosts.length === 0) return;
+  // Every line through printableLine: a reason can quote the plugin record, a manifest or an environment value.
+  const say = (label: "ok" | "advisory", msg: string): void => docReport(label, printableLine(msg));
   const declared = readDeclaredSkills();
   if (typeof declared === "string") {
-    docReport("advisory", `declared skills not checked: ${declared}`);
+    say("advisory", `declared skills not checked: ${declared}`);
     return;
   }
   for (const { role, reason } of declared.refusals) {
-    docReport("advisory", `declared skills of ${role} not read: ${reason} (the role-frontmatter guard reports this)`);
+    say("advisory", `declared skills of ${role} not read: ${reason} (the role-frontmatter guard reports this)`);
   }
   const env = hostSkillEnv();
   // The plugin lookups read the filesystem, so each runs at most once per run and only when a skill needs it.
@@ -2698,7 +2714,7 @@ function doctorDeclaredSkills(hosts: readonly HostTool[], home: string): void {
     for (const h of hosts) {
       const dirs = HOST_SKILL_DIRS[h.id];
       if (dirs === undefined) {
-        docReport("advisory", `skill ${who} not checked for ${h.name}: this build lists no skill folders for it${OPTIONAL_SKILL}`);
+        say("advisory", `skill ${who} not checked for ${h.name}: this build lists no skill folders for it${OPTIONAL_SKILL}`);
         continue;
       }
       let found =
@@ -2717,19 +2733,19 @@ function doctorDeclaredSkills(hosts: readonly HostTool[], home: string): void {
         pluginsNotChecked = lookup.notChecked;
       }
       if (found) {
-        docReport("ok", `skill ${who} found for ${h.name}`);
+        say("ok", `skill ${who} found for ${h.name}`);
         continue;
       }
       // A variable that may move the user folders: the doctor did not look where the host looks, so it does not guess.
       const unread = dirs.userOverrides.filter((v) => !env.read.has(v));
       const moved = dirs.userOverrides.filter((v) => env.set.has(v));
       if (unread.length > 0) {
-        docReport("advisory", `skill ${who} not checked for ${h.name}: this build does not read ${unread.join(", ")}${OPTIONAL_SKILL}`);
+        say("advisory", `skill ${who} not checked for ${h.name}: this build does not read ${unread.join(", ")}${OPTIONAL_SKILL}`);
         continue;
       }
       if (moved.length > 0) {
         const verb = moved.length === 1 ? "is" : "are";
-        docReport(
+        say(
           "advisory",
           `skill ${who} not checked for ${h.name}: ${moved.join(", ")} ${verb} set and may move where ${h.name} keeps user skills, ` +
             `which this check does not follow${OPTIONAL_SKILL}`,
@@ -2737,11 +2753,11 @@ function doctorDeclaredSkills(hosts: readonly HostTool[], home: string): void {
         continue;
       }
       if (pluginsNotChecked !== null) {
-        docReport("advisory", `skill ${who} not checked for ${h.name}: ${pluginsNotChecked}${OPTIONAL_SKILL}`);
+        say("advisory", `skill ${who} not checked for ${h.name}: ${pluginsNotChecked}${OPTIONAL_SKILL}`);
         continue;
       }
       const pluginClause = dirs.plugins.kind === "unknown" ? ` (plugin installs on ${h.name} are not checked: UNKNOWN - verify)` : "";
-      docReport("advisory", `skill ${who} not found for ${h.name}${OPTIONAL_SKILL}${pluginClause}`);
+      say("advisory", `skill ${who} not found for ${h.name}${OPTIONAL_SKILL}${pluginClause}`);
     }
   }
 }
@@ -2774,7 +2790,7 @@ function executableFile(p: string): boolean {
  * Windows host: `UNKNOWN - verify`.
  */
 function doctorClaudeVersion(home: string): void {
-  const notChecked = (reason: string): void => docReport("advisory", `the Claude Code version was not checked: ${reason}`);
+  const notChecked = (reason: string): void => docReport("advisory", printableLine(`the Claude Code version was not checked: ${reason}`));
   const onPath = findClaudeOnPath(process.env.PATH, process.env.PATHEXT, { sep, delimiter, isAbsolute, join }, executableFile);
   if (onPath.kind === "absent") {
     const skipped = onPath.relativeSkipped ? "; PATH entries that are empty or not absolute are not searched" : "";
