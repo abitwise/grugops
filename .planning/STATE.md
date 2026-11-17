@@ -22,10 +22,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-15 after Phase 41)
+See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 42 — Skills per role and evaluation
+**Current focus:** Phase 43 — Story and layered docs
 
 ## Current Position
 
@@ -2438,6 +2438,7 @@ None yet.
 
 **Open — carried into the next milestone:**
 
+- **[Phase 42] Four open code-review warnings, advisory** (42-REVIEW.md re-run 2026-11-17, `42-REVIEW-DISPOSITION.md`): WR-01 plugin real-path containment covers only a manifest `skills` path, not the default `skills/` folder or per-skill links; WR-02 an unresolvable `skills` path gets a false refusal reason; WR-03 the `claude --version` probe fails with ENOENT when `HOME` does not exist; WR-04 a CR-02 test fails under a long TMPDIR. Four Info items (IN-01..IN-04) also open. None defeats SKILL-05 (verification 5/5).
 - **[Phase 38] Board stays over budget on a migrated real repository** — a code span holding `<!-- RUN -->` in Done row ABC-109 is read by the phase 37 state rules as an HTML comment, so the Done roll is skipped (`install --migrate` notes it, `state-roll.js` exits 2); the board stays at 221,821 bytes against 24,576, and leftover header comment blocks plus 190 long rows keep it over budget even after a roll. Whether a code span counts as a comment is `UNKNOWN - verify`. Logged open in `deferred-items.md` (finding C of 38-DOGFOOD.md).
 - **[Phase 38] Trace order depends on which context root holds a task** — `collectTraceNotes` reads the live root, then the archive root, so a move between roots can reorder a trace file; every install arm that moves a folder now renders the trace afterwards, but a move by hand or by a later tool leaves it stale until the next render (`state-check` reports `trace-stale`). Order-independence changes the phase 37 trace model; logged open in `deferred-items.md` (finding B).
 - **[Phase 38] Five open Info review findings** (38-REVIEW-DISPOSITION.md): IN-01 `parseNfrIndex` embedded but unused, IN-02 a literal U+FEFF in the source, IN-03 docs say the traceability matrix is "split" while the code archives it and renders a fresh trace, IN-04 removing a trailing `_Updated:` line drops the board's final newline, IN-05 duplicate refusal for a linked `.grugops/context/` with `--archive-done-context`.
@@ -2763,7 +2764,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-16T20:24:49.363Z
+Last session: 2026-11-17T13:05:00.000Z
 Stopped at: Phase 42 complete, ready to plan Phase 43
 Resume file: None
 
