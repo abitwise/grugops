@@ -197,8 +197,11 @@ interface ManifestSpec {
 // (Plan 42-07) docs/skills.md is a named member of the public-docs corpus, which refuses by name when the page is
 // absent, so the planted corpus carries it beside docs/GUARANTEES.md: publicDocs 4 -> 5, docsTree 2 -> 3, overlap
 // 1 -> 2, pin 9 -> 10.
+// (Plan 43-02, D-21) The public-docs corpus gained a `docs` part derived by install/kit-source.ts shippedDocs():
+// every .md under docs/ outside the checkout-only paths. The planted docs/runbook.md is such a page, so it is now
+// a publicDocs member as well as a docsTree member: publicDocs 5 -> 6, overlap 2 -> 3, pin unchanged at 10.
 const DEFAULT_MEMBERS: Record<(typeof LIVE_SURFACE_PART_NAMES)[number], string[]> = {
-  publicDocs: ["README.md", "agent-factory/README.md", "docs/GUARANTEES.md", "docs/skills.md", PARITY_REL],
+  publicDocs: ["README.md", "agent-factory/README.md", "docs/GUARANTEES.md", RUNBOOK_REL, "docs/skills.md", PARITY_REL],
   docsTree: ["docs/GUARANTEES.md", RUNBOOK_REL, "docs/skills.md"],
   planningLedgers: [STATE_REL, LEDGER_REL],
   archivedRecords: [RECORD_REL],
@@ -359,7 +362,7 @@ describe("check-flip-manifest — the planted pre-capture tree (control)", () =>
     const r = runGate(root);
     expect(r.stdout).toContain("status: pre-capture");
     expect(r.stdout).toContain(
-      "live-surface parts: publicDocs 5, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 1; overlap 2; derived total 10, pinned 10",
+      "live-surface parts: publicDocs 6, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 1; overlap 3; derived total 10, pinned 10",
     );
     expect(r.stdout).toContain("ALL CHECKS PASSED");
     expect(r.status).toBe(0);
@@ -611,7 +614,7 @@ describe("check-flip-manifest — the floored, pinned live-surface set", () => {
     });
     const r = runGate(root);
     expect(r.stdout).toContain('the "runtimeEvidence" part of the live-surface set derived ZERO members');
-    expect(r.stdout).toContain("publicDocs 5, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 0");
+    expect(r.stdout).toContain("publicDocs 6, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 0");
     expect(r.stdout).not.toContain("ALL CHECKS PASSED");
     expect(r.status).toBe(1);
   });
@@ -620,7 +623,7 @@ describe("check-flip-manifest — the floored, pinned live-surface set", () => {
     const root = plantPreCapture("flip-pin-", {}, { manifest: { status: "pre-capture", pin: DEFAULT_PIN + 1 } });
     const r = runGate(root);
     expect(r.stdout).toContain(`derived ${DEFAULT_PIN} document(s), expected exactly ${DEFAULT_PIN + 1}`);
-    expect(r.stdout).toContain("publicDocs 5, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 1, overlap 2");
+    expect(r.stdout).toContain("publicDocs 6, docsTree 3, planningLedgers 2, archivedRecords 1, runtimeEvidence 1, overlap 3");
     expect(r.stdout).toContain("moving the pin is how you acknowledge that the set changed, not how you make the failure go away");
     expect(r.status).toBe(1);
   });

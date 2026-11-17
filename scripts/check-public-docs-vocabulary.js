@@ -96,6 +96,10 @@ isCanonicalMarkdownName, imitatesMarkdownName, } from "./kit-model.js";
 // here would be two spellings of one path, and a rename would move only one of them — the exact
 // set-literal drift this repository has already paid for twice. See the `guarantees` part below.
 import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
+// (Plan 43-02, D-11, D-21, D-27) The shipped user docs, declared once in the installer's own
+// source module. The `docs` part below reads it; this module writes no list of docs pages. This is
+// a scripts/ -> install/kit-source.js edge; install/ imports nothing from scripts/.
+import { SHIPPED_DOCS_ROOTS, shippedDocs } from "../install/kit-source.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
 // CHECK_ROOT at it, then spawns this committed .js against the mirror. When unset, resolve every
 // path against the script-relative repo root (cwd does not matter).
@@ -450,6 +454,36 @@ function skillsDocMembers() {
     }
     return [SKILLS_DOC];
 }
+// Part `docs`: the shipped user docs under docs/ (plan 43-02, D-11, D-21, D-27).
+//
+// Members are `shippedDocs(ROOT)` restricted to `docs/`, minus `docs/GUARANTEES.md` and
+// `docs/skills.md`, which stay their own singleton parts above (each keeps its named-member
+// refusal). examples/ is left to the `examples` part, so no page is counted twice. The rule lives in
+// install/kit-source.ts, so a page written under docs/ outside the checkout-only paths is inside this
+// corpus, and so inside both claim gates, the moment it exists: STORY-04's "inside the checked file
+// set before it is written".
+//
+// Two named refusals, both pushed into DERIVATION_REFUSALS so every importer sees them: the
+// derivation returned null (a source root could not be read, or the walk hit its bound), and the
+// derivation found no shipped page under docs/ at all. Either way the part is empty and the
+// per-part vacuity floor also fires.
+function docsMembers() {
+    const shipped = shippedDocs(ROOT);
+    if (shipped === null) {
+        DERIVATION_REFUSALS.push(`the "docs" part could not be derived: install/kit-source.ts shippedDocs() returned null for ` +
+            `${ROOT} (one of the source roots ${SHIPPED_DOCS_ROOTS.join(", ")} could not be read, or ` +
+            `the walk exceeded its entry bound) — refusing to report a verdict over a part whose ` +
+            `members could not be listed`);
+        return [];
+    }
+    const members = shipped.filter((p) => p.startsWith("docs/") && p !== GUARANTEES_DOC && p !== SKILLS_DOC);
+    if (members.length === 0) {
+        DERIVATION_REFUSALS.push(`the "docs" part derived no shipped docs page: install/kit-source.ts shippedDocs() found no ` +
+            `.md file under docs/ outside the checkout-only paths, ${GUARANTEES_DOC} and ${SKILLS_DOC} — ` +
+            `refusing to report a verdict over an empty part. A missing document is not a clean one`);
+    }
+    return members;
+}
 // ---------------------------------------------------------------------------
 // ONE DERIVATION, TWO QUESTIONS, AND THE SUBTRACTION AT EXACTLY ONE PLACE (round 6 / CR-01).
 //
@@ -474,6 +508,7 @@ export const PUBLIC_DOCS_CORPUS_PARTS = [
     { name: "kitReadme", members: kitReadmeMembers() },
     { name: "guarantees", members: guaranteesMembers() },
     { name: "skills", members: skillsDocMembers() },
+    { name: "docs", members: docsMembers() },
 ];
 /**
  * QUESTION ONE: **which documents are public?**
@@ -513,11 +548,12 @@ export function publicDocsCorpus() {
  * a derivation had refused.
  *
  * WHAT THIS CHANNEL ENUMERATES, AND WHAT BOUNDS IT. The set is *the refusals the public-docs corpus
- * derivation raised in this process*. It is derived by the six `DERIVATION_REFUSALS.push` sites
+ * derivation raised in this process*. It is derived by the eight `DERIVATION_REFUSALS.push` sites
  * above — an unreadable repository root, a walk that exceeded its entry budget, a missing
  * `agent-factory/README.md`, (plan 30-07) a missing `docs/GUARANTEES.md`, (plan 30-10, round 2,
- * finding F4) an entry that imitates the canonical markdown extension, and (plan 42-07) a missing
- * `docs/skills.md`. **Nothing pins its
+ * finding F4) an entry that imitates the canonical markdown extension, (plan 42-07) a missing
+ * `docs/skills.md`, and (plan 43-02) the `docs` part's two refusals: a shipped-docs derivation that
+ * returned null, and one that found no shipped page under docs/. **Nothing pins its
  * count, and nothing should:** a refusal count is an
  * EVENT count, not a set cardinality, so there is no correct number for it to be compared against
  * and a vacuity floor over it would fail on every healthy run. This is stated plainly rather than
@@ -552,8 +588,9 @@ export const PUBLIC_DOCS_SCAN_PARTS = PUBLIC_DOCS_CORPUS_PARTS.map((p) => ({
 export function publicDocsScan() {
     return PUBLIC_DOCS_SCAN_PARTS.flatMap((p) => [...p.members]);
 }
-// The pinned cardinality OF THE SCAN. 12 today: 4 root markdown files (5 in the corpus, minus the
-// CHANGELOG.md exemption) + 5 examples + 1 kit README + 1 generated guarantees page + 1 skills page.
+// The pinned cardinality OF THE SCAN. 14 today: 4 root markdown files (5 in the corpus, minus the
+// CHANGELOG.md exemption) + 5 examples + 1 kit README + 1 generated guarantees page + 1 skills page
+// + 2 shipped docs pages (the `docs` part).
 //
 // MOVED 10 -> 11 IN PLAN 30-07, AND THE ENTRANT IS NAMED RATHER THAN LEFT AS ARITHMETIC:
 // `docs/GUARANTEES.md`. Read off this gate's own refusal on the intermediate build rather than
@@ -576,6 +613,17 @@ export function publicDocsScan() {
 // that commit's run refuses with the `skills` part's named-member message and this count reads 11.
 // The run over the written page is the admission test: zero retired-vocabulary hits.
 //
+// MOVED 12 -> 14 ON 2026-11-17 IN PLAN 43-02, AND THE ENTRANTS ARE NAMED: `docs/faq.md` and
+// `docs/catalog/README.md`. They are the two pages the new `docs` part derives from
+// install/kit-source.ts shippedDocs() (docs/ minus the checkout-only paths, docs/GUARANTEES.md and
+// docs/skills.md), so every shipped docs page is now inside this gate by rule (D-11, D-21). Read off
+// this gate's own refusal with the part added and the pin not yet moved, verbatim:
+//
+//   FAIL  the public-docs scan set derived 14 document(s), expected exactly 12
+//         (root 4, examples 5, kitReadme 1, guarantees 1, skills 1, docs 2)
+//
+// That run reported zero retired-vocabulary hits, so the entrants cost zero reds on correct text.
+//
 // THE CORPUS CARRIES NO SECOND PIN, AND THAT IS ARITHMETIC RATHER THAN AN OVERSIGHT. The corpus and
 // the scan differ by exactly PUBLIC_DOCS_EXEMPT, which is a frozen one-member array: a corpus that
 // grew by a NON-exempt document grows the scan and trips this pin, and a corpus that grew by an
@@ -583,7 +631,7 @@ export function publicDocsScan() {
 // The corpus is additionally pinned from the other side by BANNED_CLAIM_SCAN_COUNT, which is
 // two-sided over a union this corpus is half of. A third pin would be a number to maintain, not a
 // question nobody is asking.
-export const PUBLIC_DOCS_SCAN_COUNT = 12;
+export const PUBLIC_DOCS_SCAN_COUNT = 14;
 // ---------------------------------------------------------------------------
 // The check.
 // ---------------------------------------------------------------------------

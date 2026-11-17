@@ -293,6 +293,102 @@ export function srcNestedAdapterFiles(srcRoot) {
         overflow: budget.overflow,
     };
 }
+// ---------------------------------------------------------------------------
+// SHIPPED_DOCS_ROOTS / CHECKOUT_ONLY_DOCS / shippedDocs — which user docs ship (phase 43, D-11, D-27).
+//
+// This is the one declaration of the shipped user docs. Three readers take it: the public-docs
+// corpus (its `docs` part, scripts/check-public-docs-vocabulary.ts), which puts every shipped page
+// inside both claim gates; the installer, which copies the same pages into the kit home (plan
+// 43-06); and the story gate's link check (plan 43-03). None of them keeps a second list. A page
+// written under docs/ joins all three by existing, unless its path is listed below as checkout-only.
+//
+// The rule: every `.md` file under each root in SHIPPED_DOCS_ROOTS, at any depth, minus each path
+// that equals a file entry of CHECKOUT_ONLY_DOCS or sits under one of its directory entries
+// (directory entries end in `/`). install/ imports nothing from scripts/; scripts/ may import this.
+//
+// The contract copies srcSkillNames: sorted POSIX relative paths (`docs/faq.md`), `null` when a root
+// cannot be read, `[]` when every root was read and holds no shipped page. Two more cases return
+// null, because a partial list would ship or scan fewer pages with no word said: a directory below a
+// root that cannot be read, and a walk that examines more than MAX_WALK_ENTRIES entries. File-ness
+// and directory-ness are statSync's (isFileFollowing, isDirFollowing), so a symlinked page is a page.
+// A directory that repeats on the current path (a symlink cycle) is not descended into again; the
+// pages under it are already reached once on that path.
+// ---------------------------------------------------------------------------
+// The source roots the rule walks. Plan 43-06 copies each into the kit home under the same name.
+export const SHIPPED_DOCS_ROOTS = ["docs", "examples"];
+// The docs that stay in the checkout and never ship, each with its reason. A directory entry ends
+// in `/`. Every entry must name a path that exists (install/installer-kit-home.test.ts asserts it on
+// the live tree), so a stale entry is red rather than a silent no-op.
+export const CHECKOUT_ONLY_DOCS = [
+    {
+        path: "docs/audit/",
+        why: "audit records (the claim registry, the disposition register, the safety-surface list); they record what was decided, they do not explain the kit to a user",
+    },
+    {
+        path: "docs/design/",
+        why: "design records written while building the kit; they are maintainer history, not user docs",
+    },
+    {
+        path: "docs/initial/",
+        why: "the frozen original specification and brand inputs; kept as a record and never edited, so its text does not describe the kit as it ships",
+    },
+    {
+        path: "docs/dogfood-human-runbook.md",
+        why: "a maintainer runbook for dogfooding this repository; a user of the installed kit has no use for it",
+    },
+    {
+        path: "docs/pre-v3-state-layout.md",
+        why: "migration history kept in the checkout; it describes a state layout the kit no longer writes",
+    },
+];
+function isCheckoutOnlyDoc(rel) {
+    return CHECKOUT_ONLY_DOCS.some((e) => (e.path.endsWith("/") ? rel.startsWith(e.path) : rel === e.path));
+}
+export function shippedDocs(srcRoot) {
+    const found = [];
+    let examined = 0;
+    // Returns false when the walk must give up (an unreadable directory or the work bound), so the
+    // caller returns null and never a partial list.
+    const walk = (rel, ancestors) => {
+        const here = join(srcRoot, ...rel.split("/"));
+        let real;
+        let names;
+        try {
+            real = realpathSync(here);
+            names = readdirSync(here);
+        }
+        catch {
+            return false;
+        }
+        if (ancestors.includes(real))
+            return true;
+        const next = [...ancestors, real];
+        for (const name of names) {
+            examined += 1;
+            if (examined > MAX_WALK_ENTRIES)
+                return false;
+            const childRel = `${rel}/${name}`;
+            const full = join(here, name);
+            if (isDirFollowing(full)) {
+                // A checkout-only directory is not walked at all: nothing under it ships, so its contents
+                // neither count against the bound nor fail the walk.
+                if (isCheckoutOnlyDoc(`${childRel}/`))
+                    continue;
+                if (!walk(childRel, next))
+                    return false;
+            }
+            else if (name.endsWith(".md") && isFileFollowing(full) && !isCheckoutOnlyDoc(childRel)) {
+                found.push(childRel);
+            }
+        }
+        return true;
+    };
+    for (const root of SHIPPED_DOCS_ROOTS) {
+        if (!walk(root, []))
+            return null;
+    }
+    return found.sort();
+}
 // kitNameCollisions — the kit destinations that name ONE file on a case-insensitive or a
 // Unicode-normalisation-insensitive filesystem (red-team B2 of plan 33.1-31, D-32).
 //

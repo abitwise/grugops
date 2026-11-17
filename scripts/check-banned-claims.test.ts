@@ -77,6 +77,10 @@ import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
 // imported by this gate for its named `skills` part — the same import here, for the same reason.
 import { SKILLS_DOC } from "./check-public-docs-vocabulary.js";
 import { STATE_ROOT_REL } from "../install/state-layout.js";
+// (Plan 43-02, D-11, D-21) The shipped user docs, declared once. The admission set below takes the
+// pages this rule admits under docs/ from here, and the checkout-only paths are asserted absent from
+// the scan.
+import { CHECKOUT_ONLY_DOCS, shippedDocs } from "../install/kit-source.js";
 import {
   BANNED_CLAIM_LITERALS,
   BANNED_CLAIM_SCAN_COUNT,
@@ -414,6 +418,9 @@ const KIT_README = "agent-factory/README.md";
 const GUARANTEES = GUARANTEES_DOC;
 // (Plan 42-07) The `skills` part's one member, imported for the same reason.
 const SKILLS = SKILLS_DOC;
+// (Plan 43-02) The default mirror's one shipped docs page. It is not a named member of anything: the
+// public-docs corpus's `docs` part derives it from install/kit-source.ts shippedDocs().
+const SHIPPED_DOCS_PAGE = "docs/faq.md";
 
 // ── PLAN 30-07: THE ONE MEMBER ADMITTED BY NAME UNDER AN EXCLUDED SEGMENT, AND WHY IT IS A ─────
 // ── FINDING RATHER THAN A QUIET WIDENING. ──────────────────────────────────────────────────────
@@ -450,6 +457,28 @@ const SKILLS = SKILLS_DOC;
 // segment class, so it is enumerated here by name and the pinned cardinality moves 1 → 2 in the
 // commit that admits it. Nothing about the walk or the exclusion list changed.
 const ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT: readonly string[] = [GUARANTEES, SKILLS];
+
+// THE PAGES ADMITTED UNDER docs/ BY RULE, PLAN 43-02 (D-11, D-21). Every shipped docs page reaches
+// this gate through the public-docs corpus's `docs` part, which install/kit-source.ts shippedDocs()
+// derives, so a page under docs/ outside the checkout-only paths is a scan member the moment it
+// exists. These pages are NOT enumerated here, on purpose: an enumerated list would have to be edited
+// each time a page is written, which is the second typed list STORY-04 forbids. The bound moves to
+// the rule instead: the set is shippedDocs(ROOT) under docs/ minus the two named members above, it is
+// derived here from the installer's module and not from the corpus it is compared against, and the
+// checkout-only paths are asserted absent from the scan in the case that reads it. Like the named
+// members, these arrive by name through a part that never walks, so the walk-derived assertion below
+// stays exact.
+function admittedByTheShippedDocsRule(): string[] {
+  const shipped = shippedDocs(ROOT);
+  if (shipped === null) {
+    throw new Error(
+      "check-banned-claims.test.ts: shippedDocs() returned null on the live tree, so the admitted set cannot be derived",
+    );
+  }
+  return shipped.filter(
+    (p) => p.startsWith("docs/") && !ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT.includes(p),
+  );
+}
 
 /** The parts whose members arrive through THIS module's walk. The exclusion's actual subject. */
 const WALK_DERIVED_PART_NAMES = [
@@ -818,6 +847,12 @@ type MirrorSpec = {
    * omitting it exercises both refusal channels together.
    */
   omitSkillsDoc?: boolean;
+  /**
+   * (Plan 43-02) Write no shipped docs page (SHIPPED_DOCS_PAGE). The public-docs corpus derives its
+   * `docs` part from install/kit-source.ts shippedDocs(), and refuses by name when that part is empty,
+   * so this exercises the refusal channel this gate imports from the other module.
+   */
+  omitShippedDocs?: boolean;
   /** Per-path content overrides, keyed by the same repo-relative path the gate reports. */
   plant?: Record<string, string>;
 };
@@ -838,7 +873,8 @@ const PUBLIC_DOCS =
   DEFAULT_EXAMPLES.length +
   1 + // agent-factory/README.md, the kit README part
   1 + // (plan 30-07) docs/GUARANTEES.md, the corpus's fourth part
-  1; // (plan 42-07) docs/skills.md, the corpus's fifth part
+  1 + // (plan 42-07) docs/skills.md, the corpus's fifth part
+  1; // (plan 43-02) SHIPPED_DOCS_PAGE, the one member of the corpus's sixth part, `docs`
 const INSTALL_README_COUNT = 1;
 const SKILL_SOURCES = DEFAULT_SKILL_SOURCES.length;
 const CLAUDE_ADAPTERS = DEFAULT_CLAUDE_ADAPTERS.length;
@@ -927,6 +963,9 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   if (spec.omitGuarantees !== true) write(GUARANTEES);
   // (Plan 42-07) The eighth part, written by name under docs/ for the same reason as the seventh.
   if (spec.omitSkillsDoc !== true) write(SKILLS);
+  // (Plan 43-02) One shipped docs page. It reaches this gate only through the public-docs corpus's
+  // `docs` part, which install/kit-source.ts shippedDocs() derives; no part of this gate names it.
+  if (spec.omitShippedDocs !== true) write(SHIPPED_DOCS_PAGE);
   return mirror;
 }
 
@@ -1785,7 +1824,11 @@ describe("check-banned-claims — the imported corpus's derivation-refusal chann
     //
     // 5 → 6 (plan 42-07, D-11): the `skills` part's named refusal for a missing docs/skills.md, the
     // sixth push site in that module, moved in the SAME commit that adds the site.
-    expect(pushes).toBe(6);
+    //
+    // 6 → 8 (plan 43-02, D-21): the `docs` part's two named refusals, one for a shipped-docs
+    // derivation that returned null and one for a derivation that found no shipped page under docs/,
+    // moved in the SAME commit that adds the two sites.
+    expect(pushes).toBe(8);
     // The prose mention must be GONE from the stripped text but PRESENT in the raw text — the two
     // halves together prove the strip removed comments and only comments.
     expect(raw).toContain("`DERIVATION_REFUSALS.push` sites");
@@ -2374,6 +2417,9 @@ function copyOfCommittedBuild(prefix: string): string {
   // (Plan 40-21, CR-01) check-diff-disposition.js imports ./check-role-rules.js, which imports
   // `../install/state-layout.js` (constants only). Only that pure-data module is copied.
   copyFileSync(join(ROOT, "install", "state-layout.js"), join(root, "install", "state-layout.js"));
+  // (Plan 43-02) check-public-docs-vocabulary.js, which the gate imports, imports
+  // `../install/kit-source.js` for shippedDocs(). That module imports only node:fs and node:path.
+  copyFileSync(join(ROOT, "install", "kit-source.js"), join(root, "install", "kit-source.js"));
   return dir;
 }
 
@@ -3428,7 +3474,11 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     // (Plan 30-07) The enumerated admission set, for the reason recorded in full at that constant.
     // The property this case is named for is unchanged for every member that arrives through a
     // WALK; the assertion immediately below is that half, kept exact.
-    expect(offenders).toEqual([...ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT].sort());
+    // (Plan 43-02) Plus the pages the shipped-docs rule admits under docs/, recorded at
+    // admittedByTheShippedDocsRule().
+    expect(offenders).toEqual(
+      [...ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT, ...admittedByTheShippedDocsRule()].sort(),
+    );
     const walkDerived = BANNED_CLAIM_SCAN_PARTS.filter((p) =>
       (WALK_DERIVED_PART_NAMES as readonly string[]).includes(p.name),
     ).flatMap((p) => [...p.members]);
@@ -3604,11 +3654,21 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
     const overlapping = bannedClaimScan()
       .filter((m) => bannedClaimExcluded(m))
       .sort();
-    expect(overlapping).toEqual([...ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT].sort());
+    // (Plan 43-02) Plus the pages the shipped-docs rule admits under docs/, recorded at
+    // admittedByTheShippedDocsRule(). The named half stays enumerated and pinned; the rule half is
+    // bounded by the rule, by a floor, and by the checkout-only assertion just below.
+    const byRule = admittedByTheShippedDocsRule();
+    expect(overlapping).toEqual([...ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT, ...byRule].sort());
     // …AND THE CARDINALITY, PINNED, so the equality above cannot be satisfied by both sides
     // emptying out together.
     // 1 → 2 (plan 42-07): docs/skills.md, recorded at the constant.
     expect(ADMITTED_BY_NAME_UNDER_AN_EXCLUDED_SEGMENT.length).toBe(2);
+    expect(byRule.length, "the shipped-docs rule admits no page, so the rule half above is vacuous").toBeGreaterThan(0);
+    // No checkout-only doc is a scan member: the records the docs/ exclusion exists for stay out.
+    const checkoutOnly = bannedClaimScan().filter((m) =>
+      CHECKOUT_ONLY_DOCS.some((e) => (e.path.endsWith("/") ? m.startsWith(e.path) : m === e.path)),
+    );
+    expect(checkoutOnly).toEqual([]);
 
     // THE ORIGINAL PREDICATE, KEPT EXACTLY, OVER THE SET IT WAS WRITTEN ABOUT. The exclusion is
     // enforced at the walk, so the walk's own members must still overlap it NOWHERE. A widened

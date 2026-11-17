@@ -60,6 +60,8 @@ import {
   // foot of this file.
   corpusMember,
 } from "./check-public-docs-vocabulary.js";
+// (Plan 43-02, D-11) The checkout-only docs list, declared once in the installer's source module.
+import { CHECKOUT_ONLY_DOCS } from "../install/kit-source.js";
 import {
   RETIRED_PATH_FORMS,
   RETIRED_PROSE_FORMS,
@@ -98,7 +100,8 @@ const CLEAN = [
 ].join("\n");
 
 // The mirror's default shape. FOUR non-exempt root markdown files + the exempt CHANGELOG.md + FIVE
-// examples + the kit README = the ten documents the derivation is pinned at.
+// examples + the kit README, then the guarantees page, the skills page and (plan 43-02) the shipped
+// docs pages below, so the scan reaches PUBLIC_DOCS_SCAN_COUNT exactly.
 const DEFAULT_ROOT_DOCS = [
   "AGENTS.md",
   "CLAUDE.md",
@@ -119,6 +122,25 @@ const KIT_README = "agent-factory/README.md";
 const GUARANTEES = GUARANTEES_DOC;
 // The fifth named corpus part's one member (plan 42-07).
 const SKILLS = SKILLS_DOC;
+// (Plan 43-02) The sixth part, `docs`: the shipped docs pages under docs/ that install/kit-source.ts
+// shippedDocs() derives. The default mirror writes docs/faq.md and then fillers, and the filler count
+// is DERIVED FROM THE GATE'S OWN PIN, never typed (check-banned-claims.test.ts's rule for its kit
+// fillers). Later plans move PUBLIC_DOCS_SCAN_COUNT each time a shipped docs page is written or
+// deleted; a typed docs list here would fall out of step with that pin and turn the clean mirror red
+// for a reason that has nothing to do with the case.
+const NON_DOCS_SCAN_MEMBERS =
+  DEFAULT_ROOT_DOCS.length + // the non-exempt root markdown files
+  DEFAULT_EXAMPLES.length +
+  1 + // agent-factory/README.md, the kitReadme part
+  1 + // docs/GUARANTEES.md, the guarantees part
+  1; // docs/skills.md, the skills part
+const DEFAULT_SHIPPED_DOCS = [
+  "docs/faq.md",
+  ...Array.from(
+    { length: PUBLIC_DOCS_SCAN_COUNT - NON_DOCS_SCAN_MEMBERS - 1 },
+    (_, i) => `docs/filler-${String(i).padStart(2, "0")}.md`,
+  ),
+];
 
 type MirrorSpec = {
   // Root markdown file names (excluding CHANGELOG.md, which is written separately so the exemption
@@ -137,6 +159,10 @@ type MirrorSpec = {
   // `omitGuarantees` records: a literal part reaches its vacuity floor and its named refusal only
   // when its one member is gone.
   omitSkillsDoc?: boolean;
+  // (Plan 43-02) Write no shipped docs page under docs/ — the `docs` part's empty case. docs/ still
+  // holds docs/GUARANTEES.md and docs/skills.md, which are their own parts, so the derivation reads
+  // the directory and finds no member: the part's named refusal and its vacuity floor both fire.
+  omitShippedDocs?: boolean;
 };
 
 function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
@@ -160,6 +186,7 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   write(KIT_README);
   if (spec.omitGuarantees !== true) write(GUARANTEES);
   if (spec.omitSkillsDoc !== true) write(SKILLS);
+  if (spec.omitShippedDocs !== true) for (const f of DEFAULT_SHIPPED_DOCS) write(f);
   return mirror;
 }
 
@@ -397,7 +424,7 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
     expect(live.length).not.toBe(PUBLIC_DOCS_SCAN_COUNT + 1);
   });
 
-  it("the scan set is the concatenation of its five named parts, none empty", () => {
+  it("the scan set is the concatenation of its six named parts, none empty", () => {
     // Partition the composition by the SAME parts it was built from rather than restating a
     // directory literal. A claim about one part says nothing about the others, so every part is
     // asserted — a widening that swapped one part for another would hold the total at the pin.
@@ -407,6 +434,7 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
       "kitReadme",
       "guarantees",
       "skills",
+      "docs",
     ]);
     for (const part of PUBLIC_DOCS_SCAN_PARTS) {
       expect(part.members.length).toBeGreaterThan(0);
@@ -498,7 +526,23 @@ function corpusFromDisk(): string[] {
   const guarantees = existsSync(join(ROOT, GUARANTEES_DOC)) ? [GUARANTEES_DOC] : [];
   // (Plan 42-07) The fifth part, asked of the disk the same way.
   const skills = existsSync(join(ROOT, SKILLS_DOC)) ? [SKILLS_DOC] : [];
-  return [...root, ...examples, ...kitReadme, ...guarantees, ...skills];
+  // (Plan 43-02) The sixth part, `docs`, asked of the disk with this file's own recursive read rather
+  // than through shippedDocs(). Only the checkout-only list is imported, for the reason the paths
+  // above are imported: it is the one declaration of which docs stay in the checkout.
+  const docsDir = join(ROOT, "docs");
+  const docs = existsSync(docsDir)
+    ? (readdirSync(docsDir, { recursive: true }) as string[])
+        .map((rel) => `docs/${rel.split(sep).join("/")}`)
+        .filter((rel) => rel.endsWith(".md") && statSync(join(ROOT, rel)).isFile())
+        .filter(
+          (rel) =>
+            !CHECKOUT_ONLY_DOCS.some((e) =>
+              e.path.endsWith("/") ? rel.startsWith(e.path) : rel === e.path,
+            ),
+        )
+        .filter((rel) => rel !== GUARANTEES_DOC && rel !== SKILLS_DOC)
+    : [];
+  return [...root, ...examples, ...kitReadme, ...guarantees, ...skills, ...docs];
 }
 
 describe("check-public-docs-vocabulary — the corpus, the scan, and the difference between them", () => {
@@ -559,7 +603,7 @@ describe("check-public-docs-vocabulary — the corpus, the scan, and the differe
     expect(byName(PUBLIC_DOCS_CORPUS_PARTS, "root")).toBe(
       byName(PUBLIC_DOCS_SCAN_PARTS, "root") + PUBLIC_DOCS_EXEMPT.length,
     );
-    for (const name of ["examples", "kitReadme"]) {
+    for (const name of ["examples", "kitReadme", "docs"]) {
       expect(byName(PUBLIC_DOCS_CORPUS_PARTS, name)).toBe(
         byName(PUBLIC_DOCS_SCAN_PARTS, name),
       );

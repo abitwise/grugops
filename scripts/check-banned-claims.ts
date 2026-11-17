@@ -717,14 +717,23 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// docs/ IS EXCLUDED BY NAME, WITH ITS REASON, RATHER THAN BY SILENT OMISSION.
+// docs/ IS EXCLUDED FROM THE WALKS BY NAME, WITH ITS REASON, RATHER THAN BY SILENT OMISSION.
 //
-// docs/initial/ holds the historical specification, docs/catalog/ is generated, and docs/audit/
-// holds the disposition register, the claim registry and the safety-surface list. Those are RECORDS
-// OF WHAT WAS DECIDED, not claims the kit makes — and the claim registry in particular quotes
-// public sentences verbatim by design, so scanning it would report the registry for holding the
-// text it exists to hold. The same argument covers .planning/, which is the planning record and is
-// archived at milestone close.
+// docs/initial/ holds the historical specification, and docs/audit/ holds the disposition register,
+// the claim registry and the safety-surface list. Those are RECORDS OF WHAT WAS DECIDED, not claims
+// the kit makes — and the claim registry in particular quotes public sentences verbatim by design,
+// so scanning it would report the registry for holding the text it exists to hold. The same
+// argument covers .planning/, which is the planning record and is archived at milestone close.
+//
+// THE SHIPPED USER DOCS UNDER docs/ ARE NOT EXCLUDED, AND THEY REACH THIS GATE BY NAME (plan 43-02,
+// D-21). The `**/docs/` entry below stops the WALKS from descending into a docs/ directory; it does
+// not decide which docs pages are public. That is decided once, by install/kit-source.ts
+// shippedDocs(): every `.md` under docs/ minus its CHECKOUT_ONLY_DOCS (docs/audit/, docs/design/,
+// docs/initial/, docs/dogfood-human-runbook.md, docs/pre-v3-state-layout.md, each with its reason
+// there). The public-docs corpus turns that list into its `docs` part, and this gate takes the
+// corpus whole through `publicDocsMembers()`, so a shipped page under docs/ is scanned here the
+// moment it exists, while the checkout-only paths stay out. docs/GUARANTEES.md and docs/skills.md
+// arrive the same way, by name, and also as this gate's own named parts.
 //
 // ── THE STRUCTURAL CLAIM THAT USED TO STAND HERE IS REPLACED, NOT QUALIFIED (round 7, WR-01) ──
 //
@@ -1605,8 +1614,21 @@ export function bannedClaimScanOverlap(
  * The pin moved in the commit that joined the page to this gate, BEFORE the page was written, so
  * that commit's run refuses with the `skills` part's named-member message. The run over the written
  * page is the admission test: zero findings over 129/129 elements.
+ *
+ * MOVED AGAIN 129 → 131 ON 2026-11-17 IN PLAN 43-02, AND THE ENTRANTS ARE NAMED: `docs/faq.md` and
+ * `docs/catalog/README.md`. They enter through the `publicDocs` corpus ONLY (13 → 15), as the two
+ * members of its new `docs` part, which install/kit-source.ts shippedDocs() derives (D-11, D-21).
+ * Neither is a member of any other part here, so the overlap stays at 3 and the deduped total
+ * moves by two. Read off this gate's own refusal with the part added and the pin not yet moved,
+ * verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 131 document(s), expected exactly 129 (kit 79,
+ *         publicDocs 15, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, skills 1, overlap 3)
+ *
+ * The same run reported 0 findings over 131/131 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 129;
+export const BANNED_CLAIM_SCAN_COUNT = 131;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.
