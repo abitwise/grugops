@@ -779,7 +779,7 @@ Wave 8
 Wave 9 *(human checkpoint)*
 - [ ] 43-13-PLAN.md — the milestone UAT carried from Phase 39 tests 10 and 14, run headless, decided by the human's typed name (success criterion 6)
 
-**Notes**: Reference pages come from the existing catalog generator; claim anchors keep their ids.
+**Notes**: Reference pages come from the existing catalog generator; claim anchors keep their ids. Same-wave plans share one working tree: a gate that goes red naming only another same-wave plan's files is re-run after that plan commits, and in wave 1 plan 43-02 starts its edits on plan 43-01's baseline commit (43-VALIDATION.md).
 
 ## Progress
 
@@ -795,7 +795,7 @@ Wave 9 *(human checkpoint)*
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
 | 42. Skills per role and evaluation | v3.0 | 8/8 | Complete    | 2026-11-17 |
-| 43. Story and layered docs | v3.0 | 0/13 | Planned | - |
+| 43. Story and layered docs | v3.0 | 0/15 | Planned | - |
 
 ## Backlog
 

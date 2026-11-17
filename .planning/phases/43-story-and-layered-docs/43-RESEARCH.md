@@ -2,7 +2,7 @@
 
 **Researched:** 2026-11-17
 **Domain:** Docs restructure on a gate-heavy markdown kit: README story, `docs/` pages, a generated reference tree with a freshness gate, claim-registry discipline, shipping docs into the kit home, and a headless milestone UAT
-**Confidence:** HIGH for the in-repo mechanics (every gate, pin and path below was opened this session). MEDIUM for effort sizing. One locked decision (D-03) cannot be done with today's registry mechanism; see Open Question 1.
+**Confidence:** HIGH for the in-repo mechanics (every gate, pin and path below was opened this session). MEDIUM for effort sizing. One locked decision (D-03) cannot be done with today's registry mechanism; see Open Question 1 (resolved by D-25: a new `retired` status).
 
 ## Summary
 
@@ -341,7 +341,7 @@ Recommended: `scripts/check-story-docs.ts` → committed `.js`, plus `npm run ch
 
 1. **GAP-D1 (D-22).** Scan set: `publicDocsCorpus()` ∪ `install/README.md`. A file with a word-bounded, case-insensitive `parallel` must contain the GAP-D1 sentence verbatim: "parallel on hosts with a spawn tool; the own-session capture is `UNKNOWN - verify` (GAP-D1)". Exact wording per CONTEXT specifics [CITED: 43-CONTEXT.md `<specifics>`]. **Measured today:** the public docs have 0 hits, but `install/README.md:2012` and `:2020` say role agents are "scheduled in parallel" and lack the sentence. Either add the sentence there in this phase or scope the check to the shipped docs plus README. Recommend adding it, which is honest and cheap. [VERIFIED: grep this session]
 2. **`/grug` in CLAUDE.md (D-23).** Proposed predicate: `/(?<![\w./-])\/grug(?!ops)(?![A-Za-z0-9_])/`. It matches `/grug`, `/grug:plan` and `/grug-map`. It does not match `/grugops`, `commands/grug.md` or `skills/grug/`. Write historical mentions **without** the slash token, for example "a plugin named `grug`", so the check needs no exemption list. Prove it with planted mutations. `[ASSUMED]` regex. Validate it against the live CLAUDE.md, where it should report the 14 lines found at 10, 22, 47, 65, 69, 91, 102, 111, 112, 129, 131, 133 and 150 before the fix. [VERIFIED: grep this session]
-3. **Shipped-docs links (discretion).** For each file in `shippedDocs()` ∪ `agent-factory/README.md`, take every inline link `](target)` outside fenced lines. Use `fencedLineFlags` from `frontmatter.ts`, which adds this module to the frontmatter consumer pin (Pitfall 9). Skip `http(s):`, `mailto:` and `#anchor`. Resolve the rest relative to the file, after dropping any `#fragment`. **Fail** when the target is outside the shipped kit (not under `agent-factory/` and not in `shippedDocs()`) or does not exist. Known dead-in-kit link today: `docs/skills.md:17` → `../.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md`. [VERIFIED: grep of docs/skills.md] Also `docs/usage.md` → `../examples/*.md` (examples do not ship per D-11), and any link to `../README.md`, `../install/README.md` or `../CHANGELOG.md`. Use absolute `https://github.com/abitwise/grugops/blob/main/...` URLs for those [VERIFIED: .claude-plugin/plugin.json `"repository": "https://github.com/abitwise/grugops"`], or see Open Question 3.
+3. **Shipped-docs links (discretion).** For each file in `shippedDocs()` ∪ `agent-factory/README.md`, take every inline link `](target)` outside fenced lines. Use `fencedLineFlags` from `frontmatter.ts`, which adds this module to the frontmatter consumer pin (Pitfall 9). Skip `http(s):`, `mailto:` and `#anchor`. Resolve the rest relative to the file, after dropping any `#fragment`. **Fail** when the target is outside the shipped kit (not under `agent-factory/` and not in `shippedDocs()`) or does not exist. Known dead-in-kit link today: `docs/skills.md:17` → `../.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md`. [VERIFIED: grep of docs/skills.md] Also `docs/usage.md` → `../examples/*.md` (examples do not ship per D-11; superseded by D-27: examples ship, so these links stay relative and resolve), and any link to `../README.md`, `../install/README.md` or `../CHANGELOG.md`. Use absolute `https://github.com/abitwise/grugops/blob/main/...` URLs for those [VERIFIED: .claude-plugin/plugin.json `"repository": "https://github.com/abitwise/grugops"`], or see Open Question 3.
 
 Optional durable lock for STORY-01: add `"simple software factory"` to `RETIRED_PROSE_FORMS` in `scripts/dead-vocabulary.ts` [VERIFIED: :74-77 holds `"handoff packet"`, `"the handoff is the only memory"`]. That makes every public doc refuse the tagline. `docs/initial/` is outside the corpus, so the brand manual keeps it. The cost: `check-public-docs-vocabulary.test.ts` pins the list with `toEqual`, and the list feeds the kit and foundation guards too, so re-run those.
 
@@ -397,7 +397,7 @@ The symlink install mode needs a decision: does `docs/` link like the kit, or co
 | Id | Today | Phase 43 action | Paired edits |
 |----|-------|-----------------|--------------|
 | C-28-001 | README.md, `kind: safety`, `overstated`/`accepted` | Move verbatim with anchor to `docs/concepts.md` (D-02). Change `file`. Rewrite the mechanism's "README.md:4" references. | `SAFETY_CLAIM_HOMES` entry → `docs/concepts.md` [VERIFIED: scripts/check-audit-register.ts:198 `{ claim: "C-28-001", file: "README.md" },`]. `npm run generate:guarantees` (GUARANTEES.md:54 names `README.md`). `npm run generate:safety-surface` (28-safety-surface-exclusions.md:40). Fixture tests that hard-code C-28-001 → README.md are planted fixtures, so check whether they read live (Pitfall 15). |
-| C-28-002 | README.md:11, `architecture`, `true` | Retire: the row stays and the text leaves the README. **Mechanism undecided** (Open Question 1). | — |
+| C-28-002 | README.md:11, `architecture`, `true` | Retire: the row stays and the text leaves the README. Mechanism: the `retired` status (Open Question 1, resolved by D-25). | — |
 | C-28-003 | README.md:14, `architecture`, `true` | Same as C-28-002. | — |
 | C-28-004 | README version line | Keep in README, verbatim. D-01's order does not name it; place it in the quickstart. | — |
 | C-28-005, C-28-006 | README quickstart (indented list items) | Keep verbatim. Both are already host-neutral and match D-05. The verbatim includes the leading spaces, so keep the list structure or re-measure. | — |
@@ -413,7 +413,7 @@ The registry statuses today [VERIFIED: scripts/audit-model.ts:131 `export const 
 
 ### Pitfall 1: D-03's `dropped` status is refused for C-28-002/003
 **What goes wrong:** setting `status: dropped` on an `architecture` row fails `check-claim-anchors` with "is `status: dropped` but is not a `kind: safety` row, so it rests on no floor … only a safety row has a floor to lower" [VERIFIED: scripts/check-claim-anchors.ts:313-318]. A dropped row must also **keep its anchor**, and its anchored text must equal `disclosureFor()`'s generated text [VERIFIED: docs/audit/28-claim-registry.md § "A dropped claim is replaced in place (D-18)"; scripts/generate-guarantees.ts:492-517]. `disclosureFor` throws unless a floor is lowered. So D-03 as written cannot pass the gate, and it would also leave a disclosure paragraph in the README.
-**How to avoid:** Open Question 1. Get a human decision before the README plan. Recommended: add a fifth status, e.g. `retired`, for a claim withdrawn by a docs rewrite. Its row stays with its original verbatim and a mechanism naming the reason and commit. It is outside the anchor bijection, like the unanchorable rows. The gate checks the verbatim is **absent** from the named file (the inverse of the C-28-038 presence check), keeps id contiguity, and is allowed only for non-safety kinds, or for safety kinds only with a named reason.
+**How to avoid:** Open Question 1, resolved by D-25 (human, 2026-11-17): the `retired` status recommended here was chosen. Recommended: add a fifth status, e.g. `retired`, for a claim withdrawn by a docs rewrite. Its row stays with its original verbatim and a mechanism naming the reason and commit. It is outside the anchor bijection, like the unanchorable rows. The gate checks the verbatim is **absent** from the named file (the inverse of the C-28-038 presence check), keeps id contiguity, and is allowed only for non-safety kinds, or for safety kinds only with a named reason.
 **Code touched:**
 - `audit-model.ts` (`CLAIM_STATUSES` plus its pinned tests)
 - `check-claim-anchors.ts` (`anchoredDocs` input filter, the absence check, the obligations skip)
@@ -569,22 +569,28 @@ Not a rename phase. The one rename-like item is the kit home content:
 | A5 | `claude -p --agent grugops-orchestrator` stream-json shows `Agent` tool_use with `subagent_type` for spawned roles | UAT | Test 10 falls back to a human runbook (allowed by D-24). |
 | A6 | Installer non-interactive flags for the scratch install | UAT | A command fix at run time. |
 | A7 | Symlink install mode affects only target-side entries, not the kit home copy | Pattern 8 | docs/ handling needs a mode branch. |
-| A8 | Retiring C-28-002/003/008 via a new `retired` status is acceptable to the human | Pitfall 1 / OQ1 | A blocking decision, so it needs confirmation before the registry plan. |
+| A8 | Retiring C-28-002/003/008 via a new `retired` status is acceptable to the human | Pitfall 1 / OQ1 | A blocking decision, so it needs confirmation before the registry plan. Confirmed: D-25 (human, 2026-11-17). |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All four were answered by the human at plan time on 2026-11-17 (43-CONTEXT.md D-25..D-28). Each question keeps its research text below, followed by its resolution; where a resolution differs from the recommendation, the resolution wins.
 
 1. **How are C-28-002/003 (and C-28-008) retired? This blocks the README plan.**
    - What we know: D-03 names the `dropped` status, but the gate refuses `dropped` on a non-safety row. A dropped row must keep its anchor with generated disclosure text, which requires a lowered floor (Pitfall 1).
    - What's unclear: whether the human accepts a new status (`retired`: row kept, text removed, absence checked) as the honest reading of "re-dispositioned by id, never deleted".
    - Recommendation: add a `checkpoint:decision` as the first task of the registry/README wave. Offer (a) a new `retired` status [recommended], (b) keep the C-28-002/003 anchors in README with their old text (contradicts D-01 and D-04), or (c) move the old text to a "history" page (keeps the retired tagline public).
+   - **RESOLVED (D-25):** option (a). A new `retired` status: the row keeps its id, a reason and the commit, the text leaves the file, and the gate checks the text is absent. C-28-002, C-28-003 and C-28-008 are retired this way; `dropped` keeps its safety-only meaning.
 2. **Which art is "the wordmark" in the README?**
    - What we know: SVG wordmarks exist in `brand/`. The untracked `brand/readme-art.txt` draft has a token claim and typed counts.
    - Recommendation: a human checkpoint. Default to `brand/wordmark.svg` or the header ASCII art only.
+   - **RESOLVED (D-26):** the README art comes from the user's draft `brand/readme-art.txt`, cleaned: the header art (the `grugops` lettering and the fire), with no token, cost, speed or unverified host claim and no hand-typed count; none of the draft's "Possible texts" lines are used, and the draft file is not committed as is.
 3. **Do `examples/` ship too, or do shipped pages link to them by URL?**
    - What we know: D-11 lists what ships, and examples are not on it. D-18 says each example is linked from `docs/usage.md`.
    - Recommendation: absolute GitHub URLs from `docs/usage.md` to the examples. Keep D-11 as written.
+   - **RESOLVED (D-27), against the recommendation:** `examples/` ships with the kit beside the public user docs, as part of the same single derived shipped-docs list, so `docs/usage.md` links to the examples relatively and the links resolve in the checkout and in an installed kit home. The by-URL recommendation above is superseded.
 4. **Do `agent-factory/README.md` claims C-28-027..030/033 move or stay?**
    - Recommendation: move the sections and their anchors to `docs/usage.md` / `docs/how-it-works.md`, leaving a one-line pointer in `agent-factory/README.md`. This follows D-10 "each topic written once".
+   - **RESOLVED (D-28):** as recommended. C-28-027..030 and C-28-033 move with their sections and anchors to `docs/usage.md` / `docs/how-it-works.md`, re-dispositioned by id, and `agent-factory/README.md` keeps a one-line pointer for each moved section.
 
 ## Environment Availability
 
@@ -646,7 +652,7 @@ Gate commands (each runs `tsc --outDir .tmp-build` first):
 ### Wave 0 Gaps
 - [ ] `scripts/check-story-docs.ts` + `.test.ts` (GAP-D1, `/grug`, links) and the `package.json` script and ci.yml step.
 - [ ] Shipped-docs derivation (`install/kit-source.ts` export) + unit test.
-- [ ] Retired-claim status (after the OQ1 decision) + tests in `check-claim-anchors.test.ts` and `audit-model.test.ts`.
+- [ ] Retired-claim status (OQ1 resolved by D-25) + tests in `check-claim-anchors.test.ts` and `audit-model.test.ts`.
 - [ ] Baseline capture of all CI gates and the full suite by test name.
 
 ## Security Domain

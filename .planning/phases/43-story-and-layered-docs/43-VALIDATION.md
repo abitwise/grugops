@@ -68,6 +68,26 @@ installer arms and the install guide moved to 43-15). Every plan that adds a `sc
 runs `npx vitest run scripts/check-foundation-guards.test.ts` whole, compares failing names with 43-BASELINE.md and owns the pins it
 moves; 43-06 runs it as detection only; 43-12 owns late pin moves.
 
+**Same-wave plans share one working tree (plan revision 2).** Parallelization is on and worktrees are off, so the plans of waves 1, 3, 4
+and 5 edit and run the same gates in one checkout at the same time. Each of those plans states, in its `<context>`, who in its wave writes
+which shared gate state and this rule: a gate or test that goes red naming only paths in another same-wave plan's `files_modified` (its
+new or deleted pages, a scan pin it is moving, its `.ts`/`.js` pair under `npm run freshness` or `npm run check:build-parity`, or a build
+error in its `.ts`) is re-run after that plan's next commit; a red that names a path of the plan's own, or one still red once the other
+plan's SUMMARY exists, is the plan's own failure. Each re-run is listed in the SUMMARY. Wave 1 also has a start order: 43-01 commits
+43-BASELINE.md before any phase-43 edit, and 43-02 starts its edits on that commit, so the baseline measures the base commit.
+
+| Wave | Plans | Writes the scan pins and adds or deletes shipped pages | Other shared state |
+|------|-------|--------------------------------------------------------|--------------------|
+| 1 | 43-01, 43-02 | 43-02 | 43-01: the claim registry, audit-model.ts, check-claim-anchors.ts, and 43-BASELINE.md first |
+| 3 | 43-04, 43-06, 43-07, 43-08 | 43-04 (red on purpose between writing pages and moving pins) | 43-06: install/*.ts; 43-07, 43-08: examples only |
+| 4 | 43-05, 43-15 | 43-05 (red on purpose between writing pages and moving pins) | 43-15: install/install.ts, install/README.md |
+| 5 | 43-09, 43-14 | 43-09 (also CLAIM_KIND_CARDINALITY) | 43-14: the generator, the gate and the regenerated role pages |
+
+**LIVE-3 set unchanged by generated pages (plan revision 2).** install/host-entry-docs.test.ts LIVE-3 pins its derived per-host launch
+tables at CLAUDE.md, README.md and agent-factory/packaging/adapters.md until 43-10 retargets README.md to docs/usage.md. The generated
+skill pages (43-05) and role pages (43-14) name each host in plain text in a row's first cell, never bold, so neither joins that set; each
+plan runs that test file and checks with `git grep` that no row under docs/reference opens with a bold cell.
+
 | Wave | Plan | Task | Requirement | Automated command (first verify line) | Status |
 |------|------|------|-------------|----------------------------------------|--------|
 | 1 | 43-01 | 1 tracer | STORY-04 | `npm run build && npx vitest run scripts/check-claim-anchors.test.ts scripts/audit-model.test.ts` | ⬜ |
@@ -102,7 +122,7 @@ moves; 43-06 runs it as detection only; 43-12 owns late pin moves.
 
 - [ ] `scripts/check-story-docs.ts` + `scripts/check-story-docs.test.ts` (GAP-D1 sentence, `/grug` in `CLAUDE.md`, dead links in shipped docs), plus the `package.json` script and the ci.yml step
 - [ ] Shipped-docs derivation (`install/kit-source.ts` export) + unit test
-- [ ] Retired-claim status (after the open-question-1 decision) + tests in `scripts/check-claim-anchors.test.ts` and `scripts/audit-model.test.ts`
+- [ ] Retired-claim status (open question 1, resolved by D-25) + tests in `scripts/check-claim-anchors.test.ts` and `scripts/audit-model.test.ts`
 - [ ] Baseline capture of every CI gate and the full suite by test name, before plan 1
 
 ---
