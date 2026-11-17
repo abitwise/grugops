@@ -230,7 +230,7 @@ const DECIDER_MANIFEST = {
     "hooks/admission-guard.js": {
         "hooks/admission-guard.js": "e0f15b62d26b0b1f435ea32b8a3540b9987b09901937c6d79f47dac349e8ad85",
         "install/state-layout.js": "2cce25a03ca66b8ca3d85924bbf324bcc999f4d08e6464734e35d0912dd44c0c",
-        "scripts/audit-model.js": "e0cf5413a343e6ce54f9c4c7d7edb38cff89fed95711033eb00affeb38dee49a",
+        "scripts/audit-model.js": "652d638cf5a288739c06d873d206e8c6f969f1d6dfc534eb52efb9879c46b491",
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "2f9362840df4b4810c2af8293ef91cb3ce25a547d8387f3aa1dfae83dc04804d",
         "scripts/check-role-rules.js": "3d479c9108f6617ca024d12129d422947a0470088e1d05239c745475ac2e2dea",
