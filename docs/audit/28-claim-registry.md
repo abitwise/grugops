@@ -38,7 +38,7 @@ phase's `docs/audit/` artifacts. Enforced by `scripts/check-claim-anchors.js`.
 | `line` | **Advisory, not asserted.** See § *Why `line` is recorded and not checked*. |
 | `kind` | `safety` \| `architecture` \| `install`. |
 | `depends_on` | The safety floor(s) whose LOWERING would falsify the claim, drawn from `SAFETY_FLOORS`. `—` on a non-safety row. |
-| `status` | `true` \| `overstated` \| `false`, **measured** against `mechanism` (D-17), or `dropped` — see § *A dropped claim is replaced in place (D-18)*. |
+| `status` | `true` \| `overstated` \| `false`, **measured** against `mechanism` (D-17); `dropped` — see § *A dropped claim is replaced in place (D-18)*; or `retired` — see § *A retired claim leaves the page and keeps its row (D-25)*. |
 | `mechanism` | The specific thing the status was measured against. Never blank — the gate refuses a blank one. |
 | `disposition` | `fixed` \| `accepted` \| `deferred`, present when `status` is not `true`. |
 | `finding_id` | The `F-28-NNN` name of the finding, present when `status` is not `true`. |
@@ -872,6 +872,46 @@ floor in the live configuration, which needs a second key the configuration cann
 **As committed by plan 30-09: zero rows are `dropped`.** Nothing on this tree lowers a floor, so
 every row below still stands at the status it was measured at. The mechanism is here before it is
 needed, which is the only order in which it can be trusted.
+
+## A retired claim leaves the page and keeps its row (D-25)
+
+`retired` is the fifth `status` value, added by Phase 43 plan 43-01. A row is `retired` when the
+docs **withdrew** the claim: a rewrite took the sentence off the page on purpose. No safety floor was
+lowered and nothing replaces the sentence.
+
+**The row stays; the text goes.**
+
+- The registry **row stays**, with its id, its `mechanism` and its original fenced verbatim, so the
+  record still shows what was once claimed. The id is **never reused**: a new sentence gets a new id
+  and a new row.
+- The claim's **text and its anchor leave** the file the row names. `scripts/check-claim-anchors.js`
+  checks both are **absent**: it fails when the verbatim bytes are still in the file, and when a
+  `<!-- claim: <id> -->` anchor for the row is still in it. A retired row is left out of the
+  anchor-to-row bijection, because it owes the file no anchor.
+- The row is judged against its **named file only**. The same sentence in another file is that
+  file's business, not this row's.
+- A **missing file fails**. A file that does not exist contains no text, so it would prove nothing
+  about absence; the row must name the file the text was withdrawn from, as it exists on this tree.
+- The `mechanism` gives the **reason and the last commit where the text stood**, as a backticked hex
+  token of 7 to 40 characters (for example `` `a067c6e` ``), so `git show <commit>:<file>` still
+  shows the withdrawn text. A retired row without one fails.
+- The **claim-id contiguity is unchanged**: the row is kept, so its id stays in the sequence.
+
+**A safety row cannot be retired.** Retiring needs no lowered floor and leaves no disclosure, so on
+a safety row it would take a `false` or `overstated` safety sentence off a public page with no trace a
+reader can see. A safety claim leaves a page only through `dropped`, with the generated disclosure at
+its anchor. The gate refuses `retired` on any `kind: safety` row by name.
+
+**Why a `retired` row carries no `disposition` and no `finding_id`.** Those fields exist so a claim
+nobody decided about does not stay standing in a shipped document. A retired claim was decided: it
+was withdrawn, and the gate checks it is gone. A withdrawn sentence is not a finding, so it carries
+no finding id.
+
+**A retired row still counts in its kind's cardinality.** `scripts/check-audit-register.js` counts
+every row of each kind, retired ones included, because retiring a row does not delete it.
+
+**As committed by plan 43-01: zero rows are `retired`.** Plan 43-11 retires the first ones when it
+removes their text from `README.md`.
 
 ## Two-sided completeness (D-14)
 
