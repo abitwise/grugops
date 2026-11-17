@@ -1,286 +1,215 @@
 ---
 phase: 42-skills-per-role-and-evaluation
-reviewed: 2026-11-16T00:00:00Z
+reviewed: 2026-11-17T12:28:32Z
 depth: standard
-files_reviewed: 30
+files_reviewed: 13
 files_reviewed_list:
-  - agent-factory/roles/designer.md
-  - agent-factory/roles/frontend-ui.md
-  - agent-factory/roles/_role-switch-protocol.md
-  - agent-factory/workflows/14-ui-design-to-build.md
-  - AGENTS.md
-  - docs/audit/28-claim-registry.md
   - docs/audit/29-style-dispositions/42-03.md
   - docs/audit/29-style-dispositions/42-06.md
-  - docs/skills.md
+  - install/README.md
   - install/agents-record.test.ts
   - install/claude-version-doctor.test.ts
-  - install/host-tools.test.ts
+  - install/host-tools.js
   - install/host-tools.ts
-  - install/installer-paths.test-support.ts
+  - install/install.js
   - install/install.ts
-  - install/message-references.test.ts
-  - install/mode-census.test.ts
+  - install/installer-paths.test-support.ts
   - install/path-spelling-census.test.ts
-  - install/README.md
   - install/skills-doctor.test.ts
-  - scripts/check-banned-claims.test.ts
-  - scripts/check-banned-claims.ts
-  - scripts/check-flip-manifest.test.ts
-  - scripts/check-foundation-guards.test.ts
-  - scripts/check-public-docs-vocabulary.test.ts
-  - scripts/check-public-docs-vocabulary.ts
-  - scripts/role-skills-reader.test.ts
-  - scripts/role-skills-reader.ts
   - scripts/skills-kit-text.test.ts
-  - scripts/tier-kit-text.test.ts
 findings:
-  critical: 2
+  critical: 0
   warning: 4
-  info: 6
-  total: 12
+  info: 4
+  total: 8
 status: issues_found
 ---
 
-# Phase 42: Code Review Report
+# Phase 42: Code Review Report (incremental re-review after the review fixes)
 
-**Reviewed:** 2026-11-16
+**Reviewed:** 2026-11-17T12:28:32Z
 **Depth:** standard
-**Files Reviewed:** 30
+**Files Reviewed:** 13
 **Status:** issues_found
 
 ## Summary
 
-Scope: the phase-42 hunks (`git diff 76c6d8a6..HEAD`) of the 30 listed files, read against the whole file. Focus areas: the
-declared-skills doctor section of `install/install.ts` (reader spawn, `HOST_SKILL_DIRS` lookup, Claude Code
-`installed_plugins.json` lookup, `folderInsidePlugin` containment for T-42-05), the `claude --version` probe,
-`HOST_SKILL_DIRS` and `CLAUDE_CODE_LEVEL_FLOOR` in `install/host-tools.ts`, `scripts/role-skills-reader.ts`, and the
-kit and public-doc text against the code. The compiled `.js` twins were not reviewed; the caller's freshness check covers them.
+Scope: `git diff 149e2aac..HEAD` of the 13 listed files, read against the surrounding code. These are the review-fix
+commits d705749f (CR-01), 1b4cbc57 (CR-02), a6e05b94 (WR-01), da717415 (WR-02), 59697a77 (WR-03) and 8a58d8e8 (WR-04).
+They change `install/install.ts`, `install/host-tools.ts`, their committed `.js` output and their tests. The scope also
+includes the Nyquist test added to `scripts/skills-kit-text.test.ts` and the two style-disposition docs, where 17 rows
+moved from `pending (named human)` to `accepted by Olger (42-UAT test 3, 2026-11-17)`.
 
-Every runtime claim below was reproduced against the committed `install/install.js` in a scratch target with a scratch
-HOME, a scratch kit home and a scratch PATH. The one exception is the Windows half of CR-01, which rests on documented
-libuv behavior and was not run on a Windows host.
+Verification run for this review:
+- `npm run freshness` passes: 92 committed `.js` files match a rebuild.
+- `install/agents-record.test.ts` and `install/claude-version-doctor.test.ts` pass: 234 of 234.
+- `install/skills-doctor.test.ts`, `install/path-spelling-census.test.ts` and `scripts/skills-kit-text.test.ts` pass with
+  the default TMPDIR. One skills-doctor case fails when TMPDIR is a long path (WR-04).
+- I reproduced WR-01, WR-02 and WR-03 below by running the committed `install/install.js --check` in a scratch target
+  with a scratch HOME and PATH.
 
-Main concerns:
+The six fixes do what they say for the cases they target:
+- **CR-01:** the PATH walk skips empty and relative entries, and the spawn uses the absolute path with the home folder
+  as cwd. The `.`, empty and `../t` cases are real regressions: the row's target is named `t`, so `../t` does point at
+  the planted file.
+- **CR-02:** every declared-skills line and every version `notChecked` line passes through `printableLine`.
+- **WR-01:** `found` now leaves out the default user folders when an override is set.
+- **WR-03:** strays are reported one by one, and the remaining skills are still checked.
+- **WR-04:** a Windows shim gets its own reason. This was unit-tested through `path.win32` only, and the Windows live
+  run (UAT test 6) is deferred.
 
-1. **CR-01:** the `claude --version` probe resolves the bare name `claude` with `cwd` left as `process.cwd()`. That
-   directory is the target repository by default. On Windows, libuv also searches the current directory, so a repository
-   could plant a `claude.exe` that `--check` runs. `--check` is documented as read-only.
-2. **CR-02:** refusal reasons from the role-skills reader, and its stderr, are printed raw. The reasons quote role-file
-   bytes, so ESC/OSC sequences in a role file reach the user's terminal. This was reproduced, including with the kit home
-   named by the target's `.grugops/install.json`. The file already has `oneLine`/`stripControlChars` for this, and its
-   other child-output path (line ~7878) uses it.
-3. **WR-01 to WR-04:** three wrong `ok` or `not checked` outcomes and one wrong reason: a false `found` under
-   `CLAUDE_CONFIG_DIR`, a false `found` through a symlink out of a plugin folder, the whole section disabled by one
-   stray roles file with a misleading reason, and a Windows `.cmd` shim reported as "not found on PATH".
+The audit-doc rows are backed by 42-UAT.md test 3, which records the typed-name ruling "accept all 17, Olger".
 
-The structure-only gates (`check-banned-claims`, `check-public-docs-vocabulary`) pass on the current tree. Their pin
-moves and the census re-pins are consistent with the diff. The markdown kit edits (AGENTS.md precedence line,
-role-switch protocol line, Designer and Frontend/UI hard limits, Workflow 14 step 1) match docs/skills.md and their
-style-disposition rows.
+New defects:
+1. The WR-02 link-following containment covers only the folder named in the manifest. The default
+   `<installPath>/skills` folder and each per-skill folder can still link out of the plugin and give `ok ... found`.
+   The same layout through a manifest path gives `not checked`.
+2. The new `realPathThroughExisting` refusal turns an ENOTDIR or EACCES into a false reason, which says the path is
+   "absolute, has a .. segment or leaves the plugin folder".
+3. CR-01 made the version probe's cwd the home folder without checking that the folder exists. A missing HOME now
+   prints "`claude --version` could not be run (ENOENT)".
+4. One CR-02 regression test depends on the length of TMPDIR.
 
-## Critical Issues
-
-### CR-01: `claude --version` can execute a binary planted in the target repository (Windows cwd search; relative PATH entries on POSIX)
-
-**File:** `install/install.ts:2754-2763` (spawn), `install/install.ts:3452` (call site)
-**Issue:** `doctorClaudeVersion` calls `spawnSync("claude", ["--version"], { shell: false, ... })` and leaves `cwd` unset.
-The child therefore resolves `claude` with the doctor's own working directory. `resolveTarget()` (line 545-547) makes
-that directory the target by default, because the documented way to run `--check` is from inside the repository.
-
-- **Windows:** libuv's `search_path` (src/win/process.c) checks the current directory for `claude.com`/`claude.exe`
-  before it walks PATH. A cloned repository that commits `claude.exe` at its root, plus a `.grugops/install.json` that
-  records Claude Code (or `.claude/` under the "detected" fallback in `doctorHosts`, line 2025), gets that binary run by
-  a plain `install.js --check`. The libuv behavior is documented; it was not run on a Windows host here, so the Windows
-  premise is `UNKNOWN - verify`.
-- **POSIX:** the same happens when the user's PATH has an empty entry (`::`, a leading or trailing `:`) or `.`.
-
-The header comment (lines 18-22) justifies the probe because it runs "the same program the user's own `claude` command
-runs". That is false for PowerShell, which does not search the current directory. It is also false whenever the user
-does not type `claude` from inside an untrusted checkout. A read-only diagnostic must not become a code-execution path
-for the repository it inspects.
-
-**Fix:** resolve `claude` to an absolute path yourself, use only absolute PATH entries, and spawn that path with a `cwd`
-outside the target:
-```ts
-function whichClaude(): string | null {
-  const names = process.platform === "win32" ? ["claude.exe", "claude.com"] : ["claude"];
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    if (dir === "" || !isAbsolute(dir)) continue;            // never the cwd, never a relative entry
-    for (const n of names) {
-      const p = join(dir, n);
-      try { if (statSync(p).isFile()) return p; } catch { /* next */ }
-    }
-  }
-  return null;
-}
-// ...
-const exe = whichClaude();
-if (exe === null) { notChecked("`claude` was not found on PATH"); return; }
-const r = spawnSync(exe, ["--version"], { cwd: homedir(), shell: false, /* same bounds as today */ });
-```
-Also add `NoDefaultCurrentDirectoryInExePath: "1"` to the child env on win32. Add a test that plants an executable
-`claude` in the target, puts a relative `.` on PATH, and asserts the planted file is never run.
-
-### CR-02: Terminal escape injection: role-file bytes and reader stderr are printed raw by `--check`
-
-**File:** `install/install.ts:2493-2494` (refusal reason), `install/install.ts:2469-2470,2473` (reader stderr in `said`), `install/install.ts:2686` (print)
-**Issue:** `readDeclaredSkills` normalizes a refusal reason only with `.replace(/\s+/g, " ")`. That collapses whitespace,
-but ESC (U+001B), BEL (U+0007), C1 controls and bidi overrides stay. The reasons come from `admitRole`, and they quote
-document bytes. For example, `[no-opening-delimiter] line 1 of the fence-stripped document is \`...\`` quotes line 1 of
-the role file verbatim, and that line is outside the frontmatter, so the control-character refusal never sees it.
-`plain-scalar-charset` reasons quote a U+202E verbatim. The kit home whose roles are read is `DOCTOR_KIT_HOME`, which
-`commandContextFromRecord` takes from the target's own `.grugops/install.json` `grugopsHome`.
-
-Reproduced: a kit role file `zz-evil.md` whose first line is `\e]0;pwned\a\e[31mRED hello` produces this advisory line,
-with raw ESC and BEL in stdout (shown through `cat -v`):
-```
-advisory       declared skills of zz-evil not read: [no-opening-delimiter] line 1 of the fence-stripped document is `^[]0;pwned^G^[[31mRED hello`, ...
-```
-The same output appeared when the target's marker `grugopsHome` was rewritten to an absolute path inside the target
-repository. OSC sequences can retitle the window, plant OSC 8 hyperlinks, or write the clipboard (OSC 52) on terminals
-that honor it. The reader's stderr first line (`said`, line 2470) is likewise printed unfiltered. The file already owns
-the fix: `oneLine` → `stripControlChars(text, false)` (line 7259). The trace-render child (lines 7878-7881) already
-passes its child output through it. This new spawn does not.
-
-**Fix:** pass every child-derived string through `stripControlChars` before it is printed. Call `stripControlChars`
-directly: `oneLine` is a module-level `const` declared later in the file.
-```ts
-const reason = stripControlChars(ref.reason, false).replace(/\s+/g, " ").trim();
-// ...
-const firstErr = stripControlChars((r.stderr ?? "").trim().split("\n")[0] ?? "", false);
-```
-If `stripControlChars` does not cover bidi format characters (U+202A-U+202E, U+2066-U+2069), strip those as well. Add a
-skills-doctor case with an ESC sequence on line 1 of a planted role and assert that no `\u001b` reaches stdout, as
-claude-version-doctor.test.ts already does for the version line.
+No critical issues were found. The Info findings from the earlier review (IN-01 to IN-06) were out of the fix scope and
+remain open. They are not repeated here.
 
 ## Warnings
 
-### WR-01: A set `CLAUDE_CONFIG_DIR` (or another override) still yields `ok ... found` from the default user and plugin folders
+### WR-01: The link-following containment (review WR-02 fix) skips the default `skills/` folder and per-skill links, so the same escape still gives `found`
 
-**File:** `install/install.ts:2700-2729`; `install/host-tools.ts:27-31,508`
-**Issue:** `found` is computed from `dirs.user` under `homedir()` and, for Claude Code, from
-`<home>/.claude/plugins/installed_plugins.json` before any override is considered. The override test (`moved`) runs only
-on the not-found path. Two sources say a set override means the user folders cannot be checked: the `HostSkillDirs`
-contract ("a set one means the user folders cannot be checked rather than guessed") and docs/skills.md ("A place it
-cannot see, such as a user folder that one of the listed variables may move, gives ... `not checked`"). Yet when the
-variable is set and a stale copy sits in the default folder, the doctor reports the skill found.
+**File:** `install/install.ts:2626` (default folder pushed with no containment test), `install/install.ts:2547-2554` (`skillFileIn` follows a per-skill link), `install/install.ts:2683-2690` (the only real-path test)
+**Issue:** `folderInsidePlugin` now compares real paths, but it is called only for `skills` paths named in a manifest
+(`manifestSkillFolders`). In `claudePluginSkillFolders`, `join(installPath, "skills")` is pushed with no containment test
+at all. `skillFileIn` then stats `<folder>/<skill>/SKILL.md` and follows every link, including a `<skill>` folder that
+is a link. Reproduced against the committed `install.js`:
+- Case A: `<installPath>/skills` is a link to `<HOME>/outside`, which holds `ui-ux-pro-max/SKILL.md`. The output is
+  `ok  skill ui-ux-pro-max (designer) found for Claude Code`.
+- Case B: the manifest has `{"skills":"real"}`, `real/` is a real folder inside the plugin, and `real/ui-ux-pro-max` is
+  a link out of the plugin. The output is again `ok ... found for Claude Code`.
 
-Reproduced: `CLAUDE_CONFIG_DIR=<elsewhere>` and `<HOME>/.claude/skills/some-skill/SKILL.md` give
-`ok  skill some-skill (designer2) found for Claude Code`. Under the table's own assumption, Claude Code reads
-`$CLAUDE_CONFIG_DIR/skills` there, so this `ok` is not backed by anything the host reads. The same applies to the
-Claude Code plugin record, whose default root `<home>/.claude/plugins` also moves with `CLAUDE_CONFIG_DIR`, and to
-`CODEX_HOME`, `COPILOT_HOME`, `PI_CODING_AGENT_DIR` and `OPENCODE_CONFIG_DIR`/`XDG_CONFIG_HOME` for whichever user
-folders they move. No test covers "override set and skill present in the default user folder"; line 324 of
-skills-doctor.test.ts pins only the plugin-record variant.
-**Fix:** when any of `dirs.userOverrides` is set, leave `dirs.user` out of the `found` computation. For Claude Code,
-also leave out the default plugin root unless `CLAUDE_CODE_PLUGIN_CACHE_DIR` is set. Fall through to the existing
-`not checked` line. Project folders stay checked. Add the missing test.
-
-### WR-02: `folderInsidePlugin` containment is lexical only, so a symlink inside the plugin escapes it (T-42-05 overstated)
-
-**File:** `install/install.ts:2604-2610` (doc comment), `install/install.ts:2645-2653`, `install/install.ts:2518-2525`
-**Issue:** The manifest comment says a path that "resolves outside installPath is refused before anything under it is
-looked at". `folderInsidePlugin` uses `resolve`/`relative`, which never follow links. `skillFileIn` then calls
-`statSync`, which does follow them.
-
-Reproduced: plugin `p@m` with manifest `{"skills":"lnk"}`, where `<installPath>/lnk` is a symlink to an outside folder
-holding `other-skill/SKILL.md`. The result is `ok  skill other-skill (designer2) found for Claude Code`. The impact is
-limited: only a presence boolean and a wrong `found`, and no content is read. But T-42-05's stated mitigation does not
-hold, and the doctor reports a skill as carried by a plugin that does not carry it.
-**Fix:** after the lexical test, compare real paths:
+The layout that WR-02's new test pins (`skills: "lnk"`, where `lnk` links out) gives `not checked`. So the same
+situation, a skill whose bytes live outside the plugin, gets opposite answers depending on which path component is the
+link. The doc comments at `install.ts:2639-2640` and `2683-2684` say the containment is decided "links followed", and
+T-42-05 is cited as mitigated. Both claims hold for one of three link points only.
+**Fix:** decide containment in one place, on the final stat path, for every plugin folder:
 ```ts
-let realBase: string, realAbs: string;
-try { realBase = realpathSync(installPath); realAbs = realpathSync(abs); } catch { return abs; } // absent: nothing to stat
-const r2 = relative(realBase, realAbs);
-if (r2 === ".." || r2.startsWith(".." + sep) || isAbsolute(r2)) return null;
+// in claudePluginSkillFolders, keep installPath with each folder:
+folders.push({ base: installPath, folder: join(installPath, "skills") });
+// ...and in the lookup, instead of skillFileIn(folder, skill):
+function pluginSkillFileIn(base: string, folder: string, skill: string): boolean {
+  if (!KEBAB_NAME.test(skill)) return false;
+  const file = join(folder, skill, "SKILL.md");
+  const realBase = realPathThroughExisting(base);
+  const realFile = realPathThroughExisting(file);
+  if (realBase === null || realFile === null) return false;
+  const r = relative(realBase, realFile);
+  if (r === ".." || r.startsWith(".." + sep) || isAbsolute(r)) return false; // or report `not checked`
+  return statSync(file, { throwIfNoEntry: false })?.isFile() === true;
+}
 ```
-Alternatively, correct the comment and the threat-register text to say the containment is lexical.
+Another option is to state plainly, in the comments and in T-42-05, that only the manifest folder is contained. Add
+tests for case A and case B. If the decision is that Claude Code follows these links and `found` is correct, then the
+manifest-link case should be `found` too, and the WR-02 change should be reverted to keep the rule consistent.
 
-### WR-03: One non-kebab `.md` in the roles folder disables the whole declared-skills section, with a misleading reason
+### WR-02: A `skills` path whose real location cannot be read is refused with a false reason ("absolute, has a .. segment or leaves the plugin folder")
 
-**File:** `install/install.ts:2488-2491,2497-2500`; `scripts/role-skills-reader.ts` (`readRoleSkills`, the `.endsWith(".md")` filter)
-**Issue:** The reader lists every `.md` entry except `ROLE_DIR_EXEMPT_NAMES` and reports a refused role under its file
-stem. A file such as `NOTES.md` or `README.md` in a user's kit roles folder becomes a refusal with role `NOTES`. The
-doctor then fails `KEBAB_NAME.test(ref.role)` and rejects the entire report as `notShape`.
+**File:** `install/install.ts:2685-2687` (null from `realPathThroughExisting`), `install/install.ts:2662` (the message)
+**Issue:** `realPathThroughExisting` returns null for any `lstat` error other than ENOENT, such as ENOTDIR or EACCES,
+and for a dangling link. `folderInsidePlugin` maps that null to the same refusal as an escape. The message then states
+three things, and in this case none of them is true. Reproduced: a manifest with `{"skills":"README.md/skills"}`, where
+`README.md` is a regular file, prints:
+```
+advisory  skill ui-ux-pro-max (designer) not checked for Claude Code: the manifest of plugin p@m names the skills path "README.md/skills", which is absolute, has a .. segment or leaves the plugin folder (links followed); optional, see docs/skills.md
+```
+The path is relative, has no `..` segment and stays inside the plugin. Failing closed is right, but the reason is
+fabricated diagnostic text, the same class as the earlier review's WR-03 and WR-04, which the project's no-fabrication
+rule covers.
+**Fix:** return a reason from `folderInsidePlugin` instead of a bare null, and word the unreadable case on its own:
+```ts
+type Inside = { ok: string } | { refused: "shape" | "escapes" | "unreadable" };
+// ...
+if (realBase === null || realAbs === null) return { refused: "unreadable" };
+// manifestSkillFolders:
+// "unreadable" -> `... names the skills path ${JSON.stringify(p)}, whose real location could not be read (a dangling link, a file in the path, or no permission)`
+```
+Add a test with the file-in-path layout above and with a dangling link.
 
-Reproduced: adding `NOTES.md` turns every per-skill line into the single line
-`declared skills not checked: the role-skills reader .../role-skills-reader.js printed JSON that is not its report`.
-That is fail-closed, but the reason blames the reader's output format rather than the stray file, so the user cannot
-act on it.
-**Fix:** in the doctor, skip (or report by itself) a refusal whose role name is not kebab, instead of rejecting the
-report. For example, print `a file in the roles folder is not a role name: <oneLine(name)>` and keep checking the other
-skills. Alternatively, have the reader report a non-kebab stem as a distinct `ignored` entry.
+### WR-03: CR-01 runs `claude --version` with the home folder as cwd and does not check that the folder exists; a missing HOME now reads "could not be run (ENOENT)"
 
-### WR-04: On Windows an npm-installed `claude.cmd` is reported as "`claude` was not found on PATH"
+**File:** `install/install.ts:2841-2856` (spawn with `cwd: home`, the error mapping), `install/install.ts:3535-3541` (`homedir()` passed in)
+**Issue:** `spawnSync` fails with ENOENT when `cwd` does not exist. Since d705749f, the doctor prints
+"`claude --version` could not be run (ENOENT)" whenever `homedir()` names a folder that is not there. This happens with
+system users whose HOME is `/nonexistent`, some CI and container images, and a HOME override that points nowhere. The
+probe then never runs, although `claude` was found and is runnable. The line points at `claude`, but the real cause is
+the cwd the doctor chose. Reproduced with `HOME=<scratch>/gone` and a working `claude` on an absolute PATH entry:
+`the Claude Code version was not checked: \`claude --version\` could not be run (ENOENT)`. Before the fix this probe ran
+in `process.cwd()` and printed the version.
+**Fix:** choose a cwd that exists and is not the target. The folder that holds the found program is a good choice: it
+is an absolute PATH entry the user trusts, and it always exists:
+```ts
+const cwd = dirname(onPath.path);
+const r = spawnSync(onPath.path, ["--version"], { cwd, /* ...same bounds... */ });
+```
+Alternatively, stat `home` first and print "the home folder ${home} does not exist, so `claude --version` was not run".
+Update the README sentence ("runs that file by its full path from your home folder") and the end-to-end cwd test to
+match whichever choice is made.
 
-**File:** `install/install.ts:2764-2767`; `install/README.md:2101-2104`
-**Issue:** With `shell: false`, libuv on Windows only tries `claude`, `claude.com` and `claude.exe`. A user whose
-`claude` is the npm `.cmd` shim gets `ENOENT`, and the doctor prints "`claude` was not found on PATH". That is false:
-the program is on PATH and the user runs it daily. The doc comment above the function knows this case and says the line
-is "not checked", but the reason string states something untrue. The project's no-fabrication rule applies to
-diagnostic text. `EINVAL` (spawning a `.cmd` by explicit name) is also folded into "not found", which is also wrong.
-**Fix:** on win32, word the ENOENT case as
-"`claude.exe` was not found on PATH (an npm-installed `claude.cmd` shim is not run without a shell, so the version was
-not checked)". Give `EINVAL` its own reason. The CR-01 fix (an explicit PATH walk) makes it easy to tell a `.cmd`-only
-PATH from a truly absent one.
+### WR-04: The CR-02 reader-stderr test depends on the length of TMPDIR: it fails when the scratch path is long
+
+**File:** `install/skills-doctor.test.ts:606-615`; truncation at `install/install.ts:2492`
+**Issue:** `readDeclaredSkills` cuts the reader's first stderr line at 300 characters. The reader's message names the
+kit path twice before the file name (`the roles of <kit> could not be read (ENOENT: ..., open '<kit>/agent-factory/roles/bad<ESC>]0;pwned<BEL>.md')`),
+so the role-file name falls past character 300 once the scratch root is longer than about 100 characters. The assertion
+`expect(notChecked[0]).toContain("]0;pwned")` then fails. Observed: the test passes with TMPDIR unset (`/tmp`) and fails
+with TMPDIR set to a session scratchpad under `/tmp/claude-1000/...`. The project memory already records that `/tmp`
+quota trouble pushes runs to other temp folders, so this is a likely false red. Also, once the name is cut away, the
+`UNPRINTABLE` assertion would pass even without the fix, because the ESC never reaches the output.
+**Fix:** make the case independent of the path length. Put the row under a short root, for example
+`mkdtempSync(join(tmpdir(), "g-"))` with a one-letter row name, or put the stray role in a kit whose path is a short
+link. Better, assert on a reason that names the file early. Keep the `toContain("]0;pwned")` assertion so the case
+proves the ESC reached `printableLine`.
 
 ## Info
 
-### IN-01: Unreachable `unread` branch in `doctorDeclaredSkills`
+### IN-01: The WR-01 override rule drops user folders that the set variable cannot move
 
-**File:** `install/install.ts:2720-2724`
-**Issue:** `hostSkillEnv().read` is a fixed literal that install/agents-record.test.ts pins to exactly the
-`userOverrides` names, so `unread` is always empty and the "this build does not read ..." line can never print.
-**Fix:** build `read` from `HOST_SKILL_DIRS` (plus `CLAUDE_CODE_PLUGIN_CACHE_DIR`) so the branch means something.
-Otherwise remove it and keep the test pin.
+**File:** `install/install.ts:2751-2754`; `install/host-tools.ts:521-540`
+**Issue:** When any `userOverrides` variable is set, all of `dirs.user` is left out of `found`. For OpenCode,
+`XDG_CONFIG_HOME` (often set on Linux) drops `~/.claude/skills` and `~/.agents/skills` too, although that variable can
+only move `~/.config/opencode/skills`. The same holds for `COPILOT_HOME` and `PI_CODING_AGENT_DIR`, which drop
+`~/.agents/skills`. The line says "may move", so nothing false is printed, and Olger confirmed the conservative rule in
+42-UAT test 4. The cost is an always-`not checked` line on those hosts.
+**Fix:** if more precision is wanted later, map each override to the user folders it moves, for example
+`userOverrides: { XDG_CONFIG_HOME: [".config/opencode/skills"], ... }`, and keep the other folders in `found`.
 
-### IN-02: The version regex accepts a pre-release as meeting the floor
+### IN-02: On Windows a rooted PATH entry with no drive (`\tools`) counts as absolute but depends on the current drive
 
-**File:** `install/install.ts:2780`
-**Issue:** `/^(\d+)\.(\d+)\.(\d+)\b/` matches `2.1.293-beta.1` as `2.1.293`, so it prints `meets the v2.1.293 floor`,
-although SemVer orders `2.1.293-beta.1` below `2.1.293`.
-**Fix:** treat a `-` directly after the patch digits as below an equal release, or say "not checked" for pre-releases.
+**File:** `install/host-tools.ts:601-604`
+**Issue:** `path.win32.isAbsolute("\\tools")` and `isAbsolute("/tools")` are true, yet such a path is relative to the
+current drive. The lookup stats it against the doctor's drive, which is the target's. libuv resolves the spawned path
+against the child's `cwd`, which is the home drive. When the two drives differ, the file that was checked is not the
+file that is run. This is rare and not attacker-controlled through the repository, and it is Windows only, so it is
+`UNKNOWN - verify`.
+**Fix:** on win32, require a drive root or a UNC root: `/^([A-Za-z]:[\\/]|\\\\)/.test(entry)`.
 
-### IN-03: docs/skills.md and install/README.md state the doctor's output slightly wrong
+### IN-03: A stray role name is cut before it is cleaned
 
-**File:** `docs/skills.md:7`, `docs/skills.md:31-38`, `install/README.md:814`
-**Issue:**
-- docs/skills.md:7 says `install.js --check` "only reports a declared skill it cannot find". It also prints `ok` lines
-  for skills it finds, as § *What install.js --check does* says.
-- The host table's "May be moved by" column for Claude Code omits `CLAUDE_CODE_PLUGIN_CACHE_DIR`, which the doctor reads
-  (`hostSkillEnv`, `claudePluginSkillFolders`).
-- install/README.md:814 says a place it cannot see "gives a `not checked` line". The label printed is `advisory`; the
-  words `not checked` are in the message.
-**Fix:** reword docs/skills.md:7 (for example "only reports; it never installs a skill"), name
-`CLAUDE_CODE_PLUGIN_CACHE_DIR` in the Claude Code row or in a note under the table, and say "an `advisory` line that
-says `not checked`" in the README.
+**File:** `install/install.ts:2726`
+**Issue:** `stray.slice(0, 100)` runs before `printableLine`, which `say` applies, so control characters count toward
+the 100. The cut can also split a surrogate pair, which leaves a lone surrogate that prints as U+FFFD.
+**Fix:** `const clean = printableLine(stray); const name = clean.length > 100 ? Array.from(clean).slice(0, 100).join("") + "..." : clean;`
 
-### IN-04: The user-facing line claims "the role-frontmatter guard reports this"
+### IN-04: The disposition docs still say each row "is written as `pending (named human):`"
 
-**File:** `install/install.ts:2686`
-**Issue:** `scripts/check-foundation-guards.js` is grugops's own dev/CI gate. For a user's kit home nothing runs it, so
-the parenthetical promises a report the user will not see.
-**Fix:** drop the parenthetical, or say "this role file is not in the form the kit requires".
-
-### IN-05: The case-sensitivity test asserts nothing on case-insensitive filesystems
-
-**File:** `install/skills-doctor.test.ts:126-135`
-**Issue:** On macOS (default APFS) and Windows, `caseSensitive` is false and the test passes with zero assertions. The
-test title "the name is compared byte for byte" is then untrue for the doctor on those hosts: `statSync` matches the
-differently-cased folder, so the doctor prints `found`.
-**Fix:** on a case-insensitive filesystem, assert the actual behavior (a `found` line) or use `it.skipIf` with a
-reason, so a green run does not read as coverage.
-
-### IN-06: Output-cap overflow is reported as "could not be run"
-
-**File:** `install/install.ts:2766-2768`
-**Issue:** When `claude --version` exceeds the 64 KiB `maxBuffer`, `r.error.code` is `ENOBUFS`. The program did run,
-but the line reads "`claude --version` could not be run (ENOBUFS)".
-**Fix:** map `ENOBUFS` to "printed more than 64 KiB, so its version was not read".
+**File:** `docs/audit/29-style-dispositions/42-03.md:23-24`, `docs/audit/29-style-dispositions/42-06.md:27-28`
+**Issue:** Every row now reads `accepted by Olger (42-UAT test 3, 2026-11-17)`, but the intro still says each row is
+written as `pending (named human):` and "stays pending until a named human reads the row". None of the other accepted
+disposition docs (`41-*.md`, `40-20.md`) carries this sentence.
+**Fix:** reword it to the past tense, for example "Each row was written as `pending (named human):` ...; Olger accepted
+all 17 in 42-UAT test 3 on 2026-11-17", or drop the sentence.
 
 ---
 
-_Reviewed: 2026-11-16_
+_Reviewed: 2026-11-17T12:28:32Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
