@@ -129,9 +129,15 @@ export const CLAIM_KINDS = ["safety", "architecture", "install"];
 // withdrawn sentence would need an anchor and a disclosure for a claim that no longer exists, and
 // the gate rightly refuses `dropped` on any row that rests on no floor.
 //
+// WHY IT CANNOT LAUNDER A SAFETY CLAIM. A `false` or `overstated` safety claim must not leave a public
+// page quietly. The gate refuses `retired` on every `kind: safety` row, so a safety claim leaves a
+// page only through `dropped`, with its generated disclosure.
+//
 // THE OBLIGATIONS. `retired` is exempt from the disposition / finding_id obligations, because a
 // withdrawn sentence is not a finding left standing; the obligation those fields serve (no undecided
-// claim stays in a shipped document) is met by the absence check. A retired row still counts in its
+// claim stays in a shipped document) is met by the absence check. Instead the row's `mechanism` must
+// give the reason and name the last commit where the text stood, as a backticked hex token of 7 to
+// 40 characters, so `git show <commit>:<file>` still shows it. A retired row still counts in its
 // kind's cardinality.
 export const CLAIM_STATUSES = ["true", "overstated", "false", "dropped", "retired"];
 // D-18's per-row safety-surface flag, plus the UNFILLED MARKER.

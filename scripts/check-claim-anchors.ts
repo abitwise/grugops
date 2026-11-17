@@ -115,6 +115,12 @@ const ROOT = process.env.CHECK_ROOT
   ? process.env.CHECK_ROOT
   : join(import.meta.dirname, "..");
 
+/**
+ * (Plan 43-01, D-25) The commit a retired row's mechanism must name: a backticked, lowercase hex token
+ * of 7 to 40 characters, standing alone between its backticks — git's short and full hash forms.
+ */
+export const RETIRED_COMMIT_RE = /`[0-9a-f]{7,40}`/;
+
 let FAILS = 0;
 const pass = (m: string): void => {
   process.stdout.write(`  PASS  ${m}\n`);
@@ -490,8 +496,32 @@ function main(): void {
   // A MISSING FILE IS NOT PROOF OF ABSENCE. A file that does not exist contains no text, so an
   // absence check over it would pass for every retired row naming it — including a row whose file
   // was renamed with the sentence still in it. It is refused by name instead.
+  //
+  // TWO REFUSALS ON THE ROW ITSELF, checked before the file is read:
+  //
+  //   * A SAFETY ROW CANNOT BE RETIRED. Retiring needs no lowered floor and leaves no disclosure, so
+  //     on a safety row it would take a `false` or `overstated` safety sentence off a public page
+  //     with no trace a reader can see. A safety claim leaves a page only through `dropped`.
+  //   * THE MECHANISM MUST NAME THE COMMIT. D-25 asks for a reason and the commit: the last commit
+  //     where the text stood, written as a backticked hex token, so `git show <commit>:<file>` still
+  //     shows what was withdrawn. Whether that commit exists is not checked here; a mirror has no git.
   let absenceChecks = 0;
   for (const claim of retired.slice().sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    if (claim.kind === "safety") {
+      fail(
+        `${claim.id} is \`kind: safety\` and \`status: retired\`. A safety claim leaves a page only ` +
+          `through \`dropped\`, with the generated disclosure at its anchor: retiring it would take a ` +
+          `safety sentence off a public page with no lowered floor and nothing in its place`,
+      );
+    }
+    if (!RETIRED_COMMIT_RE.test(claim.mechanism)) {
+      fail(
+        `${claim.id} is \`status: retired\` and its \`mechanism\` names no commit. A retired row ` +
+          `gives the reason and the last commit where the text stood, as a backticked hex token of ` +
+          `7 to 40 characters (for example \`a067c6e\`), so the withdrawn text can still be read ` +
+          `with \`git show <commit>:${claim.file}\`. The mechanism reads: ${JSON.stringify(claim.mechanism)}`,
+      );
+    }
     const target = join(ROOT, claim.file);
     if (!existsSync(target)) {
       fail(
