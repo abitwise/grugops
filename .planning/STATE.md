@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 43
 current_phase_name: Story and layered docs
 status: executing
-stopped_at: Completed 43-01-PLAN.md
-last_updated: "2026-11-17T22:45:44.344Z"
+stopped_at: Completed 43-02-PLAN.md
+last_updated: "2026-11-17T23:08:23.370Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 43 execution started
-state_head: 72b12519d801fa4537037c0af837715230a1c024
+state_head: 7b9f8915eb05cbce93cb1bc8e502ac77217650c0
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 165
-  completed_plans: 151
+  completed_plans: 152
   percent: 89
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43 (Story and layered docs) — EXECUTING
-Plan: 2 of 15
+Plan: 3 of 15
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 43 execution started
 
@@ -869,6 +869,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 42 P06 | 7 min | 2 tasks | 5 files |
 | Phase 42 P07 | 37 min | 3 tasks | 12 files |
 | Phase 43 P01 | 35 min | 3 tasks | 8 files |
+| Phase 43 P02 | 20 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2425,6 +2426,8 @@ Recent decisions affecting current work:
 - [Phase 42]: The docs/skills.md host table is rendered by renderHostRow from HOST_SKILL_DIRS and pinned row by row; its recommended set is pinned both ways to readRoleSkills
 - [Phase 43]: D-25 retired claim status: row and id stay, text and anchor checked absent from the named file; refused on safety rows, on a missing file, and without a backticked 7-40 hex commit in the mechanism
 - [Phase 43]: The retired obligations exemption lives in check-claim-anchors beside dropped; readRegistry only admits the value
+- [Phase 43]: 43-02: shippedDocs (install/kit-source.ts) is the one declaration of the shipped user docs; it returns null, never a partial list, on any read failure or past MAX_WALK_ENTRIES
+- [Phase 43]: 43-02: every shipped page under docs/ joins both claim gates by existing; each plan that writes or deletes one moves PUBLIC_DOCS_SCAN_COUNT and BANNED_CLAIM_SCAN_COUNT off the gates' refusals, and the test mirrors need no edit
 
 ### Pending Todos
 
@@ -2767,8 +2770,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-17T22:45:42.790Z
-Stopped at: Completed 43-01-PLAN.md
+Last session: 2026-11-17T23:08:21.824Z
+Stopped at: Completed 43-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
