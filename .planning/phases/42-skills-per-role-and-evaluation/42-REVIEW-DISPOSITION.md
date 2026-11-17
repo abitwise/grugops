@@ -3,6 +3,38 @@ phase: 42
 review: 42-REVIEW.md
 titles: json
 findings:
+  - id: WR-01
+    severity: warning
+    disposition: open
+    title: "The link-following containment (review WR-02 fix) skips the default `skills/` folder and per-skill links, so the same escape still gives `found`"
+  - id: WR-02
+    severity: warning
+    disposition: open
+    title: "A `skills` path whose real location cannot be read is refused with a false reason (\"absolute, has a .. segment or leaves the plugin folder\")"
+  - id: WR-03
+    severity: warning
+    disposition: open
+    title: "CR-01 runs `claude --version` with the home folder as cwd and does not check that the folder exists; a missing HOME now reads \"could not be run (ENOENT)\""
+  - id: WR-04
+    severity: warning
+    disposition: open
+    title: "The CR-02 reader-stderr test depends on the length of TMPDIR: it fails when the scratch path is long"
+  - id: IN-01
+    severity: info
+    disposition: open
+    title: "The WR-01 override rule drops user folders that the set variable cannot move"
+  - id: IN-02
+    severity: info
+    disposition: open
+    title: "On Windows a rooted PATH entry with no drive (`\\tools`) counts as absolute but depends on the current drive"
+  - id: IN-03
+    severity: info
+    disposition: open
+    title: "A stray role name is cut before it is cleaned"
+  - id: IN-04
+    severity: info
+    disposition: open
+    title: "The disposition docs still say each row \"is written as `pending (named human):`\""
   - id: CR-01
     severity: critical
     disposition: fixed
@@ -11,38 +43,6 @@ findings:
     severity: critical
     disposition: fixed
     title: "Terminal escape injection: role-file bytes and reader stderr are printed raw by `--check`"
-  - id: WR-01
-    severity: warning
-    disposition: fixed
-    title: "A set `CLAUDE_CONFIG_DIR` (or another override) still yields `ok ... found` from the default user and plugin folders"
-  - id: WR-02
-    severity: warning
-    disposition: fixed
-    title: "`folderInsidePlugin` containment is lexical only, so a symlink inside the plugin escapes it (T-42-05 overstated)"
-  - id: WR-03
-    severity: warning
-    disposition: fixed
-    title: "One non-kebab `.md` in the roles folder disables the whole declared-skills section, with a misleading reason"
-  - id: WR-04
-    severity: warning
-    disposition: fixed
-    title: "On Windows an npm-installed `claude.cmd` is reported as \"`claude` was not found on PATH\""
-  - id: IN-01
-    severity: info
-    disposition: open
-    title: "Unreachable `unread` branch in `doctorDeclaredSkills`"
-  - id: IN-02
-    severity: info
-    disposition: open
-    title: "The version regex accepts a pre-release as meeting the floor"
-  - id: IN-03
-    severity: info
-    disposition: open
-    title: "docs/skills.md and install/README.md state the doctor's output slightly wrong"
-  - id: IN-04
-    severity: info
-    disposition: open
-    title: "The user-facing line claims \"the role-frontmatter guard reports this\""
   - id: IN-05
     severity: info
     disposition: open
@@ -51,27 +51,27 @@ findings:
     severity: info
     disposition: open
     title: "Output-cap overflow is reported as \"could not be run\""
-open: 6
+open: 10
 total: 12
-recorded: 2026-11-17T10:13:28.582Z
+recorded: 2026-11-17T12:29:59.049Z
 ---
 
 # Phase 42: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | 42-REVIEW-FIX.md |
-| CR-02 | critical | fixed | 42-REVIEW-FIX.md |
-| WR-01 | warning | fixed | 42-REVIEW-FIX.md |
-| WR-02 | warning | fixed | 42-REVIEW-FIX.md |
-| WR-03 | warning | fixed | 42-REVIEW-FIX.md |
-| WR-04 | warning | fixed | 42-REVIEW-FIX.md |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
+| WR-03 | warning | open | - |
+| WR-04 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
-| IN-05 | info | open | - |
-| IN-06 | info | open | - |
+| CR-01 | critical | fixed | 42-REVIEW-FIX.md (not in the current review) |
+| CR-02 | critical | fixed | 42-REVIEW-FIX.md (not in the current review) |
+| IN-05 | info | open | - (not in the current review) |
+| IN-06 | info | open | - (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
