@@ -9,11 +9,11 @@ findings:
     title: "`claude --version` can execute a binary planted in the target repository (Windows cwd search; relative PATH entries on POSIX)"
   - id: CR-02
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Terminal escape injection: role-file bytes and reader stderr are printed raw by `--check`"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A set `CLAUDE_CONFIG_DIR` (or another override) still yields `ok ... found` from the default user and plugin folders"
   - id: WR-02
     severity: warning
@@ -21,11 +21,11 @@ findings:
     title: "`folderInsidePlugin` containment is lexical only, so a symlink inside the plugin escapes it (T-42-05 overstated)"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "One non-kebab `.md` in the roles folder disables the whole declared-skills section, with a misleading reason"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "On Windows an npm-installed `claude.cmd` is reported as \"`claude` was not found on PATH\""
   - id: IN-01
     severity: info
@@ -51,9 +51,9 @@ findings:
     severity: info
     disposition: open
     title: "Output-cap overflow is reported as \"could not be run\""
-open: 12
+open: 8
 total: 12
-recorded: 2026-11-16T22:34:56.365Z
+recorded: 2026-11-17T10:13:20.181Z
 ---
 
 # Phase 42: Code Review Disposition
@@ -61,11 +61,11 @@ recorded: 2026-11-16T22:34:56.365Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | CR-01 | critical | open | - |
-| CR-02 | critical | open | - |
-| WR-01 | warning | open | - |
+| CR-02 | critical | fixed | 42-REVIEW-FIX.md |
+| WR-01 | warning | fixed | 42-REVIEW-FIX.md |
 | WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
+| WR-03 | warning | fixed | 42-REVIEW-FIX.md |
+| WR-04 | warning | fixed | 42-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
