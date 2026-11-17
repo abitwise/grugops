@@ -2625,7 +2625,8 @@ function claudePluginSkillFolders(home: string, env: ReadonlyMap<string, string>
 /**
  * The absolute folders the `skills` field of `<installPath>/.claude-plugin/plugin.json` adds (a path or a list of
  * paths), or why they could not be listed. No manifest, or no `skills` field, adds none. A path that is absolute, has a
- * `..` segment or resolves outside installPath is refused before anything under it is looked at (T-42-05).
+ * `..` segment or resolves outside installPath, links followed, is refused before anything under it is looked at
+ * (T-42-05).
  */
 function manifestSkillFolders(key: string, installPath: string): string[] | string {
   const manifest = join(installPath, ".claude-plugin", "plugin.json");
@@ -2647,7 +2648,7 @@ function manifestSkillFolders(key: string, installPath: string): string[] | stri
   for (const p of paths) {
     const inside = folderInsidePlugin(installPath, p);
     if (inside === null) {
-      return `the manifest of plugin ${key} names the skills path ${JSON.stringify(p)}, which is absolute, has a .. segment or leaves the plugin folder`;
+      return `the manifest of plugin ${key} names the skills path ${JSON.stringify(p)}, which is absolute, has a .. segment or leaves the plugin folder (links followed)`;
     }
     out.push(inside);
   }
@@ -2655,10 +2656,11 @@ function manifestSkillFolders(key: string, installPath: string): string[] | stri
 }
 
 /**
- * `p` resolved under `installPath`, or null when it is empty, absolute, has a `..` segment or lands outside it. The
- * first test refuses a path that is absolute or drive-qualified under either path flavor, whatever the host, and the
- * last is a containment test on the result relative() just computed; install/path-spelling-census.test.ts rule (f)
- * classifies both with this reason.
+ * `p` resolved under `installPath`, or null when it is empty, absolute, has a `..` segment or lands outside it, links
+ * followed. The first test refuses a path that is absolute or drive-qualified under either path flavor, whatever the
+ * host; the other two are containment tests on a result relative() just computed, first lexical, then over the real
+ * paths user-file.ts realPathThroughExisting gives (review WR-02: a link inside the plugin to a folder outside it is
+ * refused); install/path-spelling-census.test.ts rule (f) classifies them with this reason.
  */
 function folderInsidePlugin(installPath: string, p: string): string | null {
   if (p === "" || isAbsolute(p) || /^[A-Za-z]:/.test(p) || p.startsWith("/") || p.startsWith("\\")) return null;
@@ -2667,6 +2669,13 @@ function folderInsidePlugin(installPath: string, p: string): string | null {
   const abs = resolve(installPath, ...segments.filter((x) => x !== "" && x !== "."));
   const rel = relative(installPath, abs);
   if (rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) return null;
+  // Links followed (review WR-02): skillFileIn's stat follows them, so the containment is decided on real paths too. A
+  // path whose real location cannot be read (a dangling link, a component that cannot be searched) is refused.
+  const realBase = realPathThroughExisting(installPath);
+  const realAbs = realPathThroughExisting(abs);
+  if (realBase === null || realAbs === null) return null;
+  const realRel = relative(realBase, realAbs);
+  if (realRel === ".." || realRel.startsWith(".." + sep) || isAbsolute(realRel)) return null;
   return abs;
 }
 

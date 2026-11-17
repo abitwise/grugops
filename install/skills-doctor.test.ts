@@ -306,6 +306,31 @@ describe("--check: a skill a Claude Code plugin installs is found through instal
     expect(only(c.stdout, MISSING_CLAUDE), c.stdout).toEqual([]);
   });
 
+  // Review WR-02 of phase 42: the containment test follows links, as the stat that reads the skill does. A link on
+  // Windows needs a privilege, so these cases run on POSIX.
+  it.skipIf(process.platform === "win32")("a manifest `skills` path that is a link out of the plugin is refused: `not checked`, never `found`", () => {
+    const row = installedWithPlantedSkill();
+    const installPath = plantClaudePlugin(homePlugins(row), { manifest: { skills: "lnk" } });
+    const outside = join(row.home, "outside");
+    mkdirSync(join(outside, "ui-ux-pro-max"), { recursive: true });
+    writeFileSync(join(outside, "ui-ux-pro-max", "SKILL.md"), SKILL_TEXT);
+    symlinkSync(outside, join(installPath, "lnk"));
+    const c = check(row);
+    const nc = only(c.stdout, NOT_CHECKED_CLAUDE);
+    expect(nc.length, c.stdout).toBe(1);
+    expect(nc[0], c.stdout).toContain(PLUGIN_KEY);
+    expect(only(c.stdout, FOUND_CLAUDE), c.stdout).toEqual([]);
+  });
+
+  it.skipIf(process.platform === "win32")("a manifest `skills` path through a link that stays inside the plugin is followed and found", () => {
+    const row = installedWithPlantedSkill();
+    const installPath = plantClaudePlugin(homePlugins(row), { manifest: { skills: "lnk" }, skillRel: "real" });
+    symlinkSync(join(installPath, "real"), join(installPath, "lnk"));
+    const c = check(row);
+    expect(only(c.stdout, FOUND_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, NOT_CHECKED_CLAUDE), c.stdout).toEqual([]);
+  });
+
   it("an absolute manifest `skills` path is refused: `not checked` naming the plugin key", () => {
     const row = installedWithPlantedSkill();
     const installPath = plantClaudePlugin(homePlugins(row), { manifest: {} });

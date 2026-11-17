@@ -347,7 +347,9 @@ const ABSOLUTENESS_OWNERS = ["canonicalPathSpelling", "isRecordedAbsolute"];
 // CLAUDE_CODE_PLUGIN_CACHE_DIR value and each recorded installPath) ask isRecordedAbsolute, so they are not sites.
 // 12 -> 13 on 2026-11-17 (phase 42 review fix CR-01): host-tools.ts findClaudeOnPath asks the injected flavor's
 // isAbsolute of each PATH entry, so `--check` searches only absolute entries for `claude`. It is classified below.
-const DERIVED_ABSOLUTENESS_COUNT = 13;
+// 13 -> 14 on 2026-11-17 (phase 42 review fix WR-02): install.ts folderInsidePlugin gains a second containment test,
+// an isAbsolute over relative() of the two real paths realPathThroughExisting gives, under its classified key.
+const DERIVED_ABSOLUTENESS_COUNT = 14;
 
 /** An absoluteness site outside the owners, with its reason. Keyed by file, scope and kind. */
 const CLASSIFIED_ABSOLUTENESS = new Map<string, string>([
@@ -365,7 +367,7 @@ const CLASSIFIED_ABSOLUTENESS = new Map<string, string>([
   ],
   [
     "install.ts:folderInsidePlugin:isAbsolute",
-    "two calls (phase 42 gate fix, plan 42-08, T-42-05): isAbsolute(p) in the refusal of a plugin manifest's `skills` path, a relativity rule of the manifest format like isLedgerPath's (P9), and isAbsolute over relative(installPath, abs) (P7), a containment test on a result node:path just computed; neither reads a recorded path that install records or compares",
+    "three calls (phase 42 gate fix, plan 42-08, T-42-05; review fix WR-02): isAbsolute(p) in the refusal of a plugin manifest's `skills` path, a relativity rule of the manifest format like isLedgerPath's (P9), and isAbsolute over relative(installPath, abs) and over relative() of their two real paths (P7), containment tests on a result node:path just computed; none reads a recorded path that install records or compares",
   ],
   [
     "install.ts:folderInsidePlugin:drive-letter pattern",
