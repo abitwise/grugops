@@ -558,11 +558,14 @@ export interface ExeLookupFlavor {
 
 /**
  * What findClaudeOnPath found. `relativeSkipped` says whether PATH had an entry that is empty or not absolute, which the
- * lookup skips, so a "not found" line can say so.
+ * lookup skips, so a "not found" line can say so. A `shim` is a Windows `claude` file that is not a `.com` or `.exe`
+ * program, such as the `claude.cmd` an npm install puts on PATH: the user's shell runs it, but Node does not without a
+ * shell (review WR-04).
  */
 export type ClaudeLookup =
   | { readonly kind: "absent"; readonly relativeSkipped: boolean }
-  | { readonly kind: "program"; readonly path: string; readonly relativeSkipped: boolean };
+  | { readonly kind: "program"; readonly path: string; readonly relativeSkipped: boolean }
+  | { readonly kind: "shim"; readonly path: string; readonly relativeSkipped: boolean };
 
 /** The extensions Windows tries when PATHEXT is unset. */
 const DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC";
@@ -576,8 +579,9 @@ const DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC";
  * PATH is split on `flavor.delimiter`, and only an entry `flavor.isAbsolute` accepts is searched; an empty or relative
  * entry is skipped. Under POSIX the candidate is `<entry>/claude`. Under Windows (`flavor.sep` is a backslash) an entry
  * may be wrapped in double quotes, which are taken off, and the candidates are `<entry>\claude<ext>` for each extension
- * of `pathext` (PATHEXT, or Windows' default list) in order; only `.com` and `.exe` are programs Node runs without a
- * shell, so another extension is passed over. The first candidate `isFile` accepts is returned. The flavor is a parameter
+ * of `pathext` (PATHEXT, or Windows' default list) in order, as the Windows shell tries them. The first candidate `isFile`
+ * accepts is returned: a `program` when its extension is `.com` or `.exe`, which Node runs without a shell, and a `shim`
+ * otherwise (review WR-04), because that file is what the user's shell runs and a later `claude.exe` is not. The flavor is a parameter
  * so a test proves the Windows half on any host; a live Windows run is `UNKNOWN - verify`.
  */
 export function findClaudeOnPath(
@@ -601,9 +605,10 @@ export function findClaudeOnPath(
       continue;
     }
     for (const ext of exts) {
-      if (windows && ext.toLowerCase() !== ".com" && ext.toLowerCase() !== ".exe") continue;
       const p = flavor.join(entry, "claude" + ext);
-      if (isFile(p)) return { kind: "program", path: p, relativeSkipped };
+      if (!isFile(p)) continue;
+      const program = !windows || ext.toLowerCase() === ".com" || ext.toLowerCase() === ".exe";
+      return { kind: program ? "program" : "shim", path: p, relativeSkipped };
     }
   }
   return { kind: "absent", relativeSkipped };

@@ -2820,8 +2820,9 @@ function executableFile(p: string): boolean {
  *
  * Review CR-01: `claude` is found by findClaudeOnPath in the absolute PATH entries only and run by that absolute path,
  * with `home` (the user's home folder) as its working folder, so neither the target nor a relative PATH entry can
- * supply it. On Windows the child also gets NoDefaultCurrentDirectoryInExePath=1. The Windows half was not run on a
- * Windows host: `UNKNOWN - verify`.
+ * supply it. On Windows the child also gets NoDefaultCurrentDirectoryInExePath=1. Review WR-04: on Windows an
+ * npm-installed `claude` is usually a `.cmd` shim, which Node does not run without a shell, so that line says the shim
+ * was found and not run. The Windows half was not run on a Windows host: `UNKNOWN - verify`.
  */
 function doctorClaudeVersion(home: string): void {
   const notChecked = (reason: string): void => docReport("advisory", printableLine(`the Claude Code version was not checked: ${reason}`));
@@ -2829,6 +2830,12 @@ function doctorClaudeVersion(home: string): void {
   if (onPath.kind === "absent") {
     const skipped = onPath.relativeSkipped ? "; PATH entries that are empty or not absolute are not searched" : "";
     notChecked(`\`claude\` was not found on PATH${skipped}`);
+    return;
+  }
+  if (onPath.kind === "shim") {
+    // Review WR-04: on Windows the first `claude` on PATH can be a `.cmd` shim (an npm install puts one there). It is
+    // there and the user runs it, but this check runs no shell, so it says so instead of "not found".
+    notChecked(`the first \`claude\` on PATH is ${onPath.path}, which is not a .com or .exe program; this check runs no shell, so it did not run it`);
     return;
   }
   const r = spawnSync(onPath.path, ["--version"], {

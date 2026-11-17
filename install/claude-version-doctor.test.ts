@@ -318,6 +318,26 @@ describe("findClaudeOnPath: the PATH walk under each path flavor (review CR-01 a
   });
 });
 
+describe("findClaudeOnPath: a Windows `claude` that is not a program (review WR-04 of phase 42)", () => {
+  const winFiles = (...ps: string[]): ((p: string) => boolean) => {
+    const set = new Set(ps.map((x) => x.toLowerCase()));
+    return (p) => set.has(p.toLowerCase());
+  };
+
+  it("an npm `claude.cmd` shim first on PATH is reported as found but not a program, never as absent (UNKNOWN - verify on a Windows host)", () => {
+    const isFile = winFiles("C:\\npm\\claude.cmd", "C:\\npm\\claude.ps1", "C:\\tools\\claude.exe");
+    expect(findClaudeOnPath("C:\\npm", undefined, win32, isFile)).toEqual({ kind: "shim", path: "C:\\npm\\claude.CMD", relativeSkipped: false });
+    // The shim is what the user's shell runs, so a claude.exe in a later entry is not run in its place.
+    expect(findClaudeOnPath("C:\\npm;C:\\tools", undefined, win32, isFile)).toEqual({ kind: "shim", path: "C:\\npm\\claude.CMD", relativeSkipped: false });
+    // A claude.exe in an earlier entry is the program the shell runs.
+    expect(findClaudeOnPath("C:\\tools;C:\\npm", undefined, win32, isFile)).toEqual({ kind: "program", path: "C:\\tools\\claude.EXE", relativeSkipped: false });
+  });
+
+  it("posix has no shim: a `claude` file is the program", () => {
+    expect(findClaudeOnPath("/opt/bin", undefined, posix, (p) => p === "/opt/bin/claude")).toEqual({ kind: "program", path: "/opt/bin/claude", relativeSkipped: false });
+  });
+});
+
 describe("install/README.md tells the truth about the probe (plan 42-05, D-27)", () => {
   const flat = README.replace(/\s+/g, " ");
 
