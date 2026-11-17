@@ -46,7 +46,7 @@ checkout on `main`. No worktree was created.
 
 **Files modified:** `install/install.ts`, `install/install.js`, `install/skills-doctor.test.ts`
 **Commit:** a6e05b94
-**Status:** fixed: requires human verification (a condition change)
+**Status:** fixed: requires human verification (a condition change); confirmed by Olger (42-UAT test 4, 2026-11-17)
 **Applied fix:** When any `userOverrides` variable of the host is set, the default user folders are left out of the `found` computation. For Claude Code the default plugin root is left out too, unless `CLAUDE_CODE_PLUGIN_CACHE_DIR` is set. The line then falls through to the existing `not checked` line that names the variable. Project folders are always checked. This applies to all overrides, including `XDG_CONFIG_HOME` for OpenCode, which drops all of OpenCode's user folders. That is conservative, per the HostSkillDirs contract.
 **Regression tests:** four cases. CLAUDE_CONFIG_DIR with the skill in `~/.claude/skills`. CLAUDE_CONFIG_DIR with the skill in a default-root plugin. CLAUDE_CONFIG_DIR plus CLAUDE_CODE_PLUGIN_CACHE_DIR, which is still found. CODEX_HOME with the skill in `~/.agents/skills`. The three `not checked` cases failed before the fix.
 
@@ -54,7 +54,7 @@ checkout on `main`. No worktree was created.
 
 **Files modified:** `install/install.ts`, `install/install.js`, `install/skills-doctor.test.ts`, `install/path-spelling-census.test.ts`
 **Commit:** da717415
-**Status:** fixed: requires human verification (a containment rule change)
+**Status:** fixed: requires human verification (a containment rule change); confirmed by Olger (42-UAT test 4, 2026-11-17)
 **Applied fix:** After the lexical test, containment is checked again over the real paths from `realPathThroughExisting` (the existing user-file.ts helper, which resolves the deepest existing ancestor). A path whose real location cannot be read, such as a dangling link, is refused. The refusal text now ends "(links followed)". The doc comments, including T-42-05's "resolves outside installPath", now say links are followed. path-spelling-census moved DERIVED_ABSOLUTENESS_COUNT from 13 to 14 under the existing `folderInsidePlugin:isAbsolute` key, whose reason now says three calls. The threat-register text in `.planning/` was not edited.
 **Regression tests:** a `skills: "lnk"` link out of the plugin gives `not checked` and never `found`; it failed before the fix. A link that stays inside the plugin is still found. Both are skipped on win32 because links need a privilege there.
 
@@ -62,7 +62,7 @@ checkout on `main`. No worktree was created.
 
 **Files modified:** `install/install.ts`, `install/install.js`, `install/skills-doctor.test.ts`
 **Commit:** 59697a77
-**Status:** fixed: requires human verification (new advisory wording)
+**Status:** fixed: requires human verification (new advisory wording); confirmed by Olger (42-UAT test 4, 2026-11-17)
 **Applied fix:** `readDeclaredSkills` no longer rejects the report for a non-kebab role stem. It collects such stems as `strays`, from refusals and from a skill's declaring roles, and drops them from the roles of each skill. A skill that only stray files declare is dropped. Each stray prints one advisory line: `declared skills of <name>.md in the roles folder not checked: the file name is not a role name, which is lower-case letters, digits and hyphens`. All other skills are still checked.
 **Regression tests:** a `NOTES.md` with no frontmatter, and a `Designer_Copy.md` with a valid frontmatter that declares the skill. Each gives one stray line, the designer skill line still prints, and no `declared skills not checked` line appears. Both failed before the fix.
 

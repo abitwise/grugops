@@ -84,7 +84,7 @@ created: "2026-11-17"
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | — | T-42-SC | No package was added: `package.json` and the lockfile are unchanged in `76c6d8a6..HEAD` | Plan register (all 8 plans) | 2026-11-16 |
-| R-42-01 | T-42-15 | A `claude` in an earlier absolute PATH folder runs, as it would for any `claude` the user types; the README says what runs. Since CR-01, empty, `.` and relative PATH entries are not searched | Planner text only (42-05-PLAN.md:211, 42-05-SUMMARY.md:213); named-human acceptance pending | 2026-11-16 |
+| R-42-01 | T-42-15 | A `claude` in an earlier absolute PATH folder runs, as it would for any `claude` the user types; the README says what runs. Since CR-01, empty, `.` and relative PATH entries are not searched | Planner text only (42-05-PLAN.md:211, 42-05-SUMMARY.md:213); accepted by Olger (42-UAT test 5, 2026-11-17) | 2026-11-16 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -105,4 +105,4 @@ created: "2026-11-17"
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-17 (R-42-01 awaits a named human's acceptance)
+**Approval:** verified 2026-11-17; R-42-01 accepted by Olger (42-UAT test 5, 2026-11-17)
