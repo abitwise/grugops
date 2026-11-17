@@ -1163,3 +1163,61 @@ describe("check-claim-anchors: a retired row (D-25) passes only while its text a
     expect(r.out).toMatch(/1 CHECK\(S\) FAILED/);
   });
 });
+
+describe("check-claim-anchors: the retired arm's refusals (D-25)", () => {
+  it("refuses a retired `kind: safety` row by name: a safety claim leaves a page only through `dropped`", () => {
+    const { root } = retiredMirror({ kind: "safety", dependsOn: "open_pr" });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).not.toMatch(/could not be parsed/);
+    expect(r.out).toMatch(/FAIL .*C-28-003.*safety.*only through `dropped`/);
+  });
+
+  it("refuses a retired row naming a file that does not exist: a missing file is not proof of absence", () => {
+    const { root } = retiredMirror({ file: "GONE.md" });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/FAIL .*C-28-003.*GONE\.md.*does not exist/);
+  });
+
+  it("refuses a retired row whose mechanism names no backticked 7-40 character hex commit", () => {
+    for (const mechanism of [
+      "Withdrawn by the docs rewrite.",
+      "Withdrawn; the text last stood at a067c6e, not backticked.",
+      "Withdrawn; too short a token: `a067c6`.",
+      `Withdrawn; too long a token: \`${"a".repeat(41)}\`.`,
+      "Withdrawn; not hex: `a067c6g`.",
+    ]) {
+      const { root } = retiredMirror({ mechanism });
+      const r = run(root);
+      expect(r.status, mechanism).toBe(1);
+      expect(r.out, mechanism).toMatch(/FAIL .*C-28-003.*commit/);
+    }
+  });
+
+  it("admits a full 40-character commit token as well as a short one", () => {
+    const { root } = retiredMirror({
+      mechanism: "Withdrawn; the text last stood at `a067c6e6e7eb2090eb44b47a0d001e622248402e`.",
+    });
+    const r = run(root);
+    expect(r.out).toMatch(/ALL CHECKS PASSED/);
+    expect(r.status).toBe(0);
+  });
+
+  it("needs no disposition and no finding_id: a withdrawn sentence is not a finding", () => {
+    // retiredMirror() writes neither key, so the green run IS the exemption; this case names it.
+    const { root } = retiredMirror();
+    const r = run(root);
+    expect(r.status).toBe(0);
+    expect(r.out).not.toMatch(/disposition/);
+    expect(r.out).not.toMatch(/finding_id/);
+  });
+
+  it("judges a retired row against its NAMED file only: the same text in another file does not fail it", () => {
+    const { root } = retiredMirror();
+    writeAt(root, "OTHER.md", `# Another page\n\n${RETIRED_TEXT}\n`);
+    const r = run(root);
+    expect(r.out).toMatch(/ALL CHECKS PASSED/);
+    expect(r.status).toBe(0);
+  });
+});

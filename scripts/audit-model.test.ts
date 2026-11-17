@@ -1050,6 +1050,17 @@ describe("audit-model: readRegistry", () => {
     expect(claims[0].status).toBe("dropped");
   });
 
+  it("ACCEPTS `status: retired` (D-25) with no disposition and no finding_id", () => {
+    // A retired claim is a withdrawn sentence, not a finding, so the parse asks for neither key.
+    // Whether its text really left the page is check-claim-anchors' question, one layer up.
+    const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { status: "retired" })));
+    const claims = readRegistry(dir).claims;
+    expect(claims.length).toBe(1);
+    expect(claims[0].status).toBe("retired");
+    expect(claims[0].disposition).toBe("");
+    expect(claims[0].findingId).toBe("");
+  });
+
   it("refuses a depends_on naming a floor outside SAFETY_FLOORS", () => {
     const dir = writeRegistryFixture(
       registryDoc(claimBlock("C-28-001", { kind: "safety", dependsOn: "vibes" })),
