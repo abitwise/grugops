@@ -505,3 +505,74 @@ describe("docs/skills.md: no recommended skill, pinned to the declarations, the 
     for (const command of ["/plugin install", "npm install", "npx ", "pip install"]) expect(page).not.toContain(command);
   });
 });
+
+// Phase 42 SKILL-02 (Nyquist): the evaluation record's structure, read from the record, not its judgment.
+describe("phase 42 SKILL-02 evaluation record structure", () => {
+  const CANDIDATES = ["superpowers", "code-simplifier", "feature-dev", "commit-commands", "frontend-design", "ui-ux-pro-max"];
+  const FLOORS = ["Merge", "Branching", "Planning authority", "Telemetry", "Network", "Runtime deps"];
+  /** A table cell may hold an escaped pipe (`\\|`), which is not a column break. */
+  const UNESCAPED_PIPE = /(?<!\\)\|/;
+  const VERDICT_CELL = /^`?(pass|fail|UNKNOWN - verify)`?(\s|$)/;
+
+  /** The evaluation record, found from the path docs/skills.md names in § How these were chosen. */
+  function evaluationText(): string {
+    const body = section(skillsDoc(), "How these were chosen");
+    const rel = [...body.matchAll(/`([^`\s]+-EVALUATION\.md)`/g)].map((m) => m[1] ?? "")[0];
+    expect(rel, "docs/skills.md names no *-EVALUATION.md record").toBeTruthy();
+    expect(existsSync(join(ROOT, rel as string)), rel).toBe(true);
+    return readFileSync(join(ROOT, rel as string), "utf8");
+  }
+
+  /** Every structural problem found in an evaluation record text; empty means the record is complete. */
+  function problems(text: string): string[] {
+    const out: string[] = [];
+    const matrix = section(text, "Whole-plugin matrix");
+    const rows = matrix.split("\n").filter((l) => l.startsWith("|"));
+    const header = (rows[0] ?? "").split(UNESCAPED_PIPE).map((c) => c.trim()).filter((c) => c !== "");
+    for (const f of FLOORS) if (!header.includes(f)) out.push(`matrix has no ${f} column`);
+    for (const c of CANDIDATES) {
+      if (!new RegExp(`\\b${c}\\b`).test(text)) out.push(`record never names ${c}`);
+      const row = rows.find((r) => r.split(UNESCAPED_PIPE)[1]?.trim() === c);
+      if (!row) {
+        out.push(`no whole-plugin row for ${c}`);
+        continue;
+      }
+      const cells = row.split(UNESCAPED_PIPE).map((x) => x.trim());
+      for (const f of FLOORS) {
+        const cell = cells[header.indexOf(f) + 1] ?? "";
+        if (!VERDICT_CELL.test(cell)) out.push(`${c}: ${f} cell has no pass/fail/UNKNOWN verdict`);
+      }
+    }
+    const decision = section(text, "Decision");
+    if (!/Ratified set[^\n]*: none\./.test(decision)) out.push("Decision does not record the ratified set as none");
+    const ratification = section(text, "Ratification");
+    if (!ratification.includes("ratify-none")) out.push("Ratification does not record ratify-none");
+    const triggers = section(text, "Revisit triggers");
+    if (!/bump a pin/.test(triggers)) out.push("no pin-bump revisit trigger");
+    if (!/security advisory/.test(triggers)) out.push("no security-advisory revisit trigger");
+    return out;
+  }
+
+  it("the evaluation record names all six candidates with a verdict for each of the six floors", () => {
+    expect(problems(evaluationText())).toEqual([]);
+  });
+
+  it("the record decides that none is recommended and names both revisit triggers", () => {
+    const text = evaluationText();
+    expect(section(text, "Decision")).toMatch(/Ratified set[^\n]*: none\./);
+    expect(section(text, "Ratification")).toContain("ratify-none");
+    const triggers = section(text, "Revisit triggers");
+    expect(triggers).toContain("bump a pin");
+    expect(triggers).toContain("security advisory");
+  });
+
+  it("the check goes red on a record missing a candidate row, a floor verdict, or a trigger", () => {
+    const text = evaluationText();
+    const noRow = text.split("\n").filter((l) => !l.startsWith("| commit-commands | `")).join("\n");
+    expect(problems(noRow).join("\n")).toContain("commit-commands");
+    const noFloor = text.replace(/^(\| frontend-design \| `pass`[^|]*\| )`?pass`?/m, "$1 -");
+    expect(problems(noFloor).length).toBeGreaterThan(0);
+    const noTrigger = text.replace("An upstream security advisory", "An upstream notice");
+    expect(problems(noTrigger)).toContain("no security-advisory revisit trigger");
+  });
+});
