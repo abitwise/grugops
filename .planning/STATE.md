@@ -5,11 +5,11 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 43
 current_phase_name: Story and layered docs
 status: planning
-stopped_at: Phase 42 complete, ready to plan Phase 43
-last_updated: "2026-11-17T12:53:17.077Z"
+stopped_at: Phase 43 context gathered
+last_updated: "2026-11-17T16:19:56.633Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 42 complete, transitioned to Phase 43
-state_head: cd6e8b951cfc88114bad1918bf3e177b1bc9d870
+state_head: b3183b8431d4161870ca9e7544438d82fa046f55
 progress:
   total_phases: 9
   completed_phases: 8
@@ -2764,9 +2764,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-17T13:05:00.000Z
-Stopped at: Phase 42 complete, ready to plan Phase 43
-Resume file: None
+Last session: 2026-11-17T16:19:55.235Z
+Stopped at: Phase 43 context gathered
+Resume file: .planning/phases/43-story-and-layered-docs/43-CONTEXT.md
 
 ## Operator Next Steps
 
