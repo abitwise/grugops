@@ -25,7 +25,7 @@ checkout on `main`. No worktree was created.
 
 ## Fixed Issues
 
-### CR-01: `claude --version` can execute a binary planted in the target repository
+### CR-01: `claude --version` can execute a binary planted in the target repository (Windows cwd search; relative PATH entries on POSIX)
 
 **Files modified:** `install/host-tools.ts`, `install/host-tools.js`, `install/install.ts`, `install/install.js`, `install/installer-paths.test-support.ts`, `install/claude-version-doctor.test.ts`, `install/agents-record.test.ts`, `install/path-spelling-census.test.ts`, `install/README.md`
 **Commit:** d705749f
@@ -50,7 +50,7 @@ checkout on `main`. No worktree was created.
 **Applied fix:** When any `userOverrides` variable of the host is set, the default user folders are left out of the `found` computation. For Claude Code the default plugin root is left out too, unless `CLAUDE_CODE_PLUGIN_CACHE_DIR` is set. The line then falls through to the existing `not checked` line that names the variable. Project folders are always checked. This applies to all overrides, including `XDG_CONFIG_HOME` for OpenCode, which drops all of OpenCode's user folders. That is conservative, per the HostSkillDirs contract.
 **Regression tests:** four cases. CLAUDE_CONFIG_DIR with the skill in `~/.claude/skills`. CLAUDE_CONFIG_DIR with the skill in a default-root plugin. CLAUDE_CONFIG_DIR plus CLAUDE_CODE_PLUGIN_CACHE_DIR, which is still found. CODEX_HOME with the skill in `~/.agents/skills`. The three `not checked` cases failed before the fix.
 
-### WR-02: `folderInsidePlugin` containment is lexical only, so a symlink inside the plugin escapes it
+### WR-02: `folderInsidePlugin` containment is lexical only, so a symlink inside the plugin escapes it (T-42-05 overstated)
 
 **Files modified:** `install/install.ts`, `install/install.js`, `install/skills-doctor.test.ts`, `install/path-spelling-census.test.ts`
 **Commit:** da717415
