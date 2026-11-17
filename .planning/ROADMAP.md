@@ -120,7 +120,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
 - [x] **Phase 39: Role machinery: engineer levels, Tech Lead and Designer roles, skills key** - a Tech Lead scores and pre-plans, one engineer role yields junior/mid/senior adapters on Claude Code, a Designer role exists, roles can declare skills, and every role and adapter set stays derived (completed 2026-10-31)
 - [x] **Phase 40: Plain-language role rewrite** - caveman retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English within 67,383 bytes, every load-bearing rule kept, "do less" rules added (completed 2026-11-04)
 - [x] **Phase 41: Orchestrator flow guidance** - the Orchestrator reads running work from disk, refills free capacity on each completion, knows when to start a fresh session, and the same guidance works on all six hosts (completed 2026-11-15)
-- [ ] **Phase 42: Skills per role and evaluation** - each role names the skills it may use with a fallback, third-party skills are evaluated and recommended only as optional pinned installs, and the doctor warns on a missing skill
+- [x] **Phase 42: Skills per role and evaluation** - each role names the skills it may use with a fallback, third-party skills are evaluated and recommended only as optional pinned installs, and the doctor warns on a missing skill (completed 2026-11-17)
 - [ ] **Phase 43: Story and layered docs** - the README tells the new story, the main docs explain how grugops works with worked examples, and every agent and skill has a generated, freshness-gated reference page
 
 **Dependencies:** 35 is independent and may run in parallel with 36. 36 → 37 → 38. 37 → 39, so 39 may run in parallel with 38. 39 → 40 → 41. 42 needs both 39 and 40. 43 needs every other phase.
@@ -708,7 +708,7 @@ Gap wave 11 *(blocked on gap wave 10)*
   4. Frontend/UI and the Designer treat design-system files in the user's repo as user artifacts they read but never write (SKILL-04, amended 42-04)
   5. `install --check` warns, and never fails or installs anything, when a role declares a skill that is not found (SKILL-05)
 
-**Plans**: 8/8 plans executed
+**Plans**: 8/8 plans complete
 
 Wave 1 *(one record plan, one code plan and one text plan, disjoint files)*
 - [x] 42-01-PLAN.md — the SKILL-02 evaluation record: six candidates against six floors, as install units and per sub-skill, full-SHA pins, proposals and revisit triggers (SKILL-02)
@@ -760,7 +760,7 @@ Wave 5
 | 39. Role machinery: engineer levels, Tech Lead and Designer roles, skills key | v3.0 | 20/20 | Complete    | 2026-10-31 |
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
-| 42. Skills per role and evaluation | v3.0 | 8/8 | In Progress | - |
+| 42. Skills per role and evaluation | v3.0 | 8/8 | Complete    | 2026-11-17 |
 | 43. Story and layered docs | v3.0 | 0/TBD | Not started | - |
 
 ## Backlog

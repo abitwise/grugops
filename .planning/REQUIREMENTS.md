@@ -73,7 +73,7 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 ### Skills (SKILL)
 
 - [x] **SKILL-01**: "A role may declare skills with a built-in fallback checklist for when a skill is absent; the role-switch protocol tells non-Claude hosts how to find skills" (amended 42-04, 2026-11-16, by Olger)
-- [ ] **SKILL-02**: A written evaluation of superpowers, code-simplifier, feature-dev, commit-commands, frontend-design and ui-ux-pro-max against grugops's floors (merge, branching, planning authority, telemetry, network, runtime deps) decides which are recommended
+- [x] **SKILL-02**: A written evaluation of superpowers, code-simplifier, feature-dev, commit-commands, frontend-design and ui-ux-pro-max against grugops's floors (merge, branching, planning authority, telemetry, network, runtime deps) decides which are recommended
 - [x] **SKILL-03**: "A written evaluation recommends no third-party skill; one rule, stated once, says grugops rules outrank any skill text a user installs" (amended 42-04, 2026-11-16, by Olger)
 - [x] **SKILL-04**: "Frontend/UI and the Designer treat design-system files in the user's repo as user artifacts they read but never write" (amended 42-04, 2026-11-16, by Olger)
 - [x] **SKILL-05**: `install --check` warns (never fails, never installs) when a role declares a skill that is not found
@@ -157,7 +157,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RUN-05 | Phase 41 | Complete |
 | RUN-06 | Phase 41 | Complete |
 | SKILL-01 | Phase 42 | Complete |
-| SKILL-02 | Phase 42 | Pending |
+| SKILL-02 | Phase 42 | Complete |
 | SKILL-03 | Phase 42 | Complete |
 | SKILL-04 | Phase 42 | Complete |
 | SKILL-05 | Phase 42 | Complete |
