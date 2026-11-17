@@ -113,7 +113,27 @@ export const CLAIM_KINDS = ["safety", "architecture", "install"];
 // replaced — the obligation is discharged by a stronger mechanism, not waived. Reaching `dropped`
 // additionally requires lowering a real floor in the live config, which needs a second key the
 // config cannot carry.
-export const CLAIM_STATUSES = ["true", "overstated", "false", "dropped"];
+//
+// ── PHASE 43 (plan 43-01, D-25): THE FIFTH VALUE, `retired`. ─────────────────────────────────────
+//
+// A claim is `retired` when the docs WITHDREW it: a rewrite took the sentence off the page on
+// purpose. The row stays, its id stays and its fenced verbatim stays, so the id is never reused and
+// the record still shows what was once claimed. What leaves is the text and its anchor, and
+// scripts/check-claim-anchors.ts checks that BOTH are ABSENT from the file the row names, the inverse
+// of the presence check it runs on an unanchorable row. A missing file is refused rather than read as
+// proof of absence.
+//
+// WHY IT IS NOT `dropped`. A dropped claim is still on the page in another form: a lowered floor
+// made it false, and generated disclosure text stands at its anchor. A retired claim had no floor
+// lowered under it and nothing replaces it; the sentence is simply gone. Using `dropped` for a
+// withdrawn sentence would need an anchor and a disclosure for a claim that no longer exists, and
+// the gate rightly refuses `dropped` on any row that rests on no floor.
+//
+// THE OBLIGATIONS. `retired` is exempt from the disposition / finding_id obligations, because a
+// withdrawn sentence is not a finding left standing; the obligation those fields serve (no undecided
+// claim stays in a shipped document) is met by the absence check. A retired row still counts in its
+// kind's cardinality.
+export const CLAIM_STATUSES = ["true", "overstated", "false", "dropped", "retired"];
 // D-18's per-row safety-surface flag, plus the UNFILLED MARKER.
 //
 // WHY THE MARKER IS A LEGAL PARSE VALUE AND STILL A GATE FAILURE. The register ships in this plan

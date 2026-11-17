@@ -156,8 +156,24 @@ function main() {
                 `${e.message}`);
         }
     }
-    const docs = anchoredDocs(claims);
-    const unanchorable = claims.filter((c) => !c.file.endsWith(MARKDOWN_SUFFIX));
+    // ── (Plan 43-01, D-25) RETIRED ROWS ARE PARTITIONED OUT BEFORE THE BIJECTION ───────────────
+    //
+    // A retired row's text and anchor have LEFT the file it names, so it owes that file no anchor and
+    // no verbatim block. It is held by the absence arm further down instead. Filtering here, at the
+    // input to `anchoredDocs`, means a file whose only rows are retired is not scanned for a bijection
+    // it no longer owes, and every check between here and the absence arm sees only standing rows.
+    // The id-contiguity check at the end still reads ALL rows, retired ones included: a retired row is
+    // kept, never deleted, and its id stays in the sequence.
+    const retired = claims.filter((c) => c.status === "retired");
+    const standing = claims.filter((c) => c.status !== "retired");
+    const retiredIdsByFile = new Map();
+    for (const c of retired) {
+        const ids = retiredIdsByFile.get(c.file) ?? new Set();
+        ids.add(c.id);
+        retiredIdsByFile.set(c.file, ids);
+    }
+    const docs = anchoredDocs(standing);
+    const unanchorable = standing.filter((c) => !c.file.endsWith(MARKDOWN_SUFFIX));
     if (docs.length === 0) {
         // Refused rather than passed over. A registry with no markdown rows satisfies the bijection
         // vacuously — zero anchors equal zero rows, perfectly — while proving nothing at all.
@@ -219,13 +235,17 @@ function main() {
     // the ORDERING probe edge is answered by the shape rather than by a sort of the inputs. The
     // REPORT is sorted by id so two runs over one tree produce byte-identical output.
     for (const doc of docs) {
-        const expected = claims
+        const expected = standing
             .filter((c) => c.file === doc)
             .map((c) => c.id)
             .sort();
         const found = (anchorsPerDoc.get(doc) ?? []).map((a) => a.id).sort();
         const missing = expected.filter((id) => !found.includes(id));
-        const unexpected = found.filter((id) => !expected.includes(id));
+        // An anchor left behind for a row RETIRED FROM THIS FILE is reported once, by the absence arm,
+        // with the retired-specific remedy. Any other unregistered anchor is still `unexpected` here,
+        // including a retired id anchored in a file its row does NOT name.
+        const retiredHere = retiredIdsByFile.get(doc) ?? new Set();
+        const unexpected = found.filter((id) => !expected.includes(id) && !retiredHere.has(id));
         if (missing.length > 0 || unexpected.length > 0) {
             fail(`the anchor↔row bijection does not hold for ${doc} — missing [${missing.join(", ")}], ` +
                 `unexpected [${unexpected.join(", ")}]. \`missing\` is a registry row with no anchor in ` +
@@ -247,7 +267,7 @@ function main() {
         if (scan === undefined)
             continue; // the document is missing; already reported above
         const anchors = new Map((anchorsPerDoc.get(doc) ?? []).map((a) => [a.id, a]));
-        for (const claim of claims.filter((c) => c.file === doc).slice().sort((a, b) => (a.id < b.id ? -1 : 1))) {
+        for (const claim of standing.filter((c) => c.file === doc).slice().sort((a, b) => (a.id < b.id ? -1 : 1))) {
             const anchor = anchors.get(claim.id);
             if (anchor === undefined)
                 continue; // already reported by the bijection above
@@ -396,6 +416,42 @@ function main() {
                 `row in the SAME commit as the file change`);
         }
     }
+    // ── (Plan 43-01, D-25) THE RETIRED ROWS: ABSENCE-checked, the inverse of the loop above ────────
+    //
+    // A retired row records a claim the docs withdrew. Its text and its anchor must be GONE from the
+    // file it names, and both are checked on raw bytes with no normalizing transform, like every other
+    // comparison in this gate. The row is judged against its NAMED file only: the same sentence in a
+    // different file is that file's business, not this row's.
+    //
+    // A MISSING FILE IS NOT PROOF OF ABSENCE. A file that does not exist contains no text, so an
+    // absence check over it would pass for every retired row naming it — including a row whose file
+    // was renamed with the sentence still in it. It is refused by name instead.
+    let absenceChecks = 0;
+    for (const claim of retired.slice().sort((a, b) => (a.id < b.id ? -1 : 1))) {
+        const target = join(ROOT, claim.file);
+        if (!existsSync(target)) {
+            fail(`${claim.id} is \`status: retired\` and names \`${claim.file}\`, which does not exist at ` +
+                `${target}. A missing file is not proof that the retired text left it: name the file the ` +
+                `text was withdrawn from, as it exists on this tree`);
+            continue;
+        }
+        const bytes = readFileSync(target);
+        absenceChecks += 1;
+        if (bytes.includes(Buffer.from(claim.verbatim, "utf8"))) {
+            fail(`${claim.file}: ${claim.id} is \`status: retired\`, but its verbatim text is still in the ` +
+                `file. A retired claim's text leaves the page; the row stays so the id is never reused.\n` +
+                `        registry (${Buffer.byteLength(claim.verbatim, "utf8")} byte(s)): ` +
+                `${JSON.stringify(claim.verbatim)}\n` +
+                `        Remove the sentence from the file, or set the row back to a measured status if ` +
+                `the claim still stands`);
+        }
+        const scan = scans.get(claim.file) ?? scanAnchoredDocument(bytes.toString("utf8"));
+        for (const anchor of scan.anchors.filter((a) => a.id === claim.id)) {
+            fail(`${claim.file}:${anchor.index + 1}: ${claim.id} is \`status: retired\`, but its anchor ` +
+                `\`<!-- claim: ${claim.id} -->\` is still in the file. A retired claim's anchor leaves ` +
+                `with its text; a new sentence at that place gets a new id and a new row`);
+        }
+    }
     // ── D-17: every status was MEASURED, and every non-true one was DECIDED ────────────────────
     for (const claim of claims) {
         // The blank predicate is audit-model.isBlank's closed set, ASKED rather than re-derived
@@ -416,6 +472,12 @@ function main() {
         // the obligation protects against cannot occur. Reaching `dropped` at all requires a floor
         // lowered in the live configuration AND agreement in both directions, which is refused above.
         if (claim.status === "dropped")
+            continue;
+        // (Plan 43-01, D-25) A `retired` ROW IS EXEMPT TOO, for the same reason in a different shape.
+        // The obligations keep an undecided claim from STANDING in a shipped document; a retired claim's
+        // text has been withdrawn, and the absence arm above checks that it is gone. A withdrawn sentence
+        // is not a finding, so it carries no finding id.
+        if (claim.status === "retired")
             continue;
         if (!DISPOSITIONS.includes(claim.disposition)) {
             fail(`${claim.id} is \`${claim.status}\` and carries \`disposition\` "${claim.disposition}", ` +
@@ -472,10 +534,11 @@ function main() {
         pass(`${claims.length} registry row(s) parsed from ${headingShaped} claim-heading-shaped line(s), ` +
             `${headingShapedFenced} of them EXCLUDED as fenced documentation (the denominator: a claim ` +
             `list that shortened would be short against this number rather than against nothing) — ` +
-            `${claims.length - unanchorable.length} markdown, ` +
+            `${standing.length - unanchorable.length} markdown, ` +
             `${unanchorable.length} unanchorable (a non-markdown file cannot carry an HTML comment, so ` +
             `its POSITION is unheld; its verbatim text is still PRESENCE-checked against the file's ` +
-            `bytes); anchors found: ${perDoc}; ${comparisons} verbatim comparison(s) performed, all ` +
+            `bytes), ${retired.length} retired (D-25: the row and id stay, and its text and anchor ` +
+            `were checked ABSENT from the file it names, ${absenceChecks} absence check(s)); anchors found: ${perDoc}; ${comparisons} verbatim comparison(s) performed, all ` +
             `byte-identical, of which ${droppedCount} compared against GENERATED disclosure text for a ` +
             `\`dropped\` row (D-18: the anchor and the row survive a drop, so the bijection and the id ` +
             `contiguity below still hold over them); all ${SAFETY_FLOORS.length} safety floor(s) mapped`);
